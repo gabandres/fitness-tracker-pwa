@@ -3,7 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Signed-in user with a verified Gmail address.
+    // ─── Actors ──────────────────────────────────────────────────
     function isGmailUser() {
       return request.auth != null
           && request.auth.token.email_verified == true
@@ -14,6 +14,7 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == uid;
     }
 
+    // ─── Log schema ─────────────────────────────────────────────
     function isValidLog(data) {
       return data.keys().hasOnly(['weight', 'calories', 'timestamp'])
           && data.weight is number
@@ -25,21 +26,73 @@ service cloud.firestore {
           && data.timestamp is timestamp;
     }
 
-    function isValidProfile(data) {
-      return data.keys().hasOnly(['email', 'createdAt', 'lastSeenAt'])
+    // ─── Profile schema ─────────────────────────────────────────
+    //
+    // A user profile has two states:
+    //   1. Initial (just after sign-in, before onboarding):
+    //      { email, createdAt, lastSeenAt, profileCompleted: false }
+    //   2. Completed (after onboarding submit):
+    //      adds heightIn, age, sex, activityLevel, targetPaceLbsPerWeek,
+    //      and optional goalWeightLbs; profileCompleted flips to true.
+    //
+    // Both are accepted; the client UI decides which flow to show.
+    function hasProfileBase(data) {
+      return data.keys().hasAll(['email', 'createdAt', 'lastSeenAt', 'profileCompleted'])
           && data.email is string
           && data.createdAt is timestamp
-          && data.lastSeenAt is timestamp;
+          && data.lastSeenAt is timestamp
+          && data.profileCompleted is bool;
     }
 
-    // Per-user root: the UID in the path IS the authorization.
+    function isValidProfileInitial(data) {
+      return data.keys().hasOnly(['email', 'createdAt', 'lastSeenAt', 'profileCompleted'])
+          && hasProfileBase(data)
+          && data.profileCompleted == false;
+    }
+
+    function hasValidActivityLevel(data) {
+      return data.activityLevel == 'sedentary'
+          || data.activityLevel == 'light'
+          || data.activityLevel == 'moderate'
+          || data.activityLevel == 'active'
+          || data.activityLevel == 'very_active';
+    }
+
+    function hasValidPace(data) {
+      return data.targetPaceLbsPerWeek == 0.5
+          || data.targetPaceLbsPerWeek == 1.0
+          || data.targetPaceLbsPerWeek == 1.5
+          || data.targetPaceLbsPerWeek == 2.0;
+    }
+
+    function isValidProfileCompleted(data) {
+      return data.keys().hasOnly([
+              'email', 'createdAt', 'lastSeenAt', 'profileCompleted',
+              'heightIn', 'age', 'sex', 'activityLevel',
+              'targetPaceLbsPerWeek', 'goalWeightLbs'
+          ])
+          && hasProfileBase(data)
+          && data.profileCompleted == true
+          && data.heightIn is number && data.heightIn >= 40 && data.heightIn <= 96
+          && data.age is number && data.age >= 13 && data.age <= 120
+          && (data.sex == 'male' || data.sex == 'female')
+          && hasValidActivityLevel(data)
+          && hasValidPace(data)
+          && (!('goalWeightLbs' in data.keys()) ||
+              (data.goalWeightLbs is number && data.goalWeightLbs > 0 && data.goalWeightLbs < 1000));
+    }
+
+    function isValidProfile(data) {
+      return isValidProfileInitial(data) || isValidProfileCompleted(data);
+    }
+
+    // ─── Per-user subtree ───────────────────────────────────────
     match /users/{uid} {
       allow read:   if isOwner(uid);
       allow create: if isOwner(uid) && isGmailUser() && isValidProfile(request.resource.data);
       allow update: if isOwner(uid) && isValidProfile(request.resource.data);
-      // No delete on profile — handled via app flow if ever needed.
+      // No delete on profile.
 
-      // Each user's own daily log subcollection.
       match /dailyLogs/{logId} {
         allow read:   if isOwner(uid);
         allow create: if isOwner(uid) && isValidLog(request.resource.data);
@@ -48,7 +101,7 @@ service cloud.firestore {
       }
     }
 
-    // Deny everything outside the users/{uid} subtree.
+    // Deny everything outside the user subtree.
     match /{document=**} {
       allow read, write: if false;
     }

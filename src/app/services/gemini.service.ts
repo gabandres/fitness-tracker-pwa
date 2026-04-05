@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { GoogleGenAI } from '@google/genai';
 import { environment } from '../../environments/environment';
-import { DailyLog } from './firebase.service';
+import { DailyLog, ProfileFields } from './firebase.service';
 import { TdeeResult } from './tdee-calculator.service';
 
 /**
@@ -27,8 +27,8 @@ export class GeminiService {
 
   /**
    * Stream a coaching response to the user's question. The 14-day
-   * log + computed TDEE are injected as the system instruction so
-   * every answer is grounded in real data.
+   * log, profile, and computed TDEE are all injected into the system
+   * instruction so every answer is grounded in the user's real data.
    *
    * Yields string chunks as they arrive from the model.
    */
@@ -36,8 +36,9 @@ export class GeminiService {
     question: string,
     logs: DailyLog[],
     tdee: TdeeResult,
+    profile: ProfileFields | null,
   ): AsyncGenerator<string, void, void> {
-    const systemInstruction = this.buildSystemInstruction(logs, tdee);
+    const systemInstruction = this.buildSystemInstruction(logs, tdee, profile);
 
     const stream = await this.client.models.generateContentStream({
       model: this.model,
@@ -54,33 +55,57 @@ export class GeminiService {
     }
   }
 
-  private buildSystemInstruction(logs: DailyLog[], tdee: TdeeResult): string {
+  private buildSystemInstruction(
+    logs: DailyLog[],
+    tdee: TdeeResult,
+    profile: ProfileFields | null,
+  ): string {
     const lines: string[] = [];
     lines.push('You are a precise, data-driven personal fitness consultant.');
     lines.push('');
     lines.push(
-      "The user is tracking a cut and shares their rolling 14-day fitness log with you below. " +
-      "Ground every answer in this data — cite specific numbers, dates, and trends. " +
-      "Do not invent values, do not give generic advice that ignores the log, " +
-      "and keep responses concise (3–6 short paragraphs at most). Use markdown formatting. " +
-      "Tone: a knowledgeable coach who respects the user's time.",
+      "The user shares their profile, rolling 14-day fitness log, and current " +
+      "computed TDEE values below. Ground every answer in this data — cite " +
+      "specific numbers, dates, and trends. Do not invent values, do not give " +
+      "generic advice that ignores the log, and keep responses concise (3–6 " +
+      "short paragraphs at most). Use markdown formatting. Tone: a knowledgeable " +
+      "coach who respects the user's time.",
     );
     lines.push('');
     lines.push(
-      "If there are fewer than 14 days of data, the TDEE calculation is PROVISIONAL — " +
-      "say so and be careful about strong claims.",
+      "If the TDEE source is 'formula' or 'seed', the estimate is PROVISIONAL — " +
+      "say so when making strong claims. Measured mode (14+ days of real data) " +
+      "is the only source that reflects the user's actual metabolism.",
     );
     lines.push('');
+
+    // ── Profile ─────────────────────────────────────────────────
+    if (profile) {
+      lines.push('## User profile');
+      lines.push(`- Height: ${this.formatHeight(profile.heightIn)}`);
+      lines.push(`- Age: ${profile.age}`);
+      lines.push(`- Sex: ${profile.sex}`);
+      lines.push(`- Activity level: ${profile.activityLevel.replace('_', ' ')}`);
+      lines.push(`- Target cut pace: ${profile.targetPaceLbsPerWeek} lb/week`);
+      if (profile.goalWeightLbs != null) {
+        lines.push(`- Goal weight: ${profile.goalWeightLbs} lbs`);
+      }
+      lines.push('');
+    }
+
+    // ── Computed values ────────────────────────────────────────
     lines.push('## Current computed values');
     lines.push(`- True TDEE: ${tdee.trueTdee} kcal/day`);
-    lines.push(`- New daily target: ${tdee.newDailyTarget} kcal/day (for a 1.5 lb/week cut)`);
+    lines.push(`- Daily target: ${tdee.newDailyTarget} kcal/day`);
     lines.push(
       `- 14-day weight change: ${tdee.weightChangeTrend} lbs ` +
       "(positive = lost weight, negative = gained)",
     );
+    lines.push(`- TDEE source: ${tdee.source}`);
     lines.push(`- Logs available: ${logs.length} days`);
     lines.push('');
 
+    // ── Log table ──────────────────────────────────────────────
     if (logs.length > 0) {
       lines.push('## Daily log (oldest → newest)');
       lines.push('| Date | Weight (lbs) | Calories |');
@@ -95,5 +120,12 @@ export class GeminiService {
     }
 
     return lines.join('\n');
+  }
+
+  /** 68 -> "5'8\"" */
+  private formatHeight(totalInches: number): string {
+    const ft = Math.floor(totalInches / 12);
+    const inches = totalInches % 12;
+    return `${ft}'${inches}"`;
   }
 }

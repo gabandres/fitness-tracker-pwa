@@ -206,10 +206,21 @@ export class ConsultationComponent {
 
     try {
       const logs = await this.firebase.getRecentLogs(14);
-      const tdee = this.calculator.calculate(logs);
+      const profile = this.firebase.profile();
+      const profileFields = profile?.profileCompleted
+        ? {
+            heightIn: profile.heightIn!,
+            age: profile.age!,
+            sex: profile.sex!,
+            activityLevel: profile.activityLevel!,
+            targetPaceLbsPerWeek: profile.targetPaceLbsPerWeek!,
+            goalWeightLbs: profile.goalWeightLbs,
+          }
+        : null;
+      const tdee = this.calculator.calculate(logs, profileFields);
 
       let buffer = '';
-      for await (const chunk of this.gemini.askAboutMyData(q, logs, tdee)) {
+      for await (const chunk of this.gemini.askAboutMyData(q, logs, tdee, profileFields)) {
         buffer += chunk;
         this.rawResponse.set(buffer);
         // Re-render markdown on every chunk. marked is synchronous in its

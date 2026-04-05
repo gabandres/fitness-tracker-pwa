@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import {
   Firestore,
   collection,
@@ -6,23 +6,22 @@ import {
   addDoc,
   getDoc,
   setDoc,
+  updateDoc,
   getDocs,
   query,
   orderBy,
   limit,
-  serverTimestamp,
   Timestamp,
 } from '@angular/fire/firestore';
 import { Auth } from '@angular/fire/auth';
 
-/** Document as persisted in Firestore. */
+// ─── Log types ──────────────────────────────────────────────────
 export interface DailyLogDoc {
   weight: number;
   calories: number;
   timestamp: Timestamp;
 }
 
-/** Shape the rest of the app works with — plain Date instead of Timestamp. */
 export interface DailyLog {
   id?: string;
   weight: number;
@@ -30,43 +29,68 @@ export interface DailyLog {
   date: Date;
 }
 
+// ─── Profile types ──────────────────────────────────────────────
+export type Sex = 'male' | 'female';
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
+export type CutPace = 0.5 | 1.0 | 1.5 | 2.0;
+
+/**
+ * Profile field values collected during onboarding. These drive the
+ * Mifflin-St Jeor seed estimate used before the user has 14 days of
+ * real data, and the target calculation thereafter.
+ */
+export interface ProfileFields {
+  heightIn: number;            // total inches, 40–96
+  age: number;                 // 13–120
+  sex: Sex;
+  activityLevel: ActivityLevel;
+  targetPaceLbsPerWeek: CutPace;
+  goalWeightLbs?: number;      // optional
+}
+
+/** Full user profile doc as stored in Firestore. */
+export interface UserProfile extends Partial<ProfileFields> {
+  email: string;
+  createdAt: Timestamp;
+  lastSeenAt: Timestamp;
+  profileCompleted: boolean;
+}
+
 /**
  * All Firestore I/O is scoped to the currently signed-in user's
- * UID subtree at `users/{uid}/dailyLogs`. Methods throw if called
- * while unauthenticated — the UI is responsible for only rendering
- * components that use this service while a user is signed in.
+ * subtree at `users/{uid}`. Methods throw if called while
+ * unauthenticated — the UI is responsible for gating.
  */
 @Injectable({ providedIn: 'root' })
 export class FirebaseService {
   private readonly firestore = inject(Firestore);
   private readonly auth = inject(Auth);
 
+  private readonly _profile = signal<UserProfile | null>(null);
+  readonly profile = this._profile.asReadonly();
+  /** True once the user has submitted onboarding. Drives the main gate. */
+  readonly profileCompleted = computed(() => this._profile()?.profileCompleted === true);
+
   private requireUid(): string {
     const uid = this.auth.currentUser?.uid;
-    if (!uid) {
-      throw new Error('FirebaseService called while unauthenticated.');
-    }
+    if (!uid) throw new Error('FirebaseService called while unauthenticated.');
     return uid;
   }
 
   private logsCollection() {
-    const uid = this.requireUid();
-    return collection(this.firestore, 'users', uid, 'dailyLogs');
+    return collection(this.firestore, 'users', this.requireUid(), 'dailyLogs');
   }
 
   private userDoc() {
-    const uid = this.requireUid();
-    return doc(this.firestore, 'users', uid);
+    return doc(this.firestore, 'users', this.requireUid());
   }
 
   /**
    * Idempotent profile upsert. Call on every sign-in:
-   *   - First time: creates the users/{uid} doc with email + createdAt + lastSeenAt
-   *   - Subsequent times: bumps lastSeenAt, leaves createdAt intact
+   *   - First time:      creates users/{uid} with profileCompleted=false
+   *   - Subsequent times: updateDoc bumps lastSeenAt, leaves everything else alone
    *
-   * Uses two separate paths because Firestore rules validate the
-   * schema strictly (exactly the keys we allow) on both create and
-   * update, so we can't pass an optional createdAt on update.
+   * Always populates the local profile signal with the latest state.
    */
   async ensureUserProfile(): Promise<void> {
     const user = this.auth.currentUser;
@@ -77,24 +101,53 @@ export class FirebaseService {
     const now = Timestamp.now();
 
     if (!snap.exists()) {
-      await setDoc(ref, {
+      const initial: UserProfile = {
         email: user.email ?? '',
         createdAt: now,
         lastSeenAt: now,
-      });
+        profileCompleted: false,
+      };
+      await setDoc(ref, initial);
+      this._profile.set(initial);
     } else {
-      // Update path — preserve the existing createdAt by re-writing it
-      // alongside the bumped lastSeenAt so rules see the full schema.
-      const existing = snap.data() as { createdAt: Timestamp; email: string };
-      await setDoc(ref, {
-        email: user.email ?? existing.email,
-        createdAt: existing.createdAt,
-        lastSeenAt: now,
-      });
+      await updateDoc(ref, { lastSeenAt: now });
+      const existing = snap.data() as UserProfile;
+      this._profile.set({ ...existing, lastSeenAt: now });
     }
   }
 
-  /** Write a new log entry for the current user. */
+  /** Clear the local profile signal on sign-out. */
+  clearProfile(): void {
+    this._profile.set(null);
+  }
+
+  /**
+   * Submit (or update) the user's completed profile. Always sets
+   * profileCompleted to true. Rules enforce all range checks.
+   */
+  async saveProfile(fields: ProfileFields): Promise<void> {
+    const current = this._profile();
+    if (!current) throw new Error('No profile loaded.');
+
+    const ref = this.userDoc();
+    const patch: Partial<UserProfile> = {
+      heightIn: fields.heightIn,
+      age: fields.age,
+      sex: fields.sex,
+      activityLevel: fields.activityLevel,
+      targetPaceLbsPerWeek: fields.targetPaceLbsPerWeek,
+      profileCompleted: true,
+      lastSeenAt: Timestamp.now(),
+    };
+    if (fields.goalWeightLbs != null) {
+      patch.goalWeightLbs = fields.goalWeightLbs;
+    }
+
+    await updateDoc(ref, patch);
+    this._profile.set({ ...current, ...patch } as UserProfile);
+  }
+
+  // ─── Daily logs ────────────────────────────────────────────────
   async addLog(weight: number, calories: number): Promise<void> {
     await addDoc(this.logsCollection(), {
       weight,
@@ -103,10 +156,6 @@ export class FirebaseService {
     });
   }
 
-  /**
-   * Fetch the most recent N logs, newest-first from Firestore, then
-   * reversed to oldest-first for the calculator. Default N = 14.
-   */
   async getRecentLogs(days = 14): Promise<DailyLog[]> {
     const q = query(this.logsCollection(), orderBy('timestamp', 'desc'), limit(days));
     const snap = await getDocs(q);

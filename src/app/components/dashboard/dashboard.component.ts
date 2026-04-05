@@ -151,7 +151,20 @@ export class DashboardComponent implements OnInit {
   protected readonly logs = signal<DailyLog[]>([]);
   protected readonly loading = signal(false);
 
-  protected readonly tdee = computed<TdeeResult>(() => this.calculator.calculate(this.logs()));
+  protected readonly tdee = computed<TdeeResult>(() => {
+    const profile = this.firebase.profile();
+    const fields = profile?.profileCompleted
+      ? {
+          heightIn: profile.heightIn!,
+          age: profile.age!,
+          sex: profile.sex!,
+          activityLevel: profile.activityLevel!,
+          targetPaceLbsPerWeek: profile.targetPaceLbsPerWeek!,
+          goalWeightLbs: profile.goalWeightLbs,
+        }
+      : null;
+    return this.calculator.calculate(this.logs(), fields);
+  });
 
   protected readonly currentWeight = computed<number | null>(() => {
     const list = this.logs();
