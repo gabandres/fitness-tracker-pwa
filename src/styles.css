@@ -3,8 +3,330 @@
 @source "./**/*.html";
 @source "./**/*.ts";
 
-/* Global styles */
+/* ──────────────────────────────────────────────────────────────
+   PERSONAL CALIBRATION LOG · design tokens
+   A hand-bound field journal made of warm paper and oxblood ink.
+   ────────────────────────────────────────────────────────────── */
+@theme {
+  --font-display: "Instrument Serif", "Cormorant Garamond", Georgia, serif;
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-paper: #f2ead7;
+  --color-paper-deep: #e5d9bc;
+  --color-paper-shadow: #d9cba7;
+  --color-ink: #1a1612;
+  --color-ink-soft: #3a322a;
+  --color-graphite: #6b5f52;
+  --color-graphite-soft: #8a7e6f;
+  --color-rule: #2a221b;
+  --color-blood: #8b1a1a;
+  --color-blood-deep: #5a1111;
+  --color-aged: #c4b590;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Base typography and paper surface
+   ────────────────────────────────────────────────────────────── */
 html, body {
-  @apply h-full bg-slate-950 text-slate-100 antialiased;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum" 1, "zero" 1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  /* Paper texture: two layered radial gradients + fine grain,
+     produces a warm, aged-paper feel without a bitmap asset. */
+  background-image:
+    radial-gradient(ellipse at 20% 0%, rgba(139, 26, 26, 0.04) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 100%, rgba(26, 22, 18, 0.05) 0%, transparent 60%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(26, 22, 18, 0.012) 0 1px,
+      transparent 1px 3px
+    );
+  background-attachment: fixed;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Component primitives
+   ────────────────────────────────────────────────────────────── */
+
+/* A thick, editorial horizontal rule with centered label. */
+.rule {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--color-graphite);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+}
+.rule::before,
+.rule::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-rule);
+}
+
+/* Tiny all-caps label in serif italic, journal-style. */
+.caption {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: var(--color-graphite);
+  text-transform: lowercase;
+}
+
+/* Small caps data label in mono. */
+.data-label {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-graphite);
+  font-weight: 500;
+}
+
+/* A "specimen card" — framed panel with crop marks at the corners. */
+.specimen {
+  position: relative;
+  border: 1px solid var(--color-rule);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.25),
+    rgba(255, 255, 255, 0) 40%
+  );
+}
+.specimen::before,
+.specimen::after,
+.specimen > .crop-tl,
+.specimen > .crop-tr,
+.specimen > .crop-bl,
+.specimen > .crop-br {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--color-ink);
+  pointer-events: none;
+}
+.specimen::before {
+  top: -5px;
+  left: -5px;
+  border-top: 1.5px solid var(--color-ink);
+  border-left: 1.5px solid var(--color-ink);
+}
+.specimen::after {
+  top: -5px;
+  right: -5px;
+  border-top: 1.5px solid var(--color-ink);
+  border-right: 1.5px solid var(--color-ink);
+}
+.specimen > .crop-bl {
+  bottom: -5px;
+  left: -5px;
+  border-bottom: 1.5px solid var(--color-ink);
+  border-left: 1.5px solid var(--color-ink);
+}
+.specimen > .crop-br {
+  bottom: -5px;
+  right: -5px;
+  border-bottom: 1.5px solid var(--color-ink);
+  border-right: 1.5px solid var(--color-ink);
+}
+
+/* Ruler edge — a row of tick marks. */
+.ruler-edge {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 10px;
+}
+.ruler-edge > span {
+  display: block;
+  width: 1px;
+  background: var(--color-ink);
+  opacity: 0.5;
+}
+.ruler-edge > span:nth-child(5n) {
+  height: 10px;
+  opacity: 0.9;
+}
+.ruler-edge > span:not(:nth-child(5n)) {
+  height: 5px;
+}
+
+/* Big instrument readout — the primary number on the page. */
+.readout {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: clamp(5rem, 22vw, 8rem);
+  line-height: 0.85;
+  letter-spacing: -0.03em;
+  color: var(--color-ink);
+  font-feature-settings: "tnum" 1;
+}
+
+/* Secondary instrument readout — mono, tabular, medium. */
+.readout-mono {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 1.875rem;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--color-ink);
+  font-feature-settings: "tnum" 1;
+}
+
+/* Field input: no box, just an underlined monospace entry,
+   like filling in a form in a field journal. */
+.field-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--color-rule);
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: var(--color-ink);
+  padding: 0.25rem 0 0.35rem;
+  letter-spacing: -0.01em;
+  transition: border-color 220ms ease, padding-left 220ms ease;
+  outline: none;
+  font-feature-settings: "tnum" 1;
+}
+.field-input::placeholder {
+  color: var(--color-aged);
+  font-style: italic;
+  font-family: var(--font-display);
+  font-weight: 400;
+}
+.field-input:focus {
+  border-bottom-color: var(--color-blood);
+  padding-left: 0.25rem;
+}
+/* Hide the spinner on number inputs — it looks cheap here. */
+.field-input[type="number"]::-webkit-outer-spin-button,
+.field-input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.field-input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Primary action: stamp-like, oxblood. */
+.stamp-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.875rem 1.25rem;
+  background: var(--color-blood);
+  color: var(--color-paper);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  border: 1px solid var(--color-blood-deep);
+  cursor: pointer;
+  transition: transform 140ms ease, background-color 140ms ease;
+  box-shadow: 2px 2px 0 0 var(--color-ink);
+}
+.stamp-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 0 var(--color-ink);
+}
+.stamp-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 0 var(--color-ink);
+}
+.stamp-btn:disabled {
+  background: var(--color-graphite-soft);
+  border-color: var(--color-graphite);
+  cursor: not-allowed;
+  box-shadow: 2px 2px 0 0 var(--color-graphite);
+}
+
+/* Secondary "tag" button — like a file-cabinet tag. */
+.tag-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  background: transparent;
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  border: 1px solid var(--color-rule);
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+.tag-btn:hover {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+/* Monogram — a little corner mark. */
+.monogram {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.125rem;
+  color: var(--color-blood);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* Rubber stamp annotation — rotated, worn edges */
+.stamp-mark {
+  font-family: var(--font-display);
+  font-size: 0.625rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-blood);
+  border: 1.5px solid var(--color-blood);
+  padding: 2px 6px;
+  display: inline-block;
+  transform: rotate(-4deg);
+  opacity: 0.72;
+}
+
+/* Staggered page-load reveal */
+@keyframes ink-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+    filter: blur(1px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+.ink-in {
+  animation: ink-in 520ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+.delay-1 { animation-delay: 80ms; }
+.delay-2 { animation-delay: 160ms; }
+.delay-3 { animation-delay: 240ms; }
+.delay-4 { animation-delay: 320ms; }
+.delay-5 { animation-delay: 400ms; }
+.delay-6 { animation-delay: 480ms; }
+
+/* Respect motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .ink-in { animation: none; }
+  * { transition: none !important; }
 }

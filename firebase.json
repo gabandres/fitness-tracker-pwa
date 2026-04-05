@@ -4,6 +4,7 @@
     "indexes": "firestore.indexes.json"
   },
   "hosting": {
+    "site": "macrolog",
     "public": "dist/fitness-tracker-pwa/browser",
     "ignore": [
       "firebase.json",

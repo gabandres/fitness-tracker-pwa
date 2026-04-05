@@ -9,23 +9,41 @@ type CopyStatus = 'idle' | 'copying' | 'copied' | 'error';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="w-full max-w-md mx-auto">
-      <button
-        type="button"
-        (click)="copyContext()"
-        [disabled]="status() === 'copying'"
-        class="w-full rounded-2xl bg-slate-900/70 hover:bg-slate-800 ring-1 ring-slate-800 hover:ring-emerald-700 py-3 text-sm font-semibold text-slate-200 transition flex items-center justify-center gap-2"
-      >
-        @switch (status()) {
-          @case ('copying') { <span>Building context…</span> }
-          @case ('copied')  { <span class="text-emerald-400">✓ Copied to clipboard</span> }
-          @case ('error')   { <span class="text-red-400">{{ errorMsg() }}</span> }
-          @default          { <span>Copy AI Context</span> }
-        }
-      </button>
-      <p class="text-[11px] text-slate-500 text-center mt-2">
-        Copies the last 14 days as Markdown so you can paste it into a chat.
-      </p>
+    <section>
+      <div class="rule">
+        <span>dispatch</span>
+      </div>
+
+      <div class="mt-6 flex items-center justify-between gap-6">
+        <div class="flex-1">
+          <p class="font-display text-xl leading-snug text-ink">
+            Send the last fortnight<br/>
+            <em class="text-blood">to the wire.</em>
+          </p>
+          <p class="caption mt-2 text-[11px]">
+            copies a markdown transcript of the rolling 14-day record
+            for pasting into correspondence.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          (click)="copyContext()"
+          [disabled]="status() === 'copying'"
+          class="tag-btn shrink-0"
+        >
+          @switch (status()) {
+            @case ('copying') { <span>wiring…</span> }
+            @case ('copied')  { <span>✓ copied</span> }
+            @case ('error')   { <span>retry</span> }
+            @default          { <span>copy ⎘</span> }
+          }
+        </button>
+      </div>
+
+      @if (status() === 'error') {
+        <p class="font-mono text-[10px] text-blood mt-3">{{ errorMsg() }}</p>
+      }
     </section>
   `,
 })
@@ -76,7 +94,6 @@ export class ContextBridgeComponent {
   }
 
   private formatDate(d: Date): string {
-    // ISO date (YYYY-MM-DD) — unambiguous for the AI to parse.
     return d.toISOString().slice(0, 10);
   }
 }
