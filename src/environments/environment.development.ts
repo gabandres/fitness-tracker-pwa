@@ -10,6 +10,6 @@ export const environment = {
   },
   gemini: {
     apiKey: 'AIzaSyAQ4evv79iwaktmYj-ZN9pD0RU5yT9s53E',
-    model: 'gemini-3.1-flash-preview',
+    model: 'gemini-flash-latest',
   },
 };

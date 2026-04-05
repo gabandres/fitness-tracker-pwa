@@ -12,6 +12,9 @@ export const environment = {
   // Free tier; no billing linked — worst case of leak is quota burn.
   gemini: {
     apiKey: 'AIzaSyAQ4evv79iwaktmYj-ZN9pD0RU5yT9s53E',
-    model: 'gemini-3.1-flash-preview',
+    // Moving alias — always tracks the latest stable flash model.
+    // Real options today include: gemini-2.5-flash (stable pin),
+    // gemini-3-flash-preview, gemini-3.1-flash-lite-preview, gemini-pro-latest.
+    model: 'gemini-flash-latest',
   },
 };
