@@ -1,0 +1,11 @@
+export const environment = {
+  production: true,
+  firebase: {
+    projectId: 'fitness-tracker-gb-1775407101',
+    appId: '1:647810616435:web:b0d7e4c6484c972a2c2e06',
+    storageBucket: 'fitness-tracker-gb-1775407101.firebasestorage.app',
+    apiKey: 'AIzaSyB6oYsAEinJ_-TQcMkKIIRuW5yqql8RxUs',
+    authDomain: 'fitness-tracker-gb-1775407101.firebaseapp.com',
+    messagingSenderId: '647810616435',
+  },
+};

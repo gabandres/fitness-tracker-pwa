@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+@source "./**/*.html";
+@source "./**/*.ts";
+
+/* Global styles */
+html, body {
+  @apply h-full bg-slate-950 text-slate-100 antialiased;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}

@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default test-mode-style rules: allow open access for 30 days.
+    // TODO: tighten to request.auth != null once auth is added.
+    match /{document=**} {
+      allow read, write: if request.time < timestamp.date(2026, 5, 5);
+    }
+  }
+}
