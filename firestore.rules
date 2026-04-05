@@ -3,16 +3,17 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Single-user personal tool: only signed-in Gmail accounts
-    // can read or write. Tighten further (e.g. hardcode the UID)
-    // if this ever gets shared.
+    // Signed-in user with a verified Gmail address.
     function isGmailUser() {
       return request.auth != null
           && request.auth.token.email_verified == true
           && request.auth.token.email.matches('.*@gmail[.]com$');
     }
 
-    // Schema for a dailyLog document.
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
     function isValidLog(data) {
       return data.keys().hasOnly(['weight', 'calories', 'timestamp'])
           && data.weight is number
@@ -24,14 +25,30 @@ service cloud.firestore {
           && data.timestamp is timestamp;
     }
 
-    match /dailyLogs/{logId} {
-      allow read:   if isGmailUser();
-      allow create: if isGmailUser() && isValidLog(request.resource.data);
-      allow update: if isGmailUser() && isValidLog(request.resource.data);
-      allow delete: if isGmailUser();
+    function isValidProfile(data) {
+      return data.keys().hasOnly(['email', 'createdAt', 'lastSeenAt'])
+          && data.email is string
+          && data.createdAt is timestamp
+          && data.lastSeenAt is timestamp;
     }
 
-    // Deny everything else by default.
+    // Per-user root: the UID in the path IS the authorization.
+    match /users/{uid} {
+      allow read:   if isOwner(uid);
+      allow create: if isOwner(uid) && isGmailUser() && isValidProfile(request.resource.data);
+      allow update: if isOwner(uid) && isValidProfile(request.resource.data);
+      // No delete on profile — handled via app flow if ever needed.
+
+      // Each user's own daily log subcollection.
+      match /dailyLogs/{logId} {
+        allow read:   if isOwner(uid);
+        allow create: if isOwner(uid) && isValidLog(request.resource.data);
+        allow update: if isOwner(uid) && isValidLog(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+    }
+
+    // Deny everything outside the users/{uid} subtree.
     match /{document=**} {
       allow read, write: if false;
     }

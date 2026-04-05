@@ -1,14 +1,15 @@
-import { ChangeDetectionStrategy, Component, computed, inject, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, viewChild } from '@angular/core';
 import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { DailyLedgerComponent } from './components/daily-ledger/daily-ledger.component';
-import { ContextBridgeComponent } from './components/context-bridge/context-bridge.component';
+import { ConsultationComponent } from './components/consultation/consultation.component';
 import { SignInComponent } from './components/sign-in/sign-in.component';
 import { AuthService } from './services/auth.service';
+import { FirebaseService } from './services/firebase.service';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [DashboardComponent, DailyLedgerComponent, ContextBridgeComponent, SignInComponent],
+  imports: [DashboardComponent, DailyLedgerComponent, ConsultationComponent, SignInComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="min-h-screen px-5 sm:px-8 py-8 sm:py-12">
@@ -40,7 +41,6 @@ import { AuthService } from './services/auth.service';
           </div>
         </header>
 
-        <!-- Ruler under masthead -->
         <div class="ruler-edge mt-5 ink-in delay-2">
           @for (_ of ticks; track $index) { <span></span> }
         </div>
@@ -63,7 +63,7 @@ import { AuthService } from './services/auth.service';
               <app-daily-ledger (logSaved)="onLogSaved()" />
             </div>
             <div class="ink-in delay-5">
-              <app-context-bridge />
+              <app-consultation />
             </div>
           } @else {
             <div class="ink-in delay-3">
@@ -92,6 +92,7 @@ import { AuthService } from './services/auth.service';
 })
 export class App {
   protected readonly auth = inject(AuthService);
+  private readonly firebase = inject(FirebaseService);
   private readonly dashboard = viewChild(DashboardComponent);
 
   protected readonly ticks = Array.from({ length: 45 });
@@ -102,6 +103,20 @@ export class App {
     const day = d.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
     return `${iso} · ${day}`;
   });
+
+  constructor() {
+    // On every transition to a signed-in state (fresh sign-in OR
+    // resumed session from localPersistence), upsert the user's
+    // profile doc so lastSeenAt is current and createdAt is set.
+    effect(() => {
+      const user = this.auth.user();
+      if (user) {
+        this.firebase.ensureUserProfile().catch((err) => {
+          console.error('ensureUserProfile failed:', err);
+        });
+      }
+    });
+  }
 
   protected onLogSaved(): void {
     this.dashboard()?.refresh();

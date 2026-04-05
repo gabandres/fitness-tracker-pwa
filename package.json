@@ -19,7 +19,9 @@
     "@angular/platform-browser": "^21.2.0",
     "@angular/router": "^21.2.0",
     "@angular/service-worker": "^21.2.0",
+    "@google/genai": "^1.48.0",
     "firebase": "^12.11.0",
+    "marked": "^17.0.6",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
