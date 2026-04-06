@@ -1,7 +1,6 @@
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
-import { onRequest } from "firebase-functions/v2/https";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenAI } from "@google/genai";
 
@@ -86,8 +85,9 @@ export const logWebhook = onRequest(
     }
 
     // Extract API key from header
+    const raw = req.headers["x-api-key"];
     const apiKey =
-      req.headers["x-api-key"] as string ??
+      (typeof raw === "string" ? raw : null) ??
       (req.headers.authorization?.startsWith("Bearer ")
         ? req.headers.authorization.slice(7)
         : null);

@@ -90,7 +90,7 @@ interface DayGroup {
                   </span>
                 }
                 <!-- Add meal to this day -->
-                <button type="button" (click)="startAddForDay(day.dateKey); $event.stopPropagation()"
+                <button type="button" (click)="startAdd(day.dateKey); $event.stopPropagation()"
                   class="tag-btn text-[9px] py-0.5 px-1.5" title="Add meal">+</button>
               </div>
             </div>
@@ -381,15 +381,7 @@ export class DailyLedgerComponent {
     this.status.set('idle');
   }
 
-  protected startAdd(): void {
-    this.resetForm();
-    this.mode.set('add');
-    this.editTarget.set(null);
-    this.addingForDay.set(null);
-    this.status.set('idle');
-  }
-
-  protected startAddForDay(dateKey: string): void {
+  protected startAdd(dateKey: string | null = null): void {
     this.resetForm();
     this.mode.set('add');
     this.editTarget.set(null);
@@ -511,8 +503,7 @@ export class DailyLedgerComponent {
       this.calories.set(result.calories);
       this.protein.set(result.protein);
       this.activePresetName.set(result.description);
-      this.photoStatus.set('done');
-      setTimeout(() => this.photoStatus.set('idle'), 3000);
+      this.photoStatus.set('idle');
     } catch (err) {
       this.photoStatus.set('error');
       this.photoError.set(err instanceof Error ? err.message : 'Photo analysis failed.');
@@ -527,6 +518,7 @@ export class DailyLedgerComponent {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
+        URL.revokeObjectURL(img.src);
         let { width, height } = img;
         if (width > maxDim || height > maxDim) {
           const scale = maxDim / Math.max(width, height);
@@ -539,12 +531,14 @@ export class DailyLedgerComponent {
         const ctx = canvas.getContext('2d');
         if (!ctx) { reject(new Error('Canvas not supported')); return; }
         ctx.drawImage(img, 0, 0, width, height);
-        // Extract base64 without the data:image/jpeg;base64, prefix.
         const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
         const base64 = dataUrl.split(',')[1];
         resolve(base64);
       };
-      img.onerror = () => reject(new Error('Failed to load image'));
+      img.onerror = () => {
+        URL.revokeObjectURL(img.src);
+        reject(new Error('Failed to load image'));
+      };
       img.src = URL.createObjectURL(file);
     });
   }

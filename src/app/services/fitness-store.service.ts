@@ -164,7 +164,7 @@ export class FitnessStore {
 
   /** The user's webhook API key, or null if not generated. */
   readonly webhookApiKey: Signal<string | null> = computed(() =>
-    (this.fb.profile() as any)?.webhookApiKey ?? null,
+    this.fb.profile()?.webhookApiKey ?? null,
   );
 
   /** The fasting start time, or null if not fasting. */
