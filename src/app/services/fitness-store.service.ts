@@ -162,6 +162,11 @@ export class FitnessStore {
     });
   }
 
+  /** The user's webhook API key, or null if not generated. */
+  readonly webhookApiKey: Signal<string | null> = computed(() =>
+    (this.fb.profile() as any)?.webhookApiKey ?? null,
+  );
+
   /** The fasting start time, or null if not fasting. */
   readonly fastStartedAt: Signal<Date | null> = computed(() => {
     const p = this.fb.profile();
@@ -181,6 +186,14 @@ export class FitnessStore {
 
   async breakFast(): Promise<void> {
     await this.fb.breakFast();
+  }
+
+  async generateWebhookApiKey(): Promise<string> {
+    return this.fb.generateWebhookApiKey();
+  }
+
+  async revokeWebhookApiKey(): Promise<void> {
+    await this.fb.revokeWebhookApiKey();
   }
 
   async toggleTravelMode(): Promise<void> {

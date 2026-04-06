@@ -13,6 +13,7 @@ import {
   limit,
   Timestamp,
   deleteDoc,
+  deleteField,
 } from '@angular/fire/firestore';
 import { Auth } from '@angular/fire/auth';
 
@@ -75,6 +76,7 @@ export interface ProfileFields {
   goalWeightLbs?: number;      // optional
   travelMode?: boolean;        // when true, target = maintenance (pace=0)
   fastStartedAt?: Date | null; // when fasting — ISO timestamp of fast start
+  webhookApiKey?: string;      // static UUID for Apple Shortcuts webhook auth
 }
 
 /** Full user profile doc as stored in Firestore. */
@@ -174,6 +176,28 @@ export class FirebaseService {
 
     await updateDoc(ref, patch);
     this._profile.set({ ...current, ...patch } as UserProfile);
+  }
+
+  /** Generate a new webhook API key (UUID v4) and persist on the profile. */
+  async generateWebhookApiKey(): Promise<string> {
+    const key = crypto.randomUUID();
+    const ref = this.userDoc();
+    await updateDoc(ref, { webhookApiKey: key, lastSeenAt: Timestamp.now() });
+    const current = this._profile();
+    if (current) this._profile.set({ ...current, webhookApiKey: key } as any);
+    return key;
+  }
+
+  /** Revoke the webhook API key. */
+  async revokeWebhookApiKey(): Promise<void> {
+    const ref = this.userDoc();
+    await updateDoc(ref, { webhookApiKey: deleteField(), lastSeenAt: Timestamp.now() });
+    const current = this._profile();
+    if (current) {
+      const updated = { ...current };
+      delete (updated as any).webhookApiKey;
+      this._profile.set(updated);
+    }
   }
 
   /** Start a fast — stores the current timestamp. */

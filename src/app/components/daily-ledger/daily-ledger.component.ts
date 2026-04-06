@@ -3,6 +3,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DailyLog, LogEntry, MealPreset } from '../../services/firebase.service';
 import { FitnessStore } from '../../services/fitness-store.service';
+import { PhotoMacrosService } from '../../services/photo-macros.service';
 
 type Mode = 'view' | 'add' | 'edit';
 type Status = 'idle' | 'saving' | 'saved' | 'error';
@@ -172,7 +173,18 @@ interface DayGroup {
             <div class="flex items-center gap-2 mb-3">
               <span class="stamp-mark" style="transform: rotate(0deg)">new</span>
               <span class="data-label">entry</span>
+              <!-- Photo-to-Macros camera button -->
+              <button type="button" (click)="photoInput.click()"
+                [disabled]="photoStatus() === 'analyzing'"
+                class="tag-btn text-[9px] ml-auto">
+                {{ photoStatus() === 'analyzing' ? 'analyzing…' : '📷 snap meal' }}
+              </button>
+              <input #photoInput type="file" accept="image/*" capture="environment"
+                class="hidden" (change)="onPhotoCaptured($event)" />
             </div>
+            @if (photoStatus() === 'error') {
+              <p class="font-mono text-[11px] text-blood mb-3">✕ {{ photoError() }}</p>
+            }
             @if (store.presets().length > 0) {
               <div class="mb-4">
                 <div class="data-label mb-1.5">quick add</div>
@@ -295,6 +307,7 @@ interface DayGroup {
 })
 export class DailyLedgerComponent {
   protected readonly store = inject(FitnessStore);
+  private readonly photoService = inject(PhotoMacrosService);
   protected readonly Math = Math;
   protected readonly todayKey = new Date().toISOString().slice(0, 10);
 
@@ -307,6 +320,8 @@ export class DailyLedgerComponent {
   protected readonly savingPreset = signal(false);
   protected readonly presetName = signal('');
   protected readonly activePresetName = signal<string | null>(null);
+  protected readonly photoStatus = signal<'idle' | 'analyzing' | 'done' | 'error'>('idle');
+  protected readonly photoError = signal('');
 
   protected readonly weight = signal<number | null>(null);
   protected readonly calories = signal<number | null>(null);
@@ -477,5 +492,60 @@ export class DailyLedgerComponent {
     if (pro != null) preset.protein = Number(pro);
     await this.store.addPreset(preset);
     this.savingPreset.set(false);
+  }
+
+  // ── Photo-to-Macros ─────────────────────────────────────────
+  protected async onPhotoCaptured(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    this.photoStatus.set('analyzing');
+    this.photoError.set('');
+
+    try {
+      const base64 = await this.resizeAndEncode(file, 1024);
+      const result = await this.photoService.analyze(base64);
+
+      // Pre-fill the form with estimates.
+      this.calories.set(result.calories);
+      this.protein.set(result.protein);
+      this.activePresetName.set(result.description);
+      this.photoStatus.set('done');
+      setTimeout(() => this.photoStatus.set('idle'), 3000);
+    } catch (err) {
+      this.photoStatus.set('error');
+      this.photoError.set(err instanceof Error ? err.message : 'Photo analysis failed.');
+    } finally {
+      // Reset the input so the same file can be re-selected.
+      input.value = '';
+    }
+  }
+
+  /** Resize image to maxDim and return base64 (no data: prefix). */
+  private resizeAndEncode(file: File, maxDim: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('Canvas not supported')); return; }
+        ctx.drawImage(img, 0, 0, width, height);
+        // Extract base64 without the data:image/jpeg;base64, prefix.
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        const base64 = dataUrl.split(',')[1];
+        resolve(base64);
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
   }
 }

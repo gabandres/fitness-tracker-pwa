@@ -140,8 +140,40 @@ import { FitnessStore } from './services/fitness-store.service';
                   [style.color]="store.travelMode() ? 'var(--color-gold)' : ''">
                   {{ store.travelMode() ? 'exit travel mode' : 'travel mode' }}
                 </button>
+                &middot;
+                <button type="button" (click)="showWebhook.set(!showWebhook())" class="underline decoration-dotted hover:text-blood">
+                  webhook
+                </button>
               }
             </p>
+
+            <!-- Webhook settings (collapsible) -->
+            @if (showWebhook()) {
+              <div class="mt-4 specimen px-4 py-3 slide-down">
+                <span class="crop-bl"></span><span class="crop-br"></span>
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="stamp-mark" style="transform: rotate(0deg)">api</span>
+                  <span class="data-label">apple shortcuts webhook</span>
+                </div>
+                @if (store.webhookApiKey(); as key) {
+                  <div class="font-mono text-[11px] text-ink bg-paper-deep px-2 py-1.5 break-all select-all">
+                    {{ key }}
+                  </div>
+                  <p class="caption text-[10px] mt-2">
+                    endpoint: <span class="font-mono text-ink not-italic text-[9px]">{{ webhookUrl }}</span>
+                  </p>
+                  <div class="mt-2 flex gap-2">
+                    <button type="button" (click)="copyWebhookKey()" class="tag-btn text-[9px]">copy key</button>
+                    <button type="button" (click)="revokeWebhookKey()" class="tag-btn text-[9px] text-blood border-blood/40">revoke</button>
+                  </div>
+                } @else {
+                  <p class="caption text-[10px] mb-2">
+                    generate a key to log entries from apple shortcuts or any http client.
+                  </p>
+                  <button type="button" (click)="generateWebhookKey()" class="tag-btn text-[9px]">generate api key</button>
+                }
+              </div>
+            }
           }
         </footer>
       </div>
@@ -159,6 +191,8 @@ export class App {
   protected readonly updateReady = signal(false);
   protected readonly offline = signal(!navigator.onLine);
   protected readonly darkMode = signal(false);
+  protected readonly showWebhook = signal(false);
+  protected readonly webhookUrl = 'https://us-central1-fitness-tracker-gb-1775407101.cloudfunctions.net/logWebhook';
 
   protected readonly todayLabel = computed(() => {
     const d = new Date();
@@ -195,6 +229,19 @@ export class App {
     // NOTE: The FitnessStore handles its own auth lifecycle (load on sign-in,
     // clear on sign-out) via an internal effect. No coordination needed here.
     // The old auth effect + ViewChild refresh chain is gone.
+  }
+
+  protected async generateWebhookKey(): Promise<void> {
+    await this.store.generateWebhookApiKey();
+  }
+
+  protected async revokeWebhookKey(): Promise<void> {
+    await this.store.revokeWebhookApiKey();
+  }
+
+  protected async copyWebhookKey(): Promise<void> {
+    const key = this.store.webhookApiKey();
+    if (key) await navigator.clipboard.writeText(key);
   }
 
   protected onProfileSaved(): void {

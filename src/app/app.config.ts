@@ -8,6 +8,7 @@ import {
   persistentMultipleTabManager,
 } from '@angular/fire/firestore';
 import { provideAuth, getAuth } from '@angular/fire/auth';
+import { provideFunctions, getFunctions } from '@angular/fire/functions';
 
 import { routes } from './app.routes';
 import { provideServiceWorker } from '@angular/service-worker';
@@ -19,6 +20,7 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes),
     provideFirebaseApp(() => initializeApp(environment.firebase)),
     provideAuth(() => getAuth()),
+    provideFunctions(() => getFunctions()),
     // Enable Firestore offline persistence so writes queue locally
     // when the user is offline and sync when the connection returns.
     provideFirestore(() =>
