@@ -15,43 +15,57 @@ interface SparklinePoint {
     <section>
       <div class="rule"><span>calibration readout</span></div>
 
-      <!-- Compact target + TDEE + weight row -->
-      <div class="mt-4 grid grid-cols-3 gap-4">
-        <div>
-          <div class="data-label mb-1">target</div>
-          <div class="readout-mono">{{ tdee().newDailyTarget }}</div>
-          <div class="data-label mt-0.5 opacity-60">kcal/day</div>
+      @if (logs().length === 0) {
+        <!-- Empty state: no entries yet -->
+        <div class="mt-4 py-6 text-center">
+          <p class="caption text-[11px]">log your first entry above to see your readout here.</p>
+          <div class="mt-4 flex justify-center">
+            <button type="button" (click)="refresh()" class="tag-btn"
+              [disabled]="loading()">
+              {{ loading() ? 'loading…' : 'refresh ↻' }}
+            </button>
+          </div>
         </div>
-        <div>
-          <div class="data-label mb-1">true tdee</div>
-          <div class="readout-mono">{{ tdee().trueTdee }}</div>
-          <div class="data-label mt-0.5 opacity-60">kcal/day</div>
+      } @else {
+        <!-- Compact target + TDEE + weight row -->
+        <div class="mt-4 grid grid-cols-3 gap-4">
+          <div>
+            <div class="data-label mb-1">target</div>
+            <div class="readout-mono">{{ tdee().newDailyTarget }}</div>
+            <div class="data-label mt-0.5 opacity-60">kcal/day</div>
+          </div>
+          <div>
+            <div class="data-label mb-1">true tdee</div>
+            <div class="readout-mono">{{ tdee().trueTdee }}</div>
+            <div class="data-label mt-0.5 opacity-60">kcal/day</div>
+          </div>
+          <div>
+            <div class="data-label mb-1">weight</div>
+            <div class="readout-mono">{{ currentWeight() ?? '—' }}</div>
+            <div class="data-label mt-0.5 opacity-60">lbs</div>
+          </div>
         </div>
-        <div>
-          <div class="data-label mb-1">weight</div>
-          <div class="readout-mono">{{ currentWeight() ?? '—' }}</div>
-          <div class="data-label mt-0.5 opacity-60">lbs</div>
-        </div>
-      </div>
 
-      @if (logs().length < 14) {
-        <div class="mt-3 flex items-center gap-2">
-          <span class="stamp-mark">{{ tdee().source }}</span>
-          <p class="caption text-[11px]">
-            {{ 14 - logs().length }} more day{{ logs().length === 13 ? '' : 's' }} to measured estimate.
-          </p>
+        @if (logs().length < 14) {
+          <div class="mt-3 flex items-center gap-2">
+            <span class="stamp-mark">{{ tdee().source }}</span>
+            <p class="caption text-[11px]">
+              {{ 14 - logs().length }} more day{{ logs().length === 13 ? '' : 's' }} to measured estimate.
+            </p>
+          </div>
+        }
+
+        <!-- Refresh -->
+        <div class="mt-4 flex justify-end">
+          <button type="button" (click)="refresh()" class="tag-btn"
+            [disabled]="loading()">
+            {{ loading() ? 'loading…' : 'refresh ↻' }}
+          </button>
         </div>
       }
 
-      <!-- Refresh -->
-      <div class="mt-4 flex justify-end">
-        <button type="button" (click)="refresh()" class="tag-btn"
-          [disabled]="loading()">
-          {{ loading() ? 'loading…' : 'refresh ↻' }}
-        </button>
-      </div>
-
-      <!-- Trend + sparkline -->
+      <!-- Trend + sparkline (only when there's data) -->
+      @if (logs().length > 1) {
       <div class="mt-6">
         <!-- 14 day trend with sparkline -->
         <div>
@@ -122,6 +136,7 @@ interface SparklinePoint {
           }
         </div>
       </div>
+      }
     </section>
   `,
 })
