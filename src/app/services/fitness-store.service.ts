@@ -90,9 +90,13 @@ export class FitnessStore {
     this.tdee().newDailyTarget,
   );
 
+  /** Most recent non-null weight across all entries. */
   readonly currentWeight: Signal<number | null> = computed(() => {
     const list = this._logs();
-    return list.length > 0 ? list[list.length - 1].weight : null;
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i].weight != null) return list[i].weight!;
+    }
+    return null;
   });
 
   readonly streak: Signal<number> = computed(() =>
@@ -108,7 +112,7 @@ export class FitnessStore {
   );
 
   readonly ema: Signal<number[]> = computed(() =>
-    this.calc.ema(this._logs().map((l) => l.weight), 7),
+    this.calc.ema(this._logs().map((l) => l.weight).filter((w): w is number => w != null), 7),
   );
 
   readonly trendLabel: Signal<string> = computed(() => {
@@ -123,7 +127,11 @@ export class FitnessStore {
     const current = this.currentWeight();
     if (!goal || current == null) return null;
     const list = this._logs();
-    const start = list.length > 0 ? list[0].weight : current;
+    // Find the earliest non-null weight as the starting point.
+    let start: number = current;
+    for (const l of list) {
+      if (l.weight != null) { start = l.weight; break; }
+    }
     const totalToLose = start - goal;
     if (totalToLose <= 0) return null;
     const pct = Math.min(100, Math.max(0, Math.round(((start - current) / totalToLose) * 100)));

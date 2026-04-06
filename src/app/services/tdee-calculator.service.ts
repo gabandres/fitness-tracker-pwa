@@ -47,17 +47,45 @@ export class TdeeCalculatorService {
     very_active: 1.9,
   };
 
+  /**
+   * Aggregate multiple log entries per day into one row per day.
+   * Sums calories/protein, takes first non-null weight, ORs training booleans.
+   */
+  aggregateByDay(logs: DailyLog[]): DailyLog[] {
+    const byDate = new Map<string, DailyLog>();
+    for (const log of logs) {
+      const key = log.date.toISOString().slice(0, 10);
+      const existing = byDate.get(key);
+      if (!existing) {
+        byDate.set(key, { ...log });
+      } else {
+        existing.calories += log.calories;
+        existing.protein = (existing.protein ?? 0) + (log.protein ?? 0);
+        if (existing.weight == null && log.weight != null) existing.weight = log.weight;
+        if (log.liftCompleted) existing.liftCompleted = true;
+        if (log.cardioCompleted) existing.cardioCompleted = true;
+      }
+    }
+    return [...byDate.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
+  }
+
   calculate(logs: DailyLog[], profile?: ProfileFields | null): TdeeResult {
-    const sorted = [...(logs ?? [])].sort((a, b) => a.date.getTime() - b.date.getTime());
+    // Aggregate to one row per day before computing TDEE.
+    const daily = this.aggregateByDay(logs ?? []);
 
     // ── Measured mode: ≥14 days ─────────────────────────────────
-    if (sorted.length >= 14) {
-      const window = sorted.slice(-14);
+    if (daily.length >= 14) {
+      const window = daily.slice(-14);
       const week1 = window.slice(0, 7);
       const week2 = window.slice(7, 14);
 
-      const week1Avg = this.average(week1.map((l) => l.weight));
-      const week2Avg = this.average(week2.map((l) => l.weight));
+      const week1Weights = week1.map((l) => l.weight).filter((w): w is number => w != null);
+      const week2Weights = week2.map((l) => l.weight).filter((w): w is number => w != null);
+      if (week1Weights.length === 0 || week2Weights.length === 0) {
+        return { ...TdeeCalculatorService.SEED_RESULT };
+      }
+      const week1Avg = this.average(week1Weights);
+      const week2Avg = this.average(week2Weights);
       const weightChange = week1Avg - week2Avg; // + = lost
 
       const avgDailyIntake = this.average(window.map((l) => l.calories));
@@ -82,11 +110,11 @@ export class TdeeCalculatorService {
 
     // ── Formula mode: profile present, < 14 days of data ────────
     if (profile) {
-      // Use the most recent logged weight as the basis, else fall back
-      // to the goal weight, else a reasonable default.
-      const latestWeight = sorted.length > 0
-        ? sorted[sorted.length - 1].weight
-        : profile.goalWeightLbs ?? 180;
+      // Use the most recent non-null weight, else fall back to goal weight.
+      let latestWeight = profile.goalWeightLbs ?? 180;
+      for (let i = daily.length - 1; i >= 0; i--) {
+        if (daily[i].weight != null) { latestWeight = daily[i].weight!; break; }
+      }
 
       const trueTdee = Math.round(this.mifflinStJeor(profile, latestWeight));
       const pace = profile.targetPaceLbsPerWeek;
@@ -217,15 +245,15 @@ export class TdeeCalculatorService {
     const sorted = [...logs].sort((a, b) => a.date.getTime() - b.date.getTime());
     const last7 = sorted.slice(-7);
 
-    const weights = last7.map((l) => l.weight);
+    const weights = last7.map((l) => l.weight).filter((w): w is number => w != null);
     const cals = last7.map((l) => l.calories);
     const proteins = last7.filter((l) => l.protein != null).map((l) => l.protein!);
 
-    const avgWeight = this.round(this.average(weights), 1);
+    const avgWeight = weights.length > 0 ? this.round(this.average(weights), 1) : 0;
     const avgCalories = Math.round(this.average(cals));
     const avgProtein = proteins.length > 0 ? Math.round(this.average(proteins)) : null;
-    const weightDelta = last7.length >= 2
-      ? this.round(last7[last7.length - 1].weight - last7[0].weight, 1)
+    const weightDelta = weights.length >= 2
+      ? this.round(weights[weights.length - 1] - weights[0], 1)
       : 0;
     // Adherence: % of days within ±100 kcal of target
     const adherentDays = cals.filter((c) => Math.abs(c - targetCalories) <= 100).length;

@@ -229,11 +229,11 @@ export class DashboardComponent {
   }
 
   protected readonly sparklineRaw = computed(() => {
-    const w = this.store.logs().map((l) => l.weight);
+    const w = this.store.logs().map((l) => l.weight).filter((v): v is number => v != null);
     return this.scalePoints(w, w);
   });
   protected readonly sparklineEma = computed(() => {
-    const w = this.store.logs().map((l) => l.weight);
+    const w = this.store.logs().map((l) => l.weight).filter((v): v is number => v != null);
     return this.scalePoints(this.store.ema(), w);
   });
   protected readonly rawSvgPoints = computed(() =>

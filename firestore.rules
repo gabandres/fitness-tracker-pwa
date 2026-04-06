@@ -15,17 +15,17 @@ service cloud.firestore {
     }
 
     // ─── Log schema ─────────────────────────────────────────────
-    // Required: weight, calories, timestamp
-    // Optional: protein, liftCompleted, cardioCompleted
+    // Required: calories, timestamp
+    // Optional: weight, protein, liftCompleted, cardioCompleted, mealLabel
     function isValidLog(data) {
-      return data.keys().hasAll(['weight', 'calories', 'timestamp'])
+      return data.keys().hasAll(['calories', 'timestamp'])
           && data.keys().hasOnly([
               'weight', 'calories', 'timestamp',
-              'protein', 'liftCompleted', 'cardioCompleted'
+              'protein', 'liftCompleted', 'cardioCompleted',
+              'mealLabel'
           ])
-          && data.weight is number
-          && data.weight > 0
-          && data.weight < 1000
+          && (!('weight' in data.keys()) ||
+              (data.weight is number && data.weight > 0 && data.weight < 1000))
           && data.calories is number
           && data.calories >= 0
           && data.calories < 20000
@@ -36,7 +36,9 @@ service cloud.firestore {
           && (!('liftCompleted' in data.keys()) ||
               data.liftCompleted is bool)
           && (!('cardioCompleted' in data.keys()) ||
-              data.cardioCompleted is bool);
+              data.cardioCompleted is bool)
+          && (!('mealLabel' in data.keys()) ||
+              (data.mealLabel is string && data.mealLabel.size() <= 100));
     }
 
     // ─── Profile schema ─────────────────────────────────────────

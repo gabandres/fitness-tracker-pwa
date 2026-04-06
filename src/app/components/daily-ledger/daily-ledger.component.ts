@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DailyLog, LogEntry, MealPreset } from '../../services/firebase.service';
@@ -6,6 +6,18 @@ import { FitnessStore } from '../../services/fitness-store.service';
 
 type Mode = 'view' | 'add' | 'edit';
 type Status = 'idle' | 'saving' | 'saved' | 'error';
+
+/** Grouped view: one header per calendar day, meals nested under it. */
+interface DayGroup {
+  dateKey: string;
+  dateLabel: string;
+  weight: number | null;
+  liftCompleted: boolean;
+  cardioCompleted: boolean;
+  totalCalories: number;
+  totalProtein: number;
+  meals: DailyLog[];
+}
 
 @Component({
   selector: 'app-daily-ledger',
@@ -24,9 +36,7 @@ type Status = 'idle' | 'saving' | 'saved' | 'error';
             <span class="stamp-mark" style="transform: rotate(0deg); border-color: var(--color-gold); color: var(--color-gold)">travel</span>
             <span class="caption text-[11px]">maintenance mode — deficit suspended.</span>
           </div>
-          <button type="button" (click)="store.toggleTravelMode()" class="tag-btn text-[9px]">
-            end trip
-          </button>
+          <button type="button" (click)="store.toggleTravelMode()" class="tag-btn text-[9px]">end trip</button>
         </div>
       }
 
@@ -42,110 +52,127 @@ type Status = 'idle' | 'saving' | 'saved' | 'error';
         </div>
       }
 
-      <!-- Today so far + progress bar -->
-      @if (store.todaySummary(); as s) {
-        <div class="specimen px-4 py-3 mb-6">
-          <span class="crop-bl"></span><span class="crop-br"></span>
-          <div class="flex items-center justify-between">
-            <div>
-              <div class="data-label">today so far</div>
-              <div class="font-mono text-2xl font-medium text-ink mt-0.5 tabular-nums">
-                {{ s.totalCalories }}
-                <span class="text-graphite text-sm font-normal">/ {{ store.targetCalories() }} kcal</span>
-              </div>
-            </div>
-            @if (s.totalProtein > 0) {
-              <div class="text-right">
-                <div class="data-label" style="color: var(--color-protein)">protein</div>
-                <div class="font-mono text-2xl font-medium tabular-nums mt-0.5" style="color: var(--color-protein)">
-                  {{ s.totalProtein }}
-                  <span class="text-sm font-normal opacity-70">g</span>
-                </div>
-              </div>
-            }
-          </div>
-          @if (store.targetCalories() > 0) {
-            <div class="mt-2 h-1.5 w-full bg-paper-deep relative overflow-hidden">
-              <div class="h-full transition-all duration-300"
-                [style.width.%]="Math.min(100, (s.totalCalories / store.targetCalories()) * 100)"
-                [style.background]="s.totalCalories > store.targetCalories() ? 'var(--color-blood)' : 'var(--color-olive)'">
-              </div>
-            </div>
-            <div class="flex justify-between mt-1">
-              <span class="font-mono text-[9px] tracking-[0.1em] text-graphite tabular-nums">
-                {{ Math.max(0, store.targetCalories() - s.totalCalories) }} remaining
-              </span>
-              <span class="font-mono text-[9px] tracking-[0.1em] tabular-nums"
-                [style.color]="s.totalCalories > store.targetCalories() ? 'var(--color-blood)' : 'var(--color-graphite)'">
-                {{ Math.round((s.totalCalories / store.targetCalories()) * 100) }}%
-              </span>
-            </div>
-          }
-        </div>
-      }
-
-      <!-- Log tape -->
-      <div class="rule"><span>{{ store.logs().length > 0 ? 'log tape' : 'no entries yet' }}</span></div>
+      <!-- ─── Day-grouped log tape ─────────────────────────── -->
+      <div class="rule"><span>{{ dayGroups().length > 0 ? 'log tape' : 'no entries yet' }}</span></div>
 
       <div class="mt-3">
-        @for (log of store.logs(); track log.id; let i = $index) {
-          <div class="tape-strip tape-in"
-            [class.tape-editing]="editTarget()?.id === log.id"
-            [style.animation-delay]="(i * 40) + 'ms'"
-            (click)="onTapEntry(log)">
+        @for (day of dayGroups(); track day.dateKey; let di = $index) {
+          <!-- Day header: date + weight + training + daily total + progress bar -->
+          <div class="tape-strip tape-in border-b-2 border-rule/60"
+            [style.animation-delay]="(di * 60) + 'ms'" style="cursor: default;">
             <div class="flex items-center justify-between gap-2">
-              <div class="flex items-center gap-3 min-w-0">
-                <span class="font-mono text-[10px] tracking-[0.12em] text-graphite shrink-0 w-[70px]">
-                  {{ formatDate(log.date) }}
+              <div class="flex items-center gap-3">
+                <span class="font-mono text-[11px] tracking-[0.12em] font-medium text-ink">
+                  {{ day.dateLabel }}
                 </span>
-                <span class="font-mono text-sm text-ink tabular-nums">
-                  {{ log.weight }}<span class="text-graphite text-[10px] ml-0.5">lb</span>
-                </span>
-                <span class="font-mono text-sm tabular-nums" style="color: var(--color-blood)">
-                  {{ log.calories }}<span class="text-[10px] ml-0.5 opacity-70">cal</span>
-                </span>
-                @if (log.protein != null) {
-                  <span class="font-mono text-sm tabular-nums" style="color: var(--color-protein)">
-                    {{ log.protein }}<span class="text-[10px] ml-0.5 opacity-70">g</span>
+                @if (day.weight != null) {
+                  <span class="font-mono text-[11px] text-graphite tabular-nums">
+                    {{ day.weight }}<span class="text-[9px] ml-0.5">lb</span>
                   </span>
                 }
+                <div class="flex items-center gap-1">
+                  @if (day.liftCompleted) {
+                    <span class="inline-block w-2 h-2 rounded-full" style="background: var(--color-blood)" title="Lift"></span>
+                  }
+                  @if (day.cardioCompleted) {
+                    <span class="inline-block w-2 h-2" style="background: var(--color-olive); clip-path: polygon(50% 0%, 100% 100%, 0% 100%);" title="Cardio"></span>
+                  }
+                </div>
               </div>
-              <div class="flex items-center gap-1.5 shrink-0">
-                @if (log.liftCompleted) {
-                  <span class="inline-block w-2 h-2 rounded-full" style="background: var(--color-blood)" title="Lift"></span>
+              <div class="flex items-center gap-3">
+                <span class="font-mono text-sm font-medium tabular-nums" style="color: var(--color-blood)">
+                  {{ day.totalCalories }}<span class="text-[10px] ml-0.5 opacity-70">cal</span>
+                </span>
+                @if (day.totalProtein > 0) {
+                  <span class="font-mono text-xs tabular-nums" style="color: var(--color-protein)">
+                    {{ day.totalProtein }}<span class="text-[10px] ml-0.5 opacity-70">g</span>
+                  </span>
                 }
-                @if (log.cardioCompleted) {
-                  <span class="inline-block w-2 h-2" style="background: var(--color-olive); clip-path: polygon(50% 0%, 100% 100%, 0% 100%);" title="Cardio"></span>
-                }
+                <!-- Add meal to this day -->
+                <button type="button" (click)="startAddForDay(day.dateKey); $event.stopPropagation()"
+                  class="tag-btn text-[9px] py-0.5 px-1.5" title="Add meal">+</button>
               </div>
             </div>
-            @if (editTarget()?.id === log.id && mode() === 'edit') {
-              <div class="slide-down mt-3 pt-3 border-t border-rule/40" (click)="$event.stopPropagation()">
-                <ng-container *ngTemplateOutlet="entryForm"></ng-container>
+
+            <!-- Progress bar for today only -->
+            @if (day.dateKey === todayKey && store.targetCalories() > 0) {
+              <div class="mt-1.5 h-1 w-full bg-paper-deep relative overflow-hidden">
+                <div class="h-full transition-all duration-300"
+                  [style.width.%]="Math.min(100, (day.totalCalories / store.targetCalories()) * 100)"
+                  [style.background]="day.totalCalories > store.targetCalories() ? 'var(--color-blood)' : 'var(--color-olive)'">
+                </div>
+              </div>
+              <div class="flex justify-between mt-0.5">
+                <span class="font-mono text-[8px] tracking-[0.1em] text-graphite tabular-nums">
+                  {{ Math.max(0, store.targetCalories() - day.totalCalories) }} remaining
+                </span>
+                <span class="font-mono text-[8px] tracking-[0.1em] tabular-nums"
+                  [style.color]="day.totalCalories > store.targetCalories() ? 'var(--color-blood)' : 'var(--color-graphite)'">
+                  {{ Math.round((day.totalCalories / store.targetCalories()) * 100) }}%
+                </span>
               </div>
             }
           </div>
+
+          <!-- Meal entries nested under this day -->
+          @for (meal of day.meals; track meal.id; let mi = $index) {
+            <div class="tape-strip tape-in pl-6"
+              [class.tape-editing]="editTarget()?.id === meal.id"
+              [style.animation-delay]="(di * 60 + mi * 30 + 30) + 'ms'"
+              (click)="onTapMeal(meal)">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="font-mono text-[10px] tracking-[0.08em] text-graphite-soft truncate max-w-[100px]">
+                    {{ meal.mealLabel || 'Meal ' + (mi + 1) }}
+                  </span>
+                  <span class="font-mono text-sm tabular-nums" style="color: var(--color-blood)">
+                    {{ meal.calories }}<span class="text-[10px] ml-0.5 opacity-70">cal</span>
+                  </span>
+                  @if (meal.protein != null) {
+                    <span class="font-mono text-sm tabular-nums" style="color: var(--color-protein)">
+                      {{ meal.protein }}<span class="text-[10px] ml-0.5 opacity-70">g</span>
+                    </span>
+                  }
+                </div>
+                <span class="font-mono text-[9px] text-graphite-soft opacity-60">tap to edit</span>
+              </div>
+
+              <!-- Inline edit form -->
+              @if (editTarget()?.id === meal.id && mode() === 'edit') {
+                <div class="slide-down mt-3 pt-3 border-t border-rule/40" (click)="$event.stopPropagation()">
+                  <ng-container *ngTemplateOutlet="entryForm"></ng-container>
+                </div>
+              }
+            </div>
+          }
+
+          <!-- Inline add form for this day -->
+          @if (addingForDay() === day.dateKey && mode() === 'add') {
+            <div class="tape-strip pl-6 slide-down bg-paper-deep" (click)="$event.stopPropagation()">
+              <ng-container *ngTemplateOutlet="entryForm"></ng-container>
+            </div>
+          }
         }
 
-        @if (store.logs().length === 0) {
+        <!-- Empty state -->
+        @if (dayGroups().length === 0) {
           <div class="py-8 text-center">
             <p class="caption text-[11px]">tap the button below to record your first entry.</p>
           </div>
         }
       </div>
 
-      <!-- Add new / form -->
+      <!-- Global add button (for new day or first entry) -->
       <div class="mt-4">
         @if (mode() === 'view') {
           <button type="button" (click)="startAdd()" class="stamp-btn">+ new entry</button>
-        } @else if (mode() === 'add') {
+        } @else if (mode() === 'add' && !addingForDay()) {
           <div class="specimen px-4 py-5 slide-down">
             <span class="crop-bl"></span><span class="crop-br"></span>
             <div class="flex items-center gap-2 mb-3">
               <span class="stamp-mark" style="transform: rotate(0deg)">new</span>
               <span class="data-label">entry</span>
             </div>
-
             @if (store.presets().length > 0) {
               <div class="mb-4">
                 <div class="data-label mb-1.5">quick add</div>
@@ -162,25 +189,28 @@ type Status = 'idle' | 'saving' | 'saved' | 'error';
                 </div>
               </div>
             }
-
             <ng-container *ngTemplateOutlet="entryForm"></ng-container>
           </div>
         }
       </div>
 
-      <!-- Shared form template -->
+      <!-- ─── Shared form template ──────────────────────────── -->
       <ng-template #entryForm>
-        <form (ngSubmit)="onSubmit()" class="space-y-4">
-          <div class="grid grid-cols-2 gap-4">
+        <form (ngSubmit)="onSubmit()" class="space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <!-- Weight (optional) -->
             <div>
-              <label class="data-label block mb-1">weight</label>
+              <label class="data-label block mb-1">
+                weight <span class="normal-case italic text-graphite-soft tracking-normal text-[9px]">opt</span>
+              </label>
               <div class="flex items-baseline gap-1">
-                <input type="number" step="0.1" inputmode="decimal" required
+                <input type="number" step="0.1" inputmode="decimal"
                   [ngModel]="weight()" (ngModelChange)="weight.set($event)"
                   name="weight" placeholder="___" class="field-input text-base" />
                 <span class="font-display italic text-graphite text-xs">lbs</span>
               </div>
             </div>
+            <!-- Calories (required) -->
             <div>
               <label class="data-label block mb-1">calories</label>
               <div class="flex items-baseline gap-1">
@@ -192,7 +222,8 @@ type Status = 'idle' | 'saving' | 'saved' | 'error';
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-2 gap-3">
+            <!-- Protein -->
             <div>
               <label class="data-label block mb-1">
                 protein <span class="normal-case italic text-graphite-soft tracking-normal text-[9px]">opt</span>
@@ -204,6 +235,7 @@ type Status = 'idle' | 'saving' | 'saved' | 'error';
                 <span class="font-display italic text-graphite text-xs">g</span>
               </div>
             </div>
+            <!-- Training -->
             <div>
               <label class="data-label block mb-1">training</label>
               <div class="flex gap-2 mt-1">
@@ -264,14 +296,17 @@ type Status = 'idle' | 'saving' | 'saved' | 'error';
 export class DailyLedgerComponent {
   protected readonly store = inject(FitnessStore);
   protected readonly Math = Math;
+  protected readonly todayKey = new Date().toISOString().slice(0, 10);
 
-  // ── Form-local state ────────────────────────────────────────
+  // ── Form state ──────────────────────────────────────────────
   protected readonly mode = signal<Mode>('view');
   protected readonly editTarget = signal<DailyLog | null>(null);
+  protected readonly addingForDay = signal<string | null>(null);
   protected readonly status = signal<Status>('idle');
   protected readonly errorMsg = signal('');
   protected readonly savingPreset = signal(false);
   protected readonly presetName = signal('');
+  protected readonly activePresetName = signal<string | null>(null);
 
   protected readonly weight = signal<number | null>(null);
   protected readonly calories = signal<number | null>(null);
@@ -279,51 +314,102 @@ export class DailyLedgerComponent {
   protected readonly liftDone = signal(false);
   protected readonly cardioDone = signal(false);
 
+  // ── Day grouping ────────────────────────────────────────────
+  protected readonly dayGroups = computed<DayGroup[]>(() => {
+    const logs = this.store.logs();
+    const groups = new Map<string, DayGroup>();
+
+    for (const log of logs) {
+      const key = log.date.toISOString().slice(0, 10);
+      let group = groups.get(key);
+      if (!group) {
+        group = {
+          dateKey: key,
+          dateLabel: log.date.toLocaleDateString('en-US', {
+            weekday: 'short', month: 'short', day: 'numeric',
+          }).toUpperCase(),
+          weight: null,
+          liftCompleted: false,
+          cardioCompleted: false,
+          totalCalories: 0,
+          totalProtein: 0,
+          meals: [],
+        };
+        groups.set(key, group);
+      }
+      group.meals.push(log);
+      group.totalCalories += log.calories;
+      group.totalProtein += log.protein ?? 0;
+      if (group.weight == null && log.weight != null) group.weight = log.weight;
+      if (log.liftCompleted) group.liftCompleted = true;
+      if (log.cardioCompleted) group.cardioCompleted = true;
+    }
+
+    // Sort newest day first.
+    return [...groups.values()].sort((a, b) => b.dateKey.localeCompare(a.dateKey));
+  });
+
   // ── Interactions ────────────────────────────────────────────
-  protected onTapEntry(log: DailyLog): void {
-    if (this.editTarget()?.id === log.id && this.mode() === 'edit') {
+  protected onTapMeal(meal: DailyLog): void {
+    if (this.editTarget()?.id === meal.id && this.mode() === 'edit') {
       this.cancel();
       return;
     }
-    this.editTarget.set(log);
+    this.editTarget.set(meal);
+    this.addingForDay.set(null);
     this.mode.set('edit');
-    this.weight.set(log.weight);
-    this.calories.set(log.calories);
-    this.protein.set(log.protein ?? null);
-    this.liftDone.set(log.liftCompleted ?? false);
-    this.cardioDone.set(log.cardioCompleted ?? false);
+    this.weight.set(meal.weight ?? null);
+    this.calories.set(meal.calories);
+    this.protein.set(meal.protein ?? null);
+    this.liftDone.set(meal.liftCompleted ?? false);
+    this.cardioDone.set(meal.cardioCompleted ?? false);
     this.status.set('idle');
-    this.errorMsg.set('');
   }
 
   protected startAdd(): void {
     this.resetForm();
     this.mode.set('add');
     this.editTarget.set(null);
+    this.addingForDay.set(null);
+    this.status.set('idle');
+  }
+
+  protected startAddForDay(dateKey: string): void {
+    this.resetForm();
+    this.mode.set('add');
+    this.editTarget.set(null);
+    this.addingForDay.set(dateKey);
     this.status.set('idle');
   }
 
   protected cancel(): void {
     this.mode.set('view');
     this.editTarget.set(null);
+    this.addingForDay.set(null);
     this.resetForm();
     this.status.set('idle');
   }
 
   protected async onSubmit(): Promise<void> {
-    const w = this.weight();
     const c = this.calories();
-    if (w == null || c == null || Number.isNaN(w) || Number.isNaN(c)) {
+    if (c == null || Number.isNaN(c)) {
       this.status.set('error');
-      this.errorMsg.set('Weight and calories are required.');
+      this.errorMsg.set('Calories are required.');
       return;
     }
 
-    const entry: LogEntry = { weight: Number(w), calories: Number(c) };
+    const entry: LogEntry = { calories: Number(c) };
+    const w = this.weight();
+    if (w != null && !Number.isNaN(Number(w))) entry.weight = Number(w);
     const p = this.protein();
     if (p != null && !Number.isNaN(Number(p))) entry.protein = Number(p);
     entry.liftCompleted = this.liftDone();
     entry.cardioCompleted = this.cardioDone();
+
+    // Meal label: from active preset name, or auto-generated.
+    if (this.activePresetName()) {
+      entry.mealLabel = this.activePresetName()!;
+    }
 
     this.status.set('saving');
     try {
@@ -356,22 +442,20 @@ export class DailyLedgerComponent {
     }
   }
 
-  protected formatDate(d: Date): string {
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
-  }
-
   private resetForm(): void {
     this.weight.set(null);
     this.calories.set(null);
     this.protein.set(null);
     this.liftDone.set(false);
     this.cardioDone.set(false);
+    this.activePresetName.set(null);
   }
 
   // ── Presets ─────────────────────────────────────────────────
   protected applyPreset(p: MealPreset): void {
     this.calories.set(p.calories);
     if (p.protein != null) this.protein.set(p.protein);
+    this.activePresetName.set(p.name);
   }
 
   protected async removePreset(p: MealPreset, event: Event): Promise<void> {

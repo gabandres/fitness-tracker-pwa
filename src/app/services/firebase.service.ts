@@ -18,22 +18,24 @@ import { Auth } from '@angular/fire/auth';
 
 // ─── Log types ──────────────────────────────────────────────────
 export interface DailyLogDoc {
-  weight: number;
+  weight?: number;
   calories: number;
   timestamp: Timestamp;
   protein?: number;
   liftCompleted?: boolean;
   cardioCompleted?: boolean;
+  mealLabel?: string;
 }
 
 export interface DailyLog {
   id?: string;
-  weight: number;
+  weight?: number;
   calories: number;
   date: Date;
   protein?: number;
   liftCompleted?: boolean;
   cardioCompleted?: boolean;
+  mealLabel?: string;
 }
 
 // ─── Preset types ───────────────────────────────────────────────
@@ -46,11 +48,12 @@ export interface MealPreset {
 
 /** Shape passed to addLog / updateLog — the fields the user submits. */
 export interface LogEntry {
-  weight: number;
+  weight?: number;
   calories: number;
   protein?: number;
   liftCompleted?: boolean;
   cardioCompleted?: boolean;
+  mealLabel?: string;
 }
 
 // ─── Profile types ──────────────────────────────────────────────
@@ -201,13 +204,14 @@ export class FirebaseService {
   // ─── Daily logs ────────────────────────────────────────────────
   async addLog(entry: LogEntry): Promise<void> {
     const data: Record<string, unknown> = {
-      weight: entry.weight,
       calories: entry.calories,
       timestamp: Timestamp.fromDate(new Date()),
     };
+    if (entry.weight != null) data['weight'] = entry.weight;
     if (entry.protein != null) data['protein'] = entry.protein;
     if (entry.liftCompleted != null) data['liftCompleted'] = entry.liftCompleted;
     if (entry.cardioCompleted != null) data['cardioCompleted'] = entry.cardioCompleted;
+    if (entry.mealLabel) data['mealLabel'] = entry.mealLabel;
     await addDoc(this.logsCollection(), data);
   }
 
@@ -224,6 +228,7 @@ export class FirebaseService {
         protein: data.protein,
         liftCompleted: data.liftCompleted,
         cardioCompleted: data.cardioCompleted,
+        mealLabel: data.mealLabel,
       };
     });
     return results.reverse();
@@ -232,12 +237,13 @@ export class FirebaseService {
   async updateLog(logId: string, entry: LogEntry): Promise<void> {
     const ref = doc(this.firestore, 'users', this.requireUid(), 'dailyLogs', logId);
     const data: Record<string, unknown> = {
-      weight: entry.weight,
       calories: entry.calories,
     };
+    if (entry.weight != null) data['weight'] = entry.weight;
     if (entry.protein != null) data['protein'] = entry.protein;
     if (entry.liftCompleted != null) data['liftCompleted'] = entry.liftCompleted;
     if (entry.cardioCompleted != null) data['cardioCompleted'] = entry.cardioCompleted;
+    if (entry.mealLabel) data['mealLabel'] = entry.mealLabel;
     await updateDoc(ref, data);
   }
 
