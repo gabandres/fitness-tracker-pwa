@@ -11,6 +11,7 @@
   --font-display: "Instrument Serif", "Cormorant Garamond", Georgia, serif;
   --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
 
+  /* Light palette (default) — overridden by [data-theme="dark"] below */
   --color-paper: #f2ead7;
   --color-paper-deep: #e5d9bc;
   --color-paper-shadow: #d9cba7;
@@ -22,11 +23,27 @@
   --color-blood: #8b1a1a;
   --color-blood-deep: #5a1111;
   --color-aged: #c4b590;
-
-  /* Macro accent palette (research-informed) */
   --color-protein: #c45d2c;
   --color-olive: #5b7a4a;
   --color-gold: #c4a23d;
+}
+
+/* ── Dark palette: leather notebook by candlelight ───────────── */
+[data-theme="dark"] {
+  --color-paper: #1c1915;
+  --color-paper-deep: #141210;
+  --color-paper-shadow: #0e0d0b;
+  --color-ink: #ddd0b8;
+  --color-ink-soft: #b8a88e;
+  --color-graphite: #7a6e60;
+  --color-graphite-soft: #5c5248;
+  --color-rule: #352f27;
+  --color-blood: #c43535;
+  --color-blood-deep: #8b1a1a;
+  --color-aged: #4a4030;
+  --color-protein: #e07843;
+  --color-olive: #7a9e5a;
+  --color-gold: #d4b24a;
 }
 
 /* ──────────────────────────────────────────────────────────────
@@ -39,6 +56,7 @@ html, body {
   font-feature-settings: "tnum" 1, "zero" 1;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  transition: background-color 300ms ease, color 300ms ease;
 }
 
 body {
@@ -48,50 +66,41 @@ body {
     repeating-linear-gradient(0deg, rgba(26, 22, 18, 0.012) 0 1px, transparent 1px 3px);
   background-attachment: fixed;
 }
+[data-theme="dark"] body {
+  background-image:
+    radial-gradient(ellipse at 20% 0%, rgba(196, 53, 53, 0.06) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 100%, rgba(221, 208, 184, 0.03) 0%, transparent 60%);
+}
 
 /* ──────────────────────────────────────────────────────────────
    Primitives
    ────────────────────────────────────────────────────────────── */
 .rule {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  display: flex; align-items: center; gap: 0.75rem;
   color: var(--color-graphite);
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 0.8125rem;
-  letter-spacing: 0.04em;
+  font-family: var(--font-display); font-style: italic;
+  font-size: 0.8125rem; letter-spacing: 0.04em;
 }
-.rule::before, .rule::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--color-rule);
-}
+.rule::before, .rule::after { content: ""; flex: 1; height: 1px; background: var(--color-rule); }
 
 .caption {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  color: var(--color-graphite);
-  text-transform: lowercase;
+  font-family: var(--font-display); font-style: italic;
+  font-size: 0.75rem; letter-spacing: 0.08em;
+  color: var(--color-graphite); text-transform: lowercase;
 }
 
 .data-label {
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--color-graphite);
-  font-weight: 500;
+  font-family: var(--font-mono); font-size: 0.625rem;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--color-graphite); font-weight: 500;
 }
 
-/* Specimen card */
 .specimen {
-  position: relative;
-  border: 1px solid var(--color-rule);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0) 40%);
+  position: relative; border: 1px solid var(--color-rule);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 40%);
+}
+[data-theme="dark"] .specimen {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0) 40%);
 }
 .specimen::before, .specimen::after { content: ""; position: absolute; width: 10px; height: 10px; border-color: var(--color-ink); pointer-events: none; }
 .specimen::before { top: -5px; left: -5px; border-top: 1.5px solid var(--color-ink); border-left: 1.5px solid var(--color-ink); }
@@ -104,42 +113,27 @@ body {
 .ruler-edge > span:nth-child(5n) { height: 10px; opacity: 0.9; }
 .ruler-edge > span:not(:nth-child(5n)) { height: 5px; }
 
-/* Readouts */
 .readout {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: clamp(3rem, 14vw, 5rem);
-  line-height: 0.85;
-  letter-spacing: -0.03em;
-  color: var(--color-ink);
+  font-family: var(--font-display); font-style: italic;
+  font-size: clamp(3rem, 14vw, 5rem); line-height: 0.85;
+  letter-spacing: -0.03em; color: var(--color-ink);
   font-feature-settings: "tnum" 1;
 }
 
 .readout-mono {
-  font-family: var(--font-mono);
-  font-weight: 500;
-  font-size: 1.875rem;
-  line-height: 1;
-  letter-spacing: -0.02em;
-  color: var(--color-ink);
-  font-feature-settings: "tnum" 1;
+  font-family: var(--font-mono); font-weight: 500;
+  font-size: 1.875rem; line-height: 1; letter-spacing: -0.02em;
+  color: var(--color-ink); font-feature-settings: "tnum" 1;
 }
 
-/* Field input */
 .field-input {
-  width: 100%;
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid var(--color-rule);
-  font-family: var(--font-mono);
-  font-size: 1.25rem;
-  font-weight: 500;
-  color: var(--color-ink);
-  padding: 0.25rem 0 0.35rem;
+  width: 100%; background: transparent;
+  border: none; border-bottom: 1px solid var(--color-rule);
+  font-family: var(--font-mono); font-size: 1.25rem; font-weight: 500;
+  color: var(--color-ink); padding: 0.25rem 0 0.35rem;
   letter-spacing: -0.01em;
   transition: border-color 220ms ease, padding-left 220ms ease;
-  outline: none;
-  font-feature-settings: "tnum" 1;
+  outline: none; font-feature-settings: "tnum" 1;
 }
 .field-input::placeholder { color: var(--color-aged); font-style: italic; font-family: var(--font-display); font-weight: 400; }
 .field-input:focus { border-bottom-color: var(--color-blood); padding-left: 0.25rem; }
@@ -147,44 +141,28 @@ body {
 .field-input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .field-input[type="number"] { -moz-appearance: textfield; }
 
-/* Buttons */
 .stamp-btn {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.75rem 1.25rem;
-  background: var(--color-blood);
-  color: var(--color-paper);
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-weight: 500;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  border: 1px solid var(--color-blood-deep);
-  cursor: pointer;
+  position: relative; display: inline-flex; align-items: center;
+  justify-content: center; gap: 0.5rem; width: 100%;
+  padding: 0.75rem 1.25rem; background: var(--color-blood);
+  color: var(--color-paper); font-family: var(--font-mono);
+  font-size: 0.6875rem; font-weight: 500;
+  letter-spacing: 0.24em; text-transform: uppercase;
+  border: 1px solid var(--color-blood-deep); cursor: pointer;
   transition: transform 140ms ease, background-color 140ms ease;
   box-shadow: 2px 2px 0 0 var(--color-ink);
 }
 .stamp-btn:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 0 var(--color-ink); }
 .stamp-btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 0 var(--color-ink); }
 .stamp-btn:disabled { background: var(--color-graphite-soft); border-color: var(--color-graphite); cursor: not-allowed; box-shadow: 2px 2px 0 0 var(--color-graphite); }
+[data-theme="dark"] .stamp-btn { box-shadow: 2px 2px 0 0 rgba(0,0,0,0.5); }
 
 .tag-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0.75rem;
-  background: transparent;
-  color: var(--color-ink);
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  border: 1px solid var(--color-rule);
-  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.4rem 0.75rem; background: transparent;
+  color: var(--color-ink); font-family: var(--font-mono);
+  font-size: 0.625rem; letter-spacing: 0.2em; text-transform: uppercase;
+  border: 1px solid var(--color-rule); cursor: pointer;
   transition: all 140ms ease;
 }
 .tag-btn:hover { background: var(--color-ink); color: var(--color-paper); }
@@ -192,72 +170,46 @@ body {
 .monogram { font-family: var(--font-display); font-style: italic; font-size: 1.125rem; color: var(--color-blood); line-height: 1; letter-spacing: -0.02em; }
 
 .stamp-mark {
-  font-family: var(--font-display);
-  font-size: 0.5625rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--color-blood);
-  border: 1.5px solid var(--color-blood);
-  padding: 1px 5px;
-  display: inline-block;
-  transform: rotate(-4deg);
-  opacity: 0.72;
+  font-family: var(--font-display); font-size: 0.5625rem;
+  letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--color-blood); border: 1.5px solid var(--color-blood);
+  padding: 1px 5px; display: inline-block;
+  transform: rotate(-4deg); opacity: 0.72;
 }
 
-/* ──────────────────────────────────────────────────────────────
-   Tape strip — the core entry display pattern.
-   Each logged entry is a horizontal "tape" like adding-machine output.
-   Perforated top edge, dense inline data, tap to expand.
-   ────────────────────────────────────────────────────────────── */
+/* ── Tape strip ──────────────────────────────────────────────── */
 .tape-strip {
-  position: relative;
-  padding: 0.625rem 0.75rem;
+  position: relative; padding: 0.625rem 0.75rem;
   background: rgba(255, 255, 255, 0.35);
   border-bottom: 1px solid var(--color-rule);
-  cursor: pointer;
-  transition: background 160ms ease;
+  cursor: pointer; transition: background 160ms ease;
 }
-.tape-strip:first-child {
-  /* Perforated edge: dashed top border on first strip */
-  border-top: 1px dashed var(--color-aged);
-}
-.tape-strip:hover, .tape-strip:focus-visible {
-  background: rgba(255, 255, 255, 0.6);
-}
+[data-theme="dark"] .tape-strip { background: rgba(255, 255, 255, 0.04); }
+.tape-strip:first-child { border-top: 1px dashed var(--color-aged); }
+.tape-strip:hover, .tape-strip:focus-visible { background: rgba(255, 255, 255, 0.6); }
+[data-theme="dark"] .tape-strip:hover { background: rgba(255, 255, 255, 0.08); }
 .tape-strip.tape-editing {
   background: var(--color-paper-deep);
   border-left: 3px solid var(--color-blood);
   padding-left: calc(0.75rem - 3px);
 }
 
-/* Inline progress micro-bar for macros */
-.micro-bar {
-  display: inline-block;
-  height: 3px;
-  border-radius: 0;
-  vertical-align: middle;
-  transition: width 300ms ease;
-}
+.micro-bar { display: inline-block; height: 3px; border-radius: 0; vertical-align: middle; transition: width 300ms ease; }
 
-/* Radio card (reused from onboarding) */
 .radio-card {
-  padding: 8px 12px;
-  background: transparent;
-  border: 1px solid var(--color-rule);
-  cursor: pointer;
+  padding: 8px 12px; background: transparent;
+  border: 1px solid var(--color-rule); cursor: pointer;
   transition: all 180ms ease;
 }
 .radio-card:hover { background: rgba(26, 22, 18, 0.04); }
+[data-theme="dark"] .radio-card:hover { background: rgba(255, 255, 255, 0.04); }
 .radio-card.selected {
-  background: var(--color-ink);
-  color: var(--color-paper);
+  background: var(--color-ink); color: var(--color-paper);
   border-color: var(--color-ink);
   box-shadow: 2px 2px 0 0 var(--color-blood);
 }
 
-/* ──────────────────────────────────────────────────────────────
-   Animations
-   ────────────────────────────────────────────────────────────── */
+/* ── Animations ──────────────────────────────────────────────── */
 @keyframes ink-in {
   from { opacity: 0; transform: translateY(4px); filter: blur(1px); }
   to { opacity: 1; transform: translateY(0); filter: blur(0); }

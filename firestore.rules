@@ -54,6 +54,20 @@ service cloud.firestore {
           && data.profileCompleted == false;
     }
 
+    // ─── Preset schema ────────────────────────────────────────
+    function isValidPreset(data) {
+      return data.keys().hasAll(['name', 'calories'])
+          && data.keys().hasOnly(['name', 'calories', 'protein'])
+          && data.name is string
+          && data.name.size() > 0
+          && data.name.size() <= 100
+          && data.calories is number
+          && data.calories >= 0
+          && data.calories < 20000
+          && (!('protein' in data.keys()) ||
+              (data.protein is number && data.protein >= 0 && data.protein < 1000));
+    }
+
     function hasValidActivityLevel(data) {
       return data.activityLevel == 'sedentary'
           || data.activityLevel == 'light'
@@ -100,6 +114,14 @@ service cloud.firestore {
         allow read:   if isOwner(uid);
         allow create: if isOwner(uid) && isValidLog(request.resource.data);
         allow update: if isOwner(uid) && isValidLog(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+
+      // Meal presets — quick-add templates.
+      match /presets/{presetId} {
+        allow read:   if isOwner(uid);
+        allow create: if isOwner(uid) && isValidPreset(request.resource.data);
+        allow update: if isOwner(uid) && isValidPreset(request.resource.data);
         allow delete: if isOwner(uid);
       }
     }

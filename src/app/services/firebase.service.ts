@@ -36,6 +36,14 @@ export interface DailyLog {
   cardioCompleted?: boolean;
 }
 
+// ─── Preset types ───────────────────────────────────────────────
+export interface MealPreset {
+  id?: string;
+  name: string;
+  calories: number;
+  protein?: number;
+}
+
 /** Shape passed to addLog / updateLog — the fields the user submits. */
 export interface LogEntry {
   weight: number;
@@ -209,6 +217,30 @@ export class FirebaseService {
   /** Delete a log entry. */
   async deleteLog(logId: string): Promise<void> {
     const ref = doc(this.firestore, 'users', this.requireUid(), 'dailyLogs', logId);
+    await deleteDoc(ref);
+  }
+
+  // ─── Meal presets ─────────────────────────────────────────────
+  private presetsCollection() {
+    return collection(this.firestore, 'users', this.requireUid(), 'presets');
+  }
+
+  async getPresets(): Promise<MealPreset[]> {
+    const snap = await getDocs(this.presetsCollection());
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as MealPreset));
+  }
+
+  async addPreset(preset: Omit<MealPreset, 'id'>): Promise<void> {
+    const data: Record<string, unknown> = {
+      name: preset.name,
+      calories: preset.calories,
+    };
+    if (preset.protein != null) data['protein'] = preset.protein;
+    await addDoc(this.presetsCollection(), data);
+  }
+
+  async deletePreset(presetId: string): Promise<void> {
+    const ref = doc(this.firestore, 'users', this.requireUid(), 'presets', presetId);
     await deleteDoc(ref);
   }
 }

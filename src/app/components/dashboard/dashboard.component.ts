@@ -50,6 +50,30 @@ interface SparklinePoint { x: number; y: number; }
           </div>
         }
 
+        <!-- Goal progress bar -->
+        @if (goalProgress(); as gp) {
+          <div class="mt-5">
+            <div class="flex items-center justify-between mb-1">
+              <span class="data-label">goal progress</span>
+              <span class="font-mono text-[10px] tabular-nums text-graphite">
+                {{ gp.currentWeight }} → {{ gp.goalWeight }} lbs
+              </span>
+            </div>
+            <div class="h-2 w-full bg-paper-deep relative overflow-hidden border border-rule/30">
+              <div class="h-full transition-all duration-500"
+                [style.width.%]="gp.pct"
+                [style.background]="'var(--color-olive)'">
+              </div>
+            </div>
+            <div class="flex items-center justify-between mt-1">
+              <span class="font-mono text-[9px] tabular-nums text-graphite">{{ gp.startWeight }} lbs</span>
+              <span class="font-mono text-[9px] tabular-nums" style="color: var(--color-olive)">
+                {{ gp.pct }}% · {{ gp.remaining }} lbs to go
+              </span>
+            </div>
+          </div>
+        }
+
         <!-- Weekly summary card -->
         @if (weekly(); as w) {
           <div class="mt-5 specimen px-4 py-3">
@@ -174,6 +198,23 @@ export class DashboardComponent implements OnInit {
   protected readonly currentWeight = computed<number | null>(() => {
     const list = this.logs();
     return list.length > 0 ? list[list.length - 1].weight : null;
+  });
+
+  /** Goal progress: pct from starting weight to goal weight. */
+  protected readonly goalProgress = computed(() => {
+    const profile = this.firebase.profile();
+    const goal = profile?.goalWeightLbs;
+    const current = this.currentWeight();
+    if (!goal || current == null) return null;
+    const list = this.logs();
+    // Starting weight is the first entry ever (oldest in the list).
+    const start = list.length > 0 ? list[0].weight : current;
+    const totalToLose = start - goal;
+    if (totalToLose <= 0) return null; // goal is above start — not a cut
+    const lost = start - current;
+    const pct = Math.min(100, Math.max(0, Math.round((lost / totalToLose) * 100)));
+    const remaining = Math.max(0, +(current - goal).toFixed(1));
+    return { startWeight: start, currentWeight: current, goalWeight: goal, pct, remaining };
   });
 
   protected readonly trendLabel = computed<string>(() => {

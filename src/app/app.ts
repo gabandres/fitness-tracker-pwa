@@ -59,12 +59,16 @@ import { FirebaseService } from './services/firebase.service';
           </div>
           <div class="text-right shrink-0 pt-2">
             <div class="data-label">{{ todayLabel() }}</div>
-            <div class="font-mono text-[10px] tracking-[0.2em] text-graphite mt-0.5">vol. 01</div>
-            @if (auth.isSignedIn()) {
-              <button type="button" (click)="signOut()" class="tag-btn mt-3" title="Sign out">
-                sign out
+            <div class="flex items-center justify-end gap-2 mt-1">
+              <button type="button" (click)="toggleTheme()" class="tag-btn" title="Toggle dark/light mode">
+                {{ darkMode() ? '☀' : '☾' }}
               </button>
-            }
+              @if (auth.isSignedIn()) {
+                <button type="button" (click)="signOut()" class="tag-btn" title="Sign out">
+                  out
+                </button>
+              }
+            </div>
           </div>
         </header>
 
@@ -151,6 +155,7 @@ export class App {
   protected readonly editingProfile = signal(false);
   protected readonly updateReady = signal(false);
   protected readonly offline = signal(!navigator.onLine);
+  protected readonly darkMode = signal(false);
 
   protected readonly todayLabel = computed(() => {
     const d = new Date();
@@ -160,6 +165,13 @@ export class App {
   });
 
   constructor() {
+    // ── Theme: detect, apply, persist ──────────────────────────
+    const stored = localStorage.getItem('macrolog.theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const isDark = stored ? stored === 'dark' : prefersDark;
+    this.darkMode.set(isDark);
+    this.applyTheme(isDark);
+
     // Track online/offline state for the UI indicator.
     window.addEventListener('online', () => this.offline.set(false));
     window.addEventListener('offline', () => this.offline.set(true));
@@ -198,6 +210,25 @@ export class App {
 
   protected onProfileSaved(): void {
     this.editingProfile.set(false);
+  }
+
+  protected toggleTheme(): void {
+    const next = !this.darkMode();
+    this.darkMode.set(next);
+    this.applyTheme(next);
+    localStorage.setItem('macrolog.theme', next ? 'dark' : 'light');
+  }
+
+  private applyTheme(dark: boolean): void {
+    const el = document.documentElement;
+    if (dark) {
+      el.setAttribute('data-theme', 'dark');
+    } else {
+      el.removeAttribute('data-theme');
+    }
+    // Update the status-bar / theme-color meta for mobile.
+    const themeColor = dark ? '#1c1915' : '#f2ead7';
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor);
   }
 
   protected async signOut(): Promise<void> {

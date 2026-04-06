@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, output, signal, computed } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { DailyLog, FirebaseService, LogEntry } from '../../services/firebase.service';
+import { DailyLog, FirebaseService, LogEntry, MealPreset } from '../../services/firebase.service';
 import { TdeeCalculatorService } from '../../services/tdee-calculator.service';
 
 type Mode = 'view' | 'add' | 'edit';
@@ -139,10 +139,30 @@ type Status = 'idle' | 'saving' | 'saved' | 'error';
         } @else if (mode() === 'add') {
           <div class="specimen px-4 py-5 slide-down">
             <span class="crop-bl"></span><span class="crop-br"></span>
-            <div class="flex items-center gap-2 mb-4">
+            <div class="flex items-center gap-2 mb-3">
               <span class="stamp-mark" style="transform: rotate(0deg)">new</span>
               <span class="data-label">entry</span>
             </div>
+
+            <!-- Quick-add presets -->
+            @if (presets().length > 0) {
+              <div class="mb-4">
+                <div class="data-label mb-1.5">quick add</div>
+                <div class="flex flex-wrap gap-1.5">
+                  @for (p of presets(); track p.id) {
+                    <button type="button" (click)="applyPreset(p)"
+                      class="tag-btn text-[9px] group relative">
+                      {{ p.name }}
+                      <span class="text-graphite-soft">{{ p.calories }}</span>
+                      <button type="button" (click)="removePreset(p, $event)"
+                        class="ml-1 opacity-0 group-hover:opacity-100 text-blood text-[9px] transition-opacity"
+                        title="Remove preset">✕</button>
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+
             <ng-container *ngTemplateOutlet="entryForm"></ng-container>
           </div>
         }
@@ -226,7 +246,20 @@ type Status = 'idle' | 'saving' | 'saved' | 'error';
             <div class="flex items-center gap-2">
               <span class="stamp-mark" style="transform: rotate(0deg)">ok</span>
               <span class="caption text-[11px]">saved.</span>
+              @if (mode() === 'add' && !savingPreset()) {
+                <button type="button" (click)="promptSavePreset()"
+                  class="tag-btn text-[9px] ml-auto">save as preset</button>
+              }
             </div>
+            @if (savingPreset()) {
+              <div class="flex items-center gap-2 mt-2">
+                <input type="text" [value]="presetName()"
+                  (input)="presetName.set($any($event.target).value)"
+                  placeholder="preset name"
+                  class="field-input text-sm flex-1" />
+                <button type="button" (click)="confirmSavePreset()" class="tag-btn">save</button>
+              </div>
+            }
           }
           @if (status() === 'error') {
             <p class="font-mono text-[11px] text-blood">✕ {{ errorMsg() }}</p>
@@ -249,6 +282,9 @@ export class DailyLedgerComponent implements OnInit {
   protected readonly editTarget = signal<DailyLog | null>(null);
   protected readonly status = signal<Status>('idle');
   protected readonly errorMsg = signal('');
+  protected readonly presets = signal<MealPreset[]>([]);
+  protected readonly savingPreset = signal(false);
+  protected readonly presetName = signal('');
 
   // ─── Form fields ────────────────────────────────────────────
   protected readonly weight = signal<number | null>(null);
@@ -291,6 +327,7 @@ export class DailyLedgerComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadLogs();
+    this.loadPresets();
   }
 
   // ─── Interactions ───────────────────────────────────────────
@@ -351,9 +388,13 @@ export class DailyLedgerComponent implements OnInit {
         await this.firebase.addLog(entry);
       }
       this.status.set('saved');
+      this.savingPreset.set(false);
       this.logSaved.emit();
       await this.loadLogs();
-      setTimeout(() => { this.cancel(); }, 800);
+      // Don't auto-dismiss in add mode — user might want to save as preset.
+      if (this.mode() === 'edit') {
+        setTimeout(() => { this.cancel(); }, 800);
+      }
     } catch (err) {
       this.status.set('error');
       this.errorMsg.set(err instanceof Error ? err.message : 'Failed to save.');
@@ -391,5 +432,44 @@ export class DailyLedgerComponent implements OnInit {
   private async loadLogs(): Promise<void> {
     try { this.logs.set(await this.firebase.getRecentLogs(14)); }
     catch { /* non-critical */ }
+  }
+
+  // ─── Presets ────────────────────────────────────────────────
+  private async loadPresets(): Promise<void> {
+    try { this.presets.set(await this.firebase.getPresets()); }
+    catch { /* non-critical */ }
+  }
+
+  protected applyPreset(p: MealPreset): void {
+    this.calories.set(p.calories);
+    if (p.protein != null) this.protein.set(p.protein);
+  }
+
+  protected async removePreset(p: MealPreset, event: Event): Promise<void> {
+    event.stopPropagation();
+    if (!p.id) return;
+    try {
+      await this.firebase.deletePreset(p.id);
+      await this.loadPresets();
+    } catch { /* non-critical */ }
+  }
+
+  protected promptSavePreset(): void {
+    this.savingPreset.set(true);
+    this.presetName.set('');
+  }
+
+  protected async confirmSavePreset(): Promise<void> {
+    const name = this.presetName().trim();
+    const cal = this.calories();
+    if (!name || cal == null) return;
+    try {
+      const preset: Omit<MealPreset, 'id'> = { name, calories: Number(cal) };
+      const pro = this.protein();
+      if (pro != null) preset.protein = Number(pro);
+      await this.firebase.addPreset(preset);
+      this.savingPreset.set(false);
+      await this.loadPresets();
+    } catch { /* non-critical */ }
   }
 }
