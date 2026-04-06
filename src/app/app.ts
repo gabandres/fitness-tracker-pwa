@@ -102,11 +102,13 @@ import { FirebaseService } from './services/firebase.service';
               />
             </div>
           } @else {
+            <!-- Log-first: the tape is the primary view -->
             <div class="ink-in delay-3">
-              <app-dashboard />
-            </div>
-            <div class="ink-in delay-4">
               <app-daily-ledger (logSaved)="onLogSaved()" />
+            </div>
+            <!-- Dashboard metrics are reference data below the log -->
+            <div class="ink-in delay-4">
+              <app-dashboard />
             </div>
             <div class="ink-in delay-5">
               <app-consultation />

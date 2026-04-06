@@ -1,178 +1,278 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, output, signal, computed } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DailyLog, FirebaseService, LogEntry } from '../../services/firebase.service';
 
+type Mode = 'view' | 'add' | 'edit';
 type Status = 'idle' | 'saving' | 'saved' | 'error';
 
 @Component({
   selector: 'app-daily-ledger',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, NgTemplateOutlet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section>
-      <div class="rule">
-        <span>{{ editingLog() ? 'amend entry' : "today's entry" }}</span>
-      </div>
-
-      <form (ngSubmit)="onSubmit()" class="mt-6 space-y-7">
-        <!-- Morning weight -->
-        <div>
-          <label for="weight" class="data-label block mb-1">i. morning weight</label>
-          <div class="flex items-baseline gap-3">
-            <input id="weight" name="weight" type="number" step="0.1" inputmode="decimal" required
-              [ngModel]="weight()" (ngModelChange)="weight.set($event)"
-              placeholder="___.__" class="field-input flex-1" />
-            <span class="font-display italic text-graphite text-sm shrink-0">lbs</span>
-          </div>
-        </div>
-
-        <!-- Calories -->
-        <div>
-          <label for="calories" class="data-label block mb-1">ii. total calories consumed</label>
-          <div class="flex items-baseline gap-3">
-            <input id="calories" name="calories" type="number" step="1" inputmode="numeric" required
-              [ngModel]="calories()" (ngModelChange)="calories.set($event)"
-              placeholder="____" class="field-input flex-1" />
-            <span class="font-display italic text-graphite text-sm shrink-0">kcal</span>
-          </div>
-        </div>
-
-        <!-- Protein -->
-        <div>
-          <label for="protein" class="data-label block mb-1">
-            iii. protein
-            <span class="normal-case italic text-graphite tracking-normal text-[11px]">(optional)</span>
-          </label>
-          <div class="flex items-baseline gap-3">
-            <input id="protein" name="protein" type="number" step="1" inputmode="numeric"
-              [ngModel]="protein()" (ngModelChange)="protein.set($event)"
-              placeholder="___" class="field-input flex-1" />
-            <span class="font-display italic text-graphite text-sm shrink-0">g</span>
-          </div>
-        </div>
-
-        <!-- Training toggles -->
-        <div>
-          <label class="data-label block mb-2">iv. training</label>
-          <div class="flex flex-wrap gap-3">
-            <button type="button" (click)="liftDone.set(!liftDone())"
-              [class.selected]="liftDone()"
-              class="radio-card flex-1 min-w-[120px] text-center">
-              <div class="font-mono text-xs tracking-[0.12em] uppercase">
-                {{ liftDone() ? '✓' : '○' }} lift
+      <!-- ─── Target remaining card ──────────────────────── -->
+      @if (todaySummary(); as s) {
+        <div class="specimen px-4 py-3 mb-6">
+          <span class="crop-bl"></span><span class="crop-br"></span>
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="data-label">today so far</div>
+              <div class="font-mono text-2xl font-medium text-ink mt-0.5 tabular-nums">
+                {{ s.totalCalories }}
+                <span class="text-graphite text-sm font-normal">kcal</span>
               </div>
-            </button>
-            <button type="button" (click)="cardioDone.set(!cardioDone())"
-              [class.selected]="cardioDone()"
-              class="radio-card flex-1 min-w-[120px] text-center">
-              <div class="font-mono text-xs tracking-[0.12em] uppercase">
-                {{ cardioDone() ? '✓' : '○' }} cardio
-              </div>
-            </button>
-          </div>
-        </div>
-
-        <!-- Submit -->
-        <div class="pt-2 flex gap-3">
-          <button type="submit" [disabled]="status() === 'saving'" class="stamp-btn flex-1">
-            {{ status() === 'saving' ? 'committing…' : editingLog() ? 'save changes' : 'commit entry' }}
-          </button>
-          @if (editingLog()) {
-            <button type="button" (click)="cancelEdit()" class="tag-btn">cancel</button>
-          }
-        </div>
-
-        @if (status() === 'saved') {
-          <div class="flex items-center gap-3 mt-3">
-            <span class="stamp-mark">filed</span>
-            <p class="caption text-[11px]">
-              {{ editingLog() ? 'entry amended.' : 'entry committed to the record.' }}
-            </p>
-          </div>
-        }
-        @if (status() === 'error') {
-          <p class="font-mono text-[11px] text-blood mt-3 leading-relaxed">✕ {{ errorMsg() }}</p>
-        }
-      </form>
-
-      <!-- Recent entries -->
-      @if (recentLogs().length > 0) {
-        <div class="mt-10">
-          <div class="rule"><span>recent entries</span></div>
-          <div class="mt-4 space-y-0">
-            @for (log of recentLogs(); track log.id) {
-              <div class="flex items-center justify-between gap-3 py-2.5 border-b border-rule/30 group"
-                [class.bg-paper-deep]="editingLog()?.id === log.id">
-                <div class="flex-1 min-w-0">
-                  <div class="font-mono text-[11px] text-graphite tracking-[0.1em]">
-                    {{ formatDate(log.date) }}
-                    @if (log.liftCompleted) { <span class="text-blood ml-1" title="Lift completed">●</span> }
-                    @if (log.cardioCompleted) { <span class="text-graphite-soft ml-0.5" title="Cardio completed">◆</span> }
-                  </div>
-                  <div class="flex items-baseline gap-3 mt-0.5 flex-wrap">
-                    <span class="font-mono text-sm text-ink">{{ log.weight }} <span class="text-graphite text-[10px]">lbs</span></span>
-                    <span class="font-mono text-sm text-ink">{{ log.calories }} <span class="text-graphite text-[10px]">kcal</span></span>
-                    @if (log.protein != null) {
-                      <span class="font-mono text-sm text-ink">{{ log.protein }} <span class="text-graphite text-[10px]">g pro</span></span>
-                    }
-                  </div>
-                </div>
-                <div class="flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
-                  <button type="button" (click)="startEdit(log)" title="Edit entry"
-                    class="font-mono text-[10px] tracking-[0.15em] uppercase text-ink hover:text-blood transition-colors px-1.5 py-0.5">
-                    edit
-                  </button>
-                  <button type="button" (click)="deleteEntry(log)" title="Delete entry"
-                    class="font-mono text-[10px] tracking-[0.15em] uppercase text-graphite hover:text-blood transition-colors px-1.5 py-0.5">
-                    ✕
-                  </button>
+            </div>
+            @if (s.totalProtein > 0) {
+              <div class="text-right">
+                <div class="data-label" style="color: var(--color-protein)">protein</div>
+                <div class="font-mono text-2xl font-medium tabular-nums mt-0.5" style="color: var(--color-protein)">
+                  {{ s.totalProtein }}
+                  <span class="text-sm font-normal opacity-70">g</span>
                 </div>
               </div>
             }
           </div>
-          <div class="mt-3 flex items-center gap-3 text-[10px] font-mono text-graphite tracking-[0.1em]">
-            <span class="text-blood">●</span> lift &nbsp;
-            <span class="text-graphite-soft">◆</span> cardio
-          </div>
         </div>
       }
+
+      <!-- ─── Log tape: entries first ────────────────────── -->
+      <div class="rule"><span>{{ logs().length > 0 ? 'log tape' : 'no entries yet' }}</span></div>
+
+      <div class="mt-3">
+        @for (log of logs(); track log.id; let i = $index) {
+          <div
+            class="tape-strip tape-in"
+            [class.tape-editing]="editTarget()?.id === log.id"
+            [style.animation-delay]="(i * 40) + 'ms'"
+            (click)="onTapEntry(log)"
+          >
+            <!-- Collapsed: single-line summary -->
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-3 min-w-0">
+                <!-- Date stamp -->
+                <span class="font-mono text-[10px] tracking-[0.12em] text-graphite shrink-0 w-[70px]">
+                  {{ formatDate(log.date) }}
+                </span>
+                <!-- Weight -->
+                <span class="font-mono text-sm text-ink tabular-nums">
+                  {{ log.weight }}<span class="text-graphite text-[10px] ml-0.5">lb</span>
+                </span>
+                <!-- Calories -->
+                <span class="font-mono text-sm tabular-nums" style="color: var(--color-blood)">
+                  {{ log.calories }}<span class="text-[10px] ml-0.5 opacity-70">cal</span>
+                </span>
+                <!-- Protein (if logged) -->
+                @if (log.protein != null) {
+                  <span class="font-mono text-sm tabular-nums" style="color: var(--color-protein)">
+                    {{ log.protein }}<span class="text-[10px] ml-0.5 opacity-70">g</span>
+                  </span>
+                }
+              </div>
+              <!-- Training indicators -->
+              <div class="flex items-center gap-1.5 shrink-0">
+                @if (log.liftCompleted) {
+                  <span class="inline-block w-2 h-2 rounded-full" style="background: var(--color-blood)" title="Lift"></span>
+                }
+                @if (log.cardioCompleted) {
+                  <span class="inline-block w-2 h-2" style="background: var(--color-olive); clip-path: polygon(50% 0%, 100% 100%, 0% 100%);" title="Cardio"></span>
+                }
+              </div>
+            </div>
+
+            <!-- Expanded: edit form (shown when this entry is tapped) -->
+            @if (editTarget()?.id === log.id && mode() === 'edit') {
+              <div class="slide-down mt-3 pt-3 border-t border-rule/40" (click)="$event.stopPropagation()">
+                <ng-container *ngTemplateOutlet="entryForm"></ng-container>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- Empty state -->
+        @if (logs().length === 0) {
+          <div class="py-8 text-center">
+            <p class="caption text-[11px]">tap the button below to record your first entry.</p>
+          </div>
+        }
+      </div>
+
+      <!-- ─── Action bar: add new / cancel ───────────────── -->
+      <div class="mt-4">
+        @if (mode() === 'view') {
+          <button type="button" (click)="startAdd()" class="stamp-btn">
+            + new entry
+          </button>
+        } @else if (mode() === 'add') {
+          <div class="specimen px-4 py-5 slide-down">
+            <span class="crop-bl"></span><span class="crop-br"></span>
+            <div class="flex items-center gap-2 mb-4">
+              <span class="stamp-mark" style="transform: rotate(0deg)">new</span>
+              <span class="data-label">entry</span>
+            </div>
+            <ng-container *ngTemplateOutlet="entryForm"></ng-container>
+          </div>
+        }
+      </div>
+
+      <!-- ─── Shared entry form template ────────────────── -->
+      <ng-template #entryForm>
+        <form (ngSubmit)="onSubmit()" class="space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <!-- Weight -->
+            <div>
+              <label class="data-label block mb-1">weight</label>
+              <div class="flex items-baseline gap-1">
+                <input type="number" step="0.1" inputmode="decimal" required
+                  [ngModel]="weight()" (ngModelChange)="weight.set($event)"
+                  name="weight" placeholder="___" class="field-input text-base" />
+                <span class="font-display italic text-graphite text-xs">lbs</span>
+              </div>
+            </div>
+            <!-- Calories -->
+            <div>
+              <label class="data-label block mb-1">calories</label>
+              <div class="flex items-baseline gap-1">
+                <input type="number" step="1" inputmode="numeric" required
+                  [ngModel]="calories()" (ngModelChange)="calories.set($event)"
+                  name="calories" placeholder="____" class="field-input text-base" />
+                <span class="font-display italic text-graphite text-xs">kcal</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <!-- Protein -->
+            <div>
+              <label class="data-label block mb-1">
+                protein <span class="normal-case italic text-graphite-soft tracking-normal text-[9px]">opt</span>
+              </label>
+              <div class="flex items-baseline gap-1">
+                <input type="number" step="1" inputmode="numeric"
+                  [ngModel]="protein()" (ngModelChange)="protein.set($event)"
+                  name="protein" placeholder="___" class="field-input text-base" />
+                <span class="font-display italic text-graphite text-xs">g</span>
+              </div>
+            </div>
+            <!-- Training -->
+            <div>
+              <label class="data-label block mb-1">training</label>
+              <div class="flex gap-2 mt-1">
+                <button type="button" (click)="liftDone.set(!liftDone())"
+                  [class.selected]="liftDone()" class="radio-card flex-1 text-center py-1.5">
+                  <span class="font-mono text-[10px] tracking-[0.1em] uppercase">
+                    {{ liftDone() ? '●' : '○' }} lift
+                  </span>
+                </button>
+                <button type="button" (click)="cardioDone.set(!cardioDone())"
+                  [class.selected]="cardioDone()" class="radio-card flex-1 text-center py-1.5">
+                  <span class="font-mono text-[10px] tracking-[0.1em] uppercase">
+                    {{ cardioDone() ? '▲' : '△' }} cardio
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions row -->
+          <div class="flex gap-2 pt-1">
+            <button type="submit" [disabled]="status() === 'saving'" class="stamp-btn flex-1">
+              {{ status() === 'saving' ? 'saving…' : mode() === 'edit' ? 'save' : 'commit' }}
+            </button>
+            @if (mode() === 'edit') {
+              <button type="button" (click)="deleteEntry()" class="tag-btn text-blood border-blood/40 hover:bg-blood hover:text-paper">
+                delete
+              </button>
+            }
+            <button type="button" (click)="cancel()" class="tag-btn">
+              cancel
+            </button>
+          </div>
+
+          @if (status() === 'saved') {
+            <div class="flex items-center gap-2">
+              <span class="stamp-mark" style="transform: rotate(0deg)">ok</span>
+              <span class="caption text-[11px]">saved.</span>
+            </div>
+          }
+          @if (status() === 'error') {
+            <p class="font-mono text-[11px] text-blood">✕ {{ errorMsg() }}</p>
+          }
+        </form>
+      </ng-template>
     </section>
   `,
-  styles: [`
-    .radio-card {
-      padding: 10px 14px;
-      background: transparent;
-      border: 1px solid var(--color-rule);
-      cursor: pointer;
-      transition: all 180ms ease;
-    }
-    .radio-card:hover { background: rgba(26, 22, 18, 0.04); }
-    .radio-card.selected {
-      background: var(--color-ink);
-      color: var(--color-paper);
-      border-color: var(--color-ink);
-      box-shadow: 2px 2px 0 0 var(--color-blood);
-    }
-  `],
 })
 export class DailyLedgerComponent implements OnInit {
   private readonly firebase = inject(FirebaseService);
 
   readonly logSaved = output<void>();
 
+  // ─── State ──────────────────────────────────────────────────
+  protected readonly logs = signal<DailyLog[]>([]);
+  protected readonly mode = signal<Mode>('view');
+  protected readonly editTarget = signal<DailyLog | null>(null);
+  protected readonly status = signal<Status>('idle');
+  protected readonly errorMsg = signal('');
+
+  // ─── Form fields ────────────────────────────────────────────
   protected readonly weight = signal<number | null>(null);
   protected readonly calories = signal<number | null>(null);
   protected readonly protein = signal<number | null>(null);
   protected readonly liftDone = signal(false);
   protected readonly cardioDone = signal(false);
-  protected readonly status = signal<Status>('idle');
-  protected readonly errorMsg = signal('');
-  protected readonly editingLog = signal<DailyLog | null>(null);
-  protected readonly recentLogs = signal<DailyLog[]>([]);
+
+  /** Sum today's entries for the "today so far" card. */
+  protected readonly todaySummary = computed(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const todayLogs = this.logs().filter(
+      (l) => l.date.toISOString().slice(0, 10) === today,
+    );
+    if (todayLogs.length === 0) return null;
+    return {
+      totalCalories: todayLogs.reduce((s, l) => s + l.calories, 0),
+      totalProtein: todayLogs.reduce((s, l) => s + (l.protein ?? 0), 0),
+    };
+  });
 
   ngOnInit(): void {
-    this.loadRecent();
+    this.loadLogs();
+  }
+
+  // ─── Interactions ───────────────────────────────────────────
+
+  /** Tap an entry in the tape to expand its inline editor. */
+  protected onTapEntry(log: DailyLog): void {
+    // If already editing this one, collapse it.
+    if (this.editTarget()?.id === log.id && this.mode() === 'edit') {
+      this.cancel();
+      return;
+    }
+    this.editTarget.set(log);
+    this.mode.set('edit');
+    this.weight.set(log.weight);
+    this.calories.set(log.calories);
+    this.protein.set(log.protein ?? null);
+    this.liftDone.set(log.liftCompleted ?? false);
+    this.cardioDone.set(log.cardioCompleted ?? false);
+    this.status.set('idle');
+    this.errorMsg.set('');
+  }
+
+  protected startAdd(): void {
+    this.resetForm();
+    this.mode.set('add');
+    this.editTarget.set(null);
+    this.status.set('idle');
+  }
+
+  protected cancel(): void {
+    this.mode.set('view');
+    this.editTarget.set(null);
+    this.resetForm();
+    this.status.set('idle');
   }
 
   protected async onSubmit(): Promise<void> {
@@ -184,10 +284,7 @@ export class DailyLedgerComponent implements OnInit {
       return;
     }
 
-    const entry: LogEntry = {
-      weight: Number(w),
-      calories: Number(c),
-    };
+    const entry: LogEntry = { weight: Number(w), calories: Number(c) };
     const p = this.protein();
     if (p != null && !Number.isNaN(Number(p))) entry.protein = Number(p);
     entry.liftCompleted = this.liftDone();
@@ -195,46 +292,30 @@ export class DailyLedgerComponent implements OnInit {
 
     this.status.set('saving');
     try {
-      const editing = this.editingLog();
-      if (editing?.id) {
+      const editing = this.editTarget();
+      if (this.mode() === 'edit' && editing?.id) {
         await this.firebase.updateLog(editing.id, entry);
       } else {
         await this.firebase.addLog(entry);
       }
       this.status.set('saved');
-      this.resetForm();
       this.logSaved.emit();
-      this.loadRecent();
-      setTimeout(() => this.status.set('idle'), 2800);
+      await this.loadLogs();
+      setTimeout(() => { this.cancel(); }, 800);
     } catch (err) {
       this.status.set('error');
-      this.errorMsg.set(err instanceof Error ? err.message : 'Failed to save log.');
+      this.errorMsg.set(err instanceof Error ? err.message : 'Failed to save.');
     }
   }
 
-  protected startEdit(log: DailyLog): void {
-    this.editingLog.set(log);
-    this.weight.set(log.weight);
-    this.calories.set(log.calories);
-    this.protein.set(log.protein ?? null);
-    this.liftDone.set(log.liftCompleted ?? false);
-    this.cardioDone.set(log.cardioCompleted ?? false);
-    this.status.set('idle');
-  }
-
-  protected cancelEdit(): void {
-    this.editingLog.set(null);
-    this.resetForm();
-    this.status.set('idle');
-  }
-
-  protected async deleteEntry(log: DailyLog): Promise<void> {
-    if (!log.id) return;
+  protected async deleteEntry(): Promise<void> {
+    const target = this.editTarget();
+    if (!target?.id) return;
     try {
-      await this.firebase.deleteLog(log.id);
+      await this.firebase.deleteLog(target.id);
       this.logSaved.emit();
-      this.loadRecent();
-      if (this.editingLog()?.id === log.id) this.cancelEdit();
+      this.cancel();
+      await this.loadLogs();
     } catch (err) {
       this.status.set('error');
       this.errorMsg.set(err instanceof Error ? err.message : 'Failed to delete.');
@@ -243,7 +324,7 @@ export class DailyLedgerComponent implements OnInit {
 
   protected formatDate(d: Date): string {
     return d.toLocaleDateString('en-US', {
-      weekday: 'short', month: 'short', day: 'numeric',
+      month: 'short', day: 'numeric',
     }).toUpperCase();
   }
 
@@ -253,12 +334,10 @@ export class DailyLedgerComponent implements OnInit {
     this.protein.set(null);
     this.liftDone.set(false);
     this.cardioDone.set(false);
-    this.editingLog.set(null);
   }
 
-  private async loadRecent(): Promise<void> {
-    try {
-      this.recentLogs.set(await this.firebase.getRecentLogs(7));
-    } catch { /* non-critical */ }
+  private async loadLogs(): Promise<void> {
+    try { this.logs.set(await this.firebase.getRecentLogs(14)); }
+    catch { /* non-critical */ }
   }
 }

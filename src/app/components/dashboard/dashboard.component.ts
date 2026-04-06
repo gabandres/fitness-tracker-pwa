@@ -13,64 +13,48 @@ interface SparklinePoint {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section>
-      <!-- Primary readout: target daily intake -->
-      <div class="specimen px-5 pt-8 pb-7 relative">
-        <span class="crop-bl"></span><span class="crop-br"></span>
+      <div class="rule"><span>calibration readout</span></div>
 
-        <div class="flex items-center justify-between mb-2">
-          <span class="data-label">target daily intake</span>
-          <button
-            type="button"
-            (click)="refresh()"
-            class="caption text-[11px] hover:text-blood transition-colors"
-            [disabled]="loading()"
-            title="Refresh"
-          >
-            {{ loading() ? 'loading…' : 'refresh ↻' }}
-          </button>
+      <!-- Compact target + TDEE + weight row -->
+      <div class="mt-4 grid grid-cols-3 gap-4">
+        <div>
+          <div class="data-label mb-1">target</div>
+          <div class="readout-mono">{{ tdee().newDailyTarget }}</div>
+          <div class="data-label mt-0.5 opacity-60">kcal/day</div>
         </div>
-
-        <div class="flex items-end gap-4 mt-1">
-          <div class="readout">{{ tdee().newDailyTarget }}</div>
-          <div class="pb-3 pl-1">
-            <div class="font-display italic text-graphite text-sm">kilocalories</div>
-            <div class="data-label mt-0.5">per day</div>
-          </div>
+        <div>
+          <div class="data-label mb-1">true tdee</div>
+          <div class="readout-mono">{{ tdee().trueTdee }}</div>
+          <div class="data-label mt-0.5 opacity-60">kcal/day</div>
         </div>
-
-        @if (logs().length < 14) {
-          <div class="mt-4 border-t border-rule/60 pt-3 flex items-center gap-2">
-            <span class="stamp-mark">provisional</span>
-            <p class="caption text-[11px]">
-              {{ 14 - logs().length }} more day{{ logs().length === 13 ? '' : 's' }} of data
-              before this estimate stabilises.
-            </p>
-          </div>
-        }
+        <div>
+          <div class="data-label mb-1">weight</div>
+          <div class="readout-mono">{{ currentWeight() ?? '—' }}</div>
+          <div class="data-label mt-0.5 opacity-60">lbs</div>
+        </div>
       </div>
 
-      <!-- Secondary readouts: weight + trend + TDEE -->
-      <div class="mt-8 grid grid-cols-2 gap-x-6 gap-y-8">
-        <!-- Current weight -->
-        <div>
-          <div class="data-label mb-1.5">current weight</div>
-          <div class="readout-mono">
-            {{ currentWeight() !== null ? currentWeight() : '—.—' }}
-            <span class="text-graphite text-base font-normal tracking-normal ml-0.5">lbs</span>
-          </div>
+      @if (logs().length < 14) {
+        <div class="mt-3 flex items-center gap-2">
+          <span class="stamp-mark">{{ tdee().source }}</span>
+          <p class="caption text-[11px]">
+            {{ 14 - logs().length }} more day{{ logs().length === 13 ? '' : 's' }} to measured estimate.
+          </p>
         </div>
+      }
 
-        <!-- True TDEE -->
+      <!-- Refresh -->
+      <div class="mt-4 flex justify-end">
+        <button type="button" (click)="refresh()" class="tag-btn"
+          [disabled]="loading()">
+          {{ loading() ? 'loading…' : 'refresh ↻' }}
+        </button>
+      </div>
+
+      <!-- Trend + sparkline -->
+      <div class="mt-6">
+        <!-- 14 day trend with sparkline -->
         <div>
-          <div class="data-label mb-1.5">true tdee</div>
-          <div class="readout-mono">
-            {{ tdee().trueTdee }}
-            <span class="text-graphite text-base font-normal tracking-normal ml-0.5">kcal</span>
-          </div>
-        </div>
-
-        <!-- 14 day trend with sparkline, spans both columns -->
-        <div class="col-span-2">
           <div class="flex items-center justify-between mb-2">
             <span class="data-label">14-day trend</span>
             <span
