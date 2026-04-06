@@ -123,6 +123,82 @@ export class TdeeCalculatorService {
     return bmr * TdeeCalculatorService.ACTIVITY_MULTIPLIERS[profile.activityLevel];
   }
 
+  /**
+   * Exponential Moving Average for weight trend smoothing.
+   * Smoothing factor α = 2/(N+1) where N = span (default 7 days).
+   * Returns an array the same length as input with the EMA at each point.
+   */
+  ema(values: number[], span = 7): number[] {
+    if (values.length === 0) return [];
+    const alpha = 2 / (span + 1);
+    const result: number[] = [values[0]];
+    for (let i = 1; i < values.length; i++) {
+      result.push(alpha * values[i] + (1 - alpha) * result[i - 1]);
+    }
+    return result;
+  }
+
+  /**
+   * Compute streak: number of consecutive days (ending today or
+   * yesterday) that have at least one log entry.
+   */
+  computeStreak(logs: DailyLog[]): number {
+    if (logs.length === 0) return 0;
+
+    // Get unique logged dates as ISO strings, newest first.
+    const dates = new Set(
+      logs.map((l) => l.date.toISOString().slice(0, 10)),
+    );
+
+    let streak = 0;
+    const cursor = new Date();
+    // Allow today or yesterday as the starting point.
+    const todayStr = cursor.toISOString().slice(0, 10);
+    if (!dates.has(todayStr)) {
+      cursor.setDate(cursor.getDate() - 1);
+      if (!dates.has(cursor.toISOString().slice(0, 10))) return 0;
+    }
+
+    // Walk backwards counting consecutive days.
+    while (dates.has(cursor.toISOString().slice(0, 10))) {
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return streak;
+  }
+
+  /**
+   * Weekly summary: averages and totals over the last 7 days of logged data.
+   */
+  weeklySummary(logs: DailyLog[], targetCalories: number): WeeklySummary | null {
+    if (logs.length === 0) return null;
+    const sorted = [...logs].sort((a, b) => a.date.getTime() - b.date.getTime());
+    const last7 = sorted.slice(-7);
+
+    const weights = last7.map((l) => l.weight);
+    const cals = last7.map((l) => l.calories);
+    const proteins = last7.filter((l) => l.protein != null).map((l) => l.protein!);
+
+    const avgWeight = this.round(this.average(weights), 1);
+    const avgCalories = Math.round(this.average(cals));
+    const avgProtein = proteins.length > 0 ? Math.round(this.average(proteins)) : null;
+    const weightDelta = last7.length >= 2
+      ? this.round(last7[last7.length - 1].weight - last7[0].weight, 1)
+      : 0;
+    // Adherence: % of days within ±100 kcal of target
+    const adherentDays = cals.filter((c) => Math.abs(c - targetCalories) <= 100).length;
+    const adherencePct = Math.round((adherentDays / last7.length) * 100);
+
+    return {
+      days: last7.length,
+      avgWeight,
+      avgCalories,
+      avgProtein,
+      weightDelta,
+      adherencePct,
+    };
+  }
+
   private average(values: number[]): number {
     if (values.length === 0) return 0;
     return values.reduce((a, v) => a + v, 0) / values.length;
@@ -132,4 +208,13 @@ export class TdeeCalculatorService {
     const f = 10 ** decimals;
     return Math.round(value * f) / f;
   }
+}
+
+export interface WeeklySummary {
+  days: number;
+  avgWeight: number;
+  avgCalories: number;
+  avgProtein: number | null;
+  weightDelta: number;
+  adherencePct: number;
 }

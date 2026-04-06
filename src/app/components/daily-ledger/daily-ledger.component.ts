@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, OnInit, output, signal, com
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DailyLog, FirebaseService, LogEntry } from '../../services/firebase.service';
+import { TdeeCalculatorService } from '../../services/tdee-calculator.service';
 
 type Mode = 'view' | 'add' | 'edit';
 type Status = 'idle' | 'saving' | 'saved' | 'error';
@@ -13,6 +14,18 @@ type Status = 'idle' | 'saving' | 'saved' | 'error';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section>
+      <!-- ─── Streak badge ─────────────────────────────────── -->
+      @if (streak() > 0) {
+        <div class="flex items-center gap-2 mb-4">
+          <span class="font-mono text-xs tracking-[0.1em] text-graphite">
+            <span class="font-medium text-ink">{{ streak() }}</span> day{{ streak() === 1 ? '' : 's' }} logged
+          </span>
+          @if (streak() >= 7) {
+            <span class="stamp-mark" style="transform: rotate(0deg); border-color: var(--color-olive); color: var(--color-olive)">streak</span>
+          }
+        </div>
+      }
+
       <!-- ─── Target remaining card ──────────────────────── -->
       @if (todaySummary(); as s) {
         <div class="specimen px-4 py-3 mb-6">
@@ -22,7 +35,7 @@ type Status = 'idle' | 'saving' | 'saved' | 'error';
               <div class="data-label">today so far</div>
               <div class="font-mono text-2xl font-medium text-ink mt-0.5 tabular-nums">
                 {{ s.totalCalories }}
-                <span class="text-graphite text-sm font-normal">kcal</span>
+                <span class="text-graphite text-sm font-normal">/ {{ targetCalories() }} kcal</span>
               </div>
             </div>
             @if (s.totalProtein > 0) {
@@ -35,6 +48,24 @@ type Status = 'idle' | 'saving' | 'saved' | 'error';
               </div>
             }
           </div>
+          <!-- Calorie progress bar -->
+          @if (targetCalories() > 0) {
+            <div class="mt-2 h-1.5 w-full bg-paper-deep relative overflow-hidden">
+              <div class="h-full transition-all duration-300"
+                [style.width.%]="Math.min(100, (s.totalCalories / targetCalories()) * 100)"
+                [style.background]="s.totalCalories > targetCalories() ? 'var(--color-blood)' : 'var(--color-olive)'">
+              </div>
+            </div>
+            <div class="flex justify-between mt-1">
+              <span class="font-mono text-[9px] tracking-[0.1em] text-graphite tabular-nums">
+                {{ Math.max(0, targetCalories() - s.totalCalories) }} remaining
+              </span>
+              <span class="font-mono text-[9px] tracking-[0.1em] tabular-nums"
+                [style.color]="s.totalCalories > targetCalories() ? 'var(--color-blood)' : 'var(--color-graphite)'">
+                {{ Math.round((s.totalCalories / targetCalories()) * 100) }}%
+              </span>
+            </div>
+          }
         </div>
       }
 
@@ -207,6 +238,8 @@ type Status = 'idle' | 'saving' | 'saved' | 'error';
 })
 export class DailyLedgerComponent implements OnInit {
   private readonly firebase = inject(FirebaseService);
+  private readonly calculator = inject(TdeeCalculatorService);
+  protected readonly Math = Math; // expose for template
 
   readonly logSaved = output<void>();
 
@@ -223,6 +256,25 @@ export class DailyLedgerComponent implements OnInit {
   protected readonly protein = signal<number | null>(null);
   protected readonly liftDone = signal(false);
   protected readonly cardioDone = signal(false);
+
+  /** Consecutive days logged (ending today or yesterday). */
+  protected readonly streak = computed(() =>
+    this.calculator.computeStreak(this.logs()),
+  );
+
+  /** TDEE target from the calculator (uses profile if available). */
+  protected readonly targetCalories = computed(() => {
+    const profile = this.firebase.profile();
+    const fields = profile?.profileCompleted
+      ? {
+          heightIn: profile.heightIn!, age: profile.age!, sex: profile.sex!,
+          activityLevel: profile.activityLevel!,
+          targetPaceLbsPerWeek: profile.targetPaceLbsPerWeek!,
+          goalWeightLbs: profile.goalWeightLbs,
+        }
+      : null;
+    return this.calculator.calculate(this.logs(), fields).newDailyTarget;
+  });
 
   /** Sum today's entries for the "today so far" card. */
   protected readonly todaySummary = computed(() => {
