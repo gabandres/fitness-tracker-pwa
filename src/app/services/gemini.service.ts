@@ -108,11 +108,14 @@ export class GeminiService {
     // ── Log table ──────────────────────────────────────────────
     if (logs.length > 0) {
       lines.push('## Daily log (oldest → newest)');
-      lines.push('| Date | Weight (lbs) | Calories |');
-      lines.push('| --- | --- | --- |');
+      lines.push('| Date | Weight (lbs) | Calories | Protein (g) | Lift | Cardio |');
+      lines.push('| --- | --- | --- | --- | --- | --- |');
       for (const log of logs) {
         const iso = log.date.toISOString().slice(0, 10);
-        lines.push(`| ${iso} | ${log.weight} | ${log.calories} |`);
+        const pro = log.protein != null ? String(log.protein) : '—';
+        const lift = log.liftCompleted ? '✓' : '—';
+        const cardio = log.cardioCompleted ? '✓' : '—';
+        lines.push(`| ${iso} | ${log.weight} | ${log.calories} | ${pro} | ${lift} | ${cardio} |`);
       }
     } else {
       lines.push('## Daily log');

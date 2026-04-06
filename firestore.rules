@@ -15,27 +15,31 @@ service cloud.firestore {
     }
 
     // ─── Log schema ─────────────────────────────────────────────
+    // Required: weight, calories, timestamp
+    // Optional: protein, liftCompleted, cardioCompleted
     function isValidLog(data) {
-      return data.keys().hasOnly(['weight', 'calories', 'timestamp'])
+      return data.keys().hasAll(['weight', 'calories', 'timestamp'])
+          && data.keys().hasOnly([
+              'weight', 'calories', 'timestamp',
+              'protein', 'liftCompleted', 'cardioCompleted'
+          ])
           && data.weight is number
           && data.weight > 0
           && data.weight < 1000
           && data.calories is number
           && data.calories >= 0
           && data.calories < 20000
-          && data.timestamp is timestamp;
+          && data.timestamp is timestamp
+          // Optional fields validated when present
+          && (!('protein' in data.keys()) ||
+              (data.protein is number && data.protein >= 0 && data.protein < 1000))
+          && (!('liftCompleted' in data.keys()) ||
+              data.liftCompleted is bool)
+          && (!('cardioCompleted' in data.keys()) ||
+              data.cardioCompleted is bool);
     }
 
     // ─── Profile schema ─────────────────────────────────────────
-    //
-    // A user profile has two states:
-    //   1. Initial (just after sign-in, before onboarding):
-    //      { email, createdAt, lastSeenAt, profileCompleted: false }
-    //   2. Completed (after onboarding submit):
-    //      adds heightIn, age, sex, activityLevel, targetPaceLbsPerWeek,
-    //      and optional goalWeightLbs; profileCompleted flips to true.
-    //
-    // Both are accepted; the client UI decides which flow to show.
     function hasProfileBase(data) {
       return data.keys().hasAll(['email', 'createdAt', 'lastSeenAt', 'profileCompleted'])
           && data.email is string
@@ -91,7 +95,6 @@ service cloud.firestore {
       allow read:   if isOwner(uid);
       allow create: if isOwner(uid) && isGmailUser() && isValidProfile(request.resource.data);
       allow update: if isOwner(uid) && isValidProfile(request.resource.data);
-      // No delete on profile.
 
       match /dailyLogs/{logId} {
         allow read:   if isOwner(uid);
@@ -101,7 +104,6 @@ service cloud.firestore {
       }
     }
 
-    // Deny everything outside the user subtree.
     match /{document=**} {
       allow read, write: if false;
     }

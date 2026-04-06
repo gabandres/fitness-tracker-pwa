@@ -21,6 +21,9 @@ export interface DailyLogDoc {
   weight: number;
   calories: number;
   timestamp: Timestamp;
+  protein?: number;
+  liftCompleted?: boolean;
+  cardioCompleted?: boolean;
 }
 
 export interface DailyLog {
@@ -28,6 +31,18 @@ export interface DailyLog {
   weight: number;
   calories: number;
   date: Date;
+  protein?: number;
+  liftCompleted?: boolean;
+  cardioCompleted?: boolean;
+}
+
+/** Shape passed to addLog / updateLog — the fields the user submits. */
+export interface LogEntry {
+  weight: number;
+  calories: number;
+  protein?: number;
+  liftCompleted?: boolean;
+  cardioCompleted?: boolean;
 }
 
 // ─── Profile types ──────────────────────────────────────────────
@@ -149,12 +164,16 @@ export class FirebaseService {
   }
 
   // ─── Daily logs ────────────────────────────────────────────────
-  async addLog(weight: number, calories: number): Promise<void> {
-    await addDoc(this.logsCollection(), {
-      weight,
-      calories,
+  async addLog(entry: LogEntry): Promise<void> {
+    const data: Record<string, unknown> = {
+      weight: entry.weight,
+      calories: entry.calories,
       timestamp: Timestamp.fromDate(new Date()),
-    });
+    };
+    if (entry.protein != null) data['protein'] = entry.protein;
+    if (entry.liftCompleted != null) data['liftCompleted'] = entry.liftCompleted;
+    if (entry.cardioCompleted != null) data['cardioCompleted'] = entry.cardioCompleted;
+    await addDoc(this.logsCollection(), data);
   }
 
   async getRecentLogs(days = 14): Promise<DailyLog[]> {
@@ -167,15 +186,24 @@ export class FirebaseService {
         weight: data.weight,
         calories: data.calories,
         date: data.timestamp.toDate(),
+        protein: data.protein,
+        liftCompleted: data.liftCompleted,
+        cardioCompleted: data.cardioCompleted,
       };
     });
     return results.reverse();
   }
 
-  /** Update an existing log entry's weight and/or calories. */
-  async updateLog(logId: string, weight: number, calories: number): Promise<void> {
+  async updateLog(logId: string, entry: LogEntry): Promise<void> {
     const ref = doc(this.firestore, 'users', this.requireUid(), 'dailyLogs', logId);
-    await updateDoc(ref, { weight, calories });
+    const data: Record<string, unknown> = {
+      weight: entry.weight,
+      calories: entry.calories,
+    };
+    if (entry.protein != null) data['protein'] = entry.protein;
+    if (entry.liftCompleted != null) data['liftCompleted'] = entry.liftCompleted;
+    if (entry.cardioCompleted != null) data['cardioCompleted'] = entry.cardioCompleted;
+    await updateDoc(ref, data);
   }
 
   /** Delete a log entry. */

@@ -38,15 +38,23 @@ import { FirebaseService } from './services/firebase.service';
           </div>
         }
 
+        <!-- Offline indicator -->
+        @if (offline()) {
+          <div class="mb-4 ink-in flex items-center gap-2">
+            <span class="stamp-mark" style="transform: rotate(0deg);">offline</span>
+            <span class="caption text-[11px]">entries will queue locally and sync when reconnected.</span>
+          </div>
+        }
+
         <!-- Masthead -->
         <header class="ink-in delay-1 flex items-start justify-between gap-4">
           <div>
             <div class="flex items-baseline gap-2">
-              <span class="monogram">F·T</span>
+              <span class="monogram">M·L</span>
               <span class="caption">calibration log no. 001</span>
             </div>
             <h1 class="font-display text-4xl sm:text-5xl leading-[0.95] tracking-tight mt-1 text-ink">
-              Fitness<br/><em class="text-blood">Tracker</em>
+              Macro<br/><em class="text-blood">Log</em>
             </h1>
           </div>
           <div class="text-right shrink-0 pt-2">
@@ -140,6 +148,7 @@ export class App {
   protected readonly ticks = Array.from({ length: 45 });
   protected readonly editingProfile = signal(false);
   protected readonly updateReady = signal(false);
+  protected readonly offline = signal(!navigator.onLine);
 
   protected readonly todayLabel = computed(() => {
     const d = new Date();
@@ -149,6 +158,9 @@ export class App {
   });
 
   constructor() {
+    // Track online/offline state for the UI indicator.
+    window.addEventListener('online', () => this.offline.set(false));
+    window.addEventListener('offline', () => this.offline.set(true));
     // Load/refresh profile on every auth transition.
     effect(() => {
       const user = this.auth.user();
