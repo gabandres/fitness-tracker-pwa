@@ -70,6 +70,8 @@ export interface ProfileFields {
   activityLevel: ActivityLevel;
   targetPaceLbsPerWeek: CutPace;
   goalWeightLbs?: number;      // optional
+  travelMode?: boolean;        // when true, target = maintenance (pace=0)
+  fastStartedAt?: Date | null; // when fasting — ISO timestamp of fast start
 }
 
 /** Full user profile doc as stored in Firestore. */
@@ -169,6 +171,31 @@ export class FirebaseService {
 
     await updateDoc(ref, patch);
     this._profile.set({ ...current, ...patch } as UserProfile);
+  }
+
+  /** Start a fast — stores the current timestamp. */
+  async startFast(): Promise<void> {
+    const ref = this.userDoc();
+    const now = Timestamp.now();
+    await updateDoc(ref, { fastStartedAt: now, lastSeenAt: now });
+    const current = this._profile();
+    if (current) this._profile.set({ ...current, fastStartedAt: now.toDate() } as any);
+  }
+
+  /** Break the fast — clears the timestamp. */
+  async breakFast(): Promise<void> {
+    const ref = this.userDoc();
+    await updateDoc(ref, { fastStartedAt: null, lastSeenAt: Timestamp.now() });
+    const current = this._profile();
+    if (current) this._profile.set({ ...current, fastStartedAt: null } as any);
+  }
+
+  /** Toggle travel mode on the profile. */
+  async setTravelMode(on: boolean): Promise<void> {
+    const ref = this.userDoc();
+    await updateDoc(ref, { travelMode: on, lastSeenAt: Timestamp.now() });
+    const current = this._profile();
+    if (current) this._profile.set({ ...current, travelMode: on } as UserProfile);
   }
 
   // ─── Daily logs ────────────────────────────────────────────────

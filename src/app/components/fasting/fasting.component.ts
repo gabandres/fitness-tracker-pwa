@@ -1,0 +1,189 @@
+import { ChangeDetectionStrategy, Component, computed, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import { FitnessStore } from '../../services/fitness-store.service';
+
+/**
+ * Analog Fasting Chronometer
+ *
+ * A vintage dial that tracks a 16-hour (or custom) fasting window.
+ * The dial fills clockwise as hours pass. "Punch the clock" starts
+ * or breaks the fast.
+ *
+ * The aesthetic: an analog gauge/chronometer from a mid-century
+ * scientific instrument. Tick marks around the perimeter, a single
+ * hand sweeping the elapsed hours, fill arc behind it.
+ */
+@Component({
+  selector: 'app-fasting',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <section>
+      <div class="rule"><span>chronometer</span></div>
+
+      <div class="mt-4 flex flex-col items-center">
+        <!-- Analog dial -->
+        <div class="relative w-44 h-44 sm:w-52 sm:h-52">
+          <svg viewBox="0 0 200 200" class="w-full h-full" aria-hidden="true">
+            <!-- Outer ring -->
+            <circle cx="100" cy="100" r="92" fill="none"
+              stroke="var(--color-rule)" stroke-width="1" />
+            <circle cx="100" cy="100" r="88" fill="none"
+              stroke="var(--color-rule)" stroke-width="0.5" />
+
+            <!-- Hour tick marks (16 for a 16h fast) -->
+            @for (tick of dialTicks; track tick.hour) {
+              <line
+                [attr.x1]="tick.x1" [attr.y1]="tick.y1"
+                [attr.x2]="tick.x2" [attr.y2]="tick.y2"
+                [attr.stroke]="tick.hour % 4 === 0 ? 'var(--color-ink)' : 'var(--color-graphite)'"
+                [attr.stroke-width]="tick.hour % 4 === 0 ? 1.5 : 0.75"
+              />
+              @if (tick.hour % 4 === 0) {
+                <text
+                  [attr.x]="tick.labelX" [attr.y]="tick.labelY"
+                  text-anchor="middle" dominant-baseline="central"
+                  fill="var(--color-graphite)"
+                  style="font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.05em;">
+                  {{ tick.hour }}h
+                </text>
+              }
+            }
+
+            <!-- Progress arc (fills as fast progresses) -->
+            @if (store.isFasting() && elapsedHours() > 0) {
+              <circle cx="100" cy="100" r="78" fill="none"
+                stroke="var(--color-blood)" stroke-width="6"
+                stroke-linecap="round"
+                [attr.stroke-dasharray]="arcLength"
+                [attr.stroke-dashoffset]="arcOffset()"
+                style="transform: rotate(-90deg); transform-origin: center;"
+                class="transition-all duration-1000"
+              />
+            }
+
+            <!-- Center display -->
+            <text x="100" y="90" text-anchor="middle" dominant-baseline="central"
+              fill="var(--color-ink)"
+              style="font-family: var(--font-display); font-style: italic; font-size: 28px;">
+              {{ store.isFasting() ? elapsedLabel() : '—' }}
+            </text>
+            <text x="100" y="112" text-anchor="middle" dominant-baseline="central"
+              fill="var(--color-graphite)"
+              style="font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.2em; text-transform: uppercase;">
+              {{ store.isFasting() ? 'elapsed' : 'idle' }}
+            </text>
+
+            <!-- Hand -->
+            @if (store.isFasting()) {
+              <line x1="100" y1="100"
+                [attr.x2]="handX()" [attr.y2]="handY()"
+                stroke="var(--color-blood)" stroke-width="1.5" stroke-linecap="round" />
+              <circle cx="100" cy="100" r="3" fill="var(--color-blood)" />
+            } @else {
+              <circle cx="100" cy="100" r="3" fill="var(--color-graphite)" />
+            }
+          </svg>
+        </div>
+
+        <!-- Status + button -->
+        <div class="mt-4 text-center">
+          @if (store.isFasting()) {
+            <p class="caption text-[11px]">
+              fasting since {{ startTimeLabel() }}
+            </p>
+            <button type="button" (click)="punchClock()" class="stamp-btn mt-3 max-w-xs">
+              break fast
+            </button>
+          } @else {
+            <button type="button" (click)="punchClock()"
+              class="stamp-btn mt-1 max-w-xs"
+              style="background: var(--color-ink); border-color: var(--color-graphite);">
+              start fast
+            </button>
+          }
+        </div>
+      </div>
+    </section>
+  `,
+})
+export class FastingComponent implements OnInit, OnDestroy {
+  protected readonly store = inject(FitnessStore);
+
+  private readonly FAST_HOURS = 16;
+  private readonly RADIUS = 78;
+  protected readonly arcLength = 2 * Math.PI * this.RADIUS;
+  private tickInterval: ReturnType<typeof setInterval> | null = null;
+
+  // Signal that updates every minute to drive the hand + arc.
+  private readonly _now = signal(new Date());
+
+  protected readonly elapsedHours = computed(() => {
+    const start = this.store.fastStartedAt();
+    if (!start) return 0;
+    const ms = this._now().getTime() - start.getTime();
+    return Math.max(0, ms / (1000 * 60 * 60));
+  });
+
+  protected readonly elapsedLabel = computed(() => {
+    const h = this.elapsedHours();
+    const hours = Math.floor(h);
+    const mins = Math.floor((h - hours) * 60);
+    return `${hours}:${String(mins).padStart(2, '0')}`;
+  });
+
+  protected readonly startTimeLabel = computed(() => {
+    const start = this.store.fastStartedAt();
+    if (!start) return '';
+    return start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+  });
+
+  /** SVG arc offset: full circle minus the fraction elapsed. */
+  protected readonly arcOffset = computed(() => {
+    const fraction = Math.min(1, this.elapsedHours() / this.FAST_HOURS);
+    return this.arcLength * (1 - fraction);
+  });
+
+  /** Hand endpoint on the dial — sweeps 360° over FAST_HOURS. */
+  protected readonly handX = computed(() => {
+    const angle = (this.elapsedHours() / this.FAST_HOURS) * 2 * Math.PI - Math.PI / 2;
+    return 100 + 65 * Math.cos(angle);
+  });
+  protected readonly handY = computed(() => {
+    const angle = (this.elapsedHours() / this.FAST_HOURS) * 2 * Math.PI - Math.PI / 2;
+    return 100 + 65 * Math.sin(angle);
+  });
+
+  /** Tick marks around the dial — one per hour, 0 to FAST_HOURS. */
+  protected readonly dialTicks = Array.from({ length: this.FAST_HOURS + 1 }, (_, i) => {
+    const angle = (i / this.FAST_HOURS) * 2 * Math.PI - Math.PI / 2;
+    const outerR = 88;
+    const innerR = i % 4 === 0 ? 78 : 83;
+    const labelR = 70;
+    return {
+      hour: i,
+      x1: 100 + outerR * Math.cos(angle),
+      y1: 100 + outerR * Math.sin(angle),
+      x2: 100 + innerR * Math.cos(angle),
+      y2: 100 + innerR * Math.sin(angle),
+      labelX: 100 + labelR * Math.cos(angle),
+      labelY: 100 + labelR * Math.sin(angle),
+    };
+  });
+
+  ngOnInit(): void {
+    // Tick every 30 seconds to update the hand smoothly.
+    this.tickInterval = setInterval(() => this._now.set(new Date()), 30_000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.tickInterval) clearInterval(this.tickInterval);
+  }
+
+  protected async punchClock(): Promise<void> {
+    if (this.store.isFasting()) {
+      await this.store.breakFast();
+    } else {
+      await this.store.startFast();
+    }
+  }
+}

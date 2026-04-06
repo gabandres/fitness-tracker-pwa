@@ -139,6 +139,48 @@ export class TdeeCalculatorService {
   }
 
   /**
+   * Weekly Calorie Envelope: rolling 7-day budget showing how
+   * much surplus/deficit has accumulated and how much daily
+   * adjustment is needed over the remaining days to stay on track.
+   */
+  weeklyEnvelope(logs: DailyLog[], dailyTarget: number): WeeklyEnvelope | null {
+    if (logs.length === 0 || dailyTarget <= 0) return null;
+
+    // Look at the last 7 calendar days (including today).
+    const now = new Date();
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const thisWeekLogs = logs.filter((l) => l.date >= sevenDaysAgo);
+    if (thisWeekLogs.length === 0) return null;
+
+    const weeklyBudget = dailyTarget * 7;
+    const consumed = thisWeekLogs.reduce((s, l) => s + l.calories, 0);
+    const surplus = consumed - (dailyTarget * thisWeekLogs.length);
+    // How many days remain (including today if not logged, or tomorrow..next Sun)
+    const dayOfWeek = now.getDay(); // 0=Sun
+    const daysElapsed = thisWeekLogs.length;
+    const daysRemaining = Math.max(1, 7 - daysElapsed);
+    // Adjusted daily target for remaining days to hit the weekly budget
+    const budgetRemaining = weeklyBudget - consumed;
+    const adjustedDailyTarget = Math.max(
+      1200, // hard floor — never suggest less than 1200 for remaining days
+      Math.round(budgetRemaining / daysRemaining),
+    );
+
+    return {
+      weeklyBudget,
+      consumed,
+      surplus: Math.round(surplus),
+      daysLogged: daysElapsed,
+      daysRemaining,
+      adjustedDailyTarget,
+      dailyTarget,
+    };
+  }
+
+  /**
    * Compute streak: number of consecutive days (ending today or
    * yesterday) that have at least one log entry.
    */
@@ -217,4 +259,14 @@ export interface WeeklySummary {
   avgProtein: number | null;
   weightDelta: number;
   adherencePct: number;
+}
+
+export interface WeeklyEnvelope {
+  weeklyBudget: number;      // dailyTarget * 7
+  consumed: number;           // total cals consumed this rolling week
+  surplus: number;            // + = over budget, - = under budget
+  daysLogged: number;
+  daysRemaining: number;
+  adjustedDailyTarget: number; // what to aim for each remaining day
+  dailyTarget: number;         // the original daily target for comparison
 }

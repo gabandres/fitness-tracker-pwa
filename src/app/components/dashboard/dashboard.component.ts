@@ -114,6 +114,48 @@ interface SparklinePoint { x: number; y: number; }
           </div>
         }
 
+        <!-- Weekly Calorie Envelope -->
+        @if (store.envelope(); as env) {
+          <div class="mt-5 specimen px-4 py-3">
+            <span class="crop-bl"></span><span class="crop-br"></span>
+            <div class="flex items-center gap-2 mb-2">
+              <span class="stamp-mark" style="transform: rotate(0deg)">7d</span>
+              <span class="data-label">weekly envelope</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="font-mono text-lg font-medium tabular-nums"
+                  [style.color]="env.surplus > 0 ? 'var(--color-blood)' : 'var(--color-olive)'">
+                  {{ env.surplus > 0 ? '+' : '' }}{{ env.surplus }}
+                  <span class="text-graphite text-xs font-normal">kcal</span>
+                </div>
+                <div class="data-label mt-0.5 opacity-60 text-[8px]">
+                  {{ env.surplus > 0 ? 'over budget' : 'under budget' }} · {{ env.daysLogged }}d logged
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="font-mono text-lg font-medium text-ink tabular-nums">
+                  {{ env.adjustedDailyTarget }}
+                </div>
+                <div class="data-label mt-0.5 opacity-60 text-[8px]">
+                  aim/day · {{ env.daysRemaining }}d left
+                </div>
+              </div>
+            </div>
+            <!-- Budget bar: consumed / weeklyBudget -->
+            <div class="mt-2 h-1.5 w-full bg-paper-deep relative overflow-hidden border border-rule/30">
+              <div class="h-full transition-all duration-300"
+                [style.width.%]="Math.min(100, (env.consumed / env.weeklyBudget) * 100)"
+                [style.background]="env.consumed > env.weeklyBudget ? 'var(--color-blood)' : 'var(--color-olive)'">
+              </div>
+            </div>
+            <div class="flex justify-between mt-1 font-mono text-[9px] tabular-nums text-graphite">
+              <span>{{ env.consumed }} consumed</span>
+              <span>{{ env.weeklyBudget }} budget</span>
+            </div>
+          </div>
+        }
+
         <!-- Sparkline -->
         @if (sparklineRaw().length > 1) {
           <div class="mt-6">
@@ -167,6 +209,7 @@ interface SparklinePoint { x: number; y: number; }
 })
 export class DashboardComponent {
   protected readonly store = inject(FitnessStore);
+  protected readonly Math = Math;
   protected readonly svgW = 320;
   protected readonly svgH = 60;
 

@@ -8,7 +8,7 @@ import {
   ProfileFields,
   UserProfile,
 } from './firebase.service';
-import { TdeeCalculatorService, TdeeResult, WeeklySummary } from './tdee-calculator.service';
+import { TdeeCalculatorService, TdeeResult, WeeklySummary, WeeklyEnvelope } from './tdee-calculator.service';
 
 export type StoreStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -67,13 +67,24 @@ export class FitnessStore {
       activityLevel: p.activityLevel!,
       targetPaceLbsPerWeek: p.targetPaceLbsPerWeek!,
       goalWeightLbs: p.goalWeightLbs,
+      travelMode: p.travelMode,
     };
   });
 
-  // ─── Pre-computed derivations ───────────────────────────────
-  readonly tdee: Signal<TdeeResult> = computed(() =>
-    this.calc.calculate(this._logs(), this._profileFields()),
+  /** True when the user has travel mode enabled (target = maintenance). */
+  readonly travelMode: Signal<boolean> = computed(() =>
+    this.fb.profile()?.travelMode === true,
   );
+
+  // ─── Pre-computed derivations ───────────────────────────────
+  readonly tdee: Signal<TdeeResult> = computed(() => {
+    const fields = this._profileFields();
+    // In travel mode, override pace to 0 (maintenance — no deficit).
+    const adjusted = fields?.travelMode
+      ? { ...fields, targetPaceLbsPerWeek: 0 as any }
+      : fields;
+    return this.calc.calculate(this._logs(), adjusted);
+  });
 
   readonly targetCalories: Signal<number> = computed(() =>
     this.tdee().newDailyTarget,
@@ -90,6 +101,10 @@ export class FitnessStore {
 
   readonly weekly: Signal<WeeklySummary | null> = computed(() =>
     this.calc.weeklySummary(this._logs(), this.targetCalories()),
+  );
+
+  readonly envelope: Signal<WeeklyEnvelope | null> = computed(() =>
+    this.calc.weeklyEnvelope(this._logs(), this.targetCalories()),
   );
 
   readonly ema: Signal<number[]> = computed(() =>
@@ -139,7 +154,34 @@ export class FitnessStore {
     });
   }
 
+  /** The fasting start time, or null if not fasting. */
+  readonly fastStartedAt: Signal<Date | null> = computed(() => {
+    const p = this.fb.profile();
+    if (!p) return null;
+    const raw = (p as any).fastStartedAt;
+    if (!raw) return null;
+    // Could be a Firestore Timestamp or a Date depending on how it was read.
+    return raw instanceof Date ? raw : raw.toDate?.() ?? null;
+  });
+
+  readonly isFasting: Signal<boolean> = computed(() => this.fastStartedAt() !== null);
+
   // ─── Mutations (fire-and-forget, auto-refresh) ──────────────
+  async startFast(): Promise<void> {
+    await this.fb.startFast();
+  }
+
+  async breakFast(): Promise<void> {
+    await this.fb.breakFast();
+  }
+
+  async toggleTravelMode(): Promise<void> {
+    const next = !this.travelMode();
+    await this.fb.setTravelMode(next);
+    // Profile signal updates inside setTravelMode, which triggers
+    // the computed _profileFields → tdee → targetCalories chain.
+  }
+
   async addLog(entry: LogEntry): Promise<void> {
     await this.fb.addLog(entry);
     await this._load();

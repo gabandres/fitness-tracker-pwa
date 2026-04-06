@@ -6,6 +6,7 @@ import { DailyLedgerComponent } from './components/daily-ledger/daily-ledger.com
 import { ConsultationComponent } from './components/consultation/consultation.component';
 import { SignInComponent } from './components/sign-in/sign-in.component';
 import { OnboardingComponent } from './components/onboarding/onboarding.component';
+import { FastingComponent } from './components/fasting/fasting.component';
 import { AuthService } from './services/auth.service';
 import { FirebaseService } from './services/firebase.service';
 import { FitnessStore } from './services/fitness-store.service';
@@ -19,6 +20,7 @@ import { FitnessStore } from './services/fitness-store.service';
     ConsultationComponent,
     SignInComponent,
     OnboardingComponent,
+    FastingComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -102,14 +104,17 @@ import { FitnessStore } from './services/fitness-store.service';
               />
             </div>
           } @else {
-            <!-- Log-first layout: ledger → dashboard → consultation -->
+            <!-- Log-first layout -->
             <div class="ink-in delay-3">
               <app-daily-ledger />
             </div>
             <div class="ink-in delay-4">
-              <app-dashboard />
+              <app-fasting />
             </div>
             <div class="ink-in delay-5">
+              <app-dashboard />
+            </div>
+            <div class="ink-in delay-6">
               <app-consultation />
             </div>
           }
@@ -130,6 +135,11 @@ import { FitnessStore } from './services/fitness-store.service';
                 <button type="button" (click)="editingProfile.set(true)" class="underline decoration-dotted hover:text-blood">
                   edit profile
                 </button>
+                &middot;
+                <button type="button" (click)="store.toggleTravelMode()" class="underline decoration-dotted hover:text-blood"
+                  [style.color]="store.travelMode() ? 'var(--color-gold)' : ''">
+                  {{ store.travelMode() ? 'exit travel mode' : 'travel mode' }}
+                </button>
               }
             </p>
           }
@@ -141,7 +151,7 @@ import { FitnessStore } from './services/fitness-store.service';
 export class App {
   protected readonly auth = inject(AuthService);
   protected readonly firebase = inject(FirebaseService);
-  private readonly store = inject(FitnessStore); // triggers lifecycle via constructor effect
+  protected readonly store = inject(FitnessStore); // triggers lifecycle via constructor effect
   private readonly swUpdate = inject(SwUpdate);
 
   protected readonly ticks = Array.from({ length: 45 });

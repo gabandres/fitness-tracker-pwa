@@ -14,6 +14,22 @@ type Status = 'idle' | 'saving' | 'saved' | 'error';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section>
+      <!-- Travel mode banner -->
+      @if (store.travelMode()) {
+        <div class="specimen px-4 py-2.5 mb-4 flex items-center justify-between gap-3"
+          style="border-color: var(--color-gold)">
+          <span class="crop-bl" style="border-color: var(--color-gold)"></span>
+          <span class="crop-br" style="border-color: var(--color-gold)"></span>
+          <div class="flex items-center gap-2">
+            <span class="stamp-mark" style="transform: rotate(0deg); border-color: var(--color-gold); color: var(--color-gold)">travel</span>
+            <span class="caption text-[11px]">maintenance mode — deficit suspended.</span>
+          </div>
+          <button type="button" (click)="store.toggleTravelMode()" class="tag-btn text-[9px]">
+            end trip
+          </button>
+        </div>
+      }
+
       <!-- Streak badge -->
       @if (store.streak() > 0) {
         <div class="flex items-center gap-2 mb-4">

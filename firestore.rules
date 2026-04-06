@@ -87,7 +87,8 @@ service cloud.firestore {
       return data.keys().hasOnly([
               'email', 'createdAt', 'lastSeenAt', 'profileCompleted',
               'heightIn', 'age', 'sex', 'activityLevel',
-              'targetPaceLbsPerWeek', 'goalWeightLbs'
+              'targetPaceLbsPerWeek', 'goalWeightLbs',
+              'travelMode', 'fastStartedAt'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == true
@@ -97,7 +98,10 @@ service cloud.firestore {
           && hasValidActivityLevel(data)
           && hasValidPace(data)
           && (!('goalWeightLbs' in data.keys()) ||
-              (data.goalWeightLbs is number && data.goalWeightLbs > 0 && data.goalWeightLbs < 1000));
+              (data.goalWeightLbs is number && data.goalWeightLbs > 0 && data.goalWeightLbs < 1000))
+          && (!('travelMode' in data.keys()) || data.travelMode is bool)
+          && (!('fastStartedAt' in data.keys()) ||
+              data.fastStartedAt is timestamp || data.fastStartedAt == null);
     }
 
     function isValidProfile(data) {
