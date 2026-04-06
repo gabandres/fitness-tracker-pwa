@@ -12,6 +12,7 @@ import {
   orderBy,
   limit,
   Timestamp,
+  deleteDoc,
 } from '@angular/fire/firestore';
 import { Auth } from '@angular/fire/auth';
 
@@ -169,5 +170,17 @@ export class FirebaseService {
       };
     });
     return results.reverse();
+  }
+
+  /** Update an existing log entry's weight and/or calories. */
+  async updateLog(logId: string, weight: number, calories: number): Promise<void> {
+    const ref = doc(this.firestore, 'users', this.requireUid(), 'dailyLogs', logId);
+    await updateDoc(ref, { weight, calories });
+  }
+
+  /** Delete a log entry. */
+  async deleteLog(logId: string): Promise<void> {
+    const ref = doc(this.firestore, 'users', this.requireUid(), 'dailyLogs', logId);
+    await deleteDoc(ref);
   }
 }
