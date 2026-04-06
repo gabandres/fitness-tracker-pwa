@@ -1,9 +1,13 @@
 {
-  "name": "fitness-tracker-pwa",
-  "short_name": "fitness-tracker-pwa",
+  "name": "Macro Log",
+  "short_name": "Macros",
+  "description": "Personal calibration log — rolling 14-day TDEE and calorie tracker.",
   "display": "standalone",
+  "orientation": "portrait",
   "scope": "./",
   "start_url": "./",
+  "background_color": "#f2ead7",
+  "theme_color": "#f2ead7",
   "icons": [
     {
       "src": "icons/icon-72x72.png",

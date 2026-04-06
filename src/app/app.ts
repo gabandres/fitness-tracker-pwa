@@ -168,12 +168,13 @@ export class App {
         .pipe(filter((evt): evt is VersionReadyEvent => evt.type === 'VERSION_READY'))
         .subscribe(() => this.updateReady.set(true));
 
-      // Also proactively check for updates every 5 minutes while the
-      // tab is open, so users on long-lived PWA sessions pick up
-      // deploys without a full refresh.
-      setInterval(() => {
-        this.swUpdate.checkForUpdate().catch((err) => console.error(err));
-      }, 5 * 60 * 1000);
+      // Proactively check every 5 minutes AND on visibility change
+      // (covers mobile PWAs resuming from background).
+      const doCheck = () => this.swUpdate.checkForUpdate().catch((err) => console.error(err));
+      setInterval(doCheck, 5 * 60 * 1000);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') doCheck();
+      });
     }
   }
 
