@@ -25,7 +25,7 @@ function validateLogEntry(body: unknown): ValidatedEntry | string {
   const b = body as Record<string, unknown>;
 
   // calories: required, number, 0–19999
-  if (typeof b.calories !== "number" || b.calories < 0 || b.calories >= 20000) {
+  if (typeof b.calories !== "number" || !isFinite(b.calories) || b.calories < 0 || b.calories >= 20000) {
     return "calories is required and must be a number between 0 and 19999.";
   }
 
@@ -36,7 +36,7 @@ function validateLogEntry(body: unknown): ValidatedEntry | string {
 
   // weight: optional, number, >0 <1000
   if (b.weight !== undefined) {
-    if (typeof b.weight !== "number" || b.weight <= 0 || b.weight >= 1000) {
+    if (typeof b.weight !== "number" || !isFinite(b.weight) || b.weight <= 0 || b.weight >= 1000) {
       return "weight must be a number between 0 and 1000.";
     }
     entry.weight = b.weight;
@@ -44,7 +44,7 @@ function validateLogEntry(body: unknown): ValidatedEntry | string {
 
   // protein: optional, number, >=0 <1000
   if (b.protein !== undefined) {
-    if (typeof b.protein !== "number" || b.protein < 0 || b.protein >= 1000) {
+    if (typeof b.protein !== "number" || !isFinite(b.protein) || b.protein < 0 || b.protein >= 1000) {
       return "protein must be a number between 0 and 1000.";
     }
     entry.protein = b.protein;
@@ -76,7 +76,7 @@ function validateLogEntry(body: unknown): ValidatedEntry | string {
 // ─── Feature 1: Apple Shortcuts Webhook ────────────────────────────
 
 export const logWebhook = onRequest(
-  { cors: true },
+  { cors: false },
   async (req, res) => {
     // POST only
     if (req.method !== "POST") {
@@ -191,9 +191,10 @@ Return ONLY valid JSON with no markdown formatting, no code fences, no explanati
       try {
         parsed = JSON.parse(cleaned);
       } catch {
+        console.error("Gemini returned unparseable response:", cleaned.slice(0, 500));
         throw new HttpsError(
           "internal",
-          `Gemini returned unparseable response: ${cleaned.slice(0, 200)}`,
+          "Could not parse the meal analysis. Please try again with a clearer photo.",
         );
       }
 
