@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
 import { filter } from 'rxjs';
 import { DashboardComponent } from './components/dashboard/dashboard.component';
@@ -8,6 +8,7 @@ import { SignInComponent } from './components/sign-in/sign-in.component';
 import { OnboardingComponent } from './components/onboarding/onboarding.component';
 import { AuthService } from './services/auth.service';
 import { FirebaseService } from './services/firebase.service';
+import { FitnessStore } from './services/fitness-store.service';
 
 @Component({
   selector: 'app-root',
@@ -24,7 +25,7 @@ import { FirebaseService } from './services/firebase.service';
     <main class="min-h-screen px-5 sm:px-8 py-8 sm:py-12">
       <div class="max-w-[560px] mx-auto">
 
-        <!-- SwUpdate banner: appears when a new bundle has been fetched -->
+        <!-- SwUpdate banner -->
         @if (updateReady()) {
           <div class="mb-6 ink-in specimen px-4 py-3 flex items-center justify-between gap-3 bg-paper-deep">
             <span class="crop-bl"></span><span class="crop-br"></span>
@@ -32,9 +33,7 @@ import { FirebaseService } from './services/firebase.service';
               <span class="stamp-mark shrink-0">new</span>
               <span class="caption text-[11px] truncate">a new version is available.</span>
             </div>
-            <button type="button" (click)="reloadForUpdate()" class="tag-btn shrink-0">
-              reload
-            </button>
+            <button type="button" (click)="reloadForUpdate()" class="tag-btn shrink-0">reload</button>
           </div>
         }
 
@@ -64,9 +63,7 @@ import { FirebaseService } from './services/firebase.service';
                 {{ darkMode() ? '☀' : '☾' }}
               </button>
               @if (auth.isSignedIn()) {
-                <button type="button" (click)="signOut()" class="tag-btn" title="Sign out">
-                  out
-                </button>
+                <button type="button" (click)="signOut()" class="tag-btn" title="Sign out">out</button>
               }
             </div>
           </div>
@@ -92,7 +89,6 @@ import { FirebaseService } from './services/firebase.service';
               <app-sign-in />
             </div>
           } @else if (!firebase.profile()) {
-            <!-- Auth settled but profile still fetching -->
             <div class="specimen p-10 text-center">
               <span class="crop-bl"></span><span class="crop-br"></span>
               <p class="caption">opening your file&hellip;</p>
@@ -106,11 +102,10 @@ import { FirebaseService } from './services/firebase.service';
               />
             </div>
           } @else {
-            <!-- Log-first: the tape is the primary view -->
+            <!-- Log-first layout: ledger → dashboard → consultation -->
             <div class="ink-in delay-3">
-              <app-daily-ledger (logSaved)="onLogSaved()" />
+              <app-daily-ledger />
             </div>
-            <!-- Dashboard metrics are reference data below the log -->
             <div class="ink-in delay-4">
               <app-dashboard />
             </div>
@@ -122,9 +117,7 @@ import { FirebaseService } from './services/firebase.service';
 
         <!-- Footer -->
         <footer class="mt-16 ink-in delay-6">
-          <div class="rule">
-            <span>fin</span>
-          </div>
+          <div class="rule"><span>fin</span></div>
           <div class="mt-6 flex items-center justify-between text-[10px] tracking-[0.18em] uppercase text-graphite font-mono">
             <span>specimen · personal use</span>
             <span class="stamp-mark">confidential</span>
@@ -148,8 +141,8 @@ import { FirebaseService } from './services/firebase.service';
 export class App {
   protected readonly auth = inject(AuthService);
   protected readonly firebase = inject(FirebaseService);
+  private readonly store = inject(FitnessStore); // triggers lifecycle via constructor effect
   private readonly swUpdate = inject(SwUpdate);
-  private readonly dashboard = viewChild(DashboardComponent);
 
   protected readonly ticks = Array.from({ length: 45 });
   protected readonly editingProfile = signal(false);
@@ -165,51 +158,39 @@ export class App {
   });
 
   constructor() {
-    // ── Theme: detect, apply, persist ──────────────────────────
+    // Theme: detect, apply, persist.
     const stored = localStorage.getItem('macrolog.theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     const isDark = stored ? stored === 'dark' : prefersDark;
     this.darkMode.set(isDark);
     this.applyTheme(isDark);
 
-    // Track online/offline state for the UI indicator.
+    // Online/offline tracking.
     window.addEventListener('online', () => this.offline.set(false));
     window.addEventListener('offline', () => this.offline.set(true));
-    // Load/refresh profile on every auth transition.
-    effect(() => {
-      const user = this.auth.user();
-      if (user) {
-        this.firebase.ensureUserProfile().catch((err) => {
-          console.error('ensureUserProfile failed:', err);
-        });
-      } else {
-        this.firebase.clearProfile();
-      }
-    });
 
-    // Service-worker update detection. Fires once when a new bundle
-    // has been downloaded and is ready to activate on reload.
+    // Service-worker update detection.
     if (this.swUpdate.isEnabled) {
       this.swUpdate.versionUpdates
         .pipe(filter((evt): evt is VersionReadyEvent => evt.type === 'VERSION_READY'))
         .subscribe(() => this.updateReady.set(true));
 
-      // Proactively check every 5 minutes AND on visibility change
-      // (covers mobile PWAs resuming from background).
       const doCheck = () => this.swUpdate.checkForUpdate().catch((err) => console.error(err));
       setInterval(doCheck, 5 * 60 * 1000);
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') doCheck();
       });
     }
-  }
 
-  protected onLogSaved(): void {
-    this.dashboard()?.refresh();
+    // NOTE: The FitnessStore handles its own auth lifecycle (load on sign-in,
+    // clear on sign-out) via an internal effect. No coordination needed here.
+    // The old auth effect + ViewChild refresh chain is gone.
   }
 
   protected onProfileSaved(): void {
     this.editingProfile.set(false);
+    // Store will pick up the profile change via its firebase.profile() dependency.
+    this.store.refresh();
   }
 
   protected toggleTheme(): void {
@@ -226,9 +207,7 @@ export class App {
     } else {
       el.removeAttribute('data-theme');
     }
-    // Update the status-bar / theme-color meta for mobile.
-    const themeColor = dark ? '#1c1915' : '#f2ead7';
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#1c1915' : '#f2ead7');
   }
 
   protected async signOut(): Promise<void> {
@@ -236,10 +215,7 @@ export class App {
   }
 
   protected async reloadForUpdate(): Promise<void> {
-    try {
-      await this.swUpdate.activateUpdate();
-    } finally {
-      document.location.reload();
-    }
+    try { await this.swUpdate.activateUpdate(); }
+    finally { document.location.reload(); }
   }
 }

@@ -2,9 +2,8 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { marked } from 'marked';
-import { FirebaseService } from '../../services/firebase.service';
-import { TdeeCalculatorService } from '../../services/tdee-calculator.service';
 import { GeminiService } from '../../services/gemini.service';
+import { FitnessStore } from '../../services/fitness-store.service';
 
 type Status = 'idle' | 'streaming' | 'done' | 'error';
 
@@ -173,8 +172,7 @@ interface SuggestedPrompt {
   `],
 })
 export class ConsultationComponent {
-  private readonly firebase = inject(FirebaseService);
-  private readonly calculator = inject(TdeeCalculatorService);
+  private readonly store = inject(FitnessStore);
   private readonly gemini = inject(GeminiService);
   private readonly sanitizer = inject(DomSanitizer);
 
@@ -205,19 +203,18 @@ export class ConsultationComponent {
     this.errorMsg.set('');
 
     try {
-      const logs = await this.firebase.getRecentLogs(14);
-      const profile = this.firebase.profile();
+      // All data is already cached in the store — no Firestore call needed.
+      const logs = this.store.logs();
+      const tdee = this.store.tdee();
+      const profile = this.store.profile();
       const profileFields = profile?.profileCompleted
         ? {
-            heightIn: profile.heightIn!,
-            age: profile.age!,
-            sex: profile.sex!,
+            heightIn: profile.heightIn!, age: profile.age!, sex: profile.sex!,
             activityLevel: profile.activityLevel!,
             targetPaceLbsPerWeek: profile.targetPaceLbsPerWeek!,
             goalWeightLbs: profile.goalWeightLbs,
           }
         : null;
-      const tdee = this.calculator.calculate(logs, profileFields);
 
       let buffer = '';
       for await (const chunk of this.gemini.askAboutMyData(q, logs, tdee, profileFields)) {

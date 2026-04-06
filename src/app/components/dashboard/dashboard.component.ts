@@ -1,6 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal, OnInit } from '@angular/core';
-import { FirebaseService, DailyLog } from '../../services/firebase.service';
-import { TdeeCalculatorService, TdeeResult, WeeklySummary } from '../../services/tdee-calculator.service';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { FitnessStore } from '../../services/fitness-store.service';
 
 interface SparklinePoint { x: number; y: number; }
 
@@ -12,46 +11,47 @@ interface SparklinePoint { x: number; y: number; }
     <section>
       <div class="rule"><span>calibration readout</span></div>
 
-      @if (logs().length === 0) {
+      @if (store.logs().length === 0) {
         <div class="mt-4 py-6 text-center">
           <p class="caption text-[11px]">log your first entry above to see your readout here.</p>
           <div class="mt-4 flex justify-center">
-            <button type="button" (click)="refresh()" class="tag-btn" [disabled]="loading()">
-              {{ loading() ? 'loading…' : 'refresh ↻' }}
+            <button type="button" (click)="store.refresh()" class="tag-btn"
+              [disabled]="store.status() === 'loading'">
+              {{ store.status() === 'loading' ? 'loading…' : 'refresh ↻' }}
             </button>
           </div>
         </div>
       } @else {
-        <!-- Target / TDEE / Weight row -->
+        <!-- Target / TDEE / Weight -->
         <div class="mt-4 grid grid-cols-3 gap-4">
           <div>
             <div class="data-label mb-1">target</div>
-            <div class="readout-mono">{{ tdee().newDailyTarget }}</div>
+            <div class="readout-mono">{{ store.tdee().newDailyTarget }}</div>
             <div class="data-label mt-0.5 opacity-60">kcal/day</div>
           </div>
           <div>
             <div class="data-label mb-1">true tdee</div>
-            <div class="readout-mono">{{ tdee().trueTdee }}</div>
+            <div class="readout-mono">{{ store.tdee().trueTdee }}</div>
             <div class="data-label mt-0.5 opacity-60">kcal/day</div>
           </div>
           <div>
             <div class="data-label mb-1">weight</div>
-            <div class="readout-mono">{{ currentWeight() ?? '—' }}</div>
+            <div class="readout-mono">{{ store.currentWeight() ?? '—' }}</div>
             <div class="data-label mt-0.5 opacity-60">lbs</div>
           </div>
         </div>
 
-        @if (logs().length < 14) {
+        @if (store.logs().length < 14) {
           <div class="mt-3 flex items-center gap-2">
-            <span class="stamp-mark">{{ tdee().source }}</span>
+            <span class="stamp-mark">{{ store.tdee().source }}</span>
             <p class="caption text-[11px]">
-              {{ 14 - logs().length }} more day{{ logs().length === 13 ? '' : 's' }} to measured estimate.
+              {{ 14 - store.logs().length }} more day{{ store.logs().length === 13 ? '' : 's' }} to measured estimate.
             </p>
           </div>
         }
 
         <!-- Goal progress bar -->
-        @if (goalProgress(); as gp) {
+        @if (store.goalProgress(); as gp) {
           <div class="mt-5">
             <div class="flex items-center justify-between mb-1">
               <span class="data-label">goal progress</span>
@@ -74,8 +74,8 @@ interface SparklinePoint { x: number; y: number; }
           </div>
         }
 
-        <!-- Weekly summary card -->
-        @if (weekly(); as w) {
+        <!-- Weekly summary -->
+        @if (store.weekly(); as w) {
           <div class="mt-5 specimen px-4 py-3">
             <span class="crop-bl"></span><span class="crop-br"></span>
             <div class="flex items-center gap-2 mb-2">
@@ -114,31 +114,27 @@ interface SparklinePoint { x: number; y: number; }
           </div>
         }
 
-        <!-- Sparkline with EMA overlay -->
+        <!-- Sparkline -->
         @if (sparklineRaw().length > 1) {
           <div class="mt-6">
             <div class="flex items-center justify-between mb-2">
               <span class="data-label">14-day trend</span>
               <span class="font-mono text-sm tabular-nums"
-                [style.color]="tdee().weightChangeTrend > 0 ? 'var(--color-blood)' : tdee().weightChangeTrend < 0 ? 'var(--color-ink)' : 'var(--color-graphite)'">
-                {{ trendLabel() }}
+                [style.color]="store.tdee().weightChangeTrend > 0 ? 'var(--color-blood)' : store.tdee().weightChangeTrend < 0 ? 'var(--color-ink)' : 'var(--color-graphite)'">
+                {{ store.trendLabel() }}
               </span>
             </div>
             <div class="relative">
               <svg [attr.viewBox]="'0 0 ' + svgW + ' ' + svgH"
                 class="w-full h-16 overflow-visible" preserveAspectRatio="none" aria-hidden="true">
-                <!-- Week divider -->
                 <line [attr.x1]="svgW / 2" y1="0" [attr.x2]="svgW / 2" [attr.y2]="svgH"
                   stroke="currentColor" stroke-width="0.5" stroke-dasharray="2 3" class="text-aged" />
-                <!-- Raw weight (thin, faded) -->
                 <polyline [attr.points]="rawSvgPoints()" fill="none"
                   stroke="currentColor" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round"
                   class="text-graphite-soft" />
-                <!-- EMA smoothed (bold, dark) -->
                 <polyline [attr.points]="emaSvgPoints()" fill="none"
                   stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
                   class="text-ink" />
-                <!-- Latest point -->
                 @if (sparklineEma().length > 0) {
                   @let p = sparklineEma()[sparklineEma().length - 1];
                   <circle [attr.cx]="p.x" [attr.cy]="p.y" r="3" class="fill-blood" />
@@ -157,79 +153,24 @@ interface SparklinePoint { x: number; y: number; }
           </div>
         }
 
-        <!-- Actions row: refresh + export -->
+        <!-- Actions -->
         <div class="mt-5 flex items-center justify-between">
-          <button type="button" (click)="exportCsv()" class="tag-btn">
-            ↓ export csv
-          </button>
-          <button type="button" (click)="refresh()" class="tag-btn" [disabled]="loading()">
-            {{ loading() ? 'loading…' : 'refresh ↻' }}
+          <button type="button" (click)="exportCsv()" class="tag-btn">↓ export csv</button>
+          <button type="button" (click)="store.refresh()" class="tag-btn"
+            [disabled]="store.status() === 'loading'">
+            {{ store.status() === 'loading' ? 'loading…' : 'refresh ↻' }}
           </button>
         </div>
       }
     </section>
   `,
 })
-export class DashboardComponent implements OnInit {
-  private readonly firebase = inject(FirebaseService);
-  private readonly calculator = inject(TdeeCalculatorService);
-
+export class DashboardComponent {
+  protected readonly store = inject(FitnessStore);
   protected readonly svgW = 320;
   protected readonly svgH = 60;
 
-  protected readonly logs = signal<DailyLog[]>([]);
-  protected readonly loading = signal(false);
-
-  protected readonly tdee = computed<TdeeResult>(() => {
-    const profile = this.firebase.profile();
-    const fields = profile?.profileCompleted
-      ? {
-          heightIn: profile.heightIn!,
-          age: profile.age!,
-          sex: profile.sex!,
-          activityLevel: profile.activityLevel!,
-          targetPaceLbsPerWeek: profile.targetPaceLbsPerWeek!,
-          goalWeightLbs: profile.goalWeightLbs,
-        }
-      : null;
-    return this.calculator.calculate(this.logs(), fields);
-  });
-
-  protected readonly currentWeight = computed<number | null>(() => {
-    const list = this.logs();
-    return list.length > 0 ? list[list.length - 1].weight : null;
-  });
-
-  /** Goal progress: pct from starting weight to goal weight. */
-  protected readonly goalProgress = computed(() => {
-    const profile = this.firebase.profile();
-    const goal = profile?.goalWeightLbs;
-    const current = this.currentWeight();
-    if (!goal || current == null) return null;
-    const list = this.logs();
-    // Starting weight is the first entry ever (oldest in the list).
-    const start = list.length > 0 ? list[0].weight : current;
-    const totalToLose = start - goal;
-    if (totalToLose <= 0) return null; // goal is above start — not a cut
-    const lost = start - current;
-    const pct = Math.min(100, Math.max(0, Math.round((lost / totalToLose) * 100)));
-    const remaining = Math.max(0, +(current - goal).toFixed(1));
-    return { startWeight: start, currentWeight: current, goalWeight: goal, pct, remaining };
-  });
-
-  protected readonly trendLabel = computed<string>(() => {
-    const change = this.tdee().weightChangeTrend;
-    if (change === 0) return '—';
-    const arrow = change > 0 ? '↓' : '↑';
-    return `${arrow} ${Math.abs(change).toFixed(1)} lbs`;
-  });
-
-  // ── Weekly summary ────────────────────────────────────────
-  protected readonly weekly = computed<WeeklySummary | null>(() =>
-    this.calculator.weeklySummary(this.logs(), this.tdee().newDailyTarget),
-  );
-
-  // ── Sparkline: raw + EMA points ───────────────────────────
+  // ── Sparkline geometry (view-only math, stays local) ────────
   private scalePoints(values: number[], rawWeights: number[]): SparklinePoint[] {
     if (values.length < 2) return [];
     const allVals = [...rawWeights, ...values];
@@ -244,56 +185,32 @@ export class DashboardComponent implements OnInit {
     }));
   }
 
-  protected readonly sparklineRaw = computed<SparklinePoint[]>(() => {
-    const weights = this.logs().map((l) => l.weight);
-    return this.scalePoints(weights, weights);
+  protected readonly sparklineRaw = computed(() => {
+    const w = this.store.logs().map((l) => l.weight);
+    return this.scalePoints(w, w);
   });
-
-  protected readonly sparklineEma = computed<SparklinePoint[]>(() => {
-    const weights = this.logs().map((l) => l.weight);
-    const smoothed = this.calculator.ema(weights, 7);
-    return this.scalePoints(smoothed, weights);
+  protected readonly sparklineEma = computed(() => {
+    const w = this.store.logs().map((l) => l.weight);
+    return this.scalePoints(this.store.ema(), w);
   });
-
   protected readonly rawSvgPoints = computed(() =>
-    this.sparklineRaw().map((p) => `${p.x},${p.y}`).join(' '),
-  );
+    this.sparklineRaw().map((p) => `${p.x},${p.y}`).join(' '));
   protected readonly emaSvgPoints = computed(() =>
-    this.sparklineEma().map((p) => `${p.x},${p.y}`).join(' '),
-  );
+    this.sparklineEma().map((p) => `${p.x},${p.y}`).join(' '));
 
   protected dateLabel(index: number): string {
-    const data = this.logs();
+    const data = this.store.logs();
     if (data.length === 0) return '';
     const i = index < 0 ? data.length + index : index;
     return data[i]?.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase() ?? '';
   }
 
-  ngOnInit(): void {
-    this.refresh();
-  }
-
-  async refresh(): Promise<void> {
-    this.loading.set(true);
-    try { this.logs.set(await this.firebase.getRecentLogs(14)); }
-    finally { this.loading.set(false); }
-  }
-
-  // ── CSV Export ────────────────────────────────────────────
   protected async exportCsv(): Promise<void> {
-    // Fetch ALL logs (not just 14) for the export.
-    const allLogs = await this.firebase.getRecentLogs(9999);
+    const allLogs = await this.store.getAllLogs();
     const rows = [
       ['Date', 'Weight (lbs)', 'Calories', 'Protein (g)', 'Lift', 'Cardio'].join(','),
       ...allLogs.map((l) =>
-        [
-          l.date.toISOString().slice(0, 10),
-          l.weight,
-          l.calories,
-          l.protein ?? '',
-          l.liftCompleted ? 'yes' : '',
-          l.cardioCompleted ? 'yes' : '',
-        ].join(','),
+        [l.date.toISOString().slice(0, 10), l.weight, l.calories, l.protein ?? '', l.liftCompleted ? 'yes' : '', l.cardioCompleted ? 'yes' : ''].join(','),
       ),
     ];
     const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
