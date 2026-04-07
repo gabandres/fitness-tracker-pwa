@@ -123,7 +123,7 @@ export class MeasurementsComponent {
     if (vals['bicep'] != null) entry.bicep = Number(vals['bicep']);
     if (vals['hip'] != null) entry.hip = Number(vals['hip']);
 
-    if (!entry.waist && !entry.chest && !entry.bicep && !entry.hip) {
+    if (entry.waist == null && entry.chest == null && entry.bicep == null && entry.hip == null) {
       this.error.set('At least one measurement is required.');
       return;
     }

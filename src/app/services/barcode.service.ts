@@ -75,17 +75,12 @@ export class BarcodeService {
     const n = p.nutriments ?? {};
     const name = p.product_name ?? p.generic_name ?? 'Unknown product';
 
-    // Prefer per-serving, fall back to per-100g.
-    let calories = n['energy-kcal_serving'] ?? n['energy-kcal_100g'];
-    let protein = n['proteins_serving'] ?? n['proteins_100g'];
-
-    // If only kJ available, convert (1 kcal = 4.184 kJ).
-    if (calories == null && n['energy_serving']) {
-      calories = Math.round(n['energy_serving'] / 4.184);
-    }
-    if (calories == null && n['energy_100g']) {
-      calories = Math.round(n['energy_100g'] / 4.184);
-    }
+    // Prefer per-serving kcal, fall back to per-100g kcal, then kJ conversions.
+    const KJ_TO_KCAL = 4.184;
+    const calories = n['energy-kcal_serving'] ?? n['energy-kcal_100g']
+      ?? (n['energy_serving'] != null ? Math.round(n['energy_serving'] / KJ_TO_KCAL) : null)
+      ?? (n['energy_100g'] != null ? Math.round(n['energy_100g'] / KJ_TO_KCAL) : null);
+    const protein = n['proteins_serving'] ?? n['proteins_100g'];
 
     if (calories == null) {
       throw new Error(`No calorie data found for "${name}".`);

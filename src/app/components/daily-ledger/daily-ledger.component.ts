@@ -700,8 +700,8 @@ export class DailyLedgerComponent implements OnDestroy {
       this.mealLabel.set(result.productName);
       this.activePresetName.set(result.productName);
     } catch (err) {
+      this.cancelBarcodeScan();
       this.barcodeError.set(err instanceof Error ? err.message : 'Scan failed.');
-      this.barcodeScanning.set(false);
     }
   }
 

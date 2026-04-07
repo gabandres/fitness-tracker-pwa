@@ -241,9 +241,10 @@ export const sendDailyReminders = onSchedule(
       const tzOffsetMin = (data.timezoneOffsetMin as number) ?? 0;
 
       // Compute the user's local hour from UTC + their timezone offset.
-      // JS getTimezoneOffset() returns minutes *ahead* of UTC (e.g., -300 for UTC-5).
-      // So local time = UTC time - offset.
-      const userLocalHour = (nowUtc.getUTCHours() - Math.floor(tzOffsetMin / 60) + 24) % 24;
+      // JS getTimezoneOffset() returns positive for west of UTC (e.g., +300 for UTC-5,
+      // meaning UTC = local + offset). So local = UTC - offset.
+      // Use Math.round (not floor) to handle fractional-hour timezones like India (+5:30).
+      const userLocalHour = (nowUtc.getUTCHours() - Math.round(tzOffsetMin / 60) + 24) % 24;
 
       // Only send if we're at or past the user's reminder hour.
       if (userLocalHour < reminderHour) continue;
