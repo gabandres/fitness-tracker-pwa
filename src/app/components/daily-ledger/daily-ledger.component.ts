@@ -3,6 +3,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DailyLog, LogEntry, MealPreset } from '../../services/firebase.service';
 import { FitnessStore } from '../../services/fitness-store.service';
+import { localDateKey } from '../../utils/date';
 import { PhotoMacrosService } from '../../services/photo-macros.service';
 import { BarcodeService } from '../../services/barcode.service';
 
@@ -409,7 +410,7 @@ export class DailyLedgerComponent implements OnDestroy {
   protected readonly showBarcodeOverlay = signal(false);
   private readonly barcodeVideoRef = viewChild<ElementRef<HTMLVideoElement>>('barcodeVideo');
   private cameraStream: MediaStream | null = null;
-  protected readonly todayKey = new Date().toISOString().slice(0, 10);
+  protected readonly todayKey = localDateKey(new Date());
   protected readonly selectedDateKey = signal(this.todayKey);
 
   // ── Date navigation strip: last 14 calendar days ────────────
@@ -420,7 +421,7 @@ export class DailyLedgerComponent implements OnDestroy {
     for (let i = 13; i >= 0; i--) {
       const d = new Date();
       d.setUTCDate(d.getUTCDate() - i);
-      const key = d.toISOString().slice(0, 10);
+      const key = localDateKey(d);
       chips.push({
         dateKey: key,
         dayLabel: d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase().slice(0, 3),
@@ -463,7 +464,7 @@ export class DailyLedgerComponent implements OnDestroy {
     const groups = new Map<string, DayGroup>();
 
     for (const log of logs) {
-      const key = log.date.toISOString().slice(0, 10);
+      const key = localDateKey(log.date);
       let group = groups.get(key);
       if (!group) {
         group = {

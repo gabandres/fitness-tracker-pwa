@@ -11,6 +11,7 @@ import { MeasurementsComponent } from './components/measurements/measurements.co
 import { AuthService } from './services/auth.service';
 import { FirebaseService } from './services/firebase.service';
 import { FitnessStore } from './services/fitness-store.service';
+import { localDateKey } from './utils/date';
 import { PushNotificationService } from './services/push-notification.service';
 
 @Component({
@@ -125,10 +126,8 @@ import { PushNotificationService } from './services/push-notification.service';
             <div class="ink-in delay-3">
               <app-daily-ledger />
             </div>
+            <!-- Fasting chronometer removed per user preference -->
             <div class="ink-in delay-4">
-              <app-fasting />
-            </div>
-            <div class="ink-in delay-5">
               <app-measurements />
             </div>
             <div class="ink-in delay-6">
@@ -276,7 +275,7 @@ export class App {
     const now = new Date();
     if (now.getHours() < this.REMINDER_HOUR) return;
     if (this.store.hasLoggedToday()) return;
-    const key = `macrolog.reminder.dismissed.${now.toISOString().slice(0, 10)}`;
+    const key = `macrolog.reminder.dismissed.${localDateKey(now)}`;
     if (localStorage.getItem(key)) return;
     this.showReminder.set(true);
   }
@@ -284,7 +283,7 @@ export class App {
   protected dismissReminder(): void {
     this.showReminder.set(false);
     localStorage.setItem(
-      `macrolog.reminder.dismissed.${new Date().toISOString().slice(0, 10)}`,
+      `macrolog.reminder.dismissed.${localDateKey(new Date())}`,
       '1',
     );
   }

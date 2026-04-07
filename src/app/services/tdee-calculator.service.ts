@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { DailyLog, ProfileFields, ActivityLevel } from './firebase.service';
+import { localDateKey } from '../utils/date';
 
 export interface TdeeResult {
   trueTdee: number;
@@ -54,7 +55,7 @@ export class TdeeCalculatorService {
   aggregateByDay(logs: DailyLog[]): DailyLog[] {
     const byDate = new Map<string, DailyLog>();
     for (const log of logs) {
-      const key = log.date.toISOString().slice(0, 10);
+      const key = localDateKey(log.date);
       const existing = byDate.get(key);
       if (!existing) {
         byDate.set(key, { ...log });
@@ -217,20 +218,20 @@ export class TdeeCalculatorService {
 
     // Get unique logged dates as ISO strings, newest first.
     const dates = new Set(
-      logs.map((l) => l.date.toISOString().slice(0, 10)),
+      logs.map((l) => localDateKey(l.date)),
     );
 
     let streak = 0;
     const cursor = new Date();
     // Allow today or yesterday as the starting point.
-    const todayStr = cursor.toISOString().slice(0, 10);
+    const todayStr = localDateKey(cursor);
     if (!dates.has(todayStr)) {
       cursor.setDate(cursor.getDate() - 1);
-      if (!dates.has(cursor.toISOString().slice(0, 10))) return 0;
+      if (!dates.has(localDateKey(cursor))) return 0;
     }
 
     // Walk backwards counting consecutive days.
-    while (dates.has(cursor.toISOString().slice(0, 10))) {
+    while (dates.has(localDateKey(cursor))) {
       streak++;
       cursor.setDate(cursor.getDate() - 1);
     }

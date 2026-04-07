@@ -11,6 +11,7 @@ import {
   Measurement,
 } from './firebase.service';
 import { TdeeCalculatorService, TdeeResult, WeeklySummary, WeeklyEnvelope } from './tdee-calculator.service';
+import { localDateKey } from '../utils/date';
 import { GeminiService } from './gemini.service';
 
 export type StoreStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -162,9 +163,9 @@ export class FitnessStore {
   });
 
   readonly todaySummary: Signal<TodaySummary | null> = computed(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateKey(new Date());
     const todayLogs = this._logs().filter(
-      (l) => l.date.toISOString().slice(0, 10) === today,
+      (l) => localDateKey(l.date) === today,
     );
     if (todayLogs.length === 0) return null;
     return {
