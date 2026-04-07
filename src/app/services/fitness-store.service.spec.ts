@@ -48,8 +48,8 @@ describe('FitnessStore', () => {
   function makeLogs(count: number, baseWeight = 180): DailyLog[] {
     return Array.from({ length: count }, (_, i) => {
       const d = new Date();
-      d.setUTCDate(d.getUTCDate() - (count - 1 - i));
-      d.setUTCHours(12, 0, 0, 0);
+      d.setDate(d.getDate() - (count - 1 - i));
+      d.setHours(12, 0, 0, 0);
       return {
         id: `log-${i}`,
         weight: baseWeight - i * 0.1,
@@ -175,11 +175,11 @@ describe('FitnessStore', () => {
     });
 
     it('should compute todaySummary from today entries only', async () => {
-      // Use UTC noon to avoid timezone drift in toISOString().
+      // Use local noon — production code uses localDateKey() (local time).
       const today = new Date();
-      today.setUTCHours(12, 0, 0, 0);
+      today.setHours(12, 0, 0, 0);
       const yesterday = new Date(today);
-      yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+      yesterday.setDate(yesterday.getDate() - 1);
 
       await loadWith([
         { id: '1', weight: 180, calories: 800, protein: 60, date: yesterday },

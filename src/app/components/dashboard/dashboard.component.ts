@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { marked } from 'marked';
 import { FitnessStore } from '../../services/fitness-store.service';
+import { localDateKey } from '../../utils/date';
 
 interface SparklinePoint { x: number; y: number; }
 
@@ -302,14 +303,14 @@ export class DashboardComponent {
     const rows = [
       ['Date', 'Weight (lbs)', 'Calories', 'Protein (g)', 'Lift', 'Cardio'].join(','),
       ...allLogs.map((l) =>
-        [l.date.toISOString().slice(0, 10), l.weight, l.calories, l.protein ?? '', l.liftCompleted ? 'yes' : '', l.cardioCompleted ? 'yes' : ''].join(','),
+        [localDateKey(l.date), l.weight, l.calories, l.protein ?? '', l.liftCompleted ? 'yes' : '', l.cardioCompleted ? 'yes' : ''].join(','),
       ),
     ];
     const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `macrolog-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `macrolog-export-${localDateKey(new Date())}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }

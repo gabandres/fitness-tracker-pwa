@@ -436,12 +436,12 @@ export class DailyLedgerComponent implements OnDestroy {
     const chips: DateChip[] = [];
     for (let i = 13; i >= 0; i--) {
       const d = new Date();
-      d.setUTCDate(d.getUTCDate() - i);
+      d.setDate(d.getDate() - i); // local arithmetic, not UTC
       const key = localDateKey(d);
       chips.push({
         dateKey: key,
         dayLabel: d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase().slice(0, 3),
-        dateNum: String(d.getUTCDate()).padStart(2, '0'),
+        dateNum: String(d.getDate()).padStart(2, '0'), // local, not getUTCDate()
         isToday: key === this.todayKey,
         hasData: dataKeys.has(key),
       });
@@ -534,6 +534,7 @@ export class DailyLedgerComponent implements OnDestroy {
     this.mode.set('add');
     this.editTarget.set(null);
     this.addingForDay.set(dateKey);
+    if (dateKey) this.entryDate.set(dateKey); // set date to the target day, not today
     this.status.set('idle');
   }
 

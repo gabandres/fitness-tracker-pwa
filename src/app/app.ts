@@ -228,7 +228,7 @@ export class App {
 
   protected readonly todayLabel = computed(() => {
     const d = new Date();
-    const iso = d.toISOString().slice(0, 10).replace(/-/g, '.');
+    const iso = localDateKey(d).replace(/-/g, '.');
     const day = d.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
     return `${iso} · ${day}`;
   });

@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { GoogleGenAI } from '@google/genai';
 import { environment } from '../../environments/environment';
 import { DailyLog, ProfileFields } from './firebase.service';
+import { localDateKey } from '../utils/date';
 import { TdeeResult } from './tdee-calculator.service';
 
 /**
@@ -139,7 +140,7 @@ export class GeminiService {
       lines.push('| Date | Weight (lbs) | Calories | Protein (g) | Lift | Cardio |');
       lines.push('| --- | --- | --- | --- | --- | --- |');
       for (const log of logs) {
-        const iso = log.date.toISOString().slice(0, 10);
+        const iso = localDateKey(log.date);
         const pro = log.protein != null ? String(log.protein) : '—';
         const lift = log.liftCompleted ? '✓' : '—';
         const cardio = log.cardioCompleted ? '✓' : '—';
