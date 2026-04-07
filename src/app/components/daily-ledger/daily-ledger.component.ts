@@ -209,6 +209,17 @@ interface DayGroup {
       <!-- ─── Shared form template ──────────────────────────── -->
       <ng-template #entryForm>
         <form (ngSubmit)="onSubmit()" class="space-y-3">
+          <!-- Meal label -->
+          <div>
+            <label class="data-label block mb-1">
+              label <span class="normal-case italic text-graphite-soft tracking-normal text-[9px]">opt</span>
+            </label>
+            <input type="text" maxlength="100"
+              [ngModel]="mealLabel()" (ngModelChange)="mealLabel.set($event)"
+              name="mealLabel" placeholder="e.g. Lunch, Post-workout"
+              class="field-input text-sm" />
+          </div>
+
           <div class="grid grid-cols-2 gap-3">
             <!-- Weight (optional) -->
             <div>
@@ -320,6 +331,7 @@ export class DailyLedgerComponent {
   protected readonly savingPreset = signal(false);
   protected readonly presetName = signal('');
   protected readonly activePresetName = signal<string | null>(null);
+  protected readonly mealLabel = signal<string>('');
   protected readonly photoStatus = signal<'idle' | 'analyzing' | 'done' | 'error'>('idle');
   protected readonly photoError = signal('');
 
@@ -378,6 +390,7 @@ export class DailyLedgerComponent {
     this.protein.set(meal.protein ?? null);
     this.liftDone.set(meal.liftCompleted ?? false);
     this.cardioDone.set(meal.cardioCompleted ?? false);
+    this.mealLabel.set(meal.mealLabel ?? '');
     this.status.set('idle');
   }
 
@@ -413,10 +426,9 @@ export class DailyLedgerComponent {
     entry.liftCompleted = this.liftDone();
     entry.cardioCompleted = this.cardioDone();
 
-    // Meal label: from active preset name, or auto-generated.
-    if (this.activePresetName()) {
-      entry.mealLabel = this.activePresetName()!;
-    }
+    // Meal label: from form input, preset name, or omitted (auto-numbered).
+    const label = this.mealLabel().trim() || this.activePresetName();
+    if (label) entry.mealLabel = label;
 
     this.status.set('saving');
     try {
@@ -456,6 +468,7 @@ export class DailyLedgerComponent {
     this.liftDone.set(false);
     this.cardioDone.set(false);
     this.activePresetName.set(null);
+    this.mealLabel.set('');
   }
 
   // ── Presets ─────────────────────────────────────────────────
@@ -463,6 +476,7 @@ export class DailyLedgerComponent {
     this.calories.set(p.calories);
     if (p.protein != null) this.protein.set(p.protein);
     this.activePresetName.set(p.name);
+    this.mealLabel.set(p.name);
   }
 
   protected async removePreset(p: MealPreset, event: Event): Promise<void> {

@@ -19,9 +19,10 @@ describe('TdeeCalculatorService', () => {
   ): DailyLog[] {
     const start = startDaysAgo ?? entries.length - 1;
     return entries.map((e, i) => {
+      // Use UTC noon to avoid timezone-induced date drift in toISOString().
       const d = new Date();
-      d.setDate(d.getDate() - (start - i));
-      d.setHours(7, 0, 0, 0);
+      d.setUTCDate(d.getUTCDate() - (start - i));
+      d.setUTCHours(12, 0, 0, 0);
       return { weight: e.weight, calories: e.calories, date: d, protein: e.protein, liftCompleted: e.liftCompleted, cardioCompleted: e.cardioCompleted };
     });
   }
@@ -245,8 +246,8 @@ describe('TdeeCalculatorService', () => {
       const today = new Date();
       const logs: DailyLog[] = [-4, -3, -1, 0].map((d) => {
         const date = new Date(today);
-        date.setDate(date.getDate() + d);
-        date.setHours(7, 0, 0, 0);
+        date.setUTCDate(date.getUTCDate() + d);
+        date.setUTCHours(12, 0, 0, 0);
         return { weight: 180, calories: 2000, date };
       });
       // Streak should be 2 (today + yesterday), not 4
