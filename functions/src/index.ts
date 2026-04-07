@@ -234,65 +234,63 @@ export const sendDailyReminders = onSchedule(
 
     const nowUtc = new Date();
 
-    for (const userDoc of usersSnap.docs) {
-      const data = userDoc.data();
-      const token = data.fcmToken as string;
-      const reminderHour = (data.reminderHour as number) ?? 20;
-      const tzOffsetMin = (data.timezoneOffsetMin as number) ?? 0;
+    // Process all users in parallel (not sequentially) to avoid
+    // timeout at scale. allSettled so one failure doesn't block others.
+    await Promise.allSettled(
+      usersSnap.docs.map(async (userDoc) => {
+        const data = userDoc.data();
+        const token = data.fcmToken as string;
+        const reminderHour = (data.reminderHour as number) ?? 20;
+        const tzOffsetMin = (data.timezoneOffsetMin as number) ?? 0;
 
-      // Compute the user's local hour from UTC + their timezone offset.
-      // JS getTimezoneOffset() returns positive for west of UTC (e.g., +300 for UTC-5,
-      // meaning UTC = local + offset). So local = UTC - offset.
-      // Use Math.round (not floor) to handle fractional-hour timezones like India (+5:30).
-      const userLocalHour = (nowUtc.getUTCHours() - Math.round(tzOffsetMin / 60) + 24) % 24;
+        // Compute the user's local hour.
+        // getTimezoneOffset() returns positive for west of UTC (e.g., +300 for UTC-5,
+        // meaning UTC = local + offset). So local = UTC - offset.
+        const userLocalHour = (nowUtc.getUTCHours() - Math.round(tzOffsetMin / 60) + 24) % 24;
 
-      // Only send if we're at or past the user's reminder hour.
-      if (userLocalHour < reminderHour) continue;
-      // Only send once per day: skip if we already passed the hour by more than 1.
-      if (userLocalHour > reminderHour + 1) continue;
+        // Only send if within the reminder window (reminderHour to reminderHour+1).
+        if (userLocalHour < reminderHour || userLocalHour > reminderHour + 1) return;
 
-      // Check if they logged today (in their local timezone).
-      const userNow = new Date(nowUtc.getTime() - tzOffsetMin * 60 * 1000);
-      const startOfDay = new Date(userNow);
-      startOfDay.setUTCHours(0, 0, 0, 0);
-      // Convert back to UTC for the Firestore query.
-      const startOfDayUtc = new Date(startOfDay.getTime() + tzOffsetMin * 60 * 1000);
+        // Check if they logged today (in their local timezone).
+        const userNow = new Date(nowUtc.getTime() - tzOffsetMin * 60 * 1000);
+        const startOfDay = new Date(userNow);
+        startOfDay.setUTCHours(0, 0, 0, 0);
+        const startOfDayUtc = new Date(startOfDay.getTime() + tzOffsetMin * 60 * 1000);
 
-      const logsSnap = await db
-        .collection("users")
-        .doc(userDoc.id)
-        .collection("dailyLogs")
-        .where("timestamp", ">=", Timestamp.fromDate(startOfDayUtc))
-        .limit(1)
-        .get();
+        const logsSnap = await db
+          .collection("users")
+          .doc(userDoc.id)
+          .collection("dailyLogs")
+          .where("timestamp", ">=", Timestamp.fromDate(startOfDayUtc))
+          .limit(1)
+          .get();
 
-      if (!logsSnap.empty) continue; // Already logged today.
+        if (!logsSnap.empty) return; // Already logged today.
 
-      // Send push notification.
-      try {
-        await messaging.send({
-          token,
-          notification: {
-            title: "Macro Log",
-            body: "You haven't logged today yet.",
-          },
-          webpush: {
-            fcmOptions: { link: "https://macrolog.web.app" },
-          },
-        });
-      } catch (err: unknown) {
-        const code = (err as { code?: string })?.code;
-        // Stale token — clean it up.
-        if (
-          code === "messaging/registration-token-not-registered" ||
-          code === "messaging/invalid-registration-token"
-        ) {
-          await userDoc.ref.update({ fcmToken: null });
-          console.log(`Cleaned stale FCM token for user ${userDoc.id}`);
-        } else {
-          console.error(`FCM send failed for user ${userDoc.id}:`, err);
+        try {
+          await messaging.send({
+            token,
+            notification: {
+              title: "Macro Log",
+              body: "You haven't logged today yet.",
+            },
+            webpush: {
+              fcmOptions: { link: "https://macrolog.web.app" },
+            },
+          });
+        } catch (err: unknown) {
+          const code = (err as { code?: string })?.code;
+          if (
+            code === "messaging/registration-token-not-registered" ||
+            code === "messaging/invalid-registration-token"
+          ) {
+            await userDoc.ref.update({ fcmToken: null });
+            console.log(`Cleaned stale FCM token for user ${userDoc.id}`);
+          } else {
+            console.error(`FCM send failed for user ${userDoc.id}:`, err);
+          }
         }
-      }
-    }
+      }),
+    );
   },
 );

@@ -62,7 +62,7 @@ export class BarcodeService {
    * Returns per-serving calories/protein if available, else per-100g.
    */
   async lookupProduct(barcode: string): Promise<BarcodeResult> {
-    const url = `https://world.openfoodfacts.org/api/v3/product/${barcode}`;
+    const url = `https://world.openfoodfacts.org/api/v3/product/${encodeURIComponent(barcode)}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`OpenFoodFacts returned ${res.status}.`);
     const data = await res.json();

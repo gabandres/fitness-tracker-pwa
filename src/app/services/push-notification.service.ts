@@ -50,9 +50,12 @@ export class PushNotificationService {
     }
   }
 
-  /** Listen for foreground messages and invoke a callback. */
+  /** Listen for foreground messages. Guards against duplicate listeners. */
+  private unsubForeground: (() => void) | null = null;
+
   onForegroundMessage(callback: (title: string, body: string) => void): void {
-    onMessage(this.messaging, (payload) => {
+    this.unsubForeground?.();
+    this.unsubForeground = onMessage(this.messaging, (payload) => {
       const title = payload.notification?.title ?? 'Macro Log';
       const body = payload.notification?.body ?? '';
       callback(title, body);
