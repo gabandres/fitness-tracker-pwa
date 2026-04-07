@@ -171,6 +171,16 @@ import { PushNotificationService } from './services/push-notification.service';
                     enable push
                   </button>
                 }
+                &middot;
+                <span class="text-graphite">remind at</span>
+                <select
+                  [value]="REMINDER_HOUR"
+                  (change)="setReminderHour(+$any($event.target).value)"
+                  class="bg-transparent text-ink font-sans text-xs border-b border-rule cursor-pointer">
+                  @for (h of reminderHours; track h) {
+                    <option [value]="h" [selected]="h === REMINDER_HOUR">{{ formatHour(h) }}</option>
+                  }
+                </select>
               }
             </p>
 
@@ -215,6 +225,7 @@ export class App {
   protected readonly pushService = inject(PushNotificationService);
 
   protected readonly ticks = Array.from({ length: 45 });
+  protected readonly reminderHours = Array.from({ length: 24 }, (_, i) => i);
   protected readonly editingProfile = signal(false);
   protected readonly updateReady = signal(false);
   protected readonly offline = signal(!navigator.onLine);
@@ -222,7 +233,7 @@ export class App {
   protected readonly showWebhook = signal(false);
   protected readonly showReminder = signal(false);
   protected readonly webhookUrl = 'https://us-central1-fitness-tracker-gb-1775407101.cloudfunctions.net/logWebhook';
-  private get REMINDER_HOUR(): number {
+  protected get REMINDER_HOUR(): number {
     return (this.firebase.profile() as any)?.reminderHour ?? 20;
   }
 
@@ -286,6 +297,17 @@ export class App {
       `macrolog.reminder.dismissed.${localDateKey(new Date())}`,
       '1',
     );
+  }
+
+  protected formatHour(h: number): string {
+    if (h === 0) return '12 AM';
+    if (h < 12) return `${h} AM`;
+    if (h === 12) return '12 PM';
+    return `${h - 12} PM`;
+  }
+
+  protected async setReminderHour(hour: number): Promise<void> {
+    await this.firebase.saveReminderHour(hour);
   }
 
   protected async enablePush(): Promise<void> {

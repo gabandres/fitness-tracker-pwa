@@ -24,6 +24,18 @@ export interface GoalProgress {
   remaining: number;
 }
 
+export interface MonthlySummary {
+  daysTracked: number;
+  weeksTracked: number;
+  firstWeight: number;
+  lastWeight: number;
+  totalChange: number;     // + = gained, - = lost
+  avgWeeklyChange: number;
+  avgCalories: number;
+  adherencePct: number;
+  startDate: Date;
+}
+
 export interface TodaySummary {
   totalCalories: number;
   totalProtein: number;
@@ -53,6 +65,7 @@ export class FitnessStore {
   private readonly _presets = signal<MealPreset[]>([]);
   private readonly _status = signal<StoreStatus>('idle');
   private readonly _error = signal<string | null>(null);
+  private readonly _allTimeLogs = signal<DailyLog[]>([]);
   private readonly _weeklyReport = signal<WeeklyReport | null>(null);
   private readonly _reportLoading = signal(false);
   private readonly _measurements = signal<Measurement[]>([]);
@@ -112,6 +125,25 @@ export class FitnessStore {
   readonly targetCalories: Signal<number> = computed(() =>
     this.tdee().newDailyTarget,
   );
+
+  /**
+   * One-time adaptive TDEE notification: when measured mode first kicks in,
+   * show the delta between the formula estimate and the real measured TDEE.
+   * Returns null if not in measured mode or if already dismissed.
+   */
+  readonly tdeeTransition: Signal<{ formulaTdee: number; measuredTdee: number; diffPct: number } | null> = computed(() => {
+    const tdee = this.tdee();
+    if (tdee.source !== 'measured') return null;
+    // Check if already dismissed
+    if (localStorage.getItem('macrolog.tdee-transition-dismissed')) return null;
+    // Compute what formula would have said
+    const fields = this._profileFields();
+    if (!fields) return null;
+    const formulaResult = this.calc.calculate([], fields); // empty logs = formula mode
+    const diff = tdee.trueTdee - formulaResult.trueTdee;
+    const diffPct = Math.round((diff / formulaResult.trueTdee) * 100);
+    return { formulaTdee: formulaResult.trueTdee, measuredTdee: tdee.trueTdee, diffPct };
+  });
 
   /** Most recent non-null weight across all entries. */
   readonly currentWeight: Signal<number | null> = computed(() => {
@@ -177,6 +209,43 @@ export class FitnessStore {
   readonly hasLoggedToday: Signal<boolean> = computed(() =>
     this.todaySummary() !== null,
   );
+
+  /** Long-term summary computed from all-time logs (loaded on demand). */
+  readonly monthlySummary: Signal<MonthlySummary | null> = computed(() => {
+    const logs = this._allTimeLogs();
+    if (logs.length < 7) return null;
+    const daily = this.calc.aggregateByDay(logs);
+    const weights = daily.map((d) => d.weight).filter((w): w is number => w != null);
+    if (weights.length < 2) return null;
+
+    const firstWeight = weights[0];
+    const lastWeight = weights[weights.length - 1];
+    const totalChange = +(lastWeight - firstWeight).toFixed(1);
+    const firstDate = daily[0].date;
+    const lastDate = daily[daily.length - 1].date;
+    const daysTracked = Math.max(1, Math.round((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)));
+    const weeksTracked = +(daysTracked / 7).toFixed(1);
+    const avgWeeklyChange = +(totalChange / Math.max(1, weeksTracked)).toFixed(2);
+
+    const allCals = daily.map((d) => d.calories);
+    const avgCalories = Math.round(allCals.reduce((s, c) => s + c, 0) / allCals.length);
+
+    const target = this.targetCalories();
+    const adherentDays = allCals.filter((c) => Math.abs(c - target) <= 100).length;
+    const adherencePct = Math.round((adherentDays / allCals.length) * 100);
+
+    return {
+      daysTracked,
+      weeksTracked,
+      firstWeight,
+      lastWeight,
+      totalChange,
+      avgWeeklyChange,
+      avgCalories,
+      adherencePct,
+      startDate: firstDate,
+    };
+  });
 
   // ─── Lifecycle ──────────────────────────────────────────────
   constructor() {
@@ -326,8 +395,9 @@ export class FitnessStore {
       this._measurements.set(measurements);
       this._status.set('ready');
 
-      // Check weekly report (fire-and-forget, don't block UI).
+      // Fire-and-forget background tasks.
       this._checkWeeklyReport();
+      this._loadAllTimeLogs();
     } catch (err) {
       this._error.set(err instanceof Error ? err.message : 'Load failed.');
       this._status.set('error');
@@ -348,6 +418,13 @@ export class FitnessStore {
     } catch (err) {
       console.error('Weekly report check failed:', err);
     }
+  }
+
+  private async _loadAllTimeLogs(): Promise<void> {
+    try {
+      const all = await this.fb.getRecentLogs(9999);
+      this._allTimeLogs.set(all);
+    } catch { /* non-critical */ }
   }
 
   async generateWeeklyReport(): Promise<void> {
@@ -377,5 +454,6 @@ export class FitnessStore {
     this._weeklyReport.set(null);
     this._reportLoading.set(false);
     this._measurements.set([]);
+    this._allTimeLogs.set([]);
   }
 }

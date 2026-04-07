@@ -47,8 +47,29 @@ interface SparklinePoint { x: number; y: number; }
         @if (store.logs().length < 14) {
           <div class="mt-3 flex items-center gap-2">
             <span class="stamp-mark">{{ store.tdee().source }}</span>
-            <p class="caption text-[11px]">
+            <p class="caption text-xs">
               {{ 14 - store.logs().length }} more day{{ store.logs().length === 13 ? '' : 's' }} to measured estimate.
+            </p>
+          </div>
+        }
+
+        <!-- Adaptive TDEE notification: shown once when measured mode kicks in -->
+        @if (store.tdeeTransition(); as t) {
+          <div class="mt-4 specimen px-4 py-3" style="border-color: var(--color-olive)">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <span class="stamp-mark" style="transform: rotate(0deg); border-color: var(--color-olive); color: var(--color-olive)">calibrated</span>
+                <span class="data-label">measured tdee active</span>
+              </div>
+              <button type="button" (click)="dismissTdeeTransition()" class="tag-btn text-[11px]">dismiss</button>
+            </div>
+            <p class="font-sans text-sm text-ink leading-relaxed">
+              Your real TDEE is <span class="font-mono font-semibold">{{ t.measuredTdee }}</span> kcal/day —
+              <span class="font-mono font-semibold"
+                [style.color]="t.diffPct < 0 ? 'var(--color-blood)' : 'var(--color-olive)'">
+                {{ t.diffPct > 0 ? '+' : '' }}{{ t.diffPct }}%
+              </span>
+              vs the formula estimate of {{ t.formulaTdee }}. Your target has been updated automatically.
             </p>
           </div>
         }
@@ -188,6 +209,44 @@ interface SparklinePoint { x: number; y: number; }
           </div>
         }
 
+        <!-- Long-term summary -->
+        @if (store.monthlySummary(); as m) {
+          <div class="mt-5 specimen px-4 py-3">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="stamp-mark" style="transform: rotate(0deg)">{{ m.weeksTracked }}w</span>
+              <span class="data-label">all-time progress</span>
+            </div>
+            <div class="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <div class="font-mono text-lg font-semibold tabular-nums"
+                  [style.color]="m.totalChange <= 0 ? 'var(--color-olive)' : 'var(--color-blood)'">
+                  {{ m.totalChange > 0 ? '+' : '' }}{{ m.totalChange }}
+                </div>
+                <div class="data-label mt-0.5 opacity-60 text-[11px]">lbs total</div>
+              </div>
+              <div>
+                <div class="font-mono text-lg font-semibold tabular-nums"
+                  [style.color]="m.avgWeeklyChange <= 0 ? 'var(--color-olive)' : 'var(--color-blood)'">
+                  {{ m.avgWeeklyChange > 0 ? '+' : '' }}{{ m.avgWeeklyChange }}
+                </div>
+                <div class="data-label mt-0.5 opacity-60 text-[11px]">lbs/week avg</div>
+              </div>
+              <div>
+                <div class="font-mono text-lg font-semibold tabular-nums text-ink">{{ m.adherencePct }}%</div>
+                <div class="data-label mt-0.5 opacity-60 text-[11px]">adherence</div>
+              </div>
+            </div>
+            <div class="mt-3 pt-2 border-t border-rule/30 flex items-center justify-between">
+              <span class="font-sans text-xs text-graphite">
+                {{ m.firstWeight }} → {{ m.lastWeight }} lbs over {{ m.daysTracked }} days
+              </span>
+              <span class="font-sans text-xs text-graphite">
+                avg {{ m.avgCalories }} kcal/day
+              </span>
+            </div>
+          </div>
+        }
+
         <!-- Sparkline -->
         @if (sparklineRaw().length > 1) {
           <div class="mt-6">
@@ -245,6 +304,12 @@ export class DashboardComponent {
   protected readonly Math = Math;
   protected readonly svgW = 320;
   protected readonly svgH = 60;
+
+  protected dismissTdeeTransition(): void {
+    localStorage.setItem('macrolog.tdee-transition-dismissed', '1');
+    // Force re-evaluation by refreshing store (the computed checks localStorage).
+    this.store.refresh();
+  }
 
   // ── Weekly report rendering ──────────────────────────────────
   protected readonly reportHtml = computed<SafeHtml>(() => {
