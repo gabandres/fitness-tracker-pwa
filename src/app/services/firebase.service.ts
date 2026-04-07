@@ -318,6 +318,7 @@ export class FirebaseService {
     if (entry.liftCompleted != null) data['liftCompleted'] = entry.liftCompleted;
     if (entry.cardioCompleted != null) data['cardioCompleted'] = entry.cardioCompleted;
     if (entry.mealLabel) data['mealLabel'] = entry.mealLabel;
+    if (entry.timestamp != null) data['timestamp'] = Timestamp.fromDate(entry.timestamp);
     await updateDoc(ref, data);
   }
 
