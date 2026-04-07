@@ -91,16 +91,22 @@ interface DayGroup {
       <!-- ─── Day-grouped log tape ─────────────────────────── -->
       <div class="rule"><span>{{ dayGroups().length > 0 ? 'log tape' : 'no entries yet' }}</span></div>
 
-      <div class="mt-3">
+      <div class="mt-3 space-y-4">
         @for (day of dayGroups(); track day.dateKey; let di = $index) {
+          <div>
           <!-- Day header: date + weight + training + daily total + progress bar -->
-          <div class="tape-strip tape-in border-b-2 border-rule/60"
+          <div class="tape-strip tape-in border-b-2"
             [id]="'day-' + day.dateKey"
+            [class.border-blood]="day.dateKey === todayKey"
+            [class.border-rule/60]="day.dateKey !== todayKey"
+            [class.bg-paper-deep]="day.dateKey === todayKey"
             [style.animation-delay]="(di * 60) + 'ms'" style="cursor: default;">
             <div class="flex items-center justify-between gap-2">
               <div class="flex items-center gap-3">
-                <span class="font-mono text-[11px] tracking-[0.12em] font-medium text-ink">
-                  {{ day.dateLabel }}
+                <span class="font-mono text-[11px] tracking-[0.12em] font-medium"
+                  [class.text-blood]="day.dateKey === todayKey"
+                  [class.text-ink]="day.dateKey !== todayKey">
+                  {{ day.dateKey === todayKey ? 'TODAY' : day.dateLabel }}
                 </span>
                 @if (day.weight != null) {
                   <span class="font-mono text-[11px] text-graphite tabular-nums">
@@ -189,6 +195,7 @@ interface DayGroup {
               <ng-container *ngTemplateOutlet="entryForm"></ng-container>
             </div>
           }
+          </div>
         }
 
         <!-- Empty state -->
@@ -257,15 +264,24 @@ interface DayGroup {
       <!-- ─── Shared form template ──────────────────────────── -->
       <ng-template #entryForm>
         <form (ngSubmit)="onSubmit()" class="space-y-3">
-          <!-- Meal label -->
-          <div>
-            <label class="data-label block mb-1">
-              label <span class="normal-case italic text-graphite-soft tracking-normal text-[9px]">opt</span>
-            </label>
-            <input type="text" maxlength="100"
-              [ngModel]="mealLabel()" (ngModelChange)="mealLabel.set($event)"
-              name="mealLabel" placeholder="e.g. Lunch, Post-workout"
-              class="field-input text-sm" />
+          <!-- Date + Label row -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="data-label block mb-1">date</label>
+              <input type="date"
+                [ngModel]="entryDate()" (ngModelChange)="entryDate.set($event)"
+                name="entryDate"
+                class="field-input text-sm" />
+            </div>
+            <div>
+              <label class="data-label block mb-1">
+                label <span class="normal-case italic text-graphite-soft tracking-normal text-[9px]">opt</span>
+              </label>
+              <input type="text" maxlength="100"
+                [ngModel]="mealLabel()" (ngModelChange)="mealLabel.set($event)"
+                name="mealLabel" placeholder="e.g. Lunch"
+                class="field-input text-sm" />
+            </div>
           </div>
 
           <div class="grid grid-cols-2 gap-3">
@@ -449,6 +465,7 @@ export class DailyLedgerComponent implements OnDestroy {
   protected readonly presetName = signal('');
   protected readonly activePresetName = signal<string | null>(null);
   protected readonly mealLabel = signal<string>('');
+  protected readonly entryDate = signal<string>(localDateKey(new Date())); // YYYY-MM-DD
   protected readonly photoStatus = signal<'idle' | 'analyzing' | 'done' | 'error'>('idle');
   protected readonly photoError = signal('');
 
@@ -508,6 +525,7 @@ export class DailyLedgerComponent implements OnDestroy {
     this.liftDone.set(meal.liftCompleted ?? false);
     this.cardioDone.set(meal.cardioCompleted ?? false);
     this.mealLabel.set(meal.mealLabel ?? '');
+    this.entryDate.set(localDateKey(meal.date));
     this.status.set('idle');
   }
 
@@ -542,6 +560,14 @@ export class DailyLedgerComponent implements OnDestroy {
     if (p != null && !Number.isNaN(Number(p))) entry.protein = Number(p);
     entry.liftCompleted = this.liftDone();
     entry.cardioCompleted = this.cardioDone();
+
+    // Set timestamp from the date field (allows editing the date).
+    const dateStr = this.entryDate();
+    if (dateStr) {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const ts = new Date(y, m - 1, d, 12, 0, 0); // noon local to avoid midnight edge
+      entry.timestamp = ts;
+    }
 
     // Meal label: from form input, preset name, or omitted (auto-numbered).
     const label = this.mealLabel().trim() || this.activePresetName();
@@ -586,6 +612,7 @@ export class DailyLedgerComponent implements OnDestroy {
     this.cardioDone.set(false);
     this.activePresetName.set(null);
     this.mealLabel.set('');
+    this.entryDate.set(localDateKey(new Date()));
   }
 
   // ── Presets ─────────────────────────────────────────────────
