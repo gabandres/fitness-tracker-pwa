@@ -7,6 +7,7 @@ export const environment = {
     apiKey: 'AIzaSyB6oYsAEinJ_-TQcMkKIIRuW5yqql8RxUs',
     authDomain: 'fitness-tracker-gb-1775407101.firebaseapp.com',
     messagingSenderId: '647810616435',
+    vapidKey: 'BCPRNDtLom_i5wcXldvbNSl10mPFdUkBS5FEpb9tH9XEKB_tjM9eCTSvYPTHPLzVmvi32nnHz4uS3OJ_EkLErPE',
   },
   // HTTP-referrer-locked to macrolog.web.app + localhost:4200.
   // Free tier; no billing linked — worst case of leak is quota burn.

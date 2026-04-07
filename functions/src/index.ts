@@ -1,6 +1,8 @@
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { getMessaging } from "firebase-admin/messaging";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenAI } from "@google/genai";
 
@@ -211,6 +213,85 @@ Return ONLY valid JSON with no markdown formatting, no code fences, no explanati
       if (err instanceof HttpsError) throw err;
       console.error("analyzePhoto error:", err);
       throw new HttpsError("internal", "Photo analysis failed.");
+    }
+  },
+);
+
+// ─── Feature 3: Daily Push Reminder ───────────────────────────────
+
+export const sendDailyReminders = onSchedule(
+  { schedule: "every 1 hours", timeZone: "UTC" },
+  async () => {
+    const messaging = getMessaging();
+
+    // Find all users with an FCM token.
+    const usersSnap = await db
+      .collection("users")
+      .where("fcmToken", "!=", null)
+      .get();
+
+    if (usersSnap.empty) return;
+
+    const nowUtc = new Date();
+
+    for (const userDoc of usersSnap.docs) {
+      const data = userDoc.data();
+      const token = data.fcmToken as string;
+      const reminderHour = (data.reminderHour as number) ?? 20;
+      const tzOffsetMin = (data.timezoneOffsetMin as number) ?? 0;
+
+      // Compute the user's local hour from UTC + their timezone offset.
+      // JS getTimezoneOffset() returns minutes *ahead* of UTC (e.g., -300 for UTC-5).
+      // So local time = UTC time - offset.
+      const userLocalHour = (nowUtc.getUTCHours() - Math.floor(tzOffsetMin / 60) + 24) % 24;
+
+      // Only send if we're at or past the user's reminder hour.
+      if (userLocalHour < reminderHour) continue;
+      // Only send once per day: skip if we already passed the hour by more than 1.
+      if (userLocalHour > reminderHour + 1) continue;
+
+      // Check if they logged today (in their local timezone).
+      const userNow = new Date(nowUtc.getTime() - tzOffsetMin * 60 * 1000);
+      const startOfDay = new Date(userNow);
+      startOfDay.setUTCHours(0, 0, 0, 0);
+      // Convert back to UTC for the Firestore query.
+      const startOfDayUtc = new Date(startOfDay.getTime() + tzOffsetMin * 60 * 1000);
+
+      const logsSnap = await db
+        .collection("users")
+        .doc(userDoc.id)
+        .collection("dailyLogs")
+        .where("timestamp", ">=", Timestamp.fromDate(startOfDayUtc))
+        .limit(1)
+        .get();
+
+      if (!logsSnap.empty) continue; // Already logged today.
+
+      // Send push notification.
+      try {
+        await messaging.send({
+          token,
+          notification: {
+            title: "Macro Log",
+            body: "You haven't logged today yet.",
+          },
+          webpush: {
+            fcmOptions: { link: "https://macrolog.web.app" },
+          },
+        });
+      } catch (err: unknown) {
+        const code = (err as { code?: string })?.code;
+        // Stale token — clean it up.
+        if (
+          code === "messaging/registration-token-not-registered" ||
+          code === "messaging/invalid-registration-token"
+        ) {
+          await userDoc.ref.update({ fcmToken: null });
+          console.log(`Cleaned stale FCM token for user ${userDoc.id}`);
+        } else {
+          console.error(`FCM send failed for user ${userDoc.id}:`, err);
+        }
+      }
     }
   },
 );

@@ -9,6 +9,7 @@ import {
 } from '@angular/fire/firestore';
 import { provideAuth, getAuth } from '@angular/fire/auth';
 import { provideFunctions, getFunctions } from '@angular/fire/functions';
+import { provideMessaging, getMessaging } from '@angular/fire/messaging';
 
 import { routes } from './app.routes';
 import { provideServiceWorker } from '@angular/service-worker';
@@ -21,6 +22,7 @@ export const appConfig: ApplicationConfig = {
     provideFirebaseApp(() => initializeApp(environment.firebase)),
     provideAuth(() => getAuth()),
     provideFunctions(() => getFunctions()),
+    provideMessaging(() => getMessaging()),
     // Enable Firestore offline persistence so writes queue locally
     // when the user is offline and sync when the connection returns.
     provideFirestore(() =>

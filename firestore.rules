@@ -56,6 +56,18 @@ service cloud.firestore {
           && data.profileCompleted == false;
     }
 
+    // ─── Measurement schema ─────────────────────────────────────
+    function isValidMeasurement(data) {
+      return data.keys().hasAll(['timestamp'])
+          && data.keys().hasOnly(['timestamp', 'waist', 'chest', 'bicep', 'hip'])
+          && data.timestamp is timestamp
+          && data.keys().size() >= 2
+          && (!('waist' in data.keys()) || (data.waist is number && data.waist > 0 && data.waist < 200))
+          && (!('chest' in data.keys()) || (data.chest is number && data.chest > 0 && data.chest < 200))
+          && (!('bicep' in data.keys()) || (data.bicep is number && data.bicep > 0 && data.bicep < 200))
+          && (!('hip' in data.keys()) || (data.hip is number && data.hip > 0 && data.hip < 200));
+    }
+
     // ─── Preset schema ────────────────────────────────────────
     function isValidPreset(data) {
       return data.keys().hasAll(['name', 'calories'])
@@ -90,7 +102,8 @@ service cloud.firestore {
               'email', 'createdAt', 'lastSeenAt', 'profileCompleted',
               'heightIn', 'age', 'sex', 'activityLevel',
               'targetPaceLbsPerWeek', 'goalWeightLbs',
-              'travelMode', 'fastStartedAt', 'webhookApiKey'
+              'travelMode', 'fastStartedAt', 'webhookApiKey',
+              'fcmToken', 'reminderHour', 'timezoneOffsetMin'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == true
@@ -105,7 +118,13 @@ service cloud.firestore {
           && (!('fastStartedAt' in data.keys()) ||
               data.fastStartedAt is timestamp || data.fastStartedAt == null)
           && (!('webhookApiKey' in data.keys()) ||
-              (data.webhookApiKey is string && data.webhookApiKey.size() == 36));
+              (data.webhookApiKey is string && data.webhookApiKey.size() == 36))
+          && (!('fcmToken' in data.keys()) ||
+              (data.fcmToken is string && data.fcmToken.size() <= 300))
+          && (!('reminderHour' in data.keys()) ||
+              (data.reminderHour is int && data.reminderHour >= 0 && data.reminderHour <= 23))
+          && (!('timezoneOffsetMin' in data.keys()) ||
+              (data.timezoneOffsetMin is int));
     }
 
     function isValidProfile(data) {
@@ -130,6 +149,13 @@ service cloud.firestore {
         allow read:   if isOwner(uid);
         allow create: if isOwner(uid) && isValidPreset(request.resource.data);
         allow update: if isOwner(uid) && isValidPreset(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+
+      // Body measurements — weekly/biweekly body-comp tracking.
+      match /measurements/{measurementId} {
+        allow read:   if isOwner(uid);
+        allow create: if isOwner(uid) && isValidMeasurement(request.resource.data);
         allow delete: if isOwner(uid);
       }
 

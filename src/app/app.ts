@@ -7,9 +7,11 @@ import { ConsultationComponent } from './components/consultation/consultation.co
 import { SignInComponent } from './components/sign-in/sign-in.component';
 import { OnboardingComponent } from './components/onboarding/onboarding.component';
 import { FastingComponent } from './components/fasting/fasting.component';
+import { MeasurementsComponent } from './components/measurements/measurements.component';
 import { AuthService } from './services/auth.service';
 import { FirebaseService } from './services/firebase.service';
 import { FitnessStore } from './services/fitness-store.service';
+import { PushNotificationService } from './services/push-notification.service';
 
 @Component({
   selector: 'app-root',
@@ -21,6 +23,7 @@ import { FitnessStore } from './services/fitness-store.service';
     SignInComponent,
     OnboardingComponent,
     FastingComponent,
+    MeasurementsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -126,6 +129,9 @@ import { FitnessStore } from './services/fitness-store.service';
               <app-fasting />
             </div>
             <div class="ink-in delay-5">
+              <app-measurements />
+            </div>
+            <div class="ink-in delay-6">
               <app-dashboard />
             </div>
             <div class="ink-in delay-6">
@@ -158,6 +164,14 @@ import { FitnessStore } from './services/fitness-store.service';
                 <button type="button" (click)="showWebhook.set(!showWebhook())" class="underline decoration-dotted hover:text-blood">
                   webhook
                 </button>
+                &middot;
+                @if (pushService.permission() === 'granted') {
+                  <span class="text-olive">push on</span>
+                } @else if (pushService.permission() !== 'unsupported') {
+                  <button type="button" (click)="enablePush()" class="underline decoration-dotted hover:text-blood">
+                    enable push
+                  </button>
+                }
               }
             </p>
 
@@ -199,6 +213,7 @@ export class App {
   protected readonly firebase = inject(FirebaseService);
   protected readonly store = inject(FitnessStore); // triggers lifecycle via constructor effect
   private readonly swUpdate = inject(SwUpdate);
+  protected readonly pushService = inject(PushNotificationService);
 
   protected readonly ticks = Array.from({ length: 45 });
   protected readonly editingProfile = signal(false);
@@ -208,7 +223,9 @@ export class App {
   protected readonly showWebhook = signal(false);
   protected readonly showReminder = signal(false);
   protected readonly webhookUrl = 'https://us-central1-fitness-tracker-gb-1775407101.cloudfunctions.net/logWebhook';
-  private readonly REMINDER_HOUR = 20; // 8 PM
+  private get REMINDER_HOUR(): number {
+    return (this.firebase.profile() as any)?.reminderHour ?? 20;
+  }
 
   protected readonly todayLabel = computed(() => {
     const d = new Date();
@@ -270,6 +287,13 @@ export class App {
       `macrolog.reminder.dismissed.${new Date().toISOString().slice(0, 10)}`,
       '1',
     );
+  }
+
+  protected async enablePush(): Promise<void> {
+    const token = await this.pushService.requestPermissionAndGetToken();
+    if (token) {
+      await this.firebase.saveFcmToken(token);
+    }
   }
 
   protected async generateWebhookKey(): Promise<void> {

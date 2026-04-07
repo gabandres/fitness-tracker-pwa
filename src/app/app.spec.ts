@@ -6,6 +6,8 @@ import { App } from './app';
 import { AuthService } from './services/auth.service';
 import { FirebaseService } from './services/firebase.service';
 import { FitnessStore } from './services/fitness-store.service';
+import { PushNotificationService } from './services/push-notification.service';
+import { Messaging } from '@angular/fire/messaging';
 
 describe('App', () => {
   beforeEach(async () => {
@@ -77,11 +79,30 @@ describe('App', () => {
             toggleTravelMode: async () => {},
             travelMode: signal(false),
             generateWeeklyReport: async () => {},
+            measurements: signal([]),
+            latestMeasurement: signal(null),
+            previousMeasurement: signal(null),
+            measurementDeltas: signal(null),
+            addMeasurement: async () => {},
+            deleteMeasurement: async () => {},
           },
         },
         {
           provide: SwUpdate,
           useValue: { isEnabled: false, versionUpdates: { pipe: () => ({ subscribe: () => {} }) } },
+        },
+        {
+          provide: PushNotificationService,
+          useValue: {
+            permission: signal('default'),
+            fcmToken: signal(null),
+            requestPermissionAndGetToken: async () => null,
+            onForegroundMessage: () => {},
+          },
+        },
+        {
+          provide: Messaging,
+          useValue: {},
         },
       ],
     }).compileComponents();

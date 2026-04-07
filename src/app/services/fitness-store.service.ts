@@ -8,6 +8,7 @@ import {
   ProfileFields,
   UserProfile,
   WeeklyReport,
+  Measurement,
 } from './firebase.service';
 import { TdeeCalculatorService, TdeeResult, WeeklySummary, WeeklyEnvelope } from './tdee-calculator.service';
 import { GeminiService } from './gemini.service';
@@ -53,6 +54,7 @@ export class FitnessStore {
   private readonly _error = signal<string | null>(null);
   private readonly _weeklyReport = signal<WeeklyReport | null>(null);
   private readonly _reportLoading = signal(false);
+  private readonly _measurements = signal<Measurement[]>([]);
   private readonly _undoEntry = signal<DailyLog | null>(null);
   private _undoTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -64,6 +66,16 @@ export class FitnessStore {
   readonly undoEntry: Signal<DailyLog | null> = this._undoEntry.asReadonly();
   readonly weeklyReport: Signal<WeeklyReport | null> = this._weeklyReport.asReadonly();
   readonly reportLoading: Signal<boolean> = this._reportLoading.asReadonly();
+  readonly measurements: Signal<Measurement[]> = this._measurements.asReadonly();
+  readonly latestMeasurement: Signal<Measurement | null> = computed(() => this._measurements()[0] ?? null);
+  readonly previousMeasurement: Signal<Measurement | null> = computed(() => this._measurements()[1] ?? null);
+  readonly measurementDeltas: Signal<{ waist?: number; chest?: number; bicep?: number; hip?: number } | null> = computed(() => {
+    const latest = this.latestMeasurement();
+    const prev = this.previousMeasurement();
+    if (!latest || !prev) return null;
+    const delta = (a?: number, b?: number) => (a != null && b != null) ? +(a - b).toFixed(1) : undefined;
+    return { waist: delta(latest.waist, prev.waist), chest: delta(latest.chest, prev.chest), bicep: delta(latest.bicep, prev.bicep), hip: delta(latest.hip, prev.hip) };
+  });
   readonly error: Signal<string | null> = this._error.asReadonly();
 
   // ─── Profile fields extraction (single source of truth) ─────
@@ -268,6 +280,16 @@ export class FitnessStore {
     this._presets.set(await this.fb.getPresets());
   }
 
+  async addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<void> {
+    await this.fb.addMeasurement(entry);
+    this._measurements.set(await this.fb.getRecentMeasurements());
+  }
+
+  async deleteMeasurement(id: string): Promise<void> {
+    await this.fb.deleteMeasurement(id);
+    this._measurements.set(await this.fb.getRecentMeasurements());
+  }
+
   async deletePreset(id: string): Promise<void> {
     await this.fb.deletePreset(id);
     this._presets.set(await this.fb.getPresets());
@@ -293,12 +315,14 @@ export class FitnessStore {
       // it bumps lastSeenAt. Idempotent.
       await this.fb.ensureUserProfile();
 
-      const [logs, presets] = await Promise.all([
+      const [logs, presets, measurements] = await Promise.all([
         this.fb.getRecentLogs(14),
         this.fb.getPresets(),
+        this.fb.getRecentMeasurements(),
       ]);
       this._logs.set(logs);
       this._presets.set(presets);
+      this._measurements.set(measurements);
       this._status.set('ready');
 
       // Check weekly report (fire-and-forget, don't block UI).
@@ -351,5 +375,6 @@ export class FitnessStore {
     this._undoEntry.set(null);
     this._weeklyReport.set(null);
     this._reportLoading.set(false);
+    this._measurements.set([]);
   }
 }

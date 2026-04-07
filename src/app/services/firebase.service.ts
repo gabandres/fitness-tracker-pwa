@@ -39,6 +39,16 @@ export interface DailyLog {
   mealLabel?: string;
 }
 
+// ─── Measurement types ──────────────────────────────────────────
+export interface Measurement {
+  id?: string;
+  waist?: number;
+  chest?: number;
+  bicep?: number;
+  hip?: number;
+  date: Date;
+}
+
 // ─── Report types ───────────────────────────────────────────────
 export interface WeeklyReport {
   id?: string;
@@ -85,6 +95,9 @@ export interface ProfileFields {
   travelMode?: boolean;        // when true, target = maintenance (pace=0)
   fastStartedAt?: Date | null; // when fasting — ISO timestamp of fast start
   webhookApiKey?: string;      // static UUID for Apple Shortcuts webhook auth
+  fcmToken?: string;           // FCM push token
+  reminderHour?: number;       // 0–23, default 20 (8 PM)
+  timezoneOffsetMin?: number;  // from new Date().getTimezoneOffset()
 }
 
 /** Full user profile doc as stored in Firestore. */
@@ -208,6 +221,35 @@ export class FirebaseService {
     }
   }
 
+  /** Save FCM push token + timezone offset on the profile. */
+  async saveFcmToken(token: string): Promise<void> {
+    const ref = this.userDoc();
+    const tz = new Date().getTimezoneOffset();
+    await updateDoc(ref, { fcmToken: token, timezoneOffsetMin: tz, lastSeenAt: Timestamp.now() });
+    const current = this._profile();
+    if (current) this._profile.set({ ...current, fcmToken: token, timezoneOffsetMin: tz } as any);
+  }
+
+  /** Clear FCM token (permission revoked). */
+  async clearFcmToken(): Promise<void> {
+    const ref = this.userDoc();
+    await updateDoc(ref, { fcmToken: deleteField(), lastSeenAt: Timestamp.now() });
+    const current = this._profile();
+    if (current) {
+      const updated = { ...current };
+      delete (updated as any).fcmToken;
+      this._profile.set(updated);
+    }
+  }
+
+  /** Save the user's preferred reminder hour (0–23). */
+  async saveReminderHour(hour: number): Promise<void> {
+    const ref = this.userDoc();
+    await updateDoc(ref, { reminderHour: hour, lastSeenAt: Timestamp.now() });
+    const current = this._profile();
+    if (current) this._profile.set({ ...current, reminderHour: hour } as any);
+  }
+
   /** Start a fast — stores the current timestamp. */
   async startFast(): Promise<void> {
     const ref = this.userDoc();
@@ -328,5 +370,33 @@ export class FirebaseService {
       markdown,
       generatedAt: Timestamp.now(),
     });
+  }
+
+  // ─── Body measurements ────────────────────────────────────────
+  private measurementsCollection() {
+    return collection(this.firestore, 'users', this.requireUid(), 'measurements');
+  }
+
+  async getRecentMeasurements(count = 10): Promise<Measurement[]> {
+    const q = query(this.measurementsCollection(), orderBy('timestamp', 'desc'), limit(count));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => {
+      const data = d.data() as { waist?: number; chest?: number; bicep?: number; hip?: number; timestamp: Timestamp };
+      return { id: d.id, waist: data.waist, chest: data.chest, bicep: data.bicep, hip: data.hip, date: data.timestamp.toDate() };
+    });
+  }
+
+  async addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<void> {
+    const data: Record<string, unknown> = { timestamp: Timestamp.now() };
+    if (entry.waist != null) data['waist'] = entry.waist;
+    if (entry.chest != null) data['chest'] = entry.chest;
+    if (entry.bicep != null) data['bicep'] = entry.bicep;
+    if (entry.hip != null) data['hip'] = entry.hip;
+    await addDoc(this.measurementsCollection(), data);
+  }
+
+  async deleteMeasurement(id: string): Promise<void> {
+    const ref = doc(this.firestore, 'users', this.requireUid(), 'measurements', id);
+    await deleteDoc(ref);
   }
 }

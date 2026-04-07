@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, OnDestroy, signal, viewChild } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DailyLog, LogEntry, MealPreset } from '../../services/firebase.service';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { PhotoMacrosService } from '../../services/photo-macros.service';
+import { BarcodeService } from '../../services/barcode.service';
 
 type Mode = 'view' | 'add' | 'edit';
 type Status = 'idle' | 'saving' | 'saved' | 'error';
@@ -207,17 +208,29 @@ interface DayGroup {
             <div class="flex items-center gap-2 mb-3">
               <span class="stamp-mark" style="transform: rotate(0deg)">new</span>
               <span class="data-label">entry</span>
-              <!-- Photo-to-Macros camera button -->
-              <button type="button" (click)="photoInput.click()"
-                [disabled]="photoStatus() === 'analyzing'"
-                class="tag-btn text-[9px] ml-auto">
-                {{ photoStatus() === 'analyzing' ? 'analyzing…' : '📷 snap meal' }}
-              </button>
+              <!-- Photo-to-Macros + Barcode buttons -->
+              <div class="flex gap-1.5 ml-auto">
+                @if (barcodeSupported()) {
+                  <button type="button" (click)="startBarcodeScan()"
+                    [disabled]="barcodeScanning()"
+                    class="tag-btn text-[9px]">
+                    {{ barcodeScanning() ? 'scanning…' : '⊟ scan' }}
+                  </button>
+                }
+                <button type="button" (click)="photoInput.click()"
+                  [disabled]="photoStatus() === 'analyzing'"
+                  class="tag-btn text-[9px]">
+                  {{ photoStatus() === 'analyzing' ? 'analyzing…' : '📷 snap' }}
+                </button>
+              </div>
               <input #photoInput type="file" accept="image/*" capture="environment"
                 class="hidden" (change)="onPhotoCaptured($event)" />
             </div>
             @if (photoStatus() === 'error') {
               <p class="font-mono text-[11px] text-blood mb-3">✕ {{ photoError() }}</p>
+            }
+            @if (barcodeError()) {
+              <p class="font-mono text-[11px] text-blood mb-3">✕ {{ barcodeError() }}</p>
             }
             @if (store.presets().length > 0) {
               <div class="mb-4">
@@ -348,6 +361,23 @@ interface DayGroup {
         </form>
       </ng-template>
 
+      <!-- Barcode scanner overlay -->
+      @if (showBarcodeOverlay()) {
+        <div class="fixed inset-0 z-50 bg-ink/95 flex flex-col items-center justify-center">
+          <div class="data-label mb-3 text-paper">point at a barcode</div>
+          <video #barcodeVideo autoplay playsinline
+            class="w-full max-w-xs aspect-[3/4] object-cover border border-rule/40"></video>
+          <div class="mt-4 flex gap-3">
+            <button type="button" (click)="cancelBarcodeScan()" class="tag-btn text-paper border-paper/40">
+              cancel
+            </button>
+          </div>
+          @if (barcodeError()) {
+            <p class="font-mono text-[11px] text-blood mt-3">{{ barcodeError() }}</p>
+          }
+        </div>
+      }
+
       <!-- Undo delete toast -->
       @if (store.undoEntry()) {
         <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 ink-in">
@@ -366,10 +396,19 @@ interface DayGroup {
     </section>
   `,
 })
-export class DailyLedgerComponent {
+export class DailyLedgerComponent implements OnDestroy {
   protected readonly store = inject(FitnessStore);
   private readonly photoService = inject(PhotoMacrosService);
+  private readonly barcodeService = inject(BarcodeService);
   protected readonly Math = Math;
+
+  // ── Barcode scanner state ───────────────────────────────────
+  protected readonly barcodeSupported = signal(this.barcodeService.isSupported());
+  protected readonly barcodeScanning = signal(false);
+  protected readonly barcodeError = signal('');
+  protected readonly showBarcodeOverlay = signal(false);
+  private readonly barcodeVideoRef = viewChild<ElementRef<HTMLVideoElement>>('barcodeVideo');
+  private cameraStream: MediaStream | null = null;
   protected readonly todayKey = new Date().toISOString().slice(0, 10);
   protected readonly selectedDateKey = signal(this.todayKey);
 
@@ -632,5 +671,54 @@ export class DailyLedgerComponent {
       };
       img.src = URL.createObjectURL(file);
     });
+  }
+
+  // ── Barcode scanner ─────────────────────────────────────────
+  protected async startBarcodeScan(): Promise<void> {
+    this.showBarcodeOverlay.set(true);
+    this.barcodeScanning.set(true);
+    this.barcodeError.set('');
+
+    try {
+      this.cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+      });
+
+      // Wait a tick for the overlay to render, then attach the stream.
+      await new Promise((r) => setTimeout(r, 100));
+      const videoEl = this.barcodeVideoRef()?.nativeElement;
+      if (!videoEl) { this.cancelBarcodeScan(); return; }
+      videoEl.srcObject = this.cameraStream;
+
+      const barcode = await this.barcodeService.scanFromStream(videoEl);
+      this.cancelBarcodeScan();
+
+      // Look up nutrition.
+      const result = await this.barcodeService.lookupProduct(barcode);
+      this.calories.set(result.calories);
+      this.protein.set(result.protein);
+      this.mealLabel.set(result.productName);
+      this.activePresetName.set(result.productName);
+    } catch (err) {
+      this.barcodeError.set(err instanceof Error ? err.message : 'Scan failed.');
+      this.barcodeScanning.set(false);
+    }
+  }
+
+  protected cancelBarcodeScan(): void {
+    this.stopCameraStream();
+    this.showBarcodeOverlay.set(false);
+    this.barcodeScanning.set(false);
+  }
+
+  private stopCameraStream(): void {
+    if (this.cameraStream) {
+      this.cameraStream.getTracks().forEach((t) => t.stop());
+      this.cameraStream = null;
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.stopCameraStream();
   }
 }

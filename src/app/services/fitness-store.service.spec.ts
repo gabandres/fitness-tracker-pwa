@@ -5,6 +5,7 @@ import { FitnessStore } from './fitness-store.service';
 import { AuthService } from './auth.service';
 import { FirebaseService, DailyLog, LogEntry, MealPreset, UserProfile } from './firebase.service';
 import { TdeeCalculatorService } from './tdee-calculator.service';
+import { GeminiService } from './gemini.service';
 
 describe('FitnessStore', () => {
   let store: FitnessStore;
@@ -25,6 +26,11 @@ describe('FitnessStore', () => {
     deletePreset: ReturnType<typeof vi.fn>;
     clearProfile: ReturnType<typeof vi.fn>;
     saveProfile: ReturnType<typeof vi.fn>;
+    getRecentMeasurements: ReturnType<typeof vi.fn>;
+    addMeasurement: ReturnType<typeof vi.fn>;
+    deleteMeasurement: ReturnType<typeof vi.fn>;
+    getLatestReport: ReturnType<typeof vi.fn>;
+    saveReport: ReturnType<typeof vi.fn>;
   };
 
   const completedProfile: UserProfile = {
@@ -71,12 +77,18 @@ describe('FitnessStore', () => {
       deletePreset: vi.fn().mockResolvedValue(undefined),
       clearProfile: vi.fn(),
       saveProfile: vi.fn().mockResolvedValue(undefined),
+      getRecentMeasurements: vi.fn().mockResolvedValue([]),
+      addMeasurement: vi.fn().mockResolvedValue(undefined),
+      deleteMeasurement: vi.fn().mockResolvedValue(undefined),
+      getLatestReport: vi.fn().mockResolvedValue(null),
+      saveReport: vi.fn().mockResolvedValue(undefined),
     };
 
     TestBed.configureTestingModule({
       providers: [
         FitnessStore,
         TdeeCalculatorService,
+        { provide: GeminiService, useValue: { generateWeeklyReport: vi.fn().mockResolvedValue('test report') } },
         {
           provide: AuthService,
           useValue: {
