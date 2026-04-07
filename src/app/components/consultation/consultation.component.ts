@@ -41,7 +41,7 @@ interface SuggestedPrompt {
             type="button"
             (click)="useSuggestion(p.prompt)"
             [disabled]="status() === 'streaming'"
-            class="tag-btn text-[10px]"
+            class="tag-btn text-xs"
           >
             {{ p.label }}
           </button>

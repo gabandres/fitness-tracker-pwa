@@ -58,7 +58,7 @@ interface SparklinePoint { x: number; y: number; }
           <div class="mt-5">
             <div class="flex items-center justify-between mb-1">
               <span class="data-label">goal progress</span>
-              <span class="font-mono text-[10px] tabular-nums text-graphite">
+              <span class="font-sans text-xs tabular-nums text-graphite">
                 {{ gp.currentWeight }} → {{ gp.goalWeight }} lbs
               </span>
             </div>
@@ -69,8 +69,8 @@ interface SparklinePoint { x: number; y: number; }
               </div>
             </div>
             <div class="flex items-center justify-between mt-1">
-              <span class="font-mono text-[9px] tabular-nums text-graphite">{{ gp.startWeight }} lbs</span>
-              <span class="font-mono text-[9px] tabular-nums" style="color: var(--color-olive)">
+              <span class="font-sans text-[11px] tabular-nums text-graphite">{{ gp.startWeight }} lbs</span>
+              <span class="font-sans text-[11px] tabular-nums" style="color: var(--color-olive)">
                 {{ gp.pct }}% · {{ gp.remaining }} lbs to go
               </span>
             </div>
@@ -88,22 +88,22 @@ interface SparklinePoint { x: number; y: number; }
             <div class="grid grid-cols-4 gap-2 text-center">
               <div>
                 <div class="font-mono text-sm font-medium text-ink tabular-nums">{{ w.avgWeight }}</div>
-                <div class="data-label mt-0.5 opacity-60 text-[8px]">avg lb</div>
+                <div class="data-label mt-0.5 opacity-60 text-[11px]">avg lb</div>
               </div>
               <div>
                 <div class="font-mono text-sm font-medium text-ink tabular-nums">{{ w.avgCalories }}</div>
-                <div class="data-label mt-0.5 opacity-60 text-[8px]">avg cal</div>
+                <div class="data-label mt-0.5 opacity-60 text-[11px]">avg cal</div>
               </div>
               <div>
                 <div class="font-mono text-sm font-medium tabular-nums"
                   [style.color]="w.weightDelta <= 0 ? 'var(--color-olive)' : 'var(--color-blood)'">
                   {{ w.weightDelta > 0 ? '+' : '' }}{{ w.weightDelta }}
                 </div>
-                <div class="data-label mt-0.5 opacity-60 text-[8px]">Δ lbs</div>
+                <div class="data-label mt-0.5 opacity-60 text-[11px]">Δ lbs</div>
               </div>
               <div>
                 <div class="font-mono text-sm font-medium text-ink tabular-nums">{{ w.adherencePct }}%</div>
-                <div class="data-label mt-0.5 opacity-60 text-[8px]">on target</div>
+                <div class="data-label mt-0.5 opacity-60 text-[11px]">on target</div>
               </div>
             </div>
             @if (w.avgProtein != null) {
@@ -111,7 +111,7 @@ interface SparklinePoint { x: number; y: number; }
                 <span class="font-mono text-xs tabular-nums" style="color: var(--color-protein)">
                   {{ w.avgProtein }}g
                 </span>
-                <span class="data-label ml-1 text-[8px]">avg protein/day</span>
+                <span class="data-label ml-1 text-[11px]">avg protein/day</span>
               </div>
             }
           </div>
@@ -132,7 +132,7 @@ interface SparklinePoint { x: number; y: number; }
                   {{ env.surplus > 0 ? '+' : '' }}{{ env.surplus }}
                   <span class="text-graphite text-xs font-normal">kcal</span>
                 </div>
-                <div class="data-label mt-0.5 opacity-60 text-[8px]">
+                <div class="data-label mt-0.5 opacity-60 text-[11px]">
                   {{ env.surplus > 0 ? 'over budget' : 'under budget' }} · {{ env.daysLogged }}d logged
                 </div>
               </div>
@@ -140,7 +140,7 @@ interface SparklinePoint { x: number; y: number; }
                 <div class="font-mono text-lg font-medium text-ink tabular-nums">
                   {{ env.adjustedDailyTarget }}
                 </div>
-                <div class="data-label mt-0.5 opacity-60 text-[8px]">
+                <div class="data-label mt-0.5 opacity-60 text-[11px]">
                   aim/day · {{ env.daysRemaining }}d left
                 </div>
               </div>
@@ -152,7 +152,7 @@ interface SparklinePoint { x: number; y: number; }
                 [style.background]="env.consumed > env.weeklyBudget ? 'var(--color-blood)' : 'var(--color-olive)'">
               </div>
             </div>
-            <div class="flex justify-between mt-1 font-mono text-[9px] tabular-nums text-graphite">
+            <div class="flex justify-between mt-1 font-sans text-[11px] tabular-nums text-graphite">
               <span>{{ env.consumed }} consumed</span>
               <span>{{ env.weeklyBudget }} budget</span>
             </div>
@@ -168,7 +168,7 @@ interface SparklinePoint { x: number; y: number; }
                 <span class="stamp-mark" style="transform: rotate(0deg)">report</span>
                 <span class="data-label">weekly review</span>
               </div>
-              <span class="font-mono text-[9px] text-graphite">{{ reportAge() }}</span>
+              <span class="font-sans text-[11px] text-graphite">{{ reportAge() }}</span>
             </div>
             <div class="prose-field font-display text-ink text-[14px] leading-relaxed"
               [innerHTML]="reportHtml()"></div>
@@ -215,7 +215,7 @@ interface SparklinePoint { x: number; y: number; }
                   <circle [attr.cx]="p.x" [attr.cy]="p.y" r="6" class="fill-blood opacity-20" />
                 }
               </svg>
-              <div class="flex justify-between mt-1 font-mono text-[9px] tracking-[0.15em] text-graphite">
+              <div class="flex justify-between mt-1 font-sans text-[11px] tracking-[0.15em] text-graphite">
                 <span>{{ dateLabel(0) }}</span>
                 <span class="font-display italic text-[10px] tracking-normal">
                   <span class="text-graphite-soft">— raw</span> &nbsp;

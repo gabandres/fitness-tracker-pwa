@@ -111,7 +111,7 @@ interface PaceOption {
           <!-- 3. Biological sex -->
           <div>
             <label class="data-label block mb-2">iii. biological sex</label>
-            <p class="caption text-[10px] mb-2">
+            <p class="caption text-xs mb-2">
               required by the mifflin-st jeor formula to estimate your baseline metabolic rate.
             </p>
             <div class="flex gap-3">
@@ -153,7 +153,7 @@ interface PaceOption {
           <!-- 5. Cut pace -->
           <div>
             <label class="data-label block mb-2">v. cut pace</label>
-            <p class="caption text-[10px] mb-2">
+            <p class="caption text-xs mb-2">
               how aggressively to run the deficit. faster is harder to sustain.
             </p>
             <div class="grid grid-cols-2 gap-2">
@@ -165,7 +165,7 @@ interface PaceOption {
                   class="radio-card"
                 >
                   <div class="font-mono text-xs tracking-[0.15em] uppercase text-ink">{{ opt.label }}</div>
-                  <div class="font-display italic text-graphite text-[10px] mt-0.5 normal-case tracking-normal">
+                  <div class="font-display italic text-graphite text-xs mt-0.5 normal-case tracking-normal">
                     {{ opt.blurb }}
                   </div>
                 </button>

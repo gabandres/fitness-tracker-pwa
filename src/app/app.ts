@@ -37,7 +37,7 @@ import { PushNotificationService } from './services/push-notification.service';
             <span class="crop-bl"></span><span class="crop-br"></span>
             <div class="flex items-center gap-3 min-w-0">
               <span class="stamp-mark shrink-0">new</span>
-              <span class="caption text-[11px] truncate">a new version is available.</span>
+              <span class="caption text-xs truncate">a new version is available.</span>
             </div>
             <button type="button" (click)="reloadForUpdate()" class="tag-btn shrink-0">reload</button>
           </div>
@@ -47,7 +47,7 @@ import { PushNotificationService } from './services/push-notification.service';
         @if (offline()) {
           <div class="mb-4 ink-in flex items-center gap-2">
             <span class="stamp-mark" style="transform: rotate(0deg);">offline</span>
-            <span class="caption text-[11px]">entries will queue locally and sync when reconnected.</span>
+            <span class="caption text-xs">entries will queue locally and sync when reconnected.</span>
           </div>
         }
 
@@ -59,9 +59,9 @@ import { PushNotificationService } from './services/push-notification.service';
             <span class="crop-br" style="border-color: var(--color-gold)"></span>
             <div class="flex items-center gap-2">
               <span class="stamp-mark" style="transform: rotate(0deg); border-color: var(--color-gold); color: var(--color-gold)">reminder</span>
-              <span class="caption text-[11px]">you haven't logged today yet.</span>
+              <span class="caption text-xs">you haven't logged today yet.</span>
             </div>
-            <button type="button" (click)="dismissReminder()" class="tag-btn text-[9px]">dismiss</button>
+            <button type="button" (click)="dismissReminder()" class="tag-btn text-[11px]">dismiss</button>
           </div>
         }
 
@@ -142,7 +142,7 @@ import { PushNotificationService } from './services/push-notification.service';
         <!-- Footer -->
         <footer class="mt-16 ink-in delay-6">
           <div class="rule"><span>fin</span></div>
-          <div class="mt-6 flex items-center justify-between text-[10px] tracking-[0.18em] uppercase text-graphite font-mono">
+          <div class="mt-6 flex items-center justify-between text-xs tracking-[0.18em] uppercase text-graphite font-mono">
             <span>specimen · personal use</span>
             <span class="stamp-mark">confidential</span>
           </div>
@@ -183,21 +183,21 @@ import { PushNotificationService } from './services/push-notification.service';
                   <span class="data-label">apple shortcuts webhook</span>
                 </div>
                 @if (store.webhookApiKey(); as key) {
-                  <div class="font-mono text-[11px] text-ink bg-paper-deep px-2 py-1.5 break-all select-all">
+                  <div class="font-mono text-xs text-ink bg-paper-deep px-2 py-1.5 break-all select-all">
                     {{ key }}
                   </div>
-                  <p class="caption text-[10px] mt-2">
-                    endpoint: <span class="font-mono text-ink not-italic text-[9px]">{{ webhookUrl }}</span>
+                  <p class="caption text-xs mt-2">
+                    endpoint: <span class="font-mono text-ink not-italic text-[11px]">{{ webhookUrl }}</span>
                   </p>
                   <div class="mt-2 flex gap-2">
-                    <button type="button" (click)="copyWebhookKey()" class="tag-btn text-[9px]">copy key</button>
-                    <button type="button" (click)="revokeWebhookKey()" class="tag-btn text-[9px] text-blood border-blood/40">revoke</button>
+                    <button type="button" (click)="copyWebhookKey()" class="tag-btn text-[11px]">copy key</button>
+                    <button type="button" (click)="revokeWebhookKey()" class="tag-btn text-[11px] text-blood border-blood/40">revoke</button>
                   </div>
                 } @else {
-                  <p class="caption text-[10px] mb-2">
+                  <p class="caption text-xs mb-2">
                     generate a key to log entries from apple shortcuts or any http client.
                   </p>
-                  <button type="button" (click)="generateWebhookKey()" class="tag-btn text-[9px]">generate api key</button>
+                  <button type="button" (click)="generateWebhookKey()" class="tag-btn text-[11px]">generate api key</button>
                 }
               </div>
             }

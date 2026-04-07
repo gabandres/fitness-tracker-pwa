@@ -53,7 +53,7 @@ type Status = 'idle' | 'signing' | 'error';
         </div>
 
         <div class="mt-8 pt-6 border-t border-rule/40">
-          <p class="caption text-[10px] leading-relaxed">
+          <p class="caption text-xs leading-relaxed">
             your session is stored locally by firebase. sign out any time
             to clear it. no password is kept on any server.
           </p>

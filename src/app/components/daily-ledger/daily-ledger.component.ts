@@ -47,7 +47,7 @@ interface DayGroup {
             <span class="stamp-mark" style="transform: rotate(0deg); border-color: var(--color-gold); color: var(--color-gold)">travel</span>
             <span class="caption text-[11px]">maintenance mode — deficit suspended.</span>
           </div>
-          <button type="button" (click)="store.toggleTravelMode()" class="tag-btn text-[9px]">end trip</button>
+          <button type="button" (click)="store.toggleTravelMode()" class="tag-btn text-[11px]">end trip</button>
         </div>
       }
 
@@ -72,10 +72,10 @@ interface DayGroup {
               [class.date-chip--selected]="chip.dateKey === selectedDateKey()"
               [class.date-chip--today]="chip.isToday"
               [class.date-chip--empty]="!chip.hasData">
-              <span class="font-mono text-[8px] tracking-[0.12em] uppercase text-graphite">
+              <span class="font-mono text-[11px] tracking-[0.12em] uppercase text-graphite">
                 {{ chip.dayLabel }}
               </span>
-              <span class="font-mono text-sm tabular-nums font-medium"
+              <span class="font-mono text-base tabular-nums font-medium"
                 [class.text-ink]="chip.hasData"
                 [class.text-graphite-soft]="!chip.hasData">
                 {{ chip.dateNum }}
@@ -103,14 +103,14 @@ interface DayGroup {
             [style.animation-delay]="(di * 60) + 'ms'" style="cursor: default;">
             <div class="flex items-center justify-between gap-2">
               <div class="flex items-center gap-3">
-                <span class="font-mono text-[11px] tracking-[0.12em] font-medium"
+                <span class="font-sans text-xs tracking-[0.12em] font-medium"
                   [class.text-blood]="day.dateKey === todayKey"
                   [class.text-ink]="day.dateKey !== todayKey">
                   {{ day.dateKey === todayKey ? 'TODAY' : day.dateLabel }}
                 </span>
                 @if (day.weight != null) {
-                  <span class="font-mono text-[11px] text-graphite tabular-nums">
-                    {{ day.weight }}<span class="text-[9px] ml-0.5">lb</span>
+                  <span class="font-sans text-xs text-graphite tabular-nums">
+                    {{ day.weight }}<span class="text-[11px] ml-0.5">lb</span>
                   </span>
                 }
                 <div class="flex items-center gap-1">
@@ -133,7 +133,7 @@ interface DayGroup {
                 }
                 <!-- Add meal to this day -->
                 <button type="button" (click)="startAdd(day.dateKey); $event.stopPropagation()"
-                  class="tag-btn text-[9px] py-0.5 px-1.5" title="Add meal">+</button>
+                  class="tag-btn text-[11px] py-0.5 px-1.5" title="Add meal">+</button>
               </div>
             </div>
 
@@ -146,10 +146,10 @@ interface DayGroup {
                 </div>
               </div>
               <div class="flex justify-between mt-0.5">
-                <span class="font-mono text-[8px] tracking-[0.1em] text-graphite tabular-nums">
+                <span class="font-mono text-[11px] tracking-[0.1em] text-graphite tabular-nums">
                   {{ Math.max(0, store.targetCalories() - day.totalCalories) }} remaining
                 </span>
-                <span class="font-mono text-[8px] tracking-[0.1em] tabular-nums"
+                <span class="font-mono text-[11px] tracking-[0.1em] tabular-nums"
                   [style.color]="day.totalCalories > store.targetCalories() ? 'var(--color-blood)' : 'var(--color-graphite)'">
                   {{ Math.round((day.totalCalories / store.targetCalories()) * 100) }}%
                 </span>
@@ -165,19 +165,19 @@ interface DayGroup {
               (click)="onTapMeal(meal)">
               <div class="flex items-center justify-between gap-2">
                 <div class="flex items-center gap-3 min-w-0">
-                  <span class="font-mono text-[10px] tracking-[0.08em] text-graphite-soft truncate max-w-[100px]">
+                  <span class="font-sans text-xs tracking-[0.08em] text-graphite-soft truncate max-w-[100px]">
                     {{ meal.mealLabel || 'Meal ' + (mi + 1) }}
                   </span>
-                  <span class="font-mono text-sm tabular-nums" style="color: var(--color-blood)">
+                  <span class="font-mono text-base tabular-nums" style="color: var(--color-blood)">
                     {{ meal.calories }}<span class="text-[10px] ml-0.5 opacity-70">cal</span>
                   </span>
                   @if (meal.protein != null) {
-                    <span class="font-mono text-sm tabular-nums" style="color: var(--color-protein)">
+                    <span class="font-mono text-base tabular-nums" style="color: var(--color-protein)">
                       {{ meal.protein }}<span class="text-[10px] ml-0.5 opacity-70">g</span>
                     </span>
                   }
                 </div>
-                <span class="font-mono text-[9px] text-graphite-soft opacity-60">tap to edit</span>
+                <span class="font-mono text-[11px] text-graphite-soft opacity-60">tap to edit</span>
               </div>
 
               <!-- Inline edit form -->
@@ -221,13 +221,13 @@ interface DayGroup {
                 @if (barcodeSupported()) {
                   <button type="button" (click)="startBarcodeScan()"
                     [disabled]="barcodeScanning()"
-                    class="tag-btn text-[9px]">
+                    class="tag-btn text-[11px]">
                     {{ barcodeScanning() ? 'scanning…' : '⊟ scan' }}
                   </button>
                 }
                 <button type="button" (click)="photoInput.click()"
                   [disabled]="photoStatus() === 'analyzing'"
-                  class="tag-btn text-[9px]">
+                  class="tag-btn text-[11px]">
                   {{ photoStatus() === 'analyzing' ? 'analyzing…' : '📷 snap' }}
                 </button>
               </div>
@@ -235,21 +235,21 @@ interface DayGroup {
                 class="hidden" (change)="onPhotoCaptured($event)" />
             </div>
             @if (photoStatus() === 'error') {
-              <p class="font-mono text-[11px] text-blood mb-3">✕ {{ photoError() }}</p>
+              <p class="font-sans text-xs text-blood mb-3">✕ {{ photoError() }}</p>
             }
             @if (barcodeError()) {
-              <p class="font-mono text-[11px] text-blood mb-3">✕ {{ barcodeError() }}</p>
+              <p class="font-sans text-xs text-blood mb-3">✕ {{ barcodeError() }}</p>
             }
             @if (store.presets().length > 0) {
               <div class="mb-4">
                 <div class="data-label mb-1.5">quick add</div>
                 <div class="flex flex-wrap gap-1.5">
                   @for (p of store.presets(); track p.id) {
-                    <button type="button" (click)="applyPreset(p)" class="tag-btn text-[9px] group relative">
+                    <button type="button" (click)="applyPreset(p)" class="tag-btn text-[11px] group relative">
                       {{ p.name }}
                       <span class="text-graphite-soft">{{ p.calories }}</span>
                       <button type="button" (click)="removePreset(p, $event)"
-                        class="ml-1 opacity-0 group-hover:opacity-100 text-blood text-[9px] transition-opacity"
+                        class="ml-1 opacity-0 group-hover:opacity-100 text-blood text-[11px] transition-opacity"
                         title="Remove preset">✕</button>
                     </button>
                   }
@@ -275,7 +275,7 @@ interface DayGroup {
             </div>
             <div>
               <label class="data-label block mb-1">
-                label <span class="normal-case italic text-graphite-soft tracking-normal text-[9px]">opt</span>
+                label <span class="normal-case italic text-graphite-soft tracking-normal text-[11px]">opt</span>
               </label>
               <input type="text" maxlength="100"
                 [ngModel]="mealLabel()" (ngModelChange)="mealLabel.set($event)"
@@ -288,7 +288,7 @@ interface DayGroup {
             <!-- Weight (optional) -->
             <div>
               <label class="data-label block mb-1">
-                weight <span class="normal-case italic text-graphite-soft tracking-normal text-[9px]">opt</span>
+                weight <span class="normal-case italic text-graphite-soft tracking-normal text-[11px]">opt</span>
               </label>
               <div class="flex items-baseline gap-1">
                 <input type="number" step="0.1" inputmode="decimal"
@@ -313,7 +313,7 @@ interface DayGroup {
             <!-- Protein -->
             <div>
               <label class="data-label block mb-1">
-                protein <span class="normal-case italic text-graphite-soft tracking-normal text-[9px]">opt</span>
+                protein <span class="normal-case italic text-graphite-soft tracking-normal text-[11px]">opt</span>
               </label>
               <div class="flex items-baseline gap-1">
                 <input type="number" step="1" inputmode="numeric"
@@ -328,13 +328,13 @@ interface DayGroup {
               <div class="flex gap-2 mt-1">
                 <button type="button" (click)="liftDone.set(!liftDone())"
                   [class.selected]="liftDone()" class="radio-card flex-1 text-center py-1.5">
-                  <span class="font-mono text-[10px] tracking-[0.1em] uppercase">
+                  <span class="font-sans text-xs tracking-[0.1em] uppercase">
                     {{ liftDone() ? '●' : '○' }} lift
                   </span>
                 </button>
                 <button type="button" (click)="cardioDone.set(!cardioDone())"
                   [class.selected]="cardioDone()" class="radio-card flex-1 text-center py-1.5">
-                  <span class="font-mono text-[10px] tracking-[0.1em] uppercase">
+                  <span class="font-sans text-xs tracking-[0.1em] uppercase">
                     {{ cardioDone() ? '▲' : '△' }} cardio
                   </span>
                 </button>
@@ -360,7 +360,7 @@ interface DayGroup {
               <span class="caption text-[11px]">saved.</span>
               @if (mode() === 'add' && !savingPreset()) {
                 <button type="button" (click)="promptSavePreset()"
-                  class="tag-btn text-[9px] ml-auto">save as preset</button>
+                  class="tag-btn text-[11px] ml-auto">save as preset</button>
               }
             </div>
             @if (savingPreset()) {
@@ -373,7 +373,7 @@ interface DayGroup {
             }
           }
           @if (status() === 'error') {
-            <p class="font-mono text-[11px] text-blood">✕ {{ errorMsg() }}</p>
+            <p class="font-sans text-xs text-blood">✕ {{ errorMsg() }}</p>
           }
         </form>
       </ng-template>
@@ -390,7 +390,7 @@ interface DayGroup {
             </button>
           </div>
           @if (barcodeError()) {
-            <p class="font-mono text-[11px] text-blood mt-3">{{ barcodeError() }}</p>
+            <p class="font-sans text-xs text-blood mt-3">{{ barcodeError() }}</p>
           }
         </div>
       }
@@ -402,9 +402,9 @@ interface DayGroup {
             style="border-color: var(--color-blood)">
             <span class="crop-bl" style="border-color: var(--color-blood)"></span>
             <span class="crop-br" style="border-color: var(--color-blood)"></span>
-            <span class="font-mono text-[11px] tracking-[0.08em] text-ink">entry deleted</span>
+            <span class="font-sans text-xs tracking-[0.08em] text-ink">entry deleted</span>
             <button type="button" (click)="store.undoDelete()"
-              class="tag-btn text-[9px]" style="border-color: var(--color-blood); color: var(--color-blood)">
+              class="tag-btn text-[11px]" style="border-color: var(--color-blood); color: var(--color-blood)">
               undo
             </button>
           </div>

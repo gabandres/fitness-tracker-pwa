@@ -19,7 +19,7 @@ type Mode = 'view' | 'add';
           <span class="crop-bl"></span><span class="crop-br"></span>
           <div class="flex items-center justify-between mb-2">
             <span class="data-label">latest measurement</span>
-            <span class="font-mono text-[9px] text-graphite">
+            <span class="font-mono text-[11px] text-graphite">
               {{ formatDate(m.date) }}
             </span>
           </div>
@@ -31,14 +31,14 @@ type Mode = 'view' | 'add';
                     {{ m[field.key] }}
                     @if (store.measurementDeltas(); as d) {
                       @if (d[field.key] != null) {
-                        <span class="text-[9px] ml-0.5"
+                        <span class="text-[11px] ml-0.5"
                           [style.color]="d[field.key]! < 0 ? 'var(--color-olive)' : d[field.key]! > 0 ? 'var(--color-blood)' : 'var(--color-graphite)'">
                           {{ d[field.key]! > 0 ? '+' : '' }}{{ d[field.key] }}
                         </span>
                       }
                     }
                   </div>
-                  <div class="data-label mt-0.5 opacity-60 text-[8px]">{{ field.label }}</div>
+                  <div class="data-label mt-0.5 opacity-60 text-[11px]">{{ field.label }}</div>
                 </div>
               }
             }
