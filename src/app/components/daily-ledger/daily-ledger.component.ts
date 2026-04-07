@@ -8,6 +8,14 @@ import { PhotoMacrosService } from '../../services/photo-macros.service';
 type Mode = 'view' | 'add' | 'edit';
 type Status = 'idle' | 'saving' | 'saved' | 'error';
 
+interface DateChip {
+  dateKey: string;
+  dayLabel: string;   // "MON"
+  dateNum: string;    // "06"
+  isToday: boolean;
+  hasData: boolean;
+}
+
 /** Grouped view: one header per calendar day, meals nested under it. */
 interface DayGroup {
   dateKey: string;
@@ -53,6 +61,31 @@ interface DayGroup {
         </div>
       }
 
+      <!-- ─── Date navigation strip ──────────────────────────── -->
+      <div class="date-strip-scroll overflow-x-auto -mx-1 px-1 pb-2 mb-3">
+        <div class="flex gap-1.5 min-w-max">
+          @for (chip of dateChips(); track chip.dateKey) {
+            <button type="button" (click)="scrollToDay(chip.dateKey)"
+              class="date-chip flex flex-col items-center px-2 py-1.5 min-w-[42px]"
+              [class.date-chip--selected]="chip.dateKey === selectedDateKey()"
+              [class.date-chip--today]="chip.isToday"
+              [class.date-chip--empty]="!chip.hasData">
+              <span class="font-mono text-[8px] tracking-[0.12em] uppercase text-graphite">
+                {{ chip.dayLabel }}
+              </span>
+              <span class="font-mono text-sm tabular-nums font-medium"
+                [class.text-ink]="chip.hasData"
+                [class.text-graphite-soft]="!chip.hasData">
+                {{ chip.dateNum }}
+              </span>
+              @if (chip.hasData) {
+                <span class="w-1 h-1 rounded-full mt-0.5" style="background: var(--color-blood)"></span>
+              }
+            </button>
+          }
+        </div>
+      </div>
+
       <!-- ─── Day-grouped log tape ─────────────────────────── -->
       <div class="rule"><span>{{ dayGroups().length > 0 ? 'log tape' : 'no entries yet' }}</span></div>
 
@@ -60,6 +93,7 @@ interface DayGroup {
         @for (day of dayGroups(); track day.dateKey; let di = $index) {
           <!-- Day header: date + weight + training + daily total + progress bar -->
           <div class="tape-strip tape-in border-b-2 border-rule/60"
+            [id]="'day-' + day.dateKey"
             [style.animation-delay]="(di * 60) + 'ms'" style="cursor: default;">
             <div class="flex items-center justify-between gap-2">
               <div class="flex items-center gap-3">
@@ -313,6 +347,22 @@ interface DayGroup {
           }
         </form>
       </ng-template>
+
+      <!-- Undo delete toast -->
+      @if (store.undoEntry()) {
+        <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 ink-in">
+          <div class="specimen px-4 py-2.5 flex items-center gap-3 bg-paper shadow-lg"
+            style="border-color: var(--color-blood)">
+            <span class="crop-bl" style="border-color: var(--color-blood)"></span>
+            <span class="crop-br" style="border-color: var(--color-blood)"></span>
+            <span class="font-mono text-[11px] tracking-[0.08em] text-ink">entry deleted</span>
+            <button type="button" (click)="store.undoDelete()"
+              class="tag-btn text-[9px]" style="border-color: var(--color-blood); color: var(--color-blood)">
+              undo
+            </button>
+          </div>
+        </div>
+      }
     </section>
   `,
 })
@@ -321,6 +371,33 @@ export class DailyLedgerComponent {
   private readonly photoService = inject(PhotoMacrosService);
   protected readonly Math = Math;
   protected readonly todayKey = new Date().toISOString().slice(0, 10);
+  protected readonly selectedDateKey = signal(this.todayKey);
+
+  // ── Date navigation strip: last 14 calendar days ────────────
+  protected readonly dateChips = computed<DateChip[]>(() => {
+    const groups = this.dayGroups();
+    const dataKeys = new Set(groups.map((g) => g.dateKey));
+    const chips: DateChip[] = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date();
+      d.setUTCDate(d.getUTCDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      chips.push({
+        dateKey: key,
+        dayLabel: d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase().slice(0, 3),
+        dateNum: String(d.getUTCDate()).padStart(2, '0'),
+        isToday: key === this.todayKey,
+        hasData: dataKeys.has(key),
+      });
+    }
+    return chips;
+  });
+
+  protected scrollToDay(dateKey: string): void {
+    this.selectedDateKey.set(dateKey);
+    const el = document.getElementById('day-' + dateKey);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   // ── Form state ──────────────────────────────────────────────
   protected readonly mode = signal<Mode>('view');

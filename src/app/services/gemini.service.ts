@@ -55,6 +55,34 @@ export class GeminiService {
     }
   }
 
+  /**
+   * One-shot weekly report. Returns the full markdown string (non-streaming).
+   */
+  async generateWeeklyReport(
+    logs: DailyLog[],
+    tdee: TdeeResult,
+    profile: ProfileFields | null,
+  ): Promise<string> {
+    const systemInstruction = this.buildSystemInstruction(logs, tdee, profile);
+    const prompt = [
+      'Generate a concise weekly review covering:',
+      '1. Progress toward goal (weight trend, pace vs target)',
+      '2. Calorie adherence (consistency, average vs target)',
+      '3. Protein adequacy (vs ~1g/lb bodyweight guideline)',
+      '4. Training consistency (lift and cardio frequency)',
+      '5. One specific, actionable recommendation for next week',
+      '',
+      'Format as markdown. Keep it under 300 words. Be direct and data-driven.',
+    ].join('\n');
+
+    const result = await this.client.models.generateContent({
+      model: this.model,
+      contents: prompt,
+      config: { systemInstruction, temperature: 0.3 },
+    });
+    return result.text ?? '';
+  }
+
   private buildSystemInstruction(
     logs: DailyLog[],
     tdee: TdeeResult,

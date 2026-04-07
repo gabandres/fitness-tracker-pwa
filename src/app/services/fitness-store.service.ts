@@ -7,8 +7,10 @@ import {
   MealPreset,
   ProfileFields,
   UserProfile,
+  WeeklyReport,
 } from './firebase.service';
 import { TdeeCalculatorService, TdeeResult, WeeklySummary, WeeklyEnvelope } from './tdee-calculator.service';
+import { GeminiService } from './gemini.service';
 
 export type StoreStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -42,18 +44,26 @@ export class FitnessStore {
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FirebaseService);
   private readonly calc = inject(TdeeCalculatorService);
+  private readonly gemini = inject(GeminiService);
 
   // ─── Private mutable state ──────────────────────────────────
   private readonly _logs = signal<DailyLog[]>([]);
   private readonly _presets = signal<MealPreset[]>([]);
   private readonly _status = signal<StoreStatus>('idle');
   private readonly _error = signal<string | null>(null);
+  private readonly _weeklyReport = signal<WeeklyReport | null>(null);
+  private readonly _reportLoading = signal(false);
+  private readonly _undoEntry = signal<DailyLog | null>(null);
+  private _undoTimer: ReturnType<typeof setTimeout> | null = null;
 
   // ─── Public read-only state ─────────────────────────────────
   readonly logs: Signal<DailyLog[]> = this._logs.asReadonly();
   readonly presets: Signal<MealPreset[]> = this._presets.asReadonly();
   readonly profile: Signal<UserProfile | null> = this.fb.profile;
   readonly status: Signal<StoreStatus> = this._status.asReadonly();
+  readonly undoEntry: Signal<DailyLog | null> = this._undoEntry.asReadonly();
+  readonly weeklyReport: Signal<WeeklyReport | null> = this._weeklyReport.asReadonly();
+  readonly reportLoading: Signal<boolean> = this._reportLoading.asReadonly();
   readonly error: Signal<string | null> = this._error.asReadonly();
 
   // ─── Profile fields extraction (single source of truth) ─────
@@ -151,6 +161,10 @@ export class FitnessStore {
     };
   });
 
+  readonly hasLoggedToday: Signal<boolean> = computed(() =>
+    this.todaySummary() !== null,
+  );
+
   // ─── Lifecycle ──────────────────────────────────────────────
   constructor() {
     effect(() => {
@@ -214,8 +228,39 @@ export class FitnessStore {
   }
 
   async deleteLog(id: string): Promise<void> {
+    // Cache entry for undo before deleting.
+    const entry = this._logs().find((l) => l.id === id) ?? null;
     await this.fb.deleteLog(id);
     await this._load();
+
+    if (entry) {
+      if (this._undoTimer) clearTimeout(this._undoTimer);
+      this._undoEntry.set(entry);
+      this._undoTimer = setTimeout(() => {
+        this._undoEntry.set(null);
+        this._undoTimer = null;
+      }, 5000);
+    }
+  }
+
+  async undoDelete(): Promise<void> {
+    const entry = this._undoEntry();
+    if (!entry) return;
+    if (this._undoTimer) clearTimeout(this._undoTimer);
+    this._undoEntry.set(null);
+    this._undoTimer = null;
+
+    const logEntry: LogEntry = {
+      calories: entry.calories,
+      timestamp: entry.date, // restore at original time
+    };
+    if (entry.weight != null) logEntry.weight = entry.weight;
+    if (entry.protein != null) logEntry.protein = entry.protein;
+    if (entry.liftCompleted != null) logEntry.liftCompleted = entry.liftCompleted;
+    if (entry.cardioCompleted != null) logEntry.cardioCompleted = entry.cardioCompleted;
+    if (entry.mealLabel) logEntry.mealLabel = entry.mealLabel;
+
+    await this.addLog(logEntry);
   }
 
   async addPreset(preset: Omit<MealPreset, 'id'>): Promise<void> {
@@ -255,9 +300,45 @@ export class FitnessStore {
       this._logs.set(logs);
       this._presets.set(presets);
       this._status.set('ready');
+
+      // Check weekly report (fire-and-forget, don't block UI).
+      this._checkWeeklyReport();
     } catch (err) {
       this._error.set(err instanceof Error ? err.message : 'Load failed.');
       this._status.set('error');
+    }
+  }
+
+  private async _checkWeeklyReport(): Promise<void> {
+    try {
+      const report = await this.fb.getLatestReport();
+      this._weeklyReport.set(report);
+
+      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const isStale = !report || report.generatedAt.getTime() < sevenDaysAgo;
+
+      if (isStale && this._logs().length >= 3) {
+        await this.generateWeeklyReport();
+      }
+    } catch (err) {
+      console.error('Weekly report check failed:', err);
+    }
+  }
+
+  async generateWeeklyReport(): Promise<void> {
+    if (this._reportLoading()) return;
+    this._reportLoading.set(true);
+    try {
+      const logs = this._logs();
+      const tdee = this.tdee();
+      const profile = this._profileFields();
+      const markdown = await this.gemini.generateWeeklyReport(logs, tdee, profile);
+      await this.fb.saveReport(markdown);
+      this._weeklyReport.set({ markdown, generatedAt: new Date() });
+    } catch (err) {
+      console.error('Weekly report generation failed:', err);
+    } finally {
+      this._reportLoading.set(false);
     }
   }
 
@@ -266,5 +347,9 @@ export class FitnessStore {
     this._presets.set([]);
     this._status.set('idle');
     this._error.set(null);
+    if (this._undoTimer) clearTimeout(this._undoTimer);
+    this._undoEntry.set(null);
+    this._weeklyReport.set(null);
+    this._reportLoading.set(false);
   }
 }

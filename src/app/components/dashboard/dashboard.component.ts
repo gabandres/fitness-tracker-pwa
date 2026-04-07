@@ -1,4 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { marked } from 'marked';
 import { FitnessStore } from '../../services/fitness-store.service';
 
 interface SparklinePoint { x: number; y: number; }
@@ -156,6 +158,35 @@ interface SparklinePoint { x: number; y: number; }
           </div>
         }
 
+        <!-- Weekly AI Report -->
+        @if (store.weeklyReport(); as report) {
+          <div class="mt-5 specimen px-4 py-3">
+            <span class="crop-bl"></span><span class="crop-br"></span>
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <span class="stamp-mark" style="transform: rotate(0deg)">report</span>
+                <span class="data-label">weekly review</span>
+              </div>
+              <span class="font-mono text-[9px] text-graphite">{{ reportAge() }}</span>
+            </div>
+            <div class="prose-field font-display text-ink text-[14px] leading-relaxed"
+              [innerHTML]="reportHtml()"></div>
+            <div class="mt-2 pt-2 border-t border-rule/30 flex justify-end">
+              <button type="button" (click)="store.generateWeeklyReport()"
+                [disabled]="store.reportLoading()"
+                class="tag-btn text-[9px]">
+                {{ store.reportLoading() ? 'generating…' : 'regenerate' }}
+              </button>
+            </div>
+          </div>
+        } @else if (store.reportLoading()) {
+          <div class="mt-5 specimen px-4 py-3 text-center">
+            <span class="crop-bl"></span><span class="crop-br"></span>
+            <span class="stamp-mark">generating</span>
+            <p class="caption text-[11px] mt-2">compiling your first weekly report…</p>
+          </div>
+        }
+
         <!-- Sparkline -->
         @if (sparklineRaw().length > 1) {
           <div class="mt-6">
@@ -209,9 +240,27 @@ interface SparklinePoint { x: number; y: number; }
 })
 export class DashboardComponent {
   protected readonly store = inject(FitnessStore);
+  private readonly sanitizer = inject(DomSanitizer);
   protected readonly Math = Math;
   protected readonly svgW = 320;
   protected readonly svgH = 60;
+
+  // ── Weekly report rendering ──────────────────────────────────
+  protected readonly reportHtml = computed<SafeHtml>(() => {
+    const report = this.store.weeklyReport();
+    if (!report) return '' as SafeHtml;
+    const html = marked.parse(report.markdown, { gfm: true, breaks: true }) as string;
+    return this.sanitizer.bypassSecurityTrustHtml(html);
+  });
+
+  protected readonly reportAge = computed<string>(() => {
+    const report = this.store.weeklyReport();
+    if (!report) return '';
+    const days = Math.floor((Date.now() - report.generatedAt.getTime()) / (1000 * 60 * 60 * 24));
+    if (days === 0) return 'today';
+    if (days === 1) return 'yesterday';
+    return `${days} days ago`;
+  });
 
   // ── Sparkline geometry (view-only math, stays local) ────────
   private scalePoints(values: number[], rawWeights: number[]): SparklinePoint[] {

@@ -132,6 +132,18 @@ service cloud.firestore {
         allow update: if isOwner(uid) && isValidPreset(request.resource.data);
         allow delete: if isOwner(uid);
       }
+
+      // Weekly AI reports — cached markdown.
+      match /reports/{reportId} {
+        allow read:   if isOwner(uid);
+        allow create: if isOwner(uid)
+            && request.resource.data.keys().hasAll(['markdown', 'generatedAt'])
+            && request.resource.data.keys().hasOnly(['markdown', 'generatedAt'])
+            && request.resource.data.markdown is string
+            && request.resource.data.markdown.size() <= 10000
+            && request.resource.data.generatedAt is timestamp;
+        allow delete: if isOwner(uid);
+      }
     }
 
     match /{document=**} {

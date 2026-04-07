@@ -101,75 +101,7 @@ interface SuggestedPrompt {
       }
     </section>
   `,
-  styles: [`
-    /* Markdown rendering — narrow scope using Tailwind's text-ink palette */
-    :host ::ng-deep .prose-field p {
-      margin: 0 0 0.9em 0;
-    }
-    :host ::ng-deep .prose-field p:last-child {
-      margin-bottom: 0;
-    }
-    :host ::ng-deep .prose-field h1,
-    :host ::ng-deep .prose-field h2,
-    :host ::ng-deep .prose-field h3 {
-      font-family: var(--font-display);
-      font-style: italic;
-      color: var(--color-blood);
-      margin: 1.2em 0 0.4em;
-      font-size: 1.1em;
-      line-height: 1.2;
-    }
-    :host ::ng-deep .prose-field strong {
-      font-family: var(--font-mono);
-      font-weight: 500;
-      font-style: normal;
-      color: var(--color-ink);
-      background: rgba(139, 26, 26, 0.08);
-      padding: 0 3px;
-      font-size: 0.92em;
-    }
-    :host ::ng-deep .prose-field em {
-      color: var(--color-graphite);
-    }
-    :host ::ng-deep .prose-field ul,
-    :host ::ng-deep .prose-field ol {
-      margin: 0.5em 0 0.9em 1.2em;
-      padding: 0;
-    }
-    :host ::ng-deep .prose-field li {
-      margin: 0.25em 0;
-    }
-    :host ::ng-deep .prose-field code {
-      font-family: var(--font-mono);
-      font-size: 0.85em;
-      background: var(--color-paper-deep);
-      padding: 0 4px;
-      color: var(--color-ink);
-    }
-    :host ::ng-deep .prose-field table {
-      border-collapse: collapse;
-      margin: 0.8em 0;
-      font-family: var(--font-mono);
-      font-size: 0.8em;
-    }
-    :host ::ng-deep .prose-field th,
-    :host ::ng-deep .prose-field td {
-      border: 1px solid var(--color-rule);
-      padding: 4px 10px;
-      text-align: left;
-    }
-    :host ::ng-deep .prose-field th {
-      background: var(--color-paper-deep);
-      font-weight: 500;
-    }
-    :host ::ng-deep .prose-field blockquote {
-      border-left: 2px solid var(--color-blood);
-      padding-left: 1em;
-      margin: 0.8em 0;
-      font-style: italic;
-      color: var(--color-graphite);
-    }
-  `],
+  // prose-field styles moved to global styles.css
 })
 export class ConsultationComponent {
   private readonly store = inject(FitnessStore);

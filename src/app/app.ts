@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
 import { filter } from 'rxjs';
 import { DashboardComponent } from './components/dashboard/dashboard.component';
@@ -44,6 +44,20 @@ import { FitnessStore } from './services/fitness-store.service';
           <div class="mb-4 ink-in flex items-center gap-2">
             <span class="stamp-mark" style="transform: rotate(0deg);">offline</span>
             <span class="caption text-[11px]">entries will queue locally and sync when reconnected.</span>
+          </div>
+        }
+
+        <!-- Daily reminder -->
+        @if (showReminder()) {
+          <div class="mb-4 ink-in specimen px-4 py-2.5 flex items-center justify-between gap-3"
+            style="border-color: var(--color-gold)">
+            <span class="crop-bl" style="border-color: var(--color-gold)"></span>
+            <span class="crop-br" style="border-color: var(--color-gold)"></span>
+            <div class="flex items-center gap-2">
+              <span class="stamp-mark" style="transform: rotate(0deg); border-color: var(--color-gold); color: var(--color-gold)">reminder</span>
+              <span class="caption text-[11px]">you haven't logged today yet.</span>
+            </div>
+            <button type="button" (click)="dismissReminder()" class="tag-btn text-[9px]">dismiss</button>
           </div>
         }
 
@@ -192,7 +206,9 @@ export class App {
   protected readonly offline = signal(!navigator.onLine);
   protected readonly darkMode = signal(false);
   protected readonly showWebhook = signal(false);
+  protected readonly showReminder = signal(false);
   protected readonly webhookUrl = 'https://us-central1-fitness-tracker-gb-1775407101.cloudfunctions.net/logWebhook';
+  private readonly REMINDER_HOUR = 20; // 8 PM
 
   protected readonly todayLabel = computed(() => {
     const d = new Date();
@@ -222,13 +238,38 @@ export class App {
       const doCheck = () => this.swUpdate.checkForUpdate().catch((err) => console.error(err));
       setInterval(doCheck, 5 * 60 * 1000);
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') doCheck();
+        if (document.visibilityState === 'visible') {
+          doCheck();
+          this.checkReminder();
+        }
       });
     }
 
-    // NOTE: The FitnessStore handles its own auth lifecycle (load on sign-in,
-    // clear on sign-out) via an internal effect. No coordination needed here.
-    // The old auth effect + ViewChild refresh chain is gone.
+    // Auto-dismiss reminder when user logs an entry.
+    effect(() => {
+      if (this.store.hasLoggedToday()) this.showReminder.set(false);
+    });
+
+    // Check reminder after data loads.
+    setTimeout(() => this.checkReminder(), 3000);
+  }
+
+  private checkReminder(): void {
+    if (!this.auth.isSignedIn() || !this.firebase.profileCompleted()) return;
+    const now = new Date();
+    if (now.getHours() < this.REMINDER_HOUR) return;
+    if (this.store.hasLoggedToday()) return;
+    const key = `macrolog.reminder.dismissed.${now.toISOString().slice(0, 10)}`;
+    if (localStorage.getItem(key)) return;
+    this.showReminder.set(true);
+  }
+
+  protected dismissReminder(): void {
+    this.showReminder.set(false);
+    localStorage.setItem(
+      `macrolog.reminder.dismissed.${new Date().toISOString().slice(0, 10)}`,
+      '1',
+    );
   }
 
   protected async generateWebhookKey(): Promise<void> {

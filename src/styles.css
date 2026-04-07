@@ -177,6 +177,16 @@ body {
   transform: rotate(-4deg); opacity: 0.72;
 }
 
+/* ── Date navigation strip ───────────────────────────────────── */
+.date-strip-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+.date-strip-scroll::-webkit-scrollbar { display: none; }
+.date-chip { border: 1px solid transparent; cursor: pointer; transition: all 160ms ease; }
+.date-chip:hover { background: rgba(255, 255, 255, 0.3); }
+[data-theme="dark"] .date-chip:hover { background: rgba(255, 255, 255, 0.06); }
+.date-chip--selected { border-color: var(--color-rule); background: rgba(255, 255, 255, 0.4); }
+[data-theme="dark"] .date-chip--selected { background: rgba(255, 255, 255, 0.08); }
+.date-chip--today { border-bottom: 2px solid var(--color-blood); }
+
 /* ── Tape strip ──────────────────────────────────────────────── */
 .tape-strip {
   position: relative; padding: 0.625rem 0.75rem;
@@ -208,6 +218,31 @@ body {
   border-color: var(--color-ink);
   box-shadow: 2px 2px 0 0 var(--color-blood);
 }
+
+/* ── Prose field: markdown rendering for Gemini responses ─────── */
+.prose-field p { margin: 0 0 0.9em 0; }
+.prose-field p:last-child { margin-bottom: 0; }
+.prose-field h1, .prose-field h2, .prose-field h3 {
+  font-family: var(--font-display); font-style: italic;
+  color: var(--color-blood); margin: 1.2em 0 0.4em;
+  font-size: 1.1em; line-height: 1.2;
+}
+.prose-field strong {
+  font-family: var(--font-mono); font-weight: 500; font-style: normal;
+  color: var(--color-ink); background: rgba(139, 26, 26, 0.08);
+  padding: 0 3px; font-size: 0.92em;
+}
+.prose-field em { color: var(--color-graphite); }
+.prose-field ul, .prose-field ol { margin: 0.5em 0 0.9em 1.2em; padding: 0; }
+.prose-field li { margin: 0.25em 0; }
+.prose-field code {
+  font-family: var(--font-mono); font-size: 0.85em;
+  background: var(--color-paper-deep); padding: 0 4px; color: var(--color-ink);
+}
+.prose-field table { border-collapse: collapse; margin: 0.8em 0; font-family: var(--font-mono); font-size: 0.8em; }
+.prose-field th, .prose-field td { border: 1px solid var(--color-rule); padding: 4px 10px; text-align: left; }
+.prose-field th { background: var(--color-paper-deep); font-weight: 500; }
+.prose-field blockquote { border-left: 2px solid var(--color-blood); padding-left: 1em; margin: 0.8em 0; font-style: italic; color: var(--color-graphite); }
 
 /* ── Animations ──────────────────────────────────────────────── */
 @keyframes ink-in {

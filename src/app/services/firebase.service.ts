@@ -39,6 +39,13 @@ export interface DailyLog {
   mealLabel?: string;
 }
 
+// ─── Report types ───────────────────────────────────────────────
+export interface WeeklyReport {
+  id?: string;
+  markdown: string;
+  generatedAt: Date;
+}
+
 // ─── Preset types ───────────────────────────────────────────────
 export interface MealPreset {
   id?: string;
@@ -55,6 +62,7 @@ export interface LogEntry {
   liftCompleted?: boolean;
   cardioCompleted?: boolean;
   mealLabel?: string;
+  timestamp?: Date; // for undo-restore at original time
 }
 
 // ─── Profile types ──────────────────────────────────────────────
@@ -229,7 +237,7 @@ export class FirebaseService {
   async addLog(entry: LogEntry): Promise<void> {
     const data: Record<string, unknown> = {
       calories: entry.calories,
-      timestamp: Timestamp.fromDate(new Date()),
+      timestamp: Timestamp.fromDate(entry.timestamp ?? new Date()),
     };
     if (entry.weight != null) data['weight'] = entry.weight;
     if (entry.protein != null) data['protein'] = entry.protein;
@@ -299,5 +307,26 @@ export class FirebaseService {
   async deletePreset(presetId: string): Promise<void> {
     const ref = doc(this.firestore, 'users', this.requireUid(), 'presets', presetId);
     await deleteDoc(ref);
+  }
+
+  // ─── Weekly reports ───────────────────────────────────────────
+  private reportsCollection() {
+    return collection(this.firestore, 'users', this.requireUid(), 'reports');
+  }
+
+  async getLatestReport(): Promise<WeeklyReport | null> {
+    const q = query(this.reportsCollection(), orderBy('generatedAt', 'desc'), limit(1));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const d = snap.docs[0];
+    const data = d.data() as { markdown: string; generatedAt: Timestamp };
+    return { id: d.id, markdown: data.markdown, generatedAt: data.generatedAt.toDate() };
+  }
+
+  async saveReport(markdown: string): Promise<void> {
+    await addDoc(this.reportsCollection(), {
+      markdown,
+      generatedAt: Timestamp.now(),
+    });
   }
 }
