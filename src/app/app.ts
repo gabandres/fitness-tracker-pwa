@@ -28,8 +28,8 @@ import { PushNotificationService } from './services/push-notification.service';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <main class="min-h-screen px-5 sm:px-8 py-8 sm:py-12">
-      <div class="max-w-[560px] mx-auto">
+    <main class="min-h-screen px-5 sm:px-8 lg:px-12 py-8 sm:py-12">
+      <div class="max-w-[560px] lg:max-w-[1100px] mx-auto">
 
         <!-- SwUpdate banner -->
         @if (updateReady()) {
@@ -122,19 +122,24 @@ import { PushNotificationService } from './services/push-notification.service';
               />
             </div>
           } @else {
-            <!-- Log-first layout -->
-            <div class="ink-in delay-3">
-              <app-daily-ledger />
-            </div>
-            <!-- Fasting chronometer removed per user preference -->
-            <div class="ink-in delay-4">
-              <app-measurements />
-            </div>
-            <div class="ink-in delay-6">
-              <app-dashboard />
-            </div>
-            <div class="ink-in delay-6">
-              <app-consultation />
+            <!-- Responsive layout: single column on mobile, two columns on desktop -->
+            <div class="lg:grid lg:grid-cols-[1fr_1.15fr] lg:gap-10 lg:items-start">
+              <!-- Left column: Daily ledger (primary interaction) -->
+              <div class="ink-in delay-3 lg:sticky lg:top-8">
+                <app-daily-ledger />
+              </div>
+              <!-- Right column: Stats, measurements, AI coach -->
+              <div class="space-y-12 mt-12 lg:mt-0">
+                <div class="ink-in delay-4">
+                  <app-measurements />
+                </div>
+                <div class="ink-in delay-6">
+                  <app-dashboard />
+                </div>
+                <div class="ink-in delay-6">
+                  <app-consultation />
+                </div>
+              </div>
             </div>
           }
         </div>

@@ -26,20 +26,20 @@ interface SparklinePoint { x: number; y: number; }
         </div>
       } @else {
         <!-- Target / TDEE / Weight -->
-        <div class="mt-4 grid grid-cols-3 gap-4">
-          <div>
+        <div class="mt-4 grid grid-cols-3 gap-2">
+          <div class="min-w-0">
             <div class="data-label mb-1">target</div>
-            <div class="readout-mono">{{ store.tdee().newDailyTarget }}</div>
+            <div class="readout-mono truncate">{{ store.tdee().newDailyTarget }}</div>
             <div class="data-label mt-0.5 opacity-60">kcal/day</div>
           </div>
-          <div>
+          <div class="min-w-0">
             <div class="data-label mb-1">true tdee</div>
-            <div class="readout-mono">{{ store.tdee().trueTdee }}</div>
+            <div class="readout-mono truncate">{{ store.tdee().trueTdee }}</div>
             <div class="data-label mt-0.5 opacity-60">kcal/day</div>
           </div>
-          <div>
+          <div class="min-w-0">
             <div class="data-label mb-1">weight</div>
-            <div class="readout-mono">{{ store.currentWeight() ?? '—' }}</div>
+            <div class="readout-mono truncate">{{ store.currentWeight() ?? '—' }}</div>
             <div class="data-label mt-0.5 opacity-60">lbs</div>
           </div>
         </div>
