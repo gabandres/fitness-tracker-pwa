@@ -1,24 +1,22 @@
-import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, OnDestroy, signal, viewChild } from '@angular/core';
-import { NgTemplateOutlet } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { DailyLog, LogEntry, MealPreset } from '../../services/firebase.service';
+import { DailyLog } from '../../services/firebase.service';
 import { FitnessStore } from '../../services/fitness-store.service';
+import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { localDateKey } from '../../utils/date';
-import { PhotoMacrosService } from '../../services/photo-macros.service';
-import { BarcodeService } from '../../services/barcode.service';
-
-type Mode = 'view' | 'add' | 'edit';
-type Status = 'idle' | 'saving' | 'saved' | 'error';
+import { EntryFormComponent } from '../entry-form/entry-form.component';
+import { PhotoCaptureComponent } from '../photo-capture/photo-capture.component';
+import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.component';
+import { PresetPickerComponent } from '../preset-picker/preset-picker.component';
 
 interface DateChip {
   dateKey: string;
-  dayLabel: string;   // "MON"
-  dateNum: string;    // "06"
+  dayLabel: string;
+  dateNum: string;
   isToday: boolean;
   hasData: boolean;
 }
 
-/** Grouped view: one header per calendar day, meals nested under it. */
 interface DayGroup {
   dateKey: string;
   dateLabel: string;
@@ -33,7 +31,8 @@ interface DayGroup {
 @Component({
   selector: 'app-daily-ledger',
   standalone: true,
-  imports: [FormsModule, NgTemplateOutlet],
+  imports: [FormsModule, EntryFormComponent, PhotoCaptureComponent, BarcodeScannerComponent, PresetPickerComponent],
+  providers: [EntryFormManager],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section>
@@ -108,10 +107,29 @@ interface DayGroup {
                   [class.text-ink]="day.dateKey !== todayKey">
                   {{ day.dateKey === todayKey ? 'TODAY' : day.dateLabel }}
                 </span>
-                @if (day.weight != null) {
-                  <span class="font-sans text-xs text-graphite tabular-nums">
-                    {{ day.weight }}<span class="text-[11px] ml-0.5">lb</span>
-                  </span>
+                <!-- Tappable daily weight -->
+                @if (editingWeightDay() === day.dateKey) {
+                  <form class="flex items-baseline gap-1" (ngSubmit)="saveWeight(day); $event.stopPropagation()" (click)="$event.stopPropagation()">
+                    <input type="number" step="0.1" inputmode="decimal"
+                      [ngModel]="weightInput()" (ngModelChange)="weightInput.set($event)"
+                      name="dayWeight" placeholder="___"
+                      class="field-input text-xs w-16 py-0.5 px-1 tabular-nums" />
+                    <span class="font-display italic text-graphite text-[11px]">lb</span>
+                    <button type="submit" class="tag-btn text-[11px] py-0 px-1">ok</button>
+                    <button type="button" (click)="cancelEditWeight()" class="tag-btn text-[11px] py-0 px-1">x</button>
+                  </form>
+                } @else {
+                  <button type="button" (click)="startEditWeight(day.dateKey, day.weight); $event.stopPropagation()"
+                    class="font-sans text-xs tabular-nums hover:underline"
+                    [class.text-graphite]="day.weight != null"
+                    [class.text-graphite-soft]="day.weight == null"
+                    [class.italic]="day.weight == null">
+                    @if (day.weight != null) {
+                      {{ day.weight }}<span class="text-[11px] ml-0.5">lb</span>
+                    } @else {
+                      + wt
+                    }
+                  </button>
                 }
                 <div class="flex items-center gap-1">
                   @if (day.liftCompleted) {
@@ -132,7 +150,7 @@ interface DayGroup {
                   </span>
                 }
                 <!-- Add meal to this day -->
-                <button type="button" (click)="startAdd(day.dateKey); $event.stopPropagation()"
+                <button type="button" (click)="form.startAdd(day.dateKey); $event.stopPropagation()"
                   class="tag-btn text-[11px] py-0.5 px-1.5" title="Add meal">+</button>
               </div>
             </div>
@@ -160,9 +178,9 @@ interface DayGroup {
           <!-- Meal entries nested under this day -->
           @for (meal of day.meals; track meal.id; let mi = $index) {
             <div class="tape-strip tape-in pl-6"
-              [class.tape-editing]="editTarget()?.id === meal.id"
+              [class.tape-editing]="form.editTarget()?.id === meal.id"
               [style.animation-delay]="(di * 60 + mi * 30 + 30) + 'ms'"
-              (click)="onTapMeal(meal)">
+              (click)="form.onTapMeal(meal)">
               <div class="flex items-center justify-between gap-2">
                 <div class="flex items-center gap-3 min-w-0">
                   <span class="font-sans text-xs tracking-[0.08em] text-graphite-soft truncate max-w-[100px]">
@@ -181,18 +199,18 @@ interface DayGroup {
               </div>
 
               <!-- Inline edit form -->
-              @if (editTarget()?.id === meal.id && mode() === 'edit') {
+              @if (form.editTarget()?.id === meal.id && form.mode() === 'edit') {
                 <div class="slide-down mt-3 pt-3 border-t border-rule/40" (click)="$event.stopPropagation()">
-                  <ng-container *ngTemplateOutlet="entryForm"></ng-container>
+                  <app-entry-form />
                 </div>
               }
             </div>
           }
 
           <!-- Inline add form for this day -->
-          @if (addingForDay() === day.dateKey && mode() === 'add') {
+          @if (form.addingForDay() === day.dateKey && form.mode() === 'add') {
             <div class="tape-strip pl-6 slide-down bg-paper-deep" (click)="$event.stopPropagation()">
-              <ng-container *ngTemplateOutlet="entryForm"></ng-container>
+              <app-entry-form />
             </div>
           }
           </div>
@@ -208,192 +226,24 @@ interface DayGroup {
 
       <!-- Global add button (for new day or first entry) -->
       <div class="mt-4">
-        @if (mode() === 'view') {
-          <button type="button" (click)="startAdd()" class="stamp-btn">+ new entry</button>
-        } @else if (mode() === 'add' && !addingForDay()) {
+        @if (form.mode() === 'view') {
+          <button type="button" (click)="form.startAdd()" class="stamp-btn">+ new entry</button>
+        } @else if (form.mode() === 'add' && !form.addingForDay()) {
           <div class="specimen px-4 py-5 slide-down">
             <span class="crop-bl"></span><span class="crop-br"></span>
             <div class="flex items-center gap-2 mb-3">
               <span class="stamp-mark" style="transform: rotate(0deg)">new</span>
               <span class="data-label">entry</span>
-              <!-- Photo-to-Macros + Barcode buttons -->
               <div class="flex gap-1.5 ml-auto">
-                @if (barcodeSupported()) {
-                  <button type="button" (click)="startBarcodeScan()"
-                    [disabled]="barcodeScanning()"
-                    class="tag-btn text-[11px]">
-                    {{ barcodeScanning() ? 'scanning…' : '⊟ scan' }}
-                  </button>
-                }
-                <button type="button" (click)="photoInput.click()"
-                  [disabled]="photoStatus() === 'analyzing'"
-                  class="tag-btn text-[11px]">
-                  {{ photoStatus() === 'analyzing' ? 'analyzing…' : '📷 snap' }}
-                </button>
+                <app-barcode-scanner (estimated)="form.applyEstimate($event)" />
+                <app-photo-capture (estimated)="form.applyEstimate($event)" />
               </div>
-              <input #photoInput type="file" accept="image/*" capture="environment"
-                class="hidden" (change)="onPhotoCaptured($event)" />
             </div>
-            @if (photoStatus() === 'error') {
-              <p class="font-sans text-xs text-blood mb-3">✕ {{ photoError() }}</p>
-            }
-            @if (barcodeError()) {
-              <p class="font-sans text-xs text-blood mb-3">✕ {{ barcodeError() }}</p>
-            }
-            @if (store.presets().length > 0) {
-              <div class="mb-4">
-                <div class="data-label mb-1.5">quick add</div>
-                <div class="flex flex-wrap gap-1.5">
-                  @for (p of store.presets(); track p.id) {
-                    <button type="button" (click)="applyPreset(p)" class="tag-btn text-[11px] group relative">
-                      {{ p.name }}
-                      <span class="text-graphite-soft">{{ p.calories }}</span>
-                      <button type="button" (click)="removePreset(p, $event)"
-                        class="ml-1 opacity-0 group-hover:opacity-100 text-blood text-[11px] transition-opacity"
-                        title="Remove preset">✕</button>
-                    </button>
-                  }
-                </div>
-              </div>
-            }
-            <ng-container *ngTemplateOutlet="entryForm"></ng-container>
+            <app-preset-picker (estimated)="form.applyEstimate($event)" />
+            <app-entry-form />
           </div>
         }
       </div>
-
-      <!-- ─── Shared form template ──────────────────────────── -->
-      <ng-template #entryForm>
-        <form (ngSubmit)="onSubmit()" class="space-y-3">
-          <!-- Date + Label row -->
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="data-label block mb-1">date</label>
-              <input type="date"
-                [ngModel]="entryDate()" (ngModelChange)="entryDate.set($event)"
-                name="entryDate"
-                class="field-input text-sm" />
-            </div>
-            <div>
-              <label class="data-label block mb-1">
-                label <span class="normal-case italic text-graphite-soft tracking-normal text-[11px]">opt</span>
-              </label>
-              <input type="text" maxlength="100"
-                [ngModel]="mealLabel()" (ngModelChange)="mealLabel.set($event)"
-                name="mealLabel" placeholder="e.g. Lunch"
-                class="field-input text-sm" />
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <!-- Weight (optional) -->
-            <div>
-              <label class="data-label block mb-1">
-                weight <span class="normal-case italic text-graphite-soft tracking-normal text-[11px]">opt</span>
-              </label>
-              <div class="flex items-baseline gap-1">
-                <input type="number" step="0.1" inputmode="decimal"
-                  [ngModel]="weight()" (ngModelChange)="weight.set($event)"
-                  name="weight" placeholder="___" class="field-input text-base" />
-                <span class="font-display italic text-graphite text-xs">lbs</span>
-              </div>
-            </div>
-            <!-- Calories (required) -->
-            <div>
-              <label class="data-label block mb-1">calories</label>
-              <div class="flex items-baseline gap-1">
-                <input type="number" step="1" inputmode="numeric" required
-                  [ngModel]="calories()" (ngModelChange)="calories.set($event)"
-                  name="calories" placeholder="____" class="field-input text-base" />
-                <span class="font-display italic text-graphite text-xs">kcal</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <!-- Protein -->
-            <div>
-              <label class="data-label block mb-1">
-                protein <span class="normal-case italic text-graphite-soft tracking-normal text-[11px]">opt</span>
-              </label>
-              <div class="flex items-baseline gap-1">
-                <input type="number" step="1" inputmode="numeric"
-                  [ngModel]="protein()" (ngModelChange)="protein.set($event)"
-                  name="protein" placeholder="___" class="field-input text-base" />
-                <span class="font-display italic text-graphite text-xs">g</span>
-              </div>
-            </div>
-            <!-- Training -->
-            <div>
-              <label class="data-label block mb-1">training</label>
-              <div class="flex gap-2 mt-1">
-                <button type="button" (click)="liftDone.set(!liftDone())"
-                  [class.selected]="liftDone()" class="radio-card flex-1 text-center py-1.5">
-                  <span class="font-sans text-xs tracking-[0.1em] uppercase">
-                    {{ liftDone() ? '●' : '○' }} lift
-                  </span>
-                </button>
-                <button type="button" (click)="cardioDone.set(!cardioDone())"
-                  [class.selected]="cardioDone()" class="radio-card flex-1 text-center py-1.5">
-                  <span class="font-sans text-xs tracking-[0.1em] uppercase">
-                    {{ cardioDone() ? '▲' : '△' }} cardio
-                  </span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex gap-2 pt-1">
-            <button type="submit" [disabled]="status() === 'saving'" class="stamp-btn flex-1">
-              {{ status() === 'saving' ? 'saving…' : mode() === 'edit' ? 'save' : 'commit' }}
-            </button>
-            @if (mode() === 'edit') {
-              <button type="button" (click)="deleteEntry()" class="tag-btn text-blood border-blood/40 hover:bg-blood hover:text-paper">
-                delete
-              </button>
-            }
-            <button type="button" (click)="cancel()" class="tag-btn">cancel</button>
-          </div>
-
-          @if (status() === 'saved') {
-            <div class="flex items-center gap-2">
-              <span class="stamp-mark" style="transform: rotate(0deg)">ok</span>
-              <span class="caption text-[11px]">saved.</span>
-              @if (mode() === 'add' && !savingPreset()) {
-                <button type="button" (click)="promptSavePreset()"
-                  class="tag-btn text-[11px] ml-auto">save as preset</button>
-              }
-            </div>
-            @if (savingPreset()) {
-              <div class="flex items-center gap-2 mt-2">
-                <input type="text" [value]="presetName()"
-                  (input)="presetName.set($any($event.target).value)"
-                  placeholder="preset name" class="field-input text-sm flex-1" />
-                <button type="button" (click)="confirmSavePreset()" class="tag-btn">save</button>
-              </div>
-            }
-          }
-          @if (status() === 'error') {
-            <p class="font-sans text-xs text-blood">✕ {{ errorMsg() }}</p>
-          }
-        </form>
-      </ng-template>
-
-      <!-- Barcode scanner overlay -->
-      @if (showBarcodeOverlay()) {
-        <div class="fixed inset-0 z-50 bg-ink/95 flex flex-col items-center justify-center">
-          <div class="data-label mb-3 text-paper">point at a barcode</div>
-          <video #barcodeVideo autoplay playsinline
-            class="w-full max-w-xs aspect-[3/4] object-cover border border-rule/40"></video>
-          <div class="mt-4 flex gap-3">
-            <button type="button" (click)="cancelBarcodeScan()" class="tag-btn text-paper border-paper/40">
-              cancel
-            </button>
-          </div>
-          @if (barcodeError()) {
-            <p class="font-sans text-xs text-blood mt-3">{{ barcodeError() }}</p>
-          }
-        </div>
-      }
 
       <!-- Undo delete toast -->
       @if (store.undoEntry()) {
@@ -413,21 +263,35 @@ interface DayGroup {
     </section>
   `,
 })
-export class DailyLedgerComponent implements OnDestroy {
+export class DailyLedgerComponent {
   protected readonly store = inject(FitnessStore);
-  private readonly photoService = inject(PhotoMacrosService);
-  private readonly barcodeService = inject(BarcodeService);
+  protected readonly form = inject(EntryFormManager);
   protected readonly Math = Math;
-
-  // ── Barcode scanner state ───────────────────────────────────
-  protected readonly barcodeSupported = signal(this.barcodeService.isSupported());
-  protected readonly barcodeScanning = signal(false);
-  protected readonly barcodeError = signal('');
-  protected readonly showBarcodeOverlay = signal(false);
-  private readonly barcodeVideoRef = viewChild<ElementRef<HTMLVideoElement>>('barcodeVideo');
-  private cameraStream: MediaStream | null = null;
   protected readonly todayKey = localDateKey(new Date());
   protected readonly selectedDateKey = signal(this.todayKey);
+
+  // ── Day-level weight editing ────────────────────────────────
+  protected readonly editingWeightDay = signal<string | null>(null);
+  protected readonly weightInput = signal<number | null>(null);
+
+  protected startEditWeight(dateKey: string, currentWeight: number | null): void {
+    this.editingWeightDay.set(dateKey);
+    this.weightInput.set(currentWeight);
+  }
+
+  protected cancelEditWeight(): void {
+    this.editingWeightDay.set(null);
+    this.weightInput.set(null);
+  }
+
+  protected async saveWeight(day: DayGroup): Promise<void> {
+    const w = this.weightInput();
+    if (w == null || Number.isNaN(Number(w))) { this.cancelEditWeight(); return; }
+    const firstMeal = day.meals[0];
+    if (!firstMeal?.id) return;
+    await this.store.updateLog(firstMeal.id, { calories: firstMeal.calories, weight: Number(w) });
+    this.cancelEditWeight();
+  }
 
   // ── Date navigation strip: last 14 calendar days ────────────
   protected readonly dateChips = computed<DateChip[]>(() => {
@@ -436,12 +300,12 @@ export class DailyLedgerComponent implements OnDestroy {
     const chips: DateChip[] = [];
     for (let i = 13; i >= 0; i--) {
       const d = new Date();
-      d.setDate(d.getDate() - i); // local arithmetic, not UTC
+      d.setDate(d.getDate() - i);
       const key = localDateKey(d);
       chips.push({
         dateKey: key,
         dayLabel: d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase().slice(0, 3),
-        dateNum: String(d.getDate()).padStart(2, '0'), // local, not getUTCDate()
+        dateNum: String(d.getDate()).padStart(2, '0'),
         isToday: key === this.todayKey,
         hasData: dataKeys.has(key),
       });
@@ -454,26 +318,6 @@ export class DailyLedgerComponent implements OnDestroy {
     const el = document.getElementById('day-' + dateKey);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
-
-  // ── Form state ──────────────────────────────────────────────
-  protected readonly mode = signal<Mode>('view');
-  protected readonly editTarget = signal<DailyLog | null>(null);
-  protected readonly addingForDay = signal<string | null>(null);
-  protected readonly status = signal<Status>('idle');
-  protected readonly errorMsg = signal('');
-  protected readonly savingPreset = signal(false);
-  protected readonly presetName = signal('');
-  protected readonly activePresetName = signal<string | null>(null);
-  protected readonly mealLabel = signal<string>('');
-  protected readonly entryDate = signal<string>(localDateKey(new Date())); // YYYY-MM-DD
-  protected readonly photoStatus = signal<'idle' | 'analyzing' | 'done' | 'error'>('idle');
-  protected readonly photoError = signal('');
-
-  protected readonly weight = signal<number | null>(null);
-  protected readonly calories = signal<number | null>(null);
-  protected readonly protein = signal<number | null>(null);
-  protected readonly liftDone = signal(false);
-  protected readonly cardioDone = signal(false);
 
   // ── Day grouping ────────────────────────────────────────────
   protected readonly dayGroups = computed<DayGroup[]>(() => {
@@ -506,248 +350,6 @@ export class DailyLedgerComponent implements OnDestroy {
       if (log.cardioCompleted) group.cardioCompleted = true;
     }
 
-    // Sort newest day first.
     return [...groups.values()].sort((a, b) => b.dateKey.localeCompare(a.dateKey));
   });
-
-  // ── Interactions ────────────────────────────────────────────
-  protected onTapMeal(meal: DailyLog): void {
-    if (this.editTarget()?.id === meal.id && this.mode() === 'edit') {
-      this.cancel();
-      return;
-    }
-    this.editTarget.set(meal);
-    this.addingForDay.set(null);
-    this.mode.set('edit');
-    this.weight.set(meal.weight ?? null);
-    this.calories.set(meal.calories);
-    this.protein.set(meal.protein ?? null);
-    this.liftDone.set(meal.liftCompleted ?? false);
-    this.cardioDone.set(meal.cardioCompleted ?? false);
-    this.mealLabel.set(meal.mealLabel ?? '');
-    this.entryDate.set(localDateKey(meal.date));
-    this.status.set('idle');
-  }
-
-  protected startAdd(dateKey: string | null = null): void {
-    this.resetForm();
-    this.mode.set('add');
-    this.editTarget.set(null);
-    this.addingForDay.set(dateKey);
-    if (dateKey) this.entryDate.set(dateKey); // set date to the target day, not today
-    this.status.set('idle');
-  }
-
-  protected cancel(): void {
-    this.mode.set('view');
-    this.editTarget.set(null);
-    this.addingForDay.set(null);
-    this.resetForm();
-    this.status.set('idle');
-  }
-
-  protected async onSubmit(): Promise<void> {
-    const c = this.calories();
-    if (c == null || Number.isNaN(c)) {
-      this.status.set('error');
-      this.errorMsg.set('Calories are required.');
-      return;
-    }
-
-    const entry: LogEntry = { calories: Number(c) };
-    const w = this.weight();
-    if (w != null && !Number.isNaN(Number(w))) entry.weight = Number(w);
-    const p = this.protein();
-    if (p != null && !Number.isNaN(Number(p))) entry.protein = Number(p);
-    entry.liftCompleted = this.liftDone();
-    entry.cardioCompleted = this.cardioDone();
-
-    // Set timestamp from the date field (allows editing the date).
-    const dateStr = this.entryDate();
-    if (dateStr) {
-      const [y, m, d] = dateStr.split('-').map(Number);
-      const ts = new Date(y, m - 1, d, 12, 0, 0); // noon local to avoid midnight edge
-      entry.timestamp = ts;
-    }
-
-    // Meal label: from form input, preset name, or omitted (auto-numbered).
-    const label = this.mealLabel().trim() || this.activePresetName();
-    if (label) entry.mealLabel = label;
-
-    this.status.set('saving');
-    try {
-      const editing = this.editTarget();
-      if (this.mode() === 'edit' && editing?.id) {
-        await this.store.updateLog(editing.id, entry);
-      } else {
-        await this.store.addLog(entry);
-      }
-      this.status.set('saved');
-      this.savingPreset.set(false);
-      if (this.mode() === 'edit') {
-        setTimeout(() => this.cancel(), 800);
-      }
-    } catch (err) {
-      this.status.set('error');
-      this.errorMsg.set(err instanceof Error ? err.message : 'Failed to save.');
-    }
-  }
-
-  protected async deleteEntry(): Promise<void> {
-    const target = this.editTarget();
-    if (!target?.id) return;
-    try {
-      await this.store.deleteLog(target.id);
-      this.cancel();
-    } catch (err) {
-      this.status.set('error');
-      this.errorMsg.set(err instanceof Error ? err.message : 'Failed to delete.');
-    }
-  }
-
-  private resetForm(): void {
-    this.weight.set(null);
-    this.calories.set(null);
-    this.protein.set(null);
-    this.liftDone.set(false);
-    this.cardioDone.set(false);
-    this.activePresetName.set(null);
-    this.mealLabel.set('');
-    this.entryDate.set(localDateKey(new Date()));
-  }
-
-  // ── Presets ─────────────────────────────────────────────────
-  protected applyPreset(p: MealPreset): void {
-    this.calories.set(p.calories);
-    if (p.protein != null) this.protein.set(p.protein);
-    this.activePresetName.set(p.name);
-    this.mealLabel.set(p.name);
-  }
-
-  protected async removePreset(p: MealPreset, event: Event): Promise<void> {
-    event.stopPropagation();
-    if (p.id) await this.store.deletePreset(p.id);
-  }
-
-  protected promptSavePreset(): void {
-    this.savingPreset.set(true);
-    this.presetName.set('');
-  }
-
-  protected async confirmSavePreset(): Promise<void> {
-    const name = this.presetName().trim();
-    const cal = this.calories();
-    if (!name || cal == null) return;
-    const preset: Omit<MealPreset, 'id'> = { name, calories: Number(cal) };
-    const pro = this.protein();
-    if (pro != null) preset.protein = Number(pro);
-    await this.store.addPreset(preset);
-    this.savingPreset.set(false);
-  }
-
-  // ── Photo-to-Macros ─────────────────────────────────────────
-  protected async onPhotoCaptured(event: Event): Promise<void> {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-
-    this.photoStatus.set('analyzing');
-    this.photoError.set('');
-
-    try {
-      const base64 = await this.resizeAndEncode(file, 1024);
-      const result = await this.photoService.analyze(base64);
-
-      // Pre-fill the form with estimates.
-      this.calories.set(result.calories);
-      this.protein.set(result.protein);
-      this.activePresetName.set(result.description);
-      this.photoStatus.set('idle');
-    } catch (err) {
-      this.photoStatus.set('error');
-      this.photoError.set(err instanceof Error ? err.message : 'Photo analysis failed.');
-    } finally {
-      // Reset the input so the same file can be re-selected.
-      input.value = '';
-    }
-  }
-
-  /** Resize image to maxDim and return base64 (no data: prefix). */
-  private resizeAndEncode(file: File, maxDim: number): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        URL.revokeObjectURL(img.src);
-        let { width, height } = img;
-        if (width > maxDim || height > maxDim) {
-          const scale = maxDim / Math.max(width, height);
-          width = Math.round(width * scale);
-          height = Math.round(height * scale);
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) { reject(new Error('Canvas not supported')); return; }
-        ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-        const base64 = dataUrl.split(',')[1];
-        resolve(base64);
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(img.src);
-        reject(new Error('Failed to load image'));
-      };
-      img.src = URL.createObjectURL(file);
-    });
-  }
-
-  // ── Barcode scanner ─────────────────────────────────────────
-  protected async startBarcodeScan(): Promise<void> {
-    this.showBarcodeOverlay.set(true);
-    this.barcodeScanning.set(true);
-    this.barcodeError.set('');
-
-    try {
-      this.cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-      });
-
-      // Wait a tick for the overlay to render, then attach the stream.
-      await new Promise((r) => setTimeout(r, 100));
-      const videoEl = this.barcodeVideoRef()?.nativeElement;
-      if (!videoEl) { this.cancelBarcodeScan(); return; }
-      videoEl.srcObject = this.cameraStream;
-
-      const barcode = await this.barcodeService.scanFromStream(videoEl);
-      this.cancelBarcodeScan();
-
-      // Look up nutrition.
-      const result = await this.barcodeService.lookupProduct(barcode);
-      this.calories.set(result.calories);
-      this.protein.set(result.protein);
-      this.mealLabel.set(result.productName);
-      this.activePresetName.set(result.productName);
-    } catch (err) {
-      this.cancelBarcodeScan();
-      this.barcodeError.set(err instanceof Error ? err.message : 'Scan failed.');
-    }
-  }
-
-  protected cancelBarcodeScan(): void {
-    this.stopCameraStream();
-    this.showBarcodeOverlay.set(false);
-    this.barcodeScanning.set(false);
-  }
-
-  private stopCameraStream(): void {
-    if (this.cameraStream) {
-      this.cameraStream.getTracks().forEach((t) => t.stop());
-      this.cameraStream = null;
-    }
-  }
-
-  ngOnDestroy(): void {
-    this.stopCameraStream();
-  }
 }
