@@ -87,11 +87,38 @@ interface DayGroup {
         </div>
       </div>
 
-      <!-- ─── Global add entry (top of tape) ─────────────────── -->
-      <div class="mb-4">
+      <!-- ─── Today weight + add entry (top of tape) ────────── -->
+      <div class="mb-4 flex items-center gap-3">
         @if (form.mode() === 'view') {
           <button type="button" (click)="form.startAdd()" class="stamp-btn">+ new entry</button>
-        } @else if (form.mode() === 'add' && !form.addingForDay()) {
+          <!-- Today weight quick-input -->
+          @if (editingWeightDay() === todayKey) {
+            <form class="flex items-baseline gap-1" (ngSubmit)="saveTodayWeight()" (click)="$event.stopPropagation()">
+              <input type="number" step="0.1" inputmode="decimal"
+                [ngModel]="weightInput()" (ngModelChange)="weightInput.set($event)"
+                name="todayWeight" placeholder="___"
+                class="field-input text-xs w-16 py-0.5 px-1 tabular-nums" />
+              <span class="font-display italic text-graphite text-[11px]">lb</span>
+              <button type="submit" class="tag-btn text-[11px] py-0 px-1">ok</button>
+              <button type="button" (click)="cancelEditWeight()" class="tag-btn text-[11px] py-0 px-1">x</button>
+            </form>
+          } @else {
+            <button type="button" (click)="startEditWeight(todayKey, todayWeight())"
+              class="font-sans text-xs tabular-nums hover:underline"
+              [class.text-graphite]="todayWeight() != null"
+              [class.text-graphite-soft]="todayWeight() == null"
+              [class.italic]="todayWeight() == null">
+              @if (todayWeight() != null) {
+                {{ todayWeight() }}<span class="text-[11px] ml-0.5">lb</span>
+              } @else {
+                + weight
+              }
+            </button>
+          }
+        }
+      </div>
+      <div>
+        @if (form.mode() === 'add' && !form.addingForDay()) {
           <div class="specimen px-4 py-5 slide-down">
             <span class="crop-bl"></span><span class="crop-br"></span>
             <div class="flex items-center gap-2 mb-3">
@@ -289,6 +316,28 @@ export class DailyLedgerComponent {
     if (w == null || Number.isNaN(Number(w))) { this.cancelEditWeight(); return; }
     const firstMeal = day.meals[0];
     if (!firstMeal?.id) return;
+    await this.store.updateLog(firstMeal.id, { calories: firstMeal.calories, weight: Number(w) });
+    this.cancelEditWeight();
+  }
+
+  // ── Today's weight (for the top-of-page quick input) ─────────
+  protected readonly todayGroup = computed(() =>
+    this.dayGroups().find((g) => g.dateKey === this.todayKey) ?? null,
+  );
+
+  protected readonly todayWeight = computed(() => this.todayGroup()?.weight ?? null);
+
+  protected async saveTodayWeight(): Promise<void> {
+    const w = this.weightInput();
+    if (w == null || Number.isNaN(Number(w))) { this.cancelEditWeight(); return; }
+    const group = this.todayGroup();
+    const firstMeal = group?.meals[0];
+    if (!firstMeal?.id) {
+      // No meals today yet — add a zero-cal log just to carry the weight
+      await this.store.addLog({ calories: 0, weight: Number(w) });
+      this.cancelEditWeight();
+      return;
+    }
     await this.store.updateLog(firstMeal.id, { calories: firstMeal.calories, weight: Number(w) });
     this.cancelEditWeight();
   }
