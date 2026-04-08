@@ -69,7 +69,7 @@ export class GeminiService {
       'Generate a concise weekly review covering:',
       '1. Progress toward goal (weight trend, pace vs target)',
       '2. Calorie adherence (consistency, average vs target)',
-      '3. Protein adequacy (vs ~1g/lb bodyweight guideline)',
+      '3. Protein adequacy (vs 0.7–0.8g/lb bodyweight — the evidence-based threshold for muscle preservation during a deficit, per meta-analyses and the ISSN position stand)',
       '4. Training consistency (lift and cardio frequency)',
       '5. One specific, actionable recommendation for next week',
       '',
@@ -105,6 +105,15 @@ export class GeminiService {
       "If the TDEE source is 'formula' or 'seed', the estimate is PROVISIONAL — " +
       "say so when making strong claims. Measured mode (14+ days of real data) " +
       "is the only source that reflects the user's actual metabolism.",
+    );
+    lines.push('');
+    lines.push(
+      "Protein guideline: use 0.7–0.8 g per pound of bodyweight as the " +
+      "evidence-based target for muscle preservation during a caloric deficit " +
+      "(per ISSN position stand and recent meta-analyses). The old '1g/lb' rule " +
+      "is the upper safety margin, not the clinical threshold. Only recommend " +
+      "above 0.8g/lb for very lean or heavily resistance-trained individuals " +
+      "in a steep deficit.",
     );
     lines.push('');
 
