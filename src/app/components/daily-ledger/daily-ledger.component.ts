@@ -3,14 +3,14 @@ import { FormsModule } from '@angular/forms';
 import { DailyLog } from '../../services/firebase.service';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
-import { localDateKey } from '../../utils/date';
+import { DateKey, localDateKey } from '../../utils/date';
 import { EntryFormComponent } from '../entry-form/entry-form.component';
 import { PhotoCaptureComponent } from '../photo-capture/photo-capture.component';
 import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.component';
 import { PresetPickerComponent } from '../preset-picker/preset-picker.component';
 
 interface DateChip {
-  dateKey: string;
+  dateKey: DateKey;
   dayLabel: string;
   dateNum: string;
   isToday: boolean;
@@ -18,7 +18,7 @@ interface DateChip {
 }
 
 interface DayGroup {
-  dateKey: string;
+  dateKey: DateKey;
   dateLabel: string;
   weight: number | null;
   liftCompleted: boolean;
@@ -85,6 +85,27 @@ interface DayGroup {
             </button>
           }
         </div>
+      </div>
+
+      <!-- ─── Global add entry (top of tape) ─────────────────── -->
+      <div class="mb-4">
+        @if (form.mode() === 'view') {
+          <button type="button" (click)="form.startAdd()" class="stamp-btn">+ new entry</button>
+        } @else if (form.mode() === 'add' && !form.addingForDay()) {
+          <div class="specimen px-4 py-5 slide-down">
+            <span class="crop-bl"></span><span class="crop-br"></span>
+            <div class="flex items-center gap-2 mb-3">
+              <span class="stamp-mark" style="transform: rotate(0deg)">new</span>
+              <span class="data-label">entry</span>
+              <div class="flex gap-1.5 ml-auto">
+                <app-barcode-scanner (estimated)="form.applyEstimate($event)" />
+                <app-photo-capture (estimated)="form.applyEstimate($event)" />
+              </div>
+            </div>
+            <app-preset-picker (estimated)="form.applyEstimate($event)" />
+            <app-entry-form />
+          </div>
+        }
       </div>
 
       <!-- ─── Day-grouped log tape ─────────────────────────── -->
@@ -224,27 +245,6 @@ interface DayGroup {
         }
       </div>
 
-      <!-- Global add button (for new day or first entry) -->
-      <div class="mt-4">
-        @if (form.mode() === 'view') {
-          <button type="button" (click)="form.startAdd()" class="stamp-btn">+ new entry</button>
-        } @else if (form.mode() === 'add' && !form.addingForDay()) {
-          <div class="specimen px-4 py-5 slide-down">
-            <span class="crop-bl"></span><span class="crop-br"></span>
-            <div class="flex items-center gap-2 mb-3">
-              <span class="stamp-mark" style="transform: rotate(0deg)">new</span>
-              <span class="data-label">entry</span>
-              <div class="flex gap-1.5 ml-auto">
-                <app-barcode-scanner (estimated)="form.applyEstimate($event)" />
-                <app-photo-capture (estimated)="form.applyEstimate($event)" />
-              </div>
-            </div>
-            <app-preset-picker (estimated)="form.applyEstimate($event)" />
-            <app-entry-form />
-          </div>
-        }
-      </div>
-
       <!-- Undo delete toast -->
       @if (store.undoEntry()) {
         <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 ink-in">
@@ -271,10 +271,10 @@ export class DailyLedgerComponent {
   protected readonly selectedDateKey = signal(this.todayKey);
 
   // ── Day-level weight editing ────────────────────────────────
-  protected readonly editingWeightDay = signal<string | null>(null);
+  protected readonly editingWeightDay = signal<DateKey | null>(null);
   protected readonly weightInput = signal<number | null>(null);
 
-  protected startEditWeight(dateKey: string, currentWeight: number | null): void {
+  protected startEditWeight(dateKey: DateKey, currentWeight: number | null): void {
     this.editingWeightDay.set(dateKey);
     this.weightInput.set(currentWeight);
   }
@@ -313,7 +313,7 @@ export class DailyLedgerComponent {
     return chips;
   });
 
-  protected scrollToDay(dateKey: string): void {
+  protected scrollToDay(dateKey: DateKey): void {
     this.selectedDateKey.set(dateKey);
     const el = document.getElementById('day-' + dateKey);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
