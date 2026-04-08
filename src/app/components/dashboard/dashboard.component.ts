@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { marked } from 'marked';
 import { FitnessStore } from '../../services/fitness-store.service';
+import { TdeeCalculatorService } from '../../services/tdee-calculator.service';
 import { localDateKey } from '../../utils/date';
 
 interface SparklinePoint { x: number; y: number; }
@@ -286,6 +287,40 @@ interface SparklinePoint { x: number; y: number; }
           </div>
         }
 
+        <!-- All-time weight chart -->
+        @if (allTimeRawPoints().length > 2) {
+          <div class="mt-6">
+            <div class="flex items-center justify-between mb-2">
+              <span class="data-label">all-time trend</span>
+              @if (store.monthlySummary(); as m) {
+                <span class="font-mono text-sm tabular-nums"
+                  [style.color]="m.totalChange < 0 ? 'var(--color-ink)' : m.totalChange > 0 ? 'var(--color-blood)' : 'var(--color-graphite)'">
+                  {{ m.totalChange > 0 ? '+' : '' }}{{ m.totalChange }} lbs
+                </span>
+              }
+            </div>
+            <div class="relative">
+              <svg [attr.viewBox]="'0 0 ' + allTimeSvgW + ' ' + allTimeSvgH"
+                class="w-full h-20 overflow-visible" preserveAspectRatio="none" aria-hidden="true">
+                <polyline [attr.points]="allTimeRawSvg()" fill="none"
+                  stroke="currentColor" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round"
+                  class="text-graphite-soft" />
+                <polyline [attr.points]="allTimeEmaSvg()" fill="none"
+                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                  class="text-ink" />
+                @if (allTimeEmaPoints().length > 0) {
+                  @let p = allTimeEmaPoints()[allTimeEmaPoints().length - 1];
+                  <circle [attr.cx]="p.x" [attr.cy]="p.y" r="3" class="fill-blood" />
+                }
+              </svg>
+              <div class="flex justify-between mt-1 font-sans text-[11px] tracking-[0.15em] text-graphite">
+                <span>{{ allTimeDateLabel(0) }}</span>
+                <span>{{ allTimeDateLabel(-1) }}</span>
+              </div>
+            </div>
+          </div>
+        }
+
         <!-- Actions -->
         <div class="mt-5 flex items-center justify-between">
           <button type="button" (click)="exportCsv()" class="tag-btn">↓ export csv</button>
@@ -301,6 +336,7 @@ interface SparklinePoint { x: number; y: number; }
 export class DashboardComponent {
   protected readonly store = inject(FitnessStore);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly calc = inject(TdeeCalculatorService);
   protected readonly Math = Math;
   protected readonly svgW = 320;
   protected readonly svgH = 60;
@@ -355,6 +391,66 @@ export class DashboardComponent {
     this.sparklineRaw().map((p) => `${p.x},${p.y}`).join(' '));
   protected readonly emaSvgPoints = computed(() =>
     this.sparklineEma().map((p) => `${p.x},${p.y}`).join(' '));
+
+  // ── All-time weight chart ─────────────────────────────────────
+  protected readonly allTimeSvgW = 480;
+  protected readonly allTimeSvgH = 80;
+
+  /** All-time daily weights sorted oldest → newest, with sorted date keys for labels. */
+  private readonly allTimeDailyData = computed(() => {
+    const logs = this.store.allTimeLogs();
+    if (logs.length < 7) return { weights: [] as number[], dateKeys: [] as string[] };
+    const dw = this.store.dailyWeights();
+    const byDay = new Map<string, number>();
+    for (const log of logs) {
+      const key = localDateKey(log.date);
+      if (!byDay.has(key)) {
+        const w = dw[key] ?? log.weight;
+        if (w != null) byDay.set(key, w);
+      }
+    }
+    const sorted = [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b));
+    return { weights: sorted.map(([, w]) => w), dateKeys: sorted.map(([k]) => k) };
+  });
+
+  private readonly allTimeWeights = computed(() => this.allTimeDailyData().weights);
+  private readonly allTimeDateKeys = computed(() => this.allTimeDailyData().dateKeys);
+  private readonly allTimeEma14 = computed(() => this.calc.ema(this.allTimeWeights(), 14));
+
+  private scaleAllTime(values: number[], rawWeights: number[]): SparklinePoint[] {
+    if (values.length < 2 || rawWeights.length < 2) return [];
+    const all = [...rawWeights, ...values];
+    const min = Math.min(...all);
+    const max = Math.max(...all);
+    const range = max - min || 1;
+    const padY = 6;
+    const usableH = this.allTimeSvgH - padY * 2;
+    return values.map((v, i) => ({
+      x: (i / (values.length - 1)) * this.allTimeSvgW,
+      y: padY + (1 - (v - min) / range) * usableH,
+    }));
+  }
+
+  protected readonly allTimeRawPoints = computed(() => {
+    const w = this.allTimeWeights();
+    return this.scaleAllTime(w, w);
+  });
+  protected readonly allTimeEmaPoints = computed(() =>
+    this.scaleAllTime(this.allTimeEma14(), this.allTimeWeights()));
+  protected readonly allTimeRawSvg = computed(() =>
+    this.allTimeRawPoints().map((p) => `${p.x},${p.y}`).join(' '));
+  protected readonly allTimeEmaSvg = computed(() =>
+    this.allTimeEmaPoints().map((p) => `${p.x},${p.y}`).join(' '));
+
+  protected allTimeDateLabel(index: number): string {
+    const keys = this.allTimeDateKeys();
+    if (keys.length === 0) return '';
+    const i = index < 0 ? keys.length + index : index;
+    const key = keys[i];
+    if (!key) return '';
+    const [y, m, d] = key.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
+  }
 
   protected dateLabel(index: number): string {
     const data = this.store.logs();

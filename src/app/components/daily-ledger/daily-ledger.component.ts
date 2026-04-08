@@ -138,7 +138,8 @@ interface DayGroup {
       <!-- ─── Day-grouped log tape ─────────────────────────── -->
       <div class="rule"><span>{{ dayGroups().length > 0 ? 'log tape' : 'no entries yet' }}</span></div>
 
-      <div class="mt-3 space-y-4">
+      <div class="mt-3 space-y-4"
+        (touchstart)="onSwipeStart($event)" (touchend)="onSwipeEnd($event)">
         @for (day of dayGroups(); track day.dateKey; let di = $index) {
           <div>
           <!-- Day header: date + weight + training + daily total + progress bar -->
@@ -218,6 +219,24 @@ interface DayGroup {
                 <span class="font-mono text-[11px] tracking-[0.1em] tabular-nums"
                   [style.color]="day.totalCalories > store.targetCalories() ? 'var(--color-blood)' : 'var(--color-graphite)'">
                   {{ Math.round((day.totalCalories / store.targetCalories()) * 100) }}%
+                </span>
+              </div>
+            }
+            <!-- Protein progress (today only) -->
+            @if (day.dateKey === todayKey && store.proteinTarget() > 0) {
+              <div class="mt-1 h-0.5 w-full bg-paper-deep relative overflow-hidden">
+                <div class="h-full transition-all duration-300"
+                  [style.width.%]="Math.min(100, (day.totalProtein / store.proteinTarget()) * 100)"
+                  style="background: var(--color-protein)">
+                </div>
+              </div>
+              <div class="flex justify-between mt-0.5">
+                <span class="font-mono text-[11px] tracking-[0.1em] tabular-nums" style="color: var(--color-protein)">
+                  {{ day.totalProtein }}g / {{ store.proteinTarget() }}g protein
+                </span>
+                <span class="font-mono text-[11px] tracking-[0.1em] tabular-nums"
+                  [style.color]="day.totalProtein >= store.proteinTarget() ? 'var(--color-olive)' : 'var(--color-graphite)'">
+                  {{ Math.round((day.totalProtein / store.proteinTarget()) * 100) }}%
                 </span>
               </div>
             }
@@ -352,6 +371,26 @@ export class DailyLedgerComponent {
     this.selectedDateKey.set(dateKey);
     const el = document.getElementById('day-' + dateKey);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ── Day swipe gestures ──────────────────────────────────────
+  private swipeStartX = 0;
+
+  protected onSwipeStart(e: TouchEvent): void {
+    this.swipeStartX = e.touches[0].clientX;
+  }
+
+  protected onSwipeEnd(e: TouchEvent): void {
+    const dx = e.changedTouches[0].clientX - this.swipeStartX;
+    if (Math.abs(dx) < 60) return;
+    const chips = this.dateChips();
+    const idx = chips.findIndex((c) => c.dateKey === this.selectedDateKey());
+    if (idx < 0) return;
+    if (dx > 0 && idx > 0) {
+      this.scrollToDay(chips[idx - 1].dateKey);
+    } else if (dx < 0 && idx < chips.length - 1) {
+      this.scrollToDay(chips[idx + 1].dateKey);
+    }
   }
 
   // ── Day grouping ────────────────────────────────────────────

@@ -159,6 +159,14 @@ export class FitnessStore {
     return null;
   });
 
+  /** Evidence-based protein target: 0.75g/lb (midpoint of 0.7–0.8 range). */
+  readonly proteinTarget: Signal<number> = computed(() => {
+    const w = this.currentWeight();
+    return w ? Math.round(w * 0.75) : 0;
+  });
+
+  readonly allTimeLogs: Signal<DailyLog[]> = this._allTimeLogs.asReadonly();
+
   readonly streak: Signal<number> = computed(() =>
     this.calc.computeStreak(this._logs()),
   );
