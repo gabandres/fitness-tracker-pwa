@@ -314,31 +314,17 @@ export class DailyLedgerComponent {
   protected async saveWeight(day: DayGroup): Promise<void> {
     const w = this.weightInput();
     if (w == null || Number.isNaN(Number(w))) { this.cancelEditWeight(); return; }
-    const firstMeal = day.meals[0];
-    if (!firstMeal?.id) return;
-    await this.store.updateLog(firstMeal.id, { calories: firstMeal.calories, weight: Number(w) });
+    await this.store.setDailyWeight(day.dateKey, Number(w));
     this.cancelEditWeight();
   }
 
-  // ── Today's weight (for the top-of-page quick input) ─────────
-  protected readonly todayGroup = computed(() =>
-    this.dayGroups().find((g) => g.dateKey === this.todayKey) ?? null,
-  );
-
-  protected readonly todayWeight = computed(() => this.todayGroup()?.weight ?? null);
+  // ── Today's weight (from dailyWeights collection) ────────────
+  protected readonly todayWeight = computed(() => this.store.dailyWeights()[this.todayKey] ?? null);
 
   protected async saveTodayWeight(): Promise<void> {
     const w = this.weightInput();
     if (w == null || Number.isNaN(Number(w))) { this.cancelEditWeight(); return; }
-    const group = this.todayGroup();
-    const firstMeal = group?.meals[0];
-    if (!firstMeal?.id) {
-      // No meals today yet — add a zero-cal log just to carry the weight
-      await this.store.addLog({ calories: 0, weight: Number(w) });
-      this.cancelEditWeight();
-      return;
-    }
-    await this.store.updateLog(firstMeal.id, { calories: firstMeal.calories, weight: Number(w) });
+    await this.store.setDailyWeight(this.todayKey, Number(w));
     this.cancelEditWeight();
   }
 
@@ -371,6 +357,7 @@ export class DailyLedgerComponent {
   // ── Day grouping ────────────────────────────────────────────
   protected readonly dayGroups = computed<DayGroup[]>(() => {
     const logs = this.store.logs();
+    const dw = this.store.dailyWeights();
     const groups = new Map<string, DayGroup>();
 
     for (const log of logs) {
@@ -397,6 +384,12 @@ export class DailyLedgerComponent {
       if (group.weight == null && log.weight != null) group.weight = log.weight;
       if (log.liftCompleted) group.liftCompleted = true;
       if (log.cardioCompleted) group.cardioCompleted = true;
+    }
+
+    // Overlay daily weights (takes precedence over log-derived weights)
+    for (const [key, weight] of Object.entries(dw)) {
+      const group = groups.get(key);
+      if (group) group.weight = weight;
     }
 
     return [...groups.values()].sort((a, b) => b.dateKey.localeCompare(a.dateKey));

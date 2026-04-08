@@ -31,6 +31,8 @@ describe('FitnessStore', () => {
     deleteMeasurement: ReturnType<typeof vi.fn>;
     getLatestReport: ReturnType<typeof vi.fn>;
     saveReport: ReturnType<typeof vi.fn>;
+    getDailyWeights: ReturnType<typeof vi.fn>;
+    setDailyWeight: ReturnType<typeof vi.fn>;
   };
 
   const completedProfile: UserProfile = {
@@ -82,6 +84,8 @@ describe('FitnessStore', () => {
       deleteMeasurement: vi.fn().mockResolvedValue(undefined),
       getLatestReport: vi.fn().mockResolvedValue(null),
       saveReport: vi.fn().mockResolvedValue(undefined),
+      getDailyWeights: vi.fn().mockResolvedValue({}),
+      setDailyWeight: vi.fn().mockResolvedValue(undefined),
     };
 
     TestBed.configureTestingModule({

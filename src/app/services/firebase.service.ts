@@ -328,6 +328,28 @@ export class FirebaseService {
     await deleteDoc(ref);
   }
 
+  // ─── Daily weights ────────────────────────────────────────────
+  private weightsCollection() {
+    return collection(this.firestore, 'users', this.requireUid(), 'dailyWeights');
+  }
+
+  /** Get all daily weights as a map of dateKey → weight. */
+  async getDailyWeights(): Promise<Record<string, number>> {
+    const snap = await getDocs(this.weightsCollection());
+    const weights: Record<string, number> = {};
+    for (const d of snap.docs) {
+      const data = d.data() as { weight: number };
+      weights[d.id] = data.weight;
+    }
+    return weights;
+  }
+
+  /** Set (or overwrite) the weight for a specific day. Doc ID = dateKey. */
+  async setDailyWeight(dateKey: string, weight: number): Promise<void> {
+    const ref = doc(this.firestore, 'users', this.requireUid(), 'dailyWeights', dateKey);
+    await setDoc(ref, { weight });
+  }
+
   // ─── Meal presets ─────────────────────────────────────────────
   private presetsCollection() {
     return collection(this.firestore, 'users', this.requireUid(), 'presets');

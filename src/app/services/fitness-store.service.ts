@@ -69,6 +69,7 @@ export class FitnessStore {
   private readonly _weeklyReport = signal<WeeklyReport | null>(null);
   private readonly _reportLoading = signal(false);
   private readonly _measurements = signal<Measurement[]>([]);
+  private readonly _dailyWeights = signal<Record<string, number>>({});
   private readonly _undoEntry = signal<DailyLog | null>(null);
   private _undoTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -81,6 +82,7 @@ export class FitnessStore {
   readonly weeklyReport: Signal<WeeklyReport | null> = this._weeklyReport.asReadonly();
   readonly reportLoading: Signal<boolean> = this._reportLoading.asReadonly();
   readonly measurements: Signal<Measurement[]> = this._measurements.asReadonly();
+  readonly dailyWeights: Signal<Record<string, number>> = this._dailyWeights.asReadonly();
   readonly latestMeasurement: Signal<Measurement | null> = computed(() => this._measurements()[0] ?? null);
   readonly previousMeasurement: Signal<Measurement | null> = computed(() => this._measurements()[1] ?? null);
   readonly measurementDeltas: Signal<{ waist?: number; chest?: number; bicep?: number; hip?: number } | null> = computed(() => {
@@ -145,8 +147,11 @@ export class FitnessStore {
     return { formulaTdee: formulaResult.trueTdee, measuredTdee: tdee.trueTdee, diffPct };
   });
 
-  /** Most recent non-null weight across all entries. */
+  /** Most recent non-null weight (daily weights first, then log weights). */
   readonly currentWeight: Signal<number | null> = computed(() => {
+    const dw = this._dailyWeights();
+    const keys = Object.keys(dw).sort();
+    if (keys.length > 0) return dw[keys[keys.length - 1]];
     const list = this._logs();
     for (let i = list.length - 1; i >= 0; i--) {
       if (list[i].weight != null) return list[i].weight!;
@@ -166,9 +171,14 @@ export class FitnessStore {
     this.calc.weeklyEnvelope(this._logs(), this.targetCalories()),
   );
 
-  readonly ema: Signal<number[]> = computed(() =>
-    this.calc.ema(this._logs().map((l) => l.weight).filter((w): w is number => w != null), 7),
-  );
+  readonly ema: Signal<number[]> = computed(() => {
+    const dw = this._dailyWeights();
+    const logWeights = this._logs().map((l) => {
+      const key = localDateKey(l.date);
+      return dw[key] ?? l.weight;
+    }).filter((w): w is number => w != null);
+    return this.calc.ema(logWeights, 7);
+  });
 
   readonly trendLabel: Signal<string> = computed(() => {
     const change = this.tdee().weightChangeTrend;
@@ -299,6 +309,11 @@ export class FitnessStore {
     // the computed _profileFields → tdee → targetCalories chain.
   }
 
+  async setDailyWeight(dateKey: string, weight: number): Promise<void> {
+    await this.fb.setDailyWeight(dateKey, weight);
+    this._dailyWeights.update((prev) => ({ ...prev, [dateKey]: weight }));
+  }
+
   async addLog(entry: LogEntry): Promise<void> {
     await this.fb.addLog(entry);
     await this._load();
@@ -385,14 +400,16 @@ export class FitnessStore {
       // it bumps lastSeenAt. Idempotent.
       await this.fb.ensureUserProfile();
 
-      const [logs, presets, measurements] = await Promise.all([
+      const [logs, presets, measurements, dailyWeights] = await Promise.all([
         this.fb.getRecentLogs(14),
         this.fb.getPresets(),
         this.fb.getRecentMeasurements(),
+        this.fb.getDailyWeights(),
       ]);
       this._logs.set(logs);
       this._presets.set(presets);
       this._measurements.set(measurements);
+      this._dailyWeights.set(dailyWeights);
       this._status.set('ready');
 
       // Fire-and-forget background tasks.
