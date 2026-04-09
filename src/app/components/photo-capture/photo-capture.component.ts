@@ -8,10 +8,16 @@ import { MacroEstimate } from '../../models/macro-estimate';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <button type="button" (click)="photoInput.click()"
-      [disabled]="photoStatus() === 'analyzing'"
+      [disabled]="photoStatus() === 'analyzing' || photosRemaining() === 0"
       class="tag-btn text-[11px]">
       {{ photoStatus() === 'analyzing' ? 'analyzing…' : '📷 snap' }}
     </button>
+    @if (photosRemaining() !== null) {
+      <span class="font-mono text-[10px] tracking-[0.08em] ml-1"
+        [style.color]="photosRemaining()! <= 2 ? 'var(--color-gold)' : 'var(--color-graphite)'">
+        {{ photosRemaining() }} left today
+      </span>
+    }
     <input #photoInput type="file" accept="image/*" capture="environment"
       class="hidden" (change)="onPhotoCaptured($event)" />
     @if (photoStatus() === 'error') {
@@ -26,6 +32,7 @@ export class PhotoCaptureComponent {
 
   protected readonly photoStatus = signal<'idle' | 'analyzing' | 'error'>('idle');
   protected readonly photoError = signal('');
+  protected readonly photosRemaining = signal<number | null>(null);
 
   protected async onPhotoCaptured(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
@@ -38,6 +45,7 @@ export class PhotoCaptureComponent {
     try {
       const base64 = await this.resizeAndEncode(file, 1024);
       const result = await this.photoService.analyze(base64);
+      this.photosRemaining.set(result.photosRemaining);
       this.estimated.emit({
         calories: result.calories,
         protein: result.protein,

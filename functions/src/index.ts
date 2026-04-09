@@ -138,6 +138,8 @@ export const logWebhook = onRequest(
 
 // ─── Feature 2: Photo-to-Macros ───────────────────────────────────
 
+const DAILY_PHOTO_LIMIT = 8;
+
 export const analyzePhoto = onCall(
   { secrets: [geminiApiKey], maxInstances: 10 },
   async (request) => {
@@ -145,6 +147,25 @@ export const analyzePhoto = onCall(
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Must be signed in.");
     }
+
+    const uid = request.auth.uid;
+
+    // ── Daily quota check (per user, resets at UTC midnight) ───────
+    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+    const quotaRef = db.collection("photoQuota").doc(`${uid}_${today}`);
+    let photosUsedAfter = 1;
+    await db.runTransaction(async (tx) => {
+      const doc = await tx.get(quotaRef);
+      const used: number = doc.exists ? (doc.data()!.count as number) : 0;
+      if (used >= DAILY_PHOTO_LIMIT) {
+        throw new HttpsError(
+          "resource-exhausted",
+          `Daily limit of ${DAILY_PHOTO_LIMIT} photo analyses reached. Resets at midnight UTC.`,
+        );
+      }
+      photosUsedAfter = used + 1;
+      tx.set(quotaRef, { count: photosUsedAfter, uid, date: today }, { merge: true });
+    });
 
     const { photoBase64 } = request.data as { photoBase64?: string };
     if (!photoBase64 || typeof photoBase64 !== "string") {
@@ -224,7 +245,12 @@ Return ONLY valid JSON with no markdown formatting, no code fences, no explanati
         throw new HttpsError("internal", "Gemini could not estimate calories from this image.");
       }
 
-      return { calories, protein: protein ?? 0, description };
+      return {
+        calories,
+        protein: protein ?? 0,
+        description,
+        photosRemaining: DAILY_PHOTO_LIMIT - photosUsedAfter,
+      };
     } catch (err) {
       if (err instanceof HttpsError) throw err;
       console.error("analyzePhoto error:", err);
