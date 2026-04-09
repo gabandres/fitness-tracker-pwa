@@ -180,17 +180,12 @@ export const analyzePhoto = onCall(
     try {
       const client = new GoogleGenAI({ apiKey: geminiApiKey.value() });
       const result = await client.models.generateContent({
-        model: "gemini-flash-latest",
+        model: "gemini-2.0-flash",
         contents: [
           {
             role: "user",
             parts: [
-              {
-                inlineData: {
-                  mimeType: "image/jpeg",
-                  data: photoBase64,
-                },
-              },
+              { inlineData: { mimeType: "image/jpeg", data: photoBase64 } },
               {
                 text: `Analyze this meal photo and estimate total calories and protein in grams.
 
@@ -199,6 +194,7 @@ Estimation rules:
 - Fried or sautéed items: assume oil was used unless clearly baked or grilled.
 - Pressed sandwiches (cubano, Pan de Agua, medialunas): assume butter was applied.
 - When fat content is ambiguous, lean toward the higher estimate.
+- Set confidence to "low" if the image is blurry, portions are obscured, or the dish is unfamiliar.
 
 Common Puerto Rican / Latin staples for reference:
 - White rice (1 cup cooked with sofrito/oil): ~290 cal, 4g protein
@@ -207,39 +203,41 @@ Common Puerto Rican / Latin staples for reference:
 - Tostones (2 pieces): ~160 cal, 1g protein
 - Mofongo (1 serving): ~380 cal, 4g protein
 - Pan de Bono (1 piece): ~185 cal, 6g protein
-- Arroz con pollo (1 plate): ~550 cal, 35g protein
-
-Return ONLY valid JSON with no markdown formatting, no code fences, no explanation:
-{"calories": <integer>, "protein": <integer>, "description": "<brief 3-5 word description>"}`,
+- Arroz con pollo (1 plate): ~550 cal, 35g protein`,
               },
             ],
           },
         ],
-        config: { temperature: 0.2 },
+        config: {
+          temperature: 0.2,
+          responseMimeType: "application/json",
+          responseJsonSchema: {
+            type: "object",
+            properties: {
+              calories:    { type: "integer", description: "Total estimated calories" },
+              protein:     { type: "integer", description: "Total protein in grams" },
+              description: { type: "string",  description: "Brief 3-5 word description of the meal" },
+              confidence:  { type: "string",  enum: ["low", "medium", "high"],
+                             description: "Estimation confidence based on image clarity and portion visibility" },
+            },
+            required: ["calories", "protein", "description", "confidence"],
+          },
+        },
       });
 
-      // Extract text from response
-      const raw = result.text?.trim() ?? "";
-      // Strip markdown code fences if present
-      const cleaned = raw
-        .replace(/^```(?:json)?\s*/i, "")
-        .replace(/\s*```$/, "")
-        .trim();
-
-      let parsed: { calories?: number; protein?: number; description?: string };
-      try {
-        parsed = JSON.parse(cleaned);
-      } catch {
-        console.error("Gemini returned unparseable response:", cleaned.slice(0, 500));
-        throw new HttpsError(
-          "internal",
-          "Could not parse the meal analysis. Please try again with a clearer photo.",
-        );
-      }
+      // response.text is guaranteed valid JSON matching the schema
+      const parsed = JSON.parse(result.text ?? "{}") as {
+        calories?: number;
+        protein?: number;
+        description?: string;
+        confidence?: string;
+      };
 
       const calories = typeof parsed.calories === "number" ? Math.round(parsed.calories) : null;
       const protein = typeof parsed.protein === "number" ? Math.round(parsed.protein) : null;
       const description = typeof parsed.description === "string" ? parsed.description.slice(0, 100) : "Meal";
+      const confidence = (parsed.confidence === "low" || parsed.confidence === "medium" || parsed.confidence === "high")
+        ? parsed.confidence : "medium";
 
       if (calories == null) {
         throw new HttpsError("internal", "Gemini could not estimate calories from this image.");
@@ -249,6 +247,7 @@ Return ONLY valid JSON with no markdown formatting, no code fences, no explanati
         calories,
         protein: protein ?? 0,
         description,
+        confidence,
         photosRemaining: DAILY_PHOTO_LIMIT - photosUsedAfter,
       };
     } catch (err) {

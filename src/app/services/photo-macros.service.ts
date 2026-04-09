@@ -5,6 +5,7 @@ export interface PhotoAnalysisResult {
   calories: number;
   protein: number;
   description: string;
+  confidence: 'low' | 'medium' | 'high';
   photosRemaining: number;
 }
 

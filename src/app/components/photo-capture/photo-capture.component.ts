@@ -23,6 +23,11 @@ import { MacroEstimate } from '../../models/macro-estimate';
     @if (photoStatus() === 'error') {
       <p class="font-sans text-xs text-blood mt-1">✕ {{ photoError() }}</p>
     }
+    @if (lastConfidence() === 'low') {
+      <p class="font-sans text-[11px] mt-1" style="color: var(--color-gold)">
+        ⚠ low confidence — verify estimate
+      </p>
+    }
   `,
 })
 export class PhotoCaptureComponent {
@@ -33,6 +38,7 @@ export class PhotoCaptureComponent {
   protected readonly photoStatus = signal<'idle' | 'analyzing' | 'error'>('idle');
   protected readonly photoError = signal('');
   protected readonly photosRemaining = signal<number | null>(null);
+  protected readonly lastConfidence = signal<'low' | 'medium' | 'high' | null>(null);
 
   protected async onPhotoCaptured(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
@@ -46,6 +52,7 @@ export class PhotoCaptureComponent {
       const base64 = await this.resizeAndEncode(file, 1024);
       const result = await this.photoService.analyze(base64);
       this.photosRemaining.set(result.photosRemaining);
+      this.lastConfidence.set(result.confidence);
       this.estimated.emit({
         calories: result.calories,
         protein: result.protein,
