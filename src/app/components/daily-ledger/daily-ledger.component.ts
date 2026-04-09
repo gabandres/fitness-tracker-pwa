@@ -245,10 +245,7 @@ interface DayGroup {
           @for (meal of day.meals; track meal.id; let mi = $index) {
             <div class="tape-strip tape-in pl-6"
               [class.tape-editing]="form.editTarget()?.id === meal.id"
-              [style.animation-delay]="(di * 60 + mi * 30 + 30) + 'ms'"
-              style="touch-action: manipulation"
-              (touchend)="onMealTap(meal, $event)"
-              (click)="form.onTapMeal(meal)">
+              [style.animation-delay]="(di * 60 + mi * 30 + 30) + 'ms'">
               <div class="flex items-center justify-between gap-2">
                 <div class="flex items-center gap-3 min-w-0">
                   <span class="font-sans text-xs tracking-[0.08em] text-graphite-soft truncate max-w-[100px]">
@@ -263,7 +260,7 @@ interface DayGroup {
                     </span>
                   }
                 </div>
-                <span class="font-mono text-[11px] text-graphite-soft opacity-60">tap to edit</span>
+                <button type="button" (click)="form.onTapMeal(meal)" class="tag-btn text-[11px]">edit</button>
               </div>
 
               <!-- Inline edit form -->
@@ -397,16 +394,6 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
   protected onSwipeStart(e: TouchEvent): void {
     this.swipeStartX = e.touches[0].clientX;
     this.swipeStartY = e.touches[0].clientY;
-  }
-
-  protected onMealTap(meal: DailyLog, e: TouchEvent): void {
-    const touch = e.changedTouches[0];
-    if (!touch) return;
-    const dx = Math.abs(touch.clientX - this.swipeStartX);
-    const dy = Math.abs(touch.clientY - this.swipeStartY);
-    if (dx > 10 || dy > 10) return; // scroll/swipe — let outer handler deal with it
-    e.preventDefault(); // suppress iOS ghost click
-    this.form.onTapMeal(meal);
   }
 
   protected onSwipeEnd(e: TouchEvent): void {
