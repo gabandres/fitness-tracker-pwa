@@ -133,6 +133,16 @@ interface DayGroup {
             <app-entry-form />
           </div>
         }
+        @if (form.mode() === 'edit') {
+          <div id="edit-panel" class="specimen px-4 py-5 slide-down">
+            <span class="crop-bl"></span><span class="crop-br"></span>
+            <div class="flex items-center gap-2 mb-3">
+              <span class="stamp-mark" style="transform: rotate(0deg)">edit</span>
+              <span class="data-label truncate max-w-[180px]">{{ form.editTarget()?.mealLabel || 'meal' }}</span>
+            </div>
+            <app-entry-form />
+          </div>
+        }
       </div>
 
       <!-- ─── Day-grouped log tape ─────────────────────────── -->
@@ -260,15 +270,9 @@ interface DayGroup {
                     </span>
                   }
                 </div>
-                <button type="button" (click)="form.onTapMeal(meal)" class="tag-btn text-[11px]">edit</button>
+                <button type="button" (click)="startEdit(meal)" class="tag-btn text-[11px]">edit</button>
               </div>
 
-              <!-- Inline edit form -->
-              @if (form.editTarget()?.id === meal.id && form.mode() === 'edit') {
-                <div class="slide-down mt-3 pt-3 border-t border-rule/40" (click)="$event.stopPropagation()">
-                  <app-entry-form />
-                </div>
-              }
             </div>
           }
 
@@ -317,17 +321,34 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
   @ViewChild('swipeArea') private readonly swipeAreaRef!: ElementRef<HTMLElement>;
   private readonly swipeStartFn = (e: TouchEvent) => this.onSwipeStart(e);
   private readonly swipeEndFn = (e: TouchEvent) => this.onSwipeEnd(e);
+  // iOS fix: remove tape-in class after animation ends to release GPU compositing layers.
+  // Nested compositing layers from fill-mode:both cause iOS Safari hit-test failures.
+  private readonly animEndFn = (e: AnimationEvent) => {
+    const t = e.target as HTMLElement;
+    if (t.classList.contains('tape-in')) t.classList.remove('tape-in');
+  };
 
   ngAfterViewInit(): void {
     const el = this.swipeAreaRef.nativeElement;
     el.addEventListener('touchstart', this.swipeStartFn, { passive: true });
     el.addEventListener('touchend', this.swipeEndFn, { passive: true });
+    el.addEventListener('animationend', this.animEndFn as EventListener);
   }
 
   ngOnDestroy(): void {
     const el = this.swipeAreaRef.nativeElement;
     el.removeEventListener('touchstart', this.swipeStartFn);
     el.removeEventListener('touchend', this.swipeEndFn);
+    el.removeEventListener('animationend', this.animEndFn as EventListener);
+  }
+
+  protected startEdit(meal: DailyLog): void {
+    this.form.onTapMeal(meal);
+    // Scroll edit panel into view after Angular renders it
+    setTimeout(() => {
+      const panel = document.getElementById('edit-panel');
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
   }
 
   // ── Day-level weight editing ────────────────────────────────
