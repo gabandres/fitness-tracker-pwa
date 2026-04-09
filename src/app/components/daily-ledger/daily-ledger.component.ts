@@ -246,6 +246,7 @@ interface DayGroup {
             <div class="tape-strip tape-in pl-6"
               [class.tape-editing]="form.editTarget()?.id === meal.id"
               [style.animation-delay]="(di * 60 + mi * 30 + 30) + 'ms'"
+              style="touch-action: manipulation"
               (click)="form.onTapMeal(meal)">
               <div class="flex items-center justify-between gap-2">
                 <div class="flex items-center gap-3 min-w-0">
