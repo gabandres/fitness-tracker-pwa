@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, ViewChild, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DailyLog } from '../../services/firebase.service';
 import { FitnessStore } from '../../services/fitness-store.service';
@@ -138,8 +138,7 @@ interface DayGroup {
       <!-- ─── Day-grouped log tape ─────────────────────────── -->
       <div class="rule"><span>{{ dayGroups().length > 0 ? 'log tape' : 'no entries yet' }}</span></div>
 
-      <div class="mt-3 space-y-4"
-        (touchstart)="onSwipeStart($event)" (touchend)="onSwipeEnd($event)">
+      <div class="mt-3 space-y-4" #swipeArea>
         @for (day of dayGroups(); track day.dateKey; let di = $index) {
           <div>
           <!-- Day header: date + weight + training + daily total + progress bar -->
@@ -309,12 +308,28 @@ interface DayGroup {
     </section>
   `,
 })
-export class DailyLedgerComponent {
+export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
   protected readonly store = inject(FitnessStore);
   protected readonly form = inject(EntryFormManager);
   protected readonly Math = Math;
   protected readonly todayKey = localDateKey(new Date());
   protected readonly selectedDateKey = signal(this.todayKey);
+
+  @ViewChild('swipeArea') private readonly swipeAreaRef!: ElementRef<HTMLElement>;
+  private readonly swipeStartFn = (e: TouchEvent) => this.onSwipeStart(e);
+  private readonly swipeEndFn = (e: TouchEvent) => this.onSwipeEnd(e);
+
+  ngAfterViewInit(): void {
+    const el = this.swipeAreaRef.nativeElement;
+    el.addEventListener('touchstart', this.swipeStartFn, { passive: true });
+    el.addEventListener('touchend', this.swipeEndFn, { passive: true });
+  }
+
+  ngOnDestroy(): void {
+    const el = this.swipeAreaRef.nativeElement;
+    el.removeEventListener('touchstart', this.swipeStartFn);
+    el.removeEventListener('touchend', this.swipeEndFn);
+  }
 
   // ── Day-level weight editing ────────────────────────────────
   protected readonly editingWeightDay = signal<DateKey | null>(null);
