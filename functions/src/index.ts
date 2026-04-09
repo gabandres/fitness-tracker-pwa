@@ -171,7 +171,23 @@ export const analyzePhoto = onCall(
                 },
               },
               {
-                text: `Analyze this meal photo and estimate the total calories and protein in grams.
+                text: `Analyze this meal photo and estimate total calories and protein in grams.
+
+Estimation rules:
+- Include ALL visible and implied fats: cooking oil, butter, dressings, sauces, pan drippings.
+- Fried or sautéed items: assume oil was used unless clearly baked or grilled.
+- Pressed sandwiches (cubano, Pan de Agua, medialunas): assume butter was applied.
+- When fat content is ambiguous, lean toward the higher estimate.
+
+Common Puerto Rican / Latin staples for reference:
+- White rice (1 cup cooked with sofrito/oil): ~290 cal, 4g protein
+- Habichuelas/beans (½ cup): ~115 cal, 6g protein
+- Pernil / lechón (3 oz): ~260 cal, 20g protein
+- Tostones (2 pieces): ~160 cal, 1g protein
+- Mofongo (1 serving): ~380 cal, 4g protein
+- Pan de Bono (1 piece): ~185 cal, 6g protein
+- Arroz con pollo (1 plate): ~550 cal, 35g protein
+
 Return ONLY valid JSON with no markdown formatting, no code fences, no explanation:
 {"calories": <integer>, "protein": <integer>, "description": "<brief 3-5 word description>"}`,
               },

@@ -165,6 +165,12 @@ export class FitnessStore {
     return w ? Math.round(w * 0.75) : 0;
   });
 
+  /** Minimum adequate protein: 0.7g/lb (lower bound of evidence-based range). */
+  readonly proteinMinTarget: Signal<number> = computed(() => {
+    const w = this.currentWeight();
+    return w ? Math.round(w * 0.70) : 0;
+  });
+
   readonly allTimeLogs: Signal<DailyLog[]> = this._allTimeLogs.asReadonly();
 
   readonly streak: Signal<number> = computed(() =>
@@ -344,7 +350,7 @@ export class FitnessStore {
       this._undoTimer = setTimeout(() => {
         this._undoEntry.set(null);
         this._undoTimer = null;
-      }, 5000);
+      }, 8000);
     }
   }
 

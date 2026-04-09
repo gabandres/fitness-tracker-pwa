@@ -235,7 +235,7 @@ interface DayGroup {
                   {{ day.totalProtein }}g / {{ store.proteinTarget() }}g protein
                 </span>
                 <span class="font-mono text-[11px] tracking-[0.1em] tabular-nums"
-                  [style.color]="day.totalProtein >= store.proteinTarget() ? 'var(--color-olive)' : 'var(--color-graphite)'">
+                  [style.color]="day.totalProtein >= store.proteinMinTarget() ? 'var(--color-olive)' : 'var(--color-graphite)'">
                   {{ Math.round((day.totalProtein / store.proteinTarget()) * 100) }}%
                 </span>
               </div>

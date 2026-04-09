@@ -35,7 +35,8 @@ import { PushNotificationService } from './services/push-notification.service';
         @if (updateReady()) {
           <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ink/40 backdrop-blur-sm ink-in"
             (click)="dismissUpdate()">
-            <div class="w-full max-w-sm specimen px-6 py-5 bg-paper shadow-xl slide-down"
+            <div class="w-full max-w-sm specimen px-6 py-5 shadow-xl slide-down"
+              style="background: var(--color-paper)"
               (click)="$event.stopPropagation()">
               <span class="crop-bl"></span><span class="crop-br"></span>
               <div class="flex items-center gap-3 mb-3">
@@ -142,6 +143,9 @@ import { PushNotificationService } from './services/push-notification.service';
               <div class="space-y-12 mt-12 lg:mt-0">
                 <div class="ink-in delay-4">
                   <app-measurements />
+                </div>
+                <div class="ink-in delay-5">
+                  <app-fasting />
                 </div>
                 <div class="ink-in delay-6">
                   <app-dashboard />

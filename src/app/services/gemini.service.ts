@@ -113,7 +113,9 @@ export class GeminiService {
       "(per ISSN position stand and recent meta-analyses). The old '1g/lb' rule " +
       "is the upper safety margin, not the clinical threshold. Only recommend " +
       "above 0.8g/lb for very lean or heavily resistance-trained individuals " +
-      "in a steep deficit.",
+      "in a steep deficit. " +
+      "Never describe protein as 'critically low' if intake falls within 0.7–0.8 g/lb. " +
+      "Reserve alarm language only for intake genuinely below 0.65 g/lb.",
     );
     lines.push('');
 

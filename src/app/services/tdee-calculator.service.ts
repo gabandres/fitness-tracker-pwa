@@ -89,7 +89,7 @@ export class TdeeCalculatorService {
       const week2Avg = this.average(week2Weights);
       const weightChange = week1Avg - week2Avg; // + = lost
 
-      const avgDailyIntake = this.average(window.map((l) => l.calories));
+      const avgDailyIntake = this.trimmedMean(window.map((l) => l.calories));
       const dailyDeficitAchieved =
         (weightChange * TdeeCalculatorService.KCAL_PER_POUND) / 7;
 
@@ -273,6 +273,15 @@ export class TdeeCalculatorService {
   private average(values: number[]): number {
     if (values.length === 0) return 0;
     return values.reduce((a, v) => a + v, 0) / values.length;
+  }
+
+  /** Mean after removing the single lowest and highest value.
+   *  Protects the 14-day calorie average from one-off outlier days (hospital, travel).
+   *  Falls back to plain average when fewer than 3 values. */
+  private trimmedMean(arr: number[]): number {
+    if (arr.length < 3) return this.average(arr);
+    const sorted = [...arr].sort((a, b) => a - b);
+    return this.average(sorted.slice(1, sorted.length - 1));
   }
 
   private round(value: number, decimals: number): number {
