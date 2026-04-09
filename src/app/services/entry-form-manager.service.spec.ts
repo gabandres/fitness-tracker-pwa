@@ -183,6 +183,26 @@ describe('EntryFormManager', () => {
     expect(form.status()).toBe('saved');
   });
 
+  it('should clear protein when removed in edit mode', async () => {
+    const meal = makeMeal({ protein: 30 });
+    form.onTapMeal(meal);
+    form.protein.set(null); // user clears protein
+    await form.submit();
+    const entry = mockStore.updateLog.mock.calls[0][1];
+    expect(entry.protein).toBeUndefined();
+    expect(entry.calories).toBe(500);
+  });
+
+  it('should clear mealLabel when removed in edit mode', async () => {
+    const meal = makeMeal({ mealLabel: 'Lunch' });
+    form.onTapMeal(meal);
+    form.mealLabel.set(''); // user clears label
+    form.activePresetName.set(null);
+    await form.submit();
+    const entry = mockStore.updateLog.mock.calls[0][1];
+    expect(entry.mealLabel).toBeUndefined();
+  });
+
   it('should set error on submit failure', async () => {
     mockStore.addLog.mockRejectedValueOnce(new Error('Network error'));
     form.startAdd();

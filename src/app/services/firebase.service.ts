@@ -312,12 +312,12 @@ export class FirebaseService {
     const ref = doc(this.firestore, 'users', this.requireUid(), 'dailyLogs', logId);
     const data: Record<string, unknown> = {
       calories: entry.calories,
+      protein: entry.protein != null ? entry.protein : deleteField(),
+      liftCompleted: entry.liftCompleted ?? false,
+      cardioCompleted: entry.cardioCompleted ?? false,
+      mealLabel: entry.mealLabel ? entry.mealLabel : deleteField(),
     };
     if (entry.weight != null) data['weight'] = entry.weight;
-    if (entry.protein != null) data['protein'] = entry.protein;
-    if (entry.liftCompleted != null) data['liftCompleted'] = entry.liftCompleted;
-    if (entry.cardioCompleted != null) data['cardioCompleted'] = entry.cardioCompleted;
-    if (entry.mealLabel) data['mealLabel'] = entry.mealLabel;
     if (entry.timestamp != null) data['timestamp'] = Timestamp.fromDate(entry.timestamp);
     await updateDoc(ref, data);
   }

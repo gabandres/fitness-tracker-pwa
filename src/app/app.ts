@@ -31,15 +31,25 @@ import { PushNotificationService } from './services/push-notification.service';
     <main class="min-h-screen px-5 sm:px-8 lg:px-12 py-8 sm:py-12">
       <div class="max-w-[560px] lg:max-w-[1100px] mx-auto">
 
-        <!-- SwUpdate banner -->
+        <!-- SwUpdate dialog (fixed overlay) -->
         @if (updateReady()) {
-          <div class="mb-6 ink-in specimen px-4 py-3 flex items-center justify-between gap-3 bg-paper-deep">
-            <span class="crop-bl"></span><span class="crop-br"></span>
-            <div class="flex items-center gap-3 min-w-0">
-              <span class="stamp-mark shrink-0">new</span>
-              <span class="caption text-xs truncate">a new version is available.</span>
+          <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ink/40 backdrop-blur-sm ink-in"
+            (click)="dismissUpdate()">
+            <div class="w-full max-w-sm specimen px-6 py-5 bg-paper shadow-xl slide-down"
+              (click)="$event.stopPropagation()">
+              <span class="crop-bl"></span><span class="crop-br"></span>
+              <div class="flex items-center gap-3 mb-3">
+                <span class="stamp-mark" style="transform: rotate(0deg)">new</span>
+                <span class="font-display text-lg text-ink">Update Available</span>
+              </div>
+              <p class="font-sans text-sm text-graphite leading-relaxed mb-4">
+                A new version of Macro Log is ready. Reload to get the latest features and fixes.
+              </p>
+              <div class="flex gap-2">
+                <button type="button" (click)="reloadForUpdate()" class="stamp-btn flex-1">reload now</button>
+                <button type="button" (click)="dismissUpdate()" class="tag-btn">later</button>
+              </div>
             </div>
-            <button type="button" (click)="reloadForUpdate()" class="tag-btn shrink-0">reload</button>
           </div>
         }
 
@@ -360,6 +370,10 @@ export class App {
 
   protected async signOut(): Promise<void> {
     await this.auth.signOut();
+  }
+
+  protected dismissUpdate(): void {
+    this.updateReady.set(false);
   }
 
   protected async reloadForUpdate(): Promise<void> {
