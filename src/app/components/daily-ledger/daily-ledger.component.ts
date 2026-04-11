@@ -190,12 +190,18 @@ interface DayGroup {
                   </button>
                 }
                 <div class="flex items-center gap-1">
-                  @if (day.liftCompleted) {
-                    <span class="inline-block w-2 h-2 rounded-full" style="background: var(--color-blood)" title="Lift"></span>
-                  }
-                  @if (day.cardioCompleted) {
-                    <span class="inline-block w-2 h-2" style="background: var(--color-olive); clip-path: polygon(50% 0%, 100% 100%, 0% 100%);" title="Cardio"></span>
-                  }
+                  <button type="button" (click)="toggleTraining(day, 'lift'); $event.stopPropagation()"
+                    class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-sans tracking-[0.08em] uppercase font-medium border transition-colors duration-150"
+                    [style.background]="day.liftCompleted ? 'var(--color-blood)' : 'transparent'"
+                    [style.color]="day.liftCompleted ? 'var(--color-paper)' : 'var(--color-graphite-soft)'"
+                    [style.border-color]="day.liftCompleted ? 'var(--color-blood)' : 'var(--color-rule)'"
+                    title="Toggle lift">● lift</button>
+                  <button type="button" (click)="toggleTraining(day, 'cardio'); $event.stopPropagation()"
+                    class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-sans tracking-[0.08em] uppercase font-medium border transition-colors duration-150"
+                    [style.background]="day.cardioCompleted ? 'var(--color-olive)' : 'transparent'"
+                    [style.color]="day.cardioCompleted ? 'var(--color-paper)' : 'var(--color-graphite-soft)'"
+                    [style.border-color]="day.cardioCompleted ? 'var(--color-olive)' : 'var(--color-rule)'"
+                    title="Toggle cardio">▲ cardio</button>
                 </div>
               </div>
               <div class="flex items-center gap-3">
@@ -261,6 +267,12 @@ interface DayGroup {
                   <span class="font-sans text-xs tracking-[0.08em] text-graphite-soft truncate max-w-[100px]">
                     {{ meal.mealLabel || 'Meal ' + (mi + 1) }}
                   </span>
+                  @if (meal.liftCompleted) {
+                    <span class="text-[10px] font-sans font-medium" style="color: var(--color-blood)" title="Lift">●</span>
+                  }
+                  @if (meal.cardioCompleted) {
+                    <span class="text-[10px] font-sans font-medium" style="color: var(--color-olive)" title="Cardio">▲</span>
+                  }
                   <span class="font-mono text-base tabular-nums" style="color: var(--color-blood)">
                     {{ meal.calories }}<span class="text-[10px] ml-0.5 opacity-70">cal</span>
                   </span>
@@ -349,6 +361,11 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
       const panel = document.getElementById('edit-panel');
       if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 50);
+  }
+
+  // ── Day-level training toggle ──────────────────────────────
+  protected async toggleTraining(day: DayGroup, type: 'lift' | 'cardio'): Promise<void> {
+    await this.store.toggleDayTraining(day.dateKey, type);
   }
 
   // ── Day-level weight editing ────────────────────────────────
