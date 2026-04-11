@@ -195,12 +195,14 @@ interface DayGroup {
                     [style.background]="day.liftCompleted ? 'var(--color-blood)' : 'transparent'"
                     [style.color]="day.liftCompleted ? 'var(--color-paper)' : 'var(--color-graphite-soft)'"
                     [style.border-color]="day.liftCompleted ? 'var(--color-blood)' : 'var(--color-rule)'"
+                    [attr.aria-label]="day.liftCompleted ? 'Lift training: active' : 'Lift training: inactive'"
                     title="Toggle lift">● lift</button>
                   <button type="button" (click)="toggleTraining(day, 'cardio'); $event.stopPropagation()"
                     class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-sans tracking-[0.08em] uppercase font-medium border transition-colors duration-150"
                     [style.background]="day.cardioCompleted ? 'var(--color-olive)' : 'transparent'"
                     [style.color]="day.cardioCompleted ? 'var(--color-paper)' : 'var(--color-graphite-soft)'"
                     [style.border-color]="day.cardioCompleted ? 'var(--color-olive)' : 'var(--color-rule)'"
+                    [attr.aria-label]="day.cardioCompleted ? 'Cardio training: active' : 'Cardio training: inactive'"
                     title="Toggle cardio">▲ cardio</button>
                 </div>
               </div>
