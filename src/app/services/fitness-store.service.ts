@@ -338,6 +338,45 @@ export class FitnessStore {
     await this._load();
   }
 
+  /**
+   * Toggle a training flag on a day's first log entry.
+   * If the day has no entries, creates a zero-calorie marker entry.
+   */
+  async toggleDayTraining(dateKey: string, field: 'lift' | 'cardio'): Promise<void> {
+    const dayLogs = this._logs().filter(
+      (l) => localDateKey(l.date) === dateKey,
+    );
+
+    if (dayLogs.length > 0) {
+      // Toggle on the first entry that has the flag, or fall back to first entry
+      const target =
+        dayLogs.find((l) =>
+          field === 'lift' ? l.liftCompleted : l.cardioCompleted,
+        ) ?? dayLogs[0];
+      const current =
+        field === 'lift' ? target.liftCompleted : target.cardioCompleted;
+      const patch: LogEntry = {
+        calories: target.calories,
+        ...(field === 'lift'
+          ? { liftCompleted: !current }
+          : { cardioCompleted: !current }),
+      };
+      await this.updateLog(target.id!, patch);
+    } else {
+      // No entries for this day — create a zero-calorie marker
+      const [y, m, d] = dateKey.split('-').map(Number);
+      const entry: LogEntry = {
+        calories: 0,
+        timestamp: new Date(y, m - 1, d, 12, 0, 0),
+        mealLabel: 'Training',
+        ...(field === 'lift'
+          ? { liftCompleted: true }
+          : { cardioCompleted: true }),
+      };
+      await this.addLog(entry);
+    }
+  }
+
   async deleteLog(id: string): Promise<void> {
     // Cache entry for undo before deleting.
     const entry = this._logs().find((l) => l.id === id) ?? null;
