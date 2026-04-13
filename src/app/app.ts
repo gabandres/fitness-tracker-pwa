@@ -10,12 +10,11 @@ import { FastingComponent } from './components/fasting/fasting.component';
 import { MeasurementsComponent } from './components/measurements/measurements.component';
 import { PrivacyComponent } from './components/privacy/privacy.component';
 import { TermsComponent } from './components/terms/terms.component';
-import { SubscribeComponent } from './components/subscribe/subscribe.component';
+import { SettingsSheetComponent } from './components/settings-sheet/settings-sheet.component';
 import { AuthService } from './services/auth.service';
 import { FirebaseService } from './services/firebase.service';
 import { FitnessStore } from './services/fitness-store.service';
 import { localDateKey } from './utils/date';
-import { PushNotificationService } from './services/push-notification.service';
 
 @Component({
   selector: 'app-root',
@@ -30,7 +29,7 @@ import { PushNotificationService } from './services/push-notification.service';
     MeasurementsComponent,
     PrivacyComponent,
     TermsComponent,
-    SubscribeComponent,
+    SettingsSheetComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -113,9 +112,10 @@ import { PushNotificationService } from './services/push-notification.service';
                 title="Toggle dark/light mode">
                 {{ darkMode() ? '☀' : '☾' }}
               </button>
-              @if (auth.isSignedIn()) {
-                <button type="button" (click)="signOut()" class="tag-btn"
-                  aria-label="Sign out" title="Sign out">out</button>
+              @if (auth.isSignedIn() && firebase.profileCompleted()) {
+                <button type="button" (click)="showSettings.set(true)"
+                  class="tag-btn"
+                  aria-label="Open settings" title="Settings">⚙</button>
               }
             </div>
           </div>
@@ -154,6 +154,15 @@ import { PushNotificationService } from './services/push-notification.service';
               />
             </div>
           } @else {
+            <!-- Settings sheet overlay (absolutely positioned outside
+                 the two-column grid so it doesn't shift layout). -->
+            @if (showSettings()) {
+              <app-settings-sheet
+                [darkMode]="darkMode()"
+                (close)="showSettings.set(false)"
+                (editProfile)="editingProfile.set(true)"
+                (toggleTheme)="toggleTheme()" />
+            }
             <!-- Responsive layout: single column on mobile, two columns on desktop -->
             <div class="lg:grid lg:grid-cols-[1fr_1.15fr] lg:gap-10 lg:items-start">
               <!-- Left column: Daily ledger (primary interaction) -->
@@ -182,7 +191,8 @@ import { PushNotificationService } from './services/push-notification.service';
           }
         </div>
 
-        <!-- Footer -->
+        <!-- Footer — version + legal only. Everything else moved to
+             the settings sheet (gear icon in the masthead). -->
         <footer class="mt-16 ink-in delay-6">
           <div class="rule"></div>
           <div class="mt-6 flex items-center justify-between text-xs tracking-[0.18em] uppercase text-graphite font-mono">
@@ -190,82 +200,15 @@ import { PushNotificationService } from './services/push-notification.service';
             <span class="stamp-mark">private</span>
           </div>
           @if (auth.user(); as u) {
-            <p class="caption mt-4 text-center">
-              logged in as <span class="text-ink">{{ u.email }}</span>
-              @if (firebase.profileCompleted() && !editingProfile()) {
-                &middot;
-                <button type="button" (click)="editingProfile.set(true)" class="underline decoration-dotted hover:text-blood">
-                  edit profile
-                </button>
-                &middot;
-                <button type="button" (click)="store.toggleTravelMode()" class="underline decoration-dotted hover:text-blood"
-                  [style.color]="store.travelMode() ? 'var(--color-gold)' : ''">
-                  {{ store.travelMode() ? 'exit travel mode' : 'travel mode' }}
-                </button>
-                &middot;
-                <button type="button" (click)="showWebhook.set(!showWebhook())" class="underline decoration-dotted hover:text-blood">
-                  webhook
-                </button>
-                &middot;
-                @if (pushService.permission() === 'granted') {
-                  <span class="text-olive">push on</span>
-                } @else if (pushService.permission() !== 'unsupported') {
-                  <button type="button" (click)="enablePush()" class="underline decoration-dotted hover:text-blood">
-                    enable push
-                  </button>
-                }
-                &middot;
-                <span class="text-graphite">remind at</span>
-                <select
-                  [value]="REMINDER_HOUR"
-                  (change)="setReminderHour(+$any($event.target).value)"
-                  class="bg-transparent text-ink font-sans text-xs border-b border-rule cursor-pointer">
-                  @for (h of reminderHours; track h) {
-                    <option [value]="h" [selected]="h === REMINDER_HOUR">{{ formatHour(h) }}</option>
-                  }
-                </select>
-              }
-            </p>
-
-            <!-- Subscribe / manage subscription — only renders when Stripe is configured -->
-            <app-subscribe />
-
-            <!-- Privacy / terms / contact -->
-            <p class="caption mt-2 text-center text-[11px]">
+            <p class="caption mt-4 text-center text-[11px]">
+              <span class="text-graphite">{{ u.email }}</span>
+              &middot;
               <a href="/privacy" class="underline decoration-dotted hover:text-blood">privacy</a>
               &middot;
               <a href="/terms" class="underline decoration-dotted hover:text-blood">terms</a>
               &middot;
               <a href="mailto:gabrielandresbermudez&#64;gmail.com" class="underline decoration-dotted hover:text-blood">contact</a>
             </p>
-
-            <!-- Webhook settings (collapsible) -->
-            @if (showWebhook()) {
-              <div class="mt-4 specimen px-4 py-3 slide-down">
-                <span class="crop-bl"></span><span class="crop-br"></span>
-                <div class="flex items-center gap-2 mb-2">
-                  <span class="stamp-mark" style="transform: rotate(0deg)">api</span>
-                  <span class="data-label">apple shortcuts webhook</span>
-                </div>
-                @if (store.webhookApiKey(); as key) {
-                  <div class="font-mono text-xs text-ink bg-paper-deep px-2 py-1.5 break-all select-all">
-                    {{ key }}
-                  </div>
-                  <p class="caption text-xs mt-2">
-                    endpoint: <span class="font-mono text-ink not-italic text-[11px]">{{ webhookUrl }}</span>
-                  </p>
-                  <div class="mt-2 flex gap-2">
-                    <button type="button" (click)="copyWebhookKey()" class="tag-btn text-[11px]">copy key</button>
-                    <button type="button" (click)="revokeWebhookKey()" class="tag-btn text-[11px] text-blood border-blood/40">revoke</button>
-                  </div>
-                } @else {
-                  <p class="caption text-xs mb-2">
-                    generate a key to log entries from apple shortcuts or any http client.
-                  </p>
-                  <button type="button" (click)="generateWebhookKey()" class="tag-btn text-[11px]">generate api key</button>
-                }
-              </div>
-            }
           }
         </footer>
         }
@@ -278,11 +221,10 @@ export class App {
   protected readonly firebase = inject(FirebaseService);
   protected readonly store = inject(FitnessStore); // triggers lifecycle via constructor effect
   private readonly swUpdate = inject(SwUpdate);
-  protected readonly pushService = inject(PushNotificationService);
 
   protected readonly ticks = Array.from({ length: 45 });
-  protected readonly reminderHours = Array.from({ length: 24 }, (_, i) => i);
   protected readonly editingProfile = signal(false);
+  protected readonly showSettings = signal(false);
   /** URL-path based routing for the two public-static pages. Anything
       else (including '/' and unknown paths) falls through to the
       signal-gated main app. */
@@ -290,10 +232,8 @@ export class App {
   protected readonly updateReady = signal(false);
   protected readonly offline = signal(!navigator.onLine);
   protected readonly darkMode = signal(false);
-  protected readonly showWebhook = signal(false);
   protected readonly showReminder = signal(false);
-  protected readonly webhookUrl = 'https://us-central1-fitness-tracker-gb-1775407101.cloudfunctions.net/logWebhook';
-  protected get REMINDER_HOUR(): number {
+  private get reminderHour(): number {
     return (this.firebase.profile() as any)?.reminderHour ?? 20;
   }
 
@@ -351,7 +291,7 @@ export class App {
   private checkReminder(): void {
     if (!this.auth.isSignedIn() || !this.firebase.profileCompleted()) return;
     const now = new Date();
-    if (now.getHours() < this.REMINDER_HOUR) return;
+    if (now.getHours() < this.reminderHour) return;
     if (this.store.hasLoggedToday()) return;
     const key = `macrolog.reminder.dismissed.${localDateKey(now)}`;
     if (localStorage.getItem(key)) return;
@@ -364,37 +304,6 @@ export class App {
       `macrolog.reminder.dismissed.${localDateKey(new Date())}`,
       '1',
     );
-  }
-
-  protected formatHour(h: number): string {
-    if (h === 0) return '12 AM';
-    if (h < 12) return `${h} AM`;
-    if (h === 12) return '12 PM';
-    return `${h - 12} PM`;
-  }
-
-  protected async setReminderHour(hour: number): Promise<void> {
-    await this.firebase.saveReminderHour(hour);
-  }
-
-  protected async enablePush(): Promise<void> {
-    const token = await this.pushService.requestPermissionAndGetToken();
-    if (token) {
-      await this.firebase.saveFcmToken(token);
-    }
-  }
-
-  protected async generateWebhookKey(): Promise<void> {
-    await this.store.generateWebhookApiKey();
-  }
-
-  protected async revokeWebhookKey(): Promise<void> {
-    await this.store.revokeWebhookApiKey();
-  }
-
-  protected async copyWebhookKey(): Promise<void> {
-    const key = this.store.webhookApiKey();
-    if (key) await navigator.clipboard.writeText(key);
   }
 
   protected onProfileSaved(): void {

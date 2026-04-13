@@ -83,8 +83,9 @@ type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'error';
         </p>
       </div>
 
-      <!-- Danger zone: account deletion -->
-      <div class="mt-12 specimen px-5 py-5 relative" style="border-color: var(--color-blood)">
+      <!-- Danger zone: account deletion. Also anchor-linked as
+           /privacy#delete from the settings sheet. -->
+      <div id="delete" class="mt-12 specimen px-5 py-5 relative scroll-mt-24" style="border-color: var(--color-blood)">
         <span class="crop-bl" style="border-color: var(--color-blood)"></span>
         <span class="crop-br" style="border-color: var(--color-blood)"></span>
 

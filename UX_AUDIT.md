@@ -153,7 +153,7 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 - [x] Promote "kcal remaining today" hero (S4) — placed at top of ledger, keeps dashboard 3-up row intact per "ship the additive change first, restructure with evidence later" — *2026-04-12*
 
 ### Ship next (small surgery)
-- [ ] Consolidate footer → settings sheet (S3)
+- [x] Consolidate footer → settings sheet (S3) *(2026-04-13)*
 - [ ] Onboarding: top-line summary, required/optional pills, focus-on-error (S2)
 - [ ] Merge weight trends into tabbed chart (S4)
 - [x] Raise barcode/photo buttons to 44px with labels (S3) — *2026-04-12*
