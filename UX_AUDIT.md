@@ -83,8 +83,8 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 
 ### 🟠 S3 — Hidden settings / discoverability
 
-- [ ] Consolidate footer links into a single "settings" sheet in the masthead (edit profile, travel mode, webhook, reminder hour, push, export CSV)
-- [ ] Keep footer for version/credits only
+- [x] Consolidate footer links into a single "settings" sheet opened via gear icon in the masthead (profile, reminders, modes, data, subscription, legal) *(2026-04-13)*
+- [x] Keep footer for version/credits + legal only *(2026-04-13)*
 - [x] Raise barcode + photo buttons to 44px with visible labels (new `.capture-btn` class) — "⊟ barcode" / "📷 photo" *(2026-04-12)*
 
 **Why:** a first-time user scans the main surface; they'll never read the footer. Core capture paths (barcode, photo) are currently 11px buttons — below the scanning threshold.
@@ -154,7 +154,7 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 
 ### Ship next (small surgery)
 - [x] Consolidate footer → settings sheet (S3) *(2026-04-13)*
-- [ ] Onboarding: top-line summary, required/optional pills, focus-on-error (S2)
+- [x] Onboarding: top-line summary, required/optional pills, focus-on-error (S2) *(2026-04-13)*
 - [ ] Merge weight trends into tabbed chart (S4)
 - [x] Raise barcode/photo buttons to 44px with labels (S3) — *2026-04-12*
 - [ ] Contrast audit — fix graphite-soft / aged usage (S5)
