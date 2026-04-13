@@ -24,6 +24,43 @@ function isAdmin(email: string | undefined | null): boolean {
   return !!email && ADMIN_EMAILS.has(email);
 }
 
+// ─── Comped friends (server-read Firestore config) ────────────────
+// Friends the owner has comped for free access. Lives at
+//   /config/accessList  { compedEmails: string[] }
+// Edit via the Firebase console — no redeploy needed.
+//
+// Cached in memory for 60s per function instance to avoid hammering
+// Firestore on every quota check. Newly-added friends take up to 60s
+// to pick up; that's an acceptable tradeoff for simpler code.
+const ACCESS_CACHE_TTL_MS = 60_000;
+let accessCache: { emails: Set<string>; fetchedAt: number } | null = null;
+
+async function loadCompedEmails(): Promise<Set<string>> {
+  const now = Date.now();
+  if (accessCache && now - accessCache.fetchedAt < ACCESS_CACHE_TTL_MS) {
+    return accessCache.emails;
+  }
+  const snap = await db.doc("config/accessList").get();
+  const emails = new Set<string>(
+    ((snap.data()?.compedEmails as string[] | undefined) ?? [])
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => !!e),
+  );
+  accessCache = { emails, fetchedAt: now };
+  return emails;
+}
+
+async function isComped(email: string | undefined | null): Promise<boolean> {
+  if (!email) return false;
+  const set = await loadCompedEmails();
+  return set.has(email.toLowerCase());
+}
+
+async function hasUnlimitedAccess(email: string | undefined | null): Promise<boolean> {
+  if (isAdmin(email)) return true;
+  return isComped(email);
+}
+
 // ─── Shared validation (mirrors Firestore rules isValidLog) ────────
 
 interface ValidatedEntry {
@@ -169,14 +206,14 @@ export const analyzePhoto = onCall(
 
     const uid = request.auth.uid;
     const email = request.auth.token.email;
-    const admin = isAdmin(email);
+    const unlimited = await hasUnlimitedAccess(email);
 
     // ── Daily quota check (per user, resets at UTC midnight) ───────
     const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
     const quotaRef = db.collection("photoQuota").doc(`${uid}_${today}`);
     let photosUsedAfter = 1;
-    // Admins skip the quota check and counter entirely.
-    if (!admin) {
+    // Admins + comped friends skip the quota entirely.
+    if (!unlimited) {
       await db.runTransaction(async (tx) => {
         const doc = await tx.get(quotaRef);
         const used: number = doc.exists ? (doc.data()!.count as number) : 0;
@@ -272,9 +309,10 @@ Common Puerto Rican / Latin staples for reference:
         protein: protein ?? 0,
         description,
         confidence,
-        // Admins report "unlimited" by returning the full cap. The
-        // client treats this as decorative since nothing blocks them.
-        photosRemaining: admin ? DAILY_PHOTO_LIMIT : DAILY_PHOTO_LIMIT - photosUsedAfter,
+        // Admins + comped users report "unlimited" by returning the
+        // full cap. The client treats this as decorative since nothing
+        // blocks them.
+        photosRemaining: unlimited ? DAILY_PHOTO_LIMIT : DAILY_PHOTO_LIMIT - photosUsedAfter,
       };
     } catch (err) {
       if (err instanceof HttpsError) throw err;
@@ -309,9 +347,9 @@ export const reserveConsultation = onCall(async (request) => {
   const email = request.auth.token.email;
   const role = (request.auth.token as { stripeRole?: string }).stripeRole;
 
-  // Paid users and admins bypass the quota entirely. We don't write
-  // a counter doc for them since it would never be read.
-  if (role === "paid" || isAdmin(email)) {
+  // Paid users, admins, and comped friends bypass the quota entirely.
+  // We don't write a counter doc for them since it would never be read.
+  if (role === "paid" || (await hasUnlimitedAccess(email))) {
     return { capped: false, remaining: -1, limit: CONSULTATION_DAILY_LIMIT };
   }
 
@@ -353,8 +391,8 @@ export const releaseConsultation = onCall(async (request) => {
   const email = request.auth.token.email;
   const role = (request.auth.token as { stripeRole?: string }).stripeRole;
 
-  // Paid users and admins never had a slot reserved — nothing to release.
-  if (role === "paid" || isAdmin(email)) return { released: false };
+  // Paid users, admins, and comped friends never had a slot reserved.
+  if (role === "paid" || (await hasUnlimitedAccess(email))) return { released: false };
 
   const today = new Date().toISOString().split("T")[0];
   const quotaRef = db.collection("consultationQuota").doc(`${uid}_${today}`);
@@ -368,6 +406,24 @@ export const releaseConsultation = onCall(async (request) => {
   });
 
   return { released: true };
+});
+
+/**
+ * Tells the client whether the signed-in user has unlimited access
+ * (admin or comped friend). Client uses this on sign-in to adjust the
+ * Subscribe card UI — show the friend/admin badge instead of the
+ * $3/mo pitch. Server enforcement is still independent in the
+ * quota-reserve functions above; this endpoint only shapes UI.
+ */
+export const checkAccessStatus = onCall(async (request) => {
+  if (!request.auth) {
+    return { admin: false, comped: false };
+  }
+  const email = request.auth.token.email;
+  return {
+    admin: isAdmin(email),
+    comped: await isComped(email),
+  };
 });
 
 // ─── Feature 4: Account deletion (GDPR right to erasure) ──────────

@@ -64,16 +64,23 @@ export class SubscriptionService {
   /** Raw subscription-based paid state (used by the effect below). */
   private readonly _subscriptionActive = signal(false);
 
+  /** Server-reported comped-friend status for the current user.
+      Populated by `refreshAccessStatus()` after sign-in. */
+  private readonly _isComped = signal(false);
+  readonly isComped = this._isComped.asReadonly();
+
   /** True when the signed-in user's email is on the admin allowlist. */
   readonly isAdmin = computed(() => {
     const email = this.authedUser()?.email;
     return email ? ADMIN_EMAILS.has(email) : false;
   });
 
-  /** True when the user gets paid features for any reason (subscription
-      or admin bypass). Server enforcement is independent — see
-      functions/src/index.ts. */
-  readonly isPaid = computed(() => this.isAdmin() || this._subscriptionActive());
+  /** True when the user gets paid features for any reason
+      (subscription, admin, or comped friend). Server enforcement is
+      independent — see functions/src/index.ts. */
+  readonly isPaid = computed(() =>
+    this.isAdmin() || this._isComped() || this._subscriptionActive(),
+  );
 
   /** Non-fatal UI-facing error (e.g. checkout failed). */
   private readonly _error = signal<string | null>(null);
@@ -88,10 +95,13 @@ export class SubscriptionService {
     effect(() => {
       const user = this.authedUser();
       this.teardown();
-      if (user) this.watchSubscriptions(user.uid);
-      else {
+      if (user) {
+        this.watchSubscriptions(user.uid);
+        void this.refreshAccessStatus();
+      } else {
         this._subscription.set(null);
         this._subscriptionActive.set(false);
+        this._isComped.set(false);
       }
     });
 
@@ -171,6 +181,24 @@ export class SubscriptionService {
    * Redirect to the Stripe Customer Portal where the user can cancel,
    * swap card, view invoices, etc. Returns to the app afterward.
    */
+  /** Ask the server whether the current user is comped (on the access
+      list in Firestore config). Admin status is already known client-
+      side from the hard-coded list, so we only fetch this for comped.
+      Fire-and-forget — failures just leave `_isComped` at false. */
+  private async refreshAccessStatus(): Promise<void> {
+    try {
+      const callable = httpsCallable<
+        undefined,
+        { admin: boolean; comped: boolean }
+      >(this.functions, 'checkAccessStatus');
+      const { data } = await callable();
+      this._isComped.set(!!data.comped);
+    } catch (err) {
+      console.warn('checkAccessStatus failed; assuming not comped.', err);
+      this._isComped.set(false);
+    }
+  }
+
   async openCustomerPortal(): Promise<void> {
     const callable = httpsCallable<
       { returnUrl: string; locale?: string },

@@ -28,17 +28,24 @@ import { SubscriptionService } from '../../services/subscription.service';
         <span class="crop-bl"></span><span class="crop-br"></span>
         <div class="flex items-center gap-2 mb-2">
           <span class="stamp-mark" style="transform: rotate(0deg)"
-            [style.border-color]="subs.isAdmin() ? 'var(--color-olive)' : ''"
-            [style.color]="subs.isAdmin() ? 'var(--color-olive)' : ''">
-            {{ subs.isAdmin() ? 'admin' : 'support' }}
+            [style.border-color]="subs.isAdmin() || subs.isComped() ? 'var(--color-olive)' : ''"
+            [style.color]="subs.isAdmin() || subs.isComped() ? 'var(--color-olive)' : ''">
+            {{ subs.isAdmin() ? 'admin' : subs.isComped() ? 'friend' : 'support' }}
           </span>
-          <span class="data-label">{{ subs.isAdmin() ? 'access' : (sub() ? 'subscription' : 'pro') }}</span>
+          <span class="data-label">
+            {{ subs.isAdmin() ? 'access' : subs.isComped() ? 'access' : (sub() ? 'subscription' : 'pro') }}
+          </span>
         </div>
 
         @if (subs.isAdmin()) {
           <!-- Admin bypass: all features unlocked, no checkout needed. -->
           <p class="font-sans text-sm text-ink leading-relaxed">
             admin access &mdash; all features unlocked, no subscription required.
+          </p>
+        } @else if (subs.isComped()) {
+          <!-- Comped friend: same outcome as paid, different framing. -->
+          <p class="font-sans text-sm text-ink leading-relaxed">
+            friend access &mdash; you've been comped. everything is unlocked on us.
           </p>
         } @else if (sub(); as s) {
           <!-- Already subscribed — show status + manage button -->

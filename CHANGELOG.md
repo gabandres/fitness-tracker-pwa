@@ -6,6 +6,12 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-13 — Friend comp list (no-redeploy admin bypass)
+
+- **Comp friends without redeploying.** Firestore doc `config/accessList` with a `compedEmails: string[]` field. Edit via the Firebase console to grant/revoke free access — changes take effect within ~60 seconds (server cache).
+- **Server**: `reserveConsultation`, `releaseConsultation`, `analyzePhoto` now check `isAdmin || isComped` via a cached Firestore read. New callable `checkAccessStatus` tells the client the user's status.
+- **Client**: `SubscriptionService.isComped` signal populated on sign-in. `isPaid = isAdmin || isComped || subscriptionActive`. Subscribe card shows an olive "friend access" badge (distinct from admin) instead of the Subscribe pitch.
+
 ## 2026-04-13 — Live Stripe mode + admin bypass
 
 - **Live-mode flipped.** Product `Macro Log Pro` (prod_UKSEcAQhRmQQ9u) + price $3/mo (price_1TLnJdHvWnhD3GuYy7gWFvyJ) + webhook endpoint (we_1TLnJfHvWnhD3GuYzV5h8a1m) all created in Stripe live mode. Secret Manager rotated to live API key + live webhook signing secret; extension redeployed. Test-mode webhook disabled to prevent duplicate writes.
