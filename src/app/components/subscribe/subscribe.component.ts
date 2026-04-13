@@ -27,11 +27,20 @@ import { SubscriptionService } from '../../services/subscription.service';
       <div class="mt-4 specimen px-4 py-3 slide-down">
         <span class="crop-bl"></span><span class="crop-br"></span>
         <div class="flex items-center gap-2 mb-2">
-          <span class="stamp-mark" style="transform: rotate(0deg)">support</span>
-          <span class="data-label">{{ sub() ? 'subscription' : 'pro' }}</span>
+          <span class="stamp-mark" style="transform: rotate(0deg)"
+            [style.border-color]="subs.isAdmin() ? 'var(--color-olive)' : ''"
+            [style.color]="subs.isAdmin() ? 'var(--color-olive)' : ''">
+            {{ subs.isAdmin() ? 'admin' : 'support' }}
+          </span>
+          <span class="data-label">{{ subs.isAdmin() ? 'access' : (sub() ? 'subscription' : 'pro') }}</span>
         </div>
 
-        @if (sub(); as s) {
+        @if (subs.isAdmin()) {
+          <!-- Admin bypass: all features unlocked, no checkout needed. -->
+          <p class="font-sans text-sm text-ink leading-relaxed">
+            admin access &mdash; all features unlocked, no subscription required.
+          </p>
+        } @else if (sub(); as s) {
           <!-- Already subscribed — show status + manage button -->
           <p class="font-sans text-sm text-ink leading-relaxed">
             @if (s.status === 'trialing') {

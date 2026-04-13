@@ -31,9 +31,11 @@ export const environment = {
   // after running STRIPE_SETUP.md. Empty priceId hides the Subscribe
   // button entirely, so it's safe to commit an empty value.
   stripe: {
-    // Macro Log Pro — $3/mo recurring, test mode.
-    // Swap for the live-mode price ID after the test flow is verified.
-    priceId: 'price_1TLaxbHvWnhD3GuYuzSJU0hs',
+    // Macro Log Pro — $3/mo recurring. LIVE MODE.
+    // Test-mode equivalent was price_1TLaxbHvWnhD3GuYuzSJU0hs
+    // (prod_UKFSWsfTK1bJqG); the test product + price are still in
+    // Stripe should we ever need to re-verify a flow there.
+    priceId: 'price_1TLnJdHvWnhD3GuYy7gWFvyJ',
     displayPrice: '$3/mo',
     trialDays: 7,
   },

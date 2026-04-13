@@ -11,6 +11,19 @@ initializeApp();
 const db = getFirestore();
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
+// ─── Admin bypass list ────────────────────────────────────────────
+// Emails listed here skip all per-user quotas (consultations, photos)
+// and behave like paid subscribers server-side. Keep this in sync
+// with ADMIN_EMAILS in src/app/services/subscription.service.ts —
+// the two projects can't share code, so it's a deliberate duplicate.
+const ADMIN_EMAILS = new Set([
+  "gabrielandresbermudez@gmail.com",
+]);
+
+function isAdmin(email: string | undefined | null): boolean {
+  return !!email && ADMIN_EMAILS.has(email);
+}
+
 // ─── Shared validation (mirrors Firestore rules isValidLog) ────────
 
 interface ValidatedEntry {
@@ -155,23 +168,28 @@ export const analyzePhoto = onCall(
     }
 
     const uid = request.auth.uid;
+    const email = request.auth.token.email;
+    const admin = isAdmin(email);
 
     // ── Daily quota check (per user, resets at UTC midnight) ───────
     const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
     const quotaRef = db.collection("photoQuota").doc(`${uid}_${today}`);
     let photosUsedAfter = 1;
-    await db.runTransaction(async (tx) => {
-      const doc = await tx.get(quotaRef);
-      const used: number = doc.exists ? (doc.data()!.count as number) : 0;
-      if (used >= DAILY_PHOTO_LIMIT) {
-        throw new HttpsError(
-          "resource-exhausted",
-          `Daily limit of ${DAILY_PHOTO_LIMIT} photo analyses reached. Resets at midnight UTC.`,
-        );
-      }
-      photosUsedAfter = used + 1;
-      tx.set(quotaRef, { count: photosUsedAfter, uid, date: today }, { merge: true });
-    });
+    // Admins skip the quota check and counter entirely.
+    if (!admin) {
+      await db.runTransaction(async (tx) => {
+        const doc = await tx.get(quotaRef);
+        const used: number = doc.exists ? (doc.data()!.count as number) : 0;
+        if (used >= DAILY_PHOTO_LIMIT) {
+          throw new HttpsError(
+            "resource-exhausted",
+            `Daily limit of ${DAILY_PHOTO_LIMIT} photo analyses reached. Resets at midnight UTC.`,
+          );
+        }
+        photosUsedAfter = used + 1;
+        tx.set(quotaRef, { count: photosUsedAfter, uid, date: today }, { merge: true });
+      });
+    }
 
     const { photoBase64 } = request.data as { photoBase64?: string };
     if (!photoBase64 || typeof photoBase64 !== "string") {
@@ -254,7 +272,9 @@ Common Puerto Rican / Latin staples for reference:
         protein: protein ?? 0,
         description,
         confidence,
-        photosRemaining: DAILY_PHOTO_LIMIT - photosUsedAfter,
+        // Admins report "unlimited" by returning the full cap. The
+        // client treats this as decorative since nothing blocks them.
+        photosRemaining: admin ? DAILY_PHOTO_LIMIT : DAILY_PHOTO_LIMIT - photosUsedAfter,
       };
     } catch (err) {
       if (err instanceof HttpsError) throw err;
@@ -286,11 +306,12 @@ export const reserveConsultation = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "Must be signed in.");
   }
   const uid = request.auth.uid;
+  const email = request.auth.token.email;
   const role = (request.auth.token as { stripeRole?: string }).stripeRole;
 
-  // Paid users bypass the quota entirely. We don't write a counter
-  // doc for them since it would never be read.
-  if (role === "paid") {
+  // Paid users and admins bypass the quota entirely. We don't write
+  // a counter doc for them since it would never be read.
+  if (role === "paid" || isAdmin(email)) {
     return { capped: false, remaining: -1, limit: CONSULTATION_DAILY_LIMIT };
   }
 
@@ -329,10 +350,11 @@ export const releaseConsultation = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "Must be signed in.");
   }
   const uid = request.auth.uid;
+  const email = request.auth.token.email;
   const role = (request.auth.token as { stripeRole?: string }).stripeRole;
 
-  // Paid users never had a slot reserved — nothing to release.
-  if (role === "paid") return { released: false };
+  // Paid users and admins never had a slot reserved — nothing to release.
+  if (role === "paid" || isAdmin(email)) return { released: false };
 
   const today = new Date().toISOString().split("T")[0];
   const quotaRef = db.collection("consultationQuota").doc(`${uid}_${today}`);

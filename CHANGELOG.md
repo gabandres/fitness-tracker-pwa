@@ -6,6 +6,12 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-13 — Live Stripe mode + admin bypass
+
+- **Live-mode flipped.** Product `Macro Log Pro` (prod_UKSEcAQhRmQQ9u) + price $3/mo (price_1TLnJdHvWnhD3GuYy7gWFvyJ) + webhook endpoint (we_1TLnJfHvWnhD3GuYzV5h8a1m) all created in Stripe live mode. Secret Manager rotated to live API key + live webhook signing secret; extension redeployed. Test-mode webhook disabled to prevent duplicate writes.
+- **Admin bypass.** Emails in `ADMIN_EMAILS` (server `functions/src/index.ts` + client `subscription.service.ts`) skip all quotas and behave as paid. Currently: `gabrielandresbermudez@gmail.com`. Client shows an "admin access" badge instead of the Subscribe pitch.
+- **Test-mode orphans purged.** Old test-mode subscription, checkout sessions, payment record, and customer doc deleted from Firestore for a clean slate in live mode.
+
 ## 2026-04-13 — Consultation quota + polish items
 
 - **AI coach rate limit.** New `reserveConsultation` + `releaseConsultation` Cloud Functions. Free tier: 5/day (atomic Firestore counter, transactional). Paid tier (stripeRole=paid claim): unlimited. Consultation component calls reserve before streaming and release on post-reserve failure so a transient Gemini error doesn't silently consume a slot. Counter "N of 5 left today" shows in the composer caption; over-limit error points at the Subscribe surface.

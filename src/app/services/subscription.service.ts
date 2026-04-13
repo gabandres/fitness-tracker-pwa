@@ -1,4 +1,4 @@
-import { Injectable, inject, signal, effect } from '@angular/core';
+import { Injectable, computed, inject, signal, effect } from '@angular/core';
 import {
   Firestore, addDoc, collection, doc, onSnapshot, query, where, Unsubscribe,
 } from '@angular/fire/firestore';
@@ -40,6 +40,17 @@ type CheckoutSessionDoc = {
 const CUSTOMERS = 'customers';
 const EXTENSION_INSTANCE = 'firestore-stripe-payments';
 
+/**
+ * Emails here skip all quotas (consultations, photos) and get treated
+ * as paid. Keep in sync with ADMIN_EMAILS in functions/src/index.ts —
+ * the two projects can't share code. The server is the source of
+ * truth for enforcement; this client list only shapes the UI
+ * (hides the Subscribe pitch, shows an "admin access" badge).
+ */
+const ADMIN_EMAILS = new Set<string>([
+  'gabrielandresbermudez@gmail.com',
+]);
+
 @Injectable({ providedIn: 'root' })
 export class SubscriptionService {
   private readonly firestore = inject(Firestore);
@@ -50,8 +61,19 @@ export class SubscriptionService {
   private readonly _subscription = signal<Subscription | null>(null);
   readonly subscription = this._subscription.asReadonly();
 
-  /** True when the user has any non-lapsed subscription (trialing or active). */
-  readonly isPaid = signal(false);
+  /** Raw subscription-based paid state (used by the effect below). */
+  private readonly _subscriptionActive = signal(false);
+
+  /** True when the signed-in user's email is on the admin allowlist. */
+  readonly isAdmin = computed(() => {
+    const email = this.authedUser()?.email;
+    return email ? ADMIN_EMAILS.has(email) : false;
+  });
+
+  /** True when the user gets paid features for any reason (subscription
+      or admin bypass). Server enforcement is independent — see
+      functions/src/index.ts. */
+  readonly isPaid = computed(() => this.isAdmin() || this._subscriptionActive());
 
   /** Non-fatal UI-facing error (e.g. checkout failed). */
   private readonly _error = signal<string | null>(null);
@@ -69,7 +91,7 @@ export class SubscriptionService {
       if (user) this.watchSubscriptions(user.uid);
       else {
         this._subscription.set(null);
-        this.isPaid.set(false);
+        this._subscriptionActive.set(false);
       }
     });
 
@@ -191,7 +213,7 @@ export class SubscriptionService {
     this.unsubSubscriptions = onSnapshot(q, (snap) => {
       if (snap.empty) {
         this._subscription.set(null);
-        this.isPaid.set(false);
+        this._subscriptionActive.set(false);
         return;
       }
       const d = snap.docs[0];
@@ -204,7 +226,7 @@ export class SubscriptionService {
         priceId: (data['price']?.id as string) ?? '',
       };
       this._subscription.set(sub);
-      this.isPaid.set(sub.status === 'trialing' || sub.status === 'active');
+      this._subscriptionActive.set(sub.status === 'trialing' || sub.status === 'active');
     });
   }
 
