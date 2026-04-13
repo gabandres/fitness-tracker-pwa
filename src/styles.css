@@ -201,6 +201,21 @@ body {
 .stamp-btn:active { transform: translateY(0); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
 .stamp-btn:disabled { background: var(--color-graphite-soft); border-color: var(--color-graphite); cursor: not-allowed; box-shadow: none; }
 
+/* Capture button: barcode / photo / other primary capture paths.
+   Bigger than tag-btn (44px tap target), smaller than stamp-btn
+   (which is the primary submit). */
+.capture-btn {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  padding: 0.5rem 0.875rem; min-height: 44px;
+  background: transparent; color: var(--color-ink);
+  font-family: var(--font-sans); font-size: 0.75rem; font-weight: 500;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  border: 1px solid var(--color-rule); border-radius: 8px;
+  cursor: pointer; transition: all 140ms ease;
+}
+.capture-btn:hover:not(:disabled) { background: var(--color-ink); color: var(--color-paper); }
+.capture-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* Tag button: taller, rounded, readable */
 .tag-btn {
   display: inline-flex; align-items: center; gap: 0.375rem;

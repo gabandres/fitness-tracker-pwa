@@ -13,8 +13,10 @@ import { MacroEstimate } from '../../models/macro-estimate';
     @if (isSupported()) {
       <button type="button" (click)="startScan()"
         [disabled]="scanning()"
-        class="tag-btn text-[11px]">
-        {{ scanning() ? 'scanning…' : '⊟ scan' }}
+        aria-label="Scan a barcode to fill this entry"
+        class="capture-btn">
+        <span aria-hidden="true">⊟</span>
+        <span>{{ scanning() ? 'scanning…' : 'barcode' }}</span>
       </button>
     }
     @if (error()) {

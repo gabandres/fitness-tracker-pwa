@@ -84,14 +84,14 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 
 - [ ] Consolidate footer links into a single "settings" sheet in the masthead (edit profile, travel mode, webhook, reminder hour, push, export CSV)
 - [ ] Keep footer for version/credits only
-- [ ] Raise barcode (`⊟ scan`) and photo (`📷 snap`) buttons to full 44px with visible labels
+- [x] Raise barcode + photo buttons to 44px with visible labels (new `.capture-btn` class) — "⊟ barcode" / "📷 photo" *(2026-04-12)*
 
 **Why:** a first-time user scans the main surface; they'll never read the footer. Core capture paths (barcode, photo) are currently 11px buttons — below the scanning threshold.
 
 ### 🟠 S4 — Dashboard assumes statistical literacy
 
 - [x] Promote a single hero number above the ledger: "kcal remaining today" with target/eaten subtitle *(2026-04-12)*
-- [ ] Collapse weekly envelope into one sentence ("You're 380 kcal under for the week. Aim 2,290 over the next 4 days.")
+- [x] Collapse weekly envelope into one sentence. Kept the budget bar + consumed/budget labels underneath as at-a-glance trend. *(2026-04-12)*
 - [ ] Merge 14-day and all-time sparklines into one tabbed chart
 - [ ] Re-expose the adaptive-TDEE explanation (once dismissed, there's no way back)
 
@@ -155,7 +155,7 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 - [ ] Consolidate footer → settings sheet (S3)
 - [ ] Onboarding: top-line summary, required/optional pills, focus-on-error (S2)
 - [ ] Merge weight trends into tabbed chart (S4)
-- [ ] Raise barcode/photo buttons to 44px with labels (S3)
+- [x] Raise barcode/photo buttons to 44px with labels (S3) — *2026-04-12*
 - [ ] Contrast audit — fix graphite-soft / aged usage (S5)
 
 ### Needs a design decision first
@@ -176,3 +176,4 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 - **2026-04-12** — S8 empty-state copy fixed; S6 undo toast made fully tappable (toast was already 8s — audit initially said 5s, corrected).
 - **2026-04-12** — S4 "kcal remaining today" hero shipped at top of the ledger (below travel-mode banner, above streak). Dashboard 3-up readout left untouched deliberately; re-evaluate after a week of use.
 - **2026-04-12** — Copy/cheap bucket: "?" tooltips on dashboard readouts (tap-to-reveal), "cut pace" → "weekly fat-loss target", dropped "fin", footer "specimen · confidential" → "made for you · private", onboarding "field form · 001" → "your details", date-chip has-data dot changed from oxblood to olive (differentiates from today's border).
+- **2026-04-12** — S3: barcode/photo capture buttons upgraded to 44px tap targets with visible labels ("⊟ barcode" / "📷 photo") via new `.capture-btn` class. S4: weekly envelope collapsed from 4-data-point grid to a one-sentence summary; budget bar kept for at-a-glance trend.

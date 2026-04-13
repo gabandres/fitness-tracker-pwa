@@ -159,7 +159,7 @@ interface SparklinePoint { x: number; y: number; }
           </div>
         }
 
-        <!-- Weekly Calorie Envelope -->
+        <!-- Weekly Calorie Envelope — one-sentence summary + budget bar -->
         @if (store.envelope(); as env) {
           <div class="mt-5 specimen px-4 py-3">
             <span class="crop-bl"></span><span class="crop-br"></span>
@@ -167,36 +167,30 @@ interface SparklinePoint { x: number; y: number; }
               <span class="stamp-mark" style="transform: rotate(0deg)">7d</span>
               <span class="data-label">weekly envelope</span>
             </div>
-            <div class="flex items-center justify-between">
-              <div>
-                <div class="font-mono text-lg font-medium tabular-nums"
-                  [style.color]="env.surplus > 0 ? 'var(--color-blood)' : 'var(--color-olive)'">
-                  {{ env.surplus > 0 ? '+' : '' }}{{ env.surplus }}
-                  <span class="text-graphite text-xs font-normal">kcal</span>
-                </div>
-                <div class="data-label mt-0.5 opacity-60 text-[11px]">
-                  {{ env.surplus > 0 ? 'over budget' : 'under budget' }} · {{ env.daysLogged }}d logged
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-mono text-lg font-medium text-ink tabular-nums">
-                  {{ env.adjustedDailyTarget }}
-                </div>
-                <div class="data-label mt-0.5 opacity-60 text-[11px]">
-                  aim/day · {{ env.daysRemaining }}d left
-                </div>
-              </div>
-            </div>
-            <!-- Budget bar: consumed / weeklyBudget -->
-            <div class="mt-2 h-1.5 w-full bg-paper-deep relative overflow-hidden border border-rule/30">
+            <p class="font-display text-ink text-[17px] leading-snug">
+              @if (env.surplus > 0) {
+                you're <span class="font-mono font-semibold not-italic" style="color: var(--color-blood)">{{ env.surplus.toLocaleString() }}</span> kcal over for the week —
+              } @else if (env.surplus < 0) {
+                you're <span class="font-mono font-semibold not-italic" style="color: var(--color-olive)">{{ Math.abs(env.surplus).toLocaleString() }}</span> kcal under for the week —
+              } @else {
+                on budget for the week —
+              }
+              @if (env.daysRemaining > 0) {
+                aim <span class="font-mono font-semibold not-italic text-ink">{{ env.adjustedDailyTarget.toLocaleString() }}</span> over the {{ env.daysRemaining === 1 ? 'last day' : 'next ' + env.daysRemaining + ' days' }}.
+              } @else {
+                week complete.
+              }
+            </p>
+            <!-- Budget bar: at-a-glance trend -->
+            <div class="mt-3 h-1.5 w-full bg-paper-deep relative overflow-hidden border border-rule/30">
               <div class="h-full transition-all duration-300"
                 [style.width.%]="Math.min(100, (env.consumed / env.weeklyBudget) * 100)"
                 [style.background]="env.consumed > env.weeklyBudget ? 'var(--color-blood)' : 'var(--color-olive)'">
               </div>
             </div>
             <div class="flex justify-between mt-1 font-sans text-[11px] tabular-nums text-graphite">
-              <span>{{ env.consumed }} consumed</span>
-              <span>{{ env.weeklyBudget }} budget</span>
+              <span>{{ env.consumed.toLocaleString() }} consumed</span>
+              <span>{{ env.weeklyBudget.toLocaleString() }} budget</span>
             </div>
           </div>
         }

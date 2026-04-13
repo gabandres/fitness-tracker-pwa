@@ -9,13 +9,15 @@ import { MacroEstimate } from '../../models/macro-estimate';
   template: `
     <button type="button" (click)="photoInput.click()"
       [disabled]="photoStatus() === 'analyzing' || photosRemaining() === 0"
-      class="tag-btn text-[11px]">
-      {{ photoStatus() === 'analyzing' ? 'analyzing…' : '📷 snap' }}
+      aria-label="Snap a photo of your meal to estimate calories"
+      class="capture-btn">
+      <span aria-hidden="true">📷</span>
+      <span>{{ photoStatus() === 'analyzing' ? 'analyzing…' : 'photo' }}</span>
     </button>
     @if (photosRemaining() !== null) {
-      <span class="font-mono text-[10px] tracking-[0.08em] ml-1"
+      <span class="font-mono text-[10px] tracking-[0.08em] ml-1 align-middle"
         [style.color]="photosRemaining()! <= 2 ? 'var(--color-gold)' : 'var(--color-graphite)'">
-        {{ photosRemaining() }} left today
+        {{ photosRemaining() }} left
       </span>
     }
     <input #photoInput type="file" accept="image/*" capture="environment"
