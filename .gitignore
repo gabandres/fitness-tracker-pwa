@@ -9,6 +9,9 @@
 # Firebase deploy cache
 /.firebase
 
+# Firebase extension local secrets (uploaded to Secret Manager at deploy time)
+/extensions/*.secret.local
+
 # Node
 /node_modules
 npm-debug.log

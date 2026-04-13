@@ -6,6 +6,13 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-13 — Stripe extension installed and wired
+
+- **Firebase Stripe Extension live** (`invertase/firestore-stripe-payments@0.3.11`). Declarative install via `firebase.json` + `extensions/firestore-stripe-payments.env`. Secrets stored in GCP Secret Manager.
+- **Product + price created in Stripe test mode**: `Macro Log Pro` at `$3/mo` recurring with `firebaseRole=paid` metadata. Synced to Firestore `products` collection via webhook.
+- **Webhook endpoint registered** pointing at `ext-firestore-stripe-payments-handleWebhookEvents` with the full event list (products, prices, checkout.session, customer.subscription, invoice, tax_rate). Signing secret stored in Secret Manager.
+- **Subscribe card active** on macrolog.web.app footer. End-to-end flow ready for test-mode checkout with card `4242 4242 4242 4242`.
+
 ## 2026-04-12 — Stripe subscription infrastructure
 
 - **SubscriptionService** — wraps the Firebase Stripe Extension. `startCheckout()` writes a doc that the extension turns into a Stripe Checkout URL and redirects there. `openCustomerPortal()` opens the managed portal for cancel/card-update/invoices. `isPaid` signal reflects active/trialing subscription state in real time via `onSnapshot`.
