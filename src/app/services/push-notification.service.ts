@@ -11,7 +11,7 @@ export type PushPermission = 'default' | 'granted' | 'denied' | 'unsupported';
  */
 @Injectable({ providedIn: 'root' })
 export class PushNotificationService {
-  private readonly messaging = inject(Messaging);
+  private readonly messaging = inject(Messaging, { optional: true });
 
   readonly permission = signal<PushPermission>(
     'Notification' in window ? Notification.permission as PushPermission : 'unsupported',
@@ -24,7 +24,7 @@ export class PushNotificationService {
    * Returns the token string or null if permission denied.
    */
   async requestPermissionAndGetToken(): Promise<string | null> {
-    if (!('Notification' in window)) {
+    if (!this.messaging || !('Notification' in window)) {
       this.permission.set('unsupported');
       return null;
     }
@@ -54,6 +54,7 @@ export class PushNotificationService {
   private unsubForeground: (() => void) | null = null;
 
   onForegroundMessage(callback: (title: string, body: string) => void): void {
+    if (!this.messaging) return;
     this.unsubForeground?.();
     this.unsubForeground = onMessage(this.messaging, (payload) => {
       const title = payload.notification?.title ?? 'Macro Log';

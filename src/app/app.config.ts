@@ -1,4 +1,4 @@
-import { ApplicationConfig, ErrorHandler, provideBrowserGlobalErrorListeners, isDevMode } from '@angular/core';
+import { ApplicationConfig, EnvironmentProviders, ErrorHandler, provideBrowserGlobalErrorListeners, isDevMode } from '@angular/core';
 import * as Sentry from '@sentry/angular';
 import { provideRouter } from '@angular/router';
 import { provideFirebaseApp, initializeApp, getApp } from '@angular/fire/app';
@@ -16,6 +16,21 @@ import { routes } from './app.routes';
 import { provideServiceWorker } from '@angular/service-worker';
 import { environment } from '../environments/environment';
 
+/**
+ * Only provide Firebase Messaging when the browser supports the required APIs
+ * (Notification API + Service Worker). This avoids the
+ * "messaging/unsupported-browser" FirebaseError in browsers like older Safari,
+ * Firefox private browsing, or SSR environments.
+ */
+function provideMessagingIfSupported(): EnvironmentProviders[] {
+  if (typeof window !== 'undefined'
+    && 'Notification' in window
+    && 'serviceWorker' in navigator) {
+    return [provideMessaging(() => getMessaging())];
+  }
+  return [];
+}
+
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
@@ -23,7 +38,7 @@ export const appConfig: ApplicationConfig = {
     provideFirebaseApp(() => initializeApp(environment.firebase)),
     provideAuth(() => getAuth()),
     provideFunctions(() => getFunctions()),
-    provideMessaging(() => getMessaging()),
+    ...provideMessagingIfSupported(),
     // Enable Firestore offline persistence so writes queue locally
     // when the user is offline and sync when the connection returns.
     provideFirestore(() =>
