@@ -187,6 +187,36 @@ service cloud.firestore {
       }
     }
 
+    // ─── Stripe Firebase Extension ───────────────────────────────
+    // Managed by ext: firestore-stripe-payments.
+    // The extension writes customer/subscription/payment records
+    // under customers/{uid}. Products + prices are catalog data
+    // readable by any signed-in user so they can render the price.
+    match /customers/{uid} {
+      allow read: if isOwner(uid);
+
+      match /checkout_sessions/{id} {
+        allow read, write: if isOwner(uid);
+      }
+      match /subscriptions/{id} {
+        allow read: if isOwner(uid);
+      }
+      match /payments/{id} {
+        allow read: if isOwner(uid);
+      }
+    }
+
+    match /products/{id} {
+      allow read: if request.auth != null;
+
+      match /prices/{priceId} {
+        allow read: if request.auth != null;
+      }
+      match /tax_rates/{taxId} {
+        allow read: if request.auth != null;
+      }
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

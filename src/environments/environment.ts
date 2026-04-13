@@ -27,4 +27,12 @@ export const environment = {
     // 1.0 = sample every error; 0.0 = sample none. Client-side only.
     sampleRate: 1.0,
   },
+  // Stripe subscription. Paste the price ID from your Stripe dashboard
+  // after running STRIPE_SETUP.md. Empty priceId hides the Subscribe
+  // button entirely, so it's safe to commit an empty value.
+  stripe: {
+    priceId: '',
+    displayPrice: '$3/mo',
+    trialDays: 7,
+  },
 };

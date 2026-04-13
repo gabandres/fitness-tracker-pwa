@@ -10,6 +10,7 @@ import { FastingComponent } from './components/fasting/fasting.component';
 import { MeasurementsComponent } from './components/measurements/measurements.component';
 import { PrivacyComponent } from './components/privacy/privacy.component';
 import { TermsComponent } from './components/terms/terms.component';
+import { SubscribeComponent } from './components/subscribe/subscribe.component';
 import { AuthService } from './services/auth.service';
 import { FirebaseService } from './services/firebase.service';
 import { FitnessStore } from './services/fitness-store.service';
@@ -29,6 +30,7 @@ import { PushNotificationService } from './services/push-notification.service';
     MeasurementsComponent,
     PrivacyComponent,
     TermsComponent,
+    SubscribeComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -221,6 +223,9 @@ import { PushNotificationService } from './services/push-notification.service';
                 </select>
               }
             </p>
+
+            <!-- Subscribe / manage subscription — only renders when Stripe is configured -->
+            <app-subscribe />
 
             <!-- Privacy / terms / contact -->
             <p class="caption mt-2 text-center text-[11px]">

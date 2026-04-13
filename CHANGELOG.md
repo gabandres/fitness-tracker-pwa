@@ -6,6 +6,14 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-12 — Stripe subscription infrastructure
+
+- **SubscriptionService** — wraps the Firebase Stripe Extension. `startCheckout()` writes a doc that the extension turns into a Stripe Checkout URL and redirects there. `openCustomerPortal()` opens the managed portal for cancel/card-update/invoices. `isPaid` signal reflects active/trialing subscription state in real time via `onSnapshot`.
+- **Subscribe card** — renders in the app footer *only when* `environment.stripe.priceId` is configured. Empty by default so the repo stays committable. Shows "support · $3/mo (7-day free trial)" for non-subscribers; flips to "on free trial until {date}" / "active, renews {date}" with a Manage button once subscribed.
+- **Firestore rules** extended for the `customers/{uid}/...` and `products/{id}/...` collections the extension uses.
+- **`STRIPE_SETUP.md`** — ~20-min one-time install walkthrough: Stripe account → product + $3/mo price → restricted API key → extension install → webhook registration → env swap → end-to-end test with `4242 4242 4242 4242`.
+- **No hard feature gates yet.** This is voluntary-support infrastructure. Gates (webhook-only-for-paid, unlimited-AI-for-paid) will come in a later PR once there are real subscribers to shape the free tier around.
+
 ## 2026-04-12 — Sentry wired, contact email set
 
 - **Sentry error monitoring** wired via `@sentry/angular`. Uncaught client errors now report to the `macrolog` project in Sentry. DSN + sample rate live in `environment.ts`; init is a no-op if DSN is empty so we can keep the env file committable.
