@@ -42,17 +42,28 @@ interface PaceOption {
           <em class="text-blood">{{ editMode() ? 'particulars.' : 'begin.' }}</em>
         </h2>
         <p class="caption mt-4 text-[11px] leading-relaxed">
-          the calibration engine needs a baseline. five questions, kept on
-          your record only. you can amend any of these later.
+          six quick answers, about a minute. everything here is used only to
+          estimate your daily calorie target — you can change any of it later.
         </p>
+
+        <!-- Reassurance block: why we ask, what we do / don't do -->
+        <div class="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-graphite font-sans">
+          <span>✓ private to you</span>
+          <span>✓ no data selling</span>
+          <span>✓ editable anytime</span>
+        </div>
 
         <form (ngSubmit)="submit()" class="mt-8 space-y-9">
           <!-- 1. Height (ft + in) -->
           <div>
-            <label class="data-label block mb-2">i. height</label>
+            <label class="data-label block mb-2">
+              i. height <span class="text-blood" aria-label="required">*</span>
+            </label>
             <div class="flex items-baseline gap-4">
               <div class="flex items-baseline gap-2 flex-1">
                 <input
+                  #heightFtInput
+                  id="heightFt"
                   type="number"
                   min="4"
                   max="8"
@@ -69,6 +80,7 @@ interface PaceOption {
               </div>
               <div class="flex items-baseline gap-2 flex-1">
                 <input
+                  id="heightInExtra"
                   type="number"
                   min="0"
                   max="11"
@@ -88,7 +100,9 @@ interface PaceOption {
 
           <!-- 2. Age -->
           <div>
-            <label for="age" class="data-label block mb-2">ii. age</label>
+            <label for="age" class="data-label block mb-2">
+              ii. age <span class="text-blood" aria-label="required">*</span>
+            </label>
             <div class="flex items-baseline gap-3">
               <input
                 id="age"
@@ -110,7 +124,9 @@ interface PaceOption {
 
           <!-- 3. Biological sex -->
           <div>
-            <label class="data-label block mb-2">iii. biological sex</label>
+            <label class="data-label block mb-2">
+              iii. biological sex <span class="text-blood" aria-label="required">*</span>
+            </label>
             <p class="caption text-xs mb-2">
               required by the mifflin-st jeor formula to estimate your baseline metabolic rate.
             </p>
@@ -130,7 +146,9 @@ interface PaceOption {
 
           <!-- 4. Activity level -->
           <div>
-            <label class="data-label block mb-2">iv. activity level</label>
+            <label class="data-label block mb-2">
+              iv. activity level <span class="text-blood" aria-label="required">*</span>
+            </label>
             <div class="space-y-2">
               @for (opt of activityOptions; track opt.value) {
                 <button
@@ -153,7 +171,7 @@ interface PaceOption {
           <!-- 5. Weekly fat-loss target (a.k.a. cut pace) -->
           <div>
             <label class="data-label block mb-2">
-              v. weekly fat-loss target
+              v. weekly fat-loss target <span class="text-blood" aria-label="required">*</span>
               <span class="normal-case italic text-graphite tracking-normal text-[11px]">(cut pace)</span>
             </label>
             <p class="caption text-xs mb-2">
@@ -179,7 +197,11 @@ interface PaceOption {
           <!-- Optional: Goal weight -->
           <div>
             <label for="goalWeight" class="data-label block mb-2">
-              vi. goal weight <span class="normal-case italic text-graphite tracking-normal text-[11px]">(optional)</span>
+              vi. goal weight
+              <span class="inline-block ml-1 px-2 py-0.5 text-[10px] normal-case tracking-normal italic rounded-full"
+                style="background: var(--color-paper-deep); color: var(--color-graphite); border: 1px solid var(--color-rule);">
+                skip if none
+              </span>
             </label>
             <div class="flex items-baseline gap-3">
               <input
@@ -201,9 +223,13 @@ interface PaceOption {
 
           <!-- Submit -->
           <div class="pt-3">
+            <!-- Button stays enabled even on incomplete forms so tapping
+                 submit triggers focusFirstInvalid() and lands the user on
+                 the missing field. Saving state still disables to block
+                 double-submit. -->
             <button
               type="submit"
-              [disabled]="!canSubmit() || status() === 'saving'"
+              [disabled]="status() === 'saving'"
               class="stamp-btn"
             >
               @if (status() === 'saving') {
@@ -329,7 +355,11 @@ export class OnboardingComponent {
   }
 
   protected async submit(): Promise<void> {
-    if (!this.canSubmit()) return;
+    if (!this.canSubmit()) {
+      // Focus the first empty required field so the user sees what's missing.
+      this.focusFirstInvalid();
+      return;
+    }
 
     const ft = Number(this.heightFt());
     const extra = Number(this.heightInExtra());
@@ -338,6 +368,11 @@ export class OnboardingComponent {
     if (totalInches < 40 || totalInches > 96) {
       this.status.set('error');
       this.errorMsg.set('Height must be between 3\'4" and 8\'.');
+      // Focus the height ft input so keyboard + screen-reader users
+      // immediately land on the offending field.
+      queueMicrotask(() => {
+        (document.getElementById('heightFt') as HTMLInputElement | null)?.focus();
+      });
       return;
     }
 
@@ -361,5 +396,29 @@ export class OnboardingComponent {
       this.status.set('error');
       this.errorMsg.set(err instanceof Error ? err.message : 'Failed to save profile.');
     }
+  }
+
+  /** Focus the first required field that's still empty, so the user
+      immediately sees what's missing after tapping submit. */
+  private focusFirstInvalid(): void {
+    queueMicrotask(() => {
+      const order: { signalEmpty: boolean; selector: string }[] = [
+        { signalEmpty: this.heightFt() == null,      selector: '#heightFt' },
+        { signalEmpty: this.heightInExtra() == null, selector: '#heightInExtra' },
+        { signalEmpty: this.age() == null,           selector: '#age' },
+        // For radio-card fields, focus the first option button so keyboard
+        // users can Tab/arrow through choices.
+        { signalEmpty: this.sex() === null,           selector: '.radio-card' },
+        { signalEmpty: this.activityLevel() === null, selector: '.radio-card' },
+        { signalEmpty: this.pace() === null,          selector: '.radio-card' },
+      ];
+      for (const { signalEmpty, selector } of order) {
+        if (!signalEmpty) continue;
+        const el = document.querySelector<HTMLElement>(selector);
+        el?.focus();
+        el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        return;
+      }
+    });
   }
 }

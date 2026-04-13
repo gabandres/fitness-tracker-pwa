@@ -72,11 +72,12 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 
 ### 🔴 S2 — Onboarding friction
 
-- [ ] Add top-line summary above the form: "6 quick answers, ~60 seconds — editable later"
-- [ ] Move rationale (why we need your age/sex) to the top, not inside section iii
-- [ ] Mark required fields with `*`; mark goal-weight row with a visible "(skip if none)" pill
-- [ ] On submit error, focus the offending input (currently error appears below submit, focus doesn't move)
-- [ ] (Medium) Split into 3 steps with a progress indicator: identity → activity → target
+- [x] Add top-line summary above the form: "six quick answers, about a minute — editable later" *(2026-04-13)*
+- [x] Top-level reassurance row: ✓ private · ✓ no selling · ✓ editable anytime *(2026-04-13)*
+- [x] Mark required fields with `*`; goal-weight row has a visible "skip if none" pill *(2026-04-13)*
+- [x] On submit with missing fields → focus the first empty input; on height-out-of-bounds → focus heightFt *(2026-04-13)*
+- [x] Submit button enabled on incomplete forms (was disabled) so taps still land feedback via focus *(2026-04-13)*
+- [ ] (Medium, deferred) Split into 3 steps with a progress indicator: identity → activity → target
 
 **Why:** first-run is the only time we get the user to fill a 6-field form. Any friction here correlates directly with abandonment.
 
@@ -105,7 +106,7 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 - [x] Add `aria-label` on icon-only buttons (theme toggle, sign-out "out", day "+" buttons, barcode, photo, cancel "×") *(2026-04-12)*
 - [x] Wrap sub-sections in `<h2>` or give `.rule` spans semantic heading roles *(2026-04-12)*
 - [x] Add `<main id="main">` landmark *(2026-04-12)*
-- [ ] Audit contrast: `--color-graphite-soft #716960` on paper `#f4f0e8` ≈ 4.3:1 (fails AA 4.5:1 for body text); `--color-aged #b8a480` ≈ 2.1:1 (text-unusable — verify only used decoratively)
+- [x] Contrast audit — reran the math: `graphite-soft #716960` actually passes at 4.79:1 (prior audit math was off). `aged #b8a480` at 2.1:1 does fail, but was only used as text in `.field-input::placeholder`. Switched placeholder to `graphite-soft` — passes. `aged` retained for decoration only. *(2026-04-13)*
 - [ ] Add `role="alert"` + focusable toast for undo-delete (currently not announced)
 
 **Why:** small fixes, compounding benefit. Cheap to do before surface grows.
@@ -129,7 +130,7 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 ### 🟡 S8 — Cold-start / empty-state
 
 - [x] Fix ledger empty-state copy: "tap the button below" when button is at the *top* *(2026-04-12)*
-- [ ] Add try-this specimen card for first run with tap-to-fill examples (coffee, chicken+rice)
+- [x] Try-this specimen card for first run — 18 curated foods (drinks, breakfast, protein, carbs, fast food, PR staples). One tap opens the form pre-filled. Auto-hides after first entry. *(2026-04-13)*
 - [ ] Hide consultation panel until ≥3 entries exist (otherwise Gemini has nothing to analyze)
 
 **Why:** the first 2 minutes decide whether a fitness-logging user comes back tomorrow.

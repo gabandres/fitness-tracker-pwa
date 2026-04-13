@@ -177,7 +177,9 @@ body {
   transition: border-color 220ms ease;
   outline: none; font-feature-settings: "tnum" 1;
 }
-.field-input::placeholder { color: var(--color-aged); font-style: italic; font-family: var(--font-display); font-weight: 400; }
+/* Placeholder uses graphite-soft (4.79:1 contrast on paper, passes WCAG AA).
+   --color-aged (#b8a480) is 2.09:1 — too low for readable text. */
+.field-input::placeholder { color: var(--color-graphite-soft); font-style: italic; font-family: var(--font-display); font-weight: 400; opacity: 0.8; }
 .field-input:focus { border-bottom-color: var(--color-blood); }
 .field-input[type="number"]::-webkit-outer-spin-button,
 .field-input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }

@@ -8,6 +8,8 @@ import { EntryFormComponent } from '../entry-form/entry-form.component';
 import { PhotoCaptureComponent } from '../photo-capture/photo-capture.component';
 import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.component';
 import { PresetPickerComponent } from '../preset-picker/preset-picker.component';
+import { StarterFoodsComponent } from '../starter-foods/starter-foods.component';
+import { MacroEstimate } from '../../models/macro-estimate';
 
 interface DateChip {
   dateKey: DateKey;
@@ -30,7 +32,7 @@ interface DayGroup {
 @Component({
   selector: 'app-daily-ledger',
   standalone: true,
-  imports: [FormsModule, EntryFormComponent, PhotoCaptureComponent, BarcodeScannerComponent, PresetPickerComponent],
+  imports: [FormsModule, EntryFormComponent, PhotoCaptureComponent, BarcodeScannerComponent, PresetPickerComponent, StarterFoodsComponent],
   providers: [EntryFormManager],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -312,8 +314,19 @@ interface DayGroup {
 
         <!-- Empty state -->
         @if (dayGroups().length === 0) {
-          <div class="py-8 text-center">
-            <p class="caption text-[11px]">no entries yet — tap <span class="text-ink">new entry</span> above to record your first.</p>
+          <!-- Cold-start: no logs yet. Show a tap-to-log menu of common
+               foods so the user's first meal is one tap + one click, not
+               a stare-at-blank-form moment. Hides as soon as the first
+               entry lands. -->
+          @if (form.mode() === 'view') {
+            <div class="mt-4">
+              <app-starter-foods (picked)="useStarterFood($event)" />
+            </div>
+          }
+          <div class="py-6 text-center">
+            <p class="caption text-[11px]">
+              or tap <span class="text-ink">new entry</span> above to log anything else.
+            </p>
           </div>
         }
       </div>
@@ -419,6 +432,13 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
     if (w == null || Number.isNaN(Number(w))) { this.cancelEditWeight(); return; }
     await this.store.setDailyWeight(this.todayKey, Number(w));
     this.cancelEditWeight();
+  }
+
+  /** Handle a tap on the cold-start starter foods: open the add form
+      with values prefilled, so the user just reviews and hits submit. */
+  protected useStarterFood(estimate: MacroEstimate): void {
+    this.form.startAdd();
+    this.form.applyEstimate(estimate);
   }
 
   // ── Date navigation strip: last 14 calendar days ────────────
