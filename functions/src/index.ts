@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
+import { getAuth } from "firebase-admin/auth";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
@@ -263,7 +264,76 @@ Common Puerto Rican / Latin staples for reference:
   },
 );
 
-// ─── Feature 3: Daily Push Reminder ───────────────────────────────
+// ─── Feature 3: Account deletion (GDPR right to erasure) ──────────
+
+/**
+ * Recursively delete all documents in a subcollection in batches of 500
+ * (Firestore's max batch size). Firestore doesn't cascade on user or doc
+ * deletion, so we have to walk each subcollection manually.
+ */
+async function deleteSubcollection(
+  parentPath: string,
+  subPath: string,
+): Promise<void> {
+  const collRef = db.collection(`${parentPath}/${subPath}`);
+  const pageSize = 500;
+  while (true) {
+    const snap = await collRef.limit(pageSize).get();
+    if (snap.empty) return;
+    const batch = db.batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    if (snap.size < pageSize) return;
+  }
+}
+
+export const deleteAccount = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be signed in to delete your account.");
+  }
+  const uid = request.auth.uid;
+  const userPath = `users/${uid}`;
+
+  try {
+    // 1. Delete all subcollections under users/{uid}.
+    //    Subcollections known to exist: dailyLogs, presets, reports,
+    //    dailyWeights, measurements. Add new ones here when introduced.
+    await Promise.all([
+      deleteSubcollection(userPath, "dailyLogs"),
+      deleteSubcollection(userPath, "presets"),
+      deleteSubcollection(userPath, "reports"),
+      deleteSubcollection(userPath, "dailyWeights"),
+      deleteSubcollection(userPath, "measurements"),
+    ]);
+
+    // 2. Delete any photoQuota docs prefixed with this uid.
+    //    Doc IDs are `${uid}_${date}` so a range query works here.
+    const quotaSnap = await db.collection("photoQuota")
+      .where("uid", "==", uid)
+      .get();
+    if (!quotaSnap.empty) {
+      const batch = db.batch();
+      quotaSnap.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+
+    // 3. Delete the user profile doc itself.
+    await db.doc(userPath).delete();
+
+    // 4. Delete the Firebase Auth user. This signs them out of all
+    //    sessions and prevents future logins. After this point the
+    //    client's ID token is invalid.
+    await getAuth().deleteUser(uid);
+
+    console.log(`Account deleted for uid=${uid}`);
+    return { success: true };
+  } catch (err) {
+    console.error(`deleteAccount failed for uid=${uid}:`, err);
+    throw new HttpsError("internal", "Account deletion failed. Please contact support.");
+  }
+});
+
+// ─── Feature 4: Daily Push Reminder ───────────────────────────────
 
 export const sendDailyReminders = onSchedule(
   { schedule: "every 1 hours", timeZone: "UTC" },

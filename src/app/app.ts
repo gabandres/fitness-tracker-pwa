@@ -8,6 +8,8 @@ import { SignInComponent } from './components/sign-in/sign-in.component';
 import { OnboardingComponent } from './components/onboarding/onboarding.component';
 import { FastingComponent } from './components/fasting/fasting.component';
 import { MeasurementsComponent } from './components/measurements/measurements.component';
+import { PrivacyComponent } from './components/privacy/privacy.component';
+import { TermsComponent } from './components/terms/terms.component';
 import { AuthService } from './services/auth.service';
 import { FirebaseService } from './services/firebase.service';
 import { FitnessStore } from './services/fitness-store.service';
@@ -25,12 +27,20 @@ import { PushNotificationService } from './services/push-notification.service';
     OnboardingComponent,
     FastingComponent,
     MeasurementsComponent,
+    PrivacyComponent,
+    TermsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <a href="#main" class="skip-link">skip to main content</a>
     <main id="main" class="min-h-screen px-5 sm:px-8 lg:px-12 py-8 sm:py-12">
       <div class="max-w-[560px] lg:max-w-[1100px] mx-auto">
+
+        @if (route() === 'privacy') {
+          <app-privacy />
+        } @else if (route() === 'terms') {
+          <app-terms />
+        } @else {
 
         <!-- SwUpdate dialog (fixed overlay) -->
         @if (updateReady()) {
@@ -212,6 +222,15 @@ import { PushNotificationService } from './services/push-notification.service';
               }
             </p>
 
+            <!-- Privacy / terms / contact -->
+            <p class="caption mt-2 text-center text-[11px]">
+              <a href="/privacy" class="underline decoration-dotted hover:text-blood">privacy</a>
+              &middot;
+              <a href="/terms" class="underline decoration-dotted hover:text-blood">terms</a>
+              &middot;
+              <a href="mailto:macrolog.support&#64;gmail.com" class="underline decoration-dotted hover:text-blood">contact</a>
+            </p>
+
             <!-- Webhook settings (collapsible) -->
             @if (showWebhook()) {
               <div class="mt-4 specimen px-4 py-3 slide-down">
@@ -241,6 +260,7 @@ import { PushNotificationService } from './services/push-notification.service';
             }
           }
         </footer>
+        }
       </div>
     </main>
   `,
@@ -255,6 +275,10 @@ export class App {
   protected readonly ticks = Array.from({ length: 45 });
   protected readonly reminderHours = Array.from({ length: 24 }, (_, i) => i);
   protected readonly editingProfile = signal(false);
+  /** URL-path based routing for the two public-static pages. Anything
+      else (including '/' and unknown paths) falls through to the
+      signal-gated main app. */
+  protected readonly route = signal<'privacy' | 'terms' | null>(this.detectRoute());
   protected readonly updateReady = signal(false);
   protected readonly offline = signal(!navigator.onLine);
   protected readonly darkMode = signal(false);
@@ -263,6 +287,13 @@ export class App {
   protected readonly webhookUrl = 'https://us-central1-fitness-tracker-gb-1775407101.cloudfunctions.net/logWebhook';
   protected get REMINDER_HOUR(): number {
     return (this.firebase.profile() as any)?.reminderHour ?? 20;
+  }
+
+  private detectRoute(): 'privacy' | 'terms' | null {
+    const path = window.location.pathname.toLowerCase();
+    if (path === '/privacy' || path === '/privacy/') return 'privacy';
+    if (path === '/terms' || path === '/terms/') return 'terms';
+    return null;
   }
 
   protected readonly todayLabel = computed(() => {

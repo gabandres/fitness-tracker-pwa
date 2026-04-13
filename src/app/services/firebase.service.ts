@@ -16,6 +16,7 @@ import {
   deleteField,
 } from '@angular/fire/firestore';
 import { Auth } from '@angular/fire/auth';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 
 // ─── Log types ──────────────────────────────────────────────────
 // Note: `liftCompleted` and `cardioCompleted` are legacy fields kept
@@ -120,6 +121,7 @@ export interface UserProfile extends Partial<ProfileFields> {
 export class FirebaseService {
   private readonly firestore = inject(Firestore);
   private readonly auth = inject(Auth);
+  private readonly functions = inject(Functions);
 
   private readonly _profile = signal<UserProfile | null>(null);
   readonly profile = this._profile.asReadonly();
@@ -231,6 +233,15 @@ export class FirebaseService {
     await updateDoc(ref, { fcmToken: token, timezoneOffsetMin: tz, lastSeenAt: Timestamp.now() });
     const current = this._profile();
     if (current) this._profile.set({ ...current, fcmToken: token, timezoneOffsetMin: tz } as any);
+  }
+
+  /** Permanently delete the current user's account and all associated
+      data. Calls the deleteAccount Cloud Function, which removes
+      Firestore subcollections and the Firebase Auth user. After this
+      resolves, sign-out the client and redirect to /. */
+  async deleteMyAccount(): Promise<void> {
+    const callable = httpsCallable<void, { success: boolean }>(this.functions, 'deleteAccount');
+    await callable();
   }
 
   /** Clear FCM token (permission revoked). */

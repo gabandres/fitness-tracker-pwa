@@ -6,6 +6,13 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-12 — Privacy, terms, account deletion
+
+- **Privacy policy** at `/privacy` — plain English, covers what's stored, what goes to Google's Gemini (photos + consultation context), what we don't do (no selling, no ads, no AI training on your data), and your export/delete rights.
+- **Terms of use** at `/terms` — short version: use it as intended, not medical advice, you own your data.
+- **Account deletion** — "delete my account" button on the privacy page. Confirmation-gated. Calls a new `deleteAccount` Cloud Function that cascades Firestore subcollections (dailyLogs, presets, reports, dailyWeights, measurements), purges photoQuota, deletes the profile doc, and removes the Firebase Auth user. Irreversible; GDPR-compliant.
+- **Footer links** — privacy · terms · contact (mailto:macrolog.support&#64;gmail.com).
+
 ## 2026-04-12 — UX audit foundations
 
 - **"kcal remaining today" hero** — the primary user question ("can I eat this?") is now answered in a big serif number at the top of the ledger. Oxblood when over budget.
