@@ -24,7 +24,7 @@
 - Today weight + "new entry" CTA
 - Add/edit entry panel (hosts `entry-form`, `photo-capture`, `barcode-scanner`, `preset-picker`)
 - Log tape grouped by day (progress bars on today, inline per-day add, tap-to-edit meals)
-- Undo-delete toast (5s)
+- Undo-delete toast (8s, fully tappable)
 
 **Right column — stacked:**
 - `measurements.component` — waist/chest/bicep/hip with deltas
@@ -112,7 +112,8 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 
 ### 🟠 S6 — Quiet state feedback
 
-- [ ] Lengthen undo-delete toast to 8–10s and make the whole toast tappable
+- [x] ~~Lengthen undo-delete toast to 8–10s~~ — already 8s in `fitness-store.service.ts:390`; audit was stale *(2026-04-12)*
+- [x] Make the whole undo toast tappable (was undo-button-only) *(2026-04-12)*
 - [ ] Photo-analyze errors should toast, not render inline where scroll hides them
 - [ ] "filing…" / "transmitting…" / "saving…" — pick one verb; reuse everywhere (addressed partially in S1)
 
@@ -127,7 +128,7 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 
 ### 🟡 S8 — Cold-start / empty-state
 
-- [ ] Fix ledger empty-state copy: "tap the button below" when button is at the *top*
+- [x] Fix ledger empty-state copy: "tap the button below" when button is at the *top* *(2026-04-12)*
 - [ ] Add try-this specimen card for first run with tap-to-fill examples (coffee, chicken+rice)
 - [ ] Hide consultation panel until ≥3 entries exist (otherwise Gemini has nothing to analyze)
 
@@ -146,9 +147,9 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 ### Ship this week (cheap, high-impact)
 - [x] **Copy pass** (S1 items checked above) — *2026-04-12*
 - [x] **A11y foundations** (S5 items checked above) — *2026-04-12*
-- [ ] Fix ledger empty-state copy contradiction (S8)
-- [ ] Lengthen undo toast to 8s, full-toast tappable (S6)
-- [ ] Promote "kcal remaining today" hero (S4)
+- [x] Fix ledger empty-state copy contradiction (S8) — *2026-04-12*
+- [x] Make undo toast fully tappable (S6) — toast was already 8s — *2026-04-12*
+- [ ] Promote "kcal remaining today" hero (S4) — **needs design call on placement**
 
 ### Ship next (small surgery)
 - [ ] Consolidate footer → settings sheet (S3)
@@ -172,3 +173,4 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 ## 6. Change log
 
 - **2026-04-12** — Initial audit written; S1 copy pass + S5 a11y foundations shipped in same commit.
+- **2026-04-12** — S8 empty-state copy fixed; S6 undo toast made fully tappable (toast was already 8s — audit initially said 5s, corrected).

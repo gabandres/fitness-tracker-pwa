@@ -291,26 +291,25 @@ interface DayGroup {
         <!-- Empty state -->
         @if (dayGroups().length === 0) {
           <div class="py-8 text-center">
-            <p class="caption text-[11px]">tap the button below to record your first entry.</p>
+            <p class="caption text-[11px]">no entries yet — tap <span class="text-ink">new entry</span> above to record your first.</p>
           </div>
         }
       </div>
 
-      <!-- Undo delete toast -->
+      <!-- Undo delete toast: whole toast is tappable for easier thumb targeting -->
       @if (store.undoEntry()) {
         <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 ink-in"
           role="status" aria-live="polite">
-          <div class="specimen px-4 py-2.5 flex items-center gap-3 bg-paper shadow-lg"
+          <button type="button" (click)="store.undoDelete()"
+            aria-label="Undo delete entry"
+            class="specimen undo-toast px-4 py-3 flex items-center gap-3 bg-paper shadow-lg cursor-pointer"
             style="border-color: var(--color-blood)">
             <span class="crop-bl" style="border-color: var(--color-blood)"></span>
             <span class="crop-br" style="border-color: var(--color-blood)"></span>
             <span class="font-sans text-xs tracking-[0.08em] text-ink">entry deleted</span>
-            <button type="button" (click)="store.undoDelete()"
-              aria-label="Undo delete"
-              class="tag-btn text-[11px]" style="border-color: var(--color-blood); color: var(--color-blood)">
-              undo
-            </button>
-          </div>
+            <span class="tag-btn text-[11px] pointer-events-none"
+              style="border-color: var(--color-blood); color: var(--color-blood)">undo</span>
+          </button>
         </div>
       }
     </section>
