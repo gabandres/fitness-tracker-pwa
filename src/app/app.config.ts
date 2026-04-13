@@ -1,4 +1,5 @@
-import { ApplicationConfig, provideBrowserGlobalErrorListeners, isDevMode } from '@angular/core';
+import { ApplicationConfig, ErrorHandler, provideBrowserGlobalErrorListeners, isDevMode } from '@angular/core';
+import * as Sentry from '@sentry/angular';
 import { provideRouter } from '@angular/router';
 import { provideFirebaseApp, initializeApp, getApp } from '@angular/fire/app';
 import {
@@ -36,5 +37,10 @@ export const appConfig: ApplicationConfig = {
       enabled: !isDevMode(),
       registrationStrategy: 'registerWhenStable:30000',
     }),
+    // Sentry error handler: reports uncaught exceptions to Sentry when a
+    // DSN is configured. When no DSN is set, Sentry.init() in main.ts is
+    // skipped and this handler silently passes through — no user-visible
+    // difference from the default Angular handler.
+    { provide: ErrorHandler, useValue: Sentry.createErrorHandler() },
   ],
 };

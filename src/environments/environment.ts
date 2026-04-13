@@ -18,4 +18,13 @@ export const environment = {
     // gemini-3-flash-preview, gemini-3.1-flash-lite-preview, gemini-pro-latest.
     model: 'gemini-flash-latest',
   },
+  // Sentry error monitoring. Paste your DSN here — if left empty, the
+  // integration no-ops (no init, no error handler registration), so
+  // there's no cost to committing an empty value. DSNs are a public
+  // identifier; safe to commit alongside other env config.
+  sentry: {
+    dsn: 'https://04ad050b06e105d05b66ff645e45557b@o507481.ingest.us.sentry.io/4511210459889664',
+    // 1.0 = sample every error; 0.0 = sample none. Client-side only.
+    sampleRate: 1.0,
+  },
 };

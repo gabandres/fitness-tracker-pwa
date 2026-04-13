@@ -67,7 +67,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 
         <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">Contact</h2>
         <p>
-          Email <a href="mailto:macrolog.support&#64;gmail.com" class="underline">macrolog.support&#64;gmail.com</a>
+          Email <a href="mailto:gabrielandresbermudez&#64;gmail.com" class="underline">gabrielandresbermudez&#64;gmail.com</a>
           with anything — bug reports, data-deletion requests, feature
           ideas, or complaints.
         </p>

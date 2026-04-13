@@ -70,7 +70,7 @@ type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'error';
         <ul>
           <li><strong>Export</strong>: download all your logs as CSV from the dashboard at any time.</li>
           <li><strong>Delete</strong>: use the button below to permanently erase your account and every log, preset, weight, measurement, and report tied to it. This is irreversible.</li>
-          <li><strong>Questions</strong>: email <a href="mailto:macrolog.support&#64;gmail.com" class="underline">macrolog.support&#64;gmail.com</a>.</li>
+          <li><strong>Questions</strong>: email <a href="mailto:gabrielandresbermudez&#64;gmail.com" class="underline">gabrielandresbermudez&#64;gmail.com</a>.</li>
         </ul>
 
         <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">Medical disclaimer</h2>

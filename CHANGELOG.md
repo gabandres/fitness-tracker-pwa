@@ -6,6 +6,11 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-12 — Sentry wired, contact email set
+
+- **Sentry error monitoring** wired via `@sentry/angular`. Uncaught client errors now report to the `macrolog` project in Sentry. DSN + sample rate live in `environment.ts`; init is a no-op if DSN is empty so we can keep the env file committable.
+- **Contact email** swapped to `gabrielandresbermudez@gmail.com` in privacy, terms, and footer.
+
 ## 2026-04-12 — Privacy, terms, account deletion
 
 - **Privacy policy** at `/privacy` — plain English, covers what's stored, what goes to Google's Gemini (photos + consultation context), what we don't do (no selling, no ads, no AI training on your data), and your export/delete rights.

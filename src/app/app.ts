@@ -228,7 +228,7 @@ import { PushNotificationService } from './services/push-notification.service';
               &middot;
               <a href="/terms" class="underline decoration-dotted hover:text-blood">terms</a>
               &middot;
-              <a href="mailto:macrolog.support&#64;gmail.com" class="underline decoration-dotted hover:text-blood">contact</a>
+              <a href="mailto:gabrielandresbermudez&#64;gmail.com" class="underline decoration-dotted hover:text-blood">contact</a>
             </p>
 
             <!-- Webhook settings (collapsible) -->
