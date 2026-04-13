@@ -100,7 +100,8 @@ interface DayGroup {
                 {{ chip.dateNum }}
               </span>
               @if (chip.hasData) {
-                <span class="w-1 h-1 rounded-full mt-0.5" style="background: var(--color-blood)"></span>
+                <span class="w-1 h-1 rounded-full mt-0.5" style="background: var(--color-olive)"
+                  aria-label="has entries"></span>
               }
             </button>
           }

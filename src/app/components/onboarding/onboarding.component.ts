@@ -35,7 +35,7 @@ interface PaceOption {
         <!-- Header -->
         <div class="flex items-center gap-3 mb-1">
           <span class="stamp-mark">{{ editMode() ? 'amend' : 'intake' }}</span>
-          <span class="data-label">field form &middot; 001</span>
+          <span class="data-label">your details</span>
         </div>
         <h2 class="font-display text-3xl sm:text-4xl leading-[0.95] text-ink mt-3">
           {{ editMode() ? 'Amend your' : 'Before we' }}<br/>
@@ -150,11 +150,14 @@ interface PaceOption {
             </div>
           </div>
 
-          <!-- 5. Cut pace -->
+          <!-- 5. Weekly fat-loss target (a.k.a. cut pace) -->
           <div>
-            <label class="data-label block mb-2">v. cut pace</label>
+            <label class="data-label block mb-2">
+              v. weekly fat-loss target
+              <span class="normal-case italic text-graphite tracking-normal text-[11px]">(cut pace)</span>
+            </label>
             <p class="caption text-xs mb-2">
-              how aggressively to run the deficit. faster is harder to sustain.
+              how much weight to lose per week. faster is harder to sustain.
             </p>
             <div class="grid grid-cols-2 gap-2">
               @for (opt of paceOptions; track opt.value) {

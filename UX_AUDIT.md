@@ -62,11 +62,11 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 - [x] Replace "break fast" → "end fast" (literal collision with "breakfast") *(2026-04-12)*
 - [x] Consolidate save verbs: "filing…" (onboarding) → "saving…" to match entry-form *(2026-04-12)*
 - [x] Add plain sub-headline on sign-in: one sentence on what the app does *(2026-04-12)*
-- [ ] Add "?" affordance to each dashboard readout (`target`, `true tdee`, `weight`) with a one-line tooltip
-- [ ] Relabel "cut pace" in onboarding as "weekly fat-loss target" (keep "cut pace" as secondary text)
-- [ ] Drop "fin" footer divider (rule itself is sufficient)
-- [ ] Replace `specimen · personal use · confidential` footer text with version + "made for you"
-- [ ] Rename onboarding section title from `field form · 001` to plain "your details" (keep stamp marks)
+- [x] Add "?" affordance to each dashboard readout (`target`, `true tdee`, `weight`) with a one-line tooltip *(2026-04-12)*
+- [x] Relabel "cut pace" in onboarding as "weekly fat-loss target" (keep "cut pace" as secondary text) *(2026-04-12)*
+- [x] Drop "fin" footer divider (rule itself is sufficient) *(2026-04-12)*
+- [x] Replace `specimen · personal use · confidential` footer text with "made for you · private" *(2026-04-12)*
+- [x] Rename onboarding section title from `field form · 001` to plain "your details" (keep stamp marks) *(2026-04-12)*
 
 **Why:** brand voice should live in typography + frames, not in *function-gating* words. New users should never have to decode a label to continue.
 
@@ -136,7 +136,7 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 
 ### 🟡 S9 — Micro-interactions
 
-- [ ] Date chip: two red signals (dot = data; border = today) — differentiate
+- [x] Date chip: differentiated the two signals — has-data dot is now olive, today border stays oxblood *(2026-04-12)*
 - [ ] Add once-per-session swipe hint on ledger ("swipe to change day ↔")
 - [ ] Space sign-out / theme toggle apart + add icons; currently 2 chars apart, easy to mis-tap
 
@@ -175,3 +175,4 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 - **2026-04-12** — Initial audit written; S1 copy pass + S5 a11y foundations shipped in same commit.
 - **2026-04-12** — S8 empty-state copy fixed; S6 undo toast made fully tappable (toast was already 8s — audit initially said 5s, corrected).
 - **2026-04-12** — S4 "kcal remaining today" hero shipped at top of the ledger (below travel-mode banner, above streak). Dashboard 3-up readout left untouched deliberately; re-evaluate after a week of use.
+- **2026-04-12** — Copy/cheap bucket: "?" tooltips on dashboard readouts (tap-to-reveal), "cut pace" → "weekly fat-loss target", dropped "fin", footer "specimen · confidential" → "made for you · private", onboarding "field form · 001" → "your details", date-chip has-data dot changed from oxblood to olive (differentiates from today's border).

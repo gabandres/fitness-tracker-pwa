@@ -169,10 +169,10 @@ import { PushNotificationService } from './services/push-notification.service';
 
         <!-- Footer -->
         <footer class="mt-16 ink-in delay-6">
-          <div class="rule"><span>fin</span></div>
+          <div class="rule"></div>
           <div class="mt-6 flex items-center justify-between text-xs tracking-[0.18em] uppercase text-graphite font-mono">
-            <span>specimen · personal use</span>
-            <span class="stamp-mark">confidential</span>
+            <span>made for you</span>
+            <span class="stamp-mark">private</span>
           </div>
           @if (auth.user(); as u) {
             <p class="caption mt-4 text-center">

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { marked } from 'marked';
 import { FitnessStore } from '../../services/fitness-store.service';
@@ -26,24 +26,44 @@ interface SparklinePoint { x: number; y: number; }
           </div>
         </div>
       } @else {
-        <!-- Target / TDEE / Weight -->
+        <!-- Target / TDEE / Weight (tap a ? to learn what each means) -->
         <div class="mt-4 grid grid-cols-3 gap-2">
-          <div class="min-w-0">
-            <div class="data-label mb-1">target</div>
+          <div class="min-w-0" title="What you should eat each day to hit your weekly cut pace.">
+            <div class="data-label mb-1 flex items-center gap-1">
+              <span>target</span>
+              <button type="button" (click)="toggleHelp('target')"
+                aria-label="What is target?"
+                class="readout-help">?</button>
+            </div>
             <div class="readout-mono truncate">{{ store.tdee().newDailyTarget }}</div>
             <div class="data-label mt-0.5 opacity-60">kcal/day</div>
           </div>
-          <div class="min-w-0">
-            <div class="data-label mb-1">true tdee</div>
+          <div class="min-w-0" title="Estimated calories you burn on an average day. After 14 days of logging this shifts from the formula estimate to your real measured rate.">
+            <div class="data-label mb-1 flex items-center gap-1">
+              <span>true tdee</span>
+              <button type="button" (click)="toggleHelp('tdee')"
+                aria-label="What is true tdee?"
+                class="readout-help">?</button>
+            </div>
             <div class="readout-mono truncate">{{ store.tdee().trueTdee }}</div>
             <div class="data-label mt-0.5 opacity-60">kcal/day</div>
           </div>
-          <div class="min-w-0">
-            <div class="data-label mb-1">weight</div>
+          <div class="min-w-0" title="Latest logged weight. 14-day EMA smoothing is shown on the sparkline below.">
+            <div class="data-label mb-1 flex items-center gap-1">
+              <span>weight</span>
+              <button type="button" (click)="toggleHelp('weight')"
+                aria-label="What is weight?"
+                class="readout-help">?</button>
+            </div>
             <div class="readout-mono truncate">{{ store.currentWeight() ?? '—' }}</div>
             <div class="data-label mt-0.5 opacity-60">lbs</div>
           </div>
         </div>
+        @if (helpOpen(); as which) {
+          <p class="caption text-xs mt-2 italic text-graphite leading-relaxed slide-down">
+            {{ helpText(which) }}
+          </p>
+        }
 
         @if (store.logs().length < 14) {
           <div class="mt-3 flex items-center gap-2">
@@ -345,6 +365,19 @@ export class DashboardComponent {
     localStorage.setItem('macrolog.tdee-transition-dismissed', '1');
     // Force re-evaluation by refreshing store (the computed checks localStorage).
     this.store.refresh();
+  }
+
+  // ── Readout "?" help tooltips (tap to reveal, same tap to hide) ──
+  protected readonly helpOpen = signal<'target' | 'tdee' | 'weight' | null>(null);
+  protected toggleHelp(which: 'target' | 'tdee' | 'weight'): void {
+    this.helpOpen.set(this.helpOpen() === which ? null : which);
+  }
+  protected helpText(which: 'target' | 'tdee' | 'weight'): string {
+    switch (which) {
+      case 'target': return 'what to eat each day to hit your weekly cut pace. auto-adjusts when your measured tdee drifts.';
+      case 'tdee':   return 'calories you burn on an average day. after 14 days this switches from a formula estimate to your real measured rate.';
+      case 'weight': return 'latest logged weight. the sparkline below shows a 14-day smoothed trend so day-to-day noise doesn\'t dominate.';
+    }
   }
 
   // ── Weekly report rendering ──────────────────────────────────
