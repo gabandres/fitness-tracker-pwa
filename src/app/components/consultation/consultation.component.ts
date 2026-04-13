@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { marked } from 'marked';
 import { GeminiService } from '../../services/gemini.service';
 import { FitnessStore } from '../../services/fitness-store.service';
+import { SubscriptionService } from '../../services/subscription.service';
 
 type Status = 'idle' | 'streaming' | 'done' | 'error';
 
@@ -31,6 +32,12 @@ interface SuggestedPrompt {
         <p class="caption mt-2 text-[11px]">
           ask anything about your data. your fourteen-day record is attached
           automatically. responses are streamed from gemini.
+          @if (!subs.isPaid() && remaining() !== null) {
+            <span class="ml-1 font-mono not-italic"
+              [style.color]="remaining()! <= 1 ? 'var(--color-gold)' : 'var(--color-graphite)'">
+              ({{ remaining() }} of {{ limit() }} left today)
+            </span>
+          }
         </p>
       </div>
 
@@ -95,7 +102,17 @@ interface SuggestedPrompt {
           }
 
           @if (status() === 'error') {
-            <p class="font-mono text-[11px] text-blood mt-3">✕ {{ errorMsg() }}</p>
+            <div class="mt-3 specimen px-4 py-3" style="border-color: var(--color-blood)">
+              <span class="crop-bl" style="border-color: var(--color-blood)"></span>
+              <span class="crop-br" style="border-color: var(--color-blood)"></span>
+              <p class="font-sans text-sm text-blood">{{ errorMsg() }}</p>
+              @if (overLimit()) {
+                <p class="caption text-[11px] mt-2">
+                  subscribe for unlimited consultations, higher photo quota, and more.
+                  open <span class="text-ink">settings → subscription</span>.
+                </p>
+              }
+            </div>
           }
         </article>
       }
@@ -106,7 +123,17 @@ interface SuggestedPrompt {
 export class ConsultationComponent {
   private readonly store = inject(FitnessStore);
   private readonly gemini = inject(GeminiService);
+  protected readonly subs = inject(SubscriptionService);
   private readonly sanitizer = inject(DomSanitizer);
+
+  /** Remaining free consultations today. Populated after each ask()
+      from the `reserveConsultation` response. `null` means "unknown"
+      (we haven't asked anything yet this session). */
+  protected readonly remaining = signal<number | null>(null);
+  protected readonly limit = signal<number>(5);
+  protected readonly overLimit = computed(() =>
+    this.status() === 'error' && /limit|exhausted/i.test(this.errorMsg()),
+  );
 
   protected readonly suggested: SuggestedPrompt[] = [
     { label: 'am i on track?', prompt: 'How am I progressing toward my cut goal? Be specific about what the data shows.' },
@@ -134,7 +161,17 @@ export class ConsultationComponent {
     this.renderedHtml.set('' as SafeHtml);
     this.errorMsg.set('');
 
+    // Reserve a consultation slot server-side BEFORE streaming.
+    // Free tier: 5/day; paid: unlimited. Throws resource-exhausted
+    // over the cap. `reserved` tracks whether we owe the user a
+    // release on downstream failure.
+    let reserved = false;
     try {
+      const reservation = await this.gemini.reserveConsultation();
+      this.limit.set(reservation.limit);
+      this.remaining.set(reservation.remaining < 0 ? null : reservation.remaining);
+      reserved = true;
+
       // All data is already cached in the store — no Firestore call needed.
       const logs = this.store.logs();
       const tdee = this.store.tdee();
@@ -163,6 +200,15 @@ export class ConsultationComponent {
     } catch (err) {
       this.status.set('error');
       this.errorMsg.set(err instanceof Error ? err.message : 'Consultation failed.');
+      // If we successfully reserved a slot but the stream then failed,
+      // refund it so the user isn't silently penalised for a transient
+      // error. If reservation itself threw, there's nothing to release.
+      if (reserved) {
+        void this.gemini.releaseConsultation();
+        // Reflect the refund optimistically in the UI counter.
+        const cur = this.remaining();
+        if (cur != null) this.remaining.set(cur + 1);
+      }
     }
   }
 }

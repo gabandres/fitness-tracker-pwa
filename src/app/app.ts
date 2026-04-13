@@ -177,9 +177,15 @@ import { localDateKey } from './utils/date';
                 <div class="ink-in delay-3">
                   <app-dashboard />
                 </div>
-                <div class="ink-in delay-4">
-                  <app-consultation />
-                </div>
+                <!-- Consultation requires ≥3 entries; on day 0 there's no
+                     data to coach against, so the panel would just get a
+                     "generate more data" reply. Hiding it keeps the cold-
+                     start clean. -->
+                @if (store.logs().length >= 3) {
+                  <div class="ink-in delay-4">
+                    <app-consultation />
+                  </div>
+                }
                 <div class="ink-in delay-5">
                   <app-fasting />
                 </div>

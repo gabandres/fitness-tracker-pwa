@@ -1,9 +1,20 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { GoogleGenAI } from '@google/genai';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import { environment } from '../../environments/environment';
 import { DailyLog, ProfileFields } from './firebase.service';
 import { localDateKey } from '../utils/date';
 import { TdeeResult } from './tdee-calculator.service';
+
+/** Quota reservation response from the `reserveConsultation` Cloud
+    Function. `remaining < 0` means the user is on a paid plan and
+    there is no cap. `capped === true` is reserved for future soft-
+    cap scenarios (we currently only throw or return success). */
+export interface ConsultationReservation {
+  capped: boolean;
+  remaining: number;
+  limit: number;
+}
 
 /**
  * Thin wrapper around the Google GenAI SDK.
@@ -20,11 +31,48 @@ import { TdeeResult } from './tdee-calculator.service';
  */
 @Injectable({ providedIn: 'root' })
 export class GeminiService {
+  private readonly functions = inject(Functions);
   private readonly client = new GoogleGenAI({
     apiKey: environment.gemini.apiKey,
   });
 
   private readonly model = environment.gemini.model;
+
+  /**
+   * Atomically reserve one consultation for the signed-in user.
+   * Paid users (stripeRole=paid) always succeed with remaining=-1.
+   * Free users get 5/day; over-limit throws a `FirebaseError` with
+   * code "functions/resource-exhausted".
+   *
+   * Callers should wrap this + the streaming call in a try/catch and
+   * surface the error message — it's user-facing.
+   */
+  async reserveConsultation(): Promise<ConsultationReservation> {
+    const callable = httpsCallable<undefined, ConsultationReservation>(
+      this.functions,
+      'reserveConsultation',
+    );
+    const { data } = await callable();
+    return data;
+  }
+
+  /**
+   * Refund a consultation slot after a post-reserve failure (network,
+   * Gemini 5xx, safety-block). Fire-and-forget — we log but don't
+   * surface failures to the user since the worst case is a single
+   * wasted slot on a rare double-failure.
+   */
+  async releaseConsultation(): Promise<void> {
+    try {
+      const callable = httpsCallable<undefined, { released: boolean }>(
+        this.functions,
+        'releaseConsultation',
+      );
+      await callable();
+    } catch (err) {
+      console.warn('releaseConsultation failed; slot remains consumed.', err);
+    }
+  }
 
   /**
    * Stream a coaching response to the user's question. The 14-day

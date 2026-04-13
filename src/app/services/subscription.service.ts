@@ -72,6 +72,23 @@ export class SubscriptionService {
         this.isPaid.set(false);
       }
     });
+
+    // Force an ID-token refresh whenever the subscription status
+    // transitions to paid. The Stripe Firebase Extension sets the
+    // `stripeRole=paid` custom claim server-side, but clients cache
+    // ID tokens for up to an hour — without this refresh, paid users
+    // could be told "daily limit reached" on their first consultation
+    // after checkout because the token still reads as free-tier.
+    let wasPaid = false;
+    effect(() => {
+      const nowPaid = this.isPaid();
+      if (nowPaid && !wasPaid) {
+        this.auth.currentUser?.getIdToken(true).catch((err) => {
+          console.warn('Failed to refresh ID token after subscription change:', err);
+        });
+      }
+      wasPaid = nowPaid;
+    });
   }
 
   /**

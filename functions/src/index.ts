@@ -264,7 +264,91 @@ Common Puerto Rican / Latin staples for reference:
   },
 );
 
-// ─── Feature 3: Account deletion (GDPR right to erasure) ──────────
+// ─── Feature 3: Consultation quota (AI coach rate limit) ─────────
+//
+// The AI coach (Gemini consultations) is free-tier on the client side
+// but shared across all users on the project's Gemini API quota. One
+// power user could monopolize it. This callable:
+//   1. Verifies auth
+//   2. Gives paid users (stripeRole=paid claim) unlimited access
+//   3. Caps free users at CONSULTATION_DAILY_LIMIT per calendar day
+//      (UTC), atomically incrementing a Firestore counter. Over-limit
+//      throws HttpsError('resource-exhausted').
+//
+// Client calls this BEFORE streaming the Gemini response. On success
+// the client proceeds with the direct Gemini SDK call. On failure the
+// client shows an upgrade pitch.
+
+const CONSULTATION_DAILY_LIMIT = 5;
+
+export const reserveConsultation = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be signed in.");
+  }
+  const uid = request.auth.uid;
+  const role = (request.auth.token as { stripeRole?: string }).stripeRole;
+
+  // Paid users bypass the quota entirely. We don't write a counter
+  // doc for them since it would never be read.
+  if (role === "paid") {
+    return { capped: false, remaining: -1, limit: CONSULTATION_DAILY_LIMIT };
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+  const quotaRef = db.collection("consultationQuota").doc(`${uid}_${today}`);
+
+  let remaining = 0;
+  await db.runTransaction(async (tx) => {
+    const doc = await tx.get(quotaRef);
+    const used: number = doc.exists ? (doc.data()!.count as number) : 0;
+    if (used >= CONSULTATION_DAILY_LIMIT) {
+      throw new HttpsError(
+        "resource-exhausted",
+        `Daily free-tier limit of ${CONSULTATION_DAILY_LIMIT} consultations reached. Subscribe for unlimited.`,
+      );
+    }
+    const newCount = used + 1;
+    tx.set(quotaRef, { count: newCount, uid, date: today }, { merge: true });
+    remaining = CONSULTATION_DAILY_LIMIT - newCount;
+  });
+
+  return { capped: false, remaining, limit: CONSULTATION_DAILY_LIMIT };
+});
+
+/**
+ * Refund a previously-reserved consultation slot. Called by the client
+ * when the streaming Gemini call fails AFTER reservation (network blip,
+ * Gemini 5xx, safety block). Without this, a transient failure silently
+ * consumes one of the user's daily slots.
+ *
+ * Decrements the current-day counter but will not go below zero — so
+ * a bad client can't build up credit by spam-calling release.
+ */
+export const releaseConsultation = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be signed in.");
+  }
+  const uid = request.auth.uid;
+  const role = (request.auth.token as { stripeRole?: string }).stripeRole;
+
+  // Paid users never had a slot reserved — nothing to release.
+  if (role === "paid") return { released: false };
+
+  const today = new Date().toISOString().split("T")[0];
+  const quotaRef = db.collection("consultationQuota").doc(`${uid}_${today}`);
+
+  await db.runTransaction(async (tx) => {
+    const doc = await tx.get(quotaRef);
+    if (!doc.exists) return;
+    const used: number = doc.data()!.count as number;
+    if (used <= 0) return;
+    tx.set(quotaRef, { count: used - 1 }, { merge: true });
+  });
+
+  return { released: true };
+});
+
+// ─── Feature 4: Account deletion (GDPR right to erasure) ──────────
 
 /**
  * Recursively delete all documents in a subcollection in batches of 500
@@ -306,15 +390,17 @@ export const deleteAccount = onCall(async (request) => {
       deleteSubcollection(userPath, "measurements"),
     ]);
 
-    // 2. Delete any photoQuota docs prefixed with this uid.
-    //    Doc IDs are `${uid}_${date}` so a range query works here.
-    const quotaSnap = await db.collection("photoQuota")
-      .where("uid", "==", uid)
-      .get();
-    if (!quotaSnap.empty) {
-      const batch = db.batch();
-      quotaSnap.docs.forEach((d) => batch.delete(d.ref));
-      await batch.commit();
+    // 2. Delete quota docs (photo + consultation). Doc IDs are
+    //    `${uid}_${date}` and carry a `uid` field for query filtering.
+    for (const coll of ["photoQuota", "consultationQuota"]) {
+      const quotaSnap = await db.collection(coll)
+        .where("uid", "==", uid)
+        .get();
+      if (!quotaSnap.empty) {
+        const batch = db.batch();
+        quotaSnap.docs.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
     }
 
     // 3. Delete the user profile doc itself.

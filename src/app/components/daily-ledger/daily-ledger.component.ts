@@ -89,6 +89,18 @@ interface DayGroup {
         </div>
       }
 
+      <!-- Once-per-session swipe hint: the log tape supports swipe-to-
+           change-day gestures on mobile, but there's no visual
+           affordance. This hint shows once per browser session and
+           dismisses on any interaction. -->
+      @if (showSwipeHint()) {
+        <button type="button" (click)="dismissSwipeHint()"
+          class="w-full text-center font-display italic text-graphite text-xs py-1 mb-2 ink-in hover:text-ink transition-colors"
+          aria-label="Dismiss swipe hint">
+          ← swipe the log to change day →
+        </button>
+      }
+
       <!-- ─── Date navigation strip ──────────────────────────── -->
       <div class="date-strip-scroll overflow-x-auto -mx-1 px-1 pb-2 mb-3">
         <div class="flex gap-1.5 min-w-max">
@@ -446,6 +458,19 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
     this.form.applyEstimate(estimate);
   }
 
+  // ── Swipe hint (once per browser session) ──────────────────
+  /** `true` until the user dismisses it or navigates away. sessionStorage
+      persists across reloads within the tab but clears when the tab
+      closes — perfect for "show once" nudges. */
+  protected readonly showSwipeHint = signal(
+    typeof sessionStorage !== 'undefined' &&
+    !sessionStorage.getItem('macrolog.swipe-hint-dismissed'),
+  );
+  protected dismissSwipeHint(): void {
+    this.showSwipeHint.set(false);
+    try { sessionStorage.setItem('macrolog.swipe-hint-dismissed', '1'); } catch {}
+  }
+
   // ── Date navigation strip: last 14 calendar days ────────────
   protected readonly dateChips = computed<DateChip[]>(() => {
     const groups = this.dayGroups();
@@ -492,6 +517,9 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
     } else if (dx < 0 && idx < chips.length - 1) {
       this.scrollToDay(chips[idx + 1].dateKey);
     }
+    // A successful swipe proves the user has discovered the gesture —
+    // don't keep showing the hint.
+    if (this.showSwipeHint()) this.dismissSwipeHint();
   }
 
   // ── Day grouping ────────────────────────────────────────────

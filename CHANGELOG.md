@@ -6,6 +6,15 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-13 — Consultation quota + polish items
+
+- **AI coach rate limit.** New `reserveConsultation` + `releaseConsultation` Cloud Functions. Free tier: 5/day (atomic Firestore counter, transactional). Paid tier (stripeRole=paid claim): unlimited. Consultation component calls reserve before streaming and release on post-reserve failure so a transient Gemini error doesn't silently consume a slot. Counter "N of 5 left today" shows in the composer caption; over-limit error points at the Subscribe surface.
+- **ID token refresh on subscription change.** `SubscriptionService` now forces a `getIdToken(true)` when `isPaid` flips true, so a newly-subscribed user doesn't hit the free-tier cap until their cached token expires.
+- **Photo error polish.** Photo-to-Macros failures now render in a prominent dismissible red-border specimen card (was plain inline text that got lost in scroll).
+- **Swipe hint.** Once-per-session prompt above the date chips — "← swipe the log to change day →". Auto-dismisses on successful swipe or tap. sessionStorage-gated.
+- **Consultation panel auto-hides with < 3 entries.** Cold-start users don't see an AI coach panel that would produce unhelpful "need more data" replies.
+- **Account deletion now purges consultationQuota docs** alongside photoQuota.
+
 ## 2026-04-13 — Stripe extension installed and wired
 
 - **Firebase Stripe Extension live** (`invertase/firestore-stripe-payments@0.3.11`). Declarative install via `firebase.json` + `extensions/firestore-stripe-payments.env`. Secrets stored in GCP Secret Manager.

@@ -23,11 +23,22 @@ import { MacroEstimate } from '../../models/macro-estimate';
     <input #photoInput type="file" accept="image/*" capture="environment"
       class="hidden" (change)="onPhotoCaptured($event)" />
     @if (photoStatus() === 'error') {
-      <p class="font-sans text-xs text-blood mt-1">✕ {{ photoError() }}</p>
+      <!-- Prominent error card so a photo-analysis failure doesn't get
+           lost in the form scroll. Dismissible via the X. -->
+      <div class="mt-2 specimen px-3 py-2 flex items-start gap-2"
+        role="status" aria-live="polite"
+        style="border-color: var(--color-blood)">
+        <span class="crop-bl" style="border-color: var(--color-blood)"></span>
+        <span class="crop-br" style="border-color: var(--color-blood)"></span>
+        <span class="font-sans text-xs text-blood flex-1">{{ photoError() }}</span>
+        <button type="button" (click)="photoStatus.set('idle'); photoError.set('')"
+          aria-label="Dismiss photo error"
+          class="text-blood text-base leading-none shrink-0">&times;</button>
+      </div>
     }
     @if (lastConfidence() === 'low') {
       <p class="font-sans text-[11px] mt-1" style="color: var(--color-gold)">
-        ⚠ low confidence — verify estimate
+        &#9888; low confidence &mdash; verify estimate
       </p>
     }
   `,

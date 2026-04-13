@@ -187,6 +187,16 @@ service cloud.firestore {
       }
     }
 
+    // ─── Consultation quota (AI coach rate limit) ───────────────
+    // Written by the reserveConsultation Cloud Function via the
+    // admin SDK (which bypasses these rules). Clients never need
+    // direct access — the callable returns remaining count in its
+    // response, so we default-deny to match photoQuota. Prevents
+    // any tenant-leak via doc-id guessing.
+    match /consultationQuota/{quotaId} {
+      allow read, write: if false;
+    }
+
     // ─── Stripe Firebase Extension ───────────────────────────────
     // Managed by ext: firestore-stripe-payments.
     // The extension writes customer/subscription/payment records
