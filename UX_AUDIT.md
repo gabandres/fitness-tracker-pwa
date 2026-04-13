@@ -122,8 +122,8 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 
 ### 🟡 S7 — Right-column density on desktop
 
-- [ ] Decide the grouping: does measurements + fasting belong next to analytics, or in a "body" tab, or collapsed by default? *User decision required.*
-- [ ] Make fasting chronometer a compact ledger-strip when active rather than a 200px SVG in the analytics column
+- [x] Decide the grouping — right column reordered to `dashboard → consultation → fasting → measurements` (high-use analytics first). Measurements + fasting stay in column but now below the primary analytics stack. *(2026-04-13)*
+- [x] Make fasting chronometer a compact ledger-strip when active. New `FastingStripComponent` renders at the top of the ledger showing elapsed time + end-fast button. The full 200px analog dial self-hides while fasting; re-appears idle for the start-fast CTA. *(2026-04-13)*
 
 **Why:** fasting is a chronometer, not analytics. Current stacking creates a ~6-screen scroll on desktop with weak topical grouping.
 
@@ -160,7 +160,7 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 - [ ] Contrast audit — fix graphite-soft / aged usage (S5)
 
 ### Needs a design decision first
-- [ ] Right-column grouping (S7) — user call
+- [x] Right-column grouping (S7) — reordered + fasting made ambient via strip *(2026-04-13)*
 
 ---
 

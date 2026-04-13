@@ -17,6 +17,11 @@ import { FitnessStore } from '../../services/fitness-store.service';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <!-- When a fast is active, FastingStripComponent at the top of the
+         ledger handles the visible UX. The full analog chronometer here
+         would be redundant, so we self-hide until the fast ends.
+         When idle, this section renders the start-fast CTA. -->
+    @if (!store.isFasting()) {
     <section>
       <div class="rule"><span>chronometer</span></div>
 
@@ -107,6 +112,7 @@ import { FitnessStore } from '../../services/fitness-store.service';
         </div>
       </div>
     </section>
+    }
   `,
 })
 export class FastingComponent implements OnInit, OnDestroy {

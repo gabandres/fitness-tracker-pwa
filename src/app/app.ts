@@ -160,19 +160,22 @@ import { PushNotificationService } from './services/push-notification.service';
               <div class="ink-in delay-3 lg:sticky lg:top-8">
                 <app-daily-ledger />
               </div>
-              <!-- Right column: Stats, measurements, AI coach -->
+              <!-- Right column: high-use first (analytics + coach),
+                   lower-use body/timer stuff after. Fasting self-hides
+                   when active (the strip at top of the ledger handles
+                   that UX). -->
               <div class="space-y-12 mt-12 lg:mt-0">
+                <div class="ink-in delay-3">
+                  <app-dashboard />
+                </div>
                 <div class="ink-in delay-4">
-                  <app-measurements />
+                  <app-consultation />
                 </div>
                 <div class="ink-in delay-5">
                   <app-fasting />
                 </div>
                 <div class="ink-in delay-6">
-                  <app-dashboard />
-                </div>
-                <div class="ink-in delay-6">
-                  <app-consultation />
+                  <app-measurements />
                 </div>
               </div>
             </div>

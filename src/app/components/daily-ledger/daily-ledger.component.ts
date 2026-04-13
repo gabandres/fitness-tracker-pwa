@@ -9,6 +9,7 @@ import { PhotoCaptureComponent } from '../photo-capture/photo-capture.component'
 import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.component';
 import { PresetPickerComponent } from '../preset-picker/preset-picker.component';
 import { StarterFoodsComponent } from '../starter-foods/starter-foods.component';
+import { FastingStripComponent } from '../fasting/fasting-strip.component';
 import { MacroEstimate } from '../../models/macro-estimate';
 
 interface DateChip {
@@ -32,11 +33,15 @@ interface DayGroup {
 @Component({
   selector: 'app-daily-ledger',
   standalone: true,
-  imports: [FormsModule, EntryFormComponent, PhotoCaptureComponent, BarcodeScannerComponent, PresetPickerComponent, StarterFoodsComponent],
+  imports: [FormsModule, EntryFormComponent, PhotoCaptureComponent, BarcodeScannerComponent, PresetPickerComponent, StarterFoodsComponent, FastingStripComponent],
   providers: [EntryFormManager],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section>
+      <!-- Ambient fasting strip: keeps elapsed time + end-fast CTA visible
+           while you're logging meals, without occupying 200px for the dial. -->
+      <app-fasting-strip />
+
       <!-- Travel mode banner -->
       @if (store.travelMode()) {
         <div class="specimen px-4 py-2.5 mb-4 flex items-center justify-between gap-3"
