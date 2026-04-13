@@ -69,9 +69,9 @@ interface SuggestedPrompt {
             class="stamp-btn"
           >
             @if (status() === 'streaming') {
-              <span>transmitting…</span>
+              <span>asking…</span>
             } @else {
-              <span>dispatch ⟶</span>
+              <span>ask ⟶</span>
             }
           </button>
         </div>

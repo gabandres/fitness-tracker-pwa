@@ -25,8 +25,7 @@ export class EntryFormManager {
   readonly entryDate = signal<string>(localDateKey(new Date()));
   readonly calories = signal<number | null>(null);
   readonly protein = signal<number | null>(null);
-  readonly liftDone = signal(false);
-  readonly cardioDone = signal(false);
+  readonly exerciseDone = signal(false);
 
   // ── Mode transitions ────────────────────────────────────────
 
@@ -49,8 +48,10 @@ export class EntryFormManager {
     this.mode.set('edit');
     this.calories.set(meal.calories);
     this.protein.set(meal.protein ?? null);
-    this.liftDone.set(meal.liftCompleted ?? false);
-    this.cardioDone.set(meal.cardioCompleted ?? false);
+    // Derive exercise toggle from the new field OR either legacy flag.
+    this.exerciseDone.set(
+      meal.exerciseCompleted ?? meal.liftCompleted ?? meal.cardioCompleted ?? false,
+    );
     this.mealLabel.set(meal.mealLabel ?? '');
     this.entryDate.set(localDateKey(meal.date));
     this.status.set('idle');
@@ -86,8 +87,7 @@ export class EntryFormManager {
     const entry: LogEntry = { calories: Number(c) };
     const p = this.protein();
     if (p != null && !Number.isNaN(Number(p))) entry.protein = Number(p);
-    entry.liftCompleted = this.liftDone();
-    entry.cardioCompleted = this.cardioDone();
+    entry.exerciseCompleted = this.exerciseDone();
 
     const dateStr = this.entryDate();
     if (dateStr) {
@@ -152,8 +152,7 @@ export class EntryFormManager {
   private resetForm(): void {
     this.calories.set(null);
     this.protein.set(null);
-    this.liftDone.set(false);
-    this.cardioDone.set(false);
+    this.exerciseDone.set(false);
     this.activePresetName.set(null);
     this.mealLabel.set('');
     this.entryDate.set(localDateKey(new Date()));

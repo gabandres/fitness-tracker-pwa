@@ -91,11 +91,14 @@ import { FitnessStore } from '../../services/fitness-store.service';
             <p class="caption text-[11px]">
               fasting since {{ startTimeLabel() }}
             </p>
-            <button type="button" (click)="punchClock()" class="stamp-btn mt-3 max-w-xs">
-              break fast
+            <button type="button" (click)="punchClock()"
+              aria-label="End current fast"
+              class="stamp-btn mt-3 max-w-xs">
+              end fast
             </button>
           } @else {
             <button type="button" (click)="punchClock()"
+              aria-label="Start a 16-hour fast"
               class="stamp-btn mt-1 max-w-xs"
               style="background: var(--color-ink); border-color: var(--color-graphite);">
               start fast

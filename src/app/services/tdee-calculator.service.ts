@@ -50,7 +50,7 @@ export class TdeeCalculatorService {
 
   /**
    * Aggregate multiple log entries per day into one row per day.
-   * Sums calories/protein, takes first non-null weight, ORs training booleans.
+   * Sums calories/protein, takes first non-null weight, ORs exercise booleans.
    */
   aggregateByDay(logs: DailyLog[]): DailyLog[] {
     const byDate = new Map<string, DailyLog>();
@@ -63,6 +63,7 @@ export class TdeeCalculatorService {
         existing.calories += log.calories;
         existing.protein = (existing.protein ?? 0) + (log.protein ?? 0);
         if (existing.weight == null && log.weight != null) existing.weight = log.weight;
+        if (log.exerciseCompleted) existing.exerciseCompleted = true;
         if (log.liftCompleted) existing.liftCompleted = true;
         if (log.cardioCompleted) existing.cardioCompleted = true;
       }

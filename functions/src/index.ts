@@ -17,8 +17,7 @@ interface ValidatedEntry {
   timestamp: Timestamp;
   weight?: number;
   protein?: number;
-  liftCompleted?: boolean;
-  cardioCompleted?: boolean;
+  exerciseCompleted?: boolean;
   mealLabel?: string;
 }
 
@@ -52,16 +51,22 @@ function validateLogEntry(body: unknown): ValidatedEntry | string {
     entry.protein = b.protein;
   }
 
-  // liftCompleted: optional, boolean
-  if (b.liftCompleted !== undefined) {
-    if (typeof b.liftCompleted !== "boolean") return "liftCompleted must be a boolean.";
-    entry.liftCompleted = b.liftCompleted;
+  // exerciseCompleted: optional, boolean
+  if (b.exerciseCompleted !== undefined) {
+    if (typeof b.exerciseCompleted !== "boolean") return "exerciseCompleted must be a boolean.";
+    entry.exerciseCompleted = b.exerciseCompleted;
   }
 
-  // cardioCompleted: optional, boolean
+  // liftCompleted: optional, boolean (legacy — mapped to exerciseCompleted)
+  if (b.liftCompleted !== undefined) {
+    if (typeof b.liftCompleted !== "boolean") return "liftCompleted must be a boolean.";
+    if (b.liftCompleted) entry.exerciseCompleted = true;
+  }
+
+  // cardioCompleted: optional, boolean (legacy — mapped to exerciseCompleted)
   if (b.cardioCompleted !== undefined) {
     if (typeof b.cardioCompleted !== "boolean") return "cardioCompleted must be a boolean.";
-    entry.cardioCompleted = b.cardioCompleted;
+    if (b.cardioCompleted) entry.exerciseCompleted = true;
   }
 
   // mealLabel: optional, string, <=100 chars
@@ -180,7 +185,7 @@ export const analyzePhoto = onCall(
     try {
       const client = new GoogleGenAI({ apiKey: geminiApiKey.value() });
       const result = await client.models.generateContent({
-        model: "gemini-2.0-flash",
+        model: "gemini-2.5-flash",
         contents: [
           {
             role: "user",

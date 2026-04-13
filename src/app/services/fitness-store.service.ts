@@ -339,39 +339,37 @@ export class FitnessStore {
   }
 
   /**
-   * Toggle a training flag on a day's first log entry.
-   * If the day has no entries, creates a zero-calorie marker entry.
+   * Toggle the exercise flag on a day. Applied to the first log entry that
+   * already carries the flag (including legacy lift/cardio flags, so
+   * historic days can be un-marked with one tap), or the first entry
+   * otherwise. Creates a zero-calorie marker entry for empty days.
    */
-  async toggleDayTraining(dateKey: string, field: 'lift' | 'cardio'): Promise<void> {
+  async toggleDayExercise(dateKey: string): Promise<void> {
     const dayLogs = this._logs().filter(
       (l) => localDateKey(l.date) === dateKey,
     );
 
+    const isExercised = (l: DailyLog) =>
+      !!(l.exerciseCompleted || l.liftCompleted || l.cardioCompleted);
+
     if (dayLogs.length > 0) {
-      // Toggle on the first entry that has the flag, or fall back to first entry
-      const target =
-        dayLogs.find((l) =>
-          field === 'lift' ? l.liftCompleted : l.cardioCompleted,
-        ) ?? dayLogs[0];
-      const current =
-        field === 'lift' ? target.liftCompleted : target.cardioCompleted;
+      const target = dayLogs.find(isExercised) ?? dayLogs[0];
       const patch: LogEntry = {
         calories: target.calories,
-        ...(field === 'lift'
-          ? { liftCompleted: !current }
-          : { cardioCompleted: !current }),
+        exerciseCompleted: !isExercised(target),
       };
+      // Preserve unrelated fields that updateLog would otherwise clear.
+      if (target.protein != null) patch.protein = target.protein;
+      if (target.mealLabel) patch.mealLabel = target.mealLabel;
+      if (target.weight != null) patch.weight = target.weight;
       await this.updateLog(target.id!, patch);
     } else {
-      // No entries for this day — create a zero-calorie marker
       const [y, m, d] = dateKey.split('-').map(Number);
       const entry: LogEntry = {
         calories: 0,
         timestamp: new Date(y, m - 1, d, 12, 0, 0),
         mealLabel: 'Training',
-        ...(field === 'lift'
-          ? { liftCompleted: true }
-          : { cardioCompleted: true }),
+        exerciseCompleted: true,
       };
       await this.addLog(entry);
     }
@@ -406,8 +404,10 @@ export class FitnessStore {
     };
     if (entry.weight != null) logEntry.weight = entry.weight;
     if (entry.protein != null) logEntry.protein = entry.protein;
-    if (entry.liftCompleted != null) logEntry.liftCompleted = entry.liftCompleted;
-    if (entry.cardioCompleted != null) logEntry.cardioCompleted = entry.cardioCompleted;
+    // Collapse legacy lift/cardio flags into the unified exercise flag.
+    if (entry.exerciseCompleted || entry.liftCompleted || entry.cardioCompleted) {
+      logEntry.exerciseCompleted = true;
+    }
     if (entry.mealLabel) logEntry.mealLabel = entry.mealLabel;
 
     await this.addLog(logEntry);

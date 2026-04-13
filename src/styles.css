@@ -68,6 +68,30 @@ html, body {
   transition: background-color 300ms ease, color 300ms ease;
 }
 
+/* ── Keyboard focus ring ─────────────────────────────────────
+   Uses :focus-visible so mouse clicks don't show the ring but
+   Tab key navigation does. Applies globally to any interactive
+   element — buttons, links, inputs. */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--color-blood);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.field-input:focus-visible { outline: none; border-bottom-color: var(--color-blood); }
+
+/* ── Skip link: hidden until focused via keyboard ───────────── */
+.skip-link {
+  position: absolute; top: -48px; left: 8px; z-index: 100;
+  background: var(--color-ink); color: var(--color-paper);
+  padding: 10px 16px; border-radius: 6px;
+  font-family: var(--font-sans); font-size: 0.75rem;
+  font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase;
+  text-decoration: none;
+  transition: top 180ms ease;
+}
+.skip-link:focus, .skip-link:focus-visible { top: 8px; }
+
 body {
   background-image:
     radial-gradient(ellipse at 20% 0%, rgba(139, 26, 26, 0.03) 0%, transparent 55%),

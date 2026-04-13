@@ -462,9 +462,15 @@ export class DashboardComponent {
   protected async exportCsv(): Promise<void> {
     const allLogs = await this.store.getAllLogs();
     const rows = [
-      ['Date', 'Weight (lbs)', 'Calories', 'Protein (g)', 'Lift', 'Cardio'].join(','),
+      ['Date', 'Weight (lbs)', 'Calories', 'Protein (g)', 'Exercise'].join(','),
       ...allLogs.map((l) =>
-        [localDateKey(l.date), l.weight, l.calories, l.protein ?? '', l.liftCompleted ? 'yes' : '', l.cardioCompleted ? 'yes' : ''].join(','),
+        [
+          localDateKey(l.date),
+          l.weight,
+          l.calories,
+          l.protein ?? '',
+          (l.exerciseCompleted || l.liftCompleted || l.cardioCompleted) ? 'yes' : '',
+        ].join(','),
       ),
     ];
     const blob = new Blob([rows.join('\n')], { type: 'text/csv' });

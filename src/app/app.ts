@@ -28,12 +28,14 @@ import { PushNotificationService } from './services/push-notification.service';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <main class="min-h-screen px-5 sm:px-8 lg:px-12 py-8 sm:py-12">
+    <a href="#main" class="skip-link">skip to main content</a>
+    <main id="main" class="min-h-screen px-5 sm:px-8 lg:px-12 py-8 sm:py-12">
       <div class="max-w-[560px] lg:max-w-[1100px] mx-auto">
 
         <!-- SwUpdate dialog (fixed overlay) -->
         @if (updateReady()) {
           <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ink/40 backdrop-blur-sm ink-in"
+            role="alertdialog" aria-labelledby="update-title" aria-describedby="update-body"
             (click)="dismissUpdate()">
             <div class="w-full max-w-sm specimen px-6 py-5 shadow-xl slide-down"
               style="background: var(--color-paper)"
@@ -41,9 +43,9 @@ import { PushNotificationService } from './services/push-notification.service';
               <span class="crop-bl"></span><span class="crop-br"></span>
               <div class="flex items-center gap-3 mb-3">
                 <span class="stamp-mark" style="transform: rotate(0deg)">new</span>
-                <span class="font-display text-lg text-ink">Update Available</span>
+                <span id="update-title" class="font-display text-lg text-ink">Update Available</span>
               </div>
-              <p class="font-sans text-sm text-graphite leading-relaxed mb-4">
+              <p id="update-body" class="font-sans text-sm text-graphite leading-relaxed mb-4">
                 A new version of Macro Log is ready. Reload to get the latest features and fixes.
               </p>
               <div class="flex gap-2">
@@ -56,7 +58,8 @@ import { PushNotificationService } from './services/push-notification.service';
 
         <!-- Offline indicator -->
         @if (offline()) {
-          <div class="mb-4 ink-in flex items-center gap-2">
+          <div class="mb-4 ink-in flex items-center gap-2"
+            role="status" aria-live="polite">
             <span class="stamp-mark" style="transform: rotate(0deg);">offline</span>
             <span class="caption text-xs">entries will queue locally and sync when reconnected.</span>
           </div>
@@ -65,6 +68,7 @@ import { PushNotificationService } from './services/push-notification.service';
         <!-- Daily reminder -->
         @if (showReminder()) {
           <div class="mb-4 ink-in specimen px-4 py-2.5 flex items-center justify-between gap-3"
+            role="status" aria-live="polite"
             style="border-color: var(--color-gold)">
             <span class="crop-bl" style="border-color: var(--color-gold)"></span>
             <span class="crop-br" style="border-color: var(--color-gold)"></span>
@@ -72,7 +76,9 @@ import { PushNotificationService } from './services/push-notification.service';
               <span class="stamp-mark" style="transform: rotate(0deg); border-color: var(--color-gold); color: var(--color-gold)">reminder</span>
               <span class="caption text-xs">you haven't logged today yet.</span>
             </div>
-            <button type="button" (click)="dismissReminder()" class="tag-btn text-[11px]">dismiss</button>
+            <button type="button" (click)="dismissReminder()"
+              aria-label="Dismiss reminder for today"
+              class="tag-btn text-[11px]">dismiss</button>
           </div>
         }
 
@@ -90,11 +96,14 @@ import { PushNotificationService } from './services/push-notification.service';
           <div class="text-right shrink-0 pt-2">
             <div class="data-label">{{ todayLabel() }}</div>
             <div class="flex items-center justify-end gap-2 mt-1">
-              <button type="button" (click)="toggleTheme()" class="tag-btn" title="Toggle dark/light mode">
+              <button type="button" (click)="toggleTheme()" class="tag-btn"
+                [attr.aria-label]="darkMode() ? 'Switch to light mode' : 'Switch to dark mode'"
+                title="Toggle dark/light mode">
                 {{ darkMode() ? '☀' : '☾' }}
               </button>
               @if (auth.isSignedIn()) {
-                <button type="button" (click)="signOut()" class="tag-btn" title="Sign out">out</button>
+                <button type="button" (click)="signOut()" class="tag-btn"
+                  aria-label="Sign out" title="Sign out">out</button>
               }
             </div>
           </div>

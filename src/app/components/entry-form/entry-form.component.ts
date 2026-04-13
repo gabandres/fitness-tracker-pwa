@@ -56,20 +56,12 @@ import { EntryFormManager } from '../../services/entry-form-manager.service';
 
       <div>
         <label class="data-label block mb-1">training</label>
-        <div class="flex gap-2">
-          <button type="button" (click)="form.liftDone.set(!form.liftDone())"
-            [class.selected]="form.liftDone()" class="radio-card flex-1 text-center py-1.5">
-            <span class="font-sans text-xs tracking-[0.1em] uppercase">
-              {{ form.liftDone() ? '●' : '○' }} lift
-            </span>
-          </button>
-          <button type="button" (click)="form.cardioDone.set(!form.cardioDone())"
-            [class.selected]="form.cardioDone()" class="radio-card flex-1 text-center py-1.5">
-            <span class="font-sans text-xs tracking-[0.1em] uppercase">
-              {{ form.cardioDone() ? '▲' : '△' }} cardio
-            </span>
-          </button>
-        </div>
+        <button type="button" (click)="form.exerciseDone.set(!form.exerciseDone())"
+          [class.selected]="form.exerciseDone()" class="radio-card w-full text-center py-1.5">
+          <span class="font-sans text-xs tracking-[0.1em] uppercase">
+            {{ form.exerciseDone() ? '●' : '○' }} exercise
+          </span>
+        </button>
       </div>
 
       <div class="flex gap-2 pt-1">

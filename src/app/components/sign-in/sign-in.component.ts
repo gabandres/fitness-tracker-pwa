@@ -22,7 +22,11 @@ type Status = 'idle' | 'signing' | 'error';
           <em class="text-blood">yourself.</em>
         </h2>
 
-        <p class="caption mt-4 text-[11px] leading-relaxed">
+        <p class="font-sans text-sm text-ink-soft mt-4 leading-relaxed">
+          Track calories, protein, and weight. Get a coach that reads your data.
+        </p>
+
+        <p class="caption mt-3 text-[11px] leading-relaxed">
           gmail accounts only. one click, no passwords, stays signed in
           until you sign out.
         </p>

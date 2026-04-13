@@ -21,8 +21,7 @@ interface DayGroup {
   dateKey: DateKey;
   dateLabel: string;
   weight: number | null;
-  liftCompleted: boolean;
-  cardioCompleted: boolean;
+  exerciseCompleted: boolean;
   totalCalories: number;
   totalProtein: number;
   meals: DailyLog[];
@@ -99,11 +98,12 @@ interface DayGroup {
                 name="todayWeight" placeholder="___"
                 class="field-input text-xs w-16 py-0.5 px-1 tabular-nums" />
               <span class="font-display italic text-graphite text-[11px]">lb</span>
-              <button type="submit" class="tag-btn text-[11px] py-0 px-1">ok</button>
-              <button type="button" (click)="cancelEditWeight()" class="tag-btn text-[11px] py-0 px-1">x</button>
+              <button type="submit" aria-label="Save weight" class="tag-btn text-[11px] py-0 px-1">ok</button>
+              <button type="button" (click)="cancelEditWeight()" aria-label="Cancel weight edit" class="tag-btn text-[11px] py-0 px-1">x</button>
             </form>
           } @else {
             <button type="button" (click)="startEditWeight(todayKey, todayWeight())"
+              [attr.aria-label]="todayWeight() != null ? 'Edit weight for today' : 'Add weight for today'"
               class="font-sans text-xs tabular-nums hover:underline"
               [class.text-graphite]="todayWeight() != null"
               [class.text-graphite-soft]="todayWeight() == null"
@@ -173,8 +173,8 @@ interface DayGroup {
                       name="dayWeight" placeholder="___"
                       class="field-input text-xs w-16 py-0.5 px-1 tabular-nums" />
                     <span class="font-display italic text-graphite text-[11px]">lb</span>
-                    <button type="submit" class="tag-btn text-[11px] py-0 px-1">ok</button>
-                    <button type="button" (click)="cancelEditWeight()" class="tag-btn text-[11px] py-0 px-1">x</button>
+                    <button type="submit" aria-label="Save weight" class="tag-btn text-[11px] py-0 px-1">ok</button>
+                    <button type="button" (click)="cancelEditWeight()" aria-label="Cancel weight edit" class="tag-btn text-[11px] py-0 px-1">x</button>
                   </form>
                 } @else {
                   <button type="button" (click)="startEditWeight(day.dateKey, day.weight); $event.stopPropagation()"
@@ -189,22 +189,13 @@ interface DayGroup {
                     }
                   </button>
                 }
-                <div class="flex items-center gap-1">
-                  <button type="button" (click)="toggleTraining(day, 'lift'); $event.stopPropagation()"
-                    class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-sans tracking-[0.08em] uppercase font-medium border transition-colors duration-150"
-                    [style.background]="day.liftCompleted ? 'var(--color-blood)' : 'transparent'"
-                    [style.color]="day.liftCompleted ? 'var(--color-paper)' : 'var(--color-graphite-soft)'"
-                    [style.border-color]="day.liftCompleted ? 'var(--color-blood)' : 'var(--color-rule)'"
-                    [attr.aria-label]="day.liftCompleted ? 'Lift training: active' : 'Lift training: inactive'"
-                    title="Toggle lift">● lift</button>
-                  <button type="button" (click)="toggleTraining(day, 'cardio'); $event.stopPropagation()"
-                    class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-sans tracking-[0.08em] uppercase font-medium border transition-colors duration-150"
-                    [style.background]="day.cardioCompleted ? 'var(--color-olive)' : 'transparent'"
-                    [style.color]="day.cardioCompleted ? 'var(--color-paper)' : 'var(--color-graphite-soft)'"
-                    [style.border-color]="day.cardioCompleted ? 'var(--color-olive)' : 'var(--color-rule)'"
-                    [attr.aria-label]="day.cardioCompleted ? 'Cardio training: active' : 'Cardio training: inactive'"
-                    title="Toggle cardio">▲ cardio</button>
-                </div>
+                <button type="button" (click)="toggleExercise(day); $event.stopPropagation()"
+                  class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-sans tracking-[0.08em] uppercase font-medium border transition-colors duration-150"
+                  [style.background]="day.exerciseCompleted ? 'var(--color-olive)' : 'transparent'"
+                  [style.color]="day.exerciseCompleted ? 'var(--color-paper)' : 'var(--color-graphite-soft)'"
+                  [style.border-color]="day.exerciseCompleted ? 'var(--color-olive)' : 'var(--color-rule)'"
+                  [attr.aria-label]="day.exerciseCompleted ? 'Exercise: active' : 'Exercise: inactive'"
+                  title="Toggle exercise">● exercise</button>
               </div>
               <div class="flex items-center gap-3">
                 <span class="font-mono text-sm font-medium tabular-nums" style="color: var(--color-blood)">
@@ -217,6 +208,7 @@ interface DayGroup {
                 }
                 <!-- Add meal to this day -->
                 <button type="button" (click)="form.startAdd(day.dateKey); $event.stopPropagation()"
+                  [attr.aria-label]="'Add meal to ' + (day.dateKey === todayKey ? 'today' : day.dateLabel)"
                   class="tag-btn text-[11px] py-0.5 px-1.5" title="Add meal">+</button>
               </div>
             </div>
@@ -269,11 +261,8 @@ interface DayGroup {
                   <span class="font-sans text-xs tracking-[0.08em] text-graphite-soft truncate max-w-[100px]">
                     {{ meal.mealLabel || 'Meal ' + (mi + 1) }}
                   </span>
-                  @if (meal.liftCompleted) {
-                    <span class="text-[10px] font-sans font-medium" style="color: var(--color-blood)" title="Lift">●</span>
-                  }
-                  @if (meal.cardioCompleted) {
-                    <span class="text-[10px] font-sans font-medium" style="color: var(--color-olive)" title="Cardio">▲</span>
+                  @if (meal.exerciseCompleted || meal.liftCompleted || meal.cardioCompleted) {
+                    <span class="text-[10px] font-sans font-medium" style="color: var(--color-olive)" title="Exercise">●</span>
                   }
                   <span class="font-mono text-base tabular-nums" style="color: var(--color-blood)">
                     {{ meal.calories }}<span class="text-[10px] ml-0.5 opacity-70">cal</span>
@@ -309,13 +298,15 @@ interface DayGroup {
 
       <!-- Undo delete toast -->
       @if (store.undoEntry()) {
-        <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 ink-in">
+        <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 ink-in"
+          role="status" aria-live="polite">
           <div class="specimen px-4 py-2.5 flex items-center gap-3 bg-paper shadow-lg"
             style="border-color: var(--color-blood)">
             <span class="crop-bl" style="border-color: var(--color-blood)"></span>
             <span class="crop-br" style="border-color: var(--color-blood)"></span>
             <span class="font-sans text-xs tracking-[0.08em] text-ink">entry deleted</span>
             <button type="button" (click)="store.undoDelete()"
+              aria-label="Undo delete"
               class="tag-btn text-[11px]" style="border-color: var(--color-blood); color: var(--color-blood)">
               undo
             </button>
@@ -365,9 +356,9 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
     }, 50);
   }
 
-  // ── Day-level training toggle ──────────────────────────────
-  protected async toggleTraining(day: DayGroup, type: 'lift' | 'cardio'): Promise<void> {
-    await this.store.toggleDayTraining(day.dateKey, type);
+  // ── Day-level exercise toggle ──────────────────────────────
+  protected async toggleExercise(day: DayGroup): Promise<void> {
+    await this.store.toggleDayExercise(day.dateKey);
   }
 
   // ── Day-level weight editing ────────────────────────────────
@@ -465,8 +456,7 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
             weekday: 'short', month: 'short', day: 'numeric',
           }).toUpperCase(),
           weight: null,
-          liftCompleted: false,
-          cardioCompleted: false,
+          exerciseCompleted: false,
           totalCalories: 0,
           totalProtein: 0,
           meals: [],
@@ -477,8 +467,9 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
       group.totalCalories += log.calories;
       group.totalProtein += log.protein ?? 0;
       if (group.weight == null && log.weight != null) group.weight = log.weight;
-      if (log.liftCompleted) group.liftCompleted = true;
-      if (log.cardioCompleted) group.cardioCompleted = true;
+      if (log.exerciseCompleted || log.liftCompleted || log.cardioCompleted) {
+        group.exerciseCompleted = true;
+      }
     }
 
     // Overlay daily weights (takes precedence over log-derived weights)

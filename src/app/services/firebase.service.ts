@@ -18,11 +18,14 @@ import {
 import { Auth } from '@angular/fire/auth';
 
 // ─── Log types ──────────────────────────────────────────────────
+// Note: `liftCompleted` and `cardioCompleted` are legacy fields kept
+// for reading historic docs. New writes only set `exerciseCompleted`.
 export interface DailyLogDoc {
   weight?: number;
   calories: number;
   timestamp: Timestamp;
   protein?: number;
+  exerciseCompleted?: boolean;
   liftCompleted?: boolean;
   cardioCompleted?: boolean;
   mealLabel?: string;
@@ -34,6 +37,7 @@ export interface DailyLog {
   calories: number;
   date: Date;
   protein?: number;
+  exerciseCompleted?: boolean;
   liftCompleted?: boolean;
   cardioCompleted?: boolean;
   mealLabel?: string;
@@ -69,8 +73,7 @@ export interface LogEntry {
   weight?: number;
   calories: number;
   protein?: number;
-  liftCompleted?: boolean;
-  cardioCompleted?: boolean;
+  exerciseCompleted?: boolean;
   mealLabel?: string;
   timestamp?: Date; // for undo-restore at original time
 }
@@ -283,8 +286,7 @@ export class FirebaseService {
     };
     if (entry.weight != null) data['weight'] = entry.weight;
     if (entry.protein != null) data['protein'] = entry.protein;
-    if (entry.liftCompleted != null) data['liftCompleted'] = entry.liftCompleted;
-    if (entry.cardioCompleted != null) data['cardioCompleted'] = entry.cardioCompleted;
+    if (entry.exerciseCompleted) data['exerciseCompleted'] = true;
     if (entry.mealLabel) data['mealLabel'] = entry.mealLabel;
     await addDoc(this.logsCollection(), data);
   }
@@ -300,6 +302,7 @@ export class FirebaseService {
         calories: data.calories,
         date: data.timestamp.toDate(),
         protein: data.protein,
+        exerciseCompleted: data.exerciseCompleted,
         liftCompleted: data.liftCompleted,
         cardioCompleted: data.cardioCompleted,
         mealLabel: data.mealLabel,
@@ -313,8 +316,10 @@ export class FirebaseService {
     const data: Record<string, unknown> = {
       calories: entry.calories,
       protein: entry.protein != null ? entry.protein : deleteField(),
-      liftCompleted: entry.liftCompleted ?? false,
-      cardioCompleted: entry.cardioCompleted ?? false,
+      exerciseCompleted: entry.exerciseCompleted ? true : deleteField(),
+      // Migrate away from legacy fields on every edit.
+      liftCompleted: deleteField(),
+      cardioCompleted: deleteField(),
       mealLabel: entry.mealLabel ? entry.mealLabel : deleteField(),
     };
     if (entry.weight != null) data['weight'] = entry.weight;

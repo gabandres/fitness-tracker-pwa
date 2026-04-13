@@ -204,7 +204,7 @@ interface PaceOption {
               class="stamp-btn"
             >
               @if (status() === 'saving') {
-                <span>filing…</span>
+                <span>saving…</span>
               } @else {
                 <span>{{ editMode() ? 'save changes' : 'commit profile' }}</span>
               }

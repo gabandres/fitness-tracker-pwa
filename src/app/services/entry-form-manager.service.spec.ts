@@ -42,8 +42,7 @@ describe('EntryFormManager', () => {
     date: new Date(2026, 3, 7, 12, 0, 0),
     protein: 30,
     weight: 180,
-    liftCompleted: true,
-    cardioCompleted: false,
+    exerciseCompleted: true,
     mealLabel: 'Lunch',
     ...overrides,
   });
@@ -57,8 +56,7 @@ describe('EntryFormManager', () => {
     expect(form.addingForDay()).toBeNull();
     expect(form.calories()).toBeNull();
     expect(form.protein()).toBeNull();
-    expect(form.liftDone()).toBe(false);
-    expect(form.cardioDone()).toBe(false);
+    expect(form.exerciseDone()).toBe(false);
     expect(form.mealLabel()).toBe('');
     expect(form.savingPreset()).toBe(false);
   });
@@ -83,11 +81,11 @@ describe('EntryFormManager', () => {
   it('should reset form fields on startAdd', () => {
     form.calories.set(500);
     form.protein.set(30);
-    form.liftDone.set(true);
+    form.exerciseDone.set(true);
     form.startAdd();
     expect(form.calories()).toBeNull();
     expect(form.protein()).toBeNull();
-    expect(form.liftDone()).toBe(false);
+    expect(form.exerciseDone()).toBe(false);
   });
 
   // ── onTapMeal ───────────────────────────────────────────────
@@ -99,9 +97,18 @@ describe('EntryFormManager', () => {
     expect(form.editTarget()).toBe(meal);
     expect(form.calories()).toBe(500);
     expect(form.protein()).toBe(30);
-    expect(form.liftDone()).toBe(true);
-    expect(form.cardioDone()).toBe(false);
+    expect(form.exerciseDone()).toBe(true);
     expect(form.mealLabel()).toBe('Lunch');
+  });
+
+  it('should derive exerciseDone from legacy liftCompleted', () => {
+    form.onTapMeal(makeMeal({ exerciseCompleted: undefined, liftCompleted: true }));
+    expect(form.exerciseDone()).toBe(true);
+  });
+
+  it('should derive exerciseDone from legacy cardioCompleted', () => {
+    form.onTapMeal(makeMeal({ exerciseCompleted: undefined, cardioCompleted: true }));
+    expect(form.exerciseDone()).toBe(true);
   });
 
   it('should toggle off when tapping same meal', () => {
@@ -164,13 +171,13 @@ describe('EntryFormManager', () => {
     form.startAdd();
     form.calories.set(600);
     form.protein.set(35);
-    form.liftDone.set(true);
+    form.exerciseDone.set(true);
     await form.submit();
     expect(mockStore.addLog).toHaveBeenCalledTimes(1);
     const entry = mockStore.addLog.mock.calls[0][0];
     expect(entry.calories).toBe(600);
     expect(entry.protein).toBe(35);
-    expect(entry.liftCompleted).toBe(true);
+    expect(entry.exerciseCompleted).toBe(true);
     expect(form.status()).toBe('saved');
   });
 

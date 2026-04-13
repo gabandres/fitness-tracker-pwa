@@ -16,12 +16,14 @@ service cloud.firestore {
 
     // ─── Log schema ─────────────────────────────────────────────
     // Required: calories, timestamp
-    // Optional: weight, protein, liftCompleted, cardioCompleted, mealLabel
+    // Optional: weight, protein, exerciseCompleted, mealLabel
+    // Legacy (read-only, may exist on historic docs): liftCompleted, cardioCompleted
     function isValidLog(data) {
       return data.keys().hasAll(['calories', 'timestamp'])
           && data.keys().hasOnly([
               'weight', 'calories', 'timestamp',
-              'protein', 'liftCompleted', 'cardioCompleted',
+              'protein', 'exerciseCompleted',
+              'liftCompleted', 'cardioCompleted',
               'mealLabel'
           ])
           && (!('weight' in data.keys()) ||
@@ -33,6 +35,8 @@ service cloud.firestore {
           // Optional fields validated when present
           && (!('protein' in data.keys()) ||
               (data.protein is number && data.protein >= 0 && data.protein < 1000))
+          && (!('exerciseCompleted' in data.keys()) ||
+              data.exerciseCompleted is bool)
           && (!('liftCompleted' in data.keys()) ||
               data.liftCompleted is bool)
           && (!('cardioCompleted' in data.keys()) ||
