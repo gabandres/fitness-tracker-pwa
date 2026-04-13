@@ -90,7 +90,7 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 
 ### 🟠 S4 — Dashboard assumes statistical literacy
 
-- [ ] Promote a single hero number above the ledger: "kcal remaining today" with target/eaten subtitle
+- [x] Promote a single hero number above the ledger: "kcal remaining today" with target/eaten subtitle *(2026-04-12)*
 - [ ] Collapse weekly envelope into one sentence ("You're 380 kcal under for the week. Aim 2,290 over the next 4 days.")
 - [ ] Merge 14-day and all-time sparklines into one tabbed chart
 - [ ] Re-expose the adaptive-TDEE explanation (once dismissed, there's no way back)
@@ -149,7 +149,7 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 - [x] **A11y foundations** (S5 items checked above) — *2026-04-12*
 - [x] Fix ledger empty-state copy contradiction (S8) — *2026-04-12*
 - [x] Make undo toast fully tappable (S6) — toast was already 8s — *2026-04-12*
-- [ ] Promote "kcal remaining today" hero (S4) — **needs design call on placement**
+- [x] Promote "kcal remaining today" hero (S4) — placed at top of ledger, keeps dashboard 3-up row intact per "ship the additive change first, restructure with evidence later" — *2026-04-12*
 
 ### Ship next (small surgery)
 - [ ] Consolidate footer → settings sheet (S3)
@@ -174,3 +174,4 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 
 - **2026-04-12** — Initial audit written; S1 copy pass + S5 a11y foundations shipped in same commit.
 - **2026-04-12** — S8 empty-state copy fixed; S6 undo toast made fully tappable (toast was already 8s — audit initially said 5s, corrected).
+- **2026-04-12** — S4 "kcal remaining today" hero shipped at top of the ledger (below travel-mode banner, above streak). Dashboard 3-up readout left untouched deliberately; re-evaluate after a week of use.

@@ -49,6 +49,27 @@ interface DayGroup {
         </div>
       }
 
+      <!-- ─── Hero: kcal remaining today ─────────────────────
+           The primary user question ("can I eat this?") answered above
+           all else. Shows once the profile is set (target > 0). Turns
+           oxblood when over budget. -->
+      @if (store.targetCalories() > 0) {
+        <div class="mb-5 ink-in">
+          <div class="data-label mb-1">kcal remaining today</div>
+          <div class="flex items-baseline gap-4 flex-wrap">
+            <span class="font-display italic leading-none tracking-tight tabular-nums"
+              style="font-size: clamp(3rem, 13vw, 4.5rem);"
+              [style.color]="remainingToday() < 0 ? 'var(--color-blood)' : 'var(--color-ink)'">
+              {{ remainingToday() < 0 ? '−' : '' }}{{ Math.abs(remainingToday()).toLocaleString() }}
+            </span>
+            <div class="font-mono text-[11px] text-graphite tabular-nums leading-tight pb-2 tracking-[0.08em]">
+              <div>target · {{ store.targetCalories().toLocaleString() }}</div>
+              <div>eaten&nbsp; · {{ (store.todaySummary()?.totalCalories ?? 0).toLocaleString() }}</div>
+            </div>
+          </div>
+        </div>
+      }
+
       <!-- Streak badge -->
       @if (store.streak() > 0) {
         <div class="flex items-center gap-2 mb-4">
@@ -383,6 +404,14 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
 
   // ── Today's weight (from dailyWeights collection) ────────────
   protected readonly todayWeight = computed(() => this.store.dailyWeights()[this.todayKey] ?? null);
+
+  // ── Today's calorie budget: target minus consumed ────────────
+  // Negative value means over target (hero turns oxblood).
+  protected readonly remainingToday = computed(() => {
+    const target = this.store.targetCalories();
+    const eaten = this.store.todaySummary()?.totalCalories ?? 0;
+    return target - eaten;
+  });
 
   protected async saveTodayWeight(): Promise<void> {
     const w = this.weightInput();
