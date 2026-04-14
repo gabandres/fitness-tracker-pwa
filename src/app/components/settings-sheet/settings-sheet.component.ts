@@ -231,6 +231,22 @@ import { SubscribeComponent } from '../subscribe/subscribe.component';
           <app-subscribe />
         </section>
 
+        <!-- ─── Feedback ──────────────────────────────────────── -->
+        <section class="mb-7">
+          <div class="data-label mb-3">feedback</div>
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <div class="font-sans text-sm text-ink">report a bug or share feedback</div>
+              <p class="caption text-[11px] leading-relaxed mt-0.5">
+                opens your mail app with your browser + page info auto-filled, so you don't have to explain the setup.
+              </p>
+            </div>
+            <button type="button" (click)="sendFeedback()"
+              aria-label="Send feedback email"
+              class="tag-btn text-[11px] shrink-0">send email</button>
+          </div>
+        </section>
+
         <!-- ─── Legal ─────────────────────────────────────────── -->
         <section>
           <div class="data-label mb-3">legal</div>
@@ -337,5 +353,29 @@ export class SettingsSheetComponent implements AfterViewInit {
   protected async copyWebhookKey(): Promise<void> {
     const key = this.store.webhookApiKey();
     if (key) await navigator.clipboard.writeText(key);
+  }
+
+  /** Open the user's mail app with a pre-filled feedback template.
+      Including browser + path info removes the round-trip of "what
+      browser? what page?" that otherwise kills bug-report signal. */
+  protected sendFeedback(): void {
+    const subject = 'Macro Log — feedback';
+    const build = (globalThis as unknown as { __MACROLOG_RELEASE__?: string }).__MACROLOG_RELEASE__ ?? 'dev';
+    const body = [
+      'What happened:',
+      '',
+      '',
+      'Expected:',
+      '',
+      '',
+      '---',
+      `Build: ${build}`,
+      `Path : ${window.location.pathname}`,
+      `Agent: ${navigator.userAgent}`,
+      `Time : ${new Date().toISOString()}`,
+    ].join('\n');
+    const href = `mailto:gabrielandresbermudez@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = href;
+    this.requestClose();
   }
 }

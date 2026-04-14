@@ -10,6 +10,7 @@ import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.comp
 import { PresetPickerComponent } from '../preset-picker/preset-picker.component';
 import { StarterFoodsComponent } from '../starter-foods/starter-foods.component';
 import { FastingStripComponent } from '../fasting/fasting-strip.component';
+import { InstallPromptComponent } from '../install-prompt/install-prompt.component';
 import { MacroEstimate } from '../../models/macro-estimate';
 
 interface DateChip {
@@ -33,7 +34,7 @@ interface DayGroup {
 @Component({
   selector: 'app-daily-ledger',
   standalone: true,
-  imports: [FormsModule, EntryFormComponent, PhotoCaptureComponent, BarcodeScannerComponent, PresetPickerComponent, StarterFoodsComponent, FastingStripComponent],
+  imports: [FormsModule, EntryFormComponent, PhotoCaptureComponent, BarcodeScannerComponent, PresetPickerComponent, StarterFoodsComponent, FastingStripComponent, InstallPromptComponent],
   providers: [EntryFormManager],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -41,6 +42,12 @@ interface DayGroup {
       <!-- Ambient fasting strip: keeps elapsed time + end-fast CTA visible
            while you're logging meals, without occupying 200px for the dial. -->
       <app-fasting-strip />
+
+      <!-- Install-as-app nudge. Hides on desktop standalone, on iOS
+           standalone, and after dismiss (7-day cooldown). Only shows
+           once the user has logged ≥1 meal so we don't pester first-
+           visit cold-start users. -->
+      <app-install-prompt />
 
       <!-- Travel mode banner -->
       @if (store.travelMode()) {

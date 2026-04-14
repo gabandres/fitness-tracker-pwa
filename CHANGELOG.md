@@ -6,6 +6,11 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-13 — PWA install nudge + feedback mailto
+
+- **Install-as-app prompt** at the top of the ledger. Desktop + Android use the native `beforeinstallprompt` flow — one tap installs. iOS Safari shows "tap Share → Add to Home Screen" text instructions since the API isn't exposed there. Hides automatically once installed, on standalone display, or when dismissed (7-day cooldown via localStorage). Only renders after the user has logged ≥1 meal.
+- **"Send feedback" in the settings sheet.** Opens the user's mail app with a pre-filled template: "what happened / expected" sections plus auto-attached browser, path, build tag, and timestamp so bug reports don't turn into interview cycles.
+
 ## 2026-04-13 — Friend comp list (no-redeploy admin bypass)
 
 - **Comp friends without redeploying.** Firestore doc `config/accessList` with a `compedEmails: string[]` field. Edit via the Firebase console to grant/revoke free access — changes take effect within ~60 seconds (server cache).
