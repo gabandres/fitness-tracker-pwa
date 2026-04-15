@@ -11,6 +11,7 @@ import {
 import { TranslationService } from '../../services/translation.service';
 
 type Status = 'idle' | 'saving' | 'error';
+type OnboardingStepId = 1 | 2 | 3;
 
 interface ActivityOption {
   value: ActivityLevel;
@@ -23,6 +24,34 @@ interface PaceOption {
   labelKey: string;
   blurbKey: string;
 }
+
+interface OnboardingStep {
+  id: OnboardingStepId;
+  titleKey: string;
+  bodyKey: string;
+  focusSelector: string;
+}
+
+const ONBOARDING_STEPS: readonly OnboardingStep[] = [
+  {
+    id: 1,
+    titleKey: 'onboarding.stepIdentityTitle',
+    bodyKey: 'onboarding.stepIdentityBody',
+    focusSelector: '#heightFt',
+  },
+  {
+    id: 2,
+    titleKey: 'onboarding.stepActivityTitle',
+    bodyKey: 'onboarding.stepActivityBody',
+    focusSelector: '#activity-sedentary',
+  },
+  {
+    id: 3,
+    titleKey: 'onboarding.stepTargetTitle',
+    bodyKey: 'onboarding.stepTargetBody',
+    focusSelector: '#pace-05',
+  },
+];
 
 @Component({
   selector: 'app-onboarding',
@@ -55,191 +84,245 @@ interface PaceOption {
           <span>{{ t('onboarding.reassureEditable') }}</span>
         </div>
 
+        <!-- 3-step guided flow -->
+        <div class="mt-6">
+          <div class="flex items-center justify-between gap-3">
+            <span class="data-label">{{ t('onboarding.progressLabel', { current: currentStep(), total: steps.length }) }}</span>
+            <span class="caption text-[11px]">{{ t(currentStepMeta().titleKey) }}</span>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2 mt-3" role="list" [attr.aria-label]="t('onboarding.progressAria')">
+            @for (step of steps; track step.id) {
+              <div
+                role="listitem"
+                class="step-card"
+                [class.step-card--active]="step.id === currentStep()"
+                [class.step-card--complete]="step.id < currentStep()"
+                [attr.aria-current]="step.id === currentStep() ? 'step' : null"
+              >
+                <div class="font-mono text-[10px] tracking-[0.14em] uppercase">{{ t('onboarding.stepNumber', { n: step.id }) }}</div>
+                <div class="font-sans text-sm mt-1">{{ t(step.titleKey) }}</div>
+              </div>
+            }
+          </div>
+
+          <div class="specimen px-4 py-3 mt-3">
+            <span class="crop-bl"></span><span class="crop-br"></span>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="stamp-mark" style="transform: rotate(0deg)">{{ t('onboarding.stepStamp') }}</span>
+              <span class="data-label">{{ t(currentStepMeta().titleKey) }}</span>
+            </div>
+            <p class="font-sans text-sm text-ink leading-relaxed">
+              {{ t(currentStepMeta().bodyKey) }}
+            </p>
+          </div>
+        </div>
+
         <form (ngSubmit)="submit()" class="mt-8 space-y-9">
-          <!-- 1. Height (ft + in) -->
-          <div>
-            <label class="data-label block mb-2">
-              {{ t('onboarding.heightLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
-            </label>
-            <div class="flex items-baseline gap-4">
-              <div class="flex items-baseline gap-2 flex-1">
-                <input
-                  #heightFtInput
-                  id="heightFt"
-                  type="number"
-                  min="4"
-                  max="8"
-                  step="1"
-                  inputmode="numeric"
-                  [ngModel]="heightFt()"
-                  (ngModelChange)="heightFt.set($event)"
-                  name="heightFt"
-                  placeholder="5"
-                  class="field-input w-20 text-center"
-                  required
-                />
-                <span class="font-display italic text-graphite text-sm">{{ t('onboarding.ft') }}</span>
+          @switch (currentStep()) {
+            @case (1) {
+              <!-- Step 1: identity -->
+              <div>
+                <label class="data-label block mb-2">
+                  {{ t('onboarding.heightLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
+                </label>
+                <div class="flex items-baseline gap-4">
+                  <div class="flex items-baseline gap-2 flex-1">
+                    <input
+                      id="heightFt"
+                      type="number"
+                      min="4"
+                      max="8"
+                      step="1"
+                      inputmode="numeric"
+                      [ngModel]="heightFt()"
+                      (ngModelChange)="heightFt.set($event)"
+                      name="heightFt"
+                      placeholder="5"
+                      class="field-input w-20 text-center"
+                      required
+                    />
+                    <span class="font-display italic text-graphite text-sm">{{ t('onboarding.ft') }}</span>
+                  </div>
+                  <div class="flex items-baseline gap-2 flex-1">
+                    <input
+                      id="heightInExtra"
+                      type="number"
+                      min="0"
+                      max="11"
+                      step="1"
+                      inputmode="numeric"
+                      [ngModel]="heightInExtra()"
+                      (ngModelChange)="heightInExtra.set($event)"
+                      name="heightInExtra"
+                      placeholder="10"
+                      class="field-input w-20 text-center"
+                      required
+                    />
+                    <span class="font-display italic text-graphite text-sm">{{ t('onboarding.inches') }}</span>
+                  </div>
+                </div>
               </div>
-              <div class="flex items-baseline gap-2 flex-1">
-                <input
-                  id="heightInExtra"
-                  type="number"
-                  min="0"
-                  max="11"
-                  step="1"
-                  inputmode="numeric"
-                  [ngModel]="heightInExtra()"
-                  (ngModelChange)="heightInExtra.set($event)"
-                  name="heightInExtra"
-                  placeholder="10"
-                  class="field-input w-20 text-center"
-                  required
-                />
-                <span class="font-display italic text-graphite text-sm">{{ t('onboarding.inches') }}</span>
+
+              <div>
+                <label for="age" class="data-label block mb-2">
+                  {{ t('onboarding.ageLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
+                </label>
+                <div class="flex items-baseline gap-3">
+                  <input
+                    id="age"
+                    name="age"
+                    type="number"
+                    min="13"
+                    max="120"
+                    step="1"
+                    inputmode="numeric"
+                    [ngModel]="age()"
+                    (ngModelChange)="age.set($event)"
+                    placeholder="32"
+                    class="field-input w-28"
+                    required
+                  />
+                  <span class="font-display italic text-graphite text-sm">{{ t('onboarding.years') }}</span>
+                </div>
               </div>
-            </div>
-          </div>
 
-          <!-- 2. Age -->
-          <div>
-            <label for="age" class="data-label block mb-2">
-              {{ t('onboarding.ageLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
-            </label>
-            <div class="flex items-baseline gap-3">
-              <input
-                id="age"
-                name="age"
-                type="number"
-                min="13"
-                max="120"
-                step="1"
-                inputmode="numeric"
-                [ngModel]="age()"
-                (ngModelChange)="age.set($event)"
-                placeholder="32"
-                class="field-input w-28"
-                required
-              />
-              <span class="font-display italic text-graphite text-sm">{{ t('onboarding.years') }}</span>
-            </div>
-          </div>
+              <div>
+                <label class="data-label block mb-2">
+                  {{ t('onboarding.sexLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
+                </label>
+                <p class="caption text-xs mb-2">
+                  {{ t('onboarding.sexCaption') }}
+                </p>
+                <div class="flex gap-3">
+                  @for (opt of sexOptions; track opt.value) {
+                    <button
+                      [id]="'sex-' + opt.value"
+                      type="button"
+                      (click)="sex.set(opt.value)"
+                      [class.selected]="sex() === opt.value"
+                      [attr.aria-pressed]="sex() === opt.value"
+                      class="radio-card flex-1"
+                    >
+                      {{ t(opt.labelKey) }}
+                    </button>
+                  }
+                </div>
+              </div>
+            }
 
-          <!-- 3. Biological sex -->
-          <div>
-            <label class="data-label block mb-2">
-              {{ t('onboarding.sexLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
-            </label>
-            <p class="caption text-xs mb-2">
-              {{ t('onboarding.sexCaption') }}
-            </p>
-            <div class="flex gap-3">
-              @for (opt of sexOptions; track opt.value) {
-                <button
-                  type="button"
-                  (click)="sex.set(opt.value)"
-                  [class.selected]="sex() === opt.value"
-                  class="radio-card flex-1"
-                >
-                  {{ t(opt.labelKey) }}
-                </button>
-              }
-            </div>
-          </div>
+            @case (2) {
+              <!-- Step 2: activity -->
+              <div>
+                <label class="data-label block mb-2">
+                  {{ t('onboarding.activityLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
+                </label>
+                <div class="space-y-2">
+                  @for (opt of activityOptions; track opt.value) {
+                    <button
+                      [id]="'activity-' + opt.value"
+                      type="button"
+                      (click)="activityLevel.set(opt.value)"
+                      [class.selected]="activityLevel() === opt.value"
+                      [attr.aria-pressed]="activityLevel() === opt.value"
+                      class="radio-card w-full text-left"
+                    >
+                      <div class="flex items-baseline justify-between gap-3">
+                        <span class="font-mono text-xs tracking-[0.15em] uppercase text-ink">{{ t(opt.labelKey) }}</span>
+                      </div>
+                      <div class="font-display italic text-graphite text-[11px] mt-1 normal-case tracking-normal">
+                        {{ t(opt.blurbKey) }}
+                      </div>
+                    </button>
+                  }
+                </div>
+              </div>
+            }
 
-          <!-- 4. Activity level -->
-          <div>
-            <label class="data-label block mb-2">
-              {{ t('onboarding.activityLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
-            </label>
-            <div class="space-y-2">
-              @for (opt of activityOptions; track opt.value) {
-                <button
-                  type="button"
-                  (click)="activityLevel.set(opt.value)"
-                  [class.selected]="activityLevel() === opt.value"
-                  class="radio-card w-full text-left"
-                >
-                  <div class="flex items-baseline justify-between gap-3">
-                    <span class="font-mono text-xs tracking-[0.15em] uppercase text-ink">{{ t(opt.labelKey) }}</span>
-                  </div>
-                  <div class="font-display italic text-graphite text-[11px] mt-1 normal-case tracking-normal">
-                    {{ t(opt.blurbKey) }}
-                  </div>
-                </button>
-              }
-            </div>
-          </div>
+            @case (3) {
+              <!-- Step 3: target -->
+              <div>
+                <label class="data-label block mb-2">
+                  {{ t('onboarding.paceLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
+                  <span class="normal-case italic text-graphite tracking-normal text-[11px]">{{ t('onboarding.paceHint') }}</span>
+                </label>
+                <p class="caption text-xs mb-2">
+                  {{ t('onboarding.paceCaption') }}
+                </p>
+                <div class="grid grid-cols-2 gap-2">
+                  @for (opt of paceOptions; track opt.value) {
+                    <button
+                      [id]="'pace-' + paceId(opt.value)"
+                      type="button"
+                      (click)="pace.set(opt.value)"
+                      [class.selected]="pace() === opt.value"
+                      [attr.aria-pressed]="pace() === opt.value"
+                      class="radio-card"
+                    >
+                      <div class="font-mono text-xs tracking-[0.15em] uppercase text-ink">{{ t(opt.labelKey) }}</div>
+                      <div class="font-display italic text-graphite text-xs mt-0.5 normal-case tracking-normal">
+                        {{ t(opt.blurbKey) }}
+                      </div>
+                    </button>
+                  }
+                </div>
+              </div>
 
-          <!-- 5. Weekly fat-loss target (a.k.a. cut pace) -->
-          <div>
-            <label class="data-label block mb-2">
-              {{ t('onboarding.paceLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
-              <span class="normal-case italic text-graphite tracking-normal text-[11px]">{{ t('onboarding.paceHint') }}</span>
-            </label>
-            <p class="caption text-xs mb-2">
-              {{ t('onboarding.paceCaption') }}
-            </p>
-            <div class="grid grid-cols-2 gap-2">
-              @for (opt of paceOptions; track opt.value) {
-                <button
-                  type="button"
-                  (click)="pace.set(opt.value)"
-                  [class.selected]="pace() === opt.value"
-                  class="radio-card"
-                >
-                  <div class="font-mono text-xs tracking-[0.15em] uppercase text-ink">{{ t(opt.labelKey) }}</div>
-                  <div class="font-display italic text-graphite text-xs mt-0.5 normal-case tracking-normal">
-                    {{ t(opt.blurbKey) }}
-                  </div>
-                </button>
-              }
-            </div>
-          </div>
-
-          <!-- Optional: Goal weight -->
-          <div>
-            <label for="goalWeight" class="data-label block mb-2">
-              {{ t('onboarding.goalLabel') }}
-              <span class="inline-block ml-1 px-2 py-0.5 text-[10px] normal-case tracking-normal italic rounded-full"
-                style="background: var(--color-paper-deep); color: var(--color-graphite); border: 1px solid var(--color-rule);">
-                {{ t('onboarding.skipIfNone') }}
-              </span>
-            </label>
-            <div class="flex items-baseline gap-3">
-              <input
-                id="goalWeight"
-                name="goalWeight"
-                type="number"
-                min="50"
-                max="999"
-                step="0.1"
-                inputmode="decimal"
-                [ngModel]="goalWeight()"
-                (ngModelChange)="goalWeight.set($event)"
-                placeholder="170"
-                class="field-input w-28"
-              />
-              <span class="font-display italic text-graphite text-sm">{{ t('onboarding.lbs') }}</span>
-            </div>
-          </div>
+              <div>
+                <label for="goalWeight" class="data-label block mb-2">
+                  {{ t('onboarding.goalLabel') }}
+                  <span class="inline-block ml-1 px-2 py-0.5 text-[10px] normal-case tracking-normal italic rounded-full"
+                    style="background: var(--color-paper-deep); color: var(--color-graphite); border: 1px solid var(--color-rule);">
+                    {{ t('onboarding.skipIfNone') }}
+                  </span>
+                </label>
+                <div class="flex items-baseline gap-3">
+                  <input
+                    id="goalWeight"
+                    name="goalWeight"
+                    type="number"
+                    min="50"
+                    max="999"
+                    step="0.1"
+                    inputmode="decimal"
+                    [ngModel]="goalWeight()"
+                    (ngModelChange)="goalWeight.set($event)"
+                    placeholder="170"
+                    class="field-input w-28"
+                  />
+                  <span class="font-display italic text-graphite text-sm">{{ t('onboarding.lbs') }}</span>
+                </div>
+              </div>
+            }
+          }
 
           <!-- Submit -->
           <div class="pt-3">
-            <!-- Button stays enabled even on incomplete forms so tapping
-                 submit triggers focusFirstInvalid() and lands the user on
-                 the missing field. Saving state still disables to block
-                 double-submit. -->
-            <button
-              type="submit"
-              [disabled]="status() === 'saving'"
-              class="stamp-btn"
-            >
-              @if (status() === 'saving') {
-                <span>{{ t('onboarding.saving') }}</span>
-              } @else {
-                <span>{{ editMode() ? t('onboarding.saveChanges') : t('onboarding.commitProfile') }}</span>
+            <div class="flex flex-col sm:flex-row gap-2">
+              @if (currentStep() > 1) {
+                <button
+                  type="button"
+                  (click)="previousStep()"
+                  class="tag-btn justify-center sm:min-w-28"
+                >
+                  {{ t('onboarding.back') }}
+                </button>
               }
-            </button>
+
+              <button
+                type="submit"
+                [disabled]="status() === 'saving'"
+                class="stamp-btn sm:flex-1"
+              >
+                @if (status() === 'saving') {
+                  <span>{{ t('onboarding.saving') }}</span>
+                } @else if (isFinalStep()) {
+                  <span>{{ editMode() ? t('onboarding.saveChanges') : t('onboarding.commitProfile') }}</span>
+                } @else {
+                  <span>{{ t('onboarding.continue') }}</span>
+                }
+              </button>
+            </div>
 
             @if (editMode()) {
               <button
@@ -290,6 +373,23 @@ interface PaceOption {
     .radio-card.selected .text-ink {
       color: var(--color-paper) !important;
     }
+    .step-card {
+      padding: 10px 12px;
+      border: 1px solid var(--color-rule);
+      background: transparent;
+      color: var(--color-graphite);
+      transition: all 180ms ease;
+    }
+    .step-card--active {
+      border-color: var(--color-blood);
+      background: rgba(111, 26, 16, 0.05);
+      color: var(--color-ink);
+      box-shadow: 2px 2px 0 0 var(--color-blood);
+    }
+    .step-card--complete {
+      border-color: var(--color-olive);
+      color: var(--color-ink);
+    }
   `],
 })
 export class OnboardingComponent {
@@ -312,6 +412,10 @@ export class OnboardingComponent {
 
   protected readonly status = signal<Status>('idle');
   protected readonly errorMsg = signal('');
+  protected readonly steps = ONBOARDING_STEPS;
+  protected readonly currentStep = signal<OnboardingStepId>(1);
+  protected readonly isFinalStep = computed(() => this.currentStep() === this.steps.length);
+  protected readonly currentStepMeta = computed(() => this.steps[this.currentStep() - 1]);
 
   protected readonly sexOptions: { value: Sex; labelKey: string }[] = [
     { value: 'male',   labelKey: 'onboarding.sexMale'   },
@@ -333,15 +437,6 @@ export class OnboardingComponent {
     { value: 2.0, labelKey: 'onboarding.pace20', blurbKey: 'onboarding.pace20Blurb' },
   ];
 
-  protected readonly canSubmit = computed(() =>
-    this.heightFt() != null &&
-    this.heightInExtra() != null &&
-    this.age() != null &&
-    this.sex() !== null &&
-    this.activityLevel() !== null &&
-    this.pace() !== null,
-  );
-
   constructor() {
     // When editing, prefill from the currently-loaded profile.
     const existing = this.firebase.profile();
@@ -359,26 +454,21 @@ export class OnboardingComponent {
   }
 
   protected async submit(): Promise<void> {
-    if (!this.canSubmit()) {
-      // Focus the first empty required field so the user sees what's missing.
-      this.focusFirstInvalid();
+    this.status.set('idle');
+    this.errorMsg.set('');
+
+    if (!this.validateStep(this.currentStep())) {
+      return;
+    }
+
+    if (!this.isFinalStep()) {
+      this.goToStep((this.currentStep() + 1) as OnboardingStepId);
       return;
     }
 
     const ft = Number(this.heightFt());
     const extra = Number(this.heightInExtra());
     const totalInches = ft * 12 + extra;
-
-    if (totalInches < 40 || totalInches > 96) {
-      this.status.set('error');
-      this.errorMsg.set(this.translation.t('onboarding.errorHeightRange'));
-      // Focus the height ft input so keyboard + screen-reader users
-      // immediately land on the offending field.
-      queueMicrotask(() => {
-        (document.getElementById('heightFt') as HTMLInputElement | null)?.focus();
-      });
-      return;
-    }
 
     const fields: ProfileFields = {
       heightIn: totalInches,
@@ -402,27 +492,68 @@ export class OnboardingComponent {
     }
   }
 
-  /** Focus the first required field that's still empty, so the user
-      immediately sees what's missing after tapping submit. */
-  private focusFirstInvalid(): void {
-    queueMicrotask(() => {
-      const order: { signalEmpty: boolean; selector: string }[] = [
-        { signalEmpty: this.heightFt() == null,      selector: '#heightFt' },
-        { signalEmpty: this.heightInExtra() == null, selector: '#heightInExtra' },
-        { signalEmpty: this.age() == null,           selector: '#age' },
-        // For radio-card fields, focus the first option button so keyboard
-        // users can Tab/arrow through choices.
-        { signalEmpty: this.sex() === null,           selector: '.radio-card' },
-        { signalEmpty: this.activityLevel() === null, selector: '.radio-card' },
-        { signalEmpty: this.pace() === null,          selector: '.radio-card' },
-      ];
-      for (const { signalEmpty, selector } of order) {
-        if (!signalEmpty) continue;
-        const el = document.querySelector<HTMLElement>(selector);
-        el?.focus();
-        el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        return;
+  protected previousStep(): void {
+    if (this.currentStep() === 1) return;
+    this.goToStep((this.currentStep() - 1) as OnboardingStepId);
+  }
+
+  protected paceId(value: CutPace): string {
+    return String(value).replace('.', '');
+  }
+
+  private goToStep(step: OnboardingStepId): void {
+    this.currentStep.set(step);
+    this.status.set('idle');
+    this.errorMsg.set('');
+    this.focusSelector(this.steps[step - 1]?.focusSelector ?? '#heightFt');
+  }
+
+  private validateStep(step: OnboardingStepId): boolean {
+    switch (step) {
+      case 1: {
+        const missing = [
+          { invalid: this.heightFt() == null, selector: '#heightFt' },
+          { invalid: this.heightInExtra() == null, selector: '#heightInExtra' },
+          { invalid: this.age() == null, selector: '#age' },
+          { invalid: this.sex() === null, selector: '#sex-male' },
+        ];
+        for (const field of missing) {
+          if (!field.invalid) continue;
+          this.focusSelector(field.selector);
+          return false;
+        }
+
+        const totalInches = Number(this.heightFt()) * 12 + Number(this.heightInExtra());
+        if (totalInches < 40 || totalInches > 96) {
+          this.status.set('error');
+          this.errorMsg.set(this.translation.t('onboarding.errorHeightRange'));
+          this.focusSelector('#heightFt');
+          return false;
+        }
+        return true;
       }
+
+      case 2:
+        if (this.activityLevel() === null) {
+          this.focusSelector('#activity-sedentary');
+          return false;
+        }
+        return true;
+
+      case 3:
+        if (this.pace() === null) {
+          this.focusSelector('#pace-05');
+          return false;
+        }
+        return true;
+    }
+  }
+
+  private focusSelector(selector: string): void {
+    queueMicrotask(() => {
+      const el = document.querySelector<HTMLElement>(selector);
+      el?.focus();
+      el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     });
   }
 }

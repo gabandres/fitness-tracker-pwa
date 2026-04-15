@@ -1,6 +1,6 @@
 # Macro Log — UX Audit
 
-> Living document. Check items off as they ship. Last updated: 2026-04-12.
+> Living document. Check items off as they ship. Last updated: 2026-04-15.
 
 ---
 
@@ -13,16 +13,19 @@
 
 ---
 
-## 1. App understanding (verified 2026-04-12)
+## 1. App understanding (verified 2026-04-15)
 
 **Shape:** single-page Angular 21 PWA. Two auth gates (sign-in → onboarding), then a two-column layout on desktop (single column on mobile).
 
 **Left column — daily ledger (`daily-ledger.component`):**
+- Fasting strip (if active)
+- Install-as-app prompt (after first logged meal, platform-aware)
 - Travel-mode banner (if active)
 - Streak badge
-- 14-day date-chip strip (swipe + tap to navigate)
+- 14-day date-chip strip (swipe + tap to navigate) + once-per-session swipe hint
 - Today weight + "new entry" CTA
 - Add/edit entry panel (hosts `entry-form`, `photo-capture`, `barcode-scanner`, `preset-picker`)
+- Cold-start starter-food specimen card before first entry
 - Log tape grouped by day (progress bars on today, inline per-day add, tap-to-edit meals)
 - Undo-delete toast (8s, fully tappable)
 
@@ -32,9 +35,11 @@
 - `dashboard.component` — target · true TDEE · weight readout; adaptive-TDEE transition card; goal bar; weekly summary; weekly envelope; Gemini weekly report (cached); all-time progress; 14-day + all-time sparklines; CSV export
 - `consultation.component` — streamed Gemini coach with suggested prompts
 
-**Footer (global):** edit profile · travel mode · webhook · enable push · reminder hour dropdown.
+**Settings sheet (`settings-sheet.component`):** profile · reminders · language · modes · data/webhook · subscription · feedback · legal.
 
-**Global surfaces (`app.ts`):** SwUpdate modal, offline indicator, after-hours reminder banner, masthead (monogram, date, theme toggle, sign-out).
+**Footer (global):** version/identity + privacy · terms · contact only.
+
+**Global surfaces (`app.ts`):** SwUpdate modal, offline indicator, after-hours reminder banner, masthead (monogram, date, theme toggle, settings gear), auth gate, onboarding gate.
 
 **Design language:** Instrument Serif + DM Sans + JetBrains Mono; warm cream paper / dark charcoal; oxblood accent, olive (on-track), terracotta (protein), gold (warning/travel). Lowercase copy with rotated stamp marks, ruler edges, tape strips, crop marks — "Personal Calibration Log" aesthetic.
 
@@ -77,7 +82,7 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 - [x] Mark required fields with `*`; goal-weight row has a visible "skip if none" pill *(2026-04-13)*
 - [x] On submit with missing fields → focus the first empty input; on height-out-of-bounds → focus heightFt *(2026-04-13)*
 - [x] Submit button enabled on incomplete forms (was disabled) so taps still land feedback via focus *(2026-04-13)*
-- [ ] (Medium, deferred) Split into 3 steps with a progress indicator: identity → activity → target
+- [x] Split into 3 steps with a progress indicator: identity → activity → target. Same guided flow now applies in both first-run and edit mode, with sequential Back/Continue navigation, per-step explainer copy, and local-only progress until final save. *(2026-04-15)*
 
 **Why:** first-run is the only time we get the user to fill a 6-field form. Any friction here correlates directly with abandonment.
 
@@ -131,14 +136,14 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 
 - [x] Fix ledger empty-state copy: "tap the button below" when button is at the *top* *(2026-04-12)*
 - [x] Try-this specimen card for first run — 18 curated foods (drinks, breakfast, protein, carbs, fast food, PR staples). One tap opens the form pre-filled. Auto-hides after first entry. *(2026-04-13)*
-- [ ] Hide consultation panel until ≥3 entries exist (otherwise Gemini has nothing to analyze)
+- [x] Hide consultation panel until ≥3 entries exist (otherwise Gemini has nothing to analyze) *(2026-04-13)*
 
 **Why:** the first 2 minutes decide whether a fitness-logging user comes back tomorrow.
 
 ### 🟡 S9 — Micro-interactions
 
 - [x] Date chip: differentiated the two signals — has-data dot is now olive, today border stays oxblood *(2026-04-12)*
-- [ ] Add once-per-session swipe hint on ledger ("swipe to change day ↔")
+- [x] Add once-per-session swipe hint on ledger ("swipe to change day ↔") *(2026-04-13)*
 - [ ] Space sign-out / theme toggle apart + add icons; currently 2 chars apart, easy to mis-tap
 
 ---
@@ -155,9 +160,10 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 ### Ship next (small surgery)
 - [x] Consolidate footer → settings sheet (S3) *(2026-04-13)*
 - [x] Onboarding: top-line summary, required/optional pills, focus-on-error (S2) *(2026-04-13)*
+- [x] Split onboarding into a 3-step guided flow with progress indicator (S2) *(2026-04-15)*
 - [ ] Merge weight trends into tabbed chart (S4)
 - [x] Raise barcode/photo buttons to 44px with labels (S3) — *2026-04-12*
-- [ ] Contrast audit — fix graphite-soft / aged usage (S5)
+- [x] Contrast audit — fix graphite-soft / aged usage (S5) *(2026-04-13)*
 
 ### Needs a design decision first
 - [x] Right-column grouping (S7) — reordered + fasting made ambient via strip *(2026-04-13)*
@@ -178,3 +184,5 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 - **2026-04-12** — S4 "kcal remaining today" hero shipped at top of the ledger (below travel-mode banner, above streak). Dashboard 3-up readout left untouched deliberately; re-evaluate after a week of use.
 - **2026-04-12** — Copy/cheap bucket: "?" tooltips on dashboard readouts (tap-to-reveal), "cut pace" → "weekly fat-loss target", dropped "fin", footer "specimen · confidential" → "made for you · private", onboarding "field form · 001" → "your details", date-chip has-data dot changed from oxblood to olive (differentiates from today's border).
 - **2026-04-12** — S3: barcode/photo capture buttons upgraded to 44px tap targets with visible labels ("⊟ barcode" / "📷 photo") via new `.capture-btn` class. S4: weekly envelope collapsed from 4-data-point grid to a one-sentence summary; budget bar kept for at-a-glance trend.
+- **2026-04-13** — Audit catch-up: settings sheet replaced the old utility footer; install prompt, swipe hint, consultation cold-start hide, and contrast fix all shipped. Backlog updated on **2026-04-15** to remove stale open items.
+- **2026-04-15** — S2 shipped: onboarding is now a 3-step guided flow (`identity → activity → target`) with a progress tracker, short explainer copy per step, Back/Continue navigation, and the same flow reused for edit mode.
