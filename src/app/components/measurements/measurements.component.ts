@@ -1,24 +1,27 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { Measurement } from '../../services/firebase.service';
+import { TranslationService } from '../../services/translation.service';
 
 type Mode = 'view' | 'add';
 
 @Component({
   selector: 'app-measurements',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     <section>
-      <div class="rule"><span>body tape</span></div>
+      <div class="rule"><span>{{ t('measurements.section') }}</span></div>
 
       @if (store.latestMeasurement(); as m) {
         <div class="mt-4 specimen px-4 py-3">
           <span class="crop-bl"></span><span class="crop-br"></span>
           <div class="flex items-center justify-between mb-2">
-            <span class="data-label">latest measurement</span>
+            <span class="data-label">{{ t('measurements.latest') }}</span>
             <span class="font-mono text-[11px] text-graphite">
               {{ formatDate(m.date) }}
             </span>
@@ -38,7 +41,7 @@ type Mode = 'view' | 'add';
                       }
                     }
                   </div>
-                  <div class="data-label mt-0.5 opacity-60 text-[11px]">{{ field.label }}</div>
+                  <div class="data-label mt-0.5 opacity-60 text-[11px]">{{ t('measurements.' + field.key) }}</div>
                 </div>
               }
             }
@@ -49,36 +52,36 @@ type Mode = 'view' | 'add';
       <div class="mt-4">
         @if (mode() === 'view') {
           <button type="button" (click)="mode.set('add')" class="stamp-btn">
-            + log measurements
+            {{ t('measurements.addButton') }}
           </button>
         } @else {
           <div class="specimen px-4 py-5 slide-down">
             <span class="crop-bl"></span><span class="crop-br"></span>
             <div class="flex items-center gap-2 mb-3">
-              <span class="stamp-mark" style="transform: rotate(0deg)">new</span>
-              <span class="data-label">measurement</span>
+              <span class="stamp-mark" style="transform: rotate(0deg)">{{ t('measurements.newStamp') }}</span>
+              <span class="data-label">{{ t('measurements.measurement') }}</span>
             </div>
             <form (ngSubmit)="submit()" class="space-y-3">
               <div class="grid grid-cols-2 gap-3">
                 @for (field of fields; track field.key) {
                   <div>
-                    <label class="data-label block mb-1">{{ field.label }}</label>
+                    <label class="data-label block mb-1">{{ t('measurements.' + field.key) }}</label>
                     <div class="flex items-baseline gap-1">
                       <input type="number" step="0.1" inputmode="decimal"
                         [ngModel]="formValues()[field.key]"
                         (ngModelChange)="setFormValue(field.key, $event)"
                         [name]="field.key" [placeholder]="field.placeholder"
                         class="field-input text-base" />
-                      <span class="font-display italic text-graphite text-xs">in</span>
+                      <span class="font-display italic text-graphite text-xs">{{ t('measurements.inches') }}</span>
                     </div>
                   </div>
                 }
               </div>
               <div class="flex gap-2 pt-1">
                 <button type="submit" [disabled]="saving()" class="stamp-btn flex-1">
-                  {{ saving() ? 'saving…' : 'commit' }}
+                  {{ saving() ? t('measurements.saving') : t('measurements.commit') }}
                 </button>
-                <button type="button" (click)="mode.set('view')" class="tag-btn">cancel</button>
+                <button type="button" (click)="mode.set('view')" class="tag-btn">{{ t('measurements.cancel') }}</button>
               </div>
               @if (error()) {
                 <p class="font-mono text-[11px] text-blood">{{ error() }}</p>
@@ -88,19 +91,21 @@ type Mode = 'view' | 'add';
         }
       </div>
     </section>
+    </ng-container>
   `,
 })
 export class MeasurementsComponent {
   protected readonly store = inject(FitnessStore);
+  private readonly translation = inject(TranslationService);
   protected readonly mode = signal<Mode>('view');
   protected readonly saving = signal(false);
   protected readonly error = signal('');
 
   protected readonly fields = [
-    { key: 'waist' as const, label: 'waist', placeholder: '__' },
-    { key: 'chest' as const, label: 'chest', placeholder: '__' },
-    { key: 'bicep' as const, label: 'bicep', placeholder: '__' },
-    { key: 'hip' as const, label: 'hip', placeholder: '__' },
+    { key: 'waist' as const, placeholder: '__' },
+    { key: 'chest' as const, placeholder: '__' },
+    { key: 'bicep' as const, placeholder: '__' },
+    { key: 'hip' as const, placeholder: '__' },
   ];
 
   protected readonly formValues = signal<Record<string, number | null>>({
@@ -112,7 +117,8 @@ export class MeasurementsComponent {
   }
 
   protected formatDate(d: Date): string {
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
+    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    return d.toLocaleDateString(locale, { month: 'short', day: 'numeric' }).toUpperCase();
   }
 
   protected async submit(): Promise<void> {
@@ -124,7 +130,7 @@ export class MeasurementsComponent {
     if (vals['hip'] != null) entry.hip = Number(vals['hip']);
 
     if (entry.waist == null && entry.chest == null && entry.bicep == null && entry.hip == null) {
-      this.error.set('At least one measurement is required.');
+      this.error.set(this.translation.t('measurements.errorRequired'));
       return;
     }
 
@@ -135,7 +141,7 @@ export class MeasurementsComponent {
       this.mode.set('view');
       this.formValues.set({ waist: null, chest: null, bicep: null, hip: null });
     } catch (err) {
-      this.error.set(err instanceof Error ? err.message : 'Failed to save.');
+      this.error.set(err instanceof Error ? err.message : this.translation.t('measurements.errorFailedToSave'));
     } finally {
       this.saving.set(false);
     }

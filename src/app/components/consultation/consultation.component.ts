@@ -1,41 +1,44 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { marked } from 'marked';
 import { GeminiService } from '../../services/gemini.service';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { SubscriptionService } from '../../services/subscription.service';
+import { TranslationService } from '../../services/translation.service';
+import { ErrorCode, extractErrorCode } from '../../models/error-codes';
 
 type Status = 'idle' | 'streaming' | 'done' | 'error';
 
 interface SuggestedPrompt {
-  label: string;
-  prompt: string;
+  labelKey: string;
+  promptKey: string;
 }
 
 @Component({
   selector: 'app-consultation',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     <section>
       <div class="rule">
-        <span>consultation</span>
+        <span>{{ t('consultation.section') }}</span>
       </div>
 
       <div class="mt-6">
         <p class="font-display text-xl leading-snug text-ink">
-          Write a letter<br/>
-          <em class="text-blood">to your coach.</em>
+          {{ t('consultation.letterLead') }}<br/>
+          <em class="text-blood">{{ t('consultation.letterEm') }}</em>
         </p>
         <p class="caption mt-2 text-[11px]">
-          ask anything about your data. your fourteen-day record is attached
-          automatically. responses are streamed from gemini.
+          {{ t('consultation.intro') }}
           @if (!subs.isPaid() && remaining() !== null) {
             <span class="ml-1 font-mono not-italic"
               [style.color]="remaining()! <= 1 ? 'var(--color-gold)' : 'var(--color-graphite)'">
-              ({{ remaining() }} of {{ limit() }} left today)
+              {{ t('consultation.remaining', { n: remaining(), limit: limit() }) }}
             </span>
           }
         </p>
@@ -43,21 +46,21 @@ interface SuggestedPrompt {
 
       <!-- Suggested prompts -->
       <div class="mt-6 flex flex-wrap gap-2">
-        @for (p of suggested; track p.prompt) {
+        @for (p of suggested; track p.promptKey) {
           <button
             type="button"
-            (click)="useSuggestion(p.prompt)"
+            (click)="useSuggestion(t(p.promptKey))"
             [disabled]="status() === 'streaming'"
             class="tag-btn text-xs"
           >
-            {{ p.label }}
+            {{ t(p.labelKey) }}
           </button>
         }
       </div>
 
       <!-- Composer -->
       <form (ngSubmit)="ask()" class="mt-6">
-        <label for="question" class="data-label block mb-1">your question</label>
+        <label for="question" class="data-label block mb-1">{{ t('consultation.questionLabel') }}</label>
         <textarea
           id="question"
           name="question"
@@ -65,7 +68,7 @@ interface SuggestedPrompt {
           [ngModel]="question()"
           (ngModelChange)="question.set($event)"
           [disabled]="status() === 'streaming'"
-          placeholder="e.g. am i losing too quickly? should i hold my target?"
+          [placeholder]="t('consultation.questionPlaceholder')"
           class="field-input resize-none"
         ></textarea>
 
@@ -76,9 +79,9 @@ interface SuggestedPrompt {
             class="stamp-btn"
           >
             @if (status() === 'streaming') {
-              <span>asking…</span>
+              <span>{{ t('consultation.asking') }}</span>
             } @else {
-              <span>ask ⟶</span>
+              <span>{{ t('consultation.ask') }}</span>
             }
           </button>
         </div>
@@ -88,8 +91,8 @@ interface SuggestedPrompt {
       @if (status() !== 'idle') {
         <article class="mt-8">
           <div class="flex items-center gap-2 mb-3">
-            <span class="stamp-mark">reply</span>
-            <span class="caption text-[11px]">from the desk of gemini</span>
+            <span class="stamp-mark">{{ t('consultation.replyStamp') }}</span>
+            <span class="caption text-[11px]">{{ t('consultation.replyCaption') }}</span>
           </div>
 
           <div
@@ -108,8 +111,8 @@ interface SuggestedPrompt {
               <p class="font-sans text-sm text-blood">{{ errorMsg() }}</p>
               @if (overLimit()) {
                 <p class="caption text-[11px] mt-2">
-                  subscribe for unlimited consultations, higher photo quota, and more.
-                  open <span class="text-ink">settings → subscription</span>.
+                  {{ t('consultation.overLimitPre') }}
+                  <span class="text-ink">{{ t('consultation.overLimitSettingsPath') }}</span>.
                 </p>
               }
             </div>
@@ -117,6 +120,7 @@ interface SuggestedPrompt {
         </article>
       }
     </section>
+    </ng-container>
   `,
   // prose-field styles moved to global styles.css
 })
@@ -125,21 +129,20 @@ export class ConsultationComponent {
   private readonly gemini = inject(GeminiService);
   protected readonly subs = inject(SubscriptionService);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly translation = inject(TranslationService);
 
   /** Remaining free consultations today. Populated after each ask()
       from the `reserveConsultation` response. `null` means "unknown"
       (we haven't asked anything yet this session). */
   protected readonly remaining = signal<number | null>(null);
   protected readonly limit = signal<number>(5);
-  protected readonly overLimit = computed(() =>
-    this.status() === 'error' && /limit|exhausted/i.test(this.errorMsg()),
-  );
+  protected readonly overLimit = signal(false);
 
   protected readonly suggested: SuggestedPrompt[] = [
-    { label: 'am i on track?', prompt: 'How am I progressing toward my cut goal? Be specific about what the data shows.' },
-    { label: 'adjust target?', prompt: 'Should I adjust my daily calorie target based on the last 14 days? Explain your reasoning.' },
-    { label: 'red flags', prompt: 'Are there any red flags or concerning patterns in my log data I should be aware of?' },
-    { label: 'weight plateau', prompt: 'Am I in a weight plateau? What does my 14-day trend suggest about my metabolic rate?' },
+    { labelKey: 'consultation.suggestedOnTrackLabel', promptKey: 'consultation.suggestedOnTrackPrompt' },
+    { labelKey: 'consultation.suggestedAdjustLabel', promptKey: 'consultation.suggestedAdjustPrompt' },
+    { labelKey: 'consultation.suggestedRedFlagsLabel', promptKey: 'consultation.suggestedRedFlagsPrompt' },
+    { labelKey: 'consultation.suggestedPlateauLabel', promptKey: 'consultation.suggestedPlateauPrompt' },
   ];
 
   protected readonly question = signal('');
@@ -160,6 +163,7 @@ export class ConsultationComponent {
     this.rawResponse.set('');
     this.renderedHtml.set('' as SafeHtml);
     this.errorMsg.set('');
+    this.overLimit.set(false);
 
     // Reserve a consultation slot server-side BEFORE streaming.
     // Free tier: 5/day; paid: unlimited. Throws resource-exhausted
@@ -199,7 +203,14 @@ export class ConsultationComponent {
       this.status.set('done');
     } catch (err) {
       this.status.set('error');
-      this.errorMsg.set(err instanceof Error ? err.message : 'Consultation failed.');
+      const code = extractErrorCode(err);
+      if (code) {
+        const details = (err as { details?: Record<string, unknown> }).details ?? {};
+        this.errorMsg.set(this.translation.tError(code, details));
+        if (code === ErrorCode.CONSULTATION_QUOTA_EXCEEDED) this.overLimit.set(true);
+      } else {
+        this.errorMsg.set(err instanceof Error ? err.message : this.translation.t('consultation.errorFallback'));
+      }
       // If we successfully reserved a slot but the stream then failed,
       // refund it so the user isn't silently penalised for a transient
       // error. If reservation itself threw, there's nothing to release.

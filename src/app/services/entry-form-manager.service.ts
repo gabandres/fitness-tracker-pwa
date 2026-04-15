@@ -2,11 +2,13 @@ import { Injectable, inject, signal } from '@angular/core';
 import { DailyLog, LogEntry, MealPreset } from './firebase.service';
 import { FitnessStore } from './fitness-store.service';
 import { MacroEstimate } from '../models/macro-estimate';
+import { TranslationService } from './translation.service';
 import { localDateKey } from '../utils/date';
 
 @Injectable()
 export class EntryFormManager {
   private readonly store = inject(FitnessStore);
+  private readonly translation = inject(TranslationService);
 
   // ── Mode state machine ──────────────────────────────────────
   readonly mode = signal<'view' | 'add' | 'edit'>('view');
@@ -80,7 +82,7 @@ export class EntryFormManager {
     const c = this.calories();
     if (c == null || Number.isNaN(c)) {
       this.status.set('error');
-      this.errorMsg.set('Calories are required.');
+      this.errorMsg.set(this.translation.t('entry.errorCaloriesRequired'));
       return;
     }
 
@@ -113,7 +115,7 @@ export class EntryFormManager {
       }
     } catch (err) {
       this.status.set('error');
-      this.errorMsg.set(err instanceof Error ? err.message : 'Failed to save.');
+      this.errorMsg.set(err instanceof Error ? err.message : this.translation.t('entry.errorFailedToSave'));
     }
   }
 
@@ -125,7 +127,7 @@ export class EntryFormManager {
       this.cancel();
     } catch (err) {
       this.status.set('error');
-      this.errorMsg.set(err instanceof Error ? err.message : 'Failed to delete.');
+      this.errorMsg.set(err instanceof Error ? err.message : this.translation.t('entry.errorFailedToDelete'));
     }
   }
 

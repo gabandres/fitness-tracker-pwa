@@ -1,5 +1,13 @@
 {
   "projects": {
     "default": "fitness-tracker-gb-1775407101"
+  },
+  "targets": {},
+  "etags": {
+    "fitness-tracker-gb-1775407101": {
+      "extensionInstances": {
+        "firestore-stripe-payments": "e05640e6b2dcd1b8c53e08628c87a3b3d284660c6c456b7594e5e931e38d578f"
+      }
+    }
   }
 }

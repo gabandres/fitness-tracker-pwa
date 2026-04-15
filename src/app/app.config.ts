@@ -15,6 +15,7 @@ import { provideMessaging, getMessaging } from '@angular/fire/messaging';
 import { routes } from './app.routes';
 import { provideServiceWorker } from '@angular/service-worker';
 import { environment } from '../environments/environment';
+import { provideTranslocoConfig } from './i18n/transloco.providers';
 
 /**
  * Only provide Firebase Messaging when the browser supports the required APIs
@@ -52,6 +53,7 @@ export const appConfig: ApplicationConfig = {
       enabled: !isDevMode(),
       registrationStrategy: 'registerWhenStable:30000',
     }),
+    provideTranslocoConfig(),
     // Sentry error handler: reports uncaught exceptions to Sentry when a
     // DSN is configured. When no DSN is set, Sentry.init() in main.ts is
     // skipped and this handler silently passes through — no user-visible

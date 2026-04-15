@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
 import { filter } from 'rxjs';
+import { TranslocoDirective } from '@jsverse/transloco';
+import { TranslationService } from './services/translation.service';
 import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { DailyLedgerComponent } from './components/daily-ledger/daily-ledger.component';
 import { ConsultationComponent } from './components/consultation/consultation.component';
@@ -30,10 +32,12 @@ import { localDateKey } from './utils/date';
     PrivacyComponent,
     TermsComponent,
     SettingsSheetComponent,
+    TranslocoDirective,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <a href="#main" class="skip-link">skip to main content</a>
+    <ng-container *transloco="let t">
+    <a href="#main" class="skip-link">{{ t('app.skipToMain') }}</a>
     <main id="main" class="min-h-screen px-5 sm:px-8 lg:px-12 py-8 sm:py-12">
       <div class="max-w-[560px] lg:max-w-[1100px] mx-auto">
 
@@ -53,15 +57,15 @@ import { localDateKey } from './utils/date';
               (click)="$event.stopPropagation()">
               <span class="crop-bl"></span><span class="crop-br"></span>
               <div class="flex items-center gap-3 mb-3">
-                <span class="stamp-mark" style="transform: rotate(0deg)">new</span>
-                <span id="update-title" class="font-display text-lg text-ink">Update Available</span>
+                <span class="stamp-mark" style="transform: rotate(0deg)">{{ t('app.update.stamp') }}</span>
+                <span id="update-title" class="font-display text-lg text-ink">{{ t('app.update.title') }}</span>
               </div>
               <p id="update-body" class="font-sans text-sm text-graphite leading-relaxed mb-4">
-                A new version of Macro Log is ready. Reload to get the latest features and fixes.
+                {{ t('app.update.body') }}
               </p>
               <div class="flex gap-2">
-                <button type="button" (click)="reloadForUpdate()" class="stamp-btn flex-1">reload now</button>
-                <button type="button" (click)="dismissUpdate()" class="tag-btn">later</button>
+                <button type="button" (click)="reloadForUpdate()" class="stamp-btn flex-1">{{ t('app.update.reload') }}</button>
+                <button type="button" (click)="dismissUpdate()" class="tag-btn">{{ t('app.update.later') }}</button>
               </div>
             </div>
           </div>
@@ -71,8 +75,8 @@ import { localDateKey } from './utils/date';
         @if (offline()) {
           <div class="mb-4 ink-in flex items-center gap-2"
             role="status" aria-live="polite">
-            <span class="stamp-mark" style="transform: rotate(0deg);">offline</span>
-            <span class="caption text-xs">entries will queue locally and sync when reconnected.</span>
+            <span class="stamp-mark" style="transform: rotate(0deg);">{{ t('app.offline.stamp') }}</span>
+            <span class="caption text-xs">{{ t('app.offline.caption') }}</span>
           </div>
         }
 
@@ -84,12 +88,12 @@ import { localDateKey } from './utils/date';
             <span class="crop-bl" style="border-color: var(--color-gold)"></span>
             <span class="crop-br" style="border-color: var(--color-gold)"></span>
             <div class="flex items-center gap-2">
-              <span class="stamp-mark" style="transform: rotate(0deg); border-color: var(--color-gold); color: var(--color-gold)">reminder</span>
-              <span class="caption text-xs">you haven't logged today yet.</span>
+              <span class="stamp-mark" style="transform: rotate(0deg); border-color: var(--color-gold); color: var(--color-gold)">{{ t('app.reminder.stamp') }}</span>
+              <span class="caption text-xs">{{ t('app.reminder.caption') }}</span>
             </div>
             <button type="button" (click)="dismissReminder()"
-              aria-label="Dismiss reminder for today"
-              class="tag-btn text-[11px]">dismiss</button>
+              [attr.aria-label]="t('app.reminder.dismissAria')"
+              class="tag-btn text-[11px]">{{ t('app.reminder.dismiss') }}</button>
           </div>
         }
 
@@ -98,24 +102,25 @@ import { localDateKey } from './utils/date';
           <div>
             <div class="flex items-baseline gap-2">
               <span class="monogram">M·L</span>
-              <span class="caption">calibration log no. 001</span>
+              <span class="caption">{{ t('app.calibrationLogNo') }}</span>
             </div>
             <h1 class="font-display text-4xl sm:text-5xl leading-[0.95] tracking-tight mt-1 text-ink">
-              Macro<br/><em class="text-blood">Log</em>
+              {{ t('app.taglineLead') }}<br/><em class="text-blood">{{ t('app.taglineEm') }}</em>
             </h1>
           </div>
           <div class="text-right shrink-0 pt-2">
             <div class="data-label">{{ todayLabel() }}</div>
             <div class="flex items-center justify-end gap-2 mt-1">
               <button type="button" (click)="toggleTheme()" class="tag-btn"
-                [attr.aria-label]="darkMode() ? 'Switch to light mode' : 'Switch to dark mode'"
-                title="Toggle dark/light mode">
-                {{ darkMode() ? '☀' : '☾' }}
+                [attr.aria-label]="darkMode() ? t('app.masthead.themeAriaLight') : t('app.masthead.themeAriaDark')"
+                [attr.title]="t('app.masthead.themeTitle')">
+                {{ darkMode() ? t('app.masthead.themeIconLight') : t('app.masthead.themeIconDark') }}
               </button>
               @if (auth.isSignedIn() && firebase.profileCompleted()) {
                 <button type="button" (click)="showSettings.set(true)"
                   class="tag-btn"
-                  aria-label="Open settings" title="Settings">⚙</button>
+                  [attr.aria-label]="t('app.masthead.settingsAria')"
+                  [attr.title]="t('app.masthead.settingsTitle')">{{ t('app.masthead.settingsIcon') }}</button>
               }
             </div>
           </div>
@@ -126,7 +131,7 @@ import { localDateKey } from './utils/date';
         </div>
 
         <p class="caption mt-3 ink-in delay-2">
-          a rolling fourteen-day record of weight, intake, and expenditure.
+          {{ t('app.subtitle') }}
         </p>
 
         <!-- Main content gates: auth → profile → app -->
@@ -134,7 +139,7 @@ import { localDateKey } from './utils/date';
           @if (!auth.ready()) {
             <div class="specimen p-10 text-center">
               <span class="crop-bl"></span><span class="crop-br"></span>
-              <p class="caption">loading field notes&hellip;</p>
+              <p class="caption">{{ t('app.loadingFieldNotes') }}</p>
             </div>
           } @else if (!auth.isSignedIn()) {
             <div class="ink-in delay-3">
@@ -143,7 +148,7 @@ import { localDateKey } from './utils/date';
           } @else if (!firebase.profile()) {
             <div class="specimen p-10 text-center">
               <span class="crop-bl"></span><span class="crop-br"></span>
-              <p class="caption">opening your file&hellip;</p>
+              <p class="caption">{{ t('app.openingYourFile') }}</p>
             </div>
           } @else if (!firebase.profileCompleted() || editingProfile()) {
             <div class="ink-in delay-3">
@@ -202,24 +207,25 @@ import { localDateKey } from './utils/date';
         <footer class="mt-16 ink-in delay-6">
           <div class="rule"></div>
           <div class="mt-6 flex items-center justify-between text-xs tracking-[0.18em] uppercase text-graphite font-mono">
-            <span>made for you</span>
-            <span class="stamp-mark">private</span>
+            <span>{{ t('app.footer.madeForYou') }}</span>
+            <span class="stamp-mark">{{ t('app.footer.private') }}</span>
           </div>
           @if (auth.user(); as u) {
             <p class="caption mt-4 text-center text-[11px]">
               <span class="text-graphite">{{ u.email }}</span>
               &middot;
-              <a href="/privacy" class="underline decoration-dotted hover:text-blood">privacy</a>
+              <a href="/privacy" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.privacy') }}</a>
               &middot;
-              <a href="/terms" class="underline decoration-dotted hover:text-blood">terms</a>
+              <a href="/terms" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.terms') }}</a>
               &middot;
-              <a href="mailto:gabrielandresbermudez&#64;gmail.com" class="underline decoration-dotted hover:text-blood">contact</a>
+              <a href="mailto:gabrielandresbermudez&#64;gmail.com" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.contact') }}</a>
             </p>
           }
         </footer>
         }
       </div>
     </main>
+    </ng-container>
   `,
 })
 export class App {
@@ -227,6 +233,7 @@ export class App {
   protected readonly firebase = inject(FirebaseService);
   protected readonly store = inject(FitnessStore); // triggers lifecycle via constructor effect
   private readonly swUpdate = inject(SwUpdate);
+  private readonly translation = inject(TranslationService); // resolves locale on boot, updates <title>
 
   protected readonly ticks = Array.from({ length: 45 });
   protected readonly editingProfile = signal(false);
@@ -253,7 +260,8 @@ export class App {
   protected readonly todayLabel = computed(() => {
     const d = new Date();
     const iso = localDateKey(d).replace(/-/g, '.');
-    const day = d.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
+    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    const day = d.toLocaleDateString(locale, { weekday: 'short' }).toLowerCase();
     return `${iso} · ${day}`;
   });
 

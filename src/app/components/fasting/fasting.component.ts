@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
+import { TranslationService } from '../../services/translation.service';
 
 /**
  * Analog Fasting Chronometer
@@ -15,15 +17,17 @@ import { FitnessStore } from '../../services/fitness-store.service';
 @Component({
   selector: 'app-fasting',
   standalone: true,
+  imports: [TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     <!-- When a fast is active, FastingStripComponent at the top of the
          ledger handles the visible UX. The full analog chronometer here
          would be redundant, so we self-hide until the fast ends.
          When idle, this section renders the start-fast CTA. -->
     @if (!store.isFasting()) {
     <section>
-      <div class="rule"><span>chronometer</span></div>
+      <div class="rule"><span>{{ t('fasting.chronometer') }}</span></div>
 
       <div class="mt-4 flex flex-col items-center">
         <!-- Analog dial -->
@@ -75,7 +79,7 @@ import { FitnessStore } from '../../services/fitness-store.service';
             <text x="100" y="112" text-anchor="middle" dominant-baseline="central"
               fill="var(--color-graphite)"
               style="font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.2em; text-transform: uppercase;">
-              {{ store.isFasting() ? 'elapsed' : 'idle' }}
+              {{ store.isFasting() ? t('fasting.elapsed') : t('fasting.idle') }}
             </text>
 
             <!-- Hand -->
@@ -94,29 +98,31 @@ import { FitnessStore } from '../../services/fitness-store.service';
         <div class="mt-4 text-center">
           @if (store.isFasting()) {
             <p class="caption text-[11px]">
-              fasting since {{ startTimeLabel() }}
+              {{ t('fasting.fastingSince', { time: startTimeLabel() }) }}
             </p>
             <button type="button" (click)="punchClock()"
-              aria-label="End current fast"
+              [attr.aria-label]="t('fasting.endFastAria')"
               class="stamp-btn mt-3 max-w-xs">
-              end fast
+              {{ t('fasting.endFast') }}
             </button>
           } @else {
             <button type="button" (click)="punchClock()"
-              aria-label="Start a 16-hour fast"
+              [attr.aria-label]="t('fasting.startFastAria')"
               class="stamp-btn mt-1 max-w-xs"
               style="background: var(--color-ink); border-color: var(--color-graphite);">
-              start fast
+              {{ t('fasting.startFast') }}
             </button>
           }
         </div>
       </div>
     </section>
     }
+    </ng-container>
   `,
 })
 export class FastingComponent implements OnInit, OnDestroy {
   protected readonly store = inject(FitnessStore);
+  private readonly translation = inject(TranslationService);
 
   private readonly FAST_HOURS = 16;
   private readonly RADIUS = 78;
@@ -143,7 +149,8 @@ export class FastingComponent implements OnInit, OnDestroy {
   protected readonly startTimeLabel = computed(() => {
     const start = this.store.fastStartedAt();
     if (!start) return '';
-    return start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    return start.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' }).toLowerCase();
   });
 
   /** SVG arc offset: full circle minus the fraction elapsed. */

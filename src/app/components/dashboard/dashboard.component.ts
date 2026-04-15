@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { marked } from 'marked';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { TdeeCalculatorService } from '../../services/tdee-calculator.service';
+import { TranslationService } from '../../services/translation.service';
 import { localDateKey } from '../../utils/date';
 
 interface SparklinePoint { x: number; y: number; }
@@ -10,53 +12,55 @@ interface SparklinePoint { x: number; y: number; }
 @Component({
   selector: 'app-dashboard',
   standalone: true,
+  imports: [TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     <section>
-      <div class="rule"><span>calibration readout</span></div>
+      <div class="rule"><span>{{ t('dashboard.heading') }}</span></div>
 
       @if (store.logs().length === 0) {
         <div class="mt-4 py-6 text-center">
-          <p class="caption text-[11px]">log your first entry above to see your readout here.</p>
+          <p class="caption text-[11px]">{{ t('dashboard.emptyMsg') }}</p>
           <div class="mt-4 flex justify-center">
             <button type="button" (click)="store.refresh()" class="tag-btn"
               [disabled]="store.status() === 'loading'">
-              {{ store.status() === 'loading' ? 'loading…' : 'refresh ↻' }}
+              {{ store.status() === 'loading' ? t('dashboard.loading') : t('dashboard.refresh') }}
             </button>
           </div>
         </div>
       } @else {
         <!-- Target / TDEE / Weight (tap a ? to learn what each means) -->
         <div class="mt-4 grid grid-cols-3 gap-2">
-          <div class="min-w-0" title="What you should eat each day to hit your weekly cut pace.">
+          <div class="min-w-0" [attr.title]="t('dashboard.targetHelpTitle')">
             <div class="data-label mb-1 flex items-center gap-1">
-              <span>target</span>
+              <span>{{ t('dashboard.target') }}</span>
               <button type="button" (click)="toggleHelp('target')"
-                aria-label="What is target?"
+                [attr.aria-label]="t('dashboard.targetAria')"
                 class="readout-help">?</button>
             </div>
             <div class="readout-mono truncate">{{ store.tdee().newDailyTarget }}</div>
-            <div class="data-label mt-0.5 opacity-60">kcal/day</div>
+            <div class="data-label mt-0.5 opacity-60">{{ t('dashboard.kcalPerDay') }}</div>
           </div>
-          <div class="min-w-0" title="Estimated calories you burn on an average day. After 14 days of logging this shifts from the formula estimate to your real measured rate.">
+          <div class="min-w-0" [attr.title]="t('dashboard.tdeeHelpTitle')">
             <div class="data-label mb-1 flex items-center gap-1">
-              <span>true tdee</span>
+              <span>{{ t('dashboard.tdee') }}</span>
               <button type="button" (click)="toggleHelp('tdee')"
-                aria-label="What is true tdee?"
+                [attr.aria-label]="t('dashboard.tdeeAria')"
                 class="readout-help">?</button>
             </div>
             <div class="readout-mono truncate">{{ store.tdee().trueTdee }}</div>
-            <div class="data-label mt-0.5 opacity-60">kcal/day</div>
+            <div class="data-label mt-0.5 opacity-60">{{ t('dashboard.kcalPerDay') }}</div>
           </div>
-          <div class="min-w-0" title="Latest logged weight. 14-day EMA smoothing is shown on the sparkline below.">
+          <div class="min-w-0" [attr.title]="t('dashboard.weightHelpTitle')">
             <div class="data-label mb-1 flex items-center gap-1">
-              <span>weight</span>
+              <span>{{ t('dashboard.weight') }}</span>
               <button type="button" (click)="toggleHelp('weight')"
-                aria-label="What is weight?"
+                [attr.aria-label]="t('dashboard.weightAria')"
                 class="readout-help">?</button>
             </div>
             <div class="readout-mono truncate">{{ store.currentWeight() ?? '—' }}</div>
-            <div class="data-label mt-0.5 opacity-60">lbs</div>
+            <div class="data-label mt-0.5 opacity-60">{{ t('dashboard.lbs') }}</div>
           </div>
         </div>
         @if (helpOpen(); as which) {
@@ -69,28 +73,30 @@ interface SparklinePoint { x: number; y: number; }
           <div class="mt-3 flex items-center gap-2">
             <span class="stamp-mark">{{ store.tdee().source }}</span>
             <p class="caption text-xs">
-              {{ 14 - store.logs().length }} more day{{ store.logs().length === 13 ? '' : 's' }} to measured estimate.
+              {{ (14 - store.logs().length) === 1
+                   ? t('dashboard.daysToMeasuredOne', { n: 14 - store.logs().length })
+                   : t('dashboard.daysToMeasuredMany', { n: 14 - store.logs().length }) }}
             </p>
           </div>
         }
 
         <!-- Adaptive TDEE notification: shown once when measured mode kicks in -->
-        @if (store.tdeeTransition(); as t) {
+        @if (store.tdeeTransition(); as tx) {
           <div class="mt-4 specimen px-4 py-3" style="border-color: var(--color-olive)">
             <div class="flex items-center justify-between mb-2">
               <div class="flex items-center gap-2">
-                <span class="stamp-mark" style="transform: rotate(0deg); border-color: var(--color-olive); color: var(--color-olive)">calibrated</span>
-                <span class="data-label">measured tdee active</span>
+                <span class="stamp-mark" style="transform: rotate(0deg); border-color: var(--color-olive); color: var(--color-olive)">{{ t('dashboard.tdeeTransitionStamp') }}</span>
+                <span class="data-label">{{ t('dashboard.tdeeTransitionLabel') }}</span>
               </div>
-              <button type="button" (click)="dismissTdeeTransition()" class="tag-btn text-[11px]">dismiss</button>
+              <button type="button" (click)="dismissTdeeTransition()" class="tag-btn text-[11px]">{{ t('dashboard.dismiss') }}</button>
             </div>
             <p class="font-sans text-sm text-ink leading-relaxed">
-              Your real TDEE is <span class="font-mono font-semibold">{{ t.measuredTdee }}</span> kcal/day —
+              {{ t('dashboard.tdeeTransitionBodyPrefix') }} <span class="font-mono font-semibold">{{ tx.measuredTdee }}</span> {{ t('dashboard.kcalPerDay') }} —
               <span class="font-mono font-semibold"
-                [style.color]="t.diffPct < 0 ? 'var(--color-blood)' : 'var(--color-olive)'">
-                {{ t.diffPct > 0 ? '+' : '' }}{{ t.diffPct }}%
+                [style.color]="tx.diffPct < 0 ? 'var(--color-blood)' : 'var(--color-olive)'">
+                {{ tx.diffPct > 0 ? '+' : '' }}{{ tx.diffPct }}%
               </span>
-              vs the formula estimate of {{ t.formulaTdee }}. Your target has been updated automatically.
+              {{ t('dashboard.tdeeTransitionBodyVsFormula') }} {{ tx.formulaTdee }}{{ t('dashboard.tdeeTransitionBodyUpdated') }}
             </p>
           </div>
         }
@@ -99,9 +105,9 @@ interface SparklinePoint { x: number; y: number; }
         @if (store.goalProgress(); as gp) {
           <div class="mt-5">
             <div class="flex items-center justify-between mb-1">
-              <span class="data-label">goal progress</span>
+              <span class="data-label">{{ t('dashboard.goalProgress') }}</span>
               <span class="font-sans text-xs tabular-nums text-graphite">
-                {{ gp.currentWeight }} → {{ gp.goalWeight }} lbs
+                {{ t('dashboard.goalTrack', { cur: gp.currentWeight, goal: gp.goalWeight }) }}
               </span>
             </div>
             <div class="h-2 w-full bg-paper-deep relative overflow-hidden border border-rule/30">
@@ -111,9 +117,9 @@ interface SparklinePoint { x: number; y: number; }
               </div>
             </div>
             <div class="flex items-center justify-between mt-1">
-              <span class="font-sans text-[11px] tabular-nums text-graphite">{{ gp.startWeight }} lbs</span>
+              <span class="font-sans text-[11px] tabular-nums text-graphite">{{ t('dashboard.goalStart', { start: gp.startWeight }) }}</span>
               <span class="font-sans text-[11px] tabular-nums" style="color: var(--color-olive)">
-                {{ gp.pct }}% · {{ gp.remaining }} lbs to go
+                {{ t('dashboard.goalRemaining', { pct: gp.pct, remaining: gp.remaining }) }}
               </span>
             </div>
           </div>
@@ -124,28 +130,28 @@ interface SparklinePoint { x: number; y: number; }
           <div class="mt-5 specimen px-4 py-3">
             <span class="crop-bl"></span><span class="crop-br"></span>
             <div class="flex items-center gap-2 mb-2">
-              <span class="stamp-mark" style="transform: rotate(0deg)">{{ w.days }}d</span>
-              <span class="data-label">weekly summary</span>
+              <span class="stamp-mark" style="transform: rotate(0deg)">{{ t('dashboard.weeklyDays', { days: w.days }) }}</span>
+              <span class="data-label">{{ t('dashboard.weeklySummary') }}</span>
             </div>
             <div class="grid grid-cols-4 gap-2 text-center">
               <div>
                 <div class="font-mono text-sm font-medium text-ink tabular-nums">{{ w.avgWeight }}</div>
-                <div class="data-label mt-0.5 opacity-60 text-[11px]">avg lb</div>
+                <div class="data-label mt-0.5 opacity-60 text-[11px]">{{ t('dashboard.avgLb') }}</div>
               </div>
               <div>
                 <div class="font-mono text-sm font-medium text-ink tabular-nums">{{ w.avgCalories }}</div>
-                <div class="data-label mt-0.5 opacity-60 text-[11px]">avg cal</div>
+                <div class="data-label mt-0.5 opacity-60 text-[11px]">{{ t('dashboard.avgCal') }}</div>
               </div>
               <div>
                 <div class="font-mono text-sm font-medium tabular-nums"
                   [style.color]="w.weightDelta <= 0 ? 'var(--color-olive)' : 'var(--color-blood)'">
                   {{ w.weightDelta > 0 ? '+' : '' }}{{ w.weightDelta }}
                 </div>
-                <div class="data-label mt-0.5 opacity-60 text-[11px]">Δ lbs</div>
+                <div class="data-label mt-0.5 opacity-60 text-[11px]">{{ t('dashboard.deltaLbs') }}</div>
               </div>
               <div>
                 <div class="font-mono text-sm font-medium text-ink tabular-nums">{{ w.adherencePct }}%</div>
-                <div class="data-label mt-0.5 opacity-60 text-[11px]">on target</div>
+                <div class="data-label mt-0.5 opacity-60 text-[11px]">{{ t('dashboard.onTarget') }}</div>
               </div>
             </div>
             @if (w.avgProtein != null) {
@@ -153,7 +159,7 @@ interface SparklinePoint { x: number; y: number; }
                 <span class="font-mono text-xs tabular-nums" style="color: var(--color-protein)">
                   {{ w.avgProtein }}g
                 </span>
-                <span class="data-label ml-1 text-[11px]">avg protein/day</span>
+                <span class="data-label ml-1 text-[11px]">{{ t('dashboard.avgProteinPerDay') }}</span>
               </div>
             }
           </div>
@@ -164,21 +170,25 @@ interface SparklinePoint { x: number; y: number; }
           <div class="mt-5 specimen px-4 py-3">
             <span class="crop-bl"></span><span class="crop-br"></span>
             <div class="flex items-center gap-2 mb-2">
-              <span class="stamp-mark" style="transform: rotate(0deg)">7d</span>
-              <span class="data-label">weekly envelope</span>
+              <span class="stamp-mark" style="transform: rotate(0deg)">{{ t('dashboard.envelopeStamp') }}</span>
+              <span class="data-label">{{ t('dashboard.envelopeLabel') }}</span>
             </div>
             <p class="font-display text-ink text-[17px] leading-snug">
               @if (env.surplus > 0) {
-                you're <span class="font-mono font-semibold not-italic" style="color: var(--color-blood)">{{ env.surplus.toLocaleString() }}</span> kcal over for the week —
+                {{ t('dashboard.envelopeOverPrefix') }} <span class="font-mono font-semibold not-italic" style="color: var(--color-blood)">{{ env.surplus.toLocaleString() }}</span> {{ t('dashboard.envelopeOverSuffix') }}
               } @else if (env.surplus < 0) {
-                you're <span class="font-mono font-semibold not-italic" style="color: var(--color-olive)">{{ Math.abs(env.surplus).toLocaleString() }}</span> kcal under for the week —
+                {{ t('dashboard.envelopeUnderPrefix') }} <span class="font-mono font-semibold not-italic" style="color: var(--color-olive)">{{ Math.abs(env.surplus).toLocaleString() }}</span> {{ t('dashboard.envelopeUnderSuffix') }}
               } @else {
-                on budget for the week —
+                {{ t('dashboard.envelopeOnBudget') }}
               }
               @if (env.daysRemaining > 0) {
-                aim <span class="font-mono font-semibold not-italic text-ink">{{ env.adjustedDailyTarget.toLocaleString() }}</span> over the {{ env.daysRemaining === 1 ? 'last day' : 'next ' + env.daysRemaining + ' days' }}.
+                @if (env.daysRemaining === 1) {
+                  {{ t('dashboard.envelopeAimLastDay', { amt: env.adjustedDailyTarget.toLocaleString() }) }}
+                } @else {
+                  {{ t('dashboard.envelopeAimNextDays', { amt: env.adjustedDailyTarget.toLocaleString(), n: env.daysRemaining }) }}
+                }
               } @else {
-                week complete.
+                {{ t('dashboard.envelopeComplete') }}
               }
             </p>
             <!-- Budget bar: at-a-glance trend -->
@@ -189,8 +199,8 @@ interface SparklinePoint { x: number; y: number; }
               </div>
             </div>
             <div class="flex justify-between mt-1 font-sans text-[11px] tabular-nums text-graphite">
-              <span>{{ env.consumed.toLocaleString() }} consumed</span>
-              <span>{{ env.weeklyBudget.toLocaleString() }} budget</span>
+              <span>{{ t('dashboard.envelopeConsumed', { amt: env.consumed.toLocaleString() }) }}</span>
+              <span>{{ t('dashboard.envelopeBudget', { amt: env.weeklyBudget.toLocaleString() }) }}</span>
             </div>
           </div>
         }
@@ -201,8 +211,8 @@ interface SparklinePoint { x: number; y: number; }
             <span class="crop-bl"></span><span class="crop-br"></span>
             <div class="flex items-center justify-between mb-2">
               <div class="flex items-center gap-2">
-                <span class="stamp-mark" style="transform: rotate(0deg)">report</span>
-                <span class="data-label">weekly review</span>
+                <span class="stamp-mark" style="transform: rotate(0deg)">{{ t('dashboard.reportStamp') }}</span>
+                <span class="data-label">{{ t('dashboard.reportLabel') }}</span>
               </div>
               <span class="font-sans text-[11px] text-graphite">{{ reportAge() }}</span>
             </div>
@@ -212,15 +222,15 @@ interface SparklinePoint { x: number; y: number; }
               <button type="button" (click)="store.generateWeeklyReport()"
                 [disabled]="store.reportLoading()"
                 class="tag-btn text-[9px]">
-                {{ store.reportLoading() ? 'generating…' : 'regenerate' }}
+                {{ store.reportLoading() ? t('dashboard.reportGenerating') : t('dashboard.reportRegenerate') }}
               </button>
             </div>
           </div>
         } @else if (store.reportLoading()) {
           <div class="mt-5 specimen px-4 py-3 text-center">
             <span class="crop-bl"></span><span class="crop-br"></span>
-            <span class="stamp-mark">generating</span>
-            <p class="caption text-[11px] mt-2">compiling your first weekly report…</p>
+            <span class="stamp-mark">{{ t('dashboard.reportGeneratingStamp') }}</span>
+            <p class="caption text-[11px] mt-2">{{ t('dashboard.reportCompiling') }}</p>
           </div>
         }
 
@@ -228,8 +238,8 @@ interface SparklinePoint { x: number; y: number; }
         @if (store.monthlySummary(); as m) {
           <div class="mt-5 specimen px-4 py-3">
             <div class="flex items-center gap-2 mb-3">
-              <span class="stamp-mark" style="transform: rotate(0deg)">{{ m.weeksTracked }}w</span>
-              <span class="data-label">all-time progress</span>
+              <span class="stamp-mark" style="transform: rotate(0deg)">{{ t('dashboard.monthlyWeeks', { n: m.weeksTracked }) }}</span>
+              <span class="data-label">{{ t('dashboard.monthlyAllTime') }}</span>
             </div>
             <div class="grid grid-cols-3 gap-3 text-center">
               <div>
@@ -237,26 +247,26 @@ interface SparklinePoint { x: number; y: number; }
                   [style.color]="m.totalChange <= 0 ? 'var(--color-olive)' : 'var(--color-blood)'">
                   {{ m.totalChange > 0 ? '+' : '' }}{{ m.totalChange }}
                 </div>
-                <div class="data-label mt-0.5 opacity-60 text-[11px]">lbs total</div>
+                <div class="data-label mt-0.5 opacity-60 text-[11px]">{{ t('dashboard.monthlyLbsTotal') }}</div>
               </div>
               <div>
                 <div class="font-mono text-lg font-semibold tabular-nums"
                   [style.color]="m.avgWeeklyChange <= 0 ? 'var(--color-olive)' : 'var(--color-blood)'">
                   {{ m.avgWeeklyChange > 0 ? '+' : '' }}{{ m.avgWeeklyChange }}
                 </div>
-                <div class="data-label mt-0.5 opacity-60 text-[11px]">lbs/week avg</div>
+                <div class="data-label mt-0.5 opacity-60 text-[11px]">{{ t('dashboard.monthlyLbsPerWeek') }}</div>
               </div>
               <div>
                 <div class="font-mono text-lg font-semibold tabular-nums text-ink">{{ m.adherencePct }}%</div>
-                <div class="data-label mt-0.5 opacity-60 text-[11px]">adherence</div>
+                <div class="data-label mt-0.5 opacity-60 text-[11px]">{{ t('dashboard.monthlyAdherence') }}</div>
               </div>
             </div>
             <div class="mt-3 pt-2 border-t border-rule/30 flex items-center justify-between">
               <span class="font-sans text-xs text-graphite">
-                {{ m.firstWeight }} → {{ m.lastWeight }} lbs over {{ m.daysTracked }} days
+                {{ t('dashboard.monthlyTrack', { first: m.firstWeight, last: m.lastWeight, days: m.daysTracked }) }}
               </span>
               <span class="font-sans text-xs text-graphite">
-                avg {{ m.avgCalories }} kcal/day
+                {{ t('dashboard.monthlyAvgKcal', { n: m.avgCalories }) }}
               </span>
             </div>
           </div>
@@ -266,7 +276,7 @@ interface SparklinePoint { x: number; y: number; }
         @if (sparklineRaw().length > 1) {
           <div class="mt-6">
             <div class="flex items-center justify-between mb-2">
-              <span class="data-label">14-day trend</span>
+              <span class="data-label">{{ t('dashboard.trend14') }}</span>
               <span class="font-mono text-sm tabular-nums"
                 [style.color]="store.tdee().weightChangeTrend > 0 ? 'var(--color-blood)' : store.tdee().weightChangeTrend < 0 ? 'var(--color-ink)' : 'var(--color-graphite)'">
                 {{ store.trendLabel() }}
@@ -292,8 +302,8 @@ interface SparklinePoint { x: number; y: number; }
               <div class="flex justify-between mt-1 font-sans text-[11px] tracking-[0.15em] text-graphite">
                 <span>{{ dateLabel(0) }}</span>
                 <span class="font-display italic text-[10px] tracking-normal">
-                  <span class="text-graphite-soft">— raw</span> &nbsp;
-                  <span class="text-ink">— smoothed</span>
+                  <span class="text-graphite-soft">{{ t('dashboard.legendRaw') }}</span> &nbsp;
+                  <span class="text-ink">{{ t('dashboard.legendSmoothed') }}</span>
                 </span>
                 <span>{{ dateLabel(-1) }}</span>
               </div>
@@ -305,11 +315,11 @@ interface SparklinePoint { x: number; y: number; }
         @if (allTimeRawPoints().length > 2) {
           <div class="mt-6">
             <div class="flex items-center justify-between mb-2">
-              <span class="data-label">all-time trend</span>
+              <span class="data-label">{{ t('dashboard.trendAllTime') }}</span>
               @if (store.monthlySummary(); as m) {
                 <span class="font-mono text-sm tabular-nums"
                   [style.color]="m.totalChange < 0 ? 'var(--color-ink)' : m.totalChange > 0 ? 'var(--color-blood)' : 'var(--color-graphite)'">
-                  {{ m.totalChange > 0 ? '+' : '' }}{{ m.totalChange }} lbs
+                  {{ m.totalChange > 0 ? '+' : '' }}{{ m.totalChange }} {{ t('dashboard.lbs') }}
                 </span>
               }
             </div>
@@ -337,18 +347,20 @@ interface SparklinePoint { x: number; y: number; }
 
         <!-- Actions -->
         <div class="mt-5 flex items-center justify-between">
-          <button type="button" (click)="exportCsv()" class="tag-btn">↓ export csv</button>
+          <button type="button" (click)="exportCsv()" class="tag-btn">{{ t('dashboard.actionExport') }}</button>
           <button type="button" (click)="store.refresh()" class="tag-btn"
             [disabled]="store.status() === 'loading'">
-            {{ store.status() === 'loading' ? 'loading…' : 'refresh ↻' }}
+            {{ store.status() === 'loading' ? t('dashboard.loading') : t('dashboard.refresh') }}
           </button>
         </div>
       }
     </section>
+    </ng-container>
   `,
 })
 export class DashboardComponent {
   protected readonly store = inject(FitnessStore);
+  protected readonly translation = inject(TranslationService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly calc = inject(TdeeCalculatorService);
   protected readonly Math = Math;
@@ -368,9 +380,9 @@ export class DashboardComponent {
   }
   protected helpText(which: 'target' | 'tdee' | 'weight'): string {
     switch (which) {
-      case 'target': return 'what to eat each day to hit your weekly cut pace. auto-adjusts when your measured tdee drifts.';
-      case 'tdee':   return 'calories you burn on an average day. after 14 days this switches from a formula estimate to your real measured rate.';
-      case 'weight': return 'latest logged weight. the sparkline below shows a 14-day smoothed trend so day-to-day noise doesn\'t dominate.';
+      case 'target': return this.translation.t('dashboard.targetHelp');
+      case 'tdee':   return this.translation.t('dashboard.tdeeHelp');
+      case 'weight': return this.translation.t('dashboard.weightHelp');
     }
   }
 
@@ -386,9 +398,9 @@ export class DashboardComponent {
     const report = this.store.weeklyReport();
     if (!report) return '';
     const days = Math.floor((Date.now() - report.generatedAt.getTime()) / (1000 * 60 * 60 * 24));
-    if (days === 0) return 'today';
-    if (days === 1) return 'yesterday';
-    return `${days} days ago`;
+    if (days === 0) return this.translation.t('dashboard.reportToday');
+    if (days === 1) return this.translation.t('dashboard.reportYesterday');
+    return this.translation.t('dashboard.reportDaysAgo', { n: days });
   });
 
   // ── Sparkline geometry (view-only math, stays local) ────────
@@ -469,6 +481,10 @@ export class DashboardComponent {
   protected readonly allTimeEmaSvg = computed(() =>
     this.allTimeEmaPoints().map((p) => `${p.x},${p.y}`).join(' '));
 
+  private localeForDates(): string {
+    return this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+  }
+
   protected allTimeDateLabel(index: number): string {
     const keys = this.allTimeDateKeys();
     if (keys.length === 0) return '';
@@ -476,14 +492,14 @@ export class DashboardComponent {
     const key = keys[i];
     if (!key) return '';
     const [y, m, d] = key.split('-').map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
+    return new Date(y, m - 1, d).toLocaleDateString(this.localeForDates(), { month: 'short', day: 'numeric' }).toUpperCase();
   }
 
   protected dateLabel(index: number): string {
     const data = this.store.logs();
     if (data.length === 0) return '';
     const i = index < 0 ? data.length + index : index;
-    return data[i]?.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase() ?? '';
+    return data[i]?.date.toLocaleDateString(this.localeForDates(), { month: 'short', day: 'numeric' }).toUpperCase() ?? '';
   }
 
   protected async exportCsv(): Promise<void> {
@@ -496,7 +512,7 @@ export class DashboardComponent {
           l.weight,
           l.calories,
           l.protein ?? '',
-          (l.exerciseCompleted || l.liftCompleted || l.cardioCompleted) ? 'yes' : '',
+          (l.exerciseCompleted || l.liftCompleted || l.cardioCompleted) ? this.translation.t('dashboard.csvExercise') : '',
         ].join(','),
       ),
     ];

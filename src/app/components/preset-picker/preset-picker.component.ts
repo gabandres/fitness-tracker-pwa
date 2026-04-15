@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, output } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { MealPreset } from '../../services/firebase.service';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { MacroEstimate } from '../../models/macro-estimate';
@@ -6,24 +7,27 @@ import { MacroEstimate } from '../../models/macro-estimate';
 @Component({
   selector: 'app-preset-picker',
   standalone: true,
+  imports: [TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (store.presets().length > 0) {
-      <div class="mb-4">
-        <div class="data-label mb-1.5">quick add</div>
-        <div class="flex flex-wrap gap-1.5">
-          @for (p of store.presets(); track p.id) {
-            <button type="button" (click)="pick(p)" class="tag-btn text-[11px] group relative">
-              {{ p.name }}
-              <span class="text-graphite-soft">{{ p.calories }}</span>
-              <button type="button" (click)="remove(p, $event)"
-                class="ml-1 opacity-0 group-hover:opacity-100 text-blood text-[11px] transition-opacity"
-                title="Remove preset">✕</button>
-            </button>
-          }
+    <ng-container *transloco="let t">
+      @if (store.presets().length > 0) {
+        <div class="mb-4">
+          <div class="data-label mb-1.5">{{ t('preset.quickAdd') }}</div>
+          <div class="flex flex-wrap gap-1.5">
+            @for (p of store.presets(); track p.id) {
+              <button type="button" (click)="pick(p)" class="tag-btn text-[11px] group relative">
+                {{ p.name }}
+                <span class="text-graphite-soft">{{ p.calories }}</span>
+                <button type="button" (click)="remove(p, $event)"
+                  class="ml-1 opacity-0 group-hover:opacity-100 text-blood text-[11px] transition-opacity"
+                  [attr.title]="t('preset.removeTitle')">✕</button>
+              </button>
+            }
+          </div>
         </div>
-      </div>
-    }
+      }
+    </ng-container>
   `,
 })
 export class PresetPickerComponent {

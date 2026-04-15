@@ -5,6 +5,7 @@ import { environment } from '../../environments/environment';
 import { DailyLog, ProfileFields } from './firebase.service';
 import { localDateKey } from '../utils/date';
 import { TdeeResult } from './tdee-calculator.service';
+import { TranslationService } from './translation.service';
 
 /** Quota reservation response from the `reserveConsultation` Cloud
     Function. `remaining < 0` means the user is on a paid plan and
@@ -32,11 +33,22 @@ export interface ConsultationReservation {
 @Injectable({ providedIn: 'root' })
 export class GeminiService {
   private readonly functions = inject(Functions);
+  private readonly translation = inject(TranslationService);
   private readonly client = new GoogleGenAI({
     apiKey: environment.gemini.apiKey,
   });
 
   private readonly model = environment.gemini.model;
+
+  /** One-line language instruction appended to every prompt so the coach
+      answers in the UI's active language. Keeping this in code (not in
+      translation JSON) avoids bloating the JSON with prompt engineering
+      and keeps diffs where reviewers expect them. */
+  private langSuffix(): string {
+    return this.translation.language() === 'es-PR'
+      ? '\n\nRespond in Puerto Rican Spanish. Use informal "tú". Keep numeric formats (calories, grams, pounds) identical to the UI.'
+      : '\n\nRespond in English.';
+  }
 
   /**
    * Atomically reserve one consultation for the signed-in user.
@@ -87,7 +99,7 @@ export class GeminiService {
     tdee: TdeeResult,
     profile: ProfileFields | null,
   ): AsyncGenerator<string, void, void> {
-    const systemInstruction = this.buildSystemInstruction(logs, tdee, profile);
+    const systemInstruction = this.buildSystemInstruction(logs, tdee, profile) + this.langSuffix();
 
     const stream = await this.client.models.generateContentStream({
       model: this.model,
@@ -112,7 +124,7 @@ export class GeminiService {
     tdee: TdeeResult,
     profile: ProfileFields | null,
   ): Promise<string> {
-    const systemInstruction = this.buildSystemInstruction(logs, tdee, profile);
+    const systemInstruction = this.buildSystemInstruction(logs, tdee, profile) + this.langSuffix();
     const prompt = [
       'Generate a concise weekly review covering:',
       '1. Progress toward goal (weight trend, pace vs target)',

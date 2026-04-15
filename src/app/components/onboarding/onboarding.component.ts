@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { TranslocoDirective } from '@jsverse/transloco';
 import {
   FirebaseService,
   ActivityLevel,
@@ -7,57 +8,58 @@ import {
   ProfileFields,
   Sex,
 } from '../../services/firebase.service';
+import { TranslationService } from '../../services/translation.service';
 
 type Status = 'idle' | 'saving' | 'error';
 
 interface ActivityOption {
   value: ActivityLevel;
-  label: string;
-  blurb: string;
+  labelKey: string;
+  blurbKey: string;
 }
 
 interface PaceOption {
   value: CutPace;
-  label: string;
-  blurb: string;
+  labelKey: string;
+  blurbKey: string;
 }
 
 @Component({
   selector: 'app-onboarding',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     <section>
       <div class="specimen px-5 py-8 sm:px-7 sm:py-10 relative">
         <span class="crop-bl"></span><span class="crop-br"></span>
 
         <!-- Header -->
         <div class="flex items-center gap-3 mb-1">
-          <span class="stamp-mark">{{ editMode() ? 'amend' : 'intake' }}</span>
-          <span class="data-label">your details</span>
+          <span class="stamp-mark">{{ editMode() ? t('onboarding.stampAmend') : t('onboarding.stampIntake') }}</span>
+          <span class="data-label">{{ t('onboarding.sectionLabel') }}</span>
         </div>
         <h2 class="font-display text-3xl sm:text-4xl leading-[0.95] text-ink mt-3">
-          {{ editMode() ? 'Amend your' : 'Before we' }}<br/>
-          <em class="text-blood">{{ editMode() ? 'particulars.' : 'begin.' }}</em>
+          {{ editMode() ? t('onboarding.titleLeadEdit') : t('onboarding.titleLeadNew') }}<br/>
+          <em class="text-blood">{{ editMode() ? t('onboarding.titleEmEdit') : t('onboarding.titleEmNew') }}</em>
         </h2>
         <p class="caption mt-4 text-[11px] leading-relaxed">
-          six quick answers, about a minute. everything here is used only to
-          estimate your daily calorie target — you can change any of it later.
+          {{ t('onboarding.blurb') }}
         </p>
 
         <!-- Reassurance block: why we ask, what we do / don't do -->
         <div class="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-graphite font-sans">
-          <span>✓ private to you</span>
-          <span>✓ no data selling</span>
-          <span>✓ editable anytime</span>
+          <span>{{ t('onboarding.reassurePrivate') }}</span>
+          <span>{{ t('onboarding.reassureNoSelling') }}</span>
+          <span>{{ t('onboarding.reassureEditable') }}</span>
         </div>
 
         <form (ngSubmit)="submit()" class="mt-8 space-y-9">
           <!-- 1. Height (ft + in) -->
           <div>
             <label class="data-label block mb-2">
-              i. height <span class="text-blood" aria-label="required">*</span>
+              {{ t('onboarding.heightLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
             </label>
             <div class="flex items-baseline gap-4">
               <div class="flex items-baseline gap-2 flex-1">
@@ -76,7 +78,7 @@ interface PaceOption {
                   class="field-input w-20 text-center"
                   required
                 />
-                <span class="font-display italic text-graphite text-sm">ft</span>
+                <span class="font-display italic text-graphite text-sm">{{ t('onboarding.ft') }}</span>
               </div>
               <div class="flex items-baseline gap-2 flex-1">
                 <input
@@ -93,7 +95,7 @@ interface PaceOption {
                   class="field-input w-20 text-center"
                   required
                 />
-                <span class="font-display italic text-graphite text-sm">in</span>
+                <span class="font-display italic text-graphite text-sm">{{ t('onboarding.inches') }}</span>
               </div>
             </div>
           </div>
@@ -101,7 +103,7 @@ interface PaceOption {
           <!-- 2. Age -->
           <div>
             <label for="age" class="data-label block mb-2">
-              ii. age <span class="text-blood" aria-label="required">*</span>
+              {{ t('onboarding.ageLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
             </label>
             <div class="flex items-baseline gap-3">
               <input
@@ -118,17 +120,17 @@ interface PaceOption {
                 class="field-input w-28"
                 required
               />
-              <span class="font-display italic text-graphite text-sm">years</span>
+              <span class="font-display italic text-graphite text-sm">{{ t('onboarding.years') }}</span>
             </div>
           </div>
 
           <!-- 3. Biological sex -->
           <div>
             <label class="data-label block mb-2">
-              iii. biological sex <span class="text-blood" aria-label="required">*</span>
+              {{ t('onboarding.sexLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
             </label>
             <p class="caption text-xs mb-2">
-              required by the mifflin-st jeor formula to estimate your baseline metabolic rate.
+              {{ t('onboarding.sexCaption') }}
             </p>
             <div class="flex gap-3">
               @for (opt of sexOptions; track opt.value) {
@@ -138,7 +140,7 @@ interface PaceOption {
                   [class.selected]="sex() === opt.value"
                   class="radio-card flex-1"
                 >
-                  {{ opt.label }}
+                  {{ t(opt.labelKey) }}
                 </button>
               }
             </div>
@@ -147,7 +149,7 @@ interface PaceOption {
           <!-- 4. Activity level -->
           <div>
             <label class="data-label block mb-2">
-              iv. activity level <span class="text-blood" aria-label="required">*</span>
+              {{ t('onboarding.activityLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
             </label>
             <div class="space-y-2">
               @for (opt of activityOptions; track opt.value) {
@@ -158,10 +160,10 @@ interface PaceOption {
                   class="radio-card w-full text-left"
                 >
                   <div class="flex items-baseline justify-between gap-3">
-                    <span class="font-mono text-xs tracking-[0.15em] uppercase text-ink">{{ opt.label }}</span>
+                    <span class="font-mono text-xs tracking-[0.15em] uppercase text-ink">{{ t(opt.labelKey) }}</span>
                   </div>
                   <div class="font-display italic text-graphite text-[11px] mt-1 normal-case tracking-normal">
-                    {{ opt.blurb }}
+                    {{ t(opt.blurbKey) }}
                   </div>
                 </button>
               }
@@ -171,11 +173,11 @@ interface PaceOption {
           <!-- 5. Weekly fat-loss target (a.k.a. cut pace) -->
           <div>
             <label class="data-label block mb-2">
-              v. weekly fat-loss target <span class="text-blood" aria-label="required">*</span>
-              <span class="normal-case italic text-graphite tracking-normal text-[11px]">(cut pace)</span>
+              {{ t('onboarding.paceLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
+              <span class="normal-case italic text-graphite tracking-normal text-[11px]">{{ t('onboarding.paceHint') }}</span>
             </label>
             <p class="caption text-xs mb-2">
-              how much weight to lose per week. faster is harder to sustain.
+              {{ t('onboarding.paceCaption') }}
             </p>
             <div class="grid grid-cols-2 gap-2">
               @for (opt of paceOptions; track opt.value) {
@@ -185,9 +187,9 @@ interface PaceOption {
                   [class.selected]="pace() === opt.value"
                   class="radio-card"
                 >
-                  <div class="font-mono text-xs tracking-[0.15em] uppercase text-ink">{{ opt.label }}</div>
+                  <div class="font-mono text-xs tracking-[0.15em] uppercase text-ink">{{ t(opt.labelKey) }}</div>
                   <div class="font-display italic text-graphite text-xs mt-0.5 normal-case tracking-normal">
-                    {{ opt.blurb }}
+                    {{ t(opt.blurbKey) }}
                   </div>
                 </button>
               }
@@ -197,10 +199,10 @@ interface PaceOption {
           <!-- Optional: Goal weight -->
           <div>
             <label for="goalWeight" class="data-label block mb-2">
-              vi. goal weight
+              {{ t('onboarding.goalLabel') }}
               <span class="inline-block ml-1 px-2 py-0.5 text-[10px] normal-case tracking-normal italic rounded-full"
                 style="background: var(--color-paper-deep); color: var(--color-graphite); border: 1px solid var(--color-rule);">
-                skip if none
+                {{ t('onboarding.skipIfNone') }}
               </span>
             </label>
             <div class="flex items-baseline gap-3">
@@ -217,7 +219,7 @@ interface PaceOption {
                 placeholder="170"
                 class="field-input w-28"
               />
-              <span class="font-display italic text-graphite text-sm">lbs</span>
+              <span class="font-display italic text-graphite text-sm">{{ t('onboarding.lbs') }}</span>
             </div>
           </div>
 
@@ -233,9 +235,9 @@ interface PaceOption {
               class="stamp-btn"
             >
               @if (status() === 'saving') {
-                <span>saving…</span>
+                <span>{{ t('onboarding.saving') }}</span>
               } @else {
-                <span>{{ editMode() ? 'save changes' : 'commit profile' }}</span>
+                <span>{{ editMode() ? t('onboarding.saveChanges') : t('onboarding.commitProfile') }}</span>
               }
             </button>
 
@@ -245,7 +247,7 @@ interface PaceOption {
                 (click)="cancelled.emit()"
                 class="tag-btn w-full mt-3 justify-center"
               >
-                cancel
+                {{ t('onboarding.cancel') }}
               </button>
             }
 
@@ -258,6 +260,7 @@ interface PaceOption {
         </form>
       </div>
     </section>
+    </ng-container>
   `,
   styles: [`
     .radio-card {
@@ -291,6 +294,7 @@ interface PaceOption {
 })
 export class OnboardingComponent {
   private readonly firebase = inject(FirebaseService);
+  private readonly translation = inject(TranslationService);
 
   /** When true, we're editing an existing profile rather than creating one. */
   readonly editMode = input(false);
@@ -309,24 +313,24 @@ export class OnboardingComponent {
   protected readonly status = signal<Status>('idle');
   protected readonly errorMsg = signal('');
 
-  protected readonly sexOptions: { value: Sex; label: string }[] = [
-    { value: 'male',   label: 'male'   },
-    { value: 'female', label: 'female' },
+  protected readonly sexOptions: { value: Sex; labelKey: string }[] = [
+    { value: 'male',   labelKey: 'onboarding.sexMale'   },
+    { value: 'female', labelKey: 'onboarding.sexFemale' },
   ];
 
   protected readonly activityOptions: ActivityOption[] = [
-    { value: 'sedentary',   label: 'sedentary',   blurb: 'desk job, little or no exercise' },
-    { value: 'light',       label: 'light',       blurb: 'light exercise 1–3 days/week' },
-    { value: 'moderate',    label: 'moderate',    blurb: 'moderate exercise 3–5 days/week' },
-    { value: 'active',      label: 'active',      blurb: 'hard exercise 6–7 days/week' },
-    { value: 'very_active', label: 'very active', blurb: 'physical job or twice-daily training' },
+    { value: 'sedentary',   labelKey: 'onboarding.activitySedentary',   blurbKey: 'onboarding.activitySedentaryBlurb'   },
+    { value: 'light',       labelKey: 'onboarding.activityLight',       blurbKey: 'onboarding.activityLightBlurb'       },
+    { value: 'moderate',    labelKey: 'onboarding.activityModerate',    blurbKey: 'onboarding.activityModerateBlurb'    },
+    { value: 'active',      labelKey: 'onboarding.activityActive',      blurbKey: 'onboarding.activityActiveBlurb'      },
+    { value: 'very_active', labelKey: 'onboarding.activityVeryActive',  blurbKey: 'onboarding.activityVeryActiveBlurb'  },
   ];
 
   protected readonly paceOptions: PaceOption[] = [
-    { value: 0.5, label: '0.5 lb / wk', blurb: 'leisurely'   },
-    { value: 1.0, label: '1 lb / wk',   blurb: 'steady'      },
-    { value: 1.5, label: '1.5 lb / wk', blurb: 'brisk'       },
-    { value: 2.0, label: '2 lb / wk',   blurb: 'aggressive'  },
+    { value: 0.5, labelKey: 'onboarding.pace05', blurbKey: 'onboarding.pace05Blurb' },
+    { value: 1.0, labelKey: 'onboarding.pace10', blurbKey: 'onboarding.pace10Blurb' },
+    { value: 1.5, labelKey: 'onboarding.pace15', blurbKey: 'onboarding.pace15Blurb' },
+    { value: 2.0, labelKey: 'onboarding.pace20', blurbKey: 'onboarding.pace20Blurb' },
   ];
 
   protected readonly canSubmit = computed(() =>
@@ -367,7 +371,7 @@ export class OnboardingComponent {
 
     if (totalInches < 40 || totalInches > 96) {
       this.status.set('error');
-      this.errorMsg.set('Height must be between 3\'4" and 8\'.');
+      this.errorMsg.set(this.translation.t('onboarding.errorHeightRange'));
       // Focus the height ft input so keyboard + screen-reader users
       // immediately land on the offending field.
       queueMicrotask(() => {
@@ -394,7 +398,7 @@ export class OnboardingComponent {
       this.saved.emit();
     } catch (err) {
       this.status.set('error');
-      this.errorMsg.set(err instanceof Error ? err.message : 'Failed to save profile.');
+      this.errorMsg.set(err instanceof Error ? err.message : this.translation.t('onboarding.errorFailedToSaveProfile'));
     }
   }
 

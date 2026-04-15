@@ -1,5 +1,7 @@
-import { ChangeDetectionStrategy, Component, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, output } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { MacroEstimate } from '../../models/macro-estimate';
+import { TranslationService } from '../../services/translation.service';
 
 /**
  * Cold-start helper. Rendered only when the user has zero logs.
@@ -22,7 +24,7 @@ interface StarterFood {
   group: 'drinks' | 'breakfast' | 'protein' | 'carbs' | 'fast' | 'latin';
 }
 
-const STARTERS: StarterFood[] = [
+export const STARTER_FOODS_EN: StarterFood[] = [
   // drinks
   { label: 'Coffee, black',            calories: 5,   protein: 0,  group: 'drinks' },
   { label: 'Latte, tall (12oz)',       calories: 150, protein: 6,  group: 'drinks' },
@@ -49,38 +51,74 @@ const STARTERS: StarterFood[] = [
   { label: 'Mofongo, 1 serving',       calories: 380, protein: 4,  group: 'latin' },
 ];
 
+/**
+ * Puerto Rican starter foods for the es-PR locale. Labels are in Spanish
+ * and the list leans PR-local: Medalla, avena Quaker, sorullitos, arroz
+ * con gandules replace generic US items. Macros unchanged from EN list
+ * where the food is the same; the swapped items carry their own macros.
+ */
+export const STARTER_FOODS_ES_PR: StarterFood[] = [
+  // drinks
+  { label: 'Café negro',                calories: 5,   protein: 0,  group: 'drinks' },
+  { label: 'Café con leche',            calories: 120, protein: 6,  group: 'drinks' },
+  { label: 'Medalla Light, lata',       calories: 95,  protein: 1,  group: 'drinks' },
+  // breakfast
+  { label: 'Avena Quaker, 1 taza',      calories: 150, protein: 5,  group: 'breakfast' },
+  { label: 'Huevos, 2 grandes',         calories: 140, protein: 12, group: 'breakfast' },
+  { label: 'Yogur griego, 1 taza',      calories: 150, protein: 20, group: 'breakfast' },
+  // protein
+  { label: 'Pechuga de pollo, 6oz',     calories: 280, protein: 54, group: 'protein' },
+  { label: 'Salmón a la plancha, 6oz',  calories: 340, protein: 40, group: 'protein' },
+  { label: 'Carne molida 90/10, 4oz',   calories: 220, protein: 24, group: 'protein' },
+  // carbs / sides
+  { label: 'Arroz blanco, 1 taza',      calories: 205, protein: 4,  group: 'carbs' },
+  { label: 'Batata, mediana',           calories: 105, protein: 2,  group: 'carbs' },
+  { label: 'Guineo',                    calories: 105, protein: 1,  group: 'carbs' },
+  { label: 'Manzana',                   calories: 95,  protein: 0,  group: 'carbs' },
+  // latin / pr staples
+  { label: 'Pernil, 3oz',               calories: 260, protein: 20, group: 'latin' },
+  { label: 'Tostones, 2 piezas',        calories: 160, protein: 1,  group: 'latin' },
+  { label: 'Mofongo, 1 porción',        calories: 380, protein: 4,  group: 'latin' },
+  { label: 'Arroz con gandules, 1 taza',calories: 220, protein: 5,  group: 'latin' },
+  { label: 'Sorullitos, 3 piezas',      calories: 200, protein: 3,  group: 'latin' },
+];
+
 @Component({
   selector: 'app-starter-foods',
   standalone: true,
+  imports: [TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     <div class="specimen px-4 py-4 slide-down">
       <span class="crop-bl"></span><span class="crop-br"></span>
       <div class="flex items-center gap-2 mb-3">
-        <span class="stamp-mark" style="transform: rotate(0deg)">start</span>
-        <span class="data-label">try one of these</span>
+        <span class="stamp-mark" style="transform: rotate(0deg)">{{ t('starter.stamp') }}</span>
+        <span class="data-label">{{ t('starter.section') }}</span>
       </div>
       <p class="caption text-[11px] mb-3 leading-relaxed">
-        tap any food to log it — you can edit the number before saving.
-        there's no food database, so these rough-but-reasonable estimates
-        are a way to skip the "what do i type?" moment on day one.
+        {{ t('starter.caption') }}
       </p>
 
       <div class="flex flex-wrap gap-1.5">
-        @for (food of foods; track food.label) {
+        @for (food of foods(); track food.label) {
           <button type="button"
             (click)="picked.emit({ calories: food.calories, protein: food.protein, label: food.label })"
             class="tag-btn text-[11px]"
-            [attr.aria-label]="'Log ' + food.label + ', ' + food.calories + ' calories, ' + food.protein + ' grams protein'">
+            [attr.aria-label]="t('starter.logAria', { label: food.label, calories: food.calories, protein: food.protein })">
             {{ food.label }}
             <span class="text-graphite-soft ml-1 font-mono tabular-nums">{{ food.calories }}</span>
           </button>
         }
       </div>
     </div>
+    </ng-container>
   `,
 })
 export class StarterFoodsComponent {
+  private readonly translation = inject(TranslationService);
   readonly picked = output<MacroEstimate>();
-  protected readonly foods = STARTERS;
+  protected readonly foods = computed(() =>
+    this.translation.language() === 'es-PR' ? STARTER_FOODS_ES_PR : STARTER_FOODS_EN,
+  );
 }

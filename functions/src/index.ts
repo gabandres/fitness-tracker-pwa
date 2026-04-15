@@ -6,6 +6,7 @@ import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenAI } from "@google/genai";
+import { ErrorCode } from "./error-codes";
 
 initializeApp();
 const db = getFirestore();
@@ -201,7 +202,7 @@ export const analyzePhoto = onCall(
   async (request) => {
     // Auth required (callable protocol auto-verifies ID token)
     if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Must be signed in.");
+      throw new HttpsError("unauthenticated", "Must be signed in.", { code: ErrorCode.UNAUTHENTICATED });
     }
 
     const uid = request.auth.uid;
@@ -221,6 +222,7 @@ export const analyzePhoto = onCall(
           throw new HttpsError(
             "resource-exhausted",
             `Daily limit of ${DAILY_PHOTO_LIMIT} photo analyses reached. Resets at midnight UTC.`,
+            { code: ErrorCode.PHOTO_QUOTA_EXCEEDED, limit: DAILY_PHOTO_LIMIT },
           );
         }
         photosUsedAfter = used + 1;
@@ -228,15 +230,21 @@ export const analyzePhoto = onCall(
       });
     }
 
-    const { photoBase64 } = request.data as { photoBase64?: string };
+    const { photoBase64, locale } = request.data as { photoBase64?: string; locale?: string };
     if (!photoBase64 || typeof photoBase64 !== "string") {
-      throw new HttpsError("invalid-argument", "photoBase64 is required.");
+      throw new HttpsError("invalid-argument", "photoBase64 is required.", { code: ErrorCode.PHOTO_MISSING });
     }
 
     // Rough size check: base64 is ~4/3 of raw bytes. 5MB raw = ~6.7MB base64.
     if (photoBase64.length > 7_000_000) {
-      throw new HttpsError("invalid-argument", "Image too large. Max 5MB.");
+      throw new HttpsError("invalid-argument", "Image too large. Max 5MB.", { code: ErrorCode.PHOTO_TOO_LARGE });
     }
+
+    // Locale-aware description. The calories/protein numbers are
+    // locale-agnostic; only the `description` field flips language.
+    const descriptionLangSuffix = locale === "es-PR"
+      ? "\n\nReturn the `description` field in Puerto Rican Spanish (e.g. 'pollo con arroz')."
+      : "\n\nReturn the `description` field in English.";
 
     try {
       const client = new GoogleGenAI({ apiKey: geminiApiKey.value() });
@@ -264,7 +272,7 @@ Common Puerto Rican / Latin staples for reference:
 - Tostones (2 pieces): ~160 cal, 1g protein
 - Mofongo (1 serving): ~380 cal, 4g protein
 - Pan de Bono (1 piece): ~185 cal, 6g protein
-- Arroz con pollo (1 plate): ~550 cal, 35g protein`,
+- Arroz con pollo (1 plate): ~550 cal, 35g protein` + descriptionLangSuffix,
               },
             ],
           },
@@ -301,7 +309,11 @@ Common Puerto Rican / Latin staples for reference:
         ? parsed.confidence : "medium";
 
       if (calories == null) {
-        throw new HttpsError("internal", "Gemini could not estimate calories from this image.");
+        throw new HttpsError(
+          "internal",
+          "Gemini could not estimate calories from this image.",
+          { code: ErrorCode.PHOTO_ESTIMATE_FAILED },
+        );
       }
 
       return {
@@ -317,7 +329,7 @@ Common Puerto Rican / Latin staples for reference:
     } catch (err) {
       if (err instanceof HttpsError) throw err;
       console.error("analyzePhoto error:", err);
-      throw new HttpsError("internal", "Photo analysis failed.");
+      throw new HttpsError("internal", "Photo analysis failed.", { code: ErrorCode.PHOTO_ANALYZE_FAILED });
     }
   },
 );
@@ -341,7 +353,7 @@ const CONSULTATION_DAILY_LIMIT = 5;
 
 export const reserveConsultation = onCall(async (request) => {
   if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Must be signed in.");
+    throw new HttpsError("unauthenticated", "Must be signed in.", { code: ErrorCode.UNAUTHENTICATED });
   }
   const uid = request.auth.uid;
   const email = request.auth.token.email;
@@ -364,6 +376,7 @@ export const reserveConsultation = onCall(async (request) => {
       throw new HttpsError(
         "resource-exhausted",
         `Daily free-tier limit of ${CONSULTATION_DAILY_LIMIT} consultations reached. Subscribe for unlimited.`,
+        { code: ErrorCode.CONSULTATION_QUOTA_EXCEEDED, limit: CONSULTATION_DAILY_LIMIT },
       );
     }
     const newCount = used + 1;
@@ -385,7 +398,7 @@ export const reserveConsultation = onCall(async (request) => {
  */
 export const releaseConsultation = onCall(async (request) => {
   if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Must be signed in.");
+    throw new HttpsError("unauthenticated", "Must be signed in.", { code: ErrorCode.UNAUTHENTICATED });
   }
   const uid = request.auth.uid;
   const email = request.auth.token.email;
@@ -451,7 +464,7 @@ async function deleteSubcollection(
 
 export const deleteAccount = onCall(async (request) => {
   if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Must be signed in to delete your account.");
+    throw new HttpsError("unauthenticated", "Must be signed in to delete your account.", { code: ErrorCode.UNAUTHENTICATED });
   }
   const uid = request.auth.uid;
   const userPath = `users/${uid}`;
@@ -493,7 +506,7 @@ export const deleteAccount = onCall(async (request) => {
     return { success: true };
   } catch (err) {
     console.error(`deleteAccount failed for uid=${uid}:`, err);
-    throw new HttpsError("internal", "Account deletion failed. Please contact support.");
+    throw new HttpsError("internal", "Account deletion failed. Please contact support.", { code: ErrorCode.ACCOUNT_DELETE_FAILED });
   }
 });
 

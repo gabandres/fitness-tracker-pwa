@@ -2,21 +2,25 @@ import {
   ChangeDetectionStrategy, Component, ElementRef, inject,
   OnDestroy, output, signal, viewChild,
 } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { BarcodeService } from '../../services/barcode.service';
 import { MacroEstimate } from '../../models/macro-estimate';
+import { TranslationService } from '../../services/translation.service';
 
 @Component({
   selector: 'app-barcode-scanner',
   standalone: true,
+  imports: [TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     @if (isSupported()) {
       <button type="button" (click)="startScan()"
         [disabled]="scanning()"
-        aria-label="Scan a barcode to fill this entry"
+        [attr.aria-label]="t('barcode.scanAria')"
         class="capture-btn">
         <span aria-hidden="true">⊟</span>
-        <span>{{ scanning() ? 'scanning…' : 'barcode' }}</span>
+        <span>{{ scanning() ? t('barcode.scanning') : t('barcode.barcode') }}</span>
       </button>
     }
     @if (error()) {
@@ -25,12 +29,12 @@ import { MacroEstimate } from '../../models/macro-estimate';
 
     @if (showOverlay()) {
       <div class="fixed inset-0 z-50 bg-ink/95 flex flex-col items-center justify-center">
-        <div class="data-label mb-3 text-paper">point at a barcode</div>
+        <div class="data-label mb-3 text-paper">{{ t('barcode.overlayLabel') }}</div>
         <video #barcodeVideo autoplay playsinline
           class="w-full max-w-xs aspect-[3/4] object-cover border border-rule/40"></video>
         <div class="mt-4 flex gap-3">
           <button type="button" (click)="cancelScan()" class="tag-btn text-paper border-paper/40">
-            cancel
+            {{ t('barcode.cancel') }}
           </button>
         </div>
         @if (error()) {
@@ -38,10 +42,12 @@ import { MacroEstimate } from '../../models/macro-estimate';
         }
       </div>
     }
+    </ng-container>
   `,
 })
 export class BarcodeScannerComponent implements OnDestroy {
   private readonly barcodeService = inject(BarcodeService);
+  private readonly translation = inject(TranslationService);
 
   readonly estimated = output<MacroEstimate>();
 
@@ -78,7 +84,7 @@ export class BarcodeScannerComponent implements OnDestroy {
       });
     } catch (err) {
       this.cancelScan();
-      this.error.set(err instanceof Error ? err.message : 'Scan failed.');
+      this.error.set(err instanceof Error ? err.message : this.translation.t('barcode.errorFallback'));
     }
   }
 

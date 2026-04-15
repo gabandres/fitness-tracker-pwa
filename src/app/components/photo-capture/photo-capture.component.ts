@@ -1,23 +1,28 @@
 import { ChangeDetectionStrategy, Component, inject, output, signal } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { PhotoMacrosService } from '../../services/photo-macros.service';
 import { MacroEstimate } from '../../models/macro-estimate';
+import { TranslationService } from '../../services/translation.service';
+import { extractErrorCode } from '../../models/error-codes';
 
 @Component({
   selector: 'app-photo-capture',
   standalone: true,
+  imports: [TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     <button type="button" (click)="photoInput.click()"
       [disabled]="photoStatus() === 'analyzing' || photosRemaining() === 0"
-      aria-label="Snap a photo of your meal to estimate calories"
+      [attr.aria-label]="t('photo.captureAria')"
       class="capture-btn">
       <span aria-hidden="true">📷</span>
-      <span>{{ photoStatus() === 'analyzing' ? 'analyzing…' : 'photo' }}</span>
+      <span>{{ photoStatus() === 'analyzing' ? t('photo.analyzing') : t('photo.photo') }}</span>
     </button>
     @if (photosRemaining() !== null) {
       <span class="font-mono text-[10px] tracking-[0.08em] ml-1 align-middle"
         [style.color]="photosRemaining()! <= 2 ? 'var(--color-gold)' : 'var(--color-graphite)'">
-        {{ photosRemaining() }} left
+        {{ t('photo.left', { n: photosRemaining() }) }}
       </span>
     }
     <input #photoInput type="file" accept="image/*" capture="environment"
@@ -32,19 +37,21 @@ import { MacroEstimate } from '../../models/macro-estimate';
         <span class="crop-br" style="border-color: var(--color-blood)"></span>
         <span class="font-sans text-xs text-blood flex-1">{{ photoError() }}</span>
         <button type="button" (click)="photoStatus.set('idle'); photoError.set('')"
-          aria-label="Dismiss photo error"
+          [attr.aria-label]="t('photo.dismissAria')"
           class="text-blood text-base leading-none shrink-0">&times;</button>
       </div>
     }
     @if (lastConfidence() === 'low') {
       <p class="font-sans text-[11px] mt-1" style="color: var(--color-gold)">
-        &#9888; low confidence &mdash; verify estimate
+        {{ t('photo.lowConfidence') }}
       </p>
     }
+    </ng-container>
   `,
 })
 export class PhotoCaptureComponent {
   private readonly photoService = inject(PhotoMacrosService);
+  private readonly translation = inject(TranslationService);
 
   readonly estimated = output<MacroEstimate>();
 
@@ -74,7 +81,13 @@ export class PhotoCaptureComponent {
       this.photoStatus.set('idle');
     } catch (err) {
       this.photoStatus.set('error');
-      this.photoError.set(err instanceof Error ? err.message : 'Photo analysis failed.');
+      const code = extractErrorCode(err);
+      if (code) {
+        const details = (err as { details?: Record<string, unknown> }).details ?? {};
+        this.photoError.set(this.translation.tError(code, details));
+      } else {
+        this.photoError.set(err instanceof Error ? err.message : this.translation.t('photo.errorFallback'));
+      }
     } finally {
       input.value = '';
     }

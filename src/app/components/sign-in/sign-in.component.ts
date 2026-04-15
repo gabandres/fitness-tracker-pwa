@@ -1,34 +1,37 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { AuthService } from '../../services/auth.service';
+import { TranslationService } from '../../services/translation.service';
 
 type Status = 'idle' | 'signing' | 'error';
 
 @Component({
   selector: 'app-sign-in',
   standalone: true,
+  imports: [TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     <section>
       <div class="specimen px-6 py-8 sm:px-8 sm:py-10 relative">
         <span class="crop-bl"></span><span class="crop-br"></span>
 
         <div class="flex items-center gap-3 mb-1">
-          <span class="stamp-mark">restricted</span>
-          <span class="data-label">access</span>
+          <span class="stamp-mark">{{ t('signin.stamp') }}</span>
+          <span class="data-label">{{ t('signin.section') }}</span>
         </div>
 
         <h2 class="font-display text-3xl sm:text-4xl leading-[0.95] text-ink mt-3">
-          Identify<br/>
-          <em class="text-blood">yourself.</em>
+          {{ t('signin.titleLead') }}<br/>
+          <em class="text-blood">{{ t('signin.titleEm') }}</em>
         </h2>
 
         <p class="font-sans text-sm text-ink-soft mt-4 leading-relaxed">
-          Track calories, protein, and weight. Get a coach that reads your data.
+          {{ t('signin.blurb') }}
         </p>
 
         <p class="caption mt-3 text-[11px] leading-relaxed">
-          gmail accounts only. one click, no passwords, stays signed in
-          until you sign out.
+          {{ t('signin.caption') }}
         </p>
 
         <div class="mt-8">
@@ -46,7 +49,7 @@ type Status = 'idle' | 'signing' | 'error';
             >
               <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/>
             </svg>
-            {{ status() === 'signing' ? 'signing in…' : 'sign in with google' }}
+            {{ status() === 'signing' ? t('signin.signingIn') : t('signin.signInWithGoogle') }}
           </button>
 
           @if (status() === 'error') {
@@ -58,16 +61,17 @@ type Status = 'idle' | 'signing' | 'error';
 
         <div class="mt-8 pt-6 border-t border-rule/40">
           <p class="caption text-xs leading-relaxed">
-            your session is stored locally by firebase. sign out any time
-            to clear it. no password is kept on any server.
+            {{ t('signin.sessionCaption') }}
           </p>
         </div>
       </div>
     </section>
+    </ng-container>
   `,
 })
 export class SignInComponent {
   private readonly auth = inject(AuthService);
+  private readonly translation = inject(TranslationService);
 
   protected readonly status = signal<Status>('idle');
   protected readonly errorMsg = signal('');
@@ -87,7 +91,7 @@ export class SignInComponent {
         return;
       }
       this.status.set('error');
-      this.errorMsg.set(err instanceof Error ? err.message : 'Sign-in failed.');
+      this.errorMsg.set(err instanceof Error ? err.message : this.translation.t('signin.errorFallback'));
     }
   }
 }

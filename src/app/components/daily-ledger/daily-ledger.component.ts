@@ -1,8 +1,10 @@
 import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, ViewChild, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { DailyLog } from '../../services/firebase.service';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
+import { TranslationService } from '../../services/translation.service';
 import { DateKey, localDateKey } from '../../utils/date';
 import { EntryFormComponent } from '../entry-form/entry-form.component';
 import { PhotoCaptureComponent } from '../photo-capture/photo-capture.component';
@@ -34,10 +36,11 @@ interface DayGroup {
 @Component({
   selector: 'app-daily-ledger',
   standalone: true,
-  imports: [FormsModule, EntryFormComponent, PhotoCaptureComponent, BarcodeScannerComponent, PresetPickerComponent, StarterFoodsComponent, FastingStripComponent, InstallPromptComponent],
+  imports: [FormsModule, EntryFormComponent, PhotoCaptureComponent, BarcodeScannerComponent, PresetPickerComponent, StarterFoodsComponent, FastingStripComponent, InstallPromptComponent, TranslocoDirective],
   providers: [EntryFormManager],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     <section>
       <!-- Ambient fasting strip: keeps elapsed time + end-fast CTA visible
            while you're logging meals, without occupying 200px for the dial. -->
@@ -56,10 +59,10 @@ interface DayGroup {
           <span class="crop-bl" style="border-color: var(--color-gold)"></span>
           <span class="crop-br" style="border-color: var(--color-gold)"></span>
           <div class="flex items-center gap-2">
-            <span class="stamp-mark" style="transform: rotate(0deg); border-color: var(--color-gold); color: var(--color-gold)">travel</span>
-            <span class="caption text-[11px]">maintenance mode — deficit suspended.</span>
+            <span class="stamp-mark" style="transform: rotate(0deg); border-color: var(--color-gold); color: var(--color-gold)">{{ t('daily.travel.stamp') }}</span>
+            <span class="caption text-[11px]">{{ t('daily.travel.caption') }}</span>
           </div>
-          <button type="button" (click)="store.toggleTravelMode()" class="tag-btn text-[11px]">end trip</button>
+          <button type="button" (click)="store.toggleTravelMode()" class="tag-btn text-[11px]">{{ t('daily.travel.end') }}</button>
         </div>
       }
 
@@ -69,7 +72,7 @@ interface DayGroup {
            oxblood when over budget. -->
       @if (store.targetCalories() > 0) {
         <div class="mb-5 ink-in">
-          <div class="data-label mb-1">kcal remaining today</div>
+          <div class="data-label mb-1">{{ t('daily.hero.label') }}</div>
           <div class="flex items-baseline gap-4 flex-wrap">
             <span class="font-display italic leading-none tracking-tight tabular-nums"
               style="font-size: clamp(3rem, 13vw, 4.5rem);"
@@ -77,8 +80,8 @@ interface DayGroup {
               {{ remainingToday() < 0 ? '−' : '' }}{{ Math.abs(remainingToday()).toLocaleString() }}
             </span>
             <div class="font-mono text-[11px] text-graphite tabular-nums leading-tight pb-2 tracking-[0.08em]">
-              <div>target · {{ store.targetCalories().toLocaleString() }}</div>
-              <div>eaten&nbsp; · {{ (store.todaySummary()?.totalCalories ?? 0).toLocaleString() }}</div>
+              <div>{{ t('daily.hero.target') }} · {{ store.targetCalories().toLocaleString() }}</div>
+              <div>{{ t('daily.hero.eaten') }}&nbsp; · {{ (store.todaySummary()?.totalCalories ?? 0).toLocaleString() }}</div>
             </div>
           </div>
         </div>
@@ -88,10 +91,10 @@ interface DayGroup {
       @if (store.streak() > 0) {
         <div class="flex items-center gap-2 mb-4">
           <span class="font-mono text-xs tracking-[0.1em] text-graphite">
-            <span class="font-medium text-ink">{{ store.streak() }}</span> day{{ store.streak() === 1 ? '' : 's' }} logged
+            <span class="font-medium text-ink">{{ store.streak() }}</span> {{ store.streak() === 1 ? t('daily.streak.day') : t('daily.streak.days') }} {{ t('daily.streak.logged') }}
           </span>
           @if (store.streak() >= 7) {
-            <span class="stamp-mark" style="transform: rotate(0deg); border-color: var(--color-olive); color: var(--color-olive)">streak</span>
+            <span class="stamp-mark" style="transform: rotate(0deg); border-color: var(--color-olive); color: var(--color-olive)">{{ t('daily.streak.stamp') }}</span>
           }
         </div>
       }
@@ -103,8 +106,8 @@ interface DayGroup {
       @if (showSwipeHint()) {
         <button type="button" (click)="dismissSwipeHint()"
           class="w-full text-center font-display italic text-graphite text-xs py-1 mb-2 ink-in hover:text-ink transition-colors"
-          aria-label="Dismiss swipe hint">
-          ← swipe the log to change day →
+          [attr.aria-label]="t('daily.swipeHintAria')">
+          {{ t('daily.swipeHint') }}
         </button>
       }
 
@@ -127,7 +130,7 @@ interface DayGroup {
               </span>
               @if (chip.hasData) {
                 <span class="w-1 h-1 rounded-full mt-0.5" style="background: var(--color-olive)"
-                  aria-label="has entries"></span>
+                  [attr.aria-label]="t('daily.chipHasEntries')"></span>
               }
             </button>
           }
@@ -137,29 +140,29 @@ interface DayGroup {
       <!-- ─── Today weight + add entry (top of tape) ────────── -->
       <div class="mb-4 flex items-center gap-3">
         @if (form.mode() === 'view') {
-          <button type="button" (click)="form.startAdd()" class="stamp-btn">+ new entry</button>
+          <button type="button" (click)="form.startAdd()" class="stamp-btn">{{ t('daily.newEntry') }}</button>
           <!-- Today weight quick-input -->
           @if (editingWeightDay() === todayKey) {
             <form class="flex items-baseline gap-1" (ngSubmit)="saveTodayWeight()" (click)="$event.stopPropagation()">
               <input type="number" step="0.1" inputmode="decimal"
                 [ngModel]="weightInput()" (ngModelChange)="weightInput.set($event)"
-                name="todayWeight" placeholder="___"
+                name="todayWeight" [attr.placeholder]="t('daily.weight.placeholder')"
                 class="field-input text-xs w-16 py-0.5 px-1 tabular-nums" />
-              <span class="font-display italic text-graphite text-[11px]">lb</span>
-              <button type="submit" aria-label="Save weight" class="tag-btn text-[11px] py-0 px-1">ok</button>
-              <button type="button" (click)="cancelEditWeight()" aria-label="Cancel weight edit" class="tag-btn text-[11px] py-0 px-1">x</button>
+              <span class="font-display italic text-graphite text-[11px]">{{ t('daily.weight.lb') }}</span>
+              <button type="submit" [attr.aria-label]="t('daily.weight.saveAria')" class="tag-btn text-[11px] py-0 px-1">{{ t('daily.weight.ok') }}</button>
+              <button type="button" (click)="cancelEditWeight()" [attr.aria-label]="t('daily.weight.cancelAria')" class="tag-btn text-[11px] py-0 px-1">{{ t('daily.weight.x') }}</button>
             </form>
           } @else {
             <button type="button" (click)="startEditWeight(todayKey, todayWeight())"
-              [attr.aria-label]="todayWeight() != null ? 'Edit weight for today' : 'Add weight for today'"
+              [attr.aria-label]="todayWeight() != null ? t('daily.weight.editAria') : t('daily.weight.addAria')"
               class="font-sans text-xs tabular-nums hover:underline"
               [class.text-graphite]="todayWeight() != null"
               [class.text-graphite-soft]="todayWeight() == null"
               [class.italic]="todayWeight() == null">
               @if (todayWeight() != null) {
-                {{ todayWeight() }}<span class="text-[11px] ml-0.5">lb</span>
+                {{ todayWeight() }}<span class="text-[11px] ml-0.5">{{ t('daily.weight.lb') }}</span>
               } @else {
-                + weight
+                {{ t('daily.weight.addWeight') }}
               }
             </button>
           }
@@ -170,8 +173,8 @@ interface DayGroup {
           <div class="specimen px-4 py-5 slide-down">
             <span class="crop-bl"></span><span class="crop-br"></span>
             <div class="flex items-center gap-2 mb-3">
-              <span class="stamp-mark" style="transform: rotate(0deg)">new</span>
-              <span class="data-label">entry</span>
+              <span class="stamp-mark" style="transform: rotate(0deg)">{{ t('daily.newStamp') }}</span>
+              <span class="data-label">{{ t('daily.entryLabel') }}</span>
               <div class="flex gap-1.5 ml-auto">
                 <app-barcode-scanner (estimated)="form.applyEstimate($event)" />
                 <app-photo-capture (estimated)="form.applyEstimate($event)" />
@@ -185,8 +188,8 @@ interface DayGroup {
           <div id="edit-panel" class="specimen px-4 py-5 slide-down">
             <span class="crop-bl"></span><span class="crop-br"></span>
             <div class="flex items-center gap-2 mb-3">
-              <span class="stamp-mark" style="transform: rotate(0deg)">edit</span>
-              <span class="data-label truncate max-w-[180px]">{{ form.editTarget()?.mealLabel || 'meal' }}</span>
+              <span class="stamp-mark" style="transform: rotate(0deg)">{{ t('daily.editStamp') }}</span>
+              <span class="data-label truncate max-w-[180px]">{{ form.editTarget()?.mealLabel || t('daily.mealFallback') }}</span>
             </div>
             <app-entry-form />
           </div>
@@ -194,7 +197,7 @@ interface DayGroup {
       </div>
 
       <!-- ─── Day-grouped log tape ─────────────────────────── -->
-      <div class="rule"><span>{{ dayGroups().length > 0 ? 'log tape' : 'no entries yet' }}</span></div>
+      <div class="rule"><span>{{ dayGroups().length > 0 ? t('daily.tapeTitle') : t('daily.tapeEmpty') }}</span></div>
 
       <div class="mt-3 space-y-4" #swipeArea>
         @for (day of dayGroups(); track day.dateKey; let di = $index) {
@@ -211,18 +214,18 @@ interface DayGroup {
                 <span class="font-sans text-xs tracking-[0.12em] font-medium"
                   [class.text-blood]="day.dateKey === todayKey"
                   [class.text-ink]="day.dateKey !== todayKey">
-                  {{ day.dateKey === todayKey ? 'TODAY' : day.dateLabel }}
+                  {{ day.dateKey === todayKey ? t('daily.today') : day.dateLabel }}
                 </span>
                 <!-- Tappable daily weight -->
                 @if (editingWeightDay() === day.dateKey) {
                   <form class="flex items-baseline gap-1" (ngSubmit)="saveWeight(day); $event.stopPropagation()" (click)="$event.stopPropagation()">
                     <input type="number" step="0.1" inputmode="decimal"
                       [ngModel]="weightInput()" (ngModelChange)="weightInput.set($event)"
-                      name="dayWeight" placeholder="___"
+                      name="dayWeight" [attr.placeholder]="t('daily.weight.placeholder')"
                       class="field-input text-xs w-16 py-0.5 px-1 tabular-nums" />
-                    <span class="font-display italic text-graphite text-[11px]">lb</span>
-                    <button type="submit" aria-label="Save weight" class="tag-btn text-[11px] py-0 px-1">ok</button>
-                    <button type="button" (click)="cancelEditWeight()" aria-label="Cancel weight edit" class="tag-btn text-[11px] py-0 px-1">x</button>
+                    <span class="font-display italic text-graphite text-[11px]">{{ t('daily.weight.lb') }}</span>
+                    <button type="submit" [attr.aria-label]="t('daily.weight.saveAria')" class="tag-btn text-[11px] py-0 px-1">{{ t('daily.weight.ok') }}</button>
+                    <button type="button" (click)="cancelEditWeight()" [attr.aria-label]="t('daily.weight.cancelAria')" class="tag-btn text-[11px] py-0 px-1">{{ t('daily.weight.x') }}</button>
                   </form>
                 } @else {
                   <button type="button" (click)="startEditWeight(day.dateKey, day.weight); $event.stopPropagation()"
@@ -231,9 +234,9 @@ interface DayGroup {
                     [class.text-graphite-soft]="day.weight == null"
                     [class.italic]="day.weight == null">
                     @if (day.weight != null) {
-                      {{ day.weight }}<span class="text-[11px] ml-0.5">lb</span>
+                      {{ day.weight }}<span class="text-[11px] ml-0.5">{{ t('daily.weight.lb') }}</span>
                     } @else {
-                      + wt
+                      {{ t('daily.weight.addWt') }}
                     }
                   </button>
                 }
@@ -242,22 +245,22 @@ interface DayGroup {
                   [style.background]="day.exerciseCompleted ? 'var(--color-olive)' : 'transparent'"
                   [style.color]="day.exerciseCompleted ? 'var(--color-paper)' : 'var(--color-graphite-soft)'"
                   [style.border-color]="day.exerciseCompleted ? 'var(--color-olive)' : 'var(--color-rule)'"
-                  [attr.aria-label]="day.exerciseCompleted ? 'Exercise: active' : 'Exercise: inactive'"
-                  title="Toggle exercise">● exercise</button>
+                  [attr.aria-label]="day.exerciseCompleted ? t('daily.exerciseActiveAria') : t('daily.exerciseInactiveAria')"
+                  [attr.title]="t('daily.exerciseTitle')">{{ t('daily.exercise') }}</button>
               </div>
               <div class="flex items-center gap-3">
                 <span class="font-mono text-sm font-medium tabular-nums" style="color: var(--color-blood)">
-                  {{ day.totalCalories }}<span class="text-[10px] ml-0.5 opacity-70">cal</span>
+                  {{ day.totalCalories }}<span class="text-[10px] ml-0.5 opacity-70">{{ t('daily.cal') }}</span>
                 </span>
                 @if (day.totalProtein > 0) {
                   <span class="font-mono text-xs tabular-nums" style="color: var(--color-protein)">
-                    {{ day.totalProtein }}<span class="text-[10px] ml-0.5 opacity-70">g</span>
+                    {{ day.totalProtein }}<span class="text-[10px] ml-0.5 opacity-70">{{ t('daily.g') }}</span>
                   </span>
                 }
                 <!-- Add meal to this day -->
                 <button type="button" (click)="form.startAdd(day.dateKey); $event.stopPropagation()"
-                  [attr.aria-label]="'Add meal to ' + (day.dateKey === todayKey ? 'today' : day.dateLabel)"
-                  class="tag-btn text-[11px] py-0.5 px-1.5" title="Add meal">+</button>
+                  [attr.aria-label]="t('daily.addMealAria', { day: day.dateKey === todayKey ? t('daily.addMealToday') : day.dateLabel })"
+                  class="tag-btn text-[11px] py-0.5 px-1.5" [attr.title]="t('daily.addMealTitle')">+</button>
               </div>
             </div>
 
@@ -271,7 +274,7 @@ interface DayGroup {
               </div>
               <div class="flex justify-between mt-0.5">
                 <span class="font-mono text-[11px] tracking-[0.1em] text-graphite tabular-nums">
-                  {{ Math.max(0, store.targetCalories() - day.totalCalories) }} remaining
+                  {{ Math.max(0, store.targetCalories() - day.totalCalories) }} {{ t('daily.remaining') }}
                 </span>
                 <span class="font-mono text-[11px] tracking-[0.1em] tabular-nums"
                   [style.color]="day.totalCalories > store.targetCalories() ? 'var(--color-blood)' : 'var(--color-graphite)'">
@@ -289,7 +292,7 @@ interface DayGroup {
               </div>
               <div class="flex justify-between mt-0.5">
                 <span class="font-mono text-[11px] tracking-[0.1em] tabular-nums" style="color: var(--color-protein)">
-                  {{ day.totalProtein }}g / {{ store.proteinTarget() }}g protein
+                  {{ t('daily.proteinProgress', { have: day.totalProtein, target: store.proteinTarget() }) }}
                 </span>
                 <span class="font-mono text-[11px] tracking-[0.1em] tabular-nums"
                   [style.color]="day.totalProtein >= store.proteinMinTarget() ? 'var(--color-olive)' : 'var(--color-graphite)'">
@@ -307,21 +310,21 @@ interface DayGroup {
               <div class="flex items-center justify-between gap-2">
                 <div class="flex items-center gap-3 min-w-0">
                   <span class="font-sans text-xs tracking-[0.08em] text-graphite-soft truncate max-w-[100px]">
-                    {{ meal.mealLabel || 'Meal ' + (mi + 1) }}
+                    {{ meal.mealLabel || t('daily.mealN', { n: mi + 1 }) }}
                   </span>
                   @if (meal.exerciseCompleted || meal.liftCompleted || meal.cardioCompleted) {
-                    <span class="text-[10px] font-sans font-medium" style="color: var(--color-olive)" title="Exercise">●</span>
+                    <span class="text-[10px] font-sans font-medium" style="color: var(--color-olive)" [attr.title]="t('daily.exerciseTitle')">●</span>
                   }
                   <span class="font-mono text-base tabular-nums" style="color: var(--color-blood)">
-                    {{ meal.calories }}<span class="text-[10px] ml-0.5 opacity-70">cal</span>
+                    {{ meal.calories }}<span class="text-[10px] ml-0.5 opacity-70">{{ t('daily.cal') }}</span>
                   </span>
                   @if (meal.protein != null) {
                     <span class="font-mono text-base tabular-nums" style="color: var(--color-protein)">
-                      {{ meal.protein }}<span class="text-[10px] ml-0.5 opacity-70">g</span>
+                      {{ meal.protein }}<span class="text-[10px] ml-0.5 opacity-70">{{ t('daily.g') }}</span>
                     </span>
                   }
                 </div>
-                <button type="button" (click)="startEdit(meal)" class="tag-btn text-[11px]">edit</button>
+                <button type="button" (click)="startEdit(meal)" class="tag-btn text-[11px]">{{ t('daily.edit') }}</button>
               </div>
 
             </div>
@@ -349,7 +352,7 @@ interface DayGroup {
           }
           <div class="py-6 text-center">
             <p class="caption text-[11px]">
-              or tap <span class="text-ink">new entry</span> above to log anything else.
+              {{ t('daily.emptyStatePrefix') }} <span class="text-ink">{{ t('daily.newEntry') }}</span> {{ t('daily.emptyStateSuffix') }}
             </p>
           </div>
         }
@@ -360,23 +363,25 @@ interface DayGroup {
         <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 ink-in"
           role="status" aria-live="polite">
           <button type="button" (click)="store.undoDelete()"
-            aria-label="Undo delete entry"
+            [attr.aria-label]="t('daily.undoAria')"
             class="specimen undo-toast px-4 py-3 flex items-center gap-3 bg-paper shadow-lg cursor-pointer"
             style="border-color: var(--color-blood)">
             <span class="crop-bl" style="border-color: var(--color-blood)"></span>
             <span class="crop-br" style="border-color: var(--color-blood)"></span>
-            <span class="font-sans text-xs tracking-[0.08em] text-ink">entry deleted</span>
+            <span class="font-sans text-xs tracking-[0.08em] text-ink">{{ t('daily.undoLabel') }}</span>
             <span class="tag-btn text-[11px] pointer-events-none"
-              style="border-color: var(--color-blood); color: var(--color-blood)">undo</span>
+              style="border-color: var(--color-blood); color: var(--color-blood)">{{ t('daily.undoAction') }}</span>
           </button>
         </div>
       }
     </section>
+    </ng-container>
   `,
 })
 export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
   protected readonly store = inject(FitnessStore);
   protected readonly form = inject(EntryFormManager);
+  protected readonly translation = inject(TranslationService);
   protected readonly Math = Math;
   protected readonly todayKey = localDateKey(new Date());
   protected readonly selectedDateKey = signal(this.todayKey);
@@ -479,17 +484,22 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
   }
 
   // ── Date navigation strip: last 14 calendar days ────────────
+  private localeForDates(): string {
+    return this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+  }
+
   protected readonly dateChips = computed<DateChip[]>(() => {
     const groups = this.dayGroups();
     const dataKeys = new Set(groups.map((g) => g.dateKey));
     const chips: DateChip[] = [];
+    const locale = this.localeForDates();
     for (let i = 13; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const key = localDateKey(d);
       chips.push({
         dateKey: key,
-        dayLabel: d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase().slice(0, 3),
+        dayLabel: d.toLocaleDateString(locale, { weekday: 'short' }).toUpperCase().slice(0, 3),
         dateNum: String(d.getDate()).padStart(2, '0'),
         isToday: key === this.todayKey,
         hasData: dataKeys.has(key),
@@ -533,6 +543,7 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
   protected readonly dayGroups = computed<DayGroup[]>(() => {
     const logs = this.store.logs();
     const dw = this.store.dailyWeights();
+    const locale = this.localeForDates();
     const groups = new Map<string, DayGroup>();
 
     for (const log of logs) {
@@ -541,7 +552,7 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
       if (!group) {
         group = {
           dateKey: key,
-          dateLabel: log.date.toLocaleDateString('en-US', {
+          dateLabel: log.date.toLocaleDateString(locale, {
             weekday: 'short', month: 'short', day: 'numeric',
           }).toUpperCase(),
           weight: null,

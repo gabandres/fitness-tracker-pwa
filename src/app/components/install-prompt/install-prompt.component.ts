@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
 
 /**
@@ -34,8 +35,10 @@ const DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 @Component({
   selector: 'app-install-prompt',
   standalone: true,
+  imports: [TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     @if (shouldShow()) {
       <div class="specimen px-4 py-3 mb-4 flex items-center gap-3 slide-down"
         role="status" style="border-color: var(--color-olive)">
@@ -45,35 +48,36 @@ const DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
           <div class="flex items-center gap-2 mb-0.5">
             <span class="stamp-mark"
               style="transform: rotate(0deg); border-color: var(--color-olive); color: var(--color-olive)">
-              install
+              {{ t('install.stamp') }}
             </span>
-            <span class="data-label">home screen</span>
+            <span class="data-label">{{ t('install.section') }}</span>
           </div>
           @if (canPromptNatively()) {
             <p class="font-sans text-xs text-ink leading-relaxed">
-              install macro log as an app — one tap, opens faster, works offline.
+              {{ t('install.bodyNative') }}
             </p>
           } @else {
             <p class="font-sans text-xs text-ink leading-relaxed">
-              to install on iphone: tap the <span class="font-mono">share</span> button in safari, then
-              <span class="font-mono">Add to Home Screen</span>.
+              {{ t('install.bodyIosPrefix') }} <span class="font-mono">{{ t('install.bodyIosShare') }}</span> {{ t('install.bodyIosMid') }}
+              <span class="font-mono">{{ t('install.bodyIosAdd') }}</span>.
             </p>
           }
         </div>
         @if (canPromptNatively()) {
           <button type="button" (click)="install()"
-            aria-label="Install Macro Log as an app"
+            [attr.aria-label]="t('install.installButtonAria')"
             class="tag-btn text-[11px] shrink-0"
             style="border-color: var(--color-olive); color: var(--color-olive)">
-            install
+            {{ t('install.installButton') }}
           </button>
         }
         <button type="button" (click)="dismiss()"
-          aria-label="Dismiss install prompt"
+          [attr.aria-label]="t('install.dismissAria')"
           class="text-graphite text-base leading-none shrink-0 px-1"
-          title="Hide for 7 days">&times;</button>
+          [attr.title]="t('install.dismissTitle')">&times;</button>
       </div>
     }
+    </ng-container>
   `,
 })
 export class InstallPromptComponent {

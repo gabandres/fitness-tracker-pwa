@@ -2,10 +2,13 @@ import {
   AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, HostListener,
   computed, inject, input, output, signal, viewChild,
 } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { AuthService } from '../../services/auth.service';
 import { FirebaseService } from '../../services/firebase.service';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { PushNotificationService } from '../../services/push-notification.service';
+import { TranslationService } from '../../services/translation.service';
+import { AppLang } from '../../i18n/transloco.providers';
 import { SubscribeComponent } from '../subscribe/subscribe.component';
 
 /**
@@ -16,6 +19,7 @@ import { SubscribeComponent } from '../subscribe/subscribe.component';
  * Sections are grouped by user concern:
  *   - Profile:     edit, sign out
  *   - Reminders:   push permission, daily reminder hour
+ *   - Language:    English / Español (PR) toggle
  *   - Data:        Apple Shortcuts webhook, export, delete account (→ /privacy)
  *   - Modes:       travel mode, theme (dark/light)
  *   - Subscription: the Subscribe card (voluntary, conditional on Stripe config)
@@ -27,9 +31,10 @@ import { SubscribeComponent } from '../subscribe/subscribe.component';
 @Component({
   selector: 'app-settings-sheet',
   standalone: true,
-  imports: [SubscribeComponent],
+  imports: [SubscribeComponent, TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     <div class="fixed inset-0 z-40 bg-ink/40 backdrop-blur-sm ink-in"
       (click)="requestClose()"
       aria-hidden="true"></div>
@@ -44,15 +49,15 @@ import { SubscribeComponent } from '../subscribe/subscribe.component';
         <div class="flex items-start justify-between gap-3 mb-6">
           <div>
             <div class="flex items-center gap-3 mb-1">
-              <span class="stamp-mark" style="transform: rotate(0deg)">menu</span>
-              <span class="data-label">settings</span>
+              <span class="stamp-mark" style="transform: rotate(0deg)">{{ t('settings.menuStamp') }}</span>
+              <span class="data-label">{{ t('settings.sectionLabel') }}</span>
             </div>
             <h2 id="settings-title" class="font-display text-3xl leading-[0.95] text-ink mt-2">
-              Your<br/><em class="text-blood">settings.</em>
+              {{ t('settings.titleLead') }}<br/><em class="text-blood">{{ t('settings.titleEm') }}</em>
             </h2>
           </div>
           <button type="button" (click)="requestClose()"
-            aria-label="Close settings"
+            [attr.aria-label]="t('settings.close')"
             class="tag-btn text-sm shrink-0"
             #closeBtn>&times;</button>
         </div>
@@ -61,51 +66,87 @@ import { SubscribeComponent } from '../subscribe/subscribe.component';
 
         <!-- ─── Profile ───────────────────────────────────────── -->
         <section class="mb-7">
-          <div class="data-label mb-3">profile</div>
+          <div class="data-label mb-3">{{ t('settings.profile.section') }}</div>
           <p class="font-sans text-xs text-graphite mb-3">
-            signed in as <span class="text-ink font-medium">{{ u.email }}</span>
+            {{ t('settings.profile.signedInAs') }} <span class="text-ink font-medium">{{ u.email }}</span>
           </p>
           <div class="flex flex-wrap gap-2">
             <button type="button" (click)="editProfile.emit(); requestClose()"
               class="tag-btn text-[11px]">
-              edit profile
+              {{ t('settings.profile.edit') }}
             </button>
             <button type="button" (click)="signOut()"
               class="tag-btn text-[11px] text-blood border-blood/40">
-              sign out
+              {{ t('settings.profile.signOut') }}
             </button>
           </div>
         </section>
 
+        <!-- ─── Language ──────────────────────────────────────── -->
+        <section class="mb-7">
+          <div class="data-label mb-3">{{ t('settings.language.section') }}</div>
+          <div class="flex items-center justify-between gap-3 mb-2">
+            <div class="min-w-0">
+              <div class="font-sans text-sm text-ink">{{ t('settings.language.label') }}</div>
+              <p class="caption text-[11px] leading-relaxed mt-0.5">
+                {{ t('settings.language.desc') }}
+              </p>
+            </div>
+            <div class="flex gap-2 shrink-0">
+              <button type="button" (click)="selectLanguage('en')"
+                [attr.aria-pressed]="translation.language() === 'en'"
+                class="tag-btn text-[11px]"
+                [style.border-color]="translation.language() === 'en' ? 'var(--color-blood)' : ''"
+                [style.color]="translation.language() === 'en' ? 'var(--color-blood)' : ''">
+                {{ t('settings.language.english') }}
+              </button>
+              <button type="button" (click)="selectLanguage('es-PR')"
+                [attr.aria-pressed]="translation.language() === 'es-PR'"
+                class="tag-btn text-[11px]"
+                [style.border-color]="translation.language() === 'es-PR' ? 'var(--color-blood)' : ''"
+                [style.color]="translation.language() === 'es-PR' ? 'var(--color-blood)' : ''">
+                {{ t('settings.language.spanish') }}
+              </button>
+            </div>
+          </div>
+          @if (showEsBetaBanner()) {
+            <p class="specimen px-3 py-2 text-[11px] leading-relaxed mt-2"
+               role="status"
+               style="border-color: var(--color-gold); color: var(--color-ink);">
+              {{ t('legal.esBetaBanner') }}
+            </p>
+          }
+        </section>
+
         <!-- ─── Reminders ─────────────────────────────────────── -->
         <section class="mb-7">
-          <div class="data-label mb-3">reminders</div>
+          <div class="data-label mb-3">{{ t('settings.reminders.section') }}</div>
 
           <!-- Push notifications -->
           <div class="flex items-center justify-between gap-3 mb-3">
             <div class="min-w-0">
-              <div class="font-sans text-sm text-ink">push notifications</div>
+              <div class="font-sans text-sm text-ink">{{ t('settings.reminders.push') }}</div>
               <p class="caption text-[11px] leading-relaxed mt-0.5">
                 @if (pushService.permission() === 'granted') {
-                  on — you'll get a nudge after your reminder time if you haven't logged.
+                  {{ t('settings.reminders.pushOn') }}
                 } @else if (pushService.permission() === 'unsupported') {
-                  your browser doesn't support push notifications.
+                  {{ t('settings.reminders.pushUnsupported') }}
                 } @else if (pushService.permission() === 'denied') {
-                  blocked — update your browser's site settings to re-enable.
+                  {{ t('settings.reminders.pushDenied') }}
                 } @else {
-                  get a nudge after your reminder time if you haven't logged.
+                  {{ t('settings.reminders.pushDefault') }}
                 }
               </p>
             </div>
             @if (pushService.permission() === 'granted') {
               <span class="stamp-mark shrink-0"
                 style="transform: rotate(0deg); border-color: var(--color-olive); color: var(--color-olive)">
-                on
+                {{ t('settings.reminders.pushOnBadge') }}
               </span>
             } @else if (pushService.permission() === 'default') {
               <button type="button" (click)="enablePush()"
                 class="tag-btn text-[11px] shrink-0">
-                enable
+                {{ t('settings.reminders.pushEnable') }}
               </button>
             }
           </div>
@@ -113,13 +154,13 @@ import { SubscribeComponent } from '../subscribe/subscribe.component';
           <!-- Reminder hour dropdown -->
           <div class="flex items-center justify-between gap-3">
             <div>
-              <div class="font-sans text-sm text-ink">reminder time</div>
-              <p class="caption text-[11px]">when to check whether you've logged today.</p>
+              <div class="font-sans text-sm text-ink">{{ t('settings.reminders.hour') }}</div>
+              <p class="caption text-[11px]">{{ t('settings.reminders.hourDesc') }}</p>
             </div>
             <select
               [value]="reminderHour()"
               (change)="setReminderHour(+$any($event.target).value)"
-              aria-label="Daily reminder hour"
+              [attr.aria-label]="t('settings.reminders.hourAria')"
               class="bg-transparent text-ink font-sans text-sm border-b border-rule cursor-pointer px-2 py-1">
               @for (h of reminderHours; track h) {
                 <option [value]="h" [selected]="h === reminderHour()">{{ formatHour(h) }}</option>
@@ -130,58 +171,58 @@ import { SubscribeComponent } from '../subscribe/subscribe.component';
 
         <!-- ─── Modes ─────────────────────────────────────────── -->
         <section class="mb-7">
-          <div class="data-label mb-3">modes</div>
+          <div class="data-label mb-3">{{ t('settings.modes.section') }}</div>
 
           <!-- Travel mode -->
           <div class="flex items-center justify-between gap-3 mb-3">
             <div class="min-w-0">
-              <div class="font-sans text-sm text-ink">travel mode</div>
+              <div class="font-sans text-sm text-ink">{{ t('settings.modes.travel') }}</div>
               <p class="caption text-[11px] leading-relaxed mt-0.5">
-                suspends your cut while traveling — target becomes maintenance. toggle off when you're home.
+                {{ t('settings.modes.travelDesc') }}
               </p>
             </div>
             <button type="button" (click)="store.toggleTravelMode()"
               [attr.aria-pressed]="store.travelMode()"
-              [attr.aria-label]="store.travelMode() ? 'Turn travel mode off' : 'Turn travel mode on'"
+              [attr.aria-label]="store.travelMode() ? t('settings.modes.travelAriaOff') : t('settings.modes.travelAriaOn')"
               class="tag-btn text-[11px] shrink-0"
               [style.border-color]="store.travelMode() ? 'var(--color-gold)' : ''"
               [style.color]="store.travelMode() ? 'var(--color-gold)' : ''">
-              {{ store.travelMode() ? 'on' : 'off' }}
+              {{ store.travelMode() ? t('settings.modes.travelOn') : t('settings.modes.travelOff') }}
             </button>
           </div>
 
           <!-- Theme -->
           <div class="flex items-center justify-between gap-3">
             <div>
-              <div class="font-sans text-sm text-ink">appearance</div>
-              <p class="caption text-[11px]">dark mode follows your system preference by default.</p>
+              <div class="font-sans text-sm text-ink">{{ t('settings.modes.theme') }}</div>
+              <p class="caption text-[11px]">{{ t('settings.modes.themeDesc') }}</p>
             </div>
             <button type="button" (click)="toggleTheme.emit()"
               [attr.aria-pressed]="darkMode()"
-              [attr.aria-label]="darkMode() ? 'Switch to light mode' : 'Switch to dark mode'"
+              [attr.aria-label]="darkMode() ? t('settings.modes.themeAriaLight') : t('settings.modes.themeAriaDark')"
               class="tag-btn text-[11px] shrink-0">
-              {{ darkMode() ? '☀ light' : '☾ dark' }}
+              {{ darkMode() ? t('settings.modes.themeLight') : t('settings.modes.themeDark') }}
             </button>
           </div>
         </section>
 
         <!-- ─── Data ──────────────────────────────────────────── -->
         <section class="mb-7">
-          <div class="data-label mb-3">data</div>
+          <div class="data-label mb-3">{{ t('settings.data.section') }}</div>
 
           <!-- Apple Shortcuts webhook -->
           <div class="mb-4">
             <div class="flex items-center justify-between gap-3 mb-2">
               <div class="min-w-0">
-                <div class="font-sans text-sm text-ink">apple shortcuts webhook</div>
+                <div class="font-sans text-sm text-ink">{{ t('settings.data.webhook') }}</div>
                 <p class="caption text-[11px] leading-relaxed mt-0.5">
-                  log entries from an iOS shortcut or any HTTP client.
+                  {{ t('settings.data.webhookDesc') }}
                 </p>
               </div>
               <button type="button" (click)="showWebhook.set(!showWebhook())"
                 [attr.aria-expanded]="showWebhook()"
                 class="tag-btn text-[11px] shrink-0">
-                {{ showWebhook() ? 'hide' : 'show' }}
+                {{ showWebhook() ? t('settings.data.webhookHide') : t('settings.data.webhookShow') }}
               </button>
             </div>
             @if (showWebhook()) {
@@ -192,21 +233,21 @@ import { SubscribeComponent } from '../subscribe/subscribe.component';
                     {{ key }}
                   </div>
                   <p class="caption text-[11px] mt-2">
-                    endpoint: <span class="font-mono text-ink not-italic text-[11px]">{{ webhookUrl }}</span>
+                    {{ t('settings.data.webhookEndpoint') }} <span class="font-mono text-ink not-italic text-[11px]">{{ webhookUrl }}</span>
                   </p>
                   <div class="mt-2 flex gap-2">
                     <button type="button" (click)="copyWebhookKey()"
-                      class="tag-btn text-[11px]">copy key</button>
+                      class="tag-btn text-[11px]">{{ t('settings.data.webhookCopy') }}</button>
                     <button type="button" (click)="store.revokeWebhookApiKey()"
-                      class="tag-btn text-[11px] text-blood border-blood/40">revoke</button>
+                      class="tag-btn text-[11px] text-blood border-blood/40">{{ t('settings.data.webhookRevoke') }}</button>
                   </div>
                 } @else {
                   <p class="caption text-[11px] mb-2">
-                    generate a key to enable the webhook endpoint.
+                    {{ t('settings.data.webhookGenerateHint') }}
                   </p>
                   <button type="button" (click)="store.generateWebhookApiKey()"
                     class="tag-btn text-[11px]">
-                    generate api key
+                    {{ t('settings.data.webhookGenerate') }}
                   </button>
                 }
               </div>
@@ -216,55 +257,56 @@ import { SubscribeComponent } from '../subscribe/subscribe.component';
           <!-- Account deletion -->
           <div class="flex items-center justify-between gap-3">
             <div>
-              <div class="font-sans text-sm text-ink">delete your account</div>
-              <p class="caption text-[11px]">permanently erase every log, preset, weight, and report.</p>
+              <div class="font-sans text-sm text-ink">{{ t('settings.data.delete') }}</div>
+              <p class="caption text-[11px]">{{ t('settings.data.deleteDesc') }}</p>
             </div>
             <a href="/privacy#delete" class="tag-btn text-[11px] text-blood border-blood/40">
-              manage →
+              {{ t('settings.data.deleteManage') }}
             </a>
           </div>
         </section>
 
         <!-- ─── Subscription ──────────────────────────────────── -->
         <section class="mb-7">
-          <div class="data-label mb-3">subscription</div>
+          <div class="data-label mb-3">{{ t('settings.subscription.section') }}</div>
           <app-subscribe />
         </section>
 
         <!-- ─── Feedback ──────────────────────────────────────── -->
         <section class="mb-7">
-          <div class="data-label mb-3">feedback</div>
+          <div class="data-label mb-3">{{ t('settings.feedback.section') }}</div>
           <div class="flex items-center justify-between gap-3">
             <div class="min-w-0">
-              <div class="font-sans text-sm text-ink">report a bug or share feedback</div>
+              <div class="font-sans text-sm text-ink">{{ t('settings.feedback.label') }}</div>
               <p class="caption text-[11px] leading-relaxed mt-0.5">
-                opens your mail app with your browser + page info auto-filled, so you don't have to explain the setup.
+                {{ t('settings.feedback.desc') }}
               </p>
             </div>
             <button type="button" (click)="sendFeedback()"
-              aria-label="Send feedback email"
-              class="tag-btn text-[11px] shrink-0">send email</button>
+              [attr.aria-label]="t('settings.feedback.aria')"
+              class="tag-btn text-[11px] shrink-0">{{ t('settings.feedback.send') }}</button>
           </div>
         </section>
 
         <!-- ─── Legal ─────────────────────────────────────────── -->
         <section>
-          <div class="data-label mb-3">legal</div>
+          <div class="data-label mb-3">{{ t('settings.legal.section') }}</div>
           <p class="caption text-[11px] leading-relaxed">
-            <a href="/privacy" class="underline decoration-dotted hover:text-blood">privacy</a>
+            <a href="/privacy" class="underline decoration-dotted hover:text-blood">{{ t('settings.legal.privacy') }}</a>
             &middot;
-            <a href="/terms" class="underline decoration-dotted hover:text-blood">terms</a>
+            <a href="/terms" class="underline decoration-dotted hover:text-blood">{{ t('settings.legal.terms') }}</a>
             &middot;
             <a href="mailto:gabrielandresbermudez&#64;gmail.com"
-              class="underline decoration-dotted hover:text-blood">contact</a>
+              class="underline decoration-dotted hover:text-blood">{{ t('settings.legal.contact') }}</a>
           </p>
         </section>
 
         } @else {
-          <p class="caption">sign in first.</p>
+          <p class="caption">{{ t('settings.signInFirst') }}</p>
         }
       </div>
     </aside>
+    </ng-container>
   `,
   styles: [`
     /* Slide in from right on desktop. Starts off-screen to preserve the
@@ -288,6 +330,7 @@ export class SettingsSheetComponent implements AfterViewInit {
   protected readonly firebase = inject(FirebaseService);
   protected readonly store = inject(FitnessStore);
   protected readonly pushService = inject(PushNotificationService);
+  protected readonly translation = inject(TranslationService);
 
   /** Parent-owned current theme state. Input (not getter) so the sheet
       re-renders correctly under OnPush when the user toggles. */
@@ -300,6 +343,12 @@ export class SettingsSheetComponent implements AfterViewInit {
   readonly toggleTheme = output<void>();
 
   private readonly closeBtn = viewChild<ElementRef<HTMLButtonElement>>('closeBtn');
+
+  /** Show the ES-beta banner whenever the active language is es-PR.
+      Keeps the warning visible on every visit to settings, not just
+      the first flip — the user can always confirm the app knows it's
+      serving draft translations. */
+  protected readonly showEsBetaBanner = computed(() => this.translation.language() === 'es-PR');
 
   /** Close on Escape, but only when focus is on non-editing chrome.
       Without this, pressing Escape to dismiss the native <select>
@@ -327,6 +376,10 @@ export class SettingsSheetComponent implements AfterViewInit {
 
   protected requestClose(): void {
     this.close.emit();
+  }
+
+  protected selectLanguage(lang: AppLang): void {
+    this.translation.setLanguage(lang);
   }
 
   protected async signOut(): Promise<void> {
@@ -359,13 +412,15 @@ export class SettingsSheetComponent implements AfterViewInit {
       Including browser + path info removes the round-trip of "what
       browser? what page?" that otherwise kills bug-report signal. */
   protected sendFeedback(): void {
-    const subject = 'Macro Log — feedback';
+    const subject = this.translation.t('settings.feedback.emailSubject');
+    const whatHappened = this.translation.t('settings.feedback.whatHappened');
+    const expected = this.translation.t('settings.feedback.expected');
     const build = (globalThis as unknown as { __MACROLOG_RELEASE__?: string }).__MACROLOG_RELEASE__ ?? 'dev';
     const body = [
-      'What happened:',
+      whatHappened,
       '',
       '',
-      'Expected:',
+      expected,
       '',
       '',
       '---',

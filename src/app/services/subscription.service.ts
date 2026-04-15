@@ -6,6 +6,7 @@ import { Auth, authState, onIdTokenChanged } from '@angular/fire/auth';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { environment } from '../../environments/environment';
+import { TranslationService } from './translation.service';
 
 /**
  * Subscription record as written by the Firebase Extension. We only
@@ -56,6 +57,7 @@ export class SubscriptionService {
   private readonly firestore = inject(Firestore);
   private readonly auth = inject(Auth);
   private readonly functions = inject(Functions);
+  private readonly translation = inject(TranslationService);
 
   /** Current active (trialing OR active) subscription, or null. */
   private readonly _subscription = signal<Subscription | null>(null);
@@ -134,11 +136,11 @@ export class SubscriptionService {
   async startCheckout(priceId: string, trialDays?: number): Promise<void> {
     const user = this.auth.currentUser;
     if (!user) {
-      this._error.set('Sign in first to subscribe.');
+      this._error.set(this.translation.t('subscribe.errorSignInFirst'));
       return;
     }
     if (!priceId) {
-      this._error.set('Subscription is not configured yet — missing Stripe price ID.');
+      this._error.set(this.translation.t('subscribe.errorNotConfigured'));
       return;
     }
     this._error.set(null);
@@ -166,8 +168,9 @@ export class SubscriptionService {
         if (!data) return;
         if (data.error) {
           unsub();
-          this._error.set(data.error.message ?? 'Checkout failed.');
-          reject(new Error(data.error.message ?? 'Checkout failed.'));
+          const fallback = this.translation.t('subscribe.errorCheckoutFailed');
+          this._error.set(data.error.message ?? fallback);
+          reject(new Error(data.error.message ?? fallback));
         } else if (data.url) {
           unsub();
           window.location.assign(data.url);
@@ -212,7 +215,7 @@ export class SubscriptionService {
       });
       window.location.assign(data.url);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not open subscription manager.';
+      const msg = err instanceof Error ? err.message : this.translation.t('subscribe.errorCouldNotOpenPortal');
       this._error.set(msg);
       throw err;
     }

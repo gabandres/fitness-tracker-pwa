@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { SubscriptionService } from '../../services/subscription.service';
 
 /**
@@ -20,9 +21,10 @@ import { SubscriptionService } from '../../services/subscription.service';
 @Component({
   selector: 'app-subscribe',
   standalone: true,
-  imports: [DatePipe],
+  imports: [DatePipe, TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     @if (subs.priceId) {
       <div class="mt-4 specimen px-4 py-3 slide-down">
         <span class="crop-bl"></span><span class="crop-br"></span>
@@ -30,67 +32,67 @@ import { SubscriptionService } from '../../services/subscription.service';
           <span class="stamp-mark" style="transform: rotate(0deg)"
             [style.border-color]="subs.isAdmin() || subs.isComped() ? 'var(--color-olive)' : ''"
             [style.color]="subs.isAdmin() || subs.isComped() ? 'var(--color-olive)' : ''">
-            {{ subs.isAdmin() ? 'admin' : subs.isComped() ? 'friend' : 'support' }}
+            {{ subs.isAdmin() ? t('subscribe.stampAdmin') : subs.isComped() ? t('subscribe.stampFriend') : t('subscribe.stampSupport') }}
           </span>
           <span class="data-label">
-            {{ subs.isAdmin() ? 'access' : subs.isComped() ? 'access' : (sub() ? 'subscription' : 'pro') }}
+            {{ subs.isAdmin() ? t('subscribe.access') : subs.isComped() ? t('subscribe.access') : (sub() ? t('subscribe.subscription') : t('subscribe.pro')) }}
           </span>
         </div>
 
         @if (subs.isAdmin()) {
           <!-- Admin bypass: all features unlocked, no checkout needed. -->
           <p class="font-sans text-sm text-ink leading-relaxed">
-            admin access &mdash; all features unlocked, no subscription required.
+            {{ t('subscribe.adminBody') }}
           </p>
         } @else if (subs.isComped()) {
           <!-- Comped friend: same outcome as paid, different framing. -->
           <p class="font-sans text-sm text-ink leading-relaxed">
-            friend access &mdash; you've been comped. everything is unlocked on us.
+            {{ t('subscribe.compedBody') }}
           </p>
         } @else if (sub(); as s) {
           <!-- Already subscribed — show status + manage button -->
           <p class="font-sans text-sm text-ink leading-relaxed">
             @if (s.status === 'trialing') {
-              on <span class="text-olive">free trial</span> until
-              {{ s.trialEndsAt ? (s.trialEndsAt | date: 'MMM d') : 'end of trial' }}.
-              then renews at {{ subs.displayPrice }}.
+              {{ t('subscribe.trialOn') }} <span class="text-olive">{{ t('subscribe.freeTrial') }}</span> {{ t('subscribe.until') }}
+              {{ s.trialEndsAt ? (s.trialEndsAt | date: 'MMM d') : t('subscribe.endOfTrial') }}.
+              {{ t('subscribe.thenRenewsAt', { price: subs.displayPrice }) }}
             } @else if (s.status === 'active') {
-              <span class="text-olive">active</span>, renews
-              {{ s.currentPeriodEnd ? (s.currentPeriodEnd | date: 'MMM d') : 'monthly' }}
-              at {{ subs.displayPrice }}.
+              <span class="text-olive">{{ t('subscribe.active') }}</span>{{ s.currentPeriodEnd
+                ? t('subscribe.renewsAt', { date: (s.currentPeriodEnd | date: 'MMM d'), price: subs.displayPrice })
+                : t('subscribe.renewsMonthly', { price: subs.displayPrice }) }}
             } @else if (s.status === 'past_due') {
-              <span class="text-blood">payment past due</span> — update your card to keep access.
+              <span class="text-blood">{{ t('subscribe.paymentPastDue') }}</span> {{ t('subscribe.paymentPastDueSuffix') }}
             }
           </p>
           <div class="mt-2 flex gap-2">
             <button type="button" (click)="manage()"
               [disabled]="busy()"
-              aria-label="Manage subscription in Stripe Customer Portal"
+              [attr.aria-label]="t('subscribe.manageAria')"
               class="tag-btn text-[11px]">
-              {{ busy() ? 'opening…' : 'manage' }}
+              {{ busy() ? t('subscribe.opening') : t('subscribe.manage') }}
             </button>
           </div>
         } @else {
           <!-- Not subscribed — pitch + subscribe button -->
           <p class="font-sans text-sm text-ink leading-relaxed mb-2">
-            Macro Log is built by one person. If it's useful to you, subscribing keeps it running and pays for the AI coach.
+            {{ t('subscribe.pitchBody') }}
           </p>
           <ul class="font-sans text-[13px] text-graphite leading-relaxed mb-3 list-disc list-inside">
-            <li>unlimited AI coach consultations</li>
-            <li>higher photo-to-macros quota</li>
-            <li>apple shortcuts webhook</li>
-            <li>automatic weekly reports</li>
+            <li>{{ t('subscribe.featureConsultations') }}</li>
+            <li>{{ t('subscribe.featurePhoto') }}</li>
+            <li>{{ t('subscribe.featureWebhook') }}</li>
+            <li>{{ t('subscribe.featureReports') }}</li>
           </ul>
           <div class="flex items-center gap-2">
             <button type="button" (click)="subscribe()"
               [disabled]="busy()"
-              aria-label="Start subscription checkout"
+              [attr.aria-label]="t('subscribe.subscribeAria')"
               class="stamp-btn max-w-xs">
               @if (busy()) {
-                starting checkout…
+                {{ t('subscribe.startingCheckout') }}
               } @else {
-                support &middot; {{ subs.displayPrice }}
-                @if (subs.trialDays > 0) { <span class="font-sans text-[11px] normal-case opacity-80 ml-1">({{ subs.trialDays }}-day free trial)</span> }
+                {{ t('subscribe.support') }} &middot; {{ subs.displayPrice }}
+                @if (subs.trialDays > 0) { <span class="font-sans text-[11px] normal-case opacity-80 ml-1">{{ t('subscribe.trialHint', { n: subs.trialDays }) }}</span> }
               }
             </button>
           </div>
@@ -101,6 +103,7 @@ import { SubscriptionService } from '../../services/subscription.service';
         }
       </div>
     }
+    </ng-container>
   `,
 })
 export class SubscribeComponent {

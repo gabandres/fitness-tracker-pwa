@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
+import { TranslationService } from '../../services/translation.service';
 
 /**
  * Compact fasting strip rendered at the top of the daily ledger when
@@ -13,39 +15,43 @@ import { FitnessStore } from '../../services/fitness-store.service';
 @Component({
   selector: 'app-fasting-strip',
   standalone: true,
+  imports: [TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (store.isFasting()) {
-      <!-- No aria-live here: the elapsed time changes every 30s, which
-           would cause a screen reader to re-announce the whole strip
-           on every tick. Tab-navigable via the button's aria-label. -->
-      <div class="specimen px-4 py-2.5 mb-4 flex items-center justify-between gap-3"
-        style="border-color: var(--color-gold)">
-        <span class="crop-bl" style="border-color: var(--color-gold)"></span>
-        <span class="crop-br" style="border-color: var(--color-gold)"></span>
-        <div class="flex items-center gap-2 min-w-0">
-          <span class="stamp-mark"
-            style="transform: rotate(0deg); border-color: var(--color-gold); color: var(--color-gold)">
-            fasting
-          </span>
-          <span class="font-mono text-sm tabular-nums text-ink">
-            {{ elapsedLabel() }}
-          </span>
-          <span class="caption text-[11px] hidden sm:inline">
-            since {{ startTimeLabel() }}
-          </span>
+    <ng-container *transloco="let t">
+      @if (store.isFasting()) {
+        <!-- No aria-live here: the elapsed time changes every 30s, which
+             would cause a screen reader to re-announce the whole strip
+             on every tick. Tab-navigable via the button's aria-label. -->
+        <div class="specimen px-4 py-2.5 mb-4 flex items-center justify-between gap-3"
+          style="border-color: var(--color-gold)">
+          <span class="crop-bl" style="border-color: var(--color-gold)"></span>
+          <span class="crop-br" style="border-color: var(--color-gold)"></span>
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="stamp-mark"
+              style="transform: rotate(0deg); border-color: var(--color-gold); color: var(--color-gold)">
+              {{ t('fasting.stamp') }}
+            </span>
+            <span class="font-mono text-sm tabular-nums text-ink">
+              {{ elapsedLabel() }}
+            </span>
+            <span class="caption text-[11px] hidden sm:inline">
+              {{ t('fasting.sinceShort', { time: startTimeLabel() }) }}
+            </span>
+          </div>
+          <button type="button" (click)="breakFast()"
+            [attr.aria-label]="t('fasting.endFastAria')"
+            class="tag-btn text-[11px] shrink-0">
+            {{ t('fasting.endFast') }}
+          </button>
         </div>
-        <button type="button" (click)="breakFast()"
-          aria-label="End current fast"
-          class="tag-btn text-[11px] shrink-0">
-          end fast
-        </button>
-      </div>
-    }
+      }
+    </ng-container>
   `,
 })
 export class FastingStripComponent implements OnInit, OnDestroy {
   protected readonly store = inject(FitnessStore);
+  private readonly translation = inject(TranslationService);
 
   // Tick every 30s so the elapsed time stays fresh without a full
   // re-render of the ledger.
@@ -64,7 +70,8 @@ export class FastingStripComponent implements OnInit, OnDestroy {
   protected readonly startTimeLabel = computed(() => {
     const start = this.store.fastStartedAt();
     if (!start) return '';
-    return start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    return start.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' }).toLowerCase();
   });
 
   ngOnInit(): void {

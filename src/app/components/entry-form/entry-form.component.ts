@@ -1,18 +1,20 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
 
 @Component({
   selector: 'app-entry-form',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     <form (ngSubmit)="form.submit()" class="space-y-3">
       <!-- Date + Label row -->
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="data-label block mb-1">date</label>
+          <label class="data-label block mb-1">{{ t('entry.date') }}</label>
           <input type="date"
             [ngModel]="form.entryDate()" (ngModelChange)="form.entryDate.set($event)"
             name="entryDate"
@@ -20,11 +22,11 @@ import { EntryFormManager } from '../../services/entry-form-manager.service';
         </div>
         <div>
           <label class="data-label block mb-1">
-            label <span class="normal-case italic text-graphite-soft tracking-normal text-[11px]">opt</span>
+            {{ t('entry.label') }} <span class="normal-case italic text-graphite-soft tracking-normal text-[11px]">{{ t('entry.optional') }}</span>
           </label>
           <input type="text" maxlength="100"
             [ngModel]="form.mealLabel()" (ngModelChange)="form.mealLabel.set($event)"
-            name="mealLabel" placeholder="e.g. Lunch"
+            name="mealLabel" [attr.placeholder]="t('entry.labelPlaceholder')"
             class="field-input text-sm" />
         </div>
       </div>
@@ -32,65 +34,65 @@ import { EntryFormManager } from '../../services/entry-form-manager.service';
       <div class="grid grid-cols-2 gap-3">
         <!-- Calories (required) -->
         <div>
-          <label class="data-label block mb-1">calories</label>
+          <label class="data-label block mb-1">{{ t('entry.calories') }}</label>
           <div class="flex items-baseline gap-1">
             <input type="number" step="1" inputmode="numeric" required
               [ngModel]="form.calories()" (ngModelChange)="form.calories.set($event)"
-              name="calories" placeholder="____" class="field-input text-base" />
-            <span class="font-display italic text-graphite text-xs">kcal</span>
+              name="calories" [attr.placeholder]="t('entry.caloriesPlaceholder')" class="field-input text-base" />
+            <span class="font-display italic text-graphite text-xs">{{ t('entry.kcal') }}</span>
           </div>
         </div>
         <!-- Protein -->
         <div>
           <label class="data-label block mb-1">
-            protein <span class="normal-case italic text-graphite-soft tracking-normal text-[11px]">opt</span>
+            {{ t('entry.protein') }} <span class="normal-case italic text-graphite-soft tracking-normal text-[11px]">{{ t('entry.optional') }}</span>
           </label>
           <div class="flex items-baseline gap-1">
             <input type="number" step="1" inputmode="numeric"
               [ngModel]="form.protein()" (ngModelChange)="form.protein.set($event)"
-              name="protein" placeholder="___" class="field-input text-base" />
-            <span class="font-display italic text-graphite text-xs">g</span>
+              name="protein" [attr.placeholder]="t('entry.proteinPlaceholder')" class="field-input text-base" />
+            <span class="font-display italic text-graphite text-xs">{{ t('entry.grams') }}</span>
           </div>
         </div>
       </div>
 
       <div>
-        <label class="data-label block mb-1">training</label>
+        <label class="data-label block mb-1">{{ t('entry.training') }}</label>
         <button type="button" (click)="form.exerciseDone.set(!form.exerciseDone())"
           [class.selected]="form.exerciseDone()" class="radio-card w-full text-center py-1.5">
           <span class="font-sans text-xs tracking-[0.1em] uppercase">
-            {{ form.exerciseDone() ? '●' : '○' }} exercise
+            {{ form.exerciseDone() ? '●' : '○' }} {{ t('entry.exercise') }}
           </span>
         </button>
       </div>
 
       <div class="flex gap-2 pt-1">
         <button type="submit" [disabled]="form.status() === 'saving'" class="stamp-btn flex-1">
-          {{ form.status() === 'saving' ? 'saving…' : form.mode() === 'edit' ? 'save' : 'commit' }}
+          {{ form.status() === 'saving' ? t('entry.saving') : form.mode() === 'edit' ? t('entry.save') : t('entry.commit') }}
         </button>
         @if (form.mode() === 'edit') {
           <button type="button" (click)="form.deleteEntry()" class="tag-btn text-blood border-blood/40 hover:bg-blood hover:text-paper">
-            delete
+            {{ t('entry.delete') }}
           </button>
         }
-        <button type="button" (click)="form.cancel()" class="tag-btn">cancel</button>
+        <button type="button" (click)="form.cancel()" class="tag-btn">{{ t('entry.cancel') }}</button>
       </div>
 
       @if (form.status() === 'saved') {
         <div class="flex items-center gap-2">
-          <span class="stamp-mark" style="transform: rotate(0deg)">ok</span>
-          <span class="caption text-[11px]">saved.</span>
+          <span class="stamp-mark" style="transform: rotate(0deg)">{{ t('entry.savedStamp') }}</span>
+          <span class="caption text-[11px]">{{ t('entry.savedCaption') }}</span>
           @if (form.mode() === 'add' && !form.savingPreset()) {
             <button type="button" (click)="form.promptSavePreset()"
-              class="tag-btn text-[11px] ml-auto">save as preset</button>
+              class="tag-btn text-[11px] ml-auto">{{ t('entry.saveAsPreset') }}</button>
           }
         </div>
         @if (form.savingPreset()) {
           <div class="flex items-center gap-2 mt-2">
             <input type="text" [value]="form.presetName()"
               (input)="form.presetName.set($any($event.target).value)"
-              placeholder="preset name" class="field-input text-sm flex-1" />
-            <button type="button" (click)="form.confirmSavePreset()" class="tag-btn">save</button>
+              [attr.placeholder]="t('entry.presetNamePlaceholder')" class="field-input text-sm flex-1" />
+            <button type="button" (click)="form.confirmSavePreset()" class="tag-btn">{{ t('entry.save') }}</button>
           </div>
         }
       }
@@ -98,6 +100,7 @@ import { EntryFormManager } from '../../services/entry-form-manager.service';
         <p class="font-sans text-xs text-blood">✕ {{ form.errorMsg() }}</p>
       }
     </form>
+    </ng-container>
   `,
 })
 export class EntryFormComponent {
