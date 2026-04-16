@@ -574,5 +574,11 @@
     "photoAnalyzeFailed": "Falló el análisis de foto. Por favor intenta de nuevo.",
     "consultationQuotaExceeded": "Alcanzaste el límite gratis de hoy de {{limit}} consultas. Suscríbete para consultas ilimitadas.",
     "accountDeleteFailed": "Falló la eliminación de la cuenta. Por favor contacta soporte."
+  },
+  "tabs": {
+    "log": "registro",
+    "insights": "resumen",
+    "body": "cuerpo",
+    "ariaLabel": "Navegación principal"
   }
 }

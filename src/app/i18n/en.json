@@ -568,5 +568,11 @@
     "photoAnalyzeFailed": "Photo analysis failed. Please try again.",
     "consultationQuotaExceeded": "You've reached today's free-tier limit of {{limit}} consultations. Subscribe for unlimited.",
     "accountDeleteFailed": "Account deletion failed. Please contact support."
+  },
+  "tabs": {
+    "log": "log",
+    "insights": "insights",
+    "body": "body",
+    "ariaLabel": "Main navigation"
   }
 }

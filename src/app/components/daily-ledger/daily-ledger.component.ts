@@ -257,10 +257,6 @@ interface DayGroup {
                     {{ day.totalProtein }}<span class="text-[10px] ml-0.5 opacity-70">{{ t('daily.g') }}</span>
                   </span>
                 }
-                <!-- Add meal to this day -->
-                <button type="button" (click)="form.startAdd(day.dateKey); $event.stopPropagation()"
-                  [attr.aria-label]="t('daily.addMealAria', { day: day.dateKey === todayKey ? t('daily.addMealToday') : day.dateLabel })"
-                  class="tag-btn text-[11px] py-0.5 px-1.5" [attr.title]="t('daily.addMealTitle')">+</button>
               </div>
             </div>
 
@@ -330,12 +326,6 @@ interface DayGroup {
             </div>
           }
 
-          <!-- Inline add form for this day -->
-          @if (form.addingForDay() === day.dateKey && form.mode() === 'add') {
-            <div class="tape-strip pl-6 slide-down bg-paper-deep" (click)="$event.stopPropagation()">
-              <app-entry-form />
-            </div>
-          }
           </div>
         }
 
@@ -360,7 +350,7 @@ interface DayGroup {
 
       <!-- Undo delete toast: whole toast is tappable for easier thumb targeting -->
       @if (store.undoEntry()) {
-        <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 ink-in"
+        <div class="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 ink-in"
           role="status" aria-live="polite">
           <button type="button" (click)="store.undoDelete()"
             [attr.aria-label]="t('daily.undoAria')"
@@ -415,7 +405,7 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
     // Scroll edit panel into view after Angular renders it
     setTimeout(() => {
       const panel = document.getElementById('edit-panel');
-      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 50);
   }
 
@@ -511,7 +501,7 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
   protected scrollToDay(dateKey: DateKey): void {
     this.selectedDateKey.set(dateKey);
     const el = document.getElementById('day-' + dateKey);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   // ── Day swipe gestures ──────────────────────────────────────

@@ -13,10 +13,12 @@ import { MeasurementsComponent } from './components/measurements/measurements.co
 import { PrivacyComponent } from './components/privacy/privacy.component';
 import { TermsComponent } from './components/terms/terms.component';
 import { SettingsSheetComponent } from './components/settings-sheet/settings-sheet.component';
+import { MobileTabsComponent, type MobileTab } from './components/mobile-tabs/mobile-tabs.component';
 import { AuthService } from './services/auth.service';
 import { FirebaseService } from './services/firebase.service';
 import { FitnessStore } from './services/fitness-store.service';
 import { localDateKey } from './utils/date';
+import { mediaSignal } from './utils/media';
 
 @Component({
   selector: 'app-root',
@@ -32,13 +34,14 @@ import { localDateKey } from './utils/date';
     PrivacyComponent,
     TermsComponent,
     SettingsSheetComponent,
+    MobileTabsComponent,
     TranslocoDirective,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     <a href="#main" class="skip-link">{{ t('app.skipToMain') }}</a>
-    <main id="main" class="min-h-screen px-5 sm:px-8 lg:px-12 py-8 sm:py-12">
+    <main id="main" class="min-h-screen px-5 sm:px-8 lg:px-12 py-8 sm:py-12 pb-20 lg:pb-12">
       <div class="max-w-[560px] lg:max-w-[1100px] mx-auto">
 
         @if (route() === 'privacy') {
@@ -168,37 +171,54 @@ import { localDateKey } from './utils/date';
                 (editProfile)="editingProfile.set(true)"
                 (toggleTheme)="toggleTheme()" />
             }
-            <!-- Responsive layout: single column on mobile, two columns on desktop -->
+            <!-- Responsive layout: single column on mobile (tabbed), two columns on desktop -->
             <div class="lg:grid lg:grid-cols-[1fr_1.15fr] lg:gap-10 lg:items-start">
-              <!-- Left column: Daily ledger (primary interaction) -->
-              <div class="ink-in delay-3 lg:sticky lg:top-8">
-                <app-daily-ledger />
-              </div>
-              <!-- Right column: high-use first (analytics + coach),
-                   lower-use body/timer stuff after. Fasting self-hides
-                   when active (the strip at top of the ledger handles
-                   that UX). -->
-              <div class="space-y-12 mt-12 lg:mt-0">
-                <div class="ink-in delay-3">
-                  <app-dashboard />
+              <!-- Left column: Daily ledger (tab: log) -->
+              @if (isDesktop() || activeTab() === 'log') {
+                <div class="ink-in delay-3 lg:sticky lg:top-8"
+                  [attr.role]="isDesktop() ? null : 'tabpanel'"
+                  [id]="'tabpanel-log'"
+                  [attr.aria-labelledby]="isDesktop() ? null : 'tab-log'">
+                  <app-daily-ledger />
                 </div>
-                <!-- Consultation requires ≥3 entries; on day 0 there's no
-                     data to coach against, so the panel would just get a
-                     "generate more data" reply. Hiding it keeps the cold-
-                     start clean. -->
-                @if (store.logs().length >= 3) {
-                  <div class="ink-in delay-4">
-                    <app-consultation />
-                  </div>
-                }
-                <div class="ink-in delay-5">
-                  <app-fasting />
+              }
+              <!-- Right column: analytics + body tools.
+                   Desktop always shows all; mobile splits into tabs. -->
+              @if (isDesktop() || activeTab() === 'insights' || activeTab() === 'body') {
+                <div class="space-y-12 mt-12 lg:mt-0">
+                  @if (isDesktop() || activeTab() === 'insights') {
+                    <div class="ink-in delay-3"
+                      [attr.role]="isDesktop() ? null : 'tabpanel'"
+                      [id]="'tabpanel-insights'"
+                      [attr.aria-labelledby]="isDesktop() ? null : 'tab-insights'">
+                      <app-dashboard />
+                    </div>
+                  }
+                  @if (isDesktop() || activeTab() === 'body') {
+                    <div [attr.role]="isDesktop() ? null : 'tabpanel'"
+                      [id]="'tabpanel-body'"
+                      [attr.aria-labelledby]="isDesktop() ? null : 'tab-body'">
+                      @if (store.logs().length >= 3) {
+                        <div class="ink-in delay-4">
+                          <app-consultation />
+                        </div>
+                      }
+                      <div class="ink-in delay-5">
+                        <app-fasting />
+                      </div>
+                      <div class="ink-in delay-6">
+                        <app-measurements />
+                      </div>
+                    </div>
+                  }
                 </div>
-                <div class="ink-in delay-6">
-                  <app-measurements />
-                </div>
-              </div>
+              }
             </div>
+
+            <!-- Mobile tab bar (hidden on desktop via lg:hidden) -->
+            <app-mobile-tabs
+              [activeTab]="activeTab()"
+              (tabChange)="onTabChange($event)" />
           }
         </div>
 
@@ -238,6 +258,8 @@ export class App {
   protected readonly ticks = Array.from({ length: 45 });
   protected readonly editingProfile = signal(false);
   protected readonly showSettings = signal(false);
+  protected readonly activeTab = signal<MobileTab>('log');
+  protected readonly isDesktop = mediaSignal('(min-width: 1024px)');
   /** URL-path based routing for the two public-static pages. Anything
       else (including '/' and unknown paths) falls through to the
       signal-gated main app. */
@@ -324,6 +346,11 @@ export class App {
     this.editingProfile.set(false);
     // Store will pick up the profile change via its firebase.profile() dependency.
     this.store.refresh();
+  }
+
+  protected onTabChange(tab: MobileTab): void {
+    this.activeTab.set(tab);
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
   }
 
   protected toggleTheme(): void {
