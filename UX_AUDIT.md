@@ -1,6 +1,6 @@
 # Macro Log — UX Audit
 
-> Living document. Check items off as they ship. Last updated: 2026-04-15.
+> Living document. Check items off as they ship. Last updated: 2026-04-17.
 
 ---
 
@@ -98,8 +98,8 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 
 - [x] Promote a single hero number above the ledger: "kcal remaining today" with target/eaten subtitle *(2026-04-12)*
 - [x] Collapse weekly envelope into one sentence. Kept the budget bar + consumed/budget labels underneath as at-a-glance trend. *(2026-04-12)*
-- [ ] Merge 14-day and all-time sparklines into one tabbed chart
-- [ ] Re-expose the adaptive-TDEE explanation (once dismissed, there's no way back)
+- [x] Merge 14-day and all-time sparklines into one tabbed chart *(2026-04-17)*
+- [x] Re-expose the adaptive-TDEE explanation — adaptive caption + always-visible source stamp *(2026-04-17)*
 
 **Why:** the primary user question is "how many calories do I have left?" — it should be answerable in < 1 second. Today it requires parsing a progress bar.
 
@@ -112,7 +112,7 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 - [x] Wrap sub-sections in `<h2>` or give `.rule` spans semantic heading roles *(2026-04-12)*
 - [x] Add `<main id="main">` landmark *(2026-04-12)*
 - [x] Contrast audit — reran the math: `graphite-soft #716960` actually passes at 4.79:1 (prior audit math was off). `aged #b8a480` at 2.1:1 does fail, but was only used as text in `.field-input::placeholder`. Switched placeholder to `graphite-soft` — passes. `aged` retained for decoration only. *(2026-04-13)*
-- [ ] Add `role="alert"` + focusable toast for undo-delete (currently not announced)
+- [x] Add `role="alert"` + focusable toast for undo-delete — auto-focus undo button on appear *(2026-04-17)*
 
 **Why:** small fixes, compounding benefit. Cheap to do before surface grows.
 
@@ -120,8 +120,8 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 
 - [x] ~~Lengthen undo-delete toast to 8–10s~~ — already 8s in `fitness-store.service.ts:390`; audit was stale *(2026-04-12)*
 - [x] Make the whole undo toast tappable (was undo-button-only) *(2026-04-12)*
-- [ ] Photo-analyze errors should toast, not render inline where scroll hides them
-- [ ] "filing…" / "transmitting…" / "saving…" — pick one verb; reuse everywhere (addressed partially in S1)
+- [x] Photo-analyze errors promoted to `role="alert"` so screen readers announce immediately *(2026-04-17)*
+- [x] Save-verb consolidated to "save"/"guardar" everywhere *(2026-04-17)*
 
 **Why:** ghost-mutations (silent saves, too-short undo windows) are the #1 source of confidence loss in mobile logging apps.
 
@@ -161,7 +161,7 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 - [x] Consolidate footer → settings sheet (S3) *(2026-04-13)*
 - [x] Onboarding: top-line summary, required/optional pills, focus-on-error (S2) *(2026-04-13)*
 - [x] Split onboarding into a 3-step guided flow with progress indicator (S2) *(2026-04-15)*
-- [ ] Merge weight trends into tabbed chart (S4)
+- [x] Merge weight trends into tabbed chart (S4) *(2026-04-17)*
 - [x] Raise barcode/photo buttons to 44px with labels (S3) — *2026-04-12*
 - [x] Contrast audit — fix graphite-soft / aged usage (S5) *(2026-04-13)*
 
@@ -186,3 +186,4 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 - **2026-04-12** — S3: barcode/photo capture buttons upgraded to 44px tap targets with visible labels ("⊟ barcode" / "📷 photo") via new `.capture-btn` class. S4: weekly envelope collapsed from 4-data-point grid to a one-sentence summary; budget bar kept for at-a-glance trend.
 - **2026-04-13** — Audit catch-up: settings sheet replaced the old utility footer; install prompt, swipe hint, consultation cold-start hide, and contrast fix all shipped. Backlog updated on **2026-04-15** to remove stale open items.
 - **2026-04-15** — S2 shipped: onboarding is now a 3-step guided flow (`identity → activity → target`) with a progress tracker, short explainer copy per step, Back/Continue navigation, and the same flow reused for edit mode.
+- **2026-04-17** — Big audit catch-up day. Shipped: S4 sparkline merge (14d/all toggle), S4 adaptive-TDEE caption + always-visible source stamp, S5 undo toast `role="alert"` + auto-focus, S6 photo-error promoted to `role="alert"`, S6 save-verb consolidated to "save"/"guardar". Plus shipped (not in audit): annual tier ($24/yr) + cadence toggle, Microsoft sign-in, email/password sign-in + verify gate, motion design tokens, offline-banner retry button, install-prompt rationale rewritten, mobile measurements grid responsive, **Pro fulfillment Slice F kickoff** (photo/consultation tier split, presets cap, CSV 30-day window, chart 90-day window).

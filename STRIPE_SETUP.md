@@ -16,14 +16,16 @@ filled in at the bottom of this doc.
 2. Skip "Activate your account" for now — you can use **test mode** end-to-end to verify the flow before enabling live mode.
 3. In the Stripe dashboard, top-left, make sure the **Test mode** toggle is ON (orange). You'll switch it off after verifying.
 
-## Step 2 — Create the product + price (3 min)
+## Step 2 — Create the product + prices (3 min)
 
 1. Left sidebar → **Product catalog** → **+ Add product**.
 2. Name: `Macro Log Pro`
-3. Description: `Unlimited AI coach, higher photo quota, webhook, weekly reports.`
-4. Price: `3.00 USD`, **Recurring**, Billing period: **Monthly**.
+3. Description: `30/day photo & AI consultations, unlimited presets, full CSV history, all-time charts.`
+4. **Add two prices** (use "Add another price" to create both on the same product):
+   - Monthly: `3.00 USD`, **Recurring**, Billing period: **Monthly**
+   - Annual: `24.00 USD`, **Recurring**, Billing period: **Yearly**
 5. Click **Save product**.
-6. On the product page, click the price → copy the **Price ID** (starts with `price_...`). Save this somewhere — you'll paste it in Step 6.
+6. On the product page, click each price → copy the **Price ID** (starts with `price_...`). Save both — you'll paste them in Step 6 as `priceIdMonthly` and `priceIdAnnual`.
 7. **Important — set the Firebase role metadata.** Click the product (not the price) → **Edit metadata** → add key `firebaseRole` = `paid`. This is how the extension knows which custom claim to set on subscribed users.
 
 ## Step 3 — Install the Firebase Extension (5 min)
@@ -91,26 +93,31 @@ https://us-central1-fitness-tracker-gb-1775407101.cloudfunctions.net/ext-firesto
    ```
    When prompted for "Stripe webhook secret", paste the `whsec_...`.
 
-## Step 6 — Paste the price ID into environment.ts
+## Step 6 — Paste the price IDs into environment.ts
 
-Open `src/environments/environment.ts` and set:
+Open `src/environments/environment.ts` (and `environment.development.ts`) and set:
 
 ```ts
 stripe: {
-  priceId: 'price_XXX_FROM_STEP_2',   // your Price ID
-  displayPrice: '$3/mo',
+  priceIdMonthly: 'price_XXX_FROM_STEP_2',   // monthly Price ID
+  priceIdAnnual:  'price_YYY_FROM_STEP_2',   // annual Price ID
+  displayPriceMonthly: '$3/mo',
+  displayPriceAnnual:  '$24/yr',
+  annualSavingsPercent: 33,                  // 0 to hide the badge
   trialDays: 7,
 },
 ```
 
+The Subscribe card auto-shows a monthly/annual toggle when both prices are set; defaults to annual to anchor the higher-LTV option.
+
 Commit, push, and redeploy hosting:
 
 ```sh
-npx ng build
+npm run build
 firebase deploy --only hosting
 ```
 
-The Subscribe card will now render in the app footer.
+The Subscribe card will now render in the settings sheet.
 
 ## Step 7 — Verify end-to-end in test mode
 
@@ -144,8 +151,8 @@ Once the test flow works end-to-end:
 
 ## Notes
 
-- **No hard feature gates yet.** This ship wires checkout + portal + subscription state into the app, but nothing *requires* a subscription. The Subscribe card is voluntary support. Feature gates (webhook-only-for-paid, unlimited-AI-for-paid, etc.) will come in a later PR once there's real subscriber data to shape the free tier with.
-- **Custom claims take ~1 minute to propagate.** After a successful checkout, the user's `request.auth.token.stripeRole` claim becomes `paid`, but they may need to sign out and back in once for the ID token to refresh. This is a Firebase Auth quirk, not an extension bug. We'll call `getIdToken(true)` from the app in the gating PR to force-refresh.
-- **Stripe fees.** $3/mo subscription → Stripe keeps ~$0.39 (2.9% + $0.30 for a US card). Net: ~$2.61/sub/mo. Annual plan ($30/yr) nets ~$28.57/sub/yr after fees.
+- **Feature gates live.** Free tier: 3/day photo, 3/day consultation, 10 presets, 30-day CSV export, 90-day chart history. Pro: 30/day photo, 30/day consultation, unlimited presets, full history. Admin/comped users (per `ADMIN_EMAILS` and Firestore `config/accessList`) bypass all caps.
+- **Custom claims auto-refresh on subscription change.** `SubscriptionService` calls `getIdToken(true)` whenever `isPaid` flips on, so users don't need to sign out after checkout.
+- **Stripe fees.** $3/mo nets ~$2.61/sub/mo. $24/yr nets ~$22.97/sub/yr after fees (2.9% + $0.30 US card).
 - **Refunds.** Full refund through the Stripe dashboard — no app work needed. Customer portal does not expose refunds (deliberate; you control that flow).
-- **Cancellations.** Users cancel via the Customer Portal. Subscription stays active until `current_period_end`, then status flips to `canceled`. Our UI will handle that gracefully (`isPaid` becomes false at period end).
+- **Cancellations.** Users cancel via the Customer Portal. Subscription stays active until `current_period_end`, then status flips to `canceled`. UI handles gracefully — `isPaid` becomes false at period end.
