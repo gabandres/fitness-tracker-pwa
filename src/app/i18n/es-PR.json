@@ -621,6 +621,46 @@
     "loading": "cargando…",
     "error": "no se pudo cargar el historial. intenta de nuevo más tarde."
   },
+  "status": {
+    "backLink": "← volver a macro log",
+    "stamp": "pulso",
+    "section": "estado",
+    "titleLead": "Estado",
+    "titleEm": "del sistema.",
+    "subtitle": "salud en vivo de los servicios que mueven macro log.",
+    "pageTitle": "Estado — Macro Log",
+    "changelogLink": "lanzamientos recientes → /changelog",
+    "fetchError": "no se pudo acceder a firestore. la aplicación en sí podría estar degradada.",
+    "lastPulse": "último pulso {{ago}}.",
+    "service": {
+      "hosting": "hosting",
+      "firestore": "firestore",
+      "scheduler": "trabajos programados"
+    },
+    "state": {
+      "up": "activo",
+      "unreachable": "inalcanzable"
+    },
+    "label": {
+      "healthy": "todo normal",
+      "degraded": "degradado",
+      "down": "caída",
+      "unknown": "verificando…"
+    },
+    "summary": {
+      "healthy": "el scheduler, firestore y hosting responden dentro de las ventanas normales.",
+      "degraded": "el pulso programado va atrasado. la app aún funciona; trabajos del servidor pueden estar retrasados.",
+      "down": "el pulso programado está viejo o inalcanzable. trabajos del servidor (reportes, recordatorios) probablemente están pausados.",
+      "unknown": "buscando el estado actual."
+    },
+    "ago": {
+      "now": "hace un momento",
+      "min": "hace 1 minuto",
+      "mins": "hace {{n}} minutos",
+      "hour": "hace 1 hora",
+      "hours": "hace {{n}} horas"
+    }
+  },
   "privacy": {
     "backLink": "← volver a macro log",
     "stamp": "política",

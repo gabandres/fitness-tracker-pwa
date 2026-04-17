@@ -615,6 +615,46 @@
     "loading": "loading…",
     "error": "couldn't load the changelog. please try again later."
   },
+  "status": {
+    "backLink": "← back to macro log",
+    "stamp": "pulse",
+    "section": "status",
+    "titleLead": "System",
+    "titleEm": "status.",
+    "subtitle": "live health of macro log's backing services.",
+    "pageTitle": "Status — Macro Log",
+    "changelogLink": "recent ships → /changelog",
+    "fetchError": "couldn't reach firestore. the app itself may be degraded.",
+    "lastPulse": "last pulse {{ago}}.",
+    "service": {
+      "hosting": "hosting",
+      "firestore": "firestore",
+      "scheduler": "scheduled jobs"
+    },
+    "state": {
+      "up": "up",
+      "unreachable": "unreachable"
+    },
+    "label": {
+      "healthy": "all systems normal",
+      "degraded": "degraded",
+      "down": "outage",
+      "unknown": "checking…"
+    },
+    "summary": {
+      "healthy": "the scheduler, firestore, and hosting are all responding within normal windows.",
+      "degraded": "the scheduled heartbeat is running late. the app still works; some server-side jobs may be delayed.",
+      "down": "the scheduled heartbeat is stale or unreachable. server-side jobs (weekly reports, reminders) are likely paused until this clears.",
+      "unknown": "fetching current state."
+    },
+    "ago": {
+      "now": "just now",
+      "min": "1 minute ago",
+      "mins": "{{n}} minutes ago",
+      "hour": "1 hour ago",
+      "hours": "{{n}} hours ago"
+    }
+  },
   "privacy": {
     "backLink": "← back to macro log",
     "stamp": "policy",

@@ -235,6 +235,16 @@ service cloud.firestore {
       }
     }
 
+    // ─── Public status heartbeat ────────────────────────────────
+    // Written every few minutes by the `statusPulse` scheduled
+    // Cloud Function (via admin SDK). The /status public page reads
+    // this doc to decide the health indicator, so we allow unauth
+    // reads. Writes stay server-only — no `allow write` means the
+    // admin SDK path is the only way to update.
+    match /status/{doc} {
+      allow read: if true;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

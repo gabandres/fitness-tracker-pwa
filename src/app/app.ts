@@ -13,6 +13,7 @@ import { MeasurementsComponent } from './components/measurements/measurements.co
 import { PrivacyComponent } from './components/privacy/privacy.component';
 import { TermsComponent } from './components/terms/terms.component';
 import { ChangelogComponent } from './components/changelog/changelog.component';
+import { StatusComponent } from './components/status/status.component';
 import { LandingComponent } from './components/landing/landing.component';
 import { SettingsSheetComponent } from './components/settings-sheet/settings-sheet.component';
 import { MobileTabsComponent, type MobileTab } from './components/mobile-tabs/mobile-tabs.component';
@@ -38,6 +39,7 @@ import { mediaSignal } from './utils/media';
     PrivacyComponent,
     TermsComponent,
     ChangelogComponent,
+    StatusComponent,
     LandingComponent,
     SettingsSheetComponent,
     MobileTabsComponent,
@@ -58,6 +60,9 @@ import { mediaSignal } from './utils/media';
           @placeholder { <div class="py-20 text-center caption">…</div> }
         } @else if (route() === 'changelog') {
           @defer { <app-changelog /> }
+          @placeholder { <div class="py-20 text-center caption">…</div> }
+        } @else if (route() === 'status') {
+          @defer { <app-status /> }
           @placeholder { <div class="py-20 text-center caption">…</div> }
         } @else if (route() === 'landing' && auth.ready() && !auth.isSignedIn()) {
           <!-- Public marketing surface at root. Bypasses the masthead +
@@ -353,7 +358,7 @@ export class App {
   /** URL-path based routing for the two public-static pages. Anything
       else (including '/' and unknown paths) falls through to the
       signal-gated main app. */
-  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'landing' | null>(this.detectRoute());
+  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'landing' | null>(this.detectRoute());
   protected readonly updateReady = signal(false);
   protected readonly offline = signal(!navigator.onLine);
   protected readonly retryingOffline = signal(false);
@@ -438,11 +443,12 @@ export class App {
     return (this.firebase.profile() as any)?.reminderHour ?? 20;
   }
 
-  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'landing' | null {
+  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'landing' | null {
     const path = window.location.pathname.toLowerCase();
     if (path === '/privacy' || path === '/privacy/') return 'privacy';
     if (path === '/terms' || path === '/terms/') return 'terms';
     if (path === '/changelog' || path === '/changelog/') return 'changelog';
+    if (path === '/status' || path === '/status/') return 'status';
     // Root path shows the public marketing surface to non-signed-in
     // visitors. Once the user signs in, the auth gate in the template
     // takes over and renders the app regardless of the 'landing' route.

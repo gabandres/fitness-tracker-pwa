@@ -723,3 +723,21 @@ export const generateWeeklyReport = onCall(
     }
   },
 );
+
+// ─── Feature 6: Status heartbeat ──────────────────────────────────
+//
+// Writes a heartbeat doc every 5 minutes so the public /status page
+// can show whether the scheduler + Firestore admin write path are
+// healthy. If the last pulse is >10 min old, the page renders
+// "degraded". >30 min ⇒ "down". The fact that /status loads at all
+// proves hosting + client fetch to Firestore work, so this signal
+// covers the Cloud Functions scheduler side specifically.
+
+export const statusPulse = onSchedule(
+  { schedule: "every 5 minutes", timeZone: "UTC" },
+  async () => {
+    await db.doc("status/heartbeat").set({
+      lastPulseAt: Timestamp.now(),
+    });
+  },
+);
