@@ -6,6 +6,12 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-17 — Motion design tokens + snappier toasts
+
+- **Motion tokens introduced** (`--motion-fast: 180ms`, `--motion-base: 280ms`, `--motion-slow: 520ms`, `--motion-ease`) so timing stays coherent and is one-place-tunable. Existing `.ink-in`/`.tape-in` animations refactored to consume the tokens — no observable change.
+- **New `.toast-in` utility (180ms)** for transient overlays. Applied to the undo toast (was 520ms ink-in — too dramatic for "deleted, undo?") and the photo-error card (previously had no entrance animation).
+- **`prefers-reduced-motion` already kills all of it** via the existing blanket rule; new class added to the explicit list for clarity.
+
 ## 2026-04-17 — A11y + copy polish
 
 - **Undo toast now uses `role="alert"`** (was `status`/`aria-live=polite`) and **auto-focuses the undo button** when it appears so keyboard users can press Enter to undo without hunting.

@@ -31,7 +31,7 @@ import { extractErrorCode } from '../../models/error-codes';
     @if (photoStatus() === 'error') {
       <!-- Prominent error card so a photo-analysis failure doesn't get
            lost in the form scroll. Dismissible via the X. -->
-      <div class="mt-2 specimen px-3 py-2 flex items-start gap-2"
+      <div class="mt-2 specimen px-3 py-2 flex items-start gap-2 toast-in"
         role="alert"
         style="border-color: var(--color-blood)">
         <span class="crop-bl" style="border-color: var(--color-blood)"></span>

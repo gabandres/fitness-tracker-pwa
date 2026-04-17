@@ -368,7 +368,7 @@ interface DayGroup {
            time-sensitive); the button is auto-focused so keyboard users
            can press Enter to undo without hunting for it. -->
       @if (store.undoEntry()) {
-        <div class="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 ink-in"
+        <div class="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 toast-in"
           role="alert">
           <button #undoBtn type="button" (click)="store.undoDelete()"
             [attr.aria-label]="t('daily.undoAria')"
