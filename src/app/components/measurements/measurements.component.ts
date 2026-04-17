@@ -26,7 +26,7 @@ type Mode = 'view' | 'add';
               {{ formatDate(m.date) }}
             </span>
           </div>
-          <div class="grid grid-cols-4 gap-2 text-center">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
             @for (field of fields; track field.key) {
               @if (m[field.key] != null) {
                 <div>

@@ -6,6 +6,14 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-17 — A11y + copy polish
+
+- **Undo toast now uses `role="alert"`** (was `status`/`aria-live=polite`) and **auto-focuses the undo button** when it appears so keyboard users can press Enter to undo without hunting.
+- **Photo-analyze error card promoted to `role="alert"`** so screen readers announce failures immediately instead of waiting for an idle pause.
+- **Save-verb consolidated to "save"/"guardar"** across entry form and measurements (was a mix of "save" / "commit" / "confirmar"). The editorial "commit" framing was unclear for first-time users (CLAUDE.md UX constraint: clarity over cleverness).
+- **Measurements view grid is responsive** — `grid-cols-2 sm:grid-cols-4` so the four stats don't cramp on phones.
+- **Adaptive TDEE attribution stays visible after day 14** with a new caption ("adapted from your last 14 days of weight + calorie logs"). Previously the source stamp hid once measured mode kicked in, removing the cue that explains why the TDEE moves over time.
+
 ## 2026-04-17 — Annual tier ($24/yr) + cadence toggle
 
 - **Annual price live** in Stripe (`price_1TN1eGHvWnhD3GuYS90n9x3a`, $24/yr) on the existing `Macro Log Pro` product. Same `firebaseRole=paid` metadata, same webhook — no extension reinstall needed.

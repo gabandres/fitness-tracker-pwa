@@ -1,4 +1,4 @@
-import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, ViewChild, computed, inject, signal } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, ViewChild, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { DailyLog } from '../../services/firebase.service';
@@ -363,11 +363,14 @@ interface DayGroup {
         }
       </div>
 
-      <!-- Undo delete toast: whole toast is tappable for easier thumb targeting -->
+      <!-- Undo delete toast: whole toast is tappable for easier thumb
+           targeting. role=alert announces assertively (deletes are
+           time-sensitive); the button is auto-focused so keyboard users
+           can press Enter to undo without hunting for it. -->
       @if (store.undoEntry()) {
         <div class="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 ink-in"
-          role="status" aria-live="polite">
-          <button type="button" (click)="store.undoDelete()"
+          role="alert">
+          <button #undoBtn type="button" (click)="store.undoDelete()"
             [attr.aria-label]="t('daily.undoAria')"
             class="specimen undo-toast px-4 py-3 flex items-center gap-3 bg-paper shadow-lg cursor-pointer"
             style="border-color: var(--color-blood)">
@@ -401,8 +404,21 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
   protected readonly skeletonRows = Array.from({ length: 4 });
 
   @ViewChild('swipeArea') private readonly swipeAreaRef!: ElementRef<HTMLElement>;
+  @ViewChild('undoBtn') private readonly undoBtnRef?: ElementRef<HTMLButtonElement>;
   private readonly swipeStartFn = (e: TouchEvent) => this.onSwipeStart(e);
   private readonly swipeEndFn = (e: TouchEvent) => this.onSwipeEnd(e);
+
+  constructor() {
+    // Auto-focus the undo button when the toast appears so keyboard
+    // users can hit Enter immediately. The toast is short-lived (the
+    // store dismisses it after a few seconds), so focus naturally
+    // returns to the document body — no manual restore needed.
+    effect(() => {
+      if (this.store.undoEntry()) {
+        queueMicrotask(() => this.undoBtnRef?.nativeElement.focus());
+      }
+    });
+  }
   // iOS fix: remove tape-in class after animation ends to release GPU compositing layers.
   // Nested compositing layers from fill-mode:both cause iOS Safari hit-test failures.
   private readonly animEndFn = (e: AnimationEvent) => {

@@ -82,16 +82,22 @@ interface SparklinePoint { x: number; y: number; }
           </p>
         }
 
-        @if (store.logs().length < 14) {
-          <div class="mt-3 flex items-center gap-2">
-            <span class="stamp-mark">{{ store.tdee().source }}</span>
-            <p class="caption text-xs">
+        <!-- Source attribution — always visible so users know whether
+             their TDEE comes from the formula or their measured data.
+             Pre-Slice C this hid after day 14, removing the cue that
+             explains why the TDEE moves over time. -->
+        <div class="mt-3 flex items-center gap-2">
+          <span class="stamp-mark">{{ store.tdee().source }}</span>
+          <p class="caption text-xs">
+            @if (store.logs().length < 14) {
               {{ (14 - store.logs().length) === 1
                    ? t('dashboard.daysToMeasuredOne', { n: 14 - store.logs().length })
                    : t('dashboard.daysToMeasuredMany', { n: 14 - store.logs().length }) }}
-            </p>
-          </div>
-        }
+            } @else {
+              {{ t('dashboard.tdeeAdaptiveCaption') }}
+            }
+          </p>
+        </div>
 
         <!-- Adaptive TDEE notification: shown once when measured mode kicks in -->
         @if (store.tdeeTransition(); as tx) {
