@@ -130,11 +130,19 @@
       "travelAriaOn": "Turn travel mode on",
       "travelAriaOff": "Turn travel mode off",
       "theme": "appearance",
-      "themeDesc": "dark mode follows your system preference by default.",
+      "themeDesc": "auto follows your system preference. sepia, graphite, and oxblood dark are pro palettes.",
       "themeLight": "☀ light",
       "themeDark": "☾ dark",
       "themeAriaLight": "Switch to light mode",
-      "themeAriaDark": "Switch to dark mode"
+      "themeAriaDark": "Switch to dark mode",
+      "themeAriaGroup": "Appearance palette",
+      "themeProBadge": "pro",
+      "themeAuto": "auto",
+      "themeLightOpt": "light",
+      "themeDarkOpt": "dark",
+      "themeSepia": "sepia",
+      "themeGraphite": "graphite",
+      "themeOxblood": "oxblood"
     },
     "data": {
       "section": "data",

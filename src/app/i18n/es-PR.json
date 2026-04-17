@@ -136,11 +136,19 @@
       "travelAriaOn": "Activar modo viaje",
       "travelAriaOff": "Desactivar modo viaje",
       "theme": "apariencia",
-      "themeDesc": "el modo oscuro sigue las preferencias de tu sistema por defecto.",
+      "themeDesc": "auto sigue las preferencias de tu sistema. sepia, grafito y oxblood oscuro son paletas pro.",
       "themeLight": "☀ claro",
       "themeDark": "☾ oscuro",
       "themeAriaLight": "Cambiar a modo claro",
-      "themeAriaDark": "Cambiar a modo oscuro"
+      "themeAriaDark": "Cambiar a modo oscuro",
+      "themeAriaGroup": "Paleta de apariencia",
+      "themeProBadge": "pro",
+      "themeAuto": "auto",
+      "themeLightOpt": "claro",
+      "themeDarkOpt": "oscuro",
+      "themeSepia": "sepia",
+      "themeGraphite": "grafito",
+      "themeOxblood": "oxblood"
     },
     "data": {
       "section": "datos",

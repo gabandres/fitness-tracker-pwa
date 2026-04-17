@@ -32,7 +32,6 @@ describe('FitnessStore', () => {
     addMeasurement: ReturnType<typeof vi.fn>;
     deleteMeasurement: ReturnType<typeof vi.fn>;
     getLatestReport: ReturnType<typeof vi.fn>;
-    saveReport: ReturnType<typeof vi.fn>;
     getDailyWeights: ReturnType<typeof vi.fn>;
     setDailyWeight: ReturnType<typeof vi.fn>;
   };
@@ -86,7 +85,6 @@ describe('FitnessStore', () => {
       addMeasurement: vi.fn().mockResolvedValue(undefined),
       deleteMeasurement: vi.fn().mockResolvedValue(undefined),
       getLatestReport: vi.fn().mockResolvedValue(null),
-      saveReport: vi.fn().mockResolvedValue(undefined),
       getDailyWeights: vi.fn().mockResolvedValue({}),
       setDailyWeight: vi.fn().mockResolvedValue(undefined),
     };
@@ -95,7 +93,14 @@ describe('FitnessStore', () => {
       providers: [
         FitnessStore,
         TdeeCalculatorService,
-        { provide: GeminiService, useValue: { generateWeeklyReport: vi.fn().mockResolvedValue('test report') } },
+        {
+          provide: GeminiService,
+          useValue: {
+            generateWeeklyReport: vi.fn().mockResolvedValue({
+              id: 'r1', markdown: 'test report', generatedAt: Date.now(),
+            }),
+          },
+        },
         { provide: SubscriptionService, useValue: { isPaid: mockIsPaid } },
         {
           provide: AuthService,

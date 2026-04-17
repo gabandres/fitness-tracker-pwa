@@ -7,9 +7,11 @@ import { AuthService } from '../../services/auth.service';
 import { FirebaseService } from '../../services/firebase.service';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { PushNotificationService } from '../../services/push-notification.service';
+import { SubscriptionService } from '../../services/subscription.service';
 import { TranslationService } from '../../services/translation.service';
 import { AppLang } from '../../i18n/transloco.providers';
 import { SubscribeComponent } from '../subscribe/subscribe.component';
+import { ThemeChoice } from '../../utils/theme';
 
 /**
  * All-in-one settings sheet. Replaces the grab-bag of inline links that
@@ -192,17 +194,35 @@ import { SubscribeComponent } from '../subscribe/subscribe.component';
           </div>
 
           <!-- Theme -->
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <div class="font-sans text-sm text-ink">{{ t('settings.modes.theme') }}</div>
-              <p class="caption text-[11px]">{{ t('settings.modes.themeDesc') }}</p>
+          <div>
+            <div class="flex items-start justify-between gap-3 mb-2">
+              <div>
+                <div class="font-sans text-sm text-ink">{{ t('settings.modes.theme') }}</div>
+                <p class="caption text-[11px]">{{ t('settings.modes.themeDesc') }}</p>
+              </div>
+              @if (!isPaid()) {
+                <span class="font-mono text-[9px] tracking-widest uppercase text-graphite border border-rule/60 px-1.5 py-0.5 shrink-0">
+                  {{ t('settings.modes.themeProBadge') }}
+                </span>
+              }
             </div>
-            <button type="button" (click)="toggleTheme.emit()"
-              [attr.aria-pressed]="darkMode()"
-              [attr.aria-label]="darkMode() ? t('settings.modes.themeAriaLight') : t('settings.modes.themeAriaDark')"
-              class="tag-btn text-[11px] shrink-0">
-              {{ darkMode() ? t('settings.modes.themeLight') : t('settings.modes.themeDark') }}
-            </button>
+            <div role="radiogroup" [attr.aria-label]="t('settings.modes.themeAriaGroup')"
+              class="grid grid-cols-3 gap-2">
+              @for (opt of themeOptions; track opt.value) {
+                <button type="button" role="radio"
+                  [attr.aria-checked]="themeChoice() === opt.value"
+                  [disabled]="opt.pro && !isPaid()"
+                  (click)="chooseTheme(opt.value)"
+                  class="tag-btn text-[11px] py-2 flex flex-col items-center gap-1"
+                  [class.border-blood]="themeChoice() === opt.value"
+                  [class.text-blood]="themeChoice() === opt.value"
+                  [class.opacity-50]="opt.pro && !isPaid()">
+                  <span class="inline-block w-6 h-4 border border-rule/60"
+                    [style.background]="opt.swatch"></span>
+                  <span>{{ t(opt.labelKey) }}</span>
+                </button>
+              }
+            </div>
           </div>
         </section>
 
@@ -330,17 +350,46 @@ export class SettingsSheetComponent implements AfterViewInit {
   protected readonly firebase = inject(FirebaseService);
   protected readonly store = inject(FitnessStore);
   protected readonly pushService = inject(PushNotificationService);
+  protected readonly subs = inject(SubscriptionService);
   protected readonly translation = inject(TranslationService);
 
   /** Parent-owned current theme state. Input (not getter) so the sheet
       re-renders correctly under OnPush when the user toggles. */
   readonly darkMode = input.required<boolean>();
+  /** Current theme choice for the picker. Parent (App) owns the
+      canonical value; this input keeps the radio group in sync. */
+  readonly themeChoice = input.required<ThemeChoice>();
 
   readonly close = output<void>();
   readonly editProfile = output<void>();
-  /** Fired when the user toggles theme — the parent (App) owns the
-      darkMode signal + applies the class to <html>, so we just notify. */
-  readonly toggleTheme = output<void>();
+  /** Selected theme value from the radio-group picker. Parent applies
+      the Pro gate + persistence + CSS update. */
+  readonly themeSelect = output<ThemeChoice>();
+
+  /** Whether Pro-gated options are available. Bound by settings-sheet's
+      template so unpaid users see the options as disabled. */
+  protected readonly isPaid = computed(() => this.subs.isPaid());
+
+  /** Picker options. Swatches are inline so reviewers can see the
+      palette intent alongside the CSS tokens. Keep in sync with
+      `[data-theme="…"]` blocks in styles.css. */
+  protected readonly themeOptions: ReadonlyArray<{
+    value: ThemeChoice;
+    labelKey: string;
+    swatch: string;
+    pro: boolean;
+  }> = [
+    { value: 'auto',         labelKey: 'settings.modes.themeAuto',     swatch: 'linear-gradient(90deg, #f4f0e8 50%, #1a1816 50%)', pro: false },
+    { value: 'light',        labelKey: 'settings.modes.themeLightOpt', swatch: '#f4f0e8', pro: false },
+    { value: 'dark',         labelKey: 'settings.modes.themeDarkOpt',  swatch: '#1a1816', pro: false },
+    { value: 'sepia',        labelKey: 'settings.modes.themeSepia',    swatch: '#efe6d2', pro: true  },
+    { value: 'graphite',     labelKey: 'settings.modes.themeGraphite', swatch: '#e8e6e2', pro: true  },
+    { value: 'oxblood-dark', labelKey: 'settings.modes.themeOxblood',  swatch: '#1a1010', pro: true  },
+  ];
+
+  protected chooseTheme(value: ThemeChoice): void {
+    this.themeSelect.emit(value);
+  }
 
   private readonly closeBtn = viewChild<ElementRef<HTMLButtonElement>>('closeBtn');
 

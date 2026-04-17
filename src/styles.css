@@ -66,6 +66,69 @@
 }
 
 /* ──────────────────────────────────────────────────────────────
+   Pro palettes — available to paid subscribers only.
+   The entitlement gate lives in app.ts (setTheme checks isPaid);
+   CSS just declares the palettes so any other surface (e.g.
+   preview swatches) can reference the tokens consistently.
+
+   Design intent:
+     sepia       — warm reading-paper, lower saturation, softer rule
+     graphite    — cool neutral, modernist, black-and-white spec sheet
+     oxblood-dark — same dark as `dark` but with the oxblood promoted
+                    to the structural red instead of sitting under it
+   ────────────────────────────────────────────────────────────── */
+[data-theme="sepia"] {
+  --color-paper: #efe6d2;
+  --color-paper-deep: #e4d9be;
+  --color-paper-shadow: #d4c59f;
+  --color-ink: #3a2a18;
+  --color-ink-soft: #5a4228;
+  --color-graphite: #7a5f40;
+  --color-graphite-soft: #95795a;
+  --color-rule: #8a6a44;
+  --color-blood: #7a2a18;
+  --color-blood-deep: #4a1a10;
+  --color-aged: #a88860;
+  --color-protein: #a85c22;
+  --color-olive: #6a6a30;
+  --color-gold: #b89030;
+}
+
+[data-theme="graphite"] {
+  --color-paper: #e8e6e2;
+  --color-paper-deep: #dcd9d4;
+  --color-paper-shadow: #c8c4be;
+  --color-ink: #1a1a1a;
+  --color-ink-soft: #3a3a3a;
+  --color-graphite: #5a5a5a;
+  --color-graphite-soft: #808080;
+  --color-rule: #2a2a2a;
+  --color-blood: #6a2828;
+  --color-blood-deep: #451818;
+  --color-aged: #9a9690;
+  --color-protein: #8a4820;
+  --color-olive: #4a5a38;
+  --color-gold: #8a7028;
+}
+
+[data-theme="oxblood-dark"] {
+  --color-paper: #1a1010;
+  --color-paper-deep: #140a0a;
+  --color-paper-shadow: #0c0606;
+  --color-ink: #f0dcd2;
+  --color-ink-soft: #c8a898;
+  --color-graphite: #8a6a60;
+  --color-graphite-soft: #6a4a44;
+  --color-rule: #3a1a18;
+  --color-blood: #e04a3a;
+  --color-blood-deep: #a82828;
+  --color-aged: #5a2820;
+  --color-protein: #f08048;
+  --color-olive: #88a060;
+  --color-gold: #e0b850;
+}
+
+/* ──────────────────────────────────────────────────────────────
    Base — default to sans for body, mono only for numbers
    ────────────────────────────────────────────────────────────── */
 html, body {
@@ -109,7 +172,7 @@ body {
     radial-gradient(ellipse at 80% 100%, rgba(26, 22, 18, 0.04) 0%, transparent 60%);
   background-attachment: fixed;
 }
-[data-theme="dark"] body {
+[data-theme="dark"] body, [data-theme="oxblood-dark"] body {
   background-image:
     radial-gradient(ellipse at 20% 0%, rgba(196, 53, 53, 0.05) 0%, transparent 55%),
     radial-gradient(ellipse at 80% 100%, rgba(221, 208, 184, 0.03) 0%, transparent 60%);
@@ -145,7 +208,7 @@ body {
   border-radius: 10px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 40%);
 }
-[data-theme="dark"] .specimen {
+[data-theme="dark"] .specimen, [data-theme="oxblood-dark"] .specimen {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0) 40%);
 }
 /* Crop marks: only render on .specimen--cropped */
@@ -260,9 +323,9 @@ body {
   min-width: 44px; /* touch target */
 }
 .date-chip:hover { background: rgba(255, 255, 255, 0.3); }
-[data-theme="dark"] .date-chip:hover { background: rgba(255, 255, 255, 0.06); }
+[data-theme="dark"] .date-chip:hover, [data-theme="oxblood-dark"] .date-chip:hover { background: rgba(255, 255, 255, 0.06); }
 .date-chip--selected { border-color: var(--color-rule); background: rgba(255, 255, 255, 0.4); }
-[data-theme="dark"] .date-chip--selected { background: rgba(255, 255, 255, 0.08); }
+[data-theme="dark"] .date-chip--selected, [data-theme="oxblood-dark"] .date-chip--selected { background: rgba(255, 255, 255, 0.08); }
 .date-chip--today { border-bottom: 2px solid var(--color-blood); }
 
 /* Small circular "?" button next to readout labels. Signals
@@ -287,10 +350,10 @@ body {
   cursor: pointer; transition: background 160ms ease;
   border-radius: 0;
 }
-[data-theme="dark"] .tape-strip { background: rgba(255, 255, 255, 0.04); }
+[data-theme="dark"] .tape-strip, [data-theme="oxblood-dark"] .tape-strip { background: rgba(255, 255, 255, 0.04); }
 .tape-strip:first-child { border-top: 1px dashed var(--color-aged); }
 .tape-strip:hover, .tape-strip:focus-visible { background: rgba(255, 255, 255, 0.55); }
-[data-theme="dark"] .tape-strip:hover { background: rgba(255, 255, 255, 0.08); }
+[data-theme="dark"] .tape-strip:hover, [data-theme="oxblood-dark"] .tape-strip:hover { background: rgba(255, 255, 255, 0.08); }
 .tape-strip.tape-editing {
   background: var(--color-paper-deep);
   border-left: 3px solid var(--color-blood);
@@ -307,7 +370,7 @@ body {
   display: flex; align-items: center; justify-content: center;
 }
 .radio-card:hover { background: rgba(26, 22, 18, 0.04); }
-[data-theme="dark"] .radio-card:hover { background: rgba(255, 255, 255, 0.04); }
+[data-theme="dark"] .radio-card:hover, [data-theme="oxblood-dark"] .radio-card:hover { background: rgba(255, 255, 255, 0.04); }
 .radio-card.selected {
   background: var(--color-ink); color: var(--color-paper);
   border-color: var(--color-ink);

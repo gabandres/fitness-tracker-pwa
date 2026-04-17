@@ -18,6 +18,8 @@ import { MobileTabsComponent, type MobileTab } from './components/mobile-tabs/mo
 import { AuthService } from './services/auth.service';
 import { FirebaseService } from './services/firebase.service';
 import { FitnessStore } from './services/fitness-store.service';
+import { SubscriptionService } from './services/subscription.service';
+import { ThemeChoice, PRO_THEMES, isProTheme, readStoredTheme, writeStoredTheme } from './utils/theme';
 import { localDateKey } from './utils/date';
 import { mediaSignal } from './utils/media';
 
@@ -231,9 +233,10 @@ import { mediaSignal } from './utils/media';
             @if (showSettings()) {
               <app-settings-sheet
                 [darkMode]="darkMode()"
+                [themeChoice]="themeChoice()"
                 (close)="showSettings.set(false)"
                 (editProfile)="editingProfile.set(true)"
-                (toggleTheme)="toggleTheme()" />
+                (themeSelect)="setTheme($event)" />
             }
             <!-- Responsive layout: single column on mobile (tabbed), two columns on desktop -->
             <div class="lg:grid lg:grid-cols-[1fr_1.15fr] lg:gap-10 lg:items-start">
@@ -316,6 +319,7 @@ export class App {
   protected readonly auth = inject(AuthService);
   protected readonly firebase = inject(FirebaseService);
   protected readonly store = inject(FitnessStore); // triggers lifecycle via constructor effect
+  protected readonly subs = inject(SubscriptionService);
   private readonly swUpdate = inject(SwUpdate);
   private readonly translation = inject(TranslationService); // resolves locale on boot, updates <title>
 
@@ -400,6 +404,12 @@ export class App {
       this.retryingOffline.set(false);
     }
   }
+  /** Current stored theme choice. `auto` means follow prefers-color-scheme.
+      The three Pro values resolve to their literal data-theme on apply;
+      free values map to `auto`/`light`/`dark`. */
+  protected readonly themeChoice = signal<ThemeChoice>('auto');
+  /** Effective dark flag for UI affordances (icon + color-meta). True
+      when the resolved palette is a dark one (dark or oxblood-dark). */
   protected readonly darkMode = signal(false);
   protected readonly showReminder = signal(false);
   private get reminderHour(): number {
@@ -427,12 +437,28 @@ export class App {
   });
 
   constructor() {
-    // Theme: detect, apply, persist.
-    const stored = localStorage.getItem('macrolog.theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const isDark = stored ? stored === 'dark' : prefersDark;
-    this.darkMode.set(isDark);
-    this.applyTheme(isDark);
+    // Theme: load stored choice, enforce Pro gate once entitlement
+    // resolves, apply the resulting palette, follow system-theme changes
+    // while the choice is 'auto'.
+    const initial = readStoredTheme();
+    this.themeChoice.set(initial);
+    this.applyThemeChoice(initial);
+
+    // If the stored choice is a Pro palette but the user isn't paid
+    // (subscription expired, logged out, trial over), silently revert
+    // to 'auto' so they don't see a degraded/cropped palette.
+    effect(() => {
+      const choice = this.themeChoice();
+      if (isProTheme(choice) && !this.subs.isPaid()) {
+        this.setTheme('auto');
+      }
+    });
+
+    // Track system preference so 'auto' responds live.
+    window.matchMedia('(prefers-color-scheme: dark)')
+      .addEventListener('change', () => {
+        if (this.themeChoice() === 'auto') this.applyThemeChoice('auto');
+      });
 
     // Online/offline tracking.
     window.addEventListener('online', () => this.offline.set(false));
@@ -492,21 +518,58 @@ export class App {
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
   }
 
+  /** Masthead affordance: flip between a light and dark palette.
+      Any Pro palette toggles back to its free counterpart so the button
+      stays predictable (power users use the settings picker). */
   protected toggleTheme(): void {
-    const next = !this.darkMode();
-    this.darkMode.set(next);
-    this.applyTheme(next);
-    localStorage.setItem('macrolog.theme', next ? 'dark' : 'light');
+    this.setTheme(this.darkMode() ? 'light' : 'dark');
   }
 
-  private applyTheme(dark: boolean): void {
+  /** Explicit theme choice from the settings picker. Enforces the Pro
+      gate here — an unpaid user who manages to pass a Pro value (via a
+      stale state, console) gets downgraded to 'auto'. */
+  protected setTheme(choice: ThemeChoice): void {
+    const resolved: ThemeChoice = isProTheme(choice) && !this.subs.isPaid()
+      ? 'auto' : choice;
+    this.themeChoice.set(resolved);
+    writeStoredTheme(resolved);
+    this.applyThemeChoice(resolved);
+  }
+
+  /** Resolve a ThemeChoice against `prefers-color-scheme` and apply it
+      to the document root. Updates `darkMode` + the `<meta name="theme-
+      color">` so browser chrome matches. */
+  private applyThemeChoice(choice: ThemeChoice): void {
     const el = document.documentElement;
-    if (dark) {
-      el.setAttribute('data-theme', 'dark');
+    let effective: Exclude<ThemeChoice, 'auto'>;
+    if (choice === 'auto') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      effective = prefersDark ? 'dark' : 'light';
     } else {
-      el.removeAttribute('data-theme');
+      effective = choice;
     }
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#1c1915' : '#f2ead7');
+
+    if (effective === 'light') {
+      el.removeAttribute('data-theme');
+    } else {
+      el.setAttribute('data-theme', effective);
+    }
+
+    // Keep darkMode aligned with the resolved palette so icons/meta work.
+    const isDark = effective === 'dark' || effective === 'oxblood-dark';
+    this.darkMode.set(isDark);
+
+    // Map each palette to a matching browser-chrome color. Kept in sync
+    // with the --color-paper values in styles.css.
+    const chromeColor: Record<Exclude<ThemeChoice, 'auto'>, string> = {
+      light: '#f2ead7',
+      dark: '#1c1915',
+      sepia: '#efe6d2',
+      graphite: '#e8e6e2',
+      'oxblood-dark': '#1a1010',
+    };
+    document.querySelector('meta[name="theme-color"]')
+      ?.setAttribute('content', chromeColor[effective]);
   }
 
   protected async signOut(): Promise<void> {

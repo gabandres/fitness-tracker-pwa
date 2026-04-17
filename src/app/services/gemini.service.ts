@@ -17,6 +17,15 @@ export interface ConsultationReservation {
   limit: number;
 }
 
+/** Shape returned by the `generateWeeklyReport` callable. The server
+    already writes the Firestore doc; the client just caches the result
+    in memory and renders the markdown. */
+export interface GeneratedWeeklyReport {
+  id: string;
+  markdown: string;
+  generatedAt: number; // epoch ms
+}
+
 /**
  * Thin wrapper around the Google GenAI SDK.
  *
@@ -117,13 +126,17 @@ export class GeminiService {
   }
 
   /**
-   * One-shot weekly report. Returns the full markdown string (non-streaming).
+   * Request a weekly report from the server. The `generateWeeklyReport`
+   * Cloud Function enforces the Pro entitlement + 6-day rate limit,
+   * calls Gemini with the server-held API key, and writes the resulting
+   * doc to Firestore. Clients never hit Gemini for this flow — that's
+   * why the report markdown can be trusted against the paywall.
    */
   async generateWeeklyReport(
     logs: DailyLog[],
     tdee: TdeeResult,
     profile: ProfileFields | null,
-  ): Promise<string> {
+  ): Promise<GeneratedWeeklyReport> {
     const systemInstruction = this.buildSystemInstruction(logs, tdee, profile) + this.langSuffix();
     const prompt = [
       'Generate a concise weekly review covering:',
@@ -136,12 +149,12 @@ export class GeminiService {
       'Format as markdown. Keep it under 300 words. Be direct and data-driven.',
     ].join('\n');
 
-    const result = await this.client.models.generateContent({
-      model: this.model,
-      contents: prompt,
-      config: { systemInstruction, temperature: 0.3 },
-    });
-    return result.text ?? '';
+    const callable = httpsCallable<
+      { systemInstruction: string; prompt: string },
+      GeneratedWeeklyReport
+    >(this.functions, 'generateWeeklyReport');
+    const { data } = await callable({ systemInstruction, prompt });
+    return data;
   }
 
   private buildSystemInstruction(

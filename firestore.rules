@@ -178,14 +178,12 @@ service cloud.firestore {
       }
 
       // Weekly AI reports — cached markdown.
+      // Writes are server-only: the `generateWeeklyReport` Cloud Function
+      // enforces the Pro gate + rate limit and writes via admin SDK,
+      // which bypasses these rules. Clients never create report docs.
       match /reports/{reportId} {
         allow read:   if isOwner(uid);
-        allow create: if isOwner(uid)
-            && request.resource.data.keys().hasAll(['markdown', 'generatedAt'])
-            && request.resource.data.keys().hasOnly(['markdown', 'generatedAt'])
-            && request.resource.data.markdown is string
-            && request.resource.data.markdown.size() <= 10000
-            && request.resource.data.generatedAt is timestamp;
+        allow create: if false;
         allow delete: if isOwner(uid);
       }
     }

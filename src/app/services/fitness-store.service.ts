@@ -515,12 +515,11 @@ export class FitnessStore {
       const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
       const isStale = !report || report.generatedAt.getTime() < sevenDaysAgo;
 
-      // Weekly report is a Pro feature — generation costs Gemini tokens
-      // billed to us. Free tier keeps any existing cached report visible
-      // (so past trial/paid reports remain readable) but new ones only
-      // generate for paid/admin/comped users. Server-side gating on the
-      // reports collection is a follow-up (requires moving generation
-      // into a Cloud Function so the client can't bypass).
+      // Weekly report is a Pro feature. The client-side gate below is
+      // cosmetic — real enforcement lives in the `generateWeeklyReport`
+      // Cloud Function (entitlement check + 6-day rate limit + server-
+      // only writes via admin SDK). Past reports stay readable for
+      // users who dropped off Pro; only NEW generations are gated.
       if (isStale && this._logs().length >= 3 && this.subs.isPaid()) {
         await this.generateWeeklyReport();
       }
@@ -545,9 +544,12 @@ export class FitnessStore {
       const logs = this._logs();
       const tdee = this.tdee();
       const profile = this._profileFields();
-      const markdown = await this.gemini.generateWeeklyReport(logs, tdee, profile);
-      await this.fb.saveReport(markdown);
-      this._weeklyReport.set({ markdown, generatedAt: new Date() });
+      const result = await this.gemini.generateWeeklyReport(logs, tdee, profile);
+      this._weeklyReport.set({
+        id: result.id,
+        markdown: result.markdown,
+        generatedAt: new Date(result.generatedAt),
+      });
     } catch (err) {
       console.error('Weekly report generation failed:', err);
     } finally {

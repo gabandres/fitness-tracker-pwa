@@ -404,12 +404,8 @@ export class FirebaseService {
     return { id: d.id, markdown: data.markdown, generatedAt: data.generatedAt.toDate() };
   }
 
-  async saveReport(markdown: string): Promise<void> {
-    await addDoc(this.reportsCollection(), {
-      markdown,
-      generatedAt: Timestamp.now(),
-    });
-  }
+  // New report docs are written by the `generateWeeklyReport` Cloud
+  // Function via the admin SDK. Client writes are blocked by rules.
 
   // ─── Body measurements ────────────────────────────────────────
   private measurementsCollection() {
