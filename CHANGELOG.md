@@ -6,6 +6,16 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-17 — Trust + perf + acquisition surfaces
+
+Five ships in one session, all live.
+
+- **Server-gated weekly report.** Weekly AI report generation moved behind the new `generateWeeklyReport` callable (Gemini key held server-side, entitlement check, 6-day rate limit). `firestore.rules` now blocks client writes to `users/{uid}/reports` — previously any free user could bypass the Pro gate by calling the client path directly. Report fetch + render unchanged.
+- **Pro theme palettes.** Three new palettes gated on `isPaid()`: sepia, graphite, oxblood-dark. Settings sheet gains a 6-option swatched radio-group picker (auto/light/dark + the three Pro). Choice auto-downgrades to `auto` if entitlement drops (trial ends, sub lapses). Existing masthead toggle stays light↔dark for everyone. First visible Pro differentiator beyond feature caps.
+- **Enriched SoftwareApplication JSON-LD.** Landing page `<script type="application/ld+json">` now includes description, screenshot, featureList, languages, annual offer, and author/publisher so search + link unfurlers render a richer card. robots.txt, sitemap.xml, and the original JSON-LD already shipped in prior work.
+- **Route-level code splitting.** Landing, privacy, terms, onboarding, settings-sheet, and consultation wrapped in `@defer` blocks. Consultation defers on viewport; the rest defer on immediate once their `@if` trips. Initial bundle: **1.52 MB → 1.47 MB** (62 KB less code on first paint, back under the 1.5 MB budget). Seven lazy chunks now emit.
+- **Public /changelog + /status routes.** `/changelog` renders `CHANGELOG.md` (served as a static asset via angular.json) through `marked` — proof of activity for visitors and search engines. `/status` reads a new `/status/heartbeat` doc written every 5 min by the `statusPulse` scheduled Cloud Function; firestore.rules opens public read on `/status/*`, writes stay server-only. Page shows healthy / degraded / down based on pulse staleness (<10 / <30 / >=30 min). Both routes added to sitemap; both lazy-loaded; both i18n'd in en + es-PR.
+
 ## 2026-04-17 — Pro fulfillment quick wins (Slice F kickoff)
 
 Closes the gap between the freemium-table promises and the code. Annual subscribers now get visible differentiation across five surfaces.
