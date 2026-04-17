@@ -166,6 +166,52 @@ import { mediaSignal } from './utils/media';
             <div class="ink-in delay-3">
               <app-sign-in />
             </div>
+          } @else if (!auth.emailVerified()) {
+            <!-- Verification gate for email/password signups. Google
+                 + Microsoft return verified emails by default, so they
+                 skip past this immediately. -->
+            <div class="ink-in delay-3">
+              <section class="specimen px-6 py-8 sm:px-8 sm:py-10 relative">
+                <span class="crop-bl"></span><span class="crop-br"></span>
+                <div class="flex items-center gap-3 mb-3">
+                  <span class="stamp-mark" style="border-color: var(--color-gold); color: var(--color-gold)">
+                    {{ t('verify.stamp') }}
+                  </span>
+                  <span class="data-label">{{ t('verify.section') }}</span>
+                </div>
+                <h2 class="font-display text-2xl sm:text-3xl leading-tight text-ink">
+                  {{ t('verify.title') }}
+                </h2>
+                <p class="font-sans text-sm text-ink-soft mt-3 leading-relaxed">
+                  {{ t('verify.bodyPrefix') }}
+                  <span class="font-mono text-ink">{{ auth.user()?.email }}</span>{{ t('verify.bodySuffix') }}
+                </p>
+                <p class="caption mt-3 text-[11px] leading-relaxed">
+                  {{ t('verify.hint') }}
+                </p>
+                <div class="mt-6 flex flex-wrap items-center gap-2">
+                  <button type="button" (click)="checkVerified()"
+                    [disabled]="verifyChecking()"
+                    class="stamp-btn">
+                    {{ verifyChecking() ? t('verify.checking') : t('verify.checkNow') }}
+                  </button>
+                  <button type="button" (click)="resendVerification()"
+                    [disabled]="verifyResending() || verifyResent()"
+                    class="tag-btn">
+                    @if (verifyResending()) { {{ t('verify.resending') }} }
+                    @else if (verifyResent()) { ✓ {{ t('verify.resent') }} }
+                    @else { {{ t('verify.resend') }} }
+                  </button>
+                  <button type="button" (click)="auth.signOut()"
+                    class="tag-btn text-graphite">
+                    {{ t('verify.signOut') }}
+                  </button>
+                </div>
+                @if (verifyError()) {
+                  <p class="font-mono text-[11px] text-blood mt-3" role="alert">✕ {{ verifyError() }}</p>
+                }
+              </section>
+            </div>
           } @else if (!firebase.profile()) {
             <div class="specimen p-10 text-center">
               <span class="crop-bl"></span><span class="crop-br"></span>
@@ -285,6 +331,46 @@ export class App {
   protected readonly updateReady = signal(false);
   protected readonly offline = signal(!navigator.onLine);
   protected readonly retryingOffline = signal(false);
+  protected readonly verifyChecking = signal(false);
+  protected readonly verifyResending = signal(false);
+  protected readonly verifyResent = signal(false);
+  protected readonly verifyError = signal('');
+
+  /** Pull a fresh user record from Firebase. After the user clicks
+      the email-verification link, their server-side state flips to
+      verified, but the local user object stays stale until reload. */
+  protected async checkVerified(): Promise<void> {
+    if (this.verifyChecking()) return;
+    this.verifyChecking.set(true);
+    this.verifyError.set('');
+    try {
+      await this.auth.reloadUser();
+      if (!this.auth.emailVerified()) {
+        this.verifyError.set(this.translation.t('verify.notYet'));
+      }
+    } catch (err) {
+      this.verifyError.set(err instanceof Error ? err.message : this.translation.t('verify.checkFailed'));
+    } finally {
+      this.verifyChecking.set(false);
+    }
+  }
+
+  /** Re-send the verification link. Disables itself for the rest of
+      the session after one success to keep users from spamming the
+      send-mail throttle (Firebase rate-limits this server-side too). */
+  protected async resendVerification(): Promise<void> {
+    if (this.verifyResending() || this.verifyResent()) return;
+    this.verifyResending.set(true);
+    this.verifyError.set('');
+    try {
+      await this.auth.resendVerificationEmail();
+      this.verifyResent.set(true);
+    } catch (err) {
+      this.verifyError.set(err instanceof Error ? err.message : this.translation.t('verify.resendFailed'));
+    } finally {
+      this.verifyResending.set(false);
+    }
+  }
 
   /**
    * Manual reconnect: re-check `navigator.onLine`, ping a small known

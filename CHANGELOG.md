@@ -6,6 +6,14 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-17 — Email/password sign-in + verification gate (Slice A1)
+
+- **Firestore rules relaxed**: `isGmailUser()` → `isVerifiedUser()`. Gmail-only restriction removed; the gate is now `email_verified == true` for any provider. Existing Gmail users are unaffected; opens the door to email/password and (next slice) Microsoft.
+- **Client gmail check dropped** from `auth.service.ts`. Same provider-agnostic verification gate.
+- **Email/password sign-up + sign-in** wired in. Sign-in component now has a Google one-click button and an "or sign in with email" form (collapsed by default) that toggles between sign-in / create-account / forgot-password modes. Standard Firebase auth error codes get user-readable copy.
+- **Verify-email gate** between sign-in and the main app. New email/password users see a screen with their email, a "I verified — refresh now" button, a "resend email" button (one-shot per session to respect rate limits), and "use a different account". Google users skip past it instantly because their emails are pre-verified.
+- **`fitness-store` waits for verification** before kicking off the profile-init effect — avoids a confusing permission-denied state during the in-between.
+
 ## 2026-04-17 — Connectivity polish + sparkline merge
 
 - **Offline banner gets a retry button.** The browser's `online` event misses captive-portal recoveries — tapping retry now re-probes a tiny static asset (no SW cache) and refreshes the store on success.

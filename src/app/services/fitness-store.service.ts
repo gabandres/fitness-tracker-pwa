@@ -276,7 +276,11 @@ export class FitnessStore {
   // ─── Lifecycle ──────────────────────────────────────────────
   constructor() {
     effect(() => {
-      if (this.auth.isSignedIn()) {
+      // Wait for both sign-in AND email verification before hitting
+      // Firestore — unverified users can't pass the rule guard, and
+      // a failed _load() leaves the UI in a confusing error state.
+      // The verify-email gate in the App shell handles the in-between.
+      if (this.auth.isSignedIn() && this.auth.emailVerified()) {
         this._load();
       } else {
         this._clear();

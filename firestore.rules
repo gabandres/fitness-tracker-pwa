@@ -4,10 +4,13 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ─── Actors ──────────────────────────────────────────────────
-    function isGmailUser() {
+    // Verified-email gate: any provider is allowed (Google, Microsoft,
+    // email+password) as long as the email has been verified. Google
+    // and Microsoft return verified emails by default; password users
+    // must click the verification link before they can write data.
+    function isVerifiedUser() {
       return request.auth != null
-          && request.auth.token.email_verified == true
-          && request.auth.token.email.matches('.*@gmail[.]com$');
+          && request.auth.token.email_verified == true;
     }
 
     function isOwner(uid) {
@@ -138,7 +141,7 @@ service cloud.firestore {
     // ─── Per-user subtree ───────────────────────────────────────
     match /users/{uid} {
       allow read:   if isOwner(uid);
-      allow create: if isOwner(uid) && isGmailUser() && isValidProfile(request.resource.data);
+      allow create: if isOwner(uid) && isVerifiedUser() && isValidProfile(request.resource.data);
       allow update: if isOwner(uid) && isValidProfile(request.resource.data);
 
       match /dailyLogs/{logId} {
