@@ -13,4 +13,16 @@ export const environment = {
     apiKey: 'AIzaSyAQ4evv79iwaktmYj-ZN9pD0RU5yT9s53E',
     model: 'gemini-flash-latest',
   },
+  sentry: {
+    dsn: '',
+    sampleRate: 1.0,
+  },
+  stripe: {
+    priceIdMonthly: 'price_1TLnJdHvWnhD3GuYy7gWFvyJ',
+    priceIdAnnual: 'price_1TN1eGHvWnhD3GuYS90n9x3a',
+    displayPriceMonthly: '$3/mo',
+    displayPriceAnnual: '$24/yr',
+    annualSavingsPercent: 33,
+    trialDays: 7,
+  },
 };

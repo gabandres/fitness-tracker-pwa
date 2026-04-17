@@ -6,6 +6,13 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-17 — Annual tier ($24/yr) + cadence toggle
+
+- **Annual price live** in Stripe (`price_1TN1eGHvWnhD3GuYS90n9x3a`, $24/yr) on the existing `Macro Log Pro` product. Same `firebaseRole=paid` metadata, same webhook — no extension reinstall needed.
+- **Subscribe card now shows a monthly/annual toggle.** Default selection is annual to anchor on the higher-LTV option; "save 33%" badge highlights the discount vs 12× monthly. Trial hint (7 days) applies to both cadences.
+- **Renewal copy adapts to the selected price** — manage view reads `displayPriceFor(priceId)` so an annual subscriber sees `$24/yr` instead of the monthly anchor.
+- **Dev-env stripe block added** to `environment.development.ts` (was missing — caused dev builds to hide the Subscribe card entirely).
+
 ## 2026-04-13 — PWA install nudge + feedback mailto
 
 - **Install-as-app prompt** at the top of the ledger. Desktop + Android use the native `beforeinstallprompt` flow — one tap installs. iOS Safari shows "tap Share → Add to Home Screen" text instructions since the API isn't exposed there. Hides automatically once installed, on standalone display, or when dismissed (7-day cooldown via localStorage). Only renders after the user has logged ≥1 meal.

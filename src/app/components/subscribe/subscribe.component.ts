@@ -25,7 +25,7 @@ import { SubscriptionService } from '../../services/subscription.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-    @if (subs.priceId) {
+    @if (subs.hasAnyPrice) {
       <div class="mt-4 specimen px-4 py-3 slide-down">
         <span class="crop-bl"></span><span class="crop-br"></span>
         <div class="flex items-center gap-2 mb-2">
@@ -55,11 +55,11 @@ import { SubscriptionService } from '../../services/subscription.service';
             @if (s.status === 'trialing') {
               {{ t('subscribe.trialOn') }} <span class="text-olive">{{ t('subscribe.freeTrial') }}</span> {{ t('subscribe.until') }}
               {{ s.trialEndsAt ? (s.trialEndsAt | date: 'MMM d') : t('subscribe.endOfTrial') }}.
-              {{ t('subscribe.thenRenewsAt', { price: subs.displayPrice }) }}
+              {{ t('subscribe.thenRenewsAt', { price: subs.displayPriceFor(s.priceId) }) }}
             } @else if (s.status === 'active') {
               <span class="text-olive">{{ t('subscribe.active') }}</span>{{ s.currentPeriodEnd
-                ? t('subscribe.renewsAt', { date: (s.currentPeriodEnd | date: 'MMM d'), price: subs.displayPrice })
-                : t('subscribe.renewsMonthly', { price: subs.displayPrice }) }}
+                ? t('subscribe.renewsAt', { date: (s.currentPeriodEnd | date: 'MMM d'), price: subs.displayPriceFor(s.priceId) })
+                : t('subscribe.renewsMonthly', { price: subs.displayPriceFor(s.priceId) }) }}
             } @else if (s.status === 'past_due') {
               <span class="text-blood">{{ t('subscribe.paymentPastDue') }}</span> {{ t('subscribe.paymentPastDueSuffix') }}
             }
@@ -73,7 +73,7 @@ import { SubscriptionService } from '../../services/subscription.service';
             </button>
           </div>
         } @else {
-          <!-- Not subscribed — pitch + subscribe button -->
+          <!-- Not subscribed — pitch + cadence toggle + subscribe button -->
           <p class="font-sans text-sm text-ink leading-relaxed mb-2">
             {{ t('subscribe.pitchBody') }}
           </p>
@@ -83,6 +83,39 @@ import { SubscriptionService } from '../../services/subscription.service';
             <li>{{ t('subscribe.featureWebhook') }}</li>
             <li>{{ t('subscribe.featureReports') }}</li>
           </ul>
+
+          @if (subs.priceIdMonthly && subs.priceIdAnnual) {
+            <div class="mb-3" role="radiogroup" [attr.aria-label]="t('subscribe.cadenceAria')">
+              <div class="inline-flex rounded border border-rule overflow-hidden text-[12px]">
+                <button type="button" role="radio"
+                  [attr.aria-checked]="cadence() === 'annual'"
+                  (click)="setCadence('annual')"
+                  [class.bg-ink]="cadence() === 'annual'"
+                  [class.text-cream]="cadence() === 'annual'"
+                  [class.text-graphite]="cadence() !== 'annual'"
+                  class="px-3 py-1.5 font-sans transition-colors">
+                  {{ t('subscribe.toggleAnnual') }} &middot; {{ subs.displayPriceAnnual }}
+                  @if (subs.annualSavingsPercent > 0) {
+                    <span class="ml-1 text-[10px] uppercase tracking-wider"
+                      [class.text-olive]="cadence() === 'annual'"
+                      [class.text-blood]="cadence() !== 'annual'">
+                      &middot; {{ t('subscribe.savingsBadge', { n: subs.annualSavingsPercent }) }}
+                    </span>
+                  }
+                </button>
+                <button type="button" role="radio"
+                  [attr.aria-checked]="cadence() === 'monthly'"
+                  (click)="setCadence('monthly')"
+                  [class.bg-ink]="cadence() === 'monthly'"
+                  [class.text-cream]="cadence() === 'monthly'"
+                  [class.text-graphite]="cadence() !== 'monthly'"
+                  class="px-3 py-1.5 font-sans transition-colors border-l border-rule">
+                  {{ t('subscribe.toggleMonthly') }} &middot; {{ subs.displayPriceMonthly }}
+                </button>
+              </div>
+            </div>
+          }
+
           <div class="flex items-center gap-2">
             <button type="button" (click)="subscribe()"
               [disabled]="busy()"
@@ -91,7 +124,7 @@ import { SubscriptionService } from '../../services/subscription.service';
               @if (busy()) {
                 {{ t('subscribe.startingCheckout') }}
               } @else {
-                {{ t('subscribe.support') }} &middot; {{ subs.displayPrice }}
+                {{ t('subscribe.support') }} &middot; {{ selectedDisplayPrice() }}
                 @if (subs.trialDays > 0) { <span class="font-sans text-[11px] normal-case opacity-80 ml-1">{{ t('subscribe.trialHint', { n: subs.trialDays }) }}</span> }
               }
             </button>
@@ -111,11 +144,32 @@ export class SubscribeComponent {
   protected readonly busy = signal(false);
   protected readonly sub = computed(() => this.subs.subscription());
 
+  // Default to annual to anchor on the higher-LTV option; users who want
+  // monthly explicitly toggle. Falls back gracefully when only one
+  // price is configured.
+  protected readonly cadence = signal<'monthly' | 'annual'>('annual');
+
+  protected setCadence(c: 'monthly' | 'annual'): void {
+    this.cadence.set(c);
+  }
+
+  protected selectedPriceId(): string {
+    if (this.cadence() === 'annual' && this.subs.priceIdAnnual) return this.subs.priceIdAnnual;
+    if (this.subs.priceIdMonthly) return this.subs.priceIdMonthly;
+    return this.subs.priceIdAnnual;
+  }
+
+  protected selectedDisplayPrice(): string {
+    return this.cadence() === 'annual' && this.subs.priceIdAnnual
+      ? this.subs.displayPriceAnnual
+      : this.subs.displayPriceMonthly;
+  }
+
   protected async subscribe(): Promise<void> {
     if (this.busy()) return;
     this.busy.set(true);
     try {
-      await this.subs.startCheckout(this.subs.priceId, this.subs.trialDays);
+      await this.subs.startCheckout(this.selectedPriceId(), this.subs.trialDays);
     } finally {
       // If redirect succeeded we never get here; otherwise re-enable.
       this.busy.set(false);

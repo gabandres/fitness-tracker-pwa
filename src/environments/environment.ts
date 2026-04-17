@@ -27,16 +27,18 @@ export const environment = {
     // 1.0 = sample every error; 0.0 = sample none. Client-side only.
     sampleRate: 1.0,
   },
-  // Stripe subscription. Paste the price ID from your Stripe dashboard
-  // after running STRIPE_SETUP.md. Empty priceId hides the Subscribe
-  // button entirely, so it's safe to commit an empty value.
+  // Stripe subscription. Paste the price IDs from your Stripe dashboard
+  // after running STRIPE_SETUP.md. Empty priceIdMonthly hides the
+  // Subscribe button entirely, so it's safe to commit empty values.
+  // Test-mode equivalents were price_1TLaxbHvWnhD3GuYuzSJU0hs
+  // (prod_UKFSWsfTK1bJqG); the test product + price are still in
+  // Stripe should we ever need to re-verify a flow there.
   stripe: {
-    // Macro Log Pro — $3/mo recurring. LIVE MODE.
-    // Test-mode equivalent was price_1TLaxbHvWnhD3GuYuzSJU0hs
-    // (prod_UKFSWsfTK1bJqG); the test product + price are still in
-    // Stripe should we ever need to re-verify a flow there.
-    priceId: 'price_1TLnJdHvWnhD3GuYy7gWFvyJ',
-    displayPrice: '$3/mo',
+    priceIdMonthly: 'price_1TLnJdHvWnhD3GuYy7gWFvyJ',
+    priceIdAnnual: 'price_1TN1eGHvWnhD3GuYS90n9x3a',
+    displayPriceMonthly: '$3/mo',
+    displayPriceAnnual: '$24/yr',
+    annualSavingsPercent: 33,
     trialDays: 7,
   },
 };

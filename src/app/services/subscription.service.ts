@@ -256,19 +256,54 @@ export class SubscriptionService {
     }
   }
 
-  /** Stripe price ID injected at build time via environment. */
-  get priceId(): string {
-    return environment.stripe?.priceId ?? '';
+  /** Stripe monthly price ID injected at build time. */
+  get priceIdMonthly(): string {
+    return environment.stripe?.priceIdMonthly ?? '';
   }
 
-  /** $-amount string for the Subscribe button label. */
-  get displayPrice(): string {
-    return environment.stripe?.displayPrice ?? '';
+  /** Stripe annual price ID injected at build time. */
+  get priceIdAnnual(): string {
+    return environment.stripe?.priceIdAnnual ?? '';
+  }
+
+  /** True when at least one price is configured (controls whether the
+      Subscribe card renders at all). */
+  get hasAnyPrice(): boolean {
+    return !!(this.priceIdMonthly || this.priceIdAnnual);
+  }
+
+  /** $-amount strings for the Subscribe button labels. */
+  get displayPriceMonthly(): string {
+    return environment.stripe?.displayPriceMonthly ?? '';
+  }
+  get displayPriceAnnual(): string {
+    return environment.stripe?.displayPriceAnnual ?? '';
+  }
+
+  /** Percent saved on annual vs 12× monthly (e.g. 33). 0 hides the badge. */
+  get annualSavingsPercent(): number {
+    return environment.stripe?.annualSavingsPercent ?? 0;
   }
 
   /** Optional trial period (days) from env, default none. */
   get trialDays(): number {
     return environment.stripe?.trialDays ?? 0;
+  }
+
+  /** Map a Stripe price ID to its cadence so the manage UI can label
+      the active subscription correctly. */
+  cadenceFor(priceId: string): 'monthly' | 'annual' | 'unknown' {
+    if (priceId && priceId === this.priceIdAnnual) return 'annual';
+    if (priceId && priceId === this.priceIdMonthly) return 'monthly';
+    return 'unknown';
+  }
+
+  /** Display string matching the active subscription's cadence, falling
+      back to monthly. Used by renewal copy. */
+  displayPriceFor(priceId: string): string {
+    return this.cadenceFor(priceId) === 'annual'
+      ? this.displayPriceAnnual
+      : this.displayPriceMonthly;
   }
 
   private watchSubscriptions(uid: string): void {
