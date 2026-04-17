@@ -5,7 +5,12 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { TdeeCalculatorService } from '../../services/tdee-calculator.service';
 import { TranslationService } from '../../services/translation.service';
+import { SubscriptionService } from '../../services/subscription.service';
 import { localDateKey } from '../../utils/date';
+
+/** Free-tier CSV export is capped to this many days of history (matches
+    the freemium table in the UX plan). Pro subscribers get all history. */
+const CSV_EXPORT_DAYS_FREE = 30;
 
 interface SparklinePoint { x: number; y: number; }
 
@@ -394,7 +399,12 @@ interface SparklinePoint { x: number; y: number; }
 
         <!-- Actions -->
         <div class="mt-5 flex items-center justify-between">
-          <button type="button" (click)="exportCsv()" class="tag-btn">{{ t('dashboard.actionExport') }}</button>
+          <div class="flex items-center gap-2 min-w-0">
+            <button type="button" (click)="exportCsv()" class="tag-btn">{{ t('dashboard.actionExport') }}</button>
+            @if (!subs.isPaid()) {
+              <span class="caption text-[10px] truncate">{{ t('dashboard.exportFreeCaption', { days: csvExportDaysFree }) }}</span>
+            }
+          </div>
           <button type="button" (click)="store.refresh()" class="tag-btn"
             [disabled]="store.status() === 'loading'">
             {{ store.status() === 'loading' ? t('dashboard.loading') : t('dashboard.refresh') }}
@@ -408,8 +418,11 @@ interface SparklinePoint { x: number; y: number; }
 export class DashboardComponent {
   protected readonly store = inject(FitnessStore);
   protected readonly translation = inject(TranslationService);
+  protected readonly subs = inject(SubscriptionService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly calc = inject(TdeeCalculatorService);
+
+  protected readonly csvExportDaysFree = CSV_EXPORT_DAYS_FREE;
   protected readonly Math = Math;
   protected readonly svgW = 320;
   protected readonly svgH = 60;
@@ -565,9 +578,13 @@ export class DashboardComponent {
 
   protected async exportCsv(): Promise<void> {
     const allLogs = await this.store.getAllLogs();
+    // Free tier exports only the trailing window; Pro exports all history.
+    const exportLogs = this.subs.isPaid()
+      ? allLogs
+      : this.filterLastDays(allLogs, CSV_EXPORT_DAYS_FREE);
     const rows = [
       ['Date', 'Weight (lbs)', 'Calories', 'Protein (g)', 'Exercise'].join(','),
-      ...allLogs.map((l) =>
+      ...exportLogs.map((l) =>
         [
           localDateKey(l.date),
           l.weight,
@@ -584,5 +601,10 @@ export class DashboardComponent {
     a.download = `macrolog-export-${localDateKey(new Date())}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  private filterLastDays<T extends { date: Date }>(logs: T[], days: number): T[] {
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    return logs.filter((l) => l.date.getTime() >= cutoff);
   }
 }

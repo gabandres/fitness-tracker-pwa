@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { DailyLog, LogEntry, MealPreset } from './firebase.service';
-import { FitnessStore } from './fitness-store.service';
+import { FitnessStore, PresetLimitError } from './fitness-store.service';
 import { MacroEstimate } from '../models/macro-estimate';
 import { TranslationService } from './translation.service';
 import { localDateKey } from '../utils/date';
@@ -145,8 +145,18 @@ export class EntryFormManager {
     const preset: Omit<MealPreset, 'id'> = { name, calories: Number(cal) };
     const pro = this.protein();
     if (pro != null) preset.protein = Number(pro);
-    await this.store.addPreset(preset);
-    this.savingPreset.set(false);
+    try {
+      await this.store.addPreset(preset);
+      this.savingPreset.set(false);
+    } catch (err) {
+      this.savingPreset.set(false);
+      if (err instanceof PresetLimitError) {
+        this.status.set('error');
+        this.errorMsg.set(this.translation.t('errors.presetLimitReached', { limit: err.limit }));
+        return;
+      }
+      throw err;
+    }
   }
 
   // ── Private ─────────────────────────────────────────────────

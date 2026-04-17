@@ -263,6 +263,7 @@
     "legendRaw": "— sin suavizar",
     "legendSmoothed": "— suavizado",
     "actionExport": "↓ exportar csv",
+    "exportFreeCaption": "últimos {{days}} días — sube a pro pa' historial completo",
     "csvExercise": "sí"
   },
   "daily": {
@@ -670,7 +671,8 @@
     "photoTooLarge": "Esa imagen es muy grande. El tamaño máximo es 5 MB.",
     "photoEstimateFailed": "No pudimos estimar calorías de esa imagen. Intenta con una foto más clara.",
     "photoAnalyzeFailed": "Falló el análisis de foto. Por favor intenta de nuevo.",
-    "consultationQuotaExceeded": "Alcanzaste el límite gratis de hoy de {{limit}} consultas. Suscríbete para consultas ilimitadas.",
+    "consultationQuotaExceeded": "Alcanzaste el límite diario de {{limit}} consultas. Intenta de nuevo después de medianoche UTC.",
+    "presetLimitReached": "El plan gratis guarda hasta {{limit}} presets. Sube a Pro para tener presets ilimitados.",
     "accountDeleteFailed": "Falló la eliminación de la cuenta. Por favor contacta soporte."
   },
   "tabs": {

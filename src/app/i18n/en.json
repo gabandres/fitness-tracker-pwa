@@ -257,6 +257,7 @@
     "legendRaw": "— raw",
     "legendSmoothed": "— smoothed",
     "actionExport": "↓ export csv",
+    "exportFreeCaption": "last {{days}} days — pro for full history",
     "csvExercise": "yes"
   },
   "daily": {
@@ -664,7 +665,8 @@
     "photoTooLarge": "That image is too large. Maximum size is 5 MB.",
     "photoEstimateFailed": "We couldn't estimate calories from that image. Try a clearer photo.",
     "photoAnalyzeFailed": "Photo analysis failed. Please try again.",
-    "consultationQuotaExceeded": "You've reached today's free-tier limit of {{limit}} consultations. Subscribe for unlimited.",
+    "consultationQuotaExceeded": "Daily limit of {{limit}} consultations reached. Try again after midnight UTC.",
+    "presetLimitReached": "Free plan holds up to {{limit}} presets. Upgrade to Pro for unlimited.",
     "accountDeleteFailed": "Account deletion failed. Please contact support."
   },
   "tabs": {

@@ -109,7 +109,7 @@ interface SuggestedPrompt {
               <span class="crop-bl" style="border-color: var(--color-blood)"></span>
               <span class="crop-br" style="border-color: var(--color-blood)"></span>
               <p class="font-sans text-sm text-blood">{{ errorMsg() }}</p>
-              @if (overLimit()) {
+              @if (overLimit() && !subs.isPaid()) {
                 <p class="caption text-[11px] mt-2">
                   {{ t('consultation.overLimitPre') }}
                   <span class="text-ink">{{ t('consultation.overLimitSettingsPath') }}</span>.

@@ -195,7 +195,11 @@ export const logWebhook = onRequest(
 
 // ─── Feature 2: Photo-to-Macros ───────────────────────────────────
 
-const DAILY_PHOTO_LIMIT = 8;
+// Tiered per-user daily caps (UTC). Admins + comped friends still
+// bypass entirely — they get unlimited access. The freemium table
+// in the UX plan promises 3/day free, 30/day paid.
+const PHOTO_LIMIT_FREE = 3;
+const PHOTO_LIMIT_PAID = 30;
 
 export const analyzePhoto = onCall(
   { secrets: [geminiApiKey], maxInstances: 10 },
@@ -207,7 +211,9 @@ export const analyzePhoto = onCall(
 
     const uid = request.auth.uid;
     const email = request.auth.token.email;
+    const role = (request.auth.token as { stripeRole?: string }).stripeRole;
     const unlimited = await hasUnlimitedAccess(email);
+    const effectiveLimit = role === "paid" ? PHOTO_LIMIT_PAID : PHOTO_LIMIT_FREE;
 
     // ── Daily quota check (per user, resets at UTC midnight) ───────
     const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
@@ -218,11 +224,11 @@ export const analyzePhoto = onCall(
       await db.runTransaction(async (tx) => {
         const doc = await tx.get(quotaRef);
         const used: number = doc.exists ? (doc.data()!.count as number) : 0;
-        if (used >= DAILY_PHOTO_LIMIT) {
+        if (used >= effectiveLimit) {
           throw new HttpsError(
             "resource-exhausted",
-            `Daily limit of ${DAILY_PHOTO_LIMIT} photo analyses reached. Resets at midnight UTC.`,
-            { code: ErrorCode.PHOTO_QUOTA_EXCEEDED, limit: DAILY_PHOTO_LIMIT },
+            `Daily limit of ${effectiveLimit} photo analyses reached. Resets at midnight UTC.`,
+            { code: ErrorCode.PHOTO_QUOTA_EXCEEDED, limit: effectiveLimit },
           );
         }
         photosUsedAfter = used + 1;
@@ -322,9 +328,9 @@ Common Puerto Rican / Latin staples for reference:
         description,
         confidence,
         // Admins + comped users report "unlimited" by returning the
-        // full cap. The client treats this as decorative since nothing
+        // paid cap. The client treats this as decorative since nothing
         // blocks them.
-        photosRemaining: unlimited ? DAILY_PHOTO_LIMIT : DAILY_PHOTO_LIMIT - photosUsedAfter,
+        photosRemaining: unlimited ? PHOTO_LIMIT_PAID : effectiveLimit - photosUsedAfter,
       };
     } catch (err) {
       if (err instanceof HttpsError) throw err;
@@ -340,16 +346,17 @@ Common Puerto Rican / Latin staples for reference:
 // but shared across all users on the project's Gemini API quota. One
 // power user could monopolize it. This callable:
 //   1. Verifies auth
-//   2. Gives paid users (stripeRole=paid claim) unlimited access
-//   3. Caps free users at CONSULTATION_DAILY_LIMIT per calendar day
-//      (UTC), atomically incrementing a Firestore counter. Over-limit
-//      throws HttpsError('resource-exhausted').
+//   2. Gives admins + comped friends unlimited access
+//   3. Caps paid subscribers at CONSULTATION_LIMIT_PAID per UTC day
+//   4. Caps free users at CONSULTATION_LIMIT_FREE per UTC day
+//      (atomic Firestore counter; over-limit throws 'resource-exhausted').
 //
 // Client calls this BEFORE streaming the Gemini response. On success
 // the client proceeds with the direct Gemini SDK call. On failure the
-// client shows an upgrade pitch.
+// client shows an upgrade pitch (free) or a generic limit notice (paid).
 
-const CONSULTATION_DAILY_LIMIT = 5;
+const CONSULTATION_LIMIT_FREE = 3;
+const CONSULTATION_LIMIT_PAID = 30;
 
 export const reserveConsultation = onCall(async (request) => {
   if (!request.auth) {
@@ -359,12 +366,12 @@ export const reserveConsultation = onCall(async (request) => {
   const email = request.auth.token.email;
   const role = (request.auth.token as { stripeRole?: string }).stripeRole;
 
-  // Paid users, admins, and comped friends bypass the quota entirely.
-  // We don't write a counter doc for them since it would never be read.
-  if (role === "paid" || (await hasUnlimitedAccess(email))) {
-    return { capped: false, remaining: -1, limit: CONSULTATION_DAILY_LIMIT };
+  // Admins + comped friends bypass the quota entirely.
+  if (await hasUnlimitedAccess(email)) {
+    return { capped: false, remaining: -1, limit: CONSULTATION_LIMIT_PAID };
   }
 
+  const effectiveLimit = role === "paid" ? CONSULTATION_LIMIT_PAID : CONSULTATION_LIMIT_FREE;
   const today = new Date().toISOString().split("T")[0];
   const quotaRef = db.collection("consultationQuota").doc(`${uid}_${today}`);
 
@@ -372,19 +379,19 @@ export const reserveConsultation = onCall(async (request) => {
   await db.runTransaction(async (tx) => {
     const doc = await tx.get(quotaRef);
     const used: number = doc.exists ? (doc.data()!.count as number) : 0;
-    if (used >= CONSULTATION_DAILY_LIMIT) {
+    if (used >= effectiveLimit) {
       throw new HttpsError(
         "resource-exhausted",
-        `Daily free-tier limit of ${CONSULTATION_DAILY_LIMIT} consultations reached. Subscribe for unlimited.`,
-        { code: ErrorCode.CONSULTATION_QUOTA_EXCEEDED, limit: CONSULTATION_DAILY_LIMIT },
+        `Daily limit of ${effectiveLimit} consultations reached. Resets at midnight UTC.`,
+        { code: ErrorCode.CONSULTATION_QUOTA_EXCEEDED, limit: effectiveLimit },
       );
     }
     const newCount = used + 1;
     tx.set(quotaRef, { count: newCount, uid, date: today }, { merge: true });
-    remaining = CONSULTATION_DAILY_LIMIT - newCount;
+    remaining = effectiveLimit - newCount;
   });
 
-  return { capped: false, remaining, limit: CONSULTATION_DAILY_LIMIT };
+  return { capped: false, remaining, limit: effectiveLimit };
 });
 
 /**
@@ -402,10 +409,10 @@ export const releaseConsultation = onCall(async (request) => {
   }
   const uid = request.auth.uid;
   const email = request.auth.token.email;
-  const role = (request.auth.token as { stripeRole?: string }).stripeRole;
 
-  // Paid users, admins, and comped friends never had a slot reserved.
-  if (role === "paid" || (await hasUnlimitedAccess(email))) return { released: false };
+  // Admins + comped friends never had a slot reserved. Paid users DO
+  // have a capped slot (30/day) — refund them too.
+  if (await hasUnlimitedAccess(email)) return { released: false };
 
   const today = new Date().toISOString().split("T")[0];
   const quotaRef = db.collection("consultationQuota").doc(`${uid}_${today}`);
@@ -433,7 +440,7 @@ export const checkAccessStatus = onCall(async (request) => {
     return {
       admin: false, comped: false,
       photosRemaining: null, consultationsRemaining: null,
-      photoLimit: DAILY_PHOTO_LIMIT, consultationLimit: CONSULTATION_DAILY_LIMIT,
+      photoLimit: PHOTO_LIMIT_FREE, consultationLimit: CONSULTATION_LIMIT_FREE,
     };
   }
   const uid = request.auth.uid;
@@ -441,15 +448,18 @@ export const checkAccessStatus = onCall(async (request) => {
   const admin = isAdmin(email);
   const comped = await isComped(email);
   const role = (request.auth.token as { stripeRole?: string }).stripeRole;
-  const unlimited = admin || comped || role === "paid";
+  const unlimitedAccess = admin || comped;
+  const paid = role === "paid";
+  const photoLimit = paid ? PHOTO_LIMIT_PAID : PHOTO_LIMIT_FREE;
+  const consultationLimit = paid ? CONSULTATION_LIMIT_PAID : CONSULTATION_LIMIT_FREE;
 
-  // Paid/admin/comped users don't need a remaining count — free tier
-  // shows "N left", unlimited hides the caption entirely (null signal).
-  if (unlimited) {
+  // Admin/comped users hide the "N left" caption entirely (null signal).
+  // Paid users DO see a remaining count against the 30/day cap.
+  if (unlimitedAccess) {
     return {
       admin, comped,
       photosRemaining: null, consultationsRemaining: null,
-      photoLimit: DAILY_PHOTO_LIMIT, consultationLimit: CONSULTATION_DAILY_LIMIT,
+      photoLimit, consultationLimit,
     };
   }
 
@@ -462,10 +472,10 @@ export const checkAccessStatus = onCall(async (request) => {
   const consultUsed = consultSnap.exists ? (consultSnap.data()!.count as number) : 0;
   return {
     admin, comped,
-    photosRemaining: Math.max(0, DAILY_PHOTO_LIMIT - photosUsed),
-    consultationsRemaining: Math.max(0, CONSULTATION_DAILY_LIMIT - consultUsed),
-    photoLimit: DAILY_PHOTO_LIMIT,
-    consultationLimit: CONSULTATION_DAILY_LIMIT,
+    photosRemaining: Math.max(0, photoLimit - photosUsed),
+    consultationsRemaining: Math.max(0, consultationLimit - consultUsed),
+    photoLimit,
+    consultationLimit,
   };
 });
 

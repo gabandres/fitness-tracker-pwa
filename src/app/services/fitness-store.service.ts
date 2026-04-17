@@ -17,6 +17,21 @@ import { SubscriptionService } from './subscription.service';
 
 export type StoreStatus = 'idle' | 'loading' | 'ready' | 'error';
 
+/** Max preset slots for non-paid users (matches freemium table). */
+export const PRESET_LIMIT_FREE = 10;
+
+/** Free-tier visible chart history window. Pro sees all-time. */
+export const CHART_HISTORY_DAYS_FREE = 90;
+
+/** Thrown by FitnessStore.addPreset when a free-tier user is at cap.
+    Carries the limit so the UI can show a specific message. */
+export class PresetLimitError extends Error {
+  constructor(readonly limit: number) {
+    super(`Preset limit of ${limit} reached.`);
+    this.name = 'PresetLimitError';
+  }
+}
+
 export interface GoalProgress {
   startWeight: number;
   currentWeight: number;
@@ -173,7 +188,16 @@ export class FitnessStore {
     return w ? Math.round(w * 0.70) : 0;
   });
 
-  readonly allTimeLogs: Signal<DailyLog[]> = this._allTimeLogs.asReadonly();
+  /** Visible chart history. Free tier is windowed to the last
+      CHART_HISTORY_DAYS_FREE days; Pro sees everything. The internal
+      _allTimeLogs signal stays uncapped so CSV export and
+      long-horizon stats (monthlySummary) can still read full history. */
+  readonly allTimeLogs: Signal<DailyLog[]> = computed(() => {
+    const all = this._allTimeLogs();
+    if (this.subs.isPaid()) return all;
+    const cutoff = Date.now() - CHART_HISTORY_DAYS_FREE * 24 * 60 * 60 * 1000;
+    return all.filter((l) => l.date.getTime() >= cutoff);
+  });
 
   readonly streak: Signal<number> = computed(() =>
     this.calc.computeStreak(this._logs()),
@@ -420,6 +444,9 @@ export class FitnessStore {
   }
 
   async addPreset(preset: Omit<MealPreset, 'id'>): Promise<void> {
+    if (!this.subs.isPaid() && this._presets().length >= PRESET_LIMIT_FREE) {
+      throw new PresetLimitError(PRESET_LIMIT_FREE);
+    }
     await this.fb.addPreset(preset);
     this._presets.set(await this.fb.getPresets());
   }
