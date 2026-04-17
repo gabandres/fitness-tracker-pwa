@@ -1,6 +1,6 @@
 # Macro Log — UX Audit
 
-> Living document. Check items off as they ship. Last updated: 2026-04-17.
+> Living document. Check items off as they ship. Last updated: 2026-04-17 (post-launch S1 + S2 pass; S3 items logged under S11).
 
 ---
 
@@ -146,6 +146,30 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 - [x] Add once-per-session swipe hint on ledger ("swipe to change day ↔") *(2026-04-13)*
 - [x] Space sign-out / theme toggle apart + add icons; currently 2 chars apart, easy to mis-tap *(2026-04-17)*
 
+### 🔴 S10 — Post-launch audit (2026-04-17)
+
+All shipped in the S1+S2 pass. S3 items are in the next section.
+
+- [x] Photo size message alignment — client said 15 MB, server said 5 MB. Now both paths quote 15 MB; server message neutralised to "too large after processing". *(2026-04-17)*
+- [x] Settings sheet TOC — sticky chip row at top of sheet jumps to each section; IDs + scroll-mt-16 added to all 8 sections. *(2026-04-17)*
+- [x] Privacy GDPR contact fallback — added GitHub issue + in-app feedback as alternatives to mailto, plus stated 30-day response window. *(2026-04-17)*
+- [x] UTC reset hint — title attr on photo + consultation captions, explicit note in settings → reminders section. *(2026-04-17)*
+- [x] Ledger empty-state copy — replaced "tap the button above" with "press the New Entry button" for non-spatial navigation. *(2026-04-17)*
+
+### 🟡 S11 — Open S3 items from the same audit (lower priority)
+
+Tracked here so they surface in the next UX pass. Each is low-impact individually; several share themes (button feedback, responsive breakpoints) that could be batched.
+
+- [ ] Consultation suggested-prompt pills look identical to the main "ask" button — de-emphasize so first-time users don't think selection is required
+- [ ] Tablet 800–1023px — mobile tabs render but two-column desktop layout doesn't; "insights" tab has orphaned space
+- [ ] Apple Shortcuts "copy key" button has no success feedback (no toast / no "copied!" label)
+- [ ] Onboarding back button on step 1 should be disabled (currently present but no-ops)
+- [ ] CSV export button has no filename hint / size estimate — iOS can silently fail
+- [ ] Fasting dial → strip transition can feel broken on end-fast; idle "start fast" CTA hard to reach on desktop during active fast
+- [ ] Async buttons without loading/disabled state (`↻ refresh`, offline "check now", "resend email") — allow double-tap
+- [ ] Preset picker has no empty state after all presets deleted
+- [ ] Dashboard sparkline may show stale data briefly after rapid-successive weight logs
+
 ---
 
 ## 4. Prioritised change list
@@ -188,3 +212,4 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 - **2026-04-15** — S2 shipped: onboarding is now a 3-step guided flow (`identity → activity → target`) with a progress tracker, short explainer copy per step, Back/Continue navigation, and the same flow reused for edit mode.
 - **2026-04-17** — Big audit catch-up day. Shipped: S4 sparkline merge (14d/all toggle), S4 adaptive-TDEE caption + always-visible source stamp, S5 undo toast `role="alert"` + auto-focus, S6 photo-error promoted to `role="alert"`, S6 save-verb consolidated to "save"/"guardar". Plus shipped (not in audit): annual tier ($24/yr) + cadence toggle, Microsoft sign-in, email/password sign-in + verify gate, motion design tokens, offline-banner retry button, install-prompt rationale rewritten, mobile measurements grid responsive, **Pro fulfillment Slice F kickoff** (photo/consultation tier split, presets cap, CSV 30-day window, chart 90-day window).
 - **2026-04-17** — Production-readiness pass. S9 masthead mis-tap closed (gap-4 + 36×36 tap targets, the last open S9 item). Landing CTAs simplified to `/app` redirects so users see the full sign-in surface instead of a Google-only popup. 404 page added for unknown paths. Health "not medical advice" line on consultation intro + onboarding step 1. Password policy tightened on signup (10+ chars, letter + digit, no whitespace). See `CHANGELOG.md` 2026-04-17 entry for the non-UX items from the same pass (CI, Sentry sourcemaps, rate limits, GDPR/CCPA, backups, monitoring).
+- **2026-04-17** — Post-launch S1 + S2 pass (S10). Photo size error messaging aligned between client (15 MB raw) and server (20 MB base64); contradictory numbers removed. Settings sheet gained a sticky TOC chip row + section IDs for jump navigation. Privacy GDPR section now offers GitHub issue + in-app feedback as mailto alternatives, with a stated 30-day response SLA. UTC quota-reset hint surfaced via `title` on remaining-count captions and an explicit note in Settings → Reminders. Ledger empty-state copy now names the button ("press the New Entry button") instead of the spatial "above". S3 items parked under S11 for a future pass.

@@ -277,9 +277,17 @@ export const analyzePhoto = onCall(
       throw new HttpsError("invalid-argument", "photoBase64 is required.", { code: ErrorCode.PHOTO_MISSING });
     }
 
-    // Rough size check: base64 is ~4/3 of raw bytes. 5MB raw = ~6.7MB base64.
-    if (photoBase64.length > 7_000_000) {
-      throw new HttpsError("invalid-argument", "Image too large. Max 5MB.", { code: ErrorCode.PHOTO_TOO_LARGE });
+    // Defense-in-depth against direct API callers that bypass the client
+    // resize. The client caps raw uploads at 15 MB and resizes to 1920px
+    // before base64 encoding, so legitimate payloads are well under 3 MB.
+    // Threshold here (~20 MB base64 = ~15 MB raw) matches the client
+    // precheck so the user-facing number is consistent.
+    if (photoBase64.length > 20_000_000) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Image too large after processing.",
+        { code: ErrorCode.PHOTO_TOO_LARGE },
+      );
     }
 
     // Locale-aware description. The calories/protein numbers are

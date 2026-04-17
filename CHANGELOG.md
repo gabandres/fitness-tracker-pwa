@@ -6,6 +6,18 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-17 — Post-launch UX pass (S1 + S2)
+
+Closes all S1 + S2 items from the post-production audit. Every one ships on prod.
+
+- **Photo size messaging aligned.** Client precheck (15 MB raw) and server defense-in-depth (20 MB base64 ≈ 15 MB raw post-resize) now produce consistent copy; en + es-PR error strings updated so users never see two different numbers. Server rejection message is generic ("Image too large after processing") — the specific 15 MB cap is mentioned only at the client tier where it's accurate.
+- **Settings sheet TOC.** Sticky chip row at the top of the sheet jumps to profile, language, reminders, modes, data, subscription, feedback, legal — users on mobile no longer scroll past 6 sections to reach "subscription". Section IDs added with `scroll-mt-16` for clean landing. Nav is `aria-label`-ed.
+- **Privacy contact fallback.** GDPR/jurisdiction block now lists three paths: mailto (preferred), a public GitHub issue template pre-filled with the `privacy` label, and the in-app feedback button. Stated 30-day response window. en + es-PR.
+- **UTC reset visibility.** Photo + consultation remaining-count captions gained a `title` attribute ("daily quota resets at midnight UTC") for passive discovery. Settings → Reminders section shows an explicit "note: quotas reset at midnight UTC, not your local midnight" hint so users in western time zones don't get surprised. en + es-PR.
+- **Ledger empty-state copy.** Replaced spatial "above" reference with the button name ("or press the New Entry button to log anything else.") — better for keyboard + VoiceOver users who don't scan spatially. en + es-PR.
+
+Follow-up (S3 items 7–15 from the same audit) held for a future pass — see `UX_AUDIT.md`.
+
 ## 2026-04-17 — Production-readiness pass (16 gaps + 3 review fixes)
 
 Launch-readiness survey turned into a single session closing 16 items + 3 code-review follow-ups. Everything below is live on prod.

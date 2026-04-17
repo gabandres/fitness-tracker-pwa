@@ -21,8 +21,12 @@ import { extractErrorCode } from '../../models/error-codes';
       <span>{{ photoStatus() === 'analyzing' ? t('photo.analyzing') : t('photo.photo') }}</span>
     </button>
     @if (photosRemaining() !== null) {
+      <!-- title attribute surfaces the "resets midnight UTC" detail
+           on hover/long-press without bloating the caption. The 0-left
+           state already says it explicitly. -->
       <span class="font-mono text-[10px] tracking-[0.08em] ml-1 align-middle"
-        [style.color]="photosRemaining()! <= 2 ? 'var(--color-gold)' : 'var(--color-graphite)'">
+        [style.color]="photosRemaining()! <= 2 ? 'var(--color-gold)' : 'var(--color-graphite)'"
+        [attr.title]="t('photo.resetHint')">
         {{ photosRemaining() === 0 ? t('photo.outOfQuota') : t('photo.left', { n: photosRemaining() }) }}
       </span>
     }

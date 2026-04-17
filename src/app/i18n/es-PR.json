@@ -108,6 +108,7 @@
     "titleEm": "ajustes.",
     "close": "Cerrar ajustes",
     "signInFirst": "inicia sesión primero.",
+    "tocAria": "Secciones de ajustes",
     "profile": {
       "section": "perfil",
       "signedInAs": "sesión iniciada como",
@@ -125,7 +126,8 @@
       "pushEnable": "activar",
       "hour": "hora del recordatorio",
       "hourDesc": "cuándo revisar si has registrado hoy.",
-      "hourAria": "Hora del recordatorio diario"
+      "hourAria": "Hora del recordatorio diario",
+      "utcHint": "nota: las cuotas diarias de fotos y del coach IA se reinician a medianoche UTC, no a tu medianoche local."
     },
     "modes": {
       "section": "modos",
@@ -328,8 +330,8 @@
     "remaining": "restantes",
     "proteinProgress": "{{have}}g / {{target}}g de proteína",
     "edit": "editar",
-    "emptyStatePrefix": "o toca",
-    "emptyStateSuffix": "arriba para registrar cualquier otra cosa.",
+    "emptyStatePrefix": "o presiona el botón",
+    "emptyStateSuffix": "para registrar cualquier otra cosa.",
     "undoLabel": "entrada eliminada",
     "undoAction": "deshacer",
     "undoAria": "Deshacer eliminación de entrada"
@@ -399,6 +401,7 @@
     "letterEm": "a tu coach.",
     "intro": "pregunta cualquier cosa sobre tus datos. tu registro de catorce días se adjunta automáticamente. las respuestas llegan en streaming desde gemini.",
     "notMedicalAdvice": "esto no es consejo médico — solo información. consulta un médico o nutricionista real para decisiones clínicas.",
+    "resetHint": "cuota diaria de consultas se reinicia a medianoche UTC",
     "remaining": "({{n}} de {{limit}} restantes hoy)",
     "questionLabel": "tu pregunta",
     "questionPlaceholder": "ej. ¿estoy bajando demasiado rápido? ¿debería mantener mi meta?",
@@ -605,7 +608,8 @@
     "dismissAria": "Ignorar error de foto",
     "lowConfidence": "⚠ baja confianza — verifica la estimación",
     "errorFallback": "Falló el análisis de foto.",
-    "errorFileTooLarge": "Esa imagen es muy grande. Intenta con una foto menor a 15 MB."
+    "errorFileTooLarge": "Esa imagen es muy grande. Intenta con una foto menor a 15 MB.",
+    "resetHint": "cuota diaria de fotos se reinicia a medianoche UTC"
   },
   "starter": {
     "stamp": "comienza",
@@ -706,7 +710,7 @@
     "ccpaHeading": "Tus derechos bajo CCPA / CPRA",
     "ccpaBody": "Si vives en California, aplican CCPA y CPRA. No vendemos ni compartimos tu información personal con terceros para publicidad conductual entre contextos, punto. Tienes derecho a saber qué datos tenemos, a pedir su eliminación y a apelar cualquier negativa. Usa los controles de exportación / eliminación mencionados arriba, o escríbenos.",
     "jurisdictionHeading": "Responsable del tratamiento y jurisdicción",
-    "jurisdictionBody": "El responsable del tratamiento de datos de Macro Log es el dueño del producto — contacto: <a href=\"mailto:ppesoftware@gmail.com\" class=\"underline decoration-dotted\">ppesoftware@gmail.com</a>. Esta política y tu uso de Macro Log se rigen por las leyes de la jurisdicción del operador (Puerto Rico, Estados Unidos), sin consideración de principios de conflicto de leyes.",
+    "jurisdictionBody": "El responsable del tratamiento de datos de Macro Log es el dueño del producto. El contacto preferido para solicitudes de datos es correo electrónico: <a href=\"mailto:ppesoftware@gmail.com?subject=Solicitud%20de%20datos\" class=\"underline decoration-dotted\">ppesoftware@gmail.com</a>. Si no puedes usar correo, abre un issue público en <a href=\"https://github.com/gabandres/fitness-tracker-pwa/issues/new?labels=privacy&amp;title=Data+request\" class=\"underline decoration-dotted\" target=\"_blank\" rel=\"noopener\">nuestro rastreador de GitHub</a> o usa el botón Ajustes → Comentarios en la app. Respondemos en 30 días según lo requerido por GDPR. Esta política y tu uso de Macro Log se rigen por las leyes de la jurisdicción del operador (Puerto Rico, Estados Unidos), sin consideración de principios de conflicto de leyes.",
     "medicalHeading": "Aviso médico",
     "medicalBody": "Macro Log no es un dispositivo médico, y el coach de IA no es un dietista. Nada en la app es consejo médico. Si estás haciendo algo clínicamente significativo — un déficit por debajo de 1,500 kcal, pérdida de peso de más del 1% del peso corporal por semana, o comer para tratar una condición médica — habla con un médico o nutricionista real primero.",
     "dangerStamp": "peligro",
@@ -750,7 +754,7 @@
     "unauthenticated": "Necesitas iniciar sesión.",
     "photoQuotaExceeded": "Alcanzaste el límite diario de {{limit}} análisis de fotos. Intenta de nuevo después de medianoche UTC.",
     "photoMissing": "No se proporcionó una foto.",
-    "photoTooLarge": "Esa imagen es muy grande. El tamaño máximo es 5 MB.",
+    "photoTooLarge": "Esa imagen es muy grande. Intenta con una foto menor a 15 MB.",
     "photoEstimateFailed": "No pudimos estimar calorías de esa imagen. Intenta con una foto más clara.",
     "photoAnalyzeFailed": "Falló el análisis de foto. Por favor intenta de nuevo.",
     "consultationQuotaExceeded": "Alcanzaste el límite diario de {{limit}} consultas. Intenta de nuevo después de medianoche UTC.",

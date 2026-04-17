@@ -66,8 +66,25 @@ import { ThemeChoice } from '../../utils/theme';
 
         @if (auth.user(); as u) {
 
+        <!-- Section TOC — sticky chip row at top of the sheet body so
+             users on mobile can jump to a section without scrolling past
+             6 others. Uses anchor hrefs + CSS scroll-margin on the
+             targets so the landing position clears the header. -->
+        <nav class="sticky top-0 z-10 -mx-2 px-2 py-2 mb-5 flex flex-wrap gap-1.5"
+             style="background: var(--color-paper); border-bottom: 1px solid var(--color-rule-soft)"
+             [attr.aria-label]="t('settings.tocAria')">
+          <a href="#settings-profile" class="tag-btn text-[10px]">{{ t('settings.profile.section') }}</a>
+          <a href="#settings-language" class="tag-btn text-[10px]">{{ t('settings.language.section') }}</a>
+          <a href="#settings-reminders" class="tag-btn text-[10px]">{{ t('settings.reminders.section') }}</a>
+          <a href="#settings-modes" class="tag-btn text-[10px]">{{ t('settings.modes.section') }}</a>
+          <a href="#settings-data" class="tag-btn text-[10px]">{{ t('settings.data.section') }}</a>
+          <a href="#settings-subscription" class="tag-btn text-[10px]">{{ t('settings.subscription.section') }}</a>
+          <a href="#settings-feedback" class="tag-btn text-[10px]">{{ t('settings.feedback.section') }}</a>
+          <a href="#settings-legal" class="tag-btn text-[10px]">{{ t('settings.legal.section') }}</a>
+        </nav>
+
         <!-- ─── Profile ───────────────────────────────────────── -->
-        <section class="mb-7">
+        <section id="settings-profile" class="mb-7 scroll-mt-16">
           <div class="data-label mb-3">{{ t('settings.profile.section') }}</div>
           <p class="font-sans text-xs text-graphite mb-3">
             {{ t('settings.profile.signedInAs') }} <span class="text-ink font-medium">{{ u.email }}</span>
@@ -85,7 +102,7 @@ import { ThemeChoice } from '../../utils/theme';
         </section>
 
         <!-- ─── Language ──────────────────────────────────────── -->
-        <section class="mb-7">
+        <section id="settings-language" class="mb-7 scroll-mt-16">
           <div class="data-label mb-3">{{ t('settings.language.section') }}</div>
           <div class="flex items-center justify-between gap-3 mb-2">
             <div class="min-w-0">
@@ -121,7 +138,7 @@ import { ThemeChoice } from '../../utils/theme';
         </section>
 
         <!-- ─── Reminders ─────────────────────────────────────── -->
-        <section class="mb-7">
+        <section id="settings-reminders" class="mb-7 scroll-mt-16">
           <div class="data-label mb-3">{{ t('settings.reminders.section') }}</div>
 
           <!-- Push notifications -->
@@ -169,10 +186,14 @@ import { ThemeChoice } from '../../utils/theme';
               }
             </select>
           </div>
+
+          <p class="caption text-[11px] leading-relaxed mt-4" style="color: var(--color-graphite)">
+            {{ t('settings.reminders.utcHint') }}
+          </p>
         </section>
 
         <!-- ─── Modes ─────────────────────────────────────────── -->
-        <section class="mb-7">
+        <section id="settings-modes" class="mb-7 scroll-mt-16">
           <div class="data-label mb-3">{{ t('settings.modes.section') }}</div>
 
           <!-- Travel mode -->
@@ -227,7 +248,7 @@ import { ThemeChoice } from '../../utils/theme';
         </section>
 
         <!-- ─── Data ──────────────────────────────────────────── -->
-        <section class="mb-7">
+        <section id="settings-data" class="mb-7 scroll-mt-16">
           <div class="data-label mb-3">{{ t('settings.data.section') }}</div>
 
           <!-- Apple Shortcuts webhook -->
@@ -287,13 +308,13 @@ import { ThemeChoice } from '../../utils/theme';
         </section>
 
         <!-- ─── Subscription ──────────────────────────────────── -->
-        <section class="mb-7">
+        <section id="settings-subscription" class="mb-7 scroll-mt-16">
           <div class="data-label mb-3">{{ t('settings.subscription.section') }}</div>
           <app-subscribe />
         </section>
 
         <!-- ─── Feedback ──────────────────────────────────────── -->
-        <section class="mb-7">
+        <section id="settings-feedback" class="mb-7 scroll-mt-16">
           <div class="data-label mb-3">{{ t('settings.feedback.section') }}</div>
           <div class="flex items-center justify-between gap-3">
             <div class="min-w-0">
@@ -309,7 +330,7 @@ import { ThemeChoice } from '../../utils/theme';
         </section>
 
         <!-- ─── Legal ─────────────────────────────────────────── -->
-        <section>
+        <section id="settings-legal" class="scroll-mt-16">
           <div class="data-label mb-3">{{ t('settings.legal.section') }}</div>
           <p class="caption text-[11px] leading-relaxed">
             <a href="/privacy" class="underline decoration-dotted hover:text-blood">{{ t('settings.legal.privacy') }}</a>

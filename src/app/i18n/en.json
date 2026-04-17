@@ -102,6 +102,7 @@
     "titleEm": "settings.",
     "close": "Close settings",
     "signInFirst": "sign in first.",
+    "tocAria": "Settings sections",
     "profile": {
       "section": "profile",
       "signedInAs": "signed in as",
@@ -119,7 +120,8 @@
       "pushEnable": "enable",
       "hour": "reminder time",
       "hourDesc": "when to check whether you've logged today.",
-      "hourAria": "Daily reminder hour"
+      "hourAria": "Daily reminder hour",
+      "utcHint": "note: photo and AI coach daily quotas reset at midnight UTC, not your local midnight."
     },
     "modes": {
       "section": "modes",
@@ -322,8 +324,8 @@
     "remaining": "remaining",
     "proteinProgress": "{{have}}g / {{target}}g protein",
     "edit": "edit",
-    "emptyStatePrefix": "or tap",
-    "emptyStateSuffix": "above to log anything else.",
+    "emptyStatePrefix": "or press the",
+    "emptyStateSuffix": "button to log anything else.",
     "undoLabel": "entry deleted",
     "undoAction": "undo",
     "undoAria": "Undo delete entry"
@@ -393,6 +395,7 @@
     "letterEm": "to your coach.",
     "intro": "ask anything about your data. your fourteen-day record is attached automatically. responses are streamed from gemini.",
     "notMedicalAdvice": "not medical advice — for information only. talk to a real doctor or RD for clinical decisions.",
+    "resetHint": "daily consultation quota resets at midnight UTC",
     "remaining": "({{n}} of {{limit}} left today)",
     "questionLabel": "your question",
     "questionPlaceholder": "e.g. am i losing too quickly? should i hold my target?",
@@ -599,7 +602,8 @@
     "dismissAria": "Dismiss photo error",
     "lowConfidence": "⚠ low confidence — verify estimate",
     "errorFallback": "Photo analysis failed.",
-    "errorFileTooLarge": "That image is too large. Try a photo under 15 MB."
+    "errorFileTooLarge": "That image is too large. Try a photo under 15 MB.",
+    "resetHint": "daily photo quota resets at midnight UTC"
   },
   "starter": {
     "stamp": "start",
@@ -700,7 +704,7 @@
     "ccpaHeading": "Your rights under CCPA / CPRA",
     "ccpaBody": "If you live in California, the CCPA and CPRA apply. We do not sell or share your personal information with third parties for cross-context behavioural advertising, full stop. You have the right to know what personal data we hold, to request deletion, and to appeal any denial. Use the same export / delete controls above, or email us directly.",
     "jurisdictionHeading": "Data controller & jurisdiction",
-    "jurisdictionBody": "The data controller for Macro Log is the product owner — contact: <a href=\"mailto:ppesoftware@gmail.com\" class=\"underline decoration-dotted\">ppesoftware@gmail.com</a>. This policy and your use of Macro Log are governed by the laws of the operator's home jurisdiction (Puerto Rico, United States), without regard to conflict-of-law principles.",
+    "jurisdictionBody": "The data controller for Macro Log is the product owner. Preferred contact for data-subject requests is email: <a href=\"mailto:ppesoftware@gmail.com?subject=Data%20request\" class=\"underline decoration-dotted\">ppesoftware@gmail.com</a>. If you can't use email, open a public issue at <a href=\"https://github.com/gabandres/fitness-tracker-pwa/issues/new?labels=privacy&amp;title=Data+request\" class=\"underline decoration-dotted\" target=\"_blank\" rel=\"noopener\">our GitHub issue tracker</a> or use the in-app Settings → Feedback button. We respond within 30 days as required by GDPR. This policy and your use of Macro Log are governed by the laws of the operator's home jurisdiction (Puerto Rico, United States), without regard to conflict-of-law principles.",
     "medicalHeading": "Medical disclaimer",
     "medicalBody": "Macro Log is not a medical device, and the AI coach is not a dietician. Nothing in the app is medical advice. If you're doing anything clinically meaningful — a cut below 1,500 kcal, weight loss of more than 1% body weight per week, or eating for a medical condition — talk to a real human doctor or RD first.",
     "dangerStamp": "danger",
@@ -744,7 +748,7 @@
     "unauthenticated": "You need to sign in.",
     "photoQuotaExceeded": "Daily limit of {{limit}} photo analyses reached. Try again after midnight UTC.",
     "photoMissing": "No photo was provided.",
-    "photoTooLarge": "That image is too large. Maximum size is 5 MB.",
+    "photoTooLarge": "That image is too large. Try a photo under 15 MB.",
     "photoEstimateFailed": "We couldn't estimate calories from that image. Try a clearer photo.",
     "photoAnalyzeFailed": "Photo analysis failed. Please try again.",
     "consultationQuotaExceeded": "Daily limit of {{limit}} consultations reached. Try again after midnight UTC.",

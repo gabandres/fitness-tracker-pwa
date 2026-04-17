@@ -37,7 +37,8 @@ interface SuggestedPrompt {
           {{ t('consultation.intro') }}
           @if (remaining() !== null) {
             <span class="ml-1 font-mono not-italic"
-              [style.color]="remaining()! <= 1 ? 'var(--color-gold)' : 'var(--color-graphite)'">
+              [style.color]="remaining()! <= 1 ? 'var(--color-gold)' : 'var(--color-graphite)'"
+              [attr.title]="t('consultation.resetHint')">
               {{ t('consultation.remaining', { n: remaining(), limit: limit() }) }}
             </span>
           }
