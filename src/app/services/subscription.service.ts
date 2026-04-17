@@ -138,14 +138,35 @@ export class SubscriptionService {
     // could be told "daily limit reached" on their first consultation
     // after checkout because the token still reads as free-tier.
     let wasPaid = false;
+    let lastSubDocChangeAt = 0;
     effect(() => {
       const nowPaid = this.isPaid();
+      const sub = this._subscription();
+      if (sub) lastSubDocChangeAt = Date.now();
       if (nowPaid && !wasPaid) {
         this.auth.currentUser?.getIdToken(true).catch((err) => {
           console.warn('Failed to refresh ID token after subscription change:', err);
         });
       }
       wasPaid = nowPaid;
+    });
+
+    // Defensive signal: if a subscription doc was written but the paid
+    // claim hasn't flipped after 10s, the Stripe extension's claim-sync
+    // trigger may be lagging or misconfigured. Logs loudly so we notice
+    // in Sentry/console without failing the UX — quota calls will hit
+    // "free tier" in the meantime, which is a soft degradation.
+    effect(() => {
+      const sub = this._subscription();
+      if (!sub) return;
+      const isActive = sub.status === 'trialing' || sub.status === 'active';
+      if (!isActive) return;
+      const docAgeMs = Date.now() - lastSubDocChangeAt;
+      if (docAgeMs < 10_000 || this.isPaid()) return;
+      console.warn(
+        `[SubscriptionService] subscription doc says ${sub.status} for ${(docAgeMs / 1000).toFixed(1)}s ` +
+        `but stripeRole claim is not yet 'paid'. Check the firestore-stripe-payments extension's claim-sync trigger.`,
+      );
     });
   }
 

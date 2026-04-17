@@ -1,0 +1,61 @@
+name: Deploy to Firebase
+
+# Manual trigger only. Promoting this to an automated push-to-main deploy is
+# a deliberate follow-up — wait until the team has confidence in CI coverage
+# and a rollback story.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: What to deploy
+        required: true
+        default: hosting,functions,firestore
+        type: string
+
+jobs:
+  deploy:
+    name: Build + firebase deploy
+    runs-on: ubuntu-latest
+    env:
+      BUILD_TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+
+      - name: Check FIREBASE_TOKEN
+        run: |
+          if [ -z "${{ secrets.FIREBASE_TOKEN }}" ]; then
+            echo "::error::FIREBASE_TOKEN secret is not set. Generate one with 'firebase login:ci' and add it to the repo's Actions secrets."
+            exit 1
+          fi
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Install functions dependencies
+        run: npm ci --prefix functions
+
+      - name: Build functions
+        run: npm run build --prefix functions
+
+      - name: Build app
+        run: npm run build
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools@latest
+
+      - name: Deploy
+        run: firebase deploy --only "${{ inputs.target }}" --non-interactive --token "$FIREBASE_TOKEN"
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}

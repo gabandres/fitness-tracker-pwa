@@ -12,6 +12,16 @@
 # Firebase extension local secrets (uploaded to Secret Manager at deploy time)
 /extensions/*.secret.local
 
+# Local environment overrides (never committed — for per-developer keys)
+/src/environments/environment.local.ts
+.env
+.env.local
+
+# Sentry CLI auth token
+.sentryclirc
+/functions/lib
+/functions/node_modules
+
 # Node
 /node_modules
 npm-debug.log
@@ -48,3 +58,4 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+.aider*

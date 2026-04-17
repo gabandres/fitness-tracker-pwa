@@ -398,6 +398,7 @@
     "letterLead": "Escribe una carta",
     "letterEm": "a tu coach.",
     "intro": "pregunta cualquier cosa sobre tus datos. tu registro de catorce días se adjunta automáticamente. las respuestas llegan en streaming desde gemini.",
+    "notMedicalAdvice": "esto no es consejo médico — solo información. consulta un médico o nutricionista real para decisiones clínicas.",
     "remaining": "({{n}} de {{limit}} restantes hoy)",
     "questionLabel": "tu pregunta",
     "questionPlaceholder": "ej. ¿estoy bajando demasiado rápido? ¿debería mantener mi meta?",
@@ -444,7 +445,7 @@
     "useEmail": "iniciar sesión con email",
     "emailLabel": "email",
     "passwordLabel": "contraseña",
-    "passwordHint": "al menos 6 caracteres.",
+    "passwordHint": "al menos 10 caracteres, combinando letras y números.",
     "signInWithEmail": "iniciar sesión",
     "createAccount": "crear cuenta",
     "needAccount": "¿no tienes cuenta? crea una",
@@ -528,6 +529,7 @@
     "titleEmEdit": "detalles.",
     "titleEmNew": "empezar.",
     "blurb": "seis preguntas rápidas, como un minuto. todo esto se usa solo para estimar tu meta diaria de calorías — puedes cambiar cualquier cosa luego.",
+    "notMedicalAdvice": "esto no es consejo médico — los números son estimados, no una receta. consulta un médico o nutricionista antes de hacer cambios clínicos.",
     "reassurePrivate": "✓ privado para ti",
     "reassureNoSelling": "✓ no vendemos datos",
     "reassureEditable": "✓ editable cuando quieras",
@@ -602,7 +604,8 @@
     "outOfQuota": "0 restantes hoy — se reinicia medianoche utc",
     "dismissAria": "Ignorar error de foto",
     "lowConfidence": "⚠ baja confianza — verifica la estimación",
-    "errorFallback": "Falló el análisis de foto."
+    "errorFallback": "Falló el análisis de foto.",
+    "errorFileTooLarge": "Esa imagen es muy grande. Intenta con una foto menor a 15 MB."
   },
   "starter": {
     "stamp": "comienza",
@@ -620,6 +623,14 @@
     "pageTitle": "Historial — Macro Log",
     "loading": "cargando…",
     "error": "no se pudo cargar el historial. intenta de nuevo más tarde."
+  },
+  "notFound": {
+    "stamp": "404",
+    "titleLead": "página",
+    "titleEm": "no archivada.",
+    "body": "esta ruta no es parte del registro. quizás se movió o escribiste mal el url.",
+    "home": "volver a macro log",
+    "changelog": "últimos cambios"
   },
   "status": {
     "backLink": "← volver a macro log",
@@ -684,6 +695,18 @@
     "callExport": "<strong>Exportar</strong>: descarga toda tu bitácora como CSV desde el dashboard cuando quieras.",
     "callDelete": "<strong>Eliminar</strong>: usa el botón de abajo para borrar permanentemente tu cuenta y cada registro, preset, peso, medida e informe asociado. Esto es irreversible.",
     "callQuestions": "<strong>Preguntas</strong>: escribe a <a href='mailto:gabrielandresbermudez@gmail.com' class='underline'>gabrielandresbermudez&#64;gmail.com</a>.",
+    "gdprHeading": "Tus derechos bajo GDPR",
+    "gdprBody": "Si vives en el Espacio Económico Europeo, el Reino Unido o Suiza, el Reglamento General de Protección de Datos aplica a tus datos. Puedes ejercer estos derechos cuando quieras — escríbenos o usa los controles descritos en \"lo que puedes hacer\".",
+    "gdprAccess": "Acceso — pedir una copia de los datos personales que tenemos sobre ti.",
+    "gdprRectify": "Rectificación — corregir datos inexactos o incompletos desde la app o por correo.",
+    "gdprErase": "Supresión — eliminar tu cuenta y todos los datos asociados (Privacidad → Eliminar cuenta).",
+    "gdprPortable": "Portabilidad — exportar tu historial como CSV desde Panel → Exportar.",
+    "gdprRestrict": "Limitación — pedir que dejemos de procesar tus datos mientras se resuelve una disputa.",
+    "gdprObject": "Oposición — oponerte a cualquier procesamiento que consideres ilegítimo.",
+    "ccpaHeading": "Tus derechos bajo CCPA / CPRA",
+    "ccpaBody": "Si vives en California, aplican CCPA y CPRA. No vendemos ni compartimos tu información personal con terceros para publicidad conductual entre contextos, punto. Tienes derecho a saber qué datos tenemos, a pedir su eliminación y a apelar cualquier negativa. Usa los controles de exportación / eliminación mencionados arriba, o escríbenos.",
+    "jurisdictionHeading": "Responsable del tratamiento y jurisdicción",
+    "jurisdictionBody": "El responsable del tratamiento de datos de Macro Log es el dueño del producto — contacto: <a href=\"mailto:ppesoftware@gmail.com\" class=\"underline decoration-dotted\">ppesoftware@gmail.com</a>. Esta política y tu uso de Macro Log se rigen por las leyes de la jurisdicción del operador (Puerto Rico, Estados Unidos), sin consideración de principios de conflicto de leyes.",
     "medicalHeading": "Aviso médico",
     "medicalBody": "Macro Log no es un dispositivo médico, y el coach de IA no es un dietista. Nada en la app es consejo médico. Si estás haciendo algo clínicamente significativo — un déficit por debajo de 1,500 kcal, pérdida de peso de más del 1% del peso corporal por semana, o comer para tratar una condición médica — habla con un médico o nutricionista real primero.",
     "dangerStamp": "peligro",
@@ -732,7 +755,9 @@
     "photoAnalyzeFailed": "Falló el análisis de foto. Por favor intenta de nuevo.",
     "consultationQuotaExceeded": "Alcanzaste el límite diario de {{limit}} consultas. Intenta de nuevo después de medianoche UTC.",
     "presetLimitReached": "El plan gratis guarda hasta {{limit}} presets. Sube a Pro para tener presets ilimitados.",
-    "accountDeleteFailed": "Falló la eliminación de la cuenta. Por favor contacta soporte."
+    "accountDeleteFailed": "Falló la eliminación de la cuenta. Por favor contacta soporte.",
+    "photoRateLimited": "Tranquilo — espera unos segundos antes de tomar otra foto.",
+    "consultationRateLimited": "Tranquilo — espera un momento antes de preguntar de nuevo."
   },
   "tabs": {
     "log": "registro",

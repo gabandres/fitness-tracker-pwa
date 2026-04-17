@@ -108,6 +108,9 @@ describe('FitnessStore', () => {
             isSignedIn: mockIsSignedIn,
             ready: signal(true),
             user: signal(null),
+            // fitness-store gates its init effect on emailVerified(); the
+            // production service exposes this as a signal.
+            emailVerified: signal(true),
           },
         },
         { provide: FirebaseService, useValue: mockFb },
@@ -302,7 +305,9 @@ describe('FitnessStore', () => {
       mockProfile.set(completedProfile);
       mockIsSignedIn.set(true);
       TestBed.flushEffects();
-      await new Promise((r) => setTimeout(r, 10));
+      // Explicit refresh so the presets signal is guaranteed populated
+      // regardless of init-effect microtask timing.
+      await store.refresh();
 
       mockIsPaid.set(false);
       mockFb.addPreset.mockClear();

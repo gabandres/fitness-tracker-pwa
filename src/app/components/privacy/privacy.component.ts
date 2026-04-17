@@ -65,6 +65,23 @@ type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'error';
           <li [innerHTML]="t('privacy.callQuestions')"></li>
         </ul>
 
+        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('privacy.gdprHeading') }}</h2>
+        <p>{{ t('privacy.gdprBody') }}</p>
+        <ul>
+          <li>{{ t('privacy.gdprAccess') }}</li>
+          <li>{{ t('privacy.gdprRectify') }}</li>
+          <li>{{ t('privacy.gdprErase') }}</li>
+          <li>{{ t('privacy.gdprPortable') }}</li>
+          <li>{{ t('privacy.gdprRestrict') }}</li>
+          <li>{{ t('privacy.gdprObject') }}</li>
+        </ul>
+
+        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('privacy.ccpaHeading') }}</h2>
+        <p>{{ t('privacy.ccpaBody') }}</p>
+
+        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('privacy.jurisdictionHeading') }}</h2>
+        <p [innerHTML]="t('privacy.jurisdictionBody')"></p>
+
         <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('privacy.medicalHeading') }}</h2>
         <p>{{ t('privacy.medicalBody') }}</p>
       </div>

@@ -126,6 +126,9 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
           @switch (currentStep()) {
             @case (1) {
               <!-- Step 1: identity -->
+              <p class="caption text-[11px] mb-4" style="color: var(--color-graphite)">
+                {{ t('onboarding.notMedicalAdvice') }}
+              </p>
               <div>
                 <label class="data-label block mb-2">
                   {{ t('onboarding.heightLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>

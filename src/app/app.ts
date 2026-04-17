@@ -15,6 +15,7 @@ import { TermsComponent } from './components/terms/terms.component';
 import { ChangelogComponent } from './components/changelog/changelog.component';
 import { StatusComponent } from './components/status/status.component';
 import { LandingComponent } from './components/landing/landing.component';
+import { NotFoundComponent } from './components/not-found/not-found.component';
 import { SettingsSheetComponent } from './components/settings-sheet/settings-sheet.component';
 import { MobileTabsComponent, type MobileTab } from './components/mobile-tabs/mobile-tabs.component';
 import { AuthService } from './services/auth.service';
@@ -41,6 +42,7 @@ import { mediaSignal } from './utils/media';
     ChangelogComponent,
     StatusComponent,
     LandingComponent,
+    NotFoundComponent,
     SettingsSheetComponent,
     MobileTabsComponent,
     TranslocoDirective,
@@ -63,6 +65,9 @@ import { mediaSignal } from './utils/media';
           @placeholder { <div class="py-20 text-center caption">…</div> }
         } @else if (route() === 'status') {
           @defer { <app-status /> }
+          @placeholder { <div class="py-20 text-center caption">…</div> }
+        } @else if (route() === 'notFound') {
+          @defer { <app-not-found /> }
           @placeholder { <div class="py-20 text-center caption">…</div> }
         } @else if (route() === 'landing' && auth.ready() && !auth.isSignedIn()) {
           <!-- Public marketing surface at root. Bypasses the masthead +
@@ -148,15 +153,19 @@ import { mediaSignal } from './utils/media';
           </div>
           <div class="text-right shrink-0 pt-2">
             <div class="data-label">{{ todayLabel() }}</div>
-            <div class="flex items-center justify-end gap-2 mt-1">
-              <button type="button" (click)="toggleTheme()" class="tag-btn"
+            <!-- Theme + settings: spaced out with larger tap targets per
+                 UX_AUDIT S9. Previously 2-char gap at ~24px touch size was
+                 a mis-tap hazard on mobile. -->
+            <div class="flex items-center justify-end gap-4 mt-1">
+              <button type="button" (click)="toggleTheme()"
+                class="tag-btn min-w-[36px] min-h-[36px] flex items-center justify-center"
                 [attr.aria-label]="darkMode() ? t('app.masthead.themeAriaLight') : t('app.masthead.themeAriaDark')"
                 [attr.title]="t('app.masthead.themeTitle')">
                 {{ darkMode() ? t('app.masthead.themeIconLight') : t('app.masthead.themeIconDark') }}
               </button>
               @if (auth.isSignedIn() && firebase.profileCompleted()) {
                 <button type="button" (click)="showSettings.set(true)"
-                  class="tag-btn"
+                  class="tag-btn min-w-[36px] min-h-[36px] flex items-center justify-center"
                   [attr.aria-label]="t('app.masthead.settingsAria')"
                   [attr.title]="t('app.masthead.settingsTitle')">{{ t('app.masthead.settingsIcon') }}</button>
               }
@@ -358,7 +367,7 @@ export class App {
   /** URL-path based routing for the two public-static pages. Anything
       else (including '/' and unknown paths) falls through to the
       signal-gated main app. */
-  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'landing' | null>(this.detectRoute());
+  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'landing' | 'notFound' | null>(this.detectRoute());
   protected readonly updateReady = signal(false);
   protected readonly offline = signal(!navigator.onLine);
   protected readonly retryingOffline = signal(false);
@@ -443,7 +452,7 @@ export class App {
     return (this.firebase.profile() as any)?.reminderHour ?? 20;
   }
 
-  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'landing' | null {
+  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'landing' | 'notFound' | null {
     const path = window.location.pathname.toLowerCase();
     if (path === '/privacy' || path === '/privacy/') return 'privacy';
     if (path === '/terms' || path === '/terms/') return 'terms';
@@ -452,9 +461,14 @@ export class App {
     // Root path shows the public marketing surface to non-signed-in
     // visitors. Once the user signs in, the auth gate in the template
     // takes over and renders the app regardless of the 'landing' route.
-    // `/app` bypasses landing (PWA start_url + returning-user deep link).
+    // `/app` and any `/app/*` sub-path bypass landing (PWA start_url,
+    // returning-user deep links, and any future in-app route).
     if (path === '/' || path === '') return 'landing';
-    return null;
+    if (path === '/app' || path.startsWith('/app/')) return null;
+    // Unknown path → 404. Non-signed-in visitors see a branded page
+    // instead of the loading shell; signed-in users still see it and
+    // can click back into the app.
+    return 'notFound';
   }
 
   protected readonly todayLabel = computed(() => {

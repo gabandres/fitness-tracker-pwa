@@ -66,16 +66,29 @@ export class PhotoCaptureComponent {
   protected readonly photosRemaining = computed(() => this.subs.photosRemaining());
   protected readonly lastConfidence = signal<'low' | 'medium' | 'high' | null>(null);
 
+  /** Pre-resize rejection threshold. Mobile cameras routinely emit 10-12 MB
+      HEIC/JPEGs; anything past 15 MB is almost certainly a misuse (burst
+      video frame, multi-exposure raw) and would stall the canvas decode on
+      low-end devices. Server-side also caps base64 length after resize. */
+  private static readonly MAX_FILE_BYTES = 15 * 1024 * 1024;
+
   protected async onPhotoCaptured(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
 
+    if (file.size > PhotoCaptureComponent.MAX_FILE_BYTES) {
+      this.photoStatus.set('error');
+      this.photoError.set(this.translation.t('photo.errorFileTooLarge'));
+      input.value = '';
+      return;
+    }
+
     this.photoStatus.set('analyzing');
     this.photoError.set('');
 
     try {
-      const base64 = await this.resizeAndEncode(file, 1024);
+      const base64 = await this.resizeAndEncode(file, 1920);
       const result = await this.photoService.analyze(base64);
       this.subs.decrementPhotosRemaining(result.photosRemaining);
       this.lastConfidence.set(result.confidence);
@@ -116,7 +129,7 @@ export class PhotoCaptureComponent {
         const ctx = canvas.getContext('2d');
         if (!ctx) { reject(new Error('Canvas not supported')); return; }
         ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
         resolve(dataUrl.split(',')[1]);
       };
       img.onerror = () => {

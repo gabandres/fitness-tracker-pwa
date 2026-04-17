@@ -200,6 +200,38 @@ export const logWebhook = onRequest(
 // in the UX plan promises 3/day free, 30/day paid.
 const PHOTO_LIMIT_FREE = 3;
 const PHOTO_LIMIT_PAID = 30;
+// Minimum interval between photo analyses per uid. Prevents a malicious
+// client from burning the daily quota (and our Gemini budget) in a few
+// seconds. 3s is long enough to defeat scripted spam, short enough that
+// a legitimate "accidentally tapped twice" user isn't locked out for long.
+const PHOTO_MIN_INTERVAL_MS = 3_000;
+
+/**
+ * Enforce a per-uid minimum interval on the given rate-limit collection.
+ * Reads the last-call timestamp, throws if too recent, writes the new one.
+ * Used by analyzePhoto and the consultation endpoints.
+ */
+async function enforceRateLimit(
+  collectionName: string,
+  uid: string,
+  minIntervalMs: number,
+  errorCode: ErrorCode,
+): Promise<void> {
+  const ref = db.collection(collectionName).doc(uid);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const last = (snap.data()?.lastCallAt as Timestamp | undefined)?.toMillis() ?? 0;
+    const now = Date.now();
+    if (last && now - last < minIntervalMs) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "Too many requests. Please slow down.",
+        { code: errorCode, retryAfterMs: minIntervalMs - (now - last) },
+      );
+    }
+    tx.set(ref, { lastCallAt: Timestamp.now(), uid }, { merge: true });
+  });
+}
 
 export const analyzePhoto = onCall(
   { secrets: [geminiApiKey], maxInstances: 10 },
@@ -214,6 +246,10 @@ export const analyzePhoto = onCall(
     const role = (request.auth.token as { stripeRole?: string }).stripeRole;
     const unlimited = await hasUnlimitedAccess(email);
     const effectiveLimit = role === "paid" ? PHOTO_LIMIT_PAID : PHOTO_LIMIT_FREE;
+
+    // Per-uid rate limit — independent of daily quota. Runs BEFORE the
+    // quota increment so a throttled call doesn't consume a slot.
+    await enforceRateLimit("photoRateLimit", uid, PHOTO_MIN_INTERVAL_MS, ErrorCode.PHOTO_RATE_LIMITED);
 
     // ── Daily quota check (per user, resets at UTC midnight) ───────
     const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
@@ -271,6 +307,14 @@ Estimation rules:
 - When fat content is ambiguous, lean toward the higher estimate.
 - Set confidence to "low" if the image is blurry, portions are obscured, or the dish is unfamiliar.
 
+Reasoning requirement:
+- Before outputting calories and protein, populate the "reasoning" field with a concise
+  chain-of-thought that (a) identifies each item and its visual portion cues
+  (plate size, utensil scale, pile height, fill level), (b) estimates the volume or
+  mass of each item, (c) applies a density/caloric-density assumption per item, and
+  (d) sums to the final totals. The reasoning must justify the numbers — do not
+  guess the totals blindly and backfill the reasoning.
+
 Common Puerto Rican / Latin staples for reference:
 - White rice (1 cup cooked with sofrito/oil): ~290 cal, 4g protein
 - Habichuelas/beans (½ cup): ~115 cal, 6g protein
@@ -278,7 +322,10 @@ Common Puerto Rican / Latin staples for reference:
 - Tostones (2 pieces): ~160 cal, 1g protein
 - Mofongo (1 serving): ~380 cal, 4g protein
 - Pan de Bono (1 piece): ~185 cal, 6g protein
-- Arroz con pollo (1 plate): ~550 cal, 35g protein` + descriptionLangSuffix,
+- Arroz con pollo (1 plate): ~550 cal, 35g protein
+- Pan Sobao (1 medium slice, ~55g): ~170 cal, 5g protein — soft, lard-enriched PR bread, denser than French bread
+- Ground Turkey (1 cup packed / 8oz cooked): ~340 cal, 44g protein — 93/7 lean, browned crumbles
+- NaturalSlim Shake (1 scoop, ~28g powder, prepared with water): ~105 cal, 15g protein` + descriptionLangSuffix,
               },
             ],
           },
@@ -288,25 +335,41 @@ Common Puerto Rican / Latin staples for reference:
           responseMimeType: "application/json",
           responseJsonSchema: {
             type: "object",
+            // Property order matters for JSON mode: Gemini emits fields in
+            // schema order, so `reasoning` is listed FIRST to force the model
+            // to commit to its volume/density logic before producing the
+            // final integers. Swapping the order would let it guess first
+            // and rationalize after.
             properties: {
-              calories:    { type: "integer", description: "Total estimated calories" },
-              protein:     { type: "integer", description: "Total protein in grams" },
+              reasoning:   { type: "string",  description:
+                "Chain-of-thought: identify each item, estimate its volume/mass from visual cues " +
+                "(plate size, utensil scale, pile height), apply a caloric-density assumption, " +
+                "and sum. Must precede and justify the calorie/protein totals." },
+              calories:    { type: "integer", description: "Total estimated calories (must follow from reasoning)" },
+              protein:     { type: "integer", description: "Total protein in grams (must follow from reasoning)" },
               description: { type: "string",  description: "Brief 3-5 word description of the meal" },
               confidence:  { type: "string",  enum: ["low", "medium", "high"],
                              description: "Estimation confidence based on image clarity and portion visibility" },
             },
-            required: ["calories", "protein", "description", "confidence"],
+            required: ["reasoning", "calories", "protein", "description", "confidence"],
           },
         },
       });
 
       // response.text is guaranteed valid JSON matching the schema
       const parsed = JSON.parse(result.text ?? "{}") as {
+        reasoning?: string;
         calories?: number;
         protein?: number;
         description?: string;
         confidence?: string;
       };
+
+      // Log the chain-of-thought so we can audit estimation quality without
+      // surfacing it in the client response (keeps the client contract stable).
+      if (parsed.reasoning) {
+        console.log(`analyzePhoto reasoning uid=${uid}:`, parsed.reasoning);
+      }
 
       const calories = typeof parsed.calories === "number" ? Math.round(parsed.calories) : null;
       const protein = typeof parsed.protein === "number" ? Math.round(parsed.protein) : null;
@@ -357,6 +420,10 @@ Common Puerto Rican / Latin staples for reference:
 
 const CONSULTATION_LIMIT_FREE = 3;
 const CONSULTATION_LIMIT_PAID = 30;
+// Per-uid min interval for reserve + release. Covers both reserve spam
+// (which would burn Firestore writes on the quota doc) and release spam
+// (which can't build credit past zero but still wastes writes).
+const CONSULTATION_MIN_INTERVAL_MS = 1_500;
 
 export const reserveConsultation = onCall(async (request) => {
   if (!request.auth) {
@@ -365,6 +432,13 @@ export const reserveConsultation = onCall(async (request) => {
   const uid = request.auth.uid;
   const email = request.auth.token.email;
   const role = (request.auth.token as { stripeRole?: string }).stripeRole;
+
+  await enforceRateLimit(
+    "consultationRateLimit",
+    uid,
+    CONSULTATION_MIN_INTERVAL_MS,
+    ErrorCode.CONSULTATION_RATE_LIMITED,
+  );
 
   // Admins + comped friends bypass the quota entirely.
   if (await hasUnlimitedAccess(email)) {
@@ -409,6 +483,13 @@ export const releaseConsultation = onCall(async (request) => {
   }
   const uid = request.auth.uid;
   const email = request.auth.token.email;
+
+  await enforceRateLimit(
+    "consultationRateLimit",
+    uid,
+    CONSULTATION_MIN_INTERVAL_MS,
+    ErrorCode.CONSULTATION_RATE_LIMITED,
+  );
 
   // Admins + comped friends never had a slot reserved. Paid users DO
   // have a capped slot (30/day) — refund them too.
@@ -502,6 +583,47 @@ async function deleteSubcollection(
   }
 }
 
+/**
+ * Best-effort cancellation of any active Stripe subscriptions before the
+ * Firebase Auth user is deleted. Writes `cancel_at_period_end: true` onto
+ * the extension-managed subscription doc — the firestore-stripe-payments
+ * extension picks up the write and mirrors it to Stripe, which is the
+ * safe path that doesn't require us to hold the Stripe secret key here.
+ *
+ * Never throws: account deletion is a GDPR right-to-erasure path and
+ * should not be blocked on a Stripe API blip. Any failure is logged so
+ * operators can reconcile manually.
+ */
+async function cancelStripeSubscriptions(uid: string): Promise<void> {
+  try {
+    // Fetch all subscription docs and filter in memory. A `.where("status",
+    // "in", [...])` would require a composite index on the subscriptions
+    // subcollection that the Stripe extension doesn't create — without it
+    // the query throws FAILED_PRECONDITION on first run. Subscription lists
+    // per user are tiny (usually 0-2 docs), so the in-memory filter is free.
+    const snap = await db
+      .collection("customers")
+      .doc(uid)
+      .collection("subscriptions")
+      .get();
+    if (snap.empty) return;
+    const ACTIVE = new Set(["trialing", "active", "past_due"]);
+    const toCancel = snap.docs.filter((d) => ACTIVE.has(d.data()?.status as string));
+    if (toCancel.length === 0) return;
+    const batch = db.batch();
+    toCancel.forEach((d) => {
+      batch.set(d.ref, { cancel_at_period_end: true }, { merge: true });
+    });
+    await batch.commit();
+    console.log(`cancelStripeSubscriptions: marked ${toCancel.length} sub(s) cancel_at_period_end for uid=${uid}`);
+  } catch (err) {
+    console.warn(
+      `cancelStripeSubscriptions failed for uid=${uid} — Stripe customer may need manual cleanup in the dashboard.`,
+      err,
+    );
+  }
+}
+
 export const deleteAccount = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be signed in to delete your account.", { code: ErrorCode.UNAUTHENTICATED });
@@ -510,6 +632,13 @@ export const deleteAccount = onCall(async (request) => {
   const userPath = `users/${uid}`;
 
   try {
+    // 0. Flag any active Stripe subscriptions to cancel at period end so
+    //    a deleted user doesn't keep getting billed. The extension's own
+    //    auto-delete trigger handles the Stripe customer doc when the
+    //    Auth user is deleted, but doesn't cancel live subscriptions —
+    //    that's what this step is for.
+    await cancelStripeSubscriptions(uid);
+
     // 1. Delete all subcollections under users/{uid}.
     //    Subcollections known to exist: dailyLogs, presets, reports,
     //    dailyWeights, measurements. Add new ones here when introduced.
@@ -739,5 +868,56 @@ export const statusPulse = onSchedule(
     await db.doc("status/heartbeat").set({
       lastPulseAt: Timestamp.now(),
     });
+  },
+);
+
+// ─── Feature 7: Weekly Firestore backup ───────────────────────────
+//
+// Scheduled export of all Firestore collections to a GCS bucket so a
+// bad rules deploy or accidental mass-delete is recoverable. Lifecycle
+// pruning (30-day retention) is handled GCS-side — see README operator
+// checklist for the one-time bucket setup.
+//
+// We import the admin client lazily so the cold-start cost is paid only
+// by the weekly schedule, not by every HTTP function.
+
+const BACKUP_BUCKET = process.env.GCLOUD_PROJECT
+  ? `gs://${process.env.GCLOUD_PROJECT}-backups`
+  : "";
+
+export const weeklyFirestoreBackup = onSchedule(
+  { schedule: "0 6 * * 0", timeZone: "UTC" },
+  async () => {
+    if (!BACKUP_BUCKET) {
+      console.warn("weeklyFirestoreBackup: GCLOUD_PROJECT env not set — skipping.");
+      return;
+    }
+    // Dynamic import — @google-cloud/firestore is a transitive of
+    // firebase-admin, no direct dep needed.
+    const { v1 } = await import("@google-cloud/firestore");
+    const client = new v1.FirestoreAdminClient();
+    const databaseName = client.databasePath(
+      process.env.GCLOUD_PROJECT!,
+      "(default)",
+    );
+    const outputUri = `${BACKUP_BUCKET}/firestore/${new Date().toISOString().split("T")[0]}`;
+    try {
+      const [operation] = await client.exportDocuments({
+        name: databaseName,
+        outputUriPrefix: outputUri,
+        collectionIds: [], // empty = export all
+      });
+      console.log(
+        `weeklyFirestoreBackup: export started → ${outputUri}. operation=${operation.name}`,
+      );
+    } catch (err) {
+      // Typical first-run failure: bucket doesn't exist yet. Log and
+      // continue — this function is opt-in infrastructure.
+      console.error(
+        `weeklyFirestoreBackup: export failed. Ensure ${BACKUP_BUCKET} exists and ` +
+        "Firebase service account has roles/datastore.importExportAdmin. Error:",
+        err,
+      );
+    }
   },
 );

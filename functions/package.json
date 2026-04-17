@@ -7,7 +7,8 @@
   "scripts": {
     "build": "tsc",
     "serve": "npm run build && firebase emulators:start --only functions",
-    "deploy": "firebase deploy --only functions"
+    "deploy": "firebase deploy --only functions",
+    "test:rules": "firebase emulators:exec --only firestore \"vitest run --config vitest.config.ts\""
   },
   "dependencies": {
     "firebase-admin": "^13.4.0",
@@ -15,6 +16,9 @@
     "@google/genai": "^1.48.0"
   },
   "devDependencies": {
-    "typescript": "~5.9.0"
+    "typescript": "~5.9.0",
+    "vitest": "^4.0.8",
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "firebase": "^12.11.0"
   }
 }

@@ -94,9 +94,17 @@ type Method = 'google' | 'microsoft' | 'email';
             @if (mode() !== 'reset') {
               <div>
                 <label class="data-label block mb-1" for="signin-password">{{ t('signin.passwordLabel') }}</label>
+                <!-- Sign-up enforces a stronger policy (min 10 + at least
+                     one letter + one digit) via an HTML pattern. Sign-in
+                     uses the legacy minlength so existing users with
+                     older weaker passwords can still authenticate; the
+                     real server-side policy is configured in Firebase
+                     Auth settings (see README operator checklist). -->
                 <input id="signin-password" type="password" name="password"
                   [autocomplete]="mode() === 'signup' ? 'new-password' : 'current-password'"
-                  required minlength="6"
+                  required
+                  [minlength]="mode() === 'signup' ? 10 : 6"
+                  [pattern]="mode() === 'signup' ? '(?=.*[A-Za-z])(?=.*\\d)[^\\s]{10,}' : '.*'"
                   [(ngModel)]="passwordValue"
                   class="w-full bg-paper-deep/40 border border-rule/40 rounded px-3 py-2 font-mono text-sm text-ink"
                   [attr.aria-label]="t('signin.passwordLabel')" />

@@ -144,7 +144,7 @@ Ordered by severity. Severity is impact × how many users hit it, not effort.
 
 - [x] Date chip: differentiated the two signals — has-data dot is now olive, today border stays oxblood *(2026-04-12)*
 - [x] Add once-per-session swipe hint on ledger ("swipe to change day ↔") *(2026-04-13)*
-- [ ] Space sign-out / theme toggle apart + add icons; currently 2 chars apart, easy to mis-tap
+- [x] Space sign-out / theme toggle apart + add icons; currently 2 chars apart, easy to mis-tap *(2026-04-17)*
 
 ---
 

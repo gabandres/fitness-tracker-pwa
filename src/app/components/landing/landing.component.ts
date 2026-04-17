@@ -1,9 +1,5 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
-import { AuthService } from '../../services/auth.service';
-import { TranslationService } from '../../services/translation.service';
-
-type Status = 'idle' | 'signing' | 'error';
 
 /**
  * Public marketing surface at `/`. Shows when the user is not signed
@@ -44,20 +40,11 @@ type Status = 'idle' | 'signing' | 'error';
         </p>
 
         <div class="mt-8 flex flex-wrap items-center gap-3">
-          <button type="button" (click)="signIn()"
-            [disabled]="status() === 'signing'"
-            class="stamp-btn">
-            <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" aria-hidden="true" fill="currentColor">
-              <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/>
-            </svg>
-            {{ status() === 'signing' ? t('landing.signingIn') : t('landing.startLogging') }}
-          </button>
+          <a href="/app" class="stamp-btn">
+            {{ t('landing.startLogging') }}
+          </a>
           <a href="#pricing" class="tag-btn">{{ t('landing.seePricing') }}</a>
         </div>
-
-        @if (status() === 'error') {
-          <p class="font-mono text-[11px] text-blood mt-4 leading-relaxed">✕ {{ errorMsg() }}</p>
-        }
 
         <div class="ruler-edge mt-10">
           @for (_ of ticks; track $index) { <span></span> }
@@ -159,11 +146,9 @@ type Status = 'idle' | 'signing' | 'error';
             <em class="text-blood">{{ t('landing.ctaEm') }}</em>
           </h2>
           <div class="mt-6 flex justify-center">
-            <button type="button" (click)="signIn()"
-              [disabled]="status() === 'signing'"
-              class="stamp-btn">
-              {{ status() === 'signing' ? t('landing.signingIn') : t('landing.startLoggingCta') }}
-            </button>
+            <a href="/app" class="stamp-btn">
+              {{ t('landing.startLoggingCta') }}
+            </a>
           </div>
           <p class="caption mt-4 text-[11px]">{{ t('landing.ctaFinePrint') }}</p>
         </div>
@@ -173,26 +158,5 @@ type Status = 'idle' | 'signing' | 'error';
   `,
 })
 export class LandingComponent {
-  private readonly auth = inject(AuthService);
-  private readonly translation = inject(TranslationService);
-
-  protected readonly status = signal<Status>('idle');
-  protected readonly errorMsg = signal('');
   protected readonly ticks = Array.from({ length: 45 });
-
-  protected async signIn(): Promise<void> {
-    this.status.set('signing');
-    this.errorMsg.set('');
-    try {
-      await this.auth.signInWithGoogle();
-    } catch (err: unknown) {
-      const code = (err as { code?: string })?.code;
-      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-        this.status.set('idle');
-        return;
-      }
-      this.status.set('error');
-      this.errorMsg.set(err instanceof Error ? err.message : this.translation.t('signin.errorFallback'));
-    }
-  }
 }

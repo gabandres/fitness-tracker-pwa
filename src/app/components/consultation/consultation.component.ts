@@ -42,6 +42,9 @@ interface SuggestedPrompt {
             </span>
           }
         </p>
+        <p class="caption mt-1 text-[10px]" style="color: var(--color-graphite)">
+          {{ t('consultation.notMedicalAdvice') }}
+        </p>
       </div>
 
       <!-- Suggested prompts -->

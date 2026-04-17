@@ -156,3 +156,38 @@ Once the test flow works end-to-end:
 - **Stripe fees.** $3/mo nets ~$2.61/sub/mo. $24/yr nets ~$22.97/sub/yr after fees (2.9% + $0.30 US card).
 - **Refunds.** Full refund through the Stripe dashboard — no app work needed. Customer portal does not expose refunds (deliberate; you control that flow).
 - **Cancellations.** Users cancel via the Customer Portal. Subscription stays active until `current_period_end`, then status flips to `canceled`. UI handles gracefully — `isPaid` becomes false at period end.
+
+## Webhook event → observable effect
+
+The `firestore-stripe-payments` extension handles all webhook events; we don't run custom handlers. The table below records the app-level effect each event should produce, so future regressions are easier to spot.
+
+| Stripe event | Extension writes to | App effect |
+| --- | --- | --- |
+| `checkout.session.completed` | `customers/{uid}/checkout_sessions/{id}` (url cleared) | Checkout redirect resolves; no additional client work. |
+| `customer.subscription.created` | `customers/{uid}/subscriptions/{id}` with `status='trialing'` or `'active'` | `SubscriptionService._subscription` fills in; `stripeRole=paid` custom claim set; `isPaid()` flips true; ID token refreshed on next effect tick. |
+| `customer.subscription.updated` | Same doc, status may change | Claim re-sync; `subscription` signal updates. |
+| `invoice.paid` | `customers/{uid}/payments/{id}` + subscription `status='active'` | `isPaid()` stays true; "Manage subscription" remains. |
+| `invoice.payment_failed` | Subscription `status='past_due'` | `_subscriptionActive` stays true (we treat `past_due` as paid for the grace window); claim may still be `paid`. Customer Portal prompts them to fix the card. |
+| `customer.subscription.deleted` | Subscription `status='canceled'` | `isPaid()` flips false at period end; Subscribe card returns. |
+
+If a subscription doc is written but `isPaid()` stays false for 10s, `SubscriptionService` logs a warning — look for `[SubscriptionService]` in the browser console or Sentry breadcrumbs. Indicates the extension's claim-sync trigger is lagging.
+
+## Manual smoke test (use after extension re-install)
+
+Run with the Stripe CLI (`stripe login`, then):
+
+```sh
+# 1. Create a test customer + subscription (fills customers/{uid}/subscriptions)
+stripe trigger customer.subscription.created
+
+# 2. Simulate a renewal
+stripe trigger customer.subscription.updated
+
+# 3. Simulate a payment failure (user becomes past_due)
+stripe trigger invoice.payment_failed
+
+# 4. Simulate cancellation
+stripe trigger customer.subscription.deleted
+```
+
+After each, check the Firestore UI at `customers/{your-test-uid}/subscriptions` and the app's Subscribe card — renewal copy + `isPaid()` should match the expected state from the table above.

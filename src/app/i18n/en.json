@@ -392,6 +392,7 @@
     "letterLead": "Write a letter",
     "letterEm": "to your coach.",
     "intro": "ask anything about your data. your fourteen-day record is attached automatically. responses are streamed from gemini.",
+    "notMedicalAdvice": "not medical advice — for information only. talk to a real doctor or RD for clinical decisions.",
     "remaining": "({{n}} of {{limit}} left today)",
     "questionLabel": "your question",
     "questionPlaceholder": "e.g. am i losing too quickly? should i hold my target?",
@@ -438,7 +439,7 @@
     "useEmail": "sign in with email",
     "emailLabel": "email",
     "passwordLabel": "password",
-    "passwordHint": "at least 6 characters.",
+    "passwordHint": "at least 10 characters, mixing letters and numbers.",
     "signInWithEmail": "sign in",
     "createAccount": "create account",
     "needAccount": "need an account? create one",
@@ -522,6 +523,7 @@
     "titleEmEdit": "particulars.",
     "titleEmNew": "begin.",
     "blurb": "six quick answers, about a minute. everything here is used only to estimate your daily calorie target — you can change any of it later.",
+    "notMedicalAdvice": "not medical advice — these numbers are estimates, not a prescription. talk to a doctor or RD before making clinical changes.",
     "reassurePrivate": "✓ private to you",
     "reassureNoSelling": "✓ no data selling",
     "reassureEditable": "✓ editable anytime",
@@ -596,7 +598,8 @@
     "outOfQuota": "0 left today — resets midnight utc",
     "dismissAria": "Dismiss photo error",
     "lowConfidence": "⚠ low confidence — verify estimate",
-    "errorFallback": "Photo analysis failed."
+    "errorFallback": "Photo analysis failed.",
+    "errorFileTooLarge": "That image is too large. Try a photo under 15 MB."
   },
   "starter": {
     "stamp": "start",
@@ -614,6 +617,14 @@
     "pageTitle": "Changelog — Macro Log",
     "loading": "loading…",
     "error": "couldn't load the changelog. please try again later."
+  },
+  "notFound": {
+    "stamp": "404",
+    "titleLead": "page",
+    "titleEm": "not filed.",
+    "body": "this path isn't part of the ledger. it may have moved, or you may have mistyped the url.",
+    "home": "back to macro log",
+    "changelog": "recent ships"
   },
   "status": {
     "backLink": "← back to macro log",
@@ -678,6 +689,18 @@
     "callExport": "<strong>Export</strong>: download all your logs as CSV from the dashboard at any time.",
     "callDelete": "<strong>Delete</strong>: use the button below to permanently erase your account and every log, preset, weight, measurement, and report tied to it. This is irreversible.",
     "callQuestions": "<strong>Questions</strong>: email <a href='mailto:gabrielandresbermudez@gmail.com' class='underline'>gabrielandresbermudez&#64;gmail.com</a>.",
+    "gdprHeading": "Your rights under GDPR",
+    "gdprBody": "If you live in the European Economic Area, the UK, or Switzerland, the General Data Protection Regulation applies to your data. You can exercise the following rights at any time — email us or use the in-app controls described in \"what you can do\" above.",
+    "gdprAccess": "Access — ask for a copy of the personal data we hold about you.",
+    "gdprRectify": "Rectification — correct any inaccurate or incomplete data through the app or by emailing us.",
+    "gdprErase": "Erasure — delete your account and all associated data (Privacy → Delete account).",
+    "gdprPortable": "Portability — export your logs as CSV from Dashboard → Export.",
+    "gdprRestrict": "Restriction — ask us to stop processing your data while a dispute is resolved.",
+    "gdprObject": "Objection — object to any processing you believe isn't legitimate.",
+    "ccpaHeading": "Your rights under CCPA / CPRA",
+    "ccpaBody": "If you live in California, the CCPA and CPRA apply. We do not sell or share your personal information with third parties for cross-context behavioural advertising, full stop. You have the right to know what personal data we hold, to request deletion, and to appeal any denial. Use the same export / delete controls above, or email us directly.",
+    "jurisdictionHeading": "Data controller & jurisdiction",
+    "jurisdictionBody": "The data controller for Macro Log is the product owner — contact: <a href=\"mailto:ppesoftware@gmail.com\" class=\"underline decoration-dotted\">ppesoftware@gmail.com</a>. This policy and your use of Macro Log are governed by the laws of the operator's home jurisdiction (Puerto Rico, United States), without regard to conflict-of-law principles.",
     "medicalHeading": "Medical disclaimer",
     "medicalBody": "Macro Log is not a medical device, and the AI coach is not a dietician. Nothing in the app is medical advice. If you're doing anything clinically meaningful — a cut below 1,500 kcal, weight loss of more than 1% body weight per week, or eating for a medical condition — talk to a real human doctor or RD first.",
     "dangerStamp": "danger",
@@ -726,7 +749,9 @@
     "photoAnalyzeFailed": "Photo analysis failed. Please try again.",
     "consultationQuotaExceeded": "Daily limit of {{limit}} consultations reached. Try again after midnight UTC.",
     "presetLimitReached": "Free plan holds up to {{limit}} presets. Upgrade to Pro for unlimited.",
-    "accountDeleteFailed": "Account deletion failed. Please contact support."
+    "accountDeleteFailed": "Account deletion failed. Please contact support.",
+    "photoRateLimited": "Easy there — wait a few seconds before taking another photo.",
+    "consultationRateLimited": "Easy there — wait a moment before asking again."
   },
   "tabs": {
     "log": "log",

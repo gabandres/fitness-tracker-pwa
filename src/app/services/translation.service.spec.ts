@@ -7,10 +7,13 @@ import { TranslationService } from './translation.service';
 // Lightweight mock of TranslocoService — we only exercise the surface the
 // TranslationService actually calls. No Angular DI, no TestBed; matches the
 // pure-function style in tdee-calculator.service.spec.ts.
+// Vitest 4 tightened `vi.fn()` return types — without an explicit signature
+// the inferred `Mock<Procedure>` isn't directly callable in strict TS (TS2348).
+// Each fn gets a concrete call signature below.
 type TranslocoMock = {
-  setActiveLang: ReturnType<typeof vi.fn>;
-  translate: ReturnType<typeof vi.fn>;
-  events$: { subscribe: ReturnType<typeof vi.fn> };
+  setActiveLang: ReturnType<typeof vi.fn<(lang: string) => void>>;
+  translate: ReturnType<typeof vi.fn<(key: string, params?: unknown, lang?: string) => string>>;
+  events$: { subscribe: ReturnType<typeof vi.fn<(fn: unknown) => { unsubscribe: () => void }>> };
 };
 
 function makeService(opts: { navLang?: string; stored?: string | null } = {}) {
@@ -24,9 +27,15 @@ function makeService(opts: { navLang?: string; stored?: string | null } = {}) {
   });
 
   const transloco: TranslocoMock = {
-    setActiveLang: vi.fn(),
-    translate: vi.fn((key: string) => `t:${key}`),
-    events$: { subscribe: vi.fn() },
+    setActiveLang: vi.fn<(lang: string) => void>(),
+    translate: vi.fn<(key: string, params?: unknown, lang?: string) => string>(
+      (key: string) => `t:${key}`,
+    ),
+    events$: {
+      subscribe: vi.fn<(fn: unknown) => { unsubscribe: () => void }>(() => ({
+        unsubscribe: () => undefined,
+      })),
+    },
   };
 
   // Build a service instance without invoking the decorated constructor (which

@@ -2,14 +2,15 @@
 import '@angular/compiler';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { afterEach, describe, beforeEach, expect, it, vi } from 'vitest';
 import { provideTranslocoConfig } from '../../i18n/transloco.providers';
 import { FirebaseService } from '../../services/firebase.service';
 import { TranslationService } from '../../services/translation.service';
 import { OnboardingComponent } from './onboarding.component';
 
-TestBed.initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
+// The Angular 21 vitest runner (@angular/build) auto-inits the test
+// environment — calling initTestEnvironment here throws "Cannot set base
+// providers because it has already been called".
 
 describe('OnboardingComponent', () => {
   const saveProfile = vi.fn<(...args: any[]) => Promise<void>>().mockResolvedValue(undefined);

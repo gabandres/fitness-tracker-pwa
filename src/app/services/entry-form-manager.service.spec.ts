@@ -4,6 +4,7 @@ import { signal } from '@angular/core';
 import { EntryFormManager } from './entry-form-manager.service';
 import { FitnessStore } from './fitness-store.service';
 import { DailyLog } from './firebase.service';
+import { TranslationService } from './translation.service';
 
 describe('EntryFormManager', () => {
   let form: EntryFormManager;
@@ -30,6 +31,26 @@ describe('EntryFormManager', () => {
       providers: [
         EntryFormManager,
         { provide: FitnessStore, useValue: mockStore },
+        // Avoid pulling in the real TranslocoService (needs TRANSLOCO_TRANSPILER).
+        // Returns the literal English strings for the small set of keys the
+        // service touches so existing assertions against human-readable text
+        // still match.
+        {
+          provide: TranslationService,
+          useValue: {
+            t: (key: string) => {
+              const table: Record<string, string> = {
+                'entry.errorCaloriesRequired': 'Calories are required.',
+                'entry.errorSave': 'Could not save entry.',
+                'entry.errorDelete': 'Could not delete entry.',
+                'entry.errorPresetLimit': 'Preset limit reached.',
+              };
+              return table[key] ?? key;
+            },
+            tError: (code: unknown) => String(code ?? 'errors.unknown'),
+            language: signal('en'),
+          },
+        },
       ],
     });
 
