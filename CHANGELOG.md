@@ -6,6 +6,16 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-17 — Product-shape S3 pass (#7-A, #8-A, #11-A)
+
+Three S3 audit items that deserved product reasoning before code. Each shipped as the minimal "A" option — reversible, telemetry-ready, leaves room to iterate once we have usage data.
+
+- **Consultation suggested prompts de-emphasized (#7-A).** Pills dropped from `text-xs` + full opacity to `text-[10px]` + 75% opacity, wrapped in a "examples · tap to prefill, or type your own below" caption. Signals "discovery scaffold, not required" so first-time users don't freeze wondering if they have to pick one. Easy to promote back if telemetry shows suggestion usage is high.
+- **Tablet breakpoint fixed (#8-A).** Responsive boundary shifted from `lg` (1024px) to `md` (768px) across `app.ts` layout grid, `isDesktop` media signal, and `mobile-tabs.component.ts`. iPad portrait and landscape now get the two-column desktop layout instead of mobile tabs over wasted width. Phones below 768px unchanged. Prior 1024 cutoff was a Tailwind default imported without rationale — comment added so the next contributor knows it was a deliberate 768 choice.
+- **CSV export metadata (#11-A).** Export button gained a `title` attr describing the filename pattern (`macrolog-export-YYYY-MM-DD.csv`) and a caption below the action row explaining format + where iOS files land ("check Files → Downloads if nothing happens"). Addresses the silent-fail problem on iOS Safari where CSV downloads can open in unexpected apps without visible feedback. en + es-PR.
+
+Skipped the "B" and "C" options (export modal, analytics dashboard) pending telemetry — see session notes for the full reasoning.
+
 ## 2026-04-17 — Micro-polish (S3 quick wins)
 
 Four-item micro-polish pass on the S3 backlog. Two of the four turned out to be false positives in the audit — documented here so we don't re-open them.

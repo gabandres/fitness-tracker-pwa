@@ -398,17 +398,27 @@ interface SparklinePoint { x: number; y: number; }
         }
 
         <!-- Actions -->
-        <div class="mt-5 flex items-center justify-between">
-          <div class="flex items-center gap-2 min-w-0">
-            <button type="button" (click)="exportCsv()" class="tag-btn">{{ t('dashboard.actionExport') }}</button>
-            @if (!subs.isPaid()) {
-              <span class="caption text-[10px] truncate">{{ t('dashboard.exportFreeCaption', { days: csvExportDaysFree }) }}</span>
-            }
+        <div class="mt-5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2 min-w-0">
+              <button type="button" (click)="exportCsv()"
+                [attr.title]="t('dashboard.exportTitle')"
+                class="tag-btn">{{ t('dashboard.actionExport') }}</button>
+              @if (!subs.isPaid()) {
+                <span class="caption text-[10px] truncate">{{ t('dashboard.exportFreeCaption', { days: csvExportDaysFree }) }}</span>
+              }
+            </div>
+            <button type="button" (click)="store.refresh()" class="tag-btn"
+              [disabled]="store.status() === 'loading'">
+              {{ store.status() === 'loading' ? t('dashboard.loading') : t('dashboard.refresh') }}
+            </button>
           </div>
-          <button type="button" (click)="store.refresh()" class="tag-btn"
-            [disabled]="store.status() === 'loading'">
-            {{ store.status() === 'loading' ? t('dashboard.loading') : t('dashboard.refresh') }}
-          </button>
+          <!-- Format hint — shipped because iOS silently opens CSVs in
+               unexpected apps and users otherwise can't tell if the
+               "export" button actually did anything. -->
+          <p class="caption text-[10px] mt-2" style="color: var(--color-graphite)">
+            {{ t('dashboard.exportFormatHint') }}
+          </p>
         </div>
       }
     </section>

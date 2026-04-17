@@ -276,6 +276,8 @@
     "legendSmoothed": "— suavizado",
     "actionExport": "↓ exportar csv",
     "exportFreeCaption": "últimos {{days}} días — sube a pro pa' historial completo",
+    "exportTitle": "descarga como macrolog-export-YYYY-MM-DD.csv",
+    "exportFormatHint": "CSV — abre en Numbers, Excel o Sheets. en iOS, revisa Archivos → Descargas si no pasa nada.",
     "csvExercise": "sí"
   },
   "daily": {
@@ -405,6 +407,7 @@
     "intro": "pregunta cualquier cosa sobre tus datos. tu registro de catorce días se adjunta automáticamente. las respuestas llegan en streaming desde gemini.",
     "notMedicalAdvice": "esto no es consejo médico — solo información. consulta un médico o nutricionista real para decisiones clínicas.",
     "resetHint": "cuota diaria de consultas se reinicia a medianoche UTC",
+    "suggestionsLabel": "ejemplos · toca para rellenar, o escribe tu propia pregunta abajo",
     "remaining": "({{n}} de {{limit}} restantes hoy)",
     "questionLabel": "tu pregunta",
     "questionPlaceholder": "ej. ¿estoy bajando demasiado rápido? ¿debería mantener mi meta?",

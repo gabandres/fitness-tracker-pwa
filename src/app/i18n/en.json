@@ -270,6 +270,8 @@
     "legendSmoothed": "— smoothed",
     "actionExport": "↓ export csv",
     "exportFreeCaption": "last {{days}} days — pro for full history",
+    "exportTitle": "downloads as macrolog-export-YYYY-MM-DD.csv",
+    "exportFormatHint": "CSV — opens in Numbers, Excel, or Sheets. on iOS, check Files → Downloads if nothing happens.",
     "csvExercise": "yes"
   },
   "daily": {
@@ -399,6 +401,7 @@
     "intro": "ask anything about your data. your fourteen-day record is attached automatically. responses are streamed from gemini.",
     "notMedicalAdvice": "not medical advice — for information only. talk to a real doctor or RD for clinical decisions.",
     "resetHint": "daily consultation quota resets at midnight UTC",
+    "suggestionsLabel": "examples · tap to prefill, or type your own below",
     "remaining": "({{n}} of {{limit}} left today)",
     "questionLabel": "your question",
     "questionPlaceholder": "e.g. am i losing too quickly? should i hold my target?",

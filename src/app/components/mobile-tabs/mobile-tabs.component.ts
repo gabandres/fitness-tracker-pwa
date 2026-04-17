@@ -16,7 +16,7 @@ const TABS: { id: MobileTab; labelKey: string }[] = [
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-      <nav class="fixed bottom-0 inset-x-0 z-40 lg:hidden"
+      <nav class="fixed bottom-0 inset-x-0 z-40 md:hidden"
         role="tablist"
         [attr.aria-label]="t('tabs.ariaLabel')"
         style="background: var(--color-paper); border-top: 1px solid var(--color-rule);

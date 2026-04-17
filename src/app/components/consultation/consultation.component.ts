@@ -48,18 +48,26 @@ interface SuggestedPrompt {
         </p>
       </div>
 
-      <!-- Suggested prompts -->
-      <div class="mt-6 flex flex-wrap gap-2">
-        @for (p of suggested; track p.promptKey) {
-          <button
-            type="button"
-            (click)="useSuggestion(t(p.promptKey))"
-            [disabled]="status() === 'streaming'"
-            class="tag-btn text-xs"
-          >
-            {{ t(p.labelKey) }}
-          </button>
-        }
+      <!-- Suggested prompts — discovery scaffold, not the primary flow.
+           De-emphasized (caption label + smaller/lighter pills) so
+           first-time users read them as "examples" rather than
+           "required pick one" next to the main ask button. -->
+      <div class="mt-6">
+        <p class="caption text-[10px] mb-2" style="color: var(--color-graphite)">
+          {{ t('consultation.suggestionsLabel') }}
+        </p>
+        <div class="flex flex-wrap gap-1.5">
+          @for (p of suggested; track p.promptKey) {
+            <button
+              type="button"
+              (click)="useSuggestion(t(p.promptKey))"
+              [disabled]="status() === 'streaming'"
+              class="tag-btn text-[10px] opacity-75 hover:opacity-100 transition-opacity"
+            >
+              {{ t(p.labelKey) }}
+            </button>
+          }
+        </div>
       </div>
 
       <!-- Composer -->

@@ -51,8 +51,8 @@ import { mediaSignal } from './utils/media';
   template: `
     <ng-container *transloco="let t">
     <a href="#main" class="skip-link">{{ t('app.skipToMain') }}</a>
-    <main id="main" class="min-h-screen px-5 sm:px-8 lg:px-12 py-8 sm:py-12 pb-20 lg:pb-12">
-      <div class="max-w-[560px] lg:max-w-[1100px] mx-auto">
+    <main id="main" class="min-h-screen px-5 sm:px-8 md:px-12 py-8 sm:py-12 pb-20 md:pb-12">
+      <div class="max-w-[560px] md:max-w-[1100px] mx-auto">
 
         @if (route() === 'privacy') {
           @defer { <app-privacy /> }
@@ -271,10 +271,10 @@ import { mediaSignal } from './utils/media';
               }
             }
             <!-- Responsive layout: single column on mobile (tabbed), two columns on desktop -->
-            <div class="lg:grid lg:grid-cols-[1fr_1.15fr] lg:gap-10 lg:items-start">
+            <div class="md:grid md:grid-cols-[1fr_1.15fr] md:gap-10 md:items-start">
               <!-- Left column: Daily ledger (tab: log) -->
               @if (isDesktop() || activeTab() === 'log') {
-                <div class="ink-in delay-3 lg:sticky lg:top-8"
+                <div class="ink-in delay-3 md:sticky md:top-8"
                   [attr.role]="isDesktop() ? null : 'tabpanel'"
                   [id]="'tabpanel-log'"
                   [attr.aria-labelledby]="isDesktop() ? null : 'tab-log'">
@@ -284,7 +284,7 @@ import { mediaSignal } from './utils/media';
               <!-- Right column: analytics + body tools.
                    Desktop always shows all; mobile splits into tabs. -->
               @if (isDesktop() || activeTab() === 'insights' || activeTab() === 'body') {
-                <div class="space-y-12 mt-12 lg:mt-0">
+                <div class="space-y-12 mt-12 md:mt-0">
                   @if (isDesktop() || activeTab() === 'insights') {
                     <div class="ink-in delay-3"
                       [attr.role]="isDesktop() ? null : 'tabpanel'"
@@ -363,7 +363,12 @@ export class App {
   protected readonly editingProfile = signal(false);
   protected readonly showSettings = signal(false);
   protected readonly activeTab = signal<MobileTab>('log');
-  protected readonly isDesktop = mediaSignal('(min-width: 1024px)');
+  // Two-column layout kicks in at 768px (md) so iPad portrait and tablets
+  // in general get the full desktop experience instead of mobile-tabs +
+  // wasted width. Below 768px we stay single-column with the bottom tab
+  // bar. Prior value of 1024px was a Tailwind-default import that never
+  // had a design rationale — tablets were getting a phone layout.
+  protected readonly isDesktop = mediaSignal('(min-width: 768px)');
   /** URL-path based routing for the two public-static pages. Anything
       else (including '/' and unknown paths) falls through to the
       signal-gated main app. */
