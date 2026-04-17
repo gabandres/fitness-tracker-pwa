@@ -443,7 +443,7 @@
     "thenRenewsAt": "then renews at {{price}}.",
     "active": "active",
     "renewsAt": ", renews {{date}} at {{price}}.",
-    "renewsMonthly": ", renews monthly at {{price}}.",
+    "renewsMonthly": ", renews at {{price}}.",
     "paymentPastDue": "payment past due",
     "paymentPastDueSuffix": "— update your card to keep access.",
     "opening": "opening…",

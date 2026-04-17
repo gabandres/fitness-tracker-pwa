@@ -8,11 +8,16 @@ import { SubscriptionService } from '../../services/subscription.service';
  *
  * Rendered inside the footer (or wherever settings live). Handles
  * three states:
- *   1. Not configured — Stripe price ID not set. Shows nothing. This
- *      is the default until the Firebase Extension is installed and
- *      the price ID is pasted into environment.ts.
- *   2. Not subscribed — shows "Support Macro Log · $X/mo" button.
- *   3. Subscribed (trialing or active) — shows status + "Manage" button.
+ *   1. Not configured — neither monthly nor annual Stripe price ID is
+ *      set in environment.ts. Shows nothing. This is the default
+ *      until the Firebase Extension is installed and the price IDs
+ *      are pasted in.
+ *   2. Not subscribed — shows pitch + cadence toggle (monthly/annual)
+ *      + "Support Macro Log · $X" button. Toggle hides if only one
+ *      cadence is configured.
+ *   3. Subscribed (trialing or active) — shows status + "Manage"
+ *      button. Renewal copy adapts to the active subscription's
+ *      cadence via displayPriceFor().
  *
  * We do NOT gate features behind subscription status yet; this is a
  * voluntary-support surface. Hard gates come in a later PR once there

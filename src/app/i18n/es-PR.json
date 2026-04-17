@@ -449,7 +449,7 @@
     "thenRenewsAt": "luego se renueva a {{price}}.",
     "active": "activa",
     "renewsAt": ", se renueva el {{date}} a {{price}}.",
-    "renewsMonthly": ", se renueva mensualmente a {{price}}.",
+    "renewsMonthly": ", se renueva a {{price}}.",
     "paymentPastDue": "pago vencido",
     "paymentPastDueSuffix": "— actualiza tu tarjeta para mantener el acceso.",
     "opening": "abriendo…",
