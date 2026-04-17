@@ -430,6 +430,7 @@
     "caption": "google con un clic, o email + contraseña. la sesión permanece hasta que cierres sesión.",
     "signingIn": "iniciando sesión…",
     "signInWithGoogle": "iniciar sesión con google",
+    "signInWithMicrosoft": "iniciar sesión con microsoft",
     "or": "o",
     "useEmail": "iniciar sesión con email",
     "emailLabel": "email",

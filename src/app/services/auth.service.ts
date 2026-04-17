@@ -3,6 +3,7 @@ import {
   Auth,
   User,
   GoogleAuthProvider,
+  OAuthProvider,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendEmailVerification,
@@ -17,10 +18,8 @@ import {
  *
  * Providers supported:
  *   - Google (popup)
+ *   - Microsoft (popup; multi-tenant + personal accounts)
  *   - Email/password (with required email verification)
- *
- * Microsoft is wired in a follow-up commit (needs an Azure App
- * Registration).
  *
  * Verification gate: Firestore rules require `email_verified == true`
  * for all writes. Google returns verified emails by default. Password
@@ -67,6 +66,27 @@ export class AuthService {
     // Always show account chooser — avoids the "silently signed in as
     // the wrong Google account" footgun for people with multiple accounts.
     provider.setCustomParameters({ prompt: 'select_account' });
+    await signInWithPopup(this.auth, provider);
+  }
+
+  /**
+   * Opens the Microsoft sign-in popup. Backed by an Azure App
+   * Registration (audience: AzureADandPersonalMicrosoftAccount), so
+   * personal Microsoft accounts (outlook/hotmail/live) AND any work
+   * or school account can sign in. Provider must be enabled in
+   * Firebase Console with the Azure app's client ID + secret.
+   */
+  async signInWithMicrosoft(): Promise<void> {
+    const provider = new OAuthProvider('microsoft.com');
+    // Force the account chooser instead of silently reusing whichever
+    // Microsoft account the browser last authenticated. Same rationale
+    // as `prompt: select_account` for Google.
+    provider.setCustomParameters({ prompt: 'select_account' });
+    // Request the standard OIDC scopes so Firebase can populate
+    // user.email + user.displayName. `email` also flips
+    // emailVerified=true on the resulting Firebase user.
+    provider.addScope('email');
+    provider.addScope('profile');
     await signInWithPopup(this.auth, provider);
   }
 

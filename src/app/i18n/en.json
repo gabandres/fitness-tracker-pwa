@@ -424,6 +424,7 @@
     "caption": "google in one click, or email + password. session stays until you sign out.",
     "signingIn": "signing in…",
     "signInWithGoogle": "sign in with google",
+    "signInWithMicrosoft": "sign in with microsoft",
     "or": "or",
     "useEmail": "sign in with email",
     "emailLabel": "email",

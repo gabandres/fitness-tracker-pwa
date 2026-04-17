@@ -6,6 +6,12 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-17 — Microsoft sign-in (Slice A2)
+
+- **Microsoft provider live.** Azure App Registration `Macro Log` (`appId 80eaaf29-9de3-4912-a08a-7f0c6009e310`, audience `AzureADandPersonalMicrosoftAccount`) wired to Firebase Auth. Anyone with a personal Microsoft account (outlook/hotmail/live) or a work/school Azure AD account can sign in.
+- **Sign-in component**: Microsoft button rendered next to Google with the brand 4-square logo (inline SVG). Both buttons share a `runPopup()` wrapper so spinner/cancellation/error mapping stays DRY.
+- **Provider scopes**: `email` + `profile` — Firebase populates `email` and `displayName` from the Microsoft Graph response. Email comes back verified by default, so Microsoft users skip the verify-email gate just like Google users.
+
 ## 2026-04-17 — Email/password sign-in + verification gate (Slice A1)
 
 - **Firestore rules relaxed**: `isGmailUser()` → `isVerifiedUser()`. Gmail-only restriction removed; the gate is now `email_verified == true` for any provider. Existing Gmail users are unaffected; opens the door to email/password and (next slice) Microsoft.

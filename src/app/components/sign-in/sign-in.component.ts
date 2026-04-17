@@ -6,6 +6,7 @@ import { TranslationService } from '../../services/translation.service';
 
 type Status = 'idle' | 'signing' | 'error' | 'reset-sent';
 type Mode = 'signin' | 'signup' | 'reset';
+type Method = 'google' | 'microsoft' | 'email';
 
 @Component({
   selector: 'app-sign-in',
@@ -36,18 +37,35 @@ type Mode = 'signin' | 'signup' | 'reset';
           {{ t('signin.caption') }}
         </p>
 
-        <!-- Google sign-in (one click, no password) -->
-        <div class="mt-8">
+        <!-- One-click providers (no password) -->
+        <div class="mt-8 space-y-2">
           <button
             type="button"
             (click)="signInGoogle()"
             [disabled]="status() === 'signing'"
-            class="stamp-btn"
+            class="stamp-btn w-full justify-center"
           >
             <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" aria-hidden="true" fill="currentColor">
               <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/>
             </svg>
             {{ status() === 'signing' && lastMethod() === 'google' ? t('signin.signingIn') : t('signin.signInWithGoogle') }}
+          </button>
+
+          <button
+            type="button"
+            (click)="signInMicrosoft()"
+            [disabled]="status() === 'signing'"
+            class="stamp-btn w-full justify-center"
+          >
+            <!-- Microsoft 4-square logo, brand colors. Inline SVG so it
+                 ships in the bundle and survives offline. -->
+            <svg viewBox="0 0 23 23" class="w-4 h-4 shrink-0" aria-hidden="true">
+              <rect x="1" y="1" width="10" height="10" fill="#f35325" />
+              <rect x="12" y="1" width="10" height="10" fill="#81bc06" />
+              <rect x="1" y="12" width="10" height="10" fill="#05a6f0" />
+              <rect x="12" y="12" width="10" height="10" fill="#ffba08" />
+            </svg>
+            {{ status() === 'signing' && lastMethod() === 'microsoft' ? t('signin.signingIn') : t('signin.signInWithMicrosoft') }}
           </button>
         </div>
 
@@ -150,16 +168,26 @@ export class SignInComponent {
   protected readonly errorMsg = signal('');
   protected readonly emailFormOpen = signal(false);
   protected readonly mode = signal<Mode>('signin');
-  protected readonly lastMethod = signal<'google' | 'email' | null>(null);
+  protected readonly lastMethod = signal<Method | null>(null);
   protected emailValue = '';
   passwordValue = '';
 
   protected async signInGoogle(): Promise<void> {
-    this.lastMethod.set('google');
+    await this.runPopup('google', () => this.auth.signInWithGoogle());
+  }
+
+  protected async signInMicrosoft(): Promise<void> {
+    await this.runPopup('microsoft', () => this.auth.signInWithMicrosoft());
+  }
+
+  /** Shared wrapper for popup-based providers — handles the spinner,
+      cancellation no-op, and friendly error mapping. */
+  private async runPopup(method: Method, fn: () => Promise<void>): Promise<void> {
+    this.lastMethod.set(method);
     this.status.set('signing');
     this.errorMsg.set('');
     try {
-      await this.auth.signInWithGoogle();
+      await fn();
       // On success, onAuthStateChanged fires and the App shell swaps
       // this component out — no local state change needed.
     } catch (err: unknown) {
