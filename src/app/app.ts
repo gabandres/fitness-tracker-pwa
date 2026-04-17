@@ -49,15 +49,20 @@ import { mediaSignal } from './utils/media';
       <div class="max-w-[560px] lg:max-w-[1100px] mx-auto">
 
         @if (route() === 'privacy') {
-          <app-privacy />
+          @defer { <app-privacy /> }
+          @placeholder { <div class="py-20 text-center caption">…</div> }
         } @else if (route() === 'terms') {
-          <app-terms />
+          @defer { <app-terms /> }
+          @placeholder { <div class="py-20 text-center caption">…</div> }
         } @else if (route() === 'landing' && auth.ready() && !auth.isSignedIn()) {
           <!-- Public marketing surface at root. Bypasses the masthead +
                auth gate so a non-signed-in visitor sees product pitch,
                not a loading shell. Once signed in, the condition flips
-               false and the authed flow below renders instead. -->
-          <app-landing />
+               false and the authed flow below renders instead.
+               Landing ships as its own chunk so returning users who
+               deep-link to /app don't download the marketing code. -->
+          @defer (on immediate) { <app-landing /> }
+          @placeholder { <div class="py-20 text-center caption">…</div> }
         } @else {
 
         <!-- SwUpdate dialog (fixed overlay) -->
@@ -221,22 +226,30 @@ import { mediaSignal } from './utils/media';
             </div>
           } @else if (!firebase.profileCompleted() || editingProfile()) {
             <div class="ink-in delay-3">
-              <app-onboarding
-                [editMode]="editingProfile()"
-                (saved)="onProfileSaved()"
-                (cancelled)="editingProfile.set(false)"
-              />
+              @defer (on immediate) {
+                <app-onboarding
+                  [editMode]="editingProfile()"
+                  (saved)="onProfileSaved()"
+                  (cancelled)="editingProfile.set(false)"
+                />
+              } @placeholder {
+                <div class="py-20 text-center caption">…</div>
+              }
             </div>
           } @else {
             <!-- Settings sheet overlay (absolutely positioned outside
-                 the two-column grid so it doesn't shift layout). -->
+                 the two-column grid so it doesn't shift layout).
+                 Deferred so the settings chunk isn't in first paint —
+                 most sessions never open this sheet. -->
             @if (showSettings()) {
-              <app-settings-sheet
-                [darkMode]="darkMode()"
-                [themeChoice]="themeChoice()"
-                (close)="showSettings.set(false)"
-                (editProfile)="editingProfile.set(true)"
-                (themeSelect)="setTheme($event)" />
+              @defer (on immediate) {
+                <app-settings-sheet
+                  [darkMode]="darkMode()"
+                  [themeChoice]="themeChoice()"
+                  (close)="showSettings.set(false)"
+                  (editProfile)="editingProfile.set(true)"
+                  (themeSelect)="setTheme($event)" />
+              }
             }
             <!-- Responsive layout: single column on mobile (tabbed), two columns on desktop -->
             <div class="lg:grid lg:grid-cols-[1fr_1.15fr] lg:gap-10 lg:items-start">
@@ -267,7 +280,11 @@ import { mediaSignal } from './utils/media';
                       [attr.aria-labelledby]="isDesktop() ? null : 'tab-body'">
                       @if (store.logs().length >= 3) {
                         <div class="ink-in delay-4">
-                          <app-consultation />
+                          @defer (on viewport; on idle) {
+                            <app-consultation />
+                          } @placeholder {
+                            <div class="min-h-[180px]"></div>
+                          }
                         </div>
                       }
                       <div class="ink-in delay-5">
