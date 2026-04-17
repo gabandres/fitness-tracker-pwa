@@ -12,6 +12,7 @@ import { FastingComponent } from './components/fasting/fasting.component';
 import { MeasurementsComponent } from './components/measurements/measurements.component';
 import { PrivacyComponent } from './components/privacy/privacy.component';
 import { TermsComponent } from './components/terms/terms.component';
+import { LandingComponent } from './components/landing/landing.component';
 import { SettingsSheetComponent } from './components/settings-sheet/settings-sheet.component';
 import { MobileTabsComponent, type MobileTab } from './components/mobile-tabs/mobile-tabs.component';
 import { AuthService } from './services/auth.service';
@@ -33,6 +34,7 @@ import { mediaSignal } from './utils/media';
     MeasurementsComponent,
     PrivacyComponent,
     TermsComponent,
+    LandingComponent,
     SettingsSheetComponent,
     MobileTabsComponent,
     TranslocoDirective,
@@ -48,6 +50,12 @@ import { mediaSignal } from './utils/media';
           <app-privacy />
         } @else if (route() === 'terms') {
           <app-terms />
+        } @else if (route() === 'landing' && auth.ready() && !auth.isSignedIn()) {
+          <!-- Public marketing surface at root. Bypasses the masthead +
+               auth gate so a non-signed-in visitor sees product pitch,
+               not a loading shell. Once signed in, the condition flips
+               false and the authed flow below renders instead. -->
+          <app-landing />
         } @else {
 
         <!-- SwUpdate dialog (fixed overlay) -->
@@ -263,7 +271,7 @@ export class App {
   /** URL-path based routing for the two public-static pages. Anything
       else (including '/' and unknown paths) falls through to the
       signal-gated main app. */
-  protected readonly route = signal<'privacy' | 'terms' | null>(this.detectRoute());
+  protected readonly route = signal<'privacy' | 'terms' | 'landing' | null>(this.detectRoute());
   protected readonly updateReady = signal(false);
   protected readonly offline = signal(!navigator.onLine);
   protected readonly darkMode = signal(false);
@@ -272,10 +280,15 @@ export class App {
     return (this.firebase.profile() as any)?.reminderHour ?? 20;
   }
 
-  private detectRoute(): 'privacy' | 'terms' | null {
+  private detectRoute(): 'privacy' | 'terms' | 'landing' | null {
     const path = window.location.pathname.toLowerCase();
     if (path === '/privacy' || path === '/privacy/') return 'privacy';
     if (path === '/terms' || path === '/terms/') return 'terms';
+    // Root path shows the public marketing surface to non-signed-in
+    // visitors. Once the user signs in, the auth gate in the template
+    // takes over and renders the app regardless of the 'landing' route.
+    // `/app` bypasses landing (PWA start_url + returning-user deep link).
+    if (path === '/' || path === '') return 'landing';
     return null;
   }
 

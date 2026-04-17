@@ -71,6 +71,28 @@ export class SubscriptionService {
   private readonly _isComped = signal(false);
   readonly isComped = this._isComped.asReadonly();
 
+  /** Remaining free-tier quotas for today (null = unlimited / not yet
+      fetched). Populated alongside isComped on sign-in so components
+      (photo-capture, consultation) can show "N left" pre-action. */
+  private readonly _photosRemaining = signal<number | null>(null);
+  readonly photosRemaining = this._photosRemaining.asReadonly();
+  private readonly _consultationsRemaining = signal<number | null>(null);
+  readonly consultationsRemaining = this._consultationsRemaining.asReadonly();
+  private readonly _photoLimit = signal<number>(8);
+  readonly photoLimit = this._photoLimit.asReadonly();
+  private readonly _consultationLimit = signal<number>(5);
+  readonly consultationLimit = this._consultationLimit.asReadonly();
+
+  /** Decrement the local photosRemaining counter after a successful
+      photo analysis. Components call this so UI stays fresh without a
+      second round-trip. Server remains the source of truth. */
+  decrementPhotosRemaining(newValue: number): void {
+    this._photosRemaining.set(Math.max(0, newValue));
+  }
+  decrementConsultationsRemaining(newValue: number): void {
+    this._consultationsRemaining.set(Math.max(0, newValue));
+  }
+
   /** True when the signed-in user's email is on the admin allowlist. */
   readonly isAdmin = computed(() => {
     const email = this.authedUser()?.email;
@@ -104,6 +126,8 @@ export class SubscriptionService {
         this._subscription.set(null);
         this._subscriptionActive.set(false);
         this._isComped.set(false);
+        this._photosRemaining.set(null);
+        this._consultationsRemaining.set(null);
       }
     });
 
@@ -192,10 +216,21 @@ export class SubscriptionService {
     try {
       const callable = httpsCallable<
         undefined,
-        { admin: boolean; comped: boolean }
+        {
+          admin: boolean;
+          comped: boolean;
+          photosRemaining: number | null;
+          consultationsRemaining: number | null;
+          photoLimit: number;
+          consultationLimit: number;
+        }
       >(this.functions, 'checkAccessStatus');
       const { data } = await callable();
       this._isComped.set(!!data.comped);
+      this._photosRemaining.set(data.photosRemaining);
+      this._consultationsRemaining.set(data.consultationsRemaining);
+      if (typeof data.photoLimit === 'number') this._photoLimit.set(data.photoLimit);
+      if (typeof data.consultationLimit === 'number') this._consultationLimit.set(data.consultationLimit);
     } catch (err) {
       console.warn('checkAccessStatus failed; assuming not comped.', err);
       this._isComped.set(false);

@@ -13,6 +13,7 @@ import {
 import { TdeeCalculatorService, TdeeResult, WeeklySummary, WeeklyEnvelope } from './tdee-calculator.service';
 import { localDateKey } from '../utils/date';
 import { GeminiService } from './gemini.service';
+import { SubscriptionService } from './subscription.service';
 
 export type StoreStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -59,6 +60,7 @@ export class FitnessStore {
   private readonly fb = inject(FirebaseService);
   private readonly calc = inject(TdeeCalculatorService);
   private readonly gemini = inject(GeminiService);
+  private readonly subs = inject(SubscriptionService);
 
   // ─── Private mutable state ──────────────────────────────────
   private readonly _logs = signal<DailyLog[]>([]);
@@ -482,7 +484,13 @@ export class FitnessStore {
       const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
       const isStale = !report || report.generatedAt.getTime() < sevenDaysAgo;
 
-      if (isStale && this._logs().length >= 3) {
+      // Weekly report is a Pro feature — generation costs Gemini tokens
+      // billed to us. Free tier keeps any existing cached report visible
+      // (so past trial/paid reports remain readable) but new ones only
+      // generate for paid/admin/comped users. Server-side gating on the
+      // reports collection is a follow-up (requires moving generation
+      // into a Cloud Function so the client can't bypass).
+      if (isStale && this._logs().length >= 3 && this.subs.isPaid()) {
         await this.generateWeeklyReport();
       }
     } catch (err) {
@@ -499,6 +507,8 @@ export class FitnessStore {
 
   async generateWeeklyReport(): Promise<void> {
     if (this._reportLoading()) return;
+    // Pro gate — see _checkWeeklyReport for rationale.
+    if (!this.subs.isPaid()) return;
     this._reportLoading.set(true);
     try {
       const logs = this._logs();

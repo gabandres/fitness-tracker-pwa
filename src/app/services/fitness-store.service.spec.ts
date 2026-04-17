@@ -6,6 +6,7 @@ import { AuthService } from './auth.service';
 import { FirebaseService, DailyLog, LogEntry, MealPreset, UserProfile } from './firebase.service';
 import { TdeeCalculatorService } from './tdee-calculator.service';
 import { GeminiService } from './gemini.service';
+import { SubscriptionService } from './subscription.service';
 
 describe('FitnessStore', () => {
   let store: FitnessStore;
@@ -93,6 +94,7 @@ describe('FitnessStore', () => {
         FitnessStore,
         TdeeCalculatorService,
         { provide: GeminiService, useValue: { generateWeeklyReport: vi.fn().mockResolvedValue('test report') } },
+        { provide: SubscriptionService, useValue: { isPaid: signal(true) } },
         {
           provide: AuthService,
           useValue: {

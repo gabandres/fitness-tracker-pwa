@@ -199,6 +199,20 @@ interface DayGroup {
       <!-- ─── Day-grouped log tape ─────────────────────────── -->
       <div class="rule"><span>{{ dayGroups().length > 0 ? t('daily.tapeTitle') : t('daily.tapeEmpty') }}</span></div>
 
+      @if (isHydrating()) {
+        <!-- Skeleton shimmer while the store hydrates from Firestore on
+             cold load. Matches the tape-strip rhythm so the layout
+             doesn't shift when real data arrives. -->
+        <div class="mt-3 space-y-1" [attr.aria-busy]="true" [attr.aria-label]="t('daily.loadingAria')">
+          @for (_ of skeletonRows; track $index) {
+            <div class="skeleton-row">
+              <span class="skeleton-line h-3" style="width: 30%"></span>
+              <span class="skeleton-line h-3 ml-auto" style="width: 20%"></span>
+            </div>
+          }
+        </div>
+      }
+
       <div class="mt-3 space-y-4" #swipeArea>
         @for (day of dayGroups(); track day.dateKey; let di = $index) {
           <div>
@@ -329,8 +343,9 @@ interface DayGroup {
           </div>
         }
 
-        <!-- Empty state -->
-        @if (dayGroups().length === 0) {
+        <!-- Empty state — only once we've confirmed there's nothing to
+             show (otherwise the skeleton above is doing the talking). -->
+        @if (dayGroups().length === 0 && !isHydrating()) {
           <!-- Cold-start: no logs yet. Show a tap-to-log menu of common
                foods so the user's first meal is one tap + one click, not
                a stare-at-blank-form moment. Hides as soon as the first
@@ -375,6 +390,15 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
   protected readonly Math = Math;
   protected readonly todayKey = localDateKey(new Date());
   protected readonly selectedDateKey = signal(this.todayKey);
+
+  /** True during the initial cold-load before any logs have arrived.
+      Used to swap the empty-state / log-tape for skeleton shimmer so
+      there's no blank-cream flash on first paint. */
+  protected readonly isHydrating = computed(() => {
+    const status = this.store.status();
+    return (status === 'idle' || status === 'loading') && this.store.logs().length === 0;
+  });
+  protected readonly skeletonRows = Array.from({ length: 4 });
 
   @ViewChild('swipeArea') private readonly swipeAreaRef!: ElementRef<HTMLElement>;
   private readonly swipeStartFn = (e: TouchEvent) => this.onSwipeStart(e);

@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { PhotoMacrosService } from '../../services/photo-macros.service';
 import { MacroEstimate } from '../../models/macro-estimate';
 import { TranslationService } from '../../services/translation.service';
+import { SubscriptionService } from '../../services/subscription.service';
 import { extractErrorCode } from '../../models/error-codes';
 
 @Component({
@@ -22,7 +23,7 @@ import { extractErrorCode } from '../../models/error-codes';
     @if (photosRemaining() !== null) {
       <span class="font-mono text-[10px] tracking-[0.08em] ml-1 align-middle"
         [style.color]="photosRemaining()! <= 2 ? 'var(--color-gold)' : 'var(--color-graphite)'">
-        {{ t('photo.left', { n: photosRemaining() }) }}
+        {{ photosRemaining() === 0 ? t('photo.outOfQuota') : t('photo.left', { n: photosRemaining() }) }}
       </span>
     }
     <input #photoInput type="file" accept="image/*" capture="environment"
@@ -52,12 +53,17 @@ import { extractErrorCode } from '../../models/error-codes';
 export class PhotoCaptureComponent {
   private readonly photoService = inject(PhotoMacrosService);
   private readonly translation = inject(TranslationService);
+  private readonly subs = inject(SubscriptionService);
 
   readonly estimated = output<MacroEstimate>();
 
   protected readonly photoStatus = signal<'idle' | 'analyzing' | 'error'>('idle');
   protected readonly photoError = signal('');
-  protected readonly photosRemaining = signal<number | null>(null);
+  /** Server-reported remaining count. null = unlimited (paid/admin/comped)
+      or not yet fetched. Sourced from SubscriptionService so the caption
+      is visible BEFORE the first capture of the session — otherwise
+      users only learn their quota after burning one. */
+  protected readonly photosRemaining = computed(() => this.subs.photosRemaining());
   protected readonly lastConfidence = signal<'low' | 'medium' | 'high' | null>(null);
 
   protected async onPhotoCaptured(event: Event): Promise<void> {
@@ -71,7 +77,7 @@ export class PhotoCaptureComponent {
     try {
       const base64 = await this.resizeAndEncode(file, 1024);
       const result = await this.photoService.analyze(base64);
-      this.photosRemaining.set(result.photosRemaining);
+      this.subs.decrementPhotosRemaining(result.photosRemaining);
       this.lastConfidence.set(result.confidence);
       this.estimated.emit({
         calories: result.calories,

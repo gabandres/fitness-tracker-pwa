@@ -430,12 +430,42 @@ export const releaseConsultation = onCall(async (request) => {
  */
 export const checkAccessStatus = onCall(async (request) => {
   if (!request.auth) {
-    return { admin: false, comped: false };
+    return {
+      admin: false, comped: false,
+      photosRemaining: null, consultationsRemaining: null,
+      photoLimit: DAILY_PHOTO_LIMIT, consultationLimit: CONSULTATION_DAILY_LIMIT,
+    };
   }
+  const uid = request.auth.uid;
   const email = request.auth.token.email;
+  const admin = isAdmin(email);
+  const comped = await isComped(email);
+  const role = (request.auth.token as { stripeRole?: string }).stripeRole;
+  const unlimited = admin || comped || role === "paid";
+
+  // Paid/admin/comped users don't need a remaining count — free tier
+  // shows "N left", unlimited hides the caption entirely (null signal).
+  if (unlimited) {
+    return {
+      admin, comped,
+      photosRemaining: null, consultationsRemaining: null,
+      photoLimit: DAILY_PHOTO_LIMIT, consultationLimit: CONSULTATION_DAILY_LIMIT,
+    };
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+  const [photoSnap, consultSnap] = await Promise.all([
+    db.collection("photoQuota").doc(`${uid}_${today}`).get(),
+    db.collection("consultationQuota").doc(`${uid}_${today}`).get(),
+  ]);
+  const photosUsed = photoSnap.exists ? (photoSnap.data()!.count as number) : 0;
+  const consultUsed = consultSnap.exists ? (consultSnap.data()!.count as number) : 0;
   return {
-    admin: isAdmin(email),
-    comped: await isComped(email),
+    admin, comped,
+    photosRemaining: Math.max(0, DAILY_PHOTO_LIMIT - photosUsed),
+    consultationsRemaining: Math.max(0, CONSULTATION_DAILY_LIMIT - consultUsed),
+    photoLimit: DAILY_PHOTO_LIMIT,
+    consultationLimit: CONSULTATION_DAILY_LIMIT,
   };
 });
 

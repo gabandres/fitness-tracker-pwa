@@ -77,11 +77,15 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
           {{ t('onboarding.blurb') }}
         </p>
 
-        <!-- Reassurance block: why we ask, what we do / don't do -->
-        <div class="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-graphite font-sans">
+        <!-- Reassurance block: why we ask, what we do / don't do.
+             Trailing link points to /privacy so these claims have
+             proof, not just copy. -->
+        <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-graphite font-sans">
           <span>{{ t('onboarding.reassurePrivate') }}</span>
           <span>{{ t('onboarding.reassureNoSelling') }}</span>
           <span>{{ t('onboarding.reassureEditable') }}</span>
+          <a href="/privacy" target="_blank" rel="noopener"
+            class="underline decoration-dotted hover:text-blood">{{ t('onboarding.reassureDetails') }}</a>
         </div>
 
         <!-- 3-step guided flow -->

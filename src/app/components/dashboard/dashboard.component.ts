@@ -19,7 +19,20 @@ interface SparklinePoint { x: number; y: number; }
     <section>
       <div class="rule"><span>{{ t('dashboard.heading') }}</span></div>
 
-      @if (store.logs().length === 0) {
+      @if (isHydrating()) {
+        <!-- Skeleton readouts during cold-load so the 3-up grid doesn't
+             flash empty. Same rhythm/dimensions as the real readouts to
+             avoid layout shift when data arrives. -->
+        <div class="mt-4 grid grid-cols-3 gap-2" [attr.aria-busy]="true" [attr.aria-label]="t('dashboard.loading')">
+          @for (_ of skeletonCols; track $index) {
+            <div>
+              <span class="skeleton-line h-3 block" style="width: 60%"></span>
+              <span class="skeleton-line h-6 block mt-2" style="width: 80%"></span>
+              <span class="skeleton-line h-2 block mt-2" style="width: 40%"></span>
+            </div>
+          }
+        </div>
+      } @else if (store.logs().length === 0) {
         <div class="mt-4 py-6 text-center">
           <p class="caption text-[11px]">{{ t('dashboard.emptyMsg') }}</p>
           <div class="mt-4 flex justify-center">
@@ -366,6 +379,15 @@ export class DashboardComponent {
   protected readonly Math = Math;
   protected readonly svgW = 320;
   protected readonly svgH = 60;
+
+  /** Show skeleton readouts during initial cold-load so the 3-up grid
+      doesn't flash empty. Flips false once logs arrive or the store
+      resolves to a genuine empty state. */
+  protected readonly isHydrating = computed(() => {
+    const status = this.store.status();
+    return (status === 'idle' || status === 'loading') && this.store.logs().length === 0;
+  });
+  protected readonly skeletonCols = Array.from({ length: 3 });
 
   protected dismissTdeeTransition(): void {
     localStorage.setItem('macrolog.tdee-transition-dismissed', '1');
