@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { signal, WritableSignal } from '@angular/core';
 import { vi } from 'vitest';
-import { FitnessStore } from './fitness-store.service';
+import { FitnessStore, PresetLimitError, PRESET_LIMIT_FREE } from './fitness-store.service';
 import { AuthService } from './auth.service';
 import { FirebaseService, DailyLog, LogEntry, MealPreset, UserProfile } from './firebase.service';
 import { TdeeCalculatorService } from './tdee-calculator.service';
@@ -12,6 +12,7 @@ describe('FitnessStore', () => {
   let store: FitnessStore;
   let mockIsSignedIn: WritableSignal<boolean>;
   let mockProfile: WritableSignal<UserProfile | null>;
+  let mockIsPaid: WritableSignal<boolean>;
 
   // Properly typed mock so TS doesn't force bracket access.
   let mockFb: {
@@ -66,6 +67,7 @@ describe('FitnessStore', () => {
   beforeEach(() => {
     mockIsSignedIn = signal(false);
     mockProfile = signal<UserProfile | null>(null);
+    mockIsPaid = signal(true);
 
     mockFb = {
       profile: mockProfile,
@@ -94,7 +96,7 @@ describe('FitnessStore', () => {
         FitnessStore,
         TdeeCalculatorService,
         { provide: GeminiService, useValue: { generateWeeklyReport: vi.fn().mockResolvedValue('test report') } },
-        { provide: SubscriptionService, useValue: { isPaid: signal(true) } },
+        { provide: SubscriptionService, useValue: { isPaid: mockIsPaid } },
         {
           provide: AuthService,
           useValue: {
@@ -285,6 +287,24 @@ describe('FitnessStore', () => {
       await store.deletePreset('p1');
       expect(mockFb.deletePreset).toHaveBeenCalledWith('p1');
       expect(store.presets()).toEqual([]);
+    });
+
+    it('should throw PresetLimitError when free user is at PRESET_LIMIT_FREE', async () => {
+      const fullPresets: MealPreset[] = Array.from({ length: PRESET_LIMIT_FREE }, (_, i) => ({
+        id: `p${i}`, name: `Preset ${i}`, calories: 500,
+      }));
+      mockFb.getPresets.mockResolvedValue(fullPresets);
+      mockProfile.set(completedProfile);
+      mockIsSignedIn.set(true);
+      TestBed.flushEffects();
+      await new Promise((r) => setTimeout(r, 10));
+
+      mockIsPaid.set(false);
+      mockFb.addPreset.mockClear();
+
+      await expect(store.addPreset({ name: 'eleventh', calories: 400 }))
+        .rejects.toBeInstanceOf(PresetLimitError);
+      expect(mockFb.addPreset).not.toHaveBeenCalled();
     });
   });
 

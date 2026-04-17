@@ -35,7 +35,7 @@ interface SuggestedPrompt {
         </p>
         <p class="caption mt-2 text-[11px]">
           {{ t('consultation.intro') }}
-          @if (!subs.isPaid() && remaining() !== null) {
+          @if (remaining() !== null) {
             <span class="ml-1 font-mono not-italic"
               [style.color]="remaining()! <= 1 ? 'var(--color-gold)' : 'var(--color-graphite)'">
               {{ t('consultation.remaining', { n: remaining(), limit: limit() }) }}
@@ -131,11 +131,14 @@ export class ConsultationComponent {
   private readonly sanitizer = inject(DomSanitizer);
   private readonly translation = inject(TranslationService);
 
-  /** Remaining free consultations today. Populated after each ask()
-      from the `reserveConsultation` response. `null` means "unknown"
-      (we haven't asked anything yet this session). */
+  /** Remaining consultations today. Populated after each ask() from the
+      `reserveConsultation` response. `null` means "unknown / unlimited"
+      (admin/comped, or pre-first-ask in this session). */
   protected readonly remaining = signal<number | null>(null);
-  protected readonly limit = signal<number>(5);
+  /** Daily cap, populated from the server reservation. The seed value
+      is just a placeholder for the brief moment before the first
+      reservation lands; the real free/paid limits are 3 and 30. */
+  protected readonly limit = signal<number>(3);
   protected readonly overLimit = signal(false);
 
   protected readonly suggested: SuggestedPrompt[] = [
