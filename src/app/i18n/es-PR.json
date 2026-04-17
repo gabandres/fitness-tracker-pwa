@@ -72,7 +72,10 @@
     },
     "offline": {
       "stamp": "sin conexión",
-      "caption": "las entradas se guardan localmente y se sincronizan al reconectarte."
+      "caption": "las entradas se guardan localmente y se sincronizan al reconectarte.",
+      "retry": "reintentar",
+      "retrying": "verificando…",
+      "retryAria": "Volver a verificar la conexión ahora"
     },
     "reminder": {
       "stamp": "recordatorio",
@@ -254,6 +257,9 @@
     "monthlyAvgKcal": "prom {{n}} kcal/día",
     "trend14": "tendencia de 14 días",
     "trendAllTime": "tendencia total",
+    "range14": "14d",
+    "rangeAll": "total",
+    "chartRangeAria": "Elige el rango del gráfico",
     "legendRaw": "— sin suavizar",
     "legendSmoothed": "— suavizado",
     "actionExport": "↓ exportar csv",
@@ -405,8 +411,8 @@
   "install": {
     "stamp": "instalar",
     "section": "pantalla de inicio",
-    "bodyNative": "instala macro log como app — un toque, abre más rápido, funciona sin conexión.",
-    "bodyIosPrefix": "para instalar en iphone: toca el botón",
+    "bodyNative": "añade macro log a tu pantalla de inicio para acceso de un toque. abre más rápido que el navegador, los registros funcionan sin conexión, y los recordatorios diarios sí llegan.",
+    "bodyIosPrefix": "añade macro log a tu pantalla de inicio para acceso de un toque — abre más rápido, funciona sin conexión. toca el botón",
     "bodyIosShare": "compartir",
     "bodyIosMid": "en safari, luego",
     "bodyIosAdd": "Añadir a Pantalla de Inicio",

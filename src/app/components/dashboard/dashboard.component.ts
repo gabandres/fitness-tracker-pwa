@@ -291,76 +291,104 @@ interface SparklinePoint { x: number; y: number; }
           </div>
         }
 
-        <!-- Sparkline -->
-        @if (sparklineRaw().length > 1) {
+        <!-- Weight chart with range toggle. The 14-day and all-time
+             charts read the same data from different windows; merging
+             them into a single chart with a segmented selector saves
+             vertical space and avoids the user comparing two near-
+             duplicate panels. The toggle only appears when both
+             windows have enough data to plot. -->
+        @if (sparklineRaw().length > 1 || allTimeRawPoints().length > 2) {
           <div class="mt-6">
-            <div class="flex items-center justify-between mb-2">
-              <span class="data-label">{{ t('dashboard.trend14') }}</span>
-              <span class="font-mono text-sm tabular-nums"
-                [style.color]="store.tdee().weightChangeTrend > 0 ? 'var(--color-blood)' : store.tdee().weightChangeTrend < 0 ? 'var(--color-ink)' : 'var(--color-graphite)'">
-                {{ store.trendLabel() }}
-              </span>
-            </div>
-            <div class="relative">
-              <svg [attr.viewBox]="'0 0 ' + svgW + ' ' + svgH"
-                class="w-full h-16 overflow-visible" preserveAspectRatio="none" aria-hidden="true">
-                <line [attr.x1]="svgW / 2" y1="0" [attr.x2]="svgW / 2" [attr.y2]="svgH"
-                  stroke="currentColor" stroke-width="0.5" stroke-dasharray="2 3" class="text-aged" />
-                <polyline [attr.points]="rawSvgPoints()" fill="none"
-                  stroke="currentColor" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round"
-                  class="text-graphite-soft" />
-                <polyline [attr.points]="emaSvgPoints()" fill="none"
-                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
-                  class="text-ink" />
-                @if (sparklineEma().length > 0) {
-                  @let p = sparklineEma()[sparklineEma().length - 1];
-                  <circle [attr.cx]="p.x" [attr.cy]="p.y" r="3" class="fill-blood" />
-                  <circle [attr.cx]="p.x" [attr.cy]="p.y" r="6" class="fill-blood opacity-20" />
-                }
-              </svg>
-              <div class="flex justify-between mt-1 font-sans text-[11px] tracking-[0.15em] text-graphite">
-                <span>{{ dateLabel(0) }}</span>
-                <span class="font-display italic text-[10px] tracking-normal">
-                  <span class="text-graphite-soft">{{ t('dashboard.legendRaw') }}</span> &nbsp;
-                  <span class="text-ink">{{ t('dashboard.legendSmoothed') }}</span>
+            <div class="flex items-center justify-between mb-2 gap-2">
+              <div class="flex items-center gap-2 min-w-0 flex-wrap">
+                <span class="data-label">
+                  {{ chartRange() === '14d' ? t('dashboard.trend14') : t('dashboard.trendAllTime') }}
                 </span>
-                <span>{{ dateLabel(-1) }}</span>
+                @if (sparklineRaw().length > 1 && allTimeRawPoints().length > 2) {
+                  <div class="inline-flex rounded border border-rule overflow-hidden text-[11px]"
+                    role="radiogroup" [attr.aria-label]="t('dashboard.chartRangeAria')">
+                    <button type="button" role="radio"
+                      [attr.aria-checked]="chartRange() === '14d'"
+                      (click)="chartRange.set('14d')"
+                      [class.bg-ink]="chartRange() === '14d'"
+                      [class.text-cream]="chartRange() === '14d'"
+                      [class.text-graphite]="chartRange() !== '14d'"
+                      class="px-2 py-0.5 font-sans transition-colors">
+                      {{ t('dashboard.range14') }}
+                    </button>
+                    <button type="button" role="radio"
+                      [attr.aria-checked]="chartRange() === 'all'"
+                      (click)="chartRange.set('all')"
+                      [class.bg-ink]="chartRange() === 'all'"
+                      [class.text-cream]="chartRange() === 'all'"
+                      [class.text-graphite]="chartRange() !== 'all'"
+                      class="px-2 py-0.5 font-sans transition-colors border-l border-rule">
+                      {{ t('dashboard.rangeAll') }}
+                    </button>
+                  </div>
+                }
               </div>
-            </div>
-          </div>
-        }
-
-        <!-- All-time weight chart -->
-        @if (allTimeRawPoints().length > 2) {
-          <div class="mt-6">
-            <div class="flex items-center justify-between mb-2">
-              <span class="data-label">{{ t('dashboard.trendAllTime') }}</span>
-              @if (store.monthlySummary(); as m) {
+              @if (chartRange() === '14d') {
+                <span class="font-mono text-sm tabular-nums"
+                  [style.color]="store.tdee().weightChangeTrend > 0 ? 'var(--color-blood)' : store.tdee().weightChangeTrend < 0 ? 'var(--color-ink)' : 'var(--color-graphite)'">
+                  {{ store.trendLabel() }}
+                </span>
+              } @else if (store.monthlySummary(); as m) {
                 <span class="font-mono text-sm tabular-nums"
                   [style.color]="m.totalChange < 0 ? 'var(--color-ink)' : m.totalChange > 0 ? 'var(--color-blood)' : 'var(--color-graphite)'">
                   {{ m.totalChange > 0 ? '+' : '' }}{{ m.totalChange }} {{ t('dashboard.lbs') }}
                 </span>
               }
             </div>
-            <div class="relative">
-              <svg [attr.viewBox]="'0 0 ' + allTimeSvgW + ' ' + allTimeSvgH"
-                class="w-full h-20 overflow-visible" preserveAspectRatio="none" aria-hidden="true">
-                <polyline [attr.points]="allTimeRawSvg()" fill="none"
-                  stroke="currentColor" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round"
-                  class="text-graphite-soft" />
-                <polyline [attr.points]="allTimeEmaSvg()" fill="none"
-                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
-                  class="text-ink" />
-                @if (allTimeEmaPoints().length > 0) {
-                  @let p = allTimeEmaPoints()[allTimeEmaPoints().length - 1];
-                  <circle [attr.cx]="p.x" [attr.cy]="p.y" r="3" class="fill-blood" />
-                }
-              </svg>
-              <div class="flex justify-between mt-1 font-sans text-[11px] tracking-[0.15em] text-graphite">
-                <span>{{ allTimeDateLabel(0) }}</span>
-                <span>{{ allTimeDateLabel(-1) }}</span>
+
+            @if (chartRange() === '14d' && sparklineRaw().length > 1) {
+              <div class="relative">
+                <svg [attr.viewBox]="'0 0 ' + svgW + ' ' + svgH"
+                  class="w-full h-16 overflow-visible" preserveAspectRatio="none" aria-hidden="true">
+                  <line [attr.x1]="svgW / 2" y1="0" [attr.x2]="svgW / 2" [attr.y2]="svgH"
+                    stroke="currentColor" stroke-width="0.5" stroke-dasharray="2 3" class="text-aged" />
+                  <polyline [attr.points]="rawSvgPoints()" fill="none"
+                    stroke="currentColor" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round"
+                    class="text-graphite-soft" />
+                  <polyline [attr.points]="emaSvgPoints()" fill="none"
+                    stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                    class="text-ink" />
+                  @if (sparklineEma().length > 0) {
+                    @let p = sparklineEma()[sparklineEma().length - 1];
+                    <circle [attr.cx]="p.x" [attr.cy]="p.y" r="3" class="fill-blood" />
+                    <circle [attr.cx]="p.x" [attr.cy]="p.y" r="6" class="fill-blood opacity-20" />
+                  }
+                </svg>
+                <div class="flex justify-between mt-1 font-sans text-[11px] tracking-[0.15em] text-graphite">
+                  <span>{{ dateLabel(0) }}</span>
+                  <span class="font-display italic text-[10px] tracking-normal">
+                    <span class="text-graphite-soft">{{ t('dashboard.legendRaw') }}</span> &nbsp;
+                    <span class="text-ink">{{ t('dashboard.legendSmoothed') }}</span>
+                  </span>
+                  <span>{{ dateLabel(-1) }}</span>
+                </div>
               </div>
-            </div>
+            } @else if (chartRange() === 'all' && allTimeRawPoints().length > 2) {
+              <div class="relative">
+                <svg [attr.viewBox]="'0 0 ' + allTimeSvgW + ' ' + allTimeSvgH"
+                  class="w-full h-20 overflow-visible" preserveAspectRatio="none" aria-hidden="true">
+                  <polyline [attr.points]="allTimeRawSvg()" fill="none"
+                    stroke="currentColor" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round"
+                    class="text-graphite-soft" />
+                  <polyline [attr.points]="allTimeEmaSvg()" fill="none"
+                    stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                    class="text-ink" />
+                  @if (allTimeEmaPoints().length > 0) {
+                    @let p = allTimeEmaPoints()[allTimeEmaPoints().length - 1];
+                    <circle [attr.cx]="p.x" [attr.cy]="p.y" r="3" class="fill-blood" />
+                  }
+                </svg>
+                <div class="flex justify-between mt-1 font-sans text-[11px] tracking-[0.15em] text-graphite">
+                  <span>{{ allTimeDateLabel(0) }}</span>
+                  <span>{{ allTimeDateLabel(-1) }}</span>
+                </div>
+              </div>
+            }
           </div>
         }
 
@@ -385,6 +413,11 @@ export class DashboardComponent {
   protected readonly Math = Math;
   protected readonly svgW = 320;
   protected readonly svgH = 60;
+
+  /** Selected window for the merged weight chart. Defaults to 14d
+      because that's the actionable horizon for cut-pace adjustment;
+      users with enough history can flip to all-time. */
+  protected readonly chartRange = signal<'14d' | 'all'>('14d');
 
   /** Show skeleton readouts during initial cold-load so the 3-up grid
       doesn't flash empty. Flips false once logs arrive or the store

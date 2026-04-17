@@ -82,12 +82,22 @@ import { mediaSignal } from './utils/media';
           </div>
         }
 
-        <!-- Offline indicator -->
+        <!-- Offline indicator with manual retry. The browser fires
+             online events when the OS detects connectivity, but
+             captive portals + flaky networks often leave us stuck even
+             after the radio reconnects — the retry button forces a
+             re-check + store refresh without waiting. -->
         @if (offline()) {
-          <div class="mb-4 ink-in flex items-center gap-2"
+          <div class="mb-4 ink-in flex items-center gap-2 flex-wrap"
             role="status" aria-live="polite">
             <span class="stamp-mark" style="transform: rotate(0deg);">{{ t('app.offline.stamp') }}</span>
-            <span class="caption text-xs">{{ t('app.offline.caption') }}</span>
+            <span class="caption text-xs flex-1 min-w-0">{{ t('app.offline.caption') }}</span>
+            <button type="button" (click)="retryOffline()"
+              [disabled]="retryingOffline()"
+              [attr.aria-label]="t('app.offline.retryAria')"
+              class="tag-btn text-[11px] shrink-0">
+              {{ retryingOffline() ? t('app.offline.retrying') : t('app.offline.retry') }}
+            </button>
           </div>
         }
 
@@ -274,6 +284,36 @@ export class App {
   protected readonly route = signal<'privacy' | 'terms' | 'landing' | null>(this.detectRoute());
   protected readonly updateReady = signal(false);
   protected readonly offline = signal(!navigator.onLine);
+  protected readonly retryingOffline = signal(false);
+
+  /**
+   * Manual reconnect: re-check `navigator.onLine`, ping a small known
+   * URL to verify real reachability (not just radio state), and refresh
+   * the store. Done on user click since the browser's `online` event
+   * misses captive-portal recoveries.
+   */
+  protected async retryOffline(): Promise<void> {
+    if (this.retryingOffline()) return;
+    this.retryingOffline.set(true);
+    try {
+      // Probe a tiny static asset on our own origin so we don't false-
+      // positive on cellular-router-reachable but internet-down states.
+      // cache: 'no-store' avoids the SW serving the cached favicon and
+      // hiding a real outage.
+      const res = await fetch('/favicon.ico?_=' + Date.now(), {
+        method: 'HEAD',
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        this.offline.set(false);
+        await this.store.refresh();
+      }
+    } catch {
+      // Stay offline — user can tap again.
+    } finally {
+      this.retryingOffline.set(false);
+    }
+  }
   protected readonly darkMode = signal(false);
   protected readonly showReminder = signal(false);
   private get reminderHour(): number {

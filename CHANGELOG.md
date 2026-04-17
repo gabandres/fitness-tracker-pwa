@@ -6,6 +6,12 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-17 — Connectivity polish + sparkline merge
+
+- **Offline banner gets a retry button.** The browser's `online` event misses captive-portal recoveries — tapping retry now re-probes a tiny static asset (no SW cache) and refreshes the store on success.
+- **Install-prompt rationale rewritten** to lead with concrete user benefit ("one-tap access, opens faster than a browser tab, daily reminders fire reliably") instead of the prior generic "install as app" framing.
+- **14-day + all-time weight charts merged** into a single chart with a 14d/all segmented range toggle. Saves vertical space on the dashboard and stops users comparing two near-duplicate panels. Toggle hides when there isn't enough history for the all-time view.
+
 ## 2026-04-17 — Motion design tokens + snappier toasts
 
 - **Motion tokens introduced** (`--motion-fast: 180ms`, `--motion-base: 280ms`, `--motion-slow: 520ms`, `--motion-ease`) so timing stays coherent and is one-place-tunable. Existing `.ink-in`/`.tape-in` animations refactored to consume the tokens — no observable change.
