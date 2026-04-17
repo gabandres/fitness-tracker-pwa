@@ -6,6 +6,19 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-17 — Pro fulfillment quick wins (Slice F kickoff)
+
+Closes the gap between the freemium-table promises and the code. Annual subscribers now get visible differentiation across five surfaces.
+
+- **Photo→Macros**: free tier `3/day` (was 8 for everyone), Pro `30/day`. Server (`functions/src/index.ts`) splits `DAILY_PHOTO_LIMIT` into `PHOTO_LIMIT_FREE` / `PHOTO_LIMIT_PAID`; admin/comped stay unlimited.
+- **AI consultation**: free tier `3/day` (was 5), Pro `30/day` (was unlimited bypass — now enforced cap). `reserveConsultation` reads the `stripeRole` claim. The "subscribe for unlimited" pitch is suppressed for paid users who hit the cap.
+- **Presets**: free tier capped at `10`. New `PresetLimitError` thrown by `FitnessStore.addPreset`; entry form catches and surfaces a localized message in en + es-PR.
+- **CSV export**: free tier exports the trailing `30 days`; Pro exports all history. Caption next to the Export button signals the cap for free users.
+- **Chart history**: free tier sees the trailing `90 days`; Pro sees all-time. Public `allTimeLogs` signal becomes a computed window — internal `_allTimeLogs` stays uncapped so CSV and `monthlySummary` keep full history.
+- **Promises dropped from the freemium table**: Apple Shortcuts webhook (left on for everyone — not a Pro differentiator) and the Gemini Pro model tier (kept on flash for cost + minimal quality win).
+
+Still owed for full Pro fulfillment: Pro theme palettes (sepia / graphite / oxblood-dark) — biggest remaining visible differentiator.
+
 ## 2026-04-17 — Microsoft sign-in (Slice A2)
 
 - **Microsoft provider live.** Azure App Registration `Macro Log` (`appId 80eaaf29-9de3-4912-a08a-7f0c6009e310`, audience `AzureADandPersonalMicrosoftAccount`) wired to Firebase Auth. Anyone with a personal Microsoft account (outlook/hotmail/live) or a work/school Azure AD account can sign in.
