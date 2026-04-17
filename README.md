@@ -7,8 +7,12 @@ Angular 21 PWA backed by Firebase (Firestore, Auth, Cloud Functions, Hosting). S
 ## Project map
 
 - `src/` — Angular app. `services/fitness-store.service.ts` is the single reactive data layer; components inject it and read signals.
-- `functions/` — Cloud Functions (gen2, Node 22). `analyzePhoto`, `reserveConsultation`, `releaseConsultation`, `checkAccessStatus`, `logWebhook`, `deleteAccount`.
+- `functions/` — Cloud Functions (gen2, Node 22). `analyzePhoto`, `reserveConsultation`, `releaseConsultation`, `checkAccessStatus`, `logWebhook`, `deleteAccount`, `generateWeeklyReport`, `sendDailyReminders`, `statusPulse`, `weeklyFirestoreBackup`.
+- `functions/test/rules/` — `@firebase/rules-unit-testing` suite for `firestore.rules`. Run with `npm run test:rules` (boots the Firestore emulator).
 - `src/app/i18n/` — Transloco locales (`en`, `es-PR`).
+- `.github/workflows/` — CI (`ci.yml`: install, typecheck, test, build on PR + main) and manual deploy (`deploy.yml`).
+- `scripts/sentry-release.mjs` — post-build sourcemap upload + strip (no-op if Sentry secrets absent).
+- `scripts/monitoring/` — one-time Cloud Monitoring alert-policy setup (`setup-alerts.sh`).
 
 ## Reference docs
 
@@ -20,8 +24,9 @@ Angular 21 PWA backed by Firebase (Firestore, Auth, Cloud Functions, Hosting). S
 
 ```sh
 npm start          # ng serve on http://localhost:4200
-npm run build      # production build → dist/
+npm run build      # production build → dist/ (+ Sentry sourcemap upload if secrets set)
 npm test           # vitest via ng test
+npm run test:rules # Firestore rules unit tests (boots emulator)
 ```
 
 ## Deploy
