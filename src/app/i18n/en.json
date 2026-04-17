@@ -154,6 +154,8 @@
       "webhookHide": "hide",
       "webhookEndpoint": "endpoint:",
       "webhookCopy": "copy key",
+      "webhookCopied": "✓ copied",
+      "webhookCopiedAria": "API key copied to clipboard",
       "webhookRevoke": "revoke",
       "webhookGenerate": "generate api key",
       "webhookGenerateHint": "generate a key to enable the webhook endpoint.",
@@ -332,7 +334,8 @@
   },
   "preset": {
     "quickAdd": "quick add",
-    "removeTitle": "Remove preset"
+    "removeTitle": "Remove preset",
+    "empty": "no saved presets yet — use \"save as preset\" on any entry you log often."
   },
   "entry": {
     "errorCaloriesRequired": "Calories are required.",

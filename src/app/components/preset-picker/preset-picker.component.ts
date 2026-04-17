@@ -11,9 +11,9 @@ import { MacroEstimate } from '../../models/macro-estimate';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-      @if (store.presets().length > 0) {
-        <div class="mb-4">
-          <div class="data-label mb-1.5">{{ t('preset.quickAdd') }}</div>
+      <div class="mb-4">
+        <div class="data-label mb-1.5">{{ t('preset.quickAdd') }}</div>
+        @if (store.presets().length > 0) {
           <div class="flex flex-wrap gap-1.5">
             @for (p of store.presets(); track p.id) {
               <button type="button" (click)="pick(p)" class="tag-btn text-[11px] group relative">
@@ -25,8 +25,13 @@ import { MacroEstimate } from '../../models/macro-estimate';
               </button>
             }
           </div>
-        </div>
-      }
+        } @else {
+          <!-- Empty state — tells the user where presets come from so
+               they're not left guessing after they delete their last
+               one. Low-noise caption, not a full specimen card. -->
+          <p class="caption text-[11px] leading-relaxed">{{ t('preset.empty') }}</p>
+        }
+      </div>
     </ng-container>
   `,
 })

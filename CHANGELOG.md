@@ -6,6 +6,15 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-17 — Micro-polish (S3 quick wins)
+
+Four-item micro-polish pass on the S3 backlog. Two of the four turned out to be false positives in the audit — documented here so we don't re-open them.
+
+- **Webhook "copy key" feedback.** Button label flips to "✓ copied" for 2 seconds after a successful `navigator.clipboard.writeText`; an `sr-only` `role="status"` announces the same to screen readers. Silent clipboard failures (insecure context, permission denial) leave the label unchanged instead of lying. en + es-PR.
+- **Preset picker empty state.** After a user deletes their last preset, the quick-add row now shows a one-line caption ("no saved presets yet — use 'save as preset' on any entry you log often.") instead of disappearing entirely. en + es-PR.
+- **Onboarding back button on step 1** — **already correct**. Back is wrapped in `@if (currentStep() > 1)` so it's never rendered on step 1. Audit item was a false positive.
+- **Async button loading states** — **already correct**. Dashboard `refresh`, email-verify `check now`, `resend email`, and offline `retry` all already have `[disabled]` bindings + loading-state text swaps. Audit item was a false positive.
+
 ## 2026-04-17 — Post-launch UX pass (S1 + S2)
 
 Closes all S1 + S2 items from the post-production audit. Every one ships on prod.

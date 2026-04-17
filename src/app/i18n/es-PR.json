@@ -160,6 +160,8 @@
       "webhookHide": "ocultar",
       "webhookEndpoint": "endpoint:",
       "webhookCopy": "copiar llave",
+      "webhookCopied": "✓ copiada",
+      "webhookCopiedAria": "Llave API copiada al portapapeles",
       "webhookRevoke": "revocar",
       "webhookGenerate": "generar api key",
       "webhookGenerateHint": "genera una llave para activar el endpoint del webhook.",
@@ -338,6 +340,7 @@
   },
   "preset": {
     "quickAdd": "añadir rápido",
+    "empty": "no tienes presets guardados — usa \"guardar como preset\" en cualquier entrada que registres seguido.",
     "removeTitle": "Eliminar preset"
   },
   "entry": {

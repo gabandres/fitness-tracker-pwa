@@ -276,11 +276,21 @@ import { ThemeChoice } from '../../utils/theme';
                   <p class="caption text-[11px] mt-2">
                     {{ t('settings.data.webhookEndpoint') }} <span class="font-mono text-ink not-italic text-[11px]">{{ webhookUrl }}</span>
                   </p>
-                  <div class="mt-2 flex gap-2">
+                  <div class="mt-2 flex gap-2 items-center">
                     <button type="button" (click)="copyWebhookKey()"
-                      class="tag-btn text-[11px]">{{ t('settings.data.webhookCopy') }}</button>
+                      class="tag-btn text-[11px]">
+                      {{ webhookCopied() ? t('settings.data.webhookCopied') : t('settings.data.webhookCopy') }}
+                    </button>
                     <button type="button" (click)="store.revokeWebhookApiKey()"
                       class="tag-btn text-[11px] text-blood border-blood/40">{{ t('settings.data.webhookRevoke') }}</button>
+                    @if (webhookCopied()) {
+                      <!-- Live-region confirmation so screen readers announce
+                           the copy succeeded; the visible button label change
+                           above covers sighted users. -->
+                      <span class="sr-only" role="status" aria-live="polite">
+                        {{ t('settings.data.webhookCopiedAria') }}
+                      </span>
+                    }
                   </div>
                 } @else {
                   <p class="caption text-[11px] mb-2">
@@ -473,9 +483,22 @@ export class SettingsSheetComponent implements AfterViewInit {
     return `${h - 12} PM`;
   }
 
+  protected readonly webhookCopied = signal(false);
+  private webhookCopyTimer: ReturnType<typeof setTimeout> | null = null;
+
   protected async copyWebhookKey(): Promise<void> {
     const key = this.store.webhookApiKey();
-    if (key) await navigator.clipboard.writeText(key);
+    if (!key) return;
+    try {
+      await navigator.clipboard.writeText(key);
+      this.webhookCopied.set(true);
+      if (this.webhookCopyTimer) clearTimeout(this.webhookCopyTimer);
+      this.webhookCopyTimer = setTimeout(() => this.webhookCopied.set(false), 2000);
+    } catch {
+      // Clipboard API can reject on insecure contexts or permission denial;
+      // fall back to leaving the label unchanged rather than pretending the
+      // copy succeeded. The key is still visible above for manual copy.
+    }
   }
 
   /** Open the user's mail app with a pre-filled feedback template.

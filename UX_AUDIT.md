@@ -162,12 +162,12 @@ Tracked here so they surface in the next UX pass. Each is low-impact individuall
 
 - [ ] Consultation suggested-prompt pills look identical to the main "ask" button — de-emphasize so first-time users don't think selection is required
 - [ ] Tablet 800–1023px — mobile tabs render but two-column desktop layout doesn't; "insights" tab has orphaned space
-- [ ] Apple Shortcuts "copy key" button has no success feedback (no toast / no "copied!" label)
-- [ ] Onboarding back button on step 1 should be disabled (currently present but no-ops)
+- [x] Apple Shortcuts "copy key" button has no success feedback — label flips to "✓ copied" for 2s + aria-live status *(2026-04-17)*
+- [x] Onboarding back button on step 1 should be disabled — **already correct**: back is wrapped in `@if (currentStep() > 1)` so never rendered on step 1 *(verified 2026-04-17)*
 - [ ] CSV export button has no filename hint / size estimate — iOS can silently fail
 - [ ] Fasting dial → strip transition can feel broken on end-fast; idle "start fast" CTA hard to reach on desktop during active fast
-- [ ] Async buttons without loading/disabled state (`↻ refresh`, offline "check now", "resend email") — allow double-tap
-- [ ] Preset picker has no empty state after all presets deleted
+- [x] Async buttons — **already correct**: dashboard refresh, verify-email check-now + resend, offline retry all have `[disabled]` + loading-label swaps *(verified 2026-04-17)*
+- [x] Preset picker has no empty state — one-line caption shown when list is empty *(2026-04-17)*
 - [ ] Dashboard sparkline may show stale data briefly after rapid-successive weight logs
 
 ---
