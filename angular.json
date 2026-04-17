@@ -23,6 +23,11 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "CHANGELOG.md",
+                "input": ".",
+                "output": "/"
               }
             ],
             "styles": ["src/styles.css"]

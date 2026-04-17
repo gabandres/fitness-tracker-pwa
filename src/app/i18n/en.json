@@ -604,6 +604,17 @@
     "caption": "tap any food to log it — you can edit the number before saving. there's no food database, so these rough-but-reasonable estimates are a way to skip the \"what do i type?\" moment on day one.",
     "logAria": "Log {{label}}, {{calories}} calories, {{protein}} grams protein"
   },
+  "changelog": {
+    "backLink": "← back to macro log",
+    "stamp": "log",
+    "section": "changelog",
+    "titleLead": "Ship",
+    "titleEm": "log.",
+    "subtitle": "significant ships, newest first. for the full record see git log.",
+    "pageTitle": "Changelog — Macro Log",
+    "loading": "loading…",
+    "error": "couldn't load the changelog. please try again later."
+  },
   "privacy": {
     "backLink": "← back to macro log",
     "stamp": "policy",

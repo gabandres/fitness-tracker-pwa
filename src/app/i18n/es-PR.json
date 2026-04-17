@@ -610,6 +610,17 @@
     "caption": "toca cualquier comida para registrarla — puedes editar los números antes de guardar. no hay base de datos de alimentos, así que estas estimaciones aproximadas pero razonables te sirven para saltar el momento de \"¿qué escribo?\" en tu primer día.",
     "logAria": "Registrar {{label}}, {{calories}} calorías, {{protein}} gramos de proteína"
   },
+  "changelog": {
+    "backLink": "← volver a macro log",
+    "stamp": "log",
+    "section": "cambios",
+    "titleLead": "Historial",
+    "titleEm": "de cambios.",
+    "subtitle": "lanzamientos importantes, más recientes primero. para el registro completo revisa git log.",
+    "pageTitle": "Historial — Macro Log",
+    "loading": "cargando…",
+    "error": "no se pudo cargar el historial. intenta de nuevo más tarde."
+  },
   "privacy": {
     "backLink": "← volver a macro log",
     "stamp": "política",
