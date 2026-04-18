@@ -427,10 +427,10 @@ body {
 .tape-in { animation: tape-in var(--motion-base) var(--motion-ease) both; }
 
 @keyframes slide-down {
-  from { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; }
-  to { opacity: 1; max-height: 500px; }
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-.slide-down { animation: slide-down 320ms var(--motion-ease) both; overflow: hidden; }
+.slide-down { animation: slide-down 320ms var(--motion-ease) both; }
 
 /* Snappier entrance for transient overlays (toasts, error cards).
    Distinct from .ink-in (520ms editorial) — toasts need to feel
