@@ -138,9 +138,23 @@ interface DayGroup {
       </div>
 
       <!-- ─── Today weight + add entry (top of tape) ────────── -->
-      <div class="mb-4 flex items-center gap-3">
+      <div class="mb-4 flex items-center gap-3 flex-wrap">
         @if (form.mode() === 'view') {
           <button type="button" (click)="form.startAdd()" class="stamp-btn">{{ t('daily.newEntry') }}</button>
+          <!-- Repeat-yesterday: the single highest-leverage retention fix
+               per the 2026-04-17 market audit. Only visible when today
+               has no entries yet AND yesterday has at least one — otherwise
+               it's noise or a dangerous button. Clones every yesterday
+               entry into today in one tap; weight is deliberately
+               excluded because weight is a same-day measurement. -->
+          @if (canRepeatYesterday()) {
+            <button type="button" (click)="repeatYesterday()"
+              [disabled]="repeatingYesterday()"
+              [attr.aria-label]="t('daily.repeatYesterdayAria')"
+              class="tag-btn text-[11px]">
+              {{ repeatingYesterday() ? t('daily.repeatingYesterday') : t('daily.repeatYesterday') }}
+            </button>
+          }
           <!-- Today weight quick-input -->
           @if (editingWeightDay() === todayKey) {
             <form class="flex items-baseline gap-1" (ngSubmit)="saveTodayWeight()" (click)="$event.stopPropagation()">
@@ -403,6 +417,18 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
   });
   protected readonly skeletonRows = Array.from({ length: 4 });
 
+  /** Repeat-yesterday control state. `canRepeatYesterday` is true when
+      today has no entries AND yesterday has at least one — the only
+      state where cloning yesterday is a safe, useful one-tap. */
+  protected readonly repeatingYesterday = signal(false);
+  protected readonly canRepeatYesterday = computed(() => {
+    const logs = this.store.logs();
+    const todayHasEntries = logs.some((l) => localDateKey(l.date) === this.todayKey);
+    if (todayHasEntries) return false;
+    const yesterdayKey = localDateKey(new Date(Date.now() - 24 * 60 * 60 * 1000));
+    return logs.some((l) => localDateKey(l.date) === yesterdayKey);
+  });
+
   @ViewChild('swipeArea') private readonly swipeAreaRef!: ElementRef<HTMLElement>;
   @ViewChild('undoBtn') private readonly undoBtnRef?: ElementRef<HTMLButtonElement>;
   private readonly swipeStartFn = (e: TouchEvent) => this.onSwipeStart(e);
@@ -511,6 +537,20 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
   protected dismissSwipeHint(): void {
     this.showSwipeHint.set(false);
     try { sessionStorage.setItem('macrolog.swipe-hint-dismissed', '1'); } catch {}
+  }
+
+  /** Clones yesterday's entries into today in one tap. UX is intentionally
+      silent on success — the log tape re-renders with the new entries,
+      which is its own confirmation. Button hides after success via the
+      `canRepeatYesterday` guard. */
+  protected async repeatYesterday(): Promise<void> {
+    if (this.repeatingYesterday()) return;
+    this.repeatingYesterday.set(true);
+    try {
+      await this.store.repeatYesterday();
+    } finally {
+      this.repeatingYesterday.set(false);
+    }
   }
 
   // ── Date navigation strip: last 14 calendar days ────────────

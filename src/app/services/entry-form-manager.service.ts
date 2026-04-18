@@ -21,6 +21,10 @@ export class EntryFormManager {
   readonly savingPreset = signal(false);
   readonly presetName = signal('');
   readonly activePresetName = signal<string | null>(null);
+  /** Set true when a free-tier user hits PRESET_LIMIT_FREE; used by the
+      entry-form template to surface the contextual upsell card. Cleared
+      on the next successful preset save or form reset. */
+  readonly presetLimitHit = signal(false);
 
   // ── Form field signals ──────────────────────────────────────
   readonly mealLabel = signal<string>('');
@@ -153,6 +157,7 @@ export class EntryFormManager {
       if (err instanceof PresetLimitError) {
         this.status.set('error');
         this.errorMsg.set(this.translation.t('errors.presetLimitReached', { limit: err.limit }));
+        this.presetLimitHit.set(true);
         return;
       }
       throw err;
@@ -168,5 +173,6 @@ export class EntryFormManager {
     this.activePresetName.set(null);
     this.mealLabel.set('');
     this.entryDate.set(localDateKey(new Date()));
+    this.presetLimitHit.set(false);
   }
 }

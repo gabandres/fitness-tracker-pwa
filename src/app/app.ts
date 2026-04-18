@@ -25,6 +25,7 @@ import { SubscriptionService } from './services/subscription.service';
 import { ThemeChoice, PRO_THEMES, isProTheme, readStoredTheme, writeStoredTheme } from './utils/theme';
 import { localDateKey } from './utils/date';
 import { mediaSignal } from './utils/media';
+import { UpsellService } from './services/upsell.service';
 
 @Component({
   selector: 'app-root',
@@ -356,6 +357,7 @@ export class App {
   protected readonly firebase = inject(FirebaseService);
   protected readonly store = inject(FitnessStore); // triggers lifecycle via constructor effect
   protected readonly subs = inject(SubscriptionService);
+  private readonly upsell = inject(UpsellService);
   private readonly swUpdate = inject(SwUpdate);
   private readonly translation = inject(TranslationService); // resolves locale on boot, updates <title>
 
@@ -500,6 +502,35 @@ export class App {
       if (isProTheme(choice) && !this.subs.isPaid()) {
         this.setTheme('auto');
       }
+    });
+
+    // Upsell cards deep inside child components call `UpsellService.openSubscribe()`
+    // to request the Subscribe card; we respond by opening the settings sheet and
+    // deep-linking to the #settings-subscription anchor. Counter (not boolean)
+    // so repeat clicks re-trigger without an intermediate reset.
+    let lastOpenCount = 0;
+    effect(() => {
+      const n = this.upsell.requestOpenCount();
+      if (n === lastOpenCount) return;
+      lastOpenCount = n;
+      this.showSettings.set(true);
+      // Settings sheet is wrapped in `@defer`, so on the first open the
+      // chunk hasn't loaded yet and the anchor element won't exist on the
+      // next frame. Poll with bounded retries (every 50ms, up to 2s)
+      // until the element appears, then scroll. Gives up silently on
+      // timeout rather than throwing — a failed scroll is not worth
+      // interrupting the user's upgrade intent.
+      const start = Date.now();
+      const tryScroll = (): void => {
+        const el = document.getElementById('settings-subscription');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+        if (Date.now() - start >= 2000) return;
+        setTimeout(tryScroll, 50);
+      };
+      tryScroll();
     });
 
     // Track system preference so 'auto' responds live.

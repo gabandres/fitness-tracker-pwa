@@ -7,6 +7,7 @@ import { TdeeCalculatorService } from '../../services/tdee-calculator.service';
 import { TranslationService } from '../../services/translation.service';
 import { SubscriptionService } from '../../services/subscription.service';
 import { localDateKey } from '../../utils/date';
+import { UpsellCardComponent } from '../upsell-card/upsell-card.component';
 
 /** Free-tier CSV export is capped to this many days of history (matches
     the freemium table in the UX plan). Pro subscribers get all history. */
@@ -17,7 +18,7 @@ interface SparklinePoint { x: number; y: number; }
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [TranslocoDirective],
+  imports: [TranslocoDirective, UpsellCardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -419,6 +420,13 @@ interface SparklinePoint { x: number; y: number; }
           <p class="caption text-[10px] mt-2" style="color: var(--color-graphite)">
             {{ t('dashboard.exportFormatHint') }}
           </p>
+          <!-- After a free-tier user exports, surface the Pro pitch
+               showing they could have exported all history. Only renders
+               once per session to avoid nag; UpsellCard self-gates on
+               isPaid so Pro users never see it. -->
+          @if (showExportUpsell()) {
+            <app-upsell-card context="csvExport" />
+          }
         </div>
       }
     </section>
@@ -436,6 +444,10 @@ export class DashboardComponent {
   protected readonly Math = Math;
   protected readonly svgW = 320;
   protected readonly svgH = 60;
+  /** True after a free-tier user clicks the export button; drives the
+      contextual upsell card. One-shot per session — the card itself
+      self-gates on isPaid so Pro users never see it. */
+  protected readonly showExportUpsell = signal(false);
 
   /** Selected window for the merged weight chart. Defaults to 14d
       because that's the actionable horizon for cut-pace adjustment;
@@ -587,6 +599,9 @@ export class DashboardComponent {
   }
 
   protected async exportCsv(): Promise<void> {
+    // Flag the upsell for free users the moment they engage with export.
+    // UpsellCard still self-gates on isPaid so Pro users see nothing.
+    if (!this.subs.isPaid()) this.showExportUpsell.set(true);
     const allLogs = await this.store.getAllLogs();
     // Free tier exports only the trailing window; Pro exports all history.
     const exportLogs = this.subs.isPaid()

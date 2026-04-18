@@ -1,6 +1,8 @@
 # Macro Log — UX Audit
 
-> Living document. Check items off as they ship. Last updated: 2026-04-17 (post-launch S1 + S2 pass; S3 items logged under S11).
+> Living document. Check items off as they ship. Last updated: 2026-04-17 (market-informed strategic pivot — see §S12).
+
+Sections prior to §S12 are historical — every item is shipped. For the live backlog and market-positioning thinking, start at §S12.
 
 ---
 
@@ -169,6 +171,77 @@ Tracked here so they surface in the next UX pass. Each is low-impact individuall
 - [x] Async buttons — **already correct**: dashboard refresh, verify-email check-now + resend, offline retry all have `[disabled]` + loading-label swaps *(verified 2026-04-17)*
 - [x] Preset picker has no empty state — one-line caption shown when list is empty *(2026-04-17)*
 - [ ] Dashboard sparkline may show stale data briefly after rapid-successive weight logs
+
+---
+
+## 🎯 S12 — Market-informed strategic direction (2026-04-17)
+
+After a deep market dive (MyFitnessPal, Cronometer, MacroFactor, Cal AI, Lose It! — see sources at the bottom of this file and `CHANGELOG.md`), the product positioning crystallized as:
+
+> **"The calm, private macro log with an AI coach that actually reads your data."**
+
+Four load-bearing words: **calm** (vs shame-based MFP), **private** (real trust moat), **log** (editorial, adult, not gamified), **coach that reads your data** (adaptive TDEE + AI consultation — uniquely *both* photo-AI AND MacroFactor-style learning TDEE, which no competitor does).
+
+### Where we compete
+
+| App | Their angle | Annual | What we beat them on |
+|---|---|---|---|
+| MyFitnessPal | 14M food DB | $79.99 | Accuracy, privacy, no ads, aesthetic |
+| Cronometer | Micronutrient accuracy | $59.88 | UX warmth, photo AI, price |
+| MacroFactor | Adaptive TDEE | $71.99 (no free) | Has free tier, has photo AI |
+| Cal AI | Photo-first, TikTok | ~$40 | Defensible AI (chain-of-thought + anchors), trust |
+| Lose It! | Cheapest premium | $39.99 | Modern stack, active development |
+
+### Where we lose (and mitigations)
+
+- **Food DB gap** — MFP has 14M entries, we have PR staples + whatever users type. *Mitigation:* double down on photo + barcode + preset flows so DB size matters less.
+- **No social proof** — zero reviews visible on landing. *Mitigation:* add real user count once we cross 100.
+- **No TikTok strategy** — Cal AI won distribution, not product. *Mitigation:* one honest creator collab, not a campaign.
+- **Price signal** — $24/yr is 60% cheaper than MacroFactor; reads as "budget" to some. *Mitigation:* lead with 7-day trial, not price.
+
+### Live backlog (in priority order)
+
+#### Week 1 — conversion path
+- [~] **#1 Contextual upsells** at the three free-tier friction points (photo quota out, 11th preset attempted, free-tier CSV clicked). "Try Pro free for 7 days" label. *In flight 2026-04-17.*
+- [ ] Subscribe card: make "7-day free trial" the primary label, not the price.
+- [ ] Add a price anchor: show "$36/yr" crossed out next to "$24/yr" so the 33% save is visible at the same glance.
+- [ ] Instrument with Plausible (or similar privacy-respecting analytics): `paywall_shown_photo`, `paywall_shown_preset`, `paywall_shown_csv`, `trial_started`, `trial_cancelled`, `export_clicked`.
+
+#### Week 2 — first-session retention
+- [~] **#3 "Repeat yesterday"** one-tap button that clones yesterday's full log. *In flight 2026-04-17.*
+- [ ] Recent-entries row under the ledger header — tap any to re-log with one tap.
+- [ ] Starter-foods card tuned to onboarding goal (cut → lean protein, bulk → denser carbs).
+- [ ] First-session coachmark on the dashboard "?" TDEE explainer.
+- [ ] Empty-state dashboard hero: "Good morning — you have {{target}} kcal to spend today".
+
+#### Week 3 — daily-use polish
+- [ ] Floating "+" FAB on mobile for one-tap new-entry access.
+- [ ] Haptic feedback (`navigator.vibrate([20])`) on save.
+- [ ] Swipe-to-delete on log entries.
+- [ ] Day-summary closure toast when user crosses daily budget.
+- [ ] Barcode scan inside the calorie input (not a separate tab).
+
+#### Week 4 — market signals
+- [ ] Day-3 push notification: "You have data now — ask your coach." Deep links to consultation.
+- [ ] Landing page social proof: "join N+ quiet loggers" once we cross 100 users.
+- [ ] Play Store TWA wrap for discovery.
+- [ ] One creator collab for "calm macro log" TikTok angle.
+
+### Decided against (deliberately not shipping)
+
+- **Shame-based gamification** (streak-break punishment, red/green progress) — breaks the calm positioning.
+- **Third pricing tier** ($7.99/mo "Pro+") — revisit at 1,000+ active users; not worth the maintenance cost today.
+- **Forced account creation before first log** — planned "Guest Mode" is the fix if Day-1 retention data warrants it.
+
+### Market research sources
+
+- [Best Macro Tracking Apps Compared 2026](https://www.macronutrientcalculator.org/blog/macro-tracking-apps/)
+- [MyFitnessPal Premium Cost 2026](https://healthfitpublishing.com/myfitnesspal-premium-cost-is-macro-tracking-worth-it-in-2026/)
+- [MacroFactor Review 2026 — Outlift](https://outlift.com/macrofactor-review/)
+- [How top subscription apps approach paywalls — RevenueCat](https://www.revenuecat.com/blog/growth/how-top-apps-approach-paywalls/)
+- [Paywall tactics for health apps — Adapty](https://adapty.io/blog/paywall-newsletter-22/)
+- [App Retention Benchmarks 2026](https://enable3.io/blog/app-retention-benchmarks-2025)
+- [Two Teens Built Cal AI — Slashdot](https://slashdot.org/story/25/04/04/2338220/two-teenagers-built-cal-ai-a-photo-calorie-app-with-over-a-million-users)
 
 ---
 

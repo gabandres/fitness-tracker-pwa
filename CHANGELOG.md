@@ -6,6 +6,17 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-17 — Market-informed pivot + contextual upsells + repeat-yesterday
+
+Big strategic session. Did a deep dive on competitors (MyFitnessPal, Cronometer, MacroFactor, Cal AI, Lose It!) and distilled a positioning sentence the roadmap now serves: **"the calm, private macro log with an AI coach that actually reads your data."** Full competitive analysis + 4-week prioritised roadmap lives in `UX_AUDIT.md` §S12.
+
+First shipped items from the new roadmap:
+
+- **Contextual upsells (roadmap #1).** Free-tier friction points — out of photo quota, 11th preset attempted, CSV clicked — now surface a "try Pro free for 7 days" inline card instead of a bare error. Converts the three existing walls into the three best upsell moments in the app. Never fires for Pro / admin / comped users.
+- **"Repeat yesterday" (roadmap #3).** One-tap button on the daily ledger that clones every entry from yesterday into today — the single highest-leverage retention fix in the audit, because ~40% of users eat similarly day-to-day and logging from scratch every day is the #1 reason calorie-tracking apps lose users by week two. Hides when yesterday had no entries.
+
+Why these two first: conversion + retention in the same PR. #1 monetises the users who already hit walls daily; #3 removes the biggest friction point keeping new users from reaching Day-14.
+
 ## 2026-04-17 — Product-shape S3 pass (#7-A, #8-A, #11-A)
 
 Three S3 audit items that deserved product reasoning before code. Each shipped as the minimal "A" option — reversible, telemetry-ready, leaves room to iterate once we have usage data.

@@ -295,6 +295,9 @@
     "swipeHintAria": "Dismiss swipe hint",
     "chipHasEntries": "has entries",
     "newEntry": "+ new entry",
+    "repeatYesterday": "↻ repeat yesterday",
+    "repeatingYesterday": "copying…",
+    "repeatYesterdayAria": "Copy every entry from yesterday into today",
     "weight": {
       "lb": "lb",
       "saveAria": "Save weight",
@@ -768,5 +771,21 @@
     "insights": "insights",
     "body": "body",
     "ariaLabel": "Main navigation"
+  },
+  "upsell": {
+    "stamp": "pro",
+    "cta": "try 7 days free",
+    "photoQuota": {
+      "body": "out of free photos today. pro gets 30/day plus the AI coach that reads your data."
+    },
+    "presetLimit": {
+      "body": "free plan holds 10 presets. pro is unlimited — plus full chart history, all-time CSV export, and the coach."
+    },
+    "csvExport": {
+      "body": "free export is the last 30 days. pro exports every log you've ever written."
+    },
+    "chartHistory": {
+      "body": "free charts show the last 90 days. pro shows your full history."
+    }
   }
 }

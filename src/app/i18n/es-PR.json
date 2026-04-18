@@ -301,6 +301,9 @@
     "swipeHintAria": "Ignorar pista de desliz",
     "chipHasEntries": "tiene entradas",
     "newEntry": "+ nueva entrada",
+    "repeatYesterday": "↻ repetir ayer",
+    "repeatingYesterday": "copiando…",
+    "repeatYesterdayAria": "Copiar todas las entradas de ayer a hoy",
     "weight": {
       "lb": "lb",
       "saveAria": "Guardar peso",
@@ -774,5 +777,21 @@
     "insights": "resumen",
     "body": "cuerpo",
     "ariaLabel": "Navegación principal"
+  },
+  "upsell": {
+    "stamp": "pro",
+    "cta": "prueba 7 días gratis",
+    "photoQuota": {
+      "body": "se acabaron las fotos gratis por hoy. pro da 30/día más el coach IA que lee tus datos."
+    },
+    "presetLimit": {
+      "body": "el plan gratis guarda 10 presets. pro es ilimitado — más historial completo, exportación total y el coach."
+    },
+    "csvExport": {
+      "body": "la exportación gratis son los últimos 30 días. pro exporta todo lo que has registrado."
+    },
+    "chartHistory": {
+      "body": "los gráficos gratis muestran los últimos 90 días. pro muestra todo tu historial."
+    }
   }
 }

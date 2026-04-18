@@ -363,6 +363,61 @@ export class FitnessStore {
     await this._load();
   }
 
+  /**
+   * Clone every non-weight log from yesterday into today, preserving
+   * calories, protein, meal labels, and exercise flags. Weight is NOT
+   * copied — weight is strictly a same-day measurement, not a "same
+   * as yesterday" signal. Timestamps are rewritten to today at the
+   * same hour-of-day as the original so the ordering stays sensible.
+   *
+   * Returns the number of entries cloned, 0 if yesterday was empty
+   * (callers can use this to decide whether to show the CTA at all).
+   */
+  async repeatYesterday(): Promise<number> {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+    const yKey = localDateKey(yesterday);
+
+    const yesterdayLogs = this._logs().filter(
+      (l) => localDateKey(l.date) === yKey,
+    );
+    if (yesterdayLogs.length === 0) return 0;
+
+    // Write sequentially so Firestore ordering matches the source day.
+    // Wrap in try/finally so a mid-loop failure still reloads the store —
+    // otherwise the partial state written to Firestore wouldn't appear in
+    // the UI until the next manual refresh, which is confusing.
+    let cloned = 0;
+    try {
+      for (const src of yesterdayLogs) {
+        const clonedAt = new Date(
+          today.getFullYear(), today.getMonth(), today.getDate(),
+          src.date.getHours(), src.date.getMinutes(), src.date.getSeconds(),
+        );
+        const entry: LogEntry = {
+          calories: src.calories,
+          timestamp: clonedAt,
+        };
+        if (src.protein != null) entry.protein = src.protein;
+        if (src.mealLabel) entry.mealLabel = src.mealLabel;
+        // Carry exercise flag but collapse the legacy split flags into the
+        // modern `exerciseCompleted` so we don't re-persist deprecated fields.
+        if (src.exerciseCompleted || src.liftCompleted || src.cardioCompleted) {
+          entry.exerciseCompleted = true;
+        }
+        // Weight deliberately omitted — not a "same as yesterday" signal.
+        await this.fb.addLog(entry);
+        cloned += 1;
+      }
+    } finally {
+      // Always reload so any partial clones are visible; catch + swallow
+      // reload errors so the original failure (if any) is what propagates.
+      try { await this._load(); } catch { /* noop */ }
+    }
+    return cloned;
+  }
+
   async updateLog(id: string, entry: LogEntry): Promise<void> {
     await this.fb.updateLog(id, entry);
     await this._load();

@@ -2,11 +2,12 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
+import { UpsellCardComponent } from '../upsell-card/upsell-card.component';
 
 @Component({
   selector: 'app-entry-form',
   standalone: true,
-  imports: [FormsModule, TranslocoDirective],
+  imports: [FormsModule, TranslocoDirective, UpsellCardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -98,6 +99,10 @@ import { EntryFormManager } from '../../services/entry-form-manager.service';
       }
       @if (form.status() === 'error') {
         <p class="font-sans text-xs text-blood">✕ {{ form.errorMsg() }}</p>
+      }
+      <!-- Contextual upsell when a free user hits the 10-preset cap. -->
+      @if (form.presetLimitHit()) {
+        <app-upsell-card context="presetLimit" />
       }
     </form>
     </ng-container>

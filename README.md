@@ -1,8 +1,14 @@
 # Macro Log
 
-Calorie, protein, weight, fasting, and body-measurement tracker. Live at **<https://macrolog.web.app>**.
+The calm, private macro log with an AI coach that actually reads your data. Live at **<https://macrolog.web.app>**.
 
 Angular 21 PWA backed by Firebase (Firestore, Auth, Cloud Functions, Hosting). Stripe for subscriptions via the `firestore-stripe-payments` extension. Gemini for photo→macros and the AI consultation.
+
+## Positioning
+
+Not another shame-based tracker. The product is deliberately calm (olive + terracotta, no red/green progress bars), private (no ads, no selling data, no training on logs), adult-framed (editorial "Personal Calibration Log" language), and data-serving (adaptive TDEE + AI consultation that reads your actual 14-day history).
+
+Uniquely, we ship both photo-AI logging (like Cal AI) *and* adaptive TDEE coaching (like MacroFactor) — no other app does both. See `UX_AUDIT.md` §S12 for the competitive analysis and live roadmap.
 
 ## Project map
 
