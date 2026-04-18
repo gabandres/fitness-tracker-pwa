@@ -7,6 +7,7 @@ import { FirebaseService, DailyLog, LogEntry, MealPreset, UserProfile } from './
 import { TdeeCalculatorService } from './tdee-calculator.service';
 import { GeminiService } from './gemini.service';
 import { SubscriptionService } from './subscription.service';
+import { TranslationService } from './translation.service';
 
 describe('FitnessStore', () => {
   let store: FitnessStore;
@@ -114,6 +115,17 @@ describe('FitnessStore', () => {
           },
         },
         { provide: FirebaseService, useValue: mockFb },
+        {
+          // Stub TranslationService so the test bed doesn't have to pull in
+          // the full Transloco provider chain (TRANSLOCO_TRANSPILER etc).
+          // FitnessStore only calls tError() for report error surfacing.
+          provide: TranslationService,
+          useValue: {
+            t: (key: string) => key,
+            tError: (code: string | undefined | null) => code ?? 'errors.unknown',
+            language: signal('en'),
+          },
+        },
       ],
     });
 
