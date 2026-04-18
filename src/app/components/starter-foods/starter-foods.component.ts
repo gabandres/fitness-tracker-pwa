@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, output } from '@a
 import { TranslocoDirective } from '@jsverse/transloco';
 import { MacroEstimate } from '../../models/macro-estimate';
 import { TranslationService } from '../../services/translation.service';
+import { FitnessStore } from '../../services/fitness-store.service';
 
 /**
  * Cold-start helper. Rendered only when the user has zero logs.
@@ -117,8 +118,35 @@ export const STARTER_FOODS_ES_PR: StarterFood[] = [
 })
 export class StarterFoodsComponent {
   private readonly translation = inject(TranslationService);
+  private readonly store = inject(FitnessStore);
   readonly picked = output<MacroEstimate>();
-  protected readonly foods = computed(() =>
-    this.translation.language() === 'es-PR' ? STARTER_FOODS_ES_PR : STARTER_FOODS_EN,
-  );
+
+  /**
+   * Foods are re-ordered by the user's onboarding goal so the most useful
+   * options surface first:
+   *   cut (targetPaceLbsPerWeek > 0) → lean protein + low-cal first
+   *   bulk (targetPaceLbsPerWeek < 0) → denser carbs + calorie-heavy first
+   *   maintain / travel mode / unset  → original order preserved
+   * The underlying list is untouched — this is a stable sort by priority
+   * weight so relative order inside each tier stays natural.
+   */
+  protected readonly foods = computed<StarterFood[]>(() => {
+    const base = this.translation.language() === 'es-PR' ? STARTER_FOODS_ES_PR : STARTER_FOODS_EN;
+    const pace = this.store.profile()?.targetPaceLbsPerWeek ?? 0;
+    const travel = this.store.travelMode();
+    if (travel || pace === 0) return base;
+
+    const weight = (f: StarterFood): number => {
+      if (pace > 0) {
+        // Cut: high protein-per-calorie first, then lowest calorie items.
+        const ratio = f.protein / Math.max(1, f.calories);
+        return 1000 - Math.round(ratio * 1000);
+      }
+      // Bulk: higher-calorie calorie-dense items first.
+      return 1000 - f.calories;
+    };
+    return base.map((f, i) => ({ f, i, w: weight(f) }))
+      .sort((a, b) => a.w - b.w || a.i - b.i)
+      .map(({ f }) => f);
+  });
 }

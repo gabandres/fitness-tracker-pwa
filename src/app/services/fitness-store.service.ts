@@ -89,6 +89,9 @@ export class FitnessStore {
   private readonly _weeklyReport = signal<WeeklyReport | null>(null);
   private readonly _reportLoading = signal(false);
   private readonly _reportError = signal<string | null>(null);
+  /** Surfaced once per day when the user first crosses their daily
+      calorie budget. Cleared on ack or on day rollover. */
+  private readonly _budgetCrossed = signal(false);
   private readonly _measurements = signal<Measurement[]>([]);
   private readonly _dailyWeights = signal<Record<string, number>>({});
   private readonly _undoEntry = signal<DailyLog | null>(null);
@@ -103,6 +106,7 @@ export class FitnessStore {
   readonly weeklyReport: Signal<WeeklyReport | null> = this._weeklyReport.asReadonly();
   readonly reportLoading: Signal<boolean> = this._reportLoading.asReadonly();
   readonly reportError: Signal<string | null> = this._reportError.asReadonly();
+  readonly budgetCrossed: Signal<boolean> = this._budgetCrossed.asReadonly();
   readonly measurements: Signal<Measurement[]> = this._measurements.asReadonly();
   readonly dailyWeights: Signal<Record<string, number>> = this._dailyWeights.asReadonly();
   readonly latestMeasurement: Signal<Measurement | null> = computed(() => this._measurements()[0] ?? null);
@@ -345,6 +349,29 @@ export class FitnessStore {
         this._clear();
       }
     });
+
+    // Budget-crossing toast: fire once per calendar day when today's
+    // total calories crosses the computed daily target. localStorage
+    // flag is keyed by date so the toast doesn't re-fire across reloads
+    // within the same day, and auto-resets the next morning.
+    effect(() => {
+      const summary = this.todaySummary();
+      const target = this.targetCalories();
+      if (!summary || target <= 0) return;
+      if (summary.totalCalories <= target) return;
+      const key = `macrolog.budget-crossed.${localDateKey(new Date())}`;
+      try {
+        if (localStorage.getItem(key)) return;
+        localStorage.setItem(key, '1');
+      } catch { /* private mode — still show the toast this session */ }
+      this._budgetCrossed.set(true);
+    });
+  }
+
+  /** Dismiss the budget-crossed toast. The localStorage day-key stays
+      set so it doesn't re-fire after reload on the same day. */
+  ackBudgetCrossed(): void {
+    this._budgetCrossed.set(false);
   }
 
   /** The user's webhook API key, or null if not generated. */

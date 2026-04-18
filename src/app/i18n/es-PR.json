@@ -16,6 +16,7 @@
     "startLogging": "empieza a registrar",
     "startLoggingCta": "entrar con google",
     "seePricing": "ver precios ↓",
+    "socialProof": "únete a {{n}}+ registradores en silencio ya calibrando.",
     "signingIn": "entrando…",
     "whatItDoesRule": "qué hace",
     "proofCaptureStamp": "captura",
@@ -223,6 +224,7 @@
     "tdeeHelpTitle": "Calorías estimadas que quemas en un día promedio. Después de 14 días de registro cambia de la estimación por fórmula a tu tasa real medida.",
     "tdeeAria": "¿Qué es tdee real?",
     "tdeeHelp": "calorías que quemas en un día promedio. después de 14 días cambia de una estimación por fórmula a tu tasa real medida.",
+    "tdeeCoachmark": "tip: toca cualquier ? para ver qué significa cada número.",
     "weightHelpTitle": "Último peso registrado. El suavizado EMA de 14 días se muestra en la línea de abajo.",
     "weightAria": "¿Qué es peso?",
     "weightHelp": "último peso registrado. la línea de abajo muestra una tendencia suavizada de 14 días para que el ruido del día a día no domine.",
@@ -349,9 +351,13 @@
     "edit": "editar",
     "emptyStatePrefix": "o presiona el botón",
     "emptyStateSuffix": "para registrar cualquier otra cosa.",
+    "swipeDelete": "eliminar",
     "undoLabel": "entrada eliminada",
     "undoAction": "deshacer",
-    "undoAria": "Deshacer eliminación de entrada"
+    "undoAria": "Deshacer eliminación de entrada",
+    "budgetCrossedLabel": "presupuesto del día superado",
+    "budgetCrossedAction": "cerrar",
+    "budgetCrossedAria": "Cerrar aviso de presupuesto superado"
   },
   "preset": {
     "quickAdd": "añadir rápido",
@@ -803,6 +809,9 @@
     "insights": "resumen",
     "body": "cuerpo",
     "ariaLabel": "Navegación principal"
+  },
+  "fab": {
+    "addEntryAria": "Agregar nueva entrada"
   },
   "upsell": {
     "stamp": "pro",

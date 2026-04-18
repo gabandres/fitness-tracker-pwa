@@ -10,6 +10,7 @@
     "startLogging": "start logging",
     "startLoggingCta": "sign in with google",
     "seePricing": "see pricing ↓",
+    "socialProof": "join {{n}}+ quiet loggers already calibrating.",
     "signingIn": "signing in…",
     "whatItDoesRule": "what it does",
     "proofCaptureStamp": "capture",
@@ -217,6 +218,7 @@
     "tdeeHelpTitle": "Estimated calories you burn on an average day. After 14 days of logging this shifts from the formula estimate to your real measured rate.",
     "tdeeAria": "What is true tdee?",
     "tdeeHelp": "calories you burn on an average day. after 14 days this switches from a formula estimate to your real measured rate.",
+    "tdeeCoachmark": "tip: tap any ? to see what each number means.",
     "weightHelpTitle": "Latest logged weight. 14-day EMA smoothing is shown on the sparkline below.",
     "weightAria": "What is weight?",
     "weightHelp": "latest logged weight. the sparkline below shows a 14-day smoothed trend so day-to-day noise doesn't dominate.",
@@ -343,9 +345,13 @@
     "edit": "edit",
     "emptyStatePrefix": "or press the",
     "emptyStateSuffix": "button to log anything else.",
+    "swipeDelete": "delete",
     "undoLabel": "entry deleted",
     "undoAction": "undo",
-    "undoAria": "Undo delete entry"
+    "undoAria": "Undo delete entry",
+    "budgetCrossedLabel": "day's budget crossed",
+    "budgetCrossedAction": "dismiss",
+    "budgetCrossedAria": "Dismiss budget crossed notification"
   },
   "preset": {
     "quickAdd": "quick add",
@@ -797,6 +803,9 @@
     "insights": "insights",
     "body": "body",
     "ariaLabel": "Main navigation"
+  },
+  "fab": {
+    "addEntryAria": "Add new entry"
   },
   "upsell": {
     "stamp": "pro",

@@ -3,11 +3,12 @@ import { FormsModule } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { UpsellCardComponent } from '../upsell-card/upsell-card.component';
+import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.component';
 
 @Component({
   selector: 'app-entry-form',
   standalone: true,
-  imports: [FormsModule, TranslocoDirective, UpsellCardComponent],
+  imports: [FormsModule, TranslocoDirective, UpsellCardComponent, BarcodeScannerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -33,7 +34,9 @@ import { UpsellCardComponent } from '../upsell-card/upsell-card.component';
       </div>
 
       <div class="grid grid-cols-2 gap-3">
-        <!-- Calories (required) -->
+        <!-- Calories (required). Compact barcode trigger sits inline so
+             scanning a packaged item populates calories + protein without
+             the user having to scroll back to the capture row. -->
         <div>
           <label class="data-label block mb-1">{{ t('entry.calories') }}</label>
           <div class="flex items-baseline gap-1">
@@ -41,6 +44,7 @@ import { UpsellCardComponent } from '../upsell-card/upsell-card.component';
               [ngModel]="form.calories()" (ngModelChange)="form.calories.set($event)"
               name="calories" [attr.placeholder]="t('entry.caloriesPlaceholder')" class="field-input text-base" />
             <span class="font-display italic text-graphite text-xs">{{ t('entry.kcal') }}</span>
+            <app-barcode-scanner [compact]="true" (estimated)="form.applyEstimate($event)" />
           </div>
         </div>
         <!-- Protein -->

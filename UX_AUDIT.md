@@ -210,20 +210,20 @@ Four load-bearing words: **calm** (vs shame-based MFP), **private** (real trust 
 #### Week 2 — first-session retention
 - [x] **#3 "Repeat yesterday"** one-tap button that clones yesterday's full log. *(2026-04-17)*
 - [x] Recent-entries row in the add-entry sheet — last 5 unique meal labels, tap to prefill. *(2026-04-17)*
-- [ ] Starter-foods card tuned to onboarding goal (cut → lean protein, bulk → denser carbs).
-- [ ] First-session coachmark on the dashboard "?" TDEE explainer.
+- [x] Starter-foods card tuned to onboarding goal (cut → lean protein, bulk → denser carbs). *(2026-04-18)*
+- [x] First-session coachmark on the dashboard "?" TDEE explainer. *(2026-04-18)*
 - [x] Empty-state dashboard hero: time-of-day greeting + "you have {{target}} kcal to spend today" + CTA that switches to the log tab. *(2026-04-17)*
 
 #### Week 3 — daily-use polish
-- [ ] Floating "+" FAB on mobile for one-tap new-entry access.
-- [ ] Haptic feedback (`navigator.vibrate([20])`) on save.
-- [ ] Swipe-to-delete on log entries.
-- [ ] Day-summary closure toast when user crosses daily budget.
-- [ ] Barcode scan inside the calorie input (not a separate tab).
+- [x] Floating "+" FAB on mobile for one-tap new-entry access. *(2026-04-18)*
+- [x] Haptic feedback (`navigator.vibrate([20])`) on save. *(2026-04-18)*
+- [x] Swipe-to-delete on log entries. *(2026-04-18)*
+- [x] Day-summary closure toast when user crosses daily budget. *(2026-04-18)*
+- [x] Barcode scan inside the calorie input (not a separate tab). *(2026-04-18)*
 
 #### Week 4 — market signals
-- [ ] Day-3 push notification: "You have data now — ask your coach." Deep links to consultation.
-- [ ] Landing page social proof: "join N+ quiet loggers" once we cross 100 users.
+- [x] Day-3 push notification: "You have data now — ask your coach." Deep links to consultation. *(2026-04-18)*
+- [x] Landing page social proof: "join N+ quiet loggers" once we cross 100 users. *(2026-04-18)*
 - [ ] Play Store TWA wrap for discovery.
 - [ ] One creator collab for "calm macro log" TikTok angle.
 

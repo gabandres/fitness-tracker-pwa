@@ -765,6 +765,91 @@ export const sendDailyReminders = onSchedule(
   },
 );
 
+// ─── Day-3 ask-coach push ──────────────────────────────────────────
+//
+// Once a user has ≥3 days of data the consultation panel becomes
+// actually useful (before that, Gemini has nothing to ground its
+// answers in). This push nudges them into their first AI conversation
+// exactly when the data is ready, deep-linking to the body tab where
+// the consultation lives. One-shot per user — latched via the
+// `dayThreeCoachPushSent` flag on the user doc so we never spam.
+//
+// Ride the same hourly cadence as sendDailyReminders so we reuse the
+// timezone / reminder-hour logic and stay within the user's explicit
+// reminder window.
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export const sendDayThreeCoachPush = onSchedule(
+  { schedule: "every 1 hours", timeZone: "UTC" },
+  async () => {
+    const messaging = getMessaging();
+
+    const usersSnap = await db
+      .collection("users")
+      .where("fcmToken", "!=", null)
+      .get();
+
+    if (usersSnap.empty) return;
+
+    const nowUtc = new Date();
+
+    await Promise.allSettled(
+      usersSnap.docs.map(async (userDoc) => {
+        const data = userDoc.data();
+        if (data.dayThreeCoachPushSent) return; // already nudged.
+
+        const token = data.fcmToken as string;
+        const reminderHour = (data.reminderHour as number) ?? 20;
+        const tzOffsetMin = (data.timezoneOffsetMin as number) ?? 0;
+        const userLocalHour = (nowUtc.getUTCHours() - Math.round(tzOffsetMin / 60) + 24) % 24;
+        if (userLocalHour < reminderHour || userLocalHour > reminderHour + 1) return;
+
+        // Oldest log — single read, no aggregate needed. If the oldest
+        // log is ≥3 days old the user has been around long enough for
+        // the consultation panel to say something useful.
+        const oldestSnap = await db
+          .collection("users")
+          .doc(userDoc.id)
+          .collection("dailyLogs")
+          .orderBy("timestamp", "asc")
+          .limit(1)
+          .get();
+        if (oldestSnap.empty) return;
+
+        const oldestTs = oldestSnap.docs[0].data().timestamp as Timestamp | undefined;
+        if (!oldestTs) return;
+        const ageMs = nowUtc.getTime() - oldestTs.toMillis();
+        if (ageMs < 3 * DAY_MS) return;
+
+        try {
+          await messaging.send({
+            token,
+            notification: {
+              title: "Macro Log",
+              body: "You have data now — ask your coach what to adjust.",
+            },
+            webpush: {
+              fcmOptions: { link: "https://macrolog.web.app/?tab=body" },
+            },
+          });
+          await userDoc.ref.update({ dayThreeCoachPushSent: true });
+        } catch (err: unknown) {
+          const code = (err as { code?: string })?.code;
+          if (
+            code === "messaging/registration-token-not-registered" ||
+            code === "messaging/invalid-registration-token"
+          ) {
+            await userDoc.ref.update({ fcmToken: null });
+          } else {
+            console.error(`Day-3 coach push failed for user ${userDoc.id}:`, err);
+          }
+        }
+      }),
+    );
+  },
+);
+
 // ─── Feature 5: Weekly AI report generation ───────────────────────
 //
 // Generates the markdown weekly report via Gemini and writes it to
@@ -876,6 +961,26 @@ export const statusPulse = onSchedule(
     await db.doc("status/heartbeat").set({
       lastPulseAt: Timestamp.now(),
     });
+  },
+);
+
+// ─── Public stats: user count for landing social proof ─────────────
+//
+// Tallies the `users/` collection once an hour and writes the count
+// to a public `public/stats` doc. The landing page reads this and
+// only renders the "join N+ quiet loggers" line when N >= 100, so
+// early adopters don't see "join 3+ quiet loggers" (anti-social-proof).
+// Using count() aggregation keeps the read cost a single billed unit
+// regardless of collection size.
+export const publishUserCount = onSchedule(
+  { schedule: "every 60 minutes", timeZone: "UTC" },
+  async () => {
+    const snap = await db.collection("users").count().get();
+    const total = snap.data().count;
+    await db.doc("public/stats").set({
+      totalUsers: total,
+      updatedAt: Timestamp.now(),
+    }, { merge: true });
   },
 );
 

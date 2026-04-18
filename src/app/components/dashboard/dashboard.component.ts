@@ -89,6 +89,7 @@ interface SparklinePoint { x: number; y: number; }
               <span>{{ t('dashboard.tdee') }}</span>
               <button type="button" (click)="toggleHelp('tdee')"
                 [attr.aria-label]="t('dashboard.tdeeAria')"
+                [class.coachmark-pulse]="showTdeeCoachmark()"
                 class="readout-help">?</button>
             </div>
             <div class="readout-mono truncate">{{ store.tdee().trueTdee }}</div>
@@ -108,6 +109,10 @@ interface SparklinePoint { x: number; y: number; }
         @if (helpOpen(); as which) {
           <p class="caption text-xs mt-2 italic text-graphite leading-relaxed slide-down">
             {{ helpText(which) }}
+          </p>
+        } @else if (showTdeeCoachmark()) {
+          <p class="caption text-xs mt-2 italic text-graphite leading-relaxed" role="note">
+            {{ t('dashboard.tdeeCoachmark') }}
           </p>
         }
 
@@ -520,8 +525,20 @@ export class DashboardComponent {
 
   // ── Readout "?" help tooltips (tap to reveal, same tap to hide) ──
   protected readonly helpOpen = signal<'target' | 'tdee' | 'weight' | null>(null);
+  /** First-session coachmark on the TDEE "?" button. Latches off the
+      first time the user reveals any of the three help tooltips and
+      never reappears (localStorage flag). Uses a lazy read so SSR /
+      test harnesses without localStorage don't throw. */
+  protected readonly showTdeeCoachmark = signal<boolean>(this.readTdeeCoachmarkFlag());
   protected toggleHelp(which: 'target' | 'tdee' | 'weight'): void {
     this.helpOpen.set(this.helpOpen() === which ? null : which);
+    if (this.showTdeeCoachmark()) {
+      this.showTdeeCoachmark.set(false);
+      try { localStorage.setItem('macrolog.tdee-coachmark-seen', '1'); } catch { /* ignore */ }
+    }
+  }
+  private readTdeeCoachmarkFlag(): boolean {
+    try { return !localStorage.getItem('macrolog.tdee-coachmark-seen'); } catch { return false; }
   }
   protected helpText(which: 'target' | 'tdee' | 'weight'): string {
     switch (which) {
@@ -563,12 +580,30 @@ export class DashboardComponent {
     }));
   }
 
+  /** Per-day weight series. Weights now live in a separate dailyWeights
+      collection (one entry per day) so reading log.weight — which is
+      undefined on meal rows — produced an empty sparkline and flickered
+      when the user logged a weight. Merge dailyWeights onto log dates
+      and deduplicate by day so the trend uses every available point. */
+  private readonly sparklineWeights = computed(() => {
+    const dw = this.store.dailyWeights();
+    const seen = new Set<string>();
+    const out: number[] = [];
+    for (const log of this.store.logs()) {
+      const key = localDateKey(log.date);
+      if (seen.has(key)) continue;
+      const w = dw[key] ?? log.weight;
+      if (w != null) { out.push(w); seen.add(key); }
+    }
+    return out;
+  });
+
   protected readonly sparklineRaw = computed(() => {
-    const w = this.store.logs().map((l) => l.weight).filter((v): v is number => v != null);
+    const w = this.sparklineWeights();
     return this.scalePoints(w, w);
   });
   protected readonly sparklineEma = computed(() => {
-    const w = this.store.logs().map((l) => l.weight).filter((v): v is number => v != null);
+    const w = this.sparklineWeights();
     return this.scalePoints(this.store.ema(), w);
   });
   protected readonly rawSvgPoints = computed(() =>

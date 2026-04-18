@@ -245,6 +245,13 @@ service cloud.firestore {
       allow read: if true;
     }
 
+    // Public stats doc (landing social proof). Written by a scheduled
+    // Cloud Function via the admin SDK; readable by anyone so the
+    // marketing landing can render the count without requiring auth.
+    match /public/{doc} {
+      allow read: if true;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

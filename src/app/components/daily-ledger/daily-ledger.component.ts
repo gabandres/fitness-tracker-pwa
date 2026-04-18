@@ -342,31 +342,47 @@ interface DayGroup {
             }
           </div>
 
-          <!-- Meal entries nested under this day -->
+          <!-- Meal entries nested under this day. Wrapped in a positioned
+               container so swipe-to-delete can slide the row over a red
+               "delete" indicator underneath. Touch events only; pointer
+               input on desktop still uses the Edit button + delete flow. -->
           @for (meal of day.meals; track meal.id; let mi = $index) {
-            <div class="tape-strip tape-in pl-6"
-              [class.tape-editing]="form.editTarget()?.id === meal.id"
-              [style.animation-delay]="(di * 60 + mi * 30 + 30) + 'ms'">
-              <div class="flex items-center justify-between gap-2">
-                <div class="flex items-center gap-3 min-w-0">
-                  <span class="font-sans text-xs tracking-[0.08em] text-graphite-soft truncate max-w-[100px]">
-                    {{ meal.mealLabel || t('daily.mealN', { n: mi + 1 }) }}
-                  </span>
-                  @if (meal.exerciseCompleted || meal.liftCompleted || meal.cardioCompleted) {
-                    <span class="text-[10px] font-sans font-medium" style="color: var(--color-olive)" [attr.title]="t('daily.exerciseTitle')">●</span>
-                  }
-                  <span class="font-mono text-base tabular-nums" style="color: var(--color-blood)">
-                    {{ meal.calories }}<span class="text-[10px] ml-0.5 opacity-70">{{ t('daily.cal') }}</span>
-                  </span>
-                  @if (meal.protein != null) {
-                    <span class="font-mono text-base tabular-nums" style="color: var(--color-protein)">
-                      {{ meal.protein }}<span class="text-[10px] ml-0.5 opacity-70">{{ t('daily.g') }}</span>
-                    </span>
-                  }
-                </div>
-                <button type="button" (click)="startEdit(meal)" class="tag-btn text-[11px]">{{ t('daily.edit') }}</button>
+            <div class="relative overflow-hidden">
+              <div aria-hidden="true" class="absolute inset-0 flex items-center justify-end pr-6 pointer-events-none"
+                style="background: var(--color-blood)">
+                <span class="font-sans text-[10px] tracking-[0.12em] uppercase" style="color: #f4f0e8">
+                  {{ t('daily.swipeDelete') }}
+                </span>
               </div>
-
+              <div class="tape-strip tape-in pl-6 relative"
+                [class.tape-editing]="form.editTarget()?.id === meal.id"
+                [style.animation-delay]="(di * 60 + mi * 30 + 30) + 'ms'"
+                [style.transform]="'translateX(' + swipeDx(meal.id) + 'px)'"
+                [style.transition]="swipeState()?.id === meal.id ? 'none' : 'transform 200ms ease'"
+                (touchstart)="onRowSwipeStart($event, meal.id)"
+                (touchmove)="onRowSwipeMove($event, meal.id)"
+                (touchend)="onRowSwipeEnd($event, meal.id)"
+                (touchcancel)="onRowSwipeEnd($event, meal.id)">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <span class="font-sans text-xs tracking-[0.08em] text-graphite-soft truncate max-w-[100px]">
+                      {{ meal.mealLabel || t('daily.mealN', { n: mi + 1 }) }}
+                    </span>
+                    @if (meal.exerciseCompleted || meal.liftCompleted || meal.cardioCompleted) {
+                      <span class="text-[10px] font-sans font-medium" style="color: var(--color-olive)" [attr.title]="t('daily.exerciseTitle')">●</span>
+                    }
+                    <span class="font-mono text-base tabular-nums" style="color: var(--color-blood)">
+                      {{ meal.calories }}<span class="text-[10px] ml-0.5 opacity-70">{{ t('daily.cal') }}</span>
+                    </span>
+                    @if (meal.protein != null) {
+                      <span class="font-mono text-base tabular-nums" style="color: var(--color-protein)">
+                        {{ meal.protein }}<span class="text-[10px] ml-0.5 opacity-70">{{ t('daily.g') }}</span>
+                      </span>
+                    }
+                  </div>
+                  <button type="button" (click)="startEdit(meal)" class="tag-btn text-[11px]">{{ t('daily.edit') }}</button>
+                </div>
+              </div>
             </div>
           }
 
@@ -410,6 +426,25 @@ interface DayGroup {
             <span class="font-sans text-xs tracking-[0.08em] text-ink">{{ t('daily.undoLabel') }}</span>
             <span class="tag-btn text-[11px] pointer-events-none"
               style="border-color: var(--color-blood); color: var(--color-blood)">{{ t('daily.undoAction') }}</span>
+          </button>
+        </div>
+      }
+
+      <!-- Day-budget closure toast: fires once per day the first time
+           today's calorie total crosses the computed daily target. The
+           store's effect guards re-firing via localStorage. -->
+      @if (store.budgetCrossed()) {
+        <div class="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 toast-in"
+          role="status">
+          <button type="button" (click)="store.ackBudgetCrossed()"
+            [attr.aria-label]="t('daily.budgetCrossedAria')"
+            class="specimen undo-toast px-4 py-3 flex items-center gap-3 bg-paper shadow-lg cursor-pointer"
+            style="border-color: var(--color-blood)">
+            <span class="crop-bl" style="border-color: var(--color-blood)"></span>
+            <span class="crop-br" style="border-color: var(--color-blood)"></span>
+            <span class="font-sans text-xs tracking-[0.08em] text-ink">{{ t('daily.budgetCrossedLabel') }}</span>
+            <span class="tag-btn text-[11px] pointer-events-none"
+              style="border-color: var(--color-blood); color: var(--color-blood)">{{ t('daily.budgetCrossedAction') }}</span>
           </button>
         </div>
       }
@@ -508,6 +543,53 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
       const panel = document.getElementById('edit-panel');
       if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 50);
+  }
+
+  // ── Swipe-to-delete on meal rows ────────────────────────────
+  // The undo toast from FitnessStore.deleteLog() gives users 5s to
+  // recover from an accidental swipe — same safety net as the Edit
+  // → Delete button path.
+  protected readonly swipeState = signal<{ id: string; dx: number } | null>(null);
+  private rowSwipeStartX = 0;
+  private readonly SWIPE_DELETE_THRESHOLD = -80;
+
+  protected swipeDx(mealId: string | undefined): number {
+    const s = this.swipeState();
+    return s && mealId && s.id === mealId ? s.dx : 0;
+  }
+
+  protected onRowSwipeStart(e: TouchEvent, mealId: string | undefined): void {
+    if (!mealId) return;
+    // Stop the gesture from also bubbling to the ledger-wide swipeArea
+    // handler, which interprets |dx| ≥ 60 as a day-change. Without this,
+    // a successful swipe-delete ALSO advances to the next day — deleting
+    // the row and yanking the user off the current day's context.
+    e.stopPropagation();
+    this.rowSwipeStartX = e.touches[0].clientX;
+    this.swipeState.set({ id: mealId, dx: 0 });
+  }
+
+  protected onRowSwipeMove(e: TouchEvent, mealId: string | undefined): void {
+    if (!mealId || this.swipeState()?.id !== mealId) return;
+    e.stopPropagation();
+    // Left swipes only — clamp at 0 so the row can't slide right.
+    const dx = Math.min(0, e.touches[0].clientX - this.rowSwipeStartX);
+    this.swipeState.set({ id: mealId, dx });
+  }
+
+  protected async onRowSwipeEnd(e: TouchEvent, mealId: string | undefined): Promise<void> {
+    e.stopPropagation();
+    const state = this.swipeState();
+    if (!state || !mealId || state.id !== mealId) {
+      this.swipeState.set(null);
+      return;
+    }
+    const shouldDelete = state.dx <= this.SWIPE_DELETE_THRESHOLD;
+    this.swipeState.set(null);
+    if (shouldDelete) {
+      try { navigator.vibrate?.(15); } catch { /* ignore */ }
+      try { await this.store.deleteLog(mealId); } catch { /* store logs + undo toast handles it */ }
+    }
   }
 
   // ── Day-level exercise toggle ──────────────────────────────

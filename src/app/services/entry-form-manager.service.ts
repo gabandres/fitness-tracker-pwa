@@ -159,6 +159,9 @@ export class EntryFormManager {
         await this.store.addLog(entry);
       }
       this.status.set('saved');
+      // Short tactile confirmation on supported devices (mobile primarily).
+      // No-op on desktop browsers that don't implement the Vibration API.
+      try { navigator.vibrate?.(20); } catch { /* ignore */ }
       this.savingPreset.set(false);
       if (this.mode() === 'edit') {
         setTimeout(() => this.cancel(), 800);

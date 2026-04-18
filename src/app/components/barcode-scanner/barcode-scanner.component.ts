@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, ElementRef, inject,
+  ChangeDetectionStrategy, Component, ElementRef, inject, input,
   OnDestroy, output, signal, viewChild,
 } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
@@ -15,13 +15,22 @@ import { TranslationService } from '../../services/translation.service';
   template: `
     <ng-container *transloco="let t">
     @if (isSupported()) {
-      <button type="button" (click)="startScan()"
-        [disabled]="scanning()"
-        [attr.aria-label]="t('barcode.scanAria')"
-        class="capture-btn">
-        <span aria-hidden="true">⊟</span>
-        <span>{{ scanning() ? t('barcode.scanning') : t('barcode.barcode') }}</span>
-      </button>
+      @if (compact()) {
+        <button type="button" (click)="startScan()"
+          [disabled]="scanning()"
+          [attr.aria-label]="t('barcode.scanAria')"
+          class="tag-btn px-2 py-1 text-[11px]" title="{{ t('barcode.barcode') }}">
+          <span aria-hidden="true">⊟</span>
+        </button>
+      } @else {
+        <button type="button" (click)="startScan()"
+          [disabled]="scanning()"
+          [attr.aria-label]="t('barcode.scanAria')"
+          class="capture-btn">
+          <span aria-hidden="true">⊟</span>
+          <span>{{ scanning() ? t('barcode.scanning') : t('barcode.barcode') }}</span>
+        </button>
+      }
     }
     @if (error()) {
       <p class="font-sans text-xs text-blood mt-1">✕ {{ error() }}</p>
@@ -50,6 +59,9 @@ export class BarcodeScannerComponent implements OnDestroy {
   private readonly translation = inject(TranslationService);
 
   readonly estimated = output<MacroEstimate>();
+  /** When true, render a small icon-only button instead of the large
+      capture-btn. Used inline inside the calorie input row. */
+  readonly compact = input(false);
 
   protected readonly isSupported = signal(this.barcodeService.isSupported());
   protected readonly scanning = signal(false);

@@ -18,6 +18,7 @@ import { LandingComponent } from './components/landing/landing.component';
 import { NotFoundComponent } from './components/not-found/not-found.component';
 import { SettingsSheetComponent } from './components/settings-sheet/settings-sheet.component';
 import { MobileTabsComponent, type MobileTab } from './components/mobile-tabs/mobile-tabs.component';
+import { MobileFabComponent } from './components/mobile-fab/mobile-fab.component';
 import { AuthService } from './services/auth.service';
 import { FirebaseService } from './services/firebase.service';
 import { FitnessStore } from './services/fitness-store.service';
@@ -47,6 +48,7 @@ import { EntryFormManager } from './services/entry-form-manager.service';
     NotFoundComponent,
     SettingsSheetComponent,
     MobileTabsComponent,
+    MobileFabComponent,
     TranslocoDirective,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -324,6 +326,10 @@ import { EntryFormManager } from './services/entry-form-manager.service';
             <app-mobile-tabs
               [activeTab]="activeTab()"
               (tabChange)="onTabChange($event)" />
+            <!-- Mobile floating + button. Only renders on mobile; hidden
+                 while the entry form is open so it doesn't double the
+                 add affordance. -->
+            <app-mobile-fab />
           }
         </div>
 
@@ -378,7 +384,9 @@ export class App {
   protected readonly ticks = Array.from({ length: 45 });
   protected readonly editingProfile = signal(false);
   protected readonly showSettings = signal(false);
-  protected readonly activeTab = signal<MobileTab>('log');
+  // Deep-link support for ?tab=body (used by the day-3 coach push and
+  // future share-sheet links). Falls back to 'log' when missing/invalid.
+  protected readonly activeTab = signal<MobileTab>(this.readInitialTab());
   // Two-column layout kicks in at 768px (md) so iPad portrait and tablets
   // in general get the full desktop experience instead of mobile-tabs +
   // wasted width. Below 768px we stay single-column with the bottom tab
@@ -471,6 +479,14 @@ export class App {
   protected readonly showReminder = signal(false);
   private get reminderHour(): number {
     return (this.firebase.profile() as any)?.reminderHour ?? 20;
+  }
+
+  private readInitialTab(): MobileTab {
+    try {
+      const q = new URLSearchParams(window.location.search).get('tab');
+      if (q === 'log' || q === 'insights' || q === 'body') return q;
+    } catch { /* ignore */ }
+    return 'log';
   }
 
   private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'landing' | 'notFound' | null {

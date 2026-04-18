@@ -6,6 +6,26 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-18 — Week 3 + 4 sweep (FAB, haptics, swipe-to-delete, budget toast, inline barcode, tuned starters, coachmark, day-3 push, social proof)
+
+Batch implementation of every code-side item from the UX_AUDIT §S12 Week 3 + Week 4 backlog plus a couple of latent bugs the audit surfaced (regenerate button silently failing, Gemini prompts printing `undefined` for every weight).
+
+- **Floating "+" FAB on mobile.** New `MobileFabComponent` sits above the tab bar on mobile only (md:hidden), calls `EntryFormManager.startAdd() + requestLogFocus()` to open the add sheet and scroll the ledger into view. Auto-hides while the entry form is already open to avoid double affordance.
+- **Haptic feedback on save.** `EntryFormManager.submit()` now calls `navigator.vibrate?.(20)` on the success path. No-op on devices without the Vibration API, so desktop is unaffected.
+- **Swipe-to-delete on log entries.** Meal rows translate left as you swipe; past 80px the delete fires and the existing undo toast gives you 5s to recover. Right-swipes are clamped. A short 15ms haptic fires on delete. Touch-only — desktop still uses the Edit → Delete path.
+- **Day-budget closure toast.** `FitnessStore` gained a `budgetCrossed` signal driven by an effect comparing today's calories to the computed target. Fires once per calendar day (localStorage day-keyed), rendered as a dismissible toast in the daily ledger alongside the undo toast.
+- **Inline barcode scanner in calories field.** `BarcodeScannerComponent` gained a `compact` input; the entry form renders a small icon-only variant inline inside the calories row so users can scan a packaged item without scrolling back to the capture row.
+- **Goal-tuned starter foods.** `StarterFoodsComponent` re-orders the starter grid by the user's onboarding goal: cut (pace > 0) surfaces high-protein-per-calorie items first, bulk (pace < 0) surfaces calorie-dense items first, maintain / travel mode keeps the neutral order.
+- **First-session TDEE coachmark.** Pulse animation on the TDEE "?" button + a hint line. Dismisses the first time the user taps any of the three readout help buttons; latched via localStorage so it never reappears.
+- **Day-3 "ask your coach" push.** New `sendDayThreeCoachPush` scheduled function sends a one-shot push (`dayThreeCoachPushSent` latch) to users whose oldest log is ≥3 days old and who have a registered FCM token, deep-linking to `?tab=body`. App shell now honours `?tab=log|insights|body` as an initial-tab override.
+- **Landing social proof.** New `publishUserCount` scheduled function writes `public/stats.totalUsers` hourly via the admin SDK. Landing page reads it (unauth-friendly rule) and renders "join N+ quiet loggers" only when N ≥ 100, rounded down to the nearest 10 so the number doesn't look falsely precise.
+- **Regenerate button no longer silently fails.** The weekly-report regenerate flow used to eat `HttpsError`s (`REPORT_TOO_SOON`, `REPORT_NOT_ENTITLED`, payload errors) and log them to the console. Now surfaces them via a new `reportError` signal rendered below the report card with localized copy in en + es-PR.
+- **Gemini prompts no longer leak "undefined" weights.** `buildSystemInstruction` now accepts the `dailyWeights` map and writes the real per-day weight (with "—" fallback) into the log table. Previously `log.weight` was always undefined on meal rows.
+- **Sparkline weight flicker fixed.** The 14-day dashboard sparkline pulled `log.weight` with the same bug and went blank after a fresh weight log. Now merges dailyWeights into the series and dedupes by day.
+- **Entry-form save bug (mobile).** The `.slide-down` animation permanently capped the add-entry specimen at `max-height: 500px` with `overflow: hidden` via `animation-fill-mode: both`. On mobile the full form exceeded 500px and the Exercise + Save buttons were clipped — users literally could not submit. Switched to a transform-based slide so there's no height constraint.
+
+Not shipped (infra-only, deferred): Play Store TWA wrap.
+
 ## 2026-04-17 — Week 2 A + D (recent-entries row, empty-state hero)
 
 Two shipments from the market-informed roadmap's Week 2 retention bucket. One targets daily friction (recent-entries), the other Day-1 activation (empty-state hero).

@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
+import { Firestore, doc, getDoc } from '@angular/fire/firestore';
 
 /**
  * Public marketing surface at `/`. Shows when the user is not signed
@@ -45,6 +46,12 @@ import { TranslocoDirective } from '@jsverse/transloco';
           </a>
           <a href="#pricing" class="tag-btn">{{ t('landing.seePricing') }}</a>
         </div>
+
+        @if (socialProofCount(); as n) {
+          <p class="caption mt-4 italic" role="note">
+            {{ t('landing.socialProof', { n }) }}
+          </p>
+        }
 
         <div class="ruler-edge mt-10">
           @for (_ of ticks; track $index) { <span></span> }
@@ -158,5 +165,28 @@ import { TranslocoDirective } from '@jsverse/transloco';
   `,
 })
 export class LandingComponent {
+  private readonly firestore = inject(Firestore);
   protected readonly ticks = Array.from({ length: 45 });
+
+  /** Social-proof count from `public/stats.totalUsers`. Intentionally
+      gated at 100 — below that we'd be doing anti-social-proof ("join
+      7+ quiet loggers" is worse than no signal at all). */
+  protected readonly socialProofCount = signal<number | null>(null);
+  private static readonly SOCIAL_PROOF_MIN = 100;
+
+  constructor() {
+    void this.loadSocialProof();
+  }
+
+  private async loadSocialProof(): Promise<void> {
+    try {
+      const snap = await getDoc(doc(this.firestore, 'public', 'stats'));
+      const total = (snap.data()?.['totalUsers'] as number | undefined) ?? 0;
+      if (total >= LandingComponent.SOCIAL_PROOF_MIN) {
+        // Round down to nearest 10 so "127" doesn't read as precise
+        // (and shifts visibly every reload). "120+" feels calibrated.
+        this.socialProofCount.set(Math.floor(total / 10) * 10);
+      }
+    } catch { /* non-critical; landing renders fine without it */ }
+  }
 }

@@ -13,7 +13,7 @@ Uniquely, we ship both photo-AI logging (like Cal AI) *and* adaptive TDEE coachi
 ## Project map
 
 - `src/` — Angular app. `services/fitness-store.service.ts` is the single reactive data layer; components inject it and read signals.
-- `functions/` — Cloud Functions (gen2, Node 22). `analyzePhoto`, `reserveConsultation`, `releaseConsultation`, `checkAccessStatus`, `logWebhook`, `deleteAccount`, `generateWeeklyReport`, `sendDailyReminders`, `statusPulse`, `weeklyFirestoreBackup`.
+- `functions/` — Cloud Functions (gen2, Node 22). `analyzePhoto`, `reserveConsultation`, `releaseConsultation`, `checkAccessStatus`, `logWebhook`, `deleteAccount`, `generateWeeklyReport`, `sendDailyReminders`, `sendDayThreeCoachPush`, `statusPulse`, `publishUserCount`, `weeklyFirestoreBackup`.
 - `functions/test/rules/` — `@firebase/rules-unit-testing` suite for `firestore.rules`. Run with `npm run test:rules` (boots the Firestore emulator).
 - `src/app/i18n/` — Transloco locales (`en`, `es-PR`).
 - `.github/workflows/` — CI (`ci.yml`: install, typecheck, test, build on PR + main) and manual deploy (`deploy.yml`).
