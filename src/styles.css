@@ -265,7 +265,11 @@ body {
   position: relative; display: inline-flex; align-items: center;
   justify-content: center; gap: 0.5rem; width: 100%;
   padding: 0.875rem 1.25rem; min-height: 48px;
-  background: var(--color-blood); color: var(--color-paper);
+  /* Keep the on-blood text a fixed light cream across all themes.
+     Previously this used `var(--color-paper)`, which flips to near-black
+     in dark / oxblood-dark palettes and destroys contrast on the red
+     button surface. */
+  background: var(--color-blood); color: #f4f0e8;
   font-family: var(--font-sans); font-size: 0.75rem; font-weight: 600;
   letter-spacing: 0.2em; text-transform: uppercase;
   border: 1px solid var(--color-blood-deep); border-radius: 8px;

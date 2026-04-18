@@ -102,7 +102,9 @@ import { AnalyticsService } from '../../services/analytics.service';
                   [class.bg-ink]="cadence() === 'annual'"
                   [class.text-cream]="cadence() === 'annual'"
                   [class.text-graphite]="cadence() !== 'annual'"
+                  [class.font-semibold]="cadence() === 'annual'"
                   class="px-3 py-1.5 font-sans transition-colors">
+                  @if (cadence() === 'annual') { <span aria-hidden="true" class="mr-1">✓</span> }
                   {{ t('subscribe.toggleAnnual') }} &middot;
                   @if (subs.displayPriceAnnualAnchor) {
                     <!-- Anchor price shown only for the annual toggle so
@@ -130,7 +132,9 @@ import { AnalyticsService } from '../../services/analytics.service';
                   [class.bg-ink]="cadence() === 'monthly'"
                   [class.text-cream]="cadence() === 'monthly'"
                   [class.text-graphite]="cadence() !== 'monthly'"
+                  [class.font-semibold]="cadence() === 'monthly'"
                   class="px-3 py-1.5 font-sans transition-colors border-l border-rule">
+                  @if (cadence() === 'monthly') { <span aria-hidden="true" class="mr-1">✓</span> }
                   {{ t('subscribe.toggleMonthly') }} &middot; {{ subs.displayPriceMonthly }}
                 </button>
               </div>

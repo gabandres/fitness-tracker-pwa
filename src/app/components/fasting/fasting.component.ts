@@ -197,6 +197,16 @@ export class FastingComponent implements OnInit, OnDestroy {
 
   protected async punchClock(): Promise<void> {
     if (this.store.isFasting()) {
+      // Confirm before ending a meaningful fast — a misplaced thumb on
+      // the END FAST button otherwise wipes a 14+ hour session with no
+      // recourse. Skip the prompt for trivially-short fasts (< 1 hour)
+      // where a confirmation is just friction.
+      const start = this.store.fastStartedAt();
+      const elapsedMs = start ? Date.now() - start.getTime() : 0;
+      if (elapsedMs > 60 * 60 * 1000) {
+        const ok = window.confirm(this.translation.t('fasting.endFastConfirm'));
+        if (!ok) return;
+      }
       await this.store.breakFast();
     } else {
       await this.store.startFast();

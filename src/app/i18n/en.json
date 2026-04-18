@@ -310,6 +310,7 @@
     "weight": {
       "lb": "lb",
       "saveAria": "Save weight",
+      "inputAria": "Weight in pounds",
       "cancelAria": "Cancel weight edit",
       "editAria": "Edit weight for today",
       "addAria": "Add weight for today",
@@ -387,6 +388,7 @@
     "fastingSince": "fasting since {{time}}",
     "endFast": "end fast",
     "endFastAria": "End current fast",
+    "endFastConfirm": "End your fast now? This can't be undone.",
     "startFast": "start fast",
     "startFastAria": "Start a 16-hour fast",
     "chronometer": "chronometer",
@@ -394,7 +396,7 @@
     "idle": "idle"
   },
   "measurements": {
-    "section": "body tape",
+    "section": "measurements",
     "latest": "latest measurement",
     "addButton": "+ log measurements",
     "newStamp": "new",
@@ -480,7 +482,9 @@
     "errorWrongPassword": "Wrong email or password.",
     "errorNoAccount": "No account found with that email.",
     "errorTooMany": "Too many attempts. Wait a moment and try again.",
-    "errorWrongProvider": "This email is registered with a different sign-in method. Try Google instead."
+    "errorWrongProvider": "This email is registered with a different sign-in method. Try Google instead.",
+    "errorEmailDisabled": "Email + password sign-in is temporarily unavailable. Please use Google or Microsoft for now.",
+    "errorNetwork": "Network error. Check your connection and try again."
   },
   "verify": {
     "stamp": "verify",
@@ -570,6 +574,8 @@
     "heightLabel": "height",
     "ft": "ft",
     "inches": "in",
+    "heightFeetAria": "Height in feet",
+    "heightInchesAria": "Additional inches",
     "ageLabel": "age",
     "years": "years",
     "sexLabel": "biological sex",
@@ -605,7 +611,7 @@
     "continue": "continue",
     "saving": "saving…",
     "saveChanges": "save changes",
-    "commitProfile": "commit profile",
+    "commitProfile": "finish setup",
     "cancel": "cancel",
     "errorHeightRange": "Height must be between 3'4\" and 8'.",
     "errorFailedToSaveProfile": "Failed to save profile."
@@ -729,7 +735,7 @@
     "ccpaHeading": "Your rights under CCPA / CPRA",
     "ccpaBody": "If you live in California, the CCPA and CPRA apply. We do not sell or share your personal information with third parties for cross-context behavioural advertising, full stop. You have the right to know what personal data we hold, to request deletion, and to appeal any denial. Use the same export / delete controls above, or email us directly.",
     "jurisdictionHeading": "Data controller & jurisdiction",
-    "jurisdictionBody": "The data controller for Macro Log is the product owner. Preferred contact for data-subject requests is email: <a href=\"mailto:ppesoftware@gmail.com?subject=Data%20request\" class=\"underline decoration-dotted\">ppesoftware@gmail.com</a>. If you can't use email, open a public issue at <a href=\"https://github.com/gabandres/fitness-tracker-pwa/issues/new?labels=privacy&amp;title=Data+request\" class=\"underline decoration-dotted\" target=\"_blank\" rel=\"noopener\">our GitHub issue tracker</a> or use the in-app Settings → Feedback button. We respond within 30 days as required by GDPR. This policy and your use of Macro Log are governed by the laws of the operator's home jurisdiction (Puerto Rico, United States), without regard to conflict-of-law principles.",
+    "jurisdictionBody": "The data controller for Macro Log is the product owner. Preferred contact for data-subject requests is email: <a href=\"mailto:gabrielandresbermudez@gmail.com?subject=Data%20request\" class=\"underline decoration-dotted\">gabrielandresbermudez@gmail.com</a>. If you can't use email, open a public issue at <a href=\"https://github.com/gabandres/fitness-tracker-pwa/issues/new?labels=privacy&amp;title=Data+request\" class=\"underline decoration-dotted\" target=\"_blank\" rel=\"noopener\">our GitHub issue tracker</a> or use the in-app Settings → Feedback button. We respond within 30 days as required by GDPR. This policy and your use of Macro Log are governed by the laws of the operator's home jurisdiction (Puerto Rico, United States), without regard to conflict-of-law principles.",
     "medicalHeading": "Medical disclaimer",
     "medicalBody": "Macro Log is not a medical device, and the AI coach is not a dietician. Nothing in the app is medical advice. If you're doing anything clinically meaningful — a cut below 1,500 kcal, weight loss of more than 1% body weight per week, or eating for a medical condition — talk to a real human doctor or RD first.",
     "dangerStamp": "danger",

@@ -293,19 +293,32 @@ export class SubscriptionService {
     return !!(this.priceIdMonthly || this.priceIdAnnual);
   }
 
-  /** $-amount strings for the Subscribe button labels. */
+  /** $-amount strings for the Subscribe button labels. The raw env
+      value carries an English suffix ("/mo", "/yr") that reads wrong in
+      Spanish, so we swap the tail for a localized cadence marker when
+      the user's language is es-PR. The numeric amount is untranslated
+      because pricing is USD regardless of locale. */
   get displayPriceMonthly(): string {
-    return environment.stripe?.displayPriceMonthly ?? '';
+    return this.localizePriceSuffix(environment.stripe?.displayPriceMonthly ?? '', 'monthly');
   }
   get displayPriceAnnual(): string {
-    return environment.stripe?.displayPriceAnnual ?? '';
+    return this.localizePriceSuffix(environment.stripe?.displayPriceAnnual ?? '', 'annual');
   }
   /** Strike-through anchor shown next to the annual price so the savings
       are visible at the same glance. Usually 12× the monthly rate — e.g.
       "$36/yr" when monthly is $3 and annual is $24. Empty string hides
       the strike-through; we never invent an anchor. */
   get displayPriceAnnualAnchor(): string {
-    return environment.stripe?.displayPriceAnnualAnchor ?? '';
+    return this.localizePriceSuffix(environment.stripe?.displayPriceAnnualAnchor ?? '', 'annual');
+  }
+
+  /** Swap the English "/mo" / "/yr" tail for a locale-appropriate one. */
+  private localizePriceSuffix(price: string, cadence: 'monthly' | 'annual'): string {
+    if (!price) return price;
+    const lang = this.translation.language();
+    if (!lang.startsWith('es')) return price;
+    const suffix = cadence === 'monthly' ? '/mes' : '/año';
+    return price.replace(/\/(mo|yr)$/i, suffix);
   }
 
   /** Percent saved on annual vs 12× monthly (e.g. 33). 0 hides the badge. */

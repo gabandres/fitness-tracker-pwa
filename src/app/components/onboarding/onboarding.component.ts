@@ -146,6 +146,7 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
                       (ngModelChange)="heightFt.set($event)"
                       name="heightFt"
                       placeholder="5"
+                      [attr.aria-label]="t('onboarding.heightFeetAria')"
                       class="field-input w-20 text-center"
                       required
                     />
@@ -163,6 +164,7 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
                       (ngModelChange)="heightInExtra.set($event)"
                       name="heightInExtra"
                       placeholder="10"
+                      [attr.aria-label]="t('onboarding.heightInchesAria')"
                       class="field-input w-20 text-center"
                       required
                     />

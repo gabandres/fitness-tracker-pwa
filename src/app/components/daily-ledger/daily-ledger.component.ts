@@ -159,12 +159,22 @@ interface DayGroup {
               {{ repeatingYesterday() ? t('daily.repeatingYesterday') : t('daily.repeatYesterday') }}
             </button>
           }
-          <!-- Today weight quick-input -->
-          @if (editingWeightDay() === todayKey) {
+          <!-- Today weight quick-input.
+               The inline input is suppressed while the TODAY row in the
+               log tape is also rendering its own weight editor — prior
+               behaviour duplicated the input in both places, which both
+               looks broken (two identical forms on one screen) and makes
+               a11y tooling announce the field twice. We fall back to the
+               read-only "+ weight" affordance while the tape's editor is
+               open; once editing completes, this top input reappears as
+               the canonical quick-log path on days where the tape row
+               isn't visible (e.g. mobile insights tab). -->
+          @if (editingWeightDay() === todayKey && !hasTodayRow()) {
             <form class="flex items-baseline gap-1" (ngSubmit)="saveTodayWeight()" (click)="$event.stopPropagation()">
               <input type="number" step="0.1" inputmode="decimal"
                 [ngModel]="weightInput()" (ngModelChange)="weightInput.set($event)"
                 name="todayWeight" [attr.placeholder]="t('daily.weight.placeholder')"
+                [attr.aria-label]="t('daily.weight.inputAria')"
                 class="field-input text-xs w-16 py-0.5 px-1 tabular-nums" />
               <span class="font-display italic text-graphite text-[11px]">{{ t('daily.weight.lb') }}</span>
               <button type="submit" [attr.aria-label]="t('daily.weight.saveAria')" class="tag-btn text-[11px] py-0 px-1">{{ t('daily.weight.ok') }}</button>
@@ -255,6 +265,7 @@ interface DayGroup {
                     <input type="number" step="0.1" inputmode="decimal"
                       [ngModel]="weightInput()" (ngModelChange)="weightInput.set($event)"
                       name="dayWeight" [attr.placeholder]="t('daily.weight.placeholder')"
+                      [attr.aria-label]="t('daily.weight.inputAria')"
                       class="field-input text-xs w-16 py-0.5 px-1 tabular-nums" />
                     <span class="font-display italic text-graphite text-[11px]">{{ t('daily.weight.lb') }}</span>
                     <button type="submit" [attr.aria-label]="t('daily.weight.saveAria')" class="tag-btn text-[11px] py-0 px-1">{{ t('daily.weight.ok') }}</button>
@@ -366,14 +377,15 @@ interface DayGroup {
              show (otherwise the skeleton above is doing the talking). -->
         @if (dayGroups().length === 0 && !isHydrating()) {
           <!-- Cold-start: no logs yet. Show a tap-to-log menu of common
-               foods so the user's first meal is one tap + one click, not
-               a stare-at-blank-form moment. Hides as soon as the first
-               entry lands. -->
-          @if (form.mode() === 'view') {
-            <div class="mt-4">
-              <app-starter-foods (picked)="useStarterFood($event)" />
-            </div>
-          }
+               foods so the user's first meal is one tap + one click,
+               not a stare-at-blank-form moment. Previously hidden
+               while the entry form was open (mode='add'), which forced
+               day-one users to cancel the form just to see the preset
+               list — we now keep it visible in every mode so tapping a
+               starter food still works as a prefill + save. -->
+          <div class="mt-4">
+            <app-starter-foods (picked)="useStarterFood($event)" />
+          </div>
           <div class="py-6 text-center">
             <p class="caption text-[11px]">
               {{ t('daily.emptyStatePrefix') }} <span class="text-ink">{{ t('daily.newEntry') }}</span> {{ t('daily.emptyStateSuffix') }}
@@ -427,6 +439,13 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
       today has no entries AND yesterday has at least one — the only
       state where cloning yesterday is a safe, useful one-tap. */
   protected readonly repeatingYesterday = signal(false);
+  /** True when the log tape contains a row for today. Drives the guard
+      that prevents the top "+ weight" form from rendering alongside the
+      per-day inline weight editor — previously both appeared at once,
+      showing two identical weight inputs on the same screen. */
+  protected readonly hasTodayRow = computed(() =>
+    this.dayGroups().some((d) => d.dateKey === this.todayKey),
+  );
   protected readonly canRepeatYesterday = computed(() => {
     const logs = this.store.logs();
     const todayHasEntries = logs.some((l) => localDateKey(l.date) === this.todayKey);
@@ -463,6 +482,16 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
     el.addEventListener('touchstart', this.swipeStartFn, { passive: true });
     el.addEventListener('touchend', this.swipeEndFn, { passive: true });
     el.addEventListener('animationend', this.animEndFn as EventListener);
+
+    // Horizontally scroll the date strip so today's chip is visible on
+    // first paint. Without this, narrow viewports (mobile ~390px) cut
+    // the strip at day 07 and the current day sits off-screen — users
+    // had to swipe before they could see the most important chip.
+    requestAnimationFrame(() => {
+      const strip = document.querySelector<HTMLElement>('.date-strip-scroll');
+      if (!strip) return;
+      strip.scrollLeft = strip.scrollWidth;
+    });
   }
 
   ngOnDestroy(): void {
@@ -588,7 +617,15 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
   protected scrollToDay(dateKey: DateKey): void {
     this.selectedDateKey.set(dateKey);
     const el = document.getElementById('day-' + dateKey);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return;
+    }
+    // No row exists for that day (nothing logged yet). The chip tap
+    // previously looked dead — selection moved but nothing happened.
+    // Open the entry form pre-filled with the tapped date so the user
+    // can log retroactively, which matches the intent of the click.
+    this.form.startAdd(dateKey);
   }
 
   // ── Day swipe gestures ──────────────────────────────────────

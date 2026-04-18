@@ -240,16 +240,21 @@ export class TdeeCalculatorService {
   }
 
   /**
-   * Weekly summary: averages and totals over the last 7 days of logged data.
+   * Weekly summary: averages and totals over the last 7 *days* of logged
+   * data (not the last 7 entries). Aggregates first so three meals on a
+   * single day count as one day, one calorie total, one protein total —
+   * prior behaviour divided a single-day intake across N entries and
+   * published a badly-low "avg kcal / day".
    */
   weeklySummary(logs: DailyLog[], targetCalories: number): WeeklySummary | null {
     if (logs.length === 0) return null;
-    const sorted = [...logs].sort((a, b) => a.date.getTime() - b.date.getTime());
-    const last7 = sorted.slice(-7);
+    const daily = this.aggregateByDay(logs);
+    const last7 = daily.slice(-7);
+    if (last7.length === 0) return null;
 
-    const weights = last7.map((l) => l.weight).filter((w): w is number => w != null);
-    const cals = last7.map((l) => l.calories);
-    const proteins = last7.filter((l) => l.protein != null).map((l) => l.protein!);
+    const weights = last7.map((d) => d.weight).filter((w): w is number => w != null);
+    const cals = last7.map((d) => d.calories);
+    const proteins = last7.filter((d) => d.protein != null).map((d) => d.protein!);
 
     const avgWeight = weights.length > 0 ? this.round(this.average(weights), 1) : 0;
     const avgCalories = Math.round(this.average(cals));

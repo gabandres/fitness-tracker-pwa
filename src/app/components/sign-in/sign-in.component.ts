@@ -77,7 +77,7 @@ type Method = 'google' | 'microsoft' | 'email';
         </div>
 
         @if (!emailFormOpen()) {
-          <button type="button" (click)="emailFormOpen.set(true)"
+          <button type="button" (click)="openEmailForm()"
             class="mt-4 tag-btn w-full justify-center text-xs">
             {{ t('signin.useEmail') }}
           </button>
@@ -132,14 +132,14 @@ type Method = 'google' | 'microsoft' | 'email';
 
             <div class="flex items-center justify-between text-[11px]">
               @if (mode() === 'signin') {
-                <button type="button" (click)="mode.set('signup')" class="text-ink underline-offset-2 hover:underline">
+                <button type="button" (click)="setMode('signup')" class="text-ink underline-offset-2 hover:underline">
                   {{ t('signin.needAccount') }}
                 </button>
-                <button type="button" (click)="mode.set('reset')" class="text-graphite underline-offset-2 hover:underline">
+                <button type="button" (click)="setMode('reset')" class="text-graphite underline-offset-2 hover:underline">
                   {{ t('signin.forgotPassword') }}
                 </button>
               } @else {
-                <button type="button" (click)="mode.set('signin')" class="text-ink underline-offset-2 hover:underline">
+                <button type="button" (click)="setMode('signin')" class="text-ink underline-offset-2 hover:underline">
                   ← {{ t('signin.backToSignIn') }}
                 </button>
                 <span></span>
@@ -253,8 +253,34 @@ export class SignInComponent {
         return this.translation.t('signin.errorTooMany');
       case 'auth/account-exists-with-different-credential':
         return this.translation.t('signin.errorWrongProvider');
+      case 'auth/operation-not-allowed':
+        // Email/password provider hasn't been enabled in the Firebase
+        // console yet (or has been disabled). Rather than show the raw
+        // code, point the user at the working providers.
+        return this.translation.t('signin.errorEmailDisabled');
+      case 'auth/network-request-failed':
+        return this.translation.t('signin.errorNetwork');
       default:
         return err instanceof Error ? err.message : this.translation.t('signin.errorFallback');
     }
+  }
+
+  /** Switch auth sub-form. Clears any stale error/success state so
+      users don't see a "create account failed" banner after hopping
+      over to the forgot-password screen. */
+  protected setMode(next: Mode): void {
+    this.mode.set(next);
+    this.status.set('idle');
+    this.errorMsg.set('');
+    this.passwordValue = '';
+  }
+
+  /** Opens the email sub-form and resets any stale provider errors
+      (e.g. a popup-blocked Google attempt) so the clean form is
+      visible without a carried-over banner. */
+  protected openEmailForm(): void {
+    this.emailFormOpen.set(true);
+    this.status.set('idle');
+    this.errorMsg.set('');
   }
 }

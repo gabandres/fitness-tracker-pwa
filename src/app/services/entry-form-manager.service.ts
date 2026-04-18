@@ -47,6 +47,17 @@ export class EntryFormManager {
       on the next successful preset save or form reset. */
   readonly presetLimitHit = signal(false);
 
+  /** Snapshot of the last ADD-mode save (calories, protein, label) so
+      the "save as preset" affordance survives the post-save reset that
+      clears the form fields. Without this, `confirmSavePreset()` read
+      null calories from the cleared form and silently no-op'd. */
+  private lastSavedEntry: { calories: number; protein?: number; label?: string } | null = null;
+
+  /** Handle for the ADD-mode auto-close timer so the "save as preset"
+      sub-flow can cancel it. Otherwise the timer fires mid-flow and
+      cancels the whole form while the user is naming their preset. */
+  private addAutoCloseTimer: ReturnType<typeof setTimeout> | null = null;
+
   /** Bumped when a non-ledger surface (dashboard empty-state hero, mobile
       CTAs) wants the app shell to switch to the log tab and scroll to
       the ledger. Counter signal so repeat clicks re-fire. App.ts listens
@@ -94,6 +105,11 @@ export class EntryFormManager {
   }
 
   cancel(): void {
+    if (this.addAutoCloseTimer) {
+      clearTimeout(this.addAutoCloseTimer);
+      this.addAutoCloseTimer = null;
+    }
+    this.lastSavedEntry = null;
     this.mode.set('view');
     this.editTarget.set(null);
     this.addingForDay.set(null);
@@ -146,6 +162,27 @@ export class EntryFormManager {
       this.savingPreset.set(false);
       if (this.mode() === 'edit') {
         setTimeout(() => this.cancel(), 800);
+      } else {
+        // ADD mode: stash the just-saved values before we clear the form
+        // so the "save as preset" sub-flow still has calories + label to
+        // work with (confirmSavePreset reads from here now). Without the
+        // snapshot the reset zeroed out calories and the preset save
+        // silently no-op'd on its `cal == null` guard.
+        this.lastSavedEntry = { calories: Number(c) };
+        if (p != null && !Number.isNaN(Number(p))) this.lastSavedEntry.protein = Number(p);
+        if (label) this.lastSavedEntry.label = label;
+
+        // Clear fields so a second SAVE click can't duplicate the entry.
+        this.resetForm();
+
+        // Arm auto-close. Held in an instance field so promptSavePreset()
+        // can cancel it — otherwise the timer fires while the user is
+        // typing a preset name and yanks the form out from under them.
+        if (this.addAutoCloseTimer) clearTimeout(this.addAutoCloseTimer);
+        this.addAutoCloseTimer = setTimeout(() => {
+          this.addAutoCloseTimer = null;
+          if (this.status() === 'saved' && !this.savingPreset()) this.cancel();
+        }, 3000);
       }
     } catch (err) {
       this.status.set('error');
@@ -168,20 +205,35 @@ export class EntryFormManager {
   // ── Preset save flow ───────────────────────────────────────
 
   promptSavePreset(): void {
+    // Cancel the ADD-mode auto-close timer — the user is still using
+    // the form, so tearing it down in ~3s would cancel the preset save
+    // mid-type.
+    if (this.addAutoCloseTimer) {
+      clearTimeout(this.addAutoCloseTimer);
+      this.addAutoCloseTimer = null;
+    }
     this.savingPreset.set(true);
-    this.presetName.set('');
+    this.presetName.set(this.lastSavedEntry?.label ?? '');
   }
 
   async confirmSavePreset(): Promise<void> {
     const name = this.presetName().trim();
-    const cal = this.calories();
+    // Prefer the post-save snapshot — the form fields themselves get
+    // cleared after ADD-mode save so preset can't reach back through
+    // the live signals.
+    const snap = this.lastSavedEntry;
+    const cal = snap?.calories ?? this.calories();
     if (!name || cal == null) return;
     const preset: Omit<MealPreset, 'id'> = { name, calories: Number(cal) };
-    const pro = this.protein();
+    const pro = snap?.protein ?? this.protein();
     if (pro != null) preset.protein = Number(pro);
     try {
       await this.store.addPreset(preset);
       this.savingPreset.set(false);
+      // Preset saved successfully — close the form now since both the
+      // entry and preset are done. Keeping it open would show a stale
+      // empty form with a dangling "SAVED" stamp.
+      this.cancel();
     } catch (err) {
       this.savingPreset.set(false);
       if (err instanceof PresetLimitError) {
@@ -214,6 +266,11 @@ export class EntryFormManager {
    * the same state the component initialises with.
    */
   reset(): void {
+    if (this.addAutoCloseTimer) {
+      clearTimeout(this.addAutoCloseTimer);
+      this.addAutoCloseTimer = null;
+    }
+    this.lastSavedEntry = null;
     this.mode.set('view');
     this.editTarget.set(null);
     this.addingForDay.set(null);

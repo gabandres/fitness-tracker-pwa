@@ -316,6 +316,7 @@
     "weight": {
       "lb": "lb",
       "saveAria": "Guardar peso",
+      "inputAria": "Peso en libras",
       "cancelAria": "Cancelar edición de peso",
       "editAria": "Editar peso de hoy",
       "addAria": "Añadir peso de hoy",
@@ -393,6 +394,7 @@
     "fastingSince": "ayunando desde las {{time}}",
     "endFast": "terminar ayuno",
     "endFastAria": "Terminar ayuno actual",
+    "endFastConfirm": "¿Terminar el ayuno ahora? Esto no se puede deshacer.",
     "startFast": "empezar ayuno",
     "startFastAria": "Empezar un ayuno de 16 horas",
     "chronometer": "cronómetro",
@@ -486,7 +488,9 @@
     "errorWrongPassword": "Email o contraseña incorrectos.",
     "errorNoAccount": "No se encontró ninguna cuenta con ese email.",
     "errorTooMany": "Demasiados intentos. Espera un momento e intenta de nuevo.",
-    "errorWrongProvider": "Este email está registrado con otro método. Prueba con Google."
+    "errorWrongProvider": "Este email está registrado con otro método. Prueba con Google.",
+    "errorEmailDisabled": "El inicio por email + contraseña no está disponible por ahora. Usa Google o Microsoft.",
+    "errorNetwork": "Error de red. Revisa tu conexión e intenta de nuevo."
   },
   "verify": {
     "stamp": "verifica",
@@ -576,6 +580,8 @@
     "heightLabel": "altura",
     "ft": "ft",
     "inches": "in",
+    "heightFeetAria": "Altura en pies",
+    "heightInchesAria": "Pulgadas adicionales",
     "ageLabel": "edad",
     "years": "años",
     "sexLabel": "sexo biológico",
@@ -611,7 +617,7 @@
     "continue": "continuar",
     "saving": "guardando…",
     "saveChanges": "guardar cambios",
-    "commitProfile": "confirmar perfil",
+    "commitProfile": "terminar configuración",
     "cancel": "cancelar",
     "errorHeightRange": "La altura debe estar entre 3'4\" y 8'.",
     "errorFailedToSaveProfile": "No se pudo guardar el perfil."
@@ -735,7 +741,7 @@
     "ccpaHeading": "Tus derechos bajo CCPA / CPRA",
     "ccpaBody": "Si vives en California, aplican CCPA y CPRA. No vendemos ni compartimos tu información personal con terceros para publicidad conductual entre contextos, punto. Tienes derecho a saber qué datos tenemos, a pedir su eliminación y a apelar cualquier negativa. Usa los controles de exportación / eliminación mencionados arriba, o escríbenos.",
     "jurisdictionHeading": "Responsable del tratamiento y jurisdicción",
-    "jurisdictionBody": "El responsable del tratamiento de datos de Macro Log es el dueño del producto. El contacto preferido para solicitudes de datos es correo electrónico: <a href=\"mailto:ppesoftware@gmail.com?subject=Solicitud%20de%20datos\" class=\"underline decoration-dotted\">ppesoftware@gmail.com</a>. Si no puedes usar correo, abre un issue público en <a href=\"https://github.com/gabandres/fitness-tracker-pwa/issues/new?labels=privacy&amp;title=Data+request\" class=\"underline decoration-dotted\" target=\"_blank\" rel=\"noopener\">nuestro rastreador de GitHub</a> o usa el botón Ajustes → Comentarios en la app. Respondemos en 30 días según lo requerido por GDPR. Esta política y tu uso de Macro Log se rigen por las leyes de la jurisdicción del operador (Puerto Rico, Estados Unidos), sin consideración de principios de conflicto de leyes.",
+    "jurisdictionBody": "El responsable del tratamiento de datos de Macro Log es el dueño del producto. El contacto preferido para solicitudes de datos es correo electrónico: <a href=\"mailto:gabrielandresbermudez@gmail.com?subject=Solicitud%20de%20datos\" class=\"underline decoration-dotted\">gabrielandresbermudez@gmail.com</a>. Si no puedes usar correo, abre un issue público en <a href=\"https://github.com/gabandres/fitness-tracker-pwa/issues/new?labels=privacy&amp;title=Data+request\" class=\"underline decoration-dotted\" target=\"_blank\" rel=\"noopener\">nuestro rastreador de GitHub</a> o usa el botón Ajustes → Comentarios en la app. Respondemos en 30 días según lo requerido por GDPR. Esta política y tu uso de Macro Log se rigen por las leyes de la jurisdicción del operador (Puerto Rico, Estados Unidos), sin consideración de principios de conflicto de leyes.",
     "medicalHeading": "Aviso médico",
     "medicalBody": "Macro Log no es un dispositivo médico, y el coach de IA no es un dietista. Nada en la app es consejo médico. Si estás haciendo algo clínicamente significativo — un déficit por debajo de 1,500 kcal, pérdida de peso de más del 1% del peso corporal por semana, o comer para tratar una condición médica — habla con un médico o nutricionista real primero.",
     "dangerStamp": "peligro",

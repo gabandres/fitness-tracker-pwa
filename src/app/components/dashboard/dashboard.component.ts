@@ -63,11 +63,12 @@ interface SparklinePoint { x: number; y: number; }
             <button type="button" (click)="startLog()" class="stamp-btn">
               {{ t('dashboard.heroCta') }}
             </button>
-            <button type="button" (click)="store.refresh()"
-              [disabled]="store.status() === 'loading'"
-              class="tag-btn text-[11px]">
-              {{ store.status() === 'loading' ? t('dashboard.loading') : t('dashboard.refresh') }}
-            </button>
+            <!-- REFRESH was demoted off the day-1 empty state. With zero
+                 logs there is nothing to re-fetch, so standing a noisy
+                 secondary action next to the primary CTA only dilutes
+                 "log your first meal". The button is still available
+                 inside the long-tail dashboard for stale-data recovery
+                 once the user actually has entries. -->
           </div>
         </div>
       } @else {

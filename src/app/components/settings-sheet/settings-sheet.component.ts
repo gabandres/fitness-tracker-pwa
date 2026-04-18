@@ -73,14 +73,19 @@ import { ThemeChoice } from '../../utils/theme';
         <nav class="sticky top-0 z-10 -mx-2 px-2 py-2 mb-5 flex flex-wrap gap-1.5"
              style="background: var(--color-paper); border-bottom: 1px solid var(--color-rule-soft)"
              [attr.aria-label]="t('settings.tocAria')">
-          <a href="#settings-profile" class="tag-btn text-[10px]">{{ t('settings.profile.section') }}</a>
-          <a href="#settings-language" class="tag-btn text-[10px]">{{ t('settings.language.section') }}</a>
-          <a href="#settings-reminders" class="tag-btn text-[10px]">{{ t('settings.reminders.section') }}</a>
-          <a href="#settings-modes" class="tag-btn text-[10px]">{{ t('settings.modes.section') }}</a>
-          <a href="#settings-data" class="tag-btn text-[10px]">{{ t('settings.data.section') }}</a>
-          <a href="#settings-subscription" class="tag-btn text-[10px]">{{ t('settings.subscription.section') }}</a>
-          <a href="#settings-feedback" class="tag-btn text-[10px]">{{ t('settings.feedback.section') }}</a>
-          <a href="#settings-legal" class="tag-btn text-[10px]">{{ t('settings.legal.section') }}</a>
+          <!-- Buttons, not <a href="#...">, because a hash link overwrites
+               the browser URL path (e.g. /app → /#settings-subscription),
+               which kicks the user out of the gated /app route and closes
+               the settings sheet with them. jumpTo() uses scrollIntoView
+               with no URL mutation so the drawer stays open. -->
+          <button type="button" (click)="jumpTo('settings-profile')" class="tag-btn text-[10px]">{{ t('settings.profile.section') }}</button>
+          <button type="button" (click)="jumpTo('settings-language')" class="tag-btn text-[10px]">{{ t('settings.language.section') }}</button>
+          <button type="button" (click)="jumpTo('settings-reminders')" class="tag-btn text-[10px]">{{ t('settings.reminders.section') }}</button>
+          <button type="button" (click)="jumpTo('settings-modes')" class="tag-btn text-[10px]">{{ t('settings.modes.section') }}</button>
+          <button type="button" (click)="jumpTo('settings-data')" class="tag-btn text-[10px]">{{ t('settings.data.section') }}</button>
+          <button type="button" (click)="jumpTo('settings-subscription')" class="tag-btn text-[10px]">{{ t('settings.subscription.section') }}</button>
+          <button type="button" (click)="jumpTo('settings-feedback')" class="tag-btn text-[10px]">{{ t('settings.feedback.section') }}</button>
+          <button type="button" (click)="jumpTo('settings-legal')" class="tag-btn text-[10px]">{{ t('settings.legal.section') }}</button>
         </nav>
 
         <!-- ─── Profile ───────────────────────────────────────── -->
@@ -440,6 +445,14 @@ export class SettingsSheetComponent implements AfterViewInit {
     if (tag === 'SELECT' || tag === 'INPUT' || tag === 'TEXTAREA') return;
     if (evt.defaultPrevented) return;
     this.requestClose();
+  }
+
+  /** Scroll a settings sub-section into view. We avoid <a href="#id">
+      because hash navigation rewrites the browser URL path (/app →
+      /#id), kicking the user out of the gated route and closing the
+      sheet. Silent scroll keeps state intact. */
+  protected jumpTo(id: string): void {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   protected readonly showWebhook = signal(false);

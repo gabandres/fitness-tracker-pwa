@@ -6,6 +6,11 @@
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f4f0e8" />
+    <!-- Both names kept for now: mobile-web-app-capable is the modern
+         spec (Chrome, Firefox, Edge) while apple-mobile-web-app-capable
+         remains the one iOS Safari reads. Dropping the Apple-prefixed
+         form would regress add-to-home-screen behaviour on iPhone. -->
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Macros" />

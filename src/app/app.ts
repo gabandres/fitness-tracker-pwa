@@ -53,7 +53,7 @@ import { EntryFormManager } from './services/entry-form-manager.service';
   template: `
     <ng-container *transloco="let t">
     <a href="#main" class="skip-link">{{ t('app.skipToMain') }}</a>
-    <main id="main" class="min-h-screen px-5 sm:px-8 md:px-12 py-8 sm:py-12 pb-20 md:pb-12">
+    <main id="main" class="min-h-screen px-5 sm:px-8 md:px-12 py-8 sm:py-12 pb-28 md:pb-12">
       <div class="max-w-[560px] md:max-w-[1100px] mx-auto">
 
         @if (route() === 'privacy') {
@@ -339,6 +339,18 @@ import { EntryFormManager } from './services/entry-form-manager.service';
             <p class="caption mt-4 text-center text-[11px]">
               <span class="text-graphite">{{ u.email }}</span>
               &middot;
+              <a href="/privacy" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.privacy') }}</a>
+              &middot;
+              <a href="/terms" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.terms') }}</a>
+              &middot;
+              <a href="mailto:gabrielandresbermudez&#64;gmail.com" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.contact') }}</a>
+            </p>
+          } @else {
+            <!-- Pre-auth visitors land on the sign-in screen and need
+                 privacy/terms access before consenting. Previously the
+                 legal links only rendered once auth.user resolved,
+                 hiding them exactly when they're load-bearing. -->
+            <p class="caption mt-4 text-center text-[11px]">
               <a href="/privacy" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.privacy') }}</a>
               &middot;
               <a href="/terms" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.terms') }}</a>
