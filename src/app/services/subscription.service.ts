@@ -300,6 +300,13 @@ export class SubscriptionService {
   get displayPriceAnnual(): string {
     return environment.stripe?.displayPriceAnnual ?? '';
   }
+  /** Strike-through anchor shown next to the annual price so the savings
+      are visible at the same glance. Usually 12× the monthly rate — e.g.
+      "$36/yr" when monthly is $3 and annual is $24. Empty string hides
+      the strike-through; we never invent an anchor. */
+  get displayPriceAnnualAnchor(): string {
+    return environment.stripe?.displayPriceAnnualAnchor ?? '';
+  }
 
   /** Percent saved on annual vs 12× monthly (e.g. 33). 0 hides the badge. */
   get annualSavingsPercent(): number {

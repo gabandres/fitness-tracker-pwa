@@ -6,6 +6,17 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-17 — Week 1 closeout (trial CTA, price anchor, analytics foundation)
+
+Closes every Week-1 item in the market-informed roadmap (`UX_AUDIT.md` §S12). Conversion funnel is now fully instrumented; Week-2 retention work can build on top.
+
+- **"Start 7-day free trial" as the primary Subscribe CTA.** Industry research shows a trial-led CTA converts 2–4× better than a raw price offer for health apps. Button leads with "start 7-day free trial"; the price moves to a secondary "then $24/yr" line underneath. Prior "support · $24/yr (7-day free trial)" layout is retired.
+- **Price anchor on the annual cadence pill.** New `environment.stripe.displayPriceAnnualAnchor = '$36/yr'` renders struck-through next to the actual $24/yr so the 33% savings vs 12× monthly is visible in one glance. Empty string hides the anchor entirely so we never invent a fake number. Annual toggle gains an accessible `aria-label` ("Annual, was $36, now $24") since screen readers don't announce `<s>` styling.
+- **Analytics foundation (zero-cost today, Plausible-ready).** New `AnalyticsService` emits every event as both a `console.info` (developer visibility) and a `Sentry.addBreadcrumb` (free, attaches to any future error report so we can see the funnel steps that preceded a crash). Plausible POST is wired but gated on `environment.analytics.plausibleEnabled`, currently `false` — flip the flag once budget allows and events ship with no other change.
+  - **Events tracked today:** `paywall_shown` + `paywall_click` (UpsellCardComponent, per friction source: photo/preset/csv/chart), `trial_started` (SubscribeComponent checkout), `export_clicked` (DashboardComponent CSV), `repeat_yesterday` (DailyLedgerComponent).
+
+All three ships passed code review with two fixes applied: upsell-card effect comment clarified to document per-mount (= per-friction-hit) semantics; price-anchor wrapped in semantic `<s>` + aria-label so screen readers verbalise the savings correctly.
+
 ## 2026-04-17 — Market-informed pivot + contextual upsells + repeat-yesterday
 
 Big strategic session. Did a deep dive on competitors (MyFitnessPal, Cronometer, MacroFactor, Cal AI, Lose It!) and distilled a positioning sentence the roadmap now serves: **"the calm, private macro log with an AI coach that actually reads your data."** Full competitive analysis + 4-week prioritised roadmap lives in `UX_AUDIT.md` §S12.

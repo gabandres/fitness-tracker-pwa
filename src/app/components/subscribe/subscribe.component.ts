@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { DatePipe } from '@angular/common';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { SubscriptionService } from '../../services/subscription.service';
+import { AnalyticsService } from '../../services/analytics.service';
 
 /**
  * Subscribe / Manage-subscription card.
@@ -95,11 +96,26 @@ import { SubscriptionService } from '../../services/subscription.service';
                 <button type="button" role="radio"
                   [attr.aria-checked]="cadence() === 'annual'"
                   (click)="setCadence('annual')"
+                  [attr.aria-label]="subs.displayPriceAnnualAnchor
+                    ? t('subscribe.annualAnchorAria', { anchor: subs.displayPriceAnnualAnchor, price: subs.displayPriceAnnual })
+                    : t('subscribe.toggleAnnual') + ' ' + subs.displayPriceAnnual"
                   [class.bg-ink]="cadence() === 'annual'"
                   [class.text-cream]="cadence() === 'annual'"
                   [class.text-graphite]="cadence() !== 'annual'"
                   class="px-3 py-1.5 font-sans transition-colors">
-                  {{ t('subscribe.toggleAnnual') }} &middot; {{ subs.displayPriceAnnual }}
+                  {{ t('subscribe.toggleAnnual') }} &middot;
+                  @if (subs.displayPriceAnnualAnchor) {
+                    <!-- Anchor price shown only for the annual toggle so
+                         the 33% savings reads at a glance without the
+                         user doing math. Hidden when no anchor price is
+                         configured so we never show a made-up strike-
+                         through number. Use the semantic strike element
+                         with aria-hidden because the button's aria-label
+                         already verbalises "was $36, now $24" for
+                         screen readers. -->
+                    <s class="opacity-60 mr-1" aria-hidden="true">{{ subs.displayPriceAnnualAnchor }}</s>
+                  }
+                  {{ subs.displayPriceAnnual }}
                   @if (subs.annualSavingsPercent > 0) {
                     <span class="ml-1 text-[10px] uppercase tracking-wider"
                       [class.text-olive]="cadence() === 'annual'"
@@ -128,9 +144,15 @@ import { SubscriptionService } from '../../services/subscription.service';
               class="stamp-btn max-w-xs">
               @if (busy()) {
                 {{ t('subscribe.startingCheckout') }}
+              } @else if (subs.trialDays > 0) {
+                <!-- Trial-led CTA: industry research shows a 7-day free
+                     trial converts 2-4x better than a raw price offer
+                     for health apps. Keep the price visible underneath
+                     for transparency, but it's secondary to the trial. -->
+                <span>{{ t('subscribe.startFreeTrial', { n: subs.trialDays }) }}</span>
+                <span class="font-sans text-[11px] normal-case opacity-80 ml-1">{{ t('subscribe.thenBilled', { price: selectedDisplayPrice() }) }}</span>
               } @else {
                 {{ t('subscribe.support') }} &middot; {{ selectedDisplayPrice() }}
-                @if (subs.trialDays > 0) { <span class="font-sans text-[11px] normal-case opacity-80 ml-1">{{ t('subscribe.trialHint', { n: subs.trialDays }) }}</span> }
               }
             </button>
           </div>
@@ -146,6 +168,7 @@ import { SubscriptionService } from '../../services/subscription.service';
 })
 export class SubscribeComponent {
   protected readonly subs = inject(SubscriptionService);
+  private readonly analytics = inject(AnalyticsService);
   protected readonly busy = signal(false);
   protected readonly sub = computed(() => this.subs.subscription());
 
@@ -173,6 +196,12 @@ export class SubscribeComponent {
   protected async subscribe(): Promise<void> {
     if (this.busy()) return;
     this.busy.set(true);
+    // Fire analytics before the Stripe redirect — once the user lands on
+    // Stripe's hosted Checkout, this client context is gone.
+    this.analytics.track('trial_started', {
+      cadence: this.cadence(),
+      trialDays: this.subs.trialDays,
+    });
     try {
       await this.subs.startCheckout(this.selectedPriceId(), this.subs.trialDays);
     } finally {

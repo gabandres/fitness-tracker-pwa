@@ -6,6 +6,7 @@ import { FitnessStore } from '../../services/fitness-store.service';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { TranslationService } from '../../services/translation.service';
 import { DateKey, localDateKey } from '../../utils/date';
+import { AnalyticsService } from '../../services/analytics.service';
 import { EntryFormComponent } from '../entry-form/entry-form.component';
 import { PhotoCaptureComponent } from '../photo-capture/photo-capture.component';
 import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.component';
@@ -404,6 +405,7 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
   protected readonly store = inject(FitnessStore);
   protected readonly form = inject(EntryFormManager);
   protected readonly translation = inject(TranslationService);
+  private readonly analytics = inject(AnalyticsService);
   protected readonly Math = Math;
   protected readonly todayKey = localDateKey(new Date());
   protected readonly selectedDateKey = signal(this.todayKey);
@@ -547,7 +549,8 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
     if (this.repeatingYesterday()) return;
     this.repeatingYesterday.set(true);
     try {
-      await this.store.repeatYesterday();
+      const cloned = await this.store.repeatYesterday();
+      this.analytics.track('repeat_yesterday', { count: cloned });
     } finally {
       this.repeatingYesterday.set(false);
     }

@@ -8,6 +8,7 @@ import { TranslationService } from '../../services/translation.service';
 import { SubscriptionService } from '../../services/subscription.service';
 import { localDateKey } from '../../utils/date';
 import { UpsellCardComponent } from '../upsell-card/upsell-card.component';
+import { AnalyticsService } from '../../services/analytics.service';
 
 /** Free-tier CSV export is capped to this many days of history (matches
     the freemium table in the UX plan). Pro subscribers get all history. */
@@ -439,6 +440,7 @@ export class DashboardComponent {
   protected readonly subs = inject(SubscriptionService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly calc = inject(TdeeCalculatorService);
+  private readonly analytics = inject(AnalyticsService);
 
   protected readonly csvExportDaysFree = CSV_EXPORT_DAYS_FREE;
   protected readonly Math = Math;
@@ -602,6 +604,7 @@ export class DashboardComponent {
     // Flag the upsell for free users the moment they engage with export.
     // UpsellCard still self-gates on isPaid so Pro users see nothing.
     if (!this.subs.isPaid()) this.showExportUpsell.set(true);
+    this.analytics.track('export_clicked', { tier: this.subs.isPaid() ? 'paid' : 'free' });
     const allLogs = await this.store.getAllLogs();
     // Free tier exports only the trailing window; Pro exports all history.
     const exportLogs = this.subs.isPaid()

@@ -1,9 +1,17 @@
-import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, input } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { SubscriptionService } from '../../services/subscription.service';
 import { UpsellService } from '../../services/upsell.service';
+import { AnalyticsService } from '../../services/analytics.service';
 
 type UpsellContext = 'photoQuota' | 'presetLimit' | 'csvExport' | 'chartHistory';
+
+const CONTEXT_TO_SOURCE: Record<UpsellContext, 'photo' | 'preset' | 'csv' | 'chart'> = {
+  photoQuota: 'photo',
+  presetLimit: 'preset',
+  csvExport: 'csv',
+  chartHistory: 'chart',
+};
 
 /**
  * Small inline upsell card surfaced at the moment a free user hits a tier
@@ -54,8 +62,27 @@ type UpsellContext = 'photoQuota' | 'presetLimit' | 'csvExport' | 'chartHistory'
 export class UpsellCardComponent {
   private readonly subs = inject(SubscriptionService);
   private readonly upsell = inject(UpsellService);
+  private readonly analytics = inject(AnalyticsService);
 
   readonly context = input.required<UpsellContext>();
+
+  constructor() {
+    // Contract: callers gate the component's creation with an `@if`
+    // that matches the friction moment they're measuring (photos=0,
+    // preset cap hit, export clicked). That means each mount IS the
+    // event we want to count — `paywall_shown` fires once per mount,
+    // which equals once per friction-hit per session for the current
+    // callsites. The `fired` flag protects against the effect running
+    // twice inside a single lifecycle (e.g. if `shouldShow()` flips
+    // momentarily during change-detection), not against remounts.
+    let fired = false;
+    effect(() => {
+      if (fired) return;
+      if (!this.shouldShow()) return;
+      fired = true;
+      this.analytics.paywallShown(CONTEXT_TO_SOURCE[this.context()]);
+    });
+  }
 
   protected shouldShow(): boolean {
     // Only free-tier users see this. Admins and comped friends never see
@@ -64,6 +91,7 @@ export class UpsellCardComponent {
   }
 
   protected open(): void {
+    this.analytics.paywallClick(CONTEXT_TO_SOURCE[this.context()]);
     this.upsell.openSubscribe(this.context());
   }
 }

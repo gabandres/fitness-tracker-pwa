@@ -201,11 +201,11 @@ Four load-bearing words: **calm** (vs shame-based MFP), **private** (real trust 
 
 ### Live backlog (in priority order)
 
-#### Week 1 — conversion path
-- [~] **#1 Contextual upsells** at the three free-tier friction points (photo quota out, 11th preset attempted, free-tier CSV clicked). "Try Pro free for 7 days" label. *In flight 2026-04-17.*
-- [ ] Subscribe card: make "7-day free trial" the primary label, not the price.
-- [ ] Add a price anchor: show "$36/yr" crossed out next to "$24/yr" so the 33% save is visible at the same glance.
-- [ ] Instrument with Plausible (or similar privacy-respecting analytics): `paywall_shown_photo`, `paywall_shown_preset`, `paywall_shown_csv`, `trial_started`, `trial_cancelled`, `export_clicked`.
+#### Week 1 — conversion path ✅ complete
+- [x] **#1 Contextual upsells** at the three free-tier friction points (photo quota out, 11th preset attempted, free-tier CSV clicked). "Try Pro free for 7 days" label. *(2026-04-17)*
+- [x] Subscribe card: "start 7-day free trial" is the primary label; price is secondary ("then $24/yr"). *(2026-04-17)*
+- [x] Price anchor on the annual pill: "$36/yr" struck through next to "$24/yr" with accessible `aria-label` for screen readers. *(2026-04-17)*
+- [x] Analytics foundation: `AnalyticsService` emits to `console.info` + `Sentry.addBreadcrumb` in all environments; Plausible gated behind `environment.analytics.plausibleEnabled` for when budget allows. Events live: `paywall_shown`, `paywall_click`, `trial_started`, `export_clicked`, `repeat_yesterday`. *(2026-04-17)*
 
 #### Week 2 — first-session retention
 - [~] **#3 "Repeat yesterday"** one-tap button that clones yesterday's full log. *In flight 2026-04-17.*
@@ -288,3 +288,4 @@ Four load-bearing words: **calm** (vs shame-based MFP), **private** (real trust 
 - **2026-04-17** — Post-launch S1 + S2 pass (S10). Photo size error messaging aligned between client (15 MB raw) and server (20 MB base64); contradictory numbers removed. Settings sheet gained a sticky TOC chip row + section IDs for jump navigation. Privacy GDPR section now offers GitHub issue + in-app feedback as mailto alternatives, with a stated 30-day response SLA. UTC quota-reset hint surfaced via `title` on remaining-count captions and an explicit note in Settings → Reminders. Ledger empty-state copy now names the button ("press the New Entry button") instead of the spatial "above". S3 items parked under S11 for a future pass.
 - **2026-04-17** — S3 pass 1: micro-polish. Webhook "copy key" button shows "✓ copied" + aria-live for 2s. Preset picker renders an "empty state" caption after last preset is deleted instead of vanishing. Verified two false positives in the audit (onboarding back button already hidden on step 1; async buttons already had disabled/loading states).
 - **2026-04-17** — S3 pass 2: product-shape items (#7, #8, #11). Consultation suggested prompts de-emphasized (smaller/75% opacity + "examples" caption) so they read as discovery hints rather than required picks. Tablet breakpoint fixed by shifting responsive boundary from `lg:1024` to `md:768` — iPads now get the two-column layout instead of mobile tabs + wasted width. CSV export gained a `title` attr with the filename pattern and a caption below explaining format + iOS file location. All three shipped as "option A" (minimal, reversible) pending telemetry for later iteration.
+- **2026-04-17** — Week 1 conversion-path closeout. Contextual upsells live at photo/preset/CSV walls. Subscribe card leads with "start 7-day free trial"; annual cadence pill shows "$36/yr" struck through next to "$24/yr" with an accessible aria-label verbalising the savings. Analytics foundation ships: zero-cost today via `console.info` + Sentry breadcrumbs, ready to flip to Plausible via an env flag once budget allows — events wired at every funnel step (paywall_shown, paywall_click, trial_started, export_clicked, repeat_yesterday).

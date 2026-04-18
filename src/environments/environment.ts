@@ -38,7 +38,23 @@ export const environment = {
     priceIdAnnual: 'price_1TN1eGHvWnhD3GuYS90n9x3a',
     displayPriceMonthly: '$3/mo',
     displayPriceAnnual: '$24/yr',
+    // Price anchor for the annual pill — 12× monthly ($3 × 12 = $36) so
+    // the savings vs raw monthly rate are visible at a glance. Leave
+    // empty to hide the strike-through; never invent a number here.
+    displayPriceAnnualAnchor: '$36/yr',
     annualSavingsPercent: 33,
     trialDays: 7,
+  },
+  // Analytics today piggybacks on Sentry breadcrumbs (zero cost, already
+  // in the stack) — every event is attached to the current session, so a
+  // crash report comes with the trail of paywall views / trial attempts
+  // that led up to it. If/when budget allows Plausible, fill in
+  // plausibleDomain and flip `plausibleEnabled` to true; the events
+  // already emit, they just don't ship to Plausible. No other wiring
+  // needed.
+  analytics: {
+    plausibleEnabled: false,
+    plausibleDomain: 'macrolog.web.app',
+    plausibleEndpoint: 'https://plausible.io/api/event',
   },
 };

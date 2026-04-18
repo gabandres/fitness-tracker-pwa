@@ -22,7 +22,15 @@ export const environment = {
     priceIdAnnual: 'price_1TN1eGHvWnhD3GuYS90n9x3a',
     displayPriceMonthly: '$3/mo',
     displayPriceAnnual: '$24/yr',
+    displayPriceAnnualAnchor: '$36/yr',
     annualSavingsPercent: 33,
     trialDays: 7,
+  },
+  // Dev never ships to Plausible; we only want the console + Sentry
+  // breadcrumb side effects so we can verify events wire correctly.
+  analytics: {
+    plausibleEnabled: false,
+    plausibleDomain: '',
+    plausibleEndpoint: 'https://plausible.io/api/event',
   },
 };
