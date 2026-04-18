@@ -266,6 +266,9 @@ interface SparklinePoint { x: number; y: number; }
             </div>
             <div class="prose-field font-display text-ink text-[14px] leading-relaxed"
               [innerHTML]="reportHtml()"></div>
+            @if (store.reportError(); as err) {
+              <p role="alert" class="mt-2 font-sans text-[11px] text-blood">✕ {{ err }}</p>
+            }
             <div class="mt-2 pt-2 border-t border-rule/30 flex justify-end">
               <button type="button" (click)="store.generateWeeklyReport()"
                 [disabled]="store.reportLoading()"

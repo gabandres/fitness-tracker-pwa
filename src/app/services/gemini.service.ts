@@ -107,8 +107,9 @@ export class GeminiService {
     logs: DailyLog[],
     tdee: TdeeResult,
     profile: ProfileFields | null,
+    dailyWeights: Record<string, number> = {},
   ): AsyncGenerator<string, void, void> {
-    const systemInstruction = this.buildSystemInstruction(logs, tdee, profile) + this.langSuffix();
+    const systemInstruction = this.buildSystemInstruction(logs, tdee, profile, dailyWeights) + this.langSuffix();
 
     const stream = await this.client.models.generateContentStream({
       model: this.model,
@@ -136,8 +137,9 @@ export class GeminiService {
     logs: DailyLog[],
     tdee: TdeeResult,
     profile: ProfileFields | null,
+    dailyWeights: Record<string, number> = {},
   ): Promise<GeneratedWeeklyReport> {
-    const systemInstruction = this.buildSystemInstruction(logs, tdee, profile) + this.langSuffix();
+    const systemInstruction = this.buildSystemInstruction(logs, tdee, profile, dailyWeights) + this.langSuffix();
     const prompt = [
       'Generate a concise weekly review covering:',
       '1. Progress toward goal (weight trend, pace vs target)',
@@ -161,6 +163,7 @@ export class GeminiService {
     logs: DailyLog[],
     tdee: TdeeResult,
     profile: ProfileFields | null,
+    dailyWeights: Record<string, number> = {},
   ): string {
     const lines: string[] = [];
     lines.push('You are a precise, data-driven personal fitness consultant.');
@@ -227,7 +230,13 @@ export class GeminiService {
         const iso = localDateKey(log.date);
         const pro = log.protein != null ? String(log.protein) : '—';
         const exercised = (log.exerciseCompleted || log.liftCompleted || log.cardioCompleted) ? '✓' : '—';
-        lines.push(`| ${iso} | ${log.weight} | ${log.calories} | ${pro} | ${exercised} |`);
+        // Weight is logged once per day in a separate collection, not per meal
+        // entry, so look it up by date key. Older code printed `log.weight`
+        // which is always undefined for meal rows and leaked the literal
+        // string "undefined" into the prompt table.
+        const dayWeight = dailyWeights[iso] ?? log.weight;
+        const weightCell = dayWeight != null ? String(dayWeight) : '—';
+        lines.push(`| ${iso} | ${weightCell} | ${log.calories} | ${pro} | ${exercised} |`);
       }
     } else {
       lines.push('## Daily log');

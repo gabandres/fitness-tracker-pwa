@@ -205,7 +205,7 @@ export class ConsultationComponent {
         : null;
 
       let buffer = '';
-      for await (const chunk of this.gemini.askAboutMyData(q, logs, tdee, profileFields)) {
+      for await (const chunk of this.gemini.askAboutMyData(q, logs, tdee, profileFields, this.store.dailyWeights())) {
         buffer += chunk;
         this.rawResponse.set(buffer);
         // Re-render markdown on every chunk. marked is synchronous in its

@@ -792,7 +792,11 @@
     "presetLimitReached": "El plan gratis guarda hasta {{limit}} presets. Sube a Pro para tener presets ilimitados.",
     "accountDeleteFailed": "Falló la eliminación de la cuenta. Por favor contacta soporte.",
     "photoRateLimited": "Tranquilo — espera unos segundos antes de tomar otra foto.",
-    "consultationRateLimited": "Tranquilo — espera un momento antes de preguntar de nuevo."
+    "consultationRateLimited": "Tranquilo — espera un momento antes de preguntar de nuevo.",
+    "reportNotEntitled": "Los reportes semanales son una función Pro. Actualiza para regenerar.",
+    "reportTooSoon": "Se generó un reporte reciente. Podrás regenerar 6 días después del último.",
+    "reportPayloadInvalid": "La solicitud del reporte no es válida. Refresca la página e intenta de nuevo.",
+    "reportGenerateFailed": "No pudimos generar el reporte. Intenta de nuevo en un minuto."
   },
   "tabs": {
     "log": "registro",

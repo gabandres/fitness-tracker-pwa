@@ -786,7 +786,11 @@
     "presetLimitReached": "Free plan holds up to {{limit}} presets. Upgrade to Pro for unlimited.",
     "accountDeleteFailed": "Account deletion failed. Please contact support.",
     "photoRateLimited": "Easy there — wait a few seconds before taking another photo.",
-    "consultationRateLimited": "Easy there — wait a moment before asking again."
+    "consultationRateLimited": "Easy there — wait a moment before asking again.",
+    "reportNotEntitled": "Weekly reports are a Pro feature. Upgrade to enable regeneration.",
+    "reportTooSoon": "A fresh report was generated recently. Regeneration unlocks again 6 days after the last one.",
+    "reportPayloadInvalid": "Report request was invalid. Please refresh and try again.",
+    "reportGenerateFailed": "We couldn't generate the report. Please try again in a minute."
   },
   "tabs": {
     "log": "log",

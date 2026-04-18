@@ -14,6 +14,8 @@ import { TdeeCalculatorService, TdeeResult, WeeklySummary, WeeklyEnvelope } from
 import { localDateKey } from '../utils/date';
 import { GeminiService } from './gemini.service';
 import { SubscriptionService } from './subscription.service';
+import { TranslationService } from './translation.service';
+import { extractErrorCode } from '../models/error-codes';
 
 export type StoreStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -76,6 +78,7 @@ export class FitnessStore {
   private readonly calc = inject(TdeeCalculatorService);
   private readonly gemini = inject(GeminiService);
   private readonly subs = inject(SubscriptionService);
+  private readonly translation = inject(TranslationService);
 
   // ─── Private mutable state ──────────────────────────────────
   private readonly _logs = signal<DailyLog[]>([]);
@@ -85,6 +88,7 @@ export class FitnessStore {
   private readonly _allTimeLogs = signal<DailyLog[]>([]);
   private readonly _weeklyReport = signal<WeeklyReport | null>(null);
   private readonly _reportLoading = signal(false);
+  private readonly _reportError = signal<string | null>(null);
   private readonly _measurements = signal<Measurement[]>([]);
   private readonly _dailyWeights = signal<Record<string, number>>({});
   private readonly _undoEntry = signal<DailyLog | null>(null);
@@ -98,6 +102,7 @@ export class FitnessStore {
   readonly undoEntry: Signal<DailyLog | null> = this._undoEntry.asReadonly();
   readonly weeklyReport: Signal<WeeklyReport | null> = this._weeklyReport.asReadonly();
   readonly reportLoading: Signal<boolean> = this._reportLoading.asReadonly();
+  readonly reportError: Signal<string | null> = this._reportError.asReadonly();
   readonly measurements: Signal<Measurement[]> = this._measurements.asReadonly();
   readonly dailyWeights: Signal<Record<string, number>> = this._dailyWeights.asReadonly();
   readonly latestMeasurement: Signal<Measurement | null> = computed(() => this._measurements()[0] ?? null);
@@ -625,11 +630,12 @@ export class FitnessStore {
     // Pro gate — see _checkWeeklyReport for rationale.
     if (!this.subs.isPaid()) return;
     this._reportLoading.set(true);
+    this._reportError.set(null);
     try {
       const logs = this._logs();
       const tdee = this.tdee();
       const profile = this._profileFields();
-      const result = await this.gemini.generateWeeklyReport(logs, tdee, profile);
+      const result = await this.gemini.generateWeeklyReport(logs, tdee, profile, this._dailyWeights());
       this._weeklyReport.set({
         id: result.id,
         markdown: result.markdown,
@@ -637,9 +643,15 @@ export class FitnessStore {
       });
     } catch (err) {
       console.error('Weekly report generation failed:', err);
+      const code = extractErrorCode(err);
+      this._reportError.set(this.translation.tError(code));
     } finally {
       this._reportLoading.set(false);
     }
+  }
+
+  clearReportError(): void {
+    this._reportError.set(null);
   }
 
   private _clear(): void {
@@ -651,6 +663,7 @@ export class FitnessStore {
     this._undoEntry.set(null);
     this._weeklyReport.set(null);
     this._reportLoading.set(false);
+    this._reportError.set(null);
     this._measurements.set([]);
     this._allTimeLogs.set([]);
   }
