@@ -197,6 +197,15 @@
   "dashboard": {
     "heading": "calibration readout",
     "emptyMsg": "log your first entry above to see your readout here.",
+    "heroStamp": "day 1",
+    "heroGreeting": {
+      "morning": "good morning —",
+      "afternoon": "good afternoon —",
+      "evening": "good evening —"
+    },
+    "heroBody": "you have {{target}} kcal to spend today.",
+    "heroSubtitle": "log anything you eat or drink. a coffee, a snack, a full meal — even rough numbers beat none. the app calibrates as you go.",
+    "heroCta": "start today's log",
     "loading": "loading…",
     "refresh": "refresh ↻",
     "target": "target",
@@ -341,6 +350,10 @@
     "quickAdd": "quick add",
     "removeTitle": "Remove preset",
     "empty": "no saved presets yet — use \"save as preset\" on any entry you log often."
+  },
+  "recent": {
+    "label": "recent",
+    "pickTitle": "Re-log {{label}} · {{calories}} kcal"
   },
   "entry": {
     "errorCaloriesRequired": "Calories are required.",

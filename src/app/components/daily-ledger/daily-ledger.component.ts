@@ -11,6 +11,7 @@ import { EntryFormComponent } from '../entry-form/entry-form.component';
 import { PhotoCaptureComponent } from '../photo-capture/photo-capture.component';
 import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.component';
 import { PresetPickerComponent } from '../preset-picker/preset-picker.component';
+import { RecentEntriesComponent } from '../recent-entries/recent-entries.component';
 import { StarterFoodsComponent } from '../starter-foods/starter-foods.component';
 import { FastingStripComponent } from '../fasting/fasting-strip.component';
 import { InstallPromptComponent } from '../install-prompt/install-prompt.component';
@@ -37,8 +38,10 @@ interface DayGroup {
 @Component({
   selector: 'app-daily-ledger',
   standalone: true,
-  imports: [FormsModule, EntryFormComponent, PhotoCaptureComponent, BarcodeScannerComponent, PresetPickerComponent, StarterFoodsComponent, FastingStripComponent, InstallPromptComponent, TranslocoDirective],
-  providers: [EntryFormManager],
+  imports: [FormsModule, EntryFormComponent, PhotoCaptureComponent, BarcodeScannerComponent, PresetPickerComponent, RecentEntriesComponent, StarterFoodsComponent, FastingStripComponent, InstallPromptComponent, TranslocoDirective],
+  // EntryFormManager is providedIn:'root' so dashboard and future
+  // surfaces can call startAdd()/requestLogFocus() without going
+  // through an event-bus service.
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -195,6 +198,7 @@ interface DayGroup {
                 <app-photo-capture (estimated)="form.applyEstimate($event)" />
               </div>
             </div>
+            <app-recent-entries (estimated)="form.applyEstimate($event)" />
             <app-preset-picker (estimated)="form.applyEstimate($event)" />
             <app-entry-form />
           </div>

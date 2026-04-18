@@ -5,6 +5,7 @@ import { EntryFormManager } from './entry-form-manager.service';
 import { FitnessStore } from './fitness-store.service';
 import { DailyLog } from './firebase.service';
 import { TranslationService } from './translation.service';
+import { AuthService } from './auth.service';
 
 describe('EntryFormManager', () => {
   let form: EntryFormManager;
@@ -49,6 +50,18 @@ describe('EntryFormManager', () => {
             },
             tError: (code: unknown) => String(code ?? 'errors.unknown'),
             language: signal('en'),
+          },
+        },
+        // EntryFormManager now watches AuthService.isSignedIn() via effect
+        // to reset form state on sign-out (prevents cross-user DailyLog.id
+        // leak when the service was hoisted to root).
+        {
+          provide: AuthService,
+          useValue: {
+            isSignedIn: signal(true),
+            ready: signal(true),
+            user: signal(null),
+            emailVerified: signal(true),
           },
         },
       ],

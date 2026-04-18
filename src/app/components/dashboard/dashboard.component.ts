@@ -9,6 +9,7 @@ import { SubscriptionService } from '../../services/subscription.service';
 import { localDateKey } from '../../utils/date';
 import { UpsellCardComponent } from '../upsell-card/upsell-card.component';
 import { AnalyticsService } from '../../services/analytics.service';
+import { EntryFormManager } from '../../services/entry-form-manager.service';
 
 /** Free-tier CSV export is capped to this many days of history (matches
     the freemium table in the UX plan). Pro subscribers get all history. */
@@ -40,11 +41,31 @@ interface SparklinePoint { x: number; y: number; }
           }
         </div>
       } @else if (store.logs().length === 0) {
-        <div class="mt-4 py-6 text-center">
-          <p class="caption text-[11px]">{{ t('dashboard.emptyMsg') }}</p>
-          <div class="mt-4 flex justify-center">
-            <button type="button" (click)="store.refresh()" class="tag-btn"
-              [disabled]="store.status() === 'loading'">
+        <!-- First-session hero — replaces the austere "no data, refresh?"
+             empty state with a warm greeting + the number that matters
+             most for the first interaction. Every new user sees this on
+             Day 1, so it has to do two jobs: make the app feel alive
+             (not a blank slate), and make the first call-to-action
+             obvious (log something). -->
+        <div class="mt-4 specimen px-5 py-6 text-center">
+          <span class="crop-bl"></span><span class="crop-br"></span>
+          <span class="stamp-mark" style="transform: rotate(0deg)">{{ t('dashboard.heroStamp') }}</span>
+          <h2 class="font-display text-2xl sm:text-3xl leading-[0.95] text-ink mt-3">
+            {{ t('dashboard.heroGreeting.' + greeting()) }}<br/>
+            <em class="text-blood">
+              {{ t('dashboard.heroBody', { target: store.targetCalories() }) }}
+            </em>
+          </h2>
+          <p class="caption text-[11px] mt-3 leading-relaxed">
+            {{ t('dashboard.heroSubtitle') }}
+          </p>
+          <div class="mt-5 flex items-center justify-center gap-2 flex-wrap">
+            <button type="button" (click)="startLog()" class="stamp-btn">
+              {{ t('dashboard.heroCta') }}
+            </button>
+            <button type="button" (click)="store.refresh()"
+              [disabled]="store.status() === 'loading'"
+              class="tag-btn text-[11px]">
               {{ store.status() === 'loading' ? t('dashboard.loading') : t('dashboard.refresh') }}
             </button>
           </div>
@@ -441,6 +462,28 @@ export class DashboardComponent {
   private readonly sanitizer = inject(DomSanitizer);
   private readonly calc = inject(TdeeCalculatorService);
   private readonly analytics = inject(AnalyticsService);
+  private readonly form = inject(EntryFormManager);
+
+  /** Local greeting bucket driven by the current hour. Called from the
+      template so it re-evaluates on every change-detection tick; cost
+      is trivial (`getHours()` + two comparisons) and the empty-state
+      hero where this is used only renders until the first log anyway. */
+  protected greeting(): 'morning' | 'afternoon' | 'evening' {
+    const h = new Date().getHours();
+    if (h < 12) return 'morning';
+    if (h < 18) return 'afternoon';
+    return 'evening';
+  }
+
+  /** Empty-state hero CTA: opens the entry form and asks the app shell
+      to switch to the log tab on mobile. Fires an analytics event so
+      we can measure first-session activation rate in the breadcrumb
+      trail. */
+  protected startLog(): void {
+    this.analytics.track('empty_hero_cta_clicked');
+    this.form.startAdd();
+    this.form.requestLogFocus();
+  }
 
   protected readonly csvExportDaysFree = CSV_EXPORT_DAYS_FREE;
   protected readonly Math = Math;

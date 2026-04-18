@@ -26,6 +26,7 @@ import { ThemeChoice, PRO_THEMES, isProTheme, readStoredTheme, writeStoredTheme 
 import { localDateKey } from './utils/date';
 import { mediaSignal } from './utils/media';
 import { UpsellService } from './services/upsell.service';
+import { EntryFormManager } from './services/entry-form-manager.service';
 
 @Component({
   selector: 'app-root',
@@ -358,6 +359,7 @@ export class App {
   protected readonly store = inject(FitnessStore); // triggers lifecycle via constructor effect
   protected readonly subs = inject(SubscriptionService);
   private readonly upsell = inject(UpsellService);
+  private readonly entryForm = inject(EntryFormManager);
   private readonly swUpdate = inject(SwUpdate);
   private readonly translation = inject(TranslationService); // resolves locale on boot, updates <title>
 
@@ -502,6 +504,21 @@ export class App {
       if (isProTheme(choice) && !this.subs.isPaid()) {
         this.setTheme('auto');
       }
+    });
+
+    // Dashboard empty-state hero (and future quick-add surfaces) call
+    // `EntryFormManager.requestLogFocus()` to switch to the log tab and
+    // scroll the ledger into view. Guarded by a counter so repeat clicks
+    // re-fire without an intermediate reset.
+    let lastLogFocusCount = 0;
+    effect(() => {
+      const n = this.entryForm.logTabRequestCount();
+      if (n === lastLogFocusCount) return;
+      lastLogFocusCount = n;
+      this.activeTab.set('log');
+      requestAnimationFrame(() => {
+        document.getElementById('main')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
     });
 
     // Upsell cards deep inside child components call `UpsellService.openSubscribe()`

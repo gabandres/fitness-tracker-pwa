@@ -1,14 +1,35 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { effect, Injectable, inject, signal } from '@angular/core';
 import { DailyLog, LogEntry, MealPreset } from './firebase.service';
 import { FitnessStore, PresetLimitError } from './fitness-store.service';
 import { MacroEstimate } from '../models/macro-estimate';
 import { TranslationService } from './translation.service';
+import { AuthService } from './auth.service';
 import { localDateKey } from '../utils/date';
 
-@Injectable()
+// Hoisted to root so non-ledger surfaces (dashboard empty-state hero,
+// future FAB / quick-add buttons) can call `startAdd()` + `requestLogFocus()`
+// without going through an event-bus service. There's only ever one
+// active entry-form flow in the app at a time; the previous
+// ledger-local provider was effectively a singleton anyway.
+@Injectable({ providedIn: 'root' })
 export class EntryFormManager {
   private readonly store = inject(FitnessStore);
   private readonly translation = inject(TranslationService);
+  private readonly auth = inject(AuthService);
+
+  constructor() {
+    // Now that EntryFormManager is a root singleton, sign-out must reset
+    // the in-flight form state — otherwise a subsequent sign-in by a
+    // different user could re-enter edit mode pointing at the previous
+    // user's DailyLog.id and a save would target the wrong document.
+    // Watch auth state and fully reset on any transition to signed-out.
+    let prevSignedIn = this.auth.isSignedIn();
+    effect(() => {
+      const signedIn = this.auth.isSignedIn();
+      if (prevSignedIn && !signedIn) this.reset();
+      prevSignedIn = signedIn;
+    });
+  }
 
   // ── Mode state machine ──────────────────────────────────────
   readonly mode = signal<'view' | 'add' | 'edit'>('view');
@@ -25,6 +46,15 @@ export class EntryFormManager {
       entry-form template to surface the contextual upsell card. Cleared
       on the next successful preset save or form reset. */
   readonly presetLimitHit = signal(false);
+
+  /** Bumped when a non-ledger surface (dashboard empty-state hero, mobile
+      CTAs) wants the app shell to switch to the log tab and scroll to
+      the ledger. Counter signal so repeat clicks re-fire. App.ts listens
+      via effect and handles the tab switch + scroll. */
+  readonly logTabRequestCount = signal(0);
+  requestLogFocus(): void {
+    this.logTabRequestCount.update((n) => n + 1);
+  }
 
   // ── Form field signals ──────────────────────────────────────
   readonly mealLabel = signal<string>('');
@@ -174,5 +204,23 @@ export class EntryFormManager {
     this.mealLabel.set('');
     this.entryDate.set(localDateKey(new Date()));
     this.presetLimitHit.set(false);
+  }
+
+  /**
+   * Full state reset including mode + editTarget + errors. Called on
+   * sign-out so a subsequent sign-in by a different user can't
+   * accidentally save against the previous user's `DailyLog.id` if
+   * the form was mid-edit. Safe to call at any time — clears back to
+   * the same state the component initialises with.
+   */
+  reset(): void {
+    this.mode.set('view');
+    this.editTarget.set(null);
+    this.addingForDay.set(null);
+    this.status.set('idle');
+    this.errorMsg.set('');
+    this.savingPreset.set(false);
+    this.presetName.set('');
+    this.resetForm();
   }
 }

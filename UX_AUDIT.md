@@ -208,11 +208,11 @@ Four load-bearing words: **calm** (vs shame-based MFP), **private** (real trust 
 - [x] Analytics foundation: `AnalyticsService` emits to `console.info` + `Sentry.addBreadcrumb` in all environments; Plausible gated behind `environment.analytics.plausibleEnabled` for when budget allows. Events live: `paywall_shown`, `paywall_click`, `trial_started`, `export_clicked`, `repeat_yesterday`. *(2026-04-17)*
 
 #### Week 2 — first-session retention
-- [~] **#3 "Repeat yesterday"** one-tap button that clones yesterday's full log. *In flight 2026-04-17.*
-- [ ] Recent-entries row under the ledger header — tap any to re-log with one tap.
+- [x] **#3 "Repeat yesterday"** one-tap button that clones yesterday's full log. *(2026-04-17)*
+- [x] Recent-entries row in the add-entry sheet — last 5 unique meal labels, tap to prefill. *(2026-04-17)*
 - [ ] Starter-foods card tuned to onboarding goal (cut → lean protein, bulk → denser carbs).
 - [ ] First-session coachmark on the dashboard "?" TDEE explainer.
-- [ ] Empty-state dashboard hero: "Good morning — you have {{target}} kcal to spend today".
+- [x] Empty-state dashboard hero: time-of-day greeting + "you have {{target}} kcal to spend today" + CTA that switches to the log tab. *(2026-04-17)*
 
 #### Week 3 — daily-use polish
 - [ ] Floating "+" FAB on mobile for one-tap new-entry access.
@@ -289,3 +289,4 @@ Four load-bearing words: **calm** (vs shame-based MFP), **private** (real trust 
 - **2026-04-17** — S3 pass 1: micro-polish. Webhook "copy key" button shows "✓ copied" + aria-live for 2s. Preset picker renders an "empty state" caption after last preset is deleted instead of vanishing. Verified two false positives in the audit (onboarding back button already hidden on step 1; async buttons already had disabled/loading states).
 - **2026-04-17** — S3 pass 2: product-shape items (#7, #8, #11). Consultation suggested prompts de-emphasized (smaller/75% opacity + "examples" caption) so they read as discovery hints rather than required picks. Tablet breakpoint fixed by shifting responsive boundary from `lg:1024` to `md:768` — iPads now get the two-column layout instead of mobile tabs + wasted width. CSV export gained a `title` attr with the filename pattern and a caption below explaining format + iOS file location. All three shipped as "option A" (minimal, reversible) pending telemetry for later iteration.
 - **2026-04-17** — Week 1 conversion-path closeout. Contextual upsells live at photo/preset/CSV walls. Subscribe card leads with "start 7-day free trial"; annual cadence pill shows "$36/yr" struck through next to "$24/yr" with an accessible aria-label verbalising the savings. Analytics foundation ships: zero-cost today via `console.info` + Sentry breadcrumbs, ready to flip to Plausible via an env flag once budget allows — events wired at every funnel step (paywall_shown, paywall_click, trial_started, export_clicked, repeat_yesterday).
+- **2026-04-17** — Week 2 A + D ship. Recent-entries row renders the last 5 unique meal labels above the preset picker in the add-entry sheet; one-tap re-log via the same `MacroEstimate` contract the preset picker + photo capture use. Empty-state dashboard replaced with a warm time-of-day greeting + "you have X kcal to spend today" hero + "start today's log" CTA that switches to the log tab on mobile. Side effect: `EntryFormManager` hoisted to root with an auth-state reset so non-ledger surfaces can drive the entry flow without cross-user leakage.

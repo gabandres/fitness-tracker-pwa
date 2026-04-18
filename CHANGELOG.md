@@ -6,6 +6,16 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-17 — Week 2 A + D (recent-entries row, empty-state hero)
+
+Two shipments from the market-informed roadmap's Week 2 retention bucket. One targets daily friction (recent-entries), the other Day-1 activation (empty-state hero).
+
+- **Recent-entries quick-add row.** New `FitnessStore.recentEntries` computed surfaces the last 5 unique meal labels from the loaded window, newest first, case-insensitively deduped, skipping empty-label logs (weight-only or 0-cal training markers). New `RecentEntriesComponent` renders chips above the preset picker inside the add-entry sheet; tap emits a `MacroEstimate` (same contract as preset-picker + photo-capture) and fires a `recent_entry_tapped` analytics event. Hides entirely when the list is empty so day-zero users see no ghost section.
+- **Dashboard empty-state hero.** Day-1 users previously saw "no data — refresh?" on first dashboard load. Now they get a warm specimen card with a time-of-day greeting ("good morning / afternoon / evening —"), a hero line showing their personal daily target ("you have {{target}} kcal to spend today"), a 1-line subtitle reassuring that rough logs are welcome, and a `start today's log` stamp-btn CTA that opens the entry form AND switches to the log tab on mobile (via a new `EntryFormManager.requestLogFocus()` signal the App shell listens to).
+- **Under the hood.** `EntryFormManager` hoisted from ledger-provided to `providedIn: 'root'` so non-ledger surfaces (dashboard, future FAB, quick-add buttons) can trigger the entry flow directly. An auth-state effect resets the form on sign-out so a subsequent sign-in by a different user can't accidentally edit/save against the previous user's `DailyLog.id`.
+
+Code review passed after three fixes: recent-entries iteration direction corrected (`_logs()` is oldest-first per `FirebaseService.getRecentLogs`), sign-out reset wired via an auth-state effect, and the `greeting()` docstring rewritten to accurately describe its per-change-detection re-eval behaviour.
+
 ## 2026-04-17 — Week 1 closeout (trial CTA, price anchor, analytics foundation)
 
 Closes every Week-1 item in the market-informed roadmap (`UX_AUDIT.md` §S12). Conversion funnel is now fully instrumented; Week-2 retention work can build on top.

@@ -203,6 +203,15 @@
   "dashboard": {
     "heading": "lectura de calibración",
     "emptyMsg": "registra tu primera entrada arriba para ver tu lectura aquí.",
+    "heroStamp": "día 1",
+    "heroGreeting": {
+      "morning": "buenos días —",
+      "afternoon": "buenas tardes —",
+      "evening": "buenas noches —"
+    },
+    "heroBody": "tienes {{target}} kcal para gastar hoy.",
+    "heroSubtitle": "registra lo que comas o bebas. un café, una merienda, una comida completa — hasta números aproximados son mejor que nada. la app se calibra según vas registrando.",
+    "heroCta": "comenzar registro de hoy",
     "loading": "cargando…",
     "refresh": "refrescar ↻",
     "target": "meta",
@@ -347,6 +356,10 @@
     "quickAdd": "añadir rápido",
     "empty": "no tienes presets guardados — usa \"guardar como preset\" en cualquier entrada que registres seguido.",
     "removeTitle": "Eliminar preset"
+  },
+  "recent": {
+    "label": "recientes",
+    "pickTitle": "Registrar de nuevo {{label}} · {{calories}} kcal"
   },
   "entry": {
     "errorCaloriesRequired": "Las calorías son requeridas.",

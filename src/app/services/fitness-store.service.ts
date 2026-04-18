@@ -102,6 +102,36 @@ export class FitnessStore {
   readonly dailyWeights: Signal<Record<string, number>> = this._dailyWeights.asReadonly();
   readonly latestMeasurement: Signal<Measurement | null> = computed(() => this._measurements()[0] ?? null);
   readonly previousMeasurement: Signal<Measurement | null> = computed(() => this._measurements()[1] ?? null);
+  /**
+   * Last 5 unique meal labels, newest first, from the current loaded
+   * logs window (`FitnessStore._load()` fetches `getRecentLogs(14)`, a
+   * 14-ROW cap — so a heavy logger may only span 2 days, a sparse
+   * logger may span weeks). Used by the entry form's "recent" row for
+   * one-tap re-log — the second highest-leverage retention feature
+   * after repeat-yesterday, because most users' meal vocabulary is
+   * small and recurring. Skips empty labels (weight-only / 0-cal
+   * training-marker entries) and de-dupes case-insensitively so the
+   * row doesn't fill with five copies of "pollo con arroz".
+   */
+  readonly recentEntries: Signal<DailyLog[]> = computed(() => {
+    const seen = new Set<string>();
+    const out: DailyLog[] = [];
+    const list = this._logs();
+    // `_logs()` is oldest-first (FirebaseService.getRecentLogs reverses
+    // the desc-ordered query before returning). Iterate end-to-start so
+    // the user sees their newest meals first.
+    for (let i = list.length - 1; i >= 0 && out.length < 5; i--) {
+      const log = list[i];
+      const label = log.mealLabel?.trim();
+      if (!label) continue;
+      const key = label.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(log);
+    }
+    return out;
+  });
+
   readonly measurementDeltas: Signal<{ waist?: number; chest?: number; bicep?: number; hip?: number } | null> = computed(() => {
     const latest = this.latestMeasurement();
     const prev = this.previousMeasurement();
