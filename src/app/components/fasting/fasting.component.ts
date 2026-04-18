@@ -21,11 +21,11 @@ import { TranslationService } from '../../services/translation.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-    <!-- When a fast is active, FastingStripComponent at the top of the
-         ledger handles the visible UX. The full analog chronometer here
-         would be redundant, so we self-hide until the fast ends.
-         When idle, this section renders the start-fast CTA. -->
-    @if (!store.isFasting()) {
+    <!-- The section stays mounted in both fasting and idle states so
+         end-fast doesn't pop a whole new panel into the right column
+         (that jump was the "broken transition" flagged in UX_AUDIT §S11).
+         The strip at the top of the ledger is ambient; this dial is the
+         detail view and always has a reachable CTA (start or end). -->
     <section>
       <div class="rule"><span>{{ t('fasting.chronometer') }}</span></div>
 
@@ -94,7 +94,9 @@ import { TranslationService } from '../../services/translation.service';
           </svg>
         </div>
 
-        <!-- Status + button -->
+        <!-- Status + button. The CTA stays at the same offset in both
+             states so end-fast swaps the label in place instead of
+             jumping the layout. -->
         <div class="mt-4 text-center">
           @if (store.isFasting()) {
             <p class="caption text-[11px]">
@@ -108,7 +110,7 @@ import { TranslationService } from '../../services/translation.service';
           } @else {
             <button type="button" (click)="punchClock()"
               [attr.aria-label]="t('fasting.startFastAria')"
-              class="stamp-btn mt-1 max-w-xs"
+              class="stamp-btn mt-3 max-w-xs"
               style="background: var(--color-ink); border-color: var(--color-graphite);">
               {{ t('fasting.startFast') }}
             </button>
@@ -116,7 +118,6 @@ import { TranslationService } from '../../services/translation.service';
         </div>
       </div>
     </section>
-    }
     </ng-container>
   `,
 })
