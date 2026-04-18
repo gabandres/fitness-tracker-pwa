@@ -348,12 +348,14 @@ interface DayGroup {
                input on desktop still uses the Edit button + delete flow. -->
           @for (meal of day.meals; track meal.id; let mi = $index) {
             <div class="relative overflow-hidden">
-              <div aria-hidden="true" class="absolute inset-0 flex items-center justify-end pr-6 pointer-events-none"
-                style="background: var(--color-blood)">
-                <span class="font-sans text-[10px] tracking-[0.12em] uppercase" style="color: #f4f0e8">
-                  {{ t('daily.swipeDelete') }}
-                </span>
-              </div>
+              @if (swipeState()?.id === meal.id) {
+                <div aria-hidden="true" class="absolute inset-0 flex items-center justify-end pr-6 pointer-events-none"
+                  style="background: var(--color-blood)">
+                  <span class="font-sans text-[10px] tracking-[0.12em] uppercase" style="color: #f4f0e8">
+                    {{ t('daily.swipeDelete') }}
+                  </span>
+                </div>
+              }
               <div class="tape-strip tape-in pl-6 relative"
                 [class.tape-editing]="form.editTarget()?.id === meal.id"
                 [style.animation-delay]="(di * 60 + mi * 30 + 30) + 'ms'"
