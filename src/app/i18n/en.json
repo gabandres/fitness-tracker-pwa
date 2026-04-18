@@ -346,6 +346,7 @@
     "emptyStatePrefix": "or press the",
     "emptyStateSuffix": "button to log anything else.",
     "swipeDelete": "delete",
+    "swipeDeleteConfirm": "Delete this entry?",
     "undoLabel": "entry deleted",
     "undoAction": "undo",
     "undoAria": "Undo delete entry",

@@ -352,6 +352,7 @@
     "emptyStatePrefix": "o presiona el botón",
     "emptyStateSuffix": "para registrar cualquier otra cosa.",
     "swipeDelete": "eliminar",
+    "swipeDeleteConfirm": "¿Eliminar esta entrada?",
     "undoLabel": "entrada eliminada",
     "undoAction": "deshacer",
     "undoAria": "Deshacer eliminación de entrada",

@@ -586,12 +586,17 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
       this.swipeState.set(null);
       return;
     }
-    const shouldDelete = state.dx <= this.SWIPE_DELETE_THRESHOLD;
+    const crossedThreshold = state.dx <= this.SWIPE_DELETE_THRESHOLD;
     this.swipeState.set(null);
-    if (shouldDelete) {
-      try { navigator.vibrate?.(15); } catch { /* ignore */ }
-      try { await this.store.deleteLog(mealId); } catch { /* store logs + undo toast handles it */ }
-    }
+    if (!crossedThreshold) return;
+    // Require an explicit confirmation before destroying the entry. A
+    // single accidental swipe shouldn't nuke a log row — the existing
+    // undo toast runs for 5s, but users expect a prompt too. Pairs
+    // with the end-fast confirm dialog pattern.
+    const ok = window.confirm(this.translation.t('daily.swipeDeleteConfirm'));
+    if (!ok) return;
+    try { navigator.vibrate?.(15); } catch { /* ignore */ }
+    try { await this.store.deleteLog(mealId); } catch { /* store logs + undo toast handles it */ }
   }
 
   // ── Day-level exercise toggle ──────────────────────────────
