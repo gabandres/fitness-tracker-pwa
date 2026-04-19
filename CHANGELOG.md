@@ -6,6 +6,16 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-19 — Stripe live-mode verified end-to-end
+
+Proved programmatically via Stripe CLI + Cloud Functions logs that our live-mode Stripe pipeline is consistent — product, both prices, the webhook endpoint, and the signing secret configured in the `firestore-stripe-payments` Firebase extension. This was the last of the §S13 hard blockers we could clear without dashboard-form work.
+
+- Product `prod_UKSEcAQhRmQQ9u` (Macro Log Pro), both prices `price_1TLnJdHvWnhD3GuYy7gWFvyJ` ($3/mo) + `price_1TN1eGHvWnhD3GuYS90n9x3a` ($24/yr) — all `active: true, livemode: true`.
+- Webhook `we_1TLnJfHvWnhD3GuYzV5h8a1m` → `ext-firestore-stripe-payments-handleWebhookEvents` on us-central1, enabled, livemode, subscribed to 14 events covering the full subscription + invoice + checkout lifecycle.
+- Signing-secret match confirmed by real recent events appearing as "Successfully handled Stripe event" in the Cloud Functions logs — including `invoice.paid`, `customer.subscription.created`, `checkout.session.completed`. Test-mode-secret-against-live-endpoint would surface as "Webhook signature verification failed"; we see zero.
+
+Only remaining Stripe item is enabling Stripe Tax (legal business info + jurisdictional registration), which has no public API and must happen in the Stripe dashboard.
+
 ## 2026-04-19 — Infra blockers resolved (backup bucket, password policy, monitoring alerts)
 
 Three hard blockers from UX_AUDIT §S13 are now live. All applied via gcloud / REST API on the prod project `fitness-tracker-gb-1775407101`; no code changes beyond the monitoring script comment refresh.
