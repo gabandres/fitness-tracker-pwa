@@ -227,6 +227,53 @@ Four load-bearing words: **calm** (vs shame-based MFP), **private** (real trust 
 - [ ] Play Store TWA wrap for discovery.
 - [ ] One creator collab for "calm macro log" TikTok angle.
 
+---
+
+## 🚀 S13 — Public-launch readiness (2026-04-18)
+
+What's between "deployed" and "safe to share with strangers." Grouped by severity, not by effort. Everything in this section is gating wider distribution.
+
+### 🚨 Hard blockers — must-have before any public share
+- [ ] **Stripe live-mode end-to-end verification.** Env price IDs read as live but double-check the Stripe dashboard toggle is set to LIVE, and that the webhook signing secret configured in the `firestore-stripe-payments` extension is the live one. Test-mode webhook + live-mode client = silent checkout breakage.
+- [ ] **Stripe Tax enabled.** US state sales tax + EU VAT aren't automatic. Without Stripe Tax enabled (Stripe Dashboard → Tax, $0.50 per tx), any EU subscriber is a compliance risk.
+- [ ] **Firebase Auth password policy.** Console → Auth → Settings → enable "require uppercase", "require numeric", min length 10. The rules-only defense model depends on this.
+- [ ] **GCS backup bucket exists.** `weeklyFirestoreBackup` writes to `gs://fitness-tracker-gb-1775407101-backups` — create the bucket (us-central1) and add a 30-day object lifecycle rule, or the function errors weekly and the only recovery path is gone.
+- [ ] **Cloud Monitoring alerts.** Run `scripts/monitoring/setup-alerts.sh` once with project ID + notification channel. Without it, we don't get paged when Firestore errors spike or functions time out.
+
+### ⚠️ Soft blockers — ship-breakers if the app catches traction
+- [ ] **Terms of Service legal review.** `/terms` exists — needs a Termly/Iubenda pass or a lawyer read for: limitation of liability, arbitration, governing jurisdiction, subscription auto-renewal language (required by CA/NY/NC/FL state law for auto-renew SaaS).
+- [ ] **Refund policy published.** EU consumers have a 14-day statutory right of withdrawal on digital subscriptions. Either publish a policy or expect chargebacks.
+- [ ] **Account deletion wiring audit.** `deleteAccount` Cloud Function exists — verify settings-sheet exposes it AND it actually purges logs, presets, measurements, reports, weights, dailyWeights, user doc, FCM token, and cancels the Stripe subscription. GDPR Art. 17 requires completion within 30 days.
+- [ ] **Age gate in onboarding.** COPPA requires affirmative parental consent for under-13s. Calorie + weight tracking is FDA-adjacent. Add "You confirm you're 13+ (16+ if you reside in the EU)" to step 1 of onboarding with a timestamp on the profile doc.
+- [ ] **Full GDPR Art. 20 data export.** CSV covers logs; measurements, presets, profile, weights, reports don't. A full JSON dump endpoint closes this.
+
+### 💪 Strongly advised (not strictly blocking)
+- [ ] **Custom domain.** `macrolog.web.app` reads as "Firebase hobby project." Buy `macrolog.app` or `.com`, point at Firebase Hosting, set as primary site. Two-day DNS settling. Big trust bump for the landing page.
+- [ ] **Open Graph meta tags in `index.html`.** When the URL is pasted in WhatsApp / Slack / iMessage there's no preview card today. Add `og:title`, `og:description`, `og:image` (a screenshot of the ledger). LinkedIn and Twitter support the same OG spec.
+- [ ] **PWA icon set audit.** iOS "Add to Home Screen" pulls from specific icon sizes — verify 192/512/`apple-touch-icon-180` are correct in the manifest.
+- [ ] **Transactional email sender domain.** Firebase Auth ships verify + password-reset from `noreply@fitness-tracker-gb-1775407101.firebaseapp.com` — deliverability tanks and the domain looks amateur. Set up a verified sending domain (SPF + DKIM on the custom domain), customize the Firebase Auth email templates.
+- [ ] **Welcome / onboarding email sequence.** No email flow exists today. A single Day-0 "here's what you can do this week" email materially lifts Day-7 retention.
+- [ ] **Support inbox + SLA.** §S11 added a GitHub issue link + in-app feedback. Fine for zero users, terrible at 100+. Provision `support@macrolog.app`, state a 30-day response SLA in the privacy policy.
+- [ ] **Privacy policy disclosures match reality.** Must list every data processor: Firebase, Google Cloud, Stripe, Gemini, Sentry. Remove any mention of Plausible (turned back off in 88c6189).
+- [ ] **Link `/status` publicly.** It exists — surface it from the footer so users can self-check before filing support tickets.
+
+### 🔧 Engineering cleanup pre-launch
+- [ ] **Bundle budget regression.** Initial bundle is 1.51 MB vs 1.50 MB budget. Either raise the budget or route-split more aggressively.
+- [ ] **Rate limit audit on Cloud Functions.** `analyzePhoto` has quotas; `reserveConsultation` has quotas; other callables should get a review for per-user abuse protection.
+- [ ] **Staging environment on a separate Firebase project.** `environment.development.ts` exists but deploys go straight to prod. Real staging prevents "oops, that was production."
+- [ ] **Function-handler unit tests.** `firestore.rules` has a suite; `sendDayThreeCoachPush`, `publishUserCount`, `generateWeeklyReport`, `analyzePhoto` do not. First prod regression will be expensive.
+
+### Recommended launch order
+If treating this as a sprint to public-launch:
+1. Stripe live-mode + Stripe Tax verification (30 min)
+2. Password policy + GCS bucket + monitoring alerts (1 hr)
+3. Custom domain + OG meta tags (half day, mostly DNS wait)
+4. Account deletion audit + full data export endpoint (2 hrs)
+5. Transactional email sender domain (2 hrs)
+6. Terms/Refund policy review (1 hr, $50 for Termly subscription)
+
+Only after all six are ticked should the app be promoted in any channel outside direct personal share.
+
 ### Decided against (deliberately not shipping)
 
 - **Shame-based gamification** (streak-break punishment, red/green progress) — breaks the calm positioning.

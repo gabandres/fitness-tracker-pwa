@@ -23,7 +23,7 @@ Uniquely, we ship both photo-AI logging (like Cal AI) *and* adaptive TDEE coachi
 ## Reference docs
 
 - **`CHANGELOG.md`** — significant ships, newest first.
-- **`UX_AUDIT.md`** — living UX backlog.
+- **`UX_AUDIT.md`** — living UX backlog. **§S13 is the launch-readiness checklist** — read it before any public distribution push (Stripe live verification, tax, password policy, backups, monitoring alerts, GDPR, custom domain, email deliverability, etc.).
 - **`STRIPE_SETUP.md`** — one-time Stripe + Firebase Extension wiring.
 
 ## Daily commands

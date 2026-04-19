@@ -6,6 +6,15 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-18 — Launch-readiness audit + landing pricing drift fix + Plausible off
+
+Two small user-visible polish items and one meta doc-ship documenting what's still between "deployed" and "safe to share publicly."
+
+- **Landing pricing drift fixed.** Landing advertised "$3/mo" from a hardcoded i18n string while the Subscribe card defaulted to the annual cadence at "$24/yr" with a "$36/yr" anchor strikethrough. The two surfaces contradicted each other and the landing undersold the 33% annual discount we already ship. Landing now reads prices from `SubscriptionService.displayPriceAnnual` / `displayPriceAnnualAnchor` / `displayPriceMonthly` — single source of truth is `environment.stripe`. Removed four orphan i18n keys that survived the change: `landing.proPrice`, `landing.ctaLead`, `landing.ctaEm`, `landing.ctaFinePrint`, `landing.startLoggingCta`.
+- **Redundant final-CTA section removed from landing.** "one tap. one minute to set up. sign in with google." was a second CTA with the same `/app` destination as the hero "start logging" button. Two CTAs to one destination added friction without adding choice. Hero stays as the sole primary conversion point.
+- **Plausible turned back off.** Paid product (~$9/mo) with the domain not registered in any Plausible account, so events fired into the void. Sentry breadcrumbs still capture the funnel trail on any error report at zero cost; flag can be flipped back on in one line when a subscription is active.
+- **UX_AUDIT §S13 — launch-readiness checklist added.** Explicit list of what's still between "deployed at `macrolog.web.app`" and "safe to share with strangers." Five hard blockers (Stripe live-mode verify, Stripe Tax, Firebase password policy, GCS backup bucket, monitoring alerts), five soft blockers (ToS review, refund policy, account-deletion audit, age gate, full GDPR Art. 20 export), and strongly-advised items (custom domain, OG tags, transactional email sender domain, welcome email, support inbox). Read `UX_AUDIT.md` §S13 before any public distribution push.
+
 ## 2026-04-18 — Week 3 + 4 sweep (FAB, haptics, swipe-to-delete, budget toast, inline barcode, tuned starters, coachmark, day-3 push, social proof)
 
 Batch implementation of every code-side item from the UX_AUDIT §S12 Week 3 + Week 4 backlog plus a couple of latent bugs the audit surfaced (regenerate button silently failing, Gemini prompts printing `undefined` for every weight).
