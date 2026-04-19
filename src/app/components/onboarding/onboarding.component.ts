@@ -218,6 +218,30 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
                   }
                 </div>
               </div>
+
+              @if (!ageAlreadyConfirmed()) {
+                <div>
+                  <label class="flex items-start gap-3 cursor-pointer">
+                    <input
+                      id="ageGate"
+                      type="checkbox"
+                      name="ageGate"
+                      [checked]="ageGate()"
+                      (change)="ageGate.set($any($event.target).checked)"
+                      class="mt-1"
+                      required
+                    />
+                    <span class="flex-1">
+                      <span class="font-mono text-xs tracking-[0.08em] text-ink">
+                        {{ t('onboarding.ageGateLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
+                      </span>
+                      <span class="caption block text-[11px] mt-1">
+                        {{ t('onboarding.ageGateCaption') }}
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              }
             }
 
             @case (2) {
@@ -418,6 +442,10 @@ export class OnboardingComponent {
   protected readonly activityLevel = signal<ActivityLevel | null>(null);
   protected readonly pace = signal<CutPace | null>(null);
   protected readonly goalWeight = signal<number | null>(null);
+  protected readonly ageGate = signal<boolean>(false);
+  protected readonly ageAlreadyConfirmed = computed(
+    () => this.firebase.profile()?.ageConfirmedAt != null,
+  );
 
   protected readonly status = signal<Status>('idle');
   protected readonly errorMsg = signal('');
@@ -485,6 +513,7 @@ export class OnboardingComponent {
       sex: this.sex()!,
       activityLevel: this.activityLevel()!,
       targetPaceLbsPerWeek: this.pace()!,
+      ageConfirmed: this.ageGate(),
     };
     const gw = this.goalWeight();
     if (gw != null && !Number.isNaN(Number(gw))) {
@@ -537,6 +566,12 @@ export class OnboardingComponent {
           this.status.set('error');
           this.errorMsg.set(this.translation.t('onboarding.errorHeightRange'));
           this.focusSelector('#heightFt');
+          return false;
+        }
+        if (!this.ageAlreadyConfirmed() && !this.ageGate()) {
+          this.status.set('error');
+          this.errorMsg.set(this.translation.t('onboarding.errorAgeGate'));
+          this.focusSelector('#ageGate');
           return false;
         }
         return true;

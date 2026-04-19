@@ -102,6 +102,8 @@ export interface ProfileFields {
   fcmToken?: string;           // FCM push token
   reminderHour?: number;       // 0–23, default 20 (8 PM)
   timezoneOffsetMin?: number;  // from new Date().getTimezoneOffset()
+  ageConfirmedAt?: Timestamp;  // COPPA/EU: timestamp the user attested 13+ (16+ EU)
+  ageConfirmed?: boolean;      // transient checkbox state — never persisted, drives the stamp below
 }
 
 /** Full user profile doc as stored in Firestore. */
@@ -199,6 +201,13 @@ export class FirebaseService {
     if (fields.goalWeightLbs != null) {
       patch.goalWeightLbs = fields.goalWeightLbs;
     }
+    // Only stamp the age attestation when the caller passes an explicit
+    // `ageConfirmed: true` AND we haven't stamped one yet. This keeps the
+    // attestation bound to the actual checkbox event rather than implicit
+    // from any saveProfile call.
+    if (fields.ageConfirmed === true && current.ageConfirmedAt == null) {
+      patch.ageConfirmedAt = Timestamp.now();
+    }
 
     await updateDoc(ref, patch);
     this._profile.set({ ...current, ...patch } as UserProfile);
@@ -242,6 +251,15 @@ export class FirebaseService {
   async deleteMyAccount(): Promise<void> {
     const callable = httpsCallable<void, { success: boolean }>(this.functions, 'deleteAccount');
     await callable();
+  }
+
+  /** GDPR Art. 20 portability: fetch a full JSON snapshot of every
+      document we hold for the signed-in user. CSV export covers logs
+      only — this is for full portability / regulator requests. */
+  async exportMyData(): Promise<unknown> {
+    const callable = httpsCallable<void, unknown>(this.functions, 'exportUserData');
+    const res = await callable();
+    return res.data;
   }
 
   /** Clear FCM token (permission revoked). */

@@ -61,9 +61,28 @@ type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'error';
         <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('privacy.callHeading') }}</h2>
         <ul>
           <li [innerHTML]="t('privacy.callExport')"></li>
+          <li [innerHTML]="t('privacy.callFullExport')"></li>
           <li [innerHTML]="t('privacy.callDelete')"></li>
           <li [innerHTML]="t('privacy.callQuestions')"></li>
         </ul>
+
+        @if (auth.isSignedIn()) {
+          <div class="mt-4 flex items-center gap-3">
+            <button type="button"
+              (click)="downloadFullExport()"
+              [disabled]="exportStatus() === 'running'"
+              class="tag-btn text-[11px]">
+              @if (exportStatus() === 'running') {
+                <span>{{ t('privacy.exportRunning') }}</span>
+              } @else {
+                <span>{{ t('privacy.exportButton') }}</span>
+              }
+            </button>
+            @if (exportStatus() === 'error') {
+              <span class="font-mono text-[11px] text-blood">✕ {{ exportError() }}</span>
+            }
+          </div>
+        }
 
         <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('privacy.gdprHeading') }}</h2>
         <p>{{ t('privacy.gdprBody') }}</p>
@@ -144,10 +163,40 @@ export class PrivacyComponent {
   protected readonly deleteStatus = signal<DeleteStatus>('idle');
   protected readonly confirmInput = signal('');
   protected readonly errorMsg = signal('');
+  protected readonly exportStatus = signal<'idle' | 'running' | 'error'>('idle');
+  protected readonly exportError = signal('');
 
   protected readonly showAuthoritativeBanner = computed(
     () => this.translation.language() === 'es-PR',
   );
+
+  protected async downloadFullExport(): Promise<void> {
+    this.exportStatus.set('running');
+    this.exportError.set('');
+    try {
+      const data = await this.firebase.exportMyData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const stamp = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `macrolog-export-${stamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      this.exportStatus.set('idle');
+    } catch (err) {
+      this.exportStatus.set('error');
+      const code = extractErrorCode(err);
+      if (code) {
+        const details = (err as { details?: Record<string, unknown> }).details ?? {};
+        this.exportError.set(this.translation.tError(code, details));
+      } else {
+        this.exportError.set(err instanceof Error ? err.message : this.translation.t('privacy.errorFallback'));
+      }
+    }
+  }
 
   protected cancelDelete(): void {
     this.deleteStatus.set('idle');

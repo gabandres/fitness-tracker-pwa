@@ -161,4 +161,38 @@ describe('firestore.rules', () => {
       setDoc(doc(db, 'status', 'heartbeat'), { lastPulseAt: Timestamp.now() }),
     );
   });
+
+  it('accepts ageConfirmedAt as a timestamp on a completed profile', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      setDoc(doc(db, 'users', 'alice'), {
+        ...baseProfile(),
+        profileCompleted: true,
+        heightIn: 70,
+        age: 33,
+        sex: 'male',
+        activityLevel: 'moderate',
+        targetPaceLbsPerWeek: 1.0,
+        ageConfirmedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it('rejects a non-timestamp ageConfirmedAt on a completed profile', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      setDoc(doc(db, 'users', 'alice'), {
+        ...baseProfile(),
+        profileCompleted: true,
+        heightIn: 70,
+        age: 33,
+        sex: 'male',
+        activityLevel: 'moderate',
+        targetPaceLbsPerWeek: 1.0,
+        ageConfirmedAt: 'not-a-timestamp',
+      }),
+    );
+  });
 });

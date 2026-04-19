@@ -75,7 +75,11 @@
     </script>
 
     <link rel="icon" type="image/png" href="favicon.png" />
-    <link rel="apple-touch-icon" href="icons/icon-192x192.png" />
+    <!-- iOS Safari prefers 180 for iPhone and 152 for iPad. Declaring both
+         avoids iOS falling back to a blurry scaled-down 192 when the user
+         adds Macro Log to the home screen. -->
+    <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152x152.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192x192.png" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

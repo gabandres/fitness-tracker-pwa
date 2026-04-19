@@ -110,7 +110,8 @@ service cloud.firestore {
               'heightIn', 'age', 'sex', 'activityLevel',
               'targetPaceLbsPerWeek', 'goalWeightLbs',
               'travelMode', 'fastStartedAt', 'webhookApiKey',
-              'fcmToken', 'reminderHour', 'timezoneOffsetMin'
+              'fcmToken', 'reminderHour', 'timezoneOffsetMin',
+              'ageConfirmedAt'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == true
@@ -131,7 +132,9 @@ service cloud.firestore {
           && (!('reminderHour' in data.keys()) ||
               (data.reminderHour is int && data.reminderHour >= 0 && data.reminderHour <= 23))
           && (!('timezoneOffsetMin' in data.keys()) ||
-              (data.timezoneOffsetMin is int));
+              (data.timezoneOffsetMin is int))
+          && (!('ageConfirmedAt' in data.keys()) ||
+              data.ageConfirmedAt is timestamp);
     }
 
     function isValidProfile(data) {

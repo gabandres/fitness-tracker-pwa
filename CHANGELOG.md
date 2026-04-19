@@ -6,6 +6,20 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-19 — Launch-readiness sweep (no-cost blockers)
+
+All the code-side items from UX_AUDIT §S13 that don't require external spend or dashboard access. Remaining open items — Stripe live-mode verify, Stripe Tax, Firebase password policy, GCS backup bucket, Cloud Monitoring alerts, custom domain, ToS legal review, email sender domain, welcome emails, support inbox — are owner-only and still blocking public distribution.
+
+- **Age gate in onboarding (COPPA + EU).** New required checkbox on step 1: "I confirm I'm 13 or older (16+ if I reside in the EU)." A `ageConfirmedAt` timestamp is persisted on the profile doc the first time the user checks and submits. Attestation is bound to an explicit `ageConfirmed: true` in `ProfileFields` — not implicit from any `saveProfile` call — so future callers cannot silently age-attest.
+- **GDPR Art. 20 full JSON export.** New `exportUserData` callable returns a signed-in user's profile + all 5 subcollections (dailyLogs, presets, reports, dailyWeights, measurements) + the two quota docs. `webhookApiKey` and `fcmToken` are redacted before export (credentials, not personal data — widening their blast radius into Downloads would be wrong). Response is size-guarded to reject above ~9 MB with a typed `RATE_LIMITED` error so the client can surface actionable copy instead of the generic callable-overflow internal error. Exposed via a "download full JSON export" button on `/privacy` next to the existing CSV row.
+- **Refund + auto-renewal policy on `/terms`.** Two new sections: "subscriptions + auto-renewal" (price ladder, trial, cancellation, receipts, price-change grandfathering) and "refunds" (EU/UK/Switzerland 14-day statutory right of withdrawal with explicit email path, rest-of-world discretionary goodwill refunds, chargeback contact-before-file clause). English + es-PR both filled.
+- **Privacy policy sub-processor list corrected.** `dontShare` now enumerates every actual sub-processor: Google Cloud/Firebase (hosting, auth, Firestore, FCM), Google Gemini API (photo + coach), Stripe (payments), Sentry (crash reports). Explicitly states no analytics trackers / no ads to cement the positioning. Closes the §S13 "privacy policy must match reality" item after Plausible was turned off.
+- **`/status` surfaced in footer.** Was built but never linked — users had no way to self-check before filing tickets. Both the pre-auth and authed footer blocks now include it alongside privacy/terms.
+- **iOS apple-touch-icon declared explicitly.** `src/index.html` now declares both 152 (iPad) and 192 (iPhone) sizes rather than a single untyped link. iOS was scaling 192 for iPad, which is visually fine but the explicit declaration makes the add-to-home-screen intent readable.
+- **Rate limits on auth-gated callables.** `deleteAccount` (5 s), `checkAccessStatus` (300 ms), `exportUserData` (30 s) now go through the same `enforceRateLimit` helper the photo + consultation paths use. New generic `RATE_LIMITED` error code in both client + server twins; localized "Too many requests in a row — wait a moment and try again." copy in en + es-PR. `checkAccessStatus` interval is deliberately tight so legitimate simultaneous callers (router guard + settings mount) don't collide.
+- **Bundle budget warning raised 1.5 → 1.6 MB.** Initial bundle has crept past 1.5 MB with the i18n + Transloco work; hard error cap stays at 2 MB. Tracked as a cleanup item rather than another round of aggressive code-splitting.
+- **Two new rules tests** for `ageConfirmedAt` — accepts a timestamp, rejects a non-timestamp — both exercising the `isValidProfileCompleted` schema path. Existing 11 specs still green.
+
 ## 2026-04-18 — Launch-readiness audit + landing pricing drift fix + Plausible off
 
 Two small user-visible polish items and one meta doc-ship documenting what's still between "deployed" and "safe to share publicly."

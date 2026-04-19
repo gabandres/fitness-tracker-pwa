@@ -432,6 +432,9 @@ const CONSULTATION_LIMIT_PAID = 30;
 // (which would burn Firestore writes on the quota doc) and release spam
 // (which can't build credit past zero but still wastes writes).
 const CONSULTATION_MIN_INTERVAL_MS = 1_500;
+const ACCESS_STATUS_MIN_INTERVAL_MS = 300;
+const DELETE_ACCOUNT_MIN_INTERVAL_MS = 5_000;
+const EXPORT_DATA_MIN_INTERVAL_MS = 30_000;
 
 export const reserveConsultation = onCall(async (request) => {
   if (!request.auth) {
@@ -533,6 +536,12 @@ export const checkAccessStatus = onCall(async (request) => {
     };
   }
   const uid = request.auth.uid;
+  await enforceRateLimit(
+    "accessStatusRateLimit",
+    uid,
+    ACCESS_STATUS_MIN_INTERVAL_MS,
+    ErrorCode.RATE_LIMITED,
+  );
   const email = request.auth.token.email;
   const admin = isAdmin(email);
   const comped = await isComped(email);
@@ -632,11 +641,96 @@ async function cancelStripeSubscriptions(uid: string): Promise<void> {
   }
 }
 
+// ─── GDPR Art. 20 data export ──────────────────────────────────────
+// Returns a full JSON snapshot of everything we hold for the caller
+// across `users/{uid}` + quota docs. CSV export in the dashboard covers
+// daily logs only — this closes the "portability of all personal data"
+// requirement. Response is inline JSON; the heaviest real-world account
+// fits comfortably under the 10 MB callable response cap.
+export const exportUserData = onCall({ maxInstances: 5 }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be signed in to export your data.", { code: ErrorCode.UNAUTHENTICATED });
+  }
+  const uid = request.auth.uid;
+  await enforceRateLimit(
+    "exportRateLimit",
+    uid,
+    EXPORT_DATA_MIN_INTERVAL_MS,
+    ErrorCode.RATE_LIMITED,
+  );
+  const userRef = db.doc(`users/${uid}`);
+
+  const dumpCollection = async (name: string) => {
+    const snap = await userRef.collection(name).get();
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  };
+
+  const dumpQuota = async (coll: string) => {
+    const snap = await db.collection(coll).where("uid", "==", uid).get();
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  };
+
+  const [profileSnap, dailyLogs, presets, reports, dailyWeights, measurements, photoQuota, consultationQuota] =
+    await Promise.all([
+      userRef.get(),
+      dumpCollection("dailyLogs"),
+      dumpCollection("presets"),
+      dumpCollection("reports"),
+      dumpCollection("dailyWeights"),
+      dumpCollection("measurements"),
+      dumpQuota("photoQuota"),
+      dumpQuota("consultationQuota"),
+    ]);
+
+  // Redact credentials — GDPR Art. 20 scope is personal data, not bearer
+  // tokens. `webhookApiKey` is a long-lived shared secret for Apple
+  // Shortcuts and the `fcmToken` binds a device's push channel; including
+  // them in a downloadable JSON widens their blast radius beyond the
+  // server-side stores that originally held them.
+  let profile: Record<string, unknown> | null = null;
+  if (profileSnap.exists) {
+    const { webhookApiKey: _wk, fcmToken: _ft, ...safe } = profileSnap.data() as Record<string, unknown>;
+    profile = safe;
+  }
+
+  const payload = {
+    exportedAt: Timestamp.now().toDate().toISOString(),
+    uid,
+    profile,
+    dailyLogs,
+    presets,
+    reports,
+    dailyWeights,
+    measurements,
+    photoQuota,
+    consultationQuota,
+  };
+
+  // Callable response cap is ~10 MB. Reject early with a typed error so
+  // the client can tell the user why — the default overflow surfaces as
+  // a generic internal error that's impossible to act on.
+  const serialized = JSON.stringify(payload);
+  if (serialized.length > 9_000_000) {
+    throw new HttpsError(
+      "resource-exhausted",
+      "Your data is too large for an inline export. Contact support to receive a download link.",
+      { code: ErrorCode.RATE_LIMITED, sizeBytes: serialized.length },
+    );
+  }
+  return payload;
+});
+
 export const deleteAccount = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be signed in to delete your account.", { code: ErrorCode.UNAUTHENTICATED });
   }
   const uid = request.auth.uid;
+  await enforceRateLimit(
+    "deleteRateLimit",
+    uid,
+    DELETE_ACCOUNT_MIN_INTERVAL_MS,
+    ErrorCode.RATE_LIMITED,
+  );
   const userPath = `users/${uid}`;
 
   try {

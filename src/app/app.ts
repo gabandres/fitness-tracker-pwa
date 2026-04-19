@@ -350,6 +350,8 @@ import { EntryFormManager } from './services/entry-form-manager.service';
               &middot;
               <a href="/terms" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.terms') }}</a>
               &middot;
+              <a href="/status" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.status') }}</a>
+              &middot;
               <a href="mailto:gabrielandresbermudez&#64;gmail.com" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.contact') }}</a>
             </p>
           } @else {
@@ -361,6 +363,8 @@ import { EntryFormManager } from './services/entry-form-manager.service';
               <a href="/privacy" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.privacy') }}</a>
               &middot;
               <a href="/terms" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.terms') }}</a>
+              &middot;
+              <a href="/status" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.status') }}</a>
               &middot;
               <a href="mailto:gabrielandresbermudez&#64;gmail.com" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.contact') }}</a>
             </p>

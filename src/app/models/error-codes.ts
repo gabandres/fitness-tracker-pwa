@@ -20,6 +20,7 @@ export const ErrorCode = {
   REPORT_GENERATE_FAILED: 'REPORT_GENERATE_FAILED',
   PHOTO_RATE_LIMITED: 'PHOTO_RATE_LIMITED',
   CONSULTATION_RATE_LIMITED: 'CONSULTATION_RATE_LIMITED',
+  RATE_LIMITED: 'RATE_LIMITED',
 } as const;
 
 export type ErrorCode = typeof ErrorCode[keyof typeof ErrorCode];

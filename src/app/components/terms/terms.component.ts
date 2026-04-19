@@ -49,6 +49,12 @@ import { TranslationService } from '../../services/translation.service';
         <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('terms.liabilityHeading') }}</h2>
         <p>{{ t('terms.liabilityBody') }}</p>
 
+        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2" id="subscriptions">{{ t('terms.subsHeading') }}</h2>
+        <p [innerHTML]="t('terms.subsBody')"></p>
+
+        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2" id="refunds">{{ t('terms.refundsHeading') }}</h2>
+        <p [innerHTML]="t('terms.refundsBody')"></p>
+
         <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('terms.contactHeading') }}</h2>
         <p [innerHTML]="t('terms.contactBody')"></p>
       </div>

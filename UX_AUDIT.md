@@ -242,35 +242,35 @@ What's between "deployed" and "safe to share with strangers." Grouped by severit
 
 ### ⚠️ Soft blockers — ship-breakers if the app catches traction
 - [ ] **Terms of Service legal review.** `/terms` exists — needs a Termly/Iubenda pass or a lawyer read for: limitation of liability, arbitration, governing jurisdiction, subscription auto-renewal language (required by CA/NY/NC/FL state law for auto-renew SaaS).
-- [ ] **Refund policy published.** EU consumers have a 14-day statutory right of withdrawal on digital subscriptions. Either publish a policy or expect chargebacks.
-- [ ] **Account deletion wiring audit.** `deleteAccount` Cloud Function exists — verify settings-sheet exposes it AND it actually purges logs, presets, measurements, reports, weights, dailyWeights, user doc, FCM token, and cancels the Stripe subscription. GDPR Art. 17 requires completion within 30 days.
-- [ ] **Age gate in onboarding.** COPPA requires affirmative parental consent for under-13s. Calorie + weight tracking is FDA-adjacent. Add "You confirm you're 13+ (16+ if you reside in the EU)" to step 1 of onboarding with a timestamp on the profile doc.
-- [ ] **Full GDPR Art. 20 data export.** CSV covers logs; measurements, presets, profile, weights, reports don't. A full JSON dump endpoint closes this.
+- [x] **Refund policy published.** *(2026-04-19)* — "refunds" + "subscriptions + auto-renewal" sections on `/terms`. EU/UK/CH 14-day statutory withdrawal with explicit email path, rest-of-world discretionary goodwill, chargeback-before-file clause. en + es-PR.
+- [x] **Account deletion wiring audit.** *(2026-04-19)* — verified `deleteAccount` purges all 5 subcollections (dailyLogs, presets, reports, dailyWeights, measurements), both quota collections, Stripe subscriptions (cancel_at_period_end), profile doc (which holds fcmToken), and the Firebase Auth user. Rate-limited 5 s.
+- [x] **Age gate in onboarding.** *(2026-04-19)* — new required checkbox on step 1, stamps `ageConfirmedAt: Timestamp` on the profile. Attestation bound to an explicit `ageConfirmed: true` in `ProfileFields` so future `saveProfile` callers cannot silently age-attest. Rules validator updated.
+- [x] **Full GDPR Art. 20 data export.** *(2026-04-19)* — new `exportUserData` callable dumps profile (redacted of `webhookApiKey` + `fcmToken`) + all 5 subcollections + quota docs. Size-guarded at ~9 MB with typed error. Download button on `/privacy`.
 
 ### 💪 Strongly advised (not strictly blocking)
 - [ ] **Custom domain.** `macrolog.web.app` reads as "Firebase hobby project." Buy `macrolog.app` or `.com`, point at Firebase Hosting, set as primary site. Two-day DNS settling. Big trust bump for the landing page.
 - [ ] **Open Graph meta tags in `index.html`.** When the URL is pasted in WhatsApp / Slack / iMessage there's no preview card today. Add `og:title`, `og:description`, `og:image` (a screenshot of the ledger). LinkedIn and Twitter support the same OG spec.
-- [ ] **PWA icon set audit.** iOS "Add to Home Screen" pulls from specific icon sizes — verify 192/512/`apple-touch-icon-180` are correct in the manifest.
+- [x] **PWA icon set audit.** *(2026-04-19)* — explicit apple-touch-icon declarations for 152 (iPad) + 192 (iPhone) in `src/index.html`. Manifest covers 72/96/128/144/152/192/384/512. A dedicated 180×180 render from `icon-source.svg` is a nice follow-up but iOS scales 192 cleanly.
 - [ ] **Transactional email sender domain.** Firebase Auth ships verify + password-reset from `noreply@fitness-tracker-gb-1775407101.firebaseapp.com` — deliverability tanks and the domain looks amateur. Set up a verified sending domain (SPF + DKIM on the custom domain), customize the Firebase Auth email templates.
 - [ ] **Welcome / onboarding email sequence.** No email flow exists today. A single Day-0 "here's what you can do this week" email materially lifts Day-7 retention.
 - [ ] **Support inbox + SLA.** §S11 added a GitHub issue link + in-app feedback. Fine for zero users, terrible at 100+. Provision `support@macrolog.app`, state a 30-day response SLA in the privacy policy.
-- [ ] **Privacy policy disclosures match reality.** Must list every data processor: Firebase, Google Cloud, Stripe, Gemini, Sentry. Remove any mention of Plausible (turned back off in 88c6189).
-- [ ] **Link `/status` publicly.** It exists — surface it from the footer so users can self-check before filing support tickets.
+- [x] **Privacy policy disclosures match reality.** *(2026-04-19)* — `dontShare` enumerates Google Cloud/Firebase, Gemini, Stripe, Sentry. No Plausible mention (was never in the policy — confirmed clean).
+- [x] **Link `/status` publicly.** *(2026-04-19)* — added to both pre-auth and authed footer in `app.ts` alongside privacy/terms/contact.
 
 ### 🔧 Engineering cleanup pre-launch
-- [ ] **Bundle budget regression.** Initial bundle is 1.51 MB vs 1.50 MB budget. Either raise the budget or route-split more aggressively.
-- [ ] **Rate limit audit on Cloud Functions.** `analyzePhoto` has quotas; `reserveConsultation` has quotas; other callables should get a review for per-user abuse protection.
+- [x] **Bundle budget regression.** *(2026-04-19)* — raised `maximumWarning` to 1.6 MB in `angular.json`; error cap stays at 2 MB. Deferred aggressive re-splitting until the trend justifies it.
+- [x] **Rate limit audit on Cloud Functions.** *(2026-04-19)* — `deleteAccount` (5 s), `checkAccessStatus` (300 ms), `exportUserData` (30 s) now route through `enforceRateLimit`. New generic `RATE_LIMITED` error code (client + server twins + en/es-PR copy). `logWebhook` (onRequest) + `generateWeeklyReport` (6-day interval) keep their existing gating.
 - [ ] **Staging environment on a separate Firebase project.** `environment.development.ts` exists but deploys go straight to prod. Real staging prevents "oops, that was production."
-- [ ] **Function-handler unit tests.** `firestore.rules` has a suite; `sendDayThreeCoachPush`, `publishUserCount`, `generateWeeklyReport`, `analyzePhoto` do not. First prod regression will be expensive.
+- [ ] **Function-handler unit tests.** `firestore.rules` suite now includes 2 new `ageConfirmedAt` specs (13 total); `sendDayThreeCoachPush`, `publishUserCount`, `generateWeeklyReport`, `analyzePhoto`, `exportUserData`, `deleteAccount` still lack handler-level tests. Would require `firebase-functions-test` wiring + admin-SDK mocking.
 
 ### Recommended launch order
 If treating this as a sprint to public-launch:
-1. Stripe live-mode + Stripe Tax verification (30 min)
-2. Password policy + GCS bucket + monitoring alerts (1 hr)
-3. Custom domain + OG meta tags (half day, mostly DNS wait)
-4. Account deletion audit + full data export endpoint (2 hrs)
-5. Transactional email sender domain (2 hrs)
-6. Terms/Refund policy review (1 hr, $50 for Termly subscription)
+1. Stripe live-mode + Stripe Tax verification (30 min) — **owner, not shipped**
+2. Password policy + GCS bucket + monitoring alerts (1 hr) — **owner, not shipped**
+3. Custom domain + OG meta tags (half day, mostly DNS wait) — **owner, not shipped**
+4. ~~Account deletion audit + full data export endpoint~~ — shipped 2026-04-19
+5. Transactional email sender domain (2 hrs) — **blocked on custom domain**
+6. Terms/Refund policy review (1 hr, $50 for Termly subscription) — **refund text shipped 2026-04-19; legal review still outstanding**
 
 Only after all six are ticked should the app be promoted in any channel outside direct personal share.
 
