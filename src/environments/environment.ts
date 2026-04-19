@@ -53,7 +53,13 @@ export const environment = {
   // already emit, they just don't ship to Plausible. No other wiring
   // needed.
   analytics: {
-    plausibleEnabled: true,
+    // Plausible is paid (~$9/mo) and requires the domain to be
+    // registered in a Plausible account; until there's a subscription
+    // in place, events would fire into the void. Keep the wiring so
+    // flipping the flag back on is a one-line change, but leave it
+    // off. Sentry breadcrumbs in AnalyticsService still capture the
+    // funnel trail on any error report at zero cost.
+    plausibleEnabled: false,
     plausibleDomain: 'macrolog.web.app',
     plausibleEndpoint: 'https://plausible.io/api/event',
   },
