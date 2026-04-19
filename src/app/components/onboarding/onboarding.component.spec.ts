@@ -48,6 +48,7 @@ describe('OnboardingComponent', () => {
     component.heightInExtra.set(10);
     component.age.set(32);
     component.sex.set('male');
+    component.ageGate.set(true);
 
     await component.submit();
 
@@ -65,6 +66,7 @@ describe('OnboardingComponent', () => {
     component.heightInExtra.set(10);
     component.age.set(32);
     component.sex.set('male');
+    component.ageGate.set(true);
     await component.submit();
 
     component.previousStep();
@@ -84,6 +86,7 @@ describe('OnboardingComponent', () => {
     component.heightInExtra.set(10);
     component.age.set(32);
     component.sex.set('male');
+    component.ageGate.set(true);
     await component.submit();
 
     component.activityLevel.set('moderate');
@@ -100,6 +103,7 @@ describe('OnboardingComponent', () => {
       activityLevel: 'moderate',
       targetPaceLbsPerWeek: 1,
       goalWeightLbs: 170,
+      ageConfirmed: true,
     });
     expect(emitSpy).toHaveBeenCalledOnce();
   });
