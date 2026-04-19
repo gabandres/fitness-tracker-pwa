@@ -8,7 +8,6 @@
     "heroEm": "do I have left today?",
     "heroSub": "a quiet, private log for the one question that matters. calories, protein, weight, fasting — all in one place, with an AI coach that actually reads your data.",
     "startLogging": "start logging",
-    "startLoggingCta": "sign in with google",
     "seePricing": "see pricing ↓",
     "socialProof": "join {{n}}+ quiet loggers already calibrating.",
     "signingIn": "signing in…",
@@ -38,17 +37,14 @@
     "freeF3": "20 barcode scans / day",
     "freeF4": "90-day chart history · 30-day csv export",
     "proStamp": "pro",
-    "proPrice": "$3/mo",
+    "orMonthly": "or {{price}}",
     "proBody": "for people who log seriously. removes all the quotas and unlocks power-user capture.",
     "proF1": "unlimited photo + AI coach + barcode",
     "proF2": "full-history charts + csv export",
     "proF3": "weekly AI report (cached, grounded in your data)",
     "proF4": "apple shortcuts webhook",
     "proF5": "pro themes, priority support, 7-day free trial",
-    "pricingFinePrint": "cancel anytime from the customer portal. stripe handles billing; we never see your card.",
-    "ctaLead": "one tap.",
-    "ctaEm": "one minute to set up.",
-    "ctaFinePrint": "google sign-in (gmail only, for now) · no credit card to start"
+    "pricingFinePrint": "cancel anytime from the customer portal. stripe handles billing; we never see your card."
   },
   "app": {
     "skipToMain": "skip to main content",

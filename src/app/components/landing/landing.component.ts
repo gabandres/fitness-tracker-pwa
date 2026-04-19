@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Firestore, doc, getDoc } from '@angular/fire/firestore';
+import { SubscriptionService } from '../../services/subscription.service';
 
 /**
  * Public marketing surface at `/`. Shows when the user is not signed
@@ -8,11 +9,11 @@ import { Firestore, doc, getDoc } from '@angular/fire/firestore';
  * through to the sign-in / onboarding / app flow in app.ts.
  *
  * Structure (scroll top → bottom):
- *   1. Hero — the one question the app answers
+ *   1. Hero — the one question the app answers (primary "start logging" CTA)
  *   2. Product proof — three capture paths, measured TDEE, AI coach
  *   3. Privacy pledge — the "no ads / no selling" promise
- *   4. Pricing — free vs Pro, $3/mo
- *   5. Sign-in CTA + legal footer
+ *   4. Pricing — free vs Pro (price sourced from SubscriptionService,
+ *      not hardcoded, so landing never drifts from the Subscribe card)
  *
  * Aesthetic reuses the "Personal Calibration Log" primitives (specimen
  * frames, stamp marks, ruler edges, crop marks) so a first-time visitor
@@ -129,7 +130,21 @@ import { Firestore, doc, getDoc } from '@angular/fire/firestore';
             <span class="crop-br" style="border-color: var(--color-blood)"></span>
             <div class="flex items-baseline justify-between gap-3">
               <span class="stamp-mark" style="border-color: var(--color-blood); color: var(--color-blood)">{{ t('landing.proStamp') }}</span>
-              <span class="font-display text-4xl text-blood">{{ t('landing.proPrice') }}</span>
+              <!-- Primary price = annual with anchor (matches Subscribe
+                   card default cadence). Monthly shown below as the
+                   secondary path so the 33% savings vs 12× monthly is
+                   visible in one glance — source of truth is
+                   environment.stripe so landing never drifts from
+                   Subscribe when prices change. -->
+              <div class="text-right">
+                <div>
+                  @if (subs.displayPriceAnnualAnchor) {
+                    <s class="font-display text-xl text-graphite-soft mr-1" aria-hidden="true">{{ subs.displayPriceAnnualAnchor }}</s>
+                  }
+                  <span class="font-display text-4xl text-blood">{{ subs.displayPriceAnnual }}</span>
+                </div>
+                <div class="caption text-[11px] mt-1">{{ t('landing.orMonthly', { price: subs.displayPriceMonthly }) }}</div>
+              </div>
             </div>
             <p class="font-sans text-sm text-ink-soft mt-3">{{ t('landing.proBody') }}</p>
             <ul class="font-sans text-[13px] text-graphite mt-3 space-y-1">
@@ -144,28 +159,13 @@ import { Firestore, doc, getDoc } from '@angular/fire/firestore';
         <p class="caption mt-4 text-[11px]">{{ t('landing.pricingFinePrint') }}</p>
       </section>
 
-      <!-- ── 5. Final CTA ─────────────────────────────────────────── -->
-      <section class="ink-in delay-4">
-        <div class="specimen px-6 py-8 text-center" style="background: var(--color-paper-deep)">
-          <span class="crop-bl"></span><span class="crop-br"></span>
-          <h2 class="font-display text-3xl sm:text-4xl text-ink leading-[0.95]">
-            {{ t('landing.ctaLead') }}<br/>
-            <em class="text-blood">{{ t('landing.ctaEm') }}</em>
-          </h2>
-          <div class="mt-6 flex justify-center">
-            <a href="/app" class="stamp-btn">
-              {{ t('landing.startLoggingCta') }}
-            </a>
-          </div>
-          <p class="caption mt-4 text-[11px]">{{ t('landing.ctaFinePrint') }}</p>
-        </div>
-      </section>
     </article>
     </ng-container>
   `,
 })
 export class LandingComponent {
   private readonly firestore = inject(Firestore);
+  protected readonly subs = inject(SubscriptionService);
   protected readonly ticks = Array.from({ length: 45 });
 
   /** Social-proof count from `public/stats.totalUsers`. Intentionally

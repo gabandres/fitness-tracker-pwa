@@ -27,6 +27,7 @@ import { ThemeChoice, PRO_THEMES, isProTheme, readStoredTheme, writeStoredTheme 
 import { localDateKey } from './utils/date';
 import { mediaSignal } from './utils/media';
 import { UpsellService } from './services/upsell.service';
+import { AnalyticsService } from './services/analytics.service';
 import { EntryFormManager } from './services/entry-form-manager.service';
 
 @Component({
@@ -377,6 +378,7 @@ export class App {
   protected readonly store = inject(FitnessStore); // triggers lifecycle via constructor effect
   protected readonly subs = inject(SubscriptionService);
   private readonly upsell = inject(UpsellService);
+  private readonly analytics = inject(AnalyticsService);
   private readonly entryForm = inject(EntryFormManager);
   private readonly swUpdate = inject(SwUpdate);
   private readonly translation = inject(TranslationService); // resolves locale on boot, updates <title>
@@ -517,6 +519,12 @@ export class App {
   });
 
   constructor() {
+    // One pageview per app boot. The SPA is a single-URL experience from
+    // Plausible's perspective — tab switches don't navigate — so this
+    // gives the dashboard a traffic denominator for the conversion-rate
+    // ratio against custom events like paywall_click / trial_started.
+    this.analytics.pageview();
+
     // Theme: load stored choice, enforce Pro gate once entitlement
     // resolves, apply the resulting palette, follow system-theme changes
     // while the choice is 'auto'.

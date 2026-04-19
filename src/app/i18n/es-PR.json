@@ -14,7 +14,6 @@
     "heroEm": "me quedan hoy?",
     "heroSub": "una bitácora tranquila y privada para la única pregunta que importa. calorías, proteína, peso, ayuno — todo en un lugar, con un coach de IA que lee tus datos.",
     "startLogging": "empieza a registrar",
-    "startLoggingCta": "entrar con google",
     "seePricing": "ver precios ↓",
     "socialProof": "únete a {{n}}+ registradores en silencio ya calibrando.",
     "signingIn": "entrando…",
@@ -44,17 +43,14 @@
     "freeF3": "20 escaneos de código de barras / día",
     "freeF4": "90 días de gráficos · 30 días de exportación csv",
     "proStamp": "pro",
-    "proPrice": "$3/mes",
+    "orMonthly": "o {{price}}",
     "proBody": "para quienes registran en serio. quita las cuotas y desbloquea la captura avanzada.",
     "proF1": "foto + coach + código de barras ilimitados",
     "proF2": "gráficos e exportación con todo el historial",
     "proF3": "reporte semanal de IA (guardado, basado en tus datos)",
     "proF4": "webhook de apple shortcuts",
     "proF5": "temas pro, soporte prioritario, prueba gratis de 7 días",
-    "pricingFinePrint": "cancela cuando quieras desde el portal. stripe maneja el cobro; nunca vemos tu tarjeta.",
-    "ctaLead": "un toque.",
-    "ctaEm": "un minuto para empezar.",
-    "ctaFinePrint": "entrar con google (solo gmail, por ahora) · sin tarjeta para empezar"
+    "pricingFinePrint": "cancela cuando quieras desde el portal. stripe maneja el cobro; nunca vemos tu tarjeta."
   },
   "app": {
     "skipToMain": "saltar al contenido principal",

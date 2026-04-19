@@ -53,7 +53,7 @@ export const environment = {
   // already emit, they just don't ship to Plausible. No other wiring
   // needed.
   analytics: {
-    plausibleEnabled: false,
+    plausibleEnabled: true,
     plausibleDomain: 'macrolog.web.app',
     plausibleEndpoint: 'https://plausible.io/api/event',
   },

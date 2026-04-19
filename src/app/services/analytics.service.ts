@@ -40,6 +40,29 @@ export class AnalyticsService {
   private readonly plausibleEndpoint = environment.analytics?.plausibleEndpoint ?? '';
 
   /**
+   * Emit a `pageview` to Plausible. Without this the Plausible dashboard
+   * shows custom events but zero traffic and can't compute conversion
+   * rates against a denominator. Fires once per app boot — the SPA is
+   * effectively a single route from Plausible's perspective (auth gate +
+   * tab switches don't change the URL).
+   */
+  pageview(): void {
+    if (!this.plausibleEnabled) return;
+    try {
+      fetch(this.plausibleEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'pageview',
+          url: window.location.href,
+          domain: this.plausibleDomain,
+        }),
+        keepalive: true,
+      }).catch(() => { /* analytics must never surface to the user */ });
+    } catch { /* ignore */ }
+  }
+
+  /**
    * Send a single event. Use snake_case names. `props` values are
    * stringified; pass numbers / booleans directly and they'll be coerced
    * for Plausible (which only accepts string values).
