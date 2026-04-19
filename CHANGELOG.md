@@ -6,6 +6,16 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-19 — Infra blockers resolved (backup bucket, password policy, monitoring alerts)
+
+Three hard blockers from UX_AUDIT §S13 are now live. All applied via gcloud / REST API on the prod project `fitness-tracker-gb-1775407101`; no code changes beyond the monitoring script comment refresh.
+
+- **GCS backup bucket** — `gs://fitness-tracker-gb-1775407101-backups` exists (us-central1, uniform-bucket-level access, 30-day delete lifecycle). The `647810616435-compute@developer.gserviceaccount.com` runtime SA got `storage.admin` on the bucket and `datastore.importExportAdmin` on the project. The existing `weeklyFirestoreBackup` scheduled function will now succeed instead of warning-and-skipping.
+- **Firebase Auth password policy** — Identity Platform config patched to `ENFORCE` with min length 10, requires uppercase + lowercase + numeric. `forceUpgradeOnSignin: false` so existing users aren't locked out on their next sign-in — only new sign-ups + password resets are affected.
+- **Cloud Monitoring alerts** — email notification channel routed to `gabrielandresbermudez@gmail.com` + 3 high-signal alert policies: Cloud Functions error rate >5% over 10 min, `statusPulse` absent for >30 min (the scheduled heartbeat), and `analyzePhoto` >500 invocations/hour (Gemini cost-burn canary). `scripts/monitoring/setup-alerts.sh` docs updated with the live channel ID and a note that the REST fallback was used because `gcloud beta` wasn't installed locally.
+
+Remaining §S13 hard blocker: Stripe live-mode verify + Stripe Tax enablement (both require the Stripe dashboard — owner action, not scriptable).
+
 ## 2026-04-19 — Launch-readiness sweep (no-cost blockers)
 
 All the code-side items from UX_AUDIT §S13 that don't require external spend or dashboard access. Remaining open items — Stripe live-mode verify, Stripe Tax, Firebase password policy, GCS backup bucket, Cloud Monitoring alerts, custom domain, ToS legal review, email sender domain, welcome emails, support inbox — are owner-only and still blocking public distribution.

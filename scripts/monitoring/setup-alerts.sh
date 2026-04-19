@@ -16,8 +16,15 @@
 # To create a new email channel:
 #   gcloud beta monitoring channels create \
 #     --display-name="Macro Log oncall" \
-#     --type=email --channel-labels=email_address=ppesoftware@gmail.com \
+#     --type=email --channel-labels=email_address=gabrielandresbermudez@gmail.com \
 #     --project=$PROJECT_ID
+#
+# Channel + all 3 policies were applied 2026-04-19 via the REST API
+# (notificationChannels.create + alertPolicies.create) because
+# `gcloud beta` wasn't installed. Live channel ID:
+#   projects/fitness-tracker-gb-1775407101/notificationChannels/14532171541501133516
+# Existing policies:
+#   gcloud monitoring policies list --project=$PROJECT_ID
 #
 # Alerts created by this script (intentionally a small, high-signal set):
 #   1. Cloud Functions error rate > 5% over 10 min
