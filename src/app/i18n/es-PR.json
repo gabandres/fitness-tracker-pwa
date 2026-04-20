@@ -180,6 +180,13 @@
       "whatHappened": "Qué pasó:",
       "expected": "Qué esperabas:"
     },
+    "history": {
+      "section": "historial",
+      "label": "buscar entradas anteriores",
+      "desc": "búsqueda de texto completo en todas tus comidas registradas, filtrar por rango de fechas. gratis muestra los últimos 90 días; pro muestra todo.",
+      "open": "abrir",
+      "hide": "ocultar"
+    },
     "legal": {
       "section": "legal",
       "privacy": "privacidad",
@@ -312,6 +319,10 @@
     "repeatYesterday": "↻ repetir ayer",
     "repeatingYesterday": "copiando…",
     "repeatYesterdayAria": "Copiar todas las entradas de ayer a hoy",
+    "copyDay": "↷ copiar",
+    "copyingDay": "copiando…",
+    "copyDayTitle": "Copiar todas las comidas de este día a hoy",
+    "copyDayAria": "Copiar las {{count}} entradas de este día a hoy",
     "weight": {
       "lb": "lb",
       "saveAria": "Guardar peso",
@@ -493,6 +504,33 @@
     "errorNoAccount": "No se encontró ninguna cuenta con ese email.",
     "errorTooMany": "Demasiados intentos. Espera un momento e intenta de nuevo.",
     "errorWrongProvider": "Este email está registrado con otro método. Prueba con Google.",
+    "linkStamp": "vincular cuentas",
+    "linkExplainer": "Inicia sesión con el método existente — uniremos tu nueva opción de acceso a la misma cuenta de Macro Log, y ambas funcionarán de aquí en adelante.",
+    "linkWithGoogle": "inicia sesión con google",
+    "linkWithMicrosoft": "inicia sesión con microsoft",
+    "linkWithPassword": "inicia sesión con contraseña",
+    "linkUnknownProvider": "Usa el método con el que registraste esta cuenta originalmente.",
+    "linkCancel": "cancelar",
+    "linkPrompt": {
+      "microsoft": {
+        "google": "<strong>{{email}}</strong> ya está registrado con Google. Inicia sesión con Google para vincular tu cuenta de Microsoft.",
+        "password": "<strong>{{email}}</strong> ya está registrado con contraseña. Inicia sesión con tu contraseña para vincular tu cuenta de Microsoft.",
+        "microsoft": "<strong>{{email}}</strong> ya está registrado con Microsoft. Inicia sesión con Microsoft para continuar.",
+        "unknown": "<strong>{{email}}</strong> ya está registrado con otro método de acceso."
+      },
+      "google": {
+        "microsoft": "<strong>{{email}}</strong> ya está registrado con Microsoft. Inicia sesión con Microsoft para vincular tu cuenta de Google.",
+        "password": "<strong>{{email}}</strong> ya está registrado con contraseña. Inicia sesión con tu contraseña para vincular tu cuenta de Google.",
+        "google": "<strong>{{email}}</strong> ya está registrado con Google. Inicia sesión con Google para continuar.",
+        "unknown": "<strong>{{email}}</strong> ya está registrado con otro método de acceso."
+      },
+      "password": {
+        "google": "<strong>{{email}}</strong> ya está registrado con Google. Inicia sesión con Google para vincular una contraseña.",
+        "microsoft": "<strong>{{email}}</strong> ya está registrado con Microsoft. Inicia sesión con Microsoft para vincular una contraseña.",
+        "password": "<strong>{{email}}</strong> ya está registrado con contraseña.",
+        "unknown": "<strong>{{email}}</strong> ya está registrado con otro método de acceso."
+      }
+    },
     "errorEmailDisabled": "El inicio por email + contraseña no está disponible por ahora. Usa Google o Microsoft.",
     "errorNetwork": "Error de red. Revisa tu conexión e intenta de nuevo."
   },
@@ -713,6 +751,21 @@
       "hour": "hace 1 hora",
       "hours": "hace {{n}} horas"
     }
+  },
+  "history": {
+    "stamp": "archivo",
+    "section": "entradas pasadas",
+    "titleLead": "Tu",
+    "titleEm": "historial.",
+    "freeWindow": "Gratis muestra los últimos 90 días. Actualiza a Pro para historial ilimitado — la misma ventana que ya usan los gráficos.",
+    "queryLabel": "búsqueda",
+    "queryPlaceholder": "avena, pollo, etc.",
+    "fromLabel": "desde",
+    "toLabel": "hasta",
+    "resultCount": "{{count}} resultado(s)",
+    "clearFilters": "limpiar filtros",
+    "unlabeled": "(sin etiqueta)",
+    "empty": "Ninguna entrada coincide con estos filtros."
   },
   "privacy": {
     "backLink": "← volver a macro log",

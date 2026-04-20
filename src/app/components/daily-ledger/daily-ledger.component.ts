@@ -291,6 +291,20 @@ interface DayGroup {
                   [style.border-color]="day.exerciseCompleted ? 'var(--color-olive)' : 'var(--color-rule)'"
                   [attr.aria-label]="day.exerciseCompleted ? t('daily.exerciseActiveAria') : t('daily.exerciseInactiveAria')"
                   [attr.title]="t('daily.exerciseTitle')">{{ t('daily.exercise') }}</button>
+                <!-- Copy-this-day-to-today: past days only, when there's
+                     anything to copy and today isn't already mirroring this
+                     day. Disabled while a copy is in flight so double-taps
+                     don't double-post. -->
+                @if (day.dateKey !== todayKey && day.meals.length > 0) {
+                  <button type="button"
+                    (click)="copyDayToToday(day.dateKey); $event.stopPropagation()"
+                    [disabled]="copyingDayKey() === day.dateKey"
+                    [attr.aria-label]="t('daily.copyDayAria', { count: day.meals.length })"
+                    [attr.title]="t('daily.copyDayTitle')"
+                    class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-sans tracking-[0.08em] uppercase font-medium border transition-colors duration-150 text-graphite-soft border-rule hover:text-ink">
+                    {{ copyingDayKey() === day.dateKey ? t('daily.copyingDay') : t('daily.copyDay') }}
+                  </button>
+                }
               </div>
               <div class="flex items-center gap-3">
                 <span class="font-mono text-sm font-medium tabular-nums" style="color: var(--color-blood)">
@@ -491,6 +505,11 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
     return logs.some((l) => localDateKey(l.date) === yesterdayKey);
   });
 
+  /** Which past-day's copy operation is currently in flight, if any.
+      Scoped per-day rather than a boolean so two rapid taps on
+      different days still surface the right spinner state. */
+  protected readonly copyingDayKey = signal<string | null>(null);
+
   @ViewChild('swipeArea') private readonly swipeAreaRef!: ElementRef<HTMLElement>;
   @ViewChild('undoBtn') private readonly undoBtnRef?: ElementRef<HTMLButtonElement>;
   private readonly swipeStartFn = (e: TouchEvent) => this.onSwipeStart(e);
@@ -668,13 +687,31 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
       which is its own confirmation. Button hides after success via the
       `canRepeatYesterday` guard. */
   protected async repeatYesterday(): Promise<void> {
-    if (this.repeatingYesterday()) return;
+    // Cross-action guard: if a per-day copy is already in flight, refuse —
+    // otherwise two concurrent bulk writes can interleave and double-post.
+    if (this.repeatingYesterday() || this.copyingDayKey() !== null) return;
     this.repeatingYesterday.set(true);
     try {
       const cloned = await this.store.repeatYesterday();
       this.analytics.track('repeat_yesterday', { count: cloned });
     } finally {
       this.repeatingYesterday.set(false);
+    }
+  }
+
+  /** Generalized bulk-copy: clone the chosen past day's entries into
+      today. Guards against: (a) the same day tapped twice rapidly,
+      (b) a different day tapped while one is in flight, (c) a copy
+      launched while `repeatYesterday` is mid-write — any of which
+      would cause overlapping sequential writes and duplicate rows. */
+  protected async copyDayToToday(dateKey: string): Promise<void> {
+    if (this.copyingDayKey() !== null || this.repeatingYesterday()) return;
+    this.copyingDayKey.set(dateKey);
+    try {
+      const cloned = await this.store.copyDayToToday(dateKey);
+      this.analytics.track('copy_day_to_today', { count: cloned, sourceDateKey: dateKey });
+    } finally {
+      this.copyingDayKey.set(null);
     }
   }
 

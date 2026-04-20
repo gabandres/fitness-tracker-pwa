@@ -96,7 +96,7 @@ describe('OnboardingComponent', () => {
     component.goalWeight.set(170);
     await component.submit();
 
-    expect(saveProfile).toHaveBeenCalledWith({
+    expect(saveProfile).toHaveBeenCalledWith(expect.objectContaining({
       heightIn: 70,
       age: 32,
       sex: 'male',
@@ -104,7 +104,7 @@ describe('OnboardingComponent', () => {
       targetPaceLbsPerWeek: 1,
       goalWeightLbs: 170,
       ageConfirmed: true,
-    });
+    }));
     expect(emitSpy).toHaveBeenCalledOnce();
   });
 });

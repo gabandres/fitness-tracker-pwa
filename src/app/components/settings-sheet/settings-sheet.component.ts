@@ -11,6 +11,7 @@ import { SubscriptionService } from '../../services/subscription.service';
 import { TranslationService } from '../../services/translation.service';
 import { AppLang } from '../../i18n/transloco.providers';
 import { SubscribeComponent } from '../subscribe/subscribe.component';
+import { HistorySheetComponent } from '../history-sheet/history-sheet.component';
 import { ThemeChoice } from '../../utils/theme';
 
 /**
@@ -33,7 +34,7 @@ import { ThemeChoice } from '../../utils/theme';
 @Component({
   selector: 'app-settings-sheet',
   standalone: true,
-  imports: [SubscribeComponent, TranslocoDirective],
+  imports: [SubscribeComponent, HistorySheetComponent, TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -328,6 +329,28 @@ import { ThemeChoice } from '../../utils/theme';
           <app-subscribe />
         </section>
 
+        <!-- ─── History ───────────────────────────────────────── -->
+        <section id="settings-history" class="mb-7 scroll-mt-16">
+          <div class="data-label mb-3">{{ t('settings.history.section') }}</div>
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <div class="font-sans text-sm text-ink">{{ t('settings.history.label') }}</div>
+              <p class="caption text-[11px] leading-relaxed mt-0.5">
+                {{ t('settings.history.desc') }}
+              </p>
+            </div>
+            <button type="button" (click)="historyOpen.set(!historyOpen())"
+              class="tag-btn text-[11px] shrink-0">
+              {{ historyOpen() ? t('settings.history.hide') : t('settings.history.open') }}
+            </button>
+          </div>
+          @if (historyOpen()) {
+            <div class="mt-4">
+              <app-history-sheet />
+            </div>
+          }
+        </section>
+
         <!-- ─── Feedback ──────────────────────────────────────── -->
         <section id="settings-feedback" class="mb-7 scroll-mt-16">
           <div class="data-label mb-3">{{ t('settings.feedback.section') }}</div>
@@ -405,6 +428,11 @@ export class SettingsSheetComponent implements AfterViewInit {
   /** Whether Pro-gated options are available. Bound by settings-sheet's
       template so unpaid users see the options as disabled. */
   protected readonly isPaid = computed(() => this.subs.isPaid());
+
+  /** History panel is collapsed by default to keep the settings sheet
+      short. Loading allTimeLogs is cheap (signal read; already loaded)
+      but rendering a long list adds layout cost. */
+  protected readonly historyOpen = signal(false);
 
   /** Picker options. Swatches are inline so reviewers can see the
       palette intent alongside the CSS tokens. Keep in sync with

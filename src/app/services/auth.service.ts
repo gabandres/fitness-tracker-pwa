@@ -1,10 +1,14 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import {
   Auth,
+  AuthCredential,
+  EmailAuthProvider,
   User,
   GoogleAuthProvider,
   OAuthProvider,
   createUserWithEmailAndPassword,
+  fetchSignInMethodsForEmail,
+  linkWithCredential,
   signInWithEmailAndPassword,
   sendEmailVerification,
   sendPasswordResetEmail,
@@ -12,6 +16,27 @@ import {
   onAuthStateChanged,
   signOut as fbSignOut,
 } from '@angular/fire/auth';
+
+/**
+ * Metadata the sign-in UI needs to render an account-link prompt:
+ * the email at play, and which provider ID already owns the account
+ * so we can tell the user "sign in with X to link your Y".
+ */
+export interface PendingLinkInfo {
+  readonly email: string;
+  /** Concretely known existing provider, if Firebase's fetchSignInMethods
+   * was able to tell us. With email-enumeration protection enabled (default
+   * in newer projects), this will always come back `unknown` — see
+   * `candidateProviders` for the fallback list the UI should offer instead. */
+  readonly existingProvider: 'google.com' | 'microsoft.com' | 'password' | 'unknown';
+  readonly attemptedProvider: 'google.com' | 'microsoft.com' | 'password';
+  /** All providers the UI should let the user pick from when linking.
+   * Always excludes `attemptedProvider` (that's the one that just failed).
+   * When `existingProvider` is resolved, this list has a single entry;
+   * under email-enumeration protection it carries the remaining two so
+   * the user can pick. */
+  readonly candidateProviders: ReadonlyArray<'google.com' | 'microsoft.com' | 'password'>;
+}
 
 /**
  * Multi-provider authentication.
@@ -43,6 +68,16 @@ export class AuthService {
   readonly ready = signal(false);
   readonly isSignedIn = computed(() => this._user() !== null);
 
+  // In-memory (tab-scoped) pending-link credential. When a sign-in attempt
+  // fails with `auth/account-exists-with-different-credential`, we capture
+  // the attempted credential + email here so the next successful sign-in
+  // with the *existing* provider can link them. Not persisted — if the tab
+  // closes, the user starts over, which is the right safety posture (we
+  // don't want a stale credential hanging around across sessions).
+  private pendingCredential: AuthCredential | null = null;
+  private readonly _pendingLink = signal<PendingLinkInfo | null>(null);
+  readonly pendingLink = this._pendingLink.asReadonly();
+
   /** True when the signed-in user's email is verified. Always true
       for Google sign-in; false for fresh email/password sign-ups
       until the user clicks the verification link. Used by the App
@@ -66,7 +101,13 @@ export class AuthService {
     // Always show account chooser — avoids the "silently signed in as
     // the wrong Google account" footgun for people with multiple accounts.
     provider.setCustomParameters({ prompt: 'select_account' });
-    await signInWithPopup(this.auth, provider);
+    try {
+      const result = await signInWithPopup(this.auth, provider);
+      await this.completeLinkIfPending(result.user);
+    } catch (err) {
+      await this.capturePendingCredential(err, 'google.com');
+      throw err;
+    }
   }
 
   /**
@@ -87,7 +128,13 @@ export class AuthService {
     // emailVerified=true on the resulting Firebase user.
     provider.addScope('email');
     provider.addScope('profile');
-    await signInWithPopup(this.auth, provider);
+    try {
+      const result = await signInWithPopup(this.auth, provider);
+      await this.completeLinkIfPending(result.user);
+    } catch (err) {
+      await this.capturePendingCredential(err, 'microsoft.com');
+      throw err;
+    }
   }
 
   /**
@@ -109,7 +156,13 @@ export class AuthService {
 
   /** Signs in an existing email/password user. */
   async signInWithEmailPassword(email: string, password: string): Promise<void> {
-    await signInWithEmailAndPassword(this.auth, email, password);
+    try {
+      const result = await signInWithEmailAndPassword(this.auth, email, password);
+      await this.completeLinkIfPending(result.user);
+    } catch (err) {
+      await this.capturePendingCredential(err, 'password', { email, password });
+      throw err;
+    }
   }
 
   /** Sends a password-reset email. Errors propagate to the caller so
@@ -139,6 +192,101 @@ export class AuthService {
   }
 
   async signOut(): Promise<void> {
+    this.clearPendingLink();
     await fbSignOut(this.auth);
+  }
+
+  /** UI helper: user bailed out of a link flow. Drops the captured
+      credential so a subsequent sign-in attempt doesn't silently link
+      something the user doesn't want linked. */
+  clearPendingLink(): void {
+    this.pendingCredential = null;
+    this._pendingLink.set(null);
+  }
+
+  /**
+   * Inspects a sign-in error, and if it's an "email already used by a
+   * different provider" crash, stashes the attempted credential + email
+   * and publishes `pendingLink` so the UI can prompt the user to sign in
+   * with the existing provider (then auto-link).
+   *
+   * `passwordOverride` is supplied when the attempted provider was
+   * email/password — the AuthCredential returned by EmailAuthProvider
+   * requires the raw password, which Firebase's error object doesn't
+   * expose. Without that override we can't link email/password back onto
+   * a Google-owned account, so we only set pendingLink when the caller
+   * handed us the credentials.
+   */
+  private async capturePendingCredential(
+    err: unknown,
+    attemptedProvider: 'google.com' | 'microsoft.com' | 'password',
+    passwordOverride?: { email: string; password: string },
+  ): Promise<void> {
+    const code = (err as { code?: string })?.code;
+    if (code !== 'auth/account-exists-with-different-credential') return;
+    const email = (err as { customData?: { email?: string } }).customData?.email;
+    if (!email) return;
+
+    let credential: AuthCredential | null = null;
+    if (attemptedProvider === 'google.com') {
+      credential = GoogleAuthProvider.credentialFromError(err as any);
+    } else if (attemptedProvider === 'microsoft.com') {
+      credential = OAuthProvider.credentialFromError(err as any);
+    } else if (attemptedProvider === 'password' && passwordOverride) {
+      credential = EmailAuthProvider.credential(passwordOverride.email, passwordOverride.password);
+    }
+    if (!credential) return;
+
+    this.pendingCredential = credential;
+
+    // Query which provider currently owns the email so the UI can say
+    // "sign in with Google to link your Microsoft account" (as opposed
+    // to a generic "different provider" message).
+    let existingProvider: PendingLinkInfo['existingProvider'] = 'unknown';
+    try {
+      const methods = await fetchSignInMethodsForEmail(this.auth, email);
+      // Newer Firebase projects enable email-enumeration protection by
+      // default and return an empty array regardless of truth, so a
+      // non-empty result is the only authoritative signal here.
+      if (methods.includes('google.com')) existingProvider = 'google.com';
+      else if (methods.includes('microsoft.com')) existingProvider = 'microsoft.com';
+      else if (methods.includes('password')) existingProvider = 'password';
+    } catch {
+      // fetchSignInMethods can fail entirely if enumeration protection is on.
+    }
+
+    // Build the candidate list the UI will show. Exclude the provider that
+    // just failed (linking it to itself doesn't make sense). When we know
+    // the exact existing provider, offer just that one; otherwise let the
+    // user pick between the other two.
+    const all: PendingLinkInfo['candidateProviders'] = ['google.com', 'microsoft.com', 'password'];
+    const candidateProviders: PendingLinkInfo['candidateProviders'] =
+      existingProvider !== 'unknown'
+        ? [existingProvider]
+        : all.filter((p) => p !== attemptedProvider);
+
+    this._pendingLink.set({ email, existingProvider, attemptedProvider, candidateProviders });
+  }
+
+  private async completeLinkIfPending(user: User): Promise<void> {
+    const cred = this.pendingCredential;
+    if (!cred) return;
+    const target = this._pendingLink();
+    if (!target || target.email.toLowerCase() !== (user.email ?? '').toLowerCase()) {
+      // Email mismatch — user signed in with a different Google account
+      // than the one the pending credential was attached to. Abandon the
+      // link rather than associate the wrong account.
+      this.clearPendingLink();
+      return;
+    }
+    try {
+      await linkWithCredential(user, cred);
+    } catch (err) {
+      // Most common failure: credential already used somewhere else. Log
+      // but don't throw — the user is signed in successfully regardless.
+      console.warn('linkWithCredential failed:', err);
+    } finally {
+      this.clearPendingLink();
+    }
   }
 }

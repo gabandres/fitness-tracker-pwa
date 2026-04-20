@@ -6,6 +6,17 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-19 — Product gaps: welcome email, account linking, history search, copy-any-day
+
+Batch of four product-side features that close the biggest gaps surfaced in the launch-readiness review.
+
+- **Welcome email on profile completion.** New `sendWelcomeEmail` Firestore trigger fires when a user flips `profileCompleted` false → true for the first time. Rendered in the user's onboarding locale (en / es-PR) via a new `email-templates.ts` that mirrors the editorial brand (warm cream paper, serif italic heading, oxblood stamp button). Delivered via Resend. Latched by a new `welcomeEmailSentAt` timestamp so re-saves and backfills never double-send. FROM address defaults to `onboarding@resend.dev` until a custom domain is verified in Resend; override via the `MACROLOG_EMAIL_FROM` env. Logs never contain the user's email — only the uid — to avoid a PII leak in the 30-day-retained Cloud Logs.
+- **Account-linking flow for cross-provider emails.** Previously, a Google-registered user who tried to sign in with Microsoft (or email/password) got a friendly error and a dead end. Now: the attempted credential is captured, `fetchSignInMethodsForEmail` queries which provider actually owns the email, and the sign-in page renders a link-prompt panel. After the user signs in with the existing provider, the new credential is auto-attached via `linkWithCredential` so both providers work for the same account going forward. Handles Firebase's email-enumeration-protection return-empty-array case by offering all candidate providers instead of the single authoritative one. Works in all 6 directions (google↔microsoft↔password).
+- **Searchable history view.** New `history-sheet` component mounted inside the settings sheet. Full-text search across meal labels + date-range filter, grouped by day newest-first. Free tier sees the same 90-day window charts already use; Pro sees unlimited history. Query input debounced 200 ms so computeds don't re-run per keystroke on Pro accounts with years of logs.
+- **Copy-any-day to today.** Generalization of "repeat yesterday" — every past day in the ledger now shows a "↷ copy" button in its header that clones that day's meals into today (preserving time-of-day). Useful when yesterday was a rest day / travel day / outlier and you want to seed today from a more representative day. Cross-action guard prevents overlapping writes when combined with repeat-yesterday.
+
+Client-side: new `preferredLocale` field persisted on the user profile so the welcome-email trigger (and any future server-side email) renders in the locale the user actually onboarded in. `firestore.rules` updated to allow `preferredLocale` + `welcomeEmailSentAt`.
+
 ## 2026-04-19 — Stripe Tax activated + default SaaS tax code
 
 Last §S13 hard blocker cleared. Stripe Tax is live, the account default tax code is `txcd_10103000` ("Software as a service (SaaS) - personal use") which applies to Macro Log Pro via account-default inheritance. Puerto Rico head-office address is registered with Stripe.

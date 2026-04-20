@@ -174,6 +174,13 @@
       "whatHappened": "What happened:",
       "expected": "Expected:"
     },
+    "history": {
+      "section": "history",
+      "label": "search past entries",
+      "desc": "full-text search across every meal you've logged, filter by date range. free tier sees the last 90 days; pro sees everything.",
+      "open": "open",
+      "hide": "hide"
+    },
     "legal": {
       "section": "legal",
       "privacy": "privacy",
@@ -306,6 +313,10 @@
     "repeatYesterday": "↻ repeat yesterday",
     "repeatingYesterday": "copying…",
     "repeatYesterdayAria": "Copy every entry from yesterday into today",
+    "copyDay": "↷ copy",
+    "copyingDay": "copying…",
+    "copyDayTitle": "Copy every meal from this day into today",
+    "copyDayAria": "Copy all {{count}} entries from this day into today",
     "weight": {
       "lb": "lb",
       "saveAria": "Save weight",
@@ -487,6 +498,33 @@
     "errorNoAccount": "No account found with that email.",
     "errorTooMany": "Too many attempts. Wait a moment and try again.",
     "errorWrongProvider": "This email is registered with a different sign-in method. Try Google instead.",
+    "linkStamp": "link accounts",
+    "linkExplainer": "Sign in with the existing method — we'll attach your new sign-in option to the same Macro Log account, so both work going forward.",
+    "linkWithGoogle": "sign in with google",
+    "linkWithMicrosoft": "sign in with microsoft",
+    "linkWithPassword": "sign in with password",
+    "linkUnknownProvider": "Use the sign-in method you originally registered with.",
+    "linkCancel": "cancel",
+    "linkPrompt": {
+      "microsoft": {
+        "google": "<strong>{{email}}</strong> is already registered with Google. Sign in with Google to link your Microsoft account to it.",
+        "password": "<strong>{{email}}</strong> is already registered with a password. Sign in with your password to link your Microsoft account to it.",
+        "microsoft": "<strong>{{email}}</strong> is already registered with Microsoft. Sign in with Microsoft to continue.",
+        "unknown": "<strong>{{email}}</strong> is already registered with a different sign-in method."
+      },
+      "google": {
+        "microsoft": "<strong>{{email}}</strong> is already registered with Microsoft. Sign in with Microsoft to link your Google account to it.",
+        "password": "<strong>{{email}}</strong> is already registered with a password. Sign in with your password to link your Google account to it.",
+        "google": "<strong>{{email}}</strong> is already registered with Google. Sign in with Google to continue.",
+        "unknown": "<strong>{{email}}</strong> is already registered with a different sign-in method."
+      },
+      "password": {
+        "google": "<strong>{{email}}</strong> is already registered with Google. Sign in with Google to link a password to it.",
+        "microsoft": "<strong>{{email}}</strong> is already registered with Microsoft. Sign in with Microsoft to link a password to it.",
+        "password": "<strong>{{email}}</strong> is already registered with a password.",
+        "unknown": "<strong>{{email}}</strong> is already registered with a different sign-in method."
+      }
+    },
     "errorEmailDisabled": "Email + password sign-in is temporarily unavailable. Please use Google or Microsoft for now.",
     "errorNetwork": "Network error. Check your connection and try again."
   },
@@ -707,6 +745,21 @@
       "hour": "1 hour ago",
       "hours": "{{n}} hours ago"
     }
+  },
+  "history": {
+    "stamp": "archive",
+    "section": "past entries",
+    "titleLead": "Your",
+    "titleEm": "history.",
+    "freeWindow": "Free tier shows the last 90 days. Upgrade to Pro for unlimited history — same window the charts already use.",
+    "queryLabel": "search",
+    "queryPlaceholder": "oats, chicken, etc.",
+    "fromLabel": "from",
+    "toLabel": "to",
+    "resultCount": "{{count}} result(s)",
+    "clearFilters": "clear filters",
+    "unlabeled": "(no label)",
+    "empty": "No entries match these filters."
   },
   "privacy": {
     "backLink": "← back to macro log",

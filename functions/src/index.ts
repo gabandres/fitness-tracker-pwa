@@ -4,9 +4,12 @@ import { getMessaging } from "firebase-admin/messaging";
 import { getAuth } from "firebase-admin/auth";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenAI } from "@google/genai";
 import { ErrorCode } from "./error-codes";
+import { getResend, baseSendOptions, resendApiKey } from "./resend-client";
+import { welcomeEmail } from "./email-templates";
 
 initializeApp();
 const db = getFirestore();
@@ -1091,6 +1094,82 @@ export const publishUserCount = onSchedule(
 const BACKUP_BUCKET = process.env.GCLOUD_PROJECT
   ? `gs://${process.env.GCLOUD_PROJECT}-backups`
   : "";
+
+// ─── Feature 7: Welcome email on profile completion ───────────────
+//
+// Fires the first time `profileCompleted` flips false → true on a user
+// doc. That's the moment we know a real human finished onboarding and
+// has consented to be contacted — legally safer than sending on sign-up
+// (which is just auth, no affirmative consent). Latched via
+// `welcomeEmailSentAt` on the profile so reconfigurations never
+// re-trigger. Resend delivery failures are logged, not thrown: a
+// welcome email is not mission-critical and a transient Resend 5xx
+// must never block onboarding.
+//
+// Deliverability note: until a custom domain is verified in Resend we
+// ship from `onboarding@resend.dev` (Resend's sandbox). Real Day-7
+// retention lift needs macrolog.app (or similar) verified — at that
+// point set the `MACROLOG_EMAIL_FROM` env to the verified from-address.
+
+export const sendWelcomeEmail = onDocumentUpdated(
+  {
+    document: "users/{uid}",
+    secrets: [resendApiKey],
+  },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!before || !after) return;
+
+    const flippedToCompleted =
+      before.profileCompleted !== true && after.profileCompleted === true;
+    if (!flippedToCompleted) return;
+    if (after.welcomeEmailSentAt) return; // already sent
+
+    const uid = event.params.uid;
+    const email = after.email as string | undefined;
+    if (!email) {
+      console.warn(`sendWelcomeEmail: user ${uid} has no email — skipping.`);
+      return;
+    }
+
+    // Pull a locale hint from the Firebase Auth user record (if present).
+    // Clients write Transloco's active language to `preferredLocale` on the
+    // profile when it changes; fall back to English otherwise.
+    const preferredLocale = after.preferredLocale as string | undefined;
+    const locale: "en" | "es-PR" = preferredLocale === "es-PR" ? "es-PR" : "en";
+
+    const displayName =
+      (after.displayName as string | undefined) ??
+      (await getAuth().getUser(uid).then((u) => u.displayName).catch(() => null));
+
+    const { subject, html } = welcomeEmail({ locale, displayName });
+
+    // Never log email addresses — Cloud Logging is 30d-retained and
+    // visible to any project collaborator. Stick to uid; an operator
+    // can join to the email via Firestore console if needed.
+    try {
+      const resend = getResend();
+      const { error } = await resend.emails.send({
+        ...baseSendOptions(),
+        to: email,
+        subject,
+        html,
+      });
+      if (error) {
+        console.error(`sendWelcomeEmail: Resend error for uid=${uid}`, error);
+        return;
+      }
+      await db.doc(`users/${uid}`).set(
+        { welcomeEmailSentAt: Timestamp.now() },
+        { merge: true },
+      );
+      console.log(`sendWelcomeEmail: sent welcome email uid=${uid} locale=${locale}`);
+    } catch (err) {
+      console.error(`sendWelcomeEmail: unexpected failure for uid=${uid}`, err);
+    }
+  },
+);
 
 export const weeklyFirestoreBackup = onSchedule(
   { schedule: "0 6 * * 0", timeZone: "UTC" },

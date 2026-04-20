@@ -514,6 +514,7 @@ export class OnboardingComponent {
       activityLevel: this.activityLevel()!,
       targetPaceLbsPerWeek: this.pace()!,
       ageConfirmed: this.ageGate(),
+      preferredLocale: this.translation.language(),
     };
     const gw = this.goalWeight();
     if (gw != null && !Number.isNaN(Number(gw))) {

@@ -480,6 +480,53 @@ export class FitnessStore {
     return cloned;
   }
 
+  /**
+   * Generalized bulk-copy: clone every log on the given source date into
+   * today, preserving time-of-day. Mirrors `repeatYesterday` but takes
+   * an arbitrary date key so the daily-ledger can offer a per-day
+   * "copy this day to today" action — useful when yesterday is wrong
+   * (rest day / travel) and you want to seed today from a different
+   * representative day.
+   *
+   * Returns number of entries cloned. 0 if the source day is empty or
+   * is today itself (cloning today into today would double-count).
+   */
+  async copyDayToToday(sourceDateKey: string): Promise<number> {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayKey = localDateKey(today);
+    if (sourceDateKey === todayKey) return 0;
+
+    const sourceLogs = this._logs().filter(
+      (l) => localDateKey(l.date) === sourceDateKey,
+    );
+    if (sourceLogs.length === 0) return 0;
+
+    let cloned = 0;
+    try {
+      for (const src of sourceLogs) {
+        const clonedAt = new Date(
+          today.getFullYear(), today.getMonth(), today.getDate(),
+          src.date.getHours(), src.date.getMinutes(), src.date.getSeconds(),
+        );
+        const entry: LogEntry = {
+          calories: src.calories,
+          timestamp: clonedAt,
+        };
+        if (src.protein != null) entry.protein = src.protein;
+        if (src.mealLabel) entry.mealLabel = src.mealLabel;
+        if (src.exerciseCompleted || src.liftCompleted || src.cardioCompleted) {
+          entry.exerciseCompleted = true;
+        }
+        await this.fb.addLog(entry);
+        cloned += 1;
+      }
+    } finally {
+      try { await this._load(); } catch { /* noop */ }
+    }
+    return cloned;
+  }
+
   async updateLog(id: string, entry: LogEntry): Promise<void> {
     await this.fb.updateLog(id, entry);
     await this._load();

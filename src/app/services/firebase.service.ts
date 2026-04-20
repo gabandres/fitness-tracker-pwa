@@ -104,6 +104,8 @@ export interface ProfileFields {
   timezoneOffsetMin?: number;  // from new Date().getTimezoneOffset()
   ageConfirmedAt?: Timestamp;  // COPPA/EU: timestamp the user attested 13+ (16+ EU)
   ageConfirmed?: boolean;      // transient checkbox state — never persisted, drives the stamp below
+  preferredLocale?: string;    // Transloco active lang ('en' | 'es-PR'); used server-side for email locale
+  welcomeEmailSentAt?: Timestamp; // server-set latch; clients never write this
 }
 
 /** Full user profile doc as stored in Firestore. */
@@ -207,6 +209,13 @@ export class FirebaseService {
     // from any saveProfile call.
     if (fields.ageConfirmed === true && current.ageConfirmedAt == null) {
       patch.ageConfirmedAt = Timestamp.now();
+    }
+    // Persist the Transloco active language so the welcome-email trigger
+    // (and any future server-side email) renders in the locale the user
+    // actually onboarded in. Browser locale isn't available to Firestore
+    // triggers; only what's persisted on the doc is.
+    if (fields.preferredLocale) {
+      patch.preferredLocale = fields.preferredLocale;
     }
 
     await updateDoc(ref, patch);

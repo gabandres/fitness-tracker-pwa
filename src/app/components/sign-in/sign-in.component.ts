@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
-import { AuthService } from '../../services/auth.service';
+import { AuthService, PendingLinkInfo } from '../../services/auth.service';
 import { TranslationService } from '../../services/translation.service';
 
 type Status = 'idle' | 'signing' | 'error' | 'reset-sent';
@@ -36,6 +36,46 @@ type Method = 'google' | 'microsoft' | 'email';
         <p class="caption mt-3 text-[11px] leading-relaxed">
           {{ t('signin.caption') }}
         </p>
+
+        @if (auth.pendingLink(); as link) {
+          <div class="mt-6 specimen px-4 py-4 relative" style="border-color: var(--color-gold)">
+            <span class="crop-bl" style="border-color: var(--color-gold)"></span>
+            <span class="crop-br" style="border-color: var(--color-gold)"></span>
+            <p class="data-label mb-1" style="color: var(--color-gold)">{{ t('signin.linkStamp') }}</p>
+            <p class="font-sans text-sm text-ink leading-relaxed">
+              {{ t(linkPromptKey(link), { email: link.email }) }}
+            </p>
+            <p class="caption text-[11px] mt-2 leading-relaxed">
+              {{ t('signin.linkExplainer') }}
+            </p>
+            <div class="mt-3 flex flex-col sm:flex-row gap-2">
+              @for (cand of link.candidateProviders; track cand) {
+                @if (cand === 'google.com') {
+                  <button type="button" (click)="signInGoogle()"
+                    [disabled]="status() === 'signing'"
+                    class="stamp-btn flex-1 justify-center text-xs">
+                    {{ t('signin.linkWithGoogle') }}
+                  </button>
+                } @else if (cand === 'microsoft.com') {
+                  <button type="button" (click)="signInMicrosoft()"
+                    [disabled]="status() === 'signing'"
+                    class="stamp-btn flex-1 justify-center text-xs">
+                    {{ t('signin.linkWithMicrosoft') }}
+                  </button>
+                } @else if (cand === 'password') {
+                  <button type="button" (click)="openLinkEmailForm()"
+                    class="stamp-btn flex-1 justify-center text-xs">
+                    {{ t('signin.linkWithPassword') }}
+                  </button>
+                }
+              }
+              <button type="button" (click)="cancelLink()"
+                class="tag-btn justify-center text-xs">
+                {{ t('signin.linkCancel') }}
+              </button>
+            </div>
+          </div>
+        }
 
         <!-- One-click providers (no password) -->
         <div class="mt-8 space-y-2">
@@ -169,8 +209,38 @@ type Method = 'google' | 'microsoft' | 'email';
   `,
 })
 export class SignInComponent {
-  private readonly auth = inject(AuthService);
+  protected readonly auth = inject(AuthService);
   private readonly translation = inject(TranslationService);
+
+  protected linkPromptKey(link: PendingLinkInfo): string {
+    // Build an i18n key like `signin.linkPrompt.microsoft.google` —
+    // "your Google-registered email tried to sign in with Microsoft."
+    const map: Record<string, string> = {
+      'google.com': 'google',
+      'microsoft.com': 'microsoft',
+      'password': 'password',
+      'unknown': 'unknown',
+    };
+    const existing = map[link.existingProvider];
+    const attempted = map[link.attemptedProvider];
+    return `signin.linkPrompt.${attempted}.${existing}`;
+  }
+
+  protected cancelLink(): void {
+    this.auth.clearPendingLink();
+    this.status.set('idle');
+    this.errorMsg.set('');
+  }
+
+  protected openLinkEmailForm(): void {
+    // Prefill email from the pending link info; user supplies password.
+    const link = this.auth.pendingLink();
+    if (link) this.emailValue = link.email;
+    this.emailFormOpen.set(true);
+    this.mode.set('signin');
+    this.status.set('idle');
+    this.errorMsg.set('');
+  }
 
   protected readonly status = signal<Status>('idle');
   protected readonly errorMsg = signal('');
