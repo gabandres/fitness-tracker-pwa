@@ -291,6 +291,24 @@ interface DayGroup {
                   [style.border-color]="day.exerciseCompleted ? 'var(--color-olive)' : 'var(--color-rule)'"
                   [attr.aria-label]="day.exerciseCompleted ? t('daily.exerciseActiveAria') : t('daily.exerciseInactiveAria')"
                   [attr.title]="t('daily.exerciseTitle')">{{ t('daily.exercise') }}</button>
+                <!-- Water chip — today only. Matches the weight / exercise
+                     pill treatment so hydration sits alongside the existing
+                     per-day actions instead of carving out its own row.
+                     Tap opens the water modal (quick-add + exact input). -->
+                @if (day.dateKey === todayKey) {
+                  <button type="button"
+                    (click)="startEditWater(day.dateKey); $event.stopPropagation()"
+                    [attr.aria-label]="t('daily.water.editAria')"
+                    [attr.title]="t('daily.water.editAria')"
+                    class="tag-btn text-[10px] tabular-nums min-h-[32px] sm:min-h-0 px-2 sm:px-1.5 py-1 sm:py-0.5 flex items-center gap-1"
+                    [class.italic]="waterMlFor(day.dateKey) === 0">
+                    @if (waterMlFor(day.dateKey) > 0) {
+                      <span>{{ waterDisplay(waterMlFor(day.dateKey)) }}</span><span class="text-[10px] opacity-70">{{ waterUnitLabel() }}</span>
+                    } @else {
+                      <span>{{ t('daily.water.addWater') }}</span>
+                    }
+                  </button>
+                }
                 @if (day.dateKey !== todayKey && day.meals.length > 0) {
                   <button type="button"
                     (click)="copyDayToToday(day.dateKey); $event.stopPropagation()"
@@ -341,45 +359,6 @@ interface DayGroup {
               </div>
             }
           </div>
-
-          <!-- Water intake — today only. Past-day hydration is visible
-               to Gemini in the weekly report context but not surfaced in
-               the ledger to avoid cluttering a dense scroll. Display in
-               whichever unit fits the locale (oz in en, ml in es-PR)
-               using ml as the single source of truth; quick-add buttons
-               cumulate, tap the readout to set an exact value. -->
-          @if (day.dateKey === todayKey) {
-            <div class="mt-2 flex items-center gap-2 flex-wrap">
-              <button type="button"
-                (click)="startEditWater(day.dateKey); $event.stopPropagation()"
-                [attr.aria-label]="t('daily.water.editAria')"
-                class="font-mono text-xs tabular-nums hover:underline min-h-[32px] flex items-center gap-1 px-1"
-                style="color: var(--color-water, #3a7a9a);">
-                <span class="text-base">{{ waterDisplay(waterMlFor(day.dateKey)) }}</span>
-                <span class="text-[10px] opacity-70">{{ waterUnitLabel() }}</span>
-              </button>
-              <div class="flex items-center gap-1 flex-wrap">
-                <button type="button"
-                  (click)="addWaterQuick(day.dateKey, 250); $event.stopPropagation()"
-                  [attr.aria-label]="t('daily.water.addGlassAria')"
-                  class="tag-btn text-[10px] min-h-[32px] px-2">
-                  {{ t('daily.water.addGlass') }}
-                </button>
-                <button type="button"
-                  (click)="addWaterQuick(day.dateKey, 500); $event.stopPropagation()"
-                  [attr.aria-label]="t('daily.water.addBottleAria')"
-                  class="tag-btn text-[10px] min-h-[32px] px-2">
-                  {{ t('daily.water.addBottle') }}
-                </button>
-                <button type="button"
-                  (click)="addWaterQuick(day.dateKey, 1000); $event.stopPropagation()"
-                  [attr.aria-label]="t('daily.water.addLargeAria')"
-                  class="tag-btn text-[10px] min-h-[32px] px-2">
-                  {{ t('daily.water.addLarge') }}
-                </button>
-              </div>
-            </div>
-          }
 
           <!-- Meal entries nested under this day. Wrapped in a positioned
                container so swipe-to-delete can slide the row over a red
@@ -537,24 +516,62 @@ interface DayGroup {
             {{ t('daily.water.modalTitle') }}
           </h3>
 
-          <div class="mt-5 flex items-baseline justify-center gap-2">
-            <input #waterModalInput
-              type="number" step="1" min="0" inputmode="numeric"
-              [ngModel]="waterInput()" (ngModelChange)="waterInput.set($event)"
-              name="modalWater" [attr.placeholder]="t('daily.water.placeholder')"
-              [attr.aria-label]="t('daily.water.inputAria')"
-              class="field-input text-3xl font-mono tabular-nums w-32 text-center py-3 px-2" />
-            <span class="font-display italic text-graphite text-lg">{{ waterUnitLabel() }}</span>
+          <!-- Running total, live-updating as the user taps quick-adds.
+               Separate from the input below so they can see the cumulative
+               value without having to glance at the field. -->
+          <div class="mt-4 text-center">
+            <span class="font-mono text-xl tabular-nums text-ink">
+              {{ waterDisplay(waterMlFor(editingWaterDay() ?? todayKey)) }}
+            </span>
+            <span class="font-display italic text-graphite text-sm ml-1">{{ waterUnitLabel() }}</span>
           </div>
 
-          <div class="mt-6 flex gap-2">
+          <!-- Quick-add. One tap logs a glass/bottle/liter; modal stays
+               open so the user can chain several without re-opening. The
+               Save button below commits any manual edit in the input;
+               Cancel dismisses without touching the total. -->
+          <div class="mt-3 grid grid-cols-3 gap-2">
+            <button type="button"
+              (click)="addWaterQuick(editingWaterDay() ?? todayKey, 250)"
+              [attr.aria-label]="t('daily.water.addGlassAria')"
+              class="tag-btn text-[11px] justify-center min-h-[44px] py-1 px-2">
+              {{ t('daily.water.addGlass') }}
+            </button>
+            <button type="button"
+              (click)="addWaterQuick(editingWaterDay() ?? todayKey, 500)"
+              [attr.aria-label]="t('daily.water.addBottleAria')"
+              class="tag-btn text-[11px] justify-center min-h-[44px] py-1 px-2">
+              {{ t('daily.water.addBottle') }}
+            </button>
+            <button type="button"
+              (click)="addWaterQuick(editingWaterDay() ?? todayKey, 1000)"
+              [attr.aria-label]="t('daily.water.addLargeAria')"
+              class="tag-btn text-[11px] justify-center min-h-[44px] py-1 px-2">
+              {{ t('daily.water.addLarge') }}
+            </button>
+          </div>
+
+          <div class="mt-4 pt-4 border-t border-rule/40">
+            <div class="data-label text-[10px] mb-2">{{ t('daily.water.setExactLabel') }}</div>
+            <div class="flex items-baseline justify-center gap-2">
+              <input #waterModalInput
+                type="number" step="1" min="0" inputmode="numeric"
+                [ngModel]="waterInput()" (ngModelChange)="waterInput.set($event)"
+                name="modalWater" [attr.placeholder]="t('daily.water.placeholder')"
+                [attr.aria-label]="t('daily.water.inputAria')"
+                class="field-input text-2xl font-mono tabular-nums w-28 text-center py-2 px-2" />
+              <span class="font-display italic text-graphite text-base">{{ waterUnitLabel() }}</span>
+            </div>
+          </div>
+
+          <div class="mt-5 flex gap-2">
             <button type="button" (click)="cancelEditWater()"
               class="tag-btn flex-1 justify-center min-h-[44px]">
-              {{ t('daily.weight.cancelLabel') }}
+              {{ t('daily.water.doneLabel') }}
             </button>
             <button type="submit"
               class="stamp-btn flex-1 justify-center min-h-[44px]">
-              {{ t('daily.weight.saveLabel') }}
+              {{ t('daily.water.saveExactLabel') }}
             </button>
           </div>
         </form>

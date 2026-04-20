@@ -337,7 +337,11 @@
       "inputAria": "Consumo de agua",
       "modalAria": "Registro de consumo de agua",
       "modalStamp": "hidratación",
-      "modalTitle": "registrar agua"
+      "modalTitle": "registrar agua",
+      "addWater": "+ agua",
+      "setExactLabel": "o fijar total exacto",
+      "saveExactLabel": "fijar total",
+      "doneLabel": "listo"
     },
     "weight": {
       "lb": "lb",

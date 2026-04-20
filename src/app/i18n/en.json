@@ -331,7 +331,11 @@
       "inputAria": "Water intake",
       "modalAria": "Water intake entry",
       "modalStamp": "hydration",
-      "modalTitle": "record water"
+      "modalTitle": "record water",
+      "addWater": "+ water",
+      "setExactLabel": "or set exact total",
+      "saveExactLabel": "set total",
+      "doneLabel": "done"
     },
     "weight": {
       "lb": "lb",
