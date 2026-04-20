@@ -342,6 +342,45 @@ interface DayGroup {
             }
           </div>
 
+          <!-- Water intake — today only. Past-day hydration is visible
+               to Gemini in the weekly report context but not surfaced in
+               the ledger to avoid cluttering a dense scroll. Display in
+               whichever unit fits the locale (oz in en, ml in es-PR)
+               using ml as the single source of truth; quick-add buttons
+               cumulate, tap the readout to set an exact value. -->
+          @if (day.dateKey === todayKey) {
+            <div class="mt-2 flex items-center gap-2 flex-wrap">
+              <button type="button"
+                (click)="startEditWater(day.dateKey); $event.stopPropagation()"
+                [attr.aria-label]="t('daily.water.editAria')"
+                class="font-mono text-xs tabular-nums hover:underline min-h-[32px] flex items-center gap-1 px-1"
+                style="color: var(--color-water, #3a7a9a);">
+                <span class="text-base">{{ waterDisplay(waterMlFor(day.dateKey)) }}</span>
+                <span class="text-[10px] opacity-70">{{ waterUnitLabel() }}</span>
+              </button>
+              <div class="flex items-center gap-1 flex-wrap">
+                <button type="button"
+                  (click)="addWaterQuick(day.dateKey, 250); $event.stopPropagation()"
+                  [attr.aria-label]="t('daily.water.addGlassAria')"
+                  class="tag-btn text-[10px] min-h-[32px] px-2">
+                  {{ t('daily.water.addGlass') }}
+                </button>
+                <button type="button"
+                  (click)="addWaterQuick(day.dateKey, 500); $event.stopPropagation()"
+                  [attr.aria-label]="t('daily.water.addBottleAria')"
+                  class="tag-btn text-[10px] min-h-[32px] px-2">
+                  {{ t('daily.water.addBottle') }}
+                </button>
+                <button type="button"
+                  (click)="addWaterQuick(day.dateKey, 1000); $event.stopPropagation()"
+                  [attr.aria-label]="t('daily.water.addLargeAria')"
+                  class="tag-btn text-[10px] min-h-[32px] px-2">
+                  {{ t('daily.water.addLarge') }}
+                </button>
+              </div>
+            </div>
+          }
+
           <!-- Meal entries nested under this day. Wrapped in a positioned
                container so swipe-to-delete can slide the row over a red
                "delete" indicator underneath. Touch events only; pointer
@@ -478,6 +517,49 @@ interface DayGroup {
         </form>
       </dialog>
 
+      <!-- Water intake edit modal. Same <dialog> pattern as the weight
+           modal so ancestor transforms can't pin it mid-ledger. Input
+           is in the user's chosen unit (oz in en, ml in es-PR); we
+           convert back to ml when persisting. -->
+      <dialog #waterDialog
+        class="weight-dialog"
+        [attr.aria-label]="t('daily.water.modalAria')"
+        (close)="cancelEditWater()"
+        (click)="onWaterDialogBackdropClick($event)">
+        <form method="dialog" (submit)="submitWaterModal($event)"
+          class="relative max-w-xs w-full px-6 py-6 rounded-md"
+          style="background-color: var(--color-paper); border: 1px solid var(--color-rule); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35);">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="stamp-mark">{{ t('daily.water.modalStamp') }}</span>
+            <span class="data-label">{{ waterModalDateLabel() }}</span>
+          </div>
+          <h3 class="font-display italic text-2xl text-ink leading-[1.05] mt-1">
+            {{ t('daily.water.modalTitle') }}
+          </h3>
+
+          <div class="mt-5 flex items-baseline justify-center gap-2">
+            <input #waterModalInput
+              type="number" step="1" min="0" inputmode="numeric"
+              [ngModel]="waterInput()" (ngModelChange)="waterInput.set($event)"
+              name="modalWater" [attr.placeholder]="t('daily.water.placeholder')"
+              [attr.aria-label]="t('daily.water.inputAria')"
+              class="field-input text-3xl font-mono tabular-nums w-32 text-center py-3 px-2" />
+            <span class="font-display italic text-graphite text-lg">{{ waterUnitLabel() }}</span>
+          </div>
+
+          <div class="mt-6 flex gap-2">
+            <button type="button" (click)="cancelEditWater()"
+              class="tag-btn flex-1 justify-center min-h-[44px]">
+              {{ t('daily.weight.cancelLabel') }}
+            </button>
+            <button type="submit"
+              class="stamp-btn flex-1 justify-center min-h-[44px]">
+              {{ t('daily.weight.saveLabel') }}
+            </button>
+          </div>
+        </form>
+      </dialog>
+
       <!-- Day-budget closure toast: fires once per day the first time
            today's calorie total crosses the computed daily target. The
            store's effect guards re-firing via localStorage. -->
@@ -546,6 +628,8 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
   @ViewChild('undoBtn') private readonly undoBtnRef?: ElementRef<HTMLButtonElement>;
   @ViewChild('weightModalInput') private readonly weightModalInputRef?: ElementRef<HTMLInputElement>;
   @ViewChild('weightDialog') private readonly weightDialogRef?: ElementRef<HTMLDialogElement>;
+  @ViewChild('waterModalInput') private readonly waterModalInputRef?: ElementRef<HTMLInputElement>;
+  @ViewChild('waterDialog') private readonly waterDialogRef?: ElementRef<HTMLDialogElement>;
   private readonly swipeStartFn = (e: TouchEvent) => this.onSwipeStart(e);
   private readonly swipeEndFn = (e: TouchEvent) => this.onSwipeEnd(e);
 
@@ -576,6 +660,18 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
         el.close();
       }
     });
+    // Same pattern for the water modal.
+    effect(() => {
+      const open = this.editingWaterDay() !== null;
+      const el = this.waterDialogRef?.nativeElement;
+      if (!el) return;
+      if (open && !el.open) {
+        el.showModal();
+        requestAnimationFrame(() => this.waterModalInputRef?.nativeElement?.focus());
+      } else if (!open && el.open) {
+        el.close();
+      }
+    });
   }
 
   /** Close the modal when the user clicks the dialog's backdrop (the
@@ -585,6 +681,92 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
   protected onWeightDialogBackdropClick(evt: MouseEvent): void {
     if (evt.target === evt.currentTarget) {
       this.cancelEditWeight();
+    }
+  }
+
+  // ── Water intake ──────────────────────────────────────────────
+  // Storage is always ml; display follows locale (en → oz with 1 dec,
+  // es-PR → ml integer). Quick-add buttons cumulate via addWater(delta).
+  // Modal-based exact entry for the long tail (1.3L bottles, kids, etc).
+  protected readonly editingWaterDay = signal<DateKey | null>(null);
+  protected readonly waterInput = signal<number | null>(null);
+
+  protected readonly waterModalDateLabel = computed(() => {
+    const key = this.editingWaterDay();
+    if (!key) return '';
+    if (key === this.todayKey) return this.translation.t('daily.today');
+    const group = this.dayGroups().find((g) => g.dateKey === key);
+    return group?.dateLabel ?? key;
+  });
+
+  /** Locale-appropriate unit label. Single source of truth for every
+      caller that needs to render or parse the user-facing unit. */
+  protected waterUnitLabel(): string {
+    return this.isMetricLocale() ? this.translation.t('daily.water.unitMl')
+                                 : this.translation.t('daily.water.unitOz');
+  }
+
+  /** Convert stored ml → display value in the user's preferred unit.
+      Rounds oz to 1 decimal (meaningful for hydration), ml to integer. */
+  protected waterDisplay(ml: number): string {
+    if (this.isMetricLocale()) return String(Math.round(ml));
+    const oz = ml / 29.5735;
+    return oz.toFixed(1);
+  }
+
+  /** Read the current ml total for a date from the store. Zero when
+      no doc exists — the UI then renders "0 oz / 0 ml" rather than a
+      blank/italic placeholder because a zero reading is meaningful
+      after a user has interacted with the buttons once. */
+  protected waterMlFor(dateKey: DateKey): number {
+    return this.store.dailyWater()[dateKey] ?? 0;
+  }
+
+  private isMetricLocale(): boolean {
+    // Spanish-speaking locales plus the rest of the world expect ml;
+    // only en (US-centric default) uses oz. Detect via the Transloco
+    // active lang. If we add other metric locales (de, fr, etc.) this
+    // branch widens.
+    return this.translation.language() !== 'en';
+  }
+
+  protected async addWaterQuick(dateKey: DateKey, deltaMl: number): Promise<void> {
+    await this.store.addWater(dateKey, deltaMl);
+    navigator.vibrate?.(12);
+  }
+
+  protected startEditWater(dateKey: DateKey): void {
+    this.editingWaterDay.set(dateKey);
+    // Prefill the input in the user's display unit so the number they
+    // see matches the number they type (converting oz↔ml on every
+    // keystroke feels broken).
+    const ml = this.waterMlFor(dateKey);
+    this.waterInput.set(this.isMetricLocale()
+      ? Math.round(ml)
+      : +(ml / 29.5735).toFixed(1));
+  }
+
+  protected cancelEditWater(): void {
+    this.editingWaterDay.set(null);
+    this.waterInput.set(null);
+  }
+
+  protected async submitWaterModal(evt?: Event): Promise<void> {
+    evt?.preventDefault();
+    const key = this.editingWaterDay();
+    const raw = this.waterInput();
+    if (!key || raw == null || Number.isNaN(Number(raw)) || Number(raw) < 0) {
+      this.cancelEditWater();
+      return;
+    }
+    const ml = this.isMetricLocale() ? Number(raw) : Number(raw) * 29.5735;
+    await this.store.setDailyWater(key, Math.round(ml));
+    this.cancelEditWater();
+  }
+
+  protected onWaterDialogBackdropClick(evt: MouseEvent): void {
+    if (evt.target === evt.currentTarget) {
+      this.cancelEditWater();
     }
   }
   // iOS fix: remove tape-in class after animation ends to release GPU compositing layers.

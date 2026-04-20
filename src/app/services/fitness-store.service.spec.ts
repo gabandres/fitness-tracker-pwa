@@ -35,6 +35,8 @@ describe('FitnessStore', () => {
     getLatestReport: ReturnType<typeof vi.fn>;
     getDailyWeights: ReturnType<typeof vi.fn>;
     setDailyWeight: ReturnType<typeof vi.fn>;
+    getDailyWater: ReturnType<typeof vi.fn>;
+    setDailyWater: ReturnType<typeof vi.fn>;
   };
 
   const completedProfile: UserProfile = {
@@ -88,6 +90,8 @@ describe('FitnessStore', () => {
       getLatestReport: vi.fn().mockResolvedValue(null),
       getDailyWeights: vi.fn().mockResolvedValue({}),
       setDailyWeight: vi.fn().mockResolvedValue(undefined),
+      getDailyWater: vi.fn().mockResolvedValue({}),
+      setDailyWater: vi.fn().mockResolvedValue(undefined),
     };
 
     TestBed.configureTestingModule({

@@ -673,13 +673,14 @@ export const exportUserData = onCall({ maxInstances: 5 }, async (request) => {
     return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   };
 
-  const [profileSnap, dailyLogs, presets, reports, dailyWeights, measurements, photoQuota, consultationQuota] =
+  const [profileSnap, dailyLogs, presets, reports, dailyWeights, dailyWater, measurements, photoQuota, consultationQuota] =
     await Promise.all([
       userRef.get(),
       dumpCollection("dailyLogs"),
       dumpCollection("presets"),
       dumpCollection("reports"),
       dumpCollection("dailyWeights"),
+      dumpCollection("dailyWater"),
       dumpCollection("measurements"),
       dumpQuota("photoQuota"),
       dumpQuota("consultationQuota"),
@@ -704,6 +705,7 @@ export const exportUserData = onCall({ maxInstances: 5 }, async (request) => {
     presets,
     reports,
     dailyWeights,
+    dailyWater,
     measurements,
     photoQuota,
     consultationQuota,
@@ -752,6 +754,7 @@ export const deleteAccount = onCall(async (request) => {
       deleteSubcollection(userPath, "presets"),
       deleteSubcollection(userPath, "reports"),
       deleteSubcollection(userPath, "dailyWeights"),
+      deleteSubcollection(userPath, "dailyWater"),
       deleteSubcollection(userPath, "measurements"),
     ]);
 

@@ -323,6 +323,22 @@
     "copyingDay": "copiando…",
     "copyDayTitle": "Copiar todas las comidas de este día a hoy",
     "copyDayAria": "Copiar las {{count}} entradas de este día a hoy",
+    "water": {
+      "unitOz": "oz",
+      "unitMl": "ml",
+      "addGlass": "+ vaso",
+      "addBottle": "+ botella",
+      "addLarge": "+ 1L",
+      "addGlassAria": "Añadir 250 mililitros de agua",
+      "addBottleAria": "Añadir 500 mililitros de agua",
+      "addLargeAria": "Añadir 1 litro de agua",
+      "editAria": "Editar consumo de agua de hoy",
+      "placeholder": "0",
+      "inputAria": "Consumo de agua",
+      "modalAria": "Registro de consumo de agua",
+      "modalStamp": "hidratación",
+      "modalTitle": "registrar agua"
+    },
     "weight": {
       "lb": "lb",
       "saveAria": "Guardar peso",

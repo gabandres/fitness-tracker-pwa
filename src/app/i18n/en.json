@@ -317,6 +317,22 @@
     "copyingDay": "copying…",
     "copyDayTitle": "Copy every meal from this day into today",
     "copyDayAria": "Copy all {{count}} entries from this day into today",
+    "water": {
+      "unitOz": "oz",
+      "unitMl": "ml",
+      "addGlass": "+ glass",
+      "addBottle": "+ bottle",
+      "addLarge": "+ 1L",
+      "addGlassAria": "Add 250 millilitres of water",
+      "addBottleAria": "Add 500 millilitres of water",
+      "addLargeAria": "Add 1 litre of water",
+      "editAria": "Edit today's water intake",
+      "placeholder": "0",
+      "inputAria": "Water intake",
+      "modalAria": "Water intake entry",
+      "modalStamp": "hydration",
+      "modalTitle": "record water"
+    },
     "weight": {
       "lb": "lb",
       "saveAria": "Save weight",

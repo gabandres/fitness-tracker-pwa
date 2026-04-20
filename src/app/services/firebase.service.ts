@@ -393,6 +393,30 @@ export class FirebaseService {
     await setDoc(ref, { weight });
   }
 
+  // ─── Daily water ──────────────────────────────────────────────
+  // Stored in milliliters (single source of truth); client renders oz/ml
+  // based on locale. Same shape as dailyWeights: one doc per date keyed
+  // by the dateKey. Rules cap at 20000 ml (~5 gal) to catch fat-finger
+  // entries that would otherwise pollute charts.
+  private waterCollection() {
+    return collection(this.firestore, 'users', this.requireUid(), 'dailyWater');
+  }
+
+  async getDailyWater(): Promise<Record<string, number>> {
+    const snap = await getDocs(this.waterCollection());
+    const water: Record<string, number> = {};
+    for (const d of snap.docs) {
+      const data = d.data() as { ml: number };
+      water[d.id] = data.ml;
+    }
+    return water;
+  }
+
+  async setDailyWater(dateKey: string, ml: number): Promise<void> {
+    const ref = doc(this.firestore, 'users', this.requireUid(), 'dailyWater', dateKey);
+    await setDoc(ref, { ml: Math.max(0, Math.min(20000, Math.round(ml))) });
+  }
+
   // ─── Meal presets ─────────────────────────────────────────────
   private presetsCollection() {
     return collection(this.firestore, 'users', this.requireUid(), 'presets');

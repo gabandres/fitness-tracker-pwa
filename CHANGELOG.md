@@ -6,6 +6,17 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-20 — Water intake tracking
+
+New hydration row under today's day header with three quick-add buttons (glass 250 ml, bottle 500 ml, 1 L) and a tap-to-edit exact-value modal. Stored in milliliters as the single source of truth; the UI displays oz with 1-decimal precision in English, ml integer in Spanish — no per-user unit toggle since the Transloco active language is already an adequate proxy.
+
+- New `users/{uid}/dailyWater/{dateKey}` subcollection. Schema-validated in rules: a single `ml` field, 0–20 000 range (upper bound ~5 gal to reject fat-finger fouls without blocking heavy athletes).
+- `FirebaseService.getDailyWater()` + `setDailyWater()` match the `dailyWeights` pattern for consistency. Client-side increments via `FitnessStore.addWater(dateKey, deltaMl)` read the current signal value and write the resulting total (single-user app; no transactional read-modify-write needed).
+- Modal reuses the native `<dialog>` pattern introduced for weight editing so ancestor transforms can't shove it off-viewport. Haptic feedback (`navigator.vibrate(12)`) on each quick-add tap to mirror the save-meal affordance.
+- Water is **only visible for today** for now. Past-day hydration still exists in storage and will flow into the weekly AI report context once wired, but the ledger scroll stays clean — hydration-curious users see today's row, hydration-indifferent users see nothing new.
+- No daily target. "8 glasses a day" is folklore, not evidence; a progress bar would violate the calm positioning. If/when a target lands, it has to be driven by activity and climate inputs, not a flat default.
+- `deleteAccount` + `exportUserData` updated to cover the new subcollection (GDPR Art. 17 + 20 stay complete).
+
 ## 2026-04-19 — Quiet milestone line in the weekly AI report
 
 Added positive-feedback signal without breaking the calm brand. The weekly Gemini report now receives a small milestone-context block when the user crosses a meaningful threshold — first week, two weeks, one month, three months, six months, one year of logging, long current streaks (≥30 days), or 100 / 500 / 1000 total meals logged. The prompt explicitly tells Gemini to use a dietician's nod tone (no emojis, no exclamation points, one italicized sentence at the end, grounded in what the data means for progress rather than the milestone itself) — and to skip the line entirely when the body of the report is already covering that theme. Scope is minimal: empty milestone state produces an empty prompt fragment, so reports for users who haven't crossed a threshold render exactly as before.

@@ -94,6 +94,7 @@ export class FitnessStore {
   private readonly _budgetCrossed = signal(false);
   private readonly _measurements = signal<Measurement[]>([]);
   private readonly _dailyWeights = signal<Record<string, number>>({});
+  private readonly _dailyWater = signal<Record<string, number>>({});
   private readonly _undoEntry = signal<DailyLog | null>(null);
   private _undoTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -109,6 +110,7 @@ export class FitnessStore {
   readonly budgetCrossed: Signal<boolean> = this._budgetCrossed.asReadonly();
   readonly measurements: Signal<Measurement[]> = this._measurements.asReadonly();
   readonly dailyWeights: Signal<Record<string, number>> = this._dailyWeights.asReadonly();
+  readonly dailyWater: Signal<Record<string, number>> = this._dailyWater.asReadonly();
   readonly latestMeasurement: Signal<Measurement | null> = computed(() => this._measurements()[0] ?? null);
   readonly previousMeasurement: Signal<Measurement | null> = computed(() => this._measurements()[1] ?? null);
   /**
@@ -447,6 +449,22 @@ export class FitnessStore {
     this._dailyWeights.update((prev) => ({ ...prev, [dateKey]: weight }));
   }
 
+  /** Overwrite the water intake total for a specific day (ml). */
+  async setDailyWater(dateKey: string, ml: number): Promise<void> {
+    const clamped = Math.max(0, Math.min(20000, Math.round(ml)));
+    await this.fb.setDailyWater(dateKey, clamped);
+    this._dailyWater.update((prev) => ({ ...prev, [dateKey]: clamped }));
+  }
+
+  /** Increment water intake for a specific day by `deltaMl`. Computes
+      the next total client-side from the current signal value — no
+      transactional read/modify/write since a single-user app doesn't
+      have concurrent writers for the same day. */
+  async addWater(dateKey: string, deltaMl: number): Promise<void> {
+    const current = this._dailyWater()[dateKey] ?? 0;
+    await this.setDailyWater(dateKey, current + deltaMl);
+  }
+
   async addLog(entry: LogEntry): Promise<void> {
     await this.fb.addLog(entry);
     await this._load();
@@ -677,16 +695,18 @@ export class FitnessStore {
       // it bumps lastSeenAt. Idempotent.
       await this.fb.ensureUserProfile();
 
-      const [logs, presets, measurements, dailyWeights] = await Promise.all([
+      const [logs, presets, measurements, dailyWeights, dailyWater] = await Promise.all([
         this.fb.getRecentLogs(14),
         this.fb.getPresets(),
         this.fb.getRecentMeasurements(),
         this.fb.getDailyWeights(),
+        this.fb.getDailyWater(),
       ]);
       this._logs.set(logs);
       this._presets.set(presets);
       this._measurements.set(measurements);
       this._dailyWeights.set(dailyWeights);
+      this._dailyWater.set(dailyWater);
       this._status.set('ready');
 
       // Fire-and-forget background tasks.
@@ -778,6 +798,7 @@ export class FitnessStore {
     this._reportLoading.set(false);
     this._reportError.set(null);
     this._measurements.set([]);
+    this._dailyWater.set({});
     this._allTimeLogs.set([]);
   }
 }

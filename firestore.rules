@@ -177,6 +177,21 @@ service cloud.firestore {
             && request.resource.data.weight < 1000;
       }
 
+      // Daily water intake — one doc per calendar day keyed by date.
+      // Stored in milliliters as the single source of truth; the client
+      // renders oz or ml based on locale. Upper bound of 20_000 ml is
+      // ~5 gallons — implausible but catches fat-finger data that would
+      // otherwise pollute long-horizon charts.
+      match /dailyWater/{dateKey} {
+        allow read:   if isOwner(uid);
+        allow write:  if isOwner(uid)
+            && request.resource.data.keys().hasAll(['ml'])
+            && request.resource.data.keys().hasOnly(['ml'])
+            && request.resource.data.ml is number
+            && request.resource.data.ml >= 0
+            && request.resource.data.ml <= 20000;
+      }
+
       // Body measurements — weekly/biweekly body-comp tracking.
       match /measurements/{measurementId} {
         allow read:   if isOwner(uid);
