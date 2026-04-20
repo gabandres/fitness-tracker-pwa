@@ -170,16 +170,17 @@ interface DayGroup {
                the canonical quick-log path on days where the tape row
                isn't visible (e.g. mobile insights tab). -->
           @if (!hasTodayRow()) {
+            <!-- Styled as a real button, not an italicized label, so the
+                 tap target is findable. Previously this read as body copy
+                 and users didn't realize it was interactive. -->
             <button type="button" (click)="startEditWeight(todayKey, todayWeight())"
               [attr.aria-label]="todayWeight() != null ? t('daily.weight.editAria') : t('daily.weight.addAria')"
-              class="font-sans text-xs tabular-nums hover:underline"
-              [class.text-graphite]="todayWeight() != null"
-              [class.text-graphite-soft]="todayWeight() == null"
+              class="tag-btn text-xs tabular-nums min-h-[36px] px-3 flex items-center gap-1"
               [class.italic]="todayWeight() == null">
               @if (todayWeight() != null) {
-                {{ todayWeight() }}<span class="text-[11px] ml-0.5">{{ t('daily.weight.lb') }}</span>
+                <span>{{ todayWeight() }}</span><span class="text-[11px] opacity-70">{{ t('daily.weight.lb') }}</span>
               } @else {
-                {{ t('daily.weight.addWeight') }}
+                <span>{{ t('daily.weight.addWeight') }}</span>
               }
             </button>
           }
@@ -248,21 +249,19 @@ interface DayGroup {
                   [class.text-ink]="day.dateKey !== todayKey">
                   {{ day.dateKey === todayKey ? t('daily.today') : day.dateLabel }}
                 </span>
-                <!-- Display-only weight chip. Tap opens the dedicated
-                     weight-edit modal (rendered once at the bottom of this
-                     template) so the day header stays compact and the
-                     editing surface gets a full-size touch target regardless
-                     of row crowding. -->
+                <!-- Weight chip. Tap opens the dedicated weight-edit
+                     modal (rendered once at the bottom of this template).
+                     Rendered as a real pill button so the interaction is
+                     obvious — prior italicized text disguised the tap
+                     target and users couldn't find where to enter weight. -->
                 <button type="button" (click)="startEditWeight(day.dateKey, day.weight); $event.stopPropagation()"
                   [attr.aria-label]="day.weight != null ? t('daily.weight.editAria') : t('daily.weight.addAria')"
-                  class="font-sans text-sm sm:text-xs tabular-nums hover:underline min-h-[36px] sm:min-h-0 flex items-center px-2 sm:px-0 -mx-1 sm:mx-0"
-                  [class.text-graphite]="day.weight != null"
-                  [class.text-graphite-soft]="day.weight == null"
+                  class="tag-btn text-xs sm:text-[11px] tabular-nums min-h-[36px] sm:min-h-0 px-2 sm:px-1.5 py-0.5 flex items-center gap-1"
                   [class.italic]="day.weight == null">
                   @if (day.weight != null) {
-                    {{ day.weight }}<span class="text-xs sm:text-[11px] ml-0.5">{{ t('daily.weight.lb') }}</span>
+                    <span>{{ day.weight }}</span><span class="text-[11px] opacity-70">{{ t('daily.weight.lb') }}</span>
                   } @else {
-                    {{ t('daily.weight.addWt') }}
+                    <span>{{ t('daily.weight.addWt') }}</span>
                   }
                 </button>
                 <button type="button" (click)="toggleExercise(day); $event.stopPropagation()"
