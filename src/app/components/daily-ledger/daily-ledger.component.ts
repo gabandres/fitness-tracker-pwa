@@ -426,12 +426,12 @@ interface DayGroup {
         </div>
       }
 
-      <!-- Weight edit modal. Solid background set inline (not via
-           `bg-paper` / `.specimen`) because `.specimen`'s gradient
-           produces a translucent fill that lets the ledger rows behind
-           the modal bleed through. An overlay dialog needs opacity 1
-           regardless of theme token quirks. Dismiss via backdrop tap,
-           Esc, or cancel; Enter submits via form submit. -->
+      <!-- Weight edit modal. Solid background is set via inline style
+           because the .specimen class applies only a faint top-gradient
+           highlight, not a solid fill — in a modal context that lets
+           the ledger rows behind it bleed through. A dialog surface
+           needs opacity 1 regardless of theme-token quirks. Dismiss
+           via backdrop tap, Escape, or cancel; Enter submits. -->
       @if (editingWeightDay(); as targetKey) {
         <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-[fade-in_150ms_ease]"
           style="background-color: rgba(26, 22, 18, 0.55);"
