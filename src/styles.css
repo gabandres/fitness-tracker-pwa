@@ -202,6 +202,24 @@ body {
   color: var(--color-graphite); font-weight: 600;
 }
 
+/* Native <dialog>-based modal used for weight entry. The default UA
+   styles center the dialog in the viewport and render it in the top
+   layer, which is what we want — any ancestor `transform` (ledger's
+   .ink-in animation) would pin a position:fixed container to that
+   ancestor. top-layer rendering escapes that. */
+.weight-dialog {
+  background: transparent;
+  border: none;
+  padding: 0;
+  max-width: 90vw;
+  max-height: 90vh;
+  margin: auto;
+  overflow: visible;
+}
+.weight-dialog::backdrop {
+  background-color: rgba(26, 22, 18, 0.55);
+}
+
 /* Specimen cards: softened corners on most, crop marks only on key ones */
 .specimen {
   position: relative; border: 1px solid var(--color-rule);

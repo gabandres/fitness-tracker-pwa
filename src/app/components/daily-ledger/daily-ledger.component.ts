@@ -426,54 +426,51 @@ interface DayGroup {
         </div>
       }
 
-      <!-- Weight edit modal. Solid background is set via inline style
-           because the .specimen class applies only a faint top-gradient
-           highlight, not a solid fill — in a modal context that lets
-           the ledger rows behind it bleed through. A dialog surface
-           needs opacity 1 regardless of theme-token quirks. Dismiss
-           via backdrop tap, Escape, or cancel; Enter submits. -->
-      @if (editingWeightDay(); as targetKey) {
-        <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-[fade-in_150ms_ease]"
-          style="background-color: rgba(26, 22, 18, 0.55);"
-          role="dialog" aria-modal="true" [attr.aria-label]="t('daily.weight.modalAria')"
-          (click)="cancelEditWeight()"
-          (keydown.escape)="cancelEditWeight()">
-          <form (submit)="submitWeightModal($event)" (click)="$event.stopPropagation()"
-            class="relative max-w-xs w-full px-6 py-6 shadow-2xl rounded-md"
-            style="background-color: var(--color-paper); border: 1px solid var(--color-rule);">
-            <div class="flex items-center gap-2 mb-1">
-              <span class="stamp-mark">{{ t('daily.weight.modalStamp') }}</span>
-              <span class="data-label">{{ weightModalDateLabel() }}</span>
-            </div>
-            <h3 class="font-display italic text-2xl text-ink leading-[1.05] mt-1">
-              {{ t('daily.weight.modalTitle') }}
-            </h3>
+      <!-- Weight edit modal. Uses the native <dialog> element (showModal)
+           so the overlay renders in the browser's top layer and escapes
+           the transform-containing-block created by ancestor animations
+           (the ledger wrapper has .ink-in which keeps a persistent
+           translateY(0) on the element, pinning any fixed/absolute
+           descendants to that ancestor rather than the viewport).
+           Escape dismissal, focus, and z-order are browser-native. -->
+      <dialog #weightDialog
+        class="weight-dialog"
+        [attr.aria-label]="t('daily.weight.modalAria')"
+        (close)="cancelEditWeight()"
+        (click)="onWeightDialogBackdropClick($event)">
+        <form method="dialog" (submit)="submitWeightModal($event)"
+          class="relative max-w-xs w-full px-6 py-6 rounded-md"
+          style="background-color: var(--color-paper); border: 1px solid var(--color-rule); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35);">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="stamp-mark">{{ t('daily.weight.modalStamp') }}</span>
+            <span class="data-label">{{ weightModalDateLabel() }}</span>
+          </div>
+          <h3 class="font-display italic text-2xl text-ink leading-[1.05] mt-1">
+            {{ t('daily.weight.modalTitle') }}
+          </h3>
 
-            <!-- Big, centered input. 16px+ font prevents iOS auto-zoom.
-                 Auto-focused via effect + ViewChild in the class. -->
-            <div class="mt-5 flex items-baseline justify-center gap-2">
-              <input #weightModalInput
-                type="number" step="0.1" inputmode="decimal"
-                [ngModel]="weightInput()" (ngModelChange)="weightInput.set($event)"
-                name="modalWeight" [attr.placeholder]="t('daily.weight.placeholder')"
-                [attr.aria-label]="t('daily.weight.inputAria')"
-                class="field-input text-3xl font-mono tabular-nums w-32 text-center py-3 px-2" />
-              <span class="font-display italic text-graphite text-lg">{{ t('daily.weight.lb') }}</span>
-            </div>
+          <div class="mt-5 flex items-baseline justify-center gap-2">
+            <input #weightModalInput
+              type="number" step="0.1" inputmode="decimal"
+              [ngModel]="weightInput()" (ngModelChange)="weightInput.set($event)"
+              name="modalWeight" [attr.placeholder]="t('daily.weight.placeholder')"
+              [attr.aria-label]="t('daily.weight.inputAria')"
+              class="field-input text-3xl font-mono tabular-nums w-32 text-center py-3 px-2" />
+            <span class="font-display italic text-graphite text-lg">{{ t('daily.weight.lb') }}</span>
+          </div>
 
-            <div class="mt-6 flex gap-2">
-              <button type="button" (click)="cancelEditWeight()"
-                class="tag-btn flex-1 justify-center min-h-[44px]">
-                {{ t('daily.weight.cancelLabel') }}
-              </button>
-              <button type="submit"
-                class="stamp-btn flex-1 justify-center min-h-[44px]">
-                {{ t('daily.weight.saveLabel') }}
-              </button>
-            </div>
-          </form>
-        </div>
-      }
+          <div class="mt-6 flex gap-2">
+            <button type="button" (click)="cancelEditWeight()"
+              class="tag-btn flex-1 justify-center min-h-[44px]">
+              {{ t('daily.weight.cancelLabel') }}
+            </button>
+            <button type="submit"
+              class="stamp-btn flex-1 justify-center min-h-[44px]">
+              {{ t('daily.weight.saveLabel') }}
+            </button>
+          </div>
+        </form>
+      </dialog>
 
       <!-- Day-budget closure toast: fires once per day the first time
            today's calorie total crosses the computed daily target. The
@@ -542,6 +539,7 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
   @ViewChild('swipeArea') private readonly swipeAreaRef!: ElementRef<HTMLElement>;
   @ViewChild('undoBtn') private readonly undoBtnRef?: ElementRef<HTMLButtonElement>;
   @ViewChild('weightModalInput') private readonly weightModalInputRef?: ElementRef<HTMLInputElement>;
+  @ViewChild('weightDialog') private readonly weightDialogRef?: ElementRef<HTMLDialogElement>;
   private readonly swipeStartFn = (e: TouchEvent) => this.onSwipeStart(e);
   private readonly swipeEndFn = (e: TouchEvent) => this.onSwipeEnd(e);
 
@@ -555,13 +553,33 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
         queueMicrotask(() => this.undoBtnRef?.nativeElement.focus());
       }
     });
-    // Auto-focus the weight modal input on open. Deferred via rAF so the
-    // element exists in the DOM when we call focus() — @if blocks render
-    // asynchronously relative to the signal flip.
+    // Open / close the native <dialog> imperatively in response to the
+    // `editingWeightDay` signal. showModal() is what actually promotes
+    // the element into the browser's top layer — without it, the dialog
+    // renders inline and inherits the transform-containing-block from
+    // the ledger's .ink-in ancestor (the bug that made the modal render
+    // mid-ledger instead of viewport-centered).
     effect(() => {
-      if (this.editingWeightDay() === null) return;
-      requestAnimationFrame(() => this.weightModalInputRef?.nativeElement?.focus());
+      const open = this.editingWeightDay() !== null;
+      const el = this.weightDialogRef?.nativeElement;
+      if (!el) return;
+      if (open && !el.open) {
+        el.showModal();
+        requestAnimationFrame(() => this.weightModalInputRef?.nativeElement?.focus());
+      } else if (!open && el.open) {
+        el.close();
+      }
     });
+  }
+
+  /** Close the modal when the user clicks the dialog's backdrop (the
+      area outside the inner form). Native <dialog> fires click events
+      on the dialog element itself when the click lands on the backdrop;
+      clicks inside any child bubble with a different `currentTarget`. */
+  protected onWeightDialogBackdropClick(evt: MouseEvent): void {
+    if (evt.target === evt.currentTarget) {
+      this.cancelEditWeight();
+    }
   }
   // iOS fix: remove tape-in class after animation ends to release GPU compositing layers.
   // Nested compositing layers from fill-mode:both cause iOS Safari hit-test failures.
