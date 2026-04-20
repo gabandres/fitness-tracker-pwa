@@ -6,6 +6,10 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-19 — Quiet milestone line in the weekly AI report
+
+Added positive-feedback signal without breaking the calm brand. The weekly Gemini report now receives a small milestone-context block when the user crosses a meaningful threshold — first week, two weeks, one month, three months, six months, one year of logging, long current streaks (≥30 days), or 100 / 500 / 1000 total meals logged. The prompt explicitly tells Gemini to use a dietician's nod tone (no emojis, no exclamation points, one italicized sentence at the end, grounded in what the data means for progress rather than the milestone itself) — and to skip the line entirely when the body of the report is already covering that theme. Scope is minimal: empty milestone state produces an empty prompt fragment, so reports for users who haven't crossed a threshold render exactly as before.
+
 ## 2026-04-19 — Product gaps: welcome email, account linking, history search, copy-any-day
 
 Batch of four product-side features that close the biggest gaps surfaced in the launch-readiness review.

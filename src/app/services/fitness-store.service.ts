@@ -709,7 +709,19 @@ export class FitnessStore {
       const logs = this._logs();
       const tdee = this.tdee();
       const profile = this._profileFields();
-      const result = await this.gemini.generateWeeklyReport(logs, tdee, profile, this._dailyWeights());
+      // All-time signals fuel the quiet-milestone line in the report.
+      // Use the internal uncapped signal (not the 90-day-windowed public
+      // `allTimeLogs`) so milestones track lifetime, not visible history.
+      const allTime = this._allTimeLogs();
+      const earliestLogAt = allTime.length > 0
+        ? allTime.reduce((min, l) => l.date.getTime() < min ? l.date.getTime() : min, Infinity)
+        : null;
+      const milestoneContext = {
+        totalLogs: allTime.length,
+        earliestLogAt: earliestLogAt != null && isFinite(earliestLogAt) ? new Date(earliestLogAt) : null,
+        currentStreak: this.streak(),
+      };
+      const result = await this.gemini.generateWeeklyReport(logs, tdee, profile, this._dailyWeights(), milestoneContext);
       this._weeklyReport.set({
         id: result.id,
         markdown: result.markdown,

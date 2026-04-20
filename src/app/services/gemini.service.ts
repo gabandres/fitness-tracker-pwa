@@ -27,6 +27,19 @@ export interface GeneratedWeeklyReport {
 }
 
 /**
+ * All-time signals the weekly report uses to compose the quiet-
+ * acknowledgment line. Deliberately small: just the scalars needed to
+ * recognize a meaningful milestone (first week logged, N-day streak,
+ * 30/90/180 days in, 100th entry) without shipping the whole log
+ * history to the server.
+ */
+export interface MilestoneContext {
+  totalLogs: number;
+  earliestLogAt: Date | null;
+  currentStreak: number;
+}
+
+/**
  * Thin wrapper around the Google GenAI SDK.
  *
  * IMPORTANT: the API key is embedded in the client bundle. It is
@@ -138,8 +151,10 @@ export class GeminiService {
     tdee: TdeeResult,
     profile: ProfileFields | null,
     dailyWeights: Record<string, number> = {},
+    milestoneContext?: MilestoneContext,
   ): Promise<GeneratedWeeklyReport> {
     const systemInstruction = this.buildSystemInstruction(logs, tdee, profile, dailyWeights) + this.langSuffix();
+    const milestoneLine = milestoneContext ? this.formatMilestoneContext(milestoneContext) : '';
     const prompt = [
       'Generate a concise weekly review covering:',
       '1. Progress toward goal (weight trend, pace vs target)',
@@ -149,7 +164,8 @@ export class GeminiService {
       '5. One specific, actionable recommendation for next week',
       '',
       'Format as markdown. Keep it under 300 words. Be direct and data-driven.',
-    ].join('\n');
+      milestoneLine,
+    ].filter((s) => s.length > 0).join('\n');
 
     const callable = httpsCallable<
       { systemInstruction: string; prompt: string },
@@ -251,5 +267,63 @@ export class GeminiService {
     const ft = Math.floor(totalInches / 12);
     const inches = totalInches % 12;
     return `${ft}'${inches}"`;
+  }
+
+  /**
+   * Compose a "quiet milestone" instruction fragment that's appended to
+   * the weekly-report prompt. Returns the empty string when no milestone
+   * has been hit — in which case the prompt stays unchanged and the
+   * report renders exactly as before.
+   *
+   * The tone rules are deliberately prescriptive: Macro Log's brand is
+   * calm, not celebratory. No "🎉" or "amazing!" — a dietician's nod,
+   * not a cheerleader's shout.
+   */
+  private formatMilestoneContext(ctx: MilestoneContext): string {
+    const milestones: string[] = [];
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const daysLogged = ctx.earliestLogAt
+      ? Math.floor((Date.now() - ctx.earliestLogAt.getTime()) / DAY_MS)
+      : 0;
+
+    // "First week completed" — gentler than "first log"; the adaptive
+    // TDEE engine actually starts producing signal after a week of data.
+    if (daysLogged >= 7 && daysLogged < 14) {
+      milestones.push('First week of logging completed — the app is starting to see the user\'s patterns.');
+    } else if (daysLogged >= 14 && daysLogged < 21) {
+      milestones.push('Two weeks of logging — the measured-TDEE engine now has enough data to refine the target.');
+    } else if (daysLogged >= 30 && daysLogged < 60) {
+      milestones.push('One month of logging — the adaptive TDEE is noticeably tighter than the formula estimate by now.');
+    } else if (daysLogged >= 90 && daysLogged < 120) {
+      milestones.push('Three months of logging — long enough that weekly weight trends smooth out day-to-day water-weight noise.');
+    } else if (daysLogged >= 180 && daysLogged < 210) {
+      milestones.push('Six months of logging — a rare signal in the behavior-change literature; the user is in the 5% who stay consistent.');
+    } else if (daysLogged >= 365 && daysLogged < 395) {
+      milestones.push('One full year of logging.');
+    }
+
+    if (ctx.currentStreak >= 30 && ctx.currentStreak < 60) {
+      milestones.push(`Current consecutive-day streak: ${ctx.currentStreak} days.`);
+    } else if (ctx.currentStreak >= 100) {
+      milestones.push(`Current consecutive-day streak: ${ctx.currentStreak} days (deep consistency territory).`);
+    }
+
+    if (ctx.totalLogs === 100) {
+      milestones.push('100th meal logged this week.');
+    } else if (ctx.totalLogs >= 500 && ctx.totalLogs < 510) {
+      milestones.push(`${ctx.totalLogs} meals logged — five hundred data points of real intake.`);
+    } else if (ctx.totalLogs >= 1000 && ctx.totalLogs < 1010) {
+      milestones.push(`${ctx.totalLogs} meals logged — four-figure territory.`);
+    }
+
+    if (milestones.length === 0) return '';
+
+    return [
+      '',
+      'Milestone context (do NOT celebrate loudly — tone must stay calm and dietician-like):',
+      ...milestones.map((m) => `- ${m}`),
+      '',
+      'If any of these feels worth a brief acknowledgment, add ONE concise italicized line at the very end of the report (after the recommendation). Ground it in what the data means for the user\'s progress, not in the milestone itself. Skip the line entirely if the body of the report is already covering the same theme. No emojis. No exclamation points. One sentence, maximum.',
+    ].join('\n');
   }
 }
