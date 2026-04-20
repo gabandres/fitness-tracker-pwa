@@ -270,16 +270,43 @@ export class FitnessStore {
     const goal = profile?.goalWeightLbs;
     const current = this.currentWeight();
     if (!goal || current == null) return null;
-    const list = this._logs();
-    // Find the earliest non-null weight as the starting point.
-    let start: number = current;
-    for (const l of list) {
-      if (l.weight != null) { start = l.weight; break; }
+
+    // Starting weight: the earliest weight on record across ALL sources,
+    // not the rolling 14-day window. Previously the loop walked `_logs()`
+    // (14-day cap) for an `l.weight` — both assumptions were wrong:
+    //   1. The 14-day window made `start` drift forward as old days rolled
+    //      off, shrinking the (start - current) numerator and pinning the
+    //      progress bar at ~0% even after real progress.
+    //   2. Log-embedded `l.weight` is the legacy path; current writes go
+    //      to the `dailyWeights` subcollection, so daily-weight-only users
+    //      had `start === current` from day one.
+    // Now: prefer the oldest dailyWeights entry, then fall back to the
+    // oldest all-time log with a weight, then the current reading.
+    const dw = this._dailyWeights();
+    const dwKeys = Object.keys(dw).sort();
+    let start: number | null = dwKeys.length > 0 ? dw[dwKeys[0]] : null;
+    if (start == null) {
+      const all = this._allTimeLogs();
+      // _allTimeLogs is oldest-first (same as _logs); walk forward for the
+      // first weighted entry.
+      for (const l of all) {
+        if (l.weight != null) { start = l.weight; break; }
+      }
     }
-    const totalToLose = start - goal;
-    if (totalToLose <= 0) return null;
-    const pct = Math.min(100, Math.max(0, Math.round(((start - current) / totalToLose) * 100)));
-    const remaining = Math.max(0, +(current - goal).toFixed(1));
+    if (start == null) start = current;
+
+    // Supports both cut (start > goal) and bulk (start < goal). Guarding
+    // on identity avoids a divide-by-zero when the user picks a goal
+    // equal to their starting weight — in that edge case, progress is
+    // undefined and we hide the bar.
+    const totalDelta = Math.abs(goal - start);
+    if (totalDelta === 0) return null;
+
+    const progressed = start > goal
+      ? start - current   // cutting: progress counts pounds lost
+      : current - start;  // bulking: progress counts pounds gained
+    const pct = Math.min(100, Math.max(0, Math.round((progressed / totalDelta) * 100)));
+    const remaining = Math.max(0, +Math.abs(current - goal).toFixed(1));
     return { startWeight: start, currentWeight: current, goalWeight: goal, pct, remaining };
   });
 
