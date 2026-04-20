@@ -6,6 +6,12 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-19 — Stripe Tax activated + default SaaS tax code
+
+Last §S13 hard blocker cleared. Stripe Tax is live, the account default tax code is `txcd_10103000` ("Software as a service (SaaS) - personal use") which applies to Macro Log Pro via account-default inheritance. Puerto Rico head-office address is registered with Stripe.
+
+No jurisdictional tax registrations yet — Stripe monitors US state thresholds for free and flags when any are close, and at today's zero-EU-volume state that's the right posture. When a PR customer buys we'll need to register with Hacienda for SUT/IVU and record it via the Tax Registrations API; when EU volume materializes, EU OSS + UK HMRC registrations go in via the same API.
+
 ## 2026-04-19 — Stripe live-mode verified end-to-end
 
 Proved programmatically via Stripe CLI + Cloud Functions logs that our live-mode Stripe pipeline is consistent — product, both prices, the webhook endpoint, and the signing secret configured in the `firestore-stripe-payments` Firebase extension. This was the last of the §S13 hard blockers we could clear without dashboard-form work.
