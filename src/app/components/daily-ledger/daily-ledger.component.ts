@@ -242,21 +242,41 @@ interface DayGroup {
             [class.border-rule/60]="day.dateKey !== todayKey"
             [class.bg-paper-deep]="day.dateKey === todayKey"
             [style.animation-delay]="(di * 60) + 'ms'" style="cursor: default;">
-            <div class="flex items-center justify-between gap-2">
-              <div class="flex items-center gap-3">
+            <!-- Day header. Two priority groups:
+                  1) Identity+totals — date, cal, protein. Always visible,
+                     never wraps, sits on the first visual line.
+                  2) Actions — weight / exercise / copy. Secondary; flex-
+                     wraps to a second line on narrow viewports before
+                     anything in group 1 can clip.
+                 The outer container uses flex-wrap so the two groups
+                 stack vertically on mobile without the prior layout's
+                 overflow bug where protein clipped past the right edge
+                 and the date wrapped to 3 lines for lack of horizontal
+                 budget. -->
+            <div class="flex items-center justify-between gap-x-3 gap-y-2 flex-wrap">
+              <!-- Identity + totals (primary, never wraps internally) -->
+              <div class="flex items-baseline gap-3 whitespace-nowrap min-w-0">
                 <span class="font-sans text-xs tracking-[0.12em] font-medium"
                   [class.text-blood]="day.dateKey === todayKey"
                   [class.text-ink]="day.dateKey !== todayKey">
                   {{ day.dateKey === todayKey ? t('daily.today') : day.dateLabel }}
                 </span>
-                <!-- Weight chip. Tap opens the dedicated weight-edit
-                     modal (rendered once at the bottom of this template).
-                     Rendered as a real pill button so the interaction is
-                     obvious — prior italicized text disguised the tap
-                     target and users couldn't find where to enter weight. -->
+                <span class="font-mono text-sm font-medium tabular-nums" style="color: var(--color-blood)">
+                  {{ day.totalCalories }}<span class="text-[10px] ml-0.5 opacity-70">{{ t('daily.cal') }}</span>
+                </span>
+                @if (day.totalProtein > 0) {
+                  <span class="font-mono text-xs tabular-nums" style="color: var(--color-protein)">
+                    {{ day.totalProtein }}<span class="text-[10px] ml-0.5 opacity-70">{{ t('daily.g') }}</span>
+                  </span>
+                }
+              </div>
+
+              <!-- Actions (secondary; wraps to a new line when cramped) -->
+              <div class="flex items-center gap-1.5 flex-wrap justify-end">
+                <!-- Weight chip. Tap opens the dedicated weight-edit modal. -->
                 <button type="button" (click)="startEditWeight(day.dateKey, day.weight); $event.stopPropagation()"
                   [attr.aria-label]="day.weight != null ? t('daily.weight.editAria') : t('daily.weight.addAria')"
-                  class="tag-btn text-xs sm:text-[11px] tabular-nums min-h-[36px] sm:min-h-0 px-2 sm:px-1.5 py-0.5 flex items-center gap-1"
+                  class="tag-btn text-xs sm:text-[11px] tabular-nums min-h-[32px] sm:min-h-0 px-2 sm:px-1.5 py-0.5 flex items-center gap-1"
                   [class.italic]="day.weight == null">
                   @if (day.weight != null) {
                     <span>{{ day.weight }}</span><span class="text-[11px] opacity-70">{{ t('daily.weight.lb') }}</span>
@@ -265,35 +285,21 @@ interface DayGroup {
                   }
                 </button>
                 <button type="button" (click)="toggleExercise(day); $event.stopPropagation()"
-                  class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-sans tracking-[0.08em] uppercase font-medium border transition-colors duration-150"
+                  class="inline-flex items-center gap-0.5 px-2 sm:px-1.5 py-1 sm:py-0.5 rounded-full text-[10px] font-sans tracking-[0.08em] uppercase font-medium border transition-colors duration-150 min-h-[32px] sm:min-h-0"
                   [style.background]="day.exerciseCompleted ? 'var(--color-olive)' : 'transparent'"
                   [style.color]="day.exerciseCompleted ? 'var(--color-paper)' : 'var(--color-graphite-soft)'"
                   [style.border-color]="day.exerciseCompleted ? 'var(--color-olive)' : 'var(--color-rule)'"
                   [attr.aria-label]="day.exerciseCompleted ? t('daily.exerciseActiveAria') : t('daily.exerciseInactiveAria')"
                   [attr.title]="t('daily.exerciseTitle')">{{ t('daily.exercise') }}</button>
-                <!-- Copy-this-day-to-today: past days only, when there's
-                     anything to copy and today isn't already mirroring this
-                     day. Disabled while a copy is in flight so double-taps
-                     don't double-post. -->
                 @if (day.dateKey !== todayKey && day.meals.length > 0) {
                   <button type="button"
                     (click)="copyDayToToday(day.dateKey); $event.stopPropagation()"
                     [disabled]="copyingDayKey() === day.dateKey"
                     [attr.aria-label]="t('daily.copyDayAria', { count: day.meals.length })"
                     [attr.title]="t('daily.copyDayTitle')"
-                    class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-sans tracking-[0.08em] uppercase font-medium border transition-colors duration-150 text-graphite-soft border-rule hover:text-ink">
+                    class="inline-flex items-center px-2 sm:px-1.5 py-1 sm:py-0.5 rounded-full text-[10px] font-sans tracking-[0.08em] uppercase font-medium border transition-colors duration-150 text-graphite-soft border-rule hover:text-ink min-h-[32px] sm:min-h-0">
                     {{ copyingDayKey() === day.dateKey ? t('daily.copyingDay') : t('daily.copyDay') }}
                   </button>
-                }
-              </div>
-              <div class="flex items-center gap-3">
-                <span class="font-mono text-sm font-medium tabular-nums" style="color: var(--color-blood)">
-                  {{ day.totalCalories }}<span class="text-[10px] ml-0.5 opacity-70">{{ t('daily.cal') }}</span>
-                </span>
-                @if (day.totalProtein > 0) {
-                  <span class="font-mono text-xs tabular-nums" style="color: var(--color-protein)">
-                    {{ day.totalProtein }}<span class="text-[10px] ml-0.5 opacity-70">{{ t('daily.g') }}</span>
-                  </span>
                 }
               </div>
             </div>
