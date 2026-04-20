@@ -259,26 +259,32 @@ interface DayGroup {
                   [class.text-ink]="day.dateKey !== todayKey">
                   {{ day.dateKey === todayKey ? t('daily.today') : day.dateLabel }}
                 </span>
-                <!-- Tappable daily weight -->
+                <!-- Tappable daily weight. Input + buttons widen on mobile
+                     to hit the 44px tap-target minimum and use 16px font
+                     size so iOS Safari doesn't zoom the viewport on focus
+                     (below 16px it auto-zooms, which kicks the user out of
+                     the ledger view). Desktop stays compact via sm:. -->
                 @if (editingWeightDay() === day.dateKey) {
-                  <form class="flex items-baseline gap-1" (ngSubmit)="saveWeight(day); $event.stopPropagation()" (click)="$event.stopPropagation()">
+                  <form class="flex flex-wrap items-center gap-1.5 sm:gap-1" (ngSubmit)="saveWeight(day); $event.stopPropagation()" (click)="$event.stopPropagation()">
                     <input type="number" step="0.1" inputmode="decimal"
                       [ngModel]="weightInput()" (ngModelChange)="weightInput.set($event)"
                       name="dayWeight" [attr.placeholder]="t('daily.weight.placeholder')"
                       [attr.aria-label]="t('daily.weight.inputAria')"
-                      class="field-input text-xs w-16 py-0.5 px-1 tabular-nums" />
-                    <span class="font-display italic text-graphite text-[11px]">{{ t('daily.weight.lb') }}</span>
-                    <button type="submit" [attr.aria-label]="t('daily.weight.saveAria')" class="tag-btn text-[11px] py-0 px-1">{{ t('daily.weight.ok') }}</button>
-                    <button type="button" (click)="cancelEditWeight()" [attr.aria-label]="t('daily.weight.cancelAria')" class="tag-btn text-[11px] py-0 px-1">{{ t('daily.weight.x') }}</button>
+                      class="field-input text-base sm:text-xs w-24 sm:w-16 min-h-[44px] sm:min-h-0 py-2 sm:py-0.5 px-2 sm:px-1 tabular-nums" />
+                    <span class="font-display italic text-graphite text-xs sm:text-[11px]">{{ t('daily.weight.lb') }}</span>
+                    <button type="submit" [attr.aria-label]="t('daily.weight.saveAria')"
+                      class="tag-btn text-xs sm:text-[11px] min-h-[44px] sm:min-h-0 py-2 sm:py-0 px-3 sm:px-1">{{ t('daily.weight.ok') }}</button>
+                    <button type="button" (click)="cancelEditWeight()" [attr.aria-label]="t('daily.weight.cancelAria')"
+                      class="tag-btn text-xs sm:text-[11px] min-h-[44px] sm:min-h-0 py-2 sm:py-0 px-3 sm:px-1">{{ t('daily.weight.x') }}</button>
                   </form>
                 } @else {
                   <button type="button" (click)="startEditWeight(day.dateKey, day.weight); $event.stopPropagation()"
-                    class="font-sans text-xs tabular-nums hover:underline"
+                    class="font-sans text-sm sm:text-xs tabular-nums hover:underline min-h-[36px] sm:min-h-0 py-1 sm:py-0 px-2 sm:px-0 -mx-2 sm:mx-0"
                     [class.text-graphite]="day.weight != null"
                     [class.text-graphite-soft]="day.weight == null"
                     [class.italic]="day.weight == null">
                     @if (day.weight != null) {
-                      {{ day.weight }}<span class="text-[11px] ml-0.5">{{ t('daily.weight.lb') }}</span>
+                      {{ day.weight }}<span class="text-xs sm:text-[11px] ml-0.5">{{ t('daily.weight.lb') }}</span>
                     } @else {
                       {{ t('daily.weight.addWt') }}
                     }
