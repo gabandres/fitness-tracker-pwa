@@ -169,18 +169,7 @@ interface DayGroup {
                open; once editing completes, this top input reappears as
                the canonical quick-log path on days where the tape row
                isn't visible (e.g. mobile insights tab). -->
-          @if (editingWeightDay() === todayKey && !hasTodayRow()) {
-            <form class="flex items-baseline gap-1" (ngSubmit)="saveTodayWeight()" (click)="$event.stopPropagation()">
-              <input type="number" step="0.1" inputmode="decimal"
-                [ngModel]="weightInput()" (ngModelChange)="weightInput.set($event)"
-                name="todayWeight" [attr.placeholder]="t('daily.weight.placeholder')"
-                [attr.aria-label]="t('daily.weight.inputAria')"
-                class="field-input text-xs w-16 py-0.5 px-1 tabular-nums" />
-              <span class="font-display italic text-graphite text-[11px]">{{ t('daily.weight.lb') }}</span>
-              <button type="submit" [attr.aria-label]="t('daily.weight.saveAria')" class="tag-btn text-[11px] py-0 px-1">{{ t('daily.weight.ok') }}</button>
-              <button type="button" (click)="cancelEditWeight()" [attr.aria-label]="t('daily.weight.cancelAria')" class="tag-btn text-[11px] py-0 px-1">{{ t('daily.weight.x') }}</button>
-            </form>
-          } @else {
+          @if (!hasTodayRow()) {
             <button type="button" (click)="startEditWeight(todayKey, todayWeight())"
               [attr.aria-label]="todayWeight() != null ? t('daily.weight.editAria') : t('daily.weight.addAria')"
               class="font-sans text-xs tabular-nums hover:underline"
@@ -259,37 +248,23 @@ interface DayGroup {
                   [class.text-ink]="day.dateKey !== todayKey">
                   {{ day.dateKey === todayKey ? t('daily.today') : day.dateLabel }}
                 </span>
-                <!-- Tappable daily weight. Input + buttons widen on mobile
-                     to hit the 44px tap-target minimum and use 16px font
-                     size so iOS Safari doesn't zoom the viewport on focus
-                     (below 16px it auto-zooms, which kicks the user out of
-                     the ledger view). Desktop stays compact via sm:. -->
-                @if (editingWeightDay() === day.dateKey) {
-                  <form class="flex flex-wrap items-center gap-1.5 sm:gap-1" (ngSubmit)="saveWeight(day); $event.stopPropagation()" (click)="$event.stopPropagation()">
-                    <input type="number" step="0.1" inputmode="decimal"
-                      [ngModel]="weightInput()" (ngModelChange)="weightInput.set($event)"
-                      name="dayWeight" [attr.placeholder]="t('daily.weight.placeholder')"
-                      [attr.aria-label]="t('daily.weight.inputAria')"
-                      class="field-input text-base sm:text-xs w-24 sm:w-16 min-h-[44px] sm:min-h-0 py-2 sm:py-0.5 px-2 sm:px-1 tabular-nums" />
-                    <span class="font-display italic text-graphite text-xs sm:text-[11px]">{{ t('daily.weight.lb') }}</span>
-                    <button type="submit" [attr.aria-label]="t('daily.weight.saveAria')"
-                      class="tag-btn text-xs sm:text-[11px] min-h-[44px] sm:min-h-0 py-2 sm:py-0 px-3 sm:px-1">{{ t('daily.weight.ok') }}</button>
-                    <button type="button" (click)="cancelEditWeight()" [attr.aria-label]="t('daily.weight.cancelAria')"
-                      class="tag-btn text-xs sm:text-[11px] min-h-[44px] sm:min-h-0 py-2 sm:py-0 px-3 sm:px-1">{{ t('daily.weight.x') }}</button>
-                  </form>
-                } @else {
-                  <button type="button" (click)="startEditWeight(day.dateKey, day.weight); $event.stopPropagation()"
-                    class="font-sans text-sm sm:text-xs tabular-nums hover:underline min-h-[36px] sm:min-h-0 py-1 sm:py-0 px-2 sm:px-0 -mx-2 sm:mx-0"
-                    [class.text-graphite]="day.weight != null"
-                    [class.text-graphite-soft]="day.weight == null"
-                    [class.italic]="day.weight == null">
-                    @if (day.weight != null) {
-                      {{ day.weight }}<span class="text-xs sm:text-[11px] ml-0.5">{{ t('daily.weight.lb') }}</span>
-                    } @else {
-                      {{ t('daily.weight.addWt') }}
-                    }
-                  </button>
-                }
+                <!-- Display-only weight chip. Tap opens the dedicated
+                     weight-edit modal (rendered once at the bottom of this
+                     template) so the day header stays compact and the
+                     editing surface gets a full-size touch target regardless
+                     of row crowding. -->
+                <button type="button" (click)="startEditWeight(day.dateKey, day.weight); $event.stopPropagation()"
+                  [attr.aria-label]="day.weight != null ? t('daily.weight.editAria') : t('daily.weight.addAria')"
+                  class="font-sans text-sm sm:text-xs tabular-nums hover:underline min-h-[36px] sm:min-h-0 flex items-center px-2 sm:px-0 -mx-1 sm:mx-0"
+                  [class.text-graphite]="day.weight != null"
+                  [class.text-graphite-soft]="day.weight == null"
+                  [class.italic]="day.weight == null">
+                  @if (day.weight != null) {
+                    {{ day.weight }}<span class="text-xs sm:text-[11px] ml-0.5">{{ t('daily.weight.lb') }}</span>
+                  } @else {
+                    {{ t('daily.weight.addWt') }}
+                  }
+                </button>
                 <button type="button" (click)="toggleExercise(day); $event.stopPropagation()"
                   class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-sans tracking-[0.08em] uppercase font-medium border transition-colors duration-150"
                   [style.background]="day.exerciseCompleted ? 'var(--color-olive)' : 'transparent'"
@@ -452,6 +427,54 @@ interface DayGroup {
         </div>
       }
 
+      <!-- Weight edit modal: single editing surface for any day's weight.
+           Trigger lives in the day header (or the cold-start CTA above);
+           this overlay gives the input room to breathe and a 44px+ tap
+           target on mobile without crowding the ledger row. Dismiss via
+           backdrop tap, Esc key, or cancel button; Enter submits. -->
+      @if (editingWeightDay(); as targetKey) {
+        <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-ink/40 animate-[fade-in_150ms_ease]"
+          role="dialog" aria-modal="true" [attr.aria-label]="t('daily.weight.modalAria')"
+          (click)="cancelEditWeight()"
+          (keydown.escape)="cancelEditWeight()">
+          <form (submit)="submitWeightModal($event)" (click)="$event.stopPropagation()"
+            class="specimen px-6 py-6 relative max-w-xs w-full bg-paper shadow-xl">
+            <span class="crop-bl"></span><span class="crop-br"></span>
+
+            <div class="flex items-center gap-2 mb-1">
+              <span class="stamp-mark">{{ t('daily.weight.modalStamp') }}</span>
+              <span class="data-label">{{ weightModalDateLabel() }}</span>
+            </div>
+            <h3 class="font-display italic text-2xl text-ink leading-[1.05] mt-1">
+              {{ t('daily.weight.modalTitle') }}
+            </h3>
+
+            <!-- Big, centered input. 16px+ font prevents iOS auto-zoom.
+                 autofocus via ViewChild effect in the class. -->
+            <div class="mt-5 flex items-baseline justify-center gap-2">
+              <input #weightModalInput
+                type="number" step="0.1" inputmode="decimal"
+                [ngModel]="weightInput()" (ngModelChange)="weightInput.set($event)"
+                name="modalWeight" [attr.placeholder]="t('daily.weight.placeholder')"
+                [attr.aria-label]="t('daily.weight.inputAria')"
+                class="field-input text-3xl font-mono tabular-nums w-32 text-center py-3 px-2" />
+              <span class="font-display italic text-graphite text-lg">{{ t('daily.weight.lb') }}</span>
+            </div>
+
+            <div class="mt-6 flex gap-2">
+              <button type="button" (click)="cancelEditWeight()"
+                class="tag-btn flex-1 justify-center min-h-[44px]">
+                {{ t('daily.weight.cancelLabel') }}
+              </button>
+              <button type="submit"
+                class="stamp-btn flex-1 justify-center min-h-[44px]">
+                {{ t('daily.weight.saveLabel') }}
+              </button>
+            </div>
+          </form>
+        </div>
+      }
+
       <!-- Day-budget closure toast: fires once per day the first time
            today's calorie total crosses the computed daily target. The
            store's effect guards re-firing via localStorage. -->
@@ -518,6 +541,7 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
 
   @ViewChild('swipeArea') private readonly swipeAreaRef!: ElementRef<HTMLElement>;
   @ViewChild('undoBtn') private readonly undoBtnRef?: ElementRef<HTMLButtonElement>;
+  @ViewChild('weightModalInput') private readonly weightModalInputRef?: ElementRef<HTMLInputElement>;
   private readonly swipeStartFn = (e: TouchEvent) => this.onSwipeStart(e);
   private readonly swipeEndFn = (e: TouchEvent) => this.onSwipeEnd(e);
 
@@ -530,6 +554,13 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
       if (this.store.undoEntry()) {
         queueMicrotask(() => this.undoBtnRef?.nativeElement.focus());
       }
+    });
+    // Auto-focus the weight modal input on open. Deferred via rAF so the
+    // element exists in the DOM when we call focus() — @if blocks render
+    // asynchronously relative to the signal flip.
+    effect(() => {
+      if (this.editingWeightDay() === null) return;
+      requestAnimationFrame(() => this.weightModalInputRef?.nativeElement?.focus());
     });
   }
   // iOS fix: remove tape-in class after animation ends to release GPU compositing layers.
@@ -630,8 +661,25 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
   }
 
   // ── Day-level weight editing ────────────────────────────────
+  // Single editor surface is a modal triggered from any day's weight
+  // chip (or the cold-start "+ weight" button). No inline form in the
+  // day row — the row is already dense and editing there cramped the
+  // input below tap-target thresholds on mobile.
   protected readonly editingWeightDay = signal<DateKey | null>(null);
   protected readonly weightInput = signal<number | null>(null);
+
+  /** Human-readable label for the currently-edited day, rendered in
+      the modal header so the user never confuses which day's weight
+      they're updating (important when scrolling past days). */
+  protected readonly weightModalDateLabel = computed(() => {
+    const key = this.editingWeightDay();
+    if (!key) return '';
+    if (key === this.todayKey) {
+      return this.translation.t('daily.today');
+    }
+    const group = this.dayGroups().find((g) => g.dateKey === key);
+    return group?.dateLabel ?? key;
+  });
 
   protected startEditWeight(dateKey: DateKey, currentWeight: number | null): void {
     this.editingWeightDay.set(dateKey);
@@ -643,10 +691,18 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
     this.weightInput.set(null);
   }
 
-  protected async saveWeight(day: DayGroup): Promise<void> {
+  /** Unified save: looks up the target date key from `editingWeightDay`
+      so the template doesn't need to pass a day group through the submit
+      handler. Called from the modal's form submit + the footer button. */
+  protected async submitWeightModal(evt?: Event): Promise<void> {
+    evt?.preventDefault();
+    const key = this.editingWeightDay();
     const w = this.weightInput();
-    if (w == null || Number.isNaN(Number(w))) { this.cancelEditWeight(); return; }
-    await this.store.setDailyWeight(day.dateKey, Number(w));
+    if (!key || w == null || Number.isNaN(Number(w))) {
+      this.cancelEditWeight();
+      return;
+    }
+    await this.store.setDailyWeight(key, Number(w));
     this.cancelEditWeight();
   }
 
@@ -661,12 +717,6 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
     return target - eaten;
   });
 
-  protected async saveTodayWeight(): Promise<void> {
-    const w = this.weightInput();
-    if (w == null || Number.isNaN(Number(w))) { this.cancelEditWeight(); return; }
-    await this.store.setDailyWeight(this.todayKey, Number(w));
-    this.cancelEditWeight();
-  }
 
   /** Handle a tap on the cold-start starter foods: open the add form
       with values prefilled, so the user just reviews and hits submit. */
