@@ -44,7 +44,9 @@
     "proF3": "weekly AI report (cached, grounded in your data)",
     "proF4": "apple shortcuts webhook",
     "proF5": "pro themes, priority support, 7-day free trial",
-    "pricingFinePrint": "cancel anytime from the customer portal. stripe handles billing; we never see your card."
+    "pricingFinePrint": "cancel anytime from the customer portal. stripe handles billing; we never see your card.",
+    "freeCta": "start free",
+    "proCta": "start 7-day free trial"
   },
   "app": {
     "skipToMain": "skip to main content",
@@ -559,7 +561,8 @@
       }
     },
     "errorEmailDisabled": "Email + password sign-in is temporarily unavailable. Please use Google or Microsoft for now.",
-    "errorNetwork": "Network error. Check your connection and try again."
+    "errorNetwork": "Network error. Check your connection and try again.",
+    "errorMissingFields": "Enter your email and password to sign in."
   },
   "verify": {
     "stamp": "verify",
@@ -671,9 +674,11 @@
     "activityActiveBlurb": "hard exercise 6–7 days/week",
     "activityVeryActive": "very active",
     "activityVeryActiveBlurb": "physical job or twice-daily training",
-    "paceLabel": "weekly fat-loss target",
-    "paceHint": "(cut pace)",
-    "paceCaption": "how much weight to lose per week. faster is harder to sustain.",
+    "paceLabel": "weekly target",
+    "paceHint": "(direction + pace)",
+    "paceCaption": "pick maintain if you just want to track. a cut pace subtracts calories from your tdee.",
+    "pace00": "maintain",
+    "pace00Blurb": "no deficit — log, don't cut",
     "pace05": "0.5 lb / wk",
     "pace05Blurb": "leisurely",
     "pace10": "1 lb / wk",
@@ -682,6 +687,15 @@
     "pace15Blurb": "brisk",
     "pace20": "2 lb / wk",
     "pace20Blurb": "aggressive",
+    "errorRequiredHeight": "enter your height to continue.",
+    "errorRequiredAge": "enter your age to continue.",
+    "errorRequiredSex": "pick a sex option to continue.",
+    "errorRequiredActivity": "pick an activity level to continue.",
+    "errorRequiredPace": "pick a weekly target to continue.",
+    "sexGroupLabel": "biological sex options",
+    "activityGroupLabel": "activity level options",
+    "paceGroupLabel": "weekly target options",
+    "stepChanged": "Step {{current}} of {{total}}: {{title}}.",
     "goalLabel": "goal weight",
     "skipIfNone": "skip if none",
     "lbs": "lbs",

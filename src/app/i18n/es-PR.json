@@ -50,7 +50,9 @@
     "proF3": "reporte semanal de IA (guardado, basado en tus datos)",
     "proF4": "webhook de apple shortcuts",
     "proF5": "temas pro, soporte prioritario, prueba gratis de 7 días",
-    "pricingFinePrint": "cancela cuando quieras desde el portal. stripe maneja el cobro; nunca vemos tu tarjeta."
+    "pricingFinePrint": "cancela cuando quieras desde el portal. stripe maneja el cobro; nunca vemos tu tarjeta.",
+    "freeCta": "empezar gratis",
+    "proCta": "empezar prueba de 7 días"
   },
   "app": {
     "skipToMain": "saltar al contenido principal",
@@ -565,7 +567,8 @@
       }
     },
     "errorEmailDisabled": "El inicio por email + contraseña no está disponible por ahora. Usa Google o Microsoft.",
-    "errorNetwork": "Error de red. Revisa tu conexión e intenta de nuevo."
+    "errorNetwork": "Error de red. Revisa tu conexión e intenta de nuevo.",
+    "errorMissingFields": "Ingresa tu email y contraseña para continuar."
   },
   "verify": {
     "stamp": "verifica",
@@ -677,9 +680,11 @@
     "activityActiveBlurb": "ejercicio intenso 6–7 días/semana",
     "activityVeryActive": "muy activo",
     "activityVeryActiveBlurb": "trabajo físico o entrenamiento dos veces al día",
-    "paceLabel": "meta semanal de pérdida de grasa",
-    "paceHint": "(ritmo de déficit)",
-    "paceCaption": "cuánto peso bajar por semana. más rápido es más difícil de sostener.",
+    "paceLabel": "meta semanal",
+    "paceHint": "(dirección y ritmo)",
+    "paceCaption": "elige mantener si solo quieres registrar. un ritmo de corte resta calorías a tu tdee.",
+    "pace00": "mantener",
+    "pace00Blurb": "sin déficit — registra, no cortes",
     "pace05": "0.5 lb / sem",
     "pace05Blurb": "relajado",
     "pace10": "1 lb / sem",
@@ -688,6 +693,15 @@
     "pace15Blurb": "enérgico",
     "pace20": "2 lb / sem",
     "pace20Blurb": "agresivo",
+    "errorRequiredHeight": "ingresa tu altura para continuar.",
+    "errorRequiredAge": "ingresa tu edad para continuar.",
+    "errorRequiredSex": "elige una opción de sexo para continuar.",
+    "errorRequiredActivity": "elige un nivel de actividad para continuar.",
+    "errorRequiredPace": "elige una meta semanal para continuar.",
+    "sexGroupLabel": "opciones de sexo biológico",
+    "activityGroupLabel": "opciones de nivel de actividad",
+    "paceGroupLabel": "opciones de meta semanal",
+    "stepChanged": "Paso {{current}} de {{total}}: {{title}}.",
     "goalLabel": "peso meta",
     "skipIfNone": "omite si no tienes",
     "lbs": "lbs",

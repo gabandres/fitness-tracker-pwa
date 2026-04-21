@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import {
@@ -49,9 +49,23 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     id: 3,
     titleKey: 'onboarding.stepTargetTitle',
     bodyKey: 'onboarding.stepTargetBody',
-    focusSelector: '#pace-05',
+    focusSelector: '#pace-0',
   },
 ];
+
+const DRAFT_STORAGE_KEY = 'macrolog.onboarding.draft';
+
+interface OnboardingDraft {
+  heightFt: number | null;
+  heightInExtra: number | null;
+  age: number | null;
+  sex: Sex | null;
+  activityLevel: ActivityLevel | null;
+  pace: CutPace | null;
+  goalWeight: number | null;
+  ageGate: boolean;
+  currentStep: OnboardingStepId;
+}
 
 @Component({
   selector: 'app-onboarding',
@@ -122,6 +136,11 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
           </div>
         </div>
 
+        <!-- Off-screen live region announces step transitions to screen
+             readers. Focus alone doesn't reliably surface "step 2 of 3"
+             because the focused input is labelled by its own <label>. -->
+        <div class="sr-only" role="status" aria-live="polite">{{ stepChangeMsg() }}</div>
+
         <form (ngSubmit)="submit()" class="mt-8 space-y-9">
           @switch (currentStep()) {
             @case (1) {
@@ -129,10 +148,10 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
               <p class="caption text-[11px] mb-4" style="color: var(--color-graphite)">
                 {{ t('onboarding.notMedicalAdvice') }}
               </p>
-              <div>
-                <label class="data-label block mb-2">
+              <fieldset class="border-0 p-0 m-0">
+                <legend class="data-label block mb-2">
                   {{ t('onboarding.heightLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
-                </label>
+                </legend>
                 <div class="flex items-baseline gap-4">
                   <div class="flex items-baseline gap-2 flex-1">
                     <input
@@ -171,7 +190,7 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
                     <span class="font-display italic text-graphite text-sm">{{ t('onboarding.inches') }}</span>
                   </div>
                 </div>
-              </div>
+              </fieldset>
 
               <div>
                 <label for="age" class="data-label block mb-2">
@@ -197,20 +216,25 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
               </div>
 
               <div>
-                <label class="data-label block mb-2">
+                <div id="sex-legend" class="data-label block mb-2">
                   {{ t('onboarding.sexLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
-                </label>
+                </div>
                 <p class="caption text-xs mb-2">
                   {{ t('onboarding.sexCaption') }}
                 </p>
-                <div class="flex gap-3">
-                  @for (opt of sexOptions; track opt.value) {
+                <div role="radiogroup" aria-labelledby="sex-legend"
+                  [attr.aria-label]="t('onboarding.sexGroupLabel')"
+                  class="flex gap-3">
+                  @for (opt of sexOptions; track opt.value; let i = $index) {
                     <button
                       [id]="'sex-' + opt.value"
                       type="button"
+                      role="radio"
+                      [attr.aria-checked]="sex() === opt.value"
+                      [attr.tabindex]="sex() === opt.value || (sex() === null && i === 0) ? 0 : -1"
                       (click)="sex.set(opt.value)"
+                      (keydown)="onRadioKey($event, sexOptions, opt.value, (v) => sex.set(v), 'sex-')"
                       [class.selected]="sex() === opt.value"
-                      [attr.aria-pressed]="sex() === opt.value"
                       class="radio-card flex-1"
                     >
                       {{ t(opt.labelKey) }}
@@ -247,17 +271,22 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
             @case (2) {
               <!-- Step 2: activity -->
               <div>
-                <label class="data-label block mb-2">
+                <div id="activity-legend" class="data-label block mb-2">
                   {{ t('onboarding.activityLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
-                </label>
-                <div class="space-y-2">
-                  @for (opt of activityOptions; track opt.value) {
+                </div>
+                <div role="radiogroup" aria-labelledby="activity-legend"
+                  [attr.aria-label]="t('onboarding.activityGroupLabel')"
+                  class="space-y-2">
+                  @for (opt of activityOptions; track opt.value; let i = $index) {
                     <button
                       [id]="'activity-' + opt.value"
                       type="button"
+                      role="radio"
+                      [attr.aria-checked]="activityLevel() === opt.value"
+                      [attr.tabindex]="activityLevel() === opt.value || (activityLevel() === null && i === 0) ? 0 : -1"
                       (click)="activityLevel.set(opt.value)"
+                      (keydown)="onRadioKey($event, activityOptions, opt.value, (v) => activityLevel.set(v), 'activity-')"
                       [class.selected]="activityLevel() === opt.value"
-                      [attr.aria-pressed]="activityLevel() === opt.value"
                       class="radio-card w-full text-left"
                     >
                       <div class="flex items-baseline justify-between gap-3">
@@ -275,21 +304,26 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
             @case (3) {
               <!-- Step 3: target -->
               <div>
-                <label class="data-label block mb-2">
+                <div id="pace-legend" class="data-label block mb-2">
                   {{ t('onboarding.paceLabel') }} <span class="text-blood" [attr.aria-label]="t('onboarding.required')">*</span>
                   <span class="normal-case italic text-graphite tracking-normal text-[11px]">{{ t('onboarding.paceHint') }}</span>
-                </label>
+                </div>
                 <p class="caption text-xs mb-2">
                   {{ t('onboarding.paceCaption') }}
                 </p>
-                <div class="grid grid-cols-2 gap-2">
-                  @for (opt of paceOptions; track opt.value) {
+                <div role="radiogroup" aria-labelledby="pace-legend"
+                  [attr.aria-label]="t('onboarding.paceGroupLabel')"
+                  class="grid grid-cols-2 gap-2">
+                  @for (opt of paceOptions; track opt.value; let i = $index) {
                     <button
                       [id]="'pace-' + paceId(opt.value)"
                       type="button"
+                      role="radio"
+                      [attr.aria-checked]="pace() === opt.value"
+                      [attr.tabindex]="pace() === opt.value || (pace() === null && i === 0) ? 0 : -1"
                       (click)="pace.set(opt.value)"
+                      (keydown)="onRadioKey($event, paceOptions, opt.value, (v) => pace.set(v), 'pace-', (v) => paceId(v))"
                       [class.selected]="pace() === opt.value"
-                      [attr.aria-pressed]="pace() === opt.value"
                       class="radio-card"
                     >
                       <div class="font-mono text-xs tracking-[0.15em] uppercase text-ink">{{ t(opt.labelKey) }}</div>
@@ -368,7 +402,8 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
             }
 
             @if (status() === 'error') {
-              <p class="font-mono text-[11px] text-blood mt-4 leading-relaxed">
+              <p id="onboarding-error" role="alert" aria-live="assertive"
+                class="font-mono text-[11px] text-blood mt-4 leading-relaxed">
                 ✕ {{ errorMsg() }}
               </p>
             }
@@ -423,6 +458,11 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
       border-color: var(--color-olive);
       color: var(--color-ink);
     }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px;
+      padding: 0; margin: -1px; overflow: hidden;
+      clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
   `],
 })
 export class OnboardingComponent {
@@ -453,6 +493,9 @@ export class OnboardingComponent {
   protected readonly currentStep = signal<OnboardingStepId>(1);
   protected readonly isFinalStep = computed(() => this.currentStep() === this.steps.length);
   protected readonly currentStepMeta = computed(() => this.steps[this.currentStep() - 1]);
+  /** Live-region string consumed by a `role=status aria-live=polite`
+      node. Rebuilds on each `goToStep()` so transitions announce. */
+  protected readonly stepChangeMsg = signal('');
 
   protected readonly sexOptions: { value: Sex; labelKey: string }[] = [
     { value: 'male',   labelKey: 'onboarding.sexMale'   },
@@ -467,7 +510,10 @@ export class OnboardingComponent {
     { value: 'very_active', labelKey: 'onboarding.activityVeryActive',  blurbKey: 'onboarding.activityVeryActiveBlurb'  },
   ];
 
+  // Maintenance (0) is first so users who only want to track aren't
+  // defaulted into a fat-loss deficit (UX report 2026-04-21 §6.8).
   protected readonly paceOptions: PaceOption[] = [
+    { value: 0,   labelKey: 'onboarding.pace00', blurbKey: 'onboarding.pace00Blurb' },
     { value: 0.5, labelKey: 'onboarding.pace05', blurbKey: 'onboarding.pace05Blurb' },
     { value: 1.0, labelKey: 'onboarding.pace10', blurbKey: 'onboarding.pace10Blurb' },
     { value: 1.5, labelKey: 'onboarding.pace15', blurbKey: 'onboarding.pace15Blurb' },
@@ -475,7 +521,9 @@ export class OnboardingComponent {
   ];
 
   constructor() {
-    // When editing, prefill from the currently-loaded profile.
+    // When editing, prefill from the currently-loaded profile. Otherwise,
+    // restore any in-flight draft from localStorage so an accidental
+    // reload doesn't cost the user the last ~8 fields they typed.
     const existing = this.firebase.profile();
     if (existing?.profileCompleted) {
       if (existing.heightIn != null) {
@@ -487,7 +535,18 @@ export class OnboardingComponent {
       if (existing.activityLevel != null) this.activityLevel.set(existing.activityLevel);
       if (existing.targetPaceLbsPerWeek != null) this.pace.set(existing.targetPaceLbsPerWeek);
       if (existing.goalWeightLbs != null) this.goalWeight.set(existing.goalWeightLbs);
+    } else if (!this.editMode()) {
+      this.restoreDraft();
     }
+
+    // Persist on every change — cheap (single JSON.stringify) and keeps
+    // the draft warm whether the user refreshes, closes a tab, or
+    // swaps to a different device and signs in there later.
+    effect(() => {
+      if (this.editMode()) return;
+      if (this.firebase.profile()?.profileCompleted) return;
+      this.saveDraft();
+    });
   }
 
   protected async submit(): Promise<void> {
@@ -524,6 +583,7 @@ export class OnboardingComponent {
     this.status.set('saving');
     try {
       await this.firebase.saveProfile(fields);
+      this.clearDraft();
       this.saved.emit();
     } catch (err) {
       this.status.set('error');
@@ -540,58 +600,99 @@ export class OnboardingComponent {
     return String(value).replace('.', '');
   }
 
+  /** Arrow-key navigation for a radiogroup. Moves selection + focus
+      within the named option list. Called from each radio button's
+      keydown. Implements the WAI-ARIA radiogroup keyboard pattern:
+      ArrowDown/Right → next, ArrowUp/Left → previous, Home/End → first/last.
+      Space/Enter fall through to native button activation. */
+  protected onRadioKey<T>(
+    evt: KeyboardEvent,
+    options: readonly { value: T }[],
+    currentValue: T,
+    set: (v: T) => void,
+    idPrefix: string,
+    idFn: (v: T) => string = (v) => String(v),
+  ): void {
+    const keys = ['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft', 'Home', 'End'];
+    if (!keys.includes(evt.key)) return;
+    evt.preventDefault();
+    const idx = options.findIndex((o) => o.value === currentValue);
+    const len = options.length;
+    let next: number;
+    switch (evt.key) {
+      case 'ArrowDown': case 'ArrowRight': next = (idx + 1 + len) % len; break;
+      case 'ArrowUp':   case 'ArrowLeft':  next = (idx - 1 + len) % len; break;
+      case 'Home': next = 0; break;
+      case 'End':  next = len - 1; break;
+      default: return;
+    }
+    const nv = options[next].value;
+    set(nv);
+    queueMicrotask(() => {
+      const el = document.getElementById(idPrefix + idFn(nv));
+      el?.focus();
+    });
+  }
+
   private goToStep(step: OnboardingStepId): void {
     this.currentStep.set(step);
     this.status.set('idle');
     this.errorMsg.set('');
-    this.focusSelector(this.steps[step - 1]?.focusSelector ?? '#heightFt');
+    const meta = this.steps[step - 1];
+    this.stepChangeMsg.set(
+      this.translation.t('onboarding.stepChanged', {
+        current: step,
+        total: this.steps.length,
+        title: this.translation.t(meta.titleKey),
+      }),
+    );
+    this.focusSelector(meta?.focusSelector ?? '#heightFt');
   }
 
   private validateStep(step: OnboardingStepId): boolean {
     switch (step) {
       case 1: {
-        const missing = [
-          { invalid: this.heightFt() == null, selector: '#heightFt' },
-          { invalid: this.heightInExtra() == null, selector: '#heightInExtra' },
-          { invalid: this.age() == null, selector: '#age' },
-          { invalid: this.sex() === null, selector: '#sex-male' },
-        ];
-        for (const field of missing) {
-          if (!field.invalid) continue;
-          this.focusSelector(field.selector);
-          return false;
+        if (this.heightFt() == null || this.heightInExtra() == null) {
+          return this.flagError('onboarding.errorRequiredHeight', '#heightFt');
+        }
+        if (this.age() == null) {
+          return this.flagError('onboarding.errorRequiredAge', '#age');
+        }
+        if (this.sex() === null) {
+          return this.flagError('onboarding.errorRequiredSex', '#sex-male');
         }
 
         const totalInches = Number(this.heightFt()) * 12 + Number(this.heightInExtra());
         if (totalInches < 40 || totalInches > 96) {
-          this.status.set('error');
-          this.errorMsg.set(this.translation.t('onboarding.errorHeightRange'));
-          this.focusSelector('#heightFt');
-          return false;
+          return this.flagError('onboarding.errorHeightRange', '#heightFt');
         }
         if (!this.ageAlreadyConfirmed() && !this.ageGate()) {
-          this.status.set('error');
-          this.errorMsg.set(this.translation.t('onboarding.errorAgeGate'));
-          this.focusSelector('#ageGate');
-          return false;
+          return this.flagError('onboarding.errorAgeGate', '#ageGate');
         }
         return true;
       }
 
       case 2:
         if (this.activityLevel() === null) {
-          this.focusSelector('#activity-sedentary');
-          return false;
+          return this.flagError('onboarding.errorRequiredActivity', '#activity-sedentary');
         }
         return true;
 
       case 3:
         if (this.pace() === null) {
-          this.focusSelector('#pace-05');
-          return false;
+          return this.flagError('onboarding.errorRequiredPace', '#pace-0');
         }
         return true;
     }
+  }
+
+  /** Surface a validation error: set status + message, focus the first
+      invalid field, return false so `submit()` short-circuits. */
+  private flagError(key: string, selector: string): false {
+    this.status.set('error');
+    this.errorMsg.set(this.translation.t(key));
+    this.focusSelector(selector);
+    return false;
   }
 
   private focusSelector(selector: string): void {
@@ -600,5 +701,47 @@ export class OnboardingComponent {
       el?.focus();
       el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     });
+  }
+
+  // ── Draft persistence ───────────────────────────────────────
+
+  private saveDraft(): void {
+    try {
+      const draft: OnboardingDraft = {
+        heightFt: this.heightFt(),
+        heightInExtra: this.heightInExtra(),
+        age: this.age(),
+        sex: this.sex(),
+        activityLevel: this.activityLevel(),
+        pace: this.pace(),
+        goalWeight: this.goalWeight(),
+        ageGate: this.ageGate(),
+        currentStep: this.currentStep(),
+      };
+      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+    } catch { /* private-mode Safari throws; non-fatal */ }
+  }
+
+  private restoreDraft(): void {
+    try {
+      const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as Partial<OnboardingDraft>;
+      if (draft.heightFt != null) this.heightFt.set(draft.heightFt);
+      if (draft.heightInExtra != null) this.heightInExtra.set(draft.heightInExtra);
+      if (draft.age != null) this.age.set(draft.age);
+      if (draft.sex != null) this.sex.set(draft.sex);
+      if (draft.activityLevel != null) this.activityLevel.set(draft.activityLevel);
+      if (draft.pace != null) this.pace.set(draft.pace);
+      if (draft.goalWeight != null) this.goalWeight.set(draft.goalWeight);
+      if (draft.ageGate != null) this.ageGate.set(draft.ageGate);
+      if (draft.currentStep === 1 || draft.currentStep === 2 || draft.currentStep === 3) {
+        this.currentStep.set(draft.currentStep);
+      }
+    } catch { /* ignore; a bad draft shouldn't block onboarding */ }
+  }
+
+  private clearDraft(): void {
+    try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch { /* ignore */ }
   }
 }

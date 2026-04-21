@@ -61,24 +61,24 @@ import { SubscriptionService } from '../../services/subscription.service';
 
       <!-- ── 2. Product proof — three capture paths + TDEE + AI ──── -->
       <section class="ink-in delay-1">
-        <div class="rule"><span>{{ t('landing.whatItDoesRule') }}</span></div>
+        <h2 class="rule"><span>{{ t('landing.whatItDoesRule') }}</span></h2>
         <div class="mt-6 grid gap-5 sm:grid-cols-3">
           <div class="specimen px-4 py-5">
             <span class="crop-bl"></span><span class="crop-br"></span>
             <span class="stamp-mark">{{ t('landing.proofCaptureStamp') }}</span>
-            <h2 class="font-display text-xl text-ink mt-3">{{ t('landing.proofCaptureTitle') }}</h2>
+            <h3 class="font-display text-xl text-ink mt-3">{{ t('landing.proofCaptureTitle') }}</h3>
             <p class="font-sans text-sm text-ink-soft mt-2 leading-relaxed">{{ t('landing.proofCaptureBody') }}</p>
           </div>
           <div class="specimen px-4 py-5">
             <span class="crop-bl"></span><span class="crop-br"></span>
             <span class="stamp-mark">{{ t('landing.proofTdeeStamp') }}</span>
-            <h2 class="font-display text-xl text-ink mt-3">{{ t('landing.proofTdeeTitle') }}</h2>
+            <h3 class="font-display text-xl text-ink mt-3">{{ t('landing.proofTdeeTitle') }}</h3>
             <p class="font-sans text-sm text-ink-soft mt-2 leading-relaxed">{{ t('landing.proofTdeeBody') }}</p>
           </div>
           <div class="specimen px-4 py-5">
             <span class="crop-bl"></span><span class="crop-br"></span>
             <span class="stamp-mark">{{ t('landing.proofCoachStamp') }}</span>
-            <h2 class="font-display text-xl text-ink mt-3">{{ t('landing.proofCoachTitle') }}</h2>
+            <h3 class="font-display text-xl text-ink mt-3">{{ t('landing.proofCoachTitle') }}</h3>
             <p class="font-sans text-sm text-ink-soft mt-2 leading-relaxed">{{ t('landing.proofCoachBody') }}</p>
           </div>
         </div>
@@ -109,23 +109,24 @@ import { SubscriptionService } from '../../services/subscription.service';
 
       <!-- ── 4. Pricing ───────────────────────────────────────────── -->
       <section id="pricing" class="ink-in delay-3">
-        <div class="rule"><span>{{ t('landing.pricingRule') }}</span></div>
+        <h2 class="rule"><span>{{ t('landing.pricingRule') }}</span></h2>
         <div class="mt-6 grid gap-5 sm:grid-cols-2">
-          <div class="specimen px-5 py-6">
+          <div class="specimen px-5 py-6 flex flex-col">
             <span class="crop-bl"></span><span class="crop-br"></span>
             <div class="flex items-baseline justify-between gap-3">
               <span class="stamp-mark">{{ t('landing.freeStamp') }}</span>
               <span class="font-display text-4xl text-ink">{{ t('landing.freePrice') }}</span>
             </div>
             <p class="font-sans text-sm text-ink-soft mt-3">{{ t('landing.freeBody') }}</p>
-            <ul class="font-sans text-[13px] text-graphite mt-3 space-y-1">
+            <ul class="font-sans text-[13px] text-graphite mt-3 space-y-1 flex-1">
               <li>{{ t('landing.freeF1') }}</li>
               <li>{{ t('landing.freeF2') }}</li>
               <li>{{ t('landing.freeF3') }}</li>
               <li>{{ t('landing.freeF4') }}</li>
             </ul>
+            <a href="/app" class="tag-btn mt-4 justify-center">{{ t('landing.freeCta') }}</a>
           </div>
-          <div class="specimen px-5 py-6" style="border-color: var(--color-blood)">
+          <div class="specimen px-5 py-6 flex flex-col" style="border-color: var(--color-blood)">
             <span class="crop-bl" style="border-color: var(--color-blood)"></span>
             <span class="crop-br" style="border-color: var(--color-blood)"></span>
             <div class="flex items-baseline justify-between gap-3">
@@ -147,13 +148,17 @@ import { SubscriptionService } from '../../services/subscription.service';
               </div>
             </div>
             <p class="font-sans text-sm text-ink-soft mt-3">{{ t('landing.proBody') }}</p>
-            <ul class="font-sans text-[13px] text-graphite mt-3 space-y-1">
+            <ul class="font-sans text-[13px] text-graphite mt-3 space-y-1 flex-1">
               <li>{{ t('landing.proF1') }}</li>
               <li>{{ t('landing.proF2') }}</li>
               <li>{{ t('landing.proF3') }}</li>
               <li>{{ t('landing.proF4') }}</li>
               <li>{{ t('landing.proF5') }}</li>
             </ul>
+            <!-- intent=pro deep-links into /app; once signed in, the App
+                 shell reads the query and opens Settings → Subscribe
+                 without the user hunting for it (UX report 2026-04-21 §2.8). -->
+            <a href="/app?intent=pro" class="stamp-btn mt-4">{{ t('landing.proCta') }}</a>
           </div>
         </div>
         <p class="caption mt-4 text-[11px]">{{ t('landing.pricingFinePrint') }}</p>

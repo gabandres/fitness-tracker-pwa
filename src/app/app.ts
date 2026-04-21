@@ -633,6 +633,28 @@ export class App {
       this.translation.setTitleKey(key);
     });
 
+    // Deep-link: /app?intent=pro (from landing Pro CTA) opens the
+    // Subscribe card as soon as the user is signed in + profile
+    // completed. Consumed once per boot so the query persisting in
+    // history doesn't keep re-triggering on tab changes. Fires through
+    // the upsell counter so it dedupes with the contextual upsell path.
+    let intentConsumed = false;
+    effect(() => {
+      if (intentConsumed) return;
+      if (!this.auth.isSignedIn() || !this.firebase.profileCompleted()) return;
+      const qs = new URLSearchParams(window.location.search);
+      if (qs.get('intent') !== 'pro') return;
+      intentConsumed = true;
+      this.upsell.openSubscribe('landing_pro_cta');
+      // Strip the query so a refresh doesn't re-open Subscribe + a
+      // stray `?intent=pro` doesn't leak into shared URLs.
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('intent');
+        window.history.replaceState({}, '', url.pathname + (url.search || '') + url.hash);
+      } catch { /* non-critical */ }
+    });
+
     // Auto-dismiss reminder when user logs an entry.
     effect(() => {
       if (this.store.hasLoggedToday()) this.showReminder.set(false);

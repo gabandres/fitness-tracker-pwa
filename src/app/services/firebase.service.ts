@@ -82,7 +82,7 @@ export interface LogEntry {
 // ─── Profile types ──────────────────────────────────────────────
 export type Sex = 'male' | 'female';
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
-export type CutPace = 0.5 | 1.0 | 1.5 | 2.0;
+export type CutPace = 0 | 0.5 | 1.0 | 1.5 | 2.0;
 
 /**
  * Profile field values collected during onboarding. These drive the
