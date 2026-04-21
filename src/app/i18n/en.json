@@ -433,7 +433,15 @@
     "startFastAria": "Start a 16-hour fast",
     "chronometer": "chronometer",
     "elapsed": "elapsed",
-    "idle": "idle"
+    "idle": "idle",
+    "editStart": "edit",
+    "editStartAria": "Edit fast start time",
+    "editStartPrompt": "When did you actually start fasting?",
+    "editStartInvalid": "Enter a time within the last 48 hours.",
+    "startedEarlier": "started earlier?",
+    "startedEarlierPrompt": "When did you stop eating?",
+    "save": "save",
+    "cancel": "cancel"
   },
   "measurements": {
     "section": "measurements",

@@ -421,8 +421,8 @@ export class FitnessStore {
   readonly isFasting: Signal<boolean> = computed(() => this.fastStartedAt() !== null);
 
   // ─── Mutations (fire-and-forget, auto-refresh) ──────────────
-  async startFast(): Promise<void> {
-    await this.fb.startFast();
+  async startFast(startedAt?: Date): Promise<void> {
+    await this.fb.startFast(startedAt);
   }
 
   async breakFast(): Promise<void> {

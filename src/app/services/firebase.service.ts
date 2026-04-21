@@ -291,13 +291,16 @@ export class FirebaseService {
     if (current) this._profile.set({ ...current, reminderHour: hour } as any);
   }
 
-  /** Start a fast — stores the current timestamp. */
-  async startFast(): Promise<void> {
+  /** Start a fast — stores the given start time, or now if omitted.
+   *  Accepts a past timestamp so users can backdate a fast they forgot
+   *  to log when they actually stopped eating. */
+  async startFast(startedAt?: Date): Promise<void> {
     const ref = this.userDoc();
+    const start = startedAt ? Timestamp.fromDate(startedAt) : Timestamp.now();
     const now = Timestamp.now();
-    await updateDoc(ref, { fastStartedAt: now, lastSeenAt: now });
+    await updateDoc(ref, { fastStartedAt: start, lastSeenAt: now });
     const current = this._profile();
-    if (current) this._profile.set({ ...current, fastStartedAt: now.toDate() } as any);
+    if (current) this._profile.set({ ...current, fastStartedAt: start.toDate() } as any);
   }
 
   /** Break the fast — clears the timestamp. */

@@ -97,23 +97,90 @@ import { TranslationService } from '../../services/translation.service';
         <!-- Status + button. The CTA stays at the same offset in both
              states so end-fast swaps the label in place instead of
              jumping the layout. -->
-        <div class="mt-4 text-center">
+        <div class="mt-4 text-center w-full max-w-xs">
           @if (store.isFasting()) {
-            <p class="caption text-[11px]">
-              {{ t('fasting.fastingSince', { time: startTimeLabel() }) }}
-            </p>
-            <button type="button" (click)="punchClock()"
-              [attr.aria-label]="t('fasting.endFastAria')"
-              class="stamp-btn mt-3 max-w-xs">
-              {{ t('fasting.endFast') }}
-            </button>
+            @if (!editing()) {
+              <p class="caption text-[11px]">
+                {{ t('fasting.fastingSince', { time: startTimeLabel() }) }}
+                <button type="button" (click)="beginEdit()"
+                  [attr.aria-label]="t('fasting.editStartAria')"
+                  class="ml-1 underline text-graphite hover:text-ink">
+                  {{ t('fasting.editStart') }}
+                </button>
+              </p>
+              <button type="button" (click)="punchClock()"
+                [attr.aria-label]="t('fasting.endFastAria')"
+                class="stamp-btn mt-3 max-w-xs">
+                {{ t('fasting.endFast') }}
+              </button>
+            } @else {
+              <p class="caption text-[11px] mb-2">{{ t('fasting.editStartPrompt') }}</p>
+              <div class="flex items-center justify-center gap-2">
+                <input type="time" [value]="editValue()"
+                  (input)="editValue.set($any($event.target).value)"
+                  [attr.aria-label]="t('fasting.editStartAria')"
+                  [attr.aria-invalid]="editError() ? 'true' : null"
+                  [attr.aria-describedby]="editError() ? 'fasting-edit-error' : null"
+                  class="font-mono text-sm px-2 py-1 border border-rule bg-paper" />
+              </div>
+              @if (editError()) {
+                <p id="fasting-edit-error" role="alert"
+                  class="caption text-[11px] mt-1" style="color: var(--color-blood)">
+                  {{ editError() }}
+                </p>
+              }
+              <div class="mt-3 flex items-center justify-center gap-2">
+                <button type="button" (click)="cancelEdit()"
+                  class="tag-btn text-[11px]">
+                  {{ t('fasting.cancel') }}
+                </button>
+                <button type="button" (click)="commitEdit()"
+                  class="stamp-btn text-[11px]">
+                  {{ t('fasting.save') }}
+                </button>
+              </div>
+            }
           } @else {
-            <button type="button" (click)="punchClock()"
-              [attr.aria-label]="t('fasting.startFastAria')"
-              class="stamp-btn mt-3 max-w-xs"
-              style="background: var(--color-ink); border-color: var(--color-graphite);">
-              {{ t('fasting.startFast') }}
-            </button>
+            @if (!editing()) {
+              <button type="button" (click)="punchClock()"
+                [attr.aria-label]="t('fasting.startFastAria')"
+                class="stamp-btn mt-3 max-w-xs"
+                style="background: var(--color-ink); border-color: var(--color-graphite);">
+                {{ t('fasting.startFast') }}
+              </button>
+              <p class="mt-2">
+                <button type="button" (click)="beginEdit()"
+                  class="caption text-[11px] underline text-graphite hover:text-ink">
+                  {{ t('fasting.startedEarlier') }}
+                </button>
+              </p>
+            } @else {
+              <p class="caption text-[11px] mb-2">{{ t('fasting.startedEarlierPrompt') }}</p>
+              <div class="flex items-center justify-center gap-2">
+                <input type="time" [value]="editValue()"
+                  (input)="editValue.set($any($event.target).value)"
+                  [attr.aria-label]="t('fasting.editStartAria')"
+                  [attr.aria-invalid]="editError() ? 'true' : null"
+                  [attr.aria-describedby]="editError() ? 'fasting-edit-error' : null"
+                  class="font-mono text-sm px-2 py-1 border border-rule bg-paper" />
+              </div>
+              @if (editError()) {
+                <p id="fasting-edit-error" role="alert"
+                  class="caption text-[11px] mt-1" style="color: var(--color-blood)">
+                  {{ editError() }}
+                </p>
+              }
+              <div class="mt-3 flex items-center justify-center gap-2">
+                <button type="button" (click)="cancelEdit()"
+                  class="tag-btn text-[11px]">
+                  {{ t('fasting.cancel') }}
+                </button>
+                <button type="button" (click)="commitEdit()"
+                  class="stamp-btn text-[11px]">
+                  {{ t('fasting.startFast') }}
+                </button>
+              </div>
+            }
           }
         </div>
       </div>
@@ -127,11 +194,20 @@ export class FastingComponent implements OnInit, OnDestroy {
 
   private readonly FAST_HOURS = 16;
   private readonly RADIUS = 78;
+  // Allow backdating a start up to 48 hours — beyond that the session
+  // would already be past any plausible fasting window.
+  private readonly MAX_BACKDATE_HOURS = 48;
   protected readonly arcLength = 2 * Math.PI * this.RADIUS;
   private tickInterval: ReturnType<typeof setInterval> | null = null;
 
   // Signal that updates every minute to drive the hand + arc.
   private readonly _now = signal(new Date());
+
+  // Inline start-time editor state. Used for both "backdate a fast that
+  // I'm starting now" and "correct the start time of the active fast".
+  protected readonly editing = signal(false);
+  protected readonly editValue = signal('');
+  protected readonly editError = signal('');
 
   protected readonly elapsedHours = computed(() => {
     const start = this.store.fastStartedAt();
@@ -212,5 +288,60 @@ export class FastingComponent implements OnInit, OnDestroy {
     } else {
       await this.store.startFast();
     }
+  }
+
+  protected beginEdit(): void {
+    const start = this.store.fastStartedAt() ?? new Date();
+    this.editValue.set(this.toTimeInputValue(start));
+    this.editError.set('');
+    this.editing.set(true);
+  }
+
+  protected cancelEdit(): void {
+    this.editing.set(false);
+    this.editError.set('');
+  }
+
+  protected async commitEdit(): Promise<void> {
+    const parsed = this.parseEditValue(this.editValue());
+    if (!parsed) {
+      this.editError.set(this.translation.t('fasting.editStartInvalid'));
+      return;
+    }
+    await this.store.startFast(parsed);
+    this.editing.set(false);
+    this.editError.set('');
+  }
+
+  /** Convert a Date to a local "HH:MM" string for an <input type="time">. */
+  private toTimeInputValue(d: Date): string {
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
+  /**
+   * Parse an HH:MM value into a Date in the recent past.
+   * Strategy: interpret the time as "today at HH:MM in local time".
+   * If that's later than now, it must mean yesterday (e.g., entering
+   * 5:15pm at 1am). Reject anything older than MAX_BACKDATE_HOURS.
+   */
+  private parseEditValue(v: string): Date | null {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim());
+    if (!m) return null;
+    const hh = Number(m[1]);
+    const mm = Number(m[2]);
+    if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+    const now = new Date();
+    const candidate = new Date(now);
+    candidate.setHours(hh, mm, 0, 0);
+    if (candidate.getTime() > now.getTime()) {
+      candidate.setDate(candidate.getDate() - 1);
+      // Re-apply wall-clock components — setDate across a DST boundary
+      // can shift the hour by ±1, producing a timestamp that doesn't
+      // match what the user typed.
+      candidate.setHours(hh, mm, 0, 0);
+    }
+    const ageMs = now.getTime() - candidate.getTime();
+    if (ageMs > this.MAX_BACKDATE_HOURS * 60 * 60 * 1000) return null;
+    return candidate;
   }
 }

@@ -439,7 +439,15 @@
     "startFastAria": "Empezar un ayuno de 16 horas",
     "chronometer": "cronómetro",
     "elapsed": "transcurrido",
-    "idle": "inactivo"
+    "idle": "inactivo",
+    "editStart": "editar",
+    "editStartAria": "Editar la hora de inicio del ayuno",
+    "editStartPrompt": "¿A qué hora empezaste a ayunar en realidad?",
+    "editStartInvalid": "Ingresa una hora dentro de las últimas 48 horas.",
+    "startedEarlier": "¿empezaste antes?",
+    "startedEarlierPrompt": "¿A qué hora dejaste de comer?",
+    "save": "guardar",
+    "cancel": "cancelar"
   },
   "measurements": {
     "section": "medidas",
