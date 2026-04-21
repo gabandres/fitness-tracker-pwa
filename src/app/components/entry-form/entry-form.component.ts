@@ -38,11 +38,14 @@ import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.comp
              scanning a packaged item populates calories + protein without
              the user having to scroll back to the capture row. -->
         <div>
-          <label class="data-label block mb-1">{{ t('entry.calories') }}</label>
+          <label for="entry-calories" class="data-label block mb-1">{{ t('entry.calories') }}</label>
           <div class="flex items-baseline gap-1">
-            <input type="number" step="1" inputmode="numeric" required
+            <input id="entry-calories" type="number" step="1" inputmode="numeric" required
               [ngModel]="form.calories()" (ngModelChange)="form.calories.set($event)"
-              name="calories" [attr.placeholder]="t('entry.caloriesPlaceholder')" class="field-input text-base" />
+              name="calories" [attr.placeholder]="t('entry.caloriesPlaceholder')"
+              [attr.aria-invalid]="form.status() === 'error' ? 'true' : null"
+              [attr.aria-describedby]="form.status() === 'error' ? 'entry-form-error' : null"
+              class="field-input text-base" />
             <span class="font-display italic text-graphite text-xs">{{ t('entry.kcal') }}</span>
             <app-barcode-scanner [compact]="true" (estimated)="form.applyEstimate($event)" />
           </div>
@@ -84,7 +87,7 @@ import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.comp
       </div>
 
       @if (form.status() === 'saved') {
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2" role="status" aria-live="polite">
           <span class="stamp-mark" style="transform: rotate(0deg)">{{ t('entry.savedStamp') }}</span>
           <span class="caption text-[11px]">{{ t('entry.savedCaption') }}</span>
           @if (form.mode() === 'add' && !form.savingPreset()) {
@@ -102,7 +105,8 @@ import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.comp
         }
       }
       @if (form.status() === 'error') {
-        <p class="font-sans text-xs text-blood">✕ {{ form.errorMsg() }}</p>
+        <p id="entry-form-error" role="alert" aria-live="assertive"
+          class="font-sans text-xs text-blood">✕ {{ form.errorMsg() }}</p>
       }
       <!-- Contextual upsell when a free user hits the 10-preset cap. -->
       @if (form.presetLimitHit()) {

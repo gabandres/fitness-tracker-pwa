@@ -15,7 +15,7 @@ type Mode = 'view' | 'add';
   template: `
     <ng-container *transloco="let t">
     <section>
-      <div class="rule"><span>{{ t('measurements.section') }}</span></div>
+      <h2 class="rule"><span>{{ t('measurements.section') }}</span></h2>
 
       @if (store.latestMeasurement(); as m) {
         <div class="mt-4 specimen px-4 py-3">

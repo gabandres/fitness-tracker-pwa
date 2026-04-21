@@ -56,7 +56,7 @@ import { EntryFormManager } from './services/entry-form-manager.service';
   template: `
     <ng-container *transloco="let t">
     <a href="#main" class="skip-link">{{ t('app.skipToMain') }}</a>
-    <main id="main" class="min-h-screen px-5 sm:px-8 md:px-12 py-8 sm:py-12 pb-28 md:pb-12">
+    <main id="main" class="min-h-screen px-5 sm:px-8 md:px-12 py-8 sm:py-12 pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-12">
       <div class="max-w-[560px] md:max-w-[1100px] mx-auto">
 
         @if (route() === 'privacy') {
@@ -615,6 +615,23 @@ export class App {
         }
       });
     }
+
+    // Per-route document.title. /changelog and /status already set their
+    // own title in-component; everything else inherits the static base
+    // title from index.html, which is misleading for SEO + screen-reader
+    // announcements. Drive from route() so SPA navigations (when added)
+    // stay in sync.
+    effect(() => {
+      const r = this.route();
+      const key =
+        r === 'privacy' ? 'privacy.pageTitle' :
+        r === 'terms' ? 'terms.pageTitle' :
+        r === 'notFound' ? 'notFound.pageTitle' :
+        r === 'changelog' ? 'changelog.pageTitle' :
+        r === 'status' ? 'status.pageTitle' :
+        null;
+      this.translation.setTitleKey(key);
+    });
 
     // Auto-dismiss reminder when user logs an entry.
     effect(() => {

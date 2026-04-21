@@ -142,7 +142,6 @@ export class StatusComponent {
 
   constructor() {
     this.load();
-    document.title = this.translation.t('status.pageTitle');
   }
 
   private async load(): Promise<void> {

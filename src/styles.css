@@ -186,6 +186,10 @@ body {
   color: var(--color-graphite);
   font-family: var(--font-display); font-style: italic;
   font-size: 0.9375rem; letter-spacing: 0.03em;
+  /* When .rule is applied to a heading element, suppress browser
+     default margins + bold so the rule reads as a stylized caption
+     instead of a chunky h2/h3. Screen readers still see a heading. */
+  margin: 0; font-weight: 400;
 }
 .rule::before, .rule::after { content: ""; flex: 1; height: 1px; background: var(--color-rule); }
 
@@ -299,6 +303,20 @@ body {
 .stamp-btn:active { transform: translateY(0); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
 .stamp-btn:disabled { background: var(--color-graphite-soft); border-color: var(--color-graphite); cursor: not-allowed; box-shadow: none; }
 
+/* Ink variant: high-contrast filled button keyed off the theme's ink/paper
+   pair. Used for START FAST so the label flips correctly between light
+   (dark bg, cream text) and dark (cream bg, dark text) palettes — the
+   previous inline override kept the cream text in both, flattening
+   contrast to ~3:1 in dark mode (UX report 3.2). */
+.stamp-btn--ink {
+  background: var(--color-ink);
+  color: var(--color-paper);
+  border-color: var(--color-graphite);
+}
+.stamp-btn--ink:hover:not(:disabled) {
+  background: var(--color-ink-soft);
+}
+
 /* Capture button: barcode / photo / other primary capture paths.
    Bigger than tag-btn (44px tap target), smaller than stamp-btn
    (which is the primary submit). */
@@ -337,12 +355,35 @@ body {
 }
 
 /* ── Date navigation strip ───────────────────────────────────── */
-.date-strip-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+.date-strip-scroll {
+  scrollbar-width: none; -ms-overflow-style: none;
+  scroll-snap-type: x proximity;
+}
 .date-strip-scroll::-webkit-scrollbar { display: none; }
+
+/* Fade gradients on both edges signal the strip scrolls horizontally.
+   Previously the leftmost day ("TUE" at 14-days-ago) was clipped to
+   "JE" at 375px viewport with no affordance hinting at scrollability
+   (UX report 4.2). Pseudo-elements don't intercept taps thanks to
+   pointer-events: none. */
+.date-strip-wrap::before,
+.date-strip-wrap::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 24px;
+  pointer-events: none; z-index: 1;
+}
+.date-strip-wrap::before {
+  left: 0;
+  background: linear-gradient(to right, var(--color-paper), transparent);
+}
+.date-strip-wrap::after {
+  right: 0;
+  background: linear-gradient(to left, var(--color-paper), transparent);
+}
 .date-chip {
   border: 1px solid transparent; border-radius: 8px;
   cursor: pointer; transition: all 160ms ease;
   min-width: 44px; /* touch target */
+  scroll-snap-align: center;
 }
 .date-chip:hover { background: rgba(255, 255, 255, 0.3); }
 [data-theme="dark"] .date-chip:hover, [data-theme="oxblood-dark"] .date-chip:hover { background: rgba(255, 255, 255, 0.06); }
@@ -486,8 +527,11 @@ body {
   width: 56px; height: 56px; border-radius: 9999px;
   background: var(--color-blood); color: #f4f0e8;
   border: none; box-shadow: 0 6px 16px rgba(0,0,0,0.25);
-  display: inline-flex; align-items: center; justify-content: center;
+  align-items: center; justify-content: center;
   cursor: pointer; transition: transform 160ms ease, box-shadow 160ms ease;
+}
+@media (max-width: 767.98px) {
+  .fab-btn { display: inline-flex; }
 }
 .fab-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(0,0,0,0.28); }
 .fab-btn:active { transform: translateY(0); box-shadow: 0 3px 8px rgba(0,0,0,0.2); }

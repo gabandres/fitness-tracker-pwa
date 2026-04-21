@@ -25,7 +25,7 @@ interface SparklinePoint { x: number; y: number; }
   template: `
     <ng-container *transloco="let t">
     <section>
-      <div class="rule"><span>{{ t('dashboard.heading') }}</span></div>
+      <h2 class="rule"><span>{{ t('dashboard.heading') }}</span></h2>
 
       @if (isHydrating()) {
         <!-- Skeleton readouts during cold-load so the 3-up grid doesn't
@@ -50,12 +50,12 @@ interface SparklinePoint { x: number; y: number; }
         <div class="mt-4 specimen px-5 py-6 text-center">
           <span class="crop-bl"></span><span class="crop-br"></span>
           <span class="stamp-mark" style="transform: rotate(0deg)">{{ t('dashboard.heroStamp') }}</span>
-          <h2 class="font-display text-2xl sm:text-3xl leading-[0.95] text-ink mt-3">
+          <h3 class="font-display text-2xl sm:text-3xl leading-[0.95] text-ink mt-3">
             {{ t('dashboard.heroGreeting.' + greeting()) }}<br/>
             <em class="text-blood">
               {{ t('dashboard.heroBody', { target: store.targetCalories() }) }}
             </em>
-          </h2>
+          </h3>
           <p class="caption text-[11px] mt-3 leading-relaxed">
             {{ t('dashboard.heroSubtitle') }}
           </p>
@@ -184,7 +184,7 @@ interface SparklinePoint { x: number; y: number; }
             <span class="crop-bl"></span><span class="crop-br"></span>
             <div class="flex items-center gap-2 mb-2">
               <span class="stamp-mark" style="transform: rotate(0deg)">{{ t('dashboard.weeklyDays', { days: w.days }) }}</span>
-              <span class="data-label">{{ t('dashboard.weeklySummary') }}</span>
+              <h3 class="data-label m-0 font-normal">{{ t('dashboard.weeklySummary') }}</h3>
             </div>
             <div class="grid grid-cols-4 gap-2 text-center">
               <div>
@@ -224,7 +224,7 @@ interface SparklinePoint { x: number; y: number; }
             <span class="crop-bl"></span><span class="crop-br"></span>
             <div class="flex items-center gap-2 mb-2">
               <span class="stamp-mark" style="transform: rotate(0deg)">{{ t('dashboard.envelopeStamp') }}</span>
-              <span class="data-label">{{ t('dashboard.envelopeLabel') }}</span>
+              <h3 class="data-label m-0 font-normal">{{ t('dashboard.envelopeLabel') }}</h3>
             </div>
             <p class="font-display text-ink text-[17px] leading-snug">
               @if (env.surplus > 0) {

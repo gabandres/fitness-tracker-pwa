@@ -12,8 +12,14 @@ export class TranslationService {
 
   readonly language = signal<AppLang>(this.resolveInitial());
 
+  /** Active route-level title key (e.g. 'privacy.pageTitle'). When unset
+      we fall back to the app-wide default `common.appTitle` so the base
+      title is preserved for the main /app view. */
+  private currentTitleKey: string | null = null;
+
   constructor() {
     this.transloco.setActiveLang(this.language());
+    this.updateHtmlLang(this.language());
     // Title update happens after first translation load.
     this.transloco.events$.subscribe((event) => {
       if (event.type === 'translationLoadSuccess' && event.payload.langName === this.language()) {
@@ -31,6 +37,15 @@ export class TranslationService {
       // Private-mode Safari throws; non-fatal.
     }
     this.transloco.setActiveLang(lang);
+    this.updateHtmlLang(lang);
+    this.updateTitle();
+  }
+
+  /** Set the document title from a specific i18n key. Pass `null` to
+      restore the default app title. Keeps title/lang management in one
+      place so per-route titles flip correctly on language change too. */
+  setTitleKey(key: string | null): void {
+    this.currentTitleKey = key;
     this.updateTitle();
   }
 
@@ -64,10 +79,17 @@ export class TranslationService {
   }
 
   private updateTitle(): void {
-    const title = this.t('common.appTitle');
-    if (title && title !== 'common.appTitle' && typeof document !== 'undefined') {
+    if (typeof document === 'undefined') return;
+    const key = this.currentTitleKey ?? 'common.appTitle';
+    const title = this.t(key);
+    if (title && title !== key) {
       document.title = title;
     }
+  }
+
+  private updateHtmlLang(lang: AppLang): void {
+    if (typeof document === 'undefined') return;
+    document.documentElement.lang = lang;
   }
 
   private toCamel(code: string): string {

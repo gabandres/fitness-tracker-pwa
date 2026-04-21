@@ -23,6 +23,10 @@ interface DateChip {
   dateNum: string;
   isToday: boolean;
   hasData: boolean;
+  /** Full date for accessible name: "Tuesday, April 7". Visible chip
+      labels repeat across months ("07" appears in Mar, Apr, May) so a
+      screen-reader user can't disambiguate without this. */
+  fullDateAria: string;
 }
 
 interface DayGroup {
@@ -116,28 +120,36 @@ interface DayGroup {
       }
 
       <!-- ─── Date navigation strip ──────────────────────────── -->
-      <div class="date-strip-scroll overflow-x-auto -mx-1 px-1 pb-2 mb-3">
-        <div class="flex gap-1.5 min-w-max">
-          @for (chip of dateChips(); track chip.dateKey) {
-            <button type="button" (click)="scrollToDay(chip.dateKey)"
-              class="date-chip flex flex-col items-center px-2 py-1.5 min-w-[42px]"
-              [class.date-chip--selected]="chip.dateKey === selectedDateKey()"
-              [class.date-chip--today]="chip.isToday"
-              [class.date-chip--empty]="!chip.hasData">
-              <span class="font-mono text-[11px] tracking-[0.12em] uppercase text-graphite">
-                {{ chip.dayLabel }}
-              </span>
-              <span class="font-mono text-base tabular-nums font-medium"
-                [class.text-ink]="chip.hasData"
-                [class.text-graphite-soft]="!chip.hasData">
-                {{ chip.dateNum }}
-              </span>
-              @if (chip.hasData) {
-                <span class="w-1 h-1 rounded-full mt-0.5" style="background: var(--color-olive)"
-                  [attr.aria-label]="t('daily.chipHasEntries')"></span>
-              }
-            </button>
-          }
+      <!-- Wrapper paints fade gradients on both edges so scrollability
+           is discoverable on narrow screens (UX report 4.2). The inner
+           scroller keeps scroll-snap-x so swipes land on chip centers. -->
+      <div class="date-strip-wrap relative -mx-1 mb-3">
+        <div class="date-strip-scroll overflow-x-auto px-1 pb-2">
+          <div class="flex gap-1.5 min-w-max">
+            @for (chip of dateChips(); track chip.dateKey) {
+              <button type="button" (click)="scrollToDay(chip.dateKey)"
+                class="date-chip flex flex-col items-center px-2 py-1.5 min-w-[42px]"
+                [class.date-chip--selected]="chip.dateKey === selectedDateKey()"
+                [class.date-chip--today]="chip.isToday"
+                [class.date-chip--empty]="!chip.hasData"
+                [attr.aria-label]="chip.fullDateAria"
+                [attr.aria-current]="chip.dateKey === selectedDateKey() ? 'date' : null">
+                <span class="font-mono text-[11px] tracking-[0.12em] uppercase text-graphite" aria-hidden="true">
+                  {{ chip.dayLabel }}
+                </span>
+                <span class="font-mono text-base tabular-nums font-medium"
+                  [class.text-ink]="chip.hasData"
+                  [class.text-graphite-soft]="!chip.hasData"
+                  aria-hidden="true">
+                  {{ chip.dateNum }}
+                </span>
+                @if (chip.hasData) {
+                  <span class="w-1 h-1 rounded-full mt-0.5" style="background: var(--color-olive)"
+                    [attr.aria-label]="t('daily.chipHasEntries')"></span>
+                }
+              </button>
+            }
+          </div>
         </div>
       </div>
 
@@ -216,7 +228,7 @@ interface DayGroup {
       </div>
 
       <!-- ─── Day-grouped log tape ─────────────────────────── -->
-      <div class="rule"><span>{{ dayGroups().length > 0 ? t('daily.tapeTitle') : t('daily.tapeEmpty') }}</span></div>
+      <h2 class="rule"><span>{{ dayGroups().length > 0 ? t('daily.tapeTitle') : t('daily.tapeEmpty') }}</span></h2>
 
       @if (isHydrating()) {
         <!-- Skeleton shimmer while the store hydrates from Firestore on
@@ -1014,6 +1026,7 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
         dateNum: String(d.getDate()).padStart(2, '0'),
         isToday: key === this.todayKey,
         hasData: dataKeys.has(key),
+        fullDateAria: d.toLocaleDateString(locale, { weekday: 'long', month: 'long', day: 'numeric' }),
       });
     }
     return chips;

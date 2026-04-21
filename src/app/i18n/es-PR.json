@@ -743,7 +743,8 @@
     "titleEm": "no archivada.",
     "body": "esta ruta no es parte del registro. quizás se movió o escribiste mal el url.",
     "home": "volver a macro log",
-    "changelog": "últimos cambios"
+    "changelog": "últimos cambios",
+    "pageTitle": "No encontrado — Macro Log"
   },
   "status": {
     "backLink": "← volver a macro log",
@@ -806,6 +807,7 @@
     "section": "privacidad",
     "titleLead": "Política",
     "titleEm": "de privacidad.",
+    "pageTitle": "Privacidad — Macro Log",
     "lastUpdated": "última actualización 2026-04-12 · en español claro, sin trucos.",
     "storeHeading": "Qué guardamos",
     "storeBody1": "Cuando inicias sesión con Google, guardamos tu correo, nombre de perfil y URL de la foto de perfil — nada más de tu cuenta de Google. Todo lo demás en Macro Log son cosas que tú mismo escribes: peso, calorías, proteína, fechas, medidas corporales, etiquetas de comidas, toggles de entrenamiento, y presets personalizados.",
@@ -862,6 +864,7 @@
     "section": "términos de uso",
     "titleLead": "Términos",
     "titleEm": "de uso.",
+    "pageTitle": "Términos — Macro Log",
     "lastUpdated": "última actualización 2026-04-12 · corto, porque no deberías necesitar un abogado para leer esto.",
     "dealHeading": "El acuerdo",
     "dealBody": "Macro Log es un tracker de calorías, proteína y peso con un coach de IA. Al iniciar sesión, aceptas usarlo como está pensado — una herramienta personal de registro — y no abusar de él (scraping, hacer ingeniería inversa del webhook, intentar acceder a datos de otros usuarios, etc.).",

@@ -24,9 +24,9 @@ interface SuggestedPrompt {
   template: `
     <ng-container *transloco="let t">
     <section>
-      <div class="rule">
+      <h2 class="rule">
         <span>{{ t('consultation.section') }}</span>
-      </div>
+      </h2>
 
       <div class="mt-6">
         <p class="font-display text-xl leading-snug text-ink">

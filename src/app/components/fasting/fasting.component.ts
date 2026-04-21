@@ -27,7 +27,7 @@ import { TranslationService } from '../../services/translation.service';
          The strip at the top of the ledger is ambient; this dial is the
          detail view and always has a reachable CTA (start or end). -->
     <section>
-      <div class="rule"><span>{{ t('fasting.chronometer') }}</span></div>
+      <h2 class="rule"><span>{{ t('fasting.chronometer') }}</span></h2>
 
       <div class="mt-4 flex flex-col items-center">
         <!-- Analog dial -->
@@ -144,8 +144,7 @@ import { TranslationService } from '../../services/translation.service';
             @if (!editing()) {
               <button type="button" (click)="punchClock()"
                 [attr.aria-label]="t('fasting.startFastAria')"
-                class="stamp-btn mt-3 max-w-xs"
-                style="background: var(--color-ink); border-color: var(--color-graphite);">
+                class="stamp-btn stamp-btn--ink mt-3 max-w-xs">
                 {{ t('fasting.startFast') }}
               </button>
               <p class="mt-2">

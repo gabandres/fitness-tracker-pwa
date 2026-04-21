@@ -737,7 +737,8 @@
     "titleEm": "not filed.",
     "body": "this path isn't part of the ledger. it may have moved, or you may have mistyped the url.",
     "home": "back to macro log",
-    "changelog": "recent ships"
+    "changelog": "recent ships",
+    "pageTitle": "Not found — Macro Log"
   },
   "status": {
     "backLink": "← back to macro log",
@@ -800,6 +801,7 @@
     "section": "privacy",
     "titleLead": "Privacy",
     "titleEm": "policy.",
+    "pageTitle": "Privacy — Macro Log",
     "lastUpdated": "last updated 2026-04-12 · plain english, no dark patterns.",
     "storeHeading": "What we store",
     "storeBody1": "When you sign in with Google, we store your email, display name, and profile photo URL — nothing else from your Google account. Everything else in Macro Log is stuff you enter yourself: weight, calories, protein, dates, body measurements, meal labels, training toggles, and custom meal presets.",
@@ -856,6 +858,7 @@
     "section": "terms of use",
     "titleLead": "Terms of",
     "titleEm": "use.",
+    "pageTitle": "Terms — Macro Log",
     "lastUpdated": "last updated 2026-04-12 · short, because you shouldn't need a lawyer to read this.",
     "dealHeading": "The deal",
     "dealBody": "Macro Log is a calorie, protein, and weight tracker with an AI coach. By signing in, you agree to use it as intended — a personal logging tool — and not to abuse it (scraping, reverse-engineering the webhook, attempting to access other users' data, etc).",

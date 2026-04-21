@@ -1,7 +1,6 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { marked } from 'marked';
-import { TranslationService } from '../../services/translation.service';
 
 type FetchStatus = 'loading' | 'ready' | 'error';
 
@@ -92,8 +91,6 @@ type FetchStatus = 'loading' | 'ready' | 'error';
   `],
 })
 export class ChangelogComponent {
-  private readonly translation = inject(TranslationService);
-
   protected readonly status = signal<FetchStatus>('loading');
   protected readonly html = signal<string>('');
 
@@ -109,7 +106,6 @@ export class ChangelogComponent {
       const rendered = marked.parse(md, { gfm: true, breaks: false }) as string;
       this.html.set(rendered);
       this.status.set('ready');
-      document.title = this.translation.t('changelog.pageTitle');
     } catch (err) {
       console.error('Failed to load changelog:', err);
       this.status.set('error');
