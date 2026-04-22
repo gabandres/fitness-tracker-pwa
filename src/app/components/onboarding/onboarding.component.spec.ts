@@ -4,7 +4,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { afterEach, describe, beforeEach, expect, it, vi } from 'vitest';
 import { provideTranslocoConfig } from '../../i18n/transloco.providers';
-import { FirebaseService } from '../../services/firebase.service';
+import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { TranslationService } from '../../services/translation.service';
 import { OnboardingComponent } from './onboarding.component';
 
@@ -28,7 +28,7 @@ describe('OnboardingComponent', () => {
         provideTranslocoConfig(),
         TranslationService,
         {
-          provide: FirebaseService,
+          provide: LEDGER_PORT,
           useValue: {
             profile: signal(null),
             saveProfile,

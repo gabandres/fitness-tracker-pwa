@@ -2,12 +2,12 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, ou
 import { FormsModule } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import {
-  FirebaseService,
   ActivityLevel,
   CutPace,
   ProfileFields,
   Sex,
 } from '../../services/firebase.service';
+import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { TranslationService } from '../../services/translation.service';
 
 type Status = 'idle' | 'saving' | 'error';
@@ -466,7 +466,7 @@ interface OnboardingDraft {
   `],
 })
 export class OnboardingComponent {
-  private readonly firebase = inject(FirebaseService);
+  private readonly firebase = inject(LEDGER_PORT);
   private readonly translation = inject(TranslationService);
 
   /** When true, we're editing an existing profile rather than creating one. */

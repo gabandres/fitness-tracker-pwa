@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 import { SwUpdate } from '@angular/service-worker';
 import { App } from './app';
 import { AuthService } from './services/auth.service';
-import { FirebaseService } from './services/firebase.service';
+import { LEDGER_PORT } from './ledger/ports/ledger.port';
 import { FitnessStore } from './services/fitness-store.service';
 import { PushNotificationService } from './services/push-notification.service';
 import { Messaging } from '@angular/fire/messaging';
@@ -42,7 +42,7 @@ describe('App', () => {
           },
         },
         {
-          provide: FirebaseService,
+          provide: LEDGER_PORT,
           useValue: {
             profile: signal(null),
             profileCompleted: signal(false),

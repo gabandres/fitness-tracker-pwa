@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { AuthService } from '../../services/auth.service';
-import { FirebaseService } from '../../services/firebase.service';
+import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { TranslationService } from '../../services/translation.service';
 import { extractErrorCode } from '../../models/error-codes';
 
@@ -157,7 +157,7 @@ type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'error';
 })
 export class PrivacyComponent {
   protected readonly auth = inject(AuthService);
-  private readonly firebase = inject(FirebaseService);
+  private readonly firebase = inject(LEDGER_PORT);
   private readonly translation = inject(TranslationService);
 
   protected readonly deleteStatus = signal<DeleteStatus>('idle');
