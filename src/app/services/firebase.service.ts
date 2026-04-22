@@ -1,4 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import type { LedgerPort } from '../ledger/ports/ledger.port';
 import {
   Firestore,
   collection,
@@ -122,7 +123,7 @@ export interface UserProfile extends Partial<ProfileFields> {
  * unauthenticated — the UI is responsible for gating.
  */
 @Injectable({ providedIn: 'root' })
-export class FirebaseService {
+export class FirebaseService implements LedgerPort {
   private readonly firestore = inject(Firestore);
   private readonly auth = inject(Auth);
   private readonly functions = inject(Functions);
