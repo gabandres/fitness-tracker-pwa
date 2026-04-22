@@ -4,7 +4,7 @@ import {
 } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { AuthService } from '../../services/auth.service';
-import { FirebaseService } from '../../services/firebase.service';
+import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { PushNotificationService } from '../../services/push-notification.service';
 import { SubscriptionService } from '../../services/subscription.service';
@@ -406,7 +406,7 @@ import { ThemeChoice } from '../../utils/theme';
 })
 export class SettingsSheetComponent implements AfterViewInit {
   protected readonly auth = inject(AuthService);
-  protected readonly firebase = inject(FirebaseService);
+  protected readonly firebase = inject(LEDGER_PORT);
   protected readonly store = inject(FitnessStore);
   protected readonly pushService = inject(PushNotificationService);
   protected readonly subs = inject(SubscriptionService);

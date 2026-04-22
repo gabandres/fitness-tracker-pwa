@@ -20,7 +20,7 @@ import { SettingsSheetComponent } from './components/settings-sheet/settings-she
 import { MobileTabsComponent, type MobileTab } from './components/mobile-tabs/mobile-tabs.component';
 import { MobileFabComponent } from './components/mobile-fab/mobile-fab.component';
 import { AuthService } from './services/auth.service';
-import { FirebaseService } from './services/firebase.service';
+import { LEDGER_PORT } from './ledger/ports/ledger.port';
 import { FitnessStore } from './services/fitness-store.service';
 import { SubscriptionService } from './services/subscription.service';
 import { ThemeChoice, PRO_THEMES, isProTheme, readStoredTheme, writeStoredTheme } from './utils/theme';
@@ -378,7 +378,7 @@ import { EntryFormManager } from './services/entry-form-manager.service';
 })
 export class App {
   protected readonly auth = inject(AuthService);
-  protected readonly firebase = inject(FirebaseService);
+  protected readonly firebase = inject(LEDGER_PORT);
   protected readonly store = inject(FitnessStore); // triggers lifecycle via constructor effect
   protected readonly subs = inject(SubscriptionService);
   private readonly upsell = inject(UpsellService);
