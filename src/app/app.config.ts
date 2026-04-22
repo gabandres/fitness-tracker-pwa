@@ -16,6 +16,8 @@ import { routes } from './app.routes';
 import { provideServiceWorker } from '@angular/service-worker';
 import { environment } from '../environments/environment';
 import { provideTranslocoConfig } from './i18n/transloco.providers';
+import { LEDGER_PORT } from './ledger/ports/ledger.port';
+import { FirebaseService } from './services/firebase.service';
 
 /**
  * Only provide Firebase Messaging when the browser supports the required APIs
@@ -59,5 +61,9 @@ export const appConfig: ApplicationConfig = {
     // skipped and this handler silently passes through — no user-visible
     // difference from the default Angular handler.
     { provide: ErrorHandler, useValue: Sentry.createErrorHandler() },
+    // Phase 1 of the LedgerStore refactor (issue #6): expose FirebaseService
+    // through the LEDGER_PORT injection token so future consumers and tests
+    // can bind to the port without touching the concrete service.
+    { provide: LEDGER_PORT, useExisting: FirebaseService },
   ],
 };
