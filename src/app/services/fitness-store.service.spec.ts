@@ -3,7 +3,8 @@ import { signal, WritableSignal } from '@angular/core';
 import { vi } from 'vitest';
 import { FitnessStore, PresetLimitError, PRESET_LIMIT_FREE } from './fitness-store.service';
 import { AuthService } from './auth.service';
-import { FirebaseService, DailyLog, LogEntry, MealPreset, UserProfile } from './firebase.service';
+import { LEDGER_PORT } from '../ledger/ports/ledger.port';
+import { DailyLog, LogEntry, MealPreset, UserProfile } from './firebase.service';
 import { TdeeCalculatorService } from './tdee-calculator.service';
 import { GeminiService } from './gemini.service';
 import { SubscriptionService } from './subscription.service';
@@ -118,7 +119,7 @@ describe('FitnessStore', () => {
             emailVerified: signal(true),
           },
         },
-        { provide: FirebaseService, useValue: mockFb },
+        { provide: LEDGER_PORT, useValue: mockFb },
         {
           // Stub TranslationService so the test bed doesn't have to pull in
           // the full Transloco provider chain (TRANSLOCO_TRANSPILER etc).
