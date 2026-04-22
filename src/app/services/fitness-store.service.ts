@@ -128,7 +128,7 @@ export class FitnessStore {
     const seen = new Set<string>();
     const out: DailyLog[] = [];
     const list = this._logs();
-    // `_logs()` is oldest-first (LedgerPort.getRecentLogs reverses
+    // `_logs()` is oldest-first (the adapter reverses
     // the desc-ordered query before returning). Iterate end-to-start so
     // the user sees their newest meals first.
     for (let i = list.length - 1; i >= 0 && out.length < 5; i--) {

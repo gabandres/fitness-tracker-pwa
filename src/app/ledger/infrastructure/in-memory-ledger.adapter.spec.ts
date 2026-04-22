@@ -84,6 +84,50 @@ describe('InMemoryLedgerAdapter (LedgerPort contract)', () => {
       await port.deleteLog(entry.id!);
       expect(await port.getRecentLogs()).toEqual([]);
     });
+
+    it('updateLog rejects on unknown id, matching Firestore updateDoc', async () => {
+      await expect(port.updateLog('nope', { calories: 10 })).rejects.toThrow();
+    });
+
+    it('deleteLog rejects on unknown id', async () => {
+      await expect(port.deleteLog('nope')).rejects.toThrow();
+    });
+
+    it('exerciseCompleted=false clears the flag, matching deleteField() in prod', async () => {
+      await port.addLog({ calories: 100, exerciseCompleted: true, timestamp: new Date('2026-04-22') });
+      const [entry] = await port.getRecentLogs();
+      expect(entry.exerciseCompleted).toBe(true);
+      await port.updateLog(entry.id!, { calories: 100, exerciseCompleted: false });
+      expect((await port.getRecentLogs())[0].exerciseCompleted).toBeUndefined();
+    });
+
+    it('addLog without a timestamp uses now()', async () => {
+      const before = Date.now();
+      await port.addLog({ calories: 50 });
+      const [entry] = await port.getRecentLogs();
+      expect(entry.date.getTime()).toBeGreaterThanOrEqual(before);
+      expect(entry.date.getTime()).toBeLessThanOrEqual(Date.now());
+    });
+  });
+
+  describe('profile idempotency', () => {
+    it('saveProfile preserves ageConfirmedAt across subsequent saves', async () => {
+      await port.ensureUserProfile();
+      const fields: ProfileFields = {
+        heightIn: 70,
+        age: 30,
+        sex: 'male',
+        activityLevel: 'moderate',
+        targetPaceLbsPerWeek: 1.0,
+        ageConfirmed: true,
+      };
+      await port.saveProfile(fields);
+      const firstStamp = port.profile()?.ageConfirmedAt;
+      expect(firstStamp).toBeDefined();
+
+      await port.saveProfile({ ...fields, ageConfirmed: true });
+      expect(port.profile()?.ageConfirmedAt).toBe(firstStamp);
+    });
   });
 
   describe('dailyWater clamping', () => {
