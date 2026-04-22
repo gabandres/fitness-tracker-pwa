@@ -1,7 +1,7 @@
 import { Injectable, Signal, computed, effect, inject, signal } from '@angular/core';
 import { AuthService } from './auth.service';
+import { LEDGER_PORT } from '../ledger/ports/ledger.port';
 import {
-  FirebaseService,
   DailyLog,
   LogEntry,
   MealPreset,
@@ -66,7 +66,7 @@ export interface TodaySummary {
  * auto-refresh all consumers via Angular signals.
  *
  * Components inject this one service and read signals. They never
- * call FirebaseService or TdeeCalculatorService directly.
+ * call LEDGER_PORT or TdeeCalculatorService directly.
  *
  * Lifecycle: loads on sign-in, clears on sign-out — driven by an
  * effect watching AuthService.isSignedIn().
@@ -74,7 +74,7 @@ export interface TodaySummary {
 @Injectable({ providedIn: 'root' })
 export class FitnessStore {
   private readonly auth = inject(AuthService);
-  private readonly fb = inject(FirebaseService);
+  private readonly fb = inject(LEDGER_PORT);
   private readonly calc = inject(TdeeCalculatorService);
   private readonly gemini = inject(GeminiService);
   private readonly subs = inject(SubscriptionService);
@@ -128,7 +128,7 @@ export class FitnessStore {
     const seen = new Set<string>();
     const out: DailyLog[] = [];
     const list = this._logs();
-    // `_logs()` is oldest-first (FirebaseService.getRecentLogs reverses
+    // `_logs()` is oldest-first (the adapter reverses
     // the desc-ordered query before returning). Iterate end-to-start so
     // the user sees their newest meals first.
     for (let i = list.length - 1; i >= 0 && out.length < 5; i--) {

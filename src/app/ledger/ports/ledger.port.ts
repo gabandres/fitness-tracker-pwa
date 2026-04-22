@@ -40,6 +40,9 @@ export interface LedgerPort {
   exportMyData(): Promise<unknown>;
 
   addLog(entry: LogEntry): Promise<void>;
+  /** Returns up to `days` most-recent log rows, oldest-first. The `days`
+   *  parameter is a row cap, not a date window — a heavy logger may get
+   *  a few days' worth; a sparse logger may span weeks. */
   getRecentLogs(days?: number): Promise<DailyLog[]>;
   updateLog(logId: string, entry: LogEntry): Promise<void>;
   deleteLog(logId: string): Promise<void>;

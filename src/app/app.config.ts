@@ -61,9 +61,7 @@ export const appConfig: ApplicationConfig = {
     // skipped and this handler silently passes through — no user-visible
     // difference from the default Angular handler.
     { provide: ErrorHandler, useValue: Sentry.createErrorHandler() },
-    // Phase 1 of the LedgerStore refactor (issue #6): expose FirebaseService
-    // through the LEDGER_PORT injection token so future consumers and tests
-    // can bind to the port without touching the concrete service.
+    // LedgerStore seam (#6): the app depends on LEDGER_PORT; FirebaseService is one impl.
     { provide: LEDGER_PORT, useExisting: FirebaseService },
   ],
 };

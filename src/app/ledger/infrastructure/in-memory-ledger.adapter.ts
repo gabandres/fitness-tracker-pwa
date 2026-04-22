@@ -38,12 +38,6 @@ export class InMemoryLedgerAdapter implements LedgerPort {
   private readonly water: Record<string, number> = {};
   private report: WeeklyReport | null = null;
 
-  /** Test hook: simulate a signed-in user with no profile doc yet. */
-  setAuthenticatedUser(email: string): void {
-    // no-op in-memory — ensureUserProfile drives the real lifecycle
-    void email;
-  }
-
   /** Test hook: pre-seed a weekly report (prod writes are server-only). */
   seedLatestReport(report: WeeklyReport | null): void {
     this.report = report;
@@ -167,7 +161,7 @@ export class InMemoryLedgerAdapter implements LedgerPort {
 
   async updateLog(logId: string, entry: LogEntry): Promise<void> {
     const existing = this.logs.get(logId);
-    if (!existing) return;
+    if (!existing) throw new Error(`Log not found: ${logId}`);
     this.logs.set(logId, {
       ...existing,
       calories: entry.calories,
@@ -182,7 +176,7 @@ export class InMemoryLedgerAdapter implements LedgerPort {
   }
 
   async deleteLog(logId: string): Promise<void> {
-    this.logs.delete(logId);
+    if (!this.logs.delete(logId)) throw new Error(`Log not found: ${logId}`);
   }
 
   async getDailyWeights(): Promise<Record<string, number>> {
@@ -211,7 +205,7 @@ export class InMemoryLedgerAdapter implements LedgerPort {
   }
 
   async deletePreset(presetId: string): Promise<void> {
-    this.presets.delete(presetId);
+    if (!this.presets.delete(presetId)) throw new Error(`Preset not found: ${presetId}`);
   }
 
   async getLatestReport(): Promise<WeeklyReport | null> {
@@ -230,7 +224,7 @@ export class InMemoryLedgerAdapter implements LedgerPort {
   }
 
   async deleteMeasurement(id: string): Promise<void> {
-    this.measurements.delete(id);
+    if (!this.measurements.delete(id)) throw new Error(`Measurement not found: ${id}`);
   }
 
   private patchProfile(
