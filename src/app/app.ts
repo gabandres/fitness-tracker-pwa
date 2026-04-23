@@ -15,6 +15,7 @@ import { TermsComponent } from './components/terms/terms.component';
 import { ChangelogComponent } from './components/changelog/changelog.component';
 import { StatusComponent } from './components/status/status.component';
 import { LandingComponent } from './components/landing/landing.component';
+import { AdminComponent } from './components/admin/admin.component';
 import { NotFoundComponent } from './components/not-found/not-found.component';
 import { SettingsSheetComponent } from './components/settings-sheet/settings-sheet.component';
 import { MobileTabsComponent, type MobileTab } from './components/mobile-tabs/mobile-tabs.component';
@@ -29,6 +30,7 @@ import { mediaSignal } from './utils/media';
 import { UpsellService } from './services/upsell.service';
 import { AnalyticsService } from './services/analytics.service';
 import { EntryFormManager } from './services/entry-form-manager.service';
+import { AdminService } from './services/admin.service';
 
 @Component({
   selector: 'app-root',
@@ -46,6 +48,7 @@ import { EntryFormManager } from './services/entry-form-manager.service';
     ChangelogComponent,
     StatusComponent,
     LandingComponent,
+    AdminComponent,
     NotFoundComponent,
     SettingsSheetComponent,
     MobileTabsComponent,
@@ -71,6 +74,21 @@ import { EntryFormManager } from './services/entry-form-manager.service';
         } @else if (route() === 'status') {
           @defer { <app-status /> }
           @placeholder { <div class="py-20 text-center caption">…</div> }
+        } @else if (route() === 'admin') {
+          @if (!auth.ready()) {
+            <div class="py-20 text-center caption">…</div>
+          } @else if (!auth.isSignedIn()) {
+            <!-- Non-signed-in visitors see the same sign-in card as /app.
+                 The admin guard inside AdminComponent handles the post-auth
+                 "not an admin" case — we just make sure they can reach a
+                 sign-in surface here. -->
+            <div class="ink-in delay-3">
+              <app-sign-in />
+            </div>
+          } @else {
+            @defer (on immediate) { <app-admin /> }
+            @placeholder { <div class="py-20 text-center caption">…</div> }
+          }
         } @else if (route() === 'notFound') {
           @defer { <app-not-found /> }
           @placeholder { <div class="py-20 text-center caption">…</div> }
@@ -84,6 +102,27 @@ import { EntryFormManager } from './services/entry-form-manager.service';
           @defer (on immediate) { <app-landing /> }
           @placeholder { <div class="py-20 text-center caption">…</div> }
         } @else {
+
+        <!-- Impersonation banner. Renders above the masthead whenever an
+             admin is signed in as another user. Loss of the admin claim
+             during impersonation means the admin panel is unreachable
+             from the target account — this banner is the only way back. -->
+        @if (admin.impersonating()) {
+          <div class="mb-4 specimen px-4 py-2.5 flex items-center justify-between gap-3 ink-in"
+            role="status" aria-live="polite"
+            style="border-color: var(--color-gold); background: color-mix(in srgb, var(--color-gold) 8%, transparent)">
+            <span class="crop-bl" style="border-color: var(--color-gold)"></span>
+            <span class="crop-br" style="border-color: var(--color-gold)"></span>
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="stamp-mark" style="border-color: var(--color-gold); color: var(--color-gold)">IMPERSONATING</span>
+              <span class="caption text-xs truncate">viewing app as {{ auth.user()?.email }}</span>
+            </div>
+            <button type="button" (click)="exitImpersonation()"
+              [disabled]="exitingImpersonation()" class="tag-btn text-[11px] shrink-0">
+              {{ exitingImpersonation() ? 'returning…' : 'exit impersonation' }}
+            </button>
+          </div>
+        }
 
         <!-- SwUpdate dialog (fixed overlay) -->
         @if (updateReady()) {
@@ -386,6 +425,7 @@ export class App {
   private readonly entryForm = inject(EntryFormManager);
   private readonly swUpdate = inject(SwUpdate);
   private readonly translation = inject(TranslationService); // resolves locale on boot, updates <title>
+  protected readonly admin = inject(AdminService);
 
   protected readonly ticks = Array.from({ length: 45 });
   protected readonly editingProfile = signal(false);
@@ -402,7 +442,7 @@ export class App {
   /** URL-path based routing for the two public-static pages. Anything
       else (including '/' and unknown paths) falls through to the
       signal-gated main app. */
-  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'landing' | 'notFound' | null>(this.detectRoute());
+  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | null>(this.detectRoute());
   protected readonly updateReady = signal(false);
   protected readonly offline = signal(!navigator.onLine);
   protected readonly retryingOffline = signal(false);
@@ -410,6 +450,23 @@ export class App {
   protected readonly verifyResending = signal(false);
   protected readonly verifyResent = signal(false);
   protected readonly verifyError = signal('');
+  protected readonly exitingImpersonation = signal(false);
+
+  /** Exit impersonation from the global banner. Lives here (not in
+   *  AdminComponent) because the admin can't reach the admin panel
+   *  while impersonating — the `admin` custom claim is on their own
+   *  account, not the target's. */
+  protected async exitImpersonation(): Promise<void> {
+    if (this.exitingImpersonation()) return;
+    this.exitingImpersonation.set(true);
+    try {
+      await this.admin.stopImpersonating();
+      window.location.assign('/admin');
+    } catch (err) {
+      console.error('stopImpersonation failed', err);
+      this.exitingImpersonation.set(false);
+    }
+  }
 
   /** Pull a fresh user record from Firebase. After the user clicks
       the email-verification link, their server-side state flips to
@@ -495,12 +552,13 @@ export class App {
     return 'log';
   }
 
-  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'landing' | 'notFound' | null {
+  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | null {
     const path = window.location.pathname.toLowerCase();
     if (path === '/privacy' || path === '/privacy/') return 'privacy';
     if (path === '/terms' || path === '/terms/') return 'terms';
     if (path === '/changelog' || path === '/changelog/') return 'changelog';
     if (path === '/status' || path === '/status/') return 'status';
+    if (path === '/admin' || path === '/admin/') return 'admin';
     // Root path shows the public marketing surface to non-signed-in
     // visitors. Once the user signs in, the auth gate in the template
     // takes over and renders the app regardless of the 'landing' route.
@@ -631,6 +689,8 @@ export class App {
         r === 'status' ? 'status.pageTitle' :
         null;
       this.translation.setTitleKey(key);
+      // /admin: static title since the panel is English-only.
+      if (r === 'admin') document.title = 'Admin — Macro Log';
     });
 
     // Deep-link: /app?intent=pro (from landing Pro CTA) opens the

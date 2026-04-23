@@ -1174,6 +1174,26 @@ export const sendWelcomeEmail = onDocumentUpdated(
   },
 );
 
+// ─── Admin panel endpoints ─────────────────────────────────────────
+// Superuser-only management surface. All endpoints require the `admin`
+// custom claim; see functions/src/admin-claims.ts for bootstrap.
+export { bootstrapAdmin, setAdminClaims } from "./admin-claims";
+export { startImpersonation, stopImpersonation } from "./impersonation";
+export {
+  listUsers,
+  getPlatformStats,
+  getAuditLogs,
+  adminSuspendUser,
+  adminDeleteUser,
+  adminResetPassword,
+  adminOverridePlan,
+  adminSetCompedEmail,
+  adminListCompedEmails,
+  adminResetQuotas,
+  adminExportData,
+  adminGetUserDetails,
+} from "./admin-ops";
+
 export const weeklyFirestoreBackup = onSchedule(
   { schedule: "0 6 * * 0", timeZone: "UTC" },
   async () => {

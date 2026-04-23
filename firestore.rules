@@ -17,6 +17,14 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == uid;
     }
 
+    // Admins (superuser panel). The `admin` custom claim is set by the
+    // setAdminClaims Cloud Function. Admins can read pretty much anything
+    // from the client for the dashboard; all MUTATIONS still go through
+    // Cloud Functions so the audit log + validation can't be skipped.
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
     // ─── Log schema ─────────────────────────────────────────────
     // Required: calories, timestamp
     // Optional: weight, protein, exerciseCompleted, mealLabel
@@ -147,12 +155,12 @@ service cloud.firestore {
 
     // ─── Per-user subtree ───────────────────────────────────────
     match /users/{uid} {
-      allow read:   if isOwner(uid);
+      allow read:   if isOwner(uid) || isAdmin();
       allow create: if isOwner(uid) && isVerifiedUser() && isValidProfile(request.resource.data);
       allow update: if isOwner(uid) && isValidProfile(request.resource.data);
 
       match /dailyLogs/{logId} {
-        allow read:   if isOwner(uid);
+        allow read:   if isOwner(uid) || isAdmin();
         allow create: if isOwner(uid) && isValidLog(request.resource.data);
         allow update: if isOwner(uid) && isValidLog(request.resource.data);
         allow delete: if isOwner(uid);
@@ -160,7 +168,7 @@ service cloud.firestore {
 
       // Meal presets — quick-add templates.
       match /presets/{presetId} {
-        allow read:   if isOwner(uid);
+        allow read:   if isOwner(uid) || isAdmin();
         allow create: if isOwner(uid) && isValidPreset(request.resource.data);
         allow update: if isOwner(uid) && isValidPreset(request.resource.data);
         allow delete: if isOwner(uid);
@@ -168,7 +176,7 @@ service cloud.firestore {
 
       // Daily weights — one weight per calendar day.
       match /dailyWeights/{dateKey} {
-        allow read:   if isOwner(uid);
+        allow read:   if isOwner(uid) || isAdmin();
         allow write:  if isOwner(uid)
             && request.resource.data.keys().hasAll(['weight'])
             && request.resource.data.keys().hasOnly(['weight'])
@@ -183,7 +191,7 @@ service cloud.firestore {
       // ~5 gallons — implausible but catches fat-finger data that would
       // otherwise pollute long-horizon charts.
       match /dailyWater/{dateKey} {
-        allow read:   if isOwner(uid);
+        allow read:   if isOwner(uid) || isAdmin();
         allow write:  if isOwner(uid)
             && request.resource.data.keys().hasAll(['ml'])
             && request.resource.data.keys().hasOnly(['ml'])
@@ -194,7 +202,7 @@ service cloud.firestore {
 
       // Body measurements — weekly/biweekly body-comp tracking.
       match /measurements/{measurementId} {
-        allow read:   if isOwner(uid);
+        allow read:   if isOwner(uid) || isAdmin();
         allow create: if isOwner(uid) && isValidMeasurement(request.resource.data);
         allow delete: if isOwner(uid);
       }
@@ -204,17 +212,28 @@ service cloud.firestore {
       // enforces the Pro gate + rate limit and writes via admin SDK,
       // which bypasses these rules. Clients never create report docs.
       match /reports/{reportId} {
-        allow read:   if isOwner(uid);
+        allow read:   if isOwner(uid) || isAdmin();
         allow create: if false;
         allow delete: if isOwner(uid);
       }
     }
 
-    // ─── Server-side config (access list for comped friends) ────
-    // Read + write ONLY by Cloud Functions via admin SDK. Human edits
-    // happen via the Firebase console (which also uses admin creds).
+    // ─── Admin-facing collections ─────────────────────────────────
+    // Audit log: written server-side via admin SDK; admins can read
+    // from the client to render the audit tab. No client writes ever.
+    match /auditLogs/{logId} {
+      allow read:  if isAdmin();
+      allow write: if false;
+    }
+
+    // ─── Server-side config ─────────────────────────────────────
+    // Writes are still server-only (all admin mutations go through the
+    // admin-ops Cloud Functions so everything is audited). Admins get
+    // client read access so the admin panel can render the admins /
+    // comped-friends / stats tabs without extra round-trips.
     match /config/{doc} {
-      allow read, write: if false;
+      allow read:  if isAdmin();
+      allow write: if false;
     }
 
     // ─── Consultation quota (AI coach rate limit) ───────────────
@@ -233,16 +252,16 @@ service cloud.firestore {
     // under customers/{uid}. Products + prices are catalog data
     // readable by any signed-in user so they can render the price.
     match /customers/{uid} {
-      allow read: if isOwner(uid);
+      allow read: if isOwner(uid) || isAdmin();
 
       match /checkout_sessions/{id} {
         allow read, write: if isOwner(uid);
       }
       match /subscriptions/{id} {
-        allow read: if isOwner(uid);
+        allow read: if isOwner(uid) || isAdmin();
       }
       match /payments/{id} {
-        allow read: if isOwner(uid);
+        allow read: if isOwner(uid) || isAdmin();
       }
     }
 
