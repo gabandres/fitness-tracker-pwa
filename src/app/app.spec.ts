@@ -10,6 +10,7 @@ import { PushNotificationService } from './services/push-notification.service';
 import { Messaging } from '@angular/fire/messaging';
 import { SubscriptionService } from './services/subscription.service';
 import { TranslationService } from './services/translation.service';
+import { AdminService } from './services/admin.service';
 import { provideTranslocoConfig } from './i18n/transloco.providers';
 
 describe('App', () => {
@@ -127,6 +128,30 @@ describe('App', () => {
             refreshAccessStatus: async () => {},
             openPortal: async () => {},
             subscribe: async () => {},
+          },
+        },
+        // AdminService eagerly injects Auth/Firestore/Functions at field-init
+        // time, so the real service can't load under JSDOM. The App template
+        // reads admin.isAdmin/canBootstrap/impersonating — a minimal signal
+        // stub covers every binding.
+        {
+          provide: AdminService,
+          useValue: {
+            ready: signal(true),
+            isAdmin: signal(false),
+            adminEmails: signal([]),
+            compedEmails: signal([]),
+            canBootstrap: signal(false),
+            originalAdminUid: signal(null),
+            impersonating: signal(false),
+            bootstrap: async () => {},
+            grantAdmin: async () => {},
+            revokeAdmin: async () => {},
+            addCompedEmail: async () => {},
+            removeCompedEmail: async () => {},
+            impersonate: async () => {},
+            stopImpersonating: async () => {},
+            refreshClaims: async () => {},
           },
         },
         // Use the real transloco config + TranslationService so the
