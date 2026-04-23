@@ -10,6 +10,7 @@
   },
   "landing": {
     "calibrationLogNo": "bitácora de calibración no. 001",
+    "heroMockupAlt": "Tarjeta del panel: 447 calorías restantes de 2048, 138 g de proteína en objetivo, TDEE medido en 14 días.",
     "heroLead": "¿cuántas calorías",
     "heroEm": "me quedan hoy?",
     "heroSub": "una bitácora tranquila y privada para la única pregunta que importa. calorías, proteína, peso, ayuno — todo en un lugar, con un coach de IA que lee tus datos.",
@@ -43,6 +44,7 @@
     "freeF3": "20 escaneos de código de barras / día",
     "freeF4": "90 días de gráficos · 30 días de exportación csv",
     "proStamp": "pro",
+    "proTrialBadge": "prueba gratis de 7 días",
     "orMonthly": "o {{price}}",
     "proBody": "para quienes registran en serio. quita las cuotas y desbloquea la captura avanzada.",
     "proF1": "foto + coach + código de barras ilimitados",

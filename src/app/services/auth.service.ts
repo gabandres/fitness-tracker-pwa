@@ -144,14 +144,53 @@ export class AuthService {
    * they do.
    */
   async signUpWithEmailPassword(email: string, password: string): Promise<void> {
-    const result = await createUserWithEmailAndPassword(this.auth, email, password);
-    // Best-effort: a missing/blocked verification email is recoverable
-    // via resendVerificationEmail() from the verify-banner.
     try {
-      await sendEmailVerification(result.user);
+      const result = await createUserWithEmailAndPassword(this.auth, email, password);
+      // Best-effort: a missing/blocked verification email is recoverable
+      // via resendVerificationEmail() from the verify-banner.
+      try {
+        await sendEmailVerification(result.user);
+      } catch (err) {
+        console.warn('Failed to send verification email on sign-up:', err);
+      }
     } catch (err) {
-      console.warn('Failed to send verification email on sign-up:', err);
+      // `email-already-in-use` means the email is already owned by some
+      // provider. Surface a pendingLink so the UI can route the user to
+      // sign in with that provider (and optionally add a password).
+      await this.captureSignUpCollision(err, email, password);
+      throw err;
     }
+  }
+
+  private async captureSignUpCollision(err: unknown, email: string, password: string): Promise<void> {
+    const code = (err as { code?: string })?.code;
+    if (code !== 'auth/email-already-in-use') return;
+    let existingProvider: PendingLinkInfo['existingProvider'] = 'unknown';
+    try {
+      const methods = await fetchSignInMethodsForEmail(this.auth, email);
+      if (methods.includes('google.com')) existingProvider = 'google.com';
+      else if (methods.includes('microsoft.com')) existingProvider = 'microsoft.com';
+      else if (methods.includes('password')) existingProvider = 'password';
+    } catch {
+      // Enumeration protection may swallow the lookup — leave as 'unknown'.
+    }
+    this.pendingCredential = EmailAuthProvider.credential(email, password);
+    // Same rule as the popup path: offer the exact existing provider when we
+    // know it, otherwise let the user choose between the providers they
+    // didn't just attempt. `password` is the attempted provider here, so
+    // strip it from the fallback list — suggesting it would just re-trigger
+    // the same collision.
+    const all: PendingLinkInfo['candidateProviders'] = ['google.com', 'microsoft.com', 'password'];
+    const candidateProviders: PendingLinkInfo['candidateProviders'] =
+      existingProvider !== 'unknown'
+        ? [existingProvider]
+        : all.filter((p) => p !== 'password');
+    this._pendingLink.set({
+      email,
+      existingProvider,
+      attemptedProvider: 'password',
+      candidateProviders,
+    });
   }
 
   /** Signs in an existing email/password user. */

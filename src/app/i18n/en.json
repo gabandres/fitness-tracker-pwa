@@ -4,6 +4,7 @@
   },
   "landing": {
     "calibrationLogNo": "calibration log no. 001",
+    "heroMockupAlt": "Dashboard card: 447 calories remaining of 2048, 138g protein on target, 14-day measured TDEE.",
     "heroLead": "how many calories",
     "heroEm": "do I have left today?",
     "heroSub": "a quiet, private log for the one question that matters. calories, protein, weight, fasting — all in one place, with an AI coach that actually reads your data.",
@@ -37,6 +38,7 @@
     "freeF3": "20 barcode scans / day",
     "freeF4": "90-day chart history · 30-day csv export",
     "proStamp": "pro",
+    "proTrialBadge": "7-day free trial",
     "orMonthly": "or {{price}}",
     "proBody": "for people who log seriously. removes all the quotas and unlocks power-user capture.",
     "proF1": "unlimited photo + AI coach + barcode",

@@ -33,26 +33,41 @@ import { SubscriptionService } from '../../services/subscription.service';
           <span class="monogram">M·L</span>
           <span class="caption">{{ t('landing.calibrationLogNo') }}</span>
         </div>
-        <h1 class="font-display text-5xl sm:text-6xl lg:text-7xl leading-[0.95] tracking-tight text-ink">
-          {{ t('landing.heroLead') }}<br/>
-          <em class="text-blood">{{ t('landing.heroEm') }}</em>
-        </h1>
-        <p class="mt-6 font-sans text-lg text-ink-soft max-w-2xl leading-relaxed">
-          {{ t('landing.heroSub') }}
-        </p>
 
-        <div class="mt-8 flex flex-wrap items-center gap-3">
-          <a href="/app" class="stamp-btn">
-            {{ t('landing.startLogging') }}
-          </a>
-          <a href="#pricing" class="tag-btn">{{ t('landing.seePricing') }}</a>
+        <div class="grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-12 lg:items-center">
+          <div>
+            <h1 class="font-display text-5xl sm:text-6xl lg:text-7xl leading-[0.95] tracking-tight text-ink">
+              {{ t('landing.heroLead') }}<br/>
+              <em class="text-blood">{{ t('landing.heroEm') }}</em>
+            </h1>
+            <p class="mt-6 font-sans text-lg text-ink-soft max-w-2xl leading-relaxed">
+              {{ t('landing.heroSub') }}
+            </p>
+
+            <div class="mt-8 flex flex-wrap items-center gap-3">
+              <a href="/app" class="stamp-btn">
+                {{ t('landing.startLogging') }}
+              </a>
+              <a href="#pricing" class="tag-btn">{{ t('landing.seePricing') }}</a>
+            </div>
+
+            @if (socialProofCount(); as n) {
+              <p class="caption mt-4 italic" role="note">
+                {{ t('landing.socialProof', { n }) }}
+              </p>
+            }
+          </div>
+
+          <div>
+            <img src="/hero-mockup.png"
+              alt="{{ t('landing.heroMockupAlt') }}"
+              width="720" height="720"
+              loading="eager"
+              decoding="async"
+              fetchpriority="high"
+              class="w-full h-auto max-w-lg mx-auto lg:max-w-none" />
+          </div>
         </div>
-
-        @if (socialProofCount(); as n) {
-          <p class="caption mt-4 italic" role="note">
-            {{ t('landing.socialProof', { n }) }}
-          </p>
-        }
 
         <div class="ruler-edge mt-10">
           @for (_ of ticks; track $index) { <span></span> }
@@ -146,6 +161,12 @@ import { SubscriptionService } from '../../services/subscription.service';
                 </div>
                 <div class="caption text-[11px] mt-1">{{ t('landing.orMonthly', { price: subs.displayPriceMonthly }) }}</div>
               </div>
+            </div>
+            <div class="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm"
+                 style="border: 1px solid var(--color-blood); background: rgba(111, 26, 16, 0.05);">
+              <span class="font-mono text-[10px] tracking-[0.15em] uppercase" style="color: var(--color-blood);">
+                ✦ {{ t('landing.proTrialBadge') }}
+              </span>
             </div>
             <p class="font-sans text-sm text-ink-soft mt-3">{{ t('landing.proBody') }}</p>
             <ul class="font-sans text-[13px] text-graphite mt-3 space-y-1 flex-1">
