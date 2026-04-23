@@ -297,6 +297,32 @@ describe('FitnessStore', () => {
       expect(mockFb.deleteLog).toHaveBeenCalledWith('log-1');
     });
 
+    it('log mutations refresh only logs, not unrelated collections', async () => {
+      // After the initial refresh() in beforeEach, subsequent log mutations
+      // should skip ensureUserProfile/getPresets/getRecentMeasurements/
+      // getDailyWeights/getDailyWater — those are only needed on sign-in
+      // or explicit refresh().
+      mockFb.ensureUserProfile.mockClear();
+      mockFb.getPresets.mockClear();
+      mockFb.getRecentMeasurements.mockClear();
+      mockFb.getDailyWeights.mockClear();
+      mockFb.getDailyWater.mockClear();
+      mockFb.getRecentLogs.mockClear();
+
+      await store.addLog({ calories: 200 });
+      await store.updateLog('log-0', { calories: 210 });
+      await store.deleteLog('log-0');
+
+      expect(mockFb.ensureUserProfile).not.toHaveBeenCalled();
+      expect(mockFb.getPresets).not.toHaveBeenCalled();
+      expect(mockFb.getRecentMeasurements).not.toHaveBeenCalled();
+      expect(mockFb.getDailyWeights).not.toHaveBeenCalled();
+      expect(mockFb.getDailyWater).not.toHaveBeenCalled();
+      // getRecentLogs fires for both the 14-day window and the fire-and-forget
+      // all-time window on each mutation, so 3 mutations = 6 calls.
+      expect(mockFb.getRecentLogs.mock.calls.length).toBeGreaterThanOrEqual(3);
+    });
+
     it('should addPreset and reload presets', async () => {
       const presets: MealPreset[] = [{ id: 'p1', name: 'Lunch', calories: 650 }];
       mockFb.getPresets.mockResolvedValue(presets);

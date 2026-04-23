@@ -467,7 +467,7 @@ export class FitnessStore {
 
   async addLog(entry: LogEntry): Promise<void> {
     await this.fb.addLog(entry);
-    await this._load();
+    await this._refreshLogs();
   }
 
   /**
@@ -520,7 +520,7 @@ export class FitnessStore {
     } finally {
       // Always reload so any partial clones are visible; catch + swallow
       // reload errors so the original failure (if any) is what propagates.
-      try { await this._load(); } catch { /* noop */ }
+      try { await this._refreshLogs(); } catch { /* noop */ }
     }
     return cloned;
   }
@@ -567,14 +567,14 @@ export class FitnessStore {
         cloned += 1;
       }
     } finally {
-      try { await this._load(); } catch { /* noop */ }
+      try { await this._refreshLogs(); } catch { /* noop */ }
     }
     return cloned;
   }
 
   async updateLog(id: string, entry: LogEntry): Promise<void> {
     await this.fb.updateLog(id, entry);
-    await this._load();
+    await this._refreshLogs();
   }
 
   /**
@@ -618,7 +618,7 @@ export class FitnessStore {
     // Cache entry for undo before deleting.
     const entry = this._logs().find((l) => l.id === id) ?? null;
     await this.fb.deleteLog(id);
-    await this._load();
+    await this._refreshLogs();
 
     if (entry) {
       if (this._undoTimer) clearTimeout(this._undoTimer);
@@ -716,6 +716,18 @@ export class FitnessStore {
       this._error.set(err instanceof Error ? err.message : 'Load failed.');
       this._status.set('error');
     }
+  }
+
+  /** Reload just the log window after a log mutation. Avoids the
+   *  5-collection full reload (`_load`) that the mutation path used to
+   *  trigger, which redundantly refetched profile/presets/measurements/
+   *  weights/water on every entry. All-time logs + the weekly-report
+   *  staleness check stay fire-and-forget so derived signals (monthly
+   *  summary, goal progress, report autogenerate) keep their behavior. */
+  private async _refreshLogs(): Promise<void> {
+    this._logs.set(await this.fb.getRecentLogs(14));
+    this._loadAllTimeLogs();
+    this._checkWeeklyReport();
   }
 
   private async _checkWeeklyReport(): Promise<void> {
