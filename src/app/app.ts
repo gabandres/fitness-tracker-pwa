@@ -74,7 +74,11 @@ import { AdminService } from './services/admin.service';
         } @else if (route() === 'status') {
           @defer { <app-status /> }
           @placeholder { <div class="py-20 text-center caption">…</div> }
-        } @else if (route() === 'admin') {
+        } @else if (route() === 'admin' && isDesktop()) {
+          <!-- Admin panel is desktop-only by design — the dense tables
+               and multi-tab layout don't pack onto a phone screen.
+               Narrow viewports silently fall through to the regular
+               app below so the admin on their phone just sees the app. -->
           @if (!auth.ready()) {
             <div class="py-20 text-center caption">…</div>
           } @else if (!auth.isSignedIn()) {
@@ -689,8 +693,10 @@ export class App {
         r === 'status' ? 'status.pageTitle' :
         null;
       this.translation.setTitleKey(key);
-      // /admin: static title since the panel is English-only.
-      if (r === 'admin') document.title = 'Admin — Macro Log';
+      // /admin: static title when we're actually rendering the panel.
+      // Mobile viewports fall through to the regular app, so they get
+      // the default Macro Log title instead of "Admin".
+      if (r === 'admin' && this.isDesktop()) document.title = 'Admin — Macro Log';
     });
 
     // Deep-link: /app?intent=pro (from landing Pro CTA) opens the
