@@ -131,34 +131,52 @@ export const getPlatformStats = onCall({ timeoutSeconds: 60 }, async (request) =
     pageToken = page.pageToken;
   } while (pageToken);
 
-  // Active users: anyone with a log in the last N days.
-  const logs30dSnap = await db.collectionGroup("dailyLogs")
-    .where("timestamp", ">=", Timestamp.fromDate(d30))
-    .select().get();
-  const active30d = new Set(logs30dSnap.docs.map((d) => d.ref.parent.parent?.id).filter(Boolean)).size;
-
-  const logs7dSnap = await db.collectionGroup("dailyLogs")
-    .where("timestamp", ">=", Timestamp.fromDate(d7))
-    .select().get();
-  const active7d = new Set(logs7dSnap.docs.map((d) => d.ref.parent.parent?.id).filter(Boolean)).size;
+  // Active users: anyone with a log in the last N days. The collection-
+  // group query on dailyLogs.timestamp requires a collection-group index
+  // (firestore.indexes.json). If that index is still building (or missing),
+  // we degrade gracefully — the stats tab shouldn't 500 the entire panel
+  // over one missing metric.
+  let active7d = 0, active30d = 0;
+  try {
+    const logs30dSnap = await db.collectionGroup("dailyLogs")
+      .where("timestamp", ">=", Timestamp.fromDate(d30))
+      .select().get();
+    active30d = new Set(logs30dSnap.docs.map((d) => d.ref.parent.parent?.id).filter(Boolean)).size;
+    const logs7dSnap = await db.collectionGroup("dailyLogs")
+      .where("timestamp", ">=", Timestamp.fromDate(d7))
+      .select().get();
+    active7d = new Set(logs7dSnap.docs.map((d) => d.ref.parent.parent?.id).filter(Boolean)).size;
+  } catch (err) {
+    console.warn("getPlatformStats: active-user query failed (likely missing index)", err);
+  }
 
   // Paid subscribers: count customers/{uid}/subscriptions with active/trialing
   // status. A `.where("status", "in", [...])` collection-group query would need
   // a composite index the Stripe extension never creates — in-memory filter
   // instead, matching the `cancelStripeSubscriptions` pattern in index.ts.
-  const allSubsSnap = await db.collectionGroup("subscriptions").get();
-  const ACTIVE_STATUSES = new Set(["active", "trialing"]);
-  const activePaidSubs = allSubsSnap.docs.filter(
-    (d) => ACTIVE_STATUSES.has((d.data()?.["status"] as string) || ""),
-  ).length;
+  let activePaidSubs = 0;
+  try {
+    const allSubsSnap = await db.collectionGroup("subscriptions").get();
+    const ACTIVE_STATUSES = new Set(["active", "trialing"]);
+    activePaidSubs = allSubsSnap.docs.filter(
+      (d) => ACTIVE_STATUSES.has((d.data()?.["status"] as string) || ""),
+    ).length;
+  } catch (err) {
+    console.warn("getPlatformStats: subscriptions query failed", err);
+  }
 
   // MRR estimate: sum recurring price on each active sub. Fallback $3/mo.
   const MACRO_PRICE = 3.00;
   const estimatedMRR = activePaidSubs * MACRO_PRICE;
 
   // Comped friends count.
-  const compedSnap = await db.doc("config/accessList").get();
-  const compedCount = ((compedSnap.data()?.["compedEmails"] as string[]) || []).length;
+  let compedCount = 0;
+  try {
+    const compedSnap = await db.doc("config/accessList").get();
+    compedCount = ((compedSnap.data()?.["compedEmails"] as string[]) || []).length;
+  } catch (err) {
+    console.warn("getPlatformStats: comped query failed", err);
+  }
 
   const stats = {
     totalUsers,
