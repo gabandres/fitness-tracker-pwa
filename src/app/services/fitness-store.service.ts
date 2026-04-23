@@ -723,11 +723,22 @@ export class FitnessStore {
    *  trigger, which redundantly refetched profile/presets/measurements/
    *  weights/water on every entry. All-time logs + the weekly-report
    *  staleness check stay fire-and-forget so derived signals (monthly
-   *  summary, goal progress, report autogenerate) keep their behavior. */
+   *  summary, goal progress, report autogenerate) keep their behavior.
+   *
+   *  On failure, surface via `_error` but keep `_status='ready'` — the
+   *  previously-loaded cache is still valid, and flipping to 'error'
+   *  would unmount the dashboard after a successful write. */
   private async _refreshLogs(): Promise<void> {
-    this._logs.set(await this.fb.getRecentLogs(14));
-    this._loadAllTimeLogs();
-    this._checkWeeklyReport();
+    try {
+      // `_logs.set` must precede `_checkWeeklyReport` — the latter
+      // reads `this._logs()` when deciding whether to autogenerate.
+      this._logs.set(await this.fb.getRecentLogs(14));
+      this._loadAllTimeLogs();
+      this._checkWeeklyReport();
+    } catch (err) {
+      this._error.set(err instanceof Error ? err.message : 'Refresh failed.');
+      throw err;
+    }
   }
 
   private async _checkWeeklyReport(): Promise<void> {

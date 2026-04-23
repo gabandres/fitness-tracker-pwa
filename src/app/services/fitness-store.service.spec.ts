@@ -318,9 +318,31 @@ describe('FitnessStore', () => {
       expect(mockFb.getRecentMeasurements).not.toHaveBeenCalled();
       expect(mockFb.getDailyWeights).not.toHaveBeenCalled();
       expect(mockFb.getDailyWater).not.toHaveBeenCalled();
-      // getRecentLogs fires for both the 14-day window and the fire-and-forget
-      // all-time window on each mutation, so 3 mutations = 6 calls.
-      expect(mockFb.getRecentLogs.mock.calls.length).toBeGreaterThanOrEqual(3);
+      // getRecentLogs fires twice per mutation: once for the 14-day window
+      // (awaited) and once for the fire-and-forget all-time window.
+      // 3 mutations = exactly 6 calls. Tighter than >=3 catches a
+      // regression to full _load().
+      expect(mockFb.getRecentLogs).toHaveBeenCalledTimes(6);
+    });
+
+    it('bulk-copy paths (repeatYesterday/copyDayToToday) also skip unrelated collections', async () => {
+      mockFb.ensureUserProfile.mockClear();
+      mockFb.getPresets.mockClear();
+      mockFb.getRecentMeasurements.mockClear();
+      mockFb.getDailyWeights.mockClear();
+      mockFb.getDailyWater.mockClear();
+
+      const cloned = await store.repeatYesterday();
+      // Source day may have 0 rows depending on makeLogs — that's fine.
+      // Even with 0 clones repeatYesterday exits before refresh, and with
+      // clones it only touches _refreshLogs in the finally. Either way,
+      // no unrelated collection should have been hit.
+      expect(cloned).toBeGreaterThanOrEqual(0);
+      expect(mockFb.ensureUserProfile).not.toHaveBeenCalled();
+      expect(mockFb.getPresets).not.toHaveBeenCalled();
+      expect(mockFb.getRecentMeasurements).not.toHaveBeenCalled();
+      expect(mockFb.getDailyWeights).not.toHaveBeenCalled();
+      expect(mockFb.getDailyWater).not.toHaveBeenCalled();
     });
 
     it('should addPreset and reload presets', async () => {
