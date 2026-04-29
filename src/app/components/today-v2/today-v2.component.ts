@@ -16,6 +16,7 @@ import { V2IconButton } from '../ui/icon-button.component';
 import { V2Card } from '../ui/card.component';
 import { V2Fab } from '../ui/fab.component';
 import { V2DaySummary } from '../ui/day-summary.component';
+import { V2FastingPill } from '../ui/fasting-pill.component';
 
 /**
  * v2 Today screen. Owns the today-only chrome (header, day-0 hero,
@@ -33,6 +34,7 @@ import { V2DaySummary } from '../ui/day-summary.component';
     V2Card,
     V2Fab,
     V2DaySummary,
+    V2FastingPill,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -49,7 +51,8 @@ import { V2DaySummary } from '../ui/day-summary.component';
             </div>
           }
         </div>
-        <div class="flex items-center gap-1 shrink-0">
+        <div class="flex items-center gap-2 shrink-0">
+          <v2-fasting-pill (bodyRequested)="bodyRequested.emit()" />
           <v2-icon-button
             icon="calendar"
             ariaLabel="History"
@@ -126,6 +129,7 @@ export class TodayV2Component {
 
   readonly historyRequested = output<void>();
   readonly settingsRequested = output<void>();
+  readonly bodyRequested = output<void>();
 
   protected readonly todayKey = signal(localDateKey(new Date()));
 

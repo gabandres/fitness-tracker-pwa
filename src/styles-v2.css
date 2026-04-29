@@ -363,3 +363,70 @@
 
 /* ── Utility: hairline rule ─────────────────────────────────── */
 .v2-hr { height: 1px; background: var(--v2-rule); border: none; margin: var(--v2-space-5) 0; }
+
+/* ── Sparkline draw-on animation ────────────────────────────── */
+@keyframes v2-sparkline-draw {
+  to { stroke-dashoffset: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-ui="v2"] svg path[style*="v2-sparkline-draw"] {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+}
+
+/* ── Goal-progress bar ──────────────────────────────────────── */
+.v2-progress {
+  position: relative;
+  height: 6px;
+  background: var(--v2-paper-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.v2-progress__fill {
+  position: absolute; inset: 0 auto 0 0;
+  background: var(--v2-accent);
+  border-radius: 999px;
+  transition: width var(--v2-motion-slow) var(--v2-ease);
+}
+.v2-progress__fill--sage { background: var(--v2-sage); }
+
+/* ── Fasting pill (header) ──────────────────────────────────── */
+.v2-fasting-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  height: 28px;
+  background: var(--v2-sage-soft);
+  color: var(--v2-sage);
+  border: 1px solid color-mix(in srgb, var(--v2-sage) 30%, transparent);
+  border-radius: 999px;
+  font-family: var(--v2-font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background-color var(--v2-motion-fast) var(--v2-ease);
+}
+.v2-fasting-pill:hover { background: color-mix(in srgb, var(--v2-sage) 18%, var(--v2-paper)); }
+.v2-fasting-pill:focus-visible { outline: 2px solid var(--v2-sage); outline-offset: 2px; }
+
+/* ── Inline form field (used by weight + measurements v2) ──── */
+.v2-field {
+  width: 100%;
+  padding: var(--v2-space-3) var(--v2-space-4);
+  background: var(--v2-paper-2);
+  border: 1px solid var(--v2-rule);
+  border-radius: var(--v2-radius-md);
+  font-family: var(--v2-font-sans);
+  font-size: 1rem;
+  color: var(--v2-ink);
+  min-height: var(--v2-tap-min);
+}
+.v2-field:focus-visible { outline: 2px solid var(--v2-accent); outline-offset: 1px; }
+.v2-field--num {
+  font-family: var(--v2-font-mono);
+  font-feature-settings: "tnum" 1, "zero" 1;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+.v2-field--error { border-color: var(--v2-danger); }

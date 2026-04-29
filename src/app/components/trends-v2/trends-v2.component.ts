@@ -16,6 +16,7 @@ import { V2BarChart } from '../ui/bar-chart.component';
 import { V2Button } from '../ui/button.component';
 import { V2Card } from '../ui/card.component';
 import { V2IconButton } from '../ui/icon-button.component';
+import { V2FastingPill } from '../ui/fasting-pill.component';
 
 /**
  * Trends route. Single-page scroll with: 7-day twin-bar chart,
@@ -33,6 +34,7 @@ import { V2IconButton } from '../ui/icon-button.component';
     V2Button,
     V2Card,
     V2IconButton,
+    V2FastingPill,
     ConsultationComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -44,7 +46,8 @@ import { V2IconButton } from '../ui/icon-button.component';
           <h1 class="v2-h1">Trends</h1>
           <p class="v2-caption mt-0.5">Last 7 days</p>
         </div>
-        <div class="flex items-center gap-1 shrink-0">
+        <div class="flex items-center gap-2 shrink-0">
+          <v2-fasting-pill (bodyRequested)="bodyRequested.emit()" />
           <v2-icon-button
             icon="calendar"
             ariaLabel="History"
@@ -189,6 +192,7 @@ export class TrendsV2Component {
 
   readonly historyRequested = output<void>();
   readonly settingsRequested = output<void>();
+  readonly bodyRequested = output<void>();
 
   protected readonly chartData = computed(() => this.store.last7Days());
 

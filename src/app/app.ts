@@ -351,7 +351,8 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
                   @defer (on immediate) {
                     <app-history-v2
                       (dayTapped)="pushHistoryDay($event)"
-                      (closeRequested)="popHistory()" />
+                      (closeRequested)="popHistory()"
+                      (bodyRequested)="onBodyRequestedV2()" />
                   } @placeholder {
                     <div class="py-20 text-center caption">…</div>
                   }
@@ -360,7 +361,8 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
                   @defer (on immediate) {
                     <app-day-detail-v2
                       [dateKey]="historyDay()!"
-                      (closeRequested)="popHistory()" />
+                      (closeRequested)="popHistory()"
+                      (bodyRequested)="onBodyRequestedV2()" />
                   } @placeholder {
                     <div class="py-20 text-center caption">…</div>
                   }
@@ -369,7 +371,8 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
                   @defer (on immediate) {
                     <app-trends-v2
                       (settingsRequested)="showSettings.set(true)"
-                      (historyRequested)="onHistoryRequestedV2()" />
+                      (historyRequested)="onHistoryRequestedV2()"
+                      (bodyRequested)="onBodyRequestedV2()" />
                   } @placeholder {
                     <div class="py-20 text-center caption">…</div>
                   }
@@ -378,7 +381,8 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
                   @defer (on immediate) {
                     <app-body-v2
                       (settingsRequested)="showSettings.set(true)"
-                      (historyRequested)="onHistoryRequestedV2()" />
+                      (historyRequested)="onHistoryRequestedV2()"
+                      (bodyRequested)="onBodyRequestedV2()" />
                   } @placeholder {
                     <div class="py-20 text-center caption">…</div>
                   }
@@ -386,7 +390,8 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
                 @default {
                   <app-today-v2
                     (settingsRequested)="showSettings.set(true)"
-                    (historyRequested)="onHistoryRequestedV2()" />
+                    (historyRequested)="onHistoryRequestedV2()"
+                    (bodyRequested)="onBodyRequestedV2()" />
                 }
               }
               <app-entry-sheet-v2 />
@@ -690,6 +695,17 @@ export class App {
    *  and re-syncs route signals. */
   protected onHistoryRequestedV2(): void {
     history.pushState({}, '', '/history');
+    this.historyPushDepth++;
+    this.applyLocation();
+  }
+
+  /** Fasting pill tap from any v2 surface → /body. No-op when already
+   *  on /body (the pill is still rendered there as a state indicator
+   *  but tapping it from the same route would just push a duplicate
+   *  history entry). */
+  protected onBodyRequestedV2(): void {
+    if (this.route() === 'body') return;
+    history.pushState({}, '', '/body');
     this.historyPushDepth++;
     this.applyLocation();
   }

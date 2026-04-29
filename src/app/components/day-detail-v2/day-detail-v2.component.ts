@@ -13,6 +13,7 @@ import { localDateKey, parseYmd } from '../../utils/date';
 import { V2DaySummary } from '../ui/day-summary.component';
 import { V2Fab } from '../ui/fab.component';
 import { V2IconButton } from '../ui/icon-button.component';
+import { V2FastingPill } from '../ui/fasting-pill.component';
 
 /**
  * Day-detail surface for `/history/YYYY-MM-DD`. Renders the shared
@@ -26,7 +27,7 @@ import { V2IconButton } from '../ui/icon-button.component';
 @Component({
   selector: 'app-day-detail-v2',
   standalone: true,
-  imports: [LucideAngularModule, V2DaySummary, V2Fab, V2IconButton],
+  imports: [LucideAngularModule, V2DaySummary, V2Fab, V2IconButton, V2FastingPill],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="max-w-[640px] mx-auto px-5 sm:px-6 pb-32 md:pb-12">
@@ -46,6 +47,9 @@ import { V2IconButton } from '../ui/icon-button.component';
             }
           </div>
         </div>
+        <div class="shrink-0">
+          <v2-fasting-pill (bodyRequested)="bodyRequested.emit()" />
+        </div>
       </header>
 
       <v2-day-summary [dateKey]="dateKey()" [editable]="!isFuture()" />
@@ -62,6 +66,7 @@ export class DayDetailV2Component {
 
   readonly dateKey = input.required<string>();
   readonly closeRequested = output<void>();
+  readonly bodyRequested = output<void>();
 
   protected readonly streak = computed(() => this.store.streak());
 

@@ -18,6 +18,7 @@ import {
 import { V2IconButton } from '../ui/icon-button.component';
 import { V2Card } from '../ui/card.component';
 import { V2Ring } from '../ui/ring.component';
+import { V2FastingPill } from '../ui/fasting-pill.component';
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const FREE_TIER_DAYS = 90;
@@ -34,7 +35,7 @@ const FREE_TIER_DAYS = 90;
 @Component({
   selector: 'app-history-v2',
   standalone: true,
-  imports: [LucideAngularModule, V2IconButton, V2Card, V2Ring],
+  imports: [LucideAngularModule, V2IconButton, V2Card, V2Ring, V2FastingPill],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="max-w-[640px] mx-auto px-5 sm:px-6 pb-32 md:pb-12">
@@ -45,7 +46,8 @@ const FREE_TIER_DAYS = 90;
           ariaLabel="Back"
           (click)="closeRequested.emit()" />
         <h1 class="v2-h2" aria-live="polite">{{ monthLabel() }}</h1>
-        <div class="flex items-center gap-1">
+        <div class="flex items-center gap-2">
+          <v2-fasting-pill (bodyRequested)="bodyRequested.emit()" />
           <v2-icon-button
             icon="chevron-left"
             ariaLabel="Previous month"
@@ -120,6 +122,7 @@ export class HistoryV2Component {
 
   readonly dayTapped = output<string>();
   readonly closeRequested = output<void>();
+  readonly bodyRequested = output<void>();
 
   protected readonly weekdays = WEEKDAYS;
   protected readonly placeholders = Array.from({ length: 42 }, (_, i) => i);

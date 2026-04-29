@@ -9,3 +9,7 @@ export type { V2RingTone } from './ring.component';
 export { V2TabBar } from './tab-bar.component';
 export type { V2Tab } from './tab-bar.component';
 export { V2Fab } from './fab.component';
+export { V2Sparkline } from './sparkline.component';
+export type { V2SparklineTone } from './sparkline.component';
+export { V2FastingPill } from './fasting-pill.component';
+export { V2WeightSheet } from './weight-sheet.component';

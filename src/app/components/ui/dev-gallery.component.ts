@@ -7,6 +7,8 @@ import { V2Sheet } from './sheet.component';
 import { V2Ring } from './ring.component';
 import { V2TabBar, type V2Tab } from './tab-bar.component';
 import { V2Fab } from './fab.component';
+import { V2Sparkline } from './sparkline.component';
+import { V2WeightSheet } from './weight-sheet.component';
 
 /**
  * Internal demo / Storybook-style gallery for v2 primitives.
@@ -30,6 +32,8 @@ import { V2Fab } from './fab.component';
     V2Ring,
     V2TabBar,
     V2Fab,
+    V2Sparkline,
+    V2WeightSheet,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -148,6 +152,34 @@ import { V2Fab } from './fab.component';
           }
         </section>
 
+        <!-- Sparkline -->
+        <section>
+          <h2 class="v2-h2 mb-4">Sparkline</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <v2-card variant="flat">
+              <p class="v2-caption mb-2">Accent · 14 pts</p>
+              <v2-sparkline [values]="sparkAccent" tone="accent" [width]="220" [height]="48" />
+            </v2-card>
+            <v2-card variant="flat">
+              <p class="v2-caption mb-2">Sage · 7 pts</p>
+              <v2-sparkline [values]="sparkSage" tone="sage" [width]="220" [height]="48" />
+            </v2-card>
+            <v2-card variant="flat">
+              <p class="v2-caption mb-2">Empty</p>
+              <v2-sparkline [values]="sparkEmpty" tone="ink" [width]="220" [height]="48" />
+            </v2-card>
+          </div>
+        </section>
+
+        <!-- Weight sheet -->
+        <section>
+          <h2 class="v2-h2 mb-4">Weight sheet</h2>
+          <v2-button variant="primary" (click)="weightOpen.set(true)">Open weight sheet</v2-button>
+          <v2-weight-sheet
+            [open]="weightOpen()"
+            (close)="weightOpen.set(false)" />
+        </section>
+
         <!-- Tab bar -->
         <section>
           <h2 class="v2-h2 mb-4">Tab bar (mobile only)</h2>
@@ -180,6 +212,10 @@ import { V2Fab } from './fab.component';
 })
 export class V2DevGallery {
   protected readonly sheetOpen = signal(false);
+  protected readonly weightOpen = signal(false);
+  protected readonly sparkAccent: number[] = [180, 179.4, 178.8, 179.1, 178, 177.6, 176.9, 176.5, 175.8, 175.4, 175, 174.7, 174.2, 173.8];
+  protected readonly sparkSage: number[] = [3200, 2800, 3100, 2950, 3050, 2700, 3300];
+  protected readonly sparkEmpty: number[] = [];
   protected readonly isDark = signal(
     document.documentElement.getAttribute('data-theme') === 'dark',
   );
