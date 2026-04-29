@@ -6,6 +6,18 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-04-29 — v2 design system (warm minimal)
+
+Macro Log's full UI is now warm minimal — a paper-toned, sage + rust palette with Geist Sans / Geist Mono, rounded cards, and Lucide icons. The editorial "Calibration Log" identity (forensic typography, capitalized stamps, monogram, ruler ticks) read as cold and clinical to fitness-focused users; the rebuild trades it for a calmer, more approachable aesthetic without changing what the app *does*.
+
+- **Today** is now a rings-first hero: kcal accent ring + protein sage ring, entries below, water + exercise inline. No date-chip strip — past days live one tap away on a dedicated history surface.
+- **History** is a month-grid calendar with mini kcal-rings per day. Tap a day for full read/edit access (FAB included for past-day backfills).
+- **Trends** is a single-page scroll: 7-day stacked bar chart (kcal + protein with target lines), weekly averages, AI coach.
+- **Body** combines weight (with sparkline + goal-progress bar), fasting (compact dial + start/end), and measurements (collapsed by default) on one page. A header pill across all surfaces shows the active fast in real time.
+- **Entry sheet** unifies Manual / Photo / Barcode in a bottom-sheet — same flow on every viewport.
+- **Settings** is a single-scroll bottom-sheet with Profile / Language / Reminders / Appearance / Subscription / Data / Feedback / Legal.
+- v2 is now the default for everyone. `?ui=v1` is a one-release escape hatch while we settle any post-flip regressions.
+
 ## 2026-04-20 — Water intake tracking
 
 New hydration row under today's day header with three quick-add buttons (glass 250 ml, bottle 500 ml, 1 L) and a tap-to-edit exact-value modal. Stored in milliliters as the single source of truth; the UI displays oz with 1-decimal precision in English, ml integer in Spanish — no per-user unit toggle since the Transloco active language is already an adequate proxy.

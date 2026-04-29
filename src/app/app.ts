@@ -18,6 +18,7 @@ import { LandingComponent } from './components/landing/landing.component';
 import { AdminComponent } from './components/admin/admin.component';
 import { NotFoundComponent } from './components/not-found/not-found.component';
 import { SettingsSheetComponent } from './components/settings-sheet/settings-sheet.component';
+import { SettingsSheetV2Component } from './components/settings-sheet-v2/settings-sheet-v2.component';
 import { MobileTabsComponent, type MobileTab } from './components/mobile-tabs/mobile-tabs.component';
 import { MobileFabComponent } from './components/mobile-fab/mobile-fab.component';
 import { AuthService } from './services/auth.service';
@@ -59,6 +60,7 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
     AdminComponent,
     NotFoundComponent,
     SettingsSheetComponent,
+    SettingsSheetV2Component,
     MobileTabsComponent,
     MobileFabComponent,
     TranslocoDirective,
@@ -332,12 +334,21 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
                  most sessions never open this sheet. -->
             @if (showSettings()) {
               @defer (on immediate) {
-                <app-settings-sheet
-                  [darkMode]="darkMode()"
-                  [themeChoice]="themeChoice()"
-                  (close)="showSettings.set(false)"
-                  (editProfile)="editingProfile.set(true)"
-                  (themeSelect)="setTheme($event)" />
+                @if (uiV2()) {
+                  <app-settings-sheet-v2
+                    [darkMode]="darkMode()"
+                    [themeChoice]="themeChoice()"
+                    (close)="showSettings.set(false)"
+                    (editProfile)="editingProfile.set(true)"
+                    (themeSelect)="setTheme($event)" />
+                } @else {
+                  <app-settings-sheet
+                    [darkMode]="darkMode()"
+                    [themeChoice]="themeChoice()"
+                    (close)="showSettings.set(false)"
+                    (editProfile)="editingProfile.set(true)"
+                    (themeSelect)="setTheme($event)" />
+                }
               }
             }
             @if (uiV2()) {
@@ -781,27 +792,32 @@ export class App {
   });
 
   constructor() {
-    // v2 design-system flag. Active when ?ui=v2 is present OR the user
-    // has saved the preference in localStorage, OR when on the internal
-    // /dev/components gallery (which is v2-only by definition). Setting
-    // [data-ui="v2"] on <html> activates the v2 token scope in
-    // styles-v2.css; v1 surfaces remain untouched until Week 6 cutover.
+    // v2 design-system flag — DEFAULT after Week 6 cutover. v2 is the
+    // canonical experience for all users; `?ui=v1` is the escape hatch
+    // for one release while we settle any post-flip regressions.
+    // Setting [data-ui="v2"] on <html> activates the v2 token scope.
     try {
       const qs = new URLSearchParams(window.location.search);
       const flag = qs.get('ui');
-      if (flag === 'v2') localStorage.setItem('macrolog.ui', 'v2');
-      if (flag === 'v1') localStorage.removeItem('macrolog.ui');
+      if (flag === 'v1') localStorage.setItem('macrolog.ui', 'v1');
+      if (flag === 'v2') localStorage.removeItem('macrolog.ui');
       const stored = localStorage.getItem('macrolog.ui');
+      const wantsV1 = stored === 'v1';
+      // The /dev/components gallery is v2-only by definition — it
+      // showcases v2 primitives. Force the token scope on regardless
+      // of the user's v1 escape-hatch preference, but don't flip the
+      // global uiV2 signal (the gallery owns its own render path).
       const onGallery = window.location.pathname.toLowerCase().startsWith('/dev/components');
-      if (stored === 'v2' || onGallery) {
+      if (!wantsV1 || onGallery) {
         document.documentElement.setAttribute('data-ui', 'v2');
-        // The gallery surface is v2-only by definition but should not
-        // flip the rest of the app to v2 — it owns its own render path
-        // outside the authed-app branch. Only the persisted preference
-        // counts toward the global v2 fork.
-        if (stored === 'v2') this.uiV2.set(true);
+        if (!wantsV1) this.uiV2.set(true);
       }
-    } catch { /* localStorage unavailable — fail open to v1 */ }
+    } catch {
+      // localStorage unavailable (private browsing in some browsers).
+      // Default to v2 anyway — the cookie-less path is the same.
+      document.documentElement.setAttribute('data-ui', 'v2');
+      this.uiV2.set(true);
+    }
 
     // Browser back/forward must update route + historyDay signals so the
     // template re-renders without a full page reload. The constructor
