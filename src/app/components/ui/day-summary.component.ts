@@ -1,0 +1,213 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+} from '@angular/core';
+import { LucideAngularModule } from 'lucide-angular';
+import { FitnessStore } from '../../services/fitness-store.service';
+import { EntryFormManager } from '../../services/entry-form-manager.service';
+import type { DailyLog } from '../../services/firebase.service';
+import { localDateKey } from '../../utils/date';
+import { V2Button } from './button.component';
+import { V2Card } from './card.component';
+import { V2Ring } from './ring.component';
+
+/**
+ * Shared rings + entries + water + exercise block. Renders the day
+ * identified by [dateKey]. Used by today-v2 (today) and day-detail-v2
+ * (any past day).
+ *
+ * When [editable] is false, all mutating actions (toggle exercise,
+ * tap-to-edit entries, water buttons) are inert. Today-v2 always passes
+ * editable=true; day-detail-v2 passes false for future days.
+ */
+@Component({
+  selector: 'v2-day-summary',
+  standalone: true,
+  imports: [LucideAngularModule, V2Button, V2Card, V2Ring],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <!-- Rings hero -->
+    <div class="flex items-center justify-around gap-4 mt-6">
+      <div class="flex flex-col items-center">
+        <v2-ring
+          [value]="kcalConsumed()"
+          [target]="kcalTarget()"
+          [size]="148"
+          [stroke]="14"
+          [tone]="kcalTone()"
+          ariaLabel="Calories: {{ kcalConsumed() }} of {{ kcalTarget() }}">
+          <span class="v2-num text-2xl font-semibold">{{ kcalRemaining() }}</span>
+          <span class="v2-caption mt-0.5">{{ kcalRemainingLabel() }}</span>
+        </v2-ring>
+        <span class="v2-caption mt-2">kcal</span>
+      </div>
+      <div class="flex flex-col items-center">
+        <v2-ring
+          [value]="proteinConsumed()"
+          [target]="proteinTargetG()"
+          [size]="120"
+          [stroke]="12"
+          tone="sage"
+          ariaLabel="Protein: {{ proteinConsumed() }}g of {{ proteinTargetG() }}g">
+          <span class="v2-num text-xl font-semibold">{{ proteinConsumed() }}g</span>
+          <span class="v2-caption mt-0.5">/ {{ proteinTargetG() }}g</span>
+        </v2-ring>
+        <span class="v2-caption mt-2">protein</span>
+      </div>
+    </div>
+
+    <!-- Exercise toggle -->
+    @if (editable()) {
+      <div class="flex justify-center mt-4">
+        <v2-button
+          variant="ghost"
+          size="sm"
+          (click)="toggleExercise()"
+          [attr.aria-pressed]="exercised()">
+          @if (exercised()) {
+            <lucide-icon name="check" [size]="16" style="color: var(--v2-sage)" />
+          } @else {
+            <lucide-icon name="footprints" [size]="16" />
+          }
+          {{ exercised() ? 'Exercised' : 'Did you exercise?' }}
+        </v2-button>
+      </div>
+    } @else if (exercised()) {
+      <div class="flex justify-center mt-4">
+        <span class="v2-caption inline-flex items-center gap-1.5">
+          <lucide-icon name="check" [size]="14" style="color: var(--v2-sage)" />
+          Exercised
+        </span>
+      </div>
+    }
+
+    <!-- Entries list -->
+    @if (dayLogs().length > 0) {
+      <h2 class="v2-h3 mt-8 mb-3">{{ entriesHeading() }}</h2>
+      <ul class="space-y-2" role="list">
+        @for (log of dayLogs(); track log.id) {
+          <li>
+            <button
+              type="button"
+              class="w-full text-left v2-card flex items-center justify-between gap-3"
+              style="padding: var(--v2-space-3) var(--v2-space-4); transition: background-color var(--v2-motion-fast) var(--v2-ease);"
+              [disabled]="!editable()"
+              (click)="editLog(log)"
+              [attr.aria-label]="'Edit ' + (log.mealLabel || 'entry') + ', ' + log.calories + ' kcal'">
+              <div class="min-w-0 flex-1">
+                <div class="v2-body" style="color: var(--v2-ink); font-weight: 500;">
+                  {{ log.mealLabel || 'Untitled' }}
+                </div>
+                <div class="v2-caption mt-0.5">{{ logTime(log) }}</div>
+              </div>
+              <div class="text-right shrink-0">
+                <div class="v2-num" style="font-weight: 600;">{{ log.calories }}</div>
+                <div class="v2-caption">
+                  @if (log.protein != null) { {{ log.protein }}g pro }
+                  @else { kcal }
+                </div>
+              </div>
+            </button>
+          </li>
+        }
+      </ul>
+    }
+
+    <!-- Water row -->
+    <v2-card variant="flat" class="mt-6 block">
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <lucide-icon name="droplets" [size]="18" style="color: var(--v2-ink-muted)" />
+          <span class="v2-body-soft">
+            Water · <span class="v2-num" style="color: var(--v2-ink); font-weight: 500;">{{ waterDisplay() }}</span>
+          </span>
+        </div>
+      </div>
+      @if (editable()) {
+        <div class="flex flex-wrap gap-2 mt-3">
+          <v2-button variant="ghost" size="sm" (click)="addWater(250)">+250 ml</v2-button>
+          <v2-button variant="ghost" size="sm" (click)="addWater(500)">+500 ml</v2-button>
+          <v2-button variant="ghost" size="sm" (click)="addWater(1000)">+1 L</v2-button>
+        </div>
+      }
+    </v2-card>
+  `,
+})
+export class V2DaySummary {
+  protected readonly store = inject(FitnessStore);
+  private readonly entryForm = inject(EntryFormManager);
+
+  readonly dateKey = input.required<string>();
+  readonly editable = input<boolean>(true);
+
+  /** "Today's food" on today, "Food" on past days. */
+  protected readonly entriesHeading = computed(() =>
+    this.dateKey() === localDateKey(new Date()) ? "Today's food" : 'Food',
+  );
+
+  protected readonly dayLogs = computed<DailyLog[]>(() =>
+    this.store.logsForDay(this.dateKey()),
+  );
+
+  protected readonly summary = computed(() => this.store.summaryFor(this.dateKey()));
+
+  protected readonly kcalTarget = computed(() => this.store.targetCalories());
+  protected readonly kcalConsumed = computed(() => this.summary()?.totalCalories ?? 0);
+  protected readonly kcalRemaining = computed(() => {
+    const r = this.kcalTarget() - this.kcalConsumed();
+    return r >= 0 ? r.toLocaleString() : `+${(-r).toLocaleString()}`;
+  });
+  protected readonly kcalRemainingLabel = computed(() =>
+    this.kcalTarget() - this.kcalConsumed() >= 0 ? 'left' : 'over',
+  );
+  protected readonly kcalTone = computed<'accent' | 'warn'>(() =>
+    this.kcalConsumed() > this.kcalTarget() ? 'warn' : 'accent',
+  );
+
+  protected readonly proteinTargetG = computed(() => this.store.proteinTarget());
+  protected readonly proteinConsumed = computed(() => this.summary()?.totalProtein ?? 0);
+
+  protected readonly exercised = computed(() => this.summary()?.exercised ?? false);
+
+  protected readonly waterMl = computed(
+    () => this.store.dailyWater()[this.dateKey()] ?? 0,
+  );
+  protected readonly waterDisplay = computed(() => {
+    const ml = this.waterMl();
+    if (ml === 0) return '0 ml';
+    if (ml < 1000) return `${ml} ml`;
+    return `${(ml / 1000).toFixed(1)} L`;
+  });
+
+  protected logTime(log: DailyLog): string {
+    return log.date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
+
+  protected editLog(log: DailyLog): void {
+    if (!this.editable()) return;
+    this.haptic(10);
+    this.entryForm.onTapMeal(log);
+  }
+
+  protected toggleExercise(): void {
+    if (!this.editable()) return;
+    this.haptic(10);
+    void this.store.toggleDayExercise(this.dateKey());
+  }
+
+  protected addWater(deltaMl: number): void {
+    if (!this.editable()) return;
+    this.haptic(10);
+    void this.store.addWater(this.dateKey(), deltaMl);
+  }
+
+  private haptic(ms: number): void {
+    try {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      navigator.vibrate?.(ms);
+    } catch { /* ignore */ }
+  }
+}

@@ -34,6 +34,8 @@ import { AdminService } from './services/admin.service';
 import { V2DevGallery } from './components/ui/dev-gallery.component';
 import { TodayV2Component } from './components/today-v2/today-v2.component';
 import { EntrySheetV2Component } from './components/entry-sheet-v2/entry-sheet-v2.component';
+import { HistoryV2Component } from './components/history-v2/history-v2.component';
+import { DayDetailV2Component } from './components/day-detail-v2/day-detail-v2.component';
 
 @Component({
   selector: 'app-root',
@@ -60,6 +62,8 @@ import { EntrySheetV2Component } from './components/entry-sheet-v2/entry-sheet-v
     V2DevGallery,
     TodayV2Component,
     EntrySheetV2Component,
+    HistoryV2Component,
+    DayDetailV2Component,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -331,13 +335,36 @@ import { EntrySheetV2Component } from './components/entry-sheet-v2/entry-sheet-v
               }
             }
             @if (uiV2()) {
-              <!-- v2 authed app — Week 2 ships Today only. History,
-                   Trends, Body remain stubs until weeks 3-5. The entry
-                   sheet is mounted once and self-gates via the
-                   entry-form-manager mode signal. -->
-              <app-today-v2
-                (settingsRequested)="showSettings.set(true)"
-                (historyRequested)="onHistoryRequestedV2()" />
+              <!-- v2 authed app. Week 2 shipped Today; Week 3 adds
+                   History (month grid) + day-detail. Trends + Body stay
+                   on v1 until Weeks 4-5. The entry sheet is mounted
+                   once and self-gates via the entry-form-manager mode
+                   signal — works across all three v2 surfaces. -->
+              @switch (route()) {
+                @case ('history') {
+                  @defer (on immediate) {
+                    <app-history-v2
+                      (dayTapped)="pushHistoryDay($event)"
+                      (closeRequested)="popHistory()" />
+                  } @placeholder {
+                    <div class="py-20 text-center caption">…</div>
+                  }
+                }
+                @case ('historyDay') {
+                  @defer (on immediate) {
+                    <app-day-detail-v2
+                      [dateKey]="historyDay()!"
+                      (closeRequested)="popHistory()" />
+                  } @placeholder {
+                    <div class="py-20 text-center caption">…</div>
+                  }
+                }
+                @default {
+                  <app-today-v2
+                    (settingsRequested)="showSettings.set(true)"
+                    (historyRequested)="onHistoryRequestedV2()" />
+                }
+              }
               <app-entry-sheet-v2 />
             } @else {
             <!-- Responsive layout: single column on mobile (tabbed), two columns on desktop -->
@@ -470,7 +497,14 @@ export class App {
   /** URL-path based routing for the two public-static pages. Anything
       else (including '/' and unknown paths) falls through to the
       signal-gated main app. */
-  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | null>(this.detectRoute());
+  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | null>(this.detectRoute());
+  /** Selected day for `/history/YYYY-MM-DD`. Null on the grid view. */
+  protected readonly historyDay = signal<string | null>(this.detectHistoryDay());
+  /** Stack depth of OUR pushState calls. popHistory() falls back to a
+   *  pushState('/app') when this is 0 — `history.length > 1` lies for
+   *  deep-links (a fresh tab opening /history reports length 1+ already)
+   *  and `history.back()` would leave the SPA. */
+  private historyPushDepth = 0;
   /** v2 UI flag — true when `?ui=v2` was passed or saved in localStorage.
    *  Set by `applyUiV2Flag()` in the constructor before the first paint
    *  so the template fork hits the correct branch on initial render. */
@@ -584,7 +618,7 @@ export class App {
     return 'log';
   }
 
-  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | null {
+  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | null {
     const path = window.location.pathname.toLowerCase();
     if (path === '/privacy' || path === '/privacy/') return 'privacy';
     if (path === '/terms' || path === '/terms/') return 'terms';
@@ -592,6 +626,8 @@ export class App {
     if (path === '/status' || path === '/status/') return 'status';
     if (path === '/admin' || path === '/admin/') return 'admin';
     if (path === '/dev/components' || path === '/dev/components/') return 'devGallery';
+    if (path === '/history' || path === '/history/') return 'history';
+    if (/^\/history\/\d{4}-\d{2}-\d{2}\/?$/.test(path)) return 'historyDay';
     // Root path shows the public marketing surface to non-signed-in
     // visitors. Once the user signs in, the auth gate in the template
     // takes over and renders the app regardless of the 'landing' route.
@@ -603,6 +639,51 @@ export class App {
     // instead of the loading shell; signed-in users still see it and
     // can click back into the app.
     return 'notFound';
+  }
+
+  /** Extract the YYYY-MM-DD segment from `/history/<date>` paths. Null
+   *  for any other path. Validated by the same regex as `detectRoute`. */
+  private detectHistoryDay(): string | null {
+    const m = /^\/history\/(\d{4}-\d{2}-\d{2})\/?$/.exec(window.location.pathname);
+    return m ? m[1] : null;
+  }
+
+  /** Sync `route` + `historyDay` signals to the current URL. Called from
+   *  the constructor on cold load and from the popstate listener on each
+   *  back/forward navigation so browser-back works without a reload. */
+  private applyLocation(): void {
+    this.route.set(this.detectRoute());
+    this.historyDay.set(this.detectHistoryDay());
+  }
+
+  /** v2 calendar-icon handler — pushes /history into the history stack
+   *  and re-syncs route signals. */
+  protected onHistoryRequestedV2(): void {
+    history.pushState({}, '', '/history');
+    this.historyPushDepth++;
+    this.applyLocation();
+  }
+
+  /** Tap handler from the month grid: push /history/<key> and re-sync. */
+  protected pushHistoryDay(key: string): void {
+    history.pushState({}, '', '/history/' + key);
+    this.historyPushDepth++;
+    this.applyLocation();
+  }
+
+  /** Back affordance from history surfaces. Only call `history.back()`
+   *  when WE have pushes on the stack — otherwise we'd leave the SPA on
+   *  a deep-linked cold load. The popstate listener decrements the
+   *  counter so browser-back is tracked too. */
+  protected popHistory(): void {
+    if (this.historyPushDepth > 0) {
+      // Counter decrements via the popstate listener; don't double-decrement.
+      history.back();
+    } else {
+      history.pushState({}, '', '/app');
+      this.historyPushDepth++;
+      this.applyLocation();
+    }
   }
 
   protected readonly todayLabel = computed(() => {
@@ -635,6 +716,29 @@ export class App {
         if (stored === 'v2') this.uiV2.set(true);
       }
     } catch { /* localStorage unavailable — fail open to v1 */ }
+
+    // Browser back/forward must update route + historyDay signals so the
+    // template re-renders without a full page reload. The constructor
+    // already seeded both via detectRoute()/detectHistoryDay(); this
+    // listener catches subsequent pushState/back transitions. The depth
+    // counter decrements regardless of trigger (our `popHistory` or the
+    // browser's back button) so it stays accurate.
+    window.addEventListener('popstate', () => {
+      if (this.historyPushDepth > 0) this.historyPushDepth--;
+      this.applyLocation();
+    });
+
+    // /history is v2-only. A v1 user landing on a deep-linked /history
+    // URL (bookmark, shared link) would otherwise see v1 chrome with a
+    // mismatched URL bar. Redirect them to /app so the v1 template
+    // renders normally and the URL reflects what they're seeing.
+    effect(() => {
+      const r = this.route();
+      if (!this.uiV2() && (r === 'history' || r === 'historyDay')) {
+        history.replaceState({}, '', '/app');
+        this.applyLocation();
+      }
+    });
 
     // One pageview per app boot. The SPA is a single-URL experience from
     // Plausible's perspective — tab switches don't navigate — so this
@@ -803,14 +907,6 @@ export class App {
     this.editingProfile.set(false);
     // Store will pick up the profile change via its firebase.profile() dependency.
     this.store.refresh();
-  }
-
-  /** v2 calendar-icon handler. Week 3 will route to /history; for now
-   *  it's a no-op so the icon is placed but doesn't break navigation.
-   *  Kept as a method (not a `() => {}` literal) so the template binding
-   *  remains stable across weeks. */
-  protected onHistoryRequestedV2(): void {
-    // Intentional no-op for Week 2. Week 3 wires this to /history.
   }
 
   protected onTabChange(tab: MobileTab): void {

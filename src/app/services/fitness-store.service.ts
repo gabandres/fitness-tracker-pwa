@@ -328,6 +328,45 @@ export class FitnessStore {
     this.todaySummary() !== null,
   );
 
+  /**
+   * Per-day totals for an arbitrary date key. Searches the rolling 14-day
+   * window first; falls back to `allTimeLogs` (which is itself tier-gated:
+   * paid users see uncapped, free users see ≤90 days). Returns null when
+   * the day has no logged entries in either source.
+   *
+   * Plain method (not signal) — callers wrap in `computed()` and the
+   * signal graph re-runs them when `_logs` / `_allTimeLogs` change.
+   */
+  summaryFor(dateKey: string): {
+    totalCalories: number;
+    totalProtein: number;
+    exercised: boolean;
+    count: number;
+  } | null {
+    let list = this._logs().filter((l) => localDateKey(l.date) === dateKey);
+    if (list.length === 0) {
+      list = this.allTimeLogs().filter((l) => localDateKey(l.date) === dateKey);
+    }
+    if (list.length === 0) return null;
+    return {
+      totalCalories: list.reduce((s, l) => s + l.calories, 0),
+      totalProtein: Math.round(list.reduce((s, l) => s + (l.protein ?? 0), 0)),
+      exercised: list.some(
+        (l) => l.exerciseCompleted ?? l.liftCompleted ?? l.cardioCompleted,
+      ),
+      count: list.length,
+    };
+  }
+
+  /** Logs for an arbitrary date key, sorted newest-first. Same fallback strategy as `summaryFor`. */
+  logsForDay(dateKey: string): DailyLog[] {
+    let list = this._logs().filter((l) => localDateKey(l.date) === dateKey);
+    if (list.length === 0) {
+      list = this.allTimeLogs().filter((l) => localDateKey(l.date) === dateKey);
+    }
+    return [...list].sort((a, b) => +b.date - +a.date);
+  }
+
   /** Long-term summary computed from all-time logs (loaded on demand). */
   readonly monthlySummary: Signal<MonthlySummary | null> = computed(() => {
     const logs = this._allTimeLogs();
