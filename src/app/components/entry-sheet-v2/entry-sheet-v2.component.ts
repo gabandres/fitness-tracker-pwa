@@ -91,7 +91,7 @@ type Segment = 'manual' | 'photo' | 'barcode';
 
             <form
               class="mt-4 space-y-4"
-              (ngSubmit)="save($event)"
+              (submit)="save($event)"
               novalidate>
               <div>
                 <label for="es-label" class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
