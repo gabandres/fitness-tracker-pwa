@@ -31,6 +31,9 @@ import { UpsellService } from './services/upsell.service';
 import { AnalyticsService } from './services/analytics.service';
 import { EntryFormManager } from './services/entry-form-manager.service';
 import { AdminService } from './services/admin.service';
+import { V2DevGallery } from './components/ui/dev-gallery.component';
+import { TodayV2Component } from './components/today-v2/today-v2.component';
+import { EntrySheetV2Component } from './components/entry-sheet-v2/entry-sheet-v2.component';
 
 @Component({
   selector: 'app-root',
@@ -54,11 +57,20 @@ import { AdminService } from './services/admin.service';
     MobileTabsComponent,
     MobileFabComponent,
     TranslocoDirective,
+    V2DevGallery,
+    TodayV2Component,
+    EntrySheetV2Component,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     <a href="#main" class="skip-link">{{ t('app.skipToMain') }}</a>
+    @if (route() === 'devGallery') {
+      <!-- v2 primitives gallery — internal dev surface, not in
+           production navigation. Mounted at /dev/components while the
+           v2 rebuild is in flight (Weeks 1-6). -->
+      <v2-dev-gallery />
+    } @else {
     <main id="main" class="min-h-screen px-5 sm:px-8 md:px-12 py-8 sm:py-12 pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-12">
       <div class="max-w-[560px] md:max-w-[1100px] mx-auto">
 
@@ -318,6 +330,16 @@ import { AdminService } from './services/admin.service';
                   (themeSelect)="setTheme($event)" />
               }
             }
+            @if (uiV2()) {
+              <!-- v2 authed app — Week 2 ships Today only. History,
+                   Trends, Body remain stubs until weeks 3-5. The entry
+                   sheet is mounted once and self-gates via the
+                   entry-form-manager mode signal. -->
+              <app-today-v2
+                (settingsRequested)="showSettings.set(true)"
+                (historyRequested)="onHistoryRequestedV2()" />
+              <app-entry-sheet-v2 />
+            } @else {
             <!-- Responsive layout: single column on mobile (tabbed), two columns on desktop -->
             <div class="md:grid md:grid-cols-[1fr_1.15fr] md:gap-10 md:items-start">
               <!-- Left column: Daily ledger (tab: log) -->
@@ -374,6 +396,7 @@ import { AdminService } from './services/admin.service';
                  while the entry form is open so it doesn't double the
                  add affordance. -->
             <app-mobile-fab />
+            }
           }
         </div>
 
@@ -416,6 +439,7 @@ import { AdminService } from './services/admin.service';
         }
       </div>
     </main>
+    }
     </ng-container>
   `,
 })
@@ -446,7 +470,11 @@ export class App {
   /** URL-path based routing for the two public-static pages. Anything
       else (including '/' and unknown paths) falls through to the
       signal-gated main app. */
-  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | null>(this.detectRoute());
+  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | null>(this.detectRoute());
+  /** v2 UI flag — true when `?ui=v2` was passed or saved in localStorage.
+   *  Set by `applyUiV2Flag()` in the constructor before the first paint
+   *  so the template fork hits the correct branch on initial render. */
+  protected readonly uiV2 = signal(false);
   protected readonly updateReady = signal(false);
   protected readonly offline = signal(!navigator.onLine);
   protected readonly retryingOffline = signal(false);
@@ -556,13 +584,14 @@ export class App {
     return 'log';
   }
 
-  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | null {
+  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | null {
     const path = window.location.pathname.toLowerCase();
     if (path === '/privacy' || path === '/privacy/') return 'privacy';
     if (path === '/terms' || path === '/terms/') return 'terms';
     if (path === '/changelog' || path === '/changelog/') return 'changelog';
     if (path === '/status' || path === '/status/') return 'status';
     if (path === '/admin' || path === '/admin/') return 'admin';
+    if (path === '/dev/components' || path === '/dev/components/') return 'devGallery';
     // Root path shows the public marketing surface to non-signed-in
     // visitors. Once the user signs in, the auth gate in the template
     // takes over and renders the app regardless of the 'landing' route.
@@ -585,6 +614,28 @@ export class App {
   });
 
   constructor() {
+    // v2 design-system flag. Active when ?ui=v2 is present OR the user
+    // has saved the preference in localStorage, OR when on the internal
+    // /dev/components gallery (which is v2-only by definition). Setting
+    // [data-ui="v2"] on <html> activates the v2 token scope in
+    // styles-v2.css; v1 surfaces remain untouched until Week 6 cutover.
+    try {
+      const qs = new URLSearchParams(window.location.search);
+      const flag = qs.get('ui');
+      if (flag === 'v2') localStorage.setItem('macrolog.ui', 'v2');
+      if (flag === 'v1') localStorage.removeItem('macrolog.ui');
+      const stored = localStorage.getItem('macrolog.ui');
+      const onGallery = window.location.pathname.toLowerCase().startsWith('/dev/components');
+      if (stored === 'v2' || onGallery) {
+        document.documentElement.setAttribute('data-ui', 'v2');
+        // The gallery surface is v2-only by definition but should not
+        // flip the rest of the app to v2 — it owns its own render path
+        // outside the authed-app branch. Only the persisted preference
+        // counts toward the global v2 fork.
+        if (stored === 'v2') this.uiV2.set(true);
+      }
+    } catch { /* localStorage unavailable — fail open to v1 */ }
+
     // One pageview per app boot. The SPA is a single-URL experience from
     // Plausible's perspective — tab switches don't navigate — so this
     // gives the dashboard a traffic denominator for the conversion-rate
@@ -752,6 +803,14 @@ export class App {
     this.editingProfile.set(false);
     // Store will pick up the profile change via its firebase.profile() dependency.
     this.store.refresh();
+  }
+
+  /** v2 calendar-icon handler. Week 3 will route to /history; for now
+   *  it's a no-op so the icon is placed but doesn't break navigation.
+   *  Kept as a method (not a `() => {}` literal) so the template binding
+   *  remains stable across weeks. */
+  protected onHistoryRequestedV2(): void {
+    // Intentional no-op for Week 2. Week 3 wires this to /history.
   }
 
   protected onTabChange(tab: MobileTab): void {

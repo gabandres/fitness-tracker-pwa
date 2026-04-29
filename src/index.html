@@ -87,6 +87,14 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap"
       rel="stylesheet"
     />
+    <!-- v2 type stack — Geist Sans + Geist Mono. Loaded alongside v1 fonts
+         while the ?ui=v2 flag is in transition (Weeks 1-6). v1 surfaces keep
+         using Instrument Serif/DM Sans/JetBrains Mono via the existing CSS
+         variables; v2 surfaces opt into Geist via [data-ui="v2"] tokens. -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <app-root></app-root>

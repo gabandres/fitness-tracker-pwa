@@ -11,6 +11,33 @@ import {
 import { provideAuth, getAuth } from '@angular/fire/auth';
 import { provideFunctions, getFunctions } from '@angular/fire/functions';
 import { provideMessaging, getMessaging } from '@angular/fire/messaging';
+import {
+  LucideAngularModule,
+  Plus,
+  X,
+  Calendar,
+  Settings,
+  Moon,
+  Sun,
+  Trash2,
+  CircleDot,
+  TrendingUp,
+  Activity,
+  Camera,
+  ScanLine,
+  Flame,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  HelpCircle,
+  ArrowLeft,
+  Pencil,
+  Sparkles,
+  Droplets,
+  Footprints,
+  Image as LucideImage,
+  Type as LucideType,
+} from 'lucide-angular';
 
 import { routes } from './app.routes';
 import { provideServiceWorker } from '@angular/service-worker';
@@ -63,5 +90,16 @@ export const appConfig: ApplicationConfig = {
     { provide: ErrorHandler, useValue: Sentry.createErrorHandler() },
     // LedgerStore seam (#6): the app depends on LEDGER_PORT; FirebaseService is one impl.
     { provide: LEDGER_PORT, useExisting: FirebaseService },
+    // Lucide icons used by v2 primitives. Each icon must be registered
+    // here (or in the consuming component) so the LucideAngularComponent
+    // can resolve <lucide-icon name="…"> at runtime. Tree-shakes per
+    // import so unused icons are never bundled.
+    LucideAngularModule.pick({
+      Plus, X, Calendar, Settings, Moon, Sun, Trash2,
+      CircleDot, TrendingUp, Activity, Camera, ScanLine,
+      Flame, ChevronLeft, ChevronRight, Check, HelpCircle,
+      ArrowLeft, Pencil, Sparkles, Droplets, Footprints,
+      Image: LucideImage, Type: LucideType,
+    }).providers!,
   ],
 };
