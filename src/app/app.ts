@@ -36,6 +36,9 @@ import { TodayV2Component } from './components/today-v2/today-v2.component';
 import { EntrySheetV2Component } from './components/entry-sheet-v2/entry-sheet-v2.component';
 import { HistoryV2Component } from './components/history-v2/history-v2.component';
 import { DayDetailV2Component } from './components/day-detail-v2/day-detail-v2.component';
+import { TrendsV2Component } from './components/trends-v2/trends-v2.component';
+import { BodyV2Component } from './components/body-v2/body-v2.component';
+import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
 
 @Component({
   selector: 'app-root',
@@ -64,6 +67,9 @@ import { DayDetailV2Component } from './components/day-detail-v2/day-detail-v2.c
     EntrySheetV2Component,
     HistoryV2Component,
     DayDetailV2Component,
+    TrendsV2Component,
+    BodyV2Component,
+    V2TabBar,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -359,6 +365,24 @@ import { DayDetailV2Component } from './components/day-detail-v2/day-detail-v2.c
                     <div class="py-20 text-center caption">…</div>
                   }
                 }
+                @case ('trends') {
+                  @defer (on immediate) {
+                    <app-trends-v2
+                      (settingsRequested)="showSettings.set(true)"
+                      (historyRequested)="onHistoryRequestedV2()" />
+                  } @placeholder {
+                    <div class="py-20 text-center caption">…</div>
+                  }
+                }
+                @case ('body') {
+                  @defer (on immediate) {
+                    <app-body-v2
+                      (settingsRequested)="showSettings.set(true)"
+                      (historyRequested)="onHistoryRequestedV2()" />
+                  } @placeholder {
+                    <div class="py-20 text-center caption">…</div>
+                  }
+                }
                 @default {
                   <app-today-v2
                     (settingsRequested)="showSettings.set(true)"
@@ -366,6 +390,10 @@ import { DayDetailV2Component } from './components/day-detail-v2/day-detail-v2.c
                 }
               }
               <app-entry-sheet-v2 />
+              <v2-tab-bar
+                [tabs]="v2Tabs"
+                [activeId]="activeV2Tab()"
+                (select)="onV2TabSelect($event)" />
             } @else {
             <!-- Responsive layout: single column on mobile (tabbed), two columns on desktop -->
             <div class="md:grid md:grid-cols-[1fr_1.15fr] md:gap-10 md:items-start">
@@ -497,7 +525,7 @@ export class App {
   /** URL-path based routing for the two public-static pages. Anything
       else (including '/' and unknown paths) falls through to the
       signal-gated main app. */
-  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | null>(this.detectRoute());
+  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | null>(this.detectRoute());
   /** Selected day for `/history/YYYY-MM-DD`. Null on the grid view. */
   protected readonly historyDay = signal<string | null>(this.detectHistoryDay());
   /** Stack depth of OUR pushState calls. popHistory() falls back to a
@@ -618,7 +646,7 @@ export class App {
     return 'log';
   }
 
-  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | null {
+  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | null {
     const path = window.location.pathname.toLowerCase();
     if (path === '/privacy' || path === '/privacy/') return 'privacy';
     if (path === '/terms' || path === '/terms/') return 'terms';
@@ -628,6 +656,8 @@ export class App {
     if (path === '/dev/components' || path === '/dev/components/') return 'devGallery';
     if (path === '/history' || path === '/history/') return 'history';
     if (/^\/history\/\d{4}-\d{2}-\d{2}\/?$/.test(path)) return 'historyDay';
+    if (path === '/trends' || path === '/trends/') return 'trends';
+    if (path === '/body' || path === '/body/') return 'body';
     // Root path shows the public marketing surface to non-signed-in
     // visitors. Once the user signs in, the auth gate in the template
     // takes over and renders the app regardless of the 'landing' route.
@@ -667,6 +697,46 @@ export class App {
   /** Tap handler from the month grid: push /history/<key> and re-sync. */
   protected pushHistoryDay(key: string): void {
     history.pushState({}, '', '/history/' + key);
+    this.historyPushDepth++;
+    this.applyLocation();
+  }
+
+  /** v2 tab-bar definition. Order = visual order. */
+  protected readonly v2Tabs: V2Tab[] = [
+    { id: 'today', label: 'Today', icon: 'home' },
+    { id: 'trends', label: 'Trends', icon: 'trending-up' },
+    { id: 'body', label: 'Body', icon: 'user' },
+  ];
+
+  /** Maps the current `route()` value back onto a tab id so the tab bar
+   *  highlights the correct segment. Calendar routes (history /
+   *  historyDay) inherit Today highlight — they're a sub-surface of the
+   *  Today tab, not a separate primary section. */
+  protected readonly activeV2Tab = computed<string>(() => {
+    const r = this.route();
+    if (r === 'trends') return 'trends';
+    if (r === 'body') return 'body';
+    return 'today';
+  });
+
+  /** Tab-bar tap handler. No-op when tapping the actual current route —
+   *  not the derived tab. The history routes report `today` as their
+   *  active tab so the bar lights up correctly, but a Today tap from
+   *  inside /history must still navigate to /app. */
+  protected onV2TabSelect(id: string): void {
+    const r = this.route();
+    if (id === 'today' && r !== 'history' && r !== 'historyDay' && r !== 'trends' && r !== 'body') return;
+    if (id === 'trends' && r === 'trends') return;
+    if (id === 'body' && r === 'body') return;
+    if (id === 'today') {
+      history.pushState({}, '', '/app');
+    } else if (id === 'trends') {
+      history.pushState({}, '', '/trends');
+    } else if (id === 'body') {
+      history.pushState({}, '', '/body');
+    } else {
+      return;
+    }
     this.historyPushDepth++;
     this.applyLocation();
   }
@@ -728,13 +798,16 @@ export class App {
       this.applyLocation();
     });
 
-    // /history is v2-only. A v1 user landing on a deep-linked /history
-    // URL (bookmark, shared link) would otherwise see v1 chrome with a
-    // mismatched URL bar. Redirect them to /app so the v1 template
-    // renders normally and the URL reflects what they're seeing.
+    // v2-only routes (history, historyDay, trends, body) need a redirect
+    // for v1 users — a deep-linked /trends bookmark would otherwise show
+    // v1 chrome with a mismatched URL bar. Send them to /app so the v1
+    // template renders normally and the URL matches.
     effect(() => {
       const r = this.route();
-      if (!this.uiV2() && (r === 'history' || r === 'historyDay')) {
+      if (
+        !this.uiV2() &&
+        (r === 'history' || r === 'historyDay' || r === 'trends' || r === 'body')
+      ) {
         history.replaceState({}, '', '/app');
         this.applyLocation();
       }

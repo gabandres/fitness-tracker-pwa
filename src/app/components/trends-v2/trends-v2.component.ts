@@ -1,0 +1,240 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  output,
+} from '@angular/core';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { LucideAngularModule } from 'lucide-angular';
+import { marked } from 'marked';
+import { FitnessStore } from '../../services/fitness-store.service';
+import { SubscriptionService } from '../../services/subscription.service';
+import { UpsellService } from '../../services/upsell.service';
+import { ConsultationComponent } from '../consultation/consultation.component';
+import { V2BarChart } from '../ui/bar-chart.component';
+import { V2Button } from '../ui/button.component';
+import { V2Card } from '../ui/card.component';
+import { V2IconButton } from '../ui/icon-button.component';
+
+/**
+ * Trends route. Single-page scroll with: 7-day twin-bar chart,
+ * weekly averages, weekly report (Pro), AI coach (consultation Q&A).
+ *
+ * Wraps the v1 <app-consultation> as-is for Week 4 — its visual chrome
+ * gets the warm-minimal restyle in Week 6 (per the v2 plan).
+ */
+@Component({
+  selector: 'app-trends-v2',
+  standalone: true,
+  imports: [
+    LucideAngularModule,
+    V2BarChart,
+    V2Button,
+    V2Card,
+    V2IconButton,
+    ConsultationComponent,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <section class="max-w-[640px] mx-auto px-5 sm:px-6 pb-32 md:pb-12">
+      <!-- Header -->
+      <header class="flex items-start justify-between gap-4 pt-6 pb-2">
+        <div>
+          <h1 class="v2-h1">Trends</h1>
+          <p class="v2-caption mt-0.5">Last 7 days</p>
+        </div>
+        <div class="flex items-center gap-1 shrink-0">
+          <v2-icon-button
+            icon="calendar"
+            ariaLabel="History"
+            (click)="historyRequested.emit()" />
+          <v2-icon-button
+            icon="settings"
+            ariaLabel="Settings"
+            (click)="settingsRequested.emit()" />
+        </div>
+      </header>
+
+      <!-- Bar chart -->
+      <v2-card variant="default" class="mt-6 block">
+        @if (hasAnyData()) {
+          <v2-bar-chart
+            [data]="chartData()"
+            [kcalTarget]="kcalTarget()"
+            [proteinTarget]="proteinTarget()" />
+          <div class="flex items-center justify-between gap-2 mt-3">
+            <div class="flex items-center gap-3 v2-caption">
+              <span class="inline-flex items-center gap-1.5">
+                <span class="inline-block w-2.5 h-2.5 rounded-sm" style="background: var(--v2-accent)"></span>
+                kcal
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span class="inline-block w-2.5 h-2.5 rounded-sm" style="background: var(--v2-sage)"></span>
+                protein
+              </span>
+            </div>
+            <button
+              type="button"
+              class="v2-btn v2-btn--ghost v2-btn--sm"
+              (click)="historyRequested.emit()">
+              View month
+              <lucide-icon name="chevron-right" [size]="14" />
+            </button>
+          </div>
+        } @else {
+          <div class="text-center py-8">
+            <p class="v2-body-soft">Log meals to see trends.</p>
+          </div>
+        }
+      </v2-card>
+
+      <!-- Averages -->
+      <v2-card variant="flat" class="mt-4 block">
+        <h2 class="v2-h3 mb-3">This week</h2>
+        @if (weekly(); as w) {
+          <dl class="grid grid-cols-2 gap-x-4 gap-y-3">
+            <div>
+              <dt class="v2-caption">Avg kcal</dt>
+              <dd class="v2-num text-lg font-semibold">{{ w.avgCalories }}</dd>
+            </div>
+            <div>
+              <dt class="v2-caption">Avg protein</dt>
+              <dd class="v2-num text-lg font-semibold">
+                {{ w.avgProtein != null ? w.avgProtein + 'g' : '—' }}
+              </dd>
+            </div>
+            <div>
+              <dt class="v2-caption">Weight delta</dt>
+              <dd class="v2-num text-lg font-semibold">{{ weightDeltaLabel() }}</dd>
+            </div>
+            <div>
+              <dt class="v2-caption">Adherence</dt>
+              <dd class="v2-num text-lg font-semibold">{{ w.adherencePct }}%</dd>
+            </div>
+          </dl>
+        } @else {
+          <p class="v2-body-soft">Log 7 days to see averages.</p>
+        }
+      </v2-card>
+
+      <!-- Weekly report (Pro) -->
+      <v2-card variant="default" class="mt-4 block">
+        <h2 class="v2-h3 mb-3">Weekly readout</h2>
+        @if (reportHtml(); as html) {
+          <div class="v2-prose" [innerHTML]="html"></div>
+          <p class="v2-caption mt-3">{{ reportAge() }}</p>
+        } @else if (store.reportLoading()) {
+          <p class="v2-body-soft">Generating…</p>
+        } @else if (store.reportError(); as err) {
+          <p class="v2-body-soft" style="color: var(--v2-danger)">{{ err }}</p>
+          @if (subs.isPaid()) {
+            <v2-button variant="ghost" size="sm" (click)="generate()">Retry</v2-button>
+          }
+        } @else if (!subs.isPaid()) {
+          <p class="v2-body-soft">A weekly write-up of your trends is a Pro feature.</p>
+          <div class="mt-3">
+            <v2-button variant="primary" size="sm" (click)="openUpgrade()">
+              <lucide-icon name="sparkles" [size]="14" />
+              Upgrade
+            </v2-button>
+          </div>
+        } @else if (daysWithLogsThisWeek() < 3) {
+          <p class="v2-body-soft">Log at least 3 days this week to generate your readout.</p>
+        } @else {
+          <v2-button variant="primary" size="sm" (click)="generate()">
+            <lucide-icon name="sparkles" [size]="14" />
+            Generate this week's readout
+          </v2-button>
+        }
+      </v2-card>
+
+      <!-- AI coach (v1 consultation, restyled in Week 6) -->
+      <v2-card variant="default" class="mt-4 block">
+        <h2 class="v2-h3 mb-3">AI coach</h2>
+        <app-consultation />
+      </v2-card>
+    </section>
+  `,
+  styles: [`
+    :host ::ng-deep .v2-prose h1,
+    :host ::ng-deep .v2-prose h2,
+    :host ::ng-deep .v2-prose h3 {
+      font-family: var(--v2-font-sans);
+      font-weight: 600;
+      color: var(--v2-ink);
+      margin-top: 1em;
+      margin-bottom: 0.5em;
+    }
+    :host ::ng-deep .v2-prose h2 { font-size: 1rem; }
+    :host ::ng-deep .v2-prose h3 { font-size: 0.9rem; }
+    :host ::ng-deep .v2-prose p {
+      color: var(--v2-ink);
+      margin-bottom: 0.75em;
+      line-height: 1.55;
+    }
+    :host ::ng-deep .v2-prose ul {
+      padding-left: 1.25em;
+      margin-bottom: 0.75em;
+    }
+    :host ::ng-deep .v2-prose li { margin-bottom: 0.25em; }
+    :host ::ng-deep .v2-prose strong { font-weight: 600; }
+  `],
+})
+export class TrendsV2Component {
+  protected readonly store = inject(FitnessStore);
+  protected readonly subs = inject(SubscriptionService);
+  private readonly upsell = inject(UpsellService);
+  private readonly sanitizer = inject(DomSanitizer);
+
+  readonly historyRequested = output<void>();
+  readonly settingsRequested = output<void>();
+
+  protected readonly chartData = computed(() => this.store.last7Days());
+
+  protected readonly hasAnyData = computed(() =>
+    this.chartData().some((d) => d.kcal > 0 || d.protein > 0),
+  );
+
+  protected readonly kcalTarget = computed(() => this.store.targetCalories());
+  protected readonly proteinTarget = computed(() => this.store.proteinTarget());
+  protected readonly weekly = computed(() => this.store.weekly());
+  /** Days in the last 7 with at least one log. Used to gate the
+   *  "Generate this week's readout" affordance — Pro users with under
+   *  3 logged days get a hint instead of a button. v1 measured all-time
+   *  log count which over-counted users who hadn't logged this week. */
+  protected readonly daysWithLogsThisWeek = computed(
+    () => this.chartData().filter((d) => d.kcal > 0).length,
+  );
+
+  protected readonly weightDeltaLabel = computed(() => {
+    const w = this.weekly();
+    if (!w || !w.weightDelta) return '—';
+    const sign = w.weightDelta > 0 ? '+' : '';
+    return `${sign}${w.weightDelta.toFixed(1)} lb`;
+  });
+
+  protected readonly reportHtml = computed<SafeHtml | null>(() => {
+    const r = this.store.weeklyReport();
+    if (!r) return null;
+    const html = marked.parse(r.markdown, { gfm: true, breaks: true }) as string;
+    return this.sanitizer.bypassSecurityTrustHtml(html);
+  });
+
+  protected readonly reportAge = computed(() => {
+    const r = this.store.weeklyReport();
+    if (!r) return '';
+    const days = Math.floor((Date.now() - r.generatedAt.getTime()) / (1000 * 60 * 60 * 24));
+    if (days === 0) return 'Generated today';
+    if (days === 1) return 'Generated yesterday';
+    return `Generated ${days} days ago`;
+  });
+
+  protected generate(): void {
+    void this.store.generateWeeklyReport();
+  }
+
+  protected openUpgrade(): void {
+    this.upsell.openSubscribe('trends-v2-weekly-report');
+  }
+}

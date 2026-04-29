@@ -37,6 +37,8 @@ import {
   Footprints,
   Image as LucideImage,
   Type as LucideType,
+  Home,
+  User,
 } from 'lucide-angular';
 
 import { routes } from './app.routes';
@@ -100,6 +102,7 @@ export const appConfig: ApplicationConfig = {
       Flame, ChevronLeft, ChevronRight, Check, HelpCircle,
       ArrowLeft, Pencil, Sparkles, Droplets, Footprints,
       Image: LucideImage, Type: LucideType,
+      Home, User,
     }).providers!,
   ],
 };

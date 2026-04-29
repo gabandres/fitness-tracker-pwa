@@ -358,6 +358,30 @@ export class FitnessStore {
     };
   }
 
+  /**
+   * Per-day kcal + protein totals for the last 7 calendar days
+   * (today inclusive, oldest first). Used by the v2 trends bar chart.
+   * Days with no entries return zeros so the bar chart can render
+   * empty bars rather than gaps in the x-axis.
+   */
+  last7Days(): { key: string; label: string; kcal: number; protein: number }[] {
+    const out: { key: string; label: string; kcal: number; protein: number }[] = [];
+    const today = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const key = localDateKey(d);
+      const s = this.summaryFor(key);
+      out.push({
+        key,
+        label: d.toLocaleDateString('en-US', { weekday: 'short' }),
+        kcal: s?.totalCalories ?? 0,
+        protein: s?.totalProtein ?? 0,
+      });
+    }
+    return out;
+  }
+
   /** Logs for an arbitrary date key, sorted newest-first. Same fallback strategy as `summaryFor`. */
   logsForDay(dateKey: string): DailyLog[] {
     let list = this._logs().filter((l) => localDateKey(l.date) === dateKey);
