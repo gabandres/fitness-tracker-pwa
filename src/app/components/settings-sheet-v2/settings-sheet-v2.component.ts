@@ -4,6 +4,7 @@ import {
 } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { LucideAngularModule } from 'lucide-angular';
+import { SwUpdate } from '@angular/service-worker';
 import { AuthService } from '../../services/auth.service';
 import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { FitnessStore } from '../../services/fitness-store.service';
@@ -279,7 +280,30 @@ import { V2Button } from '../ui/button.component';
         </div>
       </v2-card>
 
-      <!-- About / Legal -->
+      <!-- About / Updates -->
+      <v2-card variant="default" class="block mb-3">
+        <h3 class="v2-h3 mb-3">About</h3>
+        <div class="flex items-start justify-between gap-3 mb-2">
+          <div class="min-w-0">
+            <div class="v2-body" style="font-weight: 500;">App version</div>
+            <p class="v2-caption mt-0.5">
+              Build <span class="v2-num" style="color: var(--v2-ink); font-size: 0.75rem;">{{ buildLabel() }}</span>
+            </p>
+            @if (updateMsg(); as msg) {
+              <p class="v2-caption mt-1" role="status" aria-live="polite"
+                [style.color]="msg.tone === 'sage' ? 'var(--v2-sage)' : msg.tone === 'accent' ? 'var(--v2-accent)' : 'var(--v2-ink-muted)'">
+                {{ msg.text }}
+              </p>
+            }
+          </div>
+          <v2-button variant="secondary" size="sm" (click)="checkForUpdate()" [disabled]="checkingUpdate()">
+            <lucide-icon name="check" [size]="14" />
+            {{ checkingUpdate() ? 'Checking…' : 'Check for updates' }}
+          </v2-button>
+        </div>
+      </v2-card>
+
+      <!-- Legal -->
       <v2-card variant="flat" class="block mb-3">
         <h3 class="v2-h3 mb-2">{{ t('settings.legal.section') }}</h3>
         <p class="v2-caption">
@@ -307,6 +331,7 @@ export class SettingsSheetV2Component {
   protected readonly pushService = inject(PushNotificationService);
   protected readonly subs = inject(SubscriptionService);
   protected readonly translation = inject(TranslationService);
+  private readonly swUpdate = inject(SwUpdate);
 
   readonly darkMode = input.required<boolean>();
   readonly themeChoice = input.required<ThemeChoice>();
@@ -323,6 +348,46 @@ export class SettingsSheetV2Component {
   protected readonly webhookUrl = 'https://us-central1-fitness-tracker-gb-1775407101.cloudfunctions.net/logWebhook';
 
   protected readonly showEsBetaBanner = computed(() => this.translation.language() === 'es-PR');
+
+  protected readonly checkingUpdate = signal(false);
+  protected readonly updateMsg = signal<{ text: string; tone: 'sage' | 'accent' | 'muted' } | null>(null);
+
+  /** Show abbreviated build SHA, or "dev" in non-prod builds. The
+   *  global is injected at build time by `scripts/sentry-release.mjs`. */
+  protected readonly buildLabel = computed(() => {
+    const v = (globalThis as unknown as { __MACROLOG_RELEASE__?: string }).__MACROLOG_RELEASE__;
+    if (!v) return 'dev';
+    return v.length > 8 ? v.substring(0, 8) : v;
+  });
+
+  /** Manual update check from the settings sheet. The 60s background
+   *  poll usually catches new versions, but this is the explicit
+   *  affordance for users on long-lived tabs. Banner from app.ts
+   *  fires automatically on VERSION_READY. */
+  protected async checkForUpdate(): Promise<void> {
+    if (this.checkingUpdate()) return;
+    this.checkingUpdate.set(true);
+    this.updateMsg.set(null);
+    try {
+      if (!this.swUpdate.isEnabled) {
+        this.updateMsg.set({ text: 'Updates unavailable in this environment.', tone: 'muted' });
+        return;
+      }
+      const found = await this.swUpdate.checkForUpdate();
+      if (found) {
+        this.updateMsg.set({ text: 'Update found — reload prompt will appear shortly.', tone: 'accent' });
+      } else {
+        this.updateMsg.set({ text: 'You’re on the latest version.', tone: 'sage' });
+      }
+    } catch (err) {
+      this.updateMsg.set({
+        text: err instanceof Error ? err.message : 'Could not check.',
+        tone: 'muted',
+      });
+    } finally {
+      this.checkingUpdate.set(false);
+    }
+  }
 
   protected readonly themeOptions: ReadonlyArray<{
     value: ThemeChoice; labelKey: string; swatch: string; pro: boolean;
