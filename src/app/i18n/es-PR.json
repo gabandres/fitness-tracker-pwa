@@ -953,6 +953,21 @@
       "logWeight": "Registrar peso",
       "editWeight": "Editar peso",
       "addFoodAria": "Añadir comida"
+    },
+    "today": {
+      "title": "Hoy",
+      "dayStreak": "racha de {{n}} días",
+      "historyAria": "Historial",
+      "settingsAria": "Ajustes",
+      "day0Title": "Registra tu primera comida",
+      "day0Body": "Te mostraremos tu progreso de calorías y proteína según vayas registrando.",
+      "addFood": "Añadir comida",
+      "addFoodAria": "Añadir comida",
+      "day0Targets": "Metas de hoy · {{kcal}} kcal · {{protein}}g proteína",
+      "repeatYesterday": "Igual que ayer",
+      "deleted": "Borrado {{label}}",
+      "deletedFallback": "entrada",
+      "undo": "Deshacer"
     }
   }
 }

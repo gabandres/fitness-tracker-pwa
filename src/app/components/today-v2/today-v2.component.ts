@@ -7,9 +7,11 @@ import {
   signal,
 } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
+import { TranslationService } from '../../services/translation.service';
 import { localDateKey } from '../../utils/date';
 import { V2Button } from '../ui/button.component';
 import { V2IconButton } from '../ui/icon-button.component';
@@ -29,6 +31,7 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
   standalone: true,
   imports: [
     LucideAngularModule,
+    TranslocoDirective,
     V2Button,
     V2IconButton,
     V2Card,
@@ -38,16 +41,17 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     <section class="max-w-[640px] mx-auto px-5 sm:px-6 pb-32 md:pb-12">
       <!-- Header -->
       <header class="flex items-start justify-between gap-4 pt-6 pb-2">
         <div>
-          <h1 class="v2-h1">Today</h1>
+          <h1 class="v2-h1">{{ t('v2.today.title') }}</h1>
           <p class="v2-caption mt-0.5">{{ dateLabel() }}</p>
           @if (streak() >= 2) {
             <div class="flex items-center gap-1.5 mt-2 v2-caption" style="color: var(--v2-accent)">
               <lucide-icon name="flame" [size]="14" />
-              <span>{{ streak() }} day streak</span>
+              <span>{{ t('v2.today.dayStreak', { n: streak() }) }}</span>
             </div>
           }
         </div>
@@ -55,11 +59,11 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
           <v2-fasting-pill (bodyRequested)="bodyRequested.emit()" />
           <v2-icon-button
             icon="calendar"
-            ariaLabel="History"
+            [ariaLabel]="t('v2.today.historyAria')"
             (click)="historyRequested.emit()" />
           <v2-icon-button
             icon="settings"
-            ariaLabel="Settings"
+            [ariaLabel]="t('v2.today.settingsAria')"
             (click)="settingsRequested.emit()" />
         </div>
       </header>
@@ -67,18 +71,18 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
       @if (showDay0Hero()) {
         <!-- Day 0 hero — replaces rings until first entry. -->
         <v2-card variant="accent" class="mt-6 block text-center">
-          <h2 class="v2-h2">Log your first meal</h2>
+          <h2 class="v2-h2">{{ t('v2.today.day0Title') }}</h2>
           <p class="v2-body-soft mt-2">
-            We'll show your kcal and protein progress as you go.
+            {{ t('v2.today.day0Body') }}
           </p>
           <div class="mt-5">
             <v2-button variant="primary" size="lg" [block]="true" (click)="addFood()">
               <lucide-icon name="plus" [size]="18" />
-              Add food
+              {{ t('v2.today.addFood') }}
             </v2-button>
           </div>
           <p class="v2-caption mt-4">
-            Today's targets · {{ kcalTarget() }} kcal · {{ proteinTargetG() }}g protein
+            {{ t('v2.today.day0Targets', { kcal: kcalTarget(), protein: proteinTargetG() }) }}
           </p>
         </v2-card>
       } @else {
@@ -90,7 +94,7 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
         <div class="mt-6">
           <v2-button variant="secondary" [block]="true" (click)="repeatYesterday()">
             <lucide-icon name="check" [size]="16" />
-            Same as yesterday
+            {{ t('v2.today.repeatYesterday') }}
           </v2-button>
         </div>
       }
@@ -103,14 +107,14 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
           role="status"
           aria-live="polite">
           <span class="v2-body" style="color: inherit;">
-            Deleted {{ undo.mealLabel || 'entry' }}
+            {{ t('v2.today.deleted', { label: undo.mealLabel || t('v2.today.deletedFallback') }) }}
           </span>
           <button
             type="button"
             class="v2-btn v2-btn--sm"
             style="background: transparent; color: var(--v2-paper); border-color: rgba(255,255,255,0.3); font-weight: 600;"
             (click)="undoDelete()">
-            Undo
+            {{ t('v2.today.undo') }}
           </button>
         </div>
       }
@@ -118,14 +122,16 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
 
     <!-- FAB — hidden on day 0 (in-card button is the only affordance). -->
     @if (!showDay0Hero()) {
-      <v2-fab icon="plus" ariaLabel="Add food" (click)="addFood()" />
+      <v2-fab icon="plus" [ariaLabel]="t('v2.today.addFoodAria')" (click)="addFood()" />
     }
+    </ng-container>
   `,
 })
 export class TodayV2Component {
   protected readonly store = inject(FitnessStore);
   protected readonly profile = inject(LEDGER_PORT);
   private readonly entryForm = inject(EntryFormManager);
+  private readonly translation = inject(TranslationService);
 
   readonly historyRequested = output<void>();
   readonly settingsRequested = output<void>();
@@ -153,7 +159,8 @@ export class TodayV2Component {
 
   protected readonly dateLabel = computed(() => {
     const d = new Date();
-    return d.toLocaleDateString('en-US', {
+    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    return d.toLocaleDateString(locale, {
       weekday: 'long',
       month: 'long',
       day: 'numeric',

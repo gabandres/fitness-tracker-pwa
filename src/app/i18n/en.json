@@ -947,6 +947,21 @@
       "logWeight": "Log weight",
       "editWeight": "Edit weight",
       "addFoodAria": "Add food"
+    },
+    "today": {
+      "title": "Today",
+      "dayStreak": "{{n}} day streak",
+      "historyAria": "History",
+      "settingsAria": "Settings",
+      "day0Title": "Log your first meal",
+      "day0Body": "We'll show your kcal and protein progress as you go.",
+      "addFood": "Add food",
+      "addFoodAria": "Add food",
+      "day0Targets": "Today's targets · {{kcal}} kcal · {{protein}}g protein",
+      "repeatYesterday": "Same as yesterday",
+      "deleted": "Deleted {{label}}",
+      "deletedFallback": "entry",
+      "undo": "Undo"
     }
   }
 }
