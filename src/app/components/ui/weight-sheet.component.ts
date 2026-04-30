@@ -9,7 +9,9 @@ import {
   signal,
 } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
+import { TranslationService } from '../../services/translation.service';
 import { localDateKey } from '../../utils/date';
 import { V2Sheet } from './sheet.component';
 import { V2Button } from './button.component';
@@ -25,19 +27,20 @@ import { V2Button } from './button.component';
 @Component({
   selector: 'v2-weight-sheet',
   standalone: true,
-  imports: [LucideAngularModule, V2Sheet, V2Button],
+  imports: [LucideAngularModule, TranslocoDirective, V2Sheet, V2Button],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     @if (open()) {
       <v2-sheet labelledBy="weight-sheet-title" (close)="onClose()">
-        <h2 id="weight-sheet-title" class="v2-h2 mb-1">Log weight</h2>
+        <h2 id="weight-sheet-title" class="v2-h2 mb-1">{{ t('v2.weightSheet.logWeight') }}</h2>
         <p class="v2-caption mb-4">{{ dateLabel() }}</p>
 
         <form class="space-y-4" (submit)="save($event)" novalidate>
           <div>
             <label for="ws-weight" class="v2-caption block mb-1.5"
               style="text-transform: uppercase; letter-spacing: 0.08em;">
-              Weight (lb) *
+              {{ t('v2.weightSheet.weightLb') }}
             </label>
             <input
               id="ws-weight"
@@ -64,31 +67,33 @@ import { V2Button } from './button.component';
             variant="secondary"
             [block]="true"
             [disabled]="true"
-            ariaLabel="Take photo (coming soon)">
+            [ariaLabel]="t('v2.weightSheet.takePhotoComingAria')">
             <span title="Coming in v2.0">
               <lucide-icon name="camera" [size]="16" />
-              Take photo
-              <span class="v2-caption" style="margin-left: 8px; opacity: 0.7;">Soon</span>
+              {{ t('v2.weightSheet.takePhoto') }}
+              <span class="v2-caption" style="margin-left: 8px; opacity: 0.7;">{{ t('v2.weightSheet.takePhotoSoon') }}</span>
             </span>
           </v2-button>
 
           <div class="flex gap-2 pt-2">
-            <v2-button variant="ghost" (click)="onClose()">Cancel</v2-button>
+            <v2-button variant="ghost" (click)="onClose()">{{ t('v2.weightSheet.cancel') }}</v2-button>
             <v2-button
               type="submit"
               variant="primary"
               [block]="true"
               [disabled]="saving()">
-              @if (saving()) { Saving… } @else { Save }
+              @if (saving()) { {{ t('v2.weightSheet.saving') }} } @else { {{ t('v2.weightSheet.save') }} }
             </v2-button>
           </div>
         </form>
       </v2-sheet>
     }
+    </ng-container>
   `,
 })
 export class V2WeightSheet {
   private readonly store = inject(FitnessStore);
+  private readonly translation = inject(TranslationService);
 
   readonly open = input<boolean>(false);
   readonly dateKey = input<string>(localDateKey(new Date()));
@@ -102,9 +107,10 @@ export class V2WeightSheet {
 
   protected readonly dateLabel = computed(() => {
     const k = this.dateKey();
-    if (k === localDateKey(new Date())) return 'Today';
+    if (k === localDateKey(new Date())) return this.translation.t('v2.weightSheet.today');
     const [y, m, d] = k.split('-').map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString('en-US', {
+    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    return new Date(y, m - 1, d).toLocaleDateString(locale, {
       weekday: 'long', month: 'long', day: 'numeric',
     });
   });
@@ -138,7 +144,7 @@ export class V2WeightSheet {
     e.preventDefault();
     const w = this.weightInput();
     if (w == null || w <= 0) {
-      this.error.set('Enter a weight greater than 0.');
+      this.error.set(this.translation.t('v2.weightSheet.weightRequired'));
       this.haptic(50);
       return;
     }
@@ -149,7 +155,7 @@ export class V2WeightSheet {
       this.saved.emit(w);
       this.close.emit();
     } catch (err) {
-      this.error.set(err instanceof Error ? err.message : 'Could not save weight.');
+      this.error.set(err instanceof Error ? err.message : this.translation.t('v2.weightSheet.weightSaveError'));
     } finally {
       this.saving.set(false);
     }

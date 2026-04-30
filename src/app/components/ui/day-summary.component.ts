@@ -7,8 +7,10 @@ import {
   signal,
 } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
+import { TranslationService } from '../../services/translation.service';
 import type { DailyLog } from '../../services/firebase.service';
 import { localDateKey } from '../../utils/date';
 import { V2Button } from './button.component';
@@ -27,9 +29,10 @@ import { V2Ring } from './ring.component';
 @Component({
   selector: 'v2-day-summary',
   standalone: true,
-  imports: [LucideAngularModule, V2Button, V2Card, V2Ring],
+  imports: [LucideAngularModule, TranslocoDirective, V2Button, V2Card, V2Ring],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     <!-- Rings hero -->
     <div class="flex items-center justify-around gap-4 mt-6">
       <div class="flex flex-col items-center">
@@ -39,11 +42,11 @@ import { V2Ring } from './ring.component';
           [size]="148"
           [stroke]="14"
           [tone]="kcalTone()"
-          ariaLabel="Calories: {{ kcalConsumed() }} of {{ kcalTarget() }}">
+          [ariaLabel]="t('v2.daySummary.kcalAria', { consumed: kcalConsumed(), target: kcalTarget() })">
           <span class="v2-num text-2xl font-semibold">{{ kcalRemaining() }}</span>
           <span class="v2-caption mt-0.5">{{ kcalRemainingLabel() }}</span>
         </v2-ring>
-        <span class="v2-caption mt-2">kcal</span>
+        <span class="v2-caption mt-2">{{ t('v2.daySummary.kcal') }}</span>
       </div>
       <div class="flex flex-col items-center">
         <v2-ring
@@ -52,11 +55,11 @@ import { V2Ring } from './ring.component';
           [size]="120"
           [stroke]="12"
           tone="sage"
-          ariaLabel="Protein: {{ proteinConsumed() }}g of {{ proteinTargetG() }}g">
+          [ariaLabel]="t('v2.daySummary.proteinAria', { consumed: proteinConsumed(), target: proteinTargetG() })">
           <span class="v2-num text-xl font-semibold">{{ proteinConsumed() }}g</span>
           <span class="v2-caption mt-0.5">/ {{ proteinTargetG() }}g</span>
         </v2-ring>
-        <span class="v2-caption mt-2">protein</span>
+        <span class="v2-caption mt-2">{{ t('v2.daySummary.protein') }}</span>
       </div>
     </div>
 
@@ -73,14 +76,14 @@ import { V2Ring } from './ring.component';
           } @else {
             <lucide-icon name="footprints" [size]="16" />
           }
-          {{ exercised() ? 'Exercised' : 'Did you exercise?' }}
+          {{ exercised() ? t('v2.daySummary.exercised') : t('v2.daySummary.didYouExercise') }}
         </v2-button>
       </div>
     } @else if (exercised()) {
       <div class="flex justify-center mt-4">
         <span class="v2-caption inline-flex items-center gap-1.5">
           <lucide-icon name="check" [size]="14" style="color: var(--v2-sage)" />
-          Exercised
+          {{ t('v2.daySummary.exercised') }}
         </span>
       </div>
     }
@@ -97,18 +100,18 @@ import { V2Ring } from './ring.component';
               style="padding: var(--v2-space-3) var(--v2-space-4); transition: background-color var(--v2-motion-fast) var(--v2-ease);"
               [disabled]="!editable()"
               (click)="editLog(log)"
-              [attr.aria-label]="'Edit ' + (log.mealLabel || 'entry') + ', ' + log.calories + ' kcal'">
+              [attr.aria-label]="t('v2.daySummary.editEntryAria', { label: log.mealLabel || t('v2.daySummary.entryFallback'), kcal: log.calories })">
               <div class="min-w-0 flex-1">
                 <div class="v2-body" style="color: var(--v2-ink); font-weight: 500;">
-                  {{ log.mealLabel || 'Untitled' }}
+                  {{ log.mealLabel || t('v2.daySummary.untitled') }}
                 </div>
                 <div class="v2-caption mt-0.5">{{ logTime(log) }}</div>
               </div>
               <div class="text-right shrink-0">
                 <div class="v2-num" style="font-weight: 600;">{{ log.calories }}</div>
                 <div class="v2-caption">
-                  @if (log.protein != null) { {{ log.protein }}g pro }
-                  @else { kcal }
+                  @if (log.protein != null) { {{ t('v2.daySummary.proGrams', { n: log.protein }) }} }
+                  @else { {{ t('v2.daySummary.kcalUnit') }} }
                 </div>
               </div>
             </button>
@@ -127,14 +130,14 @@ import { V2Ring } from './ring.component';
               type="button"
               class="v2-body-soft"
               style="background: none; border: none; padding: 0; cursor: pointer; text-align: left;"
-              [attr.aria-label]="'Edit water · current ' + waterDisplay()"
+              [attr.aria-label]="t('v2.daySummary.editWaterAria', { value: waterDisplay() })"
               (click)="openWaterEditor()">
-              Water · <span class="v2-num" style="color: var(--v2-ink); font-weight: 500;">{{ waterDisplay() }}</span>
+              {{ t('v2.daySummary.water') }} · <span class="v2-num" style="color: var(--v2-ink); font-weight: 500;">{{ waterDisplay() }}</span>
               <lucide-icon name="pencil" [size]="12" style="color: var(--v2-ink-muted); margin-left: 4px;" />
             </button>
           } @else {
             <span class="v2-body-soft">
-              Water · <span class="v2-num" style="color: var(--v2-ink); font-weight: 500;">{{ waterDisplay() }}</span>
+              {{ t('v2.daySummary.water') }} · <span class="v2-num" style="color: var(--v2-ink); font-weight: 500;">{{ waterDisplay() }}</span>
             </span>
           }
         </div>
@@ -143,7 +146,7 @@ import { V2Ring } from './ring.component';
         @if (editingWater()) {
           <div class="mt-3 space-y-2">
             <label class="v2-caption block" style="text-transform: uppercase; letter-spacing: 0.06em;">
-              Set exact (ml)
+              {{ t('v2.daySummary.setExactMl') }}
             </label>
             <div class="flex flex-wrap gap-2 items-center">
               <input
@@ -157,32 +160,36 @@ import { V2Ring } from './ring.component';
                 [value]="waterEditInput() ?? ''"
                 (input)="onWaterInput($event)"
                 (keydown.enter)="saveWater()" />
-              <v2-button variant="primary" size="sm" (click)="saveWater()">Save</v2-button>
-              <v2-button variant="ghost" size="sm" (click)="cancelWaterEdit()">Cancel</v2-button>
-              <v2-button variant="ghost" size="sm" (click)="clearWater()">Clear</v2-button>
+              <v2-button variant="primary" size="sm" (click)="saveWater()">{{ t('v2.daySummary.save') }}</v2-button>
+              <v2-button variant="ghost" size="sm" (click)="cancelWaterEdit()">{{ t('v2.daySummary.cancel') }}</v2-button>
+              <v2-button variant="ghost" size="sm" (click)="clearWater()">{{ t('v2.daySummary.clear') }}</v2-button>
             </div>
           </div>
         } @else {
           <div class="flex flex-wrap gap-2 mt-3">
-            <v2-button variant="ghost" size="sm" (click)="addWater(250)">+250 ml</v2-button>
-            <v2-button variant="ghost" size="sm" (click)="addWater(500)">+500 ml</v2-button>
-            <v2-button variant="ghost" size="sm" (click)="addWater(1000)">+1 L</v2-button>
+            <v2-button variant="ghost" size="sm" (click)="addWater(250)">{{ t('v2.daySummary.addMl', { n: 250 }) }}</v2-button>
+            <v2-button variant="ghost" size="sm" (click)="addWater(500)">{{ t('v2.daySummary.addMl', { n: 500 }) }}</v2-button>
+            <v2-button variant="ghost" size="sm" (click)="addWater(1000)">{{ t('v2.daySummary.addLiter') }}</v2-button>
           </div>
         }
       }
     </v2-card>
+    </ng-container>
   `,
 })
 export class V2DaySummary {
   protected readonly store = inject(FitnessStore);
   private readonly entryForm = inject(EntryFormManager);
+  private readonly translation = inject(TranslationService);
 
   readonly dateKey = input.required<string>();
   readonly editable = input<boolean>(true);
 
   /** "Today's food" on today, "Food" on past days. */
   protected readonly entriesHeading = computed(() =>
-    this.dateKey() === localDateKey(new Date()) ? "Today's food" : 'Food',
+    this.dateKey() === localDateKey(new Date())
+      ? this.translation.t('v2.daySummary.todaysFood')
+      : this.translation.t('v2.daySummary.food'),
   );
 
   protected readonly dayLogs = computed<DailyLog[]>(() =>
@@ -198,7 +205,9 @@ export class V2DaySummary {
     return r >= 0 ? r.toLocaleString() : `+${(-r).toLocaleString()}`;
   });
   protected readonly kcalRemainingLabel = computed(() =>
-    this.kcalTarget() - this.kcalConsumed() >= 0 ? 'left' : 'over',
+    this.kcalTarget() - this.kcalConsumed() >= 0
+      ? this.translation.t('v2.daySummary.left')
+      : this.translation.t('v2.daySummary.over'),
   );
   protected readonly kcalTone = computed<'accent' | 'warn'>(() =>
     this.kcalConsumed() > this.kcalTarget() ? 'warn' : 'accent',
@@ -214,13 +223,16 @@ export class V2DaySummary {
   );
   protected readonly waterDisplay = computed(() => {
     const ml = this.waterMl();
-    if (ml === 0) return '0 ml';
-    if (ml < 1000) return `${ml} ml`;
-    return `${(ml / 1000).toFixed(1)} L`;
+    const unitMl = this.translation.t('v2.daySummary.ml');
+    const unitL = this.translation.t('v2.daySummary.liter');
+    if (ml === 0) return `0 ${unitMl}`;
+    if (ml < 1000) return `${ml} ${unitMl}`;
+    return `${(ml / 1000).toFixed(1)} ${unitL}`;
   });
 
   protected logTime(log: DailyLog): string {
-    return log.date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    return log.date.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
   }
 
   protected editLog(log: DailyLog): void {
