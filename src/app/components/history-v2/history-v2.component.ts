@@ -17,6 +17,7 @@ import {
   monthGrid,
   startOfMonth,
 } from '../../utils/date';
+import { bcp47ForLang } from '../../utils/locale';
 import { V2IconButton } from '../ui/icon-button.component';
 import { V2Card } from '../ui/card.component';
 import { V2Ring } from '../ui/ring.component';
@@ -140,7 +141,7 @@ export class HistoryV2Component {
   );
 
   protected readonly monthLabel = computed(() => {
-    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    const locale = bcp47ForLang(this.translation.language());
     return this.viewMonth().toLocaleDateString(locale, { month: 'long', year: 'numeric' });
   });
 
@@ -175,7 +176,7 @@ export class HistoryV2Component {
   }
 
   protected cellAria(date: Date, key: string): string {
-    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    const locale = bcp47ForLang(this.translation.language());
     const label = date.toLocaleDateString(locale, { weekday: 'long', month: 'long', day: 'numeric' });
     const s = this.store.summaryFor(key);
     if (!s) return label;

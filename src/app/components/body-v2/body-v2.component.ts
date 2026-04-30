@@ -13,6 +13,7 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { TranslationService } from '../../services/translation.service';
 import { localDateKey } from '../../utils/date';
+import { bcp47ForLang } from '../../utils/locale';
 import { Measurement } from '../../services/firebase.service';
 import { V2Card } from '../ui/card.component';
 import { V2Button } from '../ui/button.component';
@@ -421,7 +422,7 @@ export class BodyV2Component implements OnInit, OnDestroy {
   protected readonly startTimeLabel = computed(() => {
     const start = this.store.fastStartedAt();
     if (!start) return '';
-    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    const locale = bcp47ForLang(this.translation.language());
     return start
       .toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
       .toLowerCase();
@@ -431,7 +432,7 @@ export class BodyV2Component implements OnInit, OnDestroy {
     const m = this.store.latestMeasurement();
     if (!m) return this.translation.t('v2.body.measurementsNone');
     const d = new Date(m.date);
-    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    const locale = bcp47ForLang(this.translation.language());
     const date = d.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
     return this.translation.t('v2.body.measurementsLastLogged', { date });
   });

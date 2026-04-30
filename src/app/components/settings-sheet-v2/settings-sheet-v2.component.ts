@@ -60,6 +60,9 @@ import { V2Button } from '../ui/button.component';
             <lucide-icon name="pencil" [size]="14" />
             {{ t('settings.profile.edit') }}
           </v2-button>
+          <v2-button variant="secondary" size="sm" (click)="onRedoOnboarding()">
+            {{ t('settings.profile.redoOnboarding') }}
+          </v2-button>
           <v2-button variant="ghost" size="sm" (click)="signOut()">
             {{ t('settings.profile.signOut') }}
           </v2-button>
@@ -338,6 +341,7 @@ export class SettingsSheetV2Component {
 
   readonly close = output<void>();
   readonly editProfile = output<void>();
+  readonly redoOnboarding = output<void>();
   readonly themeSelect = output<ThemeChoice>();
 
   protected readonly isPaid = computed(() => this.subs.isPaid());
@@ -406,6 +410,10 @@ export class SettingsSheetV2Component {
 
   protected requestClose(): void { this.close.emit(); }
   protected onEditProfile(): void { this.editProfile.emit(); this.requestClose(); }
+  protected onRedoOnboarding(): void {
+    this.redoOnboarding.emit();
+    this.requestClose();
+  }
   protected chooseTheme(v: ThemeChoice): void { this.themeSelect.emit(v); }
   protected selectLanguage(lang: AppLang): void { this.translation.setLanguage(lang); }
 

@@ -4,6 +4,7 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { Measurement } from '../../services/firebase.service';
 import { TranslationService } from '../../services/translation.service';
+import { bcp47ForLang } from '../../utils/locale';
 
 type Mode = 'view' | 'add';
 
@@ -117,7 +118,7 @@ export class MeasurementsComponent {
   }
 
   protected formatDate(d: Date): string {
-    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    const locale = bcp47ForLang(this.translation.language());
     return d.toLocaleDateString(locale, { month: 'short', day: 'numeric' }).toUpperCase();
   }
 

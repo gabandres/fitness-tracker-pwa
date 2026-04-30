@@ -6,6 +6,7 @@ import { FitnessStore } from '../../services/fitness-store.service';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { TranslationService } from '../../services/translation.service';
 import { DateKey, localDateKey } from '../../utils/date';
+import { bcp47ForLang } from '../../utils/locale';
 import { AnalyticsService } from '../../services/analytics.service';
 import { EntryFormComponent } from '../entry-form/entry-form.component';
 import { PhotoCaptureComponent } from '../photo-capture/photo-capture.component';
@@ -1008,7 +1009,7 @@ export class DailyLedgerComponent implements AfterViewInit, OnDestroy {
 
   // ── Date navigation strip: last 14 calendar days ────────────
   private localeForDates(): string {
-    return this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    return bcp47ForLang(this.translation.language());
   }
 
   protected readonly dateChips = computed<DateChip[]>(() => {

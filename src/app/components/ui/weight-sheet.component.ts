@@ -13,6 +13,7 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { TranslationService } from '../../services/translation.service';
 import { localDateKey } from '../../utils/date';
+import { bcp47ForLang } from '../../utils/locale';
 import { V2Sheet } from './sheet.component';
 import { V2Button } from './button.component';
 
@@ -109,7 +110,7 @@ export class V2WeightSheet {
     const k = this.dateKey();
     if (k === localDateKey(new Date())) return this.translation.t('v2.weightSheet.today');
     const [y, m, d] = k.split('-').map(Number);
-    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    const locale = bcp47ForLang(this.translation.language());
     return new Date(y, m - 1, d).toLocaleDateString(locale, {
       weekday: 'long', month: 'long', day: 'numeric',
     });

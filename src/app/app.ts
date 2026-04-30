@@ -8,6 +8,7 @@ import { DailyLedgerComponent } from './components/daily-ledger/daily-ledger.com
 import { ConsultationComponent } from './components/consultation/consultation.component';
 import { SignInComponent } from './components/sign-in/sign-in.component';
 import { OnboardingComponent } from './components/onboarding/onboarding.component';
+import { OnboardingV2Component } from './components/onboarding-v2/onboarding-v2.component';
 import { FastingComponent } from './components/fasting/fasting.component';
 import { MeasurementsComponent } from './components/measurements/measurements.component';
 import { PrivacyComponent } from './components/privacy/privacy.component';
@@ -27,6 +28,7 @@ import { FitnessStore } from './services/fitness-store.service';
 import { SubscriptionService } from './services/subscription.service';
 import { ThemeChoice, PRO_THEMES, isProTheme, readStoredTheme, writeStoredTheme } from './utils/theme';
 import { localDateKey } from './utils/date';
+import { bcp47ForLang } from './utils/locale';
 import { mediaSignal } from './utils/media';
 import { UpsellService } from './services/upsell.service';
 import { AnalyticsService } from './services/analytics.service';
@@ -50,6 +52,7 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
     ConsultationComponent,
     SignInComponent,
     OnboardingComponent,
+    OnboardingV2Component,
     FastingComponent,
     MeasurementsComponent,
     PrivacyComponent,
@@ -315,6 +318,19 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
               <span class="crop-bl"></span><span class="crop-br"></span>
               <p class="caption">{{ t('app.openingYourFile') }}</p>
             </div>
+          } @else if (!firebase.profileCompleted() && uiV2() && !editingProfile()) {
+            <!-- New uiV2 users go through the 2-question v2 onboarding
+                 (Q10 of UX revamp v2). saveOnboardingV2 also flips
+                 profileCompleted, so the v1 gate below never fires. -->
+            <div class="ink-in delay-3">
+              @defer (on immediate) {
+                <app-onboarding-v2
+                  (completed)="onOnboardingV2Completed()"
+                  (cancelled)="onOnboardingV2Cancelled()" />
+              } @placeholder {
+                <div class="py-20 text-center caption">…</div>
+              }
+            </div>
           } @else if (!firebase.profileCompleted() || editingProfile()) {
             <div class="ink-in delay-3">
               @defer (on immediate) {
@@ -340,6 +356,7 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
                     [themeChoice]="themeChoice()"
                     (close)="showSettings.set(false)"
                     (editProfile)="editingProfile.set(true)"
+                    (redoOnboarding)="goToOnboardingV2()"
                     (themeSelect)="setTheme($event)" />
                 } @else {
                   <app-settings-sheet
@@ -358,6 +375,14 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
                    once and self-gates via the entry-form-manager mode
                    signal — works across all three v2 surfaces. -->
               @switch (route()) {
+                @case ('onboarding') {
+                  <!-- v2 2-question onboarding. Reachable via /onboarding
+                       directly (redo from settings) or from the new-user
+                       redirect below when no onboarding doc exists. -->
+                  <app-onboarding-v2
+                    (completed)="onOnboardingV2Completed()"
+                    (cancelled)="onOnboardingV2Cancelled()" />
+                }
                 @case ('history') {
                   @defer (on immediate) {
                     <app-history-v2
@@ -541,7 +566,7 @@ export class App {
   /** URL-path based routing for the two public-static pages. Anything
       else (including '/' and unknown paths) falls through to the
       signal-gated main app. */
-  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | null>(this.detectRoute());
+  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | 'onboarding' | null>(this.detectRoute());
   /** Selected day for `/history/YYYY-MM-DD`. Null on the grid view. */
   protected readonly historyDay = signal<string | null>(this.detectHistoryDay());
   /** Stack depth of OUR pushState calls. popHistory() falls back to a
@@ -662,7 +687,7 @@ export class App {
     return 'log';
   }
 
-  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | null {
+  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | 'onboarding' | null {
     const path = window.location.pathname.toLowerCase();
     if (path === '/privacy' || path === '/privacy/') return 'privacy';
     if (path === '/terms' || path === '/terms/') return 'terms';
@@ -674,6 +699,7 @@ export class App {
     if (/^\/history\/\d{4}-\d{2}-\d{2}\/?$/.test(path)) return 'historyDay';
     if (path === '/trends' || path === '/trends/') return 'trends';
     if (path === '/body' || path === '/body/') return 'body';
+    if (path === '/onboarding' || path === '/onboarding/') return 'onboarding';
     // Root path shows the public marketing surface to non-signed-in
     // visitors. Once the user signs in, the auth gate in the template
     // takes over and renders the app regardless of the 'landing' route.
@@ -719,6 +745,34 @@ export class App {
     history.pushState({}, '', '/body');
     this.historyPushDepth++;
     this.applyLocation();
+  }
+
+  /** Settings → Redo onboarding link. Pushes /onboarding so the route-
+   *  switch renders OnboardingV2 in redo mode. */
+  protected goToOnboardingV2(): void {
+    history.pushState({}, '', '/onboarding');
+    this.historyPushDepth++;
+    this.applyLocation();
+  }
+
+  /** v2 onboarding completed — pop the /onboarding route if we're on it
+   *  and land back on /app. Used both for the explicit /onboarding route
+   *  (redo flow from settings) and the inline new-user gate. */
+  protected onOnboardingV2Completed(): void {
+    if (this.route() === 'onboarding') {
+      history.pushState({}, '', '/app');
+      this.historyPushDepth++;
+      this.applyLocation();
+    }
+  }
+
+  /** v2 onboarding cancelled (Keep current). Same nav as completed. */
+  protected onOnboardingV2Cancelled(): void {
+    if (this.route() === 'onboarding') {
+      history.pushState({}, '', '/app');
+      this.historyPushDepth++;
+      this.applyLocation();
+    }
   }
 
   /** Tap handler from the month grid: push /history/<key> and re-sync. */
@@ -786,7 +840,7 @@ export class App {
   protected readonly todayLabel = computed(() => {
     const d = new Date();
     const iso = localDateKey(d).replace(/-/g, '.');
-    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    const locale = bcp47ForLang(this.translation.language());
     const day = d.toLocaleDateString(locale, { weekday: 'short' }).toLowerCase();
     return `${iso} · ${day}`;
   });

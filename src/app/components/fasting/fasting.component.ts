@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal, OnInit, O
 import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { TranslationService } from '../../services/translation.service';
+import { bcp47ForLang } from '../../utils/locale';
 
 /**
  * Analog Fasting Chronometer
@@ -225,7 +226,7 @@ export class FastingComponent implements OnInit, OnDestroy {
   protected readonly startTimeLabel = computed(() => {
     const start = this.store.fastStartedAt();
     if (!start) return '';
-    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    const locale = bcp47ForLang(this.translation.language());
     return start.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' }).toLowerCase();
   });
 

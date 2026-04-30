@@ -84,6 +84,19 @@ export interface LogEntry {
 export type Sex = 'male' | 'female';
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
 export type CutPace = 0 | 0.5 | 1.0 | 1.5 | 2.0;
+export type GoalDirection = 'lose' | 'maintain' | 'gain';
+
+/** v2 2-question onboarding submission. Heuristic targets are computed
+ *  by the caller (component) and persisted as manualCaloriesTarget /
+ *  manualProteinTarget so the FitnessStore overrides TDEE-based math.
+ *  targetWeightLbs is required for lose/gain, omitted for maintain. */
+export interface OnboardingV2Submission {
+  weightLbs: number;
+  goalDirection: GoalDirection;
+  targetWeightLbs?: number;
+  manualCaloriesTarget: number;
+  manualProteinTarget: number;
+}
 
 /**
  * Profile field values collected during onboarding. These drive the
@@ -107,6 +120,13 @@ export interface ProfileFields {
   ageConfirmed?: boolean;      // transient checkbox state — never persisted, drives the stamp below
   preferredLocale?: string;    // Transloco active lang ('en' | 'es-PR'); used server-side for email locale
   welcomeEmailSentAt?: Timestamp; // server-set latch; clients never write this
+  // v2 2-question onboarding (Q10 of UX revamp v2). When present, the
+  // FitnessStore prefers these manual targets over TDEE-derived math.
+  goalDirection?: GoalDirection;
+  targetWeightLbs?: number;       // for lose/gain; omitted for maintain
+  manualCaloriesTarget?: number;  // heuristic: weight_lb × {11/14/17}
+  manualProteinTarget?: number;   // heuristic: weight_lb × {1.0/0.9/0.8}
+  onboardingV2CompletedAt?: Timestamp;
 }
 
 /** Full user profile doc as stored in Firestore. */
@@ -219,6 +239,35 @@ export class FirebaseService implements LedgerPort {
       patch.preferredLocale = fields.preferredLocale;
     }
 
+    await updateDoc(ref, patch);
+    this._profile.set({ ...current, ...patch } as UserProfile);
+  }
+
+  /** Persist a v2 2-question onboarding submission. Writes the heuristic
+      kcal/protein targets and the goal direction; also writes the user's
+      current weight as today's daily weight so the dashboard reflects it
+      immediately. Sets onboardingV2CompletedAt so the new-user redirect
+      doesn't fire again. */
+  async saveOnboardingV2(submission: OnboardingV2Submission): Promise<void> {
+    const current = this._profile();
+    if (!current) throw new Error('No profile loaded.');
+
+    const ref = this.userDoc();
+    const patch: Partial<UserProfile> = {
+      goalDirection: submission.goalDirection,
+      manualCaloriesTarget: submission.manualCaloriesTarget,
+      manualProteinTarget: submission.manualProteinTarget,
+      onboardingV2CompletedAt: Timestamp.now(),
+      // Mark profile complete so the v1 gate doesn't re-trigger v1
+      // onboarding for users who came in through the v2 path. Existing
+      // v1 fields stay unset; surfaces that depend on them gracefully
+      // handle missing data (TDEE chain falls back to formula).
+      profileCompleted: true,
+      lastSeenAt: Timestamp.now(),
+    };
+    if (submission.targetWeightLbs != null) {
+      patch.targetWeightLbs = submission.targetWeightLbs;
+    }
     await updateDoc(ref, patch);
     this._profile.set({ ...current, ...patch } as UserProfile);
   }

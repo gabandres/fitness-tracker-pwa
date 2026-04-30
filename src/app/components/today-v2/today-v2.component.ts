@@ -13,6 +13,7 @@ import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { TranslationService } from '../../services/translation.service';
 import { localDateKey } from '../../utils/date';
+import { bcp47ForLang } from '../../utils/locale';
 import { V2Button } from '../ui/button.component';
 import { V2IconButton } from '../ui/icon-button.component';
 import { V2Card } from '../ui/card.component';
@@ -159,7 +160,7 @@ export class TodayV2Component {
 
   protected readonly dateLabel = computed(() => {
     const d = new Date();
-    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    const locale = bcp47ForLang(this.translation.language());
     return d.toLocaleDateString(locale, {
       weekday: 'long',
       month: 'long',

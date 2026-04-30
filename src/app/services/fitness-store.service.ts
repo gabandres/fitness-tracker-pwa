@@ -182,9 +182,15 @@ export class FitnessStore {
     return this.calc.calculate(this._logs(), adjusted);
   });
 
-  readonly targetCalories: Signal<number> = computed(() =>
-    this.tdee().newDailyTarget,
-  );
+  readonly targetCalories: Signal<number> = computed(() => {
+    // v2 onboarding override: when the user has set a manual kcal target
+    // (heuristic-based, weight × {11/14/17}), it takes precedence over
+    // the Mifflin-St Jeor TDEE chain. Lets the 2-question onboarding
+    // produce usable numbers without the full profile.
+    const manual = this.fb.profile()?.manualCaloriesTarget;
+    if (manual != null && manual > 0) return manual;
+    return this.tdee().newDailyTarget;
+  });
 
   /**
    * One-time adaptive TDEE notification: when measured mode first kicks in,
@@ -217,8 +223,13 @@ export class FitnessStore {
     return null;
   });
 
-  /** Evidence-based protein target: 0.75g/lb (midpoint of 0.7–0.8 range). */
+  /** Evidence-based protein target: 0.75g/lb (midpoint of 0.7–0.8 range).
+   *  v2 override: when the user has set a manual protein target via the
+   *  2-question onboarding (heuristic = weight × {1.0/0.9/0.8} by goal),
+   *  prefer that. Falls back to weight-derived 0.75g/lb otherwise. */
   readonly proteinTarget: Signal<number> = computed(() => {
+    const manual = this.fb.profile()?.manualProteinTarget;
+    if (manual != null && manual > 0) return manual;
     const w = this.currentWeight();
     return w ? Math.round(w * 0.75) : 0;
   });

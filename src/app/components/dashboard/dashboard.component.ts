@@ -7,6 +7,7 @@ import { TdeeCalculatorService } from '../../services/tdee-calculator.service';
 import { TranslationService } from '../../services/translation.service';
 import { SubscriptionService } from '../../services/subscription.service';
 import { localDateKey } from '../../utils/date';
+import { bcp47ForLang } from '../../utils/locale';
 import { UpsellCardComponent } from '../upsell-card/upsell-card.component';
 import { AnalyticsService } from '../../services/analytics.service';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
@@ -662,7 +663,7 @@ export class DashboardComponent {
     this.allTimeEmaPoints().map((p) => `${p.x},${p.y}`).join(' '));
 
   private localeForDates(): string {
-    return this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    return bcp47ForLang(this.translation.language());
   }
 
   protected allTimeDateLabel(index: number): string {

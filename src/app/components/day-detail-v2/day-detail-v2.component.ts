@@ -13,6 +13,7 @@ import { FitnessStore } from '../../services/fitness-store.service';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { TranslationService } from '../../services/translation.service';
 import { localDateKey, parseYmd } from '../../utils/date';
+import { bcp47ForLang } from '../../utils/locale';
 import { V2DaySummary } from '../ui/day-summary.component';
 import { V2Fab } from '../ui/fab.component';
 import { V2IconButton } from '../ui/icon-button.component';
@@ -143,7 +144,7 @@ export class DayDetailV2Component {
 
   protected readonly dateLabel = computed(() => {
     const d = parseYmd(this.dateKey());
-    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    const locale = bcp47ForLang(this.translation.language());
     return d.toLocaleDateString(locale, {
       weekday: 'long',
       month: 'long',
