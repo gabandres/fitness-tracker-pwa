@@ -7,8 +7,10 @@ import {
   signal,
 } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { SubscriptionService } from '../../services/subscription.service';
+import { TranslationService } from '../../services/translation.service';
 import {
   addDays,
   localDateKey,
@@ -20,7 +22,6 @@ import { V2Card } from '../ui/card.component';
 import { V2Ring } from '../ui/ring.component';
 import { V2FastingPill } from '../ui/fasting-pill.component';
 
-const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const FREE_TIER_DAYS = 90;
 
 /**
@@ -35,26 +36,27 @@ const FREE_TIER_DAYS = 90;
 @Component({
   selector: 'app-history-v2',
   standalone: true,
-  imports: [LucideAngularModule, V2IconButton, V2Card, V2Ring, V2FastingPill],
+  imports: [LucideAngularModule, TranslocoDirective, V2IconButton, V2Card, V2Ring, V2FastingPill],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     <section class="max-w-[640px] mx-auto px-5 sm:px-6 pb-32 md:pb-12">
       <!-- Top bar -->
       <header class="flex items-center justify-between gap-3 pt-6 pb-4">
         <v2-icon-button
           icon="arrow-left"
-          ariaLabel="Back"
+          [ariaLabel]="t('v2.history.backAria')"
           (click)="closeRequested.emit()" />
         <h1 class="v2-h2" aria-live="polite">{{ monthLabel() }}</h1>
         <div class="flex items-center gap-2">
           <v2-fasting-pill (bodyRequested)="bodyRequested.emit()" />
           <v2-icon-button
             icon="chevron-left"
-            ariaLabel="Previous month"
+            [ariaLabel]="t('v2.history.prevMonthAria')"
             (click)="prevMonth()" />
           <v2-icon-button
             icon="chevron-right"
-            ariaLabel="Next month"
+            [ariaLabel]="t('v2.history.nextMonthAria')"
             (click)="nextMonth()" />
         </div>
       </header>
@@ -62,14 +64,14 @@ const FREE_TIER_DAYS = 90;
       @if (showFreeTierUpsell()) {
         <v2-card variant="accent" class="block mb-4">
           <p class="v2-body">
-            Free accounts see the last 90 days. Upgrade to view your full history.
+            {{ t('v2.history.freeTierBody') }}
           </p>
         </v2-card>
       }
 
       <!-- Weekday header -->
       <div class="grid grid-cols-7 gap-1 mb-1" aria-hidden="true">
-        @for (w of weekdays; track $index) {
+        @for (w of weekdays(); track $index) {
           <div class="v2-caption text-center" style="text-transform: uppercase; letter-spacing: 0.08em;">
             {{ w }}
           </div>
@@ -77,7 +79,7 @@ const FREE_TIER_DAYS = 90;
       </div>
 
       <!-- Grid -->
-      <div role="grid" aria-label="Calendar" class="grid grid-cols-7 gap-1">
+      <div role="grid" [attr.aria-label]="t('v2.history.calendarAria')" class="grid grid-cols-7 gap-1">
         @if (loading()) {
           @for (i of placeholders; track i) {
             <div
@@ -114,17 +116,18 @@ const FREE_TIER_DAYS = 90;
         }
       </div>
     </section>
+    </ng-container>
   `,
 })
 export class HistoryV2Component {
   private readonly store = inject(FitnessStore);
   private readonly subs = inject(SubscriptionService);
+  private readonly translation = inject(TranslationService);
 
   readonly dayTapped = output<string>();
   readonly closeRequested = output<void>();
   readonly bodyRequested = output<void>();
 
-  protected readonly weekdays = WEEKDAYS;
   protected readonly placeholders = Array.from({ length: 42 }, (_, i) => i);
 
   protected readonly viewMonth = signal<Date>(startOfMonth(new Date()));
@@ -132,9 +135,14 @@ export class HistoryV2Component {
 
   protected readonly cells = computed(() => monthGrid(this.viewMonth()));
 
-  protected readonly monthLabel = computed(() =>
-    this.viewMonth().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+  protected readonly weekdays = computed(() =>
+    this.translation.t('v2.history.weekdayInitials').split(','),
   );
+
+  protected readonly monthLabel = computed(() => {
+    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    return this.viewMonth().toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+  });
 
   protected readonly loading = computed(() => this.store.status() !== 'ready');
 
@@ -167,10 +175,11 @@ export class HistoryV2Component {
   }
 
   protected cellAria(date: Date, key: string): string {
-    const label = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    const label = date.toLocaleDateString(locale, { weekday: 'long', month: 'long', day: 'numeric' });
     const s = this.store.summaryFor(key);
     if (!s) return label;
-    return `${label}, ${s.totalCalories} calories`;
+    return this.translation.t('v2.history.cellAriaWithKcal', { label, kcal: s.totalCalories });
   }
 
   protected prevMonth(): void {

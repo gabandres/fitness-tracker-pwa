@@ -948,6 +948,15 @@
       "editWeight": "Edit weight",
       "addFoodAria": "Add food"
     },
+    "history": {
+      "backAria": "Back",
+      "prevMonthAria": "Previous month",
+      "nextMonthAria": "Next month",
+      "freeTierBody": "Free accounts see the last 90 days. Upgrade to view your full history.",
+      "calendarAria": "Calendar",
+      "cellAriaWithKcal": "{{label}}, {{kcal}} calories",
+      "weekdayInitials": "S,M,T,W,T,F,S"
+    },
     "today": {
       "title": "Today",
       "dayStreak": "{{n}} day streak",

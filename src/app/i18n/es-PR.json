@@ -954,6 +954,15 @@
       "editWeight": "Editar peso",
       "addFoodAria": "Añadir comida"
     },
+    "history": {
+      "backAria": "Atrás",
+      "prevMonthAria": "Mes anterior",
+      "nextMonthAria": "Mes siguiente",
+      "freeTierBody": "Las cuentas gratis ven los últimos 90 días. Súbete a Pro para ver tu historial completo.",
+      "calendarAria": "Calendario",
+      "cellAriaWithKcal": "{{label}}, {{kcal}} calorías",
+      "weekdayInitials": "D,L,M,M,J,V,S"
+    },
     "today": {
       "title": "Hoy",
       "dayStreak": "racha de {{n}} días",
