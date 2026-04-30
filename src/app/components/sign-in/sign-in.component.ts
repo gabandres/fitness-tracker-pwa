@@ -3,6 +3,8 @@ import { FormsModule } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { AuthService, PendingLinkInfo } from '../../services/auth.service';
 import { TranslationService } from '../../services/translation.service';
+import { V2Card } from '../ui/card.component';
+import { V2Button } from '../ui/button.component';
 
 type Status = 'idle' | 'signing' | 'error' | 'reset-sent';
 type Mode = 'signin' | 'signup' | 'reset';
@@ -11,86 +13,71 @@ type Method = 'google' | 'microsoft' | 'email';
 @Component({
   selector: 'app-sign-in',
   standalone: true,
-  imports: [FormsModule, TranslocoDirective],
+  imports: [FormsModule, TranslocoDirective, V2Card, V2Button],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-    <section>
-      <div class="specimen px-6 py-8 sm:px-8 sm:py-10 relative">
-        <span class="crop-bl"></span><span class="crop-br"></span>
+    <section class="max-w-[480px] mx-auto">
+      <v2-card variant="default" class="block">
+        <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em;">
+          {{ t('signin.section') }}
+        </p>
 
-        <div class="flex items-center gap-3 mb-1">
-          <span class="stamp-mark">{{ t('signin.stamp') }}</span>
-          <span class="data-label">{{ t('signin.section') }}</span>
-        </div>
-
-        <h2 class="font-display text-3xl sm:text-4xl leading-[0.95] text-ink mt-3">
-          {{ t('signin.titleLead') }}<br/>
-          <em class="text-blood">{{ t('signin.titleEm') }}</em>
+        <h2 class="v2-h1 mt-2">
+          {{ t('signin.titleLead') }}
+          <em style="color: var(--v2-accent); font-style: normal;">{{ t('signin.titleEm') }}</em>
         </h2>
 
-        <p class="font-sans text-sm text-ink-soft mt-4 leading-relaxed">
-          {{ t('signin.blurb') }}
-        </p>
-
-        <p class="caption mt-3 text-[11px] leading-relaxed">
-          {{ t('signin.caption') }}
-        </p>
+        <p class="v2-body-soft mt-3">{{ t('signin.blurb') }}</p>
+        <p class="v2-caption mt-2">{{ t('signin.caption') }}</p>
 
         @if (auth.pendingLink(); as link) {
-          <div class="mt-6 specimen px-4 py-4 relative" style="border-color: var(--color-gold)">
-            <span class="crop-bl" style="border-color: var(--color-gold)"></span>
-            <span class="crop-br" style="border-color: var(--color-gold)"></span>
-            <p class="data-label mb-1" style="color: var(--color-gold)">{{ t('signin.linkStamp') }}</p>
-            <p class="font-sans text-sm text-ink leading-relaxed">
-              {{ t(linkPromptKey(link), { email: link.email }) }}
+          <v2-card variant="accent" class="block mt-5">
+            <p class="v2-caption mb-1" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--v2-accent); font-weight: 600;">
+              {{ t('signin.linkStamp') }}
             </p>
-            <p class="caption text-[11px] mt-2 leading-relaxed">
-              {{ t('signin.linkExplainer') }}
-            </p>
+            <p class="v2-body">{{ t(linkPromptKey(link), { email: link.email }) }}</p>
+            <p class="v2-caption mt-2">{{ t('signin.linkExplainer') }}</p>
             <div class="mt-3 flex flex-col sm:flex-row gap-2">
               @for (cand of link.candidateProviders; track cand) {
                 @if (cand === 'google.com') {
-                  <button type="button" (click)="signInGoogle()"
-                    [disabled]="status() === 'signing'"
-                    class="stamp-btn flex-1 justify-center text-xs">
+                  <v2-button variant="primary" size="sm" [block]="true"
+                    (click)="signInGoogle()"
+                    [disabled]="status() === 'signing'">
                     {{ t('signin.linkWithGoogle') }}
-                  </button>
+                  </v2-button>
                 } @else if (cand === 'microsoft.com') {
-                  <button type="button" (click)="signInMicrosoft()"
-                    [disabled]="status() === 'signing'"
-                    class="stamp-btn flex-1 justify-center text-xs">
+                  <v2-button variant="primary" size="sm" [block]="true"
+                    (click)="signInMicrosoft()"
+                    [disabled]="status() === 'signing'">
                     {{ t('signin.linkWithMicrosoft') }}
-                  </button>
+                  </v2-button>
                 } @else if (cand === 'password') {
-                  <button type="button" (click)="openLinkEmailForm()"
-                    class="stamp-btn flex-1 justify-center text-xs">
+                  <v2-button variant="primary" size="sm" [block]="true"
+                    (click)="openLinkEmailForm()">
                     {{ t('signin.linkWithPassword') }}
-                  </button>
+                  </v2-button>
                 }
               }
-              <button type="button" (click)="cancelLink()"
-                class="tag-btn justify-center text-xs">
+              <v2-button variant="ghost" size="sm" (click)="cancelLink()">
                 {{ t('signin.linkCancel') }}
-              </button>
+              </v2-button>
             </div>
-          </div>
+          </v2-card>
         }
 
         <!-- One-click providers (no password) -->
-        <div class="mt-8 space-y-2">
+        <div class="mt-6 space-y-2">
           <button
             type="button"
             (click)="signInGoogle()"
             [disabled]="status() === 'signing'"
-            class="gbutton"
+            class="v2-btn v2-btn--secondary v2-btn--block"
+            style="justify-content: center; gap: 10px;"
           >
-            <!-- Official Google "G" logomark, four-color. Brand-compliant
-                 per Google identity guidelines: white/dark background,
-                 no tinting of the mark. Inline SVG keeps it bundled so
-                 the button doesn't flash-of-unstyled during offline or
-                 slow cold-load. -->
-            <svg viewBox="0 0 48 48" class="w-[18px] h-[18px] shrink-0" aria-hidden="true">
+            <!-- Official Google "G" logomark. Brand-compliant per Google
+                 identity guidelines. Inline SVG keeps it bundled. -->
+            <svg viewBox="0 0 48 48" class="shrink-0" style="width: 18px; height: 18px;" aria-hidden="true">
               <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
               <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
               <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
@@ -104,11 +91,10 @@ type Method = 'google' | 'microsoft' | 'email';
             type="button"
             (click)="signInMicrosoft()"
             [disabled]="status() === 'signing'"
-            class="stamp-btn w-full justify-center"
+            class="v2-btn v2-btn--secondary v2-btn--block"
+            style="justify-content: center; gap: 10px;"
           >
-            <!-- Microsoft 4-square logo, brand colors. Inline SVG so it
-                 ships in the bundle and survives offline. -->
-            <svg viewBox="0 0 23 23" class="w-4 h-4 shrink-0" aria-hidden="true">
+            <svg viewBox="0 0 23 23" class="shrink-0" style="width: 16px; height: 16px;" aria-hidden="true">
               <rect x="1" y="1" width="10" height="10" fill="#f35325" />
               <rect x="12" y="1" width="10" height="10" fill="#81bc06" />
               <rect x="1" y="12" width="10" height="10" fill="#05a6f0" />
@@ -119,75 +105,75 @@ type Method = 'google' | 'microsoft' | 'email';
         </div>
 
         <!-- "or" divider + email/password toggle -->
-        <div class="mt-6 flex items-center gap-3">
-          <div class="flex-1 h-px bg-rule/40"></div>
-          <span class="font-sans text-[11px] uppercase tracking-[0.18em] text-graphite">{{ t('signin.or') }}</span>
-          <div class="flex-1 h-px bg-rule/40"></div>
+        <div class="mt-5 flex items-center gap-3">
+          <div class="flex-1 h-px" style="background: var(--v2-rule);"></div>
+          <span class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.18em;">
+            {{ t('signin.or') }}
+          </span>
+          <div class="flex-1 h-px" style="background: var(--v2-rule);"></div>
         </div>
 
         @if (!emailFormOpen()) {
-          <button type="button" (click)="openEmailForm()"
-            class="mt-4 tag-btn w-full justify-center text-xs">
+          <v2-button variant="ghost" size="sm" [block]="true" class="mt-3 block"
+            (click)="openEmailForm()">
             {{ t('signin.useEmail') }}
-          </button>
+          </v2-button>
         } @else {
-          <form (submit)="submitEmail($event)" class="mt-4 space-y-3 slide-down">
+          <form (submit)="submitEmail($event)" class="mt-4 space-y-3">
             <div>
-              <label class="data-label block mb-1" for="signin-email">{{ t('signin.emailLabel') }}</label>
+              <label class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;" for="signin-email">
+                {{ t('signin.emailLabel') }}
+              </label>
               <input id="signin-email" type="email" name="email" autocomplete="email" required
                 [(ngModel)]="emailValue"
-                class="w-full bg-paper-deep/40 border border-rule/40 rounded px-3 py-2 font-mono text-sm text-ink" />
+                class="v2-field" />
             </div>
 
             @if (mode() !== 'reset') {
               <div>
-                <label class="data-label block mb-1" for="signin-password">{{ t('signin.passwordLabel') }}</label>
-                <!-- Sign-up enforces a stronger policy (min 10 + at least
-                     one letter + one digit) via an HTML pattern. Sign-in
-                     uses the legacy minlength so existing users with
-                     older weaker passwords can still authenticate; the
-                     real server-side policy is configured in Firebase
-                     Auth settings (see README operator checklist). -->
+                <label class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;" for="signin-password">
+                  {{ t('signin.passwordLabel') }}
+                </label>
                 <input id="signin-password" type="password" name="password"
                   [autocomplete]="mode() === 'signup' ? 'new-password' : 'current-password'"
                   required
                   [minlength]="mode() === 'signup' ? 10 : 6"
                   [pattern]="mode() === 'signup' ? '(?=.*[A-Za-z])(?=.*\\d)[^\\s]{10,}' : '.*'"
                   [(ngModel)]="passwordValue"
-                  class="w-full bg-paper-deep/40 border border-rule/40 rounded px-3 py-2 font-mono text-sm text-ink"
+                  class="v2-field"
                   [attr.aria-describedby]="mode() === 'signup' ? 'signin-password-hint' : null" />
                 @if (mode() === 'signup') {
-                  <p id="signin-password-hint" class="caption text-[11px] mt-1">{{ t('signin.passwordHint') }}</p>
+                  <p id="signin-password-hint" class="v2-caption mt-1">{{ t('signin.passwordHint') }}</p>
                 }
               </div>
             }
 
-            <div class="flex items-center gap-2 pt-1">
-              <button type="submit"
-                [disabled]="status() === 'signing'"
-                class="stamp-btn flex-1 justify-center">
-                @if (status() === 'signing' && lastMethod() === 'email') {
-                  {{ t('signin.signingIn') }}
-                } @else if (mode() === 'signup') {
-                  {{ t('signin.createAccount') }}
-                } @else if (mode() === 'reset') {
-                  {{ t('signin.sendResetLink') }}
-                } @else {
-                  {{ t('signin.signInWithEmail') }}
-                }
-              </button>
-            </div>
+            <v2-button type="submit" variant="primary" [block]="true"
+              [disabled]="status() === 'signing'">
+              @if (status() === 'signing' && lastMethod() === 'email') {
+                {{ t('signin.signingIn') }}
+              } @else if (mode() === 'signup') {
+                {{ t('signin.createAccount') }}
+              } @else if (mode() === 'reset') {
+                {{ t('signin.sendResetLink') }}
+              } @else {
+                {{ t('signin.signInWithEmail') }}
+              }
+            </v2-button>
 
-            <div class="flex items-center justify-between text-[11px]">
+            <div class="flex items-center justify-between v2-caption pt-1">
               @if (mode() === 'signin') {
-                <button type="button" (click)="setMode('signup')" class="text-ink underline-offset-2 hover:underline">
+                <button type="button" (click)="setMode('signup')"
+                  style="background: none; border: none; padding: 0; color: var(--v2-ink); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; font: inherit;">
                   {{ t('signin.needAccount') }}
                 </button>
-                <button type="button" (click)="setMode('reset')" class="text-graphite underline-offset-2 hover:underline">
+                <button type="button" (click)="setMode('reset')"
+                  style="background: none; border: none; padding: 0; color: var(--v2-ink-muted); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; font: inherit;">
                   {{ t('signin.forgotPassword') }}
                 </button>
               } @else {
-                <button type="button" (click)="setMode('signin')" class="text-ink underline-offset-2 hover:underline">
+                <button type="button" (click)="setMode('signin')"
+                  style="background: none; border: none; padding: 0; color: var(--v2-ink); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; font: inherit;">
                   ← {{ t('signin.backToSignIn') }}
                 </button>
                 <span></span>
@@ -197,21 +183,19 @@ type Method = 'google' | 'microsoft' | 'email';
         }
 
         @if (status() === 'error') {
-          <p class="font-mono text-[11px] text-blood mt-4 leading-relaxed" role="alert">
-            ✕ {{ errorMsg() }}
+          <p class="v2-caption mt-4" role="alert" style="color: var(--v2-danger);">
+            {{ errorMsg() }}
           </p>
         } @else if (status() === 'reset-sent') {
-          <p class="font-mono text-[11px] mt-4 leading-relaxed" style="color: var(--color-olive)" role="status">
-            ✓ {{ t('signin.resetSent') }}
+          <p class="v2-caption mt-4" role="status" style="color: var(--v2-sage);">
+            {{ t('signin.resetSent') }}
           </p>
         }
 
-        <div class="mt-8 pt-6 border-t border-rule/40">
-          <p class="caption text-xs leading-relaxed">
-            {{ t('signin.sessionCaption') }}
-          </p>
+        <div class="mt-6 pt-5" style="border-top: 1px solid var(--v2-rule);">
+          <p class="v2-caption">{{ t('signin.sessionCaption') }}</p>
         </div>
-      </div>
+      </v2-card>
     </section>
     </ng-container>
   `,
