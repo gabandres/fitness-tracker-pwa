@@ -929,10 +929,12 @@ export class App {
         .subscribe(() => this.updateReady.set(true));
 
       const doCheck = () => this.swUpdate.checkForUpdate().catch((err) => console.error(err));
-      // Poll every 60s while the page is open — was 5 min, but users on
-      // long-lived tabs would run several minutes behind a deploy. The
-      // request itself is a HEAD on /ngsw.json (no-cache); cheap.
-      setInterval(doCheck, 60 * 1000);
+      // Poll every 60s while the tab is foregrounded. Skip when hidden
+      // — visibilitychange below catches re-focus. Avoids 60 background
+      // fetches/hour on idle tabs across the user base.
+      setInterval(() => {
+        if (document.visibilityState === 'visible') doCheck();
+      }, 60 * 1000);
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
           doCheck();

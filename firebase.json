@@ -30,6 +30,18 @@
     ],
     "headers": [
       {
+        "source": "**",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      },
+      {
+        "source": "**/*.@(js|mjs|css|woff2|woff|ttf|otf|png|svg|jpg|jpeg|webp|gif|ico|map)",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        ]
+      },
+      {
         "source": "/ngsw-worker.js",
         "headers": [
           { "key": "Cache-Control", "value": "no-cache" }
@@ -37,18 +49,6 @@
       },
       {
         "source": "/ngsw.json",
-        "headers": [
-          { "key": "Cache-Control", "value": "no-cache" }
-        ]
-      },
-      {
-        "source": "/index.html",
-        "headers": [
-          { "key": "Cache-Control", "value": "no-cache" }
-        ]
-      },
-      {
-        "source": "/",
         "headers": [
           { "key": "Cache-Control", "value": "no-cache" }
         ]

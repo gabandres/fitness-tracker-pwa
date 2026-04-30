@@ -163,17 +163,14 @@ type Method = 'google' | 'microsoft' | 'email';
 
             <div class="flex items-center justify-between v2-caption pt-1">
               @if (mode() === 'signin') {
-                <button type="button" (click)="setMode('signup')"
-                  style="background: none; border: none; padding: 0; color: var(--v2-ink); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; font: inherit;">
+                <button type="button" class="v2-link" (click)="setMode('signup')">
                   {{ t('signin.needAccount') }}
                 </button>
-                <button type="button" (click)="setMode('reset')"
-                  style="background: none; border: none; padding: 0; color: var(--v2-ink-muted); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; font: inherit;">
+                <button type="button" class="v2-link v2-link--muted" (click)="setMode('reset')">
                   {{ t('signin.forgotPassword') }}
                 </button>
               } @else {
-                <button type="button" (click)="setMode('signin')"
-                  style="background: none; border: none; padding: 0; color: var(--v2-ink); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; font: inherit;">
+                <button type="button" class="v2-link" (click)="setMode('signin')">
                   ← {{ t('signin.backToSignIn') }}
                 </button>
                 <span></span>
