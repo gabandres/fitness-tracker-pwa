@@ -3,6 +3,7 @@ import { DatePipe } from '@angular/common';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { SubscriptionService } from '../../services/subscription.service';
 import { AnalyticsService } from '../../services/analytics.service';
+import { V2Button } from '../ui/button.component';
 
 /**
  * Subscribe / Manage-subscription card.
@@ -27,63 +28,51 @@ import { AnalyticsService } from '../../services/analytics.service';
 @Component({
   selector: 'app-subscribe',
   standalone: true,
-  imports: [DatePipe, TranslocoDirective],
+  imports: [DatePipe, TranslocoDirective, V2Button],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     @if (subs.hasAnyPrice) {
-      <div class="mt-4 specimen px-4 py-3 slide-down">
-        <span class="crop-bl"></span><span class="crop-br"></span>
-        <div class="flex items-center gap-2 mb-2">
-          <span class="stamp-mark" style="transform: rotate(0deg)"
-            [style.border-color]="subs.isAdmin() || subs.isComped() ? 'var(--color-olive)' : ''"
-            [style.color]="subs.isAdmin() || subs.isComped() ? 'var(--color-olive)' : ''">
-            {{ subs.isAdmin() ? t('subscribe.stampAdmin') : subs.isComped() ? t('subscribe.stampFriend') : t('subscribe.stampSupport') }}
-          </span>
-          <span class="data-label">
-            {{ subs.isAdmin() ? t('subscribe.access') : subs.isComped() ? t('subscribe.access') : (sub() ? t('subscribe.subscription') : t('subscribe.pro')) }}
-          </span>
-        </div>
+      <div>
+        <p class="v2-caption mb-3" style="text-transform: uppercase; letter-spacing: 0.08em;"
+          [style.color]="subs.isAdmin() || subs.isComped() ? 'var(--v2-sage)' : 'var(--v2-ink-muted)'">
+          {{ subs.isAdmin() ? t('subscribe.access') : subs.isComped() ? t('subscribe.access') : (sub() ? t('subscribe.subscription') : t('subscribe.pro')) }}
+        </p>
 
         @if (subs.isAdmin()) {
-          <!-- Admin bypass: all features unlocked, no checkout needed. -->
-          <p class="font-sans text-sm text-ink leading-relaxed">
-            {{ t('subscribe.adminBody') }}
-          </p>
+          <p class="v2-body">{{ t('subscribe.adminBody') }}</p>
         } @else if (subs.isComped()) {
-          <!-- Comped friend: same outcome as paid, different framing. -->
-          <p class="font-sans text-sm text-ink leading-relaxed">
-            {{ t('subscribe.compedBody') }}
-          </p>
+          <p class="v2-body">{{ t('subscribe.compedBody') }}</p>
         } @else if (sub(); as s) {
-          <!-- Already subscribed — show status + manage button -->
-          <p class="font-sans text-sm text-ink leading-relaxed">
+          <p class="v2-body">
             @if (s.status === 'trialing') {
-              {{ t('subscribe.trialOn') }} <span class="text-olive">{{ t('subscribe.freeTrial') }}</span> {{ t('subscribe.until') }}
+              {{ t('subscribe.trialOn') }}
+              <span style="color: var(--v2-sage); font-weight: 500;">{{ t('subscribe.freeTrial') }}</span>
+              {{ t('subscribe.until') }}
               {{ s.trialEndsAt ? (s.trialEndsAt | date: 'MMM d') : t('subscribe.endOfTrial') }}.
               {{ t('subscribe.thenRenewsAt', { price: subs.displayPriceFor(s.priceId) }) }}
             } @else if (s.status === 'active') {
-              <span class="text-olive">{{ t('subscribe.active') }}</span>{{ s.currentPeriodEnd
+              <span style="color: var(--v2-sage); font-weight: 500;">{{ t('subscribe.active') }}</span>{{ s.currentPeriodEnd
                 ? t('subscribe.renewsAt', { date: (s.currentPeriodEnd | date: 'MMM d'), price: subs.displayPriceFor(s.priceId) })
                 : t('subscribe.renewsMonthly', { price: subs.displayPriceFor(s.priceId) }) }}
             } @else if (s.status === 'past_due') {
-              <span class="text-blood">{{ t('subscribe.paymentPastDue') }}</span> {{ t('subscribe.paymentPastDueSuffix') }}
+              <span style="color: var(--v2-danger); font-weight: 500;">{{ t('subscribe.paymentPastDue') }}</span>
+              {{ t('subscribe.paymentPastDueSuffix') }}
             }
           </p>
-          <div class="mt-2 flex gap-2">
-            <button type="button" (click)="manage()"
+          <div class="mt-3">
+            <v2-button
+              variant="secondary"
+              size="sm"
+              (click)="manage()"
               [disabled]="busy()"
-              [attr.aria-label]="t('subscribe.manageAria')"
-              class="tag-btn text-[11px]">
+              [ariaLabel]="t('subscribe.manageAria')">
               {{ busy() ? t('subscribe.opening') : t('subscribe.manage') }}
-            </button>
+            </v2-button>
           </div>
         } @else {
-          <!-- Not subscribed — pitch + cadence toggle + subscribe button -->
-          <p class="font-sans text-sm text-ink leading-relaxed mb-2">
-            {{ t('subscribe.pitchBody') }}
-          </p>
-          <ul class="font-sans text-[13px] text-graphite leading-relaxed mb-3 list-disc list-inside">
+          <p class="v2-body mb-3">{{ t('subscribe.pitchBody') }}</p>
+          <ul class="v2-body-soft mb-4" style="font-size: 0.875rem; padding-left: 1.25rem; list-style: disc;">
             <li>{{ t('subscribe.featureConsultations') }}</li>
             <li>{{ t('subscribe.featurePhoto') }}</li>
             <li>{{ t('subscribe.featureWebhook') }}</li>
@@ -91,37 +80,26 @@ import { AnalyticsService } from '../../services/analytics.service';
           </ul>
 
           @if (subs.priceIdMonthly && subs.priceIdAnnual) {
-            <div class="mb-3" role="radiogroup" [attr.aria-label]="t('subscribe.cadenceAria')">
-              <div class="inline-flex rounded border border-rule overflow-hidden text-[12px]">
+            <div class="mb-4" role="radiogroup" [attr.aria-label]="t('subscribe.cadenceAria')">
+              <!-- v2 segmented control: paper-2 background, primary tab is rust-tinted -->
+              <div class="grid grid-cols-2 gap-1 p-1"
+                style="background: var(--v2-paper-2); border-radius: var(--v2-radius-md);">
                 <button type="button" role="radio"
                   [attr.aria-checked]="cadence() === 'annual'"
                   (click)="setCadence('annual')"
                   [attr.aria-label]="subs.displayPriceAnnualAnchor
                     ? t('subscribe.annualAnchorAria', { anchor: subs.displayPriceAnnualAnchor, price: subs.displayPriceAnnual })
                     : t('subscribe.toggleAnnual') + ' ' + subs.displayPriceAnnual"
-                  [class.bg-ink]="cadence() === 'annual'"
-                  [class.text-cream]="cadence() === 'annual'"
-                  [class.text-graphite]="cadence() !== 'annual'"
-                  [class.font-semibold]="cadence() === 'annual'"
-                  class="px-3 py-1.5 font-sans transition-colors">
-                  @if (cadence() === 'annual') { <span aria-hidden="true" class="mr-1">✓</span> }
+                  [class]="cadence() === 'annual' ? 'v2-btn v2-btn--sm v2-btn--primary' : 'v2-btn v2-btn--sm v2-btn--ghost'"
+                  style="justify-content: center;">
                   {{ t('subscribe.toggleAnnual') }} &middot;
                   @if (subs.displayPriceAnnualAnchor) {
-                    <!-- Anchor price shown only for the annual toggle so
-                         the 33% savings reads at a glance without the
-                         user doing math. Hidden when no anchor price is
-                         configured so we never show a made-up strike-
-                         through number. Use the semantic strike element
-                         with aria-hidden because the button's aria-label
-                         already verbalises "was $36, now $24" for
-                         screen readers. -->
-                    <s class="opacity-60 mr-1" aria-hidden="true">{{ subs.displayPriceAnnualAnchor }}</s>
+                    <s style="opacity: 0.6; margin-right: 4px;" aria-hidden="true">{{ subs.displayPriceAnnualAnchor }}</s>
                   }
                   {{ subs.displayPriceAnnual }}
                   @if (subs.annualSavingsPercent > 0) {
-                    <span class="ml-1 text-[10px] uppercase tracking-wider"
-                      [class.text-olive]="cadence() === 'annual'"
-                      [class.text-blood]="cadence() !== 'annual'">
+                    <span style="margin-left: 6px; font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.06em;"
+                      [style.color]="cadence() === 'annual' ? 'rgba(255,255,255,0.85)' : 'var(--v2-sage)'">
                       &middot; {{ t('subscribe.savingsBadge', { n: subs.annualSavingsPercent }) }}
                     </span>
                   }
@@ -129,41 +107,38 @@ import { AnalyticsService } from '../../services/analytics.service';
                 <button type="button" role="radio"
                   [attr.aria-checked]="cadence() === 'monthly'"
                   (click)="setCadence('monthly')"
-                  [class.bg-ink]="cadence() === 'monthly'"
-                  [class.text-cream]="cadence() === 'monthly'"
-                  [class.text-graphite]="cadence() !== 'monthly'"
-                  [class.font-semibold]="cadence() === 'monthly'"
-                  class="px-3 py-1.5 font-sans transition-colors border-l border-rule">
-                  @if (cadence() === 'monthly') { <span aria-hidden="true" class="mr-1">✓</span> }
+                  [class]="cadence() === 'monthly' ? 'v2-btn v2-btn--sm v2-btn--primary' : 'v2-btn v2-btn--sm v2-btn--ghost'"
+                  style="justify-content: center;">
                   {{ t('subscribe.toggleMonthly') }} &middot; {{ subs.displayPriceMonthly }}
                 </button>
               </div>
             </div>
           }
 
-          <div class="flex items-center gap-2">
-            <button type="button" (click)="subscribe()"
-              [disabled]="busy()"
-              [attr.aria-label]="t('subscribe.subscribeAria')"
-              class="stamp-btn max-w-xs">
-              @if (busy()) {
-                {{ t('subscribe.startingCheckout') }}
-              } @else if (subs.trialDays > 0) {
-                <!-- Trial-led CTA: industry research shows a 7-day free
-                     trial converts 2-4x better than a raw price offer
-                     for health apps. Keep the price visible underneath
-                     for transparency, but it's secondary to the trial. -->
-                <span>{{ t('subscribe.startFreeTrial', { n: subs.trialDays }) }}</span>
-                <span class="font-sans text-[11px] normal-case opacity-80 ml-1">{{ t('subscribe.thenBilled', { price: selectedDisplayPrice() }) }}</span>
-              } @else {
-                {{ t('subscribe.support') }} &middot; {{ selectedDisplayPrice() }}
-              }
-            </button>
-          </div>
+          <v2-button
+            variant="primary"
+            size="lg"
+            [block]="true"
+            (click)="subscribe()"
+            [disabled]="busy()"
+            [ariaLabel]="t('subscribe.subscribeAria')">
+            @if (busy()) {
+              {{ t('subscribe.startingCheckout') }}
+            } @else if (subs.trialDays > 0) {
+              <span>{{ t('subscribe.startFreeTrial', { n: subs.trialDays }) }}</span>
+              <span style="font-size: 0.75rem; opacity: 0.85; margin-left: 6px; font-weight: 400;">
+                {{ t('subscribe.thenBilled', { price: selectedDisplayPrice() }) }}
+              </span>
+            } @else {
+              {{ t('subscribe.support') }} &middot; {{ selectedDisplayPrice() }}
+            }
+          </v2-button>
         }
 
         @if (subs.error()) {
-          <p class="font-mono text-[11px] text-blood mt-2">✕ {{ subs.error() }}</p>
+          <p class="v2-caption mt-3" role="alert" style="color: var(--v2-danger);">
+            {{ subs.error() }}
+          </p>
         }
       </div>
     }

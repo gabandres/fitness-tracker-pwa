@@ -3,6 +3,8 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { SubscriptionService } from '../../services/subscription.service';
 import { UpsellService } from '../../services/upsell.service';
 import { AnalyticsService } from '../../services/analytics.service';
+import { V2Card } from '../ui/card.component';
+import { V2Button } from '../ui/button.component';
 
 type UpsellContext = 'photoQuota' | 'presetLimit' | 'csvExport' | 'chartHistory';
 
@@ -27,34 +29,26 @@ const CONTEXT_TO_SOURCE: Record<UpsellContext, 'photo' | 'preset' | 'csv' | 'cha
 @Component({
   selector: 'app-upsell-card',
   standalone: true,
-  imports: [TranslocoDirective],
+  imports: [TranslocoDirective, V2Card, V2Button],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
       @if (shouldShow()) {
-        <div class="specimen px-3 py-2.5 mt-2"
-             role="note"
-             style="border-color: var(--color-blood);">
-          <span class="crop-bl" style="border-color: var(--color-blood)"></span>
-          <span class="crop-br" style="border-color: var(--color-blood)"></span>
+        <v2-card variant="accent" class="block mt-2" role="note">
           <div class="flex items-center justify-between gap-3">
             <div class="min-w-0 flex-1">
-              <div class="stamp-mark text-[10px]"
-                   style="border-color: var(--color-blood); color: var(--color-blood)">
+              <div class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--v2-accent); font-weight: 600;">
                 {{ t('upsell.stamp') }}
               </div>
-              <p class="font-sans text-xs text-ink mt-1.5 leading-relaxed">
+              <p class="v2-body mt-1.5">
                 {{ t('upsell.' + context() + '.body') }}
               </p>
             </div>
-            <button type="button"
-                    (click)="open()"
-                    class="tag-btn text-[11px] shrink-0"
-                    style="border-color: var(--color-blood); color: var(--color-blood);">
+            <v2-button variant="primary" size="sm" (click)="open()">
               {{ t('upsell.cta') }}
-            </button>
+            </v2-button>
           </div>
-        </div>
+        </v2-card>
       }
     </ng-container>
   `,
