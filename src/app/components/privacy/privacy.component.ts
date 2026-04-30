@@ -4,53 +4,53 @@ import { AuthService } from '../../services/auth.service';
 import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { TranslationService } from '../../services/translation.service';
 import { extractErrorCode } from '../../models/error-codes';
+import { V2Card } from '../ui/card.component';
+import { V2Button } from '../ui/button.component';
 
 type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'error';
 
 @Component({
   selector: 'app-privacy',
   standalone: true,
-  imports: [TranslocoDirective],
+  imports: [TranslocoDirective, V2Card, V2Button],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     <section class="max-w-[640px] mx-auto">
       @if (showAuthoritativeBanner()) {
-        <div class="mb-4 specimen px-3 py-2" style="border-color: var(--color-gold)">
-          <span class="crop-bl" style="border-color: var(--color-gold)"></span>
-          <span class="crop-br" style="border-color: var(--color-gold)"></span>
-          <p class="caption text-[11px]" style="color: var(--color-gold)">
+        <v2-card variant="flat" class="block mb-4">
+          <p class="v2-caption" style="color: var(--v2-accent);">
             {{ t('legal.authoritativeBanner') }}
           </p>
-        </div>
+        </v2-card>
       }
 
-      <a href="/" class="caption text-xs underline decoration-dotted hover:text-blood">
+      <a href="/" class="v2-caption" style="text-decoration: underline; text-decoration-style: dotted;">
         {{ t('privacy.backLink') }}
       </a>
 
-      <div class="mt-6 flex items-center gap-3 mb-1">
-        <span class="stamp-mark">{{ t('privacy.stamp') }}</span>
-        <span class="data-label">{{ t('privacy.section') }}</span>
-      </div>
-      <h1 class="font-display text-4xl sm:text-5xl leading-[0.95] tracking-tight text-ink">
-        {{ t('privacy.titleLead') }}<br/><em class="text-blood">{{ t('privacy.titleEm') }}</em>
+      <p class="v2-caption mt-6" style="text-transform: uppercase; letter-spacing: 0.08em;">
+        {{ t('privacy.section') }}
+      </p>
+      <h1 class="v2-h1 mt-1" style="font-size: 2.5rem; line-height: 1.05;">
+        {{ t('privacy.titleLead') }}
+        <em style="color: var(--v2-accent); font-style: normal;">{{ t('privacy.titleEm') }}</em>
       </h1>
-      <p class="caption mt-3 text-xs">{{ t('privacy.lastUpdated') }}</p>
+      <p class="v2-caption mt-3">{{ t('privacy.lastUpdated') }}</p>
 
-      <div class="mt-8 prose-field text-ink leading-relaxed">
-        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('privacy.storeHeading') }}</h2>
+      <div class="mt-8 v2-prose">
+        <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('privacy.storeHeading') }}</h2>
         <p>{{ t('privacy.storeBody1') }}</p>
         <p>{{ t('privacy.storeBody2') }}</p>
 
-        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('privacy.geminiHeading') }}</h2>
+        <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('privacy.geminiHeading') }}</h2>
         <p>{{ t('privacy.geminiIntro') }}</p>
         <ul>
           <li [innerHTML]="t('privacy.geminiPhoto')"></li>
           <li [innerHTML]="t('privacy.geminiCoach')"></li>
         </ul>
 
-        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('privacy.dontHeading') }}</h2>
+        <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('privacy.dontHeading') }}</h2>
         <ul>
           <li>{{ t('privacy.dontSell') }}</li>
           <li>{{ t('privacy.dontAds') }}</li>
@@ -58,7 +58,7 @@ type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'error';
           <li>{{ t('privacy.dontShare') }}</li>
         </ul>
 
-        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('privacy.callHeading') }}</h2>
+        <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('privacy.callHeading') }}</h2>
         <ul>
           <li [innerHTML]="t('privacy.callExport')"></li>
           <li [innerHTML]="t('privacy.callFullExport')"></li>
@@ -67,24 +67,19 @@ type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'error';
         </ul>
 
         @if (auth.isSignedIn()) {
-          <div class="mt-4 flex items-center gap-3">
-            <button type="button"
+          <div class="mt-4 flex items-center gap-3 flex-wrap">
+            <v2-button variant="secondary" size="sm"
               (click)="downloadFullExport()"
-              [disabled]="exportStatus() === 'running'"
-              class="tag-btn text-[11px]">
-              @if (exportStatus() === 'running') {
-                <span>{{ t('privacy.exportRunning') }}</span>
-              } @else {
-                <span>{{ t('privacy.exportButton') }}</span>
-              }
-            </button>
+              [disabled]="exportStatus() === 'running'">
+              {{ exportStatus() === 'running' ? t('privacy.exportRunning') : t('privacy.exportButton') }}
+            </v2-button>
             @if (exportStatus() === 'error') {
-              <span class="font-mono text-[11px] text-blood">✕ {{ exportError() }}</span>
+              <span class="v2-caption" role="alert" style="color: var(--v2-danger);">{{ exportError() }}</span>
             }
           </div>
         }
 
-        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('privacy.gdprHeading') }}</h2>
+        <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('privacy.gdprHeading') }}</h2>
         <p>{{ t('privacy.gdprBody') }}</p>
         <ul>
           <li>{{ t('privacy.gdprAccess') }}</li>
@@ -95,62 +90,66 @@ type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'error';
           <li>{{ t('privacy.gdprObject') }}</li>
         </ul>
 
-        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('privacy.ccpaHeading') }}</h2>
+        <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('privacy.ccpaHeading') }}</h2>
         <p>{{ t('privacy.ccpaBody') }}</p>
 
-        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('privacy.jurisdictionHeading') }}</h2>
+        <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('privacy.jurisdictionHeading') }}</h2>
         <p [innerHTML]="t('privacy.jurisdictionBody')"></p>
 
-        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('privacy.medicalHeading') }}</h2>
+        <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('privacy.medicalHeading') }}</h2>
         <p>{{ t('privacy.medicalBody') }}</p>
       </div>
 
       <!-- Danger zone: account deletion. Also anchor-linked as
            /privacy#delete from the settings sheet. -->
-      <div id="delete" class="mt-12 specimen px-5 py-5 relative scroll-mt-24" style="border-color: var(--color-blood)">
-        <span class="crop-bl" style="border-color: var(--color-blood)"></span>
-        <span class="crop-br" style="border-color: var(--color-blood)"></span>
-
-        <div class="flex items-center gap-3 mb-2">
-          <span class="stamp-mark" style="transform: rotate(0deg); border-color: var(--color-blood); color: var(--color-blood)">{{ t('privacy.dangerStamp') }}</span>
-          <span class="data-label">{{ t('privacy.dangerSection') }}</span>
-        </div>
+      <v2-card variant="default" class="block mt-12 scroll-mt-24"
+        id="delete"
+        style="border-color: var(--v2-danger);">
+        <p class="v2-caption mb-2" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--v2-danger); font-weight: 600;">
+          {{ t('privacy.dangerSection') }}
+        </p>
 
         @if (!auth.isSignedIn()) {
-          <p class="caption text-xs">{{ t('privacy.signInFirst') }}</p>
+          <p class="v2-caption">{{ t('privacy.signInFirst') }}</p>
         } @else if (deleteStatus() === 'idle') {
-          <p class="font-sans text-sm text-ink leading-relaxed mb-3">
+          <p class="v2-body mb-3">
             {{ t('privacy.confirmEmail', { email: auth.user()?.email }) }}
           </p>
-          <button type="button" (click)="deleteStatus.set('confirming')"
-            class="tag-btn text-blood border-blood/60">
+          <v2-button variant="destructive" size="sm" (click)="deleteStatus.set('confirming')">
             {{ t('privacy.deleteButton') }}
-          </button>
+          </v2-button>
         } @else if (deleteStatus() === 'confirming') {
-          <p class="font-sans text-sm text-ink leading-relaxed mb-3">
-            {{ t('privacy.typeDeletePrefix') }} <span class="font-mono font-semibold">{{ t('privacy.typeDeleteWord') }}</span> {{ t('privacy.typeDeleteSuffix') }}
+          <p class="v2-body mb-3">
+            {{ t('privacy.typeDeletePrefix') }}
+            <span class="v2-num" style="font-weight: 600;">{{ t('privacy.typeDeleteWord') }}</span>
+            {{ t('privacy.typeDeleteSuffix') }}
           </p>
-          <div class="flex items-baseline gap-2">
+          <div class="flex items-baseline gap-2 flex-wrap">
             <input type="text"
               [value]="confirmInput()"
               (input)="confirmInput.set($any($event.target).value)"
               [placeholder]="t('privacy.deletePlaceholder')"
-              class="field-input text-sm flex-1 max-w-[200px]" />
-            <button type="button" (click)="confirmDelete()"
+              class="v2-field"
+              style="max-width: 200px;" />
+            <v2-button variant="destructive" size="sm"
+              (click)="confirmDelete()"
               [disabled]="confirmInput().trim().toLowerCase() !== t('privacy.typeDeleteWord').toLowerCase()"
-              class="tag-btn text-blood border-blood/60"
-              [attr.aria-label]="t('privacy.confirmAria')">
+              [ariaLabel]="t('privacy.confirmAria')">
               {{ t('privacy.confirm') }}
-            </button>
-            <button type="button" (click)="cancelDelete()" class="tag-btn">{{ t('privacy.cancel') }}</button>
+            </v2-button>
+            <v2-button variant="ghost" size="sm" (click)="cancelDelete()">
+              {{ t('privacy.cancel') }}
+            </v2-button>
           </div>
         } @else if (deleteStatus() === 'deleting') {
-          <p class="caption text-xs">{{ t('privacy.erasing') }}</p>
+          <p class="v2-caption">{{ t('privacy.erasing') }}</p>
         } @else if (deleteStatus() === 'error') {
-          <p class="font-mono text-xs text-blood">✕ {{ errorMsg() }}</p>
-          <button type="button" (click)="deleteStatus.set('idle')" class="tag-btn text-[11px] mt-2">{{ t('privacy.tryAgain') }}</button>
+          <p class="v2-caption" role="alert" style="color: var(--v2-danger);">{{ errorMsg() }}</p>
+          <v2-button variant="ghost" size="sm" class="mt-2" (click)="deleteStatus.set('idle')">
+            {{ t('privacy.tryAgain') }}
+          </v2-button>
         }
-      </div>
+      </v2-card>
     </section>
     </ng-container>
   `,

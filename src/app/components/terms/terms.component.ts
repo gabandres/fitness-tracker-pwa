@@ -1,61 +1,60 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { TranslationService } from '../../services/translation.service';
+import { V2Card } from '../ui/card.component';
 
 @Component({
   selector: 'app-terms',
   standalone: true,
-  imports: [TranslocoDirective],
+  imports: [TranslocoDirective, V2Card],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     <section class="max-w-[640px] mx-auto">
       @if (showAuthoritativeBanner()) {
-        <div class="mb-4 specimen px-3 py-2" style="border-color: var(--color-gold)">
-          <span class="crop-bl" style="border-color: var(--color-gold)"></span>
-          <span class="crop-br" style="border-color: var(--color-gold)"></span>
-          <p class="caption text-[11px]" style="color: var(--color-gold)">
+        <v2-card variant="flat" class="block mb-4">
+          <p class="v2-caption" style="color: var(--v2-accent);">
             {{ t('legal.authoritativeBanner') }}
           </p>
-        </div>
+        </v2-card>
       }
 
-      <a href="/" class="caption text-xs underline decoration-dotted hover:text-blood">
+      <a href="/" class="v2-caption" style="text-decoration: underline; text-decoration-style: dotted;">
         {{ t('terms.backLink') }}
       </a>
 
-      <div class="mt-6 flex items-center gap-3 mb-1">
-        <span class="stamp-mark">{{ t('terms.stamp') }}</span>
-        <span class="data-label">{{ t('terms.section') }}</span>
-      </div>
-      <h1 class="font-display text-4xl sm:text-5xl leading-[0.95] tracking-tight text-ink">
-        {{ t('terms.titleLead') }}<br/><em class="text-blood">{{ t('terms.titleEm') }}</em>
+      <p class="v2-caption mt-6" style="text-transform: uppercase; letter-spacing: 0.08em;">
+        {{ t('terms.section') }}
+      </p>
+      <h1 class="v2-h1 mt-1" style="font-size: 2.5rem; line-height: 1.05;">
+        {{ t('terms.titleLead') }}
+        <em style="color: var(--v2-accent); font-style: normal;">{{ t('terms.titleEm') }}</em>
       </h1>
-      <p class="caption mt-3 text-xs">{{ t('terms.lastUpdated') }}</p>
+      <p class="v2-caption mt-3">{{ t('terms.lastUpdated') }}</p>
 
-      <div class="mt-8 prose-field text-ink leading-relaxed">
-        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('terms.dealHeading') }}</h2>
+      <div class="mt-8 v2-prose">
+        <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('terms.dealHeading') }}</h2>
         <p>{{ t('terms.dealBody') }}</p>
 
-        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('terms.medHeading') }}</h2>
+        <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('terms.medHeading') }}</h2>
         <p>{{ t('terms.medBody') }}</p>
 
-        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('terms.dataHeading') }}</h2>
+        <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('terms.dataHeading') }}</h2>
         <p [innerHTML]="t('terms.dataBody')"></p>
 
-        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('terms.availHeading') }}</h2>
+        <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('terms.availHeading') }}</h2>
         <p>{{ t('terms.availBody') }}</p>
 
-        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('terms.liabilityHeading') }}</h2>
+        <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('terms.liabilityHeading') }}</h2>
         <p>{{ t('terms.liabilityBody') }}</p>
 
-        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2" id="subscriptions">{{ t('terms.subsHeading') }}</h2>
+        <h2 class="v2-h2 mt-6 mb-2" id="subscriptions" style="color: var(--v2-accent);">{{ t('terms.subsHeading') }}</h2>
         <p [innerHTML]="t('terms.subsBody')"></p>
 
-        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2" id="refunds">{{ t('terms.refundsHeading') }}</h2>
+        <h2 class="v2-h2 mt-6 mb-2" id="refunds" style="color: var(--v2-accent);">{{ t('terms.refundsHeading') }}</h2>
         <p [innerHTML]="t('terms.refundsBody')"></p>
 
-        <h2 class="font-display italic text-2xl text-blood mt-6 mb-2">{{ t('terms.contactHeading') }}</h2>
+        <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('terms.contactHeading') }}</h2>
         <p [innerHTML]="t('terms.contactBody')"></p>
       </div>
     </section>

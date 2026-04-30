@@ -430,3 +430,31 @@
   font-weight: 600;
 }
 .v2-field--error { border-color: var(--v2-danger); }
+
+/* ── Long-form prose (legal pages, changelog) ───────────────── */
+[data-ui="v2"] .v2-prose {
+  color: var(--v2-ink);
+  font-family: var(--v2-font-sans);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+[data-ui="v2"] .v2-prose p { margin: 0 0 var(--v2-space-3) 0; }
+[data-ui="v2"] .v2-prose ul { margin: 0 0 var(--v2-space-3) 0; padding-left: 1.5rem; list-style: disc; }
+[data-ui="v2"] .v2-prose ul li { margin: 0.25rem 0; }
+[data-ui="v2"] .v2-prose a {
+  color: var(--v2-accent);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+[data-ui="v2"] .v2-prose a:hover { color: var(--v2-accent-deep); }
+[data-ui="v2"] .v2-prose code,
+[data-ui="v2"] .v2-prose pre {
+  font-family: var(--v2-font-mono);
+  background: var(--v2-paper-2);
+  border-radius: var(--v2-radius-sm);
+}
+[data-ui="v2"] .v2-prose code { padding: 1px 6px; font-size: 0.8125rem; }
+[data-ui="v2"] .v2-prose pre { padding: var(--v2-space-3); overflow-x: auto; font-size: 0.8125rem; }
+[data-ui="v2"] .v2-prose strong { font-weight: 600; }
+[data-ui="v2"] .v2-prose hr { border: none; border-top: 1px solid var(--v2-rule); margin: var(--v2-space-5) 0; }
