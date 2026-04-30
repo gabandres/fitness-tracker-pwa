@@ -189,7 +189,7 @@ import { V2Button } from '../ui/button.component';
                 [style.background]="opt.swatch"></span>
               <span>{{ t(opt.labelKey) }}</span>
               @if (opt.pro && !isPaid()) {
-                <span class="v2-caption" style="font-size: 0.625rem; opacity: 0.7;">Pro</span>
+                <span class="v2-caption" style="font-size: 0.625rem; opacity: 0.7;">{{ t('v2.settings.themeProBadge') }}</span>
               }
             </button>
           }
@@ -282,12 +282,12 @@ import { V2Button } from '../ui/button.component';
 
       <!-- About / Updates -->
       <v2-card variant="default" class="block mb-3">
-        <h3 class="v2-h3 mb-3">About</h3>
+        <h3 class="v2-h3 mb-3">{{ t('v2.settings.about') }}</h3>
         <div class="flex items-start justify-between gap-3 mb-2">
           <div class="min-w-0">
-            <div class="v2-body" style="font-weight: 500;">App version</div>
+            <div class="v2-body" style="font-weight: 500;">{{ t('v2.settings.appVersion') }}</div>
             <p class="v2-caption mt-0.5">
-              Build <span class="v2-num" style="color: var(--v2-ink); font-size: 0.75rem;">{{ buildLabel() }}</span>
+              {{ t('v2.settings.build') }} <span class="v2-num" style="color: var(--v2-ink); font-size: 0.75rem;">{{ buildLabel() }}</span>
             </p>
             @if (updateMsg(); as msg) {
               <p class="v2-caption mt-1" role="status" aria-live="polite"
@@ -298,7 +298,7 @@ import { V2Button } from '../ui/button.component';
           </div>
           <v2-button variant="secondary" size="sm" (click)="checkForUpdate()" [disabled]="checkingUpdate()">
             <lucide-icon name="check" [size]="14" />
-            {{ checkingUpdate() ? 'Checking…' : 'Check for updates' }}
+            {{ checkingUpdate() ? t('v2.settings.checking') : t('v2.settings.checkForUpdates') }}
           </v2-button>
         </div>
       </v2-card>
@@ -311,7 +311,7 @@ import { V2Button } from '../ui/button.component';
           &middot;
           <a href="/terms" style="text-decoration: underline; text-decoration-style: dotted;">{{ t('settings.legal.terms') }}</a>
           &middot;
-          <a href="/changelog" style="text-decoration: underline; text-decoration-style: dotted;">Changelog</a>
+          <a href="/changelog" style="text-decoration: underline; text-decoration-style: dotted;">{{ t('v2.settings.changelog') }}</a>
           &middot;
           <a href="mailto:gabrielandresbermudez&#64;gmail.com" style="text-decoration: underline; text-decoration-style: dotted;">{{ t('settings.legal.contact') }}</a>
         </p>
@@ -370,18 +370,18 @@ export class SettingsSheetV2Component {
     this.updateMsg.set(null);
     try {
       if (!this.swUpdate.isEnabled) {
-        this.updateMsg.set({ text: 'Updates unavailable in this environment.', tone: 'muted' });
+        this.updateMsg.set({ text: this.translation.t('v2.settings.updateUnavailable'), tone: 'muted' });
         return;
       }
       const found = await this.swUpdate.checkForUpdate();
       if (found) {
-        this.updateMsg.set({ text: 'Update found — reload prompt will appear shortly.', tone: 'accent' });
+        this.updateMsg.set({ text: this.translation.t('v2.settings.updateFound'), tone: 'accent' });
       } else {
-        this.updateMsg.set({ text: 'You’re on the latest version.', tone: 'sage' });
+        this.updateMsg.set({ text: this.translation.t('v2.settings.updateLatest'), tone: 'sage' });
       }
     } catch (err) {
       this.updateMsg.set({
-        text: err instanceof Error ? err.message : 'Could not check.',
+        text: err instanceof Error ? err.message : this.translation.t('v2.settings.updateError'),
         tone: 'muted',
       });
     } finally {

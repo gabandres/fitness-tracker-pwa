@@ -999,6 +999,19 @@
       "reportYesterday": "Generated yesterday",
       "reportNDaysAgo": "Generated {{n}} days ago"
     },
+    "settings": {
+      "about": "About",
+      "appVersion": "App version",
+      "build": "Build",
+      "checkForUpdates": "Check for updates",
+      "checking": "Checking…",
+      "updateUnavailable": "Updates unavailable in this environment.",
+      "updateFound": "Update found — reload prompt will appear shortly.",
+      "updateLatest": "You're on the latest version.",
+      "updateError": "Could not check.",
+      "changelog": "Changelog",
+      "themeProBadge": "Pro"
+    },
     "entrySheet": {
       "editTitle": "Edit entry",
       "addTitle": "Add food",

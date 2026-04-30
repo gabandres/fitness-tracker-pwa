@@ -1005,6 +1005,19 @@
       "reportYesterday": "Generado ayer",
       "reportNDaysAgo": "Generado hace {{n}} días"
     },
+    "settings": {
+      "about": "Acerca de",
+      "appVersion": "Versión de la app",
+      "build": "Build",
+      "checkForUpdates": "Buscar actualizaciones",
+      "checking": "Buscando…",
+      "updateUnavailable": "Las actualizaciones no están disponibles en este entorno.",
+      "updateFound": "Actualización encontrada — saldrá el prompt de recarga en breve.",
+      "updateLatest": "Estás en la última versión.",
+      "updateError": "No se pudo verificar.",
+      "changelog": "Changelog",
+      "themeProBadge": "Pro"
+    },
     "entrySheet": {
       "editTitle": "Editar entrada",
       "addTitle": "Añadir comida",
