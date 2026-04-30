@@ -9,7 +9,9 @@ import {
   signal,
 } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
+import { TranslationService } from '../../services/translation.service';
 import { localDateKey } from '../../utils/date';
 import { Measurement } from '../../services/firebase.service';
 import { V2Card } from '../ui/card.component';
@@ -21,11 +23,11 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
 
 const FAST_HOURS = 16;
 type MField = 'waist' | 'chest' | 'bicep' | 'hip';
-const M_FIELDS: { key: MField; label: string }[] = [
-  { key: 'waist', label: 'Waist' },
-  { key: 'chest', label: 'Chest' },
-  { key: 'bicep', label: 'Bicep' },
-  { key: 'hip', label: 'Hip' },
+const M_FIELDS: { key: MField; labelKey: string }[] = [
+  { key: 'waist', labelKey: 'v2.body.fieldWaist' },
+  { key: 'chest', labelKey: 'v2.body.fieldChest' },
+  { key: 'bicep', labelKey: 'v2.body.fieldBicep' },
+  { key: 'hip', labelKey: 'v2.body.fieldHip' },
 ];
 
 /**
@@ -41,6 +43,7 @@ const M_FIELDS: { key: MField; label: string }[] = [
   standalone: true,
   imports: [
     LucideAngularModule,
+    TranslocoDirective,
     V2Card,
     V2Button,
     V2IconButton,
@@ -50,27 +53,28 @@ const M_FIELDS: { key: MField; label: string }[] = [
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     <section class="max-w-[640px] mx-auto px-5 sm:px-6 pb-32 md:pb-12">
       <!-- Header -->
       <header class="flex items-start justify-between gap-4 pt-6 pb-2">
         <div>
-          <h1 class="v2-h1">Body</h1>
-          <p class="v2-caption mt-0.5">Weight, fasting, measurements</p>
+          <h1 class="v2-h1">{{ t('v2.body.title') }}</h1>
+          <p class="v2-caption mt-0.5">{{ t('v2.body.subtitle') }}</p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <v2-fasting-pill (bodyRequested)="bodyRequested.emit()" />
-          <v2-icon-button icon="calendar" ariaLabel="History" (click)="historyRequested.emit()" />
-          <v2-icon-button icon="settings" ariaLabel="Settings" (click)="settingsRequested.emit()" />
+          <v2-icon-button icon="calendar" [ariaLabel]="t('v2.body.historyAria')" (click)="historyRequested.emit()" />
+          <v2-icon-button icon="settings" [ariaLabel]="t('v2.body.settingsAria')" (click)="settingsRequested.emit()" />
         </div>
       </header>
 
       <!-- ── Weight ──────────────────────────────────────────── -->
       <v2-card variant="default" class="mt-6 block">
         <div class="flex items-baseline justify-between gap-3 mb-3">
-          <h2 class="v2-h2">Weight</h2>
+          <h2 class="v2-h2">{{ t('v2.body.weight') }}</h2>
           <v2-button variant="secondary" size="sm" (click)="openWeightSheet()">
             <lucide-icon name="plus" [size]="14" />
-            Log weight
+            {{ t('v2.body.logWeight') }}
           </v2-button>
         </div>
 
@@ -79,10 +83,10 @@ const M_FIELDS: { key: MField; label: string }[] = [
             <span class="v2-num" style="font-size: 2.5rem; line-height: 1; font-weight: 600;">
               {{ w.toFixed(1) }}
             </span>
-            <span class="v2-caption" style="font-size: 0.875rem;">lb</span>
+            <span class="v2-caption" style="font-size: 0.875rem;">{{ t('v2.body.lb') }}</span>
           } @else {
             <span class="v2-num" style="font-size: 2.5rem; line-height: 1; color: var(--v2-ink-muted);">—</span>
-            <span class="v2-caption" style="font-size: 0.875rem;">no weight logged</span>
+            <span class="v2-caption" style="font-size: 0.875rem;">{{ t('v2.body.noWeight') }}</span>
           }
         </div>
 
@@ -92,15 +96,15 @@ const M_FIELDS: { key: MField; label: string }[] = [
             [width]="280"
             [height]="56"
             tone="accent"
-            ariaLabel="14-day weight trend" />
+            [ariaLabel]="t('v2.body.weightTrendAria')" />
         </div>
 
         @if (goal(); as g) {
           <div class="mt-5">
             <div class="flex items-center justify-between v2-caption mb-1.5">
-              <span>{{ g.startWeight.toFixed(1) }} lb</span>
+              <span>{{ g.startWeight.toFixed(1) }} {{ t('v2.body.lb') }}</span>
               <span style="color: var(--v2-ink)">{{ g.pct }}%</span>
-              <span>{{ g.goalWeight.toFixed(1) }} lb</span>
+              <span>{{ g.goalWeight.toFixed(1) }} {{ t('v2.body.lb') }}</span>
             </div>
             <div class="v2-progress" role="progressbar"
               [attr.aria-valuemin]="0"
@@ -109,7 +113,7 @@ const M_FIELDS: { key: MField; label: string }[] = [
               <div class="v2-progress__fill" [style.width.%]="g.pct"></div>
             </div>
             <p class="v2-caption mt-1.5">
-              {{ g.remaining > 0 ? g.remaining.toFixed(1) + ' lb to go' : 'Goal reached' }}
+              {{ g.remaining > 0 ? t('v2.body.remaining', { n: g.remaining.toFixed(1) }) : t('v2.body.goalReached') }}
             </p>
           </div>
         }
@@ -119,11 +123,11 @@ const M_FIELDS: { key: MField; label: string }[] = [
           size="sm"
           [block]="true"
           [disabled]="true"
-          ariaLabel="Take photo (coming soon)">
+          [ariaLabel]="t('v2.body.takePhotoComingAria')">
           <span title="Coming in v2.0" style="display:inline-flex; align-items:center; gap:6px;">
             <lucide-icon name="camera" [size]="14" />
-            Take photo
-            <span class="v2-caption" style="opacity: 0.6;">Soon</span>
+            {{ t('v2.body.takePhoto') }}
+            <span class="v2-caption" style="opacity: 0.6;">{{ t('v2.body.takePhotoSoon') }}</span>
           </span>
         </v2-button>
       </v2-card>
@@ -131,11 +135,11 @@ const M_FIELDS: { key: MField; label: string }[] = [
       <!-- ── Fasting ─────────────────────────────────────────── -->
       <v2-card variant="default" class="mt-4 block">
         <div class="flex items-baseline justify-between gap-3">
-          <h2 class="v2-h2">Fasting</h2>
+          <h2 class="v2-h2">{{ t('v2.body.fasting') }}</h2>
           @if (store.isFasting()) {
-            <span class="v2-num" style="font-size: 0.8125rem; color: var(--v2-sage); font-weight: 600;">Active</span>
+            <span class="v2-num" style="font-size: 0.8125rem; color: var(--v2-sage); font-weight: 600;">{{ t('v2.body.active') }}</span>
           } @else {
-            <span class="v2-caption">Idle</span>
+            <span class="v2-caption">{{ t('v2.body.idle') }}</span>
           }
         </div>
 
@@ -159,7 +163,7 @@ const M_FIELDS: { key: MField; label: string }[] = [
                 {{ store.isFasting() ? elapsedDisplay() : '—' }}
               </span>
               <span class="v2-caption" style="font-size: 0.6875rem; margin-top: 2px;">
-                {{ store.isFasting() ? 'of ' + FAST_HOURS + 'h' : FAST_HOURS + 'h target' }}
+                {{ store.isFasting() ? t('v2.body.ofHours', { n: FAST_HOURS }) : t('v2.body.hourTarget', { n: FAST_HOURS }) }}
               </span>
             </div>
           </div>
@@ -168,25 +172,25 @@ const M_FIELDS: { key: MField; label: string }[] = [
             @if (store.isFasting()) {
               @if (!editing()) {
                 <p class="v2-caption text-center mb-3" style="font-size: 0.75rem;">
-                  Started at {{ startTimeLabel() }}
+                  {{ t('v2.body.startedAt', { time: startTimeLabel() }) }}
                   <button type="button" (click)="beginEdit()"
-                    aria-label="Edit fast start time"
+                    [attr.aria-label]="t('v2.body.editStartAria')"
                     class="ml-1 underline"
                     style="background: none; border: none; padding: 0; cursor: pointer; color: var(--v2-ink-muted); font: inherit;">
-                    Edit
+                    {{ t('v2.body.edit') }}
                   </button>
                 </p>
                 <v2-button variant="destructive" [block]="true" (click)="endFast()">
-                  End fast
+                  {{ t('v2.body.endFast') }}
                 </v2-button>
               } @else {
                 <p class="v2-caption text-center mb-2" style="font-size: 0.75rem;">
-                  When did this fast actually start?
+                  {{ t('v2.body.editStartActivePrompt') }}
                 </p>
                 <div class="flex items-center justify-center mb-2">
                   <input type="time" [value]="editValue()"
                     (input)="editValue.set($any($event.target).value)"
-                    aria-label="Fast start time"
+                    [attr.aria-label]="t('v2.body.fastStartTimeAria')"
                     [attr.aria-invalid]="editError() ? 'true' : null"
                     [attr.aria-describedby]="editError() ? 'v2-fast-edit-error' : null"
                     class="v2-num"
@@ -200,31 +204,31 @@ const M_FIELDS: { key: MField; label: string }[] = [
                   </p>
                 }
                 <div class="flex items-center justify-center gap-2">
-                  <v2-button variant="ghost" (click)="cancelEdit()">Cancel</v2-button>
-                  <v2-button variant="primary" (click)="commitEdit()">Save</v2-button>
+                  <v2-button variant="ghost" (click)="cancelEdit()">{{ t('v2.body.cancel') }}</v2-button>
+                  <v2-button variant="primary" (click)="commitEdit()">{{ t('v2.body.save') }}</v2-button>
                 </div>
               }
             } @else {
               @if (!editing()) {
                 <v2-button variant="primary" [block]="true" (click)="startFast()">
                   <lucide-icon name="timer" [size]="16" />
-                  Start fast
+                  {{ t('v2.body.startFast') }}
                 </v2-button>
                 <p class="text-center mt-2">
                   <button type="button" (click)="beginEdit()"
                     class="v2-caption underline"
                     style="background: none; border: none; padding: 0; cursor: pointer; color: var(--v2-ink-muted); font-size: 0.75rem;">
-                    Started earlier?
+                    {{ t('v2.body.startedEarlier') }}
                   </button>
                 </p>
               } @else {
                 <p class="v2-caption text-center mb-2" style="font-size: 0.75rem;">
-                  When did your fast actually start?
+                  {{ t('v2.body.editStartIdlePrompt') }}
                 </p>
                 <div class="flex items-center justify-center mb-2">
                   <input type="time" [value]="editValue()"
                     (input)="editValue.set($any($event.target).value)"
-                    aria-label="Fast start time"
+                    [attr.aria-label]="t('v2.body.fastStartTimeAria')"
                     [attr.aria-invalid]="editError() ? 'true' : null"
                     [attr.aria-describedby]="editError() ? 'v2-fast-edit-error' : null"
                     class="v2-num"
@@ -238,8 +242,8 @@ const M_FIELDS: { key: MField; label: string }[] = [
                   </p>
                 }
                 <div class="flex items-center justify-center gap-2">
-                  <v2-button variant="ghost" (click)="cancelEdit()">Cancel</v2-button>
-                  <v2-button variant="primary" (click)="commitEdit()">Start fast</v2-button>
+                  <v2-button variant="ghost" (click)="cancelEdit()">{{ t('v2.body.cancel') }}</v2-button>
+                  <v2-button variant="primary" (click)="commitEdit()">{{ t('v2.body.startFast') }}</v2-button>
                 </div>
               }
             }
@@ -257,7 +261,7 @@ const M_FIELDS: { key: MField; label: string }[] = [
           aria-controls="measurements-panel"
           (click)="toggleExpanded()">
           <div class="flex items-baseline gap-3">
-            <h2 class="v2-h2">Measurements</h2>
+            <h2 class="v2-h2">{{ t('v2.body.measurements') }}</h2>
             <span class="v2-caption">{{ summaryLabel() }}</span>
           </div>
           <lucide-icon
@@ -285,7 +289,7 @@ const M_FIELDS: { key: MField; label: string }[] = [
                         }
                       </div>
                       <div class="v2-caption mt-0.5" style="font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.06em;">
-                        {{ f.label }}
+                        {{ t(f.labelKey) }}
                       </div>
                     </div>
                   }
@@ -299,7 +303,7 @@ const M_FIELDS: { key: MField; label: string }[] = [
                   @for (f of M_FIELDS; track f.key) {
                     <div>
                       <label class="v2-caption block mb-1" style="text-transform: uppercase; letter-spacing: 0.06em;">
-                        {{ f.label }} (in)
+                        {{ t('v2.body.fieldUnit', { label: t(f.labelKey) }) }}
                       </label>
                       <input
                         type="number"
@@ -315,16 +319,16 @@ const M_FIELDS: { key: MField; label: string }[] = [
                   <p class="v2-caption" role="alert" style="color: var(--v2-danger)">{{ formError() }}</p>
                 }
                 <div class="flex gap-2 pt-1">
-                  <v2-button variant="ghost" (click)="cancelMeasurement()">Cancel</v2-button>
+                  <v2-button variant="ghost" (click)="cancelMeasurement()">{{ t('v2.body.cancel') }}</v2-button>
                   <v2-button type="submit" variant="primary" [block]="true" [disabled]="saving()">
-                    @if (saving()) { Saving… } @else { Save }
+                    @if (saving()) { {{ t('v2.body.saving') }} } @else { {{ t('v2.body.save') }} }
                   </v2-button>
                 </div>
               </form>
             } @else {
               <v2-button variant="secondary" size="sm" [block]="true" (click)="openMeasurementForm()">
                 <lucide-icon name="plus" [size]="14" />
-                Add measurement
+                {{ t('v2.body.addMeasurement') }}
               </v2-button>
             }
           </div>
@@ -337,10 +341,12 @@ const M_FIELDS: { key: MField; label: string }[] = [
         [dateKey]="todayKey()"
         (close)="weightSheetOpen.set(false)" />
     </section>
+    </ng-container>
   `,
 })
 export class BodyV2Component implements OnInit, OnDestroy {
   protected readonly store = inject(FitnessStore);
+  private readonly translation = inject(TranslationService);
 
   readonly historyRequested = output<void>();
   readonly settingsRequested = output<void>();
@@ -415,16 +421,19 @@ export class BodyV2Component implements OnInit, OnDestroy {
   protected readonly startTimeLabel = computed(() => {
     const start = this.store.fastStartedAt();
     if (!start) return '';
+    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
     return start
-      .toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      .toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
       .toLowerCase();
   });
 
   protected readonly summaryLabel = computed(() => {
     const m = this.store.latestMeasurement();
-    if (!m) return 'None yet';
+    if (!m) return this.translation.t('v2.body.measurementsNone');
     const d = new Date(m.date);
-    return 'Last logged ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    const date = d.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
+    return this.translation.t('v2.body.measurementsLastLogged', { date });
   });
 
   ngOnInit(): void {
@@ -472,7 +481,7 @@ export class BodyV2Component implements OnInit, OnDestroy {
       if (vals[f.key] != null) entry[f.key] = vals[f.key]!;
     }
     if (entry.waist == null && entry.chest == null && entry.bicep == null && entry.hip == null) {
-      this.formError.set('Enter at least one measurement.');
+      this.formError.set(this.translation.t('v2.body.measurementError'));
       this.haptic(50);
       return;
     }
@@ -525,7 +534,7 @@ export class BodyV2Component implements OnInit, OnDestroy {
   protected async commitEdit(): Promise<void> {
     const parsed = this.parseEditValue(this.editValue());
     if (!parsed) {
-      this.editError.set('Enter a valid time within the last 48 hours.');
+      this.editError.set(this.translation.t('v2.body.editStartInvalid'));
       this.haptic(50);
       return;
     }
