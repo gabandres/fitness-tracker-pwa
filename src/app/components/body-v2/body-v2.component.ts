@@ -166,14 +166,82 @@ const M_FIELDS: { key: MField; label: string }[] = [
 
           <div class="mt-5 w-full">
             @if (store.isFasting()) {
-              <v2-button variant="destructive" [block]="true" (click)="endFast()">
-                End fast
-              </v2-button>
+              @if (!editing()) {
+                <p class="v2-caption text-center mb-3" style="font-size: 0.75rem;">
+                  Started at {{ startTimeLabel() }}
+                  <button type="button" (click)="beginEdit()"
+                    aria-label="Edit fast start time"
+                    class="ml-1 underline"
+                    style="background: none; border: none; padding: 0; cursor: pointer; color: var(--v2-ink-muted); font: inherit;">
+                    Edit
+                  </button>
+                </p>
+                <v2-button variant="destructive" [block]="true" (click)="endFast()">
+                  End fast
+                </v2-button>
+              } @else {
+                <p class="v2-caption text-center mb-2" style="font-size: 0.75rem;">
+                  When did this fast actually start?
+                </p>
+                <div class="flex items-center justify-center mb-2">
+                  <input type="time" [value]="editValue()"
+                    (input)="editValue.set($any($event.target).value)"
+                    aria-label="Fast start time"
+                    [attr.aria-invalid]="editError() ? 'true' : null"
+                    [attr.aria-describedby]="editError() ? 'v2-fast-edit-error' : null"
+                    class="v2-num"
+                    style="font-size: 1rem; padding: 8px 12px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); background: var(--v2-paper); color: var(--v2-ink); min-height: var(--v2-tap-min);" />
+                </div>
+                @if (editError()) {
+                  <p id="v2-fast-edit-error" role="alert"
+                    class="v2-caption text-center mb-2"
+                    style="font-size: 0.75rem; color: var(--v2-danger);">
+                    {{ editError() }}
+                  </p>
+                }
+                <div class="flex items-center justify-center gap-2">
+                  <v2-button variant="ghost" (click)="cancelEdit()">Cancel</v2-button>
+                  <v2-button variant="primary" (click)="commitEdit()">Save</v2-button>
+                </div>
+              }
             } @else {
-              <v2-button variant="primary" [block]="true" (click)="startFast()">
-                <lucide-icon name="timer" [size]="16" />
-                Start fast
-              </v2-button>
+              @if (!editing()) {
+                <v2-button variant="primary" [block]="true" (click)="startFast()">
+                  <lucide-icon name="timer" [size]="16" />
+                  Start fast
+                </v2-button>
+                <p class="text-center mt-2">
+                  <button type="button" (click)="beginEdit()"
+                    class="v2-caption underline"
+                    style="background: none; border: none; padding: 0; cursor: pointer; color: var(--v2-ink-muted); font-size: 0.75rem;">
+                    Started earlier?
+                  </button>
+                </p>
+              } @else {
+                <p class="v2-caption text-center mb-2" style="font-size: 0.75rem;">
+                  When did your fast actually start?
+                </p>
+                <div class="flex items-center justify-center mb-2">
+                  <input type="time" [value]="editValue()"
+                    (input)="editValue.set($any($event.target).value)"
+                    aria-label="Fast start time"
+                    [attr.aria-invalid]="editError() ? 'true' : null"
+                    [attr.aria-describedby]="editError() ? 'v2-fast-edit-error' : null"
+                    class="v2-num"
+                    style="font-size: 1rem; padding: 8px 12px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); background: var(--v2-paper); color: var(--v2-ink); min-height: var(--v2-tap-min);" />
+                </div>
+                @if (editError()) {
+                  <p id="v2-fast-edit-error" role="alert"
+                    class="v2-caption text-center mb-2"
+                    style="font-size: 0.75rem; color: var(--v2-danger);">
+                    {{ editError() }}
+                  </p>
+                }
+                <div class="flex items-center justify-center gap-2">
+                  <v2-button variant="ghost" (click)="cancelEdit()">Cancel</v2-button>
+                  <v2-button variant="primary" (click)="commitEdit()">Start fast</v2-button>
+                </div>
+              }
             }
           </div>
         </div>
@@ -281,11 +349,19 @@ export class BodyV2Component implements OnInit, OnDestroy {
   protected readonly FAST_HOURS = FAST_HOURS;
   protected readonly M_FIELDS = M_FIELDS;
   protected readonly fastCircumference = 2 * Math.PI * 52;
+  // Backdating beyond 48h would already be past any plausible fasting window.
+  private readonly MAX_BACKDATE_HOURS = 48;
 
   protected readonly todayKey = signal(localDateKey(new Date()));
   protected readonly weightSheetOpen = signal(false);
   protected readonly expanded = signal(false);
   protected readonly formOpen = signal(false);
+
+  // Inline fasting start-time editor — used both to backdate a new fast
+  // ("started earlier") and to correct the start of an active one.
+  protected readonly editing = signal(false);
+  protected readonly editValue = signal('');
+  protected readonly editError = signal('');
   protected readonly formValues = signal<Record<MField, number | null>>({
     waist: null, chest: null, bicep: null, hip: null,
   });
@@ -334,6 +410,14 @@ export class BodyV2Component implements OnInit, OnDestroy {
   protected readonly fastDashOffset = computed(() => {
     const fraction = Math.min(1, this.elapsedHours() / FAST_HOURS);
     return this.fastCircumference * (1 - fraction);
+  });
+
+  protected readonly startTimeLabel = computed(() => {
+    const start = this.store.fastStartedAt();
+    if (!start) return '';
+    return start
+      .toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      .toLowerCase();
   });
 
   protected readonly summaryLabel = computed(() => {
@@ -423,6 +507,60 @@ export class BodyV2Component implements OnInit, OnDestroy {
   protected async endFast(): Promise<void> {
     this.haptic(50);
     await this.store.breakFast();
+  }
+
+  protected beginEdit(): void {
+    this.haptic(10);
+    const start = this.store.fastStartedAt() ?? new Date();
+    this.editValue.set(this.toTimeInputValue(start));
+    this.editError.set('');
+    this.editing.set(true);
+  }
+
+  protected cancelEdit(): void {
+    this.editing.set(false);
+    this.editError.set('');
+  }
+
+  protected async commitEdit(): Promise<void> {
+    const parsed = this.parseEditValue(this.editValue());
+    if (!parsed) {
+      this.editError.set('Enter a valid time within the last 48 hours.');
+      this.haptic(50);
+      return;
+    }
+    this.haptic(30);
+    await this.store.startFast(parsed);
+    this.editing.set(false);
+    this.editError.set('');
+  }
+
+  private toTimeInputValue(d: Date): string {
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
+  /**
+   * Parse "HH:MM" as "today at that local time". If that's later than now,
+   * roll back to yesterday (handles late-night entries like 5:15pm at 1am).
+   * Reject anything older than MAX_BACKDATE_HOURS.
+   */
+  private parseEditValue(v: string): Date | null {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim());
+    if (!m) return null;
+    const hh = Number(m[1]);
+    const mm = Number(m[2]);
+    if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+    const now = new Date();
+    const candidate = new Date(now);
+    candidate.setHours(hh, mm, 0, 0);
+    if (candidate.getTime() > now.getTime()) {
+      candidate.setDate(candidate.getDate() - 1);
+      // Re-apply wall-clock so a DST boundary doesn't shift the hour by ±1.
+      candidate.setHours(hh, mm, 0, 0);
+    }
+    const ageMs = now.getTime() - candidate.getTime();
+    if (ageMs > this.MAX_BACKDATE_HOURS * 60 * 60 * 1000) return null;
+    return candidate;
   }
 
   private haptic(ms: number): void {
