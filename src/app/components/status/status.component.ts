@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Firestore, doc, getDoc, Timestamp } from '@angular/fire/firestore';
 import { TranslationService } from '../../services/translation.service';
+import { V2Card } from '../ui/card.component';
 
 type Health = 'healthy' | 'degraded' | 'down' | 'unknown';
 type FetchStatus = 'loading' | 'ready' | 'error';
@@ -20,59 +21,60 @@ type FetchStatus = 'loading' | 'ready' | 'error';
 @Component({
   selector: 'app-status',
   standalone: true,
-  imports: [TranslocoDirective],
+  imports: [TranslocoDirective, V2Card],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     <section class="max-w-[640px] mx-auto">
-      <a href="/" class="caption text-xs underline decoration-dotted hover:text-blood">
+      <a href="/" class="v2-caption" style="text-decoration: underline; text-decoration-style: dotted;">
         {{ t('status.backLink') }}
       </a>
 
-      <div class="mt-6 flex items-center gap-3 mb-1">
-        <span class="stamp-mark">{{ t('status.stamp') }}</span>
-        <span class="data-label">{{ t('status.section') }}</span>
-      </div>
-      <h1 class="font-display text-4xl sm:text-5xl leading-[0.95] tracking-tight text-ink">
-        {{ t('status.titleLead') }}<br/><em class="text-blood">{{ t('status.titleEm') }}</em>
+      <p class="v2-caption mt-6" style="text-transform: uppercase; letter-spacing: 0.08em;">
+        {{ t('status.section') }}
+      </p>
+      <h1 class="v2-h1 mt-1" style="font-size: 2.5rem; line-height: 1.05;">
+        {{ t('status.titleLead') }}
+        <em style="color: var(--v2-accent); font-style: normal;">{{ t('status.titleEm') }}</em>
       </h1>
-      <p class="caption mt-3 text-xs">{{ t('status.subtitle') }}</p>
+      <p class="v2-caption mt-3">{{ t('status.subtitle') }}</p>
 
       <!-- Overall health summary -->
-      <div class="mt-8 specimen px-5 py-5 relative"
-        [style.border-color]="badgeColor()">
-        <span class="crop-bl" [style.border-color]="badgeColor()"></span>
-        <span class="crop-br" [style.border-color]="badgeColor()"></span>
+      <v2-card variant="default" class="block mt-8" [style.border-color]="badgeColor()">
         <div class="flex items-center gap-3">
           <span class="inline-block w-3 h-3 rounded-full"
             [style.background]="badgeColor()"
             aria-hidden="true"></span>
-          <span class="font-display text-2xl" [style.color]="badgeColor()">
+          <span class="v2-h2" [style.color]="badgeColor()">
             {{ t('status.label.' + health()) }}
           </span>
         </div>
-        <p class="caption mt-2 text-[11px] leading-relaxed">
+        <p class="v2-caption mt-2">
           {{ t('status.summary.' + health()) }}
         </p>
-      </div>
+      </v2-card>
 
       <!-- Service checks -->
-      <ul class="mt-6 space-y-0">
-        <li class="flex items-center justify-between gap-3 py-3 border-b border-rule/40">
-          <span class="font-sans text-sm text-ink">{{ t('status.service.hosting') }}</span>
-          <span class="font-mono text-[11px] uppercase tracking-widest"
-            style="color: var(--color-olive)">{{ t('status.state.up') }}</span>
+      <ul class="mt-6">
+        <li class="flex items-center justify-between gap-3 py-3"
+          style="border-bottom: 1px solid var(--v2-rule);">
+          <span class="v2-body">{{ t('status.service.hosting') }}</span>
+          <span class="v2-num" style="font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--v2-sage); font-weight: 600;">
+            {{ t('status.state.up') }}
+          </span>
         </li>
-        <li class="flex items-center justify-between gap-3 py-3 border-b border-rule/40">
-          <span class="font-sans text-sm text-ink">{{ t('status.service.firestore') }}</span>
-          <span class="font-mono text-[11px] uppercase tracking-widest"
-            [style.color]="fetchStatus() === 'ready' ? 'var(--color-olive)' : 'var(--color-blood)'">
+        <li class="flex items-center justify-between gap-3 py-3"
+          style="border-bottom: 1px solid var(--v2-rule);">
+          <span class="v2-body">{{ t('status.service.firestore') }}</span>
+          <span class="v2-num" style="font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 600;"
+            [style.color]="fetchStatus() === 'ready' ? 'var(--v2-sage)' : 'var(--v2-danger)'">
             {{ fetchStatus() === 'ready' ? t('status.state.up') : t('status.state.unreachable') }}
           </span>
         </li>
-        <li class="flex items-center justify-between gap-3 py-3 border-b border-rule/40">
-          <span class="font-sans text-sm text-ink">{{ t('status.service.scheduler') }}</span>
-          <span class="font-mono text-[11px] uppercase tracking-widest"
+        <li class="flex items-center justify-between gap-3 py-3"
+          style="border-bottom: 1px solid var(--v2-rule);">
+          <span class="v2-body">{{ t('status.service.scheduler') }}</span>
+          <span class="v2-num" style="font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 600;"
             [style.color]="badgeColor()">
             {{ t('status.label.' + health()) }}
           </span>
@@ -81,17 +83,17 @@ type FetchStatus = 'loading' | 'ready' | 'error';
 
       <!-- Last pulse timestamp -->
       @if (fetchStatus() === 'ready' && lastPulseAt()) {
-        <p class="caption mt-6 text-[11px]">
+        <p class="v2-caption mt-6">
           {{ t('status.lastPulse', { ago: ageLabel() }) }}
         </p>
       } @else if (fetchStatus() === 'error') {
-        <p class="caption mt-6 text-[11px]" role="alert" style="color: var(--color-blood)">
+        <p class="v2-caption mt-6" role="alert" style="color: var(--v2-danger);">
           {{ t('status.fetchError') }}
         </p>
       }
 
-      <p class="caption mt-6 text-[11px]">
-        <a href="/changelog" class="underline decoration-dotted hover:text-blood">
+      <p class="v2-caption mt-6">
+        <a href="/changelog" style="text-decoration: underline; text-decoration-style: dotted;">
           {{ t('status.changelogLink') }}
         </a>
       </p>
@@ -121,10 +123,10 @@ export class StatusComponent {
 
   protected readonly badgeColor = computed(() => {
     switch (this.health()) {
-      case 'healthy':  return 'var(--color-olive)';
-      case 'degraded': return 'var(--color-gold)';
-      case 'down':     return 'var(--color-blood)';
-      default:         return 'var(--color-graphite)';
+      case 'healthy':  return 'var(--v2-sage)';
+      case 'degraded': return 'var(--v2-accent)';
+      case 'down':     return 'var(--v2-danger)';
+      default:         return 'var(--v2-ink-muted)';
     }
   });
 

@@ -22,73 +22,31 @@ type FetchStatus = 'loading' | 'ready' | 'error';
   template: `
     <ng-container *transloco="let t">
     <section class="max-w-[720px] mx-auto">
-      <a href="/" class="caption text-xs underline decoration-dotted hover:text-blood">
+      <a href="/" class="v2-caption" style="text-decoration: underline; text-decoration-style: dotted;">
         {{ t('changelog.backLink') }}
       </a>
 
-      <div class="mt-6 flex items-center gap-3 mb-1">
-        <span class="stamp-mark">{{ t('changelog.stamp') }}</span>
-        <span class="data-label">{{ t('changelog.section') }}</span>
-      </div>
-      <h1 class="font-display text-4xl sm:text-5xl leading-[0.95] tracking-tight text-ink">
-        {{ t('changelog.titleLead') }}<br/><em class="text-blood">{{ t('changelog.titleEm') }}</em>
+      <p class="v2-caption mt-6" style="text-transform: uppercase; letter-spacing: 0.08em;">
+        {{ t('changelog.section') }}
+      </p>
+      <h1 class="v2-h1 mt-1" style="font-size: 2.5rem; line-height: 1.05;">
+        {{ t('changelog.titleLead') }}
+        <em style="color: var(--v2-accent); font-style: normal;">{{ t('changelog.titleEm') }}</em>
       </h1>
-      <p class="caption mt-3 text-xs">{{ t('changelog.subtitle') }}</p>
+      <p class="v2-caption mt-3">{{ t('changelog.subtitle') }}</p>
 
       @if (status() === 'loading') {
-        <p class="caption mt-10 text-center">{{ t('changelog.loading') }}</p>
+        <p class="v2-caption mt-10 text-center">{{ t('changelog.loading') }}</p>
       } @else if (status() === 'error') {
-        <p class="caption mt-10 text-center" role="alert" style="color: var(--color-blood)">
+        <p class="v2-caption mt-10 text-center" role="alert" style="color: var(--v2-danger);">
           {{ t('changelog.error') }}
         </p>
       } @else {
-        <article class="mt-8 prose-field changelog-body text-ink leading-relaxed"
-          [innerHTML]="html()"></article>
+        <article class="mt-8 v2-prose v2-prose--changelog" [innerHTML]="html()"></article>
       }
     </section>
     </ng-container>
   `,
-  styles: [`
-    /* Scoped rendering for marked's output. The app otherwise avoids
-       generic markdown styling (most markdown is rendered via our own
-       AI-report pipeline in dashboard), so we paint it in here where
-       only the changelog uses it. */
-    .changelog-body :is(h2) {
-      font-family: var(--font-display);
-      font-style: italic;
-      font-size: 1.5rem;
-      color: var(--color-blood);
-      margin-top: 2rem;
-      margin-bottom: 0.5rem;
-    }
-    .changelog-body :is(h3) {
-      font-family: var(--font-display);
-      font-size: 1.125rem;
-      color: var(--color-ink);
-      margin-top: 1.25rem;
-      margin-bottom: 0.5rem;
-    }
-    .changelog-body :is(p) { margin: 0.5rem 0; }
-    .changelog-body :is(ul, ol) { margin: 0.5rem 0 0.75rem 1.25rem; }
-    .changelog-body :is(li) { margin: 0.25rem 0; }
-    .changelog-body :is(code) {
-      font-family: var(--font-mono);
-      font-size: 0.9em;
-      background: var(--color-paper-deep);
-      padding: 0.1em 0.35em;
-      border-radius: 3px;
-    }
-    .changelog-body :is(a) {
-      color: var(--color-blood);
-      text-decoration: underline;
-      text-decoration-style: dotted;
-    }
-    .changelog-body :is(hr) {
-      border: 0;
-      border-top: 1px dashed var(--color-aged);
-      margin: 2rem 0;
-    }
-  `],
 })
 export class ChangelogComponent {
   protected readonly status = signal<FetchStatus>('loading');

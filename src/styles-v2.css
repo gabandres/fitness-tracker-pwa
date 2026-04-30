@@ -458,3 +458,25 @@
 [data-ui="v2"] .v2-prose pre { padding: var(--v2-space-3); overflow-x: auto; font-size: 0.8125rem; }
 [data-ui="v2"] .v2-prose strong { font-weight: 600; }
 [data-ui="v2"] .v2-prose hr { border: none; border-top: 1px solid var(--v2-rule); margin: var(--v2-space-5) 0; }
+/* H2/H3 default styling for marked() output where we can't add classes
+   inline (changelog). For pages that hand-author headings, prefer
+   <h2 class="v2-h2"> with inline color so the cascade above doesn't
+   override deliberate accent coloring. */
+[data-ui="v2"] .v2-prose > h2 {
+  font-family: var(--v2-font-sans);
+  font-size: 1.375rem;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--v2-accent);
+  margin: var(--v2-space-5) 0 var(--v2-space-2) 0;
+}
+[data-ui="v2"] .v2-prose > h3 {
+  font-family: var(--v2-font-sans);
+  font-size: 1.0625rem;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--v2-ink);
+  margin: var(--v2-space-4) 0 var(--v2-space-2) 0;
+}
