@@ -4,6 +4,7 @@ import {
   computed,
   inject,
   input,
+  signal,
 } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
 import { FitnessStore } from '../../services/fitness-store.service';
@@ -121,17 +122,53 @@ import { V2Ring } from './ring.component';
       <div class="flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
           <lucide-icon name="droplets" [size]="18" style="color: var(--v2-ink-muted)" />
-          <span class="v2-body-soft">
-            Water · <span class="v2-num" style="color: var(--v2-ink); font-weight: 500;">{{ waterDisplay() }}</span>
-          </span>
+          @if (editable()) {
+            <button
+              type="button"
+              class="v2-body-soft"
+              style="background: none; border: none; padding: 0; cursor: pointer; text-align: left;"
+              [attr.aria-label]="'Edit water · current ' + waterDisplay()"
+              (click)="openWaterEditor()">
+              Water · <span class="v2-num" style="color: var(--v2-ink); font-weight: 500;">{{ waterDisplay() }}</span>
+              <lucide-icon name="pencil" [size]="12" style="color: var(--v2-ink-muted); margin-left: 4px;" />
+            </button>
+          } @else {
+            <span class="v2-body-soft">
+              Water · <span class="v2-num" style="color: var(--v2-ink); font-weight: 500;">{{ waterDisplay() }}</span>
+            </span>
+          }
         </div>
       </div>
       @if (editable()) {
-        <div class="flex flex-wrap gap-2 mt-3">
-          <v2-button variant="ghost" size="sm" (click)="addWater(250)">+250 ml</v2-button>
-          <v2-button variant="ghost" size="sm" (click)="addWater(500)">+500 ml</v2-button>
-          <v2-button variant="ghost" size="sm" (click)="addWater(1000)">+1 L</v2-button>
-        </div>
+        @if (editingWater()) {
+          <div class="mt-3 space-y-2">
+            <label class="v2-caption block" style="text-transform: uppercase; letter-spacing: 0.06em;">
+              Set exact (ml)
+            </label>
+            <div class="flex flex-wrap gap-2 items-center">
+              <input
+                type="number"
+                inputmode="numeric"
+                step="50"
+                min="0"
+                max="20000"
+                class="v2-field v2-field--num"
+                style="max-width: 140px;"
+                [value]="waterEditInput() ?? ''"
+                (input)="onWaterInput($event)"
+                (keydown.enter)="saveWater()" />
+              <v2-button variant="primary" size="sm" (click)="saveWater()">Save</v2-button>
+              <v2-button variant="ghost" size="sm" (click)="cancelWaterEdit()">Cancel</v2-button>
+              <v2-button variant="ghost" size="sm" (click)="clearWater()">Clear</v2-button>
+            </div>
+          </div>
+        } @else {
+          <div class="flex flex-wrap gap-2 mt-3">
+            <v2-button variant="ghost" size="sm" (click)="addWater(250)">+250 ml</v2-button>
+            <v2-button variant="ghost" size="sm" (click)="addWater(500)">+500 ml</v2-button>
+            <v2-button variant="ghost" size="sm" (click)="addWater(1000)">+1 L</v2-button>
+          </div>
+        }
       }
     </v2-card>
   `,
@@ -202,6 +239,41 @@ export class V2DaySummary {
     if (!this.editable()) return;
     this.haptic(10);
     void this.store.addWater(this.dateKey(), deltaMl);
+  }
+
+  protected readonly editingWater = signal(false);
+  protected readonly waterEditInput = signal<number | null>(null);
+
+  protected openWaterEditor(): void {
+    if (!this.editable()) return;
+    this.haptic(10);
+    this.waterEditInput.set(this.waterMl());
+    this.editingWater.set(true);
+  }
+
+  protected onWaterInput(e: Event): void {
+    const v = (e.target as HTMLInputElement).value;
+    if (v === '') { this.waterEditInput.set(null); return; }
+    const n = Number(v);
+    this.waterEditInput.set(Number.isNaN(n) ? null : n);
+  }
+
+  protected saveWater(): void {
+    const n = this.waterEditInput();
+    if (n == null || n < 0) return;
+    this.haptic(30);
+    void this.store.setDailyWater(this.dateKey(), Math.round(n));
+    this.editingWater.set(false);
+  }
+
+  protected clearWater(): void {
+    this.haptic(30);
+    void this.store.setDailyWater(this.dateKey(), 0);
+    this.editingWater.set(false);
+  }
+
+  protected cancelWaterEdit(): void {
+    this.editingWater.set(false);
   }
 
   private haptic(ms: number): void {
