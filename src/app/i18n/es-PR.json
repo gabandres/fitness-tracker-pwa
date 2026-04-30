@@ -1017,7 +1017,7 @@
       "todaysFood": "Comida de hoy",
       "food": "Comida",
       "untitled": "Sin título",
-      "proGrams": "{{n}}g pro",
+      "proGrams": "{{n}}g prot",
       "kcalUnit": "kcal",
       "editEntryAria": "Editar {{label}}, {{kcal}} kcal",
       "entryFallback": "entrada",
@@ -1051,7 +1051,7 @@
     "settings": {
       "about": "Acerca de",
       "appVersion": "Versión de la app",
-      "build": "Build",
+      "build": "Compilación",
       "checkForUpdates": "Buscar actualizaciones",
       "checking": "Buscando…",
       "updateUnavailable": "Las actualizaciones no están disponibles en este entorno.",
