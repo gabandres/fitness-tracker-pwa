@@ -8,8 +8,10 @@ import {
   signal,
 } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
+import { TranslationService } from '../../services/translation.service';
 import { localDateKey, parseYmd } from '../../utils/date';
 import { V2DaySummary } from '../ui/day-summary.component';
 import { V2Fab } from '../ui/fab.component';
@@ -33,6 +35,7 @@ import { V2WeightSheet } from '../ui/weight-sheet.component';
   standalone: true,
   imports: [
     LucideAngularModule,
+    TranslocoDirective,
     V2DaySummary,
     V2Fab,
     V2IconButton,
@@ -43,19 +46,20 @@ import { V2WeightSheet } from '../ui/weight-sheet.component';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     <section class="max-w-[640px] mx-auto px-5 sm:px-6 pb-32 md:pb-12">
       <header class="flex items-start justify-between gap-4 pt-6 pb-2">
         <div class="flex items-center gap-2 min-w-0">
           <v2-icon-button
             icon="arrow-left"
-            ariaLabel="Back to history"
+            [ariaLabel]="t('v2.dayDetail.backAria')"
             (click)="closeRequested.emit()" />
           <div class="min-w-0">
             <h1 class="v2-h1 truncate">{{ dateLabel() }}</h1>
             @if (showStreak()) {
               <div class="flex items-center gap-1.5 mt-0.5 v2-caption" style="color: var(--v2-accent)">
                 <lucide-icon name="flame" [size]="14" />
-                <span>{{ streak() }} day streak</span>
+                <span>{{ t('v2.dayDetail.dayStreak', { n: streak() }) }}</span>
               </div>
             }
           </div>
@@ -70,26 +74,26 @@ import { V2WeightSheet } from '../ui/weight-sheet.component';
       @if (!isFuture()) {
         <v2-card variant="default" class="mt-4 block">
           <div class="flex items-baseline justify-between gap-3">
-            <h2 class="v2-h2">Weight</h2>
+            <h2 class="v2-h2">{{ t('v2.dayDetail.weight') }}</h2>
             @if (loggedWeight() != null) {
               <span class="v2-num" style="font-size: 1.25rem; font-weight: 600; color: var(--v2-ink);">
                 {{ loggedWeight() }}
-                <span class="v2-caption" style="font-size: 0.6875rem; margin-left: 4px; font-weight: 400;">lb</span>
+                <span class="v2-caption" style="font-size: 0.6875rem; margin-left: 4px; font-weight: 400;">{{ t('v2.dayDetail.lb') }}</span>
               </span>
             } @else {
-              <span class="v2-caption">Not logged</span>
+              <span class="v2-caption">{{ t('v2.dayDetail.notLogged') }}</span>
             }
           </div>
 
           <div class="mt-3">
             @if (loggedWeight() != null) {
               <v2-button variant="ghost" [block]="true" (click)="openWeightSheet()">
-                Edit weight
+                {{ t('v2.dayDetail.editWeight') }}
               </v2-button>
             } @else {
               <v2-button variant="primary" [block]="true" (click)="openWeightSheet()">
                 <lucide-icon name="scale" [size]="16" />
-                Log weight
+                {{ t('v2.dayDetail.logWeight') }}
               </v2-button>
             }
           </div>
@@ -98,18 +102,20 @@ import { V2WeightSheet } from '../ui/weight-sheet.component';
     </section>
 
     @if (!isFuture()) {
-      <v2-fab icon="plus" ariaLabel="Add food" (click)="addFood()" />
+      <v2-fab icon="plus" [ariaLabel]="t('v2.dayDetail.addFoodAria')" (click)="addFood()" />
     }
 
     <v2-weight-sheet
       [open]="weightSheetOpen()"
       [dateKey]="dateKey()"
       (close)="weightSheetOpen.set(false)" />
+    </ng-container>
   `,
 })
 export class DayDetailV2Component {
   private readonly store = inject(FitnessStore);
   private readonly entryForm = inject(EntryFormManager);
+  private readonly translation = inject(TranslationService);
 
   readonly dateKey = input.required<string>();
   readonly closeRequested = output<void>();
@@ -137,7 +143,8 @@ export class DayDetailV2Component {
 
   protected readonly dateLabel = computed(() => {
     const d = parseYmd(this.dateKey());
-    return d.toLocaleDateString('en-US', {
+    const locale = this.translation.language() === 'es-PR' ? 'es' : 'en-US';
+    return d.toLocaleDateString(locale, {
       weekday: 'long',
       month: 'long',
       day: 'numeric',

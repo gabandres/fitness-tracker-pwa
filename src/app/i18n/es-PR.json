@@ -942,5 +942,17 @@
     "chartHistory": {
       "body": "los gráficos gratis muestran los últimos 90 días. pro muestra todo tu historial."
     }
+  },
+  "v2": {
+    "dayDetail": {
+      "backAria": "Volver al historial",
+      "dayStreak": "racha de {{n}} días",
+      "weight": "Peso",
+      "lb": "lb",
+      "notLogged": "Sin registrar",
+      "logWeight": "Registrar peso",
+      "editWeight": "Editar peso",
+      "addFoodAria": "Añadir comida"
+    }
   }
 }

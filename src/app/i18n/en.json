@@ -936,5 +936,17 @@
     "chartHistory": {
       "body": "free charts show the last 90 days. pro shows your full history."
     }
+  },
+  "v2": {
+    "dayDetail": {
+      "backAria": "Back to history",
+      "dayStreak": "{{n}} day streak",
+      "weight": "Weight",
+      "lb": "lb",
+      "notLogged": "Not logged",
+      "logWeight": "Log weight",
+      "editWeight": "Edit weight",
+      "addFoodAria": "Add food"
+    }
   }
 }
