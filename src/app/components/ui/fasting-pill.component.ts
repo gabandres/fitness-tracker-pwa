@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
 import { FitnessStore } from '../../services/fitness-store.service';
+import { TranslationService } from '../../services/translation.service';
 
 /**
  * Header chip that appears across all v2 surfaces while a fast is in
@@ -30,7 +31,7 @@ import { FitnessStore } from '../../services/fitness-store.service';
       <button
         type="button"
         class="v2-fasting-pill"
-        [attr.aria-label]="'Fasting ' + label + '. Open Body.'"
+        [attr.aria-label]="ariaLabel(label)"
         (click)="bodyRequested.emit()">
         <lucide-icon name="timer" [size]="14" />
         <span>{{ label }}</span>
@@ -40,11 +41,16 @@ import { FitnessStore } from '../../services/fitness-store.service';
 })
 export class V2FastingPill implements OnInit, OnDestroy {
   protected readonly store = inject(FitnessStore);
+  private readonly translation = inject(TranslationService);
 
   readonly bodyRequested = output<void>();
 
   private readonly tick = signal(0);
   private intervalId: ReturnType<typeof setInterval> | null = null;
+
+  protected ariaLabel(label: string): string {
+    return this.translation.t('v2.fastingPill.aria', { label });
+  }
 
   protected readonly elapsedLabel = computed<string | null>(() => {
     this.tick();

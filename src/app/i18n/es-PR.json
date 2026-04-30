@@ -1032,6 +1032,9 @@
       "ml": "ml",
       "liter": "L"
     },
+    "fastingPill": {
+      "aria": "Ayunando {{label}}. Abrir Cuerpo."
+    },
     "weightSheet": {
       "logWeight": "Registrar peso",
       "today": "Hoy",

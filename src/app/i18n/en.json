@@ -1026,6 +1026,9 @@
       "ml": "ml",
       "liter": "L"
     },
+    "fastingPill": {
+      "aria": "Fasting {{label}}. Open Body."
+    },
     "weightSheet": {
       "logWeight": "Log weight",
       "today": "Today",
