@@ -977,6 +977,33 @@
       "deleted": "Borrado {{label}}",
       "deletedFallback": "entrada",
       "undo": "Deshacer"
+    },
+    "trends": {
+      "title": "Tendencias",
+      "subtitle": "Últimos 7 días",
+      "historyAria": "Historial",
+      "settingsAria": "Ajustes",
+      "kcalLegend": "kcal",
+      "proteinLegend": "proteína",
+      "viewMonth": "Ver el mes",
+      "noData": "Registra comidas para ver tendencias.",
+      "thisWeek": "Esta semana",
+      "avgKcal": "kcal promedio",
+      "avgProtein": "proteína promedio",
+      "weightDelta": "Cambio de peso",
+      "adherence": "Cumplimiento",
+      "needSeven": "Registra 7 días para ver promedios.",
+      "weeklyReadout": "Resumen semanal",
+      "generating": "Generando…",
+      "retry": "Reintentar",
+      "upsellBody": "El resumen semanal de tendencias es función Pro.",
+      "upgrade": "Subir a Pro",
+      "needThreeDays": "Registra al menos 3 días esta semana para generar tu resumen.",
+      "generateThisWeek": "Generar el resumen de esta semana",
+      "aiCoach": "Coach de IA",
+      "reportToday": "Generado hoy",
+      "reportYesterday": "Generado ayer",
+      "reportNDaysAgo": "Generado hace {{n}} días"
     }
   }
 }

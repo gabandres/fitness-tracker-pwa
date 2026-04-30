@@ -971,6 +971,33 @@
       "deleted": "Deleted {{label}}",
       "deletedFallback": "entry",
       "undo": "Undo"
+    },
+    "trends": {
+      "title": "Trends",
+      "subtitle": "Last 7 days",
+      "historyAria": "History",
+      "settingsAria": "Settings",
+      "kcalLegend": "kcal",
+      "proteinLegend": "protein",
+      "viewMonth": "View month",
+      "noData": "Log meals to see trends.",
+      "thisWeek": "This week",
+      "avgKcal": "Avg kcal",
+      "avgProtein": "Avg protein",
+      "weightDelta": "Weight delta",
+      "adherence": "Adherence",
+      "needSeven": "Log 7 days to see averages.",
+      "weeklyReadout": "Weekly readout",
+      "generating": "Generating…",
+      "retry": "Retry",
+      "upsellBody": "A weekly write-up of your trends is a Pro feature.",
+      "upgrade": "Upgrade",
+      "needThreeDays": "Log at least 3 days this week to generate your readout.",
+      "generateThisWeek": "Generate this week's readout",
+      "aiCoach": "AI coach",
+      "reportToday": "Generated today",
+      "reportYesterday": "Generated yesterday",
+      "reportNDaysAgo": "Generated {{n}} days ago"
     }
   }
 }
