@@ -7,6 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { FitnessStore } from '../../services/fitness-store.service';
 import type { MacroEstimate } from '../../models/macro-estimate';
@@ -35,6 +36,7 @@ type Segment = 'manual' | 'photo' | 'barcode';
   standalone: true,
   imports: [
     LucideAngularModule,
+    TranslocoDirective,
     V2Sheet,
     V2Button,
     PhotoCaptureComponent,
@@ -44,14 +46,15 @@ type Segment = 'manual' | 'photo' | 'barcode';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-container *transloco="let t">
     @if (open()) {
       <v2-sheet labelledBy="entry-sheet-title" (close)="cancel()">
         <h2 id="entry-sheet-title" class="v2-h2 mb-1">
-          {{ form.mode() === 'edit' ? 'Edit entry' : 'Add food' }}
+          {{ form.mode() === 'edit' ? t('v2.entrySheet.editTitle') : t('v2.entrySheet.addTitle') }}
         </h2>
         <p class="v2-caption mb-4">
-          @if (form.mode() === 'edit') { Update or delete this entry. }
-          @else { Tap a preset, take a photo, or fill in the details below. }
+          @if (form.mode() === 'edit') { {{ t('v2.entrySheet.editSubtitle') }} }
+          @else { {{ t('v2.entrySheet.addSubtitle') }} }
         </p>
 
         <!-- Segmented control. Hidden in edit mode (no point switching to
@@ -59,7 +62,7 @@ type Segment = 'manual' | 'photo' | 'barcode';
         @if (form.mode() === 'add') {
           <div
             role="tablist"
-            aria-label="Entry mode"
+            [attr.aria-label]="t('v2.entrySheet.modeAria')"
             class="grid grid-cols-3 gap-1 p-1 mb-4"
             style="background: var(--v2-paper-2); border-radius: var(--v2-radius-md);">
             @for (s of segments; track s.id) {
@@ -72,7 +75,7 @@ type Segment = 'manual' | 'photo' | 'barcode';
                 [class]="segment() === s.id ? 'v2-btn v2-btn--sm v2-btn--primary' : 'v2-btn v2-btn--sm v2-btn--ghost'"
                 (click)="setSegment(s.id)">
                 <lucide-icon [name]="s.icon" [size]="14" />
-                {{ s.label }}
+                {{ t(s.labelKey) }}
               </button>
             }
           </div>
@@ -95,7 +98,7 @@ type Segment = 'manual' | 'photo' | 'barcode';
               novalidate>
               <div>
                 <label for="es-label" class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
-                  Meal label
+                  {{ t('v2.entrySheet.mealLabel') }}
                 </label>
                 <input
                   id="es-label"
@@ -103,7 +106,7 @@ type Segment = 'manual' | 'photo' | 'barcode';
                   maxlength="100"
                   class="w-full"
                   style="padding: var(--v2-space-3) var(--v2-space-4); background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md); font-family: var(--v2-font-sans); font-size: 1rem; color: var(--v2-ink); min-height: var(--v2-tap-min);"
-                  placeholder="e.g. Lunch, Quest bar"
+                  [placeholder]="t('v2.entrySheet.mealPlaceholder')"
                   [value]="form.mealLabel()"
                   (input)="form.mealLabel.set($any($event.target).value)" />
               </div>
@@ -111,7 +114,7 @@ type Segment = 'manual' | 'photo' | 'barcode';
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label for="es-kcal" class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
-                    Calories *
+                    {{ t('v2.entrySheet.calories') }}
                   </label>
                   <input
                     id="es-kcal"
@@ -130,13 +133,13 @@ type Segment = 'manual' | 'photo' | 'barcode';
                     (input)="onKcalInput($event)" />
                   @if (kcalError()) {
                     <p id="es-kcal-err" class="v2-caption mt-1" role="alert" style="color: var(--v2-danger)">
-                      Calories are required.
+                      {{ t('v2.entrySheet.caloriesRequired') }}
                     </p>
                   }
                 </div>
                 <div>
                   <label for="es-protein" class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
-                    Protein (g)
+                    {{ t('v2.entrySheet.protein') }}
                   </label>
                   <input
                     id="es-protein"
@@ -158,7 +161,7 @@ type Segment = 'manual' | 'photo' | 'barcode';
               @if (form.mode() === 'edit' || form.addingForDay() != null) {
                 <div>
                   <label for="es-date" class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
-                    Date
+                    {{ t('v2.entrySheet.date') }}
                   </label>
                   <input
                     id="es-date"
@@ -175,18 +178,18 @@ type Segment = 'manual' | 'photo' | 'barcode';
                 @if (form.mode() === 'edit') {
                   <v2-button variant="destructive" (click)="deleteEntry()">
                     <lucide-icon name="trash-2" [size]="16" />
-                    Delete
+                    {{ t('v2.entrySheet.delete') }}
                   </v2-button>
                 }
-                <v2-button variant="ghost" (click)="cancel()">Cancel</v2-button>
+                <v2-button variant="ghost" (click)="cancel()">{{ t('v2.entrySheet.cancel') }}</v2-button>
                 <v2-button
                   type="submit"
                   variant="primary"
                   [block]="true"
                   [disabled]="form.status() === 'saving'">
-                  @if (form.status() === 'saving') { Saving… }
-                  @else if (form.status() === 'saved') { Saved }
-                  @else { Save }
+                  @if (form.status() === 'saving') { {{ t('v2.entrySheet.saving') }} }
+                  @else if (form.status() === 'saved') { {{ t('v2.entrySheet.saved') }} }
+                  @else { {{ t('v2.entrySheet.save') }} }
                 </v2-button>
               </div>
 
@@ -203,7 +206,7 @@ type Segment = 'manual' | 'photo' | 'barcode';
                 @if (!form.savingPreset()) {
                   <v2-button variant="ghost" size="sm" (click)="form.promptSavePreset()">
                     <lucide-icon name="sparkles" [size]="14" />
-                    Save as preset
+                    {{ t('v2.entrySheet.saveAsPreset') }}
                   </v2-button>
                 } @else {
                   <div class="flex gap-2 items-center">
@@ -212,7 +215,7 @@ type Segment = 'manual' | 'photo' | 'barcode';
                       maxlength="60"
                       class="flex-1"
                       style="padding: var(--v2-space-2) var(--v2-space-3); background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); font-family: var(--v2-font-sans); color: var(--v2-ink);"
-                      placeholder="Preset name"
+                      [placeholder]="t('v2.entrySheet.presetName')"
                       [value]="form.presetName()"
                       (input)="form.presetName.set($any($event.target).value)" />
                     <v2-button
@@ -220,7 +223,7 @@ type Segment = 'manual' | 'photo' | 'barcode';
                       size="sm"
                       (click)="form.confirmSavePreset()"
                       [disabled]="!form.presetName().trim()">
-                      Save preset
+                      {{ t('v2.entrySheet.savePreset') }}
                     </v2-button>
                   </div>
                 }
@@ -244,6 +247,7 @@ type Segment = 'manual' | 'photo' | 'barcode';
         }
       </v2-sheet>
     }
+    </ng-container>
   `,
 })
 export class EntrySheetV2Component {
@@ -255,10 +259,10 @@ export class EntrySheetV2Component {
   protected readonly segment = signal<Segment>('manual');
   protected readonly kcalError = signal(false);
 
-  protected readonly segments: { id: Segment; label: string; icon: string }[] = [
-    { id: 'manual', label: 'Manual', icon: 'type' },
-    { id: 'photo', label: 'Photo', icon: 'image' },
-    { id: 'barcode', label: 'Barcode', icon: 'scan-line' },
+  protected readonly segments: { id: Segment; labelKey: string; icon: string }[] = [
+    { id: 'manual', labelKey: 'v2.entrySheet.segManual', icon: 'type' },
+    { id: 'photo', labelKey: 'v2.entrySheet.segPhoto', icon: 'image' },
+    { id: 'barcode', labelKey: 'v2.entrySheet.segBarcode', icon: 'scan-line' },
   ];
 
   constructor() {
