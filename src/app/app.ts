@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ApplicationRef, ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
-import { filter } from 'rxjs';
+import { concat, filter, first, interval } from 'rxjs';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { TranslationService } from './services/translation.service';
 import { DashboardComponent } from './components/dashboard/dashboard.component';
@@ -548,6 +548,7 @@ export class App {
   private readonly analytics = inject(AnalyticsService);
   private readonly entryForm = inject(EntryFormManager);
   private readonly swUpdate = inject(SwUpdate);
+  private readonly appRef = inject(ApplicationRef);
   private readonly translation = inject(TranslationService); // resolves locale on boot, updates <title>
   protected readonly admin = inject(AdminService);
 
@@ -579,6 +580,12 @@ export class App {
    *  so the template fork hits the correct branch on initial render. */
   protected readonly uiV2 = signal(false);
   protected readonly updateReady = signal(false);
+  /** Latched when SwUpdate fires VERSION_READY. Stays true after the
+   *  user dismisses the prompt so the next focus re-surfaces it —
+   *  versionUpdates only emits VERSION_READY once per ship, so without
+   *  this we'd wait until the *next* deploy to nag again. Cleared only
+   *  by activateUpdate (i.e. the user actually reloaded). */
+  private readonly pendingUpdate = signal(false);
   protected readonly offline = signal(!navigator.onLine);
   protected readonly retryingOffline = signal(false);
   protected readonly verifyChecking = signal(false);
@@ -976,24 +983,44 @@ export class App {
     window.addEventListener('online', () => this.offline.set(false));
     window.addEventListener('offline', () => this.offline.set(true));
 
-    // Service-worker update detection.
+    // Service-worker update detection. Pattern follows the official
+    // Angular guidance:
+    //   1. Subscribe to versionUpdates → on VERSION_READY, latch
+    //      pendingUpdate AND surface the dialog.
+    //   2. Subscribe to unrecoverable → cache state is corrupt, only
+    //      escape is a hard reload.
+    //   3. Run the first checkForUpdate() AFTER ApplicationRef.isStable
+    //      emits true (avoids racing hydration; without this the first
+    //      check can silently no-op — angular/angular#55975, #44044),
+    //      then poll every 60s while foregrounded.
+    //   4. On visibilitychange → re-check AND re-surface a previously
+    //      dismissed prompt (versionUpdates only fires VERSION_READY
+    //      once per ship, so dismissing once would otherwise mute the
+    //      nag until the next deploy).
     if (this.swUpdate.isEnabled) {
       this.swUpdate.versionUpdates
         .pipe(filter((evt): evt is VersionReadyEvent => evt.type === 'VERSION_READY'))
-        .subscribe(() => this.updateReady.set(true));
+        .subscribe(() => {
+          this.pendingUpdate.set(true);
+          this.updateReady.set(true);
+        });
+
+      this.swUpdate.unrecoverable.subscribe((evt) => {
+        console.error('SW unrecoverable:', evt.reason);
+        document.location.reload();
+      });
 
       const doCheck = () => this.swUpdate.checkForUpdate().catch((err) => console.error(err));
-      // Poll every 60s while the tab is foregrounded. Skip when hidden
-      // — visibilitychange below catches re-focus. Avoids 60 background
-      // fetches/hour on idle tabs across the user base.
-      setInterval(() => {
+      const stable$ = this.appRef.isStable.pipe(first((s) => s));
+      concat(stable$, interval(60 * 1000)).subscribe(() => {
         if (document.visibilityState === 'visible') doCheck();
-      }, 60 * 1000);
+      });
+
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') {
-          doCheck();
-          this.checkReminder();
-        }
+        if (document.visibilityState !== 'visible') return;
+        doCheck();
+        if (this.pendingUpdate()) this.updateReady.set(true);
+        this.checkReminder();
       });
     }
 
@@ -1142,6 +1169,9 @@ export class App {
 
   protected async reloadForUpdate(): Promise<void> {
     try { await this.swUpdate.activateUpdate(); }
-    finally { document.location.reload(); }
+    finally {
+      this.pendingUpdate.set(false);
+      document.location.reload();
+    }
   }
 }
