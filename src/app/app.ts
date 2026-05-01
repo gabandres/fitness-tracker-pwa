@@ -84,6 +84,31 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
   template: `
     <ng-container *transloco="let t">
     <a href="#main" class="skip-link">{{ t('app.skipToMain') }}</a>
+
+    <!-- Persistent update banner. Pinned to the top of the viewport
+         (z-[55] sits above v2 sheets at z-50 but below the global
+         update modal at z-[60]). Stays visible across every route
+         until the user taps Reload — solves the "I never noticed
+         the update was ready" failure mode that pushed users to dig
+         into settings. The modal still fires once on detection;
+         this is the always-on backstop. -->
+    @if (pendingUpdate()) {
+      <div
+        class="fixed left-0 right-0 z-[55] flex items-center justify-between gap-3 px-4 py-2 text-sm"
+        style="top: env(safe-area-inset-top); background: var(--v2-accent); color: white; box-shadow: 0 1px 8px rgba(0,0,0,0.18);"
+        role="status"
+        aria-live="polite">
+        <span class="truncate">{{ t('app.update.bannerText') }}</span>
+        <button
+          type="button"
+          class="shrink-0 px-3 py-1 text-xs font-semibold"
+          style="background: white; color: var(--v2-accent); border-radius: var(--v2-radius-full); border: none; min-height: 32px;"
+          (click)="reloadForUpdate()">
+          {{ t('app.update.reload') }}
+        </button>
+      </div>
+    }
+
     @if (route() === 'devGallery') {
       <!-- v2 primitives gallery — internal dev surface, not in
            production navigation. Mounted at /dev/components while the
@@ -591,11 +616,10 @@ export class App {
   protected readonly uiV2 = signal(false);
   protected readonly updateReady = signal(false);
   /** Latched when SwUpdate fires VERSION_READY. Stays true after the
-   *  user dismisses the prompt so the next focus re-surfaces it —
-   *  versionUpdates only emits VERSION_READY once per ship, so without
-   *  this we'd wait until the *next* deploy to nag again. Cleared only
-   *  by activateUpdate (i.e. the user actually reloaded). */
-  private readonly pendingUpdate = signal(false);
+   *  user dismisses the prompt so the next focus re-surfaces it AND
+   *  drives the always-on top banner. Cleared only by activateUpdate
+   *  (i.e. the user actually reloaded). */
+  protected readonly pendingUpdate = signal(false);
   protected readonly offline = signal(!navigator.onLine);
   protected readonly retryingOffline = signal(false);
   protected readonly verifyChecking = signal(false);

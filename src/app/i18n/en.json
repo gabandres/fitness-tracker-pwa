@@ -63,7 +63,8 @@
       "title": "Update Available",
       "body": "A new version of Macro Log is ready. Reload to get the latest features and fixes.",
       "reload": "reload now",
-      "later": "later"
+      "later": "later",
+      "bannerText": "New version ready"
     },
     "offline": {
       "stamp": "offline",

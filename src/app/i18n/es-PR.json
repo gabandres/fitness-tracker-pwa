@@ -69,7 +69,8 @@
       "title": "Actualización disponible",
       "body": "Hay una nueva versión de Macro Log lista. Recarga para obtener las últimas mejoras y arreglos.",
       "reload": "recargar ahora",
-      "later": "luego"
+      "later": "luego",
+      "bannerText": "Nueva versión lista"
     },
     "offline": {
       "stamp": "sin conexión",
