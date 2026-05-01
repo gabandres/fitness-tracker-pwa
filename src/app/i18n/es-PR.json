@@ -1,10 +1,4 @@
 {
-  "_meta": {
-    "status": "draft",
-    "generated": "2026-04-15",
-    "reviewer": "pending",
-    "styleBrief": "Puerto Rican Spanish, informal tú. Preserves {{placeholders}}, HTML tags, and numeric units (kcal, g, lbs) verbatim. Drafted against en.json; nutritionist review pending."
-  },
   "common": {
     "appTitle": "Macro Log"
   },
@@ -1096,6 +1090,39 @@
       "apply": "Aplicar metas nuevas",
       "keepCurrent": "Dejar las actuales",
       "saving": "Guardando…",
+      "saveError": "No se pudo guardar. Verifica tu conexión e intenta de nuevo."
+    },
+    "refineTargets": {
+      "cardTitle": "Haz tu meta más precisa",
+      "cardBody": "Ya tienes 3 días de datos. Añade estatura, edad y actividad para pasar de un estimado rápido a una meta Mifflin-St Jeor real.",
+      "cardCta": "Refinar metas",
+      "cardDismiss": "Ahora no",
+      "title": "Refina tu meta",
+      "subtitle": "Esto nos deja reemplazar la heurística con tu estimado real de mantenimiento.",
+      "sex": "Sexo",
+      "sexFemale": "Femenino",
+      "sexMale": "Masculino",
+      "age": "Edad",
+      "height": "Estatura",
+      "heightFt": "Estatura — pies",
+      "heightIn": "Estatura — pulgadas",
+      "activity": "Actividad",
+      "actSedentaryLabel": "Sedentario",
+      "actSedentaryBlurb": "Trabajo de escritorio, poco o nada de ejercicio.",
+      "actLightLabel": "Ligero",
+      "actLightBlurb": "Caminatas suaves, 1–3 sesiones por semana.",
+      "actModerateLabel": "Moderado",
+      "actModerateBlurb": "Entrenas 3–5 días por semana.",
+      "actActiveLabel": "Activo",
+      "actActiveBlurb": "Ejercicio fuerte 6–7 días por semana.",
+      "actVeryActiveLabel": "Muy activo",
+      "actVeryActiveBlurb": "Entrenamiento intenso diario o trabajo físico.",
+      "pace": "Ritmo",
+      "lbWeek": "lb/sem",
+      "previewLabel": "Kcal nuevas al día",
+      "save": "Guardar metas",
+      "saving": "Guardando…",
+      "cancel": "Cancelar",
       "saveError": "No se pudo guardar. Verifica tu conexión e intenta de nuevo."
     },
     "entrySheet": {

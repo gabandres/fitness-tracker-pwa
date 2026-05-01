@@ -20,6 +20,7 @@ import { V2Card } from '../ui/card.component';
 import { V2Fab } from '../ui/fab.component';
 import { V2DaySummary } from '../ui/day-summary.component';
 import { V2FastingPill } from '../ui/fasting-pill.component';
+import { V2RefineTargetsSheet } from '../refine-targets-sheet-v2/refine-targets-sheet-v2.component';
 
 /**
  * v2 Today screen. Owns the today-only chrome (header, day-0 hero,
@@ -39,6 +40,7 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
     V2Fab,
     V2DaySummary,
     V2FastingPill,
+    V2RefineTargetsSheet,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -90,6 +92,25 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
         <v2-day-summary [dateKey]="todayKey()" />
       }
 
+      <!-- Day-3 "Refine targets" coach card — surfaces once the user has
+           ≥3 unique logged days and is still on the 2-Q heuristic. Tapping
+           opens the full Mifflin-St Jeor sheet; saving the sheet stamps
+           targetsRefinedAt and the card never returns. -->
+      @if (showRefineCard()) {
+        <v2-card class="mt-6 block">
+          <h2 class="v2-h3">{{ t('v2.refineTargets.cardTitle') }}</h2>
+          <p class="v2-body-soft mt-1.5">{{ t('v2.refineTargets.cardBody') }}</p>
+          <div class="mt-3 flex gap-2">
+            <v2-button variant="primary" size="md" (click)="openRefineSheet()">
+              {{ t('v2.refineTargets.cardCta') }}
+            </v2-button>
+            <v2-button variant="ghost" size="md" (click)="dismissRefineCard()">
+              {{ t('v2.refineTargets.cardDismiss') }}
+            </v2-button>
+          </div>
+        </v2-card>
+      }
+
       <!-- Repeat-yesterday — only when today is empty + yesterday has entries -->
       @if (canRepeatYesterday()) {
         <div class="mt-6">
@@ -125,6 +146,10 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
     @if (!showDay0Hero()) {
       <v2-fab icon="plus" [ariaLabel]="t('v2.today.addFoodAria')" (click)="addFood()" />
     }
+
+    <v2-refine-targets-sheet
+      [open]="showRefineSheet()"
+      (close)="showRefineSheet.set(false)" />
     </ng-container>
   `,
 })
@@ -147,6 +172,30 @@ export class TodayV2Component {
   protected readonly streak = computed(() => this.store.streak());
   protected readonly kcalTarget = computed(() => this.store.targetCalories());
   protected readonly proteinTargetG = computed(() => this.store.proteinTarget());
+
+  protected readonly showRefineSheet = signal(false);
+  /** Locally remembered "Not now" — kept in localStorage so the dismiss
+   *  survives reloads without a Firestore round-trip. Saving the sheet
+   *  stamps `targetsRefinedAt` server-side; that's the permanent latch. */
+  private readonly REFINE_DISMISS_KEY = 'macrolog.refine-targets-dismissed';
+  protected readonly refineDismissedLocal = signal(
+    typeof localStorage !== 'undefined' && !!localStorage.getItem(this.REFINE_DISMISS_KEY),
+  );
+
+  protected readonly showRefineCard = computed(() => {
+    const profile = this.store.profile();
+    if (!profile) return false;
+    // Only nudge users who came through the 2-Q heuristic and haven't
+    // already refined. Anyone who opens this sheet flips
+    // `targetsRefinedAt` and the card never returns.
+    if (profile.targetsRefinedAt != null) return false;
+    if (profile.manualCaloriesTarget == null) return false;
+    if (this.refineDismissedLocal()) return false;
+    // Need 3+ unique logged days. Use logs() (the recent window the
+    // store loads) — sufficient since the gate is "≥3", not exact count.
+    const dayKeys = new Set(this.store.logs().map((l) => localDateKey(l.date)));
+    return dayKeys.size >= 3;
+  });
 
   protected readonly canRepeatYesterday = computed(() => {
     const today = this.todayKey();
@@ -171,6 +220,17 @@ export class TodayV2Component {
   protected addFood(): void {
     this.haptic(10);
     this.entryForm.startAdd();
+  }
+
+  protected openRefineSheet(): void {
+    this.haptic(10);
+    this.showRefineSheet.set(true);
+  }
+
+  protected dismissRefineCard(): void {
+    this.haptic(10);
+    try { localStorage.setItem(this.REFINE_DISMISS_KEY, '1'); } catch { /* ignore */ }
+    this.refineDismissedLocal.set(true);
   }
 
   protected repeatYesterday(): void {

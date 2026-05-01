@@ -102,6 +102,18 @@ export interface OnboardingV2Submission {
   manualProteinTarget: number;
 }
 
+/** Payload from the Day-3 "Refine targets" sheet. Promotes a 2-Q-onboarded
+ *  profile to a full Mifflin-St Jeor-driven TDEE: writes the missing
+ *  profile fields and clears the manual heuristic targets so the
+ *  FitnessStore.targetCalories chain falls through to formula mode. */
+export interface RefineTargetsSubmission {
+  heightIn: number;
+  age: number;
+  sex: Sex;
+  activityLevel: ActivityLevel;
+  targetPaceLbsPerWeek: CutPace;
+}
+
 /**
  * Profile field values collected during onboarding. These drive the
  * Mifflin-St Jeor seed estimate used before the user has 14 days of
@@ -131,6 +143,10 @@ export interface ProfileFields {
   manualCaloriesTarget?: number;  // heuristic: weight_lb × {11/14/17}
   manualProteinTarget?: number;   // heuristic: weight_lb × {1.0/0.9/0.8}
   onboardingV2CompletedAt?: Timestamp;
+  targetsRefinedAt?: Timestamp;   // stamped when the user fills the Day-3
+                                   // "Refine targets" sheet — drops the
+                                   // manual heuristic in favour of the
+                                   // formula-mode TDEE chain.
 }
 
 /** Full user profile doc as stored in Firestore. */
@@ -274,6 +290,40 @@ export class FirebaseService implements LedgerPort {
     }
     await updateDoc(ref, patch);
     this._profile.set({ ...current, ...patch } as UserProfile);
+  }
+
+  /** Persist the Day-3 "Refine targets" sheet. Writes the full
+      Mifflin-St Jeor inputs and DELETES the heuristic manual targets so
+      the TDEE chain takes over from the next read. Stamps
+      `targetsRefinedAt` so the prompting card disappears. */
+  async saveRefinedTargets(submission: RefineTargetsSubmission): Promise<void> {
+    const current = this._profile();
+    if (!current) throw new Error('No profile loaded.');
+
+    const ref = this.userDoc();
+    const stamp = Timestamp.now();
+    await updateDoc(ref, {
+      heightIn: submission.heightIn,
+      age: submission.age,
+      sex: submission.sex,
+      activityLevel: submission.activityLevel,
+      targetPaceLbsPerWeek: submission.targetPaceLbsPerWeek,
+      manualCaloriesTarget: deleteField(),
+      manualProteinTarget: deleteField(),
+      targetsRefinedAt: stamp,
+      lastSeenAt: stamp,
+    });
+    const updated: UserProfile = { ...current,
+      heightIn: submission.heightIn,
+      age: submission.age,
+      sex: submission.sex,
+      activityLevel: submission.activityLevel,
+      targetPaceLbsPerWeek: submission.targetPaceLbsPerWeek,
+      targetsRefinedAt: stamp,
+    };
+    delete (updated as any).manualCaloriesTarget;
+    delete (updated as any).manualProteinTarget;
+    this._profile.set(updated);
   }
 
   /** Generate a new webhook API key (UUID v4) and persist on the profile. */
