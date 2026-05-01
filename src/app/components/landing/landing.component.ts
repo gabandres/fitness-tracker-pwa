@@ -37,7 +37,7 @@ import { V2Button } from '../ui/button.component';
 
         <div class="grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-12 lg:items-center">
           <div>
-            <h1 class="v2-h1" style="font-size: clamp(2.5rem, 5vw, 4rem); line-height: 1.05; letter-spacing: -0.025em;">
+            <h1 class="v2-h1 v2-h1--hero" style="font-size: clamp(2.75rem, 5.5vw, 4.5rem); line-height: 1.05; letter-spacing: -0.025em;">
               {{ t('landing.heroLead') }}<br/>
               <span style="color: var(--v2-accent);">{{ t('landing.heroEm') }}</span>
             </h1>

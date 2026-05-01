@@ -95,6 +95,18 @@
   color: var(--v2-ink);
   font-family: var(--v2-font-sans);
   font-feature-settings: "ss01" 1, "cv11" 1; /* Geist's stylistic alts */
+  /* Bump body baseline to 17px desktop / 16px mobile. The 15px default
+     read as "developer dashboard" per user feedback; 17px is the wellness
+     / consumer-app norm (Substack, Medium, Apple HIG body min). */
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+@media (max-width: 480px) {
+  [data-ui="v2"] body,
+  [data-ui="v2"] {
+    font-size: 1rem;
+    line-height: 1.55;
+  }
 }
 
 [data-ui="v2"] .v2-mono {
@@ -371,19 +383,28 @@
 /* ── Typography helpers ─────────────────────────────────────── */
 [data-ui="v2"] .v2-h1 {
   font-family: var(--v2-font-sans);
-  font-size: 2rem; line-height: 1.1; font-weight: 600;
+  font-size: 2.25rem; line-height: 1.15; font-weight: 600;
   letter-spacing: -0.02em; color: var(--v2-ink);
 }
+/* Editorial hero variant — Instrument Serif italic warms up the
+   landing + today h1 only. Geist stays everywhere else for precision.
+   Pattern follows Headspace / Calm / Strava — sans body, serif heart. */
+[data-ui="v2"] .v2-h1--hero {
+  font-family: "Instrument Serif", "Geist", system-ui, serif;
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: -0.015em;
+}
 [data-ui="v2"] .v2-h2 {
-  font-size: 1.375rem; line-height: 1.2; font-weight: 600;
+  font-size: 1.5rem; line-height: 1.25; font-weight: 600;
   letter-spacing: -0.015em; color: var(--v2-ink);
 }
 [data-ui="v2"] .v2-h3 {
-  font-size: 1.0625rem; line-height: 1.3; font-weight: 600;
+  font-size: 1.1875rem; line-height: 1.35; font-weight: 600;
   letter-spacing: -0.01em; color: var(--v2-ink);
 }
-[data-ui="v2"] .v2-body { font-size: 0.9375rem; line-height: 1.5; color: var(--v2-ink); }
-[data-ui="v2"] .v2-body-soft { font-size: 0.9375rem; line-height: 1.5; color: var(--v2-ink-soft); }
+[data-ui="v2"] .v2-body { font-size: 1.0625rem; line-height: 1.6; color: var(--v2-ink); }
+[data-ui="v2"] .v2-body-soft { font-size: 1.0625rem; line-height: 1.6; color: var(--v2-ink-soft); }
 [data-ui="v2"] .v2-caption { font-size: 0.8125rem; line-height: 1.4; color: var(--v2-ink-muted); }
 [data-ui="v2"] .v2-num {
   font-family: var(--v2-font-mono);

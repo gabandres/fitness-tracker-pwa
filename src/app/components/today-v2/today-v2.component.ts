@@ -49,7 +49,7 @@ import { V2RefineTargetsSheet } from '../refine-targets-sheet-v2/refine-targets-
       <!-- Header -->
       <header class="flex items-start justify-between gap-4 pt-6 pb-2">
         <div>
-          <h1 class="v2-h1">{{ t('v2.today.title') }}</h1>
+          <h1 class="v2-h1 v2-h1--hero">{{ t('v2.today.title') }}</h1>
           <p class="v2-caption mt-0.5">{{ dateLabel() }}</p>
           @if (streak() >= 2) {
             <div class="flex items-center gap-1.5 mt-2 v2-caption" style="color: var(--v2-accent)">
