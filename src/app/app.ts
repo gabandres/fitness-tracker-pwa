@@ -167,7 +167,7 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
 
         <!-- SwUpdate dialog (fixed overlay) -->
         @if (updateReady()) {
-          <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ink/40 backdrop-blur-sm ink-in"
+          <div class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 bg-ink/40 backdrop-blur-sm ink-in"
             role="alertdialog" aria-labelledby="update-title" aria-describedby="update-body"
             (click)="dismissUpdate()">
             <div class="w-full max-w-sm specimen px-6 py-5 shadow-xl slide-down"

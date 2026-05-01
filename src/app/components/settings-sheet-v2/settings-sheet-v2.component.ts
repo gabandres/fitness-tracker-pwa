@@ -298,6 +298,18 @@ import { V2Button } from '../ui/button.component';
                 {{ msg.text }}
               </p>
             }
+            @if (updateAvailable()) {
+              <!-- Inline reload — the global SwUpdate dialog renders
+                   behind this sheet (same z-stack), so an in-sheet
+                   action is the only way the user can discover the
+                   update without first closing settings. Activates
+                   the SW + reloads. -->
+              <div class="mt-2">
+                <v2-button variant="primary" size="sm" (click)="reloadForUpdate()">
+                  {{ t('v2.settings.reloadNow') }}
+                </v2-button>
+              </div>
+            }
           </div>
           <v2-button variant="secondary" size="sm" (click)="checkForUpdate()" [disabled]="checkingUpdate()">
             <lucide-icon name="check" [size]="14" />
@@ -355,6 +367,10 @@ export class SettingsSheetV2Component {
 
   protected readonly checkingUpdate = signal(false);
   protected readonly updateMsg = signal<{ text: string; tone: 'sage' | 'accent' | 'muted' } | null>(null);
+  /** Latched when the manual check installs a new version. Drives the
+   *  inline Reload button — kept separate from updateMsg so the
+   *  message can clear without hiding the affordance. */
+  protected readonly updateAvailable = signal(false);
 
   /** Show abbreviated build SHA, or "dev" in non-prod builds. The
    *  global is injected at build time by `scripts/sentry-release.mjs`. */
@@ -379,6 +395,7 @@ export class SettingsSheetV2Component {
       }
       const found = await this.swUpdate.checkForUpdate();
       if (found) {
+        this.updateAvailable.set(true);
         this.updateMsg.set({ text: this.translation.t('v2.settings.updateFound'), tone: 'accent' });
       } else {
         this.updateMsg.set({ text: this.translation.t('v2.settings.updateLatest'), tone: 'sage' });
@@ -391,6 +408,16 @@ export class SettingsSheetV2Component {
     } finally {
       this.checkingUpdate.set(false);
     }
+  }
+
+  /** Inline reload from the settings sheet. activateUpdate swaps the
+   *  waiting SW into control; location.reload then loads the fresh
+   *  shell. Try/finally so a thrown activateUpdate (rare but possible
+   *  with no waiting worker) still triggers the reload — at worst the
+   *  user reloads against the same version. */
+  protected async reloadForUpdate(): Promise<void> {
+    try { await this.swUpdate.activateUpdate(); }
+    finally { document.location.reload(); }
   }
 
   protected readonly themeOptions: ReadonlyArray<{

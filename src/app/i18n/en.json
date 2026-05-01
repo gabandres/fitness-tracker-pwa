@@ -1053,6 +1053,7 @@
       "updateFound": "Update found — reload prompt will appear shortly.",
       "updateLatest": "You're on the latest version.",
       "updateError": "Could not check.",
+      "reloadNow": "Reload now",
       "changelog": "Changelog",
       "themeProBadge": "Pro"
     },

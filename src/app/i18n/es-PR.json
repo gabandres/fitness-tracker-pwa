@@ -1059,6 +1059,7 @@
       "updateFound": "Actualización encontrada — saldrá el prompt de recarga en breve.",
       "updateLatest": "Estás en la última versión.",
       "updateError": "No se pudo verificar.",
+      "reloadNow": "Recargar ahora",
       "changelog": "Changelog",
       "themeProBadge": "Pro"
     },
