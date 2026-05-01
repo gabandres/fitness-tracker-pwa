@@ -27,6 +27,7 @@ import { UpsellService } from './services/upsell.service';
 import { AnalyticsService } from './services/analytics.service';
 import { EntryFormManager } from './services/entry-form-manager.service';
 import { AdminService } from './services/admin.service';
+import { PushNotificationService } from './services/push-notification.service';
 import { V2DevGallery } from './components/ui/dev-gallery.component';
 import { TodayV2Component } from './components/today-v2/today-v2.component';
 import { EntrySheetV2Component } from './components/entry-sheet-v2/entry-sheet-v2.component';
@@ -420,6 +421,7 @@ export class App {
   private readonly appRef = inject(ApplicationRef);
   private readonly translation = inject(TranslationService); // resolves locale on boot, updates <title>
   protected readonly admin = inject(AdminService);
+  private readonly pushService = inject(PushNotificationService);
 
   protected readonly showSettings = signal(false);
   // Admin route is desktop-only — the dense tables don't pack onto a
@@ -862,6 +864,23 @@ export class App {
     // Auto-dismiss reminder when user logs an entry.
     effect(() => {
       if (this.store.hasLoggedToday()) this.showReminder.set(false);
+    });
+
+    // FCM token refresh on boot. Tokens rotate (browser data clear,
+    // server-side stale-token cleanup, device wipe) so the saved token
+    // silently goes dead without this. Only fires once per signed-in
+    // boot; settings-sheet enablePush() still owns the first-time flow.
+    let fcmRefreshed = false;
+    effect(() => {
+      if (fcmRefreshed) return;
+      if (!this.auth.isSignedIn() || !this.firebase.profileCompleted()) return;
+      fcmRefreshed = true;
+      void this.pushService.refreshTokenIfGranted().then((token) => {
+        if (!token) return;
+        const current = this.firebase.profile()?.fcmToken;
+        if (current === token) return; // unchanged — skip the write
+        void this.firebase.saveFcmToken(token);
+      });
     });
 
     // Check reminder after data loads.

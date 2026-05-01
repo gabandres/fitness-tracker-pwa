@@ -818,8 +818,10 @@ export const sendDailyReminders = onSchedule(
         // meaning UTC = local + offset). So local = UTC - offset.
         const userLocalHour = (nowUtc.getUTCHours() - Math.round(tzOffsetMin / 60) + 24) % 24;
 
-        // Only send if within the reminder window (reminderHour to reminderHour+1).
-        if (userLocalHour < reminderHour || userLocalHour > reminderHour + 1) return;
+        // Single-hour window — schedule fires hourly, so allowing >1 hour
+        // would double-fire the push. Earlier code used a 2-hour window
+        // (reminderHour..reminderHour+1) and users got two pings per day.
+        if (userLocalHour !== reminderHour) return;
 
         // Check if they logged today (in their local timezone).
         const userNow = new Date(nowUtc.getTime() - tzOffsetMin * 60 * 1000);
@@ -903,7 +905,7 @@ export const sendDayThreeCoachPush = onSchedule(
         const reminderHour = (data.reminderHour as number) ?? 20;
         const tzOffsetMin = (data.timezoneOffsetMin as number) ?? 0;
         const userLocalHour = (nowUtc.getUTCHours() - Math.round(tzOffsetMin / 60) + 24) % 24;
-        if (userLocalHour < reminderHour || userLocalHour > reminderHour + 1) return;
+        if (userLocalHour !== reminderHour) return;
 
         // Oldest log — single read, no aggregate needed. If the oldest
         // log is ≥3 days old the user has been around long enough for

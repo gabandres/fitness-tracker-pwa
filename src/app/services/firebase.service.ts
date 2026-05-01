@@ -387,12 +387,20 @@ export class FirebaseService implements LedgerPort {
     }
   }
 
-  /** Save the user's preferred reminder hour (0–23). */
+  /** Save the user's preferred reminder hour (0–23). Also refresh
+      `timezoneOffsetMin` so the CF computes the correct local hour after
+      travel / DST shifts (without this, push fires at the user's
+      original-signup local hour forever). */
   async saveReminderHour(hour: number): Promise<void> {
     const ref = this.userDoc();
-    await updateDoc(ref, { reminderHour: hour, lastSeenAt: Timestamp.now() });
+    const tz = new Date().getTimezoneOffset();
+    await updateDoc(ref, {
+      reminderHour: hour,
+      timezoneOffsetMin: tz,
+      lastSeenAt: Timestamp.now(),
+    });
     const current = this._profile();
-    if (current) this._profile.set({ ...current, reminderHour: hour } as any);
+    if (current) this._profile.set({ ...current, reminderHour: hour, timezoneOffsetMin: tz } as any);
   }
 
   /** Start a fast — stores the given start time, or now if omitted.
