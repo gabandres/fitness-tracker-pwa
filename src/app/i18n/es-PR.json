@@ -58,6 +58,9 @@
     "subtitle": "un registro continuo de catorce días de peso, consumo y gasto calórico.",
     "loadingFieldNotes": "Cargando…",
     "openingYourFile": "Abriendo tu cuenta…",
+    "openingErrorTitle": "No pudimos abrir tu cuenta",
+    "openingErrorBody": "El servidor no respondió a tiempo. Por lo general se arregla al reintentar.",
+    "openingErrorRetry": "Reintentar",
     "update": {
       "stamp": "nuevo",
       "title": "Actualización disponible",

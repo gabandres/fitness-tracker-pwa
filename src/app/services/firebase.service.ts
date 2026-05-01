@@ -199,7 +199,10 @@ export class FirebaseService implements LedgerPort {
     if (!user) throw new Error('ensureUserProfile called while unauthenticated.');
 
     const ref = this.userDoc();
-    const snap = await getDoc(ref);
+    // Hard 15s ceiling per Firestore call. The Firestore SDK retries
+    // 504s internally without ever rejecting → app-shell loader hangs
+    // forever. Surfacing a timeout lets the caller put up a retry UI.
+    const snap = await this.withTimeout(getDoc(ref), 15_000, 'profile-read');
     const now = Timestamp.now();
 
     if (!snap.exists()) {
@@ -209,13 +212,29 @@ export class FirebaseService implements LedgerPort {
         lastSeenAt: now,
         profileCompleted: false,
       };
-      await setDoc(ref, initial);
+      // Fire-and-forget the seen-stamp update in non-create paths too.
+      // Setting the local signal BEFORE the write resolves the loader
+      // immediately on the create path; if the write fails the user
+      // sees an error toast on next mutation rather than a dead app.
+      await this.withTimeout(setDoc(ref, initial), 15_000, 'profile-create');
       this._profile.set(initial);
     } else {
-      await updateDoc(ref, { lastSeenAt: now });
       const existing = snap.data() as UserProfile;
       this._profile.set({ ...existing, lastSeenAt: now });
+      // Bump lastSeenAt fire-and-forget — the loader was already gated
+      // on the read, so the write doesn't need to block UI.
+      void updateDoc(ref, { lastSeenAt: now }).catch((err) => {
+        console.warn('lastSeenAt bump failed (non-fatal):', err);
+      });
     }
+  }
+
+  private withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error(`Timeout: ${label} (${ms}ms)`)), ms);
+      p.then((v) => { clearTimeout(t); resolve(v); },
+             (e) => { clearTimeout(t); reject(e); });
+    });
   }
 
   /** Clear the local profile signal on sign-out. */

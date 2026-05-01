@@ -58,6 +58,9 @@
     "subtitle": "a rolling fourteen-day record of weight, intake, and expenditure.",
     "loadingFieldNotes": "Loading…",
     "openingYourFile": "Opening your account…",
+    "openingErrorTitle": "We couldn't open your account",
+    "openingErrorBody": "The server didn't respond in time. This usually clears on a retry.",
+    "openingErrorRetry": "Try again",
     "update": {
       "stamp": "new",
       "title": "Update Available",

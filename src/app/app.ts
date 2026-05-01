@@ -287,10 +287,32 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
               </section>
             </div>
           } @else if (!firebase.profile()) {
-            <div class="v2-loader-stack" role="status" aria-live="polite">
-              <div class="v2-loader" aria-hidden="true"></div>
-              <p class="v2-loader-label">{{ t('app.openingYourFile') }}</p>
-            </div>
+            @if (store.status() === 'error') {
+              <!-- Profile load failed (504, rules deny, network drop).
+                   Without this branch the loader span forever. -->
+              <div class="max-w-[480px] mx-auto px-5 py-16 text-center">
+                <h2 class="v2-h2">{{ t('app.openingErrorTitle') }}</h2>
+                <p class="v2-body-soft mt-2">{{ t('app.openingErrorBody') }}</p>
+                @if (store.error(); as err) {
+                  <p class="v2-caption mt-3 font-mono" style="color: var(--v2-ink-muted); word-break: break-all;">
+                    {{ err }}
+                  </p>
+                }
+                <div class="mt-5 flex flex-col gap-2">
+                  <button type="button" class="v2-btn v2-btn--primary v2-btn--lg" (click)="reloadApp()">
+                    {{ t('app.openingErrorRetry') }}
+                  </button>
+                  <button type="button" class="v2-btn v2-btn--ghost v2-btn--md" (click)="auth.signOut()">
+                    {{ t('verify.signOut') }}
+                  </button>
+                </div>
+              </div>
+            } @else {
+              <div class="v2-loader-stack" role="status" aria-live="polite">
+                <div class="v2-loader" aria-hidden="true"></div>
+                <p class="v2-loader-label">{{ t('app.openingYourFile') }}</p>
+              </div>
+            }
           } @else if (!firebase.profileCompleted()) {
             <!-- New users go through the 2-question v2 onboarding (Q10
                  of UX revamp v2). saveOnboardingV2 also flips
@@ -966,5 +988,12 @@ export class App {
       this.pendingUpdate.set(false);
       document.location.reload();
     }
+  }
+
+  /** Plain reload — exposed for the profile-load error fallback so the
+   *  user can retry without digging into browser chrome. Kept separate
+   *  from `reloadForUpdate` because there's no SwUpdate dance to do. */
+  protected reloadApp(): void {
+    document.location.reload();
   }
 }
