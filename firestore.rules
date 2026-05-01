@@ -106,10 +106,17 @@ service cloud.firestore {
     }
 
     function hasValidPace(data) {
-      return data.targetPaceLbsPerWeek == 0.5
+      return data.targetPaceLbsPerWeek == 0
+          || data.targetPaceLbsPerWeek == 0.5
           || data.targetPaceLbsPerWeek == 1.0
           || data.targetPaceLbsPerWeek == 1.5
           || data.targetPaceLbsPerWeek == 2.0;
+    }
+
+    function hasValidGoalDirection(data) {
+      return data.goalDirection == 'lose'
+          || data.goalDirection == 'maintain'
+          || data.goalDirection == 'gain';
     }
 
     function isValidProfileCompleted(data) {
@@ -119,15 +126,61 @@ service cloud.firestore {
               'targetPaceLbsPerWeek', 'goalWeightLbs',
               'travelMode', 'fastStartedAt', 'webhookApiKey',
               'fcmToken', 'reminderHour', 'timezoneOffsetMin',
-              'ageConfirmedAt', 'preferredLocale', 'welcomeEmailSentAt'
+              'ageConfirmedAt', 'preferredLocale', 'welcomeEmailSentAt',
+              // v2 2-question onboarding (Q10): heuristic targets +
+              // goal direction + onboarding stamp.
+              'goalDirection', 'targetWeightLbs',
+              'manualCaloriesTarget', 'manualProteinTarget',
+              'onboardingV2CompletedAt',
+              // Day-3 "Refine targets" stamp.
+              'targetsRefinedAt',
+              // Day-3 coach push one-shot latch (set by Cloud Function
+              // via admin SDK; clients only ever read, never write —
+              // but admin-SDK writes still satisfy `hasOnly` so list it).
+              'dayThreeCoachPushSent', 'firstEntryAt'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == true
-          && data.heightIn is number && data.heightIn >= 40 && data.heightIn <= 96
-          && data.age is number && data.age >= 13 && data.age <= 120
-          && (data.sex == 'male' || data.sex == 'female')
-          && hasValidActivityLevel(data)
-          && hasValidPace(data)
+          // The v2 2-Q onboarding writes profileCompleted=true with
+          // ONLY base + manual targets — no Mifflin-St Jeor inputs
+          // (heightIn/age/sex/activityLevel/pace). The Day-3 refine
+          // sheet adds those later. So the strict-validation branch
+          // only kicks in when those fields are present; the loose
+          // branch accepts the v2-only shape.
+          && (
+            // Strict branch: full Mifflin-St Jeor profile present.
+            (
+              'heightIn' in data.keys()
+              && data.heightIn is number && data.heightIn >= 40 && data.heightIn <= 96
+              && data.age is number && data.age >= 13 && data.age <= 120
+              && (data.sex == 'male' || data.sex == 'female')
+              && hasValidActivityLevel(data)
+              && hasValidPace(data)
+            )
+            // Loose branch: v2 2-Q onboarding only.
+            || (
+              !('heightIn' in data.keys())
+              && 'manualCaloriesTarget' in data.keys()
+              && data.manualCaloriesTarget is number
+              && data.manualCaloriesTarget > 0
+              && data.manualCaloriesTarget < 20000
+            )
+          )
+          && (!('goalDirection' in data.keys()) || hasValidGoalDirection(data))
+          && (!('targetWeightLbs' in data.keys()) ||
+              (data.targetWeightLbs is number && data.targetWeightLbs > 0 && data.targetWeightLbs < 1000))
+          && (!('manualCaloriesTarget' in data.keys()) ||
+              (data.manualCaloriesTarget is number && data.manualCaloriesTarget > 0 && data.manualCaloriesTarget < 20000))
+          && (!('manualProteinTarget' in data.keys()) ||
+              (data.manualProteinTarget is number && data.manualProteinTarget > 0 && data.manualProteinTarget < 1000))
+          && (!('onboardingV2CompletedAt' in data.keys()) ||
+              data.onboardingV2CompletedAt is timestamp)
+          && (!('targetsRefinedAt' in data.keys()) ||
+              data.targetsRefinedAt is timestamp)
+          && (!('firstEntryAt' in data.keys()) ||
+              data.firstEntryAt is timestamp)
+          && (!('dayThreeCoachPushSent' in data.keys()) ||
+              data.dayThreeCoachPushSent is bool)
           && (!('goalWeightLbs' in data.keys()) ||
               (data.goalWeightLbs is number && data.goalWeightLbs > 0 && data.goalWeightLbs < 1000))
           && (!('travelMode' in data.keys()) || data.travelMode is bool)

@@ -48,7 +48,20 @@
     "proF5": "pro themes, priority support, 7-day free trial",
     "pricingFinePrint": "cancel anytime from the customer portal. stripe handles billing; we never see your card.",
     "freeCta": "start free",
-    "proCta": "start 7-day free trial"
+    "proCta": "start 7-day free trial",
+    "tryCalculator": "Try the calculator",
+    "quickTargetsRule": "Quick targets",
+    "quickTargetsLead": "Common starting points by current weight. Each opens a public page with the numbers — no sign-up required.",
+    "qtLose": "Cutting",
+    "qtMaintain": "Maintaining",
+    "qtGain": "Building",
+    "qtLose150": "150 lb · lose",
+    "qtLose180": "180 lb · lose",
+    "qtLose220": "220 lb · lose",
+    "qtMaintain150": "150 lb · maintain",
+    "qtMaintain180": "180 lb · maintain",
+    "qtGain170": "170 lb · gain",
+    "qtAllWeights": "Find targets for any weight →"
   },
   "app": {
     "skipToMain": "skip to main content",

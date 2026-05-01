@@ -43,7 +43,7 @@ function replaceHeadTag(html, regex, replacement) {
   return html.replace('</head>', `    ${replacement}\n  </head>`);
 }
 
-function rewrite(html, { title, description, canonical, ogImage }) {
+function rewrite(html, { title, description, canonical, ogImage, jsonLd }) {
   let out = html;
   out = replaceHeadTag(out, /<title>[^<]*<\/title>/, `<title>${escape(title)}</title>`);
   out = replaceHeadTag(
@@ -88,7 +88,29 @@ function rewrite(html, { title, description, canonical, ogImage }) {
     /<meta\s+name="twitter:description"\s+content="[^"]*"\s*\/?>/,
     `<meta name="twitter:description" content="${escape(description)}" />`,
   );
+  // Insert per-page JSON-LD just before </head>. Kept as an extra
+  // script alongside the SPA's existing SoftwareApplication block,
+  // not a replacement — Google merges multiple JSON-LD blobs per page.
+  if (jsonLd) {
+    const blobs = (Array.isArray(jsonLd) ? jsonLd : [jsonLd])
+      .map((b) => `<script type="application/ld+json">${JSON.stringify(b)}</script>`)
+      .join('\n    ');
+    out = out.replace('</head>', `    ${blobs}\n  </head>`);
+  }
   return out;
+}
+
+function breadcrumb(items) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((it, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: it.name,
+      item: it.url,
+    })),
+  };
 }
 
 function escape(s) {
@@ -114,6 +136,10 @@ routes.push({
   description:
     'Free macro calculator: enter your weight, pick lose / maintain / gain, get a daily calorie + protein target you can act on today. No sign-up required.',
   canonical: `${SITE}/calculator`,
+  jsonLd: breadcrumb([
+    { name: 'Home', url: `${SITE}/` },
+    { name: 'Macro calculator', url: `${SITE}/calculator` },
+  ]),
 });
 
 // /macros/<goal>/<weight>-lb — enumerate from sitemap-aligned ranges
@@ -129,11 +155,38 @@ for (const goal of Object.keys(RANGES)) {
     const protein = computeProtein(weight, goal);
     const title = interp(i18n.macrosPage.title[goal], { weight });
     const description = interp(i18n.macrosPage.explainer[goal], { weight, kcal, protein }).slice(0, 320);
+    const url = `${SITE}/macros/${goal}/${weight}-lb`;
     routes.push({
       file: `macros/${goal}/${weight}-lb.html`,
       title,
       description,
-      canonical: `${SITE}/macros/${goal}/${weight}-lb`,
+      canonical: url,
+      jsonLd: [
+        breadcrumb([
+          { name: 'Home', url: `${SITE}/` },
+          { name: 'Macro calculator', url: `${SITE}/calculator` },
+          { name: title.replace(' | Macro Log', ''), url },
+        ]),
+        // Lightweight WebPage signal so the URL is recognised as a
+        // standalone page, not a homepage duplicate. Includes the
+        // computed kcal/protein targets as structured facts so future
+        // featured-snippet / answer-box eligibility has data to match
+        // against the page's user-visible numbers.
+        {
+          '@context': 'https://schema.org',
+          '@type': 'WebPage',
+          name: title,
+          description,
+          url,
+          inLanguage: 'en',
+          isPartOf: { '@type': 'WebSite', name: 'Macro Log', url: `${SITE}/` },
+          about: {
+            '@type': 'Thing',
+            name: `Daily macro targets for ${weight} lb (${goal})`,
+            description: `${kcal} kcal/day, ${protein} g protein/day`,
+          },
+        },
+      ],
     });
   }
 }

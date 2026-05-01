@@ -49,6 +49,9 @@ import { V2Button } from '../ui/button.component';
               <a href="/app" class="v2-btn v2-btn--primary v2-btn--lg">
                 {{ t('landing.startLogging') }}
               </a>
+              <a href="/calculator" class="v2-btn v2-btn--secondary">
+                {{ t('landing.tryCalculator') }}
+              </a>
               <a href="#pricing" class="v2-btn v2-btn--ghost">{{ t('landing.seePricing') }}</a>
             </div>
 
@@ -118,6 +121,28 @@ import { V2Button } from '../ui/button.component';
             <a href="/terms" style="text-decoration: underline; text-decoration-style: dotted;">{{ t('landing.termsLink') }}</a>
           </p>
         </v2-card>
+      </section>
+
+      <!-- ── 3.5 Quick targets — internal links into the programmatic
+              SEO grid. Doubles as a crawl-graph signal (Google ranks
+              pages other pages link to) and a low-friction "see what
+              this app's numbers look like" demo for the visitor. -->
+      <section>
+        <h2 class="v2-h2 mb-3" style="text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.875rem; color: var(--v2-ink-muted);">
+          {{ t('landing.quickTargetsRule') }}
+        </h2>
+        <p class="v2-body-soft mb-4 max-w-2xl">{{ t('landing.quickTargetsLead') }}</p>
+        <div class="grid gap-2 sm:grid-cols-3">
+          <a href="/macros/lose/150-lb"     class="v2-card block" style="text-decoration: none;"><span class="v2-body" style="font-weight: 500;">{{ t('landing.qtLose150') }}</span><br/><span class="v2-caption">{{ t('landing.qtLose') }}</span></a>
+          <a href="/macros/lose/180-lb"     class="v2-card block" style="text-decoration: none;"><span class="v2-body" style="font-weight: 500;">{{ t('landing.qtLose180') }}</span><br/><span class="v2-caption">{{ t('landing.qtLose') }}</span></a>
+          <a href="/macros/lose/220-lb"     class="v2-card block" style="text-decoration: none;"><span class="v2-body" style="font-weight: 500;">{{ t('landing.qtLose220') }}</span><br/><span class="v2-caption">{{ t('landing.qtLose') }}</span></a>
+          <a href="/macros/maintain/150-lb" class="v2-card block" style="text-decoration: none;"><span class="v2-body" style="font-weight: 500;">{{ t('landing.qtMaintain150') }}</span><br/><span class="v2-caption">{{ t('landing.qtMaintain') }}</span></a>
+          <a href="/macros/maintain/180-lb" class="v2-card block" style="text-decoration: none;"><span class="v2-body" style="font-weight: 500;">{{ t('landing.qtMaintain180') }}</span><br/><span class="v2-caption">{{ t('landing.qtMaintain') }}</span></a>
+          <a href="/macros/gain/170-lb"     class="v2-card block" style="text-decoration: none;"><span class="v2-body" style="font-weight: 500;">{{ t('landing.qtGain170') }}</span><br/><span class="v2-caption">{{ t('landing.qtGain') }}</span></a>
+        </div>
+        <p class="v2-caption mt-3">
+          <a href="/calculator" style="text-decoration: underline; text-decoration-style: dotted;">{{ t('landing.qtAllWeights') }}</a>
+        </p>
       </section>
 
       <!-- ── 4. Pricing ───────────────────────────────────────────── -->

@@ -48,7 +48,20 @@
     "proF5": "temas pro, soporte prioritario, prueba gratis de 7 días",
     "pricingFinePrint": "cancela cuando quieras desde el portal. stripe maneja el cobro; nunca vemos tu tarjeta.",
     "freeCta": "empezar gratis",
-    "proCta": "empezar prueba de 7 días"
+    "proCta": "empezar prueba de 7 días",
+    "tryCalculator": "Probar la calculadora",
+    "quickTargetsRule": "Metas rápidas",
+    "quickTargetsLead": "Puntos de partida comunes por peso actual. Cada uno abre una página pública con los números — sin registro.",
+    "qtLose": "Cortando",
+    "qtMaintain": "Manteniendo",
+    "qtGain": "Construyendo",
+    "qtLose150": "150 lb · bajar",
+    "qtLose180": "180 lb · bajar",
+    "qtLose220": "220 lb · bajar",
+    "qtMaintain150": "150 lb · mantener",
+    "qtMaintain180": "180 lb · mantener",
+    "qtGain170": "170 lb · subir",
+    "qtAllWeights": "Buscar metas para cualquier peso →"
   },
   "app": {
     "skipToMain": "saltar al contenido principal",

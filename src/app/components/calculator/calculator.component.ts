@@ -8,6 +8,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { TranslationService } from '../../services/translation.service';
+import { AnalyticsService } from '../../services/analytics.service';
 import { V2Button } from '../ui/button.component';
 import { V2Card } from '../ui/card.component';
 import {
@@ -125,7 +126,7 @@ import {
               {{ t('calculator.ctaBody') }}
             </p>
             <div class="mt-5">
-              <a href="/app" class="v2-btn v2-btn--primary v2-btn--lg">
+              <a href="/app" class="v2-btn v2-btn--primary v2-btn--lg" (click)="trackCtaClick()">
                 {{ t('calculator.ctaButton') }}
               </a>
             </div>
@@ -150,6 +151,11 @@ import {
 })
 export class CalculatorComponent {
   private readonly translation = inject(TranslationService);
+  private readonly analytics = inject(AnalyticsService);
+  /** Latch so reload + repeat-tap doesn't double-count the same intent.
+   *  Cleared per page load only; users who genuinely close + reopen the
+   *  tab will get re-counted, which is what the funnel cares about. */
+  private calculatedTracked = false;
 
   protected readonly WEIGHT_MIN_LB = WEIGHT_MIN_LB;
   protected readonly WEIGHT_MAX_LB = WEIGHT_MAX_LB;
@@ -196,5 +202,13 @@ export class CalculatorComponent {
     }
     this.weightError.set(null);
     this.weight.set(raw);
+    if (!this.calculatedTracked) {
+      this.calculatedTracked = true;
+      this.analytics.track('calculator_calculated', { goal: this.goal() });
+    }
+  }
+
+  protected trackCtaClick(): void {
+    this.analytics.track('calculator_cta_signup', { goal: this.goal() });
   }
 }
