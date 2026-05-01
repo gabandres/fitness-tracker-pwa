@@ -17,6 +17,7 @@
   "hosting": {
     "site": "macrolog",
     "public": "dist/fitness-tracker-pwa/browser",
+    "cleanUrls": true,
     "ignore": [
       "firebase.json",
       "**/.*",
