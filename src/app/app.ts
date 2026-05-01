@@ -9,6 +9,8 @@ import { ConsultationComponent } from './components/consultation/consultation.co
 import { SignInComponent } from './components/sign-in/sign-in.component';
 import { OnboardingComponent } from './components/onboarding/onboarding.component';
 import { OnboardingV2Component } from './components/onboarding-v2/onboarding-v2.component';
+import { CalculatorComponent } from './components/calculator/calculator.component';
+import { MacrosPageComponent } from './components/macros-page/macros-page.component';
 import { FastingComponent } from './components/fasting/fasting.component';
 import { MeasurementsComponent } from './components/measurements/measurements.component';
 import { PrivacyComponent } from './components/privacy/privacy.component';
@@ -53,6 +55,8 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
     SignInComponent,
     OnboardingComponent,
     OnboardingV2Component,
+    CalculatorComponent,
+    MacrosPageComponent,
     FastingComponent,
     MeasurementsComponent,
     PrivacyComponent,
@@ -89,7 +93,13 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
     <main id="main" class="min-h-screen px-5 sm:px-8 md:px-12 py-8 sm:py-12 pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-12">
       <div class="max-w-[560px] md:max-w-[1100px] mx-auto">
 
-        @if (route() === 'privacy') {
+        @if (route() === 'calculator') {
+          @defer (on immediate) { <app-calculator /> }
+          @placeholder { <div class="py-20 text-center caption">…</div> }
+        } @else if (route() === 'macros') {
+          @defer (on immediate) { <app-macros-page /> }
+          @placeholder { <div class="py-20 text-center caption">…</div> }
+        } @else if (route() === 'privacy') {
           @defer { <app-privacy /> }
           @placeholder { <div class="py-20 text-center caption">…</div> }
         } @else if (route() === 'terms') {
@@ -567,7 +577,7 @@ export class App {
   /** URL-path based routing for the two public-static pages. Anything
       else (including '/' and unknown paths) falls through to the
       signal-gated main app. */
-  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | 'onboarding' | null>(this.detectRoute());
+  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | 'onboarding' | 'calculator' | 'macros' | null>(this.detectRoute());
   /** Selected day for `/history/YYYY-MM-DD`. Null on the grid view. */
   protected readonly historyDay = signal<string | null>(this.detectHistoryDay());
   /** Stack depth of OUR pushState calls. popHistory() falls back to a
@@ -694,7 +704,7 @@ export class App {
     return 'log';
   }
 
-  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | 'onboarding' | null {
+  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | 'onboarding' | 'calculator' | 'macros' | null {
     const path = window.location.pathname.toLowerCase();
     if (path === '/privacy' || path === '/privacy/') return 'privacy';
     if (path === '/terms' || path === '/terms/') return 'terms';
@@ -707,6 +717,8 @@ export class App {
     if (path === '/trends' || path === '/trends/') return 'trends';
     if (path === '/body' || path === '/body/') return 'body';
     if (path === '/onboarding' || path === '/onboarding/') return 'onboarding';
+    if (path === '/calculator' || path === '/calculator/') return 'calculator';
+    if (/^\/macros\/(lose|maintain|gain)\/\d{2,3}-lb\/?$/.test(path)) return 'macros';
     // Root path shows the public marketing surface to non-signed-in
     // visitors. Once the user signs in, the auth gate in the template
     // takes over and renders the app regardless of the 'landing' route.

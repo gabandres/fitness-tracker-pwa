@@ -1164,5 +1164,65 @@
       "saving": "Guardando…",
       "addMeasurement": "Añadir medida"
     }
+  },
+  "calculator": {
+    "pageTitle": "Calculadora de macros — calorías y proteína por tu peso | Macro Log",
+    "eyebrow": "Calculadora gratis de macros",
+    "title": "Encuentra tus calorías y proteína diarias.",
+    "intro": "Ingresa tu peso, escoge tu meta, recibe un objetivo claro contra el cual registrar comidas. No requiere registro.",
+    "weightLabel": "Peso actual",
+    "lbs": "lb",
+    "weightOutOfRange": "Ingresa un peso entre {{min}} y {{max}} lb.",
+    "goalLabel": "¿Cuál es tu meta?",
+    "goalLose": "Bajar",
+    "goalMaintain": "Mantener",
+    "goalGain": "Subir",
+    "calculate": "Calcular",
+    "resultTitle": "Tus metas diarias",
+    "kcalLabel": "Calorías",
+    "proteinLabel": "Proteína",
+    "gramSuffix": " g",
+    "ctaTitle": "Guarda estas metas y empieza a registrar.",
+    "ctaBody": "Registra comidas contra estas metas, mira tus promedios semanales, y refina al cambiar tu peso. Gratis para empezar.",
+    "ctaButton": "Crear cuenta gratis",
+    "ctaFinePrint": "Sin tarjeta de crédito. Pro es $3/mes o $24/año si quieres historial completo + AI coach.",
+    "howTitle": "Cómo se calcula",
+    "howBody": "Macro Log usa una heurística simple basada en peso para que tengas un número con qué actuar hoy, antes de tener 14 días de datos reales:",
+    "howBullet1": "Calorías: peso × 11 (bajar), 14 (mantener), o 17 (subir).",
+    "howBullet2": "Proteína: peso × 1.0 g (bajar), 0.9 g (mantener), o 0.8 g (subir) por libra.",
+    "howBullet3": "Después de registrar 14+ días, Macro Log cambia a un TDEE medido según la tendencia real de tu peso.",
+    "disclaimer": "Las metas heurísticas no son consejo médico. Si tratas alguna condición, consulta con un nutricionista registrado."
+  },
+  "macrosPage": {
+    "eyebrow": "Macros diarias",
+    "kcalLabel": "Calorías",
+    "proteinLabel": "Proteína",
+    "gramSuffix": " g",
+    "title": {
+      "lose": "Macros para bajar de peso a las {{weight}} lb | Macro Log",
+      "maintain": "Macros para mantener las {{weight}} lb | Macro Log",
+      "gain": "Macros para subir de peso a las {{weight}} lb | Macro Log"
+    },
+    "heading": {
+      "lose": "Macros para bajar de peso a las {{weight}} lb",
+      "maintain": "Macros para mantener las {{weight}} lb",
+      "gain": "Macros para subir de peso a las {{weight}} lb"
+    },
+    "subhead": {
+      "lose": "Metas diarias de calorías y proteína para alguien en las {{weight}} lb que quiere bajar grasa.",
+      "maintain": "Metas diarias de calorías y proteína para alguien en las {{weight}} lb que mantiene su peso actual.",
+      "gain": "Metas diarias de calorías y proteína para alguien en las {{weight}} lb que quiere ganar masa."
+    },
+    "explainer": {
+      "lose": "A las {{weight}} lb, una meta de pérdida de grasa cae cerca de {{kcal}} kcal/día con {{protein}} g de proteína. La proteína está alta a propósito — preserva masa magra mientras el déficit baja la grasa. Pega la proteína primero; carbohidratos y grasas llenan el resto del presupuesto.",
+      "maintain": "A las {{weight}} lb, una meta de mantenimiento cae cerca de {{kcal}} kcal/día con {{protein}} g de proteína. Esto mantiene tu peso estable y deja espacio para entrenamiento y recuperación. Trackeéalo dos semanas y ajusta si tu peso sube o baja.",
+      "gain": "A las {{weight}} lb, una meta de aumento limpio cae cerca de {{kcal}} kcal/día con {{protein}} g de proteína. El superávit es moderado para que la mayor parte del aumento sea músculo, no grasa. Combínalo con sobrecarga progresiva en el gym 3-5×/semana."
+    },
+    "ctaTitle": "Sigue estas metas a diario.",
+    "ctaBody": "Registra comidas, mira tus aros de calorías + proteína cerrarse, y refina al cambiar tu peso.",
+    "ctaSignup": "Crear cuenta gratis",
+    "ctaRefine": "Refinar para mi peso",
+    "howTitle": "De dónde sale este número",
+    "disclaimer": "Las metas heurísticas no son consejo médico. Consulta con un nutricionista registrado para cualquier condición clínica."
   }
 }

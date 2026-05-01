@@ -84,7 +84,11 @@ export interface LogEntry {
 export type Sex = 'male' | 'female';
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
 export type CutPace = 0 | 0.5 | 1.0 | 1.5 | 2.0;
-export type GoalDirection = 'lose' | 'maintain' | 'gain';
+// Re-export so existing imports of GoalDirection from this module keep
+// working; the canonical definition lives in utils/macro-heuristic.ts
+// alongside the kcal/protein multipliers it parameterizes.
+export type { GoalDirection } from '../utils/macro-heuristic';
+import type { GoalDirection } from '../utils/macro-heuristic';
 
 /** v2 2-question onboarding submission. Heuristic targets are computed
  *  by the caller (component) and persisted as manualCaloriesTarget /

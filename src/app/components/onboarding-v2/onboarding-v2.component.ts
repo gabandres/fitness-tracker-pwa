@@ -9,18 +9,20 @@ import {
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
-import { FirebaseService, GoalDirection } from '../../services/firebase.service';
+import { FirebaseService } from '../../services/firebase.service';
 import { TranslationService } from '../../services/translation.service';
 import { V2Button } from '../ui/button.component';
 import { V2Card } from '../ui/card.component';
+import {
+  GoalDirection,
+  WEIGHT_MIN_LB,
+  WEIGHT_MAX_LB,
+  computeKcal,
+  computeProtein,
+} from '../../utils/macro-heuristic';
 
 type Step = 'weight' | 'goal' | 'targetWeight' | 'confirm';
 
-const KCAL_MULTIPLIER: Record<GoalDirection, number> = { lose: 11, maintain: 14, gain: 17 };
-const PROTEIN_MULTIPLIER: Record<GoalDirection, number> = { lose: 1.0, maintain: 0.9, gain: 0.8 };
-
-const WEIGHT_MIN_LB = 60;
-const WEIGHT_MAX_LB = 700;
 const DEFAULT_SKIP_KCAL = 2000;
 const DEFAULT_SKIP_PROTEIN = 120;
 
@@ -251,14 +253,14 @@ export class OnboardingV2Component {
     const w = this.weight();
     const g = this.goal();
     if (w == null || g == null) return 0;
-    return Math.round((w * KCAL_MULTIPLIER[g]) / 10) * 10;
+    return computeKcal(w, g);
   });
 
   protected readonly computedProtein = computed(() => {
     const w = this.weight();
     const g = this.goal();
     if (w == null || g == null) return 0;
-    return Math.round((w * PROTEIN_MULTIPLIER[g]) / 5) * 5;
+    return computeProtein(w, g);
   });
 
   constructor() {

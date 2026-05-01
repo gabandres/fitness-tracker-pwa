@@ -1158,5 +1158,65 @@
       "saving": "Saving…",
       "addMeasurement": "Add measurement"
     }
+  },
+  "calculator": {
+    "pageTitle": "Macro calculator — calories + protein from your weight | Macro Log",
+    "eyebrow": "Free macro calculator",
+    "title": "Find your daily calories and protein.",
+    "intro": "Enter your weight, pick your goal, get a target you can actually log against. No sign-up required.",
+    "weightLabel": "Current weight",
+    "lbs": "lb",
+    "weightOutOfRange": "Enter a weight between {{min}} and {{max}} lb.",
+    "goalLabel": "What's your goal?",
+    "goalLose": "Lose",
+    "goalMaintain": "Maintain",
+    "goalGain": "Gain",
+    "calculate": "Calculate",
+    "resultTitle": "Your daily targets",
+    "kcalLabel": "Calories",
+    "proteinLabel": "Protein",
+    "gramSuffix": " g",
+    "ctaTitle": "Save these and start logging.",
+    "ctaBody": "Track meals against these targets, see weekly averages, and refine as your weight changes. Free to start.",
+    "ctaButton": "Sign up free",
+    "ctaFinePrint": "No credit card. Pro is $3/mo or $24/yr if you want full history + AI coach.",
+    "howTitle": "How this is calculated",
+    "howBody": "Macro Log uses a simple bodyweight-based heuristic so you can act on a number today, before 14 days of real data:",
+    "howBullet1": "Calories: weight × 11 (lose), 14 (maintain), or 17 (gain).",
+    "howBullet2": "Protein: weight × 1.0 g (lose), 0.9 g (maintain), or 0.8 g (gain) per pound.",
+    "howBullet3": "Once you log 14+ days, Macro Log switches to a measured TDEE based on your actual weight trend.",
+    "disclaimer": "Heuristic targets aren't medical advice. If you're treating a condition, talk to a registered dietitian."
+  },
+  "macrosPage": {
+    "eyebrow": "Daily macros",
+    "kcalLabel": "Calories",
+    "proteinLabel": "Protein",
+    "gramSuffix": " g",
+    "title": {
+      "lose": "Macros to lose weight at {{weight}} lb | Macro Log",
+      "maintain": "Macros to maintain {{weight}} lb | Macro Log",
+      "gain": "Macros to gain weight at {{weight}} lb | Macro Log"
+    },
+    "heading": {
+      "lose": "Macros to lose weight at {{weight}} lb",
+      "maintain": "Macros to maintain {{weight}} lb",
+      "gain": "Macros to gain weight at {{weight}} lb"
+    },
+    "subhead": {
+      "lose": "Daily calorie + protein targets for someone at {{weight}} lb who wants to drop fat.",
+      "maintain": "Daily calorie + protein targets for someone at {{weight}} lb holding their current weight.",
+      "gain": "Daily calorie + protein targets for someone at {{weight}} lb who wants to add mass."
+    },
+    "explainer": {
+      "lose": "At {{weight}} lb, a fat-loss target lands around {{kcal}} kcal/day with {{protein}} g of protein. The protein side is high on purpose — it preserves lean mass while the calorie deficit pulls fat off. Hit the protein number first; carbs and fat fill the rest of the calorie budget.",
+      "maintain": "At {{weight}} lb, a maintenance target lands around {{kcal}} kcal/day with {{protein}} g of protein. This holds your weight steady while leaving headroom for training and recovery. Track it for two weeks and adjust if your bodyweight drifts up or down.",
+      "gain": "At {{weight}} lb, a lean-gain target lands around {{kcal}} kcal/day with {{protein}} g of protein. The surplus is moderate so most of the gain becomes muscle, not fat. Pair this with progressive overload in the gym 3-5×/week."
+    },
+    "ctaTitle": "Track these targets daily.",
+    "ctaBody": "Log meals, watch your kcal + protein rings close, and refine as your weight changes.",
+    "ctaSignup": "Sign up free",
+    "ctaRefine": "Refine for my weight",
+    "howTitle": "Where this number comes from",
+    "disclaimer": "Heuristic targets aren't medical advice. Consult a registered dietitian for any clinical condition."
   }
 }
