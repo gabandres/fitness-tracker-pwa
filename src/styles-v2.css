@@ -305,9 +305,38 @@
 .v2-fab:hover { background: var(--v2-accent-deep); box-shadow: var(--v2-shadow-3); }
 .v2-fab:active { transform: scale(0.94); }
 .v2-fab:focus-visible { outline: 2px solid var(--v2-accent); outline-offset: 4px; }
-@media (min-width: 768px) {
-  /* Desktop has an inline "Add food" button in Today header — no FAB. */
-  .v2-fab { display: none; }
+/* FAB stays visible on desktop too — having no entry affordance at
+   md+ widths broke the "+" discoverability. */
+
+/* ── Loader (dual-ring) ──────────────────────────────────────── */
+.v2-loader {
+  display: inline-flex; align-items: center; justify-content: center;
+  position: relative;
+  width: 56px; height: 56px;
+}
+.v2-loader::before,
+.v2-loader::after {
+  content: ""; position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 3px solid transparent;
+}
+.v2-loader::before {
+  border-top-color: var(--v2-accent);
+  animation: v2-loader-spin 1.1s linear infinite;
+}
+.v2-loader::after {
+  border-bottom-color: var(--v2-sage);
+  animation: v2-loader-spin 1.6s linear infinite reverse;
+  inset: 6px;
+}
+@keyframes v2-loader-spin { to { transform: rotate(360deg); } }
+.v2-loader-stack {
+  display: flex; flex-direction: column; align-items: center; gap: var(--v2-space-3);
+  padding: var(--v2-space-7) var(--v2-space-5);
+}
+.v2-loader-label {
+  font-family: var(--v2-font-sans, 'Geist', system-ui, sans-serif);
+  font-size: 0.875rem; color: var(--v2-ink-muted); letter-spacing: 0.01em;
 }
 
 /* ── Ring (progress) ────────────────────────────────────────── */

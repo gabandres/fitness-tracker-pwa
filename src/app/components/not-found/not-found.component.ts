@@ -21,7 +21,7 @@ import { V2Card } from '../ui/card.component';
         </p>
         <h1 class="v2-h1 mt-3" style="font-size: 3rem; line-height: 1.05;">
           {{ t('notFound.titleLead') }}
-          <em style="color: var(--v2-accent); font-style: normal;">{{ t('notFound.titleEm') }}</em>
+          <span style="color: var(--v2-accent);">{{ t('notFound.titleEm') }}</span>
         </h1>
         <p class="v2-body-soft mt-4">{{ t('notFound.body') }}</p>
         <div class="mt-6 flex items-center justify-center gap-3 flex-wrap">

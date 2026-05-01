@@ -29,114 +29,163 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
   imports: [FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`
-    :host { display: block; }
-    .admin-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    :host { display: block; font-family: var(--v2-font-sans, 'Geist', system-ui, sans-serif); }
+    .admin-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
     .admin-table th, .admin-table td {
-      padding: 0.5rem 0.75rem;
-      border-bottom: 1px solid color-mix(in srgb, var(--color-rule) 40%, transparent);
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--v2-rule);
       text-align: left;
       vertical-align: middle;
     }
     .admin-table th {
-      font-family: var(--font-mono, ui-monospace);
-      font-size: 0.65rem;
-      letter-spacing: 0.12em;
+      font-family: var(--v2-font-mono, 'Geist Mono', ui-monospace);
+      font-size: 0.6875rem;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--color-graphite);
+      color: var(--v2-ink-muted);
       font-weight: 500;
     }
-    .admin-table tr:hover td { background: color-mix(in srgb, var(--color-gold) 8%, transparent); }
+    .admin-table tr:hover td { background: color-mix(in srgb, var(--v2-accent) 4%, transparent); }
     .chip {
-      display: inline-flex; align-items: center; padding: 0.1rem 0.5rem;
+      display: inline-flex; align-items: center; padding: 0.1rem 0.55rem;
       border: 1px solid currentColor; border-radius: 999px;
-      font-family: var(--font-mono, ui-monospace); font-size: 0.65rem;
-      letter-spacing: 0.1em; text-transform: uppercase;
+      font-family: var(--v2-font-sans, 'Geist', system-ui, sans-serif);
+      font-size: 0.6875rem;
+      letter-spacing: 0.04em;
+      font-weight: 500;
     }
-    .chip-olive { color: var(--color-olive); }
-    .chip-blood { color: var(--color-blood); }
-    .chip-gold { color: var(--color-gold); }
-    .chip-graphite { color: var(--color-graphite); }
+    .chip-olive { color: var(--v2-sage); }
+    .chip-blood { color: var(--v2-accent); }
+    .chip-gold { color: var(--v2-warn, #B8893A); }
+    .chip-graphite { color: var(--v2-ink-muted); }
+    .admin-btn {
+      display: inline-flex; align-items: center; gap: 0.25rem;
+      padding: 0.4rem 0.75rem;
+      background: var(--v2-paper-2);
+      border: 1px solid var(--v2-rule);
+      border-radius: var(--v2-radius-md, 8px);
+      font-size: 0.8125rem;
+      color: var(--v2-ink);
+      cursor: pointer;
+      transition: border-color 160ms ease, background 160ms ease;
+    }
+    .admin-btn:hover:not(:disabled) { border-color: var(--v2-accent); }
+    .admin-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .admin-btn--primary {
+      background: var(--v2-accent);
+      border-color: var(--v2-accent);
+      color: white;
+    }
+    .admin-btn--primary:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--v2-accent) 88%, black);
+    }
+    .admin-btn--sm { padding: 0.25rem 0.55rem; font-size: 0.75rem; }
+    .admin-stat {
+      padding: 0.85rem 1rem;
+      background: var(--v2-paper-2);
+      border: 1px solid var(--v2-rule);
+      border-radius: var(--v2-radius-md, 8px);
+    }
+    .admin-stat-label {
+      font-family: var(--v2-font-sans, 'Geist', system-ui, sans-serif);
+      font-size: 0.6875rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--v2-ink-muted);
+    }
+    .admin-stat-value {
+      font-family: var(--v2-font-mono, 'Geist Mono', ui-monospace);
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--v2-ink);
+      margin-top: 0.4rem;
+    }
+    .admin-h1 { font: 600 2.5rem/1.05 var(--v2-font-sans, 'Geist'); letter-spacing: -0.025em; color: var(--v2-ink); }
+    .admin-h2 { font: 600 1.5rem/1.15 var(--v2-font-sans, 'Geist'); letter-spacing: -0.015em; color: var(--v2-ink); }
+    .admin-h3 { font: 600 1rem/1.2 var(--v2-font-sans, 'Geist'); color: var(--v2-ink); }
+    .admin-card {
+      padding: 1.5rem;
+      background: var(--v2-paper-2);
+      border: 1px solid var(--v2-rule);
+      border-radius: var(--v2-radius-lg, 12px);
+    }
+    .admin-caption { font-size: 0.8125rem; color: var(--v2-ink-muted); }
+    .admin-mono { font-family: var(--v2-font-mono, 'Geist Mono', ui-monospace); }
   `],
   template: `
     <section class="max-w-[1200px] mx-auto">
-      <a href="/app" class="caption text-xs underline decoration-dotted hover:text-blood">
-        &larr; back to app
+      <a href="/app" class="admin-caption underline decoration-dotted">
+        ← back to app
       </a>
 
       <header class="mt-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <div class="flex items-center gap-3 mb-1">
-            <span class="stamp-mark" style="border-color: var(--color-blood); color: var(--color-blood)">
-              ADMIN
-            </span>
-            <span class="data-label">superuser panel</span>
+          <div class="flex items-center gap-2 mb-2">
+            <span class="chip chip-blood">Admin</span>
+            <span class="admin-stat-label">superuser panel</span>
           </div>
-          <h1 class="font-display text-4xl sm:text-5xl leading-[0.95] tracking-tight text-ink">
-            Operator<br/><em class="text-blood">Console</em>
-          </h1>
-          <p class="caption mt-2 text-xs">
-            signed in as <span class="font-mono">{{ auth.user()?.email }}</span>
+          <h1 class="admin-h1">Operator console</h1>
+          <p class="admin-caption mt-2">
+            signed in as <span class="admin-mono">{{ auth.user()?.email }}</span>
           </p>
         </div>
         <div class="flex gap-2 items-center shrink-0 pt-2">
           @if (admin.impersonating()) {
             <span class="chip chip-gold">impersonating</span>
-            <button type="button" (click)="stopImpersonating()" class="tag-btn">
+            <button type="button" (click)="stopImpersonating()" class="admin-btn admin-btn--sm">
               exit impersonation
             </button>
           }
-          <button type="button" (click)="signOut()" class="tag-btn">sign out</button>
+          <button type="button" (click)="signOut()" class="admin-btn admin-btn--sm">sign out</button>
         </div>
       </header>
 
-      <div class="ruler-edge mt-4">
-        @for (_ of ticks; track $index) { <span></span> }
-      </div>
+      <hr class="mt-6" style="border: none; border-top: 1px solid var(--v2-rule);" />
 
       @if (!admin.ready()) {
-        <div class="specimen p-10 mt-8 text-center">
-          <p class="caption">resolving admin claim…</p>
+        <div class="v2-loader-stack mt-8" role="status" aria-live="polite">
+          <div class="v2-loader" aria-hidden="true"></div>
+          <p class="v2-loader-label">Resolving admin claim…</p>
         </div>
       } @else if (!admin.isAdmin()) {
         @if (admin.canBootstrap()) {
-          <div class="specimen p-8 mt-8">
-            <span class="crop-bl"></span><span class="crop-br"></span>
-            <h2 class="font-display text-2xl text-ink">Bootstrap admin</h2>
-            <p class="caption mt-2 text-xs">
+          <div class="admin-card mt-8">
+                        <h2 class="admin-h2">Bootstrap admin</h2>
+            <p class="admin-caption mt-2">
               No admin is configured yet. You're on the seed list; click to grant yourself the
-              <code class="font-mono">admin</code> custom claim.
+              <code class="admin-mono">admin</code> custom claim.
             </p>
             <div class="mt-4 flex items-center gap-2">
-              <button type="button" (click)="bootstrap()" [disabled]="busy()" class="stamp-btn">
+              <button type="button" (click)="bootstrap()" [disabled]="busy()" class="admin-btn admin-btn--primary">
                 {{ busy() ? 'working…' : 'bootstrap admin system' }}
               </button>
-              <button type="button" (click)="refreshClaim()" class="tag-btn">
+              <button type="button" (click)="refreshClaim()" class="admin-btn admin-btn--sm">
                 refresh claim
               </button>
             </div>
             @if (error()) {
-              <p class="font-mono text-[11px] text-blood mt-3" role="alert">✕ {{ error() }}</p>
+              <p class="admin-mono text-[11px] mt-3" style="color: var(--v2-accent);" role="alert">✕ {{ error() }}</p>
             }
           </div>
         } @else {
-          <div class="specimen p-8 mt-8">
-            <p class="caption">Access denied. This surface is gated on the <code class="font-mono">admin</code> custom claim.</p>
+          <div class="admin-card mt-8">
+            <p class="admin-caption">Access denied. This surface is gated on the <code class="admin-mono">admin</code> custom claim.</p>
             <div class="mt-3">
-              <button type="button" (click)="refreshClaim()" class="tag-btn">refresh claim</button>
+              <button type="button" (click)="refreshClaim()" class="admin-btn admin-btn--sm">refresh claim</button>
             </div>
           </div>
         }
       } @else {
         <!-- Tab navigation -->
         <nav class="mt-8 overflow-x-auto">
-          <div class="flex gap-1 border-b border-rule/50 min-w-max">
+          <div class="flex gap-1 min-w-max" style="border-bottom: 1px solid var(--v2-rule);">
             @for (tab of tabs; track tab.id) {
               <button type="button" (click)="setTab(tab.id)"
-                class="px-4 py-2 text-sm font-sans transition-colors whitespace-nowrap border-b-2"
-                [class.border-blood]="activeTab() === tab.id"
-                [class.text-blood]="activeTab() === tab.id"
-                [class.border-transparent]="activeTab() !== tab.id"
-                [class.text-graphite]="activeTab() !== tab.id">
+                class="px-4 py-2 text-sm whitespace-nowrap"
+                style="background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: color 160ms ease, border-color 160ms ease;"
+                [style.border-bottom-color]="activeTab() === tab.id ? 'var(--v2-accent)' : 'transparent'"
+                [style.color]="activeTab() === tab.id ? 'var(--v2-accent)' : 'var(--v2-ink-muted)'"
+                [style.font-weight]="activeTab() === tab.id ? '600' : '400'">
                 {{ tab.label }}
               </button>
             }
@@ -144,10 +193,10 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
         </nav>
 
         @if (error()) {
-          <p class="font-mono text-[11px] text-blood mt-4" role="alert">✕ {{ error() }}</p>
+          <p class="admin-mono text-[11px] mt-4" style="color: var(--v2-accent);" role="alert">✕ {{ error() }}</p>
         }
         @if (notice()) {
-          <p class="font-mono text-[11px] mt-4" style="color: var(--color-olive)" role="status">
+          <p class="admin-mono text-[11px] mt-4" style="color: var(--v2-sage)" role="status">
             ✓ {{ notice() }}
           </p>
         }
@@ -156,23 +205,22 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
         @if (activeTab() === 'stats') {
           <div class="mt-6 space-y-4">
             <div class="flex items-center justify-between">
-              <h2 class="font-display text-2xl text-ink">Platform stats</h2>
-              <button type="button" (click)="loadStats(true)" [disabled]="busy()" class="tag-btn">
+              <h2 class="admin-h2">Platform stats</h2>
+              <button type="button" (click)="loadStats(true)" [disabled]="busy()" class="admin-btn admin-btn--sm">
                 {{ busy() ? 'refreshing…' : 'refresh' }}
               </button>
             </div>
             @if (stats(); as s) {
               <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                 @for (m of statMetrics(s); track m.label) {
-                  <div class="specimen px-4 py-3">
-                    <span class="crop-bl"></span><span class="crop-br"></span>
-                    <div class="data-label text-[10px]">{{ m.label }}</div>
-                    <div class="font-display text-2xl mt-1 text-ink">{{ m.value }}</div>
+                  <div class="admin-stat">
+                                        <div class="admin-stat-label">{{ m.label }}</div>
+                    <div class="admin-stat-value">{{ m.value }}</div>
                   </div>
                 }
               </div>
               <div class="mt-2">
-                <h3 class="data-label">providers</h3>
+                <h3 class="admin-stat-label">providers</h3>
                 <ul class="mt-2 flex gap-2 flex-wrap">
                   @for (p of providerEntries(s); track p.id) {
                     <li class="chip chip-graphite">{{ p.id }} · {{ p.count }}</li>
@@ -180,7 +228,7 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
                 </ul>
               </div>
             } @else {
-              <p class="caption">loading…</p>
+              <p class="admin-caption">loading…</p>
             }
           </div>
         }
@@ -189,14 +237,14 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
         @if (activeTab() === 'activity') {
           <div class="mt-6 space-y-4">
             <div class="flex items-center justify-between">
-              <h2 class="font-display text-2xl text-ink">Recent activity</h2>
-              <button type="button" (click)="loadActivity()" [disabled]="busy()" class="tag-btn">
+              <h2 class="admin-h2">Recent activity</h2>
+              <button type="button" (click)="loadActivity()" [disabled]="busy()" class="admin-btn admin-btn--sm">
                 {{ busy() ? 'refreshing…' : 'refresh' }}
               </button>
             </div>
-            <p class="caption text-[11px]">last 20 sign-ups + last 20 entries, merged by timestamp.</p>
+            <p class="admin-caption">last 20 sign-ups + last 20 entries, merged by timestamp.</p>
             @if (activityItems().length === 0) {
-              <p class="caption">no activity.</p>
+              <p class="admin-caption">no activity.</p>
             } @else {
               <div class="overflow-x-auto">
                 <table class="admin-table">
@@ -208,7 +256,7 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
                   <tbody>
                     @for (a of activityItems(); track a.timestamp + a.uid) {
                       <tr>
-                        <td class="font-mono text-[11px]">{{ shortDateTime(a.timestamp) }}</td>
+                        <td class="admin-mono text-[11px]">{{ shortDateTime(a.timestamp) }}</td>
                         <td>
                           @if (a.type === 'signup') {
                             <span class="chip chip-olive">signup</span>
@@ -216,7 +264,7 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
                             <span class="chip chip-graphite">entry</span>
                           }
                         </td>
-                        <td class="font-mono text-xs">{{ a.email || '—' }}</td>
+                        <td class="admin-mono text-xs">{{ a.email || '—' }}</td>
                         <td>{{ a.detail || '—' }}</td>
                       </tr>
                     }
@@ -231,20 +279,21 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
         @if (activeTab() === 'users') {
           <div class="mt-6 space-y-4">
             <div class="flex items-center justify-between gap-3 flex-wrap">
-              <h2 class="font-display text-2xl text-ink">Users</h2>
+              <h2 class="admin-h2">Users</h2>
               <div class="flex items-center gap-2">
                 <input type="search" [ngModel]="userSearch()" (ngModelChange)="userSearch.set($event)"
                   placeholder="email, name, or uid"
-                  class="px-3 py-1.5 border border-rule/60 rounded bg-paper text-ink text-sm min-w-[260px]"
+                  class="text-sm min-w-[260px]"
+                  style="padding: 0.5rem 0.75rem; background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md, 8px); color: var(--v2-ink);"
                 />
-                <button type="button" (click)="loadUsers()" [disabled]="busy()" class="tag-btn">
+                <button type="button" (click)="loadUsers()" [disabled]="busy()" class="admin-btn admin-btn--sm">
                   {{ busy() ? 'loading…' : 'reload' }}
                 </button>
               </div>
             </div>
 
             @if (filteredUsers().length === 0) {
-              <p class="caption">no users.</p>
+              <p class="admin-caption">no users.</p>
             } @else {
               <div class="overflow-x-auto">
                 <table class="admin-table">
@@ -257,44 +306,44 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
                   <tbody>
                     @for (u of filteredUsers(); track u.uid) {
                       <tr>
-                        <td class="font-mono text-xs">{{ u.email }}</td>
+                        <td class="admin-mono text-xs">{{ u.email }}</td>
                         <td>{{ u.displayName || '—' }}</td>
-                        <td class="font-mono text-[11px]">{{ shortDate(u.createdAt) }}</td>
-                        <td class="font-mono text-[11px]">{{ shortDate(u.lastSignInAt) }}</td>
+                        <td class="admin-mono text-[11px]">{{ shortDate(u.createdAt) }}</td>
+                        <td class="admin-mono text-[11px]">{{ shortDate(u.lastSignInAt) }}</td>
                         <td>
                           @if (u.admin) { <span class="chip chip-blood">admin</span> }
                           @else if (u.stripeRole === 'paid') { <span class="chip chip-olive">paid</span> }
                           @else { <span class="chip chip-graphite">free</span> }
                         </td>
-                        <td class="font-mono text-[11px]">
+                        <td class="admin-mono text-[11px]">
                           @if (!u.emailVerified) { <span class="chip chip-gold">unverified</span> }
                           @if (u.disabled) { <span class="chip chip-blood">disabled</span> }
                           @if (!u.profileCompleted) { <span class="chip chip-graphite">no profile</span> }
                         </td>
                         <td>
                           <div class="flex gap-1 flex-wrap">
-                            <button type="button" class="tag-btn text-[11px]"
+                            <button type="button" class="admin-btn admin-btn--sm"
                               (click)="impersonate(u)"
                               [disabled]="busy() || u.uid === auth.user()?.uid">
                               as user
                             </button>
-                            <button type="button" class="tag-btn text-[11px]"
+                            <button type="button" class="admin-btn admin-btn--sm"
                               (click)="togglePlan(u)" [disabled]="busy()">
                               {{ u.stripeRole === 'paid' ? 'revoke paid' : 'grant paid' }}
                             </button>
-                            <button type="button" class="tag-btn text-[11px]"
+                            <button type="button" class="admin-btn admin-btn--sm"
                               (click)="toggleSuspend(u)" [disabled]="busy() || u.uid === auth.user()?.uid">
                               {{ u.disabled ? 'unsuspend' : 'suspend' }}
                             </button>
-                            <button type="button" class="tag-btn text-[11px]"
+                            <button type="button" class="admin-btn admin-btn--sm"
                               (click)="resetQuotas(u)" [disabled]="busy()">
                               reset quotas
                             </button>
-                            <button type="button" class="tag-btn text-[11px]"
+                            <button type="button" class="admin-btn admin-btn--sm"
                               (click)="resetPassword(u)" [disabled]="busy()">
                               password link
                             </button>
-                            <button type="button" class="tag-btn text-[11px]" style="color: var(--color-blood)"
+                            <button type="button" class="admin-btn admin-btn--sm" style="color: var(--v2-accent); border-color: var(--v2-accent);"
                               (click)="deleteUserConfirm(u)"
                               [disabled]="busy() || u.uid === auth.user()?.uid">
                               delete
@@ -306,7 +355,7 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
                   </tbody>
                 </table>
               </div>
-              <p class="caption text-[11px]">{{ filteredUsers().length }} of {{ allUsers().length }} shown.</p>
+              <p class="admin-caption">{{ filteredUsers().length }} of {{ allUsers().length }} shown.</p>
             }
           </div>
         }
@@ -314,34 +363,34 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
         <!-- ADMINS TAB -->
         @if (activeTab() === 'admins') {
           <div class="mt-6 space-y-4 max-w-[640px]">
-            <h2 class="font-display text-2xl text-ink">Admin users</h2>
-            <p class="caption text-xs">
-              Manage who holds the <code class="font-mono">admin</code> custom claim. Claim changes
+            <h2 class="admin-h2">Admin users</h2>
+            <p class="admin-caption">
+              Manage who holds the <code class="admin-mono">admin</code> custom claim. Claim changes
               revoke the target's refresh token — they'll have to sign in again to pick up the new state.
             </p>
             <div class="flex gap-2 items-center">
               <input type="email" [ngModel]="newAdminEmail()" (ngModelChange)="newAdminEmail.set($event)"
                 placeholder="email@example.com"
-                class="flex-1 px-3 py-1.5 border border-rule/60 rounded bg-paper text-ink text-sm" />
+                class="flex-1 text-sm"
+                style="padding: 0.5rem 0.75rem; background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md, 8px); color: var(--v2-ink);" />
               <button type="button" (click)="addAdmin()"
-                [disabled]="busy() || !newAdminEmail().trim()" class="stamp-btn">
+                [disabled]="busy() || !newAdminEmail().trim()" class="admin-btn admin-btn--primary">
                 {{ busy() ? 'working…' : 'grant admin' }}
               </button>
             </div>
 
             <ul class="space-y-2">
               @for (email of admin.adminEmails(); track email) {
-                <li class="flex items-center justify-between specimen px-4 py-2">
-                  <span class="crop-bl"></span><span class="crop-br"></span>
-                  <span class="font-mono text-xs">{{ email }}</span>
+                <li class="flex items-center justify-between admin-card" style="padding: 0.5rem 1rem;">
+                                    <span class="admin-mono text-xs">{{ email }}</span>
                   <button type="button" (click)="removeAdmin(email)"
                     [disabled]="busy() || admin.adminEmails().length <= 1"
-                    class="tag-btn text-[11px]" style="color: var(--color-blood)">
+                    class="admin-btn admin-btn--sm" style="color: var(--v2-accent); border-color: var(--v2-accent);">
                     revoke
                   </button>
                 </li>
               } @empty {
-                <li class="caption text-xs">no admins configured.</li>
+                <li class="admin-caption">no admins configured.</li>
               }
             </ul>
           </div>
@@ -350,30 +399,30 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
         <!-- COMPED TAB -->
         @if (activeTab() === 'comped') {
           <div class="mt-6 space-y-4 max-w-[640px]">
-            <h2 class="font-display text-2xl text-ink">Comped friends</h2>
-            <p class="caption text-xs">
+            <h2 class="admin-h2">Comped friends</h2>
+            <p class="admin-caption">
               Emails here bypass all per-user quotas (photos, consultations) and are treated as paid server-side.
               Propagation takes up to 60 seconds due to an in-memory cache on the CF side.
             </p>
             <div class="flex gap-2 items-center">
               <input type="email" [ngModel]="newCompedEmail()" (ngModelChange)="newCompedEmail.set($event)"
                 placeholder="friend@example.com"
-                class="flex-1 px-3 py-1.5 border border-rule/60 rounded bg-paper text-ink text-sm" />
+                class="flex-1 text-sm"
+                style="padding: 0.5rem 0.75rem; background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md, 8px); color: var(--v2-ink);" />
               <button type="button" (click)="addComped()"
-                [disabled]="busy() || !newCompedEmail().trim()" class="stamp-btn">
+                [disabled]="busy() || !newCompedEmail().trim()" class="admin-btn admin-btn--primary">
                 {{ busy() ? 'working…' : 'add' }}
               </button>
             </div>
             <ul class="space-y-2">
               @for (email of admin.compedEmails(); track email) {
-                <li class="flex items-center justify-between specimen px-4 py-2">
-                  <span class="crop-bl"></span><span class="crop-br"></span>
-                  <span class="font-mono text-xs">{{ email }}</span>
+                <li class="flex items-center justify-between admin-card" style="padding: 0.5rem 1rem;">
+                                    <span class="admin-mono text-xs">{{ email }}</span>
                   <button type="button" (click)="removeComped(email)" [disabled]="busy()"
-                    class="tag-btn text-[11px]" style="color: var(--color-blood)">remove</button>
+                    class="admin-btn admin-btn--sm" style="color: var(--v2-accent); border-color: var(--v2-accent);">remove</button>
                 </li>
               } @empty {
-                <li class="caption text-xs">nobody comped.</li>
+                <li class="admin-caption">nobody comped.</li>
               }
             </ul>
           </div>
@@ -382,13 +431,13 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
         <!-- SUBSCRIPTIONS TAB -->
         @if (activeTab() === 'subscriptions') {
           <div class="mt-6 space-y-4">
-            <h2 class="font-display text-2xl text-ink">Subscriptions</h2>
-            <p class="caption text-xs">
+            <h2 class="admin-h2">Subscriptions</h2>
+            <p class="admin-caption">
               All paid users. Granular billing actions (refunds, cancellations) still happen in the Stripe
               dashboard — this view is for a quick "who's paying and for how long" check.
             </p>
             @if (paidUsers().length === 0) {
-              <p class="caption">no paid users yet.</p>
+              <p class="admin-caption">no paid users yet.</p>
             } @else {
               <div class="overflow-x-auto">
                 <table class="admin-table">
@@ -398,10 +447,10 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
                   <tbody>
                     @for (u of paidUsers(); track u.uid) {
                       <tr>
-                        <td class="font-mono text-xs">{{ u.email }}</td>
+                        <td class="admin-mono text-xs">{{ u.email }}</td>
                         <td><span class="chip chip-olive">{{ u.stripeRole }}</span></td>
-                        <td class="font-mono text-[11px]">{{ u.admin ? 'admin override' : 'stripe' }}</td>
-                        <td class="font-mono text-[11px]">{{ shortDate(u.createdAt) }}</td>
+                        <td class="admin-mono text-[11px]">{{ u.admin ? 'admin override' : 'stripe' }}</td>
+                        <td class="admin-mono text-[11px]">{{ shortDate(u.createdAt) }}</td>
                       </tr>
                     }
                   </tbody>
@@ -415,13 +464,13 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
         @if (activeTab() === 'audit') {
           <div class="mt-6 space-y-4">
             <div class="flex items-center justify-between">
-              <h2 class="font-display text-2xl text-ink">Audit log</h2>
-              <button type="button" (click)="loadAuditLogs()" [disabled]="busy()" class="tag-btn">
+              <h2 class="admin-h2">Audit log</h2>
+              <button type="button" (click)="loadAuditLogs()" [disabled]="busy()" class="admin-btn admin-btn--sm">
                 {{ busy() ? 'loading…' : 'reload' }}
               </button>
             </div>
             @if (auditLogs().length === 0) {
-              <p class="caption">no audit entries yet.</p>
+              <p class="admin-caption">no audit entries yet.</p>
             } @else {
               <div class="overflow-x-auto">
                 <table class="admin-table">
@@ -431,11 +480,11 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
                   <tbody>
                     @for (log of auditLogs(); track log.id) {
                       <tr>
-                        <td class="font-mono text-[11px]">{{ shortDate(log.timestamp) }}</td>
+                        <td class="admin-mono text-[11px]">{{ shortDate(log.timestamp) }}</td>
                         <td><span class="chip chip-graphite">{{ log.action }}</span></td>
-                        <td class="font-mono text-[11px]">{{ log.adminEmail }}</td>
-                        <td class="font-mono text-[11px]">{{ log.targetEmail || log.targetUid || '—' }}</td>
-                        <td class="font-mono text-[10px]">{{ formatDetails(log.details) }}</td>
+                        <td class="admin-mono text-[11px]">{{ log.adminEmail }}</td>
+                        <td class="admin-mono text-[11px]">{{ log.targetEmail || log.targetUid || '—' }}</td>
+                        <td class="admin-mono text-[10px]">{{ formatDetails(log.details) }}</td>
                       </tr>
                     }
                   </tbody>
@@ -448,37 +497,37 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
         <!-- SUPPORT TAB -->
         @if (activeTab() === 'support') {
           <div class="mt-6 space-y-4 max-w-[640px]">
-            <h2 class="font-display text-2xl text-ink">Support tools</h2>
-            <p class="caption text-xs">
+            <h2 class="admin-h2">Support tools</h2>
+            <p class="admin-caption">
               Quick lookups for common support asks. All actions write an audit log entry.
             </p>
-            <div class="specimen p-4">
-              <span class="crop-bl"></span><span class="crop-br"></span>
-              <h3 class="data-label">find user</h3>
+            <div class="admin-card">
+                            <h3 class="admin-stat-label">find user</h3>
               <div class="flex gap-2 items-center mt-2">
                 <input type="search" [(ngModel)]="supportLookup" placeholder="email"
-                  class="flex-1 px-3 py-1.5 border border-rule/60 rounded bg-paper text-ink text-sm" />
-                <button type="button" (click)="lookupUser()" [disabled]="busy()" class="tag-btn">
+                  class="flex-1 text-sm"
+                style="padding: 0.5rem 0.75rem; background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md, 8px); color: var(--v2-ink);" />
+                <button type="button" (click)="lookupUser()" [disabled]="busy()" class="admin-btn admin-btn--sm">
                   lookup
                 </button>
               </div>
               @if (lookupResult(); as u) {
-                <div class="mt-3 font-mono text-[11px] space-y-1">
-                  <div><span class="data-label text-[10px]">uid:</span> {{ u.uid }}</div>
-                  <div><span class="data-label text-[10px]">email:</span> {{ u.email }} {{ u.emailVerified ? '✓' : '(unverified)' }}</div>
-                  <div><span class="data-label text-[10px]">created:</span> {{ shortDate(u.createdAt) }}</div>
-                  <div><span class="data-label text-[10px]">last seen:</span> {{ shortDate(u.lastSignInAt) }}</div>
-                  <div><span class="data-label text-[10px]">plan:</span> {{ u.stripeRole || 'free' }}{{ u.admin ? ' + admin' : '' }}</div>
-                  <div><span class="data-label text-[10px]">providers:</span> {{ u.providers.join(', ') }}</div>
+                <div class="mt-3 admin-mono text-[11px] space-y-1">
+                  <div><span class="admin-stat-label">uid:</span> {{ u.uid }}</div>
+                  <div><span class="admin-stat-label">email:</span> {{ u.email }} {{ u.emailVerified ? '✓' : '(unverified)' }}</div>
+                  <div><span class="admin-stat-label">created:</span> {{ shortDate(u.createdAt) }}</div>
+                  <div><span class="admin-stat-label">last seen:</span> {{ shortDate(u.lastSignInAt) }}</div>
+                  <div><span class="admin-stat-label">plan:</span> {{ u.stripeRole || 'free' }}{{ u.admin ? ' + admin' : '' }}</div>
+                  <div><span class="admin-stat-label">providers:</span> {{ u.providers.join(', ') }}</div>
                 </div>
                 <div class="mt-3 flex gap-2 flex-wrap">
-                  <button type="button" (click)="impersonate(u)" [disabled]="busy()" class="tag-btn text-[11px]">
+                  <button type="button" (click)="impersonate(u)" [disabled]="busy()" class="admin-btn admin-btn--sm">
                     impersonate
                   </button>
-                  <button type="button" (click)="resetQuotas(u)" [disabled]="busy()" class="tag-btn text-[11px]">
+                  <button type="button" (click)="resetQuotas(u)" [disabled]="busy()" class="admin-btn admin-btn--sm">
                     reset today's quotas
                   </button>
-                  <button type="button" (click)="resetPassword(u)" [disabled]="busy()" class="tag-btn text-[11px]">
+                  <button type="button" (click)="resetPassword(u)" [disabled]="busy()" class="admin-btn admin-btn--sm">
                     password reset link
                   </button>
                 </div>
@@ -490,19 +539,20 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
         <!-- EXPORT TAB -->
         @if (activeTab() === 'export') {
           <div class="mt-6 space-y-4 max-w-[640px]">
-            <h2 class="font-display text-2xl text-ink">Data export</h2>
-            <p class="caption text-xs">
+            <h2 class="admin-h2">Data export</h2>
+            <p class="admin-caption">
               CSV dumps for spreadsheet analysis. Large exports (all logs) may take up to 60 seconds.
             </p>
             <div class="grid gap-3 sm:grid-cols-3">
               @for (exp of exportChoices; track exp.type) {
                 <button type="button" (click)="downloadExport(exp.type)"
                   [disabled]="busy()"
-                  class="specimen px-4 py-5 text-left hover:bg-[color:var(--color-gold)]/10 transition-colors">
-                  <span class="crop-bl"></span><span class="crop-br"></span>
-                  <div class="data-label text-[10px]">{{ exp.type }}</div>
-                  <div class="font-display text-lg mt-1 text-ink">{{ exp.label }}</div>
-                  <div class="caption mt-1 text-[11px]">{{ exp.hint }}</div>
+                  class="admin-card text-left transition-colors"
+                  style="cursor: pointer;"
+                  onmouseover="this.style.borderColor='var(--v2-accent)'" onmouseout="this.style.borderColor='var(--v2-rule)'">
+                                    <div class="admin-stat-label">{{ exp.type }}</div>
+                  <div class="admin-h3 mt-1">{{ exp.label }}</div>
+                  <div class="admin-caption mt-1">{{ exp.hint }}</div>
                 </button>
               }
             </div>

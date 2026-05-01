@@ -25,7 +25,7 @@ type Method = 'google' | 'microsoft' | 'email';
 
         <h2 class="v2-h1 mt-2">
           {{ t('signin.titleLead') }}
-          <em style="color: var(--v2-accent); font-style: normal;">{{ t('signin.titleEm') }}</em>
+          <span style="color: var(--v2-accent);">{{ t('signin.titleEm') }}</span>
         </h2>
 
         <p class="v2-body-soft mt-3">{{ t('signin.blurb') }}</p>

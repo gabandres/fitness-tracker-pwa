@@ -294,9 +294,9 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
         <!-- Main content gates: auth → profile → app -->
         <div class="mt-10 space-y-12">
           @if (!auth.ready()) {
-            <div class="specimen p-10 text-center">
-              <span class="crop-bl"></span><span class="crop-br"></span>
-              <p class="caption">{{ t('app.loadingFieldNotes') }}</p>
+            <div class="v2-loader-stack" role="status" aria-live="polite">
+              <div class="v2-loader" aria-hidden="true"></div>
+              <p class="v2-loader-label">{{ t('app.loadingFieldNotes') }}</p>
             </div>
           } @else if (!auth.isSignedIn()) {
             <div class="ink-in delay-3">
@@ -349,9 +349,9 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
               </section>
             </div>
           } @else if (!firebase.profile()) {
-            <div class="specimen p-10 text-center">
-              <span class="crop-bl"></span><span class="crop-br"></span>
-              <p class="caption">{{ t('app.openingYourFile') }}</p>
+            <div class="v2-loader-stack" role="status" aria-live="polite">
+              <div class="v2-loader" aria-hidden="true"></div>
+              <p class="v2-loader-label">{{ t('app.openingYourFile') }}</p>
             </div>
           } @else if (!firebase.profileCompleted() && uiV2() && !editingProfile()) {
             <!-- New uiV2 users go through the 2-question v2 onboarding

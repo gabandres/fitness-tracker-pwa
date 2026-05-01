@@ -28,7 +28,7 @@ import { V2Card } from '../ui/card.component';
       </p>
       <h1 class="v2-h1 mt-1" style="font-size: 2.5rem; line-height: 1.05;">
         {{ t('terms.titleLead') }}
-        <em style="color: var(--v2-accent); font-style: normal;">{{ t('terms.titleEm') }}</em>
+        <span style="color: var(--v2-accent);">{{ t('terms.titleEm') }}</span>
       </h1>
       <p class="v2-caption mt-3">{{ t('terms.lastUpdated') }}</p>
 

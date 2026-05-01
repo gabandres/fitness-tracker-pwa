@@ -31,7 +31,7 @@ type FetchStatus = 'loading' | 'ready' | 'error';
       </p>
       <h1 class="v2-h1 mt-1" style="font-size: 2.5rem; line-height: 1.05;">
         {{ t('changelog.titleLead') }}
-        <em style="color: var(--v2-accent); font-style: normal;">{{ t('changelog.titleEm') }}</em>
+        <span style="color: var(--v2-accent);">{{ t('changelog.titleEm') }}</span>
       </h1>
       <p class="v2-caption mt-3">{{ t('changelog.subtitle') }}</p>
 

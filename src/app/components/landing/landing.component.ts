@@ -39,7 +39,7 @@ import { V2Button } from '../ui/button.component';
           <div>
             <h1 class="v2-h1" style="font-size: clamp(2.5rem, 5vw, 4rem); line-height: 1.05; letter-spacing: -0.025em;">
               {{ t('landing.heroLead') }}<br/>
-              <em style="color: var(--v2-accent); font-style: normal;">{{ t('landing.heroEm') }}</em>
+              <span style="color: var(--v2-accent);">{{ t('landing.heroEm') }}</span>
             </h1>
             <p class="v2-body-soft mt-5 max-w-2xl" style="font-size: 1.0625rem;">
               {{ t('landing.heroSub') }}
@@ -53,7 +53,7 @@ import { V2Button } from '../ui/button.component';
             </div>
 
             @if (socialProofCount(); as n) {
-              <p class="v2-caption mt-4" role="note" style="font-style: italic;">
+              <p class="v2-caption mt-4" role="note">
                 {{ t('landing.socialProof', { n }) }}
               </p>
             }
@@ -109,7 +109,7 @@ import { V2Button } from '../ui/button.component';
           </p>
           <h2 class="v2-h1" style="font-size: 1.875rem; line-height: 1.1;">
             {{ t('landing.privacyLead') }}
-            <em style="color: var(--v2-accent); font-style: normal;">{{ t('landing.privacyEm') }}</em>
+            <span style="color: var(--v2-accent);">{{ t('landing.privacyEm') }}</span>
           </h2>
           <p class="v2-body-soft mt-4 max-w-2xl">{{ t('landing.privacyBody') }}</p>
           <p class="v2-caption mt-4">
