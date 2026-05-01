@@ -183,20 +183,17 @@ body {
    ────────────────────────────────────────────────────────────── */
 .rule {
   display: flex; align-items: center; gap: 0.75rem;
-  color: var(--color-graphite);
-  font-family: var(--font-display); font-style: italic;
-  font-size: 0.9375rem; letter-spacing: 0.03em;
-  /* When .rule is applied to a heading element, suppress browser
-     default margins + bold so the rule reads as a stylized caption
-     instead of a chunky h2/h3. Screen readers still see a heading. */
-  margin: 0; font-weight: 400;
+  color: var(--v2-ink-muted, var(--color-graphite));
+  font-family: var(--v2-font-sans, 'Geist', system-ui, sans-serif);
+  font-size: 0.9375rem; letter-spacing: 0;
+  margin: 0; font-weight: 500;
 }
-.rule::before, .rule::after { content: ""; flex: 1; height: 1px; background: var(--color-rule); }
+.rule::before, .rule::after { content: ""; flex: 1; height: 1px; background: var(--v2-rule, var(--color-rule)); }
 
 .caption {
-  font-family: var(--font-display); font-style: italic;
-  font-size: 0.875rem; letter-spacing: 0.04em;
-  color: var(--color-graphite); text-transform: lowercase;
+  font-family: var(--v2-font-sans, 'Geist', system-ui, sans-serif);
+  font-size: 0.8125rem; letter-spacing: 0;
+  color: var(--v2-ink-muted, var(--color-graphite)); text-transform: none;
 }
 
 /* Data labels: sans-serif, not mono. Bigger. */
@@ -252,9 +249,10 @@ body {
 
 /* Readouts: the big numbers people check 10x/day */
 .readout {
-  font-family: var(--font-display); font-style: italic;
+  font-family: var(--v2-font-mono, 'Geist Mono', ui-monospace);
   font-size: clamp(3rem, 14vw, 5rem); line-height: 0.85;
-  letter-spacing: -0.03em; color: var(--color-ink);
+  letter-spacing: -0.02em; color: var(--v2-ink, var(--color-ink));
+  font-weight: 600;
 }
 
 .readout-mono {
@@ -275,7 +273,7 @@ body {
 }
 /* Placeholder uses graphite-soft (4.79:1 contrast on paper, passes WCAG AA).
    --color-aged (#b8a480) is 2.09:1 — too low for readable text. */
-.field-input::placeholder { color: var(--color-graphite-soft); font-style: italic; font-family: var(--font-display); font-weight: 400; opacity: 0.8; }
+.field-input::placeholder { color: var(--color-graphite-soft); font-family: var(--v2-font-sans, 'Geist', system-ui, sans-serif); font-weight: 400; opacity: 0.7; }
 .field-input:focus { border-bottom-color: var(--color-blood); }
 .field-input[type="number"]::-webkit-outer-spin-button,
 .field-input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
@@ -373,7 +371,7 @@ body {
 }
 .tag-btn:hover { background: var(--color-ink); color: var(--color-paper); }
 
-.monogram { font-family: var(--font-display); font-style: italic; font-size: 1.25rem; color: var(--color-blood); line-height: 1; letter-spacing: -0.02em; }
+.monogram { font-family: var(--v2-font-sans, 'Geist', system-ui, sans-serif); font-weight: 600; font-size: 1.25rem; color: var(--v2-accent, var(--color-blood)); line-height: 1; letter-spacing: 0.02em; }
 
 .stamp-mark {
   font-family: var(--font-sans); font-size: 0.625rem; font-weight: 600;
@@ -474,9 +472,10 @@ body {
 .prose-field p { margin: 0 0 0.9em 0; }
 .prose-field p:last-child { margin-bottom: 0; }
 .prose-field h1, .prose-field h2, .prose-field h3 {
-  font-family: var(--font-display); font-style: italic;
-  color: var(--color-blood); margin: 1.2em 0 0.4em;
-  font-size: 1.15em; line-height: 1.2;
+  font-family: var(--v2-font-sans, 'Geist', system-ui, sans-serif);
+  font-weight: 600;
+  color: var(--v2-ink, var(--color-ink)); margin: 1.2em 0 0.4em;
+  font-size: 1.15em; line-height: 1.2; letter-spacing: -0.01em;
 }
 .prose-field strong {
   font-family: var(--font-mono); font-weight: 500; font-style: normal;
@@ -493,7 +492,7 @@ body {
 .prose-field table { border-collapse: collapse; margin: 0.8em 0; font-family: var(--font-mono); font-size: 0.8em; }
 .prose-field th, .prose-field td { border: 1px solid var(--color-rule); padding: 6px 12px; text-align: left; }
 .prose-field th { background: var(--color-paper-deep); font-weight: 500; }
-.prose-field blockquote { border-left: 2px solid var(--color-blood); padding-left: 1em; margin: 0.8em 0; font-style: italic; color: var(--color-graphite); }
+.prose-field blockquote { border-left: 2px solid var(--v2-accent, var(--color-blood)); padding-left: 1em; margin: 0.8em 0; color: var(--v2-ink-muted, var(--color-graphite)); }
 
 /* ── Animations — use the --motion-* tokens above ─────────────── */
 @keyframes ink-in {
@@ -565,7 +564,7 @@ body {
 .fab-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(0,0,0,0.28); }
 .fab-btn:active { transform: translateY(0); box-shadow: 0 3px 8px rgba(0,0,0,0.2); }
 .fab-btn .fab-plus {
-  font-family: var(--font-display); font-size: 2rem; line-height: 1;
+  font-family: var(--v2-font-sans, 'Geist', system-ui, sans-serif); font-size: 1.75rem; line-height: 1;
   font-weight: 500;
 }
 

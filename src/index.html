@@ -88,10 +88,12 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap"
       rel="stylesheet"
     />
-    <!-- v2 type stack — Geist Sans + Geist Mono. Loaded alongside v1 fonts
-         while the ?ui=v2 flag is in transition (Weeks 1-6). v1 surfaces keep
-         using Instrument Serif/DM Sans/JetBrains Mono via the existing CSS
-         variables; v2 surfaces opt into Geist via [data-ui="v2"] tokens. -->
+    <!-- v2 type stack — Geist Sans + Geist Mono. Canonical fonts
+         post-v1-retirement; Instrument Serif/DM Sans/JetBrains Mono
+         remain loaded above only because preserved utility CSS
+         (.field-input etc., still used inside entry-sheet-v2 child
+         components) reads from --font-* variables that point at
+         them. Geist is what every v2 surface renders in. -->
     <link
       href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"

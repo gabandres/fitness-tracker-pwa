@@ -12,13 +12,9 @@ import { V2WeightSheet } from './weight-sheet.component';
 
 /**
  * Internal demo / Storybook-style gallery for v2 primitives.
- * Mounted at `/dev/components` while the v2 rebuild is in flight
- * (Weeks 1-6). Not for production users — used to self-review
- * components in isolation across light/dark, every variant + size.
- *
- * Toggle theme via the buttons in the header to inspect dark.
- * Toggle ?ui=v2 in the URL to compare v1 chrome (won't be visible
- * here since this surface is v2-only by definition).
+ * Mounted at `/dev/components`. Not for production users — used to
+ * self-review components in isolation across light/dark, every
+ * variant + size. Toggle theme via the buttons in the header.
  */
 @Component({
   selector: 'v2-dev-gallery',

@@ -29,9 +29,9 @@ interface SuggestedPrompt {
       </h2>
 
       <div class="mt-6">
-        <p class="font-display text-xl leading-snug text-ink">
+        <p class="v2-h3 leading-snug" style="color: var(--v2-ink); font-size: 1.125rem;">
           {{ t('consultation.letterLead') }}<br/>
-          <em class="text-blood">{{ t('consultation.letterEm') }}</em>
+          <span style="color: var(--v2-accent);">{{ t('consultation.letterEm') }}</span>
         </p>
         <p class="caption mt-2 text-[11px]">
           {{ t('consultation.intro') }}
@@ -108,7 +108,8 @@ interface SuggestedPrompt {
           </div>
 
           <div
-            class="prose-field font-display text-ink text-[15px] leading-relaxed"
+            class="prose-field text-[15px] leading-relaxed"
+            style="color: var(--v2-ink);"
             [innerHTML]="renderedHtml()"
           ></div>
 

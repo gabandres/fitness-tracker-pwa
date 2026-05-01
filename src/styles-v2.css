@@ -1,7 +1,8 @@
 /* ──────────────────────────────────────────────────────────────
    MACRO LOG v2 — Warm Minimal
-   Scoped under [data-ui="v2"] so v1 surfaces are untouched while
-   the ?ui=v2 flag rolls forward (see project_ux_revamp_v2.md).
+   Scoped under [data-ui="v2"] (set unconditionally on <html> by
+   app.ts after the v1 retirement; the scope selector survives so
+   any preserved v1 utility CSS stays harmless).
 
    Type:    Geist Sans (body) + Geist Mono (tabular nums only)
    Palette: warm off-white paper, ink near-black, rust accent,

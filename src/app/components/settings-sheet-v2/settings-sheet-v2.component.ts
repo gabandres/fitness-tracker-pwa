@@ -25,8 +25,6 @@ import { V2Button } from '../ui/button.component';
  * with warm-minimal chrome, native form-style controls, and
  * `<app-subscribe>` rendered inline inside the Subscription section.
  *
- * The v1 component (`settings-sheet`) stays in the bundle as an escape
- * hatch behind `?ui=v1` for one release.
  */
 @Component({
   selector: 'app-settings-sheet-v2',
@@ -56,11 +54,8 @@ import { V2Button } from '../ui/button.component';
           <span class="v2-num" style="color: var(--v2-ink); font-size: 0.8125rem;">{{ u.email }}</span>
         </p>
         <div class="flex flex-wrap gap-2">
-          <v2-button variant="secondary" size="sm" (click)="onEditProfile()">
-            <lucide-icon name="pencil" [size]="14" />
-            {{ t('settings.profile.edit') }}
-          </v2-button>
           <v2-button variant="secondary" size="sm" (click)="onRedoOnboarding()">
+            <lucide-icon name="pencil" [size]="14" />
             {{ t('settings.profile.redoOnboarding') }}
           </v2-button>
           <v2-button variant="ghost" size="sm" (click)="signOut()">
@@ -352,7 +347,6 @@ export class SettingsSheetV2Component {
   readonly themeChoice = input.required<ThemeChoice>();
 
   readonly close = output<void>();
-  readonly editProfile = output<void>();
   readonly redoOnboarding = output<void>();
   readonly themeSelect = output<ThemeChoice>();
 
@@ -436,7 +430,6 @@ export class SettingsSheetV2Component {
   // Escape handling lives in <v2-sheet>; no override needed.
 
   protected requestClose(): void { this.close.emit(); }
-  protected onEditProfile(): void { this.editProfile.emit(); this.requestClose(); }
   protected onRedoOnboarding(): void {
     this.redoOnboarding.emit();
     this.requestClose();

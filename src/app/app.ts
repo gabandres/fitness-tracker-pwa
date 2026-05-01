@@ -3,16 +3,10 @@ import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
 import { concat, filter, first, interval } from 'rxjs';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { TranslationService } from './services/translation.service';
-import { DashboardComponent } from './components/dashboard/dashboard.component';
-import { DailyLedgerComponent } from './components/daily-ledger/daily-ledger.component';
-import { ConsultationComponent } from './components/consultation/consultation.component';
 import { SignInComponent } from './components/sign-in/sign-in.component';
-import { OnboardingComponent } from './components/onboarding/onboarding.component';
 import { OnboardingV2Component } from './components/onboarding-v2/onboarding-v2.component';
 import { CalculatorComponent } from './components/calculator/calculator.component';
 import { MacrosPageComponent } from './components/macros-page/macros-page.component';
-import { FastingComponent } from './components/fasting/fasting.component';
-import { MeasurementsComponent } from './components/measurements/measurements.component';
 import { PrivacyComponent } from './components/privacy/privacy.component';
 import { TermsComponent } from './components/terms/terms.component';
 import { ChangelogComponent } from './components/changelog/changelog.component';
@@ -20,10 +14,7 @@ import { StatusComponent } from './components/status/status.component';
 import { LandingComponent } from './components/landing/landing.component';
 import { AdminComponent } from './components/admin/admin.component';
 import { NotFoundComponent } from './components/not-found/not-found.component';
-import { SettingsSheetComponent } from './components/settings-sheet/settings-sheet.component';
 import { SettingsSheetV2Component } from './components/settings-sheet-v2/settings-sheet-v2.component';
-import { MobileTabsComponent, type MobileTab } from './components/mobile-tabs/mobile-tabs.component';
-import { MobileFabComponent } from './components/mobile-fab/mobile-fab.component';
 import { AuthService } from './services/auth.service';
 import { LEDGER_PORT } from './ledger/ports/ledger.port';
 import { FitnessStore } from './services/fitness-store.service';
@@ -49,16 +40,10 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
   selector: 'app-root',
   standalone: true,
   imports: [
-    DashboardComponent,
-    DailyLedgerComponent,
-    ConsultationComponent,
     SignInComponent,
-    OnboardingComponent,
     OnboardingV2Component,
     CalculatorComponent,
     MacrosPageComponent,
-    FastingComponent,
-    MeasurementsComponent,
     PrivacyComponent,
     TermsComponent,
     ChangelogComponent,
@@ -66,10 +51,7 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
     LandingComponent,
     AdminComponent,
     NotFoundComponent,
-    SettingsSheetComponent,
     SettingsSheetV2Component,
-    MobileTabsComponent,
-    MobileFabComponent,
     TranslocoDirective,
     V2DevGallery,
     TodayV2Component,
@@ -250,52 +232,6 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
           </div>
         }
 
-        <!-- v1 masthead — kept ONLY for the v1 fallback (?ui=v1).
-             v2 surfaces have their own per-page headers (today-v2,
-             trends-v2, body-v2, history-v2 all render their own
-             greeting + chrome) so this masthead would duplicate
-             chrome AND drag in italic v1 typography ("a rolling
-             fourteen-day record…") which the v2 redesign explicitly
-             dropped. Gated on !uiV2() so v2 users never see it. -->
-        @if (!uiV2()) {
-          <header class="ink-in delay-1 flex items-start justify-between gap-4">
-            <div>
-              <div class="flex items-baseline gap-2">
-                <span class="monogram">M·L</span>
-                <span class="caption">{{ t('app.calibrationLogNo') }}</span>
-              </div>
-              <h1 class="font-display text-4xl sm:text-5xl leading-[0.95] tracking-tight mt-1 text-ink">
-                {{ t('app.taglineLead') }}<br/><em class="text-blood">{{ t('app.taglineEm') }}</em>
-              </h1>
-            </div>
-            <div class="text-right shrink-0 pt-2">
-              <div class="data-label">{{ todayLabel() }}</div>
-              <div class="flex items-center justify-end gap-4 mt-1">
-                <button type="button" (click)="toggleTheme()"
-                  class="tag-btn min-w-[36px] min-h-[36px] flex items-center justify-center"
-                  [attr.aria-label]="darkMode() ? t('app.masthead.themeAriaLight') : t('app.masthead.themeAriaDark')"
-                  [attr.title]="t('app.masthead.themeTitle')">
-                  {{ darkMode() ? t('app.masthead.themeIconLight') : t('app.masthead.themeIconDark') }}
-                </button>
-                @if (auth.isSignedIn() && firebase.profileCompleted()) {
-                  <button type="button" (click)="showSettings.set(true)"
-                    class="tag-btn min-w-[36px] min-h-[36px] flex items-center justify-center"
-                    [attr.aria-label]="t('app.masthead.settingsAria')"
-                    [attr.title]="t('app.masthead.settingsTitle')">{{ t('app.masthead.settingsIcon') }}</button>
-                }
-              </div>
-            </div>
-          </header>
-
-          <div class="ruler-edge mt-5 ink-in delay-2">
-            @for (_ of ticks; track $index) { <span></span> }
-          </div>
-
-          <p class="caption mt-3 ink-in delay-2">
-            {{ t('app.subtitle') }}
-          </p>
-        }
-
         <!-- Main content gates: auth → profile → app -->
         <div class="mt-10 space-y-12">
           @if (!auth.ready()) {
@@ -311,45 +247,41 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
             <!-- Verification gate for email/password signups. Google
                  + Microsoft return verified emails by default, so they
                  skip past this immediately. -->
-            <div class="ink-in delay-3">
-              <section class="specimen px-6 py-8 sm:px-8 sm:py-10 relative">
-                <span class="crop-bl"></span><span class="crop-br"></span>
-                <div class="flex items-center gap-3 mb-3">
-                  <span class="stamp-mark" style="border-color: var(--color-gold); color: var(--color-gold)">
-                    {{ t('verify.stamp') }}
-                  </span>
-                  <span class="data-label">{{ t('verify.section') }}</span>
-                </div>
-                <h2 class="font-display text-2xl sm:text-3xl leading-tight text-ink">
+            <div class="max-w-[640px] mx-auto px-5 sm:px-6 pt-10">
+              <section style="padding: 1.75rem; background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-lg, 12px);">
+                <p class="v2-caption" style="color: var(--v2-accent); text-transform: uppercase; letter-spacing: 0.08em;">
+                  {{ t('verify.section') }}
+                </p>
+                <h2 class="v2-h1 mt-2" style="font-size: clamp(1.75rem, 4vw, 2.25rem);">
                   {{ t('verify.title') }}
                 </h2>
-                <p class="font-sans text-sm text-ink-soft mt-3 leading-relaxed">
+                <p class="v2-body-soft mt-3">
                   {{ t('verify.bodyPrefix') }}
-                  <span class="font-mono text-ink">{{ auth.user()?.email }}</span>{{ t('verify.bodySuffix') }}
+                  <span class="v2-num" style="color: var(--v2-ink); font-size: 0.9375rem;">{{ auth.user()?.email }}</span>{{ t('verify.bodySuffix') }}
                 </p>
-                <p class="caption mt-3 text-[11px] leading-relaxed">
+                <p class="v2-caption mt-3">
                   {{ t('verify.hint') }}
                 </p>
                 <div class="mt-6 flex flex-wrap items-center gap-2">
                   <button type="button" (click)="checkVerified()"
                     [disabled]="verifyChecking()"
-                    class="stamp-btn">
+                    class="v2-btn v2-btn--primary">
                     {{ verifyChecking() ? t('verify.checking') : t('verify.checkNow') }}
                   </button>
                   <button type="button" (click)="resendVerification()"
                     [disabled]="verifyResending() || verifyResent()"
-                    class="tag-btn">
+                    class="v2-btn v2-btn--secondary">
                     @if (verifyResending()) { {{ t('verify.resending') }} }
                     @else if (verifyResent()) { ✓ {{ t('verify.resent') }} }
                     @else { {{ t('verify.resend') }} }
                   </button>
                   <button type="button" (click)="auth.signOut()"
-                    class="tag-btn text-graphite">
+                    class="v2-btn v2-btn--ghost">
                     {{ t('verify.signOut') }}
                   </button>
                 </div>
                 @if (verifyError()) {
-                  <p class="font-mono text-[11px] text-blood mt-3" role="alert">✕ {{ verifyError() }}</p>
+                  <p class="v2-caption mt-3" role="alert" style="color: var(--v2-accent);">✕ {{ verifyError() }}</p>
                 }
               </section>
             </div>
@@ -358,10 +290,10 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
               <div class="v2-loader" aria-hidden="true"></div>
               <p class="v2-loader-label">{{ t('app.openingYourFile') }}</p>
             </div>
-          } @else if (!firebase.profileCompleted() && uiV2() && !editingProfile()) {
-            <!-- New uiV2 users go through the 2-question v2 onboarding
-                 (Q10 of UX revamp v2). saveOnboardingV2 also flips
-                 profileCompleted, so the v1 gate below never fires. -->
+          } @else if (!firebase.profileCompleted()) {
+            <!-- New users go through the 2-question v2 onboarding (Q10
+                 of UX revamp v2). saveOnboardingV2 also flips
+                 profileCompleted so we never re-enter this branch. -->
             <div class="ink-in delay-3">
               @defer (on immediate) {
                 <app-onboarding-v2
@@ -371,49 +303,22 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
                 <div class="py-20 text-center caption">…</div>
               }
             </div>
-          } @else if (!firebase.profileCompleted() || editingProfile()) {
-            <div class="ink-in delay-3">
-              @defer (on immediate) {
-                <app-onboarding
-                  [editMode]="editingProfile()"
-                  (saved)="onProfileSaved()"
-                  (cancelled)="editingProfile.set(false)"
-                />
-              } @placeholder {
-                <div class="py-20 text-center caption">…</div>
-              }
-            </div>
           } @else {
-            <!-- Settings sheet overlay (absolutely positioned outside
-                 the two-column grid so it doesn't shift layout).
-                 Deferred so the settings chunk isn't in first paint —
-                 most sessions never open this sheet. -->
+            <!-- Settings sheet overlay. Deferred so the settings chunk
+                 isn't in first paint — most sessions never open it. -->
             @if (showSettings()) {
               @defer (on immediate) {
-                @if (uiV2()) {
-                  <app-settings-sheet-v2
-                    [darkMode]="darkMode()"
-                    [themeChoice]="themeChoice()"
-                    (close)="showSettings.set(false)"
-                    (editProfile)="editingProfile.set(true)"
-                    (redoOnboarding)="goToOnboardingV2()"
-                    (themeSelect)="setTheme($event)" />
-                } @else {
-                  <app-settings-sheet
-                    [darkMode]="darkMode()"
-                    [themeChoice]="themeChoice()"
-                    (close)="showSettings.set(false)"
-                    (editProfile)="editingProfile.set(true)"
-                    (themeSelect)="setTheme($event)" />
-                }
+                <app-settings-sheet-v2
+                  [darkMode]="darkMode()"
+                  [themeChoice]="themeChoice()"
+                  (close)="showSettings.set(false)"
+                  (redoOnboarding)="goToOnboardingV2()"
+                  (themeSelect)="setTheme($event)" />
               }
             }
-            @if (uiV2()) {
-              <!-- v2 authed app. Week 2 shipped Today; Week 3 adds
-                   History (month grid) + day-detail. Trends + Body stay
-                   on v1 until Weeks 4-5. The entry sheet is mounted
-                   once and self-gates via the entry-form-manager mode
-                   signal — works across all three v2 surfaces. -->
+            <!-- v2 authed app. Entry sheet is mounted once and
+                 self-gates via the entry-form-manager mode signal —
+                 works across all surfaces. -->
               @switch (route()) {
                 @case ('onboarding') {
                   <!-- v2 2-question onboarding. Reachable via /onboarding
@@ -475,102 +380,26 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
                 [tabs]="v2Tabs"
                 [activeId]="activeV2Tab()"
                 (select)="onV2TabSelect($event)" />
-            } @else {
-            <!-- Responsive layout: single column on mobile (tabbed), two columns on desktop -->
-            <div class="md:grid md:grid-cols-[1fr_1.15fr] md:gap-10 md:items-start">
-              <!-- Left column: Daily ledger (tab: log) -->
-              @if (isDesktop() || activeTab() === 'log') {
-                <div class="ink-in delay-3 md:sticky md:top-8"
-                  [attr.role]="isDesktop() ? null : 'tabpanel'"
-                  [id]="'tabpanel-log'"
-                  [attr.aria-labelledby]="isDesktop() ? null : 'tab-log'">
-                  <app-daily-ledger />
-                </div>
-              }
-              <!-- Right column: analytics + body tools.
-                   Desktop always shows all; mobile splits into tabs. -->
-              @if (isDesktop() || activeTab() === 'insights' || activeTab() === 'body') {
-                <div class="space-y-12 mt-12 md:mt-0">
-                  @if (isDesktop() || activeTab() === 'insights') {
-                    <div class="ink-in delay-3"
-                      [attr.role]="isDesktop() ? null : 'tabpanel'"
-                      [id]="'tabpanel-insights'"
-                      [attr.aria-labelledby]="isDesktop() ? null : 'tab-insights'">
-                      <app-dashboard />
-                    </div>
-                  }
-                  @if (isDesktop() || activeTab() === 'body') {
-                    <div [attr.role]="isDesktop() ? null : 'tabpanel'"
-                      [id]="'tabpanel-body'"
-                      [attr.aria-labelledby]="isDesktop() ? null : 'tab-body'">
-                      @if (store.logs().length >= 3) {
-                        <div class="ink-in delay-4">
-                          @defer (on viewport; on idle) {
-                            <app-consultation />
-                          } @placeholder {
-                            <div class="min-h-[180px]"></div>
-                          }
-                        </div>
-                      }
-                      <div class="ink-in delay-5">
-                        <app-fasting />
-                      </div>
-                      <div class="ink-in delay-6">
-                        <app-measurements />
-                      </div>
-                    </div>
-                  }
-                </div>
-              }
-            </div>
-
-            <!-- Mobile tab bar (hidden on desktop via lg:hidden) -->
-            <app-mobile-tabs
-              [activeTab]="activeTab()"
-              (tabChange)="onTabChange($event)" />
-            <!-- Mobile floating + button. Only renders on mobile; hidden
-                 while the entry form is open so it doesn't double the
-                 add affordance. -->
-            <app-mobile-fab />
-            }
           }
         </div>
 
-        <!-- Footer — version + legal only. Everything else moved to
-             the settings sheet (gear icon in the masthead). -->
-        <footer class="mt-16 ink-in delay-6">
-          <div class="rule"></div>
-          <div class="mt-6 flex items-center justify-between text-xs tracking-[0.18em] uppercase text-graphite font-mono">
-            <span>{{ t('app.footer.madeForYou') }}</span>
-            <span class="stamp-mark">{{ t('app.footer.private') }}</span>
+        <!-- Footer — minimal v2 chrome. Settings/theme/profile all
+             live in the settings sheet now. -->
+        <footer class="mt-16">
+          <hr style="border: none; border-top: 1px solid var(--v2-rule);" />
+          <div class="mt-5 v2-caption text-center">
+            @if (auth.user(); as u) {
+              <span style="color: var(--v2-ink);">{{ u.email }}</span>
+              &middot;
+            }
+            <a href="/privacy" style="color: var(--v2-ink-muted); text-decoration: underline; text-decoration-style: dotted;">{{ t('app.footer.privacy') }}</a>
+            &middot;
+            <a href="/terms" style="color: var(--v2-ink-muted); text-decoration: underline; text-decoration-style: dotted;">{{ t('app.footer.terms') }}</a>
+            &middot;
+            <a href="/status" style="color: var(--v2-ink-muted); text-decoration: underline; text-decoration-style: dotted;">{{ t('app.footer.status') }}</a>
+            &middot;
+            <a href="mailto:gabrielandresbermudez&#64;gmail.com" style="color: var(--v2-ink-muted); text-decoration: underline; text-decoration-style: dotted;">{{ t('app.footer.contact') }}</a>
           </div>
-          @if (auth.user(); as u) {
-            <p class="caption mt-4 text-center text-[11px]">
-              <span class="text-graphite">{{ u.email }}</span>
-              &middot;
-              <a href="/privacy" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.privacy') }}</a>
-              &middot;
-              <a href="/terms" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.terms') }}</a>
-              &middot;
-              <a href="/status" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.status') }}</a>
-              &middot;
-              <a href="mailto:gabrielandresbermudez&#64;gmail.com" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.contact') }}</a>
-            </p>
-          } @else {
-            <!-- Pre-auth visitors land on the sign-in screen and need
-                 privacy/terms access before consenting. Previously the
-                 legal links only rendered once auth.user resolved,
-                 hiding them exactly when they're load-bearing. -->
-            <p class="caption mt-4 text-center text-[11px]">
-              <a href="/privacy" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.privacy') }}</a>
-              &middot;
-              <a href="/terms" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.terms') }}</a>
-              &middot;
-              <a href="/status" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.status') }}</a>
-              &middot;
-              <a href="mailto:gabrielandresbermudez&#64;gmail.com" class="underline decoration-dotted hover:text-blood">{{ t('app.footer.contact') }}</a>
-            </p>
-          }
         </footer>
         }
       </div>
@@ -592,17 +421,9 @@ export class App {
   private readonly translation = inject(TranslationService); // resolves locale on boot, updates <title>
   protected readonly admin = inject(AdminService);
 
-  protected readonly ticks = Array.from({ length: 45 });
-  protected readonly editingProfile = signal(false);
   protected readonly showSettings = signal(false);
-  // Deep-link support for ?tab=body (used by the day-3 coach push and
-  // future share-sheet links). Falls back to 'log' when missing/invalid.
-  protected readonly activeTab = signal<MobileTab>(this.readInitialTab());
-  // Two-column layout kicks in at 768px (md) so iPad portrait and tablets
-  // in general get the full desktop experience instead of mobile-tabs +
-  // wasted width. Below 768px we stay single-column with the bottom tab
-  // bar. Prior value of 1024px was a Tailwind-default import that never
-  // had a design rationale — tablets were getting a phone layout.
+  // Admin route is desktop-only — the dense tables don't pack onto a
+  // phone screen. The matchMedia query stays so the /admin gate works.
   protected readonly isDesktop = mediaSignal('(min-width: 768px)');
   /** URL-path based routing for the two public-static pages. Anything
       else (including '/' and unknown paths) falls through to the
@@ -615,10 +436,6 @@ export class App {
    *  deep-links (a fresh tab opening /history reports length 1+ already)
    *  and `history.back()` would leave the SPA. */
   private historyPushDepth = 0;
-  /** v2 UI flag — true when `?ui=v2` was passed or saved in localStorage.
-   *  Set by `applyUiV2Flag()` in the constructor before the first paint
-   *  so the template fork hits the correct branch on initial render. */
-  protected readonly uiV2 = signal(false);
   protected readonly updateReady = signal(false);
   /** Latched when SwUpdate fires VERSION_READY. Stays true after the
    *  user dismisses the prompt so the next focus re-surfaces it AND
@@ -723,14 +540,6 @@ export class App {
   protected readonly showReminder = signal(false);
   private get reminderHour(): number {
     return (this.firebase.profile() as any)?.reminderHour ?? 20;
-  }
-
-  private readInitialTab(): MobileTab {
-    try {
-      const q = new URLSearchParams(window.location.search).get('tab');
-      if (q === 'log' || q === 'insights' || q === 'body') return q;
-    } catch { /* ignore */ }
-    return 'log';
   }
 
   private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | 'onboarding' | 'calculator' | 'macros' | null {
@@ -885,66 +694,23 @@ export class App {
     }
   }
 
-  protected readonly todayLabel = computed(() => {
-    const d = new Date();
-    const iso = localDateKey(d).replace(/-/g, '.');
-    const locale = bcp47ForLang(this.translation.language());
-    const day = d.toLocaleDateString(locale, { weekday: 'short' }).toLowerCase();
-    return `${iso} · ${day}`;
-  });
 
   constructor() {
-    // v2 design-system flag — DEFAULT after Week 6 cutover. v2 is the
-    // canonical experience for all users; `?ui=v1` is the escape hatch
-    // for one release while we settle any post-flip regressions.
-    // Setting [data-ui="v2"] on <html> activates the v2 token scope.
-    try {
-      const qs = new URLSearchParams(window.location.search);
-      const flag = qs.get('ui');
-      if (flag === 'v1') localStorage.setItem('macrolog.ui', 'v1');
-      if (flag === 'v2') localStorage.removeItem('macrolog.ui');
-      const stored = localStorage.getItem('macrolog.ui');
-      const wantsV1 = stored === 'v1';
-      // The /dev/components gallery is v2-only by definition — it
-      // showcases v2 primitives. Force the token scope on regardless
-      // of the user's v1 escape-hatch preference, but don't flip the
-      // global uiV2 signal (the gallery owns its own render path).
-      const onGallery = window.location.pathname.toLowerCase().startsWith('/dev/components');
-      if (!wantsV1 || onGallery) {
-        document.documentElement.setAttribute('data-ui', 'v2');
-        if (!wantsV1) this.uiV2.set(true);
-      }
-    } catch {
-      // localStorage unavailable (private browsing in some browsers).
-      // Default to v2 anyway — the cookie-less path is the same.
-      document.documentElement.setAttribute('data-ui', 'v2');
-      this.uiV2.set(true);
-    }
+    // v2 design-system token scope — set unconditionally now that v1
+    // is fully retired. Drives the [data-ui="v2"] attribute selectors
+    // in styles-v2.css.
+    document.documentElement.setAttribute('data-ui', 'v2');
+    // Pre-cutover users had `macrolog.ui=v1` written by the old
+    // applyUiV2Flag block; harmless dead state but cleaner to evict.
+    try { localStorage.removeItem('macrolog.ui'); } catch { /* private mode */ }
 
     // Browser back/forward must update route + historyDay signals so the
     // template re-renders without a full page reload. The constructor
     // already seeded both via detectRoute()/detectHistoryDay(); this
-    // listener catches subsequent pushState/back transitions. The depth
-    // counter decrements regardless of trigger (our `popHistory` or the
-    // browser's back button) so it stays accurate.
+    // listener catches subsequent pushState/back transitions.
     window.addEventListener('popstate', () => {
       if (this.historyPushDepth > 0) this.historyPushDepth--;
       this.applyLocation();
-    });
-
-    // v2-only routes (history, historyDay, trends, body) need a redirect
-    // for v1 users — a deep-linked /trends bookmark would otherwise show
-    // v1 chrome with a mismatched URL bar. Send them to /app so the v1
-    // template renders normally and the URL matches.
-    effect(() => {
-      const r = this.route();
-      if (
-        !this.uiV2() &&
-        (r === 'history' || r === 'historyDay' || r === 'trends' || r === 'body')
-      ) {
-        history.replaceState({}, '', '/app');
-        this.applyLocation();
-      }
     });
 
     // One pageview per app boot. The SPA is a single-URL experience from
@@ -968,21 +734,6 @@ export class App {
       if (isProTheme(choice) && !this.subs.isPaid()) {
         this.setTheme('auto');
       }
-    });
-
-    // Dashboard empty-state hero (and future quick-add surfaces) call
-    // `EntryFormManager.requestLogFocus()` to switch to the log tab and
-    // scroll the ledger into view. Guarded by a counter so repeat clicks
-    // re-fire without an intermediate reset.
-    let lastLogFocusCount = 0;
-    effect(() => {
-      const n = this.entryForm.logTabRequestCount();
-      if (n === lastLogFocusCount) return;
-      lastLogFocusCount = n;
-      this.activeTab.set('log');
-      requestAnimationFrame(() => {
-        document.getElementById('main')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
     });
 
     // Upsell cards deep inside child components call `UpsellService.openSubscribe()`
@@ -1133,24 +884,6 @@ export class App {
       `macrolog.reminder.dismissed.${localDateKey(new Date())}`,
       '1',
     );
-  }
-
-  protected onProfileSaved(): void {
-    this.editingProfile.set(false);
-    // Store will pick up the profile change via its firebase.profile() dependency.
-    this.store.refresh();
-  }
-
-  protected onTabChange(tab: MobileTab): void {
-    this.activeTab.set(tab);
-    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
-  }
-
-  /** Masthead affordance: flip between a light and dark palette.
-      Any Pro palette toggles back to its free counterpart so the button
-      stays predictable (power users use the settings picker). */
-  protected toggleTheme(): void {
-    this.setTheme(this.darkMode() ? 'light' : 'dark');
   }
 
   /** Explicit theme choice from the settings picker. Enforces the Pro

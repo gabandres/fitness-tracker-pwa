@@ -24,7 +24,7 @@ import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.comp
         </div>
         <div>
           <label class="data-label block mb-1">
-            {{ t('entry.label') }} <span class="normal-case italic text-graphite-soft tracking-normal text-[11px]">{{ t('entry.optional') }}</span>
+            {{ t('entry.label') }} <span class="normal-case text-graphite-soft tracking-normal text-[11px]">{{ t('entry.optional') }}</span>
           </label>
           <input type="text" maxlength="100"
             [ngModel]="form.mealLabel()" (ngModelChange)="form.mealLabel.set($event)"
@@ -46,20 +46,20 @@ import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.comp
               [attr.aria-invalid]="form.status() === 'error' ? 'true' : null"
               [attr.aria-describedby]="form.status() === 'error' ? 'entry-form-error' : null"
               class="field-input text-base" />
-            <span class="font-display italic text-graphite text-xs">{{ t('entry.kcal') }}</span>
+            <span class="text-graphite text-xs">{{ t('entry.kcal') }}</span>
             <app-barcode-scanner [compact]="true" (estimated)="form.applyEstimate($event)" />
           </div>
         </div>
         <!-- Protein -->
         <div>
           <label class="data-label block mb-1">
-            {{ t('entry.protein') }} <span class="normal-case italic text-graphite-soft tracking-normal text-[11px]">{{ t('entry.optional') }}</span>
+            {{ t('entry.protein') }} <span class="normal-case text-graphite-soft tracking-normal text-[11px]">{{ t('entry.optional') }}</span>
           </label>
           <div class="flex items-baseline gap-1">
             <input type="number" step="1" inputmode="numeric"
               [ngModel]="form.protein()" (ngModelChange)="form.protein.set($event)"
               name="protein" [attr.placeholder]="t('entry.proteinPlaceholder')" class="field-input text-base" />
-            <span class="font-display italic text-graphite text-xs">{{ t('entry.grams') }}</span>
+            <span class="text-graphite text-xs">{{ t('entry.grams') }}</span>
           </div>
         </div>
       </div>
