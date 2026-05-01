@@ -191,9 +191,11 @@ export class TodayV2Component {
     if (profile.targetsRefinedAt != null) return false;
     if (profile.manualCaloriesTarget == null) return false;
     if (this.refineDismissedLocal()) return false;
-    // Need 3+ unique logged days. Use logs() (the recent window the
-    // store loads) — sufficient since the gate is "≥3", not exact count.
-    const dayKeys = new Set(this.store.logs().map((l) => localDateKey(l.date)));
+    // Need 3+ unique logged days. Read `allTimeLogs()` (full history for
+    // Pro, 90-day window for free) rather than `logs()` (a 14-ROW cap):
+    // a heavy logger with many entries per day can fill `logs()` with 2
+    // calendar days, which would never trip the gate.
+    const dayKeys = new Set(this.store.allTimeLogs().map((l) => localDateKey(l.date)));
     return dayKeys.size >= 3;
   });
 

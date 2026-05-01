@@ -50,8 +50,32 @@ export class PushNotificationService {
     return this.registerAndGetToken();
   }
 
+  private static readonly FCM_SW_SCOPE = '/firebase-cloud-messaging-push-scope';
+  private orphanCleaned = false;
+
   private async registerAndGetToken(): Promise<string | null> {
     try {
+      // Migration: earlier code registered firebase-messaging-sw.js at
+      // root scope `/`, which collided with ngsw. Existing devices still
+      // carry that orphan registration. Unregister any FCM SW that isn't
+      // on our narrow scope before installing the new one. One-shot per
+      // service instance — registration list is cheap but not free.
+      if (!this.orphanCleaned) {
+        this.orphanCleaned = true;
+        try {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(
+            regs
+              .filter((r) =>
+                r.active?.scriptURL.includes('firebase-messaging-sw.js') &&
+                r.scope.replace(/\/$/, '') !==
+                  new URL(PushNotificationService.FCM_SW_SCOPE, location.origin).toString().replace(/\/$/, ''),
+              )
+              .map((r) => r.unregister()),
+          );
+        } catch { /* registration enumeration failed — non-fatal */ }
+      }
+
       // Register the FCM service worker on a NARROW scope so it doesn't
       // collide with Angular's ngsw-worker.js (which claims root scope
       // `/`). Two SWs on the same scope → one wins silently, the other
@@ -59,7 +83,7 @@ export class PushNotificationService {
       // pushes never fire `onBackgroundMessage`.
       const swReg = await navigator.serviceWorker.register(
         '/firebase-messaging-sw.js',
-        { scope: '/firebase-cloud-messaging-push-scope' },
+        { scope: PushNotificationService.FCM_SW_SCOPE },
       );
 
       const token = await getToken(this.messaging!, {
