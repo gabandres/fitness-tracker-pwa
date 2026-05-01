@@ -60,7 +60,7 @@ import { V2Button } from '../ui/button.component';
           </div>
 
           <div>
-            <img src="/hero-mockup.png"
+            <img src="/hero-mockup.svg"
               alt="{{ t('landing.heroMockupAlt') }}"
               width="720" height="720"
               loading="eager"
