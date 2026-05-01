@@ -250,46 +250,51 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
           </div>
         }
 
-        <!-- Masthead -->
-        <header class="ink-in delay-1 flex items-start justify-between gap-4">
-          <div>
-            <div class="flex items-baseline gap-2">
-              <span class="monogram">M·L</span>
-              <span class="caption">{{ t('app.calibrationLogNo') }}</span>
+        <!-- v1 masthead — kept ONLY for the v1 fallback (?ui=v1).
+             v2 surfaces have their own per-page headers (today-v2,
+             trends-v2, body-v2, history-v2 all render their own
+             greeting + chrome) so this masthead would duplicate
+             chrome AND drag in italic v1 typography ("a rolling
+             fourteen-day record…") which the v2 redesign explicitly
+             dropped. Gated on !uiV2() so v2 users never see it. -->
+        @if (!uiV2()) {
+          <header class="ink-in delay-1 flex items-start justify-between gap-4">
+            <div>
+              <div class="flex items-baseline gap-2">
+                <span class="monogram">M·L</span>
+                <span class="caption">{{ t('app.calibrationLogNo') }}</span>
+              </div>
+              <h1 class="font-display text-4xl sm:text-5xl leading-[0.95] tracking-tight mt-1 text-ink">
+                {{ t('app.taglineLead') }}<br/><em class="text-blood">{{ t('app.taglineEm') }}</em>
+              </h1>
             </div>
-            <h1 class="font-display text-4xl sm:text-5xl leading-[0.95] tracking-tight mt-1 text-ink">
-              {{ t('app.taglineLead') }}<br/><em class="text-blood">{{ t('app.taglineEm') }}</em>
-            </h1>
-          </div>
-          <div class="text-right shrink-0 pt-2">
-            <div class="data-label">{{ todayLabel() }}</div>
-            <!-- Theme + settings: spaced out with larger tap targets per
-                 UX_AUDIT S9. Previously 2-char gap at ~24px touch size was
-                 a mis-tap hazard on mobile. -->
-            <div class="flex items-center justify-end gap-4 mt-1">
-              <button type="button" (click)="toggleTheme()"
-                class="tag-btn min-w-[36px] min-h-[36px] flex items-center justify-center"
-                [attr.aria-label]="darkMode() ? t('app.masthead.themeAriaLight') : t('app.masthead.themeAriaDark')"
-                [attr.title]="t('app.masthead.themeTitle')">
-                {{ darkMode() ? t('app.masthead.themeIconLight') : t('app.masthead.themeIconDark') }}
-              </button>
-              @if (auth.isSignedIn() && firebase.profileCompleted()) {
-                <button type="button" (click)="showSettings.set(true)"
+            <div class="text-right shrink-0 pt-2">
+              <div class="data-label">{{ todayLabel() }}</div>
+              <div class="flex items-center justify-end gap-4 mt-1">
+                <button type="button" (click)="toggleTheme()"
                   class="tag-btn min-w-[36px] min-h-[36px] flex items-center justify-center"
-                  [attr.aria-label]="t('app.masthead.settingsAria')"
-                  [attr.title]="t('app.masthead.settingsTitle')">{{ t('app.masthead.settingsIcon') }}</button>
-              }
+                  [attr.aria-label]="darkMode() ? t('app.masthead.themeAriaLight') : t('app.masthead.themeAriaDark')"
+                  [attr.title]="t('app.masthead.themeTitle')">
+                  {{ darkMode() ? t('app.masthead.themeIconLight') : t('app.masthead.themeIconDark') }}
+                </button>
+                @if (auth.isSignedIn() && firebase.profileCompleted()) {
+                  <button type="button" (click)="showSettings.set(true)"
+                    class="tag-btn min-w-[36px] min-h-[36px] flex items-center justify-center"
+                    [attr.aria-label]="t('app.masthead.settingsAria')"
+                    [attr.title]="t('app.masthead.settingsTitle')">{{ t('app.masthead.settingsIcon') }}</button>
+                }
+              </div>
             </div>
+          </header>
+
+          <div class="ruler-edge mt-5 ink-in delay-2">
+            @for (_ of ticks; track $index) { <span></span> }
           </div>
-        </header>
 
-        <div class="ruler-edge mt-5 ink-in delay-2">
-          @for (_ of ticks; track $index) { <span></span> }
-        </div>
-
-        <p class="caption mt-3 ink-in delay-2">
-          {{ t('app.subtitle') }}
-        </p>
+          <p class="caption mt-3 ink-in delay-2">
+            {{ t('app.subtitle') }}
+          </p>
+        }
 
         <!-- Main content gates: auth → profile → app -->
         <div class="mt-10 space-y-12">
