@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
-import { AdminService, AdminUserRow, AuditLog, PlatformStats } from '../../services/admin.service';
+import { AdminService, AdminUserRow, AuditLog, PlatformStats, ActivityItem } from '../../services/admin.service';
 
 type AdminTab =
-  | 'stats' | 'users' | 'admins' | 'subscriptions'
+  | 'stats' | 'activity' | 'users' | 'admins' | 'subscriptions'
   | 'comped' | 'audit' | 'support' | 'export';
 
 interface TabDef { readonly id: AdminTab; readonly label: string; }
@@ -181,6 +181,48 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
               </div>
             } @else {
               <p class="caption">loading…</p>
+            }
+          </div>
+        }
+
+        <!-- ACTIVITY TAB -->
+        @if (activeTab() === 'activity') {
+          <div class="mt-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <h2 class="font-display text-2xl text-ink">Recent activity</h2>
+              <button type="button" (click)="loadActivity()" [disabled]="busy()" class="tag-btn">
+                {{ busy() ? 'refreshing…' : 'refresh' }}
+              </button>
+            </div>
+            <p class="caption text-[11px]">last 20 sign-ups + last 20 entries, merged by timestamp.</p>
+            @if (activityItems().length === 0) {
+              <p class="caption">no activity.</p>
+            } @else {
+              <div class="overflow-x-auto">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>when</th><th>type</th><th>email</th><th>detail</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (a of activityItems(); track a.timestamp + a.uid) {
+                      <tr>
+                        <td class="font-mono text-[11px]">{{ shortDateTime(a.timestamp) }}</td>
+                        <td>
+                          @if (a.type === 'signup') {
+                            <span class="chip chip-olive">signup</span>
+                          } @else {
+                            <span class="chip chip-graphite">entry</span>
+                          }
+                        </td>
+                        <td class="font-mono text-xs">{{ a.email || '—' }}</td>
+                        <td>{{ a.detail || '—' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
             }
           </div>
         }
@@ -478,6 +520,7 @@ export class AdminComponent {
 
   readonly tabs: readonly TabDef[] = [
     { id: 'stats',         label: 'Stats' },
+    { id: 'activity',      label: 'Activity' },
     { id: 'users',         label: 'Users' },
     { id: 'admins',        label: 'Admins' },
     { id: 'subscriptions', label: 'Subscriptions' },
@@ -493,6 +536,7 @@ export class AdminComponent {
   readonly notice = signal<string>('');
 
   readonly stats = signal<PlatformStats | null>(null);
+  readonly activityItems = signal<ActivityItem[]>([]);
   readonly allUsers = signal<AdminUserRow[]>([]);
   readonly auditLogs = signal<AuditLog[]>([]);
   readonly lookupResult = signal<AdminUserRow | null>(null);
@@ -529,6 +573,7 @@ export class AdminComponent {
     this.notice.set('');
     // Lazy-load data per tab so we don't issue every admin CF on mount.
     if (tab === 'stats' && !this.stats()) this.loadStats();
+    if (tab === 'activity' && this.activityItems().length === 0) this.loadActivity();
     if (tab === 'users' && this.allUsers().length === 0) this.loadUsers();
     if (tab === 'subscriptions' && this.allUsers().length === 0) this.loadUsers();
     if (tab === 'audit' && this.auditLogs().length === 0) this.loadAuditLogs();
@@ -577,6 +622,13 @@ export class AdminComponent {
     await this.run('loading audit log', async () => {
       const { logs } = await this.admin.getAuditLogs({ limit: 100 });
       this.auditLogs.set(logs);
+    });
+  }
+
+  async loadActivity(): Promise<void> {
+    await this.run('loading activity', async () => {
+      const { items } = await this.admin.getRecentActivity();
+      this.activityItems.set(items);
     });
   }
 
@@ -745,6 +797,12 @@ export class AdminComponent {
     }
   }
 
+  /** Reuse shortDate for the activity feed. Aliased so the template
+   *  can read more naturally — both render the same yyyy-mm-dd HH:MM. */
+  shortDateTime(iso: string): string {
+    return this.shortDate(iso);
+  }
+
   formatDetails(d: unknown): string {
     if (!d || typeof d !== 'object') return '';
     try {
@@ -755,13 +813,27 @@ export class AdminComponent {
   }
 
   statMetrics(s: PlatformStats): Array<{ label: string; value: string }> {
+    const profilePct = s.totalUsers > 0
+      ? Math.round((s.profileCompletedCount / s.totalUsers) * 100) : 0;
+    const v2Pct = s.totalUsers > 0
+      ? Math.round((s.onboardingV2CompletedCount / s.totalUsers) * 100) : 0;
+    const firstEntryPct = s.totalUsers > 0
+      ? Math.round((s.usersWithFirstEntryCount / s.totalUsers) * 100) : 0;
     return [
+      // Acquisition
       { label: 'total users', value: String(s.totalUsers) },
+      { label: 'new 1d',      value: String(s.newUsers1d) },
       { label: 'new 7d',      value: String(s.newUsers7d) },
       { label: 'new 30d',     value: String(s.newUsers30d) },
+      // Activation
+      { label: 'onboarded %', value: `${profilePct}%  (${s.profileCompletedCount})` },
+      { label: 'v2 onboard %', value: `${v2Pct}%  (${s.onboardingV2CompletedCount})` },
+      { label: 'first entry %', value: `${firstEntryPct}%  (${s.usersWithFirstEntryCount})` },
       { label: 'verified',    value: String(s.verifiedCount) },
+      // Engagement (backstop — not a primary metric until volume grows)
       { label: 'active 7d',   value: String(s.active7d) },
       { label: 'active 30d',  value: String(s.active30d) },
+      // Revenue
       { label: 'paid subs',   value: String(s.activePaidSubs) },
       { label: 'comped',      value: String(s.compedCount) },
       { label: 'mrr est',     value: `$${s.estimatedMRR.toFixed(2)}` },

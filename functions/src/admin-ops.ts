@@ -4,6 +4,7 @@ import { getAuth, UserRecord } from "firebase-admin/auth";
 import { writeAuditLog, tsToIso } from "./audit-log";
 
 const STATS_TTL_MS = 5 * 60 * 1000; // 5-min cache — cheap to refresh, expensive to run
+const ACTIVITY_TTL_MS = 30 * 1000;  // 30-sec cache — feed barely changes between rapid refreshes
 
 function requireAdmin(request: { auth?: { token?: Record<string, unknown> } }): void {
   if (!request.auth) {
@@ -106,12 +107,13 @@ export const getPlatformStats = onCall({ timeoutSeconds: 60 }, async (request) =
   }
 
   const now = new Date();
+  const d1 = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000);
   const d7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const d30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   // Tally all Auth users, paginating.
   const auth = getAuth();
-  let totalUsers = 0, newUsers7d = 0, newUsers30d = 0;
+  let totalUsers = 0, newUsers1d = 0, newUsers7d = 0, newUsers30d = 0;
   let verifiedCount = 0, disabledCount = 0;
   const providersBreakdown: Record<string, number> = {};
   let pageToken: string | undefined;
@@ -122,6 +124,7 @@ export const getPlatformStats = onCall({ timeoutSeconds: 60 }, async (request) =
       if (u.emailVerified) verifiedCount++;
       if (u.disabled) disabledCount++;
       const created = u.metadata.creationTime ? new Date(u.metadata.creationTime) : null;
+      if (created && created >= d1) newUsers1d++;
       if (created && created >= d7) newUsers7d++;
       if (created && created >= d30) newUsers30d++;
       for (const p of u.providerData) {
@@ -131,11 +134,45 @@ export const getPlatformStats = onCall({ timeoutSeconds: 60 }, async (request) =
     pageToken = page.pageToken;
   } while (pageToken);
 
+  // Activation funnel — count three thresholds, all derived from the
+  // user-profile docs (not from a collection-group scan of dailyLogs):
+  //   profileCompleted:    passed v1 long onboarding OR v2 short onboarding.
+  //   onboardingV2CompletedAt: went through the 2-question flow.
+  //   firstEntryAt:        stamped by the onDailyLogCreated trigger on
+  //                        the first dailyLog write — single field
+  //                        read per user instead of scanning every log.
+  //
+  // Note: pre-existing users who logged before the trigger shipped
+  // won't have firstEntryAt set, so this metric undercounts legacy
+  // accounts. Acceptable trade — the trigger costs are O(new entries)
+  // and the metric is correct going forward. Manual backfill possible
+  // via a one-shot script if the gap matters.
+  let profileCompletedCount = 0;
+  let onboardingV2CompletedCount = 0;
+  let usersWithFirstEntryCount = 0;
+  try {
+    const profileSnap = await db.collection("users").select(
+      "profileCompleted",
+      "onboardingV2CompletedAt",
+      "firstEntryAt",
+    ).get();
+    for (const d of profileSnap.docs) {
+      const data = d.data();
+      if (data["profileCompleted"] === true) profileCompletedCount++;
+      if (data["onboardingV2CompletedAt"] != null) onboardingV2CompletedCount++;
+      if (data["firstEntryAt"] != null) usersWithFirstEntryCount++;
+    }
+  } catch (err) {
+    console.warn("getPlatformStats: profile-aggregate query failed", err);
+  }
+
   // Active users: anyone with a log in the last N days. The collection-
   // group query on dailyLogs.timestamp requires a collection-group index
   // (firestore.indexes.json). If that index is still building (or missing),
   // we degrade gracefully — the stats tab shouldn't 500 the entire panel
   // over one missing metric.
+  // Two windowed scans — bounded by the where clause, much smaller
+  // working set than an all-time scan as the dataset grows.
   let active7d = 0, active30d = 0;
   try {
     const logs30dSnap = await db.collectionGroup("dailyLogs")
@@ -180,6 +217,7 @@ export const getPlatformStats = onCall({ timeoutSeconds: 60 }, async (request) =
 
   const stats = {
     totalUsers,
+    newUsers1d,
     newUsers7d,
     newUsers30d,
     verifiedCount,
@@ -190,10 +228,124 @@ export const getPlatformStats = onCall({ timeoutSeconds: 60 }, async (request) =
     activePaidSubs,
     compedCount,
     estimatedMRR: Math.round(estimatedMRR * 100) / 100,
+    profileCompletedCount,
+    onboardingV2CompletedCount,
+    usersWithFirstEntryCount,
   };
 
   await cacheRef.set({ stats, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   return stats;
+});
+
+// ─── getRecentActivity ────────────────────────────────────────────
+// Two-stream feed for the admin dashboard:
+//   - last 20 sign-ups (Auth users by creationTime desc)
+//   - last 20 daily-log entries (collection-group by timestamp desc)
+// Merged + sorted by timestamp so the operator sees one chronological
+// stream. Email lookup goes through a single auth.getUsers batch
+// instead of N getUser calls.
+
+export const getRecentActivity = onCall({ timeoutSeconds: 60 }, async (request) => {
+  requireAdmin(request);
+  const db = getFirestore();
+  const auth = getAuth();
+
+  // 30-sec cache — operators clicking refresh repeatedly otherwise
+  // re-paginate every auth user on each press. Lifetime kept short so
+  // live debugging stays responsive (we want to see new sign-ups
+  // within seconds, not 5 min).
+  const cacheRef = db.doc("config/activityCache");
+  const cached = await cacheRef.get();
+  if (cached.exists) {
+    const updatedAt = (cached.data()?.["updatedAt"] as Timestamp | undefined)?.toMillis() ?? 0;
+    if (Date.now() - updatedAt < ACTIVITY_TTL_MS) {
+      return cached.data()?.["payload"];
+    }
+  }
+
+  type Item = {
+    type: "signup" | "entry";
+    uid: string;
+    email: string | null;
+    timestamp: string;
+    detail?: string;
+  };
+  const items: Item[] = [];
+
+  // Recent sign-ups. listUsers doesn't sort, so pull all pages then
+  // sort + slice. Wrapped in try/catch so a partial-page failure
+  // mid-pagination still lets the entries query run and return data
+  // — better degraded UX than aborting the whole feed. At our scale
+  // this is tractable; if total ever exceeds 10k this should switch
+  // to a Firestore-backed signup audit log indexed by createdAt.
+  const allUsers: UserRecord[] = [];
+  try {
+    let pageToken: string | undefined;
+    do {
+      const page = await auth.listUsers(1000, pageToken);
+      allUsers.push(...page.users);
+      pageToken = page.pageToken;
+    } while (pageToken);
+  } catch (err) {
+    console.warn("getRecentActivity: listUsers failed mid-sweep, continuing with partial set", err);
+  }
+
+  const sortedSignups = allUsers
+    .filter((u) => u.metadata.creationTime)
+    .sort((a, b) =>
+      new Date(b.metadata.creationTime!).getTime() -
+      new Date(a.metadata.creationTime!).getTime(),
+    )
+    .slice(0, 20);
+
+  for (const u of sortedSignups) {
+    items.push({
+      type: "signup",
+      uid: u.uid,
+      email: u.email || null,
+      timestamp: new Date(u.metadata.creationTime!).toISOString(),
+    });
+  }
+
+  // Email lookup map for the entry feed (avoid N round-trips).
+  const emailByUid = new Map<string, string>();
+  for (const u of allUsers) {
+    if (u.email) emailByUid.set(u.uid, u.email);
+  }
+
+  // Recent entries. Collection-group on dailyLogs sorted by timestamp.
+  // Same index already used by getPlatformStats — no new index needed.
+  try {
+    const entriesSnap = await db.collectionGroup("dailyLogs")
+      .orderBy("timestamp", "desc")
+      .limit(20)
+      .get();
+    for (const d of entriesSnap.docs) {
+      const uid = d.ref.parent.parent?.id;
+      if (!uid) continue;
+      const data = d.data();
+      const ts = (data["timestamp"] as Timestamp | undefined)?.toDate();
+      if (!ts) continue;
+      const kcal = (data["calories"] as number | undefined) ?? 0;
+      const label = (data["mealLabel"] as string | undefined) || "Entry";
+      items.push({
+        type: "entry",
+        uid,
+        email: emailByUid.get(uid) ?? null,
+        timestamp: ts.toISOString(),
+        detail: `${label} · ${kcal} kcal`,
+      });
+    }
+  } catch (err) {
+    console.warn("getRecentActivity: entries query failed", err);
+  }
+
+  // Merge + sort by timestamp desc.
+  items.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+  const payload = { items: items.slice(0, 40) };
+  await cacheRef.set({ payload, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return payload;
 });
 
 // ─── getAuditLogs ─────────────────────────────────────────────────

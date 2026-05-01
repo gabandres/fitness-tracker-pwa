@@ -41,6 +41,7 @@ export interface AdminUserRow {
 
 export interface PlatformStats {
   totalUsers: number;
+  newUsers1d: number;
   newUsers7d: number;
   newUsers30d: number;
   verifiedCount: number;
@@ -51,6 +52,23 @@ export interface PlatformStats {
   activePaidSubs: number;
   compedCount: number;
   estimatedMRR: number;
+  // Activation funnel: counts that let me see whether new users are
+  // making it through onboarding and reaching the first-entry "aha"
+  // moment. Computed by getPlatformStats from the users + dailyLogs
+  // collections.
+  profileCompletedCount: number;
+  onboardingV2CompletedCount: number;
+  usersWithFirstEntryCount: number;
+}
+
+export type ActivityItemType = 'signup' | 'entry';
+
+export interface ActivityItem {
+  type: ActivityItemType;
+  uid: string;
+  email: string | null;
+  timestamp: string;       // ISO
+  detail?: string;         // e.g. "Lunch · 540 kcal" for entries
 }
 
 /** localStorage key for the original-admin uid captured before an
@@ -210,6 +228,14 @@ export class AdminService {
   async getPlatformStats(refresh = false): Promise<PlatformStats> {
     const fn = httpsCallable<{ refresh: boolean }, PlatformStats>(this.functions, 'getPlatformStats');
     const res = await fn({ refresh });
+    return res.data;
+  }
+
+  async getRecentActivity(): Promise<{ items: ActivityItem[] }> {
+    const fn = httpsCallable<unknown, { items: ActivityItem[] }>(
+      this.functions, 'getRecentActivity',
+    );
+    const res = await fn({});
     return res.data;
   }
 

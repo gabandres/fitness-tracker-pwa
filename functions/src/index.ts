@@ -4,7 +4,7 @@ import { getMessaging } from "firebase-admin/messaging";
 import { getAuth } from "firebase-admin/auth";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { onDocumentUpdated } from "firebase-functions/v2/firestore";
+import { onDocumentUpdated, onDocumentCreated } from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenAI } from "@google/genai";
 import { ErrorCode } from "./error-codes";
@@ -1177,11 +1177,30 @@ export const sendWelcomeEmail = onDocumentUpdated(
 // ─── Admin panel endpoints ─────────────────────────────────────────
 // Superuser-only management surface. All endpoints require the `admin`
 // custom claim; see functions/src/admin-claims.ts for bootstrap.
+// ─── First-entry latch ──────────────────────────────────────────────
+// On the first daily-log create for a user, stamp `firstEntryAt` on
+// their profile doc. Drives the activation metric in getPlatformStats
+// without scanning the entire dailyLogs collection-group on every
+// dashboard refresh. Idempotent: only writes when the field is missing,
+// so subsequent log creates are a no-op.
+export const onDailyLogCreated = onDocumentCreated(
+  "users/{uid}/dailyLogs/{logId}",
+  async (event) => {
+    const uid = event.params.uid;
+    const profileRef = db.doc(`users/${uid}`);
+    const snap = await profileRef.get();
+    if (!snap.exists) return;
+    if (snap.data()?.["firstEntryAt"] != null) return;
+    await profileRef.update({ firstEntryAt: Timestamp.now() });
+  },
+);
+
 export { bootstrapAdmin, setAdminClaims } from "./admin-claims";
 export { startImpersonation, stopImpersonation } from "./impersonation";
 export {
   listUsers,
   getPlatformStats,
+  getRecentActivity,
   getAuditLogs,
   adminSuspendUser,
   adminDeleteUser,
