@@ -1,4 +1,4 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import {
   Auth,
   AuthCredential,
@@ -16,6 +16,7 @@ import {
   onAuthStateChanged,
   signOut as fbSignOut,
 } from '@angular/fire/auth';
+import { AnalyticsService } from './analytics.service';
 
 /**
  * Metadata the sign-in UI needs to render an account-link prompt:
@@ -60,6 +61,7 @@ export interface PendingLinkInfo {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly auth = inject(Auth);
+  private readonly analytics = inject(AnalyticsService);
 
   private readonly _user = signal<User | null>(null);
   /** Reactive current user, driven by Firebase's onAuthStateChanged. */
@@ -89,6 +91,44 @@ export class AuthService {
       this._user.set(user);
       this.ready.set(true);
     });
+
+    // Funnel analytics: fire `email_verified` once when the user's
+    // verification flag flips false → true. The flip happens after the
+    // user clicks the link in their inbox AND we call reloadUser() —
+    // covering the verify-banner gate. Tab-scoped latch prevents
+    // re-fires from auth state churn.
+    let lastEmailVerified = false;
+    let lastUid: string | null = null;
+    effect(() => {
+      const u = this._user();
+      if (!u) {
+        lastEmailVerified = false;
+        lastUid = null;
+        return;
+      }
+      // New session for a different user — reset the latch.
+      if (u.uid !== lastUid) {
+        lastUid = u.uid;
+        lastEmailVerified = u.emailVerified;
+        return;
+      }
+      if (!lastEmailVerified && u.emailVerified) {
+        lastEmailVerified = true;
+        this.analytics.track('email_verified');
+      }
+    });
+  }
+
+  /** Returns true when the Firebase user was created in roughly the
+   *  same moment as their last sign-in (within 5s). Distinguishes a
+   *  popup that just minted a new account from one that signed an
+   *  existing user back in — the only signal Firebase gives us
+   *  client-side. */
+  private isNewAccount(user: User): boolean {
+    const created = user.metadata.creationTime ? Date.parse(user.metadata.creationTime) : 0;
+    const last = user.metadata.lastSignInTime ? Date.parse(user.metadata.lastSignInTime) : 0;
+    if (!created || !last) return false;
+    return Math.abs(last - created) < 5_000;
   }
 
   /**
@@ -101,9 +141,13 @@ export class AuthService {
     // Always show account chooser — avoids the "silently signed in as
     // the wrong Google account" footgun for people with multiple accounts.
     provider.setCustomParameters({ prompt: 'select_account' });
+    this.analytics.track('signup_started', { provider: 'google.com' });
     try {
       const result = await signInWithPopup(this.auth, provider);
       await this.completeLinkIfPending(result.user);
+      if (this.isNewAccount(result.user)) {
+        this.analytics.track('signup_completed', { provider: 'google.com' });
+      }
     } catch (err) {
       await this.capturePendingCredential(err, 'google.com');
       throw err;
@@ -128,9 +172,13 @@ export class AuthService {
     // emailVerified=true on the resulting Firebase user.
     provider.addScope('email');
     provider.addScope('profile');
+    this.analytics.track('signup_started', { provider: 'microsoft.com' });
     try {
       const result = await signInWithPopup(this.auth, provider);
       await this.completeLinkIfPending(result.user);
+      if (this.isNewAccount(result.user)) {
+        this.analytics.track('signup_completed', { provider: 'microsoft.com' });
+      }
     } catch (err) {
       await this.capturePendingCredential(err, 'microsoft.com');
       throw err;
@@ -144,8 +192,10 @@ export class AuthService {
    * they do.
    */
   async signUpWithEmailPassword(email: string, password: string): Promise<void> {
+    this.analytics.track('signup_started', { provider: 'password' });
     try {
       const result = await createUserWithEmailAndPassword(this.auth, email, password);
+      this.analytics.track('signup_completed', { provider: 'password' });
       // Best-effort: a missing/blocked verification email is recoverable
       // via resendVerificationEmail() from the verify-banner.
       try {

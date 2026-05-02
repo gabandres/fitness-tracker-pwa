@@ -15,6 +15,7 @@ import { localDateKey } from '../utils/date';
 import { GeminiService } from './gemini.service';
 import { SubscriptionService } from './subscription.service';
 import { TranslationService } from './translation.service';
+import { AnalyticsService } from './analytics.service';
 import { extractErrorCode } from '../models/error-codes';
 
 export type StoreStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -79,6 +80,7 @@ export class FitnessStore {
   private readonly gemini = inject(GeminiService);
   private readonly subs = inject(SubscriptionService);
   private readonly translation = inject(TranslationService);
+  private readonly analytics = inject(AnalyticsService);
 
   // ─── Private mutable state ──────────────────────────────────
   private readonly _logs = signal<DailyLog[]>([]);
@@ -574,8 +576,30 @@ export class FitnessStore {
   }
 
   async addLog(entry: LogEntry): Promise<void> {
+    // Snapshot pre-state so we can fire `first_meal_logged` exactly
+    // once per account. Both signals must be empty: `_logs` covers the
+    // 14-day rolling window, `_allTimeLogs` (loaded after _load) covers
+    // the rest. If either has any rows the user has logged before.
+    // Persist the latch to localStorage as a belt-and-suspenders against
+    // double-fire from a concurrent reload before _allTimeLogs hydrates.
+    const isFirst =
+      this._logs().length === 0 &&
+      this._allTimeLogs().length === 0 &&
+      !this._firstMealLatchSet();
     await this.fb.addLog(entry);
     await this._refreshLogs();
+    if (isFirst) {
+      this._setFirstMealLatch();
+      this.analytics.track('first_meal_logged');
+    }
+  }
+
+  private static readonly FIRST_MEAL_LATCH = 'macrolog.first-meal-tracked';
+  private _firstMealLatchSet(): boolean {
+    try { return !!localStorage.getItem(FitnessStore.FIRST_MEAL_LATCH); } catch { return false; }
+  }
+  private _setFirstMealLatch(): void {
+    try { localStorage.setItem(FitnessStore.FIRST_MEAL_LATCH, '1'); } catch { /* ignore */ }
   }
 
   /**
@@ -931,5 +955,8 @@ export class FitnessStore {
     this._measurements.set([]);
     this._dailyWater.set({});
     this._allTimeLogs.set([]);
+    // Clear the first-meal latch so a different user signing in on the
+    // same browser gets correctly tracked on their first entry.
+    try { localStorage.removeItem(FitnessStore.FIRST_MEAL_LATCH); } catch { /* ignore */ }
   }
 }

@@ -929,10 +929,17 @@ export const sendDayThreeCoachPush = onSchedule(
             token,
             notification: {
               title: "Macro Log",
-              body: "You have data now — ask your coach what to adjust.",
+              // Lands on today-v2 root where the "Refine targets" coach
+              // card surfaces for users still on the 2-Q heuristic — the
+              // most actionable next step at day 3. Previous body
+              // ("ask your coach what to adjust") deep-linked into the
+              // consultation panel via /?tab=body, but the v2 cutover
+              // dropped tab routing and the consultation isn't the
+              // first card anyone sees on body-v2 anyway.
+              body: "Three days of logs in. Tap to refine your daily targets.",
             },
             webpush: {
-              fcmOptions: { link: "https://macrolog.web.app/?tab=body" },
+              fcmOptions: { link: "https://macrolog.web.app/" },
             },
           });
           await userDoc.ref.update({ dayThreeCoachPushSent: true });
