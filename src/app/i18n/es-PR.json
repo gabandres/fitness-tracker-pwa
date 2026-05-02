@@ -1007,7 +1007,13 @@
       "pushPromptEnable": "Activar recordatorio",
       "pushPromptEnabling": "Activando…",
       "pushPromptDismiss": "Ahora no",
-      "pushPromptError": "No se pudo activar. Inténtalo desde Ajustes."
+      "pushPromptError": "No se pudo activar. Inténtalo desde Ajustes.",
+      "iosInstallTitle": "Instala Macro Log en tu iPhone",
+      "iosInstallBody": "Añádelo a tu pantalla de inicio para recordatorios de un toque, aperturas rápidas y un ícono listo para usar sin conexión — no necesitas el App Store.",
+      "iosInstallStep1": "Toca el botón Compartir abajo de Safari.",
+      "iosInstallStep2": "Desplázate y elige \"Añadir a inicio\".",
+      "iosInstallStep3": "Toca \"Añadir\" — Macro Log queda en tu pantalla de inicio.",
+      "iosInstallDismiss": "Listo"
     },
     "trends": {
       "title": "Tendencias",

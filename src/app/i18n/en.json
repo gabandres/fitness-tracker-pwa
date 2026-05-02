@@ -1007,7 +1007,13 @@
       "pushPromptEnable": "Enable reminder",
       "pushPromptEnabling": "Enabling…",
       "pushPromptDismiss": "Not now",
-      "pushPromptError": "Couldn't enable reminders. Try again from Settings."
+      "pushPromptError": "Couldn't enable reminders. Try again from Settings.",
+      "iosInstallTitle": "Install Macro Log on your iPhone",
+      "iosInstallBody": "Add it to your home screen for one-tap reminders, faster opens, and an offline-ready icon — no app store required.",
+      "iosInstallStep1": "Tap the Share button at the bottom of Safari.",
+      "iosInstallStep2": "Scroll and pick \"Add to Home Screen\".",
+      "iosInstallStep3": "Tap \"Add\" — Macro Log lives on your home screen.",
+      "iosInstallDismiss": "Got it"
     },
     "trends": {
       "title": "Trends",

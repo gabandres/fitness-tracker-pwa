@@ -125,6 +125,29 @@ import { V2RefineTargetsSheet } from '../refine-targets-sheet-v2/refine-targets-
         </div>
       }
 
+      <!-- iOS install hint — only iOS Safari, not already installed,
+           not dismissed. Closes the iOS gap until we ship a native
+           app: iOS web push requires the user to install to home
+           screen first, which most users will never do without
+           prompting. Step-by-step copy uses the actual Share / Add
+           to Home Screen wording so non-technical users follow. -->
+      @if (showIosInstall()) {
+        <v2-card class="mt-6 block">
+          <h2 class="v2-h3">{{ t('v2.today.iosInstallTitle') }}</h2>
+          <p class="v2-body-soft mt-1.5">{{ t('v2.today.iosInstallBody') }}</p>
+          <ol class="v2-body-soft mt-3" style="font-size: 0.875rem; padding-left: 1.25rem; list-style: decimal; line-height: 1.7;">
+            <li>{{ t('v2.today.iosInstallStep1') }}</li>
+            <li>{{ t('v2.today.iosInstallStep2') }}</li>
+            <li>{{ t('v2.today.iosInstallStep3') }}</li>
+          </ol>
+          <div class="mt-3 flex gap-2">
+            <v2-button variant="ghost" size="md" (click)="dismissIosInstall()">
+              {{ t('v2.today.iosInstallDismiss') }}
+            </v2-button>
+          </div>
+        </v2-card>
+      }
+
       <!-- Post-first-entry push prompt — surfaces once after the user
            logs at least one meal, native notifications are supported,
            permission hasn't been answered yet, and the user hasn't
@@ -344,6 +367,59 @@ export class TodayV2Component {
     try { localStorage.setItem(this.PUSH_DISMISS_KEY, '1'); } catch { /* ignore */ }
     this.pushPromptDismissedLocal.set(true);
   }
+
+  // ─── iOS install hint ──────────────────────────────────────────
+  /** Latch — clicked "Got it" once = never re-prompted on this device. */
+  private readonly IOS_INSTALL_DISMISS_KEY = 'macrolog.ios-install-dismissed';
+  protected readonly iosInstallDismissedLocal = signal(
+    typeof localStorage !== 'undefined' && !!localStorage.getItem(this.IOS_INSTALL_DISMISS_KEY),
+  );
+
+  /** True when running on iOS Safari (not Chrome/Firefox-on-iOS, which
+   *  wrap WebKit but don't allow add-to-home-screen) AND not already
+   *  installed as a PWA AND not dismissed. The narrow gate — we want
+   *  to nudge users who can install, not pollute Android/desktop with
+   *  iOS-specific instructions. */
+  protected readonly showIosInstall = computed(() => {
+    if (this.iosInstallDismissedLocal()) return false;
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent;
+    // iOS device (iPhone / iPad / iPod). iPad on iOS 13+ reports as
+    // Mac in UA, so also check maxTouchPoints — Macs return 0 even
+    // with a touch bar, iPads return >0. False positive on Mac M-series
+    // with touch bar mods is rare enough to ignore.
+    const isIos = /iPhone|iPad|iPod/.test(ua) ||
+      (/Macintosh/.test(ua) && (navigator as any).maxTouchPoints > 1);
+    if (!isIos) return false;
+    // Reject Chrome / Firefox on iOS (CriOS / FxiOS) — they can't
+    // install to home screen, only Safari can.
+    if (/CriOS|FxiOS|EdgiOS/.test(ua)) return false;
+    // Already installed → no nudge.
+    const standaloneMql = window.matchMedia('(display-mode: standalone)').matches;
+    const standaloneLegacy = (navigator as any).standalone === true;
+    if (standaloneMql || standaloneLegacy) return false;
+    return true;
+  });
+
+  protected dismissIosInstall(): void {
+    this.haptic(10);
+    try { localStorage.setItem(this.IOS_INSTALL_DISMISS_KEY, '1'); } catch { /* ignore */ }
+    this.iosInstallDismissedLocal.set(true);
+    this.analytics.track('ios_install_dismissed');
+  }
+
+  /** One-shot impression event so we can measure how often this
+   *  surfaces. Without `_shown` we can't compute conversion against
+   *  the "user actually installed" signal (which doesn't exist as an
+   *  event but is implicitly tracked by display-mode going standalone
+   *  on subsequent visits — separate signal in store readiness). */
+  private iosInstallImpressionTracked = false;
+  private readonly trackIosInstallImpression = effect(() => {
+    if (!this.showIosInstall()) return;
+    if (this.iosInstallImpressionTracked) return;
+    this.iosInstallImpressionTracked = true;
+    this.analytics.track('ios_install_shown');
+  });
 
   protected repeatYesterday(): void {
     this.haptic(30);
