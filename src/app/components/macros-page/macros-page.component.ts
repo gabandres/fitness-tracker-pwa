@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { TranslationService } from '../../services/translation.service';
+import { AnalyticsService } from '../../services/analytics.service';
 import { V2Card } from '../ui/card.component';
 import {
   GoalDirection,
@@ -16,6 +17,7 @@ import {
   computeKcal,
   computeProtein,
 } from '../../utils/macro-heuristic';
+import { setCalcPrefill } from '../../utils/calc-prefill';
 
 /**
  * Programmatic SEO landing for `/macros/<goal>/<weight>-lb`. Each URL
@@ -73,7 +75,7 @@ import {
           <h2 class="v2-h3">{{ t('macrosPage.ctaTitle') }}</h2>
           <p class="v2-body-soft mt-2">{{ t('macrosPage.ctaBody') }}</p>
           <div class="mt-5 flex flex-wrap justify-center gap-3">
-            <a href="/app" class="v2-btn v2-btn--primary v2-btn--lg">
+            <a href="/app" class="v2-btn v2-btn--primary v2-btn--lg" (click)="onSignupClick()">
               {{ t('macrosPage.ctaSignup') }}
             </a>
             <a href="/calculator" class="v2-btn v2-btn--ghost">
@@ -87,6 +89,22 @@ import {
           <p class="v2-body-soft">{{ explainer() }}</p>
           <p class="v2-caption mt-4">{{ t('macrosPage.disclaimer') }}</p>
         </section>
+
+        <!-- Sibling cross-links: thicken the SEO crawl graph and let
+             visitors hop to nearby weights / other goals at the same
+             weight without bouncing back to /calculator. -->
+        <nav class="mt-10" aria-labelledby="related-targets">
+          <h2 id="related-targets" class="v2-h2 mb-3" style="font-size: 1.125rem;">
+            {{ t('macrosPage.relatedTitle') }}
+          </h2>
+          <div class="flex flex-wrap gap-2">
+            @for (link of siblingLinks(); track link.href) {
+              <a [href]="link.href" class="v2-link" style="padding: 6px 10px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); text-decoration: none;">
+                {{ link.label }}
+              </a>
+            }
+          </div>
+        </nav>
       }
     </article>
     </ng-container>
@@ -94,6 +112,7 @@ import {
 })
 export class MacrosPageComponent {
   private readonly translation = inject(TranslationService);
+  private readonly analytics = inject(AnalyticsService);
 
   protected readonly parsed = signal<{ goal: GoalDirection; weight: number } | null>(
     this.parsePath(),
@@ -144,6 +163,43 @@ export class MacrosPageComponent {
       if (!p) return;
       document.title = this.translation.t(`macrosPage.title.${p.goal}`, { weight: p.weight });
     });
+
+    const p = this.parsed();
+    if (p) this.analytics.track('macros_page_viewed', { goal: p.goal, weight: p.weight });
+  }
+
+  /** Sibling SEO links: same goal at adjacent weights (±20 lb steps,
+   *  matching sitemap.xml's enumeration), plus the other two goals at
+   *  the current weight. Filters to weights in the valid band so we
+   *  never link to a 404. */
+  protected readonly siblingLinks = computed(() => {
+    const p = this.parsed();
+    if (!p) return [];
+    const out: { href: string; label: string }[] = [];
+    for (const delta of [-20, -10, 10, 20]) {
+      const w = p.weight + delta;
+      if (w < WEIGHT_MIN_LB || w > WEIGHT_MAX_LB) continue;
+      out.push({
+        href: `/macros/${p.goal}/${w}-lb`,
+        label: this.translation.t(`macrosPage.sibling.${p.goal}`, { weight: w }),
+      });
+    }
+    const goals: GoalDirection[] = ['lose', 'maintain', 'gain'];
+    for (const g of goals) {
+      if (g === p.goal) continue;
+      out.push({
+        href: `/macros/${g}/${p.weight}-lb`,
+        label: this.translation.t(`macrosPage.sibling.${g}`, { weight: p.weight }),
+      });
+    }
+    return out;
+  });
+
+  protected onSignupClick(): void {
+    const p = this.parsed();
+    if (!p) return;
+    this.analytics.track('macros_cta_signup', { goal: p.goal, weight: p.weight });
+    setCalcPrefill(p.weight, p.goal);
   }
 
   private parsePath(): { goal: GoalDirection; weight: number } | null {

@@ -18,6 +18,22 @@ export class PushNotificationService {
   );
   readonly fcmToken = signal<string | null>(null);
 
+  constructor() {
+    // Native `Notification.permission` is read-once at construction. If
+    // the user flips permission in browser settings (e.g. revokes after
+    // granting elsewhere), the signal silently lies until the next page
+    // load — and any UI gated on this state, like the post-first-entry
+    // prompt on today-v2, decides wrong. Re-sync on visibility flips
+    // (cheap, fires whenever the tab regains focus after settings).
+    if (typeof document !== 'undefined' && 'Notification' in window) {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') return;
+        const native = Notification.permission as PushPermission;
+        if (this.permission() !== native) this.permission.set(native);
+      });
+    }
+  }
+
   /**
    * Request notification permission and get the FCM token.
    * Must be called after user interaction (browser requirement).

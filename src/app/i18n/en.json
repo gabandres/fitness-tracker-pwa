@@ -988,7 +988,13 @@
       "repeatYesterday": "Same as yesterday",
       "deleted": "Deleted {{label}}",
       "deletedFallback": "entry",
-      "undo": "Undo"
+      "undo": "Undo",
+      "pushPromptTitle": "Get a daily reminder?",
+      "pushPromptBody": "We'll nudge you once a day so logging stays consistent. You can change the time or turn it off in Settings.",
+      "pushPromptEnable": "Enable reminder",
+      "pushPromptEnabling": "Enabling…",
+      "pushPromptDismiss": "Not now",
+      "pushPromptError": "Couldn't enable reminders. Try again from Settings."
     },
     "trends": {
       "title": "Trends",
@@ -1268,6 +1274,12 @@
     "ctaSignup": "Sign up free",
     "ctaRefine": "Refine for my weight",
     "howTitle": "Where this number comes from",
-    "disclaimer": "Heuristic targets aren't medical advice. Consult a registered dietitian for any clinical condition."
+    "disclaimer": "Heuristic targets aren't medical advice. Consult a registered dietitian for any clinical condition.",
+    "relatedTitle": "Related targets",
+    "sibling": {
+      "lose": "Lose at {{weight}} lb",
+      "maintain": "Maintain {{weight}} lb",
+      "gain": "Gain at {{weight}} lb"
+    }
   }
 }

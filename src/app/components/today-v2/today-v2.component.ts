@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   output,
   signal,
@@ -12,6 +13,9 @@ import { FitnessStore } from '../../services/fitness-store.service';
 import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { TranslationService } from '../../services/translation.service';
+import { PushNotificationService } from '../../services/push-notification.service';
+import { FirebaseService } from '../../services/firebase.service';
+import { AnalyticsService } from '../../services/analytics.service';
 import { localDateKey } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
 import { V2Button } from '../ui/button.component';
@@ -121,6 +125,29 @@ import { V2RefineTargetsSheet } from '../refine-targets-sheet-v2/refine-targets-
         </div>
       }
 
+      <!-- Post-first-entry push prompt — surfaces once after the user
+           logs at least one meal, native notifications are supported,
+           permission hasn't been answered yet, and the user hasn't
+           already dismissed it locally. Single-tap enable: requests
+           permission, saves token + a default 8 PM reminder hour. -->
+      @if (showPushPrompt()) {
+        <v2-card class="mt-6 block">
+          <h2 class="v2-h3">{{ t('v2.today.pushPromptTitle') }}</h2>
+          <p class="v2-body-soft mt-1.5">{{ t('v2.today.pushPromptBody') }}</p>
+          <div class="mt-3 flex gap-2">
+            <v2-button variant="primary" size="md" [disabled]="pushEnabling()" (click)="enablePush()">
+              {{ pushEnabling() ? t('v2.today.pushPromptEnabling') : t('v2.today.pushPromptEnable') }}
+            </v2-button>
+            <v2-button variant="ghost" size="md" (click)="dismissPushPrompt()">
+              {{ t('v2.today.pushPromptDismiss') }}
+            </v2-button>
+          </div>
+          @if (pushError(); as e) {
+            <p class="v2-caption mt-2" role="alert" style="color: var(--v2-danger);">{{ e }}</p>
+          }
+        </v2-card>
+      }
+
       <!-- Undo-delete toast (auto-dismisses via store) -->
       @if (store.undoEntry(); as undo) {
         <div
@@ -158,6 +185,9 @@ export class TodayV2Component {
   protected readonly profile = inject(LEDGER_PORT);
   private readonly entryForm = inject(EntryFormManager);
   private readonly translation = inject(TranslationService);
+  private readonly push = inject(PushNotificationService);
+  private readonly fb = inject(FirebaseService);
+  private readonly analytics = inject(AnalyticsService);
 
   readonly historyRequested = output<void>();
   readonly settingsRequested = output<void>();
@@ -233,6 +263,86 @@ export class TodayV2Component {
     this.haptic(10);
     try { localStorage.setItem(this.REFINE_DISMISS_KEY, '1'); } catch { /* ignore */ }
     this.refineDismissedLocal.set(true);
+  }
+
+  // ─── Post-first-entry push prompt ──────────────────────────────
+  /** Local "No thanks" latch — survives reload so we don't badger
+   *  users who declined. The browser's `denied` permission state is its
+   *  own permanent latch; this one covers the "default" case where the
+   *  user clicked Dismiss without ever opening the system dialog. */
+  private readonly PUSH_DISMISS_KEY = 'macrolog.push-prompt-dismissed';
+  protected readonly pushPromptDismissedLocal = signal(
+    typeof localStorage !== 'undefined' && !!localStorage.getItem(this.PUSH_DISMISS_KEY),
+  );
+  protected readonly pushEnabling = signal(false);
+  protected readonly pushError = signal<string | null>(null);
+  /** Default reminder hour to set on opt-in (8 PM, matching the Firestore
+   *  rules default). User can change this in Settings later. */
+  private static readonly DEFAULT_REMINDER_HOUR = 20;
+
+  protected readonly showPushPrompt = computed(() => {
+    if (this.pushPromptDismissedLocal()) return false;
+    if (this.store.logs().length === 0) return false;
+    if (this.push.permission() !== 'default') return false;
+    // Profile must be loaded — saveFcmToken / saveReminderHour will
+    // throw if there's no signed-in uid yet.
+    if (!this.store.profile()) return false;
+    return true;
+  });
+
+  /** One-shot impression event so we can compute conversion against the
+   *  enabled / denied actions. Without `_shown` there's no denominator
+   *  in the funnel and the prompt's effectiveness can't be measured. */
+  private pushPromptImpressionTracked = false;
+  private readonly trackPushPromptImpression = effect(() => {
+    if (!this.showPushPrompt()) return;
+    if (this.pushPromptImpressionTracked) return;
+    this.pushPromptImpressionTracked = true;
+    this.analytics.track('push_prompt_shown');
+  });
+
+  protected async enablePush(): Promise<void> {
+    if (this.pushEnabling()) return;
+    this.haptic(10);
+    this.pushEnabling.set(true);
+    this.pushError.set(null);
+    let stage: 'permission' | 'persist' = 'permission';
+    try {
+      const token = await this.push.requestPermissionAndGetToken();
+      if (!token) {
+        // User denied at the system prompt, or token retrieval failed.
+        // Either way the prompt should not re-surface this session;
+        // browser's denied state will cover future sessions.
+        this.dismissPushPrompt();
+        this.analytics.track('push_prompt_denied');
+        return;
+      }
+      stage = 'persist';
+      await Promise.all([
+        this.fb.saveFcmToken(token),
+        this.fb.saveReminderHour(TodayV2Component.DEFAULT_REMINDER_HOUR),
+      ]);
+      this.analytics.track('push_prompt_enabled');
+      this.dismissPushPrompt();
+    } catch (err) {
+      // Two failure modes: requestPermissionAndGetToken throws (rare —
+      // FCM service-worker registration / vapid key issue), or the
+      // saveFcmToken / saveReminderHour writes throw after permission
+      // was granted. The second case is worse: user has granted, no
+      // token persisted, no FCM nudges will arrive. Log + send an
+      // analytics breakdown so we can spot it in the wild.
+      console.warn('[push] enable failed', err);
+      this.analytics.track('push_prompt_error', { stage });
+      this.pushError.set(this.translation.t('v2.today.pushPromptError'));
+    } finally {
+      this.pushEnabling.set(false);
+    }
+  }
+
+  protected dismissPushPrompt(): void {
+    this.haptic(10);
+    try { localStorage.setItem(this.PUSH_DISMISS_KEY, '1'); } catch { /* ignore */ }
+    this.pushPromptDismissedLocal.set(true);
   }
 
   protected repeatYesterday(): void {

@@ -988,7 +988,13 @@
       "repeatYesterday": "Igual que ayer",
       "deleted": "Borrado {{label}}",
       "deletedFallback": "entrada",
-      "undo": "Deshacer"
+      "undo": "Deshacer",
+      "pushPromptTitle": "¿Quieres un recordatorio diario?",
+      "pushPromptBody": "Te avisamos una vez al día para que registrar sea consistente. Puedes cambiar la hora o apagarlo en Ajustes.",
+      "pushPromptEnable": "Activar recordatorio",
+      "pushPromptEnabling": "Activando…",
+      "pushPromptDismiss": "Ahora no",
+      "pushPromptError": "No se pudo activar. Inténtalo desde Ajustes."
     },
     "trends": {
       "title": "Tendencias",
@@ -1268,6 +1274,12 @@
     "ctaSignup": "Crear cuenta gratis",
     "ctaRefine": "Refinar para mi peso",
     "howTitle": "De dónde sale este número",
-    "disclaimer": "Las metas heurísticas no son consejo médico. Consulta con un nutricionista registrado para cualquier condición clínica."
+    "disclaimer": "Las metas heurísticas no son consejo médico. Consulta con un nutricionista registrado para cualquier condición clínica.",
+    "relatedTitle": "Metas relacionadas",
+    "sibling": {
+      "lose": "Bajar a las {{weight}} lb",
+      "maintain": "Mantener las {{weight}} lb",
+      "gain": "Subir a las {{weight}} lb"
+    }
   }
 }

@@ -11,6 +11,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { FirebaseService } from '../../services/firebase.service';
 import { TranslationService } from '../../services/translation.service';
+import { AnalyticsService } from '../../services/analytics.service';
 import { V2Button } from '../ui/button.component';
 import { V2Card } from '../ui/card.component';
 import {
@@ -20,6 +21,7 @@ import {
   computeKcal,
   computeProtein,
 } from '../../utils/macro-heuristic';
+import { consumeCalcPrefill } from '../../utils/calc-prefill';
 
 type Step = 'weight' | 'goal' | 'targetWeight' | 'confirm';
 
@@ -221,6 +223,7 @@ const DEFAULT_SKIP_PROTEIN = 120;
 export class OnboardingV2Component {
   private readonly fb = inject(FirebaseService);
   private readonly translation = inject(TranslationService);
+  private readonly analytics = inject(AnalyticsService);
 
   readonly completed = output<void>();
   readonly cancelled = output<void>();
@@ -273,6 +276,23 @@ export class OnboardingV2Component {
     }
     if (p?.goalDirection) {
       this.goal.set(p.goalDirection);
+    }
+
+    // Funnel handoff: a user who came from /calculator or /macros has
+    // already given us their weight + goal. Pre-fill those signals and
+    // jump straight to the next step the user hasn't answered yet —
+    // 'targetWeight' for lose/gain (still need a target) or 'confirm'
+    // for maintain. Only applies on first-time onboarding; redo mode
+    // ignores the prefill so the redo screen can show "Current → New".
+    if (!this.isRedo()) {
+      const prefill = consumeCalcPrefill();
+      if (prefill) {
+        this.weight.set(prefill.weight);
+        this.weightInput.set(String(prefill.weight));
+        this.goal.set(prefill.goal);
+        this.step.set(prefill.goal === 'maintain' ? 'confirm' : 'targetWeight');
+        this.analytics.track('onboarding_prefilled', { goal: prefill.goal });
+      }
     }
   }
 

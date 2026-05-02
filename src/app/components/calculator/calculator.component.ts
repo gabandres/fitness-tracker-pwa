@@ -18,6 +18,7 @@ import {
   computeKcal,
   computeProtein,
 } from '../../utils/macro-heuristic';
+import { setCalcPrefill } from '../../utils/calc-prefill';
 
 /**
  * Public, unauthenticated macro calculator at /calculator. The same
@@ -210,5 +211,10 @@ export class CalculatorComponent {
 
   protected trackCtaClick(): void {
     this.analytics.track('calculator_cta_signup', { goal: this.goal() });
+    // Hand off the inputs to onboarding so the user doesn't re-enter
+    // them after sign-up. consumeCalcPrefill in onboarding-v2 reads +
+    // clears this on mount.
+    const w = this.weight();
+    if (w != null) setCalcPrefill(w, this.goal());
   }
 }
