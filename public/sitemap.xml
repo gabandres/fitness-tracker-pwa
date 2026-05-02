@@ -16,6 +16,31 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://macrolog.web.app/vs/myfitnesspal</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://macrolog.web.app/vs/loseit</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://macrolog.web.app/vs/cronometer</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://macrolog.web.app/vs/macrofactor</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://macrolog.web.app/vs/calai</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://macrolog.web.app/privacy</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>

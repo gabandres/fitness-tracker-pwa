@@ -61,7 +61,10 @@
     "qtMaintain150": "150 lb · mantener",
     "qtMaintain180": "180 lb · mantener",
     "qtGain170": "170 lb · subir",
-    "qtAllWeights": "Buscar metas para cualquier peso →"
+    "qtAllWeights": "Buscar metas para cualquier peso →",
+    "comparisonsRule": "Cómo comparamos",
+    "comparisonsLead": "Comparaciones honestas, lado a lado, contra las alternativas — incluyendo dónde ellas ganan.",
+    "faqLink": "Lee el FAQ →"
   },
   "app": {
     "skipToMain": "saltar al contenido principal",
@@ -1291,6 +1294,20 @@
     "shareCopied": "¡Copiado!",
     "shareAria": "Compartir esta página",
     "shareText": "{{kcal}} kcal · {{protein}} g de proteína/día:"
+  },
+  "vs": {
+    "pageTitle": "Macro Log vs {{name}} — comparación honesta | Macro Log",
+    "eyebrow": "Comparación",
+    "heading": "Macro Log vs {{name}}",
+    "honestTitle": "Cuándo la otra herramienta es la elección correcta",
+    "tableTitle": "Característica por característica: Macro Log vs {{name}}",
+    "colFeature": "Característica",
+    "ctaTitle": "Prueba Macro Log gratis.",
+    "ctaBody": "Una meta diaria en 30 segundos. Sin tarjeta.",
+    "ctaCalculator": "Abrir calculadora",
+    "ctaSignup": "Crear cuenta gratis",
+    "othersTitle": "Otras comparaciones",
+    "siblingLink": "vs {{name}}"
   },
   "faq": {
     "pageTitle": "Preguntas frecuentes sobre macros y calorías | Macro Log",

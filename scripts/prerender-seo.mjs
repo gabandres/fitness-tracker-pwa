@@ -142,6 +142,51 @@ routes.push({
   ]),
 });
 
+// /vs/<slug> — comparison landings. Pre-rendered with Article + WebPage
+// schema so each comparison ranks distinctly for "Macro Log vs X" and
+// "X alternatives" searches. Mirrors the slug list in
+// src/app/components/vs-page/vs-data.ts — keep them in sync.
+const VS = [
+  { slug: 'myfitnesspal', name: 'MyFitnessPal' },
+  { slug: 'loseit', name: 'Lose It!' },
+  { slug: 'cronometer', name: 'Cronometer' },
+  { slug: 'macrofactor', name: 'MacroFactor' },
+  { slug: 'calai', name: 'Cal AI' },
+];
+
+for (const v of VS) {
+  const url = `${SITE}/vs/${v.slug}`;
+  const title = interp(i18n.vs.pageTitle, { name: v.name });
+  const description = `Honest, side-by-side comparison of Macro Log and ${v.name}. Where each one wins, where it loses, and which to pick for which job.`;
+  routes.push({
+    file: `vs/${v.slug}.html`,
+    title,
+    description,
+    canonical: url,
+    jsonLd: [
+      breadcrumb([
+        { name: 'Home', url: `${SITE}/` },
+        { name: 'Comparisons', url: `${SITE}/vs/myfitnesspal` },
+        { name: `vs ${v.name}`, url },
+      ]),
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Article',
+        headline: title,
+        description,
+        url,
+        inLanguage: 'en',
+        author: { '@type': 'Organization', name: 'Macro Log' },
+        publisher: { '@type': 'Organization', name: 'Macro Log' },
+        about: [
+          { '@type': 'SoftwareApplication', name: 'Macro Log' },
+          { '@type': 'SoftwareApplication', name: v.name },
+        ],
+      },
+    ],
+  });
+}
+
 // /faq — structured FAQPage. Each Q/A becomes a `Question` schema
 // node so Google can promote answers into the People-Also-Ask box
 // and the FAQ rich-result strip below the main listing. The user-

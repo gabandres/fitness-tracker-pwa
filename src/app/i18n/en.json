@@ -61,7 +61,10 @@
     "qtMaintain150": "150 lb · maintain",
     "qtMaintain180": "180 lb · maintain",
     "qtGain170": "170 lb · gain",
-    "qtAllWeights": "Find targets for any weight →"
+    "qtAllWeights": "Find targets for any weight →",
+    "comparisonsRule": "How we compare",
+    "comparisonsLead": "Honest, side-by-side comparisons against the alternatives — including where they win.",
+    "faqLink": "Read the FAQ →"
   },
   "app": {
     "skipToMain": "skip to main content",
@@ -1291,6 +1294,20 @@
     "shareCopied": "Copied!",
     "shareAria": "Share this page",
     "shareText": "{{kcal}} kcal · {{protein}} g protein/day:"
+  },
+  "vs": {
+    "pageTitle": "Macro Log vs {{name}} — honest comparison | Macro Log",
+    "eyebrow": "Comparison",
+    "heading": "Macro Log vs {{name}}",
+    "honestTitle": "When the other tool is the right pick",
+    "tableTitle": "Feature-by-feature: Macro Log vs {{name}}",
+    "colFeature": "Feature",
+    "ctaTitle": "Try Macro Log free.",
+    "ctaBody": "Get a daily target in 30 seconds. No card required.",
+    "ctaCalculator": "Open the calculator",
+    "ctaSignup": "Sign up free",
+    "othersTitle": "Other comparisons",
+    "siblingLink": "vs {{name}}"
   },
   "faq": {
     "pageTitle": "Macro & calorie FAQ — answers without the fluff | Macro Log",

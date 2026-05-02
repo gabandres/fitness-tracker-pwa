@@ -212,6 +212,24 @@ import { V2Button } from '../ui/button.component';
         <p class="v2-caption mt-4">{{ t('landing.pricingFinePrint') }}</p>
       </section>
 
+      <!-- ── 5. Comparisons + FAQ footer ─────────────────────────── -->
+      <footer class="mt-16 pt-8" style="border-top: 1px solid var(--v2-rule);">
+        <h2 class="v2-h2 mb-3" style="text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.875rem; color: var(--v2-ink-muted);">
+          {{ t('landing.comparisonsRule') }}
+        </h2>
+        <p class="v2-body-soft mb-3 max-w-2xl">{{ t('landing.comparisonsLead') }}</p>
+        <div class="flex flex-wrap gap-2">
+          <a href="/vs/myfitnesspal" class="v2-link" style="padding: 6px 10px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); text-decoration: none;">vs MyFitnessPal</a>
+          <a href="/vs/loseit" class="v2-link" style="padding: 6px 10px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); text-decoration: none;">vs Lose It!</a>
+          <a href="/vs/macrofactor" class="v2-link" style="padding: 6px 10px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); text-decoration: none;">vs MacroFactor</a>
+          <a href="/vs/cronometer" class="v2-link" style="padding: 6px 10px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); text-decoration: none;">vs Cronometer</a>
+          <a href="/vs/calai" class="v2-link" style="padding: 6px 10px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); text-decoration: none;">vs Cal AI</a>
+        </div>
+        <p class="v2-caption mt-5">
+          <a href="/faq" class="v2-link">{{ t('landing.faqLink') }}</a>
+        </p>
+      </footer>
+
     </article>
     </ng-container>
   `,
