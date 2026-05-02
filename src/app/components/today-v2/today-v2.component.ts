@@ -49,7 +49,7 @@ import { V2RefineTargetsSheet } from '../refine-targets-sheet-v2/refine-targets-
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-    <section class="max-w-[640px] mx-auto px-5 sm:px-6 pb-32 md:pb-12">
+    <section class="max-w-[640px] mx-auto px-5 sm:px-6 pb-32 md:pb-28">
       <!-- Header -->
       <header class="flex items-start justify-between gap-4 pt-6 pb-2">
         <div>

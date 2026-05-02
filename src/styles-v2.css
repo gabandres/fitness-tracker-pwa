@@ -265,7 +265,12 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Tab bar (bottom, mobile-only) ──────────────────────────── */
+/* ── Tab bar ─────────────────────────────────────────────────
+   Mobile (<768px): full-width fixed bottom bar. Desktop (≥768px):
+   centered pill above the safe-area, capped width — without this
+   override the bar was previously hidden on desktop entirely, which
+   left no Today/Trends/Body navigation at md+ widths since header
+   icons only cover History/Settings/Body. */
 .v2-tabbar {
   position: fixed; left: 0; right: 0; bottom: 0;
   z-index: 30;
@@ -277,7 +282,19 @@
   padding-bottom: env(safe-area-inset-bottom);
 }
 @media (min-width: 768px) {
-  .v2-tabbar { display: none; }
+  .v2-tabbar {
+    left: 50%;
+    right: auto;
+    bottom: max(20px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    width: min(420px, calc(100% - 32px));
+    border: 1px solid var(--v2-rule);
+    border-radius: var(--v2-radius-full);
+    padding: 4px;
+    padding-bottom: 4px;
+    box-shadow: var(--v2-shadow-2);
+  }
+  .v2-tabbar .v2-tab { border-radius: calc(var(--v2-radius-full) - 4px); }
 }
 .v2-tab {
   display: flex; flex-direction: column; align-items: center; justify-content: center;

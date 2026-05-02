@@ -41,7 +41,7 @@ const FREE_TIER_DAYS = 90;
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-    <section class="max-w-[640px] mx-auto px-5 sm:px-6 pb-32 md:pb-12">
+    <section class="max-w-[640px] mx-auto px-5 sm:px-6 pb-32 md:pb-28">
       <!-- Top bar -->
       <header class="flex items-center justify-between gap-3 pt-6 pb-4">
         <v2-icon-button
