@@ -173,13 +173,29 @@ export class FitnessStore {
   );
 
   // ─── Pre-computed derivations ───────────────────────────────
+
+  /** Overlays the dailyWeights map into each log's `weight` field. Current
+   *  weight writes go to the dailyWeights subcollection (not log.weight),
+   *  so any weight-driven calc — weekly delta, measured TDEE, monthly
+   *  trend — must merge before reading `l.weight`, or it sees nothing for
+   *  daily-weight-only users. Returns the original array when there are
+   *  no daily weights to overlay. */
+  private mergeDailyWeights(logs: DailyLog[]): DailyLog[] {
+    const dw = this._dailyWeights();
+    if (Object.keys(dw).length === 0) return logs;
+    return logs.map((l) => {
+      const w = dw[localDateKey(l.date)];
+      return w != null ? { ...l, weight: w } : l;
+    });
+  }
+
   readonly tdee: Signal<TdeeResult> = computed(() => {
     const fields = this._profileFields();
     // In travel mode, override pace to 0 (maintenance — no deficit).
     const adjusted = fields?.travelMode
       ? { ...fields, targetPaceLbsPerWeek: 0 as any }
       : fields;
-    return this.calc.calculate(this._logs(), adjusted);
+    return this.calc.calculate(this.mergeDailyWeights(this._logs()), adjusted);
   });
 
   readonly targetCalories: Signal<number> = computed(() => {
@@ -256,7 +272,7 @@ export class FitnessStore {
   );
 
   readonly weekly: Signal<WeeklySummary | null> = computed(() =>
-    this.calc.weeklySummary(this._logs(), this.targetCalories()),
+    this.calc.weeklySummary(this.mergeDailyWeights(this._logs()), this.targetCalories()),
   );
 
   readonly envelope: Signal<WeeklyEnvelope | null> = computed(() =>
@@ -264,12 +280,10 @@ export class FitnessStore {
   );
 
   readonly ema: Signal<number[]> = computed(() => {
-    const dw = this._dailyWeights();
-    const logWeights = this._logs().map((l) => {
-      const key = localDateKey(l.date);
-      return dw[key] ?? l.weight;
-    }).filter((w): w is number => w != null);
-    return this.calc.ema(logWeights, 7);
+    const weights = this.mergeDailyWeights(this._logs())
+      .map((l) => l.weight)
+      .filter((w): w is number => w != null);
+    return this.calc.ema(weights, 7);
   });
 
   readonly trendLabel: Signal<string> = computed(() => {
@@ -402,29 +416,43 @@ export class FitnessStore {
     return [...list].sort((a, b) => +b.date - +a.date);
   }
 
-  /** Long-term summary computed from all-time logs (loaded on demand). */
+  /** Long-term summary computed from all-time logs (loaded on demand).
+   *  Weight series is read from the dailyWeights map directly — it's the
+   *  canonical source, and a user who logs weight on days without meals
+   *  would otherwise be invisible to this stat. Calorie metrics still
+   *  derive from logs. The window spans whichever source reaches further. */
   readonly monthlySummary: Signal<MonthlySummary | null> = computed(() => {
     const logs = this._allTimeLogs();
-    if (logs.length < 7) return null;
-    const daily = this.calc.aggregateByDay(logs);
-    const weights = daily.map((d) => d.weight).filter((w): w is number => w != null);
-    if (weights.length < 2) return null;
+    const dw = this._dailyWeights();
+    const dwKeys = Object.keys(dw).sort();
+    if (logs.length < 7 && dwKeys.length < 7) return null;
 
-    const firstWeight = weights[0];
-    const lastWeight = weights[weights.length - 1];
+    const daily = this.calc.aggregateByDay(logs);
+    if (dwKeys.length < 2) return null;
+
+    const firstWeight = dw[dwKeys[0]];
+    const lastWeight = dw[dwKeys[dwKeys.length - 1]];
     const totalChange = +(lastWeight - firstWeight).toFixed(1);
-    const firstDate = daily[0].date;
-    const lastDate = daily[daily.length - 1].date;
+
+    // Window covers whichever source reaches further in either direction.
+    const dwFirstDate = this.dateFromKey(dwKeys[0]);
+    const dwLastDate = this.dateFromKey(dwKeys[dwKeys.length - 1]);
+    const firstDate = daily.length > 0 && daily[0].date < dwFirstDate ? daily[0].date : dwFirstDate;
+    const lastDate = daily.length > 0 && daily[daily.length - 1].date > dwLastDate ? daily[daily.length - 1].date : dwLastDate;
     const daysTracked = Math.max(1, Math.round((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)));
     const weeksTracked = +(daysTracked / 7).toFixed(1);
     const avgWeeklyChange = +(totalChange / Math.max(1, weeksTracked)).toFixed(2);
 
     const allCals = daily.map((d) => d.calories);
-    const avgCalories = Math.round(allCals.reduce((s, c) => s + c, 0) / allCals.length);
+    const avgCalories = allCals.length > 0
+      ? Math.round(allCals.reduce((s, c) => s + c, 0) / allCals.length)
+      : 0;
 
     const target = this.targetCalories();
     const adherentDays = allCals.filter((c) => Math.abs(c - target) <= 100).length;
-    const adherencePct = Math.round((adherentDays / allCals.length) * 100);
+    const adherencePct = allCals.length > 0
+      ? Math.round((adherentDays / allCals.length) * 100)
+      : 0;
 
     return {
       daysTracked,
@@ -438,6 +466,12 @@ export class FitnessStore {
       startDate: firstDate,
     };
   });
+
+  /** dateKey ("YYYY-MM-DD") → local-midnight Date. Mirrors `localDateKey`. */
+  private dateFromKey(key: string): Date {
+    const [y, m, d] = key.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
 
   // ─── Lifecycle ──────────────────────────────────────────────
   constructor() {
