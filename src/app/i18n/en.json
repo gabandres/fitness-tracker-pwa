@@ -1237,12 +1237,18 @@
     "ctaBody": "Track meals against these targets, see weekly averages, and refine as your weight changes. Free to start.",
     "ctaButton": "Sign up free",
     "ctaFinePrint": "No credit card. Pro is $3/mo or $24/yr if you want full history + AI coach.",
+    "share": "Share",
+    "shareCopied": "Copied!",
+    "shareAria": "Share this calculation",
+    "shareTitle": "My macro targets",
+    "shareText": "{{kcal}} kcal · {{protein}} g protein/day. Calculate yours:",
     "howTitle": "How this is calculated",
     "howBody": "Macro Log uses a simple bodyweight-based heuristic so you can act on a number today, before 14 days of real data:",
     "howBullet1": "Calories: weight × 11 (lose), 14 (maintain), or 17 (gain).",
     "howBullet2": "Protein: weight × 1.0 g (lose), 0.9 g (maintain), or 0.8 g (gain) per pound.",
     "howBullet3": "Once you log 14+ days, Macro Log switches to a measured TDEE based on your actual weight trend.",
-    "disclaimer": "Heuristic targets aren't medical advice. If you're treating a condition, talk to a registered dietitian."
+    "disclaimer": "Heuristic targets aren't medical advice. If you're treating a condition, talk to a registered dietitian.",
+    "faqLink": "Got more questions? Read the FAQ →"
   },
   "macrosPage": {
     "eyebrow": "Daily macros",
@@ -1280,6 +1286,69 @@
       "lose": "Lose at {{weight}} lb",
       "maintain": "Maintain {{weight}} lb",
       "gain": "Gain at {{weight}} lb"
-    }
+    },
+    "share": "Share",
+    "shareCopied": "Copied!",
+    "shareAria": "Share this page",
+    "shareText": "{{kcal}} kcal · {{protein}} g protein/day:"
+  },
+  "faq": {
+    "pageTitle": "Macro & calorie FAQ — answers without the fluff | Macro Log",
+    "eyebrow": "Frequently asked",
+    "title": "Macros, calories, and fat loss — straight answers.",
+    "intro": "Common questions from the people who actually use Macro Log. Short, practical, no clickbait.",
+    "ctaTitle": "Want a target you can act on today?",
+    "ctaBody": "Use the free calculator. No sign-up required.",
+    "ctaButton": "Open the calculator",
+    "items": [
+      {
+        "q": "How many calories should I eat to lose weight?",
+        "a": "A reasonable starting point is your bodyweight in pounds × 11 for fat loss. So a 180 lb person aiming to drop fat lands around 1,980 kcal/day. This works for most people because it builds in a ~500 kcal/day deficit off a typical maintenance estimate. Track for two weeks and adjust based on actual weight change — the formula is the seed, your weight trend is the truth."
+      },
+      {
+        "q": "How much protein do I really need?",
+        "a": "0.7 to 1.0 grams per pound of bodyweight. The lower end is fine for general health; the upper end matters when you're in a calorie deficit because protein protects lean mass while you lose fat. A 180 lb person targeting fat loss should aim for ~180 g/day."
+      },
+      {
+        "q": "Do I need to track carbs and fat?",
+        "a": "Not strictly. If you hit your calorie ceiling and your protein floor, the carb/fat split takes care of itself for most people. Track them later if you're chasing performance gains, optimizing for satiety, or have a specific medical reason."
+      },
+      {
+        "q": "Why isn't the scale moving even though I'm in a deficit?",
+        "a": "Three usual suspects: (1) you're under-counting calories — most people are off by 200-500 kcal/day, (2) water retention is masking real fat loss for 1-3 weeks, especially after a hard workout or salty meal, (3) you've been at it less than two weeks. Weight loss isn't linear; the trend over a 2-3 week window is what matters, not any single morning."
+      },
+      {
+        "q": "Should I cut faster?",
+        "a": "Almost never. A loss of 0.5-1% of bodyweight per week is the sweet spot — fast enough to see progress, slow enough to keep muscle and stay sane. Cutting harder than 1.5%/week tanks training quality and adherence, and the scale catches up the moment you eat normally for two days."
+      },
+      {
+        "q": "How accurate is a bodyweight-based calorie estimate?",
+        "a": "Within ~10-15% for the average person. Two people at 180 lb can have maintenance calories that differ by 300+ kcal because of activity level, lean mass, and metabolic adaptation. The calculator gets you started; once you've logged 14 days, Macro Log switches to a measured TDEE based on your actual weight trend, which is much more accurate."
+      },
+      {
+        "q": "Do I need to weigh my food to track macros?",
+        "a": "For the first few weeks, yes — if you want the numbers to mean anything. After 1-2 months you'll have a calibrated eyeball for common portions and can switch to estimating with reasonable accuracy. Cheap kitchen scale: $15. Best fitness investment you'll make."
+      },
+      {
+        "q": "What about cheat days?",
+        "a": "A single 1,000 kcal surplus day undoes about 1.5 days of a moderate deficit — annoying but recoverable. The actual problem with cheat days is they often roll into cheat weekends. Build in 1-2 high-calorie meals per week instead of one full day off the rails. The math is identical, the psychology is gentler."
+      },
+      {
+        "q": "Should I eat back my exercise calories?",
+        "a": "Mostly no. Fitness trackers over-estimate burn by 20-50%, and eating back the inflated number erases your deficit. Pick a sustainable daily calorie target and treat exercise as separate — fuel performance, build the habit, but don't use it as a calorie debit card."
+      },
+      {
+        "q": "Why does Macro Log not track carbs and fat?",
+        "a": "Because for the audience we built it for — lifters, cutters, people doing recomp — kcal and protein are the two numbers that move the needle. Adding two more macros doubles the friction at log time and doesn't change outcomes for 95% of users. If you really want them, MyFitnessPal has them; we picked focus over features."
+      },
+      {
+        "q": "Is this a replacement for a dietitian?",
+        "a": "No. The calculator and the app give you a starting target and a way to track adherence. If you're managing a medical condition (diabetes, kidney issues, eating disorder history, pregnancy), work with a registered dietitian. The math is general; their advice is specific to you."
+      },
+      {
+        "q": "What happens after I sign up?",
+        "a": "Two-question onboarding (current weight, goal), then you're logging meals against your targets in under 30 seconds. The app stays free forever for the core flow. Pro ($3/mo) unlocks full historical charts, the AI weekly coach, and unlimited photo macro analysis."
+      }
+    ]
   }
 }

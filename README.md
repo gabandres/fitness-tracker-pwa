@@ -1,14 +1,35 @@
 # Macro Log
 
-The calm, private macro log with an AI coach that actually reads your data. Live at **<https://macrolog.web.app>**.
+A free, private macro tracker for lifters and people in a cut. **Live at <https://macrolog.web.app>**.
+
+> Try it without an account → **<https://macrolog.web.app/calculator>**
+
+Two numbers move the needle for fat loss and lean recomp: **calories** and **protein**. Macro Log is built around those two — kcal + protein rings, nothing else cluttering the daily flow. Sign-up is two questions; logging a meal takes thirty seconds.
+
+## What's there
+
+- Free macro calculator (no sign-up): <https://macrolog.web.app/calculator>
+- Per-weight, per-goal landing pages: e.g. <https://macrolog.web.app/macros/lose/180-lb>
+- FAQ on macros / cuts / TDEE: <https://macrolog.web.app/faq>
+- Daily kcal + protein rings, 14-day rolling history
+- Adaptive TDEE — switches from formula to a measured TDEE after 14 days of logged data, based on your actual weight trend
+- Photo → macros via Gemini (Pro)
+- AI weekly coach that reads your real history (Pro)
+- Fasting timer + body-weight log + measurements
+- Full Spanish (es-PR) localization
+- PWA — installs to home screen, works offline once cached
+
+**Pricing:** Free forever for the core flow. Pro is $3/mo or $24/yr.
+
+## Tech
 
 Angular 21 PWA backed by Firebase (Firestore, Auth, Cloud Functions, Hosting). Stripe for subscriptions via the `firestore-stripe-payments` extension. Gemini for photo→macros and the AI consultation.
 
 ## Positioning
 
-Not another shame-based tracker. The product is deliberately calm (olive + terracotta, no red/green progress bars), private (no ads, no selling data, no training on logs), adult-framed (editorial "Personal Calibration Log" language), and data-serving (adaptive TDEE + AI consultation that reads your actual 14-day history).
+Built for the audience that knows they want fat loss or lean gain and just wants a tool that respects their time — not another gamified shame-tracker. Calm visual design (warm-minimal palette, no red/green progress bars), private (no ads, no selling data, no training on logs), focused (kcal + protein only — carbs/fat skipped on purpose).
 
-Uniquely, we ship both photo-AI logging (like Cal AI) *and* adaptive TDEE coaching (like MacroFactor) — no other app does both. See `UX_AUDIT.md` §S12 for the competitive analysis and live roadmap.
+Uniquely, ships both photo-AI logging (like Cal AI) *and* adaptive TDEE coaching (like MacroFactor) — no other free app does both. See `UX_AUDIT.md` §S12 for the competitive analysis and live roadmap.
 
 ## Project map
 

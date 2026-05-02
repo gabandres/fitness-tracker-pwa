@@ -1237,12 +1237,18 @@
     "ctaBody": "Registra comidas contra estas metas, mira tus promedios semanales, y refina al cambiar tu peso. Gratis para empezar.",
     "ctaButton": "Crear cuenta gratis",
     "ctaFinePrint": "Sin tarjeta de crédito. Pro es $3/mes o $24/año si quieres historial completo + AI coach.",
+    "share": "Compartir",
+    "shareCopied": "¡Copiado!",
+    "shareAria": "Compartir este cálculo",
+    "shareTitle": "Mis metas de macros",
+    "shareText": "{{kcal}} kcal · {{protein}} g de proteína/día. Calcula las tuyas:",
     "howTitle": "Cómo se calcula",
     "howBody": "Macro Log usa una heurística simple basada en peso para que tengas un número con qué actuar hoy, antes de tener 14 días de datos reales:",
     "howBullet1": "Calorías: peso × 11 (bajar), 14 (mantener), o 17 (subir).",
     "howBullet2": "Proteína: peso × 1.0 g (bajar), 0.9 g (mantener), o 0.8 g (subir) por libra.",
     "howBullet3": "Después de registrar 14+ días, Macro Log cambia a un TDEE medido según la tendencia real de tu peso.",
-    "disclaimer": "Las metas heurísticas no son consejo médico. Si tratas alguna condición, consulta con un nutricionista registrado."
+    "disclaimer": "Las metas heurísticas no son consejo médico. Si tratas alguna condición, consulta con un nutricionista registrado.",
+    "faqLink": "¿Más preguntas? Lee el FAQ →"
   },
   "macrosPage": {
     "eyebrow": "Macros diarias",
@@ -1280,6 +1286,69 @@
       "lose": "Bajar a las {{weight}} lb",
       "maintain": "Mantener las {{weight}} lb",
       "gain": "Subir a las {{weight}} lb"
-    }
+    },
+    "share": "Compartir",
+    "shareCopied": "¡Copiado!",
+    "shareAria": "Compartir esta página",
+    "shareText": "{{kcal}} kcal · {{protein}} g de proteína/día:"
+  },
+  "faq": {
+    "pageTitle": "Preguntas frecuentes sobre macros y calorías | Macro Log",
+    "eyebrow": "Preguntas frecuentes",
+    "title": "Macros, calorías y pérdida de grasa — respuestas directas.",
+    "intro": "Preguntas comunes de quienes usan Macro Log. Cortas, prácticas, sin clickbait.",
+    "ctaTitle": "¿Quieres una meta con la que puedas actuar hoy?",
+    "ctaBody": "Usa la calculadora gratis. Sin registro.",
+    "ctaButton": "Abrir calculadora",
+    "items": [
+      {
+        "q": "¿Cuántas calorías debo comer para bajar de peso?",
+        "a": "Un buen punto de partida es tu peso en libras × 11 para pérdida de grasa. Una persona de 180 lb apuntando a bajar grasa cae cerca de 1,980 kcal/día. Esto funciona porque construye un déficit de ~500 kcal/día sobre un mantenimiento típico. Trackea dos semanas y ajusta según el cambio real de peso — la fórmula es la semilla, tu tendencia de peso es la verdad."
+      },
+      {
+        "q": "¿Cuánta proteína realmente necesito?",
+        "a": "0.7 a 1.0 gramos por libra de peso. El extremo bajo está bien para salud general; el alto importa cuando estás en déficit calórico porque la proteína protege la masa magra mientras pierdes grasa. Una persona de 180 lb apuntando a bajar grasa debe apuntar a ~180 g/día."
+      },
+      {
+        "q": "¿Necesito trackear carbohidratos y grasas?",
+        "a": "No estrictamente. Si pegas tu techo de calorías y tu piso de proteína, el resto se acomoda solo para la mayoría. Trackea carbos/grasas después si buscas rendimiento, optimizas saciedad, o tienes una razón médica específica."
+      },
+      {
+        "q": "¿Por qué la balanza no se mueve aunque estoy en déficit?",
+        "a": "Tres sospechosos comunes: (1) cuentas calorías por debajo de lo real — la mayoría se equivoca por 200-500 kcal/día, (2) retención de agua enmascara la pérdida real por 1-3 semanas, sobre todo después de un entrenamiento duro o una comida salada, (3) llevas menos de dos semanas. La pérdida no es lineal; lo que importa es la tendencia en 2-3 semanas, no una sola mañana."
+      },
+      {
+        "q": "¿Debo cortar más rápido?",
+        "a": "Casi nunca. Una pérdida de 0.5-1% del peso por semana es el punto óptimo — suficientemente rápido para ver progreso, suficientemente lento para mantener músculo y cordura. Cortar más rápido que 1.5%/semana mata la calidad del entrenamiento y la adherencia, y la balanza recupera en cuanto comes normal dos días."
+      },
+      {
+        "q": "¿Qué tan precisa es una estimación calórica basada en peso?",
+        "a": "Dentro de ~10-15% para la persona promedio. Dos personas de 180 lb pueden tener mantenimientos que difieran 300+ kcal por nivel de actividad, masa magra y adaptación metabólica. La calculadora te arranca; después de 14 días registrados, Macro Log cambia a un TDEE medido según tu tendencia real, mucho más preciso."
+      },
+      {
+        "q": "¿Necesito pesar la comida para trackear macros?",
+        "a": "Las primeras semanas, sí — si quieres que los números signifiquen algo. Después de 1-2 meses tendrás un ojo calibrado para porciones comunes y puedes estimar con buena precisión. Báscula de cocina barata: $15. La mejor inversión fitness que harás."
+      },
+      {
+        "q": "¿Y los días libres?",
+        "a": "Un día con superávit de 1,000 kcal deshace ~1.5 días de déficit moderado — molesto pero recuperable. El problema real es que los días libres se vuelven fines de semana libres. Mete 1-2 comidas altas en calorías por semana en vez de un día completo descontrolado. Las matemáticas son iguales, la psicología es más amable."
+      },
+      {
+        "q": "¿Debo recuperar las calorías que quemo en ejercicio?",
+        "a": "En general no. Los trackers fitness sobreestiman el quemado por 20-50%, y comer ese número inflado borra tu déficit. Pon una meta diaria sostenible y trata el ejercicio aparte — combustible para rendir, construir hábito, no como tarjeta de débito calórica."
+      },
+      {
+        "q": "¿Por qué Macro Log no trackea carbos y grasas?",
+        "a": "Porque para nuestra audiencia — levantadores, gente en cut, recomp — kcal y proteína son los dos números que mueven la aguja. Añadir dos macros más duplica la fricción al registrar y no cambia los resultados para el 95%. Si los necesitas, MyFitnessPal los tiene; nosotros elegimos foco sobre features."
+      },
+      {
+        "q": "¿Esto reemplaza a un nutricionista?",
+        "a": "No. La calculadora y la app te dan una meta inicial y una forma de trackear adherencia. Si manejas alguna condición médica (diabetes, problemas renales, historia de TCA, embarazo), trabaja con un nutricionista registrado. La matemática es general; sus consejos son específicos para ti."
+      },
+      {
+        "q": "¿Qué pasa después de crear cuenta?",
+        "a": "Onboarding de dos preguntas (peso actual, meta), y estás registrando comidas contra tus metas en menos de 30 segundos. La app es gratis para siempre en su flujo central. Pro ($3/mes) desbloquea historial completo, AI coach semanal, y análisis ilimitado de fotos de comida."
+      }
+    ]
   }
 }

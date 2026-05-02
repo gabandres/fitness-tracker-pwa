@@ -19,6 +19,8 @@ import {
   computeProtein,
 } from '../../utils/macro-heuristic';
 import { setCalcPrefill } from '../../utils/calc-prefill';
+import { share } from '../../utils/share';
+import { LucideAngularModule } from 'lucide-angular';
 
 /**
  * Public, unauthenticated macro calculator at /calculator. The same
@@ -36,7 +38,7 @@ import { setCalcPrefill } from '../../utils/calc-prefill';
 @Component({
   selector: 'app-calculator',
   standalone: true,
-  imports: [FormsModule, TranslocoDirective, V2Button, V2Card],
+  imports: [FormsModule, LucideAngularModule, TranslocoDirective, V2Button, V2Card],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -126,10 +128,18 @@ import { setCalcPrefill } from '../../utils/calc-prefill';
             <p class="v2-body-soft mt-2">
               {{ t('calculator.ctaBody') }}
             </p>
-            <div class="mt-5">
+            <div class="mt-5 flex flex-col items-center gap-3">
               <a href="/app" class="v2-btn v2-btn--primary v2-btn--lg" (click)="trackCtaClick()">
                 {{ t('calculator.ctaButton') }}
               </a>
+              <button
+                type="button"
+                class="v2-btn v2-btn--ghost v2-btn--md inline-flex items-center gap-2"
+                (click)="onShare()"
+                [attr.aria-label]="t('calculator.shareAria')">
+                <lucide-icon name="share-2" [size]="14" />
+                {{ shareLabel() }}
+              </button>
             </div>
             <p class="v2-caption mt-3">{{ t('calculator.ctaFinePrint') }}</p>
           </v2-card>
@@ -145,6 +155,9 @@ import { setCalcPrefill } from '../../utils/calc-prefill';
           <li>{{ t('calculator.howBullet3') }}</li>
         </ul>
         <p class="v2-caption mt-4">{{ t('calculator.disclaimer') }}</p>
+        <p class="v2-body-soft mt-3">
+          <a href="/faq" class="v2-link">{{ t('calculator.faqLink') }}</a>
+        </p>
       </section>
     </article>
     </ng-container>
@@ -216,5 +229,39 @@ export class CalculatorComponent {
     // clears this on mount.
     const w = this.weight();
     if (w != null) setCalcPrefill(w, this.goal());
+  }
+
+  /** Brief "Copied!" flash on the share button when the clipboard
+   *  fallback fires; the native share sheet doesn't need this — the
+   *  OS UI is its own confirmation. */
+  protected readonly justCopied = signal(false);
+
+  protected shareLabel(): string {
+    return this.justCopied()
+      ? this.translation.t('calculator.shareCopied')
+      : this.translation.t('calculator.share');
+  }
+
+  protected async onShare(): Promise<void> {
+    const w = this.weight();
+    if (w == null) return;
+    const goal = this.goal();
+    // Share the exact /macros page that mirrors this calculation —
+    // recipient sees a real landing page (with their friend's numbers),
+    // not a generic /calculator they'd have to re-enter inputs into.
+    const url = `https://macrolog.web.app/macros/${goal}/${w}-lb`;
+    const channel = await share({
+      title: this.translation.t('calculator.shareTitle'),
+      text: this.translation.t('calculator.shareText', {
+        kcal: this.kcal(),
+        protein: this.protein(),
+      }),
+      url,
+    });
+    this.analytics.track('calculator_shared', { goal, channel });
+    if (channel === 'clipboard') {
+      this.justCopied.set(true);
+      setTimeout(() => this.justCopied.set(false), 2000);
+    }
   }
 }

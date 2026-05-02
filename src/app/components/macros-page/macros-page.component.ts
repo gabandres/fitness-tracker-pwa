@@ -7,6 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
+import { LucideAngularModule } from 'lucide-angular';
 import { TranslationService } from '../../services/translation.service';
 import { AnalyticsService } from '../../services/analytics.service';
 import { V2Card } from '../ui/card.component';
@@ -18,6 +19,7 @@ import {
   computeProtein,
 } from '../../utils/macro-heuristic';
 import { setCalcPrefill } from '../../utils/calc-prefill';
+import { share } from '../../utils/share';
 
 /**
  * Programmatic SEO landing for `/macros/<goal>/<weight>-lb`. Each URL
@@ -41,7 +43,7 @@ import { setCalcPrefill } from '../../utils/calc-prefill';
 @Component({
   selector: 'app-macros-page',
   standalone: true,
-  imports: [TranslocoDirective, V2Card],
+  imports: [TranslocoDirective, LucideAngularModule, V2Card],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -81,6 +83,14 @@ import { setCalcPrefill } from '../../utils/calc-prefill';
             <a href="/calculator" class="v2-btn v2-btn--ghost">
               {{ t('macrosPage.ctaRefine') }}
             </a>
+            <button
+              type="button"
+              class="v2-btn v2-btn--ghost inline-flex items-center gap-2"
+              (click)="onShare()"
+              [attr.aria-label]="t('macrosPage.shareAria')">
+              <lucide-icon name="share-2" [size]="14" />
+              {{ shareLabel() }}
+            </button>
           </div>
         </v2-card>
 
@@ -200,6 +210,33 @@ export class MacrosPageComponent {
     if (!p) return;
     this.analytics.track('macros_cta_signup', { goal: p.goal, weight: p.weight });
     setCalcPrefill(p.weight, p.goal);
+  }
+
+  protected readonly justCopied = signal(false);
+
+  protected shareLabel(): string {
+    return this.justCopied()
+      ? this.translation.t('macrosPage.shareCopied')
+      : this.translation.t('macrosPage.share');
+  }
+
+  protected async onShare(): Promise<void> {
+    const p = this.parsed();
+    if (!p) return;
+    const url = `https://macrolog.web.app/macros/${p.goal}/${p.weight}-lb`;
+    const channel = await share({
+      title: this.translation.t(`macrosPage.heading.${p.goal}`, { weight: p.weight }),
+      text: this.translation.t('macrosPage.shareText', {
+        kcal: this.kcal(),
+        protein: this.protein(),
+      }),
+      url,
+    });
+    this.analytics.track('macros_shared', { goal: p.goal, weight: p.weight, channel });
+    if (channel === 'clipboard') {
+      this.justCopied.set(true);
+      setTimeout(() => this.justCopied.set(false), 2000);
+    }
   }
 
   private parsePath(): { goal: GoalDirection; weight: number } | null {

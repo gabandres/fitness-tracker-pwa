@@ -53,6 +53,13 @@ export class TranslationService {
     return this.transloco.translate(key, params, this.language());
   }
 
+  /** Resolve an i18n key whose value is an object/array (e.g. an FAQ
+   *  list of {q, a} entries). Use sparingly — prefer `t()` for plain
+   *  strings since translateObject bypasses interpolation. */
+  tObject<T>(key: string): T {
+    return this.transloco.translateObject(key, undefined, this.language()) as T;
+  }
+
   /**
    * Maps a server error code (see src/app/models/error-codes.ts) to a localized
    * user-facing message under `errors.<camelCase>`. Falls back to

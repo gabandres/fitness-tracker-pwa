@@ -142,6 +142,34 @@ routes.push({
   ]),
 });
 
+// /faq — structured FAQPage. Each Q/A becomes a `Question` schema
+// node so Google can promote answers into the People-Also-Ask box
+// and the FAQ rich-result strip below the main listing. The user-
+// visible page renders the same Q/A list from i18n; keeping the
+// schema in sync is the entire point of this prerender entry.
+routes.push({
+  file: 'faq.html',
+  title: i18n.faq.pageTitle,
+  description:
+    'Straight answers on macros, calorie targets, fat loss pace, and how Macro Log works. No clickbait, no upsell.',
+  canonical: `${SITE}/faq`,
+  jsonLd: [
+    breadcrumb([
+      { name: 'Home', url: `${SITE}/` },
+      { name: 'FAQ', url: `${SITE}/faq` },
+    ]),
+    {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: i18n.faq.items.map((it) => ({
+        '@type': 'Question',
+        name: it.q,
+        acceptedAnswer: { '@type': 'Answer', text: it.a },
+      })),
+    },
+  ],
+});
+
 // /macros/<goal>/<weight>-lb — enumerate from sitemap-aligned ranges
 const RANGES = {
   lose:     [120, 130, 140, 150, 160, 170, 180, 190, 200, 210, 220, 230, 240, 250, 260],
