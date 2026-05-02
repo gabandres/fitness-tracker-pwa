@@ -189,6 +189,16 @@
     "subscription": {
       "section": "subscription"
     },
+    "referral": {
+      "section": "Refer a friend",
+      "body": "Share your link. When a friend you referred starts Pro, you both get 30 days of Pro free.",
+      "copy": "Copy link",
+      "copied": "Copied!",
+      "share": "Share",
+      "shareTitle": "Try Macro Log",
+      "shareText": "I'm using Macro Log for my macros — free calculator, simple daily logging. Try it:",
+      "rewardActive": "Pro is comped through {{date}} thanks to a referral."
+    },
     "feedback": {
       "section": "feedback",
       "label": "report a bug or share feedback",

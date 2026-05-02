@@ -66,9 +66,21 @@ service cloud.firestore {
     }
 
     function isValidProfileInitial(data) {
-      return data.keys().hasOnly(['email', 'createdAt', 'lastSeenAt', 'profileCompleted'])
+      return data.keys().hasOnly([
+              'email', 'createdAt', 'lastSeenAt', 'profileCompleted',
+              // Referral attribution may be present on initial profile
+              // create when the user signed up via a friend's ?ref= link.
+              // compedUntil + referralRewardGrantedAt are server-only;
+              // listed so server-side admin SDK writes still pass keys
+              // validation if they merge during early lifecycle.
+              'referredBy', 'compedUntil', 'referralRewardGrantedAt'
+          ])
           && hasProfileBase(data)
-          && data.profileCompleted == false;
+          && data.profileCompleted == false
+          && (!('referredBy' in data.keys()) ||
+              (data.referredBy is string && data.referredBy.size() >= 20 && data.referredBy.size() <= 40))
+          && (!('compedUntil' in data.keys()) || data.compedUntil is timestamp)
+          && (!('referralRewardGrantedAt' in data.keys()) || data.referralRewardGrantedAt is timestamp);
     }
 
     // ─── Measurement schema ─────────────────────────────────────
@@ -137,7 +149,9 @@ service cloud.firestore {
               // Day-3 coach push one-shot latch (set by Cloud Function
               // via admin SDK; clients only ever read, never write —
               // but admin-SDK writes still satisfy `hasOnly` so list it).
-              'dayThreeCoachPushSent', 'firstEntryAt'
+              'dayThreeCoachPushSent', 'firstEntryAt',
+              // Referral attribution + server-stamped reward fields.
+              'referredBy', 'compedUntil', 'referralRewardGrantedAt'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == true
@@ -210,7 +224,22 @@ service cloud.firestore {
     match /users/{uid} {
       allow read:   if isOwner(uid) || isAdmin();
       allow create: if isOwner(uid) && isVerifiedUser() && isValidProfile(request.resource.data);
-      allow update: if isOwner(uid) && isValidProfile(request.resource.data);
+      allow update: if isOwner(uid) && isValidProfile(request.resource.data)
+                       // Referral fields are immutable from the client:
+                       //   - `referredBy` is set once on profile create
+                       //     and represents an audit trail. Letting users
+                       //     edit it post-create would let them re-claim
+                       //     a reward by switching referrers.
+                       //   - `compedUntil` and `referralRewardGrantedAt`
+                       //     are server-stamped by the onSubscriptionWritten
+                       //     trigger via admin SDK (which bypasses rules).
+                       //     A client write here = unauthorized self-grant.
+                       && (resource.data.get('referredBy', null) ==
+                           request.resource.data.get('referredBy', null))
+                       && (resource.data.get('compedUntil', null) ==
+                           request.resource.data.get('compedUntil', null))
+                       && (resource.data.get('referralRewardGrantedAt', null) ==
+                           request.resource.data.get('referralRewardGrantedAt', null));
 
       match /dailyLogs/{logId} {
         allow read:   if isOwner(uid) || isAdmin();

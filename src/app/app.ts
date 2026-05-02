@@ -23,6 +23,7 @@ import { FitnessStore } from './services/fitness-store.service';
 import { SubscriptionService } from './services/subscription.service';
 import { ThemeChoice, PRO_THEMES, isProTheme, readStoredTheme, writeStoredTheme } from './utils/theme';
 import { localDateKey } from './utils/date';
+import { captureReferrerFromUrl } from './utils/referral';
 import { bcp47ForLang } from './utils/locale';
 import { mediaSignal } from './utils/media';
 import { UpsellService } from './services/upsell.service';
@@ -754,6 +755,11 @@ export class App {
     // gives the dashboard a traffic denominator for the conversion-rate
     // ratio against custom events like paywall_click / trial_started.
     this.analytics.pageview();
+
+    // Capture ?ref=<uid> if the user landed via a friend's share link.
+    // Held in localStorage; the next profile-create writes it onto the
+    // new user's `referredBy` field. See utils/referral.ts.
+    captureReferrerFromUrl();
 
     // Theme: load stored choice, enforce Pro gate once entitlement
     // resolves, apply the resulting palette, follow system-theme changes

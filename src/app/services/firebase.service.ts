@@ -18,6 +18,7 @@ import {
 } from '@angular/fire/firestore';
 import { Auth } from '@angular/fire/auth';
 import { Functions, httpsCallable } from '@angular/fire/functions';
+import { readReferrer, clearReferrer } from '../utils/referral';
 
 // ─── Log types ──────────────────────────────────────────────────
 // Note: `liftCompleted` and `cardioCompleted` are legacy fields kept
@@ -147,6 +148,15 @@ export interface ProfileFields {
                                    // "Refine targets" sheet — drops the
                                    // manual heuristic in favour of the
                                    // formula-mode TDEE chain.
+
+  // Referrals. `referredBy` is set once on profile create from the
+  // ?ref=<uid> query param the user followed; immutable thereafter.
+  // `compedUntil` is server-stamped to (now + 30d) on each side when
+  // the referred user pays for the first time. `referralRewardGrantedAt`
+  // is the latch on the referee that prevents double-grants.
+  referredBy?: string;
+  compedUntil?: Timestamp;
+  referralRewardGrantedAt?: Timestamp;
 }
 
 /** Full user profile doc as stored in Firestore. */
@@ -212,6 +222,14 @@ export class FirebaseService implements LedgerPort {
         lastSeenAt: now,
         profileCompleted: false,
       };
+      // Stamp `referredBy` from the captured ?ref= latch (set when the
+      // user landed via a friend's share URL). Self-refs are rejected
+      // — a user opening their own link can't reward themselves. The
+      // server-side onSubscriptionPaid trigger validates the referrer
+      // exists before granting any reward.
+      const refUid = readReferrer();
+      if (refUid && refUid !== user.uid) initial.referredBy = refUid;
+      clearReferrer();
       // Fire-and-forget the seen-stamp update in non-create paths too.
       // Setting the local signal BEFORE the write resolves the loader
       // immediately on the create path; if the write fails the user

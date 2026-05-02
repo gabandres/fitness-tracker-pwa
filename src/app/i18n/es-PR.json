@@ -189,6 +189,16 @@
     "subscription": {
       "section": "suscripción"
     },
+    "referral": {
+      "section": "Refiere a un amigo",
+      "body": "Comparte tu link. Cuando un amigo que refieras empiece Pro, ambos reciben 30 días de Pro gratis.",
+      "copy": "Copiar link",
+      "copied": "¡Copiado!",
+      "share": "Compartir",
+      "shareTitle": "Prueba Macro Log",
+      "shareText": "Estoy usando Macro Log para mis macros — calculadora gratis, registro diario simple. Pruébalo:",
+      "rewardActive": "Pro comped hasta {{date}} gracias a una referencia."
+    },
     "feedback": {
       "section": "comentarios",
       "label": "reportar un bug o compartir comentarios",
