@@ -182,6 +182,11 @@
       "webhookRevoke": "revoke",
       "webhookGenerate": "generate api key",
       "webhookGenerateHint": "generate a key to enable the webhook endpoint.",
+      "export": "export your data",
+      "exportDesc": "download every log, weight, water, and measurement as a single CSV.",
+      "exportButton": "download csv",
+      "exportPreparing": "preparing…",
+      "exportError": "export failed. try again.",
       "delete": "delete your account",
       "deleteDesc": "permanently erase every log, preset, weight, and report.",
       "deleteManage": "manage →"

@@ -16,6 +16,7 @@ import { SubscribeComponent } from '../subscribe/subscribe.component';
 import { ThemeChoice } from '../../utils/theme';
 import { buildReferralLink } from '../../utils/referral';
 import { share } from '../../utils/share';
+import { buildCsv, downloadCsv } from '../../utils/csv-export';
 import { AnalyticsService } from '../../services/analytics.service';
 import { V2Sheet } from '../ui/sheet.component';
 import { V2Card } from '../ui/card.component';
@@ -281,6 +282,22 @@ import { V2Button } from '../ui/button.component';
           }
         </div>
 
+        <div class="flex items-center justify-between gap-3 mb-4">
+          <div class="min-w-0">
+            <div class="v2-body" style="font-weight: 500;">{{ t('settings.data.export') }}</div>
+            <p class="v2-caption mt-0.5">{{ t('settings.data.exportDesc') }}</p>
+            @if (exportError()) {
+              <p class="v2-caption mt-1" role="status" aria-live="polite" style="color: var(--v2-danger);">
+                {{ t('settings.data.exportError') }}
+              </p>
+            }
+          </div>
+          <v2-button variant="secondary" size="sm" (click)="exportData()" [disabled]="exporting()">
+            <lucide-icon name="download" [size]="14" />
+            {{ exporting() ? t('settings.data.exportPreparing') : t('settings.data.exportButton') }}
+          </v2-button>
+        </div>
+
         <div class="flex items-center justify-between gap-3">
           <div>
             <div class="v2-body" style="font-weight: 500;">{{ t('settings.data.delete') }}</div>
@@ -488,6 +505,32 @@ export class SettingsSheetV2Component {
     if (h < 12) return `${h} AM`;
     if (h === 12) return '12 PM';
     return `${h - 12} PM`;
+  }
+
+  // ─── CSV export ──────────────────────────────────────────────
+  protected readonly exporting = signal(false);
+  protected readonly exportError = signal(false);
+
+  protected async exportData(): Promise<void> {
+    if (this.exporting()) return;
+    this.exporting.set(true);
+    this.exportError.set(false);
+    try {
+      const [logs, measurements, dailyWeights, dailyWater] = await Promise.all([
+        this.firebase.getRecentLogs(9999),
+        this.firebase.getRecentMeasurements(9999),
+        this.firebase.getDailyWeights(),
+        this.firebase.getDailyWater(),
+      ]);
+      const csv = buildCsv({ logs, measurements, dailyWeights, dailyWater });
+      const stamp = new Date().toISOString().slice(0, 10);
+      downloadCsv(`macrolog-export-${stamp}.csv`, csv);
+      this.analytics.track('data_export_csv', { rows: logs.length + measurements.length });
+    } catch {
+      this.exportError.set(true);
+    } finally {
+      this.exporting.set(false);
+    }
   }
 
   protected async copyWebhookKey(): Promise<void> {

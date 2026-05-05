@@ -44,6 +44,7 @@ import {
   Ruler,
   ChevronDown,
   Share2,
+  Download,
 } from 'lucide-angular';
 
 import { routes } from './app.routes';
@@ -107,7 +108,7 @@ export const appConfig: ApplicationConfig = {
       Flame, ChevronLeft, ChevronRight, Check, HelpCircle,
       ArrowLeft, Pencil, Sparkles, Droplets, Footprints,
       Image: LucideImage, Type: LucideType,
-      Home, User, Timer, Scale, Ruler, ChevronDown, Share2,
+      Home, User, Timer, Scale, Ruler, ChevronDown, Share2, Download,
     }).providers!,
   ],
 };
