@@ -17,6 +17,7 @@ import { PhotoCaptureComponent } from '../photo-capture/photo-capture.component'
 import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.component';
 import { PresetPickerComponent } from '../preset-picker/preset-picker.component';
 import { RecentEntriesComponent } from '../recent-entries/recent-entries.component';
+import { RecipeBuilderComponent } from '../recipe-builder/recipe-builder.component';
 
 type Segment = 'manual' | 'photo' | 'barcode';
 
@@ -43,6 +44,7 @@ type Segment = 'manual' | 'photo' | 'barcode';
     BarcodeScannerComponent,
     PresetPickerComponent,
     RecentEntriesComponent,
+    RecipeBuilderComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -90,6 +92,21 @@ type Segment = 'manual' | 'photo' | 'barcode';
                    functionality is intact. -->
               <app-recent-entries (estimated)="apply($event)" />
               <app-preset-picker (estimated)="apply($event)" />
+
+              @if (showRecipeBuilder()) {
+                <div class="mb-4">
+                  <app-recipe-builder
+                    (estimated)="apply($event)"
+                    (closed)="showRecipeBuilder.set(false)" />
+                </div>
+              } @else {
+                <div class="mb-4">
+                  <v2-button variant="ghost" size="sm" (click)="showRecipeBuilder.set(true)">
+                    <lucide-icon name="chef-hat" [size]="14" />
+                    {{ t('v2.recipe.openButton') }}
+                  </v2-button>
+                </div>
+              }
             }
 
             <form
@@ -258,6 +275,7 @@ export class EntrySheetV2Component {
 
   protected readonly segment = signal<Segment>('manual');
   protected readonly kcalError = signal(false);
+  protected readonly showRecipeBuilder = signal(false);
 
   protected readonly segments: { id: Segment; labelKey: string; icon: string }[] = [
     { id: 'manual', labelKey: 'v2.entrySheet.segManual', icon: 'type' },
@@ -273,6 +291,7 @@ export class EntrySheetV2Component {
       if (this.form.mode() === 'view') {
         this.segment.set('manual');
         this.kcalError.set(false);
+        this.showRecipeBuilder.set(false);
       }
     });
 

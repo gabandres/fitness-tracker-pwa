@@ -1195,6 +1195,34 @@
       "presetName": "Preset name",
       "savePreset": "Save preset"
     },
+    "recipe": {
+      "openButton": "Build a recipe",
+      "title": "Recipe builder",
+      "desc": "Sum ingredients into one entry. Logs as 1 serving — save as a preset to reuse.",
+      "closeAria": "Close recipe builder",
+      "recipeName": "Recipe name",
+      "namePlaceholder": "e.g. Chili, Smoothie",
+      "ingredients": "Ingredients",
+      "ingredientName": "Ingredient",
+      "kcal": "kcal",
+      "protein": "g",
+      "kcalAria": "Calories for this ingredient",
+      "proteinAria": "Protein grams for this ingredient",
+      "removeRowAria": "Remove ingredient",
+      "addIngredient": "Add ingredient",
+      "servings": "Servings",
+      "perServing": "Per serving",
+      "proteinUnit": "g protein",
+      "useThis": "Use this recipe"
+    },
+    "whatsNew": {
+      "label": "What's new",
+      "dismissAria": "Dismiss what's new",
+      "items": {
+        "recipes": "Build a recipe — sum ingredients into one entry, then save as a preset.",
+        "csvExport": "Export every log, weight, and measurement as a single CSV from Settings → Data."
+      }
+    },
     "body": {
       "title": "Body",
       "subtitle": "Weight, fasting, measurements",

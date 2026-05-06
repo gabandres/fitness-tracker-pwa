@@ -25,6 +25,7 @@ import { V2Fab } from '../ui/fab.component';
 import { V2DaySummary } from '../ui/day-summary.component';
 import { V2FastingPill } from '../ui/fasting-pill.component';
 import { V2RefineTargetsSheet } from '../refine-targets-sheet-v2/refine-targets-sheet-v2.component';
+import { WhatsNewBannerComponent } from '../whats-new-banner/whats-new-banner.component';
 
 /**
  * v2 Today screen. Owns the today-only chrome (header, day-0 hero,
@@ -45,6 +46,7 @@ import { V2RefineTargetsSheet } from '../refine-targets-sheet-v2/refine-targets-
     V2DaySummary,
     V2FastingPill,
     V2RefineTargetsSheet,
+    WhatsNewBannerComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -74,6 +76,8 @@ import { V2RefineTargetsSheet } from '../refine-targets-sheet-v2/refine-targets-
             (click)="settingsRequested.emit()" />
         </div>
       </header>
+
+      <app-whats-new-banner />
 
       @if (showDay0Hero()) {
         <!-- Day 0 hero — replaces rings until first entry. -->

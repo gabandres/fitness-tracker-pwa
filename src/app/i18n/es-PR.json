@@ -1195,6 +1195,34 @@
       "presetName": "Nombre del preset",
       "savePreset": "Guardar preset"
     },
+    "recipe": {
+      "openButton": "Crear una receta",
+      "title": "Constructor de recetas",
+      "desc": "Suma los ingredientes en una entrada. Registra 1 porción — guárdala como preset para reutilizar.",
+      "closeAria": "Cerrar constructor de recetas",
+      "recipeName": "Nombre de la receta",
+      "namePlaceholder": "ej. Chili, Batido",
+      "ingredients": "Ingredientes",
+      "ingredientName": "Ingrediente",
+      "kcal": "kcal",
+      "protein": "g",
+      "kcalAria": "Calorías de este ingrediente",
+      "proteinAria": "Proteína en gramos de este ingrediente",
+      "removeRowAria": "Quitar ingrediente",
+      "addIngredient": "Añadir ingrediente",
+      "servings": "Porciones",
+      "perServing": "Por porción",
+      "proteinUnit": "g proteína",
+      "useThis": "Usar esta receta"
+    },
+    "whatsNew": {
+      "label": "Novedades",
+      "dismissAria": "Cerrar novedades",
+      "items": {
+        "recipes": "Crea una receta — suma ingredientes en una entrada y guárdala como preset.",
+        "csvExport": "Exporta cada registro, peso y medida en un solo CSV desde Ajustes → Datos."
+      }
+    },
     "body": {
       "title": "Cuerpo",
       "subtitle": "Peso, ayuno, medidas",
