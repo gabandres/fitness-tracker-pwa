@@ -157,6 +157,24 @@ export interface ProfileFields {
   referredBy?: string;
   compedUntil?: Timestamp;
   referralRewardGrantedAt?: Timestamp;
+
+  // Public profile (opt-in transformation page at /u/<slug>). The slug
+  // is claimed via a server callable so uniqueness is enforced; the
+  // public-facing mirror lives in the `publicProfiles` collection and
+  // is rebuilt by an `onUserDocUpdate` trigger whenever any of these
+  // fields or weight history change. Clients NEVER write to the public
+  // mirror directly — rules block it.
+  publicSlug?: string;
+  publicProfileEnabled?: boolean;
+  publicDisplayName?: string;
+
+  // Weekly digest. Opt-in toggle in settings → scheduled CF reads users
+  // where this is true on Sunday morning local-tz and emails the last-7d
+  // recap. Default false: existing users don't suddenly get an unsolicited
+  // email. `lastWeeklyDigestSentAt` is server-stamped after each send;
+  // clients read but never write it.
+  weeklyDigestOptIn?: boolean;
+  lastWeeklyDigestSentAt?: Timestamp;
 }
 
 /** Full user profile doc as stored in Firestore. */
@@ -466,6 +484,23 @@ export class FirebaseService implements LedgerPort {
     await updateDoc(ref, { travelMode: on, lastSeenAt: Timestamp.now() });
     const current = this._profile();
     if (current) this._profile.set({ ...current, travelMode: on } as UserProfile);
+  }
+
+  /** Toggle weekly-digest opt-in. Refreshes `timezoneOffsetMin` so the
+   *  scheduled CF can fire at the user's local Sunday morning even after
+   *  travel / DST. */
+  async setWeeklyDigestOptIn(on: boolean): Promise<void> {
+    const ref = this.userDoc();
+    const tz = new Date().getTimezoneOffset();
+    await updateDoc(ref, {
+      weeklyDigestOptIn: on,
+      timezoneOffsetMin: tz,
+      lastSeenAt: Timestamp.now(),
+    });
+    const current = this._profile();
+    if (current) this._profile.set({
+      ...current, weeklyDigestOptIn: on, timezoneOffsetMin: tz,
+    } as UserProfile);
   }
 
   // ─── Daily logs ────────────────────────────────────────────────

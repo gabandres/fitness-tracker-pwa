@@ -5,6 +5,7 @@ import {
 import { TranslocoDirective } from '@jsverse/transloco';
 import { LucideAngularModule } from 'lucide-angular';
 import { SwUpdate } from '@angular/service-worker';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import { AuthService } from '../../services/auth.service';
 import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { FitnessStore } from '../../services/fitness-store.service';
@@ -142,6 +143,22 @@ import { V2Button } from '../ui/button.component';
         <p class="v2-caption mt-3" style="opacity: 0.75;">
           {{ t('settings.reminders.utcHint') }}
         </p>
+
+        <div class="flex items-start justify-between gap-3 mt-4 pt-4"
+          style="border-top: 1px solid var(--v2-rule);">
+          <div class="min-w-0">
+            <div class="v2-body" style="font-weight: 500;">{{ t('settings.reminders.weeklyDigest') }}</div>
+            <p class="v2-caption mt-0.5">{{ t('settings.reminders.weeklyDigestDesc') }}</p>
+          </div>
+          <v2-button
+            [variant]="weeklyDigestOptIn() ? 'primary' : 'ghost'"
+            size="sm"
+            (click)="toggleWeeklyDigest()"
+            [disabled]="weeklyDigestBusy()"
+            [ariaLabel]="weeklyDigestOptIn() ? t('settings.reminders.weeklyDigestAriaOff') : t('settings.reminders.weeklyDigestAriaOn')">
+            {{ weeklyDigestOptIn() ? t('settings.reminders.weeklyDigestOn') : t('settings.reminders.weeklyDigestOff') }}
+          </v2-button>
+        </div>
       </v2-card>
 
       <!-- Appearance (Theme + Travel) -->
@@ -231,6 +248,63 @@ import { V2Button } from '../ui/button.component';
           }
         </v2-card>
       }
+
+      <!-- Public profile -->
+      <v2-card variant="default" class="block mb-3">
+        <h3 class="v2-h3 mb-2">{{ t('publicProfileSettings.title') }}</h3>
+        <p class="v2-body-soft mb-3" style="font-size: 0.875rem;">
+          {{ t('publicProfileSettings.body') }}
+        </p>
+        @if (publicSlug(); as slug) {
+          <p class="v2-caption mb-2">{{ t('publicProfileSettings.linkLabel') }}</p>
+          <a [href]="'/u/' + slug" target="_blank" rel="noopener"
+             style="display: block; padding: 10px 12px; background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); margin-bottom: 8px; text-decoration: none;">
+            <span class="v2-num" style="font-size: 0.75rem; color: var(--v2-ink); word-break: break-all;">
+              macrolog.app/u/{{ slug }}
+            </span>
+          </a>
+        }
+        <label class="v2-caption" style="display: block; margin-bottom: 4px;">
+          {{ t('publicProfileSettings.slugLabel') }}
+        </label>
+        <input type="text"
+          [value]="slugInput()"
+          (input)="onSlugInput($event)"
+          [placeholder]="t('publicProfileSettings.slugPlaceholder')"
+          autocomplete="off"
+          spellcheck="false"
+          maxlength="30"
+          style="width: 100%; padding: 8px 10px; background: var(--v2-paper); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); color: var(--v2-ink); font-size: 0.875rem;" />
+        <p class="v2-caption mt-1 mb-3">{{ t('publicProfileSettings.slugHelp') }}</p>
+        <label class="v2-caption" style="display: block; margin-bottom: 4px;">
+          {{ t('publicProfileSettings.displayNameLabel') }}
+        </label>
+        <input type="text"
+          [value]="publicDisplayNameInput()"
+          (input)="onDisplayNameInput($event)"
+          [placeholder]="t('publicProfileSettings.displayNamePlaceholder')"
+          maxlength="40"
+          style="width: 100%; padding: 8px 10px; background: var(--v2-paper); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); color: var(--v2-ink); font-size: 0.875rem;" />
+        <div class="flex flex-wrap gap-2 mt-3">
+          <v2-button variant="primary" size="sm" (click)="claimSlug()" [disabled]="publicBusy() || !slugInput()">
+            @if (publicBusy()) {
+              {{ t('publicProfileSettings.claimingState') }}
+            } @else if (publicSlug()) {
+              {{ t('publicProfileSettings.updateButton') }}
+            } @else {
+              {{ t('publicProfileSettings.claimButton') }}
+            }
+          </v2-button>
+          @if (publicSlug()) {
+            <v2-button variant="ghost" size="sm" (click)="releaseSlug()" [disabled]="publicBusy()">
+              {{ publicBusy() ? t('publicProfileSettings.releasingState') : t('publicProfileSettings.releaseButton') }}
+            </v2-button>
+          }
+        </div>
+        @if (publicError(); as err) {
+          <p class="v2-caption mt-2" role="alert" style="color: var(--v2-danger);">{{ err }}</p>
+        }
+      </v2-card>
 
       <!-- Data -->
       <v2-card variant="default" class="block mb-3">
@@ -385,6 +459,7 @@ import { V2Button } from '../ui/button.component';
 export class SettingsSheetV2Component {
   protected readonly auth = inject(AuthService);
   protected readonly firebase = inject(LEDGER_PORT);
+  private readonly functions = inject(Functions);
   protected readonly store = inject(FitnessStore);
   protected readonly pushService = inject(PushNotificationService);
   protected readonly subs = inject(SubscriptionService);
@@ -593,6 +668,107 @@ export class SettingsSheetV2Component {
       this.referralCopied.set(true);
       if (this.referralCopyTimer) clearTimeout(this.referralCopyTimer);
       this.referralCopyTimer = setTimeout(() => this.referralCopied.set(false), 2000);
+    }
+  }
+
+  // ─── Weekly digest opt-in ───────────────────────────────────
+  protected readonly weeklyDigestOptIn = computed<boolean>(() => {
+    const profile = this.firebase.profile() as { weeklyDigestOptIn?: boolean } | null;
+    return profile?.weeklyDigestOptIn === true;
+  });
+  protected readonly weeklyDigestBusy = signal(false);
+
+  protected async toggleWeeklyDigest(): Promise<void> {
+    if (this.weeklyDigestBusy()) return;
+    this.weeklyDigestBusy.set(true);
+    try {
+      await this.firebase.setWeeklyDigestOptIn(!this.weeklyDigestOptIn());
+    } finally {
+      this.weeklyDigestBusy.set(false);
+    }
+  }
+
+  // ─── Public profile (/u/<slug>) ─────────────────────────────
+  protected readonly publicSlug = computed<string | null>(() => {
+    const profile = this.firebase.profile() as { publicSlug?: string; publicProfileEnabled?: boolean } | null;
+    return profile?.publicProfileEnabled && profile.publicSlug ? profile.publicSlug : null;
+  });
+  protected readonly publicDisplayNameStored = computed<string>(() => {
+    const profile = this.firebase.profile() as { publicDisplayName?: string } | null;
+    return profile?.publicDisplayName ?? '';
+  });
+  protected readonly slugInput = signal<string>('');
+  protected readonly publicDisplayNameInput = signal<string>('');
+  protected readonly publicBusy = signal(false);
+  protected readonly publicError = signal<string | null>(null);
+
+  /** Seed the inputs from the stored profile when the sheet opens. */
+  private seededPublicProfile = false;
+  private seedPublicProfileInputs(): void {
+    if (this.seededPublicProfile) return;
+    const slug = this.publicSlug();
+    if (slug != null) this.slugInput.set(slug);
+    const dn = this.publicDisplayNameStored();
+    if (dn) this.publicDisplayNameInput.set(dn);
+    this.seededPublicProfile = true;
+  }
+
+  protected onSlugInput(ev: Event): void {
+    this.seedPublicProfileInputs();
+    const v = (ev.target as HTMLInputElement).value
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '')
+      .slice(0, 30);
+    this.slugInput.set(v);
+    if (this.publicError()) this.publicError.set(null);
+  }
+
+  protected onDisplayNameInput(ev: Event): void {
+    this.seedPublicProfileInputs();
+    this.publicDisplayNameInput.set((ev.target as HTMLInputElement).value.slice(0, 40));
+  }
+
+  protected async claimSlug(): Promise<void> {
+    const slug = this.slugInput().trim();
+    if (!slug || this.publicBusy()) return;
+    this.publicBusy.set(true);
+    this.publicError.set(null);
+    try {
+      const fn = httpsCallable<{ slug: string; displayName?: string }, { slug: string }>(this.functions, 'claimPublicSlug');
+      await fn({ slug, displayName: this.publicDisplayNameInput().trim() || undefined });
+      // Profile snapshot listener will re-render the link once Firestore syncs.
+    } catch (err) {
+      const code = (err as { code?: string })?.code ?? '';
+      if (code === 'functions/already-exists') {
+        this.publicError.set(this.translation.t('publicProfileSettings.errorTaken'));
+      } else if (code === 'functions/invalid-argument') {
+        // Could be reserved or format — message string distinguishes.
+        const msg = (err as { message?: string })?.message ?? '';
+        this.publicError.set(msg.includes('reserved')
+          ? this.translation.t('publicProfileSettings.errorReserved')
+          : this.translation.t('publicProfileSettings.errorFormat'));
+      } else {
+        this.publicError.set((err as Error)?.message ?? 'unknown error');
+      }
+    } finally {
+      this.publicBusy.set(false);
+    }
+  }
+
+  protected async releaseSlug(): Promise<void> {
+    if (this.publicBusy()) return;
+    this.publicBusy.set(true);
+    this.publicError.set(null);
+    try {
+      const fn = httpsCallable<Record<string, never>, { released: boolean }>(this.functions, 'releasePublicSlug');
+      await fn({});
+      this.slugInput.set('');
+      this.publicDisplayNameInput.set('');
+      this.seededPublicProfile = false;
+    } catch (err) {
+      this.publicError.set((err as Error)?.message ?? 'unknown error');
+    } finally {
+      this.publicBusy.set(false);
     }
   }
 

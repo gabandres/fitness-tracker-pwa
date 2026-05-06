@@ -73,7 +73,13 @@ service cloud.firestore {
               // compedUntil + referralRewardGrantedAt are server-only;
               // listed so server-side admin SDK writes still pass keys
               // validation if they merge during early lifecycle.
-              'referredBy', 'compedUntil', 'referralRewardGrantedAt'
+              'referredBy', 'compedUntil', 'referralRewardGrantedAt',
+              // Public profile fields are server-stamped by claimPublicSlug;
+              // listed so client reads-then-merges round-trip cleanly.
+              'publicSlug', 'publicProfileEnabled', 'publicDisplayName',
+              // Weekly digest opt-in (client-writable) + server stamp
+              // (server-only, listed for round-trip parity).
+              'weeklyDigestOptIn', 'lastWeeklyDigestSentAt'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == false
@@ -151,7 +157,13 @@ service cloud.firestore {
               // but admin-SDK writes still satisfy `hasOnly` so list it).
               'dayThreeCoachPushSent', 'firstEntryAt',
               // Referral attribution + server-stamped reward fields.
-              'referredBy', 'compedUntil', 'referralRewardGrantedAt'
+              'referredBy', 'compedUntil', 'referralRewardGrantedAt',
+              // Public profile (server-stamped by claimPublicSlug).
+              'publicSlug', 'publicProfileEnabled', 'publicDisplayName',
+              // Weekly digest opt-in. `lastWeeklyDigestSentAt` is
+              // server-stamped by sendWeeklyDigest; the rule below
+              // pins it immutable to clients.
+              'weeklyDigestOptIn', 'lastWeeklyDigestSentAt'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == true
@@ -213,7 +225,22 @@ service cloud.firestore {
           && (!('preferredLocale' in data.keys()) ||
               (data.preferredLocale is string && data.preferredLocale.size() <= 10))
           && (!('welcomeEmailSentAt' in data.keys()) ||
-              data.welcomeEmailSentAt is timestamp);
+              data.welcomeEmailSentAt is timestamp)
+          // Public profile fields. Server-stamped via claimPublicSlug;
+          // type checks here defend against malformed direct writes.
+          && (!('publicSlug' in data.keys()) ||
+              (data.publicSlug is string && data.publicSlug.size() >= 3 && data.publicSlug.size() <= 30))
+          && (!('publicProfileEnabled' in data.keys()) ||
+              data.publicProfileEnabled is bool)
+          && (!('publicDisplayName' in data.keys()) ||
+              (data.publicDisplayName is string && data.publicDisplayName.size() <= 40))
+          // Weekly digest. `weeklyDigestOptIn` is client-writable; the
+          // `lastWeeklyDigestSentAt` latch is server-only (immutability
+          // enforced separately on the update rule).
+          && (!('weeklyDigestOptIn' in data.keys()) ||
+              data.weeklyDigestOptIn is bool)
+          && (!('lastWeeklyDigestSentAt' in data.keys()) ||
+              data.lastWeeklyDigestSentAt is timestamp);
     }
 
     function isValidProfile(data) {
@@ -239,7 +266,20 @@ service cloud.firestore {
                        && (resource.data.get('compedUntil', null) ==
                            request.resource.data.get('compedUntil', null))
                        && (resource.data.get('referralRewardGrantedAt', null) ==
-                           request.resource.data.get('referralRewardGrantedAt', null));
+                           request.resource.data.get('referralRewardGrantedAt', null))
+                       // publicSlug + publicProfileEnabled are server-only
+                       // (set by claimPublicSlug / releasePublicSlug). A
+                       // direct client write here would let users grab any
+                       // slug bypassing uniqueness checks.
+                       && (resource.data.get('publicSlug', null) ==
+                           request.resource.data.get('publicSlug', null))
+                       && (resource.data.get('publicProfileEnabled', null) ==
+                           request.resource.data.get('publicProfileEnabled', null))
+                       // lastWeeklyDigestSentAt is server-stamped by
+                       // sendWeeklyDigest; clients read but cannot reset
+                       // it (which would cause duplicate sends).
+                       && (resource.data.get('lastWeeklyDigestSentAt', null) ==
+                           request.resource.data.get('lastWeeklyDigestSentAt', null));
 
       match /dailyLogs/{logId} {
         allow read:   if isOwner(uid) || isAdmin();
@@ -373,6 +413,19 @@ service cloud.firestore {
     // marketing landing can render the count without requiring auth.
     match /public/{doc} {
       allow read: if true;
+    }
+
+    // Public profile mirrors (`/u/<slug>`). Public-readable so the SPA
+    // can render a transformation page without auth. Writes are blocked
+    // for clients — the `onUserUpdateMirrorPublicProfile` trigger and
+    // the `claimPublicSlug` callable are the only writers.
+    match /publicProfiles/{slug} {
+      allow read: if true;
+    }
+    // Slug-uniqueness ledger. Owned exclusively by `claimPublicSlug` /
+    // `releasePublicSlug` callables; clients never read or write here.
+    match /publicSlugs/{slug} {
+      allow read, write: if false;
     }
 
     match /{document=**} {

@@ -116,6 +116,10 @@ export class InMemoryLedgerAdapter implements LedgerPort {
     this.patchProfile({ travelMode: on });
   }
 
+  async setWeeklyDigestOptIn(on: boolean): Promise<void> {
+    this.patchProfile({ weeklyDigestOptIn: on });
+  }
+
   async deleteMyAccount(): Promise<void> {
     this.logs.clear();
     this.presets.clear();

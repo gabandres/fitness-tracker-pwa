@@ -121,6 +121,90 @@ function welcomeEmailEn(firstName: string | null): { subject: string; html: stri
   return { subject, html: layout(heading, body) };
 }
 
+// ─── Weekly digest ─────────────────────────────────────────────
+//
+// Lightweight retention email — sent Sundays to opted-in users. Pulls
+// the same metrics the in-app weekly summary card already renders:
+// average kcal, average protein, weight delta, days logged, current
+// streak. Free users get a passive return reason; Pro users an extra
+// polish layer. Designed to be skim-friendly (one card, big numbers)
+// rather than another newsletter.
+
+export interface WeeklyDigestParams {
+  locale: "en" | "es-PR";
+  displayName?: string | null;
+  avgCalories: number | null;
+  avgProtein: number | null;
+  weightDeltaLbs: number | null;
+  daysLogged: number;
+  streak: number;
+}
+
+function statRow(label: string, value: string): string {
+  return `<tr>
+    <td style="padding:8px 0;color:${GRAPHITE};font-family:'Courier New',monospace;font-size:11px;letter-spacing:0.10em;text-transform:uppercase;">${label}</td>
+    <td align="right" style="padding:8px 0;color:${INK};font-family:Georgia,serif;font-size:22px;font-weight:400;">${value}</td>
+  </tr>`;
+}
+
+export function weeklyDigestEmail(params: WeeklyDigestParams): { subject: string; html: string } {
+  const firstName = (params.displayName ?? "").split(" ")[0] || null;
+  const isEs = params.locale === "es-PR";
+  const subject = isEs ? "Tu resumen semanal · Macro Log" : "Your weekly recap · Macro Log";
+  const heading = isEs ? "Tu semana." : "Your week.";
+  const salutation = firstName
+    ? (isEs ? `Hola <strong>${escapeHtml(firstName)}</strong>,` : `Hi <strong>${escapeHtml(firstName)}</strong>,`)
+    : (isEs ? "Hola," : "Hi there,");
+
+  const intro = isEs
+    ? "Aquí está tu resumen de los últimos 7 días."
+    : "Here's a snapshot of your last 7 days.";
+
+  const noDataLabel = isEs ? "—" : "—";
+  const fmt = (n: number | null, suffix: string): string =>
+    n == null ? noDataLabel : `${Math.round(n)}${suffix}`;
+  const fmtDelta = (n: number | null): string => {
+    if (n == null) return noDataLabel;
+    const sign = n >= 0 ? "+" : "−";
+    return `${sign}${Math.abs(n).toFixed(1)} ${isEs ? "lb" : "lb"}`;
+  };
+
+  const labels = isEs
+    ? {
+      avgKcal: "Calorías / día",
+      avgProtein: "Proteína / día",
+      weightDelta: "Cambio de peso",
+      daysLogged: "Días registrados",
+      streak: "Racha",
+    }
+    : {
+      avgKcal: "Avg kcal / day",
+      avgProtein: "Avg protein / day",
+      weightDelta: "Weight change",
+      daysLogged: "Days logged",
+      streak: "Streak",
+    };
+
+  const cta = isEs ? "abrir la bitácora" : "open the ledger";
+  const unsubBlurb = isEs
+    ? "¿No quieres este correo? Apaga \"Resumen semanal\" en Ajustes."
+    : "Don't want this email? Turn off \"Weekly digest\" in Settings.";
+
+  let body = paragraph(salutation);
+  body += paragraph(intro);
+  body += `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 18px;border-top:1px solid ${RULE};border-bottom:1px solid ${RULE};">
+    ${statRow(labels.avgKcal, fmt(params.avgCalories, ""))}
+    ${statRow(labels.avgProtein, fmt(params.avgProtein, "g"))}
+    ${statRow(labels.weightDelta, fmtDelta(params.weightDeltaLbs))}
+    ${statRow(labels.daysLogged, `${params.daysLogged} / 7`)}
+    ${statRow(labels.streak, `${params.streak}`)}
+  </table>`;
+  body += brandButton(cta, "https://macrolog.web.app/app");
+  body += caption(unsubBlurb);
+
+  return { subject, html: layout(heading, body) };
+}
+
 function welcomeEmailEs(firstName: string | null): { subject: string; html: string } {
   const subject = "Bienvenido a Macro Log.";
   const heading = "Listo.";

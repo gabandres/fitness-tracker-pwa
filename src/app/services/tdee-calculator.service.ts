@@ -214,29 +214,64 @@ export class TdeeCalculatorService {
    * Compute streak: number of consecutive days (ending today or
    * yesterday) that have at least one log entry.
    */
-  computeStreak(logs: DailyLog[]): number {
-    if (logs.length === 0) return 0;
+  computeStreak(logs: DailyLog[], opts?: { freezeMaxGap?: number }): number {
+    return this.computeStreakWithFreeze(logs, opts).streak;
+  }
 
-    // Get unique logged dates as ISO strings, newest first.
-    const dates = new Set(
-      logs.map((l) => localDateKey(l.date)),
-    );
+  /**
+   * Streak counter with optional gap-tolerance ("streak freeze"). When
+   * `freezeMaxGap > 0`, up to that many consecutive missed days are
+   * tolerated mid-streak — the walk-back keeps going as long as a future
+   * logged day appears within the gap window. Returns `freezeUsed = true`
+   * if any tolerated gap was consumed (used by the UI to render a
+   * "protected by Pro" indicator).
+   *
+   * `freezeMaxGap = 0` (default) preserves the legacy "any gap breaks the
+   * streak" behavior for free users.
+   */
+  computeStreakWithFreeze(
+    logs: DailyLog[],
+    opts?: { freezeMaxGap?: number },
+  ): { streak: number; freezeUsed: boolean } {
+    if (logs.length === 0) return { streak: 0, freezeUsed: false };
+    const maxGap = Math.max(0, opts?.freezeMaxGap ?? 0);
+
+    const dates = new Set(logs.map((l) => localDateKey(l.date)));
 
     let streak = 0;
+    let freezeUsed = false;
     const cursor = new Date();
-    // Allow today or yesterday as the starting point.
     const todayStr = localDateKey(cursor);
     if (!dates.has(todayStr)) {
       cursor.setDate(cursor.getDate() - 1);
-      if (!dates.has(localDateKey(cursor))) return 0;
+      if (!dates.has(localDateKey(cursor))) return { streak: 0, freezeUsed: false };
     }
 
-    // Walk backwards counting consecutive days.
-    while (dates.has(localDateKey(cursor))) {
-      streak++;
-      cursor.setDate(cursor.getDate() - 1);
+    // Walk backwards counting consecutive days; tolerate up to `maxGap`
+    // missing days as long as another logged day exists further back.
+    while (true) {
+      if (dates.has(localDateKey(cursor))) {
+        streak++;
+        cursor.setDate(cursor.getDate() - 1);
+        continue;
+      }
+      if (maxGap === 0) break;
+      // Probe up to `maxGap` further-back days; if any is logged,
+      // skip the gap and resume counting from there.
+      let probe: Date | null = null;
+      for (let i = 1; i <= maxGap; i++) {
+        const c = new Date(cursor);
+        c.setDate(c.getDate() - i);
+        if (dates.has(localDateKey(c))) {
+          probe = c;
+          break;
+        }
+      }
+      if (!probe) break;
+      freezeUsed = true;
+      cursor.setTime(probe.getTime());
     }
-    return streak;
+    return { streak, freezeUsed };
   }
 
   /**

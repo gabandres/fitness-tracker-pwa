@@ -61,6 +61,13 @@ import { WhatsNewBannerComponent } from '../whats-new-banner/whats-new-banner.co
             <div class="flex items-center gap-1.5 mt-2 v2-caption" style="color: var(--v2-accent)">
               <lucide-icon name="flame" [size]="14" />
               <span>{{ t('v2.today.dayStreak', { n: streak() }) }}</span>
+              @if (streakFreezeUsed()) {
+                <span class="flex items-center gap-1" style="color: var(--v2-sage);"
+                  [attr.aria-label]="t('v2.today.streakProtected')"
+                  [title]="t('v2.today.streakProtected')">
+                  <lucide-icon name="shield" [size]="12" />
+                </span>
+              }
             </div>
           }
         </div>
@@ -227,6 +234,7 @@ export class TodayV2Component {
   );
 
   protected readonly streak = computed(() => this.store.streak());
+  protected readonly streakFreezeUsed = computed(() => this.store.streakFreezeUsed());
   protected readonly kcalTarget = computed(() => this.store.targetCalories());
   protected readonly proteinTargetG = computed(() => this.store.proteinTarget());
 

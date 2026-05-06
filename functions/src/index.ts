@@ -1288,6 +1288,13 @@ export const onSubscriptionWritten = onDocumentWritten(
   },
 );
 
+export {
+  claimPublicSlug,
+  releasePublicSlug,
+  onUserUpdateMirrorPublicProfile,
+  onDailyWeightWriteMirrorPublicProfile,
+} from "./public-profile";
+export { sendWeeklyDigest } from "./weekly-digest";
 export { bootstrapAdmin, setAdminClaims } from "./admin-claims";
 export { startImpersonation, stopImpersonation } from "./impersonation";
 export {

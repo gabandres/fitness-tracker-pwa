@@ -35,6 +35,7 @@ export interface LedgerPort {
   startFast(startedAt?: Date): Promise<void>;
   breakFast(): Promise<void>;
   setTravelMode(on: boolean): Promise<void>;
+  setWeeklyDigestOptIn(on: boolean): Promise<void>;
 
   deleteMyAccount(): Promise<void>;
   exportMyData(): Promise<unknown>;

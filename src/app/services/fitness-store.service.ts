@@ -26,6 +26,11 @@ export const PRESET_LIMIT_FREE = 10;
 /** Free-tier visible chart history window. Pro sees all-time. */
 export const CHART_HISTORY_DAYS_FREE = 90;
 
+/** Pro perk: streak survives up to N consecutive missed days. Free users
+    break their streak on any miss. Capped at one week so a Pro user who
+    truly stops logging still sees the streak reset eventually. */
+export const STREAK_FREEZE_MAX_GAP_PRO = 7;
+
 /** Thrown by FitnessStore.addPreset when a free-tier user is at cap.
     Carries the limit so the UI can show a specific message. */
 export class PresetLimitError extends Error {
@@ -269,9 +274,17 @@ export class FitnessStore {
     return all.filter((l) => l.date.getTime() >= cutoff);
   });
 
-  readonly streak: Signal<number> = computed(() =>
-    this.calc.computeStreak(this._logs()),
+  /** Streak + freeze state. Pro users get up to STREAK_FREEZE_MAX_GAP_PRO
+      consecutive missed days tolerated mid-streak; free users break on
+      any miss. `freezeUsed` is true when the active streak only spans
+      because a gap was forgiven — surface this in UI as a Pro indicator. */
+  private readonly streakResult = computed(() =>
+    this.calc.computeStreakWithFreeze(this._logs(), {
+      freezeMaxGap: this.subs.isPaid() ? STREAK_FREEZE_MAX_GAP_PRO : 0,
+    }),
   );
+  readonly streak: Signal<number> = computed(() => this.streakResult().streak);
+  readonly streakFreezeUsed: Signal<boolean> = computed(() => this.streakResult().freezeUsed);
 
   readonly weekly: Signal<WeeklySummary | null> = computed(() =>
     this.calc.weeklySummary(this.mergeDailyWeights(this._logs()), this.targetCalories()),

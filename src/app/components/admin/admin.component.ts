@@ -227,6 +227,17 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
                   }
                 </ul>
               </div>
+              <div class="mt-4">
+                <h3 class="admin-stat-label">funnel</h3>
+                <div class="mt-2 grid grid-cols-2 md:grid-cols-4 gap-3">
+                  @for (m of funnelMetrics(s); track m.label) {
+                    <div class="admin-stat">
+                      <div class="admin-stat-label">{{ m.label }}</div>
+                      <div class="admin-stat-value">{{ m.value }}</div>
+                    </div>
+                  }
+                </div>
+              </div>
             } @else {
               <p class="admin-caption">loading…</p>
             }
@@ -888,6 +899,26 @@ export class AdminComponent {
       { label: 'comped',      value: String(s.compedCount) },
       { label: 'mrr est',     value: `$${s.estimatedMRR.toFixed(2)}` },
       { label: 'disabled',    value: String(s.disabledCount) },
+    ];
+  }
+
+  /** Funnel panel — referral + activation latency. Optional fields tolerated
+   *  so a cached pre-funnel stats blob still renders the rest of the tab. */
+  funnelMetrics(s: PlatformStats): Array<{ label: string; value: string }> {
+    const ref = s.signupsViaReferralCount ?? 0;
+    const granted = s.referralRewardGrantedCount ?? 0;
+    const comped = s.currentlyCompedCount ?? 0;
+    const within24h = s.firstEntryWithin24hCount ?? 0;
+    const within72h = s.firstEntryWithin72hCount ?? 0;
+    const refConvPct = ref > 0 ? Math.round((granted / ref) * 100) : 0;
+    const fastActivPct = s.usersWithFirstEntryCount > 0
+      ? Math.round((within24h / s.usersWithFirstEntryCount) * 100) : 0;
+    return [
+      { label: 'referred signups',   value: String(ref) },
+      { label: 'referral rewards',   value: `${granted}  (${refConvPct}%)` },
+      { label: 'currently comped',   value: String(comped) },
+      { label: 'first entry <24h',   value: `${within24h}  (${fastActivPct}%)` },
+      { label: 'first entry <72h',   value: String(within72h) },
     ];
   }
 

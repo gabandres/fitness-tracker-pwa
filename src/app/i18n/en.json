@@ -2,6 +2,39 @@
   "common": {
     "appTitle": "Macro Log"
   },
+  "publicProfile": {
+    "section": "transformation",
+    "loading": "Loading…",
+    "notFoundTitle": "Profile not found",
+    "notFoundBody": "This profile doesn't exist or has been made private.",
+    "notFoundCta": "Go to Macro Log",
+    "errorBody": "Couldn't load this profile. Try again later.",
+    "start": "Start",
+    "current": "Current",
+    "goal": "Goal",
+    "weeksTracked": "{{n}} weeks tracked",
+    "ctaTitle": "Start your own log",
+    "ctaBody": "Free calorie + protein tracker with built-in TDEE calculator.",
+    "ctaButton": "Try Macro Log"
+  },
+  "publicProfileSettings": {
+    "title": "Public profile",
+    "body": "Share a transformation page at macrolog.app/u/your-slug. Off by default.",
+    "slugLabel": "Slug",
+    "slugPlaceholder": "your-slug",
+    "slugHelp": "3–30 chars, lowercase a–z, 0–9, hyphens. Must be unique.",
+    "displayNameLabel": "Display name",
+    "displayNamePlaceholder": "How you want to appear",
+    "claimButton": "Claim slug",
+    "updateButton": "Update",
+    "releaseButton": "Make private",
+    "linkLabel": "Your page",
+    "claimingState": "Claiming…",
+    "releasingState": "Releasing…",
+    "errorTaken": "That slug is taken.",
+    "errorReserved": "That slug is reserved.",
+    "errorFormat": "Slug must be 3–30 chars, lowercase a–z 0–9 -."
+  },
   "landing": {
     "calibrationLogNo": "calibration log no. 001",
     "heroMockupAlt": "Today screen: kcal ring at 1,553 of 2,040, protein ring at 138g, carbs and fat chips, recent entry preview.",
@@ -144,7 +177,13 @@
       "hour": "reminder time",
       "hourDesc": "when to check whether you've logged today.",
       "hourAria": "Daily reminder hour",
-      "utcHint": "note: photo and AI coach daily quotas reset at midnight UTC, not your local midnight."
+      "utcHint": "note: photo and AI coach daily quotas reset at midnight UTC, not your local midnight.",
+      "weeklyDigest": "weekly recap email",
+      "weeklyDigestDesc": "every sunday morning we'll email a snapshot of your last 7 days — average kcal, protein, weight delta. off by default.",
+      "weeklyDigestOn": "on",
+      "weeklyDigestOff": "off",
+      "weeklyDigestAriaOn": "Turn weekly digest on",
+      "weeklyDigestAriaOff": "Turn weekly digest off"
     },
     "modes": {
       "section": "modes",
@@ -996,6 +1035,7 @@
     "today": {
       "title": "Today",
       "dayStreak": "{{n}} day streak",
+      "streakProtected": "Streak protected by Pro",
       "historyAria": "History",
       "settingsAria": "Settings",
       "day0Title": "Log your first meal",

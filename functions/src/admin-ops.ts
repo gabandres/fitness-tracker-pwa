@@ -116,6 +116,9 @@ export const getPlatformStats = onCall({ timeoutSeconds: 60 }, async (request) =
   let totalUsers = 0, newUsers1d = 0, newUsers7d = 0, newUsers30d = 0;
   let verifiedCount = 0, disabledCount = 0;
   const providersBreakdown: Record<string, number> = {};
+  // Map uid -> auth creation epoch ms; needed to compute first-entry-within-24h/72h
+  // since profile docs don't store createdAt.
+  const authCreatedByUid = new Map<string, number>();
   let pageToken: string | undefined;
   do {
     const page = await auth.listUsers(1000, pageToken);
@@ -124,6 +127,7 @@ export const getPlatformStats = onCall({ timeoutSeconds: 60 }, async (request) =
       if (u.emailVerified) verifiedCount++;
       if (u.disabled) disabledCount++;
       const created = u.metadata.creationTime ? new Date(u.metadata.creationTime) : null;
+      if (created) authCreatedByUid.set(u.uid, created.getTime());
       if (created && created >= d1) newUsers1d++;
       if (created && created >= d7) newUsers7d++;
       if (created && created >= d30) newUsers30d++;
@@ -150,17 +154,39 @@ export const getPlatformStats = onCall({ timeoutSeconds: 60 }, async (request) =
   let profileCompletedCount = 0;
   let onboardingV2CompletedCount = 0;
   let usersWithFirstEntryCount = 0;
+  // Referral funnel signals — derived from same profile aggregate read.
+  let signupsViaReferralCount = 0;
+  let referralRewardGrantedCount = 0;
+  let currentlyCompedCount = 0;
+  let firstEntryWithin24hCount = 0;
+  let firstEntryWithin72hCount = 0;
+  const nowMs = Date.now();
   try {
     const profileSnap = await db.collection("users").select(
       "profileCompleted",
       "onboardingV2CompletedAt",
       "firstEntryAt",
+      "referredBy",
+      "referralRewardGrantedAt",
+      "compedUntil",
     ).get();
     for (const d of profileSnap.docs) {
       const data = d.data();
       if (data["profileCompleted"] === true) profileCompletedCount++;
       if (data["onboardingV2CompletedAt"] != null) onboardingV2CompletedCount++;
       if (data["firstEntryAt"] != null) usersWithFirstEntryCount++;
+      if (data["referredBy"] != null) signupsViaReferralCount++;
+      if (data["referralRewardGrantedAt"] != null) referralRewardGrantedCount++;
+      const compedUntil = data["compedUntil"] as Timestamp | undefined;
+      if (compedUntil && compedUntil.toMillis() > nowMs) currentlyCompedCount++;
+      // Activation latency: firstEntryAt - authCreatedAt.
+      const firstEntry = data["firstEntryAt"] as Timestamp | undefined;
+      const createdMs = authCreatedByUid.get(d.id);
+      if (firstEntry && createdMs != null) {
+        const deltaMs = firstEntry.toMillis() - createdMs;
+        if (deltaMs <= 24 * 60 * 60 * 1000) firstEntryWithin24hCount++;
+        if (deltaMs <= 72 * 60 * 60 * 1000) firstEntryWithin72hCount++;
+      }
     }
   } catch (err) {
     console.warn("getPlatformStats: profile-aggregate query failed", err);
@@ -231,6 +257,11 @@ export const getPlatformStats = onCall({ timeoutSeconds: 60 }, async (request) =
     profileCompletedCount,
     onboardingV2CompletedCount,
     usersWithFirstEntryCount,
+    signupsViaReferralCount,
+    referralRewardGrantedCount,
+    currentlyCompedCount,
+    firstEntryWithin24hCount,
+    firstEntryWithin72hCount,
   };
 
   await cacheRef.set({ stats, updatedAt: FieldValue.serverTimestamp() }, { merge: true });

@@ -2,6 +2,39 @@
   "common": {
     "appTitle": "Macro Log"
   },
+  "publicProfile": {
+    "section": "transformación",
+    "loading": "Cargando…",
+    "notFoundTitle": "Perfil no encontrado",
+    "notFoundBody": "Este perfil no existe o se hizo privado.",
+    "notFoundCta": "Ir a Macro Log",
+    "errorBody": "No se pudo cargar el perfil. Intenta luego.",
+    "start": "Inicio",
+    "current": "Actual",
+    "goal": "Meta",
+    "weeksTracked": "{{n}} semanas registradas",
+    "ctaTitle": "Empieza tu propio registro",
+    "ctaBody": "Calculadora de calorías y proteína gratis con TDEE incluido.",
+    "ctaButton": "Probar Macro Log"
+  },
+  "publicProfileSettings": {
+    "title": "Perfil público",
+    "body": "Comparte una página de transformación en macrolog.app/u/tu-slug. Apagado por defecto.",
+    "slugLabel": "Slug",
+    "slugPlaceholder": "tu-slug",
+    "slugHelp": "3–30 caracteres, a–z minúscula, 0–9, guiones. Único.",
+    "displayNameLabel": "Nombre a mostrar",
+    "displayNamePlaceholder": "Cómo quieres aparecer",
+    "claimButton": "Reclamar slug",
+    "updateButton": "Actualizar",
+    "releaseButton": "Hacer privado",
+    "linkLabel": "Tu página",
+    "claimingState": "Reclamando…",
+    "releasingState": "Liberando…",
+    "errorTaken": "Ese slug está tomado.",
+    "errorReserved": "Ese slug está reservado.",
+    "errorFormat": "Slug debe ser 3–30 caracteres, a–z 0–9 -."
+  },
   "landing": {
     "calibrationLogNo": "bitácora de calibración no. 001",
     "heroMockupAlt": "Pantalla de hoy: aro de calorías en 1,553 de 2,040, aro de proteína en 138 g, chips de carbohidratos y grasas, vista previa de entrada reciente.",
@@ -144,7 +177,13 @@
       "hour": "hora del recordatorio",
       "hourDesc": "cuándo revisar si has registrado hoy.",
       "hourAria": "Hora del recordatorio diario",
-      "utcHint": "nota: las cuotas diarias de fotos y del coach IA se reinician a medianoche UTC, no a tu medianoche local."
+      "utcHint": "nota: las cuotas diarias de fotos y del coach IA se reinician a medianoche UTC, no a tu medianoche local.",
+      "weeklyDigest": "resumen semanal por correo",
+      "weeklyDigestDesc": "cada domingo por la mañana enviamos un resumen de tus últimos 7 días — calorías promedio, proteína, cambio de peso. apagado por defecto.",
+      "weeklyDigestOn": "activado",
+      "weeklyDigestOff": "apagado",
+      "weeklyDigestAriaOn": "Activar resumen semanal",
+      "weeklyDigestAriaOff": "Apagar resumen semanal"
     },
     "modes": {
       "section": "modos",
@@ -996,6 +1035,7 @@
     "today": {
       "title": "Hoy",
       "dayStreak": "racha de {{n}} días",
+      "streakProtected": "Racha protegida por Pro",
       "historyAria": "Historial",
       "settingsAria": "Ajustes",
       "day0Title": "Registra tu primera comida",

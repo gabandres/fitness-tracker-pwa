@@ -59,6 +59,15 @@ export interface PlatformStats {
   profileCompletedCount: number;
   onboardingV2CompletedCount: number;
   usersWithFirstEntryCount: number;
+  // Referral-funnel signals — derived from the same profile aggregate
+  // read; tells me where invest next (top of funnel vs activation latency
+  // vs reward conversion). Optional because older cached docs may pre-date
+  // these fields.
+  signupsViaReferralCount?: number;
+  referralRewardGrantedCount?: number;
+  currentlyCompedCount?: number;
+  firstEntryWithin24hCount?: number;
+  firstEntryWithin72hCount?: number;
 }
 
 export type ActivityItemType = 'signup' | 'entry';
