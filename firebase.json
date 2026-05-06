@@ -25,6 +25,20 @@
     ],
     "rewrites": [
       {
+        "source": "/og/u/**",
+        "function": {
+          "functionId": "ogImagePublicProfile",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/u/**",
+        "function": {
+          "functionId": "servePublicProfilePage",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

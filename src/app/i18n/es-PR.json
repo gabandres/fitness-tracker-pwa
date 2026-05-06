@@ -2,6 +2,70 @@
   "common": {
     "appTitle": "Macro Log"
   },
+  "calcVariants": {
+    "tdeeWomen": {
+      "title": "Calculadora de TDEE para Mujeres · Macro Log",
+      "eyebrow": "tdee · mujeres",
+      "heading": "calculadora de tdee para mujeres",
+      "body": "Estima tu gasto calórico diario (TDEE) y tus macros. Usa la misma fórmula Mifflin-St Jeor que usan médicos y dietistas, con valores de proteína afinados para mujeres en déficit, mantenimiento o volumen."
+    },
+    "tdeeMen": {
+      "title": "Calculadora de TDEE para Hombres · Macro Log",
+      "eyebrow": "tdee · hombres",
+      "heading": "calculadora de tdee para hombres",
+      "body": "Estima tu gasto calórico diario (TDEE) y tus macros. La misma fórmula Mifflin-St Jeor que usan los clínicos, con valores de proteína afinados para hombres en déficit, volumen o mantenimiento."
+    },
+    "cutting": {
+      "title": "Calculadora de Déficit · Macro Log",
+      "eyebrow": "déficit",
+      "heading": "calculadora de déficit",
+      "body": "Déficit calórico con proteína alta para perder grasa sin perder músculo. Valores: ~11 kcal/lb y 1g/lb de proteína — los mismos que recomiendan los entrenadores de fuerza."
+    },
+    "bulking": {
+      "title": "Calculadora de Volumen Limpio · Macro Log",
+      "eyebrow": "volumen",
+      "heading": "calculadora de volumen",
+      "body": "Superávit limpio para crecimiento muscular: ~17 kcal/lb y 0.8g/lb de proteína. Suficiente para crecer, controlado para no acumular grasa innecesaria."
+    },
+    "maintenance": {
+      "title": "Calculadora de Mantenimiento · Macro Log",
+      "eyebrow": "mantenimiento",
+      "heading": "calculadora de mantenimiento",
+      "body": "Encuentra las calorías que mantienen tu peso actual. Útil entre déficit y volumen, o como base antes de decidir hacia dónde ir."
+    },
+    "keto": {
+      "title": "Calculadora de Macros Keto · Macro Log",
+      "eyebrow": "keto · bajo carbohidrato",
+      "heading": "calculadora de macros keto",
+      "body": "Calorías y proteína amigables con keto. Macro Log no registra carbohidratos por defecto — en cetosis la palanca que importa son calorías y proteína. Usa esto para fijar tu base."
+    },
+    "weightLoss": {
+      "title": "Calculadora de Pérdida de Peso · Macro Log",
+      "eyebrow": "pérdida de peso",
+      "heading": "calculadora de pérdida de peso",
+      "body": "¿Cuántas calorías debes comer para bajar de peso? Ingresa tu peso y te damos un objetivo diario de calorías y proteína para perder grasa de forma sostenible."
+    },
+    "protein": {
+      "title": "Calculadora de Proteína · Macro Log",
+      "eyebrow": "proteína",
+      "heading": "calculadora de proteína",
+      "body": "¿Cuánta proteína necesitas? El rango respaldado por la investigación es 0.7–1g por libra de peso, según si estás en déficit, mantenimiento o volumen. Ingresa tu peso para ver tu meta."
+    }
+  },
+  "transformations": {
+    "section": "transformaciones",
+    "titleLead": "usuarios reales.",
+    "titleEm": "números reales.",
+    "subtitle": "Cada tarjeta abajo es un usuario real de Macro Log que decidió hacer público su progreso. Haz clic para ver su página completa.",
+    "loading": "Cargando…",
+    "error": "No se pudieron cargar las transformaciones. Intenta luego.",
+    "empty": "Aún no hay perfiles públicos — sé el primero.",
+    "start": "Inicio",
+    "current": "Actual",
+    "ctaTitle": "Empieza tu propio registro",
+    "ctaBody": "Calculadora de calorías y proteína gratis con TDEE incluido.",
+    "ctaButton": "Probar Macro Log"
+  },
   "publicProfile": {
     "section": "transformación",
     "loading": "Cargando…",

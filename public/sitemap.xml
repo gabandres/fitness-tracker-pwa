@@ -10,6 +10,17 @@
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
+  <!-- Programmatic SEO: calculator variants targeting specific search
+       intents. Same component as /calculator, different intro + meta. -->
+  <url><loc>https://macrolog.web.app/tdee-calculator-women</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://macrolog.web.app/tdee-calculator-men</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://macrolog.web.app/cutting-calculator</loc><changefreq>monthly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://macrolog.web.app/bulking-calculator</loc><changefreq>monthly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://macrolog.web.app/maintenance-calculator</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://macrolog.web.app/keto-macro-calculator</loc><changefreq>monthly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://macrolog.web.app/weight-loss-calculator</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://macrolog.web.app/protein-calculator</loc><changefreq>monthly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://macrolog.web.app/transformations</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
   <url>
     <loc>https://macrolog.web.app/faq</loc>
     <changefreq>monthly</changefreq>

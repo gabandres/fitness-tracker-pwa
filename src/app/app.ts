@@ -10,6 +10,7 @@ import { MacrosPageComponent } from './components/macros-page/macros-page.compon
 import { FaqComponent } from './components/faq/faq.component';
 import { VsPageComponent } from './components/vs-page/vs-page.component';
 import { PublicProfileComponent } from './components/public-profile/public-profile.component';
+import { TransformationsComponent } from './components/transformations/transformations.component';
 import { PrivacyComponent } from './components/privacy/privacy.component';
 import { TermsComponent } from './components/terms/terms.component';
 import { ChangelogComponent } from './components/changelog/changelog.component';
@@ -52,6 +53,7 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
     FaqComponent,
     VsPageComponent,
     PublicProfileComponent,
+    TransformationsComponent,
     PrivacyComponent,
     TermsComponent,
     ChangelogComponent,
@@ -122,6 +124,9 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
           @placeholder { <div class="py-20 text-center caption">…</div> }
         } @else if (route() === 'publicProfile') {
           @defer (on immediate) { <app-public-profile /> }
+          @placeholder { <div class="py-20 text-center caption">…</div> }
+        } @else if (route() === 'transformations') {
+          @defer (on immediate) { <app-transformations /> }
           @placeholder { <div class="py-20 text-center caption">…</div> }
         } @else if (route() === 'privacy') {
           @defer { <app-privacy /> }
@@ -468,7 +473,7 @@ export class App {
   /** URL-path based routing for the two public-static pages. Anything
       else (including '/' and unknown paths) falls through to the
       signal-gated main app. */
-  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | 'onboarding' | 'calculator' | 'macros' | 'faq' | 'vs' | 'publicProfile' | null>(this.detectRoute());
+  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | 'onboarding' | 'calculator' | 'macros' | 'faq' | 'vs' | 'publicProfile' | 'transformations' | null>(this.detectRoute());
   /** Selected day for `/history/YYYY-MM-DD`. Null on the grid view. */
   protected readonly historyDay = signal<string | null>(this.detectHistoryDay());
   /** Stack depth of OUR pushState calls. popHistory() falls back to a
@@ -582,7 +587,7 @@ export class App {
     return (this.firebase.profile() as any)?.reminderHour ?? 20;
   }
 
-  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | 'onboarding' | 'calculator' | 'macros' | 'faq' | 'vs' | 'publicProfile' | null {
+  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | 'onboarding' | 'calculator' | 'macros' | 'faq' | 'vs' | 'publicProfile' | 'transformations' | null {
     const path = window.location.pathname.toLowerCase();
     if (path === '/privacy' || path === '/privacy/') return 'privacy';
     if (path === '/terms' || path === '/terms/') return 'terms';
@@ -596,9 +601,21 @@ export class App {
     if (path === '/body' || path === '/body/') return 'body';
     if (path === '/onboarding' || path === '/onboarding/') return 'onboarding';
     if (path === '/calculator' || path === '/calculator/') return 'calculator';
+    // Programmatic SEO variants — same component, different intent + meta.
+    // Adding a variant: register the path here AND in calculator.component.ts
+    // VARIANT_PATHS AND in sitemap.xml.
+    if (path === '/tdee-calculator-women' || path === '/tdee-calculator-women/') return 'calculator';
+    if (path === '/tdee-calculator-men' || path === '/tdee-calculator-men/') return 'calculator';
+    if (path === '/cutting-calculator' || path === '/cutting-calculator/') return 'calculator';
+    if (path === '/bulking-calculator' || path === '/bulking-calculator/') return 'calculator';
+    if (path === '/maintenance-calculator' || path === '/maintenance-calculator/') return 'calculator';
+    if (path === '/keto-macro-calculator' || path === '/keto-macro-calculator/') return 'calculator';
+    if (path === '/weight-loss-calculator' || path === '/weight-loss-calculator/') return 'calculator';
+    if (path === '/protein-calculator' || path === '/protein-calculator/') return 'calculator';
     if (path === '/faq' || path === '/faq/') return 'faq';
     if (/^\/vs\/[a-z0-9-]+\/?$/.test(path)) return 'vs';
     if (/^\/u\/[a-z0-9-]+\/?$/.test(path)) return 'publicProfile';
+    if (path === '/transformations' || path === '/transformations/') return 'transformations';
     if (/^\/macros\/(lose|maintain|gain)\/\d{2,3}-lb\/?$/.test(path)) return 'macros';
     // Root path shows the public marketing surface to non-signed-in
     // visitors. Once the user signs in, the auth gate in the template

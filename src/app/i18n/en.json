@@ -2,6 +2,70 @@
   "common": {
     "appTitle": "Macro Log"
   },
+  "calcVariants": {
+    "tdeeWomen": {
+      "title": "TDEE Calculator for Women · Macro Log",
+      "eyebrow": "tdee · women",
+      "heading": "tdee calculator for women",
+      "body": "Estimate your daily calorie burn (TDEE) and macro targets. Tuned for the same Mifflin-St Jeor formula doctors and dietitians use, with sensible protein defaults for women cutting, bulking, or maintaining."
+    },
+    "tdeeMen": {
+      "title": "TDEE Calculator for Men · Macro Log",
+      "eyebrow": "tdee · men",
+      "heading": "tdee calculator for men",
+      "body": "Estimate your daily calorie burn (TDEE) and macro targets. Same Mifflin-St Jeor formula clinicians use, with protein defaults tuned for men cutting, bulking, or holding lean mass."
+    },
+    "cutting": {
+      "title": "Cutting Calculator · Calorie Deficit & Protein · Macro Log",
+      "eyebrow": "cut · deficit",
+      "heading": "cutting calculator",
+      "body": "Calorie deficit + high protein for fat loss while preserving muscle. Targets ~11 kcal/lb and 1g/lb protein — the same defaults strength coaches recommend for sustainable cutting phases."
+    },
+    "bulking": {
+      "title": "Bulking Calculator · Lean Surplus · Macro Log",
+      "eyebrow": "bulk · surplus",
+      "heading": "bulking calculator",
+      "body": "Lean surplus targets for clean muscle growth: ~17 kcal/lb and 0.8g/lb protein. Aggressive enough to build, conservative enough to keep fat gain in check."
+    },
+    "maintenance": {
+      "title": "Maintenance Calorie Calculator · Macro Log",
+      "eyebrow": "maintain",
+      "heading": "maintenance calorie calculator",
+      "body": "Find the calorie target that holds your current weight. Useful between cuts and bulks, or as a baseline before deciding which direction to go."
+    },
+    "keto": {
+      "title": "Keto Macro Calculator · Macro Log",
+      "eyebrow": "keto · low carb",
+      "heading": "keto macro calculator",
+      "body": "Keto-friendly calorie + protein targets. Macro Log doesn't track carbs by default — once you're in ketosis the lever that matters is calories in vs out, with adequate protein to keep muscle. Use this to set your baseline."
+    },
+    "weightLoss": {
+      "title": "Weight Loss Calculator · Macro Log",
+      "eyebrow": "weight loss",
+      "heading": "weight loss calculator",
+      "body": "How many calories should you eat to lose weight? Enter your current weight and we'll estimate your daily kcal + protein target for sustainable fat loss — no crash diet, no zero-carb gimmick."
+    },
+    "protein": {
+      "title": "Protein Calculator · Daily g per Pound · Macro Log",
+      "eyebrow": "protein",
+      "heading": "protein calculator",
+      "body": "How much protein do you need? The research-backed range is 0.7–1g per pound of bodyweight, depending on whether you're cutting, maintaining, or bulking. Enter your weight to see your target."
+    }
+  },
+  "transformations": {
+    "section": "transformations",
+    "titleLead": "real users.",
+    "titleEm": "real numbers.",
+    "subtitle": "Every card below is a real Macro Log user who chose to make their progress public. Click any to see their full transformation page.",
+    "loading": "Loading…",
+    "error": "Couldn't load transformations. Try again later.",
+    "empty": "No public profiles yet — be the first.",
+    "start": "Start",
+    "current": "Current",
+    "ctaTitle": "Start your own log",
+    "ctaBody": "Free calorie + protein tracker with built-in TDEE calculator.",
+    "ctaButton": "Try Macro Log"
+  },
   "publicProfile": {
     "section": "transformation",
     "loading": "Loading…",

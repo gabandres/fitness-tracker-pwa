@@ -22,6 +22,50 @@ import { setCalcPrefill } from '../../utils/calc-prefill';
 import { share } from '../../utils/share';
 import { LucideAngularModule } from 'lucide-angular';
 
+// ─── Programmatic SEO variants ──────────────────────────────────
+//
+// Same calculator logic, different URL slugs + meta + intro copy. Each
+// variant targets a specific search intent ("tdee calculator women",
+// "cutting calculator", etc.) and prefills `goal` so the result block
+// matches the searcher's expectation. Adding a variant is two lines
+// here + i18n keys + a sitemap.xml entry.
+
+export type CalcVariantKey =
+  | 'default'
+  | 'tdeeWomen'
+  | 'tdeeMen'
+  | 'cutting'
+  | 'bulking'
+  | 'maintenance'
+  | 'keto'
+  | 'weightLoss'
+  | 'protein';
+
+const VARIANT_PATHS: Record<string, { variant: CalcVariantKey; goal: GoalDirection }> = {
+  '/calculator': { variant: 'default', goal: 'maintain' },
+  '/tdee-calculator-women': { variant: 'tdeeWomen', goal: 'maintain' },
+  '/tdee-calculator-men': { variant: 'tdeeMen', goal: 'maintain' },
+  '/cutting-calculator': { variant: 'cutting', goal: 'lose' },
+  '/bulking-calculator': { variant: 'bulking', goal: 'gain' },
+  '/maintenance-calculator': { variant: 'maintenance', goal: 'maintain' },
+  '/keto-macro-calculator': { variant: 'keto', goal: 'lose' },
+  '/weight-loss-calculator': { variant: 'weightLoss', goal: 'lose' },
+  '/protein-calculator': { variant: 'protein', goal: 'maintain' },
+};
+
+function currentPath(): string {
+  if (typeof window === 'undefined') return '/calculator';
+  return window.location.pathname.toLowerCase().replace(/\/$/, '') || '/calculator';
+}
+
+function detectVariant(): CalcVariantKey {
+  return VARIANT_PATHS[currentPath()]?.variant ?? 'default';
+}
+
+function detectGoalFromPath(): GoalDirection {
+  return VARIANT_PATHS[currentPath()]?.goal ?? 'maintain';
+}
+
 /**
  * Public, unauthenticated macro calculator at /calculator. The same
  * heuristic that drives v2 onboarding (weight × {11/14/17} kcal,
@@ -45,13 +89,13 @@ import { LucideAngularModule } from 'lucide-angular';
     <article class="max-w-[640px] mx-auto px-5 sm:px-6 pt-10 pb-16">
       <header class="mb-8">
         <p class="v2-caption" style="color: var(--v2-accent);">
-          {{ t('calculator.eyebrow') }}
+          {{ t(variantEyebrowKey()) }}
         </p>
         <h1 class="v2-h1 mt-1" style="font-size: clamp(2rem, 4.5vw, 3rem); line-height: 1.1;">
-          {{ t('calculator.title') }}
+          {{ t(variantH1Key()) }}
         </h1>
         <p class="v2-body-soft mt-3">
-          {{ t('calculator.intro') }}
+          {{ t(variantBodyKey()) }}
         </p>
       </header>
 
@@ -175,7 +219,8 @@ export class CalculatorComponent {
   protected readonly WEIGHT_MAX_LB = WEIGHT_MAX_LB;
 
   protected readonly weightInput = signal<string>('');
-  protected readonly goal = signal<GoalDirection>('maintain');
+  protected readonly goal = signal<GoalDirection>(detectGoalFromPath());
+  protected readonly variantKey = signal<CalcVariantKey>(detectVariant());
   protected readonly weightError = signal<string | null>(null);
   protected readonly weight = signal<number | null>(null);
 
@@ -198,7 +243,23 @@ export class CalculatorComponent {
   });
 
   constructor() {
-    this.translation.setTitleKey('calculator.pageTitle');
+    const v = this.variantKey();
+    this.translation.setTitleKey(v === 'default' ? 'calculator.pageTitle' : `calcVariants.${v}.title`);
+  }
+
+  protected variantBodyKey(): string {
+    const v = this.variantKey();
+    return v === 'default' ? 'calculator.intro' : `calcVariants.${v}.body`;
+  }
+
+  protected variantH1Key(): string {
+    const v = this.variantKey();
+    return v === 'default' ? 'calculator.title' : `calcVariants.${v}.heading`;
+  }
+
+  protected variantEyebrowKey(): string {
+    const v = this.variantKey();
+    return v === 'default' ? 'calculator.eyebrow' : `calcVariants.${v}.eyebrow`;
   }
 
   protected onSubmit(e: Event): void {
