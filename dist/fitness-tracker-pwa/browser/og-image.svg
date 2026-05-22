@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-label="Macro Log — calmly track calories and protein">
+  <defs>
+    <style>
+      .paper-bg { fill: #FAF7F2; }
+      .ink { fill: #1C1915; }
+      .ink-soft { fill: #5A544A; }
+      .ink-muted { fill: #8E867A; }
+      .accent { fill: #B4513A; }
+      .accent-stroke { stroke: #B4513A; fill: none; }
+      .sage-stroke { stroke: #6B8E5A; fill: none; }
+      .ring-bg { stroke: #EDE6D6; fill: none; }
+      .h1 { font: 600 80px/1.05 'Geist', 'Inter', system-ui, sans-serif; letter-spacing: -0.025em; }
+      .accent-em { fill: #B4513A; font-style: normal; }
+      .body { font: 400 24px/1.4 'Geist', 'Inter', system-ui, sans-serif; }
+      .caption { font: 500 16px/1 'Geist', 'Inter', system-ui, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
+      .num-big { font: 600 56px/1 'Geist Mono', ui-monospace, monospace; letter-spacing: -0.02em; }
+      .num-mid { font: 600 30px/1 'Geist Mono', ui-monospace, monospace; }
+      .wordmark { font: 600 22px/1 'Geist', 'Inter', system-ui, sans-serif; letter-spacing: 0.02em; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="630" class="paper-bg"/>
+
+  <!-- Top bar: wordmark + url -->
+  <text x="60" y="78" class="wordmark ink">Macro Log</text>
+  <text x="1140" y="78" class="caption ink-muted" text-anchor="end">macrolog.web.app</text>
+
+  <!-- Hairline rule -->
+  <rect x="60" y="100" width="1080" height="1" fill="#E3DCCD"/>
+
+  <!-- Headline -->
+  <text x="60" y="270" class="h1 ink">Calories + protein,</text>
+  <text x="60" y="358" class="h1"><tspan class="accent-em">calmly</tspan> <tspan class="ink">tracked.</tspan></text>
+
+  <!-- Sub -->
+  <text x="60" y="430" class="body ink-soft">A quiet, private daily log. AI coach reads your data —</text>
+  <text x="60" y="466" class="body ink-soft">no ads, no data selling. Free to start. Pro $3/mo.</text>
+
+  <!-- Bottom feature row -->
+  <g transform="translate(60, 540)">
+    <circle cx="6" cy="-6" r="3" class="accent"/>
+    <text x="20" y="0" class="caption ink-soft">Daily kcal + protein rings</text>
+  </g>
+  <g transform="translate(420, 540)">
+    <circle cx="6" cy="-6" r="3" class="accent"/>
+    <text x="20" y="0" class="caption ink-soft">Measured TDEE from your data</text>
+  </g>
+  <g transform="translate(820, 540)">
+    <circle cx="6" cy="-6" r="3" class="accent"/>
+    <text x="20" y="0" class="caption ink-soft">Photo + barcode + AI</text>
+  </g>
+
+  <!-- Right-side rings composition -->
+  <g transform="translate(0, 0)">
+    <!-- kcal ring (outer accent) -->
+    <circle cx="970" cy="290" r="120" class="ring-bg" stroke-width="18"/>
+    <circle cx="970" cy="290" r="120" class="accent-stroke" stroke-width="18" stroke-linecap="round"
+      stroke-dasharray="754" stroke-dashoffset="180" transform="rotate(-90 970 290)"/>
+    <text x="970" y="282" class="num-big ink" text-anchor="middle">1,553</text>
+    <text x="970" y="316" class="caption ink-muted" text-anchor="middle">/ 2,040 kcal</text>
+
+    <!-- protein ring (smaller sage, overlapping bottom-right) -->
+    <circle cx="1110" cy="400" r="60" class="paper-bg" stroke="#FAF7F2" stroke-width="6"/>
+    <circle cx="1110" cy="400" r="60" class="ring-bg" stroke-width="12"/>
+    <circle cx="1110" cy="400" r="60" class="sage-stroke" stroke-width="12" stroke-linecap="round"
+      stroke-dasharray="377" stroke-dashoffset="30" transform="rotate(-90 1110 400)"/>
+    <text x="1110" y="408" class="num-mid ink" text-anchor="middle">138g</text>
+  </g>
+</svg>

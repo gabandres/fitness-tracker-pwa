@@ -1,0 +1,21 @@
+{
+  "name": "@lmdb/lmdb-win32-arm64",
+  "version": "3.5.1",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "license": "MIT",
+  "author": "Kris Zyp",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/kriszyp/lmdb-js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kriszyp/lmdb-js/issues"
+  },
+  "homepage": "https://github.com/kriszyp/lmdb-js#readme",
+  "description": "Platform specific binary for lmdb on win32 OS with arm64 architecture"
+}

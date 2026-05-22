@@ -1,0 +1,1 @@
+import{V as t,qa as r}from"./chunk-OGSDBB27.js";var s=(()=>{class e{_openCount=r(0);requestOpenCount=this._openCount.asReadonly();openSubscribe(n){console.log(`[upsell] open Subscribe from ${n}`),this._openCount.update(o=>o+1)}static \u0275fac=function(o){return new(o||e)};static \u0275prov=t({token:e,factory:e.\u0275fac,providedIn:"root"})}return e})();export{s as a};

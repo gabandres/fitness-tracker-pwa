@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#f4f0e8"/>
+
+  <circle cx="256" cy="256" r="174" fill="none" stroke="#c8b8a0" stroke-width="28" opacity="0.6"/>
+
+  <circle cx="256" cy="256" r="174"
+          fill="none"
+          stroke="#6e121a"
+          stroke-width="28"
+          stroke-dasharray="853 240"
+          transform="rotate(-90 256 256)"/>
+
+  <g fill="#1a1816" font-family="Georgia, 'Times New Roman', serif" font-weight="700">
+    <text x="256" y="302"
+          font-size="196"
+          text-anchor="middle"
+          font-style="italic">M</text>
+  </g>
+
+  <circle cx="256" cy="352" r="9" fill="#6e121a"/>
+</svg>

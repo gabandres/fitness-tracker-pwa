@@ -1,0 +1,1 @@
+async function e(r){if(typeof navigator<"u"&&typeof navigator.share=="function")try{return await navigator.share(r),"native"}catch(a){if(a?.name==="AbortError")return"native"}if(typeof navigator<"u"&&navigator.clipboard?.writeText)try{return await navigator.clipboard.writeText(r.url),"clipboard"}catch{}return"failed"}export{e as a};

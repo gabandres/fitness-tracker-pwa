@@ -1,0 +1,25 @@
+
+# 2026-04-15 16:15:26.193884
++No
+
+# 2026-04-15 16:16:03.159777
++https://www.aihero.dev/5-agent-skills-i-use-every-day - go to this website and extract all these 5 skills that are from Claude Code and incorporate them.
+
+# 2026-04-15 16:16:08.050731
++Yes
+
+# 2026-04-15 16:18:12.891937
++listmodels
+
+# 2026-04-15 16:18:20.503168
++ListModels
+
+# 2026-04-15 16:21:39.163357
++curl -X GET "https://context7.com/api/v2/libs/search?libraryName=next.js&query=setup+ssr" \
++  -H "Authorization: Bearer CONTEXT7_API_KEY"
+
+# 2026-04-15 16:21:41.252977
++y
+
+# 2026-04-15 16:28:50.694583
++yes

@@ -1,0 +1,14 @@
+import { LucideIconData } from './types';
+/**
+ * @component @name ZodiacAquarius
+ * @description Lucide SVG icon component, renders SVG Element with children.
+ *
+ * @preview ![img](data:image/svg+xml;base64,PHN2ZyAgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIgogIHdpZHRoPSIyNCIKICBoZWlnaHQ9IjI0IgogIHZpZXdCb3g9IjAgMCAyNCAyNCIKICBmaWxsPSJub25lIgogIHN0cm9rZT0iIzAwMCIgc3R5bGU9ImJhY2tncm91bmQtY29sb3I6ICNmZmY7IGJvcmRlci1yYWRpdXM6IDJweCIKICBzdHJva2Utd2lkdGg9IjIiCiAgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIgogIHN0cm9rZS1saW5lam9pbj0icm91bmQiCj4KICA8cGF0aCBkPSJtMiAxMCAyLjQ1Ni0zLjY4NGEuNy43IDAgMCAxIDEuMTA2LS4wMTNsMi4zOSAzLjQxM2EuNy43IDAgMCAwIDEuMDk2LS4wMDFsMi40MDItMy40MzJhLjcuNyAwIDAgMSAxLjA5OCAwbDIuNDAyIDMuNDMyYS43LjcgMCAwIDAgMS4wOTggMGwyLjM4OS0zLjQxM2EuNy43IDAgMCAxIDEuMTA2LjAxM0wyMiAxMCIgLz4KICA8cGF0aCBkPSJtMiAxOC4wMDIgMi40NTYtMy42ODRhLjcuNyAwIDAgMSAxLjEwNi0uMDEzbDIuMzkgMy40MTNhLjcuNyAwIDAgMCAxLjA5NyAwbDIuNDAyLTMuNDMyYS43LjcgMCAwIDEgMS4wOTggMGwyLjQwMiAzLjQzMmEuNy43IDAgMCAwIDEuMDk4IDBsMi4zODktMy40MTNhLjcuNyAwIDAgMSAxLjEwNi4wMTNMMjIgMTguMDAyIiAvPgo8L3N2Zz4K) - https://lucide.dev/icons/zodiac-aquarius
+ * @see https://lucide.dev/guide/packages/lucide-vue-next - Documentation
+ *
+ * @param {Object} props - Lucide icons props and any valid SVG attribute
+ * @returns {FunctionalComponent} Vue component
+ *
+ */
+declare const ZodiacAquarius: LucideIconData;
+export default ZodiacAquarius;
