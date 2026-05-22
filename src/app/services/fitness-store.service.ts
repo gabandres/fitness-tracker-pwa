@@ -12,6 +12,7 @@ import {
 } from './firebase.service';
 import { TdeeCalculatorService, TdeeResult, WeeklySummary, WeeklyEnvelope } from './tdee-calculator.service';
 import { localDateKey } from '../utils/date';
+import { summarizeDay } from '../utils/day-summary';
 import { GeminiService } from './gemini.service';
 import { SubscriptionService } from './subscription.service';
 import { TranslationService } from './translation.service';
