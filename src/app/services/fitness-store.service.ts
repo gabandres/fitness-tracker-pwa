@@ -88,11 +88,44 @@ export class FitnessStore {
   private readonly analytics = inject(AnalyticsService);
 
   // ─── Private mutable state ──────────────────────────────────
+  /**
+   * Rolling 14-ROW window of recent logs, NOT a 14-DAY window.
+   * Sourced from `fb.getRecentLogs(14)` on load/refresh — the cap is on
+   * row count, so a heavy logger (5 entries/day) may only reach ~3 days
+   * back while a sparse logger may span weeks.
+   *
+   * DO NOT treat this as a calendar window. Anything that needs "last
+   * N days" must go through `logsForLastDays(n)` / `logsForLastDaysSync(n)`,
+   * which await `_allTimeLogs` hydration first.
+   *
+   * Intended consumers: today summary, streak, weekly summary/envelope,
+   * recent meal labels, undo cache — all of which only care about the
+   * latest activity, not a fixed calendar span.
+   *
+   * Hydration: populated synchronously after `_load()` resolves.
+   */
   private readonly _logs = signal<DailyLog[]>([]);
   private readonly _presets = signal<MealPreset[]>([]);
   private readonly _status = signal<StoreStatus>('idle');
   private readonly _error = signal<string | null>(null);
+  /**
+   * Uncapped lifetime log history. Loaded lazily via `_loadAllTimeLogs`
+   * (called from `_load`) so the rolling-window UI can render immediately
+   * without blocking on the full pull.
+   *
+   * Hydration: starts empty; `_loadAllTimeLogs()` fills it after sign-in
+   * and after every mutating refresh. Consumers that read this directly
+   * must either tolerate an empty array on first paint or await
+   * `_loadAllTimeLogs()` themselves. Prefer the typed query helpers
+   * (`logsForLastDays`, `isHistoryHydrated`) over reading the signal
+   * directly.
+   *
+   * Intended consumers: calendar-window queries, CSV export, monthly
+   * summary, goal-progress starting weight, weekly-report milestones.
+   */
   private readonly _allTimeLogs = signal<DailyLog[]>([]);
+  /** Flips true after `_loadAllTimeLogs` resolves at least once per session. */
+  private readonly _allTimeLogsHydrated = signal(false);
   private readonly _weeklyReport = signal<WeeklyReport | null>(null);
   private readonly _reportLoading = signal(false);
   private readonly _reportError = signal<string | null>(null);
@@ -234,7 +267,9 @@ export class FitnessStore {
     return { formulaTdee: formulaResult.trueTdee, measuredTdee: tdee.trueTdee, diffPct };
   });
 
-  /** Most recent non-null weight (daily weights first, then log weights). */
+  /** Most recent non-null weight (daily weights first, then log weights).
+   *  ROWS-intent on `_logs` — only needs the newest weighted entry; the
+   *  14-ROW window always contains the most recent activity. */
   readonly currentWeight: Signal<number | null> = computed(() => {
     const dw = this._dailyWeights();
     const keys = Object.keys(dw).sort();
@@ -286,10 +321,17 @@ export class FitnessStore {
   readonly streak: Signal<number> = computed(() => this.streakResult().streak);
   readonly streakFreezeUsed: Signal<boolean> = computed(() => this.streakResult().freezeUsed);
 
+  /** DAYS-intent (7-day calendar window) — reads from rows-capped `_logs`
+   *  today for synchronicity; tolerable because the calc re-filters by
+   *  date internally and 14 rows usually covers 7 days. Heavy loggers
+   *  could under-count; flagged for the same migration as
+   *  `weeklyEnvelope`. */
   readonly weekly: Signal<WeeklySummary | null> = computed(() =>
     this.calc.weeklySummary(this.mergeDailyWeights(this._logs()), this.targetCalories()),
   );
 
+  /** DAYS-intent (7-day calendar window) — see `weekly` for the same
+   *  rows-vs-days caveat. */
   readonly envelope: Signal<WeeklyEnvelope | null> = computed(() =>
     this.calc.weeklyEnvelope(this._logs(), this.targetCalories()),
   );
@@ -422,13 +464,71 @@ export class FitnessStore {
     return out;
   }
 
-  /** Logs for an arbitrary date key, sorted newest-first. Same fallback strategy as `summaryFor`. */
+  /**
+   * Logs that fall on a given local-date key (`YYYY-MM-DD`), sorted
+   * newest-first. Searches the rolling 14-ROW window first, then falls
+   * back to the tier-gated `allTimeLogs` (free: ≤90 days, Pro: lifetime).
+   *
+   * Synchronous — returns `[]` rather than awaiting hydration. For a
+   * deterministic multi-day window use `logsForLastDays(n)`.
+   */
   logsForDay(dateKey: string): DailyLog[] {
     let list = this._logs().filter((l) => localDateKey(l.date) === dateKey);
     if (list.length === 0) {
       list = this.allTimeLogs().filter((l) => localDateKey(l.date) === dateKey);
     }
     return [...list].sort((a, b) => +b.date - +a.date);
+  }
+
+  /** True once `_allTimeLogs` has been hydrated at least once this session. */
+  isHistoryHydrated(): boolean {
+    return this._allTimeLogsHydrated();
+  }
+
+  /**
+   * Last N local-date keys ending today, oldest-first. Deterministic
+   * shape so callers iterating the window get the same calendar slots
+   * regardless of whether any of those days had logs.
+   */
+  private windowCalendarKeys(n: number): string[] {
+    const out: string[] = [];
+    const today = new Date();
+    for (let i = n - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      out.push(localDateKey(d));
+    }
+    return out;
+  }
+
+  /**
+   * Logs whose local-date falls within the last N calendar days ending
+   * today (today inclusive). Awaits `_allTimeLogs` hydration on first
+   * call so a heavy logger doesn't get the 14-ROW cap held in the rolling
+   * `_logs` window mistaken for a 14-DAY span.
+   *
+   * Use this — not `_logs().filter(date >= cutoff)` — for any calendar-
+   * bounded slice. Returns logs oldest-first (matching `_allTimeLogs`'s
+   * own ordering).
+   */
+  async logsForLastDays(n: number): Promise<DailyLog[]> {
+    if (!this._allTimeLogsHydrated()) {
+      await this._loadAllTimeLogs();
+    }
+    const keys = new Set(this.windowCalendarKeys(n));
+    return this._allTimeLogs().filter((l) => keys.has(localDateKey(l.date)));
+  }
+
+  /**
+   * Synchronous variant of `logsForLastDays`. ASSUMES `_allTimeLogs` is
+   * already hydrated — caller MUST check `isHistoryHydrated()` first.
+   * Returns `[]` when history hasn't loaded yet (NOT a fallback to
+   * `_logs()` — that would re-introduce the row-vs-day footgun).
+   */
+  logsForLastDaysSync(n: number): DailyLog[] {
+    if (!this._allTimeLogsHydrated()) return [];
+    const keys = new Set(this.windowCalendarKeys(n));
+    return this._allTimeLogs().filter((l) => keys.has(localDateKey(l.date)));
   }
 
   /** Long-term summary computed from all-time logs (loaded on demand).
@@ -911,6 +1011,7 @@ export class FitnessStore {
     try {
       const all = await this.fb.getRecentLogs(9999);
       this._allTimeLogs.set(all);
+      this._allTimeLogsHydrated.set(true);
     } catch { /* non-critical */ }
   }
 
@@ -926,15 +1027,11 @@ export class FitnessStore {
       // All-time signals fuel the quiet-milestone line in the report.
       // Use the internal uncapped signal (not the 90-day-windowed public
       // `allTimeLogs`) so milestones track lifetime, not visible history.
-      // Await hydration if `_loadAllTimeLogs` is still in flight — silently
+      // `logsForLastDays` hydrates `_allTimeLogs` on demand — silently
       // falling back to `_logs()` (14-ROW cap, ~3 days for heavy loggers)
       // would re-introduce the bug this report was rewritten to fix.
-      if (this._allTimeLogs().length === 0) {
-        await this._loadAllTimeLogs();
-      }
+      const logs = await this.logsForLastDays(14);
       const allTime = this._allTimeLogs();
-      const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
-      const logs = allTime.filter((l) => l.date.getTime() >= fourteenDaysAgo);
       const earliestLogAt = allTime.length > 0
         ? allTime.reduce((min, l) => l.date.getTime() < min ? l.date.getTime() : min, Infinity)
         : null;
@@ -975,6 +1072,7 @@ export class FitnessStore {
     this._measurements.set([]);
     this._dailyWater.set({});
     this._allTimeLogs.set([]);
+    this._allTimeLogsHydrated.set(false);
     // Clear the first-meal latch so a different user signing in on the
     // same browser gets correctly tracked on their first entry.
     try { localStorage.removeItem(FitnessStore.FIRST_MEAL_LATCH); } catch { /* ignore */ }
