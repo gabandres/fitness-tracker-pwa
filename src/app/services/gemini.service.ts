@@ -321,7 +321,10 @@ export class GeminiService {
       lines.push(`- Weight change (14d): ${deltaStr}`);
     }
     if (lastWeight) {
-      lines.push(`- Current weight: ${lastWeight.weight} lb (${lastWeight.key})`);
+      // Label as "Most recent weigh-in" not "Current weight" so Gemini
+      // doesn't quote a 2-day-old reading as today's value when the
+      // user skipped the morning weigh-in.
+      lines.push(`- Most recent weigh-in: ${lastWeight.weight} lb (${lastWeight.key})`);
     }
     if (profile?.goalWeightLbs != null) {
       lines.push(`- Goal weight: ${profile.goalWeightLbs} lb`);

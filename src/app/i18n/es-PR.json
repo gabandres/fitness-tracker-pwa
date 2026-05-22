@@ -1080,11 +1080,6 @@
     "dayDetail": {
       "backAria": "Volver al historial",
       "dayStreak": "racha de {{n}} días",
-      "weight": "Peso",
-      "lb": "lb",
-      "notLogged": "Sin registrar",
-      "logWeight": "Registrar peso",
-      "editWeight": "Editar peso",
       "addFoodAria": "Añadir comida"
     },
     "history": {
