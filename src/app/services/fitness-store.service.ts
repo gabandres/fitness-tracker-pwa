@@ -12,6 +12,7 @@ import {
 } from './firebase.service';
 import { TdeeCalculatorService, TdeeResult, WeeklySummary, WeeklyEnvelope } from './tdee-calculator.service';
 import { localDateKey } from '../utils/date';
+import { summarizeDay } from '../utils/day-summary';
 import { GeminiService } from './gemini.service';
 import { SubscriptionService } from './subscription.service';
 import { TranslationService } from './translation.service';
@@ -383,18 +384,24 @@ export class FitnessStore {
     exercised: boolean;
     count: number;
   } | null {
-    let list = this._logs().filter((l) => localDateKey(l.date) === dateKey);
-    if (list.length === 0) {
-      list = this.allTimeLogs().filter((l) => localDateKey(l.date) === dateKey);
+    // Try the rolling 14-day window first (hot signal); fall back to
+    // the tier-gated all-time list. Both passes delegate aggregation to
+    // the shared `summarizeDay` utility so this method and the weekly-
+    // report prompt builder agree on totals byte-for-byte.
+    const weights = this._dailyWeights();
+    let s = summarizeDay(dateKey, this._logs(), weights);
+    if (s.mealCount === 0) {
+      s = summarizeDay(dateKey, this.allTimeLogs(), weights);
     }
-    if (list.length === 0) return null;
+    if (s.mealCount === 0) return null;
+    // `count` is the established public field name on this store method;
+    // expose `mealCount` under that alias to keep existing consumers
+    // (history component, day-summary card, etc.) unchanged.
     return {
-      totalCalories: list.reduce((s, l) => s + l.calories, 0),
-      totalProtein: Math.round(list.reduce((s, l) => s + (l.protein ?? 0), 0)),
-      exercised: list.some(
-        (l) => l.exerciseCompleted ?? l.liftCompleted ?? l.cardioCompleted,
-      ),
-      count: list.length,
+      totalCalories: s.totalCalories,
+      totalProtein: s.totalProtein,
+      exercised: s.exercised,
+      count: s.mealCount,
     };
   }
 
