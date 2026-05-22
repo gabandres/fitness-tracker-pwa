@@ -22,6 +22,7 @@ import { SettingsSheetComponent } from './components/settings-sheet/settings-she
 import { AuthService } from './services/auth.service';
 import { LEDGER_PORT } from './ledger/ports/ledger.port';
 import { FitnessStore } from './services/fitness-store.service';
+import { WeeklyReportStore } from './services/weekly-report-store.service';
 import { SubscriptionService } from './services/subscription.service';
 import { ThemeChoice, PRO_THEMES, isProTheme, readStoredTheme, writeStoredTheme } from './utils/theme';
 import { localDateKey } from './utils/date';
@@ -456,6 +457,11 @@ export class App {
   protected readonly auth = inject(AuthService);
   protected readonly firebase = inject(LEDGER_PORT);
   protected readonly store = inject(FitnessStore); // triggers lifecycle via constructor effect
+  // Eagerly construct WeeklyReportStore so its constructor wires its
+  // refresh/clear hooks into FitnessStore before the first _load() runs.
+  // Otherwise a sign-in that completes before any /trends visit would
+  // skip the staleness check.
+  private readonly _weeklyReport = inject(WeeklyReportStore);
   protected readonly subs = inject(SubscriptionService);
   private readonly upsell = inject(UpsellService);
   private readonly analytics = inject(AnalyticsService);

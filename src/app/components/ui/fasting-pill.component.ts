@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
-import { FitnessStore } from '../../services/fitness-store.service';
+import { FastingStore } from '../../services/fasting-store.service';
 import { TranslationService } from '../../services/translation.service';
 
 /**
@@ -40,7 +40,7 @@ import { TranslationService } from '../../services/translation.service';
   `,
 })
 export class UiFastingPill implements OnInit, OnDestroy {
-  protected readonly store = inject(FitnessStore);
+  protected readonly store = inject(FastingStore);
   private readonly translation = inject(TranslationService);
 
   readonly bodyRequested = output<void>();

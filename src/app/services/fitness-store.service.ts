@@ -7,17 +7,13 @@ import {
   MealPreset,
   ProfileFields,
   UserProfile,
-  WeeklyReport,
-  Measurement,
 } from './firebase.service';
 import { TdeeCalculatorService, TdeeResult, WeeklySummary, WeeklyEnvelope } from './tdee-calculator.service';
 import { addDays, localDateKey } from '../utils/date';
 import { summarizeDay } from '../utils/day-summary';
-import { GeminiService } from './gemini.service';
 import { SubscriptionService } from './subscription.service';
-import { TranslationService } from './translation.service';
-import { AnalyticsService } from './analytics.service';
-import { extractErrorCode } from '../models/error-codes';
+import { BodyMetricStore } from './body-metric-store.service';
+import { MilestoneTracker } from './milestone-tracker.service';
 
 export type StoreStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -67,26 +63,28 @@ export interface TodaySummary {
 }
 
 /**
- * Single reactive data layer for the entire app. Owns the canonical
- * log + preset cache, all derived computations (TDEE, streak, weekly,
- * EMA, goal progress, today summary), and mutation methods that
- * auto-refresh all consumers via Angular signals.
+ * Hub for the canonical log + preset cache plus all derived computations
+ * (TDEE, streak, weekly, EMA, goal progress, today summary, monthly,
+ * etc.) and log mutations. Three sibling stores own focused facets:
  *
- * Components inject this one service and read signals. They never
- * call LEDGER_PORT or TdeeCalculatorService directly.
+ *   - `FastingStore`        — fasting start/end + active boolean
+ *   - `BodyMetricStore`     — weights, water, measurements
+ *   - `WeeklyReportStore`   — AI report state + generation flow
+ *   - `MilestoneTracker`    — first-meal latch + lifetime milestones
  *
- * Lifecycle: loads on sign-in, clears on sign-out — driven by an
- * effect watching AuthService.isSignedIn().
+ * Components inject whichever store(s) they need; FitnessStore stays the
+ * single source for derivations and coordinates the load lifecycle —
+ * its sign-in effect calls into `BodyMetricStore.hydrate(...)` and
+ * `WeeklyReportStore.clear()` so the four stores stay in sync.
  */
 @Injectable({ providedIn: 'root' })
 export class FitnessStore {
   private readonly auth = inject(AuthService);
   private readonly fb = inject(LEDGER_PORT);
   private readonly calc = inject(TdeeCalculatorService);
-  private readonly gemini = inject(GeminiService);
   private readonly subs = inject(SubscriptionService);
-  private readonly translation = inject(TranslationService);
-  private readonly analytics = inject(AnalyticsService);
+  private readonly body = inject(BodyMetricStore);
+  private readonly milestones = inject(MilestoneTracker);
 
   // ─── Private mutable state ──────────────────────────────────
   /**
@@ -111,15 +109,9 @@ export class FitnessStore {
    * truth for any calendar-day-windowed query.
    */
   private readonly _allTimeLogs = signal<DailyLog[]>([]);
-  private readonly _weeklyReport = signal<WeeklyReport | null>(null);
-  private readonly _reportLoading = signal(false);
-  private readonly _reportError = signal<string | null>(null);
   /** Surfaced once per day when the user first crosses their daily
       calorie budget. Cleared on ack or on day rollover. */
   private readonly _budgetCrossed = signal(false);
-  private readonly _measurements = signal<Measurement[]>([]);
-  private readonly _dailyWeights = signal<Record<string, number>>({});
-  private readonly _dailyWater = signal<Record<string, number>>({});
   private readonly _undoEntry = signal<DailyLog | null>(null);
   private _undoTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -129,15 +121,7 @@ export class FitnessStore {
   readonly profile: Signal<UserProfile | null> = this.fb.profile;
   readonly status: Signal<StoreStatus> = this._status.asReadonly();
   readonly undoEntry: Signal<DailyLog | null> = this._undoEntry.asReadonly();
-  readonly weeklyReport: Signal<WeeklyReport | null> = this._weeklyReport.asReadonly();
-  readonly reportLoading: Signal<boolean> = this._reportLoading.asReadonly();
-  readonly reportError: Signal<string | null> = this._reportError.asReadonly();
   readonly budgetCrossed: Signal<boolean> = this._budgetCrossed.asReadonly();
-  readonly measurements: Signal<Measurement[]> = this._measurements.asReadonly();
-  readonly dailyWeights: Signal<Record<string, number>> = this._dailyWeights.asReadonly();
-  readonly dailyWater: Signal<Record<string, number>> = this._dailyWater.asReadonly();
-  readonly latestMeasurement: Signal<Measurement | null> = computed(() => this._measurements()[0] ?? null);
-  readonly previousMeasurement: Signal<Measurement | null> = computed(() => this._measurements()[1] ?? null);
   /**
    * Last 5 unique meal labels, newest first, from the current loaded
    * logs window (`FitnessStore._load()` fetches `getRecentLogs(14)`, a
@@ -168,13 +152,6 @@ export class FitnessStore {
     return out;
   });
 
-  readonly measurementDeltas: Signal<{ waist?: number; chest?: number; bicep?: number; hip?: number } | null> = computed(() => {
-    const latest = this.latestMeasurement();
-    const prev = this.previousMeasurement();
-    if (!latest || !prev) return null;
-    const delta = (a?: number, b?: number) => (a != null && b != null) ? +(a - b).toFixed(1) : undefined;
-    return { waist: delta(latest.waist, prev.waist), chest: delta(latest.chest, prev.chest), bicep: delta(latest.bicep, prev.bicep), hip: delta(latest.hip, prev.hip) };
-  });
   readonly error: Signal<string | null> = this._error.asReadonly();
 
   // ─── Profile fields extraction (single source of truth) ─────
@@ -192,6 +169,20 @@ export class FitnessStore {
     };
   });
 
+  /** Public projection of the extracted profile-fields object — read by
+   *  WeeklyReportStore when assembling the Gemini prompt. */
+  profileFields(): ProfileFields | null {
+    return this._profileFields();
+  }
+
+  /** Raw uncapped lifetime log cache (no tier-gating). Used by
+   *  WeeklyReportStore for milestone math — paid status shouldn't
+   *  change a milestone's truth. UI consumers should still read the
+   *  tier-gated `allTimeLogs` signal. */
+  rawAllTimeLogs(): DailyLog[] {
+    return this._allTimeLogs();
+  }
+
   /** True when the user has travel mode enabled (target = maintenance). */
   readonly travelMode: Signal<boolean> = computed(() =>
     this.fb.profile()?.travelMode === true,
@@ -206,7 +197,7 @@ export class FitnessStore {
    *  daily-weight-only users. Returns the original array when there are
    *  no daily weights to overlay. */
   private mergeDailyWeights(logs: DailyLog[]): DailyLog[] {
-    const dw = this._dailyWeights();
+    const dw = this.body.dailyWeights();
     if (Object.keys(dw).length === 0) return logs;
     return logs.map((l) => {
       const w = dw[localDateKey(l.date)];
@@ -254,7 +245,7 @@ export class FitnessStore {
 
   /** Most recent non-null weight (daily weights first, then log weights). */
   readonly currentWeight: Signal<number | null> = computed(() => {
-    const dw = this._dailyWeights();
+    const dw = this.body.dailyWeights();
     const keys = Object.keys(dw).sort();
     if (keys.length > 0) return dw[keys[keys.length - 1]];
     const list = this._logs();
@@ -342,7 +333,7 @@ export class FitnessStore {
     //      had `start === current` from day one.
     // Now: prefer the oldest dailyWeights entry, then fall back to the
     // oldest all-time log with a weight, then the current reading.
-    const dw = this._dailyWeights();
+    const dw = this.body.dailyWeights();
     const dwKeys = Object.keys(dw).sort();
     let start: number | null = dwKeys.length > 0 ? dw[dwKeys[0]] : null;
     if (start == null) {
@@ -405,7 +396,7 @@ export class FitnessStore {
     // the tier-gated all-time list. Both passes delegate aggregation to
     // the shared `summarizeDay` utility so this method and the weekly-
     // report prompt builder agree on totals byte-for-byte.
-    const weights = this._dailyWeights();
+    const weights = this.body.dailyWeights();
     let s = summarizeDay(dateKey, this._logs(), weights);
     if (s.mealCount === 0) {
       s = summarizeDay(dateKey, this.allTimeLogs(), weights);
@@ -462,7 +453,7 @@ export class FitnessStore {
    *  derive from logs. The window spans whichever source reaches further. */
   readonly monthlySummary: Signal<MonthlySummary | null> = computed(() => {
     const logs = this._allTimeLogs();
-    const dw = this._dailyWeights();
+    const dw = this.body.dailyWeights();
     const dwKeys = Object.keys(dw).sort();
     if (logs.length < 7 && dwKeys.length < 7) return null;
 
@@ -513,6 +504,23 @@ export class FitnessStore {
   }
 
   // ─── Lifecycle ──────────────────────────────────────────────
+  /**
+   * Hook invoked from `_load()` after the staleness check has run.
+   * WeeklyReportStore sets this to its `checkWeeklyReport` bound method
+   * during its own construction to break the circular DI between the
+   * two stores (WeeklyReportStore depends on FitnessStore for logs and
+   * derivations; FitnessStore needs to kick it after a load).
+   */
+  private weeklyReportRefreshHook: (() => Promise<void>) | null = null;
+  private weeklyReportClearHook: (() => void) | null = null;
+
+  /** Wire the WeeklyReportStore's callbacks into the FitnessStore
+   *  lifecycle. Called once by WeeklyReportStore in its constructor. */
+  _registerWeeklyReportHooks(refresh: () => Promise<void>, clear: () => void): void {
+    this.weeklyReportRefreshHook = refresh;
+    this.weeklyReportClearHook = clear;
+  }
+
   constructor() {
     effect(() => {
       // Wait for both sign-in AND email verification before hitting
@@ -555,27 +563,7 @@ export class FitnessStore {
     this.fb.profile()?.webhookApiKey ?? null,
   );
 
-  /** The fasting start time, or null if not fasting. */
-  readonly fastStartedAt: Signal<Date | null> = computed(() => {
-    const p = this.fb.profile();
-    if (!p) return null;
-    const raw = (p as any).fastStartedAt;
-    if (!raw) return null;
-    // Could be a Firestore Timestamp or a Date depending on how it was read.
-    return raw instanceof Date ? raw : raw.toDate?.() ?? null;
-  });
-
-  readonly isFasting: Signal<boolean> = computed(() => this.fastStartedAt() !== null);
-
   // ─── Mutations (fire-and-forget, auto-refresh) ──────────────
-  async startFast(startedAt?: Date): Promise<void> {
-    await this.fb.startFast(startedAt);
-  }
-
-  async breakFast(): Promise<void> {
-    await this.fb.breakFast();
-  }
-
   async generateWebhookApiKey(): Promise<string> {
     return this.fb.generateWebhookApiKey();
   }
@@ -591,52 +579,19 @@ export class FitnessStore {
     // the computed _profileFields → tdee → targetCalories chain.
   }
 
-  async setDailyWeight(dateKey: string, weight: number): Promise<void> {
-    await this.fb.setDailyWeight(dateKey, weight);
-    this._dailyWeights.update((prev) => ({ ...prev, [dateKey]: weight }));
-  }
-
-  /** Overwrite the water intake total for a specific day (ml). */
-  async setDailyWater(dateKey: string, ml: number): Promise<void> {
-    const clamped = Math.max(0, Math.min(20000, Math.round(ml)));
-    await this.fb.setDailyWater(dateKey, clamped);
-    this._dailyWater.update((prev) => ({ ...prev, [dateKey]: clamped }));
-  }
-
-  /** Increment water intake for a specific day by `deltaMl`. Computes
-      the next total client-side from the current signal value — no
-      transactional read/modify/write since a single-user app doesn't
-      have concurrent writers for the same day. */
-  async addWater(dateKey: string, deltaMl: number): Promise<void> {
-    const current = this._dailyWater()[dateKey] ?? 0;
-    await this.setDailyWater(dateKey, current + deltaMl);
-  }
-
   async addLog(entry: LogEntry): Promise<void> {
     // Snapshot pre-state so we can fire `first_meal_logged` exactly
     // once per account. Both signals must be empty: `_logs` covers the
     // 14-day rolling window, `_allTimeLogs` (loaded after _load) covers
     // the rest. If either has any rows the user has logged before.
-    // Persist the latch to localStorage as a belt-and-suspenders against
-    // double-fire from a concurrent reload before _allTimeLogs hydrates.
-    const isFirst =
-      this._logs().length === 0 &&
-      this._allTimeLogs().length === 0 &&
-      !this._firstMealLatchSet();
+    // MilestoneTracker also persists a localStorage latch as belt-and-
+    // suspenders against double-fire from a concurrent reload before
+    // `_allTimeLogs` hydrates.
+    const recentLogsEmpty = this._logs().length === 0;
+    const allTimeLogsEmpty = this._allTimeLogs().length === 0;
     await this.fb.addLog(entry);
     await this._refreshLogs();
-    if (isFirst) {
-      this._setFirstMealLatch();
-      this.analytics.track('first_meal_logged');
-    }
-  }
-
-  private static readonly FIRST_MEAL_LATCH = 'macrolog.first-meal-tracked';
-  private _firstMealLatchSet(): boolean {
-    try { return !!localStorage.getItem(FitnessStore.FIRST_MEAL_LATCH); } catch { return false; }
-  }
-  private _setFirstMealLatch(): void {
-    try { localStorage.setItem(FitnessStore.FIRST_MEAL_LATCH, '1'); } catch { /* ignore */ }
+    this.milestones.checkFirstMeal({ recentLogsEmpty, allTimeLogsEmpty });
   }
 
   /**
@@ -829,16 +784,6 @@ export class FitnessStore {
     this._presets.set(await this.fb.getPresets());
   }
 
-  async addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<void> {
-    await this.fb.addMeasurement(entry);
-    this._measurements.set(await this.fb.getRecentMeasurements());
-  }
-
-  async deleteMeasurement(id: string): Promise<void> {
-    await this.fb.deleteMeasurement(id);
-    this._measurements.set(await this.fb.getRecentMeasurements());
-  }
-
   async deletePreset(id: string): Promise<void> {
     await this.fb.deletePreset(id);
     this._presets.set(await this.fb.getPresets());
@@ -873,13 +818,11 @@ export class FitnessStore {
       ]);
       this._logs.set(logs);
       this._presets.set(presets);
-      this._measurements.set(measurements);
-      this._dailyWeights.set(dailyWeights);
-      this._dailyWater.set(dailyWater);
+      this.body.hydrate({ measurements, dailyWeights, dailyWater });
       this._status.set('ready');
 
       // Fire-and-forget background tasks.
-      this._checkWeeklyReport();
+      void this.weeklyReportRefreshHook?.();
       this._loadAllTimeLogs();
     } catch (err) {
       this._error.set(err instanceof Error ? err.message : 'Load failed.');
@@ -899,35 +842,14 @@ export class FitnessStore {
    *  would unmount the dashboard after a successful write. */
   private async _refreshLogs(): Promise<void> {
     try {
-      // `_logs.set` must precede `_checkWeeklyReport` — the latter
+      // `_logs.set` must precede the weekly-report hook — the latter
       // reads `this._logs()` when deciding whether to autogenerate.
       this._logs.set(await this.fb.getRecentLogs(14));
       this._loadAllTimeLogs();
-      this._checkWeeklyReport();
+      void this.weeklyReportRefreshHook?.();
     } catch (err) {
       this._error.set(err instanceof Error ? err.message : 'Refresh failed.');
       throw err;
-    }
-  }
-
-  private async _checkWeeklyReport(): Promise<void> {
-    try {
-      const report = await this.fb.getLatestReport();
-      this._weeklyReport.set(report);
-
-      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-      const isStale = !report || report.generatedAt.getTime() < sevenDaysAgo;
-
-      // Weekly report is a Pro feature. The client-side gate below is
-      // cosmetic — real enforcement lives in the `generateWeeklyReport`
-      // Cloud Function (entitlement check + 6-day rate limit + server-
-      // only writes via admin SDK). Past reports stay readable for
-      // users who dropped off Pro; only NEW generations are gated.
-      if (isStale && this._logs().length >= 3 && this.subs.isPaid()) {
-        await this.generateWeeklyReport();
-      }
-    } catch (err) {
-      console.error('Weekly report check failed:', err);
     }
   }
 
@@ -993,51 +915,6 @@ export class FitnessStore {
     return this._allTimeLogs().length > 0;
   }
 
-  async generateWeeklyReport(): Promise<void> {
-    if (this._reportLoading()) return;
-    // Pro gate — see _checkWeeklyReport for rationale.
-    if (!this.subs.isPaid()) return;
-    this._reportLoading.set(true);
-    this._reportError.set(null);
-    try {
-      const tdee = this.tdee();
-      const profile = this._profileFields();
-      // All-time signals fuel the quiet-milestone line in the report.
-      // Use the internal uncapped signal (not the 90-day-windowed public
-      // `allTimeLogs`) so milestones track lifetime, not visible history.
-      // `logsForLastDays(14)` hydrates `_allTimeLogs` if needed, then
-      // filters by local-date key — silently falling back to `_logs()`
-      // (14-ROW cap, ~3 days for heavy loggers) would re-introduce the
-      // bug this report was rewritten to fix.
-      const logs = await this.logsForLastDays(14);
-      const allTime = this._allTimeLogs();
-      const earliestLogAt = allTime.length > 0
-        ? allTime.reduce((min, l) => l.date.getTime() < min ? l.date.getTime() : min, Infinity)
-        : null;
-      const milestoneContext = {
-        totalLogs: allTime.length,
-        earliestLogAt: earliestLogAt != null && isFinite(earliestLogAt) ? new Date(earliestLogAt) : null,
-        currentStreak: this.streak(),
-      };
-      const result = await this.gemini.generateWeeklyReport(logs, tdee, profile, this._dailyWeights(), milestoneContext);
-      this._weeklyReport.set({
-        id: result.id,
-        markdown: result.markdown,
-        generatedAt: new Date(result.generatedAt),
-      });
-    } catch (err) {
-      console.error('Weekly report generation failed:', err);
-      const code = extractErrorCode(err);
-      this._reportError.set(this.translation.tError(code));
-    } finally {
-      this._reportLoading.set(false);
-    }
-  }
-
-  clearReportError(): void {
-    this._reportError.set(null);
-  }
-
   private _clear(): void {
     this._logs.set([]);
     this._presets.set([]);
@@ -1045,14 +922,11 @@ export class FitnessStore {
     this._error.set(null);
     if (this._undoTimer) clearTimeout(this._undoTimer);
     this._undoEntry.set(null);
-    this._weeklyReport.set(null);
-    this._reportLoading.set(false);
-    this._reportError.set(null);
-    this._measurements.set([]);
-    this._dailyWater.set({});
+    this.weeklyReportClearHook?.();
+    this.body.clear();
     this._allTimeLogs.set([]);
     // Clear the first-meal latch so a different user signing in on the
     // same browser gets correctly tracked on their first entry.
-    try { localStorage.removeItem(FitnessStore.FIRST_MEAL_LATCH); } catch { /* ignore */ }
+    this.milestones.clearFirstMealLatch();
   }
 }

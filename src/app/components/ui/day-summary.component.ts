@@ -9,6 +9,7 @@ import {
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
+import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { TranslationService } from '../../services/translation.service';
 import type { DailyLog } from '../../services/firebase.service';
@@ -225,6 +226,7 @@ import { UiWeightSheet } from './weight-sheet.component';
 })
 export class UiDaySummary {
   protected readonly store = inject(FitnessStore);
+  protected readonly body = inject(BodyMetricStore);
   private readonly entryForm = inject(EntryFormManager);
   private readonly translation = inject(TranslationService);
 
@@ -265,13 +267,13 @@ export class UiDaySummary {
   protected readonly exercised = computed(() => this.summary()?.exercised ?? false);
 
   protected readonly waterMl = computed(
-    () => this.store.dailyWater()[this.dateKey()] ?? 0,
+    () => this.body.dailyWater()[this.dateKey()] ?? 0,
   );
 
   protected readonly weightSheetOpen = signal(false);
 
   protected readonly loggedWeight = computed<number | null>(() => {
-    const w = this.store.dailyWeights()[this.dateKey()];
+    const w = this.body.dailyWeights()[this.dateKey()];
     return typeof w === 'number' ? w : null;
   });
 
@@ -309,7 +311,7 @@ export class UiDaySummary {
   protected addWater(deltaMl: number): void {
     if (!this.editable()) return;
     this.haptic(10);
-    void this.store.addWater(this.dateKey(), deltaMl);
+    void this.body.addWater(this.dateKey(), deltaMl);
   }
 
   protected readonly editingWater = signal(false);
@@ -333,13 +335,13 @@ export class UiDaySummary {
     const n = this.waterEditInput();
     if (n == null || n < 0) return;
     this.haptic(30);
-    void this.store.setDailyWater(this.dateKey(), Math.round(n));
+    void this.body.setDailyWater(this.dateKey(), Math.round(n));
     this.editingWater.set(false);
   }
 
   protected clearWater(): void {
     this.haptic(30);
-    void this.store.setDailyWater(this.dateKey(), 0);
+    void this.body.setDailyWater(this.dateKey(), 0);
     this.editingWater.set(false);
   }
 

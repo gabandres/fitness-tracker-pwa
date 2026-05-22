@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
-import { FitnessStore } from '../../services/fitness-store.service';
+import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { TranslationService } from '../../services/translation.service';
 import { localDateKey } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
@@ -93,7 +93,7 @@ import { UiButton } from './button.component';
   `,
 })
 export class UiWeightSheet {
-  private readonly store = inject(FitnessStore);
+  private readonly store = inject(BodyMetricStore);
   private readonly translation = inject(TranslationService);
 
   readonly open = input<boolean>(false);

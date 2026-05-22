@@ -10,6 +10,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { marked } from 'marked';
 import { FitnessStore } from '../../services/fitness-store.service';
+import { WeeklyReportStore } from '../../services/weekly-report-store.service';
 import { SubscriptionService } from '../../services/subscription.service';
 import { TranslationService } from '../../services/translation.service';
 import { UpsellService } from '../../services/upsell.service';
@@ -131,9 +132,9 @@ import { UiFastingPill } from '../ui/fasting-pill.component';
         @if (reportHtml(); as html) {
           <div class="v2-prose" [innerHTML]="html"></div>
           <p class="v2-caption mt-3">{{ reportAge() }}</p>
-        } @else if (store.reportLoading()) {
+        } @else if (report.reportLoading()) {
           <p class="v2-body-soft">{{ t('v2.trends.generating') }}</p>
-        } @else if (store.reportError(); as err) {
+        } @else if (report.reportError(); as err) {
           <p class="v2-body-soft" style="color: var(--v2-danger)">{{ err }}</p>
           @if (subs.isPaid()) {
             <ui-button variant="ghost" size="sm" (click)="generate()">{{ t('v2.trends.retry') }}</ui-button>
@@ -191,6 +192,7 @@ import { UiFastingPill } from '../ui/fasting-pill.component';
 })
 export class TrendsComponent {
   protected readonly store = inject(FitnessStore);
+  protected readonly report = inject(WeeklyReportStore);
   protected readonly subs = inject(SubscriptionService);
   private readonly upsell = inject(UpsellService);
   private readonly sanitizer = inject(DomSanitizer);
@@ -225,14 +227,14 @@ export class TrendsComponent {
   });
 
   protected readonly reportHtml = computed<SafeHtml | null>(() => {
-    const r = this.store.weeklyReport();
+    const r = this.report.weeklyReport();
     if (!r) return null;
     const html = marked.parse(r.markdown, { gfm: true, breaks: true }) as string;
     return this.sanitizer.bypassSecurityTrustHtml(html);
   });
 
   protected readonly reportAge = computed(() => {
-    const r = this.store.weeklyReport();
+    const r = this.report.weeklyReport();
     if (!r) return '';
     const days = Math.floor((Date.now() - r.generatedAt.getTime()) / (1000 * 60 * 60 * 24));
     if (days === 0) return this.translation.t('v2.trends.reportToday');
@@ -241,7 +243,7 @@ export class TrendsComponent {
   });
 
   protected generate(): void {
-    void this.store.generateWeeklyReport();
+    void this.report.generateWeeklyReport();
   }
 
   protected openUpgrade(): void {

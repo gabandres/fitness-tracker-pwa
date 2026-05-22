@@ -11,6 +11,8 @@ import {
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
+import { FastingStore } from '../../services/fasting-store.service';
+import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { TranslationService } from '../../services/translation.service';
 import { localDateKey } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
@@ -137,7 +139,7 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
       <ui-card variant="default" class="mt-4 block">
         <div class="flex items-baseline justify-between gap-3">
           <h2 class="v2-h2">{{ t('v2.body.fasting') }}</h2>
-          @if (store.isFasting()) {
+          @if (fasting.isFasting()) {
             <span class="v2-num" style="font-size: 0.8125rem; color: var(--v2-sage); font-weight: 600;">{{ t('v2.body.active') }}</span>
           } @else {
             <span class="v2-caption">{{ t('v2.body.idle') }}</span>
@@ -150,7 +152,7 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
             <svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
               <circle cx="60" cy="60" r="52" fill="none"
                 stroke="var(--v2-rule)" stroke-width="6" />
-              @if (store.isFasting()) {
+              @if (fasting.isFasting()) {
                 <circle cx="60" cy="60" r="52" fill="none"
                   [attr.stroke]="elapsedHours() >= FAST_HOURS ? 'var(--v2-sage)' : 'var(--v2-accent)'"
                   stroke-width="6" stroke-linecap="round"
@@ -161,16 +163,16 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
             </svg>
             <div class="absolute inset-0 flex flex-col items-center justify-center">
               <span class="v2-num" style="font-size: 1.5rem; font-weight: 600; line-height: 1;">
-                {{ store.isFasting() ? elapsedDisplay() : '—' }}
+                {{ fasting.isFasting() ? elapsedDisplay() : '—' }}
               </span>
               <span class="v2-caption" style="font-size: 0.6875rem; margin-top: 2px;">
-                {{ store.isFasting() ? t('v2.body.ofHours', { n: FAST_HOURS }) : t('v2.body.hourTarget', { n: FAST_HOURS }) }}
+                {{ fasting.isFasting() ? t('v2.body.ofHours', { n: FAST_HOURS }) : t('v2.body.hourTarget', { n: FAST_HOURS }) }}
               </span>
             </div>
           </div>
 
           <div class="mt-5 w-full">
-            @if (store.isFasting()) {
+            @if (fasting.isFasting()) {
               @if (!editing()) {
                 <p class="v2-caption text-center mb-3" style="font-size: 0.75rem;">
                   {{ t('v2.body.startedAt', { time: startTimeLabel() }) }}
@@ -274,7 +276,7 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
 
         @if (expanded()) {
           <div id="measurements-panel" class="mt-4">
-            @if (store.latestMeasurement(); as m) {
+            @if (body.latestMeasurement(); as m) {
               <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                 @for (f of M_FIELDS; track f.key) {
                   @if (m[f.key] != null) {
@@ -347,6 +349,8 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
 })
 export class BodyComponent implements OnInit, OnDestroy {
   protected readonly store = inject(FitnessStore);
+  protected readonly fasting = inject(FastingStore);
+  protected readonly body = inject(BodyMetricStore);
   private readonly translation = inject(TranslationService);
 
   readonly historyRequested = output<void>();
@@ -385,7 +389,7 @@ export class BodyComponent implements OnInit, OnDestroy {
     // Last 14 days, oldest → newest, with EMA fallback so missed days
     // don't leave the sparkline jumping. Empty days drop out (the
     // sparkline filters nullables itself).
-    const map = this.store.dailyWeights();
+    const map = this.body.dailyWeights();
     const today = new Date();
     const series: number[] = [];
     for (let i = 13; i >= 0; i--) {
@@ -401,7 +405,7 @@ export class BodyComponent implements OnInit, OnDestroy {
 
   protected readonly elapsedHours = computed<number>(() => {
     this.tick();
-    const start = this.store.fastStartedAt();
+    const start = this.fasting.fastStartedAt();
     if (!start) return 0;
     return Math.max(0, (Date.now() - start.getTime()) / 3_600_000);
   });
@@ -420,7 +424,7 @@ export class BodyComponent implements OnInit, OnDestroy {
   });
 
   protected readonly startTimeLabel = computed(() => {
-    const start = this.store.fastStartedAt();
+    const start = this.fasting.fastStartedAt();
     if (!start) return '';
     const locale = bcp47ForLang(this.translation.language());
     return start
@@ -429,7 +433,7 @@ export class BodyComponent implements OnInit, OnDestroy {
   });
 
   protected readonly summaryLabel = computed(() => {
-    const m = this.store.latestMeasurement();
+    const m = this.body.latestMeasurement();
     if (!m) return this.translation.t('v2.body.measurementsNone');
     const d = new Date(m.date);
     const locale = bcp47ForLang(this.translation.language());
@@ -490,7 +494,7 @@ export class BodyComponent implements OnInit, OnDestroy {
     this.formError.set(null);
     this.haptic(30);
     try {
-      await this.store.addMeasurement(entry);
+      await this.body.addMeasurement(entry);
       this.formOpen.set(false);
       this.formValues.set({ waist: null, chest: null, bicep: null, hip: null });
     } catch (err) {
@@ -501,7 +505,7 @@ export class BodyComponent implements OnInit, OnDestroy {
   }
 
   protected deltaFor(key: MField): number | null {
-    const d = this.store.measurementDeltas();
+    const d = this.body.measurementDeltas();
     return d?.[key] ?? null;
   }
 
@@ -511,17 +515,17 @@ export class BodyComponent implements OnInit, OnDestroy {
 
   protected async startFast(): Promise<void> {
     this.haptic(30);
-    await this.store.startFast();
+    await this.fasting.startFast();
   }
 
   protected async endFast(): Promise<void> {
     this.haptic(50);
-    await this.store.breakFast();
+    await this.fasting.breakFast();
   }
 
   protected beginEdit(): void {
     this.haptic(10);
-    const start = this.store.fastStartedAt() ?? new Date();
+    const start = this.fasting.fastStartedAt() ?? new Date();
     this.editValue.set(this.toTimeInputValue(start));
     this.editError.set('');
     this.editing.set(true);
@@ -540,7 +544,7 @@ export class BodyComponent implements OnInit, OnDestroy {
       return;
     }
     this.haptic(30);
-    await this.store.startFast(parsed);
+    await this.fasting.startFast(parsed);
     this.editing.set(false);
     this.editError.set('');
   }

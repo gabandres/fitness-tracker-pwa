@@ -5,6 +5,7 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { marked } from 'marked';
 import { GeminiService } from '../../services/gemini.service';
 import { FitnessStore } from '../../services/fitness-store.service';
+import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { SubscriptionService } from '../../services/subscription.service';
 import { TranslationService } from '../../services/translation.service';
 import { ErrorCode, extractErrorCode } from '../../models/error-codes';
@@ -139,6 +140,7 @@ interface SuggestedPrompt {
 })
 export class ConsultationComponent {
   private readonly store = inject(FitnessStore);
+  private readonly body = inject(BodyMetricStore);
   private readonly gemini = inject(GeminiService);
   protected readonly subs = inject(SubscriptionService);
   private readonly sanitizer = inject(DomSanitizer);
@@ -206,7 +208,7 @@ export class ConsultationComponent {
         : null;
 
       let buffer = '';
-      for await (const chunk of this.gemini.askAboutMyData(q, logs, tdee, profileFields, this.store.dailyWeights())) {
+      for await (const chunk of this.gemini.askAboutMyData(q, logs, tdee, profileFields, this.body.dailyWeights())) {
         buffer += chunk;
         this.rawResponse.set(buffer);
         // Re-render markdown on every chunk. marked is synchronous in its

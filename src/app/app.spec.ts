@@ -6,6 +6,7 @@ import { App } from './app';
 import { AuthService } from './services/auth.service';
 import { LEDGER_PORT } from './ledger/ports/ledger.port';
 import { FitnessStore } from './services/fitness-store.service';
+import { WeeklyReportStore } from './services/weekly-report-store.service';
 import { PushNotificationService } from './services/push-notification.service';
 import { Messaging } from '@angular/fire/messaging';
 import { SubscriptionService } from './services/subscription.service';
@@ -74,21 +75,34 @@ describe('App', () => {
             hasLoggedToday: signal(false),
             undoEntry: signal(null),
             webhookApiKey: signal(null),
-            weeklyReport: signal(null),
-            reportLoading: signal(false),
             refresh: async () => {},
             undoDelete: async () => {},
             generateWebhookApiKey: async () => 'test',
             revokeWebhookApiKey: async () => {},
             toggleTravelMode: async () => {},
             travelMode: signal(false),
-            generateWeeklyReport: async () => {},
             measurements: signal([]),
             latestMeasurement: signal(null),
             previousMeasurement: signal(null),
             measurementDeltas: signal(null),
             addMeasurement: async () => {},
             deleteMeasurement: async () => {},
+            _registerWeeklyReportHooks: () => {},
+          },
+        },
+        {
+          // App eagerly injects WeeklyReportStore so its constructor wires
+          // hooks into FitnessStore — stub it so the spec doesn't need to
+          // pull in the real Gemini/subscription chains.
+          provide: WeeklyReportStore,
+          useValue: {
+            weeklyReport: signal(null),
+            reportLoading: signal(false),
+            reportError: signal(null),
+            generateWeeklyReport: async () => {},
+            clearReportError: () => {},
+            checkWeeklyReport: async () => {},
+            clear: () => {},
           },
         },
         {
