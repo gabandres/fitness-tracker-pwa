@@ -11,7 +11,7 @@ import {
   Measurement,
 } from './firebase.service';
 import { TdeeCalculatorService, TdeeResult, WeeklySummary, WeeklyEnvelope } from './tdee-calculator.service';
-import { localDateKey } from '../utils/date';
+import { addDays, localDateKey } from '../utils/date';
 import { summarizeDay } from '../utils/day-summary';
 import { GeminiService } from './gemini.service';
 import { SubscriptionService } from './subscription.service';
@@ -89,10 +89,27 @@ export class FitnessStore {
   private readonly analytics = inject(AnalyticsService);
 
   // ─── Private mutable state ──────────────────────────────────
+  /**
+   * Rolling window of recent log entries — populated via
+   * `LEDGER_PORT.getRecentLogs(14)`, which is a **14-ROW cap**, NOT a
+   * 14-day window. A heavy logger (e.g. 7 entries/day) may span only
+   * 2 days; a sparse logger may span weeks. Do NOT use this signal for
+   * calendar-day queries (last-N-days reports, streak math beyond the
+   * cached window, etc.) — reach for `logsForLastDays(n)` /
+   * `logsForLastDaysSync(n)` instead, which filter `_allTimeLogs`
+   * by local-date key.
+   */
   private readonly _logs = signal<DailyLog[]>([]);
   private readonly _presets = signal<MealPreset[]>([]);
   private readonly _status = signal<StoreStatus>('idle');
   private readonly _error = signal<string | null>(null);
+  /**
+   * Uncapped lifetime log cache. Loaded asynchronously via
+   * `_loadAllTimeLogs()` (called opportunistically — e.g. before
+   * weekly report generation). May be empty until hydrated; check
+   * `isHistoryHydrated()` before reading from a computed. Source of
+   * truth for any calendar-day-windowed query.
+   */
   private readonly _allTimeLogs = signal<DailyLog[]>([]);
   private readonly _weeklyReport = signal<WeeklyReport | null>(null);
   private readonly _reportLoading = signal(false);
@@ -921,6 +938,61 @@ export class FitnessStore {
     } catch { /* non-critical */ }
   }
 
+  /**
+   * Returns the last `n` local-calendar-day date keys, oldest first
+   * (inclusive of today). Used to filter `_allTimeLogs` by membership
+   * in a fixed calendar window rather than millisecond arithmetic
+   * (which drifts across DST transitions).
+   */
+  private windowCalendarKeys(n: number): string[] {
+    const out: string[] = [];
+    const today = new Date();
+    for (let i = n - 1; i >= 0; i--) {
+      out.push(localDateKey(addDays(today, -i)));
+    }
+    return out;
+  }
+
+  /**
+   * Logs falling on the last `n` calendar days ending today, in the
+   * user's local timezone. Awaits `_loadAllTimeLogs()` once if
+   * `_allTimeLogs` hasn't hydrated yet. Does NOT touch the rolling
+   * `_logs` signal (which is a 14-ROW cap, not a 14-day window).
+   *
+   * Use this for any "last N days" query — weekly reports, n-day
+   * adherence, calendar-windowed averages.
+   */
+  async logsForLastDays(n: number): Promise<DailyLog[]> {
+    if (this._allTimeLogs().length === 0) {
+      await this._loadAllTimeLogs();
+    }
+    const keys = new Set(this.windowCalendarKeys(n));
+    return this._allTimeLogs().filter((l) => keys.has(localDateKey(l.date)));
+  }
+
+  /**
+   * Sync variant of {@link logsForLastDays} for use inside `computed()`
+   * blocks where awaiting is not possible. Returns `[]` until
+   * `_allTimeLogs` has hydrated — callers MUST check
+   * `isHistoryHydrated()` first to distinguish "no logs in window"
+   * from "history not loaded yet".
+   */
+  logsForLastDaysSync(n: number): DailyLog[] {
+    const all = this._allTimeLogs();
+    if (all.length === 0) return [];
+    const keys = new Set(this.windowCalendarKeys(n));
+    return all.filter((l) => keys.has(localDateKey(l.date)));
+  }
+
+  /**
+   * True once `_allTimeLogs` has loaded at least once this session.
+   * Computeds depending on `logsForLastDaysSync` should gate on this
+   * to avoid rendering "0 days" before the first hydration completes.
+   */
+  isHistoryHydrated(): boolean {
+    return this._allTimeLogs().length > 0;
+  }
+
   async generateWeeklyReport(): Promise<void> {
     if (this._reportLoading()) return;
     // Pro gate — see _checkWeeklyReport for rationale.
@@ -933,15 +1005,12 @@ export class FitnessStore {
       // All-time signals fuel the quiet-milestone line in the report.
       // Use the internal uncapped signal (not the 90-day-windowed public
       // `allTimeLogs`) so milestones track lifetime, not visible history.
-      // Await hydration if `_loadAllTimeLogs` is still in flight — silently
-      // falling back to `_logs()` (14-ROW cap, ~3 days for heavy loggers)
-      // would re-introduce the bug this report was rewritten to fix.
-      if (this._allTimeLogs().length === 0) {
-        await this._loadAllTimeLogs();
-      }
+      // `logsForLastDays(14)` hydrates `_allTimeLogs` if needed, then
+      // filters by local-date key — silently falling back to `_logs()`
+      // (14-ROW cap, ~3 days for heavy loggers) would re-introduce the
+      // bug this report was rewritten to fix.
+      const logs = await this.logsForLastDays(14);
       const allTime = this._allTimeLogs();
-      const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
-      const logs = allTime.filter((l) => l.date.getTime() >= fourteenDaysAgo);
       const earliestLogAt = allTime.length > 0
         ? allTime.reduce((min, l) => l.date.getTime() < min ? l.date.getTime() : min, Infinity)
         : null;
