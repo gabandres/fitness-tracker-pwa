@@ -921,13 +921,21 @@ export class FitnessStore {
     this._reportLoading.set(true);
     this._reportError.set(null);
     try {
-      const logs = this._logs();
       const tdee = this.tdee();
       const profile = this._profileFields();
       // All-time signals fuel the quiet-milestone line in the report.
       // Use the internal uncapped signal (not the 90-day-windowed public
       // `allTimeLogs`) so milestones track lifetime, not visible history.
       const allTime = this._allTimeLogs();
+      // For the report body itself, send a true 14-DAY window (not the
+      // 14-ROW cap held in `_logs()`, which only covers ~3 days for a
+      // heavy logger and made Gemini report a single meal as if it were
+      // a full day total). Fall back to `_logs()` if all-time hasn't
+      // hydrated yet.
+      const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+      const logs = allTime.length > 0
+        ? allTime.filter((l) => l.date.getTime() >= fourteenDaysAgo)
+        : this._logs();
       const earliestLogAt = allTime.length > 0
         ? allTime.reduce((min, l) => l.date.getTime() < min ? l.date.getTime() : min, Infinity)
         : null;

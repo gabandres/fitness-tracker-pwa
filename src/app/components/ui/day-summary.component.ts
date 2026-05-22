@@ -17,6 +17,7 @@ import { bcp47ForLang } from '../../utils/locale';
 import { V2Button } from './button.component';
 import { V2Card } from './card.component';
 import { V2Ring } from './ring.component';
+import { V2WeightSheet } from './weight-sheet.component';
 
 /**
  * Shared rings + entries + water + exercise block. Renders the day
@@ -30,7 +31,7 @@ import { V2Ring } from './ring.component';
 @Component({
   selector: 'v2-day-summary',
   standalone: true,
-  imports: [LucideAngularModule, TranslocoDirective, V2Button, V2Card, V2Ring],
+  imports: [LucideAngularModule, TranslocoDirective, V2Button, V2Card, V2Ring, V2WeightSheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -175,6 +176,50 @@ import { V2Ring } from './ring.component';
         }
       }
     </v2-card>
+
+    <!-- Weight row -->
+    <v2-card variant="flat" class="mt-3 block">
+      <div class="flex items-center justify-between gap-3" style="min-height: var(--v2-tap-min);">
+        <div class="flex items-center gap-2 min-w-0">
+          <lucide-icon name="scale" [size]="18" style="color: var(--v2-ink-muted)" />
+          @if (editable() && loggedWeight() == null) {
+            <button
+              type="button"
+              class="v2-body-soft"
+              style="background: none; border: none; padding: 0; cursor: pointer; text-align: left;"
+              [attr.aria-label]="t('v2.daySummary.logWeightAria')"
+              (click)="openWeightSheet()">
+              {{ t('v2.daySummary.weight') }} · <span class="v2-num" style="color: var(--v2-ink-muted); font-weight: 500;">{{ t('v2.daySummary.weightNone') }}</span>
+              <lucide-icon name="pencil" [size]="12" style="color: var(--v2-ink-muted); margin-left: 4px;" />
+            </button>
+          } @else {
+            <span class="v2-body-soft">
+              {{ t('v2.daySummary.weight') }} ·
+              @if (loggedWeight() != null) {
+                <span class="v2-num" style="color: var(--v2-ink); font-weight: 500;">{{ loggedWeight() }} {{ t('v2.daySummary.lb') }}</span>
+              } @else {
+                <span class="v2-num" style="color: var(--v2-ink-muted); font-weight: 500;">{{ t('v2.daySummary.weightNone') }}</span>
+              }
+            </span>
+          }
+        </div>
+        @if (editable() && loggedWeight() != null) {
+          <button
+            type="button"
+            class="v2-icon-btn"
+            style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--v2-ink-muted); display: inline-flex; align-items: center; justify-content: center;"
+            [attr.aria-label]="t('v2.daySummary.editWeightAria', { value: loggedWeight() })"
+            (click)="openWeightSheet()">
+            <lucide-icon name="pencil" [size]="14" />
+          </button>
+        }
+      </div>
+    </v2-card>
+
+    <v2-weight-sheet
+      [open]="weightSheetOpen()"
+      [dateKey]="dateKey()"
+      (close)="weightSheetOpen.set(false)" />
     </ng-container>
   `,
 })
@@ -222,6 +267,19 @@ export class V2DaySummary {
   protected readonly waterMl = computed(
     () => this.store.dailyWater()[this.dateKey()] ?? 0,
   );
+
+  protected readonly weightSheetOpen = signal(false);
+
+  protected readonly loggedWeight = computed<number | null>(() => {
+    const w = this.store.dailyWeights()[this.dateKey()];
+    return typeof w === 'number' ? w : null;
+  });
+
+  protected openWeightSheet(): void {
+    if (!this.editable()) return;
+    this.haptic(10);
+    this.weightSheetOpen.set(true);
+  }
   protected readonly waterDisplay = computed(() => {
     const ml = this.waterMl();
     const unitMl = this.translation.t('v2.daySummary.ml');

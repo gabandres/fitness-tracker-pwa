@@ -153,7 +153,11 @@ export class GeminiService {
     dailyWeights: Record<string, number> = {},
     milestoneContext?: MilestoneContext,
   ): Promise<GeneratedWeeklyReport> {
-    const systemInstruction = this.buildSystemInstruction(logs, tdee, profile, dailyWeights) + this.langSuffix();
+    // The weekly report uses a true 14-day window with per-day
+    // aggregates (see `buildWeeklyReportInstruction`). The askAboutMyData
+    // flow still uses the per-meal table because the model needs the
+    // raw timing for conversational follow-ups.
+    const systemInstruction = this.buildWeeklyReportInstruction(logs, tdee, profile, dailyWeights) + this.langSuffix();
     const milestoneLine = milestoneContext ? this.formatMilestoneContext(milestoneContext) : '';
     const prompt = [
       'Generate a concise weekly review covering:',
@@ -173,6 +177,171 @@ export class GeminiService {
     >(this.functions, 'generateWeeklyReport');
     const { data } = await callable({ systemInstruction, prompt });
     return data;
+  }
+
+  /**
+   * Build the system instruction for the weekly report.
+   *
+   * Crucial difference from `buildSystemInstruction`: the weekly report
+   * window is exactly 14 calendar days ending today, and the daily log
+   * is aggregated to ONE ROW PER DAY (total kcal/protein, meal count,
+   * exercise flag, weight). Previously we fed the model the raw per-
+   * meal rows, and it confidently reported a single meal's kcal as if
+   * it were the full day total (e.g. "min 200 kcal on May 12" when
+   * that was just one snack of a 5-meal 2650-kcal day).
+   *
+   * We also pre-compute the headline numbers (days logged, avg/min/max
+   * kcal, weight delta) and put them in labeled summary lines so the
+   * model has no opportunity to miscount.
+   */
+  private buildWeeklyReportInstruction(
+    logs: DailyLog[],
+    tdee: TdeeResult,
+    profile: ProfileFields | null,
+    dailyWeights: Record<string, number> = {},
+  ): string {
+    const lines: string[] = [];
+    lines.push('You are a precise, data-driven personal fitness consultant.');
+    lines.push('');
+    lines.push(
+      "The user shares their profile, a 14-day fitness summary (with one " +
+      "row per day, not per meal), and current computed TDEE values below. " +
+      "Ground every answer in this data — cite specific numbers, dates, " +
+      "and trends. Do not invent values, do not give generic advice that " +
+      "ignores the log, and keep responses concise (3–6 short paragraphs " +
+      "at most). Use markdown formatting. Tone: a knowledgeable coach who " +
+      "respects the user's time.",
+    );
+    lines.push('');
+    lines.push(
+      "If the TDEE source is 'formula' or 'seed', the estimate is PROVISIONAL — " +
+      "say so when making strong claims. Measured mode (14+ days of real data) " +
+      "is the only source that reflects the user's actual metabolism.",
+    );
+    lines.push('');
+    lines.push(
+      "Protein guideline: use 0.7–0.8 g per pound of bodyweight as the " +
+      "evidence-based target for muscle preservation during a caloric deficit " +
+      "(per ISSN position stand and recent meta-analyses). The old '1g/lb' rule " +
+      "is the upper safety margin, not the clinical threshold. Only recommend " +
+      "above 0.8g/lb for very lean or heavily resistance-trained individuals " +
+      "in a steep deficit. " +
+      "Never describe protein as 'critically low' if intake falls within 0.7–0.8 g/lb. " +
+      "Reserve alarm language only for intake genuinely below 0.65 g/lb.",
+    );
+    lines.push('');
+
+    // ── Profile ─────────────────────────────────────────────────
+    if (profile) {
+      lines.push('## User profile');
+      lines.push(`- Height: ${this.formatHeight(profile.heightIn)}`);
+      lines.push(`- Age: ${profile.age}`);
+      lines.push(`- Sex: ${profile.sex}`);
+      lines.push(`- Activity level: ${profile.activityLevel.replace('_', ' ')}`);
+      lines.push(`- Target cut pace: ${profile.targetPaceLbsPerWeek} lb/week`);
+      if (profile.goalWeightLbs != null) {
+        lines.push(`- Goal weight: ${profile.goalWeightLbs} lbs`);
+      }
+      lines.push('');
+    }
+
+    // ── Computed values ────────────────────────────────────────
+    lines.push('## Current computed values');
+    lines.push(`- True TDEE: ${tdee.trueTdee} kcal/day`);
+    lines.push(`- Daily target: ${tdee.newDailyTarget} kcal/day`);
+    lines.push(`- TDEE source: ${tdee.source}`);
+    lines.push('');
+
+    // ── 14-day window summary + per-day table ──────────────────
+    // Window: exactly 14 calendar days ending today (inclusive of
+    // today), keyed in the user's local timezone via `localDateKey`.
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const windowDays = 14;
+    const days: { key: string; calories: number; protein: number; meals: number; exercised: boolean; weight: number | null }[] = [];
+    for (let i = windowDays - 1; i >= 0; i--) {
+      const d = new Date(today.getTime() - i * DAY_MS);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      days.push({ key, calories: 0, protein: 0, meals: 0, exercised: false, weight: null });
+    }
+    const byKey = new Map(days.map((d) => [d.key, d]));
+    for (const log of logs) {
+      const key = localDateKey(log.date);
+      const day = byKey.get(key);
+      if (!day) continue;
+      day.calories += log.calories || 0;
+      if (log.protein != null) day.protein += log.protein;
+      day.meals += 1;
+      if (log.exerciseCompleted || log.liftCompleted || log.cardioCompleted) {
+        day.exercised = true;
+      }
+    }
+    for (const day of days) {
+      const w = dailyWeights[day.key];
+      if (w != null) day.weight = w;
+    }
+
+    const loggedDays = days.filter((d) => d.meals > 0);
+    const daysLoggedN = loggedDays.length;
+    const avgKcal = daysLoggedN > 0
+      ? Math.round(loggedDays.reduce((s, d) => s + d.calories, 0) / daysLoggedN)
+      : 0;
+    const avgProtein = daysLoggedN > 0
+      ? Math.round(loggedDays.reduce((s, d) => s + d.protein, 0) / daysLoggedN)
+      : 0;
+    let minDay: typeof loggedDays[number] | null = null;
+    let maxDay: typeof loggedDays[number] | null = null;
+    for (const d of loggedDays) {
+      if (!minDay || d.calories < minDay.calories) minDay = d;
+      if (!maxDay || d.calories > maxDay.calories) maxDay = d;
+    }
+    const exerciseDays = days.filter((d) => d.exercised).length;
+    const weightDays = days.filter((d) => d.weight != null);
+    const firstWeight = weightDays[0] ?? null;
+    const lastWeight = weightDays[weightDays.length - 1] ?? null;
+    const weightDelta = firstWeight && lastWeight
+      ? Math.round((lastWeight.weight! - firstWeight.weight!) * 10) / 10
+      : null;
+    const deltaStr = weightDelta == null
+      ? 'n/a (need ≥2 weigh-ins in window)'
+      : `${weightDelta >= 0 ? '+' : ''}${weightDelta} lb`;
+
+    lines.push(`## 14-day summary (${days[0].key} → ${days[days.length - 1].key})`);
+    lines.push(`- Days logged: ${daysLoggedN}/14`);
+    lines.push(`- Avg kcal (on logged days): ${avgKcal}`);
+    if (minDay && maxDay) {
+      lines.push(`- Min daily kcal: ${minDay.calories} on ${minDay.key}`);
+      lines.push(`- Max daily kcal: ${maxDay.calories} on ${maxDay.key}`);
+    }
+    lines.push(`- Avg protein (on logged days): ${avgProtein} g`);
+    if (firstWeight && lastWeight && firstWeight.key !== lastWeight.key) {
+      lines.push(`- Weight start → end (14d): ${firstWeight.weight} lb (${firstWeight.key}) → ${lastWeight.weight} lb (${lastWeight.key}) (Δ ${deltaStr})`);
+    } else {
+      lines.push(`- Weight change (14d): ${deltaStr}`);
+    }
+    if (lastWeight) {
+      lines.push(`- Current weight: ${lastWeight.weight} lb (${lastWeight.key})`);
+    }
+    if (profile?.goalWeightLbs != null) {
+      lines.push(`- Goal weight: ${profile.goalWeightLbs} lb`);
+    }
+    lines.push(`- Exercise days: ${exerciseDays}/14`);
+    lines.push('');
+
+    lines.push('## Daily log (one row per day, oldest → newest)');
+    lines.push('| Date | Weight (lbs) | Calories | Protein (g) | Meals | Exercise |');
+    lines.push('| --- | --- | --- | --- | --- | --- |');
+    for (const d of days) {
+      const weightCell = d.weight != null ? String(d.weight) : '—';
+      const calCell = d.meals > 0 ? String(d.calories) : '—';
+      const proCell = d.meals > 0 ? String(d.protein) : '—';
+      const mealsCell = d.meals > 0 ? String(d.meals) : '—';
+      const exCell = d.exercised ? '✓' : '—';
+      lines.push(`| ${d.key} | ${weightCell} | ${calCell} | ${proCell} | ${mealsCell} | ${exCell} |`);
+    }
+
+    return lines.join('\n');
   }
 
   private buildSystemInstruction(

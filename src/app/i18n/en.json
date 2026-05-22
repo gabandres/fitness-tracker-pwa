@@ -1176,7 +1176,12 @@
       "addMl": "+{{n}} ml",
       "addLiter": "+1 L",
       "ml": "ml",
-      "liter": "L"
+      "liter": "L",
+      "weight": "Weight",
+      "weightNone": "—",
+      "lb": "lb",
+      "editWeightAria": "Edit weight · current {{value}} lb",
+      "logWeightAria": "Log today's weight"
     },
     "fastingPill": {
       "aria": "Fasting {{label}}. Open Body."
