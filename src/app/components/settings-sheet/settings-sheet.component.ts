@@ -19,73 +19,73 @@ import { buildReferralLink } from '../../utils/referral';
 import { share } from '../../utils/share';
 import { buildCsv, downloadCsv } from '../../utils/csv-export';
 import { AnalyticsService } from '../../services/analytics.service';
-import { V2Sheet } from '../ui/sheet.component';
-import { V2Card } from '../ui/card.component';
-import { V2Button } from '../ui/button.component';
+import { UiSheet } from '../ui/sheet.component';
+import { UiCard } from '../ui/card.component';
+import { UiButton } from '../ui/button.component';
 
 /**
- * v2 Settings sheet (Q20). Single scrollable list inside `<v2-sheet>`,
- * sections rendered as `<v2-card>`s. Same logic as v1 — push reminders,
+ * v2 Settings sheet (Q20). Single scrollable list inside `<ui-sheet>`,
+ * sections rendered as `<ui-card>`s. Same logic as v1 — push reminders,
  * language, theme, travel mode, webhook, history, feedback, legal —
  * with warm-minimal chrome, native form-style controls, and
  * `<app-subscribe>` rendered inline inside the Subscription section.
  *
  */
 @Component({
-  selector: 'app-settings-sheet-v2',
+  selector: 'app-settings-sheet',
   standalone: true,
   imports: [
     TranslocoDirective,
     LucideAngularModule,
-    V2Sheet,
-    V2Card,
-    V2Button,
+    UiSheet,
+    UiCard,
+    UiButton,
     SubscribeComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-    <v2-sheet labelledBy="settings-v2-title" (close)="requestClose()">
+    <ui-sheet labelledBy="settings-v2-title" (close)="requestClose()">
       <h2 id="settings-v2-title" class="v2-h1 mb-1">{{ t('settings.titleLead') }}</h2>
       <p class="v2-caption mb-5">{{ t('settings.sectionLabel') }}</p>
 
       @if (auth.user(); as u) {
 
       <!-- Profile -->
-      <v2-card variant="default" id="settings-profile" class="block mb-3">
+      <ui-card variant="default" id="settings-profile" class="block mb-3">
         <h3 class="v2-h3 mb-2">{{ t('settings.profile.section') }}</h3>
         <p class="v2-caption mb-3">
           {{ t('settings.profile.signedInAs') }}
           <span class="v2-num" style="color: var(--v2-ink); font-size: 0.8125rem;">{{ u.email }}</span>
         </p>
         <div class="flex flex-wrap gap-2">
-          <v2-button variant="secondary" size="sm" (click)="onRedoOnboarding()">
+          <ui-button variant="secondary" size="sm" (click)="onRedoOnboarding()">
             <lucide-icon name="pencil" [size]="14" />
             {{ t('settings.profile.redoOnboarding') }}
-          </v2-button>
-          <v2-button variant="ghost" size="sm" (click)="signOut()">
+          </ui-button>
+          <ui-button variant="ghost" size="sm" (click)="signOut()">
             {{ t('settings.profile.signOut') }}
-          </v2-button>
+          </ui-button>
         </div>
-      </v2-card>
+      </ui-card>
 
       <!-- Language -->
-      <v2-card variant="default" class="block mb-3">
+      <ui-card variant="default" class="block mb-3">
         <h3 class="v2-h3 mb-1">{{ t('settings.language.section') }}</h3>
         <p class="v2-caption mb-3">{{ t('settings.language.desc') }}</p>
         <div class="flex gap-2">
-          <v2-button
+          <ui-button
             [variant]="translation.language() === 'en' ? 'primary' : 'ghost'"
             size="sm"
             (click)="selectLanguage('en')">
             {{ t('settings.language.english') }}
-          </v2-button>
-          <v2-button
+          </ui-button>
+          <ui-button
             [variant]="translation.language() === 'es-PR' ? 'primary' : 'ghost'"
             size="sm"
             (click)="selectLanguage('es-PR')">
             {{ t('settings.language.spanish') }}
-          </v2-button>
+          </ui-button>
         </div>
         @if (showEsBetaBanner()) {
           <p class="v2-caption mt-3" role="status"
@@ -93,10 +93,10 @@ import { V2Button } from '../ui/button.component';
             {{ t('legal.esBetaBanner') }}
           </p>
         }
-      </v2-card>
+      </ui-card>
 
       <!-- Reminders -->
-      <v2-card variant="default" class="block mb-3">
+      <ui-card variant="default" class="block mb-3">
         <h3 class="v2-h3 mb-3">{{ t('settings.reminders.section') }}</h3>
 
         <div class="flex items-start justify-between gap-3 mb-4">
@@ -117,9 +117,9 @@ import { V2Button } from '../ui/button.component';
               {{ t('settings.reminders.pushOnBadge') }}
             </span>
           } @else if (pushService.permission() === 'default') {
-            <v2-button variant="secondary" size="sm" (click)="enablePush()">
+            <ui-button variant="secondary" size="sm" (click)="enablePush()">
               {{ t('settings.reminders.pushEnable') }}
-            </v2-button>
+            </ui-button>
           }
         </div>
 
@@ -150,19 +150,19 @@ import { V2Button } from '../ui/button.component';
             <div class="v2-body" style="font-weight: 500;">{{ t('settings.reminders.weeklyDigest') }}</div>
             <p class="v2-caption mt-0.5">{{ t('settings.reminders.weeklyDigestDesc') }}</p>
           </div>
-          <v2-button
+          <ui-button
             [variant]="weeklyDigestOptIn() ? 'primary' : 'ghost'"
             size="sm"
             (click)="toggleWeeklyDigest()"
             [disabled]="weeklyDigestBusy()"
             [ariaLabel]="weeklyDigestOptIn() ? t('settings.reminders.weeklyDigestAriaOff') : t('settings.reminders.weeklyDigestAriaOn')">
             {{ weeklyDigestOptIn() ? t('settings.reminders.weeklyDigestOn') : t('settings.reminders.weeklyDigestOff') }}
-          </v2-button>
+          </ui-button>
         </div>
-      </v2-card>
+      </ui-card>
 
       <!-- Appearance (Theme + Travel) -->
-      <v2-card variant="default" class="block mb-3">
+      <ui-card variant="default" class="block mb-3">
         <h3 class="v2-h3 mb-3">{{ t('settings.modes.section') }}</h3>
 
         <div class="flex items-start justify-between gap-3 mb-4">
@@ -170,13 +170,13 @@ import { V2Button } from '../ui/button.component';
             <div class="v2-body" style="font-weight: 500;">{{ t('settings.modes.travel') }}</div>
             <p class="v2-caption mt-0.5">{{ t('settings.modes.travelDesc') }}</p>
           </div>
-          <v2-button
+          <ui-button
             [variant]="store.travelMode() ? 'primary' : 'ghost'"
             size="sm"
             (click)="store.toggleTravelMode()"
             [ariaLabel]="store.travelMode() ? t('settings.modes.travelAriaOff') : t('settings.modes.travelAriaOn')">
             {{ store.travelMode() ? t('settings.modes.travelOn') : t('settings.modes.travelOff') }}
-          </v2-button>
+          </ui-button>
         </div>
 
         <div class="flex items-start justify-between gap-3 mb-3">
@@ -213,17 +213,17 @@ import { V2Button } from '../ui/button.component';
             </button>
           }
         </div>
-      </v2-card>
+      </ui-card>
 
       <!-- Subscription -->
-      <v2-card variant="default" id="settings-subscription" class="block mb-3">
+      <ui-card variant="default" id="settings-subscription" class="block mb-3">
         <h3 class="v2-h3 mb-3">{{ t('settings.subscription.section') }}</h3>
         <app-subscribe />
-      </v2-card>
+      </ui-card>
 
       <!-- Refer a friend -->
       @if (referralLink(); as link) {
-        <v2-card variant="default" class="block mb-3">
+        <ui-card variant="default" class="block mb-3">
           <h3 class="v2-h3 mb-2">{{ t('settings.referral.section') }}</h3>
           <p class="v2-body-soft mb-3" style="font-size: 0.875rem;">
             {{ t('settings.referral.body') }}
@@ -234,23 +234,23 @@ import { V2Button } from '../ui/button.component';
             </div>
           </div>
           <div class="flex flex-wrap gap-2">
-            <v2-button variant="secondary" size="sm" (click)="copyReferralLink()">
+            <ui-button variant="secondary" size="sm" (click)="copyReferralLink()">
               {{ referralCopied() ? t('settings.referral.copied') : t('settings.referral.copy') }}
-            </v2-button>
-            <v2-button variant="ghost" size="sm" (click)="shareReferral()">
+            </ui-button>
+            <ui-button variant="ghost" size="sm" (click)="shareReferral()">
               {{ t('settings.referral.share') }}
-            </v2-button>
+            </ui-button>
           </div>
           @if (referralRewardActive(); as until) {
             <p class="v2-caption mt-3" style="color: var(--v2-sage);">
               {{ t('settings.referral.rewardActive', { date: until }) }}
             </p>
           }
-        </v2-card>
+        </ui-card>
       }
 
       <!-- Public profile -->
-      <v2-card variant="default" class="block mb-3">
+      <ui-card variant="default" class="block mb-3">
         <h3 class="v2-h3 mb-2">{{ t('publicProfileSettings.title') }}</h3>
         <p class="v2-body-soft mb-3" style="font-size: 0.875rem;">
           {{ t('publicProfileSettings.body') }}
@@ -286,7 +286,7 @@ import { V2Button } from '../ui/button.component';
           maxlength="40"
           style="width: 100%; padding: 8px 10px; background: var(--v2-paper); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); color: var(--v2-ink); font-size: 0.875rem;" />
         <div class="flex flex-wrap gap-2 mt-3">
-          <v2-button variant="primary" size="sm" (click)="claimSlug()" [disabled]="publicBusy() || !slugInput()">
+          <ui-button variant="primary" size="sm" (click)="claimSlug()" [disabled]="publicBusy() || !slugInput()">
             @if (publicBusy()) {
               {{ t('publicProfileSettings.claimingState') }}
             } @else if (publicSlug()) {
@@ -294,20 +294,20 @@ import { V2Button } from '../ui/button.component';
             } @else {
               {{ t('publicProfileSettings.claimButton') }}
             }
-          </v2-button>
+          </ui-button>
           @if (publicSlug()) {
-            <v2-button variant="ghost" size="sm" (click)="releaseSlug()" [disabled]="publicBusy()">
+            <ui-button variant="ghost" size="sm" (click)="releaseSlug()" [disabled]="publicBusy()">
               {{ publicBusy() ? t('publicProfileSettings.releasingState') : t('publicProfileSettings.releaseButton') }}
-            </v2-button>
+            </ui-button>
           }
         </div>
         @if (publicError(); as err) {
           <p class="v2-caption mt-2" role="alert" style="color: var(--v2-danger);">{{ err }}</p>
         }
-      </v2-card>
+      </ui-card>
 
       <!-- Data -->
-      <v2-card variant="default" class="block mb-3">
+      <ui-card variant="default" class="block mb-3">
         <h3 class="v2-h3 mb-3">{{ t('settings.data.section') }}</h3>
 
         <div class="mb-4">
@@ -316,11 +316,11 @@ import { V2Button } from '../ui/button.component';
               <div class="v2-body" style="font-weight: 500;">{{ t('settings.data.webhook') }}</div>
               <p class="v2-caption mt-0.5">{{ t('settings.data.webhookDesc') }}</p>
             </div>
-            <v2-button variant="ghost" size="sm"
+            <ui-button variant="ghost" size="sm"
               (click)="showWebhook.set(!showWebhook())"
               [ariaLabel]="showWebhook() ? t('settings.data.webhookHide') : t('settings.data.webhookShow')">
               {{ showWebhook() ? t('settings.data.webhookHide') : t('settings.data.webhookShow') }}
-            </v2-button>
+            </ui-button>
           </div>
           @if (showWebhook()) {
             <div style="padding: 12px; background: var(--v2-paper-2); border-radius: var(--v2-radius-sm); border: 1px solid var(--v2-rule);">
@@ -334,12 +334,12 @@ import { V2Button } from '../ui/button.component';
                   <span class="v2-num" style="font-size: 0.75rem;">{{ webhookUrl }}</span>
                 </p>
                 <div class="mt-3 flex flex-wrap gap-2">
-                  <v2-button variant="secondary" size="sm" (click)="copyWebhookKey()">
+                  <ui-button variant="secondary" size="sm" (click)="copyWebhookKey()">
                     {{ webhookCopied() ? t('settings.data.webhookCopied') : t('settings.data.webhookCopy') }}
-                  </v2-button>
-                  <v2-button variant="ghost" size="sm" (click)="store.revokeWebhookApiKey()">
+                  </ui-button>
+                  <ui-button variant="ghost" size="sm" (click)="store.revokeWebhookApiKey()">
                     {{ t('settings.data.webhookRevoke') }}
-                  </v2-button>
+                  </ui-button>
                   @if (webhookCopied()) {
                     <span class="sr-only" role="status" aria-live="polite">
                       {{ t('settings.data.webhookCopiedAria') }}
@@ -348,9 +348,9 @@ import { V2Button } from '../ui/button.component';
                 </div>
               } @else {
                 <p class="v2-caption mb-3">{{ t('settings.data.webhookGenerateHint') }}</p>
-                <v2-button variant="secondary" size="sm" (click)="store.generateWebhookApiKey()">
+                <ui-button variant="secondary" size="sm" (click)="store.generateWebhookApiKey()">
                   {{ t('settings.data.webhookGenerate') }}
-                </v2-button>
+                </ui-button>
               }
             </div>
           }
@@ -366,10 +366,10 @@ import { V2Button } from '../ui/button.component';
               </p>
             }
           </div>
-          <v2-button variant="secondary" size="sm" (click)="exportData()" [disabled]="exporting()">
+          <ui-button variant="secondary" size="sm" (click)="exportData()" [disabled]="exporting()">
             <lucide-icon name="download" [size]="14" />
             {{ exporting() ? t('settings.data.exportPreparing') : t('settings.data.exportButton') }}
-          </v2-button>
+          </ui-button>
         </div>
 
         <div class="flex items-center justify-between gap-3">
@@ -383,25 +383,25 @@ import { V2Button } from '../ui/button.component';
             {{ t('settings.data.deleteManage') }}
           </a>
         </div>
-      </v2-card>
+      </ui-card>
 
       <!-- Feedback -->
-      <v2-card variant="default" class="block mb-3">
+      <ui-card variant="default" class="block mb-3">
         <h3 class="v2-h3 mb-2">{{ t('settings.feedback.section') }}</h3>
         <div class="flex items-center justify-between gap-3">
           <div class="min-w-0">
             <div class="v2-body" style="font-weight: 500;">{{ t('settings.feedback.label') }}</div>
             <p class="v2-caption mt-0.5">{{ t('settings.feedback.desc') }}</p>
           </div>
-          <v2-button variant="secondary" size="sm" (click)="sendFeedback()"
+          <ui-button variant="secondary" size="sm" (click)="sendFeedback()"
             [ariaLabel]="t('settings.feedback.aria')">
             {{ t('settings.feedback.send') }}
-          </v2-button>
+          </ui-button>
         </div>
-      </v2-card>
+      </ui-card>
 
       <!-- About / Updates -->
-      <v2-card variant="default" class="block mb-3">
+      <ui-card variant="default" class="block mb-3">
         <h3 class="v2-h3 mb-3">{{ t('v2.settings.about') }}</h3>
         <div class="flex items-start justify-between gap-3 mb-2">
           <div class="min-w-0">
@@ -422,21 +422,21 @@ import { V2Button } from '../ui/button.component';
                    update without first closing settings. Activates
                    the SW + reloads. -->
               <div class="mt-2">
-                <v2-button variant="primary" size="sm" (click)="reloadForUpdate()">
+                <ui-button variant="primary" size="sm" (click)="reloadForUpdate()">
                   {{ t('v2.settings.reloadNow') }}
-                </v2-button>
+                </ui-button>
               </div>
             }
           </div>
-          <v2-button variant="secondary" size="sm" (click)="checkForUpdate()" [disabled]="checkingUpdate()">
+          <ui-button variant="secondary" size="sm" (click)="checkForUpdate()" [disabled]="checkingUpdate()">
             <lucide-icon name="check" [size]="14" />
             {{ checkingUpdate() ? t('v2.settings.checking') : t('v2.settings.checkForUpdates') }}
-          </v2-button>
+          </ui-button>
         </div>
-      </v2-card>
+      </ui-card>
 
       <!-- Legal -->
-      <v2-card variant="flat" class="block mb-3">
+      <ui-card variant="flat" class="block mb-3">
         <h3 class="v2-h3 mb-2">{{ t('settings.legal.section') }}</h3>
         <p class="v2-caption">
           <a href="/privacy" style="text-decoration: underline; text-decoration-style: dotted;">{{ t('settings.legal.privacy') }}</a>
@@ -447,16 +447,16 @@ import { V2Button } from '../ui/button.component';
           &middot;
           <a href="mailto:gabrielandresbermudez&#64;gmail.com" style="text-decoration: underline; text-decoration-style: dotted;">{{ t('settings.legal.contact') }}</a>
         </p>
-      </v2-card>
+      </ui-card>
 
       } @else {
         <p class="v2-caption">{{ t('settings.signInFirst') }}</p>
       }
-    </v2-sheet>
+    </ui-sheet>
     </ng-container>
   `,
 })
-export class SettingsSheetV2Component {
+export class SettingsSheetComponent {
   protected readonly auth = inject(AuthService);
   protected readonly firebase = inject(LEDGER_PORT);
   private readonly functions = inject(Functions);
@@ -551,7 +551,7 @@ export class SettingsSheetV2Component {
 
   private webhookCopyTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // Escape handling lives in <v2-sheet>; no override needed.
+  // Escape handling lives in <ui-sheet>; no override needed.
 
   protected requestClose(): void { this.close.emit(); }
   protected onRedoOnboarding(): void {

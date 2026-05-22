@@ -10,7 +10,7 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslationService } from '../../services/translation.service';
 import { AnalyticsService } from '../../services/analytics.service';
-import { V2Card } from '../ui/card.component';
+import { UiCard } from '../ui/card.component';
 import {
   GoalDirection,
   WEIGHT_MIN_LB,
@@ -43,7 +43,7 @@ import { share } from '../../utils/share';
 @Component({
   selector: 'app-macros-page',
   standalone: true,
-  imports: [TranslocoDirective, LucideAngularModule, V2Card],
+  imports: [TranslocoDirective, LucideAngularModule, UiCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -61,7 +61,7 @@ import { share } from '../../utils/share';
           </p>
         </header>
 
-        <v2-card>
+        <ui-card>
           <div class="flex items-center justify-between py-1">
             <span class="v2-caption">{{ t('macrosPage.kcalLabel') }}</span>
             <span class="v2-h3 font-mono">{{ kcal() }}</span>
@@ -71,9 +71,9 @@ import { share } from '../../utils/share';
             <span class="v2-caption">{{ t('macrosPage.proteinLabel') }}</span>
             <span class="v2-h3 font-mono">{{ protein() }}{{ t('macrosPage.gramSuffix') }}</span>
           </div>
-        </v2-card>
+        </ui-card>
 
-        <v2-card variant="accent" class="block mt-5 text-center">
+        <ui-card variant="accent" class="block mt-5 text-center">
           <h2 class="v2-h3">{{ t('macrosPage.ctaTitle') }}</h2>
           <p class="v2-body-soft mt-2">{{ t('macrosPage.ctaBody') }}</p>
           <div class="mt-5 flex flex-wrap justify-center gap-3">
@@ -92,7 +92,7 @@ import { share } from '../../utils/share';
               {{ shareLabel() }}
             </button>
           </div>
-        </v2-card>
+        </ui-card>
 
         <section class="mt-10">
           <h2 class="v2-h2 mb-3" style="font-size: 1.125rem;">{{ t('macrosPage.howTitle') }}</h2>

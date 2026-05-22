@@ -4,7 +4,7 @@ import {
 import { TranslocoDirective } from '@jsverse/transloco';
 import { LucideAngularModule } from 'lucide-angular';
 import { MacroEstimate } from '../../models/macro-estimate';
-import { V2Button } from '../ui/button.component';
+import { UiButton } from '../ui/button.component';
 
 interface Ingredient {
   name: string;
@@ -27,7 +27,7 @@ interface Ingredient {
 @Component({
   selector: 'app-recipe-builder',
   standalone: true,
-  imports: [TranslocoDirective, LucideAngularModule, V2Button],
+  imports: [TranslocoDirective, LucideAngularModule, UiButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -37,9 +37,9 @@ interface Ingredient {
           <div class="v2-body" style="font-weight: 500;">{{ t('v2.recipe.title') }}</div>
           <p class="v2-caption mt-0.5">{{ t('v2.recipe.desc') }}</p>
         </div>
-        <v2-button variant="ghost" size="sm" (click)="closed.emit()" [ariaLabel]="t('v2.recipe.closeAria')">
+        <ui-button variant="ghost" size="sm" (click)="closed.emit()" [ariaLabel]="t('v2.recipe.closeAria')">
           <lucide-icon name="x" [size]="14" />
-        </v2-button>
+        </ui-button>
       </div>
 
       <label class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
@@ -98,10 +98,10 @@ interface Ingredient {
         </div>
       }
 
-      <v2-button variant="ghost" size="sm" (click)="addIngredient()">
+      <ui-button variant="ghost" size="sm" (click)="addIngredient()">
         <lucide-icon name="plus" [size]="14" />
         {{ t('v2.recipe.addIngredient') }}
-      </v2-button>
+      </ui-button>
 
       <div class="grid grid-cols-2 gap-3 mt-4 pt-3" style="border-top: 1px solid var(--v2-rule);">
         <div>
@@ -135,14 +135,14 @@ interface Ingredient {
       </div>
 
       <div class="mt-3">
-        <v2-button
+        <ui-button
           variant="primary"
           size="md"
           [block]="true"
           (click)="apply()"
           [disabled]="!canApply()">
           {{ t('v2.recipe.useThis') }}
-        </v2-button>
+        </ui-button>
       </div>
     </div>
     </ng-container>

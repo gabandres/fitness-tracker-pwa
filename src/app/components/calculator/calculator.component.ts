@@ -9,8 +9,8 @@ import { FormsModule } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { TranslationService } from '../../services/translation.service';
 import { AnalyticsService } from '../../services/analytics.service';
-import { V2Button } from '../ui/button.component';
-import { V2Card } from '../ui/card.component';
+import { UiButton } from '../ui/button.component';
+import { UiCard } from '../ui/card.component';
 import {
   GoalDirection,
   WEIGHT_MIN_LB,
@@ -82,7 +82,7 @@ function detectGoalFromPath(): GoalDirection {
 @Component({
   selector: 'app-calculator',
   standalone: true,
-  imports: [FormsModule, LucideAngularModule, TranslocoDirective, V2Button, V2Card],
+  imports: [FormsModule, LucideAngularModule, TranslocoDirective, UiButton, UiCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -147,15 +147,15 @@ function detectGoalFromPath(): GoalDirection {
           </div>
         </div>
 
-        <v2-button variant="primary" size="lg" [block]="true" type="submit">
+        <ui-button variant="primary" size="lg" [block]="true" type="submit">
           {{ t('calculator.calculate') }}
-        </v2-button>
+        </ui-button>
       </form>
 
       @if (showResult()) {
         <section class="mt-8" aria-live="polite">
           <h2 class="v2-h2 mb-4">{{ t('calculator.resultTitle') }}</h2>
-          <v2-card>
+          <ui-card>
             <div class="flex items-center justify-between py-1">
               <span class="v2-caption">{{ t('calculator.kcalLabel') }}</span>
               <span class="v2-h3 font-mono">{{ kcal() }}</span>
@@ -165,9 +165,9 @@ function detectGoalFromPath(): GoalDirection {
               <span class="v2-caption">{{ t('calculator.proteinLabel') }}</span>
               <span class="v2-h3 font-mono">{{ protein() }}{{ t('calculator.gramSuffix') }}</span>
             </div>
-          </v2-card>
+          </ui-card>
 
-          <v2-card variant="accent" class="block mt-5 text-center">
+          <ui-card variant="accent" class="block mt-5 text-center">
             <h3 class="v2-h3">{{ t('calculator.ctaTitle') }}</h3>
             <p class="v2-body-soft mt-2">
               {{ t('calculator.ctaBody') }}
@@ -186,7 +186,7 @@ function detectGoalFromPath(): GoalDirection {
               </button>
             </div>
             <p class="v2-caption mt-3">{{ t('calculator.ctaFinePrint') }}</p>
-          </v2-card>
+          </ui-card>
         </section>
       }
 

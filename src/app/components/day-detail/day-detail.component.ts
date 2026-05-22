@@ -13,14 +13,14 @@ import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { TranslationService } from '../../services/translation.service';
 import { localDateKey, parseYmd } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
-import { V2DaySummary } from '../ui/day-summary.component';
-import { V2Fab } from '../ui/fab.component';
-import { V2IconButton } from '../ui/icon-button.component';
-import { V2FastingPill } from '../ui/fasting-pill.component';
+import { UiDaySummary } from '../ui/day-summary.component';
+import { UiFab } from '../ui/fab.component';
+import { UiIconButton } from '../ui/icon-button.component';
+import { UiFastingPill } from '../ui/fasting-pill.component';
 
 /**
  * Day-detail surface for `/history/YYYY-MM-DD`. Renders the shared
- * `<v2-day-summary>` block plus a back chevron, formatted date label,
+ * `<ui-day-summary>` block plus a back chevron, formatted date label,
  * and FAB that calls `entryForm.startAdd(dateKey)` so the entry sheet
  * opens pre-targeted at this day.
  *
@@ -28,15 +28,15 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
  * read-only — past + today are fully editable, matching v1 behavior.
  */
 @Component({
-  selector: 'app-day-detail-v2',
+  selector: 'app-day-detail',
   standalone: true,
   imports: [
     LucideAngularModule,
     TranslocoDirective,
-    V2DaySummary,
-    V2Fab,
-    V2IconButton,
-    V2FastingPill,
+    UiDaySummary,
+    UiFab,
+    UiIconButton,
+    UiFastingPill,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -44,7 +44,7 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
     <section class="max-w-[640px] mx-auto px-5 sm:px-6 pb-32 md:pb-28">
       <header class="flex items-start justify-between gap-4 pt-6 pb-2">
         <div class="flex items-center gap-2 min-w-0">
-          <v2-icon-button
+          <ui-icon-button
             icon="arrow-left"
             [ariaLabel]="t('v2.dayDetail.backAria')"
             (click)="closeRequested.emit()" />
@@ -59,20 +59,20 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
           </div>
         </div>
         <div class="shrink-0">
-          <v2-fasting-pill (bodyRequested)="bodyRequested.emit()" />
+          <ui-fasting-pill (bodyRequested)="bodyRequested.emit()" />
         </div>
       </header>
 
-      <v2-day-summary [dateKey]="dateKey()" [editable]="!isFuture()" />
+      <ui-day-summary [dateKey]="dateKey()" [editable]="!isFuture()" />
     </section>
 
     @if (!isFuture()) {
-      <v2-fab icon="plus" [ariaLabel]="t('v2.dayDetail.addFoodAria')" (click)="addFood()" />
+      <ui-fab icon="plus" [ariaLabel]="t('v2.dayDetail.addFoodAria')" (click)="addFood()" />
     }
     </ng-container>
   `,
 })
-export class DayDetailV2Component {
+export class DayDetailComponent {
   private readonly store = inject(FitnessStore);
   private readonly entryForm = inject(EntryFormManager);
   private readonly translation = inject(TranslationService);

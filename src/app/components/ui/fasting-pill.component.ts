@@ -22,7 +22,7 @@ import { TranslationService } from '../../services/translation.service';
  * in `ngOnDestroy` so route swaps don't leak handles.
  */
 @Component({
-  selector: 'v2-fasting-pill',
+  selector: 'ui-fasting-pill',
   standalone: true,
   imports: [LucideAngularModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -39,7 +39,7 @@ import { TranslationService } from '../../services/translation.service';
     }
   `,
 })
-export class V2FastingPill implements OnInit, OnDestroy {
+export class UiFastingPill implements OnInit, OnDestroy {
   protected readonly store = inject(FitnessStore);
   private readonly translation = inject(TranslationService);
 

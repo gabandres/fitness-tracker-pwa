@@ -14,8 +14,8 @@ import { FitnessStore } from '../../services/fitness-store.service';
 import { TranslationService } from '../../services/translation.service';
 import { localDateKey } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
-import { V2Sheet } from './sheet.component';
-import { V2Button } from './button.component';
+import { UiSheet } from './sheet.component';
+import { UiButton } from './button.component';
 
 /**
  * v2 Weight log sheet. Mirrors the entry-sheet-v2 pattern:
@@ -26,14 +26,14 @@ import { V2Button } from './button.component';
  * Week 6 alongside the Firebase Storage path + security rules.
  */
 @Component({
-  selector: 'v2-weight-sheet',
+  selector: 'ui-weight-sheet',
   standalone: true,
-  imports: [LucideAngularModule, TranslocoDirective, V2Sheet, V2Button],
+  imports: [LucideAngularModule, TranslocoDirective, UiSheet, UiButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     @if (open()) {
-      <v2-sheet labelledBy="weight-sheet-title" (close)="onClose()">
+      <ui-sheet labelledBy="weight-sheet-title" (close)="onClose()">
         <h2 id="weight-sheet-title" class="v2-h2 mb-1">{{ t('v2.weightSheet.logWeight') }}</h2>
         <p class="v2-caption mb-4">{{ dateLabel() }}</p>
 
@@ -64,7 +64,7 @@ import { V2Button } from './button.component';
             }
           </div>
 
-          <v2-button
+          <ui-button
             variant="secondary"
             [block]="true"
             [disabled]="true"
@@ -74,25 +74,25 @@ import { V2Button } from './button.component';
               {{ t('v2.weightSheet.takePhoto') }}
               <span class="v2-caption" style="margin-left: 8px; opacity: 0.7;">{{ t('v2.weightSheet.takePhotoSoon') }}</span>
             </span>
-          </v2-button>
+          </ui-button>
 
           <div class="flex gap-2 pt-2">
-            <v2-button variant="ghost" (click)="onClose()">{{ t('v2.weightSheet.cancel') }}</v2-button>
-            <v2-button
+            <ui-button variant="ghost" (click)="onClose()">{{ t('v2.weightSheet.cancel') }}</ui-button>
+            <ui-button
               type="submit"
               variant="primary"
               [block]="true"
               [disabled]="saving()">
               @if (saving()) { {{ t('v2.weightSheet.saving') }} } @else { {{ t('v2.weightSheet.save') }} }
-            </v2-button>
+            </ui-button>
           </div>
         </form>
-      </v2-sheet>
+      </ui-sheet>
     }
     </ng-container>
   `,
 })
-export class V2WeightSheet {
+export class UiWeightSheet {
   private readonly store = inject(FitnessStore);
   private readonly translation = inject(TranslationService);
 

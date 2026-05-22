@@ -17,13 +17,13 @@ import { LucideAngularModule } from 'lucide-angular';
  * Dismiss: backdrop tap, swipe-down (mobile), Escape, or close button.
  *
  * Usage:
- *   <v2-sheet (close)="onClose()" [labelledBy]="'sheet-title'">
+ *   <ui-sheet (close)="onClose()" [labelledBy]="'sheet-title'">
  *     <h2 id="sheet-title">…</h2>
  *     …content…
- *   </v2-sheet>
+ *   </ui-sheet>
  */
 @Component({
-  selector: 'v2-sheet',
+  selector: 'ui-sheet',
   standalone: true,
   imports: [LucideAngularModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -56,7 +56,7 @@ import { LucideAngularModule } from 'lucide-angular';
     </div>
   `,
 })
-export class V2Sheet implements OnInit, OnDestroy {
+export class UiSheet implements OnInit, OnDestroy {
   private readonly host = inject(ElementRef<HTMLElement>);
 
   readonly labelledBy = input<string | null>(null);

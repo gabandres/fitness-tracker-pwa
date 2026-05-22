@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 import { LucideAngularModule } from 'lucide-angular';
 
 @Component({
-  selector: 'v2-fab',
+  selector: 'ui-fab',
   standalone: true,
   imports: [LucideAngularModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -16,7 +16,7 @@ import { LucideAngularModule } from 'lucide-angular';
     </button>
   `,
 })
-export class V2Fab {
+export class UiFab {
   readonly icon = input<string>('plus');
   readonly ariaLabel = input.required<string>();
   readonly click = output<void>();

@@ -8,7 +8,7 @@ import {
 import { TranslocoDirective } from '@jsverse/transloco';
 import { TranslationService } from '../../services/translation.service';
 import { AnalyticsService } from '../../services/analytics.service';
-import { V2Card } from '../ui/card.component';
+import { UiCard } from '../ui/card.component';
 
 interface FaqItem { q: string; a: string; }
 
@@ -27,7 +27,7 @@ interface FaqItem { q: string; a: string; }
 @Component({
   selector: 'app-faq',
   standalone: true,
-  imports: [TranslocoDirective, V2Card],
+  imports: [TranslocoDirective, UiCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -59,7 +59,7 @@ interface FaqItem { q: string; a: string; }
         }
       </div>
 
-      <v2-card variant="accent" class="block mt-10 text-center">
+      <ui-card variant="accent" class="block mt-10 text-center">
         <h2 class="v2-h3">{{ t('faq.ctaTitle') }}</h2>
         <p class="v2-body-soft mt-2">{{ t('faq.ctaBody') }}</p>
         <div class="mt-5">
@@ -67,7 +67,7 @@ interface FaqItem { q: string; a: string; }
             {{ t('faq.ctaButton') }}
           </a>
         </div>
-      </v2-card>
+      </ui-card>
     </article>
     </ng-container>
   `,

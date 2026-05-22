@@ -3,8 +3,8 @@ import { FormsModule } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { AuthService, PendingLinkInfo } from '../../services/auth.service';
 import { TranslationService } from '../../services/translation.service';
-import { V2Card } from '../ui/card.component';
-import { V2Button } from '../ui/button.component';
+import { UiCard } from '../ui/card.component';
+import { UiButton } from '../ui/button.component';
 
 type Status = 'idle' | 'signing' | 'error' | 'reset-sent';
 type Mode = 'signin' | 'signup' | 'reset';
@@ -13,12 +13,12 @@ type Method = 'google' | 'microsoft' | 'email';
 @Component({
   selector: 'app-sign-in',
   standalone: true,
-  imports: [FormsModule, TranslocoDirective, V2Card, V2Button],
+  imports: [FormsModule, TranslocoDirective, UiCard, UiButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     <section class="max-w-[480px] mx-auto">
-      <v2-card variant="default" class="block">
+      <ui-card variant="default" class="block">
         <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em;">
           {{ t('signin.section') }}
         </p>
@@ -32,7 +32,7 @@ type Method = 'google' | 'microsoft' | 'email';
         <p class="v2-caption mt-2">{{ t('signin.caption') }}</p>
 
         @if (auth.pendingLink(); as link) {
-          <v2-card variant="accent" class="block mt-5">
+          <ui-card variant="accent" class="block mt-5">
             <p class="v2-caption mb-1" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--v2-accent); font-weight: 600;">
               {{ t('signin.linkStamp') }}
             </p>
@@ -41,29 +41,29 @@ type Method = 'google' | 'microsoft' | 'email';
             <div class="mt-3 flex flex-col sm:flex-row gap-2">
               @for (cand of link.candidateProviders; track cand) {
                 @if (cand === 'google.com') {
-                  <v2-button variant="primary" size="sm" [block]="true"
+                  <ui-button variant="primary" size="sm" [block]="true"
                     (click)="signInGoogle()"
                     [disabled]="status() === 'signing'">
                     {{ t('signin.linkWithGoogle') }}
-                  </v2-button>
+                  </ui-button>
                 } @else if (cand === 'microsoft.com') {
-                  <v2-button variant="primary" size="sm" [block]="true"
+                  <ui-button variant="primary" size="sm" [block]="true"
                     (click)="signInMicrosoft()"
                     [disabled]="status() === 'signing'">
                     {{ t('signin.linkWithMicrosoft') }}
-                  </v2-button>
+                  </ui-button>
                 } @else if (cand === 'password') {
-                  <v2-button variant="primary" size="sm" [block]="true"
+                  <ui-button variant="primary" size="sm" [block]="true"
                     (click)="openLinkEmailForm()">
                     {{ t('signin.linkWithPassword') }}
-                  </v2-button>
+                  </ui-button>
                 }
               }
-              <v2-button variant="ghost" size="sm" (click)="cancelLink()">
+              <ui-button variant="ghost" size="sm" (click)="cancelLink()">
                 {{ t('signin.linkCancel') }}
-              </v2-button>
+              </ui-button>
             </div>
-          </v2-card>
+          </ui-card>
         }
 
         <!-- One-click providers (no password) -->
@@ -114,10 +114,10 @@ type Method = 'google' | 'microsoft' | 'email';
         </div>
 
         @if (!emailFormOpen()) {
-          <v2-button variant="ghost" size="sm" [block]="true" class="mt-3 block"
+          <ui-button variant="ghost" size="sm" [block]="true" class="mt-3 block"
             (click)="openEmailForm()">
             {{ t('signin.useEmail') }}
-          </v2-button>
+          </ui-button>
         } @else {
           <form (submit)="submitEmail($event)" class="mt-4 space-y-3">
             <div>
@@ -148,7 +148,7 @@ type Method = 'google' | 'microsoft' | 'email';
               </div>
             }
 
-            <v2-button type="submit" variant="primary" [block]="true"
+            <ui-button type="submit" variant="primary" [block]="true"
               [disabled]="status() === 'signing'">
               @if (status() === 'signing' && lastMethod() === 'email') {
                 {{ t('signin.signingIn') }}
@@ -159,7 +159,7 @@ type Method = 'google' | 'microsoft' | 'email';
               } @else {
                 {{ t('signin.signInWithEmail') }}
               }
-            </v2-button>
+            </ui-button>
 
             <div class="flex items-center justify-between v2-caption pt-1">
               @if (mode() === 'signin') {
@@ -192,7 +192,7 @@ type Method = 'google' | 'microsoft' | 'email';
         <div class="mt-6 pt-5" style="border-top: 1px solid var(--v2-rule);">
           <p class="v2-caption">{{ t('signin.sessionCaption') }}</p>
         </div>
-      </v2-card>
+      </ui-card>
     </section>
     </ng-container>
   `,

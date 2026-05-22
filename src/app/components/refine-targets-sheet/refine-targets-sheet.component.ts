@@ -14,8 +14,8 @@ import { FirebaseService, ActivityLevel, CutPace, Sex } from '../../services/fir
 import { FitnessStore } from '../../services/fitness-store.service';
 import { TdeeCalculatorService } from '../../services/tdee-calculator.service';
 import { TranslationService } from '../../services/translation.service';
-import { V2Sheet } from '../ui/sheet.component';
-import { V2Button } from '../ui/button.component';
+import { UiSheet } from '../ui/sheet.component';
+import { UiButton } from '../ui/button.component';
 
 /**
  * Day-3 "Refine targets" sheet. Collects the missing Mifflin-St Jeor
@@ -25,14 +25,14 @@ import { V2Button } from '../ui/button.component';
  * `targetsRefinedAt` — see FirebaseService.saveRefinedTargets.
  */
 @Component({
-  selector: 'v2-refine-targets-sheet',
+  selector: 'ui-refine-targets-sheet',
   standalone: true,
-  imports: [LucideAngularModule, TranslocoDirective, V2Sheet, V2Button],
+  imports: [LucideAngularModule, TranslocoDirective, UiSheet, UiButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     @if (open()) {
-      <v2-sheet labelledBy="refine-sheet-title" (close)="onClose()">
+      <ui-sheet labelledBy="refine-sheet-title" (close)="onClose()">
         <h2 id="refine-sheet-title" class="v2-h2 mb-1">{{ t('v2.refineTargets.title') }}</h2>
         <p class="v2-caption mb-4">{{ t('v2.refineTargets.subtitle') }}</p>
 
@@ -163,25 +163,25 @@ import { V2Button } from '../ui/button.component';
           }
 
           <div class="flex gap-2 pt-2">
-            <v2-button variant="ghost" type="button" (click)="onClose()">
+            <ui-button variant="ghost" type="button" (click)="onClose()">
               {{ t('v2.refineTargets.cancel') }}
-            </v2-button>
-            <v2-button
+            </ui-button>
+            <ui-button
               type="submit"
               variant="primary"
               [block]="true"
               [disabled]="saving() || !isValid()">
               @if (saving()) { {{ t('v2.refineTargets.saving') }} }
               @else { {{ t('v2.refineTargets.save') }} }
-            </v2-button>
+            </ui-button>
           </div>
         </form>
-      </v2-sheet>
+      </ui-sheet>
     }
     </ng-container>
   `,
 })
-export class V2RefineTargetsSheet {
+export class UiRefineTargetsSheet {
   private readonly fb = inject(FirebaseService);
   private readonly store = inject(FitnessStore);
   private readonly calc = inject(TdeeCalculatorService);

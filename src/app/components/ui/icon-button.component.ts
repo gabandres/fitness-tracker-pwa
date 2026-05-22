@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
 
 @Component({
-  selector: 'v2-icon-button',
+  selector: 'ui-icon-button',
   standalone: true,
   imports: [LucideAngularModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -17,7 +17,7 @@ import { LucideAngularModule } from 'lucide-angular';
     </button>
   `,
 })
-export class V2IconButton {
+export class UiIconButton {
   readonly icon = input.required<string>();
   readonly ariaLabel = input.required<string>();
   readonly title = input<string | null>(null);

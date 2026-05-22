@@ -14,11 +14,11 @@ import { SubscriptionService } from '../../services/subscription.service';
 import { TranslationService } from '../../services/translation.service';
 import { UpsellService } from '../../services/upsell.service';
 import { ConsultationComponent } from '../consultation/consultation.component';
-import { V2BarChart } from '../ui/bar-chart.component';
-import { V2Button } from '../ui/button.component';
-import { V2Card } from '../ui/card.component';
-import { V2IconButton } from '../ui/icon-button.component';
-import { V2FastingPill } from '../ui/fasting-pill.component';
+import { UiBarChart } from '../ui/bar-chart.component';
+import { UiButton } from '../ui/button.component';
+import { UiCard } from '../ui/card.component';
+import { UiIconButton } from '../ui/icon-button.component';
+import { UiFastingPill } from '../ui/fasting-pill.component';
 
 /**
  * Trends route. Single-page scroll with: 7-day twin-bar chart,
@@ -28,16 +28,16 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
  * gets the warm-minimal restyle in Week 6 (per the v2 plan).
  */
 @Component({
-  selector: 'app-trends-v2',
+  selector: 'app-trends',
   standalone: true,
   imports: [
     LucideAngularModule,
     TranslocoDirective,
-    V2BarChart,
-    V2Button,
-    V2Card,
-    V2IconButton,
-    V2FastingPill,
+    UiBarChart,
+    UiButton,
+    UiCard,
+    UiIconButton,
+    UiFastingPill,
     ConsultationComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -51,12 +51,12 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
           <p class="v2-caption mt-0.5">{{ t('v2.trends.subtitle') }}</p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <v2-fasting-pill (bodyRequested)="bodyRequested.emit()" />
-          <v2-icon-button
+          <ui-fasting-pill (bodyRequested)="bodyRequested.emit()" />
+          <ui-icon-button
             icon="calendar"
             [ariaLabel]="t('v2.trends.historyAria')"
             (click)="historyRequested.emit()" />
-          <v2-icon-button
+          <ui-icon-button
             icon="settings"
             [ariaLabel]="t('v2.trends.settingsAria')"
             (click)="settingsRequested.emit()" />
@@ -64,9 +64,9 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
       </header>
 
       <!-- Bar chart -->
-      <v2-card variant="default" class="mt-6 block">
+      <ui-card variant="default" class="mt-6 block">
         @if (hasAnyData()) {
-          <v2-bar-chart
+          <ui-bar-chart
             [data]="chartData()"
             [kcalTarget]="kcalTarget()"
             [proteinTarget]="proteinTarget()" />
@@ -94,10 +94,10 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
             <p class="v2-body-soft">{{ t('v2.trends.noData') }}</p>
           </div>
         }
-      </v2-card>
+      </ui-card>
 
       <!-- Averages -->
-      <v2-card variant="flat" class="mt-4 block">
+      <ui-card variant="flat" class="mt-4 block">
         <h2 class="v2-h3 mb-3">{{ t('v2.trends.thisWeek') }}</h2>
         @if (weekly(); as w) {
           <dl class="grid grid-cols-2 gap-x-4 gap-y-3">
@@ -123,10 +123,10 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
         } @else {
           <p class="v2-body-soft">{{ t('v2.trends.needSeven') }}</p>
         }
-      </v2-card>
+      </ui-card>
 
       <!-- Weekly report (Pro) -->
-      <v2-card variant="default" class="mt-4 block">
+      <ui-card variant="default" class="mt-4 block">
         <h2 class="v2-h3 mb-3">{{ t('v2.trends.weeklyReadout') }}</h2>
         @if (reportHtml(); as html) {
           <div class="v2-prose" [innerHTML]="html"></div>
@@ -136,31 +136,31 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
         } @else if (store.reportError(); as err) {
           <p class="v2-body-soft" style="color: var(--v2-danger)">{{ err }}</p>
           @if (subs.isPaid()) {
-            <v2-button variant="ghost" size="sm" (click)="generate()">{{ t('v2.trends.retry') }}</v2-button>
+            <ui-button variant="ghost" size="sm" (click)="generate()">{{ t('v2.trends.retry') }}</ui-button>
           }
         } @else if (!subs.isPaid()) {
           <p class="v2-body-soft">{{ t('v2.trends.upsellBody') }}</p>
           <div class="mt-3">
-            <v2-button variant="primary" size="sm" (click)="openUpgrade()">
+            <ui-button variant="primary" size="sm" (click)="openUpgrade()">
               <lucide-icon name="sparkles" [size]="14" />
               {{ t('v2.trends.upgrade') }}
-            </v2-button>
+            </ui-button>
           </div>
         } @else if (daysWithLogsThisWeek() < 3) {
           <p class="v2-body-soft">{{ t('v2.trends.needThreeDays') }}</p>
         } @else {
-          <v2-button variant="primary" size="sm" (click)="generate()">
+          <ui-button variant="primary" size="sm" (click)="generate()">
             <lucide-icon name="sparkles" [size]="14" />
             {{ t('v2.trends.generateThisWeek') }}
-          </v2-button>
+          </ui-button>
         }
-      </v2-card>
+      </ui-card>
 
       <!-- AI coach (v1 consultation, restyled in Week 6) -->
-      <v2-card variant="default" class="mt-4 block">
+      <ui-card variant="default" class="mt-4 block">
         <h2 class="v2-h3 mb-3">{{ t('v2.trends.aiCoach') }}</h2>
         <app-consultation />
-      </v2-card>
+      </ui-card>
     </section>
     </ng-container>
   `,
@@ -189,7 +189,7 @@ import { V2FastingPill } from '../ui/fasting-pill.component';
     :host ::ng-deep .v2-prose strong { font-weight: 600; }
   `],
 })
-export class TrendsV2Component {
+export class TrendsComponent {
   protected readonly store = inject(FitnessStore);
   protected readonly subs = inject(SubscriptionService);
   private readonly upsell = inject(UpsellService);

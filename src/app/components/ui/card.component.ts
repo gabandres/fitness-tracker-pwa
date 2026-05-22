@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-export type V2CardVariant = 'default' | 'flat' | 'raised' | 'accent';
+export type UiCardVariant = 'default' | 'flat' | 'raised' | 'accent';
 
 @Component({
-  selector: 'v2-card',
+  selector: 'ui-card',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<ng-content />`,
@@ -11,11 +11,11 @@ export type V2CardVariant = 'default' | 'flat' | 'raised' | 'accent';
     '[class]': 'cssClass()',
   },
 })
-export class V2Card {
-  readonly variant = input<V2CardVariant>('default');
+export class UiCard {
+  readonly variant = input<UiCardVariant>('default');
 
   protected readonly cssClass = computed(() => {
-    const parts = ['v2-card'];
+    const parts = ['ui-card'];
     const v = this.variant();
     if (v !== 'default') parts.push(`v2-card--${v}`);
     return parts.join(' ');

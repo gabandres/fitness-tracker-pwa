@@ -4,25 +4,25 @@ import { AuthService } from '../../services/auth.service';
 import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { TranslationService } from '../../services/translation.service';
 import { extractErrorCode } from '../../models/error-codes';
-import { V2Card } from '../ui/card.component';
-import { V2Button } from '../ui/button.component';
+import { UiCard } from '../ui/card.component';
+import { UiButton } from '../ui/button.component';
 
 type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'error';
 
 @Component({
   selector: 'app-privacy',
   standalone: true,
-  imports: [TranslocoDirective, V2Card, V2Button],
+  imports: [TranslocoDirective, UiCard, UiButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     <section class="max-w-[640px] mx-auto">
       @if (showAuthoritativeBanner()) {
-        <v2-card variant="flat" class="block mb-4">
+        <ui-card variant="flat" class="block mb-4">
           <p class="v2-caption" style="color: var(--v2-accent);">
             {{ t('legal.authoritativeBanner') }}
           </p>
-        </v2-card>
+        </ui-card>
       }
 
       <a href="/" class="v2-caption" style="text-decoration: underline; text-decoration-style: dotted;">
@@ -68,11 +68,11 @@ type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'error';
 
         @if (auth.isSignedIn()) {
           <div class="mt-4 flex items-center gap-3 flex-wrap">
-            <v2-button variant="secondary" size="sm"
+            <ui-button variant="secondary" size="sm"
               (click)="downloadFullExport()"
               [disabled]="exportStatus() === 'running'">
               {{ exportStatus() === 'running' ? t('privacy.exportRunning') : t('privacy.exportButton') }}
-            </v2-button>
+            </ui-button>
             @if (exportStatus() === 'error') {
               <span class="v2-caption" role="alert" style="color: var(--v2-danger);">{{ exportError() }}</span>
             }
@@ -102,7 +102,7 @@ type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'error';
 
       <!-- Danger zone: account deletion. Also anchor-linked as
            /privacy#delete from the settings sheet. -->
-      <v2-card variant="default" class="block mt-12 scroll-mt-24"
+      <ui-card variant="default" class="block mt-12 scroll-mt-24"
         id="delete"
         style="border-color: var(--v2-danger);">
         <p class="v2-caption mb-2" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--v2-danger); font-weight: 600;">
@@ -115,9 +115,9 @@ type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'error';
           <p class="v2-body mb-3">
             {{ t('privacy.confirmEmail', { email: auth.user()?.email }) }}
           </p>
-          <v2-button variant="destructive" size="sm" (click)="deleteStatus.set('confirming')">
+          <ui-button variant="destructive" size="sm" (click)="deleteStatus.set('confirming')">
             {{ t('privacy.deleteButton') }}
-          </v2-button>
+          </ui-button>
         } @else if (deleteStatus() === 'confirming') {
           <p class="v2-body mb-3">
             {{ t('privacy.typeDeletePrefix') }}
@@ -131,25 +131,25 @@ type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'error';
               [placeholder]="t('privacy.deletePlaceholder')"
               class="v2-field"
               style="max-width: 200px;" />
-            <v2-button variant="destructive" size="sm"
+            <ui-button variant="destructive" size="sm"
               (click)="confirmDelete()"
               [disabled]="confirmInput().trim().toLowerCase() !== t('privacy.typeDeleteWord').toLowerCase()"
               [ariaLabel]="t('privacy.confirmAria')">
               {{ t('privacy.confirm') }}
-            </v2-button>
-            <v2-button variant="ghost" size="sm" (click)="cancelDelete()">
+            </ui-button>
+            <ui-button variant="ghost" size="sm" (click)="cancelDelete()">
               {{ t('privacy.cancel') }}
-            </v2-button>
+            </ui-button>
           </div>
         } @else if (deleteStatus() === 'deleting') {
           <p class="v2-caption">{{ t('privacy.erasing') }}</p>
         } @else if (deleteStatus() === 'error') {
           <p class="v2-caption" role="alert" style="color: var(--v2-danger);">{{ errorMsg() }}</p>
-          <v2-button variant="ghost" size="sm" class="mt-2" (click)="deleteStatus.set('idle')">
+          <ui-button variant="ghost" size="sm" class="mt-2" (click)="deleteStatus.set('idle')">
             {{ t('privacy.tryAgain') }}
-          </v2-button>
+          </ui-button>
         }
-      </v2-card>
+      </ui-card>
     </section>
     </ng-container>
   `,

@@ -2,8 +2,8 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Firestore, doc, getDoc } from '@angular/fire/firestore';
 import { SubscriptionService } from '../../services/subscription.service';
-import { V2Card } from '../ui/card.component';
-import { V2Button } from '../ui/button.component';
+import { UiCard } from '../ui/card.component';
+import { UiButton } from '../ui/button.component';
 
 /**
  * Public marketing surface at `/`. Shows when the user is not signed
@@ -24,7 +24,7 @@ import { V2Button } from '../ui/button.component';
 @Component({
   selector: 'app-landing',
   standalone: true,
-  imports: [TranslocoDirective, V2Card, V2Button],
+  imports: [TranslocoDirective, UiCard, UiButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -80,33 +80,33 @@ import { V2Button } from '../ui/button.component';
           {{ t('landing.whatItDoesRule') }}
         </h2>
         <div class="grid gap-4 sm:grid-cols-3">
-          <v2-card variant="default" class="block">
+          <ui-card variant="default" class="block">
             <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--v2-accent); font-weight: 600;">
               {{ t('landing.proofCaptureStamp') }}
             </p>
             <h3 class="v2-h3 mt-2">{{ t('landing.proofCaptureTitle') }}</h3>
             <p class="v2-body-soft mt-2">{{ t('landing.proofCaptureBody') }}</p>
-          </v2-card>
-          <v2-card variant="default" class="block">
+          </ui-card>
+          <ui-card variant="default" class="block">
             <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--v2-accent); font-weight: 600;">
               {{ t('landing.proofTdeeStamp') }}
             </p>
             <h3 class="v2-h3 mt-2">{{ t('landing.proofTdeeTitle') }}</h3>
             <p class="v2-body-soft mt-2">{{ t('landing.proofTdeeBody') }}</p>
-          </v2-card>
-          <v2-card variant="default" class="block">
+          </ui-card>
+          <ui-card variant="default" class="block">
             <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--v2-accent); font-weight: 600;">
               {{ t('landing.proofCoachStamp') }}
             </p>
             <h3 class="v2-h3 mt-2">{{ t('landing.proofCoachTitle') }}</h3>
             <p class="v2-body-soft mt-2">{{ t('landing.proofCoachBody') }}</p>
-          </v2-card>
+          </ui-card>
         </div>
       </section>
 
       <!-- ── 3. Privacy pledge ───────────────────────────────────── -->
       <section>
-        <v2-card variant="flat" class="block">
+        <ui-card variant="flat" class="block">
           <p class="v2-caption mb-2" style="text-transform: uppercase; letter-spacing: 0.08em;">
             {{ t('landing.privacyLabel') }}
           </p>
@@ -120,7 +120,7 @@ import { V2Button } from '../ui/button.component';
             &nbsp;·&nbsp;
             <a href="/terms" style="text-decoration: underline; text-decoration-style: dotted;">{{ t('landing.termsLink') }}</a>
           </p>
-        </v2-card>
+        </ui-card>
       </section>
 
       <!-- ── 3.5 Quick targets — internal links into the programmatic
@@ -151,7 +151,7 @@ import { V2Button } from '../ui/button.component';
           {{ t('landing.pricingRule') }}
         </h2>
         <div class="grid gap-4 sm:grid-cols-2">
-          <v2-card variant="default" class="block flex-col" style="display: flex;">
+          <ui-card variant="default" class="block flex-col" style="display: flex;">
             <div class="flex items-baseline justify-between gap-3">
               <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;">
                 {{ t('landing.freeStamp') }}
@@ -168,8 +168,8 @@ import { V2Button } from '../ui/button.component';
             <a href="/app" class="v2-btn v2-btn--secondary v2-btn--block mt-4" style="justify-content: center;">
               {{ t('landing.freeCta') }}
             </a>
-          </v2-card>
-          <v2-card variant="accent" class="block flex-col" style="display: flex;">
+          </ui-card>
+          <ui-card variant="accent" class="block flex-col" style="display: flex;">
             <div class="flex items-baseline justify-between gap-3">
               <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--v2-accent); font-weight: 600;">
                 {{ t('landing.proStamp') }}
@@ -207,7 +207,7 @@ import { V2Button } from '../ui/button.component';
             <a href="/app?intent=pro" class="v2-btn v2-btn--primary v2-btn--block mt-4" style="justify-content: center;">
               {{ t('landing.proCta') }}
             </a>
-          </v2-card>
+          </ui-card>
         </div>
         <p class="v2-caption mt-4">{{ t('landing.pricingFinePrint') }}</p>
       </section>

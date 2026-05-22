@@ -15,12 +15,12 @@ import { TranslationService } from '../../services/translation.service';
 import { localDateKey } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
 import { Measurement } from '../../services/firebase.service';
-import { V2Card } from '../ui/card.component';
-import { V2Button } from '../ui/button.component';
-import { V2IconButton } from '../ui/icon-button.component';
-import { V2Sparkline } from '../ui/sparkline.component';
-import { V2WeightSheet } from '../ui/weight-sheet.component';
-import { V2FastingPill } from '../ui/fasting-pill.component';
+import { UiCard } from '../ui/card.component';
+import { UiButton } from '../ui/button.component';
+import { UiIconButton } from '../ui/icon-button.component';
+import { UiSparkline } from '../ui/sparkline.component';
+import { UiWeightSheet } from '../ui/weight-sheet.component';
+import { UiFastingPill } from '../ui/fasting-pill.component';
 
 const FAST_HOURS = 16;
 type MField = 'waist' | 'chest' | 'bicep' | 'hip';
@@ -40,17 +40,17 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
  * Replaces the Week-4 placeholder that wrapped v1 components.
  */
 @Component({
-  selector: 'app-body-v2',
+  selector: 'app-body',
   standalone: true,
   imports: [
     LucideAngularModule,
     TranslocoDirective,
-    V2Card,
-    V2Button,
-    V2IconButton,
-    V2Sparkline,
-    V2WeightSheet,
-    V2FastingPill,
+    UiCard,
+    UiButton,
+    UiIconButton,
+    UiSparkline,
+    UiWeightSheet,
+    UiFastingPill,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -63,20 +63,20 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
           <p class="v2-caption mt-0.5">{{ t('v2.body.subtitle') }}</p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <v2-fasting-pill (bodyRequested)="bodyRequested.emit()" />
-          <v2-icon-button icon="calendar" [ariaLabel]="t('v2.body.historyAria')" (click)="historyRequested.emit()" />
-          <v2-icon-button icon="settings" [ariaLabel]="t('v2.body.settingsAria')" (click)="settingsRequested.emit()" />
+          <ui-fasting-pill (bodyRequested)="bodyRequested.emit()" />
+          <ui-icon-button icon="calendar" [ariaLabel]="t('v2.body.historyAria')" (click)="historyRequested.emit()" />
+          <ui-icon-button icon="settings" [ariaLabel]="t('v2.body.settingsAria')" (click)="settingsRequested.emit()" />
         </div>
       </header>
 
       <!-- ── Weight ──────────────────────────────────────────── -->
-      <v2-card variant="default" class="mt-6 block">
+      <ui-card variant="default" class="mt-6 block">
         <div class="flex items-baseline justify-between gap-3 mb-3">
           <h2 class="v2-h2">{{ t('v2.body.weight') }}</h2>
-          <v2-button variant="secondary" size="sm" (click)="openWeightSheet()">
+          <ui-button variant="secondary" size="sm" (click)="openWeightSheet()">
             <lucide-icon name="plus" [size]="14" />
             {{ t('v2.body.logWeight') }}
-          </v2-button>
+          </ui-button>
         </div>
 
         <div class="flex items-baseline gap-2">
@@ -92,7 +92,7 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
         </div>
 
         <div class="mt-4">
-          <v2-sparkline
+          <ui-sparkline
             [values]="weightSeries()"
             [width]="280"
             [height]="56"
@@ -119,7 +119,7 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
           </div>
         }
 
-        <v2-button
+        <ui-button
           variant="ghost"
           size="sm"
           [block]="true"
@@ -130,11 +130,11 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
             {{ t('v2.body.takePhoto') }}
             <span class="v2-caption" style="opacity: 0.6;">{{ t('v2.body.takePhotoSoon') }}</span>
           </span>
-        </v2-button>
-      </v2-card>
+        </ui-button>
+      </ui-card>
 
       <!-- ── Fasting ─────────────────────────────────────────── -->
-      <v2-card variant="default" class="mt-4 block">
+      <ui-card variant="default" class="mt-4 block">
         <div class="flex items-baseline justify-between gap-3">
           <h2 class="v2-h2">{{ t('v2.body.fasting') }}</h2>
           @if (store.isFasting()) {
@@ -181,9 +181,9 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
                     {{ t('v2.body.edit') }}
                   </button>
                 </p>
-                <v2-button variant="destructive" [block]="true" (click)="endFast()">
+                <ui-button variant="destructive" [block]="true" (click)="endFast()">
                   {{ t('v2.body.endFast') }}
-                </v2-button>
+                </ui-button>
               } @else {
                 <p class="v2-caption text-center mb-2" style="font-size: 0.75rem;">
                   {{ t('v2.body.editStartActivePrompt') }}
@@ -205,16 +205,16 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
                   </p>
                 }
                 <div class="flex items-center justify-center gap-2">
-                  <v2-button variant="ghost" (click)="cancelEdit()">{{ t('v2.body.cancel') }}</v2-button>
-                  <v2-button variant="primary" (click)="commitEdit()">{{ t('v2.body.save') }}</v2-button>
+                  <ui-button variant="ghost" (click)="cancelEdit()">{{ t('v2.body.cancel') }}</ui-button>
+                  <ui-button variant="primary" (click)="commitEdit()">{{ t('v2.body.save') }}</ui-button>
                 </div>
               }
             } @else {
               @if (!editing()) {
-                <v2-button variant="primary" [block]="true" (click)="startFast()">
+                <ui-button variant="primary" [block]="true" (click)="startFast()">
                   <lucide-icon name="timer" [size]="16" />
                   {{ t('v2.body.startFast') }}
-                </v2-button>
+                </ui-button>
                 <p class="text-center mt-2">
                   <button type="button" (click)="beginEdit()"
                     class="v2-caption underline"
@@ -243,17 +243,17 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
                   </p>
                 }
                 <div class="flex items-center justify-center gap-2">
-                  <v2-button variant="ghost" (click)="cancelEdit()">{{ t('v2.body.cancel') }}</v2-button>
-                  <v2-button variant="primary" (click)="commitEdit()">{{ t('v2.body.startFast') }}</v2-button>
+                  <ui-button variant="ghost" (click)="cancelEdit()">{{ t('v2.body.cancel') }}</ui-button>
+                  <ui-button variant="primary" (click)="commitEdit()">{{ t('v2.body.startFast') }}</ui-button>
                 </div>
               }
             }
           </div>
         </div>
-      </v2-card>
+      </ui-card>
 
       <!-- ── Measurements ────────────────────────────────────── -->
-      <v2-card variant="default" class="mt-4 block">
+      <ui-card variant="default" class="mt-4 block">
         <button
           type="button"
           class="flex items-center justify-between gap-3 w-full"
@@ -320,24 +320,24 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
                   <p class="v2-caption" role="alert" style="color: var(--v2-danger)">{{ formError() }}</p>
                 }
                 <div class="flex gap-2 pt-1">
-                  <v2-button variant="ghost" (click)="cancelMeasurement()">{{ t('v2.body.cancel') }}</v2-button>
-                  <v2-button type="submit" variant="primary" [block]="true" [disabled]="saving()">
+                  <ui-button variant="ghost" (click)="cancelMeasurement()">{{ t('v2.body.cancel') }}</ui-button>
+                  <ui-button type="submit" variant="primary" [block]="true" [disabled]="saving()">
                     @if (saving()) { {{ t('v2.body.saving') }} } @else { {{ t('v2.body.save') }} }
-                  </v2-button>
+                  </ui-button>
                 </div>
               </form>
             } @else {
-              <v2-button variant="secondary" size="sm" [block]="true" (click)="openMeasurementForm()">
+              <ui-button variant="secondary" size="sm" [block]="true" (click)="openMeasurementForm()">
                 <lucide-icon name="plus" [size]="14" />
                 {{ t('v2.body.addMeasurement') }}
-              </v2-button>
+              </ui-button>
             }
           </div>
         }
-      </v2-card>
+      </ui-card>
 
       <!-- Weight log sheet -->
-      <v2-weight-sheet
+      <ui-weight-sheet
         [open]="weightSheetOpen()"
         [dateKey]="todayKey()"
         (close)="weightSheetOpen.set(false)" />
@@ -345,7 +345,7 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
     </ng-container>
   `,
 })
-export class BodyV2Component implements OnInit, OnDestroy {
+export class BodyComponent implements OnInit, OnDestroy {
   protected readonly store = inject(FitnessStore);
   private readonly translation = inject(TranslationService);
 

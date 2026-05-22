@@ -18,10 +18,10 @@ import {
   startOfMonth,
 } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
-import { V2IconButton } from '../ui/icon-button.component';
-import { V2Card } from '../ui/card.component';
-import { V2Ring } from '../ui/ring.component';
-import { V2FastingPill } from '../ui/fasting-pill.component';
+import { UiIconButton } from '../ui/icon-button.component';
+import { UiCard } from '../ui/card.component';
+import { UiRing } from '../ui/ring.component';
+import { UiFastingPill } from '../ui/fasting-pill.component';
 
 const FREE_TIER_DAYS = 90;
 
@@ -35,27 +35,27 @@ const FREE_TIER_DAYS = 90;
  * period and we add an explanatory card above the grid.
  */
 @Component({
-  selector: 'app-history-v2',
+  selector: 'app-history',
   standalone: true,
-  imports: [LucideAngularModule, TranslocoDirective, V2IconButton, V2Card, V2Ring, V2FastingPill],
+  imports: [LucideAngularModule, TranslocoDirective, UiIconButton, UiCard, UiRing, UiFastingPill],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     <section class="max-w-[640px] mx-auto px-5 sm:px-6 pb-32 md:pb-28">
       <!-- Top bar -->
       <header class="flex items-center justify-between gap-3 pt-6 pb-4">
-        <v2-icon-button
+        <ui-icon-button
           icon="arrow-left"
           [ariaLabel]="t('v2.history.backAria')"
           (click)="closeRequested.emit()" />
         <h1 class="v2-h2" aria-live="polite">{{ monthLabel() }}</h1>
         <div class="flex items-center gap-2">
-          <v2-fasting-pill (bodyRequested)="bodyRequested.emit()" />
-          <v2-icon-button
+          <ui-fasting-pill (bodyRequested)="bodyRequested.emit()" />
+          <ui-icon-button
             icon="chevron-left"
             [ariaLabel]="t('v2.history.prevMonthAria')"
             (click)="prevMonth()" />
-          <v2-icon-button
+          <ui-icon-button
             icon="chevron-right"
             [ariaLabel]="t('v2.history.nextMonthAria')"
             (click)="nextMonth()" />
@@ -63,11 +63,11 @@ const FREE_TIER_DAYS = 90;
       </header>
 
       @if (showFreeTierUpsell()) {
-        <v2-card variant="accent" class="block mb-4">
+        <ui-card variant="accent" class="block mb-4">
           <p class="v2-body">
             {{ t('v2.history.freeTierBody') }}
           </p>
-        </v2-card>
+        </ui-card>
       }
 
       <!-- Weekday header -->
@@ -104,7 +104,7 @@ const FREE_TIER_DAYS = 90;
               (click)="onTap(cell)">
               <span class="v2-caption" style="font-weight: 500;">{{ cell.date.getDate() }}</span>
               @if (summaryFor(cell.key); as s) {
-                <v2-ring
+                <ui-ring
                   [value]="s.totalCalories"
                   [target]="kcalTarget()"
                   [size]="28"
@@ -120,7 +120,7 @@ const FREE_TIER_DAYS = 90;
     </ng-container>
   `,
 })
-export class HistoryV2Component {
+export class HistoryComponent {
   private readonly store = inject(FitnessStore);
   private readonly subs = inject(SubscriptionService);
   private readonly translation = inject(TranslationService);

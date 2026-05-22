@@ -4,7 +4,7 @@ import { concat, filter, first, interval } from 'rxjs';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { TranslationService } from './services/translation.service';
 import { SignInComponent } from './components/sign-in/sign-in.component';
-import { OnboardingV2Component } from './components/onboarding-v2/onboarding-v2.component';
+import { OnboardingComponent } from './components/onboarding/onboarding.component';
 import { CalculatorComponent } from './components/calculator/calculator.component';
 import { MacrosPageComponent } from './components/macros-page/macros-page.component';
 import { FaqComponent } from './components/faq/faq.component';
@@ -18,7 +18,7 @@ import { StatusComponent } from './components/status/status.component';
 import { LandingComponent } from './components/landing/landing.component';
 import { AdminComponent } from './components/admin/admin.component';
 import { NotFoundComponent } from './components/not-found/not-found.component';
-import { SettingsSheetV2Component } from './components/settings-sheet-v2/settings-sheet-v2.component';
+import { SettingsSheetComponent } from './components/settings-sheet/settings-sheet.component';
 import { AuthService } from './services/auth.service';
 import { LEDGER_PORT } from './ledger/ports/ledger.port';
 import { FitnessStore } from './services/fitness-store.service';
@@ -33,21 +33,21 @@ import { AnalyticsService } from './services/analytics.service';
 import { EntryFormManager } from './services/entry-form-manager.service';
 import { AdminService } from './services/admin.service';
 import { PushNotificationService } from './services/push-notification.service';
-import { V2DevGallery } from './components/ui/dev-gallery.component';
-import { TodayV2Component } from './components/today-v2/today-v2.component';
-import { EntrySheetV2Component } from './components/entry-sheet-v2/entry-sheet-v2.component';
-import { HistoryV2Component } from './components/history-v2/history-v2.component';
-import { DayDetailV2Component } from './components/day-detail-v2/day-detail-v2.component';
-import { TrendsV2Component } from './components/trends-v2/trends-v2.component';
-import { BodyV2Component } from './components/body-v2/body-v2.component';
-import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
+import { UiDevGallery } from './components/ui/dev-gallery.component';
+import { TodayComponent } from './components/today/today.component';
+import { EntrySheetComponent } from './components/entry-sheet/entry-sheet.component';
+import { HistoryComponent } from './components/history/history.component';
+import { DayDetailComponent } from './components/day-detail/day-detail.component';
+import { TrendsComponent } from './components/trends/trends.component';
+import { BodyComponent } from './components/body/body.component';
+import { UiTabBar, type UiTab } from './components/ui/tab-bar.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
   imports: [
     SignInComponent,
-    OnboardingV2Component,
+    OnboardingComponent,
     CalculatorComponent,
     MacrosPageComponent,
     FaqComponent,
@@ -61,16 +61,16 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
     LandingComponent,
     AdminComponent,
     NotFoundComponent,
-    SettingsSheetV2Component,
+    SettingsSheetComponent,
     TranslocoDirective,
-    V2DevGallery,
-    TodayV2Component,
-    EntrySheetV2Component,
-    HistoryV2Component,
-    DayDetailV2Component,
-    TrendsV2Component,
-    BodyV2Component,
-    V2TabBar,
+    UiDevGallery,
+    TodayComponent,
+    EntrySheetComponent,
+    HistoryComponent,
+    DayDetailComponent,
+    TrendsComponent,
+    BodyComponent,
+    UiTabBar,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -105,7 +105,7 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
       <!-- v2 primitives gallery — internal dev surface, not in
            production navigation. Mounted at /dev/components while the
            v2 rebuild is in flight (Weeks 1-6). -->
-      <v2-dev-gallery />
+      <ui-dev-gallery />
     } @else {
     <main id="main" class="min-h-screen px-5 sm:px-8 md:px-12 py-8 sm:py-12 pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-12">
       <div class="max-w-[560px] md:max-w-[1100px] mx-auto">
@@ -340,7 +340,7 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
                  profileCompleted so we never re-enter this branch. -->
             <div class="ink-in delay-3">
               @defer (on immediate) {
-                <app-onboarding-v2
+                <app-onboarding
                   (completed)="onOnboardingV2Completed()"
                   (cancelled)="onOnboardingV2Cancelled()" />
               } @placeholder {
@@ -352,7 +352,7 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
                  isn't in first paint — most sessions never open it. -->
             @if (showSettings()) {
               @defer (on immediate) {
-                <app-settings-sheet-v2
+                <app-settings-sheet
                   [darkMode]="darkMode()"
                   [themeChoice]="themeChoice()"
                   (close)="showSettings.set(false)"
@@ -368,13 +368,13 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
                   <!-- v2 2-question onboarding. Reachable via /onboarding
                        directly (redo from settings) or from the new-user
                        redirect below when no onboarding doc exists. -->
-                  <app-onboarding-v2
+                  <app-onboarding
                     (completed)="onOnboardingV2Completed()"
                     (cancelled)="onOnboardingV2Cancelled()" />
                 }
                 @case ('history') {
                   @defer (on immediate) {
-                    <app-history-v2
+                    <app-history
                       (dayTapped)="pushHistoryDay($event)"
                       (closeRequested)="popHistory()"
                       (bodyRequested)="onBodyRequestedV2()" />
@@ -384,7 +384,7 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
                 }
                 @case ('historyDay') {
                   @defer (on immediate) {
-                    <app-day-detail-v2
+                    <app-day-detail
                       [dateKey]="historyDay()!"
                       (closeRequested)="popHistory()"
                       (bodyRequested)="onBodyRequestedV2()" />
@@ -394,7 +394,7 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
                 }
                 @case ('trends') {
                   @defer (on immediate) {
-                    <app-trends-v2
+                    <app-trends
                       (settingsRequested)="showSettings.set(true)"
                       (historyRequested)="onHistoryRequestedV2()"
                       (bodyRequested)="onBodyRequestedV2()" />
@@ -404,7 +404,7 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
                 }
                 @case ('body') {
                   @defer (on immediate) {
-                    <app-body-v2
+                    <app-body
                       (settingsRequested)="showSettings.set(true)"
                       (historyRequested)="onHistoryRequestedV2()"
                       (bodyRequested)="onBodyRequestedV2()" />
@@ -413,17 +413,17 @@ import { V2TabBar, type V2Tab } from './components/ui/tab-bar.component';
                   }
                 }
                 @default {
-                  <app-today-v2
+                  <app-today
                     (settingsRequested)="showSettings.set(true)"
                     (historyRequested)="onHistoryRequestedV2()"
                     (bodyRequested)="onBodyRequestedV2()" />
                 }
               }
-              <app-entry-sheet-v2 />
-              <v2-tab-bar
+              <app-entry-sheet />
+              <ui-tab-bar
                 [tabs]="v2Tabs"
-                [activeId]="activeV2Tab()"
-                (select)="onV2TabSelect($event)" />
+                [activeId]="activeUiTab()"
+                (select)="onUiTabSelect($event)" />
           }
         </div>
 
@@ -700,7 +700,7 @@ export class App {
   }
 
   /** v2 tab-bar definition. Order = visual order. */
-  protected readonly v2Tabs: V2Tab[] = [
+  protected readonly v2Tabs: UiTab[] = [
     { id: 'today', label: 'Today', icon: 'home' },
     { id: 'trends', label: 'Trends', icon: 'trending-up' },
     { id: 'body', label: 'Body', icon: 'user' },
@@ -710,7 +710,7 @@ export class App {
    *  highlights the correct segment. Calendar routes (history /
    *  historyDay) inherit Today highlight — they're a sub-surface of the
    *  Today tab, not a separate primary section. */
-  protected readonly activeV2Tab = computed<string>(() => {
+  protected readonly activeUiTab = computed<string>(() => {
     const r = this.route();
     if (r === 'trends') return 'trends';
     if (r === 'body') return 'body';
@@ -721,7 +721,7 @@ export class App {
    *  not the derived tab. The history routes report `today` as their
    *  active tab so the bar lights up correctly, but a Today tap from
    *  inside /history must still navigate to /app. */
-  protected onV2TabSelect(id: string): void {
+  protected onUiTabSelect(id: string): void {
     const r = this.route();
     if (id === 'today' && r !== 'history' && r !== 'historyDay' && r !== 'trends' && r !== 'body') return;
     if (id === 'trends' && r === 'trends') return;

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-export type V2RingTone = 'accent' | 'sage' | 'warn' | 'danger';
+export type UiRingTone = 'accent' | 'sage' | 'warn' | 'danger';
 
 /**
  * SVG progress ring. Renders a track + fill arc whose length is
@@ -11,7 +11,7 @@ export type V2RingTone = 'accent' | 'sage' | 'warn' | 'danger';
  * dual-ring layout. Override via inputs for sparklines / micro-rings.
  */
 @Component({
-  selector: 'v2-ring',
+  selector: 'ui-ring',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -44,12 +44,12 @@ export type V2RingTone = 'accent' | 'sage' | 'warn' | 'danger';
     </div>
   `,
 })
-export class V2Ring {
+export class UiRing {
   readonly value = input<number>(0);
   readonly target = input<number>(100);
   readonly size = input<number>(120);
   readonly stroke = input<number>(12);
-  readonly tone = input<V2RingTone>('accent');
+  readonly tone = input<UiRingTone>('accent');
   readonly ariaLabel = input<string>('progress');
 
   protected readonly radius = computed(() => (this.size() - this.stroke()) / 2);

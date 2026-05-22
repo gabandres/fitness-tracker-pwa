@@ -1,22 +1,22 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { TranslationService } from '../../services/translation.service';
-import { V2Card } from '../ui/card.component';
+import { UiCard } from '../ui/card.component';
 
 @Component({
   selector: 'app-terms',
   standalone: true,
-  imports: [TranslocoDirective, V2Card],
+  imports: [TranslocoDirective, UiCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     <section class="max-w-[640px] mx-auto">
       @if (showAuthoritativeBanner()) {
-        <v2-card variant="flat" class="block mb-4">
+        <ui-card variant="flat" class="block mb-4">
           <p class="v2-caption" style="color: var(--v2-accent);">
             {{ t('legal.authoritativeBanner') }}
           </p>
-        </v2-card>
+        </ui-card>
       }
 
       <a href="/" class="v2-caption" style="text-decoration: underline; text-decoration-style: dotted;">

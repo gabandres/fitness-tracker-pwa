@@ -14,10 +14,10 @@ import { TranslationService } from '../../services/translation.service';
 import type { DailyLog } from '../../services/firebase.service';
 import { localDateKey } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
-import { V2Button } from './button.component';
-import { V2Card } from './card.component';
-import { V2Ring } from './ring.component';
-import { V2WeightSheet } from './weight-sheet.component';
+import { UiButton } from './button.component';
+import { UiCard } from './card.component';
+import { UiRing } from './ring.component';
+import { UiWeightSheet } from './weight-sheet.component';
 
 /**
  * Shared rings + entries + water + exercise block. Renders the day
@@ -29,16 +29,16 @@ import { V2WeightSheet } from './weight-sheet.component';
  * editable=true; day-detail-v2 passes false for future days.
  */
 @Component({
-  selector: 'v2-day-summary',
+  selector: 'ui-day-summary',
   standalone: true,
-  imports: [LucideAngularModule, TranslocoDirective, V2Button, V2Card, V2Ring, V2WeightSheet],
+  imports: [LucideAngularModule, TranslocoDirective, UiButton, UiCard, UiRing, UiWeightSheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     <!-- Rings hero -->
     <div class="flex items-center justify-around gap-4 mt-6">
       <div class="flex flex-col items-center">
-        <v2-ring
+        <ui-ring
           [value]="kcalConsumed()"
           [target]="kcalTarget()"
           [size]="148"
@@ -47,11 +47,11 @@ import { V2WeightSheet } from './weight-sheet.component';
           [ariaLabel]="t('v2.daySummary.kcalAria', { consumed: kcalConsumed(), target: kcalTarget() })">
           <span class="v2-num text-2xl font-semibold">{{ kcalRemaining() }}</span>
           <span class="v2-caption mt-0.5">{{ kcalRemainingLabel() }}</span>
-        </v2-ring>
+        </ui-ring>
         <span class="v2-caption mt-2">{{ t('v2.daySummary.kcal') }}</span>
       </div>
       <div class="flex flex-col items-center">
-        <v2-ring
+        <ui-ring
           [value]="proteinConsumed()"
           [target]="proteinTargetG()"
           [size]="120"
@@ -60,7 +60,7 @@ import { V2WeightSheet } from './weight-sheet.component';
           [ariaLabel]="t('v2.daySummary.proteinAria', { consumed: proteinConsumed(), target: proteinTargetG() })">
           <span class="v2-num text-xl font-semibold">{{ proteinConsumed() }}g</span>
           <span class="v2-caption mt-0.5">/ {{ proteinTargetG() }}g</span>
-        </v2-ring>
+        </ui-ring>
         <span class="v2-caption mt-2">{{ t('v2.daySummary.protein') }}</span>
       </div>
     </div>
@@ -68,7 +68,7 @@ import { V2WeightSheet } from './weight-sheet.component';
     <!-- Exercise toggle -->
     @if (editable()) {
       <div class="flex justify-center mt-4">
-        <v2-button
+        <ui-button
           variant="ghost"
           size="sm"
           (click)="toggleExercise()"
@@ -79,7 +79,7 @@ import { V2WeightSheet } from './weight-sheet.component';
             <lucide-icon name="footprints" [size]="16" />
           }
           {{ exercised() ? t('v2.daySummary.exercised') : t('v2.daySummary.didYouExercise') }}
-        </v2-button>
+        </ui-button>
       </div>
     } @else if (exercised()) {
       <div class="flex justify-center mt-4">
@@ -123,7 +123,7 @@ import { V2WeightSheet } from './weight-sheet.component';
     }
 
     <!-- Water row -->
-    <v2-card variant="flat" class="mt-6 block">
+    <ui-card variant="flat" class="mt-6 block">
       <div class="flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
           <lucide-icon name="droplets" [size]="18" style="color: var(--v2-ink-muted)" />
@@ -162,23 +162,23 @@ import { V2WeightSheet } from './weight-sheet.component';
                 [value]="waterEditInput() ?? ''"
                 (input)="onWaterInput($event)"
                 (keydown.enter)="saveWater()" />
-              <v2-button variant="primary" size="sm" (click)="saveWater()">{{ t('v2.daySummary.save') }}</v2-button>
-              <v2-button variant="ghost" size="sm" (click)="cancelWaterEdit()">{{ t('v2.daySummary.cancel') }}</v2-button>
-              <v2-button variant="ghost" size="sm" (click)="clearWater()">{{ t('v2.daySummary.clear') }}</v2-button>
+              <ui-button variant="primary" size="sm" (click)="saveWater()">{{ t('v2.daySummary.save') }}</ui-button>
+              <ui-button variant="ghost" size="sm" (click)="cancelWaterEdit()">{{ t('v2.daySummary.cancel') }}</ui-button>
+              <ui-button variant="ghost" size="sm" (click)="clearWater()">{{ t('v2.daySummary.clear') }}</ui-button>
             </div>
           </div>
         } @else {
           <div class="flex flex-wrap gap-2 mt-3">
-            <v2-button variant="ghost" size="sm" (click)="addWater(250)">{{ t('v2.daySummary.addMl', { n: 250 }) }}</v2-button>
-            <v2-button variant="ghost" size="sm" (click)="addWater(500)">{{ t('v2.daySummary.addMl', { n: 500 }) }}</v2-button>
-            <v2-button variant="ghost" size="sm" (click)="addWater(1000)">{{ t('v2.daySummary.addLiter') }}</v2-button>
+            <ui-button variant="ghost" size="sm" (click)="addWater(250)">{{ t('v2.daySummary.addMl', { n: 250 }) }}</ui-button>
+            <ui-button variant="ghost" size="sm" (click)="addWater(500)">{{ t('v2.daySummary.addMl', { n: 500 }) }}</ui-button>
+            <ui-button variant="ghost" size="sm" (click)="addWater(1000)">{{ t('v2.daySummary.addLiter') }}</ui-button>
           </div>
         }
       }
-    </v2-card>
+    </ui-card>
 
     <!-- Weight row -->
-    <v2-card variant="flat" class="mt-3 block">
+    <ui-card variant="flat" class="mt-3 block">
       <div class="flex items-center justify-between gap-3" style="min-height: var(--v2-tap-min);">
         <div class="flex items-center gap-2 min-w-0">
           <lucide-icon name="scale" [size]="18" style="color: var(--v2-ink-muted)" />
@@ -214,16 +214,16 @@ import { V2WeightSheet } from './weight-sheet.component';
           </button>
         }
       </div>
-    </v2-card>
+    </ui-card>
 
-    <v2-weight-sheet
+    <ui-weight-sheet
       [open]="weightSheetOpen()"
       [dateKey]="dateKey()"
       (close)="weightSheetOpen.set(false)" />
     </ng-container>
   `,
 })
-export class V2DaySummary {
+export class UiDaySummary {
   protected readonly store = inject(FitnessStore);
   private readonly entryForm = inject(EntryFormManager);
   private readonly translation = inject(TranslationService);

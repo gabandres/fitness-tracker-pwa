@@ -12,8 +12,8 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { FirebaseService } from '../../services/firebase.service';
 import { TranslationService } from '../../services/translation.service';
 import { AnalyticsService } from '../../services/analytics.service';
-import { V2Button } from '../ui/button.component';
-import { V2Card } from '../ui/card.component';
+import { UiButton } from '../ui/button.component';
+import { UiCard } from '../ui/card.component';
 import {
   GoalDirection,
   WEIGHT_MIN_LB,
@@ -38,9 +38,9 @@ const DEFAULT_SKIP_PROTEIN = 120;
  *  present, the confirm screen shows "Current vs New" so the user can
  *  see what they're about to overwrite. */
 @Component({
-  selector: 'app-onboarding-v2',
+  selector: 'app-onboarding',
   standalone: true,
-  imports: [FormsModule, LucideAngularModule, TranslocoDirective, V2Button, V2Card],
+  imports: [FormsModule, LucideAngularModule, TranslocoDirective, UiButton, UiCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -84,12 +84,12 @@ const DEFAULT_SKIP_PROTEIN = 120;
             }
           </div>
           <div class="mt-auto flex flex-col gap-2">
-            <v2-button variant="primary" size="lg" [block]="true" type="submit">
+            <ui-button variant="primary" size="lg" [block]="true" type="submit">
               {{ t('v2.onboarding.next') }}
-            </v2-button>
-            <v2-button variant="ghost" size="md" [block]="true" type="button" (click)="skip()">
+            </ui-button>
+            <ui-button variant="ghost" size="md" [block]="true" type="button" (click)="skip()">
               {{ t('v2.onboarding.skip') }}
-            </v2-button>
+            </ui-button>
           </div>
         </form>
       }
@@ -108,12 +108,12 @@ const DEFAULT_SKIP_PROTEIN = 120;
             </button>
           }
           <div class="mt-auto flex flex-col gap-2">
-            <v2-button variant="primary" size="lg" [block]="true" [disabled]="!goal()" (click)="submitGoal()">
+            <ui-button variant="primary" size="lg" [block]="true" [disabled]="!goal()" (click)="submitGoal()">
               {{ t('v2.onboarding.next') }}
-            </v2-button>
-            <v2-button variant="ghost" size="md" [block]="true" type="button" (click)="back()">
+            </ui-button>
+            <ui-button variant="ghost" size="md" [block]="true" type="button" (click)="back()">
               {{ t('v2.onboarding.back') }}
-            </v2-button>
+            </ui-button>
           </div>
         </div>
       }
@@ -150,12 +150,12 @@ const DEFAULT_SKIP_PROTEIN = 120;
             }
           </div>
           <div class="mt-auto flex flex-col gap-2">
-            <v2-button variant="primary" size="lg" [block]="true" type="submit">
+            <ui-button variant="primary" size="lg" [block]="true" type="submit">
               {{ t('v2.onboarding.next') }}
-            </v2-button>
-            <v2-button variant="ghost" size="md" [block]="true" type="button" (click)="back()">
+            </ui-button>
+            <ui-button variant="ghost" size="md" [block]="true" type="button" (click)="back()">
               {{ t('v2.onboarding.back') }}
-            </v2-button>
+            </ui-button>
           </div>
         </form>
       }
@@ -166,7 +166,7 @@ const DEFAULT_SKIP_PROTEIN = 120;
             {{ t('v2.onboarding.confirmBody') }}
           </p>
 
-          <v2-card>
+          <ui-card>
             <div class="flex items-center justify-between py-1">
               <span class="v2-caption">{{ t('v2.onboarding.kcalLabel') }}</span>
               <div class="text-right">
@@ -186,7 +186,7 @@ const DEFAULT_SKIP_PROTEIN = 120;
                 <span class="v2-h3 font-mono">{{ computedProtein() }}{{ t('v2.onboarding.gramSuffix') }}</span>
               </div>
             </div>
-          </v2-card>
+          </ui-card>
 
           <p class="v2-caption">
             {{ t('v2.onboarding.editLater') }}
@@ -197,22 +197,22 @@ const DEFAULT_SKIP_PROTEIN = 120;
           }
 
           <div class="mt-auto flex flex-col gap-2">
-            <v2-button
+            <ui-button
               variant="primary"
               size="lg"
               [block]="true"
               [disabled]="saving()"
               (click)="confirm()">
               {{ saving() ? t('v2.onboarding.saving') : (isRedo() ? t('v2.onboarding.apply') : t('v2.onboarding.confirm')) }}
-            </v2-button>
+            </ui-button>
             @if (isRedo()) {
-              <v2-button variant="secondary" size="md" [block]="true" type="button" (click)="cancel()">
+              <ui-button variant="secondary" size="md" [block]="true" type="button" (click)="cancel()">
                 {{ t('v2.onboarding.keepCurrent') }}
-              </v2-button>
+              </ui-button>
             }
-            <v2-button variant="ghost" size="md" [block]="true" type="button" (click)="back()">
+            <ui-button variant="ghost" size="md" [block]="true" type="button" (click)="back()">
               {{ t('v2.onboarding.back') }}
-            </v2-button>
+            </ui-button>
           </div>
         </div>
       }
@@ -220,7 +220,7 @@ const DEFAULT_SKIP_PROTEIN = 120;
     </ng-container>
   `,
 })
-export class OnboardingV2Component {
+export class OnboardingComponent {
   private readonly fb = inject(FirebaseService);
   private readonly translation = inject(TranslationService);
   private readonly analytics = inject(AnalyticsService);

@@ -3,8 +3,8 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { SubscriptionService } from '../../services/subscription.service';
 import { UpsellService } from '../../services/upsell.service';
 import { AnalyticsService } from '../../services/analytics.service';
-import { V2Card } from '../ui/card.component';
-import { V2Button } from '../ui/button.component';
+import { UiCard } from '../ui/card.component';
+import { UiButton } from '../ui/button.component';
 
 type UpsellContext = 'photoQuota' | 'presetLimit' | 'csvExport' | 'chartHistory';
 
@@ -29,12 +29,12 @@ const CONTEXT_TO_SOURCE: Record<UpsellContext, 'photo' | 'preset' | 'csv' | 'cha
 @Component({
   selector: 'app-upsell-card',
   standalone: true,
-  imports: [TranslocoDirective, V2Card, V2Button],
+  imports: [TranslocoDirective, UiCard, UiButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
       @if (shouldShow()) {
-        <v2-card variant="accent" class="block mt-2" role="note">
+        <ui-card variant="accent" class="block mt-2" role="note">
           <div class="flex items-center justify-between gap-3">
             <div class="min-w-0 flex-1">
               <div class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--v2-accent); font-weight: 600;">
@@ -44,11 +44,11 @@ const CONTEXT_TO_SOURCE: Record<UpsellContext, 'photo' | 'preset' | 'csv' | 'cha
                 {{ t('upsell.' + context() + '.body') }}
               </p>
             </div>
-            <v2-button variant="primary" size="sm" (click)="open()">
+            <ui-button variant="primary" size="sm" (click)="open()">
               {{ t('upsell.cta') }}
-            </v2-button>
+            </ui-button>
           </div>
-        </v2-card>
+        </ui-card>
       }
     </ng-container>
   `,

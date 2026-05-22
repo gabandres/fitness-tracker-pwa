@@ -3,7 +3,7 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import {
   Firestore, collection, query, orderBy, limit, getDocs, Timestamp,
 } from '@angular/fire/firestore';
-import { V2Card } from '../ui/card.component';
+import { UiCard } from '../ui/card.component';
 
 interface PublicProfileSummary {
   slug: string;
@@ -31,7 +31,7 @@ type FetchStatus = 'loading' | 'ready' | 'error';
 @Component({
   selector: 'app-transformations',
   standalone: true,
-  imports: [TranslocoDirective, V2Card],
+  imports: [TranslocoDirective, UiCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -58,7 +58,7 @@ type FetchStatus = 'loading' | 'ready' | 'error';
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
           @for (p of profiles(); track p.slug) {
             <a [href]="'/u/' + p.slug" class="block" style="text-decoration: none;">
-              <v2-card variant="default" class="block h-full">
+              <ui-card variant="default" class="block h-full">
                 <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em;">
                   {{ headlineFor(p) }}
                 </p>
@@ -78,7 +78,7 @@ type FetchStatus = 'loading' | 'ready' | 'error';
                 @if (p.startedAt) {
                   <p class="v2-caption mt-3">{{ subtitleFor(p) }}</p>
                 }
-              </v2-card>
+              </ui-card>
             </a>
           }
         </div>

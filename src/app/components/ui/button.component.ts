@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-export type V2ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
-export type V2ButtonSize = 'sm' | 'md' | 'lg';
+export type UiButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
+export type UiButtonSize = 'sm' | 'md' | 'lg';
 
 @Component({
-  selector: 'v2-button',
+  selector: 'ui-button',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -18,9 +18,9 @@ export type V2ButtonSize = 'sm' | 'md' | 'lg';
   `,
   host: { class: 'inline-block' },
 })
-export class V2Button {
-  readonly variant = input<V2ButtonVariant>('primary');
-  readonly size = input<V2ButtonSize>('md');
+export class UiButton {
+  readonly variant = input<UiButtonVariant>('primary');
+  readonly size = input<UiButtonSize>('md');
   readonly block = input<boolean>(false);
   readonly disabled = input<boolean>(false);
   readonly type = input<'button' | 'submit' | 'reset'>('button');

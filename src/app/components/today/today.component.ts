@@ -18,34 +18,34 @@ import { FirebaseService } from '../../services/firebase.service';
 import { AnalyticsService } from '../../services/analytics.service';
 import { localDateKey } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
-import { V2Button } from '../ui/button.component';
-import { V2IconButton } from '../ui/icon-button.component';
-import { V2Card } from '../ui/card.component';
-import { V2Fab } from '../ui/fab.component';
-import { V2DaySummary } from '../ui/day-summary.component';
-import { V2FastingPill } from '../ui/fasting-pill.component';
-import { V2RefineTargetsSheet } from '../refine-targets-sheet-v2/refine-targets-sheet-v2.component';
+import { UiButton } from '../ui/button.component';
+import { UiIconButton } from '../ui/icon-button.component';
+import { UiCard } from '../ui/card.component';
+import { UiFab } from '../ui/fab.component';
+import { UiDaySummary } from '../ui/day-summary.component';
+import { UiFastingPill } from '../ui/fasting-pill.component';
+import { UiRefineTargetsSheet } from '../refine-targets-sheet/refine-targets-sheet.component';
 import { WhatsNewBannerComponent } from '../whats-new-banner/whats-new-banner.component';
 
 /**
  * v2 Today screen. Owns the today-only chrome (header, day-0 hero,
  * repeat-yesterday, undo-delete toast, FAB) and delegates the rings +
- * entries + water + exercise block to <v2-day-summary>, which is also
+ * entries + water + exercise block to <ui-day-summary>, which is also
  * reused by day-detail-v2 for past days.
  */
 @Component({
-  selector: 'app-today-v2',
+  selector: 'app-today',
   standalone: true,
   imports: [
     LucideAngularModule,
     TranslocoDirective,
-    V2Button,
-    V2IconButton,
-    V2Card,
-    V2Fab,
-    V2DaySummary,
-    V2FastingPill,
-    V2RefineTargetsSheet,
+    UiButton,
+    UiIconButton,
+    UiCard,
+    UiFab,
+    UiDaySummary,
+    UiFastingPill,
+    UiRefineTargetsSheet,
     WhatsNewBannerComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -72,12 +72,12 @@ import { WhatsNewBannerComponent } from '../whats-new-banner/whats-new-banner.co
           }
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <v2-fasting-pill (bodyRequested)="bodyRequested.emit()" />
-          <v2-icon-button
+          <ui-fasting-pill (bodyRequested)="bodyRequested.emit()" />
+          <ui-icon-button
             icon="calendar"
             [ariaLabel]="t('v2.today.historyAria')"
             (click)="historyRequested.emit()" />
-          <v2-icon-button
+          <ui-icon-button
             icon="settings"
             [ariaLabel]="t('v2.today.settingsAria')"
             (click)="settingsRequested.emit()" />
@@ -88,23 +88,23 @@ import { WhatsNewBannerComponent } from '../whats-new-banner/whats-new-banner.co
 
       @if (showDay0Hero()) {
         <!-- Day 0 hero — replaces rings until first entry. -->
-        <v2-card variant="accent" class="mt-6 block text-center">
+        <ui-card variant="accent" class="mt-6 block text-center">
           <h2 class="v2-h2">{{ t('v2.today.day0Title') }}</h2>
           <p class="v2-body-soft mt-2">
             {{ t('v2.today.day0Body') }}
           </p>
           <div class="mt-5">
-            <v2-button variant="primary" size="lg" [block]="true" (click)="addFood()">
+            <ui-button variant="primary" size="lg" [block]="true" (click)="addFood()">
               <lucide-icon name="plus" [size]="18" />
               {{ t('v2.today.addFood') }}
-            </v2-button>
+            </ui-button>
           </div>
           <p class="v2-caption mt-4">
             {{ t('v2.today.day0Targets', { kcal: kcalTarget(), protein: proteinTargetG() }) }}
           </p>
-        </v2-card>
+        </ui-card>
       } @else {
-        <v2-day-summary [dateKey]="todayKey()" />
+        <ui-day-summary [dateKey]="todayKey()" />
       }
 
       <!-- Day-3 "Refine targets" coach card — surfaces once the user has
@@ -112,27 +112,27 @@ import { WhatsNewBannerComponent } from '../whats-new-banner/whats-new-banner.co
            opens the full Mifflin-St Jeor sheet; saving the sheet stamps
            targetsRefinedAt and the card never returns. -->
       @if (showRefineCard()) {
-        <v2-card class="mt-6 block">
+        <ui-card class="mt-6 block">
           <h2 class="v2-h3">{{ t('v2.refineTargets.cardTitle') }}</h2>
           <p class="v2-body-soft mt-1.5">{{ t('v2.refineTargets.cardBody') }}</p>
           <div class="mt-3 flex gap-2">
-            <v2-button variant="primary" size="md" (click)="openRefineSheet()">
+            <ui-button variant="primary" size="md" (click)="openRefineSheet()">
               {{ t('v2.refineTargets.cardCta') }}
-            </v2-button>
-            <v2-button variant="ghost" size="md" (click)="dismissRefineCard()">
+            </ui-button>
+            <ui-button variant="ghost" size="md" (click)="dismissRefineCard()">
               {{ t('v2.refineTargets.cardDismiss') }}
-            </v2-button>
+            </ui-button>
           </div>
-        </v2-card>
+        </ui-card>
       }
 
       <!-- Repeat-yesterday — only when today is empty + yesterday has entries -->
       @if (canRepeatYesterday()) {
         <div class="mt-6">
-          <v2-button variant="secondary" [block]="true" (click)="repeatYesterday()">
+          <ui-button variant="secondary" [block]="true" (click)="repeatYesterday()">
             <lucide-icon name="check" [size]="16" />
             {{ t('v2.today.repeatYesterday') }}
-          </v2-button>
+          </ui-button>
         </div>
       }
 
@@ -143,7 +143,7 @@ import { WhatsNewBannerComponent } from '../whats-new-banner/whats-new-banner.co
            prompting. Step-by-step copy uses the actual Share / Add
            to Home Screen wording so non-technical users follow. -->
       @if (showIosInstall()) {
-        <v2-card class="mt-6 block">
+        <ui-card class="mt-6 block">
           <h2 class="v2-h3">{{ t('v2.today.iosInstallTitle') }}</h2>
           <p class="v2-body-soft mt-1.5">{{ t('v2.today.iosInstallBody') }}</p>
           <ol class="v2-body-soft mt-3" style="font-size: 0.875rem; padding-left: 1.25rem; list-style: decimal; line-height: 1.7;">
@@ -152,11 +152,11 @@ import { WhatsNewBannerComponent } from '../whats-new-banner/whats-new-banner.co
             <li>{{ t('v2.today.iosInstallStep3') }}</li>
           </ol>
           <div class="mt-3 flex gap-2">
-            <v2-button variant="ghost" size="md" (click)="dismissIosInstall()">
+            <ui-button variant="ghost" size="md" (click)="dismissIosInstall()">
               {{ t('v2.today.iosInstallDismiss') }}
-            </v2-button>
+            </ui-button>
           </div>
-        </v2-card>
+        </ui-card>
       }
 
       <!-- Post-first-entry push prompt — surfaces once after the user
@@ -165,21 +165,21 @@ import { WhatsNewBannerComponent } from '../whats-new-banner/whats-new-banner.co
            already dismissed it locally. Single-tap enable: requests
            permission, saves token + a default 8 PM reminder hour. -->
       @if (showPushPrompt()) {
-        <v2-card class="mt-6 block">
+        <ui-card class="mt-6 block">
           <h2 class="v2-h3">{{ t('v2.today.pushPromptTitle') }}</h2>
           <p class="v2-body-soft mt-1.5">{{ t('v2.today.pushPromptBody') }}</p>
           <div class="mt-3 flex gap-2">
-            <v2-button variant="primary" size="md" [disabled]="pushEnabling()" (click)="enablePush()">
+            <ui-button variant="primary" size="md" [disabled]="pushEnabling()" (click)="enablePush()">
               {{ pushEnabling() ? t('v2.today.pushPromptEnabling') : t('v2.today.pushPromptEnable') }}
-            </v2-button>
-            <v2-button variant="ghost" size="md" (click)="dismissPushPrompt()">
+            </ui-button>
+            <ui-button variant="ghost" size="md" (click)="dismissPushPrompt()">
               {{ t('v2.today.pushPromptDismiss') }}
-            </v2-button>
+            </ui-button>
           </div>
           @if (pushError(); as e) {
             <p class="v2-caption mt-2" role="alert" style="color: var(--v2-danger);">{{ e }}</p>
           }
-        </v2-card>
+        </ui-card>
       }
 
       <!-- Undo-delete toast (auto-dismisses via store) -->
@@ -205,16 +205,16 @@ import { WhatsNewBannerComponent } from '../whats-new-banner/whats-new-banner.co
 
     <!-- FAB — hidden on day 0 (in-card button is the only affordance). -->
     @if (!showDay0Hero()) {
-      <v2-fab icon="plus" [ariaLabel]="t('v2.today.addFoodAria')" (click)="addFood()" />
+      <ui-fab icon="plus" [ariaLabel]="t('v2.today.addFoodAria')" (click)="addFood()" />
     }
 
-    <v2-refine-targets-sheet
+    <ui-refine-targets-sheet
       [open]="showRefineSheet()"
       (close)="showRefineSheet.set(false)" />
     </ng-container>
   `,
 })
-export class TodayV2Component {
+export class TodayComponent {
   protected readonly store = inject(FitnessStore);
   protected readonly profile = inject(LEDGER_PORT);
   private readonly entryForm = inject(EntryFormManager);
@@ -355,7 +355,7 @@ export class TodayV2Component {
       stage = 'persist';
       await Promise.all([
         this.fb.saveFcmToken(token),
-        this.fb.saveReminderHour(TodayV2Component.DEFAULT_REMINDER_HOUR),
+        this.fb.saveReminderHour(TodayComponent.DEFAULT_REMINDER_HOUR),
       ]);
       this.analytics.track('push_prompt_enabled');
       this.dismissPushPrompt();

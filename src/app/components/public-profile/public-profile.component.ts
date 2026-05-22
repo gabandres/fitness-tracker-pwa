@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal, OnInit } 
 import { DecimalPipe } from '@angular/common';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Firestore, doc, getDoc, Timestamp } from '@angular/fire/firestore';
-import { V2Card } from '../ui/card.component';
+import { UiCard } from '../ui/card.component';
 
 interface PublicProfile {
   slug: string;
@@ -28,7 +28,7 @@ type FetchStatus = 'loading' | 'ready' | 'notFound' | 'error';
 @Component({
   selector: 'app-public-profile',
   standalone: true,
-  imports: [DecimalPipe, TranslocoDirective, V2Card],
+  imports: [DecimalPipe, TranslocoDirective, UiCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -56,7 +56,7 @@ type FetchStatus = 'loading' | 'ready' | 'notFound' | 'error';
         </h1>
         <p class="v2-caption mt-3">{{ subtitle() }}</p>
 
-        <v2-card variant="default" class="block mt-8">
+        <ui-card variant="default" class="block mt-8">
           <div class="grid grid-cols-3 gap-4 text-center">
             <div>
               <p class="v2-caption">{{ t('publicProfile.start') }}</p>
@@ -81,7 +81,7 @@ type FetchStatus = 'loading' | 'ready' | 'notFound' | 'error';
               {{ t('publicProfile.weeksTracked', { n: weeksTracked() }) }}
             </p>
           }
-        </v2-card>
+        </ui-card>
 
         <div class="mt-10">
           <h2 class="v2-h2">{{ t('publicProfile.ctaTitle') }}</h2>

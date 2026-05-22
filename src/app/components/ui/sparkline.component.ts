@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-export type V2SparklineTone = 'accent' | 'sage' | 'ink';
+export type UiSparklineTone = 'accent' | 'sage' | 'ink';
 
 /**
  * Hand-rolled sparkline. Catmull-Rom-smoothed path through the values
@@ -15,7 +15,7 @@ export type V2SparklineTone = 'accent' | 'sage' | 'ink';
  * the same shared rule.
  */
 @Component({
-  selector: 'v2-sparkline',
+  selector: 'ui-sparkline',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -55,11 +55,11 @@ export type V2SparklineTone = 'accent' | 'sage' | 'ink';
     </svg>
   `,
 })
-export class V2Sparkline {
+export class UiSparkline {
   readonly values = input<readonly (number | null | undefined)[]>([]);
   readonly width = input<number>(200);
   readonly height = input<number>(48);
-  readonly tone = input<V2SparklineTone>('ink');
+  readonly tone = input<UiSparklineTone>('ink');
   readonly ariaLabel = input<string>('trend');
 
   protected readonly cleaned = computed<number[]>(() =>

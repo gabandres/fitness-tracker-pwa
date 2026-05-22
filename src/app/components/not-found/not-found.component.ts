@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
-import { V2Card } from '../ui/card.component';
+import { UiCard } from '../ui/card.component';
 
 /**
  * Rendered whenever `detectRoute()` sees a path it doesn't recognize.
@@ -10,12 +10,12 @@ import { V2Card } from '../ui/card.component';
 @Component({
   selector: 'app-not-found',
   standalone: true,
-  imports: [TranslocoDirective, V2Card],
+  imports: [TranslocoDirective, UiCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     <section class="py-16">
-      <v2-card variant="default" class="block text-center max-w-[540px] mx-auto">
+      <ui-card variant="default" class="block text-center max-w-[540px] mx-auto">
         <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em;">
           {{ t('notFound.stamp') }}
         </p>
@@ -28,7 +28,7 @@ import { V2Card } from '../ui/card.component';
           <a href="/" class="v2-btn v2-btn--primary">{{ t('notFound.home') }}</a>
           <a href="/changelog" class="v2-btn v2-btn--ghost">{{ t('notFound.changelog') }}</a>
         </div>
-      </v2-card>
+      </ui-card>
     </section>
     </ng-container>
   `,

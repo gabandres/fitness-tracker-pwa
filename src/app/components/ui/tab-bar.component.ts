@@ -1,14 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
 
-export interface V2Tab {
+export interface UiTab {
   id: string;
   label: string;
   icon: string;
 }
 
 @Component({
-  selector: 'v2-tab-bar',
+  selector: 'ui-tab-bar',
   standalone: true,
   imports: [LucideAngularModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -30,8 +30,8 @@ export interface V2Tab {
     </nav>
   `,
 })
-export class V2TabBar {
-  readonly tabs = input.required<V2Tab[]>();
+export class UiTabBar {
+  readonly tabs = input.required<UiTab[]>();
   readonly activeId = input.required<string>();
   readonly select = output<string>();
 }

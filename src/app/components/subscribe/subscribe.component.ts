@@ -3,7 +3,7 @@ import { DatePipe } from '@angular/common';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { SubscriptionService } from '../../services/subscription.service';
 import { AnalyticsService } from '../../services/analytics.service';
-import { V2Button } from '../ui/button.component';
+import { UiButton } from '../ui/button.component';
 
 /**
  * Subscribe / Manage-subscription card.
@@ -28,7 +28,7 @@ import { V2Button } from '../ui/button.component';
 @Component({
   selector: 'app-subscribe',
   standalone: true,
-  imports: [DatePipe, TranslocoDirective, V2Button],
+  imports: [DatePipe, TranslocoDirective, UiButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -61,14 +61,14 @@ import { V2Button } from '../ui/button.component';
             }
           </p>
           <div class="mt-3">
-            <v2-button
+            <ui-button
               variant="secondary"
               size="sm"
               (click)="manage()"
               [disabled]="busy()"
               [ariaLabel]="t('subscribe.manageAria')">
               {{ busy() ? t('subscribe.opening') : t('subscribe.manage') }}
-            </v2-button>
+            </ui-button>
           </div>
         } @else {
           <p class="v2-body mb-3">{{ t('subscribe.pitchBody') }}</p>
@@ -115,7 +115,7 @@ import { V2Button } from '../ui/button.component';
             </div>
           }
 
-          <v2-button
+          <ui-button
             variant="primary"
             size="lg"
             [block]="true"
@@ -132,7 +132,7 @@ import { V2Button } from '../ui/button.component';
             } @else {
               {{ t('subscribe.support') }} &middot; {{ selectedDisplayPrice() }}
             }
-          </v2-button>
+          </ui-button>
         }
 
         @if (subs.error()) {

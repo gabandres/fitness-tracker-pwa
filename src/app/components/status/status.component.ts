@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Firestore, doc, getDoc, Timestamp } from '@angular/fire/firestore';
 import { TranslationService } from '../../services/translation.service';
-import { V2Card } from '../ui/card.component';
+import { UiCard } from '../ui/card.component';
 
 type Health = 'healthy' | 'degraded' | 'down' | 'unknown';
 type FetchStatus = 'loading' | 'ready' | 'error';
@@ -21,7 +21,7 @@ type FetchStatus = 'loading' | 'ready' | 'error';
 @Component({
   selector: 'app-status',
   standalone: true,
-  imports: [TranslocoDirective, V2Card],
+  imports: [TranslocoDirective, UiCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -40,7 +40,7 @@ type FetchStatus = 'loading' | 'ready' | 'error';
       <p class="v2-caption mt-3">{{ t('status.subtitle') }}</p>
 
       <!-- Overall health summary -->
-      <v2-card variant="default" class="block mt-8" [style.border-color]="badgeColor()">
+      <ui-card variant="default" class="block mt-8" [style.border-color]="badgeColor()">
         <div class="flex items-center gap-3">
           <span class="inline-block w-3 h-3 rounded-full"
             [style.background]="badgeColor()"
@@ -52,7 +52,7 @@ type FetchStatus = 'loading' | 'ready' | 'error';
         <p class="v2-caption mt-2">
           {{ t('status.summary.' + health()) }}
         </p>
-      </v2-card>
+      </ui-card>
 
       <!-- Service checks -->
       <ul class="mt-6">

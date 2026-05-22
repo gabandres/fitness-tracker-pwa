@@ -10,7 +10,7 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslationService } from '../../services/translation.service';
 import { AnalyticsService } from '../../services/analytics.service';
-import { V2Card } from '../ui/card.component';
+import { UiCard } from '../ui/card.component';
 import { VS_PROFILES, VsProfile, vsProfileFor } from './vs-data';
 
 /**
@@ -28,7 +28,7 @@ import { VS_PROFILES, VsProfile, vsProfileFor } from './vs-data';
 @Component({
   selector: 'app-vs-page',
   standalone: true,
-  imports: [TranslocoDirective, LucideAngularModule, V2Card],
+  imports: [TranslocoDirective, LucideAngularModule, UiCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -44,10 +44,10 @@ import { VS_PROFILES, VsProfile, vsProfileFor } from './vs-data';
           <p class="v2-body-soft mt-3">{{ p.tagline }}</p>
         </header>
 
-        <v2-card class="block mb-6">
+        <ui-card class="block mb-6">
           <h2 class="v2-h3" style="font-size: 1rem;">{{ t('vs.honestTitle') }}</h2>
           <p class="v2-body-soft mt-2">{{ p.honestSummary }}</p>
-        </v2-card>
+        </ui-card>
 
         <h2 class="v2-h2 mb-3" style="font-size: 1.25rem;">{{ t('vs.tableTitle', { name: p.name }) }}</h2>
         <div class="overflow-x-auto">
@@ -83,7 +83,7 @@ import { VS_PROFILES, VsProfile, vsProfileFor } from './vs-data';
           </table>
         </div>
 
-        <v2-card variant="accent" class="block mt-8 text-center">
+        <ui-card variant="accent" class="block mt-8 text-center">
           <h2 class="v2-h3">{{ t('vs.ctaTitle') }}</h2>
           <p class="v2-body-soft mt-2">{{ t('vs.ctaBody') }}</p>
           <div class="mt-5 flex flex-wrap justify-center gap-3">
@@ -94,7 +94,7 @@ import { VS_PROFILES, VsProfile, vsProfileFor } from './vs-data';
               {{ t('vs.ctaSignup') }}
             </a>
           </div>
-        </v2-card>
+        </ui-card>
 
         <!-- Sibling links to the other comparison pages — both an SEO
              crawl-graph signal and a way for visitors who came from

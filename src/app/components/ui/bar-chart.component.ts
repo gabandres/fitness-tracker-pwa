@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-export interface V2BarChartDay {
+export interface UiBarChartDay {
   key: string;
   label: string;
   kcal: number;
@@ -25,7 +25,7 @@ const HEAD = 16;   // headroom above the higher of (max value, target)
  * `--v2-accent`, `--v2-sage`, `--v2-warn`, `--v2-rule`, `--v2-ink-muted`.
  */
 @Component({
-  selector: 'v2-bar-chart',
+  selector: 'ui-bar-chart',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -86,8 +86,8 @@ const HEAD = 16;   // headroom above the higher of (max value, target)
     }
   `],
 })
-export class V2BarChart {
-  readonly data = input.required<V2BarChartDay[]>();
+export class UiBarChart {
+  readonly data = input.required<UiBarChartDay[]>();
   readonly kcalTarget = input.required<number>();
   readonly proteinTarget = input.required<number>();
 

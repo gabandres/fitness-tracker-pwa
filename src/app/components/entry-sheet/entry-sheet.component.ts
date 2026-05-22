@@ -11,8 +11,8 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { FitnessStore } from '../../services/fitness-store.service';
 import type { MacroEstimate } from '../../models/macro-estimate';
-import { V2Sheet } from '../ui/sheet.component';
-import { V2Button } from '../ui/button.component';
+import { UiSheet } from '../ui/sheet.component';
+import { UiButton } from '../ui/button.component';
 import { PhotoCaptureComponent } from '../photo-capture/photo-capture.component';
 import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.component';
 import { PresetPickerComponent } from '../preset-picker/preset-picker.component';
@@ -33,13 +33,13 @@ type Segment = 'manual' | 'photo' | 'barcode';
  * segment back to Manual so the user reviews + saves explicitly.
  */
 @Component({
-  selector: 'app-entry-sheet-v2',
+  selector: 'app-entry-sheet',
   standalone: true,
   imports: [
     LucideAngularModule,
     TranslocoDirective,
-    V2Sheet,
-    V2Button,
+    UiSheet,
+    UiButton,
     PhotoCaptureComponent,
     BarcodeScannerComponent,
     PresetPickerComponent,
@@ -50,7 +50,7 @@ type Segment = 'manual' | 'photo' | 'barcode';
   template: `
     <ng-container *transloco="let t">
     @if (open()) {
-      <v2-sheet labelledBy="entry-sheet-title" (close)="cancel()">
+      <ui-sheet labelledBy="entry-sheet-title" (close)="cancel()">
         <h2 id="entry-sheet-title" class="v2-h2 mb-1">
           {{ form.mode() === 'edit' ? t('v2.entrySheet.editTitle') : t('v2.entrySheet.addTitle') }}
         </h2>
@@ -101,10 +101,10 @@ type Segment = 'manual' | 'photo' | 'barcode';
                 </div>
               } @else {
                 <div class="mb-4">
-                  <v2-button variant="ghost" size="sm" (click)="showRecipeBuilder.set(true)">
+                  <ui-button variant="ghost" size="sm" (click)="showRecipeBuilder.set(true)">
                     <lucide-icon name="chef-hat" [size]="14" />
                     {{ t('v2.recipe.openButton') }}
-                  </v2-button>
+                  </ui-button>
                 </div>
               }
             }
@@ -193,13 +193,13 @@ type Segment = 'manual' | 'photo' | 'barcode';
               <!-- Save / Cancel / Delete row -->
               <div class="flex gap-2 pt-2">
                 @if (form.mode() === 'edit') {
-                  <v2-button variant="destructive" (click)="deleteEntry()">
+                  <ui-button variant="destructive" (click)="deleteEntry()">
                     <lucide-icon name="trash-2" [size]="16" />
                     {{ t('v2.entrySheet.delete') }}
-                  </v2-button>
+                  </ui-button>
                 }
-                <v2-button variant="ghost" (click)="cancel()">{{ t('v2.entrySheet.cancel') }}</v2-button>
-                <v2-button
+                <ui-button variant="ghost" (click)="cancel()">{{ t('v2.entrySheet.cancel') }}</ui-button>
+                <ui-button
                   type="submit"
                   variant="primary"
                   [block]="true"
@@ -207,7 +207,7 @@ type Segment = 'manual' | 'photo' | 'barcode';
                   @if (form.status() === 'saving') { {{ t('v2.entrySheet.saving') }} }
                   @else if (form.status() === 'saved') { {{ t('v2.entrySheet.saved') }} }
                   @else { {{ t('v2.entrySheet.save') }} }
-                </v2-button>
+                </ui-button>
               </div>
 
               @if (form.errorMsg()) {
@@ -221,10 +221,10 @@ type Segment = 'manual' | 'photo' | 'barcode';
             @if (form.status() === 'saved' && form.mode() === 'add') {
               <div class="mt-5 pt-4" style="border-top: 1px solid var(--v2-rule)">
                 @if (!form.savingPreset()) {
-                  <v2-button variant="ghost" size="sm" (click)="form.promptSavePreset()">
+                  <ui-button variant="ghost" size="sm" (click)="form.promptSavePreset()">
                     <lucide-icon name="sparkles" [size]="14" />
                     {{ t('v2.entrySheet.saveAsPreset') }}
-                  </v2-button>
+                  </ui-button>
                 } @else {
                   <div class="flex gap-2 items-center">
                     <input
@@ -235,13 +235,13 @@ type Segment = 'manual' | 'photo' | 'barcode';
                       [placeholder]="t('v2.entrySheet.presetName')"
                       [value]="form.presetName()"
                       (input)="form.presetName.set($any($event.target).value)" />
-                    <v2-button
+                    <ui-button
                       variant="primary"
                       size="sm"
                       (click)="form.confirmSavePreset()"
                       [disabled]="!form.presetName().trim()">
                       {{ t('v2.entrySheet.savePreset') }}
-                    </v2-button>
+                    </ui-button>
                   </div>
                 }
               </div>
@@ -262,12 +262,12 @@ type Segment = 'manual' | 'photo' | 'barcode';
             <app-barcode-scanner (estimated)="apply($event)" />
           </div>
         }
-      </v2-sheet>
+      </ui-sheet>
     }
     </ng-container>
   `,
 })
-export class EntrySheetV2Component {
+export class EntrySheetComponent {
   protected readonly form = inject(EntryFormManager);
   private readonly store = inject(FitnessStore);
 
