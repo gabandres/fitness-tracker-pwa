@@ -4,6 +4,7 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import { environment } from '../../environments/environment';
 import { DailyLog, ProfileFields } from './firebase.service';
 import { localDateKey } from '../utils/date';
+import { summarizeDays } from '../utils/day-summary';
 import { TdeeResult } from './tdee-calculator.service';
 import { TranslationService } from './translation.service';
 
@@ -259,28 +260,23 @@ export class GeminiService {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const windowDays = 14;
-    const days: { key: string; calories: number; protein: number; meals: number; exercised: boolean; weight: number | null }[] = [];
+    const windowKeys: string[] = [];
     for (let i = windowDays - 1; i >= 0; i--) {
       const d = new Date(today.getTime() - i * DAY_MS);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      days.push({ key, calories: 0, protein: 0, meals: 0, exercised: false, weight: null });
+      windowKeys.push(localDateKey(d));
     }
-    const byKey = new Map(days.map((d) => [d.key, d]));
-    for (const log of logs) {
-      const key = localDateKey(log.date);
-      const day = byKey.get(key);
-      if (!day) continue;
-      day.calories += log.calories || 0;
-      if (log.protein != null) day.protein += log.protein;
-      day.meals += 1;
-      if (log.exerciseCompleted || log.liftCompleted || log.cardioCompleted) {
-        day.exercised = true;
-      }
-    }
-    for (const day of days) {
-      const w = dailyWeights[day.key];
-      if (w != null) day.weight = w;
-    }
+    // Delegate the per-day rollup to the shared utility so this prompt
+    // builder and `FitnessStore.summaryFor()` agree on totals byte-for-byte.
+    // The local `days` shape (key/calories/protein/meals/...) is kept so the
+    // summary-line emission below stays unchanged.
+    const days = summarizeDays(windowKeys, logs, dailyWeights).map((s) => ({
+      key: s.dateKey,
+      calories: s.totalCalories,
+      protein: s.totalProtein,
+      meals: s.mealCount,
+      exercised: s.exercised,
+      weight: s.weightLb,
+    }));
 
     const loggedDays = days.filter((d) => d.meals > 0);
     const daysLoggedN = loggedDays.length;
