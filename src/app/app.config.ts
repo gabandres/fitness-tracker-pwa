@@ -47,6 +47,8 @@ import {
   Download,
   ChefHat,
   Shield,
+  Search,
+  Loader,
 } from 'lucide-angular';
 
 import { routes } from './app.routes';
@@ -111,6 +113,7 @@ export const appConfig: ApplicationConfig = {
       ArrowLeft, Pencil, Sparkles, Droplets, Footprints,
       Image: LucideImage, Type: LucideType,
       Home, User, Timer, Scale, Ruler, ChevronDown, Share2, Download, ChefHat, Shield,
+      Search, Loader,
     }).providers!,
   ],
 };
