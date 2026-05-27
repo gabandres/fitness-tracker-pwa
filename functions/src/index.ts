@@ -1295,6 +1295,7 @@ export {
   onDailyWeightWriteMirrorPublicProfile,
 } from "./public-profile";
 export { sendWeeklyDigest } from "./weekly-digest";
+export { searchFoods, getFoodDetail } from "./food-search";
 export { ogImagePublicProfile, servePublicProfilePage } from "./og-image";
 export { bootstrapAdmin, setAdminClaims } from "./admin-claims";
 export { startImpersonation, stopImpersonation } from "./impersonation";

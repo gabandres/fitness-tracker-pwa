@@ -19,6 +19,7 @@ import {
 import { Auth } from '@angular/fire/auth';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { readReferrer, clearReferrer } from '../utils/referral';
+import type { UnitSystem } from '../models/unit-system';
 
 // ─── Log types ──────────────────────────────────────────────────
 // Note: `liftCompleted` and `cardioCompleted` are legacy fields kept
@@ -167,6 +168,14 @@ export interface ProfileFields {
   publicSlug?: string;
   publicProfileEnabled?: boolean;
   publicDisplayName?: string;
+
+  // Unit system for portion display in the food-search picker and any
+  // future cup/tbsp-vs-grams toggle. `us` (cup/tbsp/oz default) is the
+  // implicit pre-existing behavior — leaving this undefined renders
+  // identically. `metric` makes the per-100g row the default option in
+  // the portion picker so users in metric markets don't have to scroll
+  // past household measures every time.
+  unitSystem?: UnitSystem;
 
   // Weekly digest. Opt-in toggle in settings → scheduled CF reads users
   // where this is true on Sunday morning local-tz and emails the last-7d
@@ -484,6 +493,18 @@ export class FirebaseService implements LedgerPort {
     await updateDoc(ref, { travelMode: on, lastSeenAt: Timestamp.now() });
     const current = this._profile();
     if (current) this._profile.set({ ...current, travelMode: on } as UserProfile);
+  }
+
+  /** Persist the user's preferred unit system. Drives the default
+   *  portion option (per-100g vs household) in the food-search picker.
+   *  Writing the same value back is a no-op latency-wise — Firestore
+   *  collapses the patch — so the callers can avoid local equality
+   *  checks. */
+  async setUnitSystem(system: UnitSystem): Promise<void> {
+    const ref = this.userDoc();
+    await updateDoc(ref, { unitSystem: system, lastSeenAt: Timestamp.now() });
+    const current = this._profile();
+    if (current) this._profile.set({ ...current, unitSystem: system } as UserProfile);
   }
 
   /** Toggle weekly-digest opt-in. Refreshes `timezoneOffsetMin` so the

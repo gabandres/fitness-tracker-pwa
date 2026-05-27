@@ -1,4 +1,5 @@
 import { InjectionToken, Signal } from '@angular/core';
+import type { UnitSystem } from '../../models/unit-system';
 import type {
   DailyLog,
   LogEntry,
@@ -36,6 +37,7 @@ export interface LedgerPort {
   breakFast(): Promise<void>;
   setTravelMode(on: boolean): Promise<void>;
   setWeeklyDigestOptIn(on: boolean): Promise<void>;
+  setUnitSystem(system: UnitSystem): Promise<void>;
 
   deleteMyAccount(): Promise<void>;
   exportMyData(): Promise<unknown>;

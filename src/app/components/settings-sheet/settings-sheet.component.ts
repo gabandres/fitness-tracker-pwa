@@ -215,6 +215,40 @@ import { UiButton } from '../ui/button.component';
         </div>
       </ui-card>
 
+      <!-- Units (drives the food-search portion picker default). -->
+      <ui-card variant="default" class="block mb-3">
+        <h3 class="v2-h3 mb-2">{{ t('settings.units.section') }}</h3>
+        <p class="v2-caption mb-3">{{ t('settings.units.desc') }}</p>
+        <div role="radiogroup" [attr.aria-label]="t('settings.units.aria')"
+             class="grid grid-cols-2 gap-2">
+          <button type="button" role="radio"
+            [attr.aria-checked]="unitSystem() === 'us'"
+            (click)="chooseUnits('us')"
+            class="flex flex-col items-start gap-0.5 p-3 rounded-md transition"
+            [style.background]="unitSystem() === 'us' ? 'var(--v2-accent-soft)' : 'var(--v2-paper-2)'"
+            [style.border]="'1px solid ' + (unitSystem() === 'us' ? 'var(--v2-accent)' : 'var(--v2-rule)')"
+            style="min-height: var(--v2-tap-min); cursor: pointer; font-family: var(--v2-font-sans); color: var(--v2-ink);">
+            <span class="v2-body" style="font-weight: 600;">{{ t('settings.units.us') }}</span>
+            <span class="v2-caption">{{ t('settings.units.usDesc') }}</span>
+          </button>
+          <button type="button" role="radio"
+            [attr.aria-checked]="unitSystem() === 'metric'"
+            (click)="chooseUnits('metric')"
+            class="flex flex-col items-start gap-0.5 p-3 rounded-md transition"
+            [style.background]="unitSystem() === 'metric' ? 'var(--v2-accent-soft)' : 'var(--v2-paper-2)'"
+            [style.border]="'1px solid ' + (unitSystem() === 'metric' ? 'var(--v2-accent)' : 'var(--v2-rule)')"
+            style="min-height: var(--v2-tap-min); cursor: pointer; font-family: var(--v2-font-sans); color: var(--v2-ink);">
+            <span class="v2-body" style="font-weight: 600;">{{ t('settings.units.metric') }}</span>
+            <span class="v2-caption">{{ t('settings.units.metricDesc') }}</span>
+          </button>
+        </div>
+        @if (unitsError()) {
+          <p class="v2-caption mt-2" role="alert" style="color: var(--v2-danger)">
+            {{ t('settings.units.saveError') }}
+          </p>
+        }
+      </ui-card>
+
       <!-- Subscription -->
       <ui-card variant="default" id="settings-subscription" class="block mb-3">
         <h3 class="v2-h3 mb-3">{{ t('settings.subscription.section') }}</h3>
@@ -676,6 +710,30 @@ export class SettingsSheetComponent {
     const profile = this.firebase.profile() as { weeklyDigestOptIn?: boolean } | null;
     return profile?.weeklyDigestOptIn === true;
   });
+
+  // ─── Unit system (food-search portion picker default) ───────
+  protected readonly unitSystem = computed<'us' | 'metric'>(() => {
+    const profile = this.firebase.profile() as { unitSystem?: 'us' | 'metric' } | null;
+    return profile?.unitSystem ?? 'us';
+  });
+  protected readonly unitsBusy = signal(false);
+  protected readonly unitsError = signal(false);
+
+  protected async chooseUnits(system: 'us' | 'metric'): Promise<void> {
+    if (this.unitSystem() === system || this.unitsBusy()) return;
+    this.unitsBusy.set(true);
+    this.unitsError.set(false);
+    try {
+      await this.firebase.setUnitSystem(system);
+    } catch (err) {
+      // Silent failure would leave the radio looking unresponsive —
+      // surface it so the user can retry or check connectivity.
+      console.error('setUnitSystem failed:', err);
+      this.unitsError.set(true);
+    } finally {
+      this.unitsBusy.set(false);
+    }
+  }
   protected readonly weeklyDigestBusy = signal(false);
 
   protected async toggleWeeklyDigest(): Promise<void> {

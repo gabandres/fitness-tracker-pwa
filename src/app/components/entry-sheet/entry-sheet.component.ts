@@ -18,8 +18,9 @@ import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.comp
 import { PresetPickerComponent } from '../preset-picker/preset-picker.component';
 import { RecentEntriesComponent } from '../recent-entries/recent-entries.component';
 import { RecipeBuilderComponent } from '../recipe-builder/recipe-builder.component';
+import { FoodSearchComponent } from '../food-search/food-search.component';
 
-type Segment = 'manual' | 'photo' | 'barcode';
+type Segment = 'manual' | 'search' | 'photo' | 'barcode';
 
 /**
  * v2 Entry sheet — unified Manual / Photo / Barcode in one bottom-sheet.
@@ -45,6 +46,7 @@ type Segment = 'manual' | 'photo' | 'barcode';
     PresetPickerComponent,
     RecentEntriesComponent,
     RecipeBuilderComponent,
+    FoodSearchComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -65,7 +67,7 @@ type Segment = 'manual' | 'photo' | 'barcode';
           <div
             role="tablist"
             [attr.aria-label]="t('v2.entrySheet.modeAria')"
-            class="grid grid-cols-3 gap-1 p-1 mb-4"
+            class="grid grid-cols-4 gap-1 p-1 mb-4"
             style="background: var(--v2-paper-2); border-radius: var(--v2-radius-md);">
             @for (s of segments; track s.id) {
               <button
@@ -249,6 +251,13 @@ type Segment = 'manual' | 'photo' | 'barcode';
           </div>
         }
 
+        <!-- Search segment (USDA FoodData Central food database) -->
+        @if (segment() === 'search' && form.mode() === 'add') {
+          <div role="tabpanel" id="panel-search" aria-labelledby="seg-search">
+            <app-food-search (estimated)="apply($event)" />
+          </div>
+        }
+
         <!-- Photo segment -->
         @if (segment() === 'photo' && form.mode() === 'add') {
           <div role="tabpanel" id="panel-photo" aria-labelledby="seg-photo">
@@ -279,6 +288,7 @@ export class EntrySheetComponent {
 
   protected readonly segments: { id: Segment; labelKey: string; icon: string }[] = [
     { id: 'manual', labelKey: 'v2.entrySheet.segManual', icon: 'type' },
+    { id: 'search', labelKey: 'v2.entrySheet.segSearch', icon: 'search' },
     { id: 'photo', labelKey: 'v2.entrySheet.segPhoto', icon: 'image' },
     { id: 'barcode', labelKey: 'v2.entrySheet.segBarcode', icon: 'scan-line' },
   ];

@@ -79,14 +79,18 @@ service cloud.firestore {
               'publicSlug', 'publicProfileEnabled', 'publicDisplayName',
               // Weekly digest opt-in (client-writable) + server stamp
               // (server-only, listed for round-trip parity).
-              'weeklyDigestOptIn', 'lastWeeklyDigestSentAt'
+              'weeklyDigestOptIn', 'lastWeeklyDigestSentAt',
+              // Unit system (food-search portion picker default).
+              'unitSystem'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == false
           && (!('referredBy' in data.keys()) ||
               (data.referredBy is string && data.referredBy.size() >= 20 && data.referredBy.size() <= 40))
           && (!('compedUntil' in data.keys()) || data.compedUntil is timestamp)
-          && (!('referralRewardGrantedAt' in data.keys()) || data.referralRewardGrantedAt is timestamp);
+          && (!('referralRewardGrantedAt' in data.keys()) || data.referralRewardGrantedAt is timestamp)
+          && (!('unitSystem' in data.keys()) ||
+              data.unitSystem == 'us' || data.unitSystem == 'metric');
     }
 
     // ─── Measurement schema ─────────────────────────────────────
@@ -163,7 +167,9 @@ service cloud.firestore {
               // Weekly digest opt-in. `lastWeeklyDigestSentAt` is
               // server-stamped by sendWeeklyDigest; the rule below
               // pins it immutable to clients.
-              'weeklyDigestOptIn', 'lastWeeklyDigestSentAt'
+              'weeklyDigestOptIn', 'lastWeeklyDigestSentAt',
+              // Unit system: 'us' (cup/tbsp default) | 'metric' (grams default).
+              'unitSystem'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == true
@@ -240,7 +246,9 @@ service cloud.firestore {
           && (!('weeklyDigestOptIn' in data.keys()) ||
               data.weeklyDigestOptIn is bool)
           && (!('lastWeeklyDigestSentAt' in data.keys()) ||
-              data.lastWeeklyDigestSentAt is timestamp);
+              data.lastWeeklyDigestSentAt is timestamp)
+          && (!('unitSystem' in data.keys()) ||
+              data.unitSystem == 'us' || data.unitSystem == 'metric');
     }
 
     function isValidProfile(data) {
