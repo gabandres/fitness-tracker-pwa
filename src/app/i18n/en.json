@@ -543,11 +543,17 @@
   "preset": {
     "quickAdd": "quick add",
     "removeTitle": "Remove preset",
+    "removeAria": "Remove preset {{ name }}",
+    "manage": "manage",
+    "done": "done",
     "empty": "no saved presets yet — use \"save as preset\" on any entry you log often."
   },
   "recent": {
     "label": "recent",
-    "pickTitle": "Re-log {{label}} · {{calories}} kcal"
+    "pickTitle": "Re-log {{label}} · {{calories}} kcal",
+    "removeAria": "Hide {{ label }} from recents",
+    "manage": "manage",
+    "done": "done"
   },
   "entry": {
     "errorCaloriesRequired": "Calories are required.",

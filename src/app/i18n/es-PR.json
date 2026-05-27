@@ -543,11 +543,17 @@
   "preset": {
     "quickAdd": "añadir rápido",
     "empty": "no tienes presets guardados — usa \"guardar como preset\" en cualquier entrada que registres seguido.",
-    "removeTitle": "Eliminar preset"
+    "removeTitle": "Eliminar preset",
+    "removeAria": "Eliminar preset {{ name }}",
+    "manage": "editar",
+    "done": "listo"
   },
   "recent": {
     "label": "recientes",
-    "pickTitle": "Registrar de nuevo {{label}} · {{calories}} kcal"
+    "pickTitle": "Registrar de nuevo {{label}} · {{calories}} kcal",
+    "removeAria": "Ocultar {{ label }} de recientes",
+    "manage": "editar",
+    "done": "listo"
   },
   "entry": {
     "errorCaloriesRequired": "Las calorías son requeridas.",

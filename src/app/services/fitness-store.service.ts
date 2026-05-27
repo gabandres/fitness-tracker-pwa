@@ -137,6 +137,13 @@ export class FitnessStore {
     const seen = new Set<string>();
     const out: DailyLog[] = [];
     const list = this._logs();
+    // Hidden-label set from the profile — users explicitly suppressed
+    // these via the recents "Manage" affordance. We honor the
+    // suppression here (chip-row only); the underlying log entries
+    // remain visible in history.
+    const hidden = new Set<string>(
+      ((this.fb.profile() as { hiddenRecentLabels?: string[] } | null)?.hiddenRecentLabels) ?? [],
+    );
     // `_logs()` is oldest-first (the adapter reverses
     // the desc-ordered query before returning). Iterate end-to-start so
     // the user sees their newest meals first.
@@ -146,6 +153,7 @@ export class FitnessStore {
       if (!label) continue;
       const key = label.toLowerCase();
       if (seen.has(key)) continue;
+      if (hidden.has(key)) continue;
       seen.add(key);
       out.push(log);
     }

@@ -81,7 +81,9 @@ service cloud.firestore {
               // (server-only, listed for round-trip parity).
               'weeklyDigestOptIn', 'lastWeeklyDigestSentAt',
               // Unit system (food-search portion picker default).
-              'unitSystem'
+              'unitSystem',
+              // Per-user suppress list for the entry-sheet recents row.
+              'hiddenRecentLabels'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == false
@@ -90,7 +92,10 @@ service cloud.firestore {
           && (!('compedUntil' in data.keys()) || data.compedUntil is timestamp)
           && (!('referralRewardGrantedAt' in data.keys()) || data.referralRewardGrantedAt is timestamp)
           && (!('unitSystem' in data.keys()) ||
-              data.unitSystem == 'us' || data.unitSystem == 'metric');
+              data.unitSystem == 'us' || data.unitSystem == 'metric')
+          && (!('hiddenRecentLabels' in data.keys()) ||
+              (data.hiddenRecentLabels is list
+               && data.hiddenRecentLabels.size() <= 200));
     }
 
     // ─── Measurement schema ─────────────────────────────────────
@@ -169,7 +174,9 @@ service cloud.firestore {
               // pins it immutable to clients.
               'weeklyDigestOptIn', 'lastWeeklyDigestSentAt',
               // Unit system: 'us' (cup/tbsp default) | 'metric' (grams default).
-              'unitSystem'
+              'unitSystem',
+              // Per-user suppress list for the entry-sheet recents row.
+              'hiddenRecentLabels'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == true
@@ -248,7 +255,10 @@ service cloud.firestore {
           && (!('lastWeeklyDigestSentAt' in data.keys()) ||
               data.lastWeeklyDigestSentAt is timestamp)
           && (!('unitSystem' in data.keys()) ||
-              data.unitSystem == 'us' || data.unitSystem == 'metric');
+              data.unitSystem == 'us' || data.unitSystem == 'metric')
+          && (!('hiddenRecentLabels' in data.keys()) ||
+              (data.hiddenRecentLabels is list
+               && data.hiddenRecentLabels.size() <= 200));
     }
 
     function isValidProfile(data) {

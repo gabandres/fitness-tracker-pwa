@@ -120,6 +120,24 @@ export class InMemoryLedgerAdapter implements LedgerPort {
     this.patchProfile({ unitSystem: system });
   }
 
+  async hideRecentLabel(label: string): Promise<void> {
+    const norm = label.trim().toLowerCase();
+    if (!norm) return;
+    const current = this._profile() as { hiddenRecentLabels?: string[] } | null;
+    const existing = current?.hiddenRecentLabels ?? [];
+    if (existing.includes(norm)) return;
+    this.patchProfile({ hiddenRecentLabels: [...existing, norm].slice(-200) });
+  }
+
+  async unhideRecentLabel(label: string): Promise<void> {
+    const norm = label.trim().toLowerCase();
+    const current = this._profile() as { hiddenRecentLabels?: string[] } | null;
+    const existing = current?.hiddenRecentLabels ?? [];
+    const next = existing.filter((l) => l !== norm);
+    if (next.length === existing.length) return;
+    this.patchProfile({ hiddenRecentLabels: next });
+  }
+
   async setWeeklyDigestOptIn(on: boolean): Promise<void> {
     this.patchProfile({ weeklyDigestOptIn: on });
   }

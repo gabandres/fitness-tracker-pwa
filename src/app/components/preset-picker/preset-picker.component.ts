@@ -1,9 +1,23 @@
-import { ChangeDetectionStrategy, Component, inject, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { MealPreset } from '../../services/firebase.service';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { MacroEstimate } from '../../models/macro-estimate';
 
+/**
+ * Quick-add chip row backed by user-saved presets. Two states:
+ *
+ *   - View mode (default): tap a chip → emits a MacroEstimate that
+ *     pre-fills the entry form.
+ *   - Manage mode: triggered by the "Manage" button next to the header.
+ *     Every chip gets a visible ✕; tapping ✕ deletes the preset. Tap
+ *     becomes deletion in manage mode rather than the dual-action
+ *     inner-button trick that worked on desktop hover but was
+ *     unreachable on touch devices.
+ *
+ * Manage mode auto-exits when the list empties so the user isn't left
+ * staring at an empty row with a "Done" button.
+ */
 @Component({
   selector: 'app-preset-picker',
   standalone: true,
@@ -12,17 +26,35 @@ import { MacroEstimate } from '../../models/macro-estimate';
   template: `
     <ng-container *transloco="let t">
       <div class="mb-4">
-        <div class="data-label mb-1.5">{{ t('preset.quickAdd') }}</div>
+        <div class="flex items-baseline justify-between mb-1.5">
+          <div class="data-label">{{ t('preset.quickAdd') }}</div>
+          @if (store.presets().length > 0) {
+            <button type="button" (click)="toggleManage()"
+              class="font-mono text-[10px] tracking-[0.08em] uppercase"
+              [style.color]="manage() ? 'var(--color-blood)' : 'var(--color-graphite-soft)'"
+              [attr.aria-pressed]="manage()">
+              {{ manage() ? t('preset.done') : t('preset.manage') }}
+            </button>
+          }
+        </div>
         @if (store.presets().length > 0) {
           <div class="flex flex-wrap gap-1.5">
             @for (p of store.presets(); track p.id) {
-              <button type="button" (click)="pick(p)" class="tag-btn text-[11px] group relative">
-                {{ p.name }}
-                <span class="text-graphite-soft">{{ p.calories }}</span>
-                <button type="button" (click)="remove(p, $event)"
-                  class="ml-1 opacity-0 group-hover:opacity-100 text-blood text-[11px] transition-opacity"
-                  [attr.title]="t('preset.removeTitle')">✕</button>
-              </button>
+              @if (manage()) {
+                <button type="button" (click)="remove(p)"
+                  [attr.aria-label]="t('preset.removeAria', { name: p.name })"
+                  class="tag-btn text-[11px] inline-flex items-center gap-1.5"
+                  style="border-color: var(--color-blood); color: var(--color-blood);">
+                  <span aria-hidden="true">✕</span>
+                  <span>{{ p.name }}</span>
+                  <span class="text-graphite-soft">{{ p.calories }}</span>
+                </button>
+              } @else {
+                <button type="button" (click)="pick(p)" class="tag-btn text-[11px]">
+                  {{ p.name }}
+                  <span class="text-graphite-soft">{{ p.calories }}</span>
+                </button>
+              }
             }
           </div>
         } @else {
@@ -40,6 +72,21 @@ export class PresetPickerComponent {
 
   readonly estimated = output<MacroEstimate>();
 
+  /** Manage mode toggles ✕ deletion onto every chip and turns the row
+   *  header link into "Done". Auto-collapses when the list empties. */
+  protected readonly manage = signal(false);
+
+  protected readonly _autoExit = computed(() => {
+    if (this.manage() && this.store.presets().length === 0) {
+      this.manage.set(false);
+    }
+    return null;
+  });
+
+  protected toggleManage(): void {
+    this.manage.update((v) => !v);
+  }
+
   protected pick(p: MealPreset): void {
     this.estimated.emit({
       calories: p.calories,
@@ -48,8 +95,8 @@ export class PresetPickerComponent {
     });
   }
 
-  protected async remove(p: MealPreset, event: Event): Promise<void> {
-    event.stopPropagation();
-    if (p.id) await this.store.deletePreset(p.id);
+  protected async remove(p: MealPreset): Promise<void> {
+    if (!p.id) return;
+    await this.store.deletePreset(p.id);
   }
 }

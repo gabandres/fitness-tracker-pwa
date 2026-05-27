@@ -169,6 +169,15 @@ export interface ProfileFields {
   publicProfileEnabled?: boolean;
   publicDisplayName?: string;
 
+  // Recent-entry suppressions. Recent quick-add chips are derived from
+  // the trailing log window (FitnessStore.recentEntries); deleting a
+  // historical log to remove a chip would destroy data, so instead we
+  // store a per-label hide list here. FitnessStore filters chips
+  // against this set so they stop surfacing while the underlying log
+  // entries remain intact. Comparison is case-insensitive — the labels
+  // here are normalized to lowercase at write time.
+  hiddenRecentLabels?: string[];
+
   // Unit system for portion display in the food-search picker and any
   // future cup/tbsp-vs-grams toggle. `us` (cup/tbsp/oz default) is the
   // implicit pre-existing behavior — leaving this undefined renders
@@ -500,6 +509,37 @@ export class FirebaseService implements LedgerPort {
    *  Writing the same value back is a no-op latency-wise — Firestore
    *  collapses the patch — so the callers can avoid local equality
    *  checks. */
+  /** Add a meal label to the user's recent-quick-add hide list. The
+   *  label is normalized to lowercase before storage so duplicates with
+   *  different casing collapse to one entry. Capped at 200 entries to
+   *  keep the profile doc bounded — well past anything a real user
+   *  would amass. */
+  async hideRecentLabel(label: string): Promise<void> {
+    const norm = label.trim().toLowerCase();
+    if (!norm) return;
+    const current = this._profile();
+    const existing = ((current as { hiddenRecentLabels?: string[] } | null)?.hiddenRecentLabels) ?? [];
+    if (existing.includes(norm)) return;
+    const next = [...existing, norm].slice(-200);
+    const ref = this.userDoc();
+    await updateDoc(ref, { hiddenRecentLabels: next, lastSeenAt: Timestamp.now() });
+    if (current) this._profile.set({ ...current, hiddenRecentLabels: next } as UserProfile);
+  }
+
+  /** Remove a label from the hide list. Used by an "undo / show again"
+   *  affordance if/when surfaced. */
+  async unhideRecentLabel(label: string): Promise<void> {
+    const norm = label.trim().toLowerCase();
+    if (!norm) return;
+    const current = this._profile();
+    const existing = ((current as { hiddenRecentLabels?: string[] } | null)?.hiddenRecentLabels) ?? [];
+    const next = existing.filter((l) => l !== norm);
+    if (next.length === existing.length) return;
+    const ref = this.userDoc();
+    await updateDoc(ref, { hiddenRecentLabels: next, lastSeenAt: Timestamp.now() });
+    if (current) this._profile.set({ ...current, hiddenRecentLabels: next } as UserProfile);
+  }
+
   async setUnitSystem(system: UnitSystem): Promise<void> {
     const ref = this.userDoc();
     await updateDoc(ref, { unitSystem: system, lastSeenAt: Timestamp.now() });
