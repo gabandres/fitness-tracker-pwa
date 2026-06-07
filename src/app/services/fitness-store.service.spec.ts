@@ -247,6 +247,35 @@ describe('FitnessStore', () => {
       expect(gp!.remaining).toBeGreaterThan(0);
     });
 
+    it('reports history as not-loaded before hydration, loaded after', async () => {
+      // Fresh store, before any sign-in / hydration.
+      expect(store.allHistoryState().loaded).toBe(false);
+      expect(store.logsForLastDaysState(7).loaded).toBe(false);
+      expect(store.isHistoryHydrated()).toBe(false);
+
+      await loadWith(makeLogs(5));
+
+      const h = store.allHistoryState();
+      expect(h.loaded).toBe(true);
+      if (h.loaded) expect(h.logs.length).toBe(5);
+      expect(store.isHistoryHydrated()).toBe(true);
+    });
+
+    it('marks history hydrated after load even with zero logs', async () => {
+      await loadWith([]);
+      expect(store.isHistoryHydrated()).toBe(true);
+      const h = store.allHistoryState();
+      expect(h.loaded).toBe(true);
+      if (h.loaded) expect(h.logs).toEqual([]);
+    });
+
+    it('logsForLastDaysState windows the loaded history', async () => {
+      await loadWith(makeLogs(5)); // 5 consecutive days ending today
+      const h = store.logsForLastDaysState(3);
+      expect(h.loaded).toBe(true);
+      if (h.loaded) expect(h.logs.length).toBe(3);
+    });
+
     it('should compute weekly summary', async () => {
       await loadWith(makeLogs(7));
       const w = store.weekly();

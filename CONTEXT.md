@@ -55,10 +55,17 @@ These three windows look similar and are NOT interchangeable. See
   `FitnessStore.isHistoryHydrated()`. Source of truth for any
   calendar-day window.
 - **LogWindow** — `FitnessStore.logsForLastDays(n)` (async, awaits
-  hydration) and `logsForLastDaysSync(n)` (computed-safe, returns `[]`
-  until hydrated). The canonical "last N calendar days" query. Always
-  prefer this over slicing `_logs` or doing millisecond arithmetic
-  (which drifts across DST).
+  hydration) and `logsForLastDaysState(n)` (computed-safe). The canonical
+  "last N calendar days" query. Always prefer this over slicing `_logs`
+  or doing millisecond arithmetic (which drifts across DST).
+- **HistoryWindow** — The discriminated `{ loaded: false } | { loaded:
+  true; logs }` returned by `logsForLastDaysState(n)` and
+  `allHistoryState()`. The lazy all-time cache is empty until it hydrates,
+  and "empty window" must not be confused with "not loaded yet" — so the
+  load state rides in the return type and a caller can't reach `logs`
+  without handling `loaded: false`. Replaced the old bare-array
+  `logsForLastDaysSync` + manual `isHistoryHydrated()` gate. See
+  [ADR-0004](docs/adr/0004-log-window-typed-queries.md).
 - **Free-tier 90-day cap** — `CHART_HISTORY_DAYS_FREE = 90`. Applied
   inside `allTimeLogs()`; the underlying `_allTimeLogs` stays uncapped
   so CSV export and `monthlySummary` still see lifetime history.

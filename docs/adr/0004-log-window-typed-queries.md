@@ -56,3 +56,27 @@ recent rows for Today-card use cases. Its docstring now spells out the
   logs](../../CONTEXT.md#time-windows-over-logs) and
   [ADR-0005](0005-store-facets-split.md) (the hub still owns these
   derivations).
+
+## Amendment (2026-06-06): typed `HistoryWindow` replaces the manual gate
+
+The original sync accessor returned a bare `DailyLog[]` and told callers
+to *remember* to check `isHistoryHydrated()` first. Two derivations
+(`goalProgress`, `monthlySummary`) read the all-time cache without that
+check and rendered wrong values on first paint, then jumped once the
+cache hydrated — the exact failure the convention was meant to prevent. A
+convention enforced by memory is not enforced.
+
+So the gate now rides in the return type. `logsForLastDaysSync(n)` is
+replaced by **`logsForLastDaysState(n)`**, and a sibling
+**`allHistoryState()`** covers full-history reads; both return a
+[`HistoryWindow`](../../CONTEXT.md#time-windows-over-logs) —
+`{ loaded: false } | { loaded: true; logs }`. A caller cannot reach
+`logs` without handling `loaded: false`, so forgetting the gate is a
+compile error, not a silent misrender.
+
+`isHistoryHydrated()` also changed meaning: it now reflects a real
+`_historyLoaded` flag set after `_loadAllTimeLogs()` *settles* (even on an
+empty or failed load), not `_allTimeLogs().length > 0`. The old
+definition left a genuinely log-less account "unhydrated" forever,
+permanently hiding the gated derivations. The boolean stays for callers
+that only need the flag; new computeds should prefer the typed accessors.

@@ -63,6 +63,20 @@ export interface TodaySummary {
 }
 
 /**
+ * A lifetime-history read that carries its own load state. The lazy
+ * all-time cache (`_allTimeLogs`, see [ADR-0004]) is empty until it
+ * hydrates in the background, and "empty window" is indistinguishable
+ * from "not loaded yet" on a bare array — which is exactly how
+ * `goalProgress` / `monthlySummary` used to render wrong values on first
+ * paint. This discriminated shape moves that invariant into the type:
+ * callers cannot reach `logs` without first handling `loaded: false`, so
+ * forgetting the gate is a compile error rather than a silent misrender.
+ */
+export type HistoryWindow =
+  | { readonly loaded: false }
+  | { readonly loaded: true; readonly logs: DailyLog[] };
+
+/**
  * Hub for the canonical log + preset cache plus all derived computations
  * (TDEE, streak, weekly, EMA, goal progress, today summary, monthly,
  * etc.) and log mutations. Three sibling stores own focused facets:
@@ -94,7 +108,7 @@ export class FitnessStore {
    * 2 days; a sparse logger may span weeks. Do NOT use this signal for
    * calendar-day queries (last-N-days reports, streak math beyond the
    * cached window, etc.) — reach for `logsForLastDays(n)` /
-   * `logsForLastDaysSync(n)` instead, which filter `_allTimeLogs`
+   * `logsForLastDaysState(n)` instead, which filter `_allTimeLogs`
    * by local-date key.
    */
   private readonly _logs = signal<DailyLog[]>([]);
@@ -104,11 +118,20 @@ export class FitnessStore {
   /**
    * Uncapped lifetime log cache. Loaded asynchronously via
    * `_loadAllTimeLogs()` (called opportunistically — e.g. before
-   * weekly report generation). May be empty until hydrated; check
-   * `isHistoryHydrated()` before reading from a computed. Source of
-   * truth for any calendar-day-windowed query.
+   * weekly report generation). May be empty until hydrated. Prefer the
+   * typed `allHistoryState()` / `logsForLastDaysState(n)` accessors over
+   * reading this directly — they fold in the load state so a computed
+   * cannot mistake "not loaded yet" for "no history". Source of truth
+   * for any calendar-day-windowed query.
    */
   private readonly _allTimeLogs = signal<DailyLog[]>([]);
+  /**
+   * True once `_loadAllTimeLogs()` has completed at least once this
+   * session — whether or not it found any rows. Distinct from
+   * `_allTimeLogs().length > 0`: a brand-new user with zero logs is
+   * still fully *loaded*, just empty. This is the real hydration gate.
+   */
+  private readonly _historyLoaded = signal(false);
   /** Surfaced once per day when the user first crosses their daily
       calorie budget. Cleared on ack or on day rollover. */
   private readonly _budgetCrossed = signal(false);
@@ -345,10 +368,13 @@ export class FitnessStore {
     const dwKeys = Object.keys(dw).sort();
     let start: number | null = dwKeys.length > 0 ? dw[dwKeys[0]] : null;
     if (start == null) {
-      const all = this._allTimeLogs();
-      // _allTimeLogs is oldest-first (same as _logs); walk forward for the
-      // first weighted entry.
-      for (const l of all) {
+      const history = this.allHistoryState();
+      // Don't guess the start weight from `current` before history loads —
+      // that pins the bar near 0% then jumps once the oldest log arrives.
+      // Hide the bar until we actually know the starting point.
+      if (!history.loaded) return null;
+      // logs are oldest-first; walk forward for the first weighted entry.
+      for (const l of history.logs) {
         if (l.weight != null) { start = l.weight; break; }
       }
     }
@@ -460,7 +486,12 @@ export class FitnessStore {
    *  would otherwise be invisible to this stat. Calorie metrics still
    *  derive from logs. The window spans whichever source reaches further. */
   readonly monthlySummary: Signal<MonthlySummary | null> = computed(() => {
-    const logs = this._allTimeLogs();
+    // Gate on the typed history state — before hydration `_allTimeLogs` is
+    // empty, which would zero out avgCalories / adherence and then correct
+    // itself with a visible jump once the cache loads.
+    const history = this.allHistoryState();
+    if (!history.loaded) return null;
+    const logs = history.logs;
     const dw = this.body.dailyWeights();
     const dwKeys = Object.keys(dw).sort();
     if (logs.length < 7 && dwKeys.length < 7) return null;
@@ -865,7 +896,12 @@ export class FitnessStore {
     try {
       const all = await this.fb.getRecentLogs(9999);
       this._allTimeLogs.set(all);
-    } catch { /* non-critical */ }
+    } catch { /* non-critical */ } finally {
+      // Mark loaded even on failure/empty: the gate is "did we try and
+      // settle", not "did we find rows". Leaving it false on a genuinely
+      // log-less account would hide goalProgress / monthlySummary forever.
+      this._historyLoaded.set(true);
+    }
   }
 
   /**
@@ -907,20 +943,42 @@ export class FitnessStore {
    * `isHistoryHydrated()` first to distinguish "no logs in window"
    * from "history not loaded yet".
    */
-  logsForLastDaysSync(n: number): DailyLog[] {
-    const all = this._allTimeLogs();
-    if (all.length === 0) return [];
-    const keys = new Set(this.windowCalendarKeys(n));
-    return all.filter((l) => keys.has(localDateKey(l.date)));
+  /**
+   * Lifetime history with its load state folded in (see
+   * {@link HistoryWindow}). `{ loaded: false }` until the background
+   * hydration settles, then `{ loaded: true, logs }` (uncapped,
+   * oldest-first). The typed gate for derivations that read all-time
+   * history — `goalProgress`, `monthlySummary`.
+   */
+  allHistoryState(): HistoryWindow {
+    if (!this._historyLoaded()) return { loaded: false };
+    return { loaded: true, logs: this._allTimeLogs() };
   }
 
   /**
-   * True once `_allTimeLogs` has loaded at least once this session.
-   * Computeds depending on `logsForLastDaysSync` should gate on this
-   * to avoid rendering "0 days" before the first hydration completes.
+   * The last `n` calendar days ending today, in the user's local tz, with
+   * load state folded in. Computed-safe replacement for the old bare-array
+   * sync accessor: returns `{ loaded: false }` until history hydrates, so a
+   * caller cannot mistake "no logs in window" for "history not loaded yet".
+   * For the awaiting variant use {@link logsForLastDays}.
+   */
+  logsForLastDaysState(n: number): HistoryWindow {
+    if (!this._historyLoaded()) return { loaded: false };
+    const keys = new Set(this.windowCalendarKeys(n));
+    return {
+      loaded: true,
+      logs: this._allTimeLogs().filter((l) => keys.has(localDateKey(l.date))),
+    };
+  }
+
+  /**
+   * True once `_loadAllTimeLogs()` has settled at least once this session
+   * (regardless of row count). Prefer {@link allHistoryState} /
+   * {@link logsForLastDaysState}, which carry this in their return type;
+   * this boolean remains for callers that only need the flag.
    */
   isHistoryHydrated(): boolean {
-    return this._allTimeLogs().length > 0;
+    return this._historyLoaded();
   }
 
   private _clear(): void {
