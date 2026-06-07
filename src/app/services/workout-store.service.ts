@@ -195,12 +195,17 @@ export class WorkoutStore {
     return id;
   }
 
-  /** Debounced live-write path while logging. Updates the local active
-   *  signal optimistically so the UI stays in sync without a refetch. */
+  /** Debounced live-write path while logging — and the save path for
+   *  editing an already-completed session. Updates whichever local signal
+   *  holds the doc (active or the recent list) optimistically so the UI
+   *  stays in sync without a refetch. */
   async updateSession(id: string, patch: Partial<SessionDraft>): Promise<void> {
     await this.fb.updateSession(id, patch);
     this._activeSession.update((cur) =>
       cur && cur.id === id ? { ...cur, ...patch, updatedAt: new Date() } : cur,
+    );
+    this._recentSessions.update((list) =>
+      list.map((s) => (s.id === id ? { ...s, ...patch, updatedAt: new Date() } : s)),
     );
   }
 

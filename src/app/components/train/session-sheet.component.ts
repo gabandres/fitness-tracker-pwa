@@ -4,6 +4,7 @@ import {
   OnDestroy,
   computed,
   inject,
+  input,
   output,
   signal,
 } from '@angular/core';
@@ -151,10 +152,16 @@ const SAVE_DEBOUNCE_MS = 800;
         </label>
 
         <div class="flex gap-3">
-          <ui-button variant="ghost" (click)="requestDiscard()">{{ t('train.discard') }}</ui-button>
-          <ui-button variant="primary" [block]="true" (click)="finish()">
-            {{ saving() ? t('train.saving') : t('train.finish') }}
-          </ui-button>
+          @if (isEditing()) {
+            <ui-button variant="primary" [block]="true" (click)="saveEdits()">
+              {{ saving() ? t('train.saving') : t('train.done') }}
+            </ui-button>
+          } @else {
+            <ui-button variant="ghost" (click)="requestDiscard()">{{ t('train.discard') }}</ui-button>
+            <ui-button variant="primary" [block]="true" (click)="finish()">
+              {{ saving() ? t('train.saving') : t('train.finish') }}
+            </ui-button>
+          }
         </div>
       }
     </ui-sheet>
@@ -166,11 +173,18 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
   private readonly workout = inject(WorkoutStore);
   private readonly i18n = inject(TranslationService);
 
-  /** Emitted after a successful finish or a discard so the parent can
+  /** When set, the sheet edits this already-completed session instead of
+   *  the live active one: no "finish" lifecycle, just save-and-close. */
+  readonly editingSession = input<WorkoutSession | null>(null);
+
+  /** Emitted after a successful finish, save, or discard so the parent can
    *  drop the sheet from the view. */
   readonly closed = output<void>();
 
-  protected readonly session = this.workout.activeSession;
+  protected readonly isEditing = computed(() => this.editingSession() != null);
+  protected readonly session = computed(
+    () => this.editingSession() ?? this.workout.activeSession(),
+  );
   protected readonly draft = signal<SessionExercise[]>([]);
   protected readonly nextNotes = signal('');
   protected readonly prevNotes = signal('');
@@ -370,6 +384,21 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
         exercises: this.draft(),
         nextNotes: this.nextNotes() || undefined,
       });
+      this.closed.emit();
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  /** Edit-mode primary action: persist pending set/notes edits (header
+   *  fields already live-write) and close. No finishWorkout — the session
+   *  is already completed, so re-running it would double-stamp the day's
+   *  exercise marker. */
+  protected saveEdits(): void {
+    if (this.saving()) return;
+    this.saving.set(true);
+    try {
+      this.flushSave();
       this.closed.emit();
     } finally {
       this.saving.set(false);

@@ -144,13 +144,17 @@ import { suggestProgression } from '../../utils/workout-progression';
         <div class="mt-2 grid gap-1">
           @for (ses of completedRecent(); track ses.id) {
             <div class="flex items-center justify-between gap-3 py-2 border-b" style="border-color: var(--v2-rule);">
-              <div>
+              <button type="button" class="text-left grow" (click)="editSession(ses)">
                 <p style="font-weight: 600;">{{ ses.templateName || t('train.sessionTitle') }}</p>
                 <p class="v2-caption">{{ formatDate(ses.date) }} · {{ t('train.exerciseCount', { count: ses.exercises.length }) }}</p>
+              </button>
+              <div class="flex items-center gap-1 shrink-0">
+                @if (ses.durationMin) {
+                  <span class="v2-caption" style="color: var(--v2-ink-muted);">{{ ses.durationMin }}m</span>
+                }
+                <ui-icon-button icon="pencil" [ariaLabel]="t('train.editSession')" (click)="editSession(ses)" />
+                <ui-icon-button icon="trash-2" [ariaLabel]="t('train.deleteSession')" (click)="removeSession(ses)" />
               </div>
-              @if (ses.durationMin) {
-                <span class="v2-caption" style="color: var(--v2-ink-muted);">{{ ses.durationMin }}m</span>
-              }
             </div>
           }
         </div>
@@ -178,6 +182,9 @@ import { suggestProgression } from '../../utils/workout-progression';
     @if (showSheet()) {
       <app-workout-session-sheet (closed)="onSheetClosed()" />
     }
+    @if (editingSession(); as es) {
+      <app-workout-session-sheet [editingSession]="es" (closed)="onEditClosed()" />
+    }
     @if (editorOpen()) {
       <app-template-editor [templateId]="editorTemplateId()" (closed)="editorOpen.set(false)" />
     }
@@ -204,6 +211,7 @@ export class TrainComponent {
   protected readonly editorOpen = signal(false);
   protected readonly editorTemplateId = signal<string | null>(null);
   protected readonly detail = signal<Exercise | null>(null);
+  protected readonly editingSession = signal<WorkoutSession | null>(null);
 
   protected readonly completedRecent = computed(() =>
     this.workout.recentSessions().filter((s) => s.status === 'completed'),
@@ -239,6 +247,21 @@ export class TrainComponent {
 
   protected openDetail(ex: Exercise): void {
     this.detail.set(ex);
+  }
+
+  /** Open a completed session in the sheet for editing. */
+  protected editSession(ses: WorkoutSession): void {
+    this.editingSession.set(ses);
+  }
+
+  protected onEditClosed(): void {
+    this.editingSession.set(null);
+  }
+
+  protected async removeSession(ses: WorkoutSession): Promise<void> {
+    if (!ses.id) return;
+    if (!confirm(this.i18n.t('train.deleteSessionConfirm'))) return;
+    await this.workout.deleteSession(ses.id);
   }
 
   protected formatDate(d: Date): string {
