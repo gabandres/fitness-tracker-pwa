@@ -1,8 +1,8 @@
 import { Injectable, Injector, computed, effect, inject, runInInjectionContext, signal } from '@angular/core';
 import { Auth, authState, signInWithCustomToken } from '@angular/fire/auth';
 import { Firestore, doc, onSnapshot } from '@angular/fire/firestore';
-import { Functions, httpsCallable } from '@angular/fire/functions';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { CallableGateway } from './callable.gateway';
 
 /**
  * Seed admin emails — kept in sync with SEED_ADMINS in
@@ -99,7 +99,7 @@ const IMPERSONATION_KEY = 'macrolog.admin.originalUid';
 export class AdminService {
   private readonly auth = inject(Auth);
   private readonly firestore = inject(Firestore);
-  private readonly functions = inject(Functions);
+  private readonly callables = inject(CallableGateway);
   private readonly injector = inject(Injector);
 
   private readonly authedUser = toSignal(authState(this.auth));
@@ -218,34 +218,23 @@ export class AdminService {
   // ─── Callable wrappers ─────────────────────────────────────────
 
   async bootstrap(): Promise<{ seeded: string[] }> {
-    const fn = httpsCallable<unknown, { seeded: string[] }>(this.functions, 'bootstrapAdmin');
-    const res = await fn({});
-    return res.data;
+    return this.callables.call<unknown, { seeded: string[] }>('bootstrapAdmin', {});
   }
 
   async setAdmin(email: string, grant: boolean): Promise<void> {
-    const fn = httpsCallable(this.functions, 'setAdminClaims');
-    await fn({ email, grant });
+    await this.callables.call('setAdminClaims', { email, grant });
   }
 
   async listUsers(): Promise<{ users: AdminUserRow[] }> {
-    const fn = httpsCallable<unknown, { users: AdminUserRow[] }>(this.functions, 'listUsers');
-    const res = await fn({});
-    return res.data;
+    return this.callables.call<unknown, { users: AdminUserRow[] }>('listUsers', {});
   }
 
   async getPlatformStats(refresh = false): Promise<PlatformStats> {
-    const fn = httpsCallable<{ refresh: boolean }, PlatformStats>(this.functions, 'getPlatformStats');
-    const res = await fn({ refresh });
-    return res.data;
+    return this.callables.call<{ refresh: boolean }, PlatformStats>('getPlatformStats', { refresh });
   }
 
   async getRecentActivity(): Promise<{ items: ActivityItem[] }> {
-    const fn = httpsCallable<unknown, { items: ActivityItem[] }>(
-      this.functions, 'getRecentActivity',
-    );
-    const res = await fn({});
-    return res.data;
+    return this.callables.call<unknown, { items: ActivityItem[] }>('getRecentActivity', {});
   }
 
   async getAuditLogs(params: {
@@ -255,56 +244,46 @@ export class AdminService {
     dateFrom?: string;
     dateTo?: string;
   } = {}): Promise<{ logs: AuditLog[]; hasMore: boolean }> {
-    const fn = httpsCallable<typeof params, { logs: AuditLog[]; hasMore: boolean }>(
-      this.functions, 'getAuditLogs',
+    return this.callables.call<typeof params, { logs: AuditLog[]; hasMore: boolean }>(
+      'getAuditLogs', params,
     );
-    const res = await fn(params);
-    return res.data;
   }
 
   async suspendUser(targetUid: string, disabled: boolean): Promise<void> {
-    const fn = httpsCallable(this.functions, 'adminSuspendUser');
-    await fn({ targetUid, disabled });
+    await this.callables.call('adminSuspendUser', { targetUid, disabled });
   }
 
   async deleteUser(targetUid: string): Promise<void> {
-    const fn = httpsCallable(this.functions, 'adminDeleteUser');
-    await fn({ targetUid });
+    await this.callables.call('adminDeleteUser', { targetUid });
   }
 
   async resetPassword(targetEmail: string): Promise<{ link: string }> {
-    const fn = httpsCallable<{ targetEmail: string }, { link: string }>(
-      this.functions, 'adminResetPassword',
+    return this.callables.call<{ targetEmail: string }, { link: string }>(
+      'adminResetPassword', { targetEmail },
     );
-    const res = await fn({ targetEmail });
-    return res.data;
   }
 
   async overridePlan(targetUid: string, role: string | null): Promise<void> {
-    const fn = httpsCallable(this.functions, 'adminOverridePlan');
-    await fn({ targetUid, role });
+    await this.callables.call('adminOverridePlan', { targetUid, role });
   }
 
   async setCompedEmail(email: string, grant: boolean): Promise<void> {
-    const fn = httpsCallable(this.functions, 'adminSetCompedEmail');
-    await fn({ email, grant });
+    await this.callables.call('adminSetCompedEmail', { email, grant });
   }
 
   async resetQuotas(targetUid: string): Promise<void> {
-    const fn = httpsCallable(this.functions, 'adminResetQuotas');
-    await fn({ targetUid });
+    await this.callables.call('adminResetQuotas', { targetUid });
   }
 
   async exportData(type: 'users' | 'logs' | 'metrics'): Promise<string> {
-    const fn = httpsCallable<{ type: string }, { csv: string }>(this.functions, 'adminExportData');
-    const res = await fn({ type });
-    return res.data.csv;
+    const { csv } = await this.callables.call<{ type: string }, { csv: string }>(
+      'adminExportData', { type },
+    );
+    return csv;
   }
 
   async getUserDetails(targetUid: string): Promise<unknown> {
-    const fn = httpsCallable<{ targetUid: string }, unknown>(this.functions, 'adminGetUserDetails');
-    const res = await fn({ targetUid });
-    return res.data;
+    return this.callables.call<{ targetUid: string }, unknown>('adminGetUserDetails', { targetUid });
   }
 
   // ─── Impersonation ────────────────────────────────────────────
@@ -313,27 +292,25 @@ export class AdminService {
     const originalUid = this.auth.currentUser?.uid;
     if (!originalUid) throw new Error('Not signed in.');
 
-    const fn = httpsCallable<{ targetEmail: string }, { customToken: string }>(
-      this.functions, 'startImpersonation',
-    );
-    const res = await fn({ targetEmail });
+    const { customToken } = await this.callables.call<
+      { targetEmail: string }, { customToken: string }
+    >('startImpersonation', { targetEmail });
 
     // Capture BEFORE the sign-in swap so a refresh mid-swap still
     // remembers where to return to.
     localStorage.setItem(IMPERSONATION_KEY, originalUid);
     this.originalAdminUid.set(originalUid);
 
-    await signInWithCustomToken(this.auth, res.data.customToken);
+    await signInWithCustomToken(this.auth, customToken);
   }
 
   async stopImpersonating(): Promise<void> {
     const originalUid = this.originalAdminUid();
     if (!originalUid) throw new Error('Not impersonating.');
-    const fn = httpsCallable<{ originalUid: string }, { customToken: string }>(
-      this.functions, 'stopImpersonation',
-    );
-    const res = await fn({ originalUid });
-    await signInWithCustomToken(this.auth, res.data.customToken);
+    const { customToken } = await this.callables.call<
+      { originalUid: string }, { customToken: string }
+    >('stopImpersonation', { originalUid });
+    await signInWithCustomToken(this.auth, customToken);
     localStorage.removeItem(IMPERSONATION_KEY);
     this.originalAdminUid.set(null);
   }

@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Functions, httpsCallable } from '@angular/fire/functions';
+import { CallableGateway } from './callable.gateway';
 
 /** Slim hit returned by the typeahead search. Wire-compatible with the
  *  `FoodSearchHit` interface in functions/src/food-search.ts — keep them
@@ -37,23 +37,21 @@ export interface FoodDetail {
  */
 @Injectable({ providedIn: 'root' })
 export class FoodSearchService {
-  private readonly functions = inject(Functions);
+  private readonly callables = inject(CallableGateway);
 
   async search(query: string, pageSize = 20): Promise<FoodSearchHit[]> {
-    const callable = httpsCallable<
+    const { hits } = await this.callables.call<
       { query: string; pageSize?: number },
       { hits: FoodSearchHit[]; cached: boolean }
-    >(this.functions, 'searchFoods');
-    const result = await callable({ query, pageSize });
-    return result.data.hits ?? [];
+    >('searchFoods', { query, pageSize });
+    return hits ?? [];
   }
 
   async getDetail(fdcId: number): Promise<FoodDetail> {
-    const callable = httpsCallable<
+    const { detail } = await this.callables.call<
       { fdcId: number },
       { detail: FoodDetail; cached: boolean }
-    >(this.functions, 'getFoodDetail');
-    const result = await callable({ fdcId });
-    return result.data.detail;
+    >('getFoodDetail', { fdcId });
+    return detail;
   }
 }

@@ -3,9 +3,9 @@ import {
   Firestore, addDoc, collection, doc, onSnapshot, query, where, Unsubscribe,
 } from '@angular/fire/firestore';
 import { Auth, authState, onIdTokenChanged } from '@angular/fire/auth';
-import { Functions, httpsCallable } from '@angular/fire/functions';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { environment } from '../../environments/environment';
+import { CallableGateway } from './callable.gateway';
 import { TranslationService } from './translation.service';
 
 /**
@@ -56,7 +56,7 @@ const ADMIN_EMAILS = new Set<string>([
 export class SubscriptionService {
   private readonly firestore = inject(Firestore);
   private readonly auth = inject(Auth);
-  private readonly functions = inject(Functions);
+  private readonly callables = inject(CallableGateway);
   private readonly translation = inject(TranslationService);
 
   /** Current active (trialing OR active) subscription, or null. */
@@ -235,8 +235,8 @@ export class SubscriptionService {
       Fire-and-forget — failures just leave `_isComped` at false. */
   private async refreshAccessStatus(): Promise<void> {
     try {
-      const callable = httpsCallable<
-        undefined,
+      const data = await this.callables.call<
+        void,
         {
           admin: boolean;
           comped: boolean;
@@ -245,8 +245,7 @@ export class SubscriptionService {
           photoLimit: number;
           consultationLimit: number;
         }
-      >(this.functions, 'checkAccessStatus');
-      const { data } = await callable();
+      >('checkAccessStatus');
       this._isComped.set(!!data.comped);
       this._photosRemaining.set(data.photosRemaining);
       this._consultationsRemaining.set(data.consultationsRemaining);
@@ -259,17 +258,16 @@ export class SubscriptionService {
   }
 
   async openCustomerPortal(): Promise<void> {
-    const callable = httpsCallable<
-      { returnUrl: string; locale?: string },
-      { url: string }
-    >(this.functions, `ext-${EXTENSION_INSTANCE}-createPortalLink`);
     try {
       this._error.set(null);
-      const { data } = await callable({
+      const { url } = await this.callables.call<
+        { returnUrl: string; locale?: string },
+        { url: string }
+      >(`ext-${EXTENSION_INSTANCE}-createPortalLink`, {
         returnUrl: window.location.origin,
         locale: 'auto',
       });
-      window.location.assign(data.url);
+      window.location.assign(url);
     } catch (err) {
       const msg = err instanceof Error ? err.message : this.translation.t('subscribe.errorCouldNotOpenPortal');
       this._error.set(msg);

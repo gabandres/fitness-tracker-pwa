@@ -194,6 +194,15 @@ These three windows look similar and are NOT interchangeable. See
   `sendDayThreeCoachPush`, `weekly-digest`, `weeklyFirestoreBackup`,
   `statusPulse`, `publishUserCount`. Triggers: `onDailyLogCreated`,
   `onSubscriptionWritten`, `sendWelcomeEmail`.
+- **`CallableGateway`** (`services/callable.gateway.ts`) — the single
+  client→callable seam. `Functions` is injected once here, not in each
+  service. `call<Req, Res>(name, payload?)` collapses the
+  `httpsCallable(...)` → `await fn(payload)` → `.data` dance into one
+  line and returns `.data` unwrapped. `CallableName` is the union of all
+  first-party function names (autocomplete + typo protection; the
+  runtime-namespaced `ext-*-createPortalLink` widens to `string`). Add a
+  new callable's name to that union. Future cross-cutting concerns
+  (error mapping, telemetry, retry) belong in `call()`, not at sites.
 
 ## UI surfaces (post-#4 rename — see [ADR-0006](docs/adr/0006-drop-v2-suffix-component-naming.md))
 

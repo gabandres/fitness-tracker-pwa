@@ -17,7 +17,7 @@ import {
   deleteField,
 } from '@angular/fire/firestore';
 import { Auth } from '@angular/fire/auth';
-import { Functions, httpsCallable } from '@angular/fire/functions';
+import { CallableGateway } from './callable.gateway';
 import { readReferrer, clearReferrer } from '../utils/referral';
 import type { UnitSystem } from '../models/unit-system';
 import { toDomainProfile, toDomainProfilePatch } from '../ledger/infrastructure/profile-mapper';
@@ -252,7 +252,7 @@ export type UserProfileDoc = Omit<Profile, ProfileDateField> & {
 export class FirebaseService implements LedgerPort {
   private readonly firestore = inject(Firestore);
   private readonly auth = inject(Auth);
-  private readonly functions = inject(Functions);
+  private readonly callables = inject(CallableGateway);
 
   private readonly _profile = signal<Profile | null>(null);
   readonly profile = this._profile.asReadonly();
@@ -476,17 +476,14 @@ export class FirebaseService implements LedgerPort {
       Firestore subcollections and the Firebase Auth user. After this
       resolves, sign-out the client and redirect to /. */
   async deleteMyAccount(): Promise<void> {
-    const callable = httpsCallable<void, { success: boolean }>(this.functions, 'deleteAccount');
-    await callable();
+    await this.callables.call<void, { success: boolean }>('deleteAccount');
   }
 
   /** GDPR Art. 20 portability: fetch a full JSON snapshot of every
       document we hold for the signed-in user. CSV export covers logs
       only — this is for full portability / regulator requests. */
   async exportMyData(): Promise<unknown> {
-    const callable = httpsCallable<void, unknown>(this.functions, 'exportUserData');
-    const res = await callable();
-    return res.data;
+    return this.callables.call<void, unknown>('exportUserData');
   }
 
   /** Clear FCM token (permission revoked). */

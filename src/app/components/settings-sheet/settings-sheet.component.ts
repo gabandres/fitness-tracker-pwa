@@ -5,7 +5,7 @@ import {
 import { TranslocoDirective } from '@jsverse/transloco';
 import { LucideAngularModule } from 'lucide-angular';
 import { SwUpdate } from '@angular/service-worker';
-import { Functions, httpsCallable } from '@angular/fire/functions';
+import { CallableGateway } from '../../services/callable.gateway';
 import { AuthService } from '../../services/auth.service';
 import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { FitnessStore } from '../../services/fitness-store.service';
@@ -493,7 +493,7 @@ import { UiButton } from '../ui/button.component';
 export class SettingsSheetComponent {
   protected readonly auth = inject(AuthService);
   protected readonly firebase = inject(LEDGER_PORT);
-  private readonly functions = inject(Functions);
+  private readonly callables = inject(CallableGateway);
   protected readonly store = inject(FitnessStore);
   protected readonly pushService = inject(PushNotificationService);
   protected readonly subs = inject(SubscriptionService);
@@ -793,8 +793,10 @@ export class SettingsSheetComponent {
     this.publicBusy.set(true);
     this.publicError.set(null);
     try {
-      const fn = httpsCallable<{ slug: string; displayName?: string }, { slug: string }>(this.functions, 'claimPublicSlug');
-      await fn({ slug, displayName: this.publicDisplayNameInput().trim() || undefined });
+      await this.callables.call<{ slug: string; displayName?: string }, { slug: string }>(
+        'claimPublicSlug',
+        { slug, displayName: this.publicDisplayNameInput().trim() || undefined },
+      );
       // Profile snapshot listener will re-render the link once Firestore syncs.
     } catch (err) {
       const code = (err as { code?: string })?.code ?? '';
@@ -819,8 +821,7 @@ export class SettingsSheetComponent {
     this.publicBusy.set(true);
     this.publicError.set(null);
     try {
-      const fn = httpsCallable<Record<string, never>, { released: boolean }>(this.functions, 'releasePublicSlug');
-      await fn({});
+      await this.callables.call<Record<string, never>, { released: boolean }>('releasePublicSlug', {});
       this.slugInput.set('');
       this.publicDisplayNameInput.set('');
       this.seededPublicProfile = false;

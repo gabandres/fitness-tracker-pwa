@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Functions, httpsCallable } from '@angular/fire/functions';
+import { CallableGateway } from './callable.gateway';
 import { TranslationService } from './translation.service';
 
 export interface PhotoAnalysisResult {
@@ -16,15 +16,13 @@ export interface PhotoAnalysisResult {
  */
 @Injectable({ providedIn: 'root' })
 export class PhotoMacrosService {
-  private readonly functions = inject(Functions);
+  private readonly callables = inject(CallableGateway);
   private readonly translation = inject(TranslationService);
 
   async analyze(photoBase64: string): Promise<PhotoAnalysisResult> {
-    const callable = httpsCallable<
-      { photoBase64: string; locale: string },
-      PhotoAnalysisResult
-    >(this.functions, 'analyzePhoto');
-    const result = await callable({ photoBase64, locale: this.translation.language() });
-    return result.data;
+    return this.callables.call<{ photoBase64: string; locale: string }, PhotoAnalysisResult>(
+      'analyzePhoto',
+      { photoBase64, locale: this.translation.language() },
+    );
   }
 }

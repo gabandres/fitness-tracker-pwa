@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { GoogleGenAI } from '@google/genai';
-import { Functions, httpsCallable } from '@angular/fire/functions';
+import { CallableGateway } from './callable.gateway';
 import { environment } from '../../environments/environment';
 import { DailyLog, ProfileFields } from './firebase.service';
 import { localDateKey } from '../utils/date';
@@ -55,7 +55,7 @@ export interface MilestoneContext {
  */
 @Injectable({ providedIn: 'root' })
 export class GeminiService {
-  private readonly functions = inject(Functions);
+  private readonly callables = inject(CallableGateway);
   private readonly translation = inject(TranslationService);
   private readonly client = new GoogleGenAI({
     apiKey: environment.gemini.apiKey,
@@ -83,12 +83,7 @@ export class GeminiService {
    * surface the error message — it's user-facing.
    */
   async reserveConsultation(): Promise<ConsultationReservation> {
-    const callable = httpsCallable<undefined, ConsultationReservation>(
-      this.functions,
-      'reserveConsultation',
-    );
-    const { data } = await callable();
-    return data;
+    return this.callables.call<void, ConsultationReservation>('reserveConsultation');
   }
 
   /**
@@ -99,11 +94,7 @@ export class GeminiService {
    */
   async releaseConsultation(): Promise<void> {
     try {
-      const callable = httpsCallable<undefined, { released: boolean }>(
-        this.functions,
-        'releaseConsultation',
-      );
-      await callable();
+      await this.callables.call<void, { released: boolean }>('releaseConsultation');
     } catch (err) {
       console.warn('releaseConsultation failed; slot remains consumed.', err);
     }
@@ -172,12 +163,10 @@ export class GeminiService {
       milestoneLine,
     ].filter((s) => s.length > 0).join('\n');
 
-    const callable = httpsCallable<
+    return this.callables.call<
       { systemInstruction: string; prompt: string },
       GeneratedWeeklyReport
-    >(this.functions, 'generateWeeklyReport');
-    const { data } = await callable({ systemInstruction, prompt });
-    return data;
+    >('generateWeeklyReport', { systemInstruction, prompt });
   }
 
   /**
