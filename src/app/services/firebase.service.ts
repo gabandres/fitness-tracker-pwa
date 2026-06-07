@@ -20,6 +20,7 @@ import { Auth } from '@angular/fire/auth';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { readReferrer, clearReferrer } from '../utils/referral';
 import type { UnitSystem } from '../models/unit-system';
+import { toDomainProfile, toDomainProfilePatch } from '../ledger/infrastructure/profile-mapper';
 
 // ─── Log types ──────────────────────────────────────────────────
 // Note: `liftCompleted` and `cardioCompleted` are legacy fields kept
@@ -134,18 +135,18 @@ export interface ProfileFields {
   fcmToken?: string;           // FCM push token
   reminderHour?: number;       // 0–23, default 20 (8 PM)
   timezoneOffsetMin?: number;  // from new Date().getTimezoneOffset()
-  ageConfirmedAt?: Timestamp;  // COPPA/EU: timestamp the user attested 13+ (16+ EU)
+  ageConfirmedAt?: Date;       // COPPA/EU: timestamp the user attested 13+ (16+ EU)
   ageConfirmed?: boolean;      // transient checkbox state — never persisted, drives the stamp below
   preferredLocale?: string;    // Transloco active lang ('en' | 'es-PR'); used server-side for email locale
-  welcomeEmailSentAt?: Timestamp; // server-set latch; clients never write this
+  welcomeEmailSentAt?: Date;      // server-set latch; clients never write this
   // v2 2-question onboarding (Q10 of UX revamp v2). When present, the
   // FitnessStore prefers these manual targets over TDEE-derived math.
   goalDirection?: GoalDirection;
   targetWeightLbs?: number;       // for lose/gain; omitted for maintain
   manualCaloriesTarget?: number;  // heuristic: weight_lb × {11/14/17}
   manualProteinTarget?: number;   // heuristic: weight_lb × {1.0/0.9/0.8}
-  onboardingV2CompletedAt?: Timestamp;
-  targetsRefinedAt?: Timestamp;   // stamped when the user fills the Day-3
+  onboardingV2CompletedAt?: Date;
+  targetsRefinedAt?: Date;        // stamped when the user fills the Day-3
                                    // "Refine targets" sheet — drops the
                                    // manual heuristic in favour of the
                                    // formula-mode TDEE chain.
@@ -156,8 +157,8 @@ export interface ProfileFields {
   // the referred user pays for the first time. `referralRewardGrantedAt`
   // is the latch on the referee that prevents double-grants.
   referredBy?: string;
-  compedUntil?: Timestamp;
-  referralRewardGrantedAt?: Timestamp;
+  compedUntil?: Date;
+  referralRewardGrantedAt?: Date;
 
   // Public profile (opt-in transformation page at /u/<slug>). The slug
   // is claimed via a server callable so uniqueness is enforced; the
@@ -192,16 +193,55 @@ export interface ProfileFields {
   // email. `lastWeeklyDigestSentAt` is server-stamped after each send;
   // clients read but never write it.
   weeklyDigestOptIn?: boolean;
-  lastWeeklyDigestSentAt?: Timestamp;
+  lastWeeklyDigestSentAt?: Date;
 }
 
-/** Full user profile doc as stored in Firestore. */
-export interface UserProfile extends Partial<ProfileFields> {
+/**
+ * **Domain** profile — the shape the ledger seam exposes (see
+ * `CONTEXT.md` → Profile). Every date is a JS `Date`; callers never see
+ * a Firestore `Timestamp`. This is what `LEDGER_PORT.profile` returns
+ * and what every store/component consumes.
+ */
+export interface Profile extends Partial<ProfileFields> {
   email: string;
-  createdAt: Timestamp;
-  lastSeenAt: Timestamp;
+  createdAt: Date;
+  lastSeenAt: Date;
   profileCompleted: boolean;
 }
+
+/** Date-typed fields on the profile. Listed once so `UserProfileDoc`
+ *  can override exactly these to `Timestamp` and the
+ *  `toDomainProfile` mapper can convert exactly these back to `Date`. */
+export type ProfileDateField =
+  | 'createdAt'
+  | 'lastSeenAt'
+  | 'fastStartedAt'
+  | 'ageConfirmedAt'
+  | 'welcomeEmailSentAt'
+  | 'onboardingV2CompletedAt'
+  | 'targetsRefinedAt'
+  | 'compedUntil'
+  | 'referralRewardGrantedAt'
+  | 'lastWeeklyDigestSentAt';
+
+/**
+ * **Stored** profile — the doc as persisted at `users/{uid}`. Identical
+ * to {@link Profile} except every {@link ProfileDateField} is a Firestore
+ * `Timestamp`. Lives only inside the Firestore adapter + the mapper;
+ * never crosses the ledger seam.
+ */
+export type UserProfileDoc = Omit<Profile, ProfileDateField> & {
+  createdAt: Timestamp;
+  lastSeenAt: Timestamp;
+  fastStartedAt?: Timestamp | null;
+  ageConfirmedAt?: Timestamp;
+  welcomeEmailSentAt?: Timestamp;
+  onboardingV2CompletedAt?: Timestamp;
+  targetsRefinedAt?: Timestamp;
+  compedUntil?: Timestamp;
+  referralRewardGrantedAt?: Timestamp;
+  lastWeeklyDigestSentAt?: Timestamp;
+};
 
 /**
  * All Firestore I/O is scoped to the currently signed-in user's
@@ -214,7 +254,7 @@ export class FirebaseService implements LedgerPort {
   private readonly auth = inject(Auth);
   private readonly functions = inject(Functions);
 
-  private readonly _profile = signal<UserProfile | null>(null);
+  private readonly _profile = signal<Profile | null>(null);
   readonly profile = this._profile.asReadonly();
   /** True once the user has submitted onboarding. Drives the main gate. */
   readonly profileCompleted = computed(() => this._profile()?.profileCompleted === true);
@@ -252,7 +292,7 @@ export class FirebaseService implements LedgerPort {
     const now = Timestamp.now();
 
     if (!snap.exists()) {
-      const initial: UserProfile = {
+      const initial: UserProfileDoc = {
         email: user.email ?? '',
         createdAt: now,
         lastSeenAt: now,
@@ -271,10 +311,11 @@ export class FirebaseService implements LedgerPort {
       // immediately on the create path; if the write fails the user
       // sees an error toast on next mutation rather than a dead app.
       await this.withTimeout(setDoc(ref, initial), 15_000, 'profile-create');
-      this._profile.set(initial);
+      this._profile.set(toDomainProfile(initial));
     } else {
-      const existing = snap.data() as UserProfile;
-      this._profile.set({ ...existing, lastSeenAt: now });
+      const existing = snap.data() as UserProfileDoc;
+      // Map Timestamp -> Date at the seam; overlay the bumped lastSeenAt.
+      this._profile.set({ ...toDomainProfile(existing), lastSeenAt: now.toDate() });
       // Bump lastSeenAt fire-and-forget — the loader was already gated
       // on the read, so the write doesn't need to block UI.
       void updateDoc(ref, { lastSeenAt: now }).catch((err) => {
@@ -305,7 +346,7 @@ export class FirebaseService implements LedgerPort {
     if (!current) throw new Error('No profile loaded.');
 
     const ref = this.userDoc();
-    const patch: Partial<UserProfile> = {
+    const patch: Partial<UserProfileDoc> = {
       heightIn: fields.heightIn,
       age: fields.age,
       sex: fields.sex,
@@ -333,7 +374,7 @@ export class FirebaseService implements LedgerPort {
     }
 
     await updateDoc(ref, patch);
-    this._profile.set({ ...current, ...patch } as UserProfile);
+    this._profile.set({ ...current, ...toDomainProfilePatch(patch) });
   }
 
   /** Persist a v2 2-question onboarding submission. Writes the heuristic
@@ -346,7 +387,7 @@ export class FirebaseService implements LedgerPort {
     if (!current) throw new Error('No profile loaded.');
 
     const ref = this.userDoc();
-    const patch: Partial<UserProfile> = {
+    const patch: Partial<UserProfileDoc> = {
       goalDirection: submission.goalDirection,
       manualCaloriesTarget: submission.manualCaloriesTarget,
       manualProteinTarget: submission.manualProteinTarget,
@@ -362,7 +403,7 @@ export class FirebaseService implements LedgerPort {
       patch.targetWeightLbs = submission.targetWeightLbs;
     }
     await updateDoc(ref, patch);
-    this._profile.set({ ...current, ...patch } as UserProfile);
+    this._profile.set({ ...current, ...toDomainProfilePatch(patch) });
   }
 
   /** Persist the Day-3 "Refine targets" sheet. Writes the full
@@ -386,13 +427,13 @@ export class FirebaseService implements LedgerPort {
       targetsRefinedAt: stamp,
       lastSeenAt: stamp,
     });
-    const updated: UserProfile = { ...current,
+    const updated: Profile = { ...current,
       heightIn: submission.heightIn,
       age: submission.age,
       sex: submission.sex,
       activityLevel: submission.activityLevel,
       targetPaceLbsPerWeek: submission.targetPaceLbsPerWeek,
-      targetsRefinedAt: stamp,
+      targetsRefinedAt: stamp.toDate(),
     };
     delete (updated as any).manualCaloriesTarget;
     delete (updated as any).manualProteinTarget;
@@ -501,7 +542,7 @@ export class FirebaseService implements LedgerPort {
     const ref = this.userDoc();
     await updateDoc(ref, { travelMode: on, lastSeenAt: Timestamp.now() });
     const current = this._profile();
-    if (current) this._profile.set({ ...current, travelMode: on } as UserProfile);
+    if (current) this._profile.set({ ...current, travelMode: on } as Profile);
   }
 
   /** Persist the user's preferred unit system. Drives the default
@@ -523,7 +564,7 @@ export class FirebaseService implements LedgerPort {
     const next = [...existing, norm].slice(-200);
     const ref = this.userDoc();
     await updateDoc(ref, { hiddenRecentLabels: next, lastSeenAt: Timestamp.now() });
-    if (current) this._profile.set({ ...current, hiddenRecentLabels: next } as UserProfile);
+    if (current) this._profile.set({ ...current, hiddenRecentLabels: next } as Profile);
   }
 
   /** Remove a label from the hide list. Used by an "undo / show again"
@@ -537,14 +578,14 @@ export class FirebaseService implements LedgerPort {
     if (next.length === existing.length) return;
     const ref = this.userDoc();
     await updateDoc(ref, { hiddenRecentLabels: next, lastSeenAt: Timestamp.now() });
-    if (current) this._profile.set({ ...current, hiddenRecentLabels: next } as UserProfile);
+    if (current) this._profile.set({ ...current, hiddenRecentLabels: next } as Profile);
   }
 
   async setUnitSystem(system: UnitSystem): Promise<void> {
     const ref = this.userDoc();
     await updateDoc(ref, { unitSystem: system, lastSeenAt: Timestamp.now() });
     const current = this._profile();
-    if (current) this._profile.set({ ...current, unitSystem: system } as UserProfile);
+    if (current) this._profile.set({ ...current, unitSystem: system } as Profile);
   }
 
   /** Toggle weekly-digest opt-in. Refreshes `timezoneOffsetMin` so the
@@ -561,7 +602,7 @@ export class FirebaseService implements LedgerPort {
     const current = this._profile();
     if (current) this._profile.set({
       ...current, weeklyDigestOptIn: on, timezoneOffsetMin: tz,
-    } as UserProfile);
+    } as Profile);
   }
 
   // ─── Daily logs ────────────────────────────────────────────────

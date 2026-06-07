@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 import { FitnessStore, PresetLimitError, PRESET_LIMIT_FREE } from './fitness-store.service';
 import { AuthService } from './auth.service';
 import { LEDGER_PORT } from '../ledger/ports/ledger.port';
-import { DailyLog, LogEntry, MealPreset, UserProfile } from './firebase.service';
+import { DailyLog, LogEntry, MealPreset, Profile } from './firebase.service';
 import { TdeeCalculatorService } from './tdee-calculator.service';
 import { GeminiService } from './gemini.service';
 import { SubscriptionService } from './subscription.service';
@@ -13,12 +13,12 @@ import { TranslationService } from './translation.service';
 describe('FitnessStore', () => {
   let store: FitnessStore;
   let mockIsSignedIn: WritableSignal<boolean>;
-  let mockProfile: WritableSignal<UserProfile | null>;
+  let mockProfile: WritableSignal<Profile | null>;
   let mockIsPaid: WritableSignal<boolean>;
 
   // Properly typed mock so TS doesn't force bracket access.
   let mockFb: {
-    profile: WritableSignal<UserProfile | null>;
+    profile: WritableSignal<Profile | null>;
     profileCompleted: WritableSignal<boolean>;
     ensureUserProfile: ReturnType<typeof vi.fn>;
     getRecentLogs: ReturnType<typeof vi.fn>;
@@ -40,10 +40,10 @@ describe('FitnessStore', () => {
     setDailyWater: ReturnType<typeof vi.fn>;
   };
 
-  const completedProfile: UserProfile = {
+  const completedProfile: Profile = {
     email: 'test@gmail.com',
-    createdAt: {} as any,
-    lastSeenAt: {} as any,
+    createdAt: new Date(),
+    lastSeenAt: new Date(),
     profileCompleted: true,
     heightIn: 70,
     age: 30,
@@ -69,7 +69,7 @@ describe('FitnessStore', () => {
 
   beforeEach(() => {
     mockIsSignedIn = signal(false);
-    mockProfile = signal<UserProfile | null>(null);
+    mockProfile = signal<Profile | null>(null);
     mockIsPaid = signal(true);
 
     mockFb = {

@@ -667,10 +667,11 @@ export class SettingsSheetComponent {
    *  conversion. Surfaced as a positive confirmation under the share
    *  controls so users see the loop actually paid out. */
   protected readonly referralRewardActive = computed<string | null>(() => {
-    const profile = this.firebase.profile() as { compedUntil?: { toMillis(): number } } | null;
-    const t = profile?.compedUntil;
+    // `compedUntil` crosses the ledger seam as a domain `Date` (never a
+    // Firestore Timestamp) — see CONTEXT.md "Date type at the seam".
+    const t = this.firebase.profile()?.compedUntil;
     if (!t) return null;
-    const ms = t.toMillis();
+    const ms = t.getTime();
     if (ms <= Date.now()) return null;
     return new Date(ms).toLocaleDateString(undefined, {
       year: 'numeric', month: 'short', day: 'numeric',

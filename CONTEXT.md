@@ -132,6 +132,21 @@ These three windows look similar and are NOT interchangeable. See
   `FastingStore`; profile carries `fastStartedAt`. `isFasting()` is
   computed from the start time being non-null.
 
+## Profile
+
+- **Profile** — The **domain** shape of the user doc, exposed by
+  `LEDGER_PORT.profile` and consumed by every store/component. All date
+  fields are JS `Date | null` (`createdAt`, `lastSeenAt`,
+  `ageConfirmedAt`, `onboardingV2CompletedAt`, `targetsRefinedAt`,
+  `compedUntil`, `welcomeEmailSentAt`, `lastWeeklyDigestSentAt`,
+  `referralRewardGrantedAt`). UI/derivations only ever see `Profile`.
+- **UserProfileDoc** — The **stored** shape at `users/{uid}`. Identical
+  to `Profile` except every date is a Firestore `Timestamp`. Lives only
+  inside the Firestore adapter and the Cloud Functions; never crosses
+  the ledger seam. The adapter's `toDomainProfile` / `toProfileDoc`
+  mapper is the single conversion point — see the *Date type at the
+  seam* convention below.
+
 ## Stores (post-#3 split — see [ADR-0005](docs/adr/0005-store-facets-split.md))
 
 - **FitnessStore** (`fitness-store.service.ts`) — The hub. Owns logs +
@@ -213,4 +228,10 @@ the same name under `src/app/components/`.
   ordered. Adapters reverse before returning.
 - **Date type at the seam** — Firestore writes use `Timestamp`; the
   ledger port surface always exposes JS `Date`. UI / derivations never
-  see `Timestamp`.
+  see `Timestamp`. This holds for **every** dated field, **including
+  profile fields** — the port returns [`Profile`](#profile) (Date),
+  never the stored `UserProfileDoc` (Timestamp). The Firestore adapter's
+  `toDomainProfile` / `toProfileDoc` mapper is the only place the
+  conversion happens; a `Timestamp` import anywhere outside the adapter
+  (or a `.toDate()` / `.toMillis()` call on a profile field in app code)
+  is a bug against this convention.

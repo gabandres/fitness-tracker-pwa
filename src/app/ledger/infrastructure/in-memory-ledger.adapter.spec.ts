@@ -4,20 +4,39 @@ import { InMemoryLedgerAdapter } from './in-memory-ledger.adapter';
 import type { ProfileFields } from '../../services/firebase.service';
 
 /**
- * Contract tests for LedgerPort against the in-memory adapter. When the
- * Firestore adapter comes online as a separate implementation, these same
- * cases should run against it via describe.each or the emulator.
+ * Contract tests for `LedgerPort`. Written as a `describe.each` factory so
+ * the SAME cases run against every adapter — one interface, verified at N
+ * seams (issue #6). Today only the in-memory adapter runs here.
+ *
+ * To add the Firestore adapter: extract its I/O into a framework-free core
+ * (`new`-able without Angular DI), point it at the Firestore emulator, and
+ * append `['FirestoreLedger', () => configure(core)]` below. That arm runs
+ * under `firebase emulators:exec --only firestore` (needs Java) exactly
+ * like `functions/` `test:rules` — it is intentionally NOT booted in the
+ * default app unit run, which has no emulator.
  */
-describe('InMemoryLedgerAdapter (LedgerPort contract)', () => {
+
+type ConfigureAdapter = () => void;
+
+const ADAPTERS: ReadonlyArray<readonly [string, ConfigureAdapter]> = [
+  [
+    'InMemoryLedgerAdapter',
+    () => {
+      TestBed.configureTestingModule({
+        providers: [
+          InMemoryLedgerAdapter,
+          { provide: LEDGER_PORT, useExisting: InMemoryLedgerAdapter },
+        ],
+      });
+    },
+  ],
+];
+
+describe.each(ADAPTERS)('LedgerPort contract — %s', (_label, configure) => {
   let port: LedgerPort;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({
-      providers: [
-        InMemoryLedgerAdapter,
-        { provide: LEDGER_PORT, useExisting: InMemoryLedgerAdapter },
-      ],
-    });
+    configure();
     port = TestBed.inject(LEDGER_PORT);
   });
 
@@ -54,6 +73,42 @@ describe('InMemoryLedgerAdapter (LedgerPort contract)', () => {
     });
   });
 
+  // The core invariant issue #6 (phase 2) closes: the seam exposes JS Date,
+  // never a Firestore Timestamp. See CONTEXT.md "Date type at the seam".
+  describe('Date type at the seam', () => {
+    it('exposes profile timestamps as Date, never Timestamp', async () => {
+      await port.ensureUserProfile();
+      const p = port.profile()!;
+      expect(p.createdAt).toBeInstanceOf(Date);
+      expect(p.lastSeenAt).toBeInstanceOf(Date);
+      // A Firestore Timestamp would expose toDate()/toMillis(); a Date does not.
+      expect((p.createdAt as unknown as { toMillis?: unknown }).toMillis).toBeUndefined();
+      expect((p.lastSeenAt as unknown as { toDate?: unknown }).toDate).toBeUndefined();
+    });
+
+    it('stamps ageConfirmedAt as a Date', async () => {
+      await port.ensureUserProfile();
+      await port.saveProfile({
+        heightIn: 70,
+        age: 30,
+        sex: 'male',
+        activityLevel: 'moderate',
+        targetPaceLbsPerWeek: 1.0,
+        ageConfirmed: true,
+      });
+      expect(port.profile()?.ageConfirmedAt).toBeInstanceOf(Date);
+    });
+
+    it('startFast stores fastStartedAt as a Date', async () => {
+      await port.ensureUserProfile();
+      const at = new Date('2026-05-01T18:00:00Z');
+      await port.startFast(at);
+      const stored = port.profile()?.fastStartedAt;
+      expect(stored).toBeInstanceOf(Date);
+      expect((stored as Date).getTime()).toBe(at.getTime());
+    });
+  });
+
   describe('daily logs', () => {
     it('returns logs oldest-first from getRecentLogs', async () => {
       const t1 = new Date('2026-04-20T08:00:00Z');
@@ -65,6 +120,8 @@ describe('InMemoryLedgerAdapter (LedgerPort contract)', () => {
 
       const logs = await port.getRecentLogs(14);
       expect(logs.map((l) => l.calories)).toEqual([200, 100, 300]);
+      // Dates cross the seam as JS Date, not Timestamp.
+      expect(logs[0].date).toBeInstanceOf(Date);
     });
 
     it('respects the days cap', async () => {

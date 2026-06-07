@@ -6,7 +6,7 @@ import {
   LogEntry,
   MealPreset,
   ProfileFields,
-  UserProfile,
+  Profile,
 } from './firebase.service';
 import { TdeeCalculatorService, TdeeResult, WeeklySummary, WeeklyEnvelope } from './tdee-calculator.service';
 import { addDays, localDateKey } from '../utils/date';
@@ -118,7 +118,7 @@ export class FitnessStore {
   // ─── Public read-only state ─────────────────────────────────
   readonly logs: Signal<DailyLog[]> = this._logs.asReadonly();
   readonly presets: Signal<MealPreset[]> = this._presets.asReadonly();
-  readonly profile: Signal<UserProfile | null> = this.fb.profile;
+  readonly profile: Signal<Profile | null> = this.fb.profile;
   readonly status: Signal<StoreStatus> = this._status.asReadonly();
   readonly undoEntry: Signal<DailyLog | null> = this._undoEntry.asReadonly();
   readonly budgetCrossed: Signal<boolean> = this._budgetCrossed.asReadonly();

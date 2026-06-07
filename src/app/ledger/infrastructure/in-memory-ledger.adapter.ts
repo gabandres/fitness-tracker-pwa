@@ -1,13 +1,12 @@
 import { Injectable, computed, signal } from '@angular/core';
-import { Timestamp } from '@angular/fire/firestore';
 import type { LedgerPort } from '../ports/ledger.port';
 import type {
   DailyLog,
   LogEntry,
   MealPreset,
   Measurement,
+  Profile,
   ProfileFields,
-  UserProfile,
   WeeklyReport,
 } from '../../services/firebase.service';
 
@@ -15,14 +14,16 @@ import type {
  * In-memory LedgerPort for tests and Storybook. Mirrors FirebaseService
  * behavior closely enough to satisfy the port contract: insertion-ordered
  * logs, newest-first ordering on read with oldest-first return for
- * getRecentLogs (matching the prod service), Timestamp.fromDate for
- * profile fields that prod stores as Timestamps.
+ * getRecentLogs (matching the prod service). Holds the domain `Profile`
+ * shape directly — all dates are JS `Date`, exactly what the Firestore
+ * adapter exposes after `toDomainProfile`. No `Timestamp` anywhere: that
+ * is the whole point of the contract this fake must honor.
  *
  * Deliberately NOT providedIn 'root' — tests opt in via TestBed providers.
  */
 @Injectable()
 export class InMemoryLedgerAdapter implements LedgerPort {
-  private readonly _profile = signal<UserProfile | null>(null);
+  private readonly _profile = signal<Profile | null>(null);
   readonly profile = this._profile.asReadonly();
   readonly profileCompleted = computed(
     () => this._profile()?.profileCompleted === true,
@@ -45,7 +46,7 @@ export class InMemoryLedgerAdapter implements LedgerPort {
 
   async ensureUserProfile(): Promise<void> {
     if (this._profile()) return;
-    const now = Timestamp.now();
+    const now = new Date();
     this._profile.set({
       email: 'test@example.com',
       createdAt: now,
@@ -61,21 +62,21 @@ export class InMemoryLedgerAdapter implements LedgerPort {
   async saveProfile(fields: ProfileFields): Promise<void> {
     const current = this._profile();
     if (!current) throw new Error('No profile loaded.');
-    const patch: Partial<UserProfile> = {
+    const patch: Partial<Profile> = {
       heightIn: fields.heightIn,
       age: fields.age,
       sex: fields.sex,
       activityLevel: fields.activityLevel,
       targetPaceLbsPerWeek: fields.targetPaceLbsPerWeek,
       profileCompleted: true,
-      lastSeenAt: Timestamp.now(),
+      lastSeenAt: new Date(),
     };
     if (fields.goalWeightLbs != null) patch.goalWeightLbs = fields.goalWeightLbs;
     if (fields.ageConfirmed === true && current.ageConfirmedAt == null) {
-      patch.ageConfirmedAt = Timestamp.now();
+      patch.ageConfirmedAt = new Date();
     }
     if (fields.preferredLocale) patch.preferredLocale = fields.preferredLocale;
-    this._profile.set({ ...current, ...patch } as UserProfile);
+    this._profile.set({ ...current, ...patch } as Profile);
   }
 
   async generateWebhookApiKey(): Promise<string> {
@@ -254,12 +255,12 @@ export class InMemoryLedgerAdapter implements LedgerPort {
   }
 
   private patchProfile(
-    patch: Partial<UserProfile>,
-    deleteKeys: ReadonlyArray<keyof UserProfile> = [],
+    patch: Partial<Profile>,
+    deleteKeys: ReadonlyArray<keyof Profile> = [],
   ): void {
     const current = this._profile();
     if (!current) return;
-    const next = { ...current, ...patch } as UserProfile;
+    const next = { ...current, ...patch } as Profile;
     for (const k of deleteKeys) delete (next as unknown as Record<string, unknown>)[k as string];
     this._profile.set(next);
   }

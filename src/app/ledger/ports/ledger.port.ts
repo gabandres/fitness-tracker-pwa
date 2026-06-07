@@ -5,8 +5,8 @@ import type {
   LogEntry,
   MealPreset,
   Measurement,
+  Profile,
   ProfileFields,
-  UserProfile,
   WeeklyReport,
 } from '../../services/firebase.service';
 
@@ -21,7 +21,7 @@ import type {
  * drafts without Firestore Timestamp) — see issue #6.
  */
 export interface LedgerPort {
-  readonly profile: Signal<UserProfile | null>;
+  readonly profile: Signal<Profile | null>;
   readonly profileCompleted: Signal<boolean>;
 
   ensureUserProfile(): Promise<void>;
