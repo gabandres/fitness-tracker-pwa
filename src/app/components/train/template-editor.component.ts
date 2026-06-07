@@ -59,22 +59,22 @@ interface EditExercise {
       </header>
 
       <label class="block mb-2">
-        <span class="v2-caption" style="font-size: 0.7rem;">{{ t('train.name') }}</span>
+        <span class="v2-field-label">{{ t('train.name') }}</span>
         <input class="v2-input" style="width: 100%;" [value]="name()" (input)="name.set(asValue($event))" />
       </label>
       <label class="block mb-2">
-        <span class="v2-caption" style="font-size: 0.7rem;">{{ t('train.notes') }}</span>
+        <span class="v2-field-label">{{ t('train.notes') }}</span>
         <textarea class="v2-input" rows="2" style="width: 100%; resize: vertical;"
                   [value]="notes()" (input)="notes.set(asValue($event))"></textarea>
       </label>
       <div class="grid grid-cols-2 gap-3 mb-4">
         <label class="block">
-          <span class="v2-caption" style="font-size: 0.7rem;">{{ t('train.restMini') }}</span>
+          <span class="v2-field-label">{{ t('train.restMini') }}</span>
           <input type="number" inputmode="numeric" class="v2-input" style="width: 100%;"
                  [value]="restMini() ?? ''" (input)="restMini.set(asNum($event))" />
         </label>
         <label class="block">
-          <span class="v2-caption" style="font-size: 0.7rem;">{{ t('train.restCluster') }}</span>
+          <span class="v2-field-label">{{ t('train.restCluster') }}</span>
           <input type="number" inputmode="numeric" class="v2-input" style="width: 100%;"
                  [value]="restCluster() ?? ''" (input)="restCluster.set(asNum($event))" />
         </label>
@@ -92,14 +92,14 @@ interface EditExercise {
 
           <div class="grid grid-cols-2 gap-2 mb-2">
             <label class="block">
-              <span class="v2-caption" style="font-size: 0.7rem;">{{ t('train.targetLoad') }}</span>
+              <span class="v2-field-label">{{ t('train.targetLoad') }}</span>
               <input type="number" inputmode="decimal" step="0.5" class="v2-input" style="width: 100%;"
                      [value]="ex.targetLoad ?? ''" (input)="setEx(exIdx, 'targetLoad', asNum($event))" />
             </label>
           </div>
 
           <label class="block mb-2">
-            <span class="v2-caption" style="font-size: 0.7rem;">{{ t('train.cues') }}</span>
+            <span class="v2-field-label">{{ t('train.cues') }}</span>
             <textarea class="v2-input" rows="2" style="width: 100%; resize: vertical;"
                       [value]="ex.cuesText" (input)="setEx(exIdx, 'cuesText', asValue($event))"></textarea>
           </label>
@@ -112,17 +112,17 @@ interface EditExercise {
           @if (ex.hasProgression) {
             <div class="grid grid-cols-3 gap-2 mb-2">
               <label class="block">
-                <span class="v2-caption" style="font-size: 0.65rem;">{{ t('train.targetReps') }}</span>
+                <span class="v2-field-label">{{ t('train.targetReps') }}</span>
                 <input type="number" inputmode="numeric" class="v2-input" style="width: 100%;"
                        [value]="ex.targetReps ?? ''" (input)="setEx(exIdx, 'targetReps', asNum($event))" />
               </label>
               <label class="block">
-                <span class="v2-caption" style="font-size: 0.65rem;">{{ t('train.holdSessions') }}</span>
+                <span class="v2-field-label">{{ t('train.holdSessions') }}</span>
                 <input type="number" inputmode="numeric" class="v2-input" style="width: 100%;"
                        [value]="ex.holdSessions ?? ''" (input)="setEx(exIdx, 'holdSessions', asNum($event))" />
               </label>
               <label class="block">
-                <span class="v2-caption" style="font-size: 0.65rem;">{{ t('train.incrementLb') }}</span>
+                <span class="v2-field-label">{{ t('train.incrementLb') }}</span>
                 <input type="number" inputmode="decimal" step="0.5" class="v2-input" style="width: 100%;"
                        [value]="ex.incrementLb ?? ''" (input)="setEx(exIdx, 'incrementLb', asNum($event))" />
               </label>
@@ -130,12 +130,12 @@ interface EditExercise {
           }
 
           <!-- Sets -->
-          <p class="v2-caption mb-1" style="font-size: 0.7rem;">{{ t('train.sets') }}</p>
+          <p class="v2-field-label">{{ t('train.sets') }}</p>
           @for (set of ex.sets; track $index; let setIdx = $index) {
             <div class="flex items-center gap-2 mb-1">
-              <select class="v2-input" [value]="set.kind" (change)="setSetKind(exIdx, setIdx, $event)">
+              <select class="v2-input" (change)="setSetKind(exIdx, setIdx, $event)">
                 @for (k of kinds; track k) {
-                  <option [value]="k">{{ t('train.kind.' + k) }}</option>
+                  <option [value]="k" [selected]="k === set.kind">{{ t('train.kind.' + k) }}</option>
                 }
               </select>
               <input type="number" inputmode="numeric" class="v2-input" style="width: 4rem;"

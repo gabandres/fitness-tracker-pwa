@@ -128,24 +128,24 @@ const SAVE_DEBOUNCE_MS = 800;
         <!-- Session footer fields -->
         <section class="mt-2 mb-4 grid grid-cols-3 gap-3">
           <label class="block">
-            <span class="v2-caption" style="font-size: 0.7rem;">{{ t('train.bodyweight') }}</span>
+            <span class="v2-field-label">{{ t('train.bodyweight') }}</span>
             <input type="number" inputmode="decimal" step="0.1" class="v2-input" style="width: 100%;"
                    [value]="s.bodyweight ?? ''" (input)="onHeaderField('bodyweight', $event)" />
           </label>
           <label class="block">
-            <span class="v2-caption" style="font-size: 0.7rem;">{{ t('train.sleepHours') }}</span>
+            <span class="v2-field-label">{{ t('train.sleepHours') }}</span>
             <input type="number" inputmode="decimal" step="0.5" class="v2-input" style="width: 100%;"
                    [value]="s.sleepHours ?? ''" (input)="onHeaderField('sleepHours', $event)" />
           </label>
           <label class="block">
-            <span class="v2-caption" style="font-size: 0.7rem;">{{ t('train.duration') }}</span>
+            <span class="v2-field-label">{{ t('train.duration') }}</span>
             <input type="number" inputmode="numeric" step="1" class="v2-input" style="width: 100%;"
                    [value]="s.durationMin ?? ''" (input)="onHeaderField('durationMin', $event)" />
           </label>
         </section>
 
         <label class="block mb-4">
-          <span class="v2-caption" style="font-size: 0.7rem;">{{ t('train.nextNotes') }}</span>
+          <span class="v2-field-label">{{ t('train.nextNotes') }}</span>
           <textarea class="v2-input" rows="2" style="width: 100%; resize: vertical;"
                     [value]="nextNotes()" (input)="onNextNotes($event)"></textarea>
         </label>
