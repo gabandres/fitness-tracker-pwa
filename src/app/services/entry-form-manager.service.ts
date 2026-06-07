@@ -1,10 +1,15 @@
 import { effect, Injectable, inject, signal } from '@angular/core';
-import { DailyLog, LogEntry, MealPreset } from './firebase.service';
+import { DailyLog, MealPreset } from './firebase.service';
 import { FitnessStore, PresetLimitError } from './fitness-store.service';
 import { MacroEstimate } from '../models/macro-estimate';
 import { TranslationService } from './translation.service';
 import { AuthService } from './auth.service';
 import { localDateKey } from '../utils/date';
+import {
+  MEAL_DRAFT_ERROR_MESSAGE_KEYS,
+  MealDraftResult,
+  parseMealDraft,
+} from '../utils/meal-draft';
 
 // Hoisted to root so non-ledger surfaces (dashboard empty-state hero,
 // future FAB / quick-add buttons) can call `startAdd()` + `requestLogFocus()`
@@ -128,27 +133,29 @@ export class EntryFormManager {
 
   // ── Submit / Delete ─────────────────────────────────────────
 
+  /** The current form fields parsed into a persistable draft (or an
+   *  error), via the one pure parser that owns all coercion + validation.
+   *  `submit()` persists this; `entry-sheet` reads it to gate its inline
+   *  kcal-error visual against the exact same rule. */
+  currentDraft(): MealDraftResult {
+    return parseMealDraft({
+      calories: this.calories(),
+      protein: this.protein(),
+      exerciseCompleted: this.exerciseDone(),
+      mealLabel: this.mealLabel(),
+      activePresetName: this.activePresetName(),
+      dateKey: this.entryDate(),
+    });
+  }
+
   async submit(): Promise<void> {
-    const c = this.calories();
-    if (c == null || Number.isNaN(c)) {
+    const result = this.currentDraft();
+    if (!result.ok) {
       this.status.set('error');
-      this.errorMsg.set(this.translation.t('entry.errorCaloriesRequired'));
+      this.errorMsg.set(this.translation.t(MEAL_DRAFT_ERROR_MESSAGE_KEYS[result.error]));
       return;
     }
-
-    const entry: LogEntry = { calories: Number(c) };
-    const p = this.protein();
-    if (p != null && !Number.isNaN(Number(p))) entry.protein = Number(p);
-    entry.exerciseCompleted = this.exerciseDone();
-
-    const dateStr = this.entryDate();
-    if (dateStr) {
-      const [y, m, d] = dateStr.split('-').map(Number);
-      entry.timestamp = new Date(y, m - 1, d, 12, 0, 0);
-    }
-
-    const label = this.mealLabel().trim() || this.activePresetName();
-    if (label) entry.mealLabel = label;
+    const { entry, calories, protein, label } = result.draft;
 
     this.status.set('saving');
     try {
@@ -171,8 +178,8 @@ export class EntryFormManager {
         // work with (confirmSavePreset reads from here now). Without the
         // snapshot the reset zeroed out calories and the preset save
         // silently no-op'd on its `cal == null` guard.
-        this.lastSavedEntry = { calories: Number(c) };
-        if (p != null && !Number.isNaN(Number(p))) this.lastSavedEntry.protein = Number(p);
+        this.lastSavedEntry = { calories };
+        if (protein != null) this.lastSavedEntry.protein = protein;
         if (label) this.lastSavedEntry.label = label;
 
         // Clear fields so a second SAVE click can't duplicate the entry.

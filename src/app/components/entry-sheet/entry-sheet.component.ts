@@ -10,6 +10,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { FitnessStore } from '../../services/fitness-store.service';
+import { parseNumericInput } from '../../utils/meal-draft';
 import type { MacroEstimate } from '../../models/macro-estimate';
 import { UiSheet } from '../ui/sheet.component';
 import { UiButton } from '../ui/button.component';
@@ -305,10 +306,9 @@ export class EntrySheetComponent {
       }
     });
 
-    // Clear validation flag when the user starts typing a value.
+    // Clear validation flag when the user starts typing a valid value.
     effect(() => {
-      const c = this.form.calories();
-      if (c != null && !Number.isNaN(Number(c))) {
+      if (parseNumericInput(this.form.calories()) != null) {
         this.kcalError.set(false);
       }
     });
@@ -327,29 +327,18 @@ export class EntrySheetComponent {
   }
 
   protected onKcalInput(e: Event): void {
-    const v = (e.target as HTMLInputElement).value;
-    if (v === '') {
-      this.form.calories.set(null);
-    } else {
-      const n = Number(v);
-      this.form.calories.set(Number.isNaN(n) ? null : n);
-    }
+    this.form.calories.set(parseNumericInput((e.target as HTMLInputElement).value));
   }
 
   protected onProteinInput(e: Event): void {
-    const v = (e.target as HTMLInputElement).value;
-    if (v === '') {
-      this.form.protein.set(null);
-    } else {
-      const n = Number(v);
-      this.form.protein.set(Number.isNaN(n) ? null : n);
-    }
+    this.form.protein.set(parseNumericInput((e.target as HTMLInputElement).value));
   }
 
   protected save(e: Event): void {
     e.preventDefault();
-    const c = this.form.calories();
-    if (c == null || Number.isNaN(Number(c))) {
+    // Gate on the same parser submit() uses, so the inline kcal-error
+    // visual and the actual save can never disagree on what's valid.
+    if (!this.form.currentDraft().ok) {
       this.kcalError.set(true);
       this.haptic(50);
       return;
