@@ -295,6 +295,20 @@ export class InMemoryLedgerAdapter implements LedgerPort {
     if (!this.exercises.delete(id)) throw new Error(`Exercise not found: ${id}`);
   }
 
+  async mergeExercises(fromId: string, toId: string): Promise<void> {
+    if (fromId === toId) return;
+    const toName = this.exercises.get(toId)?.name;
+    const repoint = (ex: { exerciseId: string; name: string }) =>
+      ex.exerciseId === fromId ? { ...ex, exerciseId: toId, name: toName ?? ex.name } : ex;
+    for (const [id, ses] of this.sessions) {
+      this.sessions.set(id, { ...ses, exercises: ses.exercises.map(repoint) as typeof ses.exercises });
+    }
+    for (const [id, tpl] of this.templates) {
+      this.templates.set(id, { ...tpl, exercises: tpl.exercises.map(repoint) as typeof tpl.exercises });
+    }
+    this.exercises.delete(fromId);
+  }
+
   // ─── Workout: templates ───────────────────────────────────────
   async getTemplates(): Promise<WorkoutTemplate[]> {
     return [...this.templates.values()].sort(

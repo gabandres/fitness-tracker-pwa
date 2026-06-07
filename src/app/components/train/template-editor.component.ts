@@ -340,6 +340,9 @@ export class TemplateEditorComponent {
           exerciseId,
           name: ex.name.trim(),
           targetLoad: ex.targetLoad,
+          // Snapshot the catalog exercise's logStyle so the logger renders
+          // the right inputs without a catalog join at log time.
+          logStyle: this.catalog().find((c) => c.id === exerciseId)?.logStyle,
           cues: cues.length ? cues : undefined,
           progression: ex.hasProgression
             ? {

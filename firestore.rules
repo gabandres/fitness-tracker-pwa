@@ -133,14 +133,16 @@ service cloud.firestore {
     // request.resource.data is the POST-write doc so the required
     // stamps remain present and the same validator covers update.
     function isValidExercise(data) {
-      return data.keys().hasOnly(['name', 'muscles', 'defaultCues', 'createdAt'])
+      return data.keys().hasOnly(['name', 'muscles', 'defaultCues', 'logStyle', 'createdAt'])
           && data.keys().hasAll(['name', 'createdAt'])
           && data.name is string && data.name.size() > 0 && data.name.size() <= 100
           && data.createdAt is timestamp
           && (!('muscles' in data.keys()) ||
               (data.muscles is list && data.muscles.size() <= 12))
           && (!('defaultCues' in data.keys()) ||
-              (data.defaultCues is list && data.defaultCues.size() <= 30));
+              (data.defaultCues is list && data.defaultCues.size() <= 30))
+          && (!('logStyle' in data.keys()) ||
+              (data.logStyle in ['weight-reps', 'bodyweight', 'time']));
     }
 
     function isValidWorkoutTemplate(data) {

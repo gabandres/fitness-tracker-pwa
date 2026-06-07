@@ -17,7 +17,9 @@ import { localDateKey } from '../../utils/date';
 import { UiSheet } from '../ui/sheet.component';
 import { UiSparkline } from '../ui/sparkline.component';
 import {
+  DEFAULT_LOG_STYLE,
   WORKOUT_HISTORY_DAYS_FREE,
+  type LogStyle,
   type SessionExercise,
   type WorkoutSession,
 } from '../../models/workout';
@@ -29,9 +31,11 @@ import {
 
 interface SessionPoint {
   date: Date;
+  /** Trend/PR value for this session, chosen by logStyle: best e1RM
+   *  (weight-reps), max reps (bodyweight), or max duration (time). */
+  metric: number;
   topWeight: number;
-  e1rm: number;
-  sets: { weight?: number; reps?: number }[];
+  sets: { weight?: number; reps?: number; durationSec?: number; rir?: number }[];
 }
 
 /**
@@ -59,24 +63,46 @@ interface SessionPoint {
       } @else if (points().length === 0) {
         <p class="v2-caption py-8 text-center">{{ t('train.noExerciseHistory') }}</p>
       } @else {
-        <!-- PRs -->
+        <!-- PRs (metric depends on logStyle) -->
         <div class="grid grid-cols-2 gap-3 mb-4">
-          <div class="v2-card v2-card--flat px-3 py-2">
-            <p class="v2-caption" style="font-size: 0.7rem;">{{ t('train.prMaxWeight') }}</p>
-            <p class="v2-num" style="font-size: 1.5rem; font-weight: 600;">{{ prs().maxWeight }} <span class="v2-caption">lb</span></p>
-          </div>
-          <div class="v2-card v2-card--flat px-3 py-2">
-            <p class="v2-caption" style="font-size: 0.7rem;">{{ t('train.prE1rm') }}</p>
-            <p class="v2-num" style="font-size: 1.5rem; font-weight: 600;">{{ prs().bestE1RM }} <span class="v2-caption">lb</span></p>
-          </div>
+          @switch (logStyle()) {
+            @case ('time') {
+              <div class="v2-card v2-card--flat px-3 py-2">
+                <p class="v2-caption" style="font-size: 0.7rem;">{{ t('train.prMaxTime') }}</p>
+                <p class="v2-num" style="font-size: 1.5rem; font-weight: 600;">{{ prs().maxDurationSec }} <span class="v2-caption">s</span></p>
+              </div>
+            }
+            @case ('bodyweight') {
+              <div class="v2-card v2-card--flat px-3 py-2">
+                <p class="v2-caption" style="font-size: 0.7rem;">{{ t('train.prMaxReps') }}</p>
+                <p class="v2-num" style="font-size: 1.5rem; font-weight: 600;">{{ prs().maxReps }}</p>
+              </div>
+              @if (prs().maxWeight > 0) {
+                <div class="v2-card v2-card--flat px-3 py-2">
+                  <p class="v2-caption" style="font-size: 0.7rem;">{{ t('train.prMaxWeight') }}</p>
+                  <p class="v2-num" style="font-size: 1.5rem; font-weight: 600;">{{ prs().maxWeight }} <span class="v2-caption">lb</span></p>
+                </div>
+              }
+            }
+            @default {
+              <div class="v2-card v2-card--flat px-3 py-2">
+                <p class="v2-caption" style="font-size: 0.7rem;">{{ t('train.prMaxWeight') }}</p>
+                <p class="v2-num" style="font-size: 1.5rem; font-weight: 600;">{{ prs().maxWeight }} <span class="v2-caption">lb</span></p>
+              </div>
+              <div class="v2-card v2-card--flat px-3 py-2">
+                <p class="v2-caption" style="font-size: 0.7rem;">{{ t('train.prE1rm') }}</p>
+                <p class="v2-num" style="font-size: 1.5rem; font-weight: 600;">{{ prs().bestE1RM }} <span class="v2-caption">lb</span></p>
+              </div>
+            }
+          }
         </div>
 
-        <!-- e1RM trend -->
+        <!-- trend -->
         @if (points().length >= 2) {
           <div class="mb-1">
-            <p class="v2-caption mb-1" style="font-size: 0.7rem;">{{ t('train.e1rmTrend') }}</p>
+            <p class="v2-caption mb-1" style="font-size: 0.7rem;">{{ trendLabel() }}</p>
             <ui-sparkline [values]="trend()" tone="accent" [width]="560" [height]="56"
-                          [ariaLabel]="t('train.e1rmTrend')" />
+                          [ariaLabel]="trendLabel()" />
           </div>
         }
 
@@ -94,7 +120,17 @@ interface SessionPoint {
               <p class="v2-caption" style="color: var(--v2-ink-muted);">{{ formatDate(p.date) }}</p>
               <p class="v2-num" style="font-size: 0.9rem;">
                 @for (s of p.sets; track $index) {
-                  <span class="mr-2">{{ s.weight ?? '—' }}×{{ s.reps ?? '—' }}</span>
+                  @switch (logStyle()) {
+                    @case ('time') {
+                      <span class="mr-2">{{ s.durationSec ?? '—' }}s{{ s.weight ? '+' + s.weight : '' }}{{ s.rir != null ? ' @' + s.rir : '' }}</span>
+                    }
+                    @case ('bodyweight') {
+                      <span class="mr-2">{{ s.reps ?? '—' }}{{ s.weight ? '+' + s.weight : '' }}{{ s.rir != null ? ' @' + s.rir : '' }}</span>
+                    }
+                    @default {
+                      <span class="mr-2">{{ s.weight ?? '—' }}×{{ s.reps ?? '—' }}{{ s.rir != null ? ' @' + s.rir : '' }}</span>
+                    }
+                  }
                 }
               </p>
             </div>
@@ -119,15 +155,31 @@ export class ExerciseDetailComponent {
   protected readonly points = signal<SessionPoint[]>([]);
   protected readonly capped = signal(false);
 
+  /** logStyle for this exercise, resolved from the catalog. */
+  protected readonly logStyle = computed<LogStyle>(
+    () => this.workout.exercises().find((e) => e.id === this.exerciseId())?.logStyle ?? DEFAULT_LOG_STYLE,
+  );
+
+  protected readonly trendLabel = computed(() => {
+    const s = this.logStyle();
+    const key = s === 'time' ? 'train.timeTrend' : s === 'bodyweight' ? 'train.repsTrend' : 'train.e1rmTrend';
+    return this.i18n.t(key);
+  });
+
   protected readonly pointsDesc = computed(() => [...this.points()].reverse());
-  protected readonly trend = computed(() => this.points().map((p) => p.e1rm));
+  protected readonly trend = computed(() => this.points().map((p) => p.metric));
   protected readonly prs = computed(() => {
     // Recompute over the (windowed) rows currently shown.
     const rows: SessionExercise[] = this.points().map((p) => ({
       exerciseId: this.exerciseId(),
       name: this.name(),
       cues: [],
-      sets: p.sets.map((s) => ({ kind: 'working' as const, weight: s.weight, reps: s.reps })),
+      sets: p.sets.map((s) => ({
+        kind: 'working' as const,
+        weight: s.weight,
+        reps: s.reps,
+        durationSec: s.durationSec,
+      })),
     }));
     return computeExercisePRs(rows);
   });
@@ -152,6 +204,7 @@ export class ExerciseDetailComponent {
     );
     let wasCapped = false;
 
+    const style = this.logStyle();
     const pts: SessionPoint[] = [];
     for (const ses of sessions) {
       if (ses.status !== 'completed') continue;
@@ -161,15 +214,28 @@ export class ExerciseDetailComponent {
         wasCapped = true;
         continue;
       }
-      const working = ex.sets.filter((s) => isWorkingSet(s) && s.weight != null);
-      if (working.length === 0) continue;
-      const topWeight = Math.max(...working.map((s) => s.weight ?? 0));
-      const e1rm = Math.max(...working.map((s) => estimateOneRepMax(s.weight, s.reps)));
+      const working = ex.sets.filter(isWorkingSet);
+      // The session's trend value depends on logStyle.
+      let metric = 0;
+      if (style === 'time') {
+        metric = Math.max(0, ...working.map((s) => s.durationSec ?? 0));
+      } else if (style === 'bodyweight') {
+        metric = Math.max(0, ...working.map((s) => s.reps ?? 0));
+      } else {
+        metric = Math.max(0, ...working.map((s) => estimateOneRepMax(s.weight, s.reps)));
+      }
+      if (metric === 0) continue; // no comparable data this session
+      const topWeight = Math.max(0, ...working.map((s) => s.weight ?? 0));
       pts.push({
         date: ses.date,
+        metric,
         topWeight,
-        e1rm,
-        sets: ex.sets.map((s) => ({ weight: s.weight, reps: s.reps })),
+        sets: ex.sets.map((s) => ({
+          weight: s.weight,
+          reps: s.reps,
+          durationSec: s.durationSec,
+          rir: s.rir,
+        })),
       });
     }
 

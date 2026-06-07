@@ -456,7 +456,11 @@
    pick up .v2-card padding), so the selected fill has room to breathe and
    selecting doesn't shift layout. */
 [data-ui="v2"] app-train .v2-template-card {
-  padding: var(--v2-space-5);
+  /* Negative inline margin == horizontal padding so the row TEXT lines up
+     flush-left with the "Your templates" heading, while the selected fill +
+     glow still bleed outward into the section gutter for breathing room. */
+  padding: var(--v2-space-4);
+  margin-inline: calc(-1 * var(--v2-space-4));
   border-radius: var(--v2-radius-lg);
 }
 

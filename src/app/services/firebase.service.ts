@@ -16,6 +16,7 @@ import {
   Timestamp,
   deleteDoc,
   deleteField,
+  writeBatch,
 } from '@angular/fire/firestore';
 import { Auth } from '@angular/fire/auth';
 import { CallableGateway } from './callable.gateway';
@@ -104,6 +105,7 @@ export interface ExerciseDoc {
   name: string;
   muscles: string[];
   defaultCues: string[];
+  logStyle?: 'weight-reps' | 'bodyweight' | 'time';
   createdAt: Timestamp;
 }
 
@@ -834,6 +836,7 @@ export class FirebaseService implements LedgerPort {
         name: data.name,
         muscles: (data.muscles ?? []) as Exercise['muscles'],
         defaultCues: data.defaultCues ?? [],
+        logStyle: data.logStyle,
         createdAt: data.createdAt.toDate(),
       };
     });
@@ -844,6 +847,7 @@ export class FirebaseService implements LedgerPort {
       name: exercise.name,
       muscles: exercise.muscles ?? [],
       defaultCues: exercise.defaultCues ?? [],
+      logStyle: exercise.logStyle,
       createdAt: Timestamp.now(),
     };
     const ref = await addDoc(this.exercisesCollection(), pruneUndefined(data));
@@ -858,6 +862,53 @@ export class FirebaseService implements LedgerPort {
   async deleteExercise(id: string): Promise<void> {
     const ref = doc(this.firestore, 'users', this.requireUid(), 'exercises', id);
     await deleteDoc(ref);
+  }
+
+  /**
+   * Merge exercise `fromId` into `toId`: rewrite every session and template
+   * that references the victim so it points at the survivor (and adopts the
+   * survivor's display name), then delete the victim catalog doc. Writes are
+   * chunked into ≤450-op batches to stay under Firestore's 500-write limit.
+   */
+  async mergeExercises(fromId: string, toId: string): Promise<void> {
+    if (fromId === toId) return;
+    const uid = this.requireUid();
+    const toSnap = await getDoc(doc(this.firestore, 'users', uid, 'exercises', toId));
+    const toName = (toSnap.data() as ExerciseDoc | undefined)?.name;
+
+    const remap = <T extends { exercises?: { exerciseId: string; name: string }[] }>(data: T) => {
+      let changed = false;
+      const exercises = (data.exercises ?? []).map((ex) =>
+        ex.exerciseId === fromId
+          ? ((changed = true), { ...ex, exerciseId: toId, name: toName ?? ex.name })
+          : ex,
+      );
+      return changed ? exercises : null;
+    };
+
+    const ops: { ref: ReturnType<typeof doc>; exercises: unknown[] }[] = [];
+    const [sessSnap, tplSnap] = await Promise.all([
+      getDocs(this.sessionsCollection()),
+      getDocs(this.templatesCollection()),
+    ]);
+    sessSnap.forEach((d) => {
+      const next = remap(d.data() as WorkoutSessionDoc);
+      if (next) ops.push({ ref: d.ref, exercises: next });
+    });
+    tplSnap.forEach((d) => {
+      const next = remap(d.data() as WorkoutTemplateDoc);
+      if (next) ops.push({ ref: d.ref, exercises: next });
+    });
+
+    for (let i = 0; i < ops.length; i += 450) {
+      const batch = writeBatch(this.firestore);
+      for (const op of ops.slice(i, i + 450)) {
+        batch.update(op.ref, pruneUndefined({ exercises: op.exercises, updatedAt: Timestamp.now() }));
+      }
+      await batch.commit();
+    }
+
+    await deleteDoc(doc(this.firestore, 'users', uid, 'exercises', fromId));
   }
 
   // ─── Workout: templates ───────────────────────────────────────

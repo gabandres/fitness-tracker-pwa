@@ -88,6 +88,23 @@ export class WorkoutStore {
     this._exercises.set(await this.fb.getExercises());
   }
 
+  /** Merge `fromId` into `toId` and refresh every signal the merge can
+   *  touch — the catalog, templates, and both session caches all carry
+   *  exerciseId references that the merge rewrites. */
+  async mergeExercises(fromId: string, toId: string): Promise<void> {
+    await this.fb.mergeExercises(fromId, toId);
+    const [exercises, templates, active, recent] = await Promise.all([
+      this.fb.getExercises(),
+      this.fb.getTemplates(),
+      this.fb.getActiveSession(),
+      this.fb.getRecentSessions(),
+    ]);
+    this._exercises.set(exercises);
+    this._templates.set(templates);
+    this._activeSession.set(active);
+    this._recentSessions.set(recent);
+  }
+
   // ─── Templates ────────────────────────────────────────────────
   /** @throws TemplateLimitError when a free user is at the cap. The
    *  server has no Pro claim for templates (client cap only, like

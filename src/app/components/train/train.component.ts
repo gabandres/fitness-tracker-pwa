@@ -19,14 +19,17 @@ import { UiSheet } from '../ui/sheet.component';
 import { WorkoutSessionSheetComponent } from './session-sheet.component';
 import { TemplateEditorComponent } from './template-editor.component';
 import { ExerciseDetailComponent } from './exercise-detail.component';
+import { ExercisesManagerComponent } from './exercises-manager.component';
 import type { Exercise } from '../../models/workout';
 import { STARTER_TEMPLATES, type SeedTemplate } from '../../models/workout-seed';
 import {
   CUSTOM_TEMPLATE_LIMIT_FREE,
+  DEFAULT_LOG_STYLE,
   TemplateLimitError,
   type SessionDraft,
   type SessionExercise,
   type WorkoutSession,
+  type WorkoutSet,
   type WorkoutTemplate,
 } from '../../models/workout';
 import { suggestProgression } from '../../utils/workout-progression';
@@ -51,6 +54,7 @@ import { suggestProgression } from '../../utils/workout-progression';
     WorkoutSessionSheetComponent,
     TemplateEditorComponent,
     ExerciseDetailComponent,
+    ExercisesManagerComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -62,6 +66,7 @@ import { suggestProgression } from '../../utils/workout-progression';
           <p class="v2-caption mt-0.5">{{ t('train.subtitle') }}</p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
+          <ui-icon-button icon="dumbbell" [ariaLabel]="t('train.manageExercises')" (click)="managerOpen.set(true)" />
           <ui-icon-button icon="calendar" [ariaLabel]="t('train.historyAria')" (click)="historyRequested.emit()" />
           <ui-icon-button icon="settings" [ariaLabel]="t('train.settingsAria')" (click)="settingsRequested.emit()" />
         </div>
@@ -211,6 +216,9 @@ import { suggestProgression } from '../../utils/workout-progression';
     @if (detail(); as d) {
       <app-exercise-detail [exerciseId]="d.id!" [name]="d.name" (closed)="detail.set(null)" />
     }
+    @if (managerOpen()) {
+      <app-exercises-manager (closed)="managerOpen.set(false)" />
+    }
     </ng-container>
   `,
 })
@@ -230,6 +238,7 @@ export class TrainComponent {
   protected readonly busy = signal(false);
   protected readonly editorOpen = signal(false);
   protected readonly chooserOpen = signal(false);
+  protected readonly managerOpen = signal(false);
   protected readonly editorTemplateId = signal<string | null>(null);
   protected readonly detail = signal<Exercise | null>(null);
   protected readonly editingSession = signal<WorkoutSession | null>(null);
@@ -407,15 +416,24 @@ export class TrainComponent {
     }
 
     const exercises: SessionExercise[] = tpl.exercises.map((te) => {
-      const sug = suggestProgression(historyByEx.get(te.exerciseId) ?? [], te.progression);
+      // Prefer the template snapshot; fall back to the catalog for templates
+      // authored before logStyle existed (or cloned starters).
+      const resolvedStyle = te.logStyle ?? this.catalog().find((e) => e.id === te.exerciseId)?.logStyle;
+      const style = resolvedStyle ?? DEFAULT_LOG_STYLE;
+      const sug = suggestProgression(historyByEx.get(te.exerciseId) ?? [], te.progression, style);
       const weight = sug.suggestedWeight ?? te.targetLoad;
       return {
         exerciseId: te.exerciseId,
         name: te.name,
         targetLoad: te.targetLoad,
         cues: te.cues ?? [],
+        logStyle: resolvedStyle,
         progression: te.progression,
-        sets: te.plannedSets.map((p) => ({ kind: p.kind, group: p.group, weight })),
+        sets: te.plannedSets.map((p) => {
+          const s: WorkoutSet = { kind: p.kind, group: p.group, weight };
+          if (style === 'time' && sug.lastDurationSec != null) s.durationSec = sug.lastDurationSec;
+          return s;
+        }),
       };
     });
 

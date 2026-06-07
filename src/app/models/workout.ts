@@ -37,6 +37,18 @@ export type SetKind = 'warmup' | 'activation' | 'working' | 'mini' | 'drop';
 
 export type SessionStatus = 'active' | 'completed';
 
+/** How an exercise is logged. `weight-reps` (default) is the classic
+ *  load×reps set. `bodyweight` logs reps only (with an optional added
+ *  load). `time` logs a duration in seconds (with an optional added
+ *  load) — for planks, hangs, carries. An exercise's logStyle is an
+ *  intrinsic property of the movement: set once on the catalog Exercise
+ *  and snapshotted into templates/sessions like `name`/`cues`. */
+export type LogStyle = 'weight-reps' | 'bodyweight' | 'time';
+
+/** Treat a missing logStyle as the classic load×reps set, so every
+ *  pre-existing exercise/template/session stays valid without migration. */
+export const DEFAULT_LOG_STYLE: LogStyle = 'weight-reps';
+
 // ─── Exercise catalog ───────────────────────────────────────────
 export interface Exercise {
   id?: string;
@@ -45,6 +57,8 @@ export interface Exercise {
   /** Form cues shown by default when this exercise is added to a
    *  template (a template may override them per-exercise). */
   defaultCues: string[];
+  /** Logging style; omitted means {@link DEFAULT_LOG_STYLE}. */
+  logStyle?: LogStyle;
   createdAt: Date;
 }
 
@@ -76,6 +90,9 @@ export interface TemplateExercise {
   /** Per-template cue override; falls back to the exercise's
    *  `defaultCues` when omitted. */
   cues?: string[];
+  /** Snapshot of the catalog exercise's {@link LogStyle}; omitted means
+   *  {@link DEFAULT_LOG_STYLE}. */
+  logStyle?: LogStyle;
   progression?: ProgressionRule;
   plannedSets: PlannedSet[];
 }
@@ -100,6 +117,8 @@ export interface WorkoutSet {
   group?: number;
   weight?: number;
   reps?: number;
+  /** Hold duration in seconds — for `time` logStyle exercises. */
+  durationSec?: number;
   /** Reps in reserve (0 = to failure). */
   rir?: number;
   done?: boolean;
@@ -110,6 +129,9 @@ export interface SessionExercise {
   name: string; // snapshot
   targetLoad?: number;
   cues: string[]; // snapshot
+  /** Snapshot of the catalog exercise's {@link LogStyle}; omitted means
+   *  {@link DEFAULT_LOG_STYLE}. Drives how the logger renders each set. */
+  logStyle?: LogStyle;
   progression?: ProgressionRule; // snapshot
   sets: WorkoutSet[];
 }

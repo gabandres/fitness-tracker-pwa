@@ -83,6 +83,9 @@ export interface LedgerPort {
   addExercise(exercise: ExerciseDraft): Promise<string>;
   updateExercise(id: string, patch: Partial<ExerciseDraft>): Promise<void>;
   deleteExercise(id: string): Promise<void>;
+  /** Merge `fromId` into `toId`: repoint every session/template reference
+   *  to the survivor, then delete the victim catalog entry. */
+  mergeExercises(fromId: string, toId: string): Promise<void>;
 
   // ─── Workout: templates ───────────────────────────────────────
   getTemplates(): Promise<WorkoutTemplate[]>;

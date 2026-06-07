@@ -53,6 +53,8 @@ import {
   StickyNote,
   CheckCircle2,
   Circle,
+  GitMerge,
+  ArrowRight,
 } from 'lucide-angular';
 
 import { routes } from './app.routes';
@@ -118,7 +120,7 @@ export const appConfig: ApplicationConfig = {
       Image: LucideImage, Type: LucideType,
       Home, User, Timer, Scale, Ruler, ChevronDown, Share2, Download, ChefHat, Shield,
       Search, Loader,
-      Dumbbell, StickyNote, CheckCircle2, Circle,
+      Dumbbell, StickyNote, CheckCircle2, Circle, GitMerge, ArrowRight,
     }).providers!,
   ],
 };

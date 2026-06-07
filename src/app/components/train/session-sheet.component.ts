@@ -15,7 +15,8 @@ import { WorkoutStore } from '../../services/workout-store.service';
 import { TranslationService } from '../../services/translation.service';
 import { UiSheet } from '../ui/sheet.component';
 import { UiButton } from '../ui/button.component';
-import type { SessionExercise, WorkoutSession, WorkoutSet } from '../../models/workout';
+import type { LogStyle, SessionExercise, WorkoutSession, WorkoutSet } from '../../models/workout';
+import { DEFAULT_LOG_STYLE } from '../../models/workout';
 import {
   computeExercisePRs,
   estimateOneRepMax,
@@ -67,12 +68,8 @@ const SAVE_DEBOUNCE_MS = 800;
           <section class="mb-5">
             <div class="flex items-baseline justify-between gap-2">
               <h3 class="v2-h3" style="font-weight: 600;">{{ ex.name }}</h3>
-              @if (suggestionFor(ex); as sug) {
-                @if (sug.lastWeight != null) {
-                  <span class="v2-caption" style="color: var(--v2-ink-muted); font-size: 0.75rem;">
-                    {{ t('train.lastSession', { weight: sug.lastWeight, reps: sug.lastReps ?? '—' }) }}
-                  </span>
-                }
+              @if (ghostText(ex); as g) {
+                <span class="v2-caption" style="color: var(--v2-ink-muted); font-size: 0.75rem;">{{ g }}</span>
               }
             </div>
 
@@ -94,23 +91,59 @@ const SAVE_DEBOUNCE_MS = 800;
 
             <!-- Sets -->
             @for (set of ex.sets; track $index; let setIdx = $index) {
-              <div class="flex items-center gap-2 py-1">
+              <div class="flex items-center gap-2 py-1 flex-wrap">
                 <span class="v2-caption shrink-0" style="width: 5.5rem; font-size: 0.7rem; color: var(--v2-ink-muted);">
                   {{ setLabel(t, set) }}
                 </span>
-                <input
-                  type="number" inputmode="decimal" step="0.5" min="0"
-                  class="v2-input v2-input--num" style="width: 4.5rem;"
-                  [attr.aria-label]="t('train.weight')"
-                  [value]="set.weight ?? ''"
-                  (input)="onSetField(exIdx, setIdx, 'weight', $event)" />
-                <span class="v2-caption" style="color: var(--v2-ink-muted);">×</span>
-                <input
-                  type="number" inputmode="numeric" step="1" min="0"
-                  class="v2-input v2-input--num" style="width: 4rem;"
-                  [attr.aria-label]="t('train.reps')"
-                  [value]="set.reps ?? ''"
-                  (input)="onSetField(exIdx, setIdx, 'reps', $event)" />
+                @switch (styleOf(ex)) {
+                  @case ('time') {
+                    <input type="number" inputmode="numeric" step="1" min="0"
+                      class="v2-input v2-input--num" style="width: 4.5rem;"
+                      [attr.aria-label]="t('train.seconds')"
+                      [value]="set.durationSec ?? ''"
+                      (input)="onSetField(exIdx, setIdx, 'durationSec', $event)" />
+                    <span class="v2-caption" style="color: var(--v2-ink-muted);">s</span>
+                    <input type="number" inputmode="decimal" step="0.5" min="0"
+                      class="v2-input v2-input--num" style="width: 3.75rem;"
+                      [attr.aria-label]="t('train.addedWeight')" placeholder="+"
+                      [value]="set.weight ?? ''"
+                      (input)="onSetField(exIdx, setIdx, 'weight', $event)" />
+                  }
+                  @case ('bodyweight') {
+                    <input type="number" inputmode="numeric" step="1" min="0"
+                      class="v2-input v2-input--num" style="width: 4.5rem;"
+                      [attr.aria-label]="t('train.reps')"
+                      [value]="set.reps ?? ''"
+                      (input)="onSetField(exIdx, setIdx, 'reps', $event)" />
+                    <span class="v2-caption" style="color: var(--v2-ink-muted);">{{ t('train.repsShort') }}</span>
+                    <input type="number" inputmode="decimal" step="0.5" min="0"
+                      class="v2-input v2-input--num" style="width: 3.75rem;"
+                      [attr.aria-label]="t('train.addedWeight')" placeholder="+"
+                      [value]="set.weight ?? ''"
+                      (input)="onSetField(exIdx, setIdx, 'weight', $event)" />
+                  }
+                  @default {
+                    <input type="number" inputmode="decimal" step="0.5" min="0"
+                      class="v2-input v2-input--num" style="width: 4.5rem;"
+                      [attr.aria-label]="t('train.weight')"
+                      [value]="set.weight ?? ''"
+                      (input)="onSetField(exIdx, setIdx, 'weight', $event)" />
+                    <span class="v2-caption" style="color: var(--v2-ink-muted);">×</span>
+                    <input type="number" inputmode="numeric" step="1" min="0"
+                      class="v2-input v2-input--num" style="width: 4rem;"
+                      [attr.aria-label]="t('train.reps')"
+                      [value]="set.reps ?? ''"
+                      (input)="onSetField(exIdx, setIdx, 'reps', $event)" />
+                  }
+                }
+                @if (showRir(set)) {
+                  <span class="v2-caption" style="color: var(--v2-ink-muted);">@</span>
+                  <input type="number" inputmode="numeric" step="1" min="0"
+                    class="v2-input v2-input--num" style="width: 3rem;"
+                    [attr.aria-label]="t('train.rir')" [attr.placeholder]="t('train.rirShort')"
+                    [value]="set.rir ?? ''"
+                    (input)="onSetField(exIdx, setIdx, 'rir', $event)" />
+                }
                 @if (isPr(ex, set)) {
                   <span class="v2-badge" style="color: var(--v2-accent); font-size: 0.7rem;">🏆 {{ t('train.pr') }}</span>
                 }
@@ -266,15 +299,49 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
     this.prevNotes.set(sessions[0]?.nextNotes ?? '');
   }
 
+  protected styleOf(ex: SessionExercise): LogStyle {
+    return ex.logStyle ?? DEFAULT_LOG_STYLE;
+  }
+
+  /** RIR is meaningful on working + activation sets; warmups/minis/drops
+   *  are near-failure or throwaway by design, so skip the input there. */
+  protected showRir(set: WorkoutSet): boolean {
+    return set.kind === 'working' || set.kind === 'activation';
+  }
+
   protected suggestionFor(ex: SessionExercise): ProgressionSuggestion {
     const history = this.historyByExercise.get(ex.exerciseId) ?? [];
-    return suggestProgression(history, ex.progression);
+    return suggestProgression(history, ex.progression, this.styleOf(ex));
+  }
+
+  /** Ghost "last time" text, formatted per logStyle (weight×reps[ @rir] /
+   *  N reps / Ns). Empty string when there's no comparable history. */
+  protected ghostText(ex: SessionExercise): string {
+    const sug = this.suggestionFor(ex);
+    const style = this.styleOf(ex);
+    if (style === 'time') {
+      return sug.lastDurationSec != null ? this.i18n.t('train.lastTime', { sec: sug.lastDurationSec }) : '';
+    }
+    if (style === 'bodyweight') {
+      return sug.lastReps != null ? this.i18n.t('train.lastReps', { reps: sug.lastReps }) : '';
+    }
+    if (sug.lastWeight == null) return '';
+    const base = this.i18n.t('train.lastSession', { weight: sug.lastWeight, reps: sug.lastReps ?? '—' });
+    return sug.lastRir != null ? `${base} @${sug.lastRir}` : base;
   }
 
   protected isPr(ex: SessionExercise, set: WorkoutSet): boolean {
-    if (set.weight == null || set.reps == null || set.kind === 'warmup') return false;
+    if (set.kind === 'warmup') return false;
     const best = this.prCache.get(ex.exerciseId);
-    if (!best || best.bestE1RM === 0) return false; // no prior history → not flagged as PR
+    if (!best) return false; // no prior history → not flagged as PR
+    const style = this.styleOf(ex);
+    if (style === 'time') {
+      return set.durationSec != null && best.maxDurationSec > 0 && set.durationSec > best.maxDurationSec;
+    }
+    if (style === 'bodyweight') {
+      return set.reps != null && best.maxReps > 0 && set.reps > best.maxReps;
+    }
+    if (set.weight == null || set.reps == null || best.bestE1RM === 0) return false;
     return estimateOneRepMax(set.weight, set.reps) > best.bestE1RM;
   }
 
@@ -284,7 +351,12 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
   }
 
   // ─── Editing ──────────────────────────────────────────────────
-  protected onSetField(exIdx: number, setIdx: number, field: 'weight' | 'reps', e: Event): void {
+  protected onSetField(
+    exIdx: number,
+    setIdx: number,
+    field: 'weight' | 'reps' | 'durationSec' | 'rir',
+    e: Event,
+  ): void {
     const raw = (e.target as HTMLInputElement).value;
     const num = raw === '' ? undefined : Number(raw);
     this.draft.update((exs) => {
