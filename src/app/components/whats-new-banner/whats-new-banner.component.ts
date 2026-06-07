@@ -30,8 +30,8 @@ const ITEMS: ReadonlyArray<{ id: string; iconKey: string }> = [
       <div
         role="status"
         aria-live="polite"
-        class="mt-4"
-        style="padding: 12px 14px; background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-left: 3px solid var(--v2-accent); border-radius: var(--v2-radius-md); position: relative;">
+        class="mt-4 v2-active-highlight"
+        style="padding: 12px 14px; border-radius: var(--v2-radius-md); position: relative;">
         <button
           type="button"
           (click)="dismiss()"

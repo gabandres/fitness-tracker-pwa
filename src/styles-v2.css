@@ -443,6 +443,45 @@
   letter-spacing: -0.01em;
 }
 
+/* ── Train tab: fluid typography ─────────────────────────────────
+   The Train surface packs long names (exercise/template titles, recent
+   sessions) into narrow rows. Scope clamp() font-sizing here so headings
+   and labels shrink gracefully on small phones instead of cramping/
+   wrapping, and breathe up to full size on wider screens. */
+[data-ui="v2"] app-train .v2-h1 { font-size: clamp(1.75rem, 1.45rem + 1.5vw, 2.25rem); }
+[data-ui="v2"] app-train .v2-h2 { font-size: clamp(1.25rem, 1.08rem + 0.85vw, 1.5rem); }
+[data-ui="v2"] app-train .v2-h3 { font-size: clamp(1.0625rem, 0.99rem + 0.4vw, 1.1875rem); }
+[data-ui="v2"] app-train .v2-caption { font-size: clamp(0.75rem, 0.71rem + 0.2vw, 0.8125rem); line-height: 1.45; }
+/* Template cards carry their own inner padding (the ui-card host doesn't
+   pick up .v2-card padding), so the selected fill has room to breathe and
+   selecting doesn't shift layout. */
+[data-ui="v2"] app-train .v2-template-card {
+  padding: var(--v2-space-5);
+  border-radius: var(--v2-radius-lg);
+}
+
+/* ── Shared "active / highlighted" card language ─────────────────
+   ONE treatment for every accented surface (selected template, the
+   in-progress resume card, the what's-new banner, the settings highlight)
+   — accent-soft fill + a thin accent ring + a soft glow halo. Replaces the
+   old ad-hoc `border-left: 3px solid accent` so highlights are consistent
+   app-wide. Padding/radius stay with each host; this only paints. */
+[data-ui="v2"] .v2-active-highlight {
+  background: var(--v2-accent-soft);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--v2-accent) 45%, transparent),
+    0 6px 22px -6px color-mix(in srgb, var(--v2-accent) 55%, transparent);
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+}
+
+/* Row item titles (recent-session + exercise rows). Named class, not a
+   positional selector, so re-sizing is explicit per the v2 conventions. */
+[data-ui="v2"] .v2-row-title {
+  font-weight: 600;
+  line-height: 1.5;
+  font-size: clamp(0.9375rem, 0.9rem + 0.25vw, 1.0625rem);
+}
+
 /* ── Form controls ──────────────────────────────────────────────
    Canonical v2 input box. The entry-sheet inlined this style on every
    field; promoting it to a class keeps the Train surfaces (session

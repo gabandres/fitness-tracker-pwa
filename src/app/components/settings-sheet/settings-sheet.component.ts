@@ -88,8 +88,8 @@ import { UiButton } from '../ui/button.component';
           </ui-button>
         </div>
         @if (showEsBetaBanner()) {
-          <p class="v2-caption mt-3" role="status"
-             style="padding: 8px 12px; background: var(--v2-paper-2); border-radius: var(--v2-radius-sm); border-left: 3px solid var(--v2-accent);">
+          <p class="v2-caption mt-3 v2-active-highlight" role="status"
+             style="padding: 8px 12px; border-radius: var(--v2-radius-sm);">
             {{ t('legal.esBetaBanner') }}
           </p>
         }
