@@ -13,7 +13,9 @@ import { addDays, localDateKey } from '../utils/date';
 import { summarizeDay } from '../utils/day-summary';
 import { SubscriptionService } from './subscription.service';
 import { BodyMetricStore } from './body-metric-store.service';
+import { WorkoutStore } from './workout-store.service';
 import { MilestoneTracker } from './milestone-tracker.service';
+import type { SessionDraft } from '../models/workout';
 
 export type StoreStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -98,6 +100,7 @@ export class FitnessStore {
   private readonly calc = inject(TdeeCalculatorService);
   private readonly subs = inject(SubscriptionService);
   private readonly body = inject(BodyMetricStore);
+  private readonly workout = inject(WorkoutStore);
   private readonly milestones = inject(MilestoneTracker);
 
   // ─── Private mutable state ──────────────────────────────────
@@ -634,6 +637,47 @@ export class FitnessStore {
   }
 
   /**
+   * Stamp `date` as an exercise day by upserting a 0-cal training-marker
+   * `DailyLog` with `exerciseCompleted=true` — but only if no
+   * exercise-marked log already exists for that local date (a workout
+   * shouldn't double-mark a day the user already flagged). Reuses the
+   * existing exercise plumbing so the day counts toward the streak and
+   * shows the History exercise dot for free. Writes the marker directly
+   * (not via {@link addLog}) so it never fires the first-meal milestone —
+   * a workout is not a meal.
+   */
+  async markExercised(date: Date): Promise<void> {
+    const key = localDateKey(date);
+    const already =
+      this._logs().some((l) => localDateKey(l.date) === key && l.exerciseCompleted) ||
+      this._allTimeLogs().some((l) => localDateKey(l.date) === key && l.exerciseCompleted);
+    if (already) return;
+    await this.fb.addLog({ calories: 0, exerciseCompleted: true, timestamp: date });
+    await this._refreshLogs();
+  }
+
+  /**
+   * Finish an in-progress workout. Hub-level orchestration of the
+   * cross-cutting concerns the WorkoutStore deliberately doesn't own:
+   *   1. flip the session to `completed` (WorkoutStore),
+   *   2. mirror the logged bodyweight into `dailyWeights` (BodyMetricStore)
+   *      so Body/TDEE see one source of truth,
+   *   3. stamp the day's exercise marker ({@link markExercised}).
+   * The UI calls this single method on "Finish" rather than wiring the
+   * three stores itself.
+   */
+  async finishWorkout(sessionId: string, patch: Partial<SessionDraft> = {}): Promise<void> {
+    const session = this.workout.activeSession();
+    await this.workout.completeSession(sessionId, patch);
+    const date = patch.date ?? session?.date ?? new Date();
+    const bodyweight = patch.bodyweight ?? session?.bodyweight;
+    if (bodyweight != null && bodyweight > 0) {
+      await this.body.setDailyWeight(localDateKey(date), bodyweight);
+    }
+    await this.markExercised(date);
+  }
+
+  /**
    * Clone every non-weight log from yesterday into today, preserving
    * calories, protein, meal labels, and exercise flags. Weight is NOT
    * copied — weight is strictly a same-day measurement, not a "same
@@ -848,16 +892,31 @@ export class FitnessStore {
       // it bumps lastSeenAt. Idempotent.
       await this.fb.ensureUserProfile();
 
-      const [logs, presets, measurements, dailyWeights, dailyWater] = await Promise.all([
+      const [
+        logs,
+        presets,
+        measurements,
+        dailyWeights,
+        dailyWater,
+        exercises,
+        templates,
+        recentSessions,
+        activeSession,
+      ] = await Promise.all([
         this.fb.getRecentLogs(14),
         this.fb.getPresets(),
         this.fb.getRecentMeasurements(),
         this.fb.getDailyWeights(),
         this.fb.getDailyWater(),
+        this.fb.getExercises(),
+        this.fb.getTemplates(),
+        this.fb.getRecentSessions(),
+        this.fb.getActiveSession(),
       ]);
       this._logs.set(logs);
       this._presets.set(presets);
       this.body.hydrate({ measurements, dailyWeights, dailyWater });
+      this.workout.hydrate({ exercises, templates, recentSessions, activeSession });
       this._status.set('ready');
 
       // Fire-and-forget background tasks.
@@ -990,6 +1049,7 @@ export class FitnessStore {
     this._undoEntry.set(null);
     this.weeklyReportClearHook?.();
     this.body.clear();
+    this.workout.clear();
     this._allTimeLogs.set([]);
     // Clear the first-meal latch so a different user signing in on the
     // same browser gets correctly tracked on their first entry.

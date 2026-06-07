@@ -139,6 +139,44 @@ These three windows look similar and are NOT interchangeable. See
   `FastingStore`; profile carries `fastStartedAt`. `isFasting()` is
   computed from the start time being non-null.
 
+## Workout (Train tab)
+
+See [ADR-0007](docs/adr/0007-workout-train-tab.md). Three user-owned
+collections + a `WorkoutStore` facet back the Train tab.
+
+- **Exercise** — Per-user catalog entry at `users/{uid}/exercises`. The
+  stable identity (`exerciseId`) that progression charts + PRs aggregate
+  over. Shipped library lives in `models/workout-seed.ts`
+  (`EXERCISE_LIBRARY`); cloned into the user's catalog on demand.
+- **WorkoutTemplate** — Editable blueprint at
+  `users/{uid}/workoutTemplates`. Ordered `TemplateExercise[]` (each
+  references an `exerciseId` + snapshot name, plus `targetLoad`, `cues`,
+  a `ProgressionRule`, and a `plannedSets` scaffold). Rest config
+  (`restMiniSec` / `restClusterSec`) lives on the template, not the
+  session. Free-tier cap `CUSTOM_TEMPLATE_LIMIT_FREE = 3` (cosmetic,
+  like `PRESET_LIMIT_FREE`).
+- **WorkoutSession** — One logged instance at
+  `users/{uid}/workoutSessions`. Starting a session **snapshots** the
+  template's exercises into the session doc, so template edits never
+  rewrite history. `status: 'active' | 'completed'` drives live-write +
+  resume; there is at most **one active session** (enforced in
+  `WorkoutStore.startSession`). The session's `date` is stored as the
+  `timestamp` field at the seam.
+- **SetKind** — `warmup | activation | working | mini | drop`. A set's
+  optional `group` clusters it (C1/C2); no group → plain straight set.
+  Warmups/drops are excluded from PR + progression math.
+- **Progression / PRs** — Pure module `utils/workout-progression.ts`
+  (per [ADR-0003](docs/adr/0003-day-summary-as-pure-module.md)):
+  `suggestProgression` (deterministic double-progression — hit
+  `targetReps` for `holdSessions` → `+incrementLb`), `computeExercisePRs`
+  + `estimateOneRepMax` (Epley). No AI in v1.
+- **finishWorkout** — Hub orchestration on `FitnessStore`: flips the
+  session to `completed`, mirrors session bodyweight into `dailyWeights`,
+  and stamps the day's exercise marker via `markExercised`.
+  `WorkoutStore` owns no cross-cutting writes (no circular dep). Free
+  exercise-history window `WORKOUT_HISTORY_DAYS_FREE = 30` (like
+  `CHART_HISTORY_DAYS_FREE`).
+
 ## Profile
 
 - **Profile** — The **domain** shape of the user doc, exposed by
@@ -166,6 +204,10 @@ These three windows look similar and are NOT interchangeable. See
 - **BodyMetricStore** (`body-metric-store.service.ts`) — Daily weights,
   daily water, measurements. `FitnessStore.goalProgress` still reads
   `dailyWeights()` from here.
+- **WorkoutStore** (`workout-store.service.ts`) — Exercise catalog,
+  workout templates, recent sessions, the single active session. CRUD +
+  `cloneStarterTemplate`; `hydrate(...)`/`clear()` driven by
+  `FitnessStore._load()`. No cross-store writes (finish is on the hub).
 - **WeeklyReportStore** (`weekly-report-store.service.ts`) — AI-report
   state + Gemini generation flow + 7-day staleness check. Registers
   lifecycle hooks with `FitnessStore._registerWeeklyReportHooks(...)` to
@@ -214,6 +256,10 @@ the same name under `src/app/components/`.
 - **Body** — Tab. Weight + sparkline, goal progress, fasting ring,
   collapsible measurements.
 - **Trends** — Tab. Weekly chart, EMA, weekly report (Pro).
+- **Train** — Tab (`/train`). Resume/start a workout, templates (start /
+  edit / delete / clone starter), exercise catalog → progression detail.
+  Components under `components/train/` (`train`, `session-sheet`,
+  `template-editor`, `exercise-detail`).
 - **History** — Route (`/history`). Grid of past days.
 - **DayDetail** — Route (`/history/{YYYY-MM-DD}`). One-day deep-dive.
 - **Settings** — `settings-sheet` component. Profile, data export,

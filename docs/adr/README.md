@@ -39,3 +39,4 @@ decisions that are local to a single component.
 | 0004 | [Typed last-N-days log-window queries](0004-log-window-typed-queries.md)               | accepted |
 | 0005 | [Store facets split off FitnessStore](0005-store-facets-split.md)                      | accepted |
 | 0006 | [Drop `-v2` suffix from component naming](0006-drop-v2-suffix-component-naming.md)     | accepted |
+| 0007 | [Workout logging — the Train tab](0007-workout-train-tab.md)                            | accepted |

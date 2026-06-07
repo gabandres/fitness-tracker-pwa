@@ -1,6 +1,14 @@
 import { Injectable, computed, signal } from '@angular/core';
 import type { LedgerPort } from '../ports/ledger.port';
 import type {
+  Exercise,
+  ExerciseDraft,
+  SessionDraft,
+  TemplateDraft,
+  WorkoutSession,
+  WorkoutTemplate,
+} from '../../models/workout';
+import type {
   DailyLog,
   LogEntry,
   MealPreset,
@@ -38,6 +46,12 @@ export class InMemoryLedgerAdapter implements LedgerPort {
   private readonly weights: Record<string, number> = {};
   private readonly water: Record<string, number> = {};
   private report: WeeklyReport | null = null;
+  private readonly exercises = new Map<string, Exercise>();
+  private exerciseSeq = 0;
+  private readonly templates = new Map<string, WorkoutTemplate>();
+  private templateSeq = 0;
+  private readonly sessions = new Map<string, WorkoutSession>();
+  private sessionSeq = 0;
 
   /** Test hook: pre-seed a weekly report (prod writes are server-only). */
   seedLatestReport(report: WeeklyReport | null): void {
@@ -149,6 +163,9 @@ export class InMemoryLedgerAdapter implements LedgerPort {
     this.measurements.clear();
     for (const k of Object.keys(this.weights)) delete this.weights[k];
     for (const k of Object.keys(this.water)) delete this.water[k];
+    this.exercises.clear();
+    this.templates.clear();
+    this.sessions.clear();
     this.report = null;
     this._profile.set(null);
   }
@@ -162,6 +179,9 @@ export class InMemoryLedgerAdapter implements LedgerPort {
       dailyWeights: { ...this.weights },
       dailyWater: { ...this.water },
       reports: this.report ? [this.report] : [],
+      exercises: [...this.exercises.values()],
+      workoutTemplates: [...this.templates.values()],
+      workoutSessions: [...this.sessions.values()],
     };
   }
 
@@ -252,6 +272,90 @@ export class InMemoryLedgerAdapter implements LedgerPort {
 
   async deleteMeasurement(id: string): Promise<void> {
     if (!this.measurements.delete(id)) throw new Error(`Measurement not found: ${id}`);
+  }
+
+  // ─── Workout: exercise catalog ────────────────────────────────
+  async getExercises(): Promise<Exercise[]> {
+    return [...this.exercises.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async addExercise(exercise: ExerciseDraft): Promise<string> {
+    const id = `ex-${++this.exerciseSeq}`;
+    this.exercises.set(id, { ...exercise, id, createdAt: new Date() });
+    return id;
+  }
+
+  async updateExercise(id: string, patch: Partial<ExerciseDraft>): Promise<void> {
+    const existing = this.exercises.get(id);
+    if (!existing) throw new Error(`Exercise not found: ${id}`);
+    this.exercises.set(id, { ...existing, ...patch });
+  }
+
+  async deleteExercise(id: string): Promise<void> {
+    if (!this.exercises.delete(id)) throw new Error(`Exercise not found: ${id}`);
+  }
+
+  // ─── Workout: templates ───────────────────────────────────────
+  async getTemplates(): Promise<WorkoutTemplate[]> {
+    return [...this.templates.values()].sort(
+      (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
+    );
+  }
+
+  async addTemplate(template: TemplateDraft): Promise<string> {
+    const id = `tpl-${++this.templateSeq}`;
+    const now = new Date();
+    this.templates.set(id, { ...template, id, createdAt: now, updatedAt: now });
+    return id;
+  }
+
+  async updateTemplate(id: string, template: TemplateDraft): Promise<void> {
+    const existing = this.templates.get(id);
+    if (!existing) throw new Error(`Template not found: ${id}`);
+    this.templates.set(id, { ...existing, ...template, updatedAt: new Date() });
+  }
+
+  async deleteTemplate(id: string): Promise<void> {
+    if (!this.templates.delete(id)) throw new Error(`Template not found: ${id}`);
+  }
+
+  // ─── Workout: sessions ────────────────────────────────────────
+  async getActiveSession(): Promise<WorkoutSession | null> {
+    return [...this.sessions.values()].find((s) => s.status === 'active') ?? null;
+  }
+
+  async getRecentSessions(count = 30): Promise<WorkoutSession[]> {
+    return [...this.sessions.values()]
+      .sort((a, b) => b.date.getTime() - a.date.getTime())
+      .slice(0, count);
+  }
+
+  async getSessionsForTemplate(templateId: string, count = 10): Promise<WorkoutSession[]> {
+    return [...this.sessions.values()]
+      .filter((s) => s.templateId === templateId && s.status === 'completed')
+      .sort((a, b) => b.date.getTime() - a.date.getTime())
+      .slice(0, count);
+  }
+
+  async getAllSessions(): Promise<WorkoutSession[]> {
+    return [...this.sessions.values()].sort((a, b) => b.date.getTime() - a.date.getTime());
+  }
+
+  async startSession(session: SessionDraft): Promise<string> {
+    const id = `ses-${++this.sessionSeq}`;
+    const now = new Date();
+    this.sessions.set(id, { ...session, id, createdAt: now, updatedAt: now });
+    return id;
+  }
+
+  async updateSession(id: string, patch: Partial<SessionDraft>): Promise<void> {
+    const existing = this.sessions.get(id);
+    if (!existing) throw new Error(`Session not found: ${id}`);
+    this.sessions.set(id, { ...existing, ...patch, updatedAt: new Date() });
+  }
+
+  async deleteSession(id: string): Promise<void> {
+    if (!this.sessions.delete(id)) throw new Error(`Session not found: ${id}`);
   }
 
   private patchProfile(

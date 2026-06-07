@@ -41,6 +41,7 @@ import { HistoryComponent } from './components/history/history.component';
 import { DayDetailComponent } from './components/day-detail/day-detail.component';
 import { TrendsComponent } from './components/trends/trends.component';
 import { BodyComponent } from './components/body/body.component';
+import { TrainComponent } from './components/train/train.component';
 import { UiTabBar, type UiTab } from './components/ui/tab-bar.component';
 
 @Component({
@@ -71,6 +72,7 @@ import { UiTabBar, type UiTab } from './components/ui/tab-bar.component';
     DayDetailComponent,
     TrendsComponent,
     BodyComponent,
+    TrainComponent,
     UiTabBar,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -413,6 +415,15 @@ import { UiTabBar, type UiTab } from './components/ui/tab-bar.component';
                     <div class="py-20 text-center caption">…</div>
                   }
                 }
+                @case ('train') {
+                  @defer (on immediate) {
+                    <app-train
+                      (settingsRequested)="showSettings.set(true)"
+                      (historyRequested)="onHistoryRequestedV2()" />
+                  } @placeholder {
+                    <div class="py-20 text-center caption">…</div>
+                  }
+                }
                 @default {
                   <app-today
                     (settingsRequested)="showSettings.set(true)"
@@ -479,7 +490,7 @@ export class App {
   /** URL-path based routing for the two public-static pages. Anything
       else (including '/' and unknown paths) falls through to the
       signal-gated main app. */
-  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | 'onboarding' | 'calculator' | 'macros' | 'faq' | 'vs' | 'publicProfile' | 'transformations' | null>(this.detectRoute());
+  protected readonly route = signal<'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | 'train' | 'onboarding' | 'calculator' | 'macros' | 'faq' | 'vs' | 'publicProfile' | 'transformations' | null>(this.detectRoute());
   /** Selected day for `/history/YYYY-MM-DD`. Null on the grid view. */
   protected readonly historyDay = signal<string | null>(this.detectHistoryDay());
   /** Stack depth of OUR pushState calls. popHistory() falls back to a
@@ -593,7 +604,7 @@ export class App {
     return (this.firebase.profile() as any)?.reminderHour ?? 20;
   }
 
-  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | 'onboarding' | 'calculator' | 'macros' | 'faq' | 'vs' | 'publicProfile' | 'transformations' | null {
+  private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | 'train' | 'onboarding' | 'calculator' | 'macros' | 'faq' | 'vs' | 'publicProfile' | 'transformations' | null {
     const path = window.location.pathname.toLowerCase();
     if (path === '/privacy' || path === '/privacy/') return 'privacy';
     if (path === '/terms' || path === '/terms/') return 'terms';
@@ -605,6 +616,7 @@ export class App {
     if (/^\/history\/\d{4}-\d{2}-\d{2}\/?$/.test(path)) return 'historyDay';
     if (path === '/trends' || path === '/trends/') return 'trends';
     if (path === '/body' || path === '/body/') return 'body';
+    if (path === '/train' || path === '/train/') return 'train';
     if (path === '/onboarding' || path === '/onboarding/') return 'onboarding';
     if (path === '/calculator' || path === '/calculator/') return 'calculator';
     // Programmatic SEO variants — same component, different intent + meta.
@@ -710,6 +722,7 @@ export class App {
     { id: 'today', label: 'Today', icon: 'home' },
     { id: 'trends', label: 'Trends', icon: 'trending-up' },
     { id: 'body', label: 'Body', icon: 'user' },
+    { id: 'train', label: 'Train', icon: 'dumbbell' },
   ];
 
   /** Maps the current `route()` value back onto a tab id so the tab bar
@@ -720,6 +733,7 @@ export class App {
     const r = this.route();
     if (r === 'trends') return 'trends';
     if (r === 'body') return 'body';
+    if (r === 'train') return 'train';
     return 'today';
   });
 
@@ -729,15 +743,18 @@ export class App {
    *  inside /history must still navigate to /app. */
   protected onUiTabSelect(id: string): void {
     const r = this.route();
-    if (id === 'today' && r !== 'history' && r !== 'historyDay' && r !== 'trends' && r !== 'body') return;
+    if (id === 'today' && r !== 'history' && r !== 'historyDay' && r !== 'trends' && r !== 'body' && r !== 'train') return;
     if (id === 'trends' && r === 'trends') return;
     if (id === 'body' && r === 'body') return;
+    if (id === 'train' && r === 'train') return;
     if (id === 'today') {
       history.pushState({}, '', '/app');
     } else if (id === 'trends') {
       history.pushState({}, '', '/trends');
     } else if (id === 'body') {
       history.pushState({}, '', '/body');
+    } else if (id === 'train') {
+      history.pushState({}, '', '/train');
     } else {
       return;
     }

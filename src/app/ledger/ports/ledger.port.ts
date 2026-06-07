@@ -1,6 +1,14 @@
 import { InjectionToken, Signal } from '@angular/core';
 import type { UnitSystem } from '../../models/unit-system';
 import type {
+  Exercise,
+  ExerciseDraft,
+  SessionDraft,
+  TemplateDraft,
+  WorkoutSession,
+  WorkoutTemplate,
+} from '../../models/workout';
+import type {
   DailyLog,
   LogEntry,
   MealPreset,
@@ -67,6 +75,36 @@ export interface LedgerPort {
   getRecentMeasurements(count?: number): Promise<Measurement[]>;
   addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<void>;
   deleteMeasurement(id: string): Promise<void>;
+
+  // ─── Workout: exercise catalog ────────────────────────────────
+  getExercises(): Promise<Exercise[]>;
+  /** Returns the new doc id so seed/clone flows can wire template
+   *  references to freshly-created catalog entries. */
+  addExercise(exercise: ExerciseDraft): Promise<string>;
+  updateExercise(id: string, patch: Partial<ExerciseDraft>): Promise<void>;
+  deleteExercise(id: string): Promise<void>;
+
+  // ─── Workout: templates ───────────────────────────────────────
+  getTemplates(): Promise<WorkoutTemplate[]>;
+  addTemplate(template: TemplateDraft): Promise<string>;
+  updateTemplate(id: string, template: TemplateDraft): Promise<void>;
+  deleteTemplate(id: string): Promise<void>;
+
+  // ─── Workout: sessions ────────────────────────────────────────
+  /** The single in-progress session, if any (`status == 'active'`). */
+  getActiveSession(): Promise<WorkoutSession | null>;
+  /** Most-recent sessions, newest-first. */
+  getRecentSessions(count?: number): Promise<WorkoutSession[]>;
+  /** Completed sessions for one template, newest-first — backs the
+   *  "last session" autofill + rule-based progression. */
+  getSessionsForTemplate(templateId: string, count?: number): Promise<WorkoutSession[]>;
+  /** All sessions, newest-first — backs per-exercise progression charts
+   *  (filtered client-side, like getRecentLogs(9999) for CSV). */
+  getAllSessions(): Promise<WorkoutSession[]>;
+  startSession(session: SessionDraft): Promise<string>;
+  /** Partial merge — the debounced live-write path while logging. */
+  updateSession(id: string, patch: Partial<SessionDraft>): Promise<void>;
+  deleteSession(id: string): Promise<void>;
 }
 
 export const LEDGER_PORT = new InjectionToken<LedgerPort>('LedgerPort');

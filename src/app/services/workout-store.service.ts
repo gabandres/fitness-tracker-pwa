@@ -1,0 +1,228 @@
+import { Injectable, Signal, computed, inject, signal } from '@angular/core';
+import { LEDGER_PORT } from '../ledger/ports/ledger.port';
+import { SubscriptionService } from './subscription.service';
+import {
+  CUSTOM_TEMPLATE_LIMIT_FREE,
+  Exercise,
+  ExerciseDraft,
+  SessionDraft,
+  TemplateDraft,
+  TemplateExercise,
+  TemplateLimitError,
+  WorkoutSession,
+  WorkoutTemplate,
+} from '../models/workout';
+import { findSeedExercise, type SeedTemplate } from '../models/workout-seed';
+
+/**
+ * Owns Train-tab state: the exercise catalog, workout templates, the
+ * recent-session list, and the single in-progress (`active`) session.
+ * Hydration is coordinated by FitnessStore (`hydrate()` / `clear()`) so
+ * one sign-in effect drives every store's load lifecycle — matches the
+ * BodyMetricStore pattern.
+ *
+ * This store is persistence-only for its own three collections. The
+ * cross-cutting "finish" concerns — mirroring bodyweight into
+ * `dailyWeights` and stamping the day's exercise marker — live on the
+ * FitnessStore hub (`finishWorkout`), which already owns logs + body, so
+ * this store never reaches across the seam (no circular dependency).
+ */
+@Injectable({ providedIn: 'root' })
+export class WorkoutStore {
+  private readonly fb = inject(LEDGER_PORT);
+  private readonly subs = inject(SubscriptionService);
+
+  private readonly _exercises = signal<Exercise[]>([]);
+  private readonly _templates = signal<WorkoutTemplate[]>([]);
+  private readonly _recentSessions = signal<WorkoutSession[]>([]);
+  private readonly _activeSession = signal<WorkoutSession | null>(null);
+
+  readonly exercises: Signal<Exercise[]> = this._exercises.asReadonly();
+  readonly templates: Signal<WorkoutTemplate[]> = this._templates.asReadonly();
+  readonly recentSessions: Signal<WorkoutSession[]> = this._recentSessions.asReadonly();
+  readonly activeSession: Signal<WorkoutSession | null> = this._activeSession.asReadonly();
+
+  readonly hasActiveSession: Signal<boolean> = computed(() => this._activeSession() !== null);
+
+  /** Remaining custom-template slots for free users; null when unlimited (Pro). */
+  readonly remainingTemplateSlots: Signal<number | null> = computed(() => {
+    if (this.subs.isPaid()) return null;
+    return Math.max(0, CUSTOM_TEMPLATE_LIMIT_FREE - this._templates().length);
+  });
+
+  /** Bulk-load every Train collection. Called from FitnessStore._load(). */
+  hydrate(input: {
+    exercises: Exercise[];
+    templates: WorkoutTemplate[];
+    recentSessions: WorkoutSession[];
+    activeSession: WorkoutSession | null;
+  }): void {
+    this._exercises.set(input.exercises);
+    this._templates.set(input.templates);
+    this._recentSessions.set(input.recentSessions);
+    this._activeSession.set(input.activeSession);
+  }
+
+  /** Reset to empty on sign-out. */
+  clear(): void {
+    this._exercises.set([]);
+    this._templates.set([]);
+    this._recentSessions.set([]);
+    this._activeSession.set(null);
+  }
+
+  // ─── Exercise catalog ─────────────────────────────────────────
+  async addExercise(exercise: ExerciseDraft): Promise<string> {
+    const id = await this.fb.addExercise(exercise);
+    this._exercises.set(await this.fb.getExercises());
+    return id;
+  }
+
+  async updateExercise(id: string, patch: Partial<ExerciseDraft>): Promise<void> {
+    await this.fb.updateExercise(id, patch);
+    this._exercises.set(await this.fb.getExercises());
+  }
+
+  async deleteExercise(id: string): Promise<void> {
+    await this.fb.deleteExercise(id);
+    this._exercises.set(await this.fb.getExercises());
+  }
+
+  // ─── Templates ────────────────────────────────────────────────
+  /** @throws TemplateLimitError when a free user is at the cap. The
+   *  server has no Pro claim for templates (client cap only, like
+   *  presets), so this guard is cosmetic — keep real Pro barriers
+   *  server-side per the project convention. */
+  async addTemplate(template: TemplateDraft): Promise<string> {
+    if (!this.subs.isPaid() && this._templates().length >= CUSTOM_TEMPLATE_LIMIT_FREE) {
+      throw new TemplateLimitError(CUSTOM_TEMPLATE_LIMIT_FREE);
+    }
+    const id = await this.fb.addTemplate(template);
+    this._templates.set(await this.fb.getTemplates());
+    return id;
+  }
+
+  async updateTemplate(id: string, template: TemplateDraft): Promise<void> {
+    await this.fb.updateTemplate(id, template);
+    this._templates.set(await this.fb.getTemplates());
+  }
+
+  async deleteTemplate(id: string): Promise<void> {
+    await this.fb.deleteTemplate(id);
+    this._templates.set(await this.fb.getTemplates());
+  }
+
+  /**
+   * Clone a shipped starter template into the user's editable space.
+   * Resolves each seed exercise to a catalog entry — reusing one that
+   * already exists by name (case-insensitive) or creating it from the
+   * library — then builds a template draft that references the resulting
+   * exercise ids and snapshots their display names. Subject to the
+   * free-tier template cap (throws {@link TemplateLimitError}).
+   */
+  async cloneStarterTemplate(seed: SeedTemplate): Promise<string> {
+    if (!this.subs.isPaid() && this._templates().length >= CUSTOM_TEMPLATE_LIMIT_FREE) {
+      throw new TemplateLimitError(CUSTOM_TEMPLATE_LIMIT_FREE);
+    }
+
+    const byName = new Map(
+      this._exercises().map((e) => [e.name.toLowerCase(), e] as const),
+    );
+
+    const exercises: TemplateExercise[] = [];
+    for (const seedEx of seed.exercises) {
+      const lib = findSeedExercise(seedEx.key);
+      if (!lib) continue; // skip dangling references defensively
+      let entry = byName.get(lib.name.toLowerCase());
+      if (!entry) {
+        const id = await this.fb.addExercise({
+          name: lib.name,
+          muscles: lib.muscles,
+          defaultCues: lib.defaultCues,
+        });
+        entry = { id, name: lib.name, muscles: lib.muscles, defaultCues: lib.defaultCues, createdAt: new Date() };
+        byName.set(lib.name.toLowerCase(), entry);
+      }
+      exercises.push({
+        exerciseId: entry.id!,
+        name: entry.name,
+        targetLoad: seedEx.targetLoad,
+        cues: seedEx.cues ?? lib.defaultCues,
+        progression: seedEx.progression,
+        plannedSets: seedEx.plannedSets,
+      });
+    }
+
+    // Refresh the catalog signal once after any new exercises were created.
+    this._exercises.set(await this.fb.getExercises());
+
+    const id = await this.fb.addTemplate({
+      name: seed.name,
+      notes: seed.notes,
+      restMiniSec: seed.restMiniSec,
+      restClusterSec: seed.restClusterSec,
+      exercises,
+    });
+    this._templates.set(await this.fb.getTemplates());
+    return id;
+  }
+
+  // ─── Sessions ─────────────────────────────────────────────────
+  /** Completed sessions for one template, newest-first — backs the
+   *  rule-based "last session" autofill + progression suggestions.
+   *  Not cached: callers pull on demand when opening a session. */
+  getSessionsForTemplate(templateId: string, count = 10): Promise<WorkoutSession[]> {
+    return this.fb.getSessionsForTemplate(templateId, count);
+  }
+
+  /** All sessions, newest-first — backs per-exercise progression charts
+   *  (filtered client-side, like FitnessStore.getAllLogs). */
+  getAllSessions(): Promise<WorkoutSession[]> {
+    return this.fb.getAllSessions();
+  }
+
+  /** Create the in-progress session doc (status:'active'). Enforces the
+   *  single-active-session invariant: only one session may be `active` at
+   *  a time, so `getActiveSession`'s `limit(1)` is deterministic and no
+   *  abandoned session is silently orphaned. Callers gate on
+   *  {@link hasActiveSession} and offer resume/finish before starting. */
+  async startSession(session: SessionDraft): Promise<string> {
+    if (this._activeSession()) {
+      throw new Error('A workout is already in progress — resume or finish it first.');
+    }
+    const id = await this.fb.startSession({ ...session, status: 'active' });
+    this._activeSession.set(await this.fb.getActiveSession());
+    return id;
+  }
+
+  /** Debounced live-write path while logging. Updates the local active
+   *  signal optimistically so the UI stays in sync without a refetch. */
+  async updateSession(id: string, patch: Partial<SessionDraft>): Promise<void> {
+    await this.fb.updateSession(id, patch);
+    this._activeSession.update((cur) =>
+      cur && cur.id === id ? { ...cur, ...patch, updatedAt: new Date() } : cur,
+    );
+  }
+
+  /**
+   * Flip a session to `completed`. Persistence + local-cache refresh
+   * only — the FitnessStore hub layers on the bodyweight mirror and the
+   * exercise marker (`finishWorkout`). Clears the active-session signal
+   * and refreshes the recent list.
+   */
+  async completeSession(id: string, patch: Partial<SessionDraft> = {}): Promise<void> {
+    await this.fb.updateSession(id, { ...patch, status: 'completed' });
+    this._activeSession.set(await this.fb.getActiveSession());
+    this._recentSessions.set(await this.fb.getRecentSessions());
+  }
+
+  async deleteSession(id: string): Promise<void> {
+    await this.fb.deleteSession(id);
+    const [active, recent] = await Promise.all([
+      this.fb.getActiveSession(),
+      this.fb.getRecentSessions(),
+    ]);
+    this._activeSession.set(active);
+    this._recentSessions.set(recent);
+  }
+}

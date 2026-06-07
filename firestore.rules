@@ -124,6 +124,67 @@ service cloud.firestore {
               (data.protein is number && data.protein >= 0 && data.protein < 1000));
     }
 
+    // ─── Workout schemas ────────────────────────────────────────
+    // Owner-scoped data with deeply-nested set/exercise arrays. We
+    // validate top-level scalars, list-size caps, and string caps to
+    // bound abuse, but trust the owner for nested array contents (same
+    // single-user trust model as measurements). All three docs carry
+    // server-assigned createdAt/updatedAt; on a merge update,
+    // request.resource.data is the POST-write doc so the required
+    // stamps remain present and the same validator covers update.
+    function isValidExercise(data) {
+      return data.keys().hasOnly(['name', 'muscles', 'defaultCues', 'createdAt'])
+          && data.keys().hasAll(['name', 'createdAt'])
+          && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+          && data.createdAt is timestamp
+          && (!('muscles' in data.keys()) ||
+              (data.muscles is list && data.muscles.size() <= 12))
+          && (!('defaultCues' in data.keys()) ||
+              (data.defaultCues is list && data.defaultCues.size() <= 30));
+    }
+
+    function isValidWorkoutTemplate(data) {
+      return data.keys().hasOnly([
+              'name', 'notes', 'restMiniSec', 'restClusterSec',
+              'exercises', 'createdAt', 'updatedAt'
+          ])
+          && data.keys().hasAll(['name', 'exercises', 'createdAt', 'updatedAt'])
+          && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+          && data.exercises is list && data.exercises.size() <= 40
+          && data.createdAt is timestamp && data.updatedAt is timestamp
+          && (!('notes' in data.keys()) ||
+              (data.notes is string && data.notes.size() <= 2000))
+          && (!('restMiniSec' in data.keys()) ||
+              (data.restMiniSec is number && data.restMiniSec >= 0 && data.restMiniSec <= 3600))
+          && (!('restClusterSec' in data.keys()) ||
+              (data.restClusterSec is number && data.restClusterSec >= 0 && data.restClusterSec <= 3600));
+    }
+
+    function isValidWorkoutSession(data) {
+      return data.keys().hasOnly([
+              'status', 'templateId', 'templateName', 'timestamp',
+              'bodyweight', 'sleepHours', 'durationMin',
+              'exercises', 'nextNotes', 'createdAt', 'updatedAt'
+          ])
+          && data.keys().hasAll(['status', 'timestamp', 'exercises', 'createdAt', 'updatedAt'])
+          && (data.status == 'active' || data.status == 'completed')
+          && data.timestamp is timestamp
+          && data.exercises is list && data.exercises.size() <= 40
+          && data.createdAt is timestamp && data.updatedAt is timestamp
+          && (!('templateId' in data.keys()) ||
+              (data.templateId is string && data.templateId.size() <= 100))
+          && (!('templateName' in data.keys()) ||
+              (data.templateName is string && data.templateName.size() <= 100))
+          && (!('bodyweight' in data.keys()) ||
+              (data.bodyweight is number && data.bodyweight > 0 && data.bodyweight < 1000))
+          && (!('sleepHours' in data.keys()) ||
+              (data.sleepHours is number && data.sleepHours >= 0 && data.sleepHours <= 24))
+          && (!('durationMin' in data.keys()) ||
+              (data.durationMin is number && data.durationMin >= 0 && data.durationMin <= 1440))
+          && (!('nextNotes' in data.keys()) ||
+              (data.nextNotes is string && data.nextNotes.size() <= 2000));
+    }
+
     function hasValidActivityLevel(data) {
       return data.activityLevel == 'sedentary'
           || data.activityLevel == 'light'
@@ -344,6 +405,34 @@ service cloud.firestore {
       match /measurements/{measurementId} {
         allow read:   if isOwner(uid) || isAdmin();
         allow create: if isOwner(uid) && isValidMeasurement(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+
+      // ─── Train tab (workout logging) ──────────────────────────
+      // Per-user exercise catalog — the stable identity progression
+      // charts aggregate over.
+      match /exercises/{exerciseId} {
+        allow read:   if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid) && isValidExercise(request.resource.data);
+        allow update: if isOwner(uid) && isValidExercise(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+
+      // Editable workout templates (blueprints).
+      match /workoutTemplates/{templateId} {
+        allow read:   if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid) && isValidWorkoutTemplate(request.resource.data);
+        allow update: if isOwner(uid) && isValidWorkoutTemplate(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+
+      // Logged sessions (snapshots). Live-written set-by-set while the
+      // workout is in progress (status:'active') then flipped to
+      // 'completed' on finish.
+      match /workoutSessions/{sessionId} {
+        allow read:   if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid) && isValidWorkoutSession(request.resource.data);
+        allow update: if isOwner(uid) && isValidWorkoutSession(request.resource.data);
         allow delete: if isOwner(uid);
       }
 

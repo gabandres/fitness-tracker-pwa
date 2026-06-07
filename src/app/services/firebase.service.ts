@@ -10,6 +10,7 @@ import {
   updateDoc,
   getDocs,
   query,
+  where,
   orderBy,
   limit,
   Timestamp,
@@ -20,6 +21,18 @@ import { Auth } from '@angular/fire/auth';
 import { CallableGateway } from './callable.gateway';
 import { readReferrer, clearReferrer } from '../utils/referral';
 import type { UnitSystem } from '../models/unit-system';
+import type {
+  Exercise,
+  ExerciseDraft,
+  SessionDraft,
+  SessionExercise,
+  SessionStatus,
+  TemplateDraft,
+  TemplateExercise,
+  WorkoutSession,
+  WorkoutSet,
+  WorkoutTemplate,
+} from '../models/workout';
 import { toDomainProfile, toDomainProfilePatch } from '../ledger/infrastructure/profile-mapper';
 
 // ─── Log types ──────────────────────────────────────────────────
@@ -81,6 +94,41 @@ export interface LogEntry {
   exerciseCompleted?: boolean;
   mealLabel?: string;
   timestamp?: Date; // for undo-restore at original time
+}
+
+// ─── Workout stored shapes (Timestamp at the seam) ──────────────
+// Only top-level dated fields carry Timestamps; nested set/exercise
+// objects have no Date fields. The adapter's workout mappers below are
+// the only place Timestamp ↔ Date conversion happens.
+export interface ExerciseDoc {
+  name: string;
+  muscles: string[];
+  defaultCues: string[];
+  createdAt: Timestamp;
+}
+
+export interface WorkoutTemplateDoc {
+  name: string;
+  notes?: string;
+  restMiniSec?: number;
+  restClusterSec?: number;
+  exercises: TemplateExercise[];
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface WorkoutSessionDoc {
+  status: SessionStatus;
+  templateId?: string;
+  templateName?: string;
+  timestamp: Timestamp; // the session date
+  bodyweight?: number;
+  sleepHours?: number;
+  durationMin?: number;
+  exercises: SessionExercise[];
+  nextNotes?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
 
 // ─── Profile types ──────────────────────────────────────────────
@@ -771,4 +819,217 @@ export class FirebaseService implements LedgerPort {
     const ref = doc(this.firestore, 'users', this.requireUid(), 'measurements', id);
     await deleteDoc(ref);
   }
+
+  // ─── Workout: exercise catalog ────────────────────────────────
+  private exercisesCollection() {
+    return collection(this.firestore, 'users', this.requireUid(), 'exercises');
+  }
+
+  async getExercises(): Promise<Exercise[]> {
+    const snap = await getDocs(query(this.exercisesCollection(), orderBy('name')));
+    return snap.docs.map((d) => {
+      const data = d.data() as ExerciseDoc;
+      return {
+        id: d.id,
+        name: data.name,
+        muscles: (data.muscles ?? []) as Exercise['muscles'],
+        defaultCues: data.defaultCues ?? [],
+        createdAt: data.createdAt.toDate(),
+      };
+    });
+  }
+
+  async addExercise(exercise: ExerciseDraft): Promise<string> {
+    const data: ExerciseDoc = {
+      name: exercise.name,
+      muscles: exercise.muscles ?? [],
+      defaultCues: exercise.defaultCues ?? [],
+      createdAt: Timestamp.now(),
+    };
+    const ref = await addDoc(this.exercisesCollection(), pruneUndefined(data));
+    return ref.id;
+  }
+
+  async updateExercise(id: string, patch: Partial<ExerciseDraft>): Promise<void> {
+    const ref = doc(this.firestore, 'users', this.requireUid(), 'exercises', id);
+    await updateDoc(ref, pruneUndefined({ ...patch }));
+  }
+
+  async deleteExercise(id: string): Promise<void> {
+    const ref = doc(this.firestore, 'users', this.requireUid(), 'exercises', id);
+    await deleteDoc(ref);
+  }
+
+  // ─── Workout: templates ───────────────────────────────────────
+  private templatesCollection() {
+    return collection(this.firestore, 'users', this.requireUid(), 'workoutTemplates');
+  }
+
+  async getTemplates(): Promise<WorkoutTemplate[]> {
+    const snap = await getDocs(query(this.templatesCollection(), orderBy('updatedAt', 'desc')));
+    return snap.docs.map((d) => toDomainTemplate(d.id, d.data() as WorkoutTemplateDoc));
+  }
+
+  async addTemplate(template: TemplateDraft): Promise<string> {
+    const now = Timestamp.now();
+    const data = pruneUndefined({
+      name: template.name,
+      notes: template.notes,
+      restMiniSec: template.restMiniSec,
+      restClusterSec: template.restClusterSec,
+      exercises: template.exercises ?? [],
+      createdAt: now,
+      updatedAt: now,
+    });
+    const ref = await addDoc(this.templatesCollection(), data);
+    return ref.id;
+  }
+
+  async updateTemplate(id: string, template: TemplateDraft): Promise<void> {
+    const ref = doc(this.firestore, 'users', this.requireUid(), 'workoutTemplates', id);
+    // Full overwrite of mutable fields + bump updatedAt; createdAt left
+    // untouched by merge.
+    const data = pruneUndefined({
+      name: template.name,
+      notes: template.notes,
+      restMiniSec: template.restMiniSec,
+      restClusterSec: template.restClusterSec,
+      exercises: template.exercises ?? [],
+      updatedAt: Timestamp.now(),
+    });
+    await setDoc(ref, data, { merge: true });
+  }
+
+  async deleteTemplate(id: string): Promise<void> {
+    const ref = doc(this.firestore, 'users', this.requireUid(), 'workoutTemplates', id);
+    await deleteDoc(ref);
+  }
+
+  // ─── Workout: sessions ────────────────────────────────────────
+  private sessionsCollection() {
+    return collection(this.firestore, 'users', this.requireUid(), 'workoutSessions');
+  }
+
+  async getActiveSession(): Promise<WorkoutSession | null> {
+    const q = query(this.sessionsCollection(), where('status', '==', 'active'), limit(1));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const d = snap.docs[0];
+    return toDomainSession(d.id, d.data() as WorkoutSessionDoc);
+  }
+
+  async getRecentSessions(count = 30): Promise<WorkoutSession[]> {
+    const q = query(this.sessionsCollection(), orderBy('timestamp', 'desc'), limit(count));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => toDomainSession(d.id, d.data() as WorkoutSessionDoc));
+  }
+
+  async getSessionsForTemplate(templateId: string, count = 10): Promise<WorkoutSession[]> {
+    const q = query(
+      this.sessionsCollection(),
+      where('templateId', '==', templateId),
+      where('status', '==', 'completed'),
+      orderBy('timestamp', 'desc'),
+      limit(count),
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => toDomainSession(d.id, d.data() as WorkoutSessionDoc));
+  }
+
+  async getAllSessions(): Promise<WorkoutSession[]> {
+    const q = query(this.sessionsCollection(), orderBy('timestamp', 'desc'));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => toDomainSession(d.id, d.data() as WorkoutSessionDoc));
+  }
+
+  async startSession(session: SessionDraft): Promise<string> {
+    const now = Timestamp.now();
+    const data = pruneUndefined({
+      status: session.status,
+      templateId: session.templateId,
+      templateName: session.templateName,
+      timestamp: Timestamp.fromDate(session.date),
+      bodyweight: session.bodyweight,
+      sleepHours: session.sleepHours,
+      durationMin: session.durationMin,
+      exercises: session.exercises ?? [],
+      nextNotes: session.nextNotes,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const ref = await addDoc(this.sessionsCollection(), data);
+    return ref.id;
+  }
+
+  async updateSession(id: string, patch: Partial<SessionDraft>): Promise<void> {
+    const ref = doc(this.firestore, 'users', this.requireUid(), 'workoutSessions', id);
+    const data: Record<string, unknown> = { updatedAt: Timestamp.now() };
+    if (patch.status !== undefined) data['status'] = patch.status;
+    if (patch.templateId !== undefined) data['templateId'] = patch.templateId;
+    if (patch.templateName !== undefined) data['templateName'] = patch.templateName;
+    if (patch.date !== undefined) data['timestamp'] = Timestamp.fromDate(patch.date);
+    if (patch.bodyweight !== undefined) data['bodyweight'] = patch.bodyweight;
+    if (patch.sleepHours !== undefined) data['sleepHours'] = patch.sleepHours;
+    if (patch.durationMin !== undefined) data['durationMin'] = patch.durationMin;
+    if (patch.exercises !== undefined) data['exercises'] = patch.exercises;
+    if (patch.nextNotes !== undefined) data['nextNotes'] = patch.nextNotes;
+    await setDoc(ref, pruneUndefined(data), { merge: true });
+  }
+
+  async deleteSession(id: string): Promise<void> {
+    const ref = doc(this.firestore, 'users', this.requireUid(), 'workoutSessions', id);
+    await deleteDoc(ref);
+  }
+}
+
+// ─── Workout mappers (Timestamp ↔ Date at the seam) ─────────────
+function toDomainTemplate(id: string, data: WorkoutTemplateDoc): WorkoutTemplate {
+  return {
+    id,
+    name: data.name,
+    notes: data.notes,
+    restMiniSec: data.restMiniSec,
+    restClusterSec: data.restClusterSec,
+    exercises: (data.exercises ?? []) as TemplateExercise[],
+    createdAt: data.createdAt.toDate(),
+    updatedAt: data.updatedAt.toDate(),
+  };
+}
+
+function toDomainSession(id: string, data: WorkoutSessionDoc): WorkoutSession {
+  return {
+    id,
+    status: data.status,
+    templateId: data.templateId,
+    templateName: data.templateName,
+    date: data.timestamp.toDate(),
+    bodyweight: data.bodyweight,
+    sleepHours: data.sleepHours,
+    durationMin: data.durationMin,
+    exercises: ((data.exercises ?? []) as SessionExercise[]).map((ex) => ({
+      ...ex,
+      sets: (ex.sets ?? []) as WorkoutSet[],
+    })),
+    nextNotes: data.nextNotes,
+    createdAt: data.createdAt.toDate(),
+    updatedAt: data.updatedAt.toDate(),
+  };
+}
+
+/** Firestore rejects `undefined` (no `ignoreUndefinedProperties` set on
+ *  this app's Firestore instance). Recursively drops undefined-valued
+ *  keys from objects/arrays before a write. Timestamps and Dates are
+ *  left intact (they are not plain objects we want to descend into). */
+function pruneUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((v) => pruneUndefined(v)) as unknown as T;
+  }
+  if (value !== null && typeof value === 'object' && !(value instanceof Timestamp) && !(value instanceof Date)) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v !== undefined) out[k] = pruneUndefined(v);
+    }
+    return out as T;
+  }
+  return value;
 }
