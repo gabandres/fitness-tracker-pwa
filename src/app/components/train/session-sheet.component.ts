@@ -45,7 +45,7 @@ const SAVE_DEBOUNCE_MS = 800;
     <ui-sheet [labelledBy]="'workout-session-title'" (close)="requestClose()">
       @if (session(); as s) {
         <header class="mb-4">
-          <h2 id="workout-session-title" class="v2-h2">{{ s.templateName || t('train.sessionTitle') }}</h2>
+          <h2 id="workout-session-title" class="v2-h2">{{ headerName() }}</h2>
           @if (prevNotes()) {
             <p class="v2-caption mt-1" style="color: var(--v2-ink-muted);">
               <lucide-icon name="sticky-note" [size]="13" /> {{ prevNotes() }}
@@ -185,6 +185,19 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
   protected readonly session = computed(
     () => this.editingSession() ?? this.workout.activeSession(),
   );
+
+  /** Title resolves to the live template name (by templateId) so a renamed
+   *  template shows its current name; falls back to the session's stored
+   *  snapshot, then a generic title. */
+  protected readonly headerName = computed(() => {
+    const s = this.session();
+    if (!s) return '';
+    if (s.templateId) {
+      const tpl = this.workout.templates().find((t) => t.id === s.templateId);
+      if (tpl) return tpl.name;
+    }
+    return s.templateName || this.i18n.t('train.sessionTitle');
+  });
   protected readonly draft = signal<SessionExercise[]>([]);
   protected readonly nextNotes = signal('');
   protected readonly prevNotes = signal('');

@@ -74,7 +74,7 @@ import { suggestProgression } from '../../utils/workout-progression';
           <div class="flex items-center justify-between gap-3">
             <div>
               <p class="v2-field-label" style="color: var(--v2-accent); margin-bottom: 0.25rem;">{{ t('train.resumeTitle') }}</p>
-              <h2 class="v2-h2">{{ a.templateName || t('train.sessionTitle') }}</h2>
+              <h2 class="v2-h2">{{ sessionLabel(a) }}</h2>
               <p class="v2-caption mt-0.5">{{ t('train.exerciseCount', { count: a.exercises.length }) }}</p>
             </div>
             <ui-button variant="primary" (click)="openSheet()">{{ t('train.resume') }}</ui-button>
@@ -135,7 +135,7 @@ import { suggestProgression } from '../../utils/workout-progression';
           @for (ses of completedRecent(); track ses.id) {
             <div class="flex items-center justify-between gap-3 py-2 border-b" style="border-color: var(--v2-rule);">
               <button type="button" class="text-left grow" (click)="editSession(ses)">
-                <p class="v2-row-title">{{ ses.templateName || t('train.sessionTitle') }}</p>
+                <p class="v2-row-title">{{ sessionLabel(ses) }}</p>
                 <p class="v2-caption">{{ formatDate(ses.date) }} · {{ t('train.exerciseCount', { count: ses.exercises.length }) }}</p>
               </button>
               <div class="flex items-center gap-1 shrink-0">
@@ -277,7 +277,7 @@ export class TrainComponent {
     items: { exerciseId: string; name: string }[];
   } | null>(() => {
     const a = this.active();
-    if (a) return { name: a.templateName || this.i18n.t('train.sessionTitle'), items: a.exercises };
+    if (a) return { name: this.sessionLabel(a), items: a.exercises };
     const s = this.selectedTemplate();
     return s ? { name: s.name, items: s.exercises } : null;
   });
@@ -353,6 +353,17 @@ export class TrainComponent {
     if (!ses.id) return;
     if (!confirm(this.i18n.t('train.deleteSessionConfirm'))) return;
     await this.workout.deleteSession(ses.id);
+  }
+
+  /** Display name for a session: the live template name (resolved by
+   *  templateId) so renames reflect in history; falls back to the stored
+   *  snapshot if the template was deleted, then to a generic title. */
+  protected sessionLabel(ses: { templateId?: string; templateName?: string }): string {
+    if (ses.templateId) {
+      const tpl = this.templates().find((t) => t.id === ses.templateId);
+      if (tpl) return tpl.name;
+    }
+    return ses.templateName || this.i18n.t('train.sessionTitle');
   }
 
   protected formatDate(d: Date): string {
