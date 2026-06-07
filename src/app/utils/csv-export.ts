@@ -1,4 +1,5 @@
 import type { DailyLog, Measurement } from '../services/firebase.service';
+import type { WorkoutSession } from '../models/workout';
 import { localDateKey } from './date';
 
 const COLS = [
@@ -6,6 +7,9 @@ const COLS = [
   'calories', 'protein', 'weight', 'exerciseCompleted', 'mealLabel',
   'waterMl',
   'waist', 'chest', 'bicep', 'hip',
+  // Workout columns — filled on 'workout' (session) + 'workout_set' rows.
+  'template', 'exercise', 'setKind', 'setGroup', 'setWeight', 'setReps',
+  'setRir', 'durationMin', 'sleepHours',
 ] as const;
 type Col = typeof COLS[number];
 
@@ -24,13 +28,18 @@ export interface ExportData {
   measurements: Measurement[];
   dailyWeights: Record<string, number>;
   dailyWater: Record<string, number>;
+  /** Completed (and in-progress) workout sessions. Optional so existing
+   *  callers without workout data keep working. */
+  workoutSessions?: WorkoutSession[];
 }
 
 /**
  * Long-format CSV: every row carries a `type` discriminator
- * (meal | weight | water | measurement) and only fills the columns
- * relevant to that type. Opens cleanly in Excel/Sheets and lets users
- * filter by type to recover any single dataset.
+ * (meal | weight | water | measurement | workout | workout_set) and only
+ * fills the columns relevant to that type. Opens cleanly in Excel/Sheets
+ * and lets users filter by type to recover any single dataset. Workout
+ * sessions emit one `workout` summary row plus one `workout_set` row per
+ * logged set.
  */
 export function buildCsv(data: ExportData): string {
   const rows: string[] = [COLS.join(',')];
@@ -70,6 +79,39 @@ export function buildCsv(data: ExportData): string {
       bicep: m.bicep,
       hip: m.hip,
     }));
+  }
+
+  const sortedSessions = [...(data.workoutSessions ?? [])].sort(
+    (a, b) => a.date.getTime() - b.date.getTime(),
+  );
+  for (const s of sortedSessions) {
+    const date = localDateKey(s.date);
+    const timestamp = s.date.toISOString();
+    rows.push(row({
+      type: 'workout',
+      date,
+      timestamp,
+      template: s.templateName,
+      weight: s.bodyweight,
+      durationMin: s.durationMin,
+      sleepHours: s.sleepHours,
+    }));
+    for (const ex of s.exercises) {
+      for (const set of ex.sets) {
+        rows.push(row({
+          type: 'workout_set',
+          date,
+          timestamp,
+          template: s.templateName,
+          exercise: ex.name,
+          setKind: set.kind,
+          setGroup: set.group,
+          setWeight: set.weight,
+          setReps: set.reps,
+          setRir: set.rir,
+        }));
+      }
+    }
   }
 
   return rows.join('\r\n');

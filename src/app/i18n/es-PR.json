@@ -296,7 +296,7 @@
       "webhookGenerate": "generar api key",
       "webhookGenerateHint": "genera una llave para activar el endpoint del webhook.",
       "export": "exporta tus datos",
-      "exportDesc": "descarga cada registro, peso, agua y medida en un solo CSV.",
+      "exportDesc": "descarga cada registro, peso, agua, medida y entrenamiento en un solo CSV.",
       "exportButton": "descargar csv",
       "exportPreparing": "preparando…",
       "exportError": "falló la exportación. inténtalo de nuevo.",

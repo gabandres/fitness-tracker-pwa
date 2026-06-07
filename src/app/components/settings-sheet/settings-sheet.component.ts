@@ -625,16 +625,19 @@ export class SettingsSheetComponent {
     this.exporting.set(true);
     this.exportError.set(false);
     try {
-      const [logs, measurements, dailyWeights, dailyWater] = await Promise.all([
+      const [logs, measurements, dailyWeights, dailyWater, workoutSessions] = await Promise.all([
         this.firebase.getRecentLogs(9999),
         this.firebase.getRecentMeasurements(9999),
         this.firebase.getDailyWeights(),
         this.firebase.getDailyWater(),
+        this.firebase.getAllSessions(),
       ]);
-      const csv = buildCsv({ logs, measurements, dailyWeights, dailyWater });
+      const csv = buildCsv({ logs, measurements, dailyWeights, dailyWater, workoutSessions });
       const stamp = new Date().toISOString().slice(0, 10);
       downloadCsv(`macrolog-export-${stamp}.csv`, csv);
-      this.analytics.track('data_export_csv', { rows: logs.length + measurements.length });
+      this.analytics.track('data_export_csv', {
+        rows: logs.length + measurements.length + workoutSessions.length,
+      });
     } catch {
       this.exportError.set(true);
     } finally {

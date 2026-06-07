@@ -304,15 +304,25 @@
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 2px;
   min-height: 56px;
-  padding: var(--v2-space-2) 0;
+  padding: var(--v2-space-2) 4px;
   background: transparent; border: none;
   color: var(--v2-ink-muted);
   font-family: var(--v2-font-sans);
-  font-size: 0.6875rem;
+  /* Fluid: 10px on small phones → 11px on wider screens, so a 4th tab
+     never crowds the row. min-width:0 (above) lets the flex item shrink. */
+  font-size: clamp(0.625rem, 0.5rem + 0.5vw, 0.6875rem);
   font-weight: 500;
   cursor: pointer;
   transition: color var(--v2-motion-fast) var(--v2-ease);
   -webkit-tap-highlight-color: transparent;
+}
+/* Label never overflows its tab; ellipsis is the last-resort fallback
+   (real labels are short enough that fluid sizing keeps them whole). */
+.v2-tab > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .v2-tab:hover { color: var(--v2-ink-soft); }
 .v2-tab--active { color: var(--v2-accent); }
@@ -468,11 +478,18 @@
 [data-ui="v2"] .v2-field-label {
   display: block;
   margin-bottom: 0.375rem;
-  font-size: 0.8125rem;
+  /* Fluid: shrink to 11px on narrow phones, up to 13px on wider screens,
+     so uppercase labels like "REST: CLUSTERS (S)" stay on one line in a
+     half-width grid column instead of cramping/wrapping. */
+  font-size: clamp(0.6875rem, 0.6rem + 0.6vw, 0.8125rem);
   line-height: 1.4;
   color: var(--v2-ink-muted);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
+  /* If a label must wrap, balance the lines and break long tokens
+     cleanly rather than overflowing the column. */
+  text-wrap: balance;
+  overflow-wrap: break-word;
 }
 
 /* ── Utility: hairline rule ─────────────────────────────────── */

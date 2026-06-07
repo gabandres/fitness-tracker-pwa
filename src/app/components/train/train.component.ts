@@ -67,10 +67,10 @@ import { suggestProgression } from '../../utils/workout-progression';
 
       <!-- Resume in-progress -->
       @if (active(); as a) {
-        <ui-card variant="accent" class="mt-4 block">
+        <ui-card variant="default" class="mt-4 block" style="border-left: 3px solid var(--v2-accent);">
           <div class="flex items-center justify-between gap-3">
             <div>
-              <p class="v2-caption" style="color: var(--v2-ink-muted); font-size: 0.7rem;">{{ t('train.resumeTitle') }}</p>
+              <p class="v2-field-label" style="color: var(--v2-accent); margin-bottom: 0.25rem;">{{ t('train.resumeTitle') }}</p>
               <h2 class="v2-h2">{{ a.templateName || t('train.sessionTitle') }}</h2>
               <p class="v2-caption mt-0.5">{{ t('train.exerciseCount', { count: a.exercises.length }) }}</p>
             </div>
