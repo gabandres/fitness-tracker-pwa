@@ -114,7 +114,7 @@ export class FirestoreLedgerCore {
 
   // ─── Daily logs ────────────────────────────────────────────────
 
-  async addLog(entry: LogEntry): Promise<void> {
+  async addLog(entry: LogEntry): Promise<string> {
     const data: Record<string, unknown> = {
       calories: entry.calories,
       timestamp: Timestamp.fromDate(entry.timestamp ?? new Date()),
@@ -123,7 +123,8 @@ export class FirestoreLedgerCore {
     if (entry.protein != null) data['protein'] = entry.protein;
     if (entry.exerciseCompleted) data['exerciseCompleted'] = true;
     if (entry.mealLabel) data['mealLabel'] = entry.mealLabel;
-    await addDoc(this.userCollection('dailyLogs'), data);
+    const ref = await addDoc(this.userCollection('dailyLogs'), data);
+    return ref.id;
   }
 
   /** Latest `count` rows, returned OLDEST-FIRST (the underlying query is
@@ -215,13 +216,14 @@ export class FirestoreLedgerCore {
     return snap.docs.map((d) => ({ id: d.id, ...d.data() } as MealPreset));
   }
 
-  async addPreset(preset: Omit<MealPreset, 'id'>): Promise<void> {
+  async addPreset(preset: Omit<MealPreset, 'id'>): Promise<string> {
     const data: Record<string, unknown> = {
       name: preset.name,
       calories: preset.calories,
     };
     if (preset.protein != null) data['protein'] = preset.protein;
-    await addDoc(this.userCollection('presets'), data);
+    const ref = await addDoc(this.userCollection('presets'), data);
+    return ref.id;
   }
 
   async deletePreset(presetId: string): Promise<void> {
@@ -252,13 +254,14 @@ export class FirestoreLedgerCore {
     });
   }
 
-  async addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<void> {
+  async addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<string> {
     const data: Record<string, unknown> = { timestamp: Timestamp.now() };
     if (entry.waist != null) data['waist'] = entry.waist;
     if (entry.chest != null) data['chest'] = entry.chest;
     if (entry.bicep != null) data['bicep'] = entry.bicep;
     if (entry.hip != null) data['hip'] = entry.hip;
-    await addDoc(this.userCollection('measurements'), data);
+    const ref = await addDoc(this.userCollection('measurements'), data);
+    return ref.id;
   }
 
   async deleteMeasurement(id: string): Promise<void> {

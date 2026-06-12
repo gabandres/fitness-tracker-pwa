@@ -41,3 +41,4 @@ decisions that are local to a single component.
 | 0006 | [Drop `-v2` suffix from component naming](0006-drop-v2-suffix-component-naming.md)     | accepted |
 | 0007 | [Workout logging — the Train tab](0007-workout-train-tab.md)                            | accepted |
 | 0008 | [CallerAccess + DailyQuota modules in Cloud Functions](0008-cf-caller-access-daily-quota.md) | accepted |
+| 0009 | [LedgerPort phase 5 — id returns, not explicit-UID or Result<T>](0009-ledger-port-phase5-pragmatic.md) | accepted |

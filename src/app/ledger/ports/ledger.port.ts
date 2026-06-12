@@ -21,12 +21,15 @@ import type {
 /**
  * Persistence seam for user-owned data. Implementations are scoped
  * to the currently signed-in user — the adapter resolves UID from
- * its own auth context; callers never pass one.
+ * its own auth context; callers never pass one. That implicit scoping
+ * is DELIBERATE (not a phase-5 leftover): pushing an explicit uid
+ * parameter to every call site would spread auth knowledge across all
+ * consumers — see ADR-0009. Drafts and results are domain-typed (JS
+ * `Date`, never Firestore `Timestamp`); errors throw (no blanket
+ * `Result<T>` wrapper — same ADR).
  *
- * Phase 1: signatures mirror FirebaseService 1:1 so the existing
- * service implements this port with no behavior change. Follow-up
- * phases narrow the surface (explicit UID, Result<T>, domain-typed
- * drafts without Firestore Timestamp) — see issue #6.
+ * Add-verbs return the server-assigned doc id so stores can reconcile
+ * caches locally instead of refetching after every mutation.
  */
 export interface LedgerPort {
   readonly profile: Signal<Profile | null>;
@@ -52,7 +55,9 @@ export interface LedgerPort {
   deleteMyAccount(): Promise<void>;
   exportMyData(): Promise<unknown>;
 
-  addLog(entry: LogEntry): Promise<void>;
+  /** Returns the new doc id — callers append to their caches locally
+   *  (optimistic) instead of refetching the window. */
+  addLog(entry: LogEntry): Promise<string>;
   /** Returns up to `days` most-recent log rows, oldest-first. The `days`
    *  parameter is a row cap, not a date window — a heavy logger may get
    *  a few days' worth; a sparse logger may span weeks. */
@@ -67,13 +72,13 @@ export interface LedgerPort {
   setDailyWater(dateKey: string, ml: number): Promise<void>;
 
   getPresets(): Promise<MealPreset[]>;
-  addPreset(preset: Omit<MealPreset, 'id'>): Promise<void>;
+  addPreset(preset: Omit<MealPreset, 'id'>): Promise<string>;
   deletePreset(presetId: string): Promise<void>;
 
   getLatestReport(): Promise<WeeklyReport | null>;
 
   getRecentMeasurements(count?: number): Promise<Measurement[]>;
-  addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<void>;
+  addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<string>;
   deleteMeasurement(id: string): Promise<void>;
 
   // ─── Workout: exercise catalog ────────────────────────────────

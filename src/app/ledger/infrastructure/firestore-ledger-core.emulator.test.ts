@@ -141,6 +141,12 @@ describe.skipIf(!EMULATOR_AVAILABLE)('FirestoreLedgerCore — emulator contract'
       expect((logs[0].date as unknown as { toMillis?: unknown }).toMillis).toBeUndefined();
     });
 
+    it('addLog returns the server-assigned doc id (phase 5)', async () => {
+      const id = await core.addLog({ calories: 100, timestamp: new Date('2026-04-22T08:00:00Z') });
+      const [entry] = await core.getRecentLogs();
+      expect(entry.id).toBe(id);
+    });
+
     it('caps getRecentLogs at the requested row count, keeping the LATEST rows', async () => {
       for (let i = 0; i < 8; i++) {
         await core.addLog({ calories: i, timestamp: new Date(2026, 3, i + 1) });

@@ -162,6 +162,13 @@ describe.each(ADAPTERS)('LedgerPort contract — %s', (_label, configure) => {
       expect((await port.getRecentLogs())[0].exerciseCompleted).toBeUndefined();
     });
 
+    it('addLog returns the new doc id (phase 5 — drives local cache reconcile)', async () => {
+      const id = await port.addLog({ calories: 100, timestamp: new Date('2026-04-22') });
+      const [entry] = await port.getRecentLogs();
+      expect(typeof id).toBe('string');
+      expect(entry.id).toBe(id);
+    });
+
     it('addLog without a timestamp uses now()', async () => {
       const before = Date.now();
       await port.addLog({ calories: 50 });

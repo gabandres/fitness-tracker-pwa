@@ -611,8 +611,8 @@ export class FirebaseService implements LedgerPort {
   }
 
   // ─── Daily logs (FirestoreLedgerCore) ──────────────────────────
-  async addLog(entry: LogEntry): Promise<void> {
-    await this.core.addLog(entry);
+  async addLog(entry: LogEntry): Promise<string> {
+    return this.core.addLog(entry);
   }
 
   async getRecentLogs(days = 14): Promise<DailyLog[]> {
@@ -653,8 +653,8 @@ export class FirebaseService implements LedgerPort {
     return this.core.getPresets();
   }
 
-  async addPreset(preset: Omit<MealPreset, 'id'>): Promise<void> {
-    await this.core.addPreset(preset);
+  async addPreset(preset: Omit<MealPreset, 'id'>): Promise<string> {
+    return this.core.addPreset(preset);
   }
 
   async deletePreset(presetId: string): Promise<void> {
@@ -671,8 +671,8 @@ export class FirebaseService implements LedgerPort {
     return this.core.getRecentMeasurements(count);
   }
 
-  async addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<void> {
-    await this.core.addMeasurement(entry);
+  async addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<string> {
+    return this.core.addMeasurement(entry);
   }
 
   async deleteMeasurement(id: string): Promise<void> {

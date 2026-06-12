@@ -185,7 +185,7 @@ export class InMemoryLedgerAdapter implements LedgerPort {
     };
   }
 
-  async addLog(entry: LogEntry): Promise<void> {
+  async addLog(entry: LogEntry): Promise<string> {
     const id = `log-${++this.logSeq}`;
     this.logs.set(id, {
       id,
@@ -196,6 +196,7 @@ export class InMemoryLedgerAdapter implements LedgerPort {
       exerciseCompleted: entry.exerciseCompleted || undefined,
       mealLabel: entry.mealLabel,
     });
+    return id;
   }
 
   async getRecentLogs(days = 14): Promise<DailyLog[]> {
@@ -246,9 +247,10 @@ export class InMemoryLedgerAdapter implements LedgerPort {
     return [...this.presets.values()];
   }
 
-  async addPreset(preset: Omit<MealPreset, 'id'>): Promise<void> {
+  async addPreset(preset: Omit<MealPreset, 'id'>): Promise<string> {
     const id = `preset-${++this.presetSeq}`;
     this.presets.set(id, { id, ...preset });
+    return id;
   }
 
   async deletePreset(presetId: string): Promise<void> {
@@ -265,9 +267,10 @@ export class InMemoryLedgerAdapter implements LedgerPort {
       .slice(0, count);
   }
 
-  async addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<void> {
+  async addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<string> {
     const id = `m-${++this.measurementSeq}`;
     this.measurements.set(id, { id, date: new Date(), ...entry });
+    return id;
   }
 
   async deleteMeasurement(id: string): Promise<void> {

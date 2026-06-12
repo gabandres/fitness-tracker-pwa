@@ -631,8 +631,8 @@ export class FitnessStore {
     // `_allTimeLogs` hydrates.
     const recentLogsEmpty = this._logs().length === 0;
     const allTimeLogsEmpty = this._allTimeLogs().length === 0;
-    await this.fb.addLog(entry);
-    await this._refreshLogs();
+    const id = await this.fb.addLog(entry);
+    this._applyLocalAdd(id, entry);
     this.milestones.checkFirstMeal({ recentLogsEmpty, allTimeLogsEmpty });
   }
 
@@ -781,7 +781,7 @@ export class FitnessStore {
 
   async updateLog(id: string, entry: LogEntry): Promise<void> {
     await this.fb.updateLog(id, entry);
-    await this._refreshLogs();
+    this._applyLocalUpdate(id, entry);
   }
 
   /**
@@ -863,8 +863,8 @@ export class FitnessStore {
     if (!this.subs.isPaid() && this._presets().length >= PRESET_LIMIT_FREE) {
       throw new PresetLimitError(PRESET_LIMIT_FREE);
     }
-    await this.fb.addPreset(preset);
-    this._presets.set(await this.fb.getPresets());
+    const id = await this.fb.addPreset(preset);
+    this._presets.set([...this._presets(), { ...preset, id }]);
   }
 
   async deletePreset(id: string): Promise<void> {
@@ -928,12 +928,74 @@ export class FitnessStore {
     }
   }
 
-  /** Reload just the log window after a log mutation. Avoids the
-   *  5-collection full reload (`_load`) that the mutation path used to
-   *  trigger, which redundantly refetched profile/presets/measurements/
-   *  weights/water on every entry. All-time logs + the weekly-report
-   *  staleness check stay fire-and-forget so derived signals (monthly
-   *  summary, goal progress, report autogenerate) keep their behavior.
+  /** The `_logs` rolling cache mirrors `getRecentLogs(14)` — latest 14
+   *  rows, oldest-first. Local cache maintenance after single-log
+   *  mutations keeps that contract without refetching. */
+  private static readonly LOG_CACHE_ROWS = 14;
+
+  /** Reconcile caches after a successful `addLog` using the server-
+   *  assigned id (issue #6 phase 5) — zero reads instead of the
+   *  refetch-per-mutation `_refreshLogs` path. Field semantics mirror
+   *  the core's write exactly: weight/protein only when non-null,
+   *  exerciseCompleted only when truthy, mealLabel only when non-empty. */
+  private _applyLocalAdd(id: string, entry: LogEntry): void {
+    const log: DailyLog = {
+      id,
+      calories: entry.calories,
+      date: entry.timestamp ?? new Date(),
+    };
+    if (entry.weight != null) log.weight = entry.weight;
+    if (entry.protein != null) log.protein = entry.protein;
+    if (entry.exerciseCompleted) log.exerciseCompleted = true;
+    if (entry.mealLabel) log.mealLabel = entry.mealLabel;
+
+    const byDate = (a: DailyLog, b: DailyLog) => a.date.getTime() - b.date.getTime();
+    const recent = [...this._logs(), log].sort(byDate);
+    this._logs.set(recent.slice(-FitnessStore.LOG_CACHE_ROWS));
+    if (this._historyLoaded()) {
+      this._allTimeLogs.set([...this._allTimeLogs(), log].sort(byDate));
+    } else {
+      // Hydration hasn't settled — a fresh fetch will include this row.
+      void this._loadAllTimeLogs();
+    }
+    void this.weeklyReportRefreshHook?.();
+  }
+
+  /** Reconcile caches after a successful `updateLog`. Mirrors the
+   *  core's deleteField semantics: omitted protein/mealLabel and a
+   *  falsy exercise flag CLEAR the stored field, legacy lift/cardio
+   *  flags are always cleared, weight/timestamp persist when omitted. */
+  private _applyLocalUpdate(id: string, entry: LogEntry): void {
+    const apply = (l: DailyLog): DailyLog => {
+      if (l.id !== id) return l;
+      const next: DailyLog = {
+        ...l,
+        calories: entry.calories,
+        date: entry.timestamp ?? l.date,
+        protein: entry.protein != null ? entry.protein : undefined,
+        exerciseCompleted: entry.exerciseCompleted ? true : undefined,
+        liftCompleted: undefined,
+        cardioCompleted: undefined,
+        mealLabel: entry.mealLabel ? entry.mealLabel : undefined,
+      };
+      if (entry.weight != null) next.weight = entry.weight;
+      return next;
+    };
+    const byDate = (a: DailyLog, b: DailyLog) => a.date.getTime() - b.date.getTime();
+    this._logs.set(this._logs().map(apply).sort(byDate));
+    if (this._historyLoaded()) {
+      this._allTimeLogs.set(this._allTimeLogs().map(apply).sort(byDate));
+    }
+    void this.weeklyReportRefreshHook?.();
+  }
+
+  /** Reload just the log window after a bulk log mutation
+   *  (repeatYesterday/copyDayToToday/markExercised) or a delete — a
+   *  delete must refetch so older rows can re-enter the 14-row window.
+   *  Single add/update paths use the local reconcilers above instead.
+   *  All-time logs + the weekly-report staleness check stay
+   *  fire-and-forget so derived signals (monthly summary, goal
+   *  progress, report autogenerate) keep their behavior.
    *
    *  On failure, surface via `_error` but keep `_status='ready'` — the
    *  previously-loaded cache is still valid, and flipping to 'error'

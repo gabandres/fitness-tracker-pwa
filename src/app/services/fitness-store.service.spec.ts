@@ -81,16 +81,16 @@ describe('FitnessStore', () => {
       profileCompleted: signal(false),
       ensureUserProfile: vi.fn().mockResolvedValue(undefined),
       getRecentLogs: vi.fn().mockResolvedValue([]),
-      addLog: vi.fn().mockResolvedValue(undefined),
+      addLog: vi.fn().mockResolvedValue('new-log-id'),
       updateLog: vi.fn().mockResolvedValue(undefined),
       deleteLog: vi.fn().mockResolvedValue(undefined),
       getPresets: vi.fn().mockResolvedValue([]),
-      addPreset: vi.fn().mockResolvedValue(undefined),
+      addPreset: vi.fn().mockResolvedValue('new-preset-id'),
       deletePreset: vi.fn().mockResolvedValue(undefined),
       clearProfile: vi.fn(),
       saveProfile: vi.fn().mockResolvedValue(undefined),
       getRecentMeasurements: vi.fn().mockResolvedValue([]),
-      addMeasurement: vi.fn().mockResolvedValue(undefined),
+      addMeasurement: vi.fn().mockResolvedValue('new-measurement-id'),
       deleteMeasurement: vi.fn().mockResolvedValue(undefined),
       getLatestReport: vi.fn().mockResolvedValue(null),
       getDailyWeights: vi.fn().mockResolvedValue({}),
@@ -310,23 +310,36 @@ describe('FitnessStore', () => {
       await store.refresh();
     });
 
-    it('should addLog and reload', async () => {
+    it('should addLog and append the server-id row locally (no refetch)', async () => {
       const entry: LogEntry = { weight: 179, calories: 1850 };
-      const updated = makeLogs(4);
-      mockFb.getRecentLogs.mockResolvedValue(updated);
+      mockFb.getRecentLogs.mockClear();
 
       await store.addLog(entry);
 
       expect(mockFb.addLog).toHaveBeenCalledWith(entry);
-      expect(store.logs()).toEqual(updated);
+      const logs = store.logs();
+      const added = logs[logs.length - 1]; // no timestamp → now → newest
+      expect(added.id).toBe('new-log-id');
+      expect(added.calories).toBe(1850);
+      expect(added.weight).toBe(179);
+      // Zero recent-window refetches — the cache reconciles locally.
+      // (_loadAllTimeLogs may fire once if history wasn't hydrated.)
+      expect(mockFb.getRecentLogs.mock.calls.filter((c) => c[0] === 14)).toHaveLength(0);
     });
 
-    it('should updateLog and reload', async () => {
+    it('should updateLog and apply core field semantics locally', async () => {
       const entry: LogEntry = { weight: 179, calories: 1800 };
+      mockFb.getRecentLogs.mockClear();
+
       await store.updateLog('log-0', entry);
 
       expect(mockFb.updateLog).toHaveBeenCalledWith('log-0', entry);
-      expect(mockFb.getRecentLogs).toHaveBeenCalled();
+      const updated = store.logs().find((l) => l.id === 'log-0')!;
+      expect(updated.calories).toBe(1800);
+      expect(updated.weight).toBe(179);
+      // Omitted protein clears (deleteField semantics in the adapter).
+      expect(updated.protein).toBeUndefined();
+      expect(mockFb.getRecentLogs.mock.calls.filter((c) => c[0] === 14)).toHaveLength(0);
     });
 
     it('should deleteLog and reload', async () => {
@@ -355,11 +368,12 @@ describe('FitnessStore', () => {
       expect(mockFb.getRecentMeasurements).not.toHaveBeenCalled();
       expect(mockFb.getDailyWeights).not.toHaveBeenCalled();
       expect(mockFb.getDailyWater).not.toHaveBeenCalled();
-      // getRecentLogs fires twice per mutation: once for the 14-day window
-      // (awaited) and once for the fire-and-forget all-time window.
-      // 3 mutations = exactly 6 calls. Tighter than >=3 catches a
-      // regression to full _load().
-      expect(mockFb.getRecentLogs).toHaveBeenCalledTimes(6);
+      // addLog/updateLog reconcile caches locally (phase 5) — zero
+      // reads. Only deleteLog refetches (the awaited 14-row window plus
+      // the fire-and-forget all-time window = exactly 2 calls), so older
+      // rows can re-enter the rolling window. Tighter than >=1 catches a
+      // regression to refetch-per-mutation or full _load().
+      expect(mockFb.getRecentLogs).toHaveBeenCalledTimes(2);
     });
 
     it('bulk-copy paths (repeatYesterday/copyDayToToday) also skip unrelated collections', async () => {
@@ -382,14 +396,16 @@ describe('FitnessStore', () => {
       expect(mockFb.getDailyWater).not.toHaveBeenCalled();
     });
 
-    it('should addPreset and reload presets', async () => {
-      const presets: MealPreset[] = [{ id: 'p1', name: 'Lunch', calories: 650 }];
-      mockFb.getPresets.mockResolvedValue(presets);
+    it('should addPreset and append the server-id preset locally (no refetch)', async () => {
+      mockFb.getPresets.mockClear();
 
       await store.addPreset({ name: 'Lunch', calories: 650 });
 
       expect(mockFb.addPreset).toHaveBeenCalledWith({ name: 'Lunch', calories: 650 });
-      expect(store.presets()).toEqual(presets);
+      expect(store.presets()).toEqual([
+        { name: 'Lunch', calories: 650, id: 'new-preset-id' },
+      ] as MealPreset[]);
+      expect(mockFb.getPresets).not.toHaveBeenCalled();
     });
 
     it('should deletePreset and reload presets', async () => {

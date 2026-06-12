@@ -70,8 +70,10 @@ export class BodyMetricStore {
   }
 
   async addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<void> {
-    await this.fb.addMeasurement(entry);
-    this._measurements.set(await this.fb.getRecentMeasurements());
+    // Server stamps the doc with its own now(); new Date() here is close
+    // enough for the newest-first cache until the next hydrate.
+    const id = await this.fb.addMeasurement(entry);
+    this._measurements.set([{ ...entry, id, date: new Date() }, ...this._measurements()]);
   }
 
   async deleteMeasurement(id: string): Promise<void> {
