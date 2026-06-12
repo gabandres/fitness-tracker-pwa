@@ -555,6 +555,9 @@
     "manage": "editar",
     "done": "listo"
   },
+  "trends": {
+    "regenerate": "generar reporte nuevo"
+  },
   "entry": {
     "errorCaloriesRequired": "Las calorías son requeridas.",
     "errorFailedToSave": "No se pudo guardar.",

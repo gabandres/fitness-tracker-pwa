@@ -555,6 +555,9 @@
     "manage": "manage",
     "done": "done"
   },
+  "trends": {
+    "regenerate": "generate fresh report"
+  },
   "entry": {
     "errorCaloriesRequired": "Calories are required.",
     "errorFailedToSave": "Failed to save.",

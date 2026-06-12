@@ -56,30 +56,29 @@ export class WeeklyReportStore {
   }
 
   /**
-   * Fetch the latest cached report, and if it's stale (>7 days old) and
-   * the user has logged enough to make it worth the call AND is on Pro,
-   * trigger a fresh generation. Called fire-and-forget from FitnessStore's
-   * load + refresh paths.
+   * Fetch the latest cached report so the Trends card renders it.
+   * READ-ONLY by design: generation is strictly user-initiated via the
+   * Trends card's generate/regenerate buttons. This used to auto-fire
+   * `generateWeeklyReport` when the cached report went >7 days stale,
+   * which burned a Gemini call per Pro/admin/comped user per week with
+   * nobody asking for it — removed 2026-06-12 as a cost control.
+   * Called fire-and-forget from FitnessStore's load + refresh paths.
    */
   async checkWeeklyReport(): Promise<void> {
     try {
       const report = await this.fb.getLatestReport();
       this._weeklyReport.set(report);
-
-      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-      const isStale = !report || report.generatedAt.getTime() < sevenDaysAgo;
-
-      // Weekly report is a Pro feature. The client-side gate below is
-      // cosmetic — real enforcement lives in the `generateWeeklyReport`
-      // Cloud Function (entitlement check + 6-day rate limit + server-
-      // only writes via admin SDK). Past reports stay readable for
-      // users who dropped off Pro; only NEW generations are gated.
-      if (isStale && this.store.logs().length >= 3 && this.subs.isPaid()) {
-        await this.generateWeeklyReport();
-      }
     } catch (err) {
       console.error('Weekly report check failed:', err);
     }
+  }
+
+  /** True when there is no report yet or the cached one is older than
+   *  7 days — drives the Trends card's regenerate affordance. */
+  isReportStale(): boolean {
+    const report = this._weeklyReport();
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return !report || report.generatedAt.getTime() < sevenDaysAgo;
   }
 
   async generateWeeklyReport(): Promise<void> {

@@ -132,6 +132,19 @@ import { UiFastingPill } from '../ui/fasting-pill.component';
         @if (reportHtml(); as html) {
           <div class="v2-prose" [innerHTML]="html"></div>
           <p class="v2-caption mt-3">{{ reportAge() }}</p>
+          <!-- Generation is strictly user-initiated (the old auto-refresh
+               on staleness burned a Gemini call per Pro user per week).
+               Offer the refresh once the cached report ages out. -->
+          @if (subs.isPaid() && report.isReportStale() && !report.reportLoading()) {
+            <div class="mt-3">
+              <ui-button variant="ghost" size="sm" (click)="generate()">
+                <lucide-icon name="sparkles" [size]="14" />
+                {{ t('trends.regenerate') }}
+              </ui-button>
+            </div>
+          } @else if (report.reportLoading()) {
+            <p class="v2-body-soft mt-2">{{ t('v2.trends.generating') }}</p>
+          }
         } @else if (report.reportLoading()) {
           <p class="v2-body-soft">{{ t('v2.trends.generating') }}</p>
         } @else if (report.reportError(); as err) {
