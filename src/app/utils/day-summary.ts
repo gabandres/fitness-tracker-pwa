@@ -16,6 +16,10 @@ export interface DaySummary {
   readonly dateKey: string;
   readonly totalCalories: number;
   readonly totalProtein: number;
+  /** Grams. Zero when no entry on the day carried the field — carbs/fat
+   *  are optional on `DailyLog` (added 2026-06; older rows lack them). */
+  readonly totalCarbs: number;
+  readonly totalFat: number;
   readonly mealCount: number;
   /** True when ANY DailyLog on this day has `exerciseCompleted` (or the
    *  legacy `liftCompleted` / `cardioCompleted` flags) set. Matches the
@@ -58,12 +62,16 @@ export function summarizeDay(
 ): DaySummary {
   let totalCalories = 0;
   let proteinSum = 0;
+  let carbsSum = 0;
+  let fatSum = 0;
   let mealCount = 0;
   let exercised = false;
   for (const l of logs) {
     if (localDateKey(l.date) !== dateKey) continue;
     totalCalories += l.calories || 0;
     if (l.protein != null) proteinSum += l.protein;
+    if (l.carbs != null) carbsSum += l.carbs;
+    if (l.fat != null) fatSum += l.fat;
     mealCount += 1;
     if (!exercised && exercisedFlag(l)) exercised = true;
   }
@@ -71,6 +79,8 @@ export function summarizeDay(
     dateKey,
     totalCalories,
     totalProtein: Math.round(proteinSum),
+    totalCarbs: Math.round(carbsSum),
+    totalFat: Math.round(fatSum),
     mealCount,
     exercised,
     weightLb: weightFor(dateKey, dailyWeights),
@@ -92,10 +102,10 @@ export function summarizeDays(
   // and days with no logs still emit a zero row.
   const buckets = new Map<
     string,
-    { totalCalories: number; proteinSum: number; mealCount: number; exercised: boolean }
+    { totalCalories: number; proteinSum: number; carbsSum: number; fatSum: number; mealCount: number; exercised: boolean }
   >();
   for (const k of dateKeys) {
-    buckets.set(k, { totalCalories: 0, proteinSum: 0, mealCount: 0, exercised: false });
+    buckets.set(k, { totalCalories: 0, proteinSum: 0, carbsSum: 0, fatSum: 0, mealCount: 0, exercised: false });
   }
   for (const l of logs) {
     const key = localDateKey(l.date);
@@ -103,6 +113,8 @@ export function summarizeDays(
     if (!bucket) continue;
     bucket.totalCalories += l.calories || 0;
     if (l.protein != null) bucket.proteinSum += l.protein;
+    if (l.carbs != null) bucket.carbsSum += l.carbs;
+    if (l.fat != null) bucket.fatSum += l.fat;
     bucket.mealCount += 1;
     if (!bucket.exercised && exercisedFlag(l)) bucket.exercised = true;
   }
@@ -112,6 +124,8 @@ export function summarizeDays(
       dateKey,
       totalCalories: b.totalCalories,
       totalProtein: Math.round(b.proteinSum),
+      totalCarbs: Math.round(b.carbsSum),
+      totalFat: Math.round(b.fatSum),
       mealCount: b.mealCount,
       exercised: b.exercised,
       weightLb: weightFor(dateKey, dailyWeights),

@@ -17,6 +17,8 @@ import type { LogEntry } from '../services/firebase.service';
 export interface RawMealInput {
   calories: string | number | null | undefined;
   protein?: string | number | null | undefined;
+  carbs?: string | number | null | undefined;
+  fat?: string | number | null | undefined;
   exerciseCompleted?: boolean;
   /** Free-text label the user typed. */
   mealLabel?: string | null;
@@ -35,6 +37,8 @@ export interface MealDraft {
   entry: LogEntry;
   calories: number;
   protein?: number;
+  carbs?: number;
+  fat?: number;
   label?: string;
 }
 
@@ -105,6 +109,12 @@ export function parseMealDraft(raw: RawMealInput): MealDraftResult {
   const protein = parseNumericInput(raw.protein);
   if (protein != null) entry.protein = protein;
 
+  const carbs = parseNumericInput(raw.carbs);
+  if (carbs != null) entry.carbs = carbs;
+
+  const fat = parseNumericInput(raw.fat);
+  if (fat != null) entry.fat = fat;
+
   entry.exerciseCompleted = raw.exerciseCompleted === true;
 
   const timestamp = timestampForDateKey(raw.dateKey);
@@ -115,6 +125,13 @@ export function parseMealDraft(raw: RawMealInput): MealDraftResult {
 
   return {
     ok: true,
-    draft: { entry, calories, ...(protein != null ? { protein } : {}), ...(label ? { label } : {}) },
+    draft: {
+      entry,
+      calories,
+      ...(protein != null ? { protein } : {}),
+      ...(carbs != null ? { carbs } : {}),
+      ...(fat != null ? { fat } : {}),
+      ...(label ? { label } : {}),
+    },
   };
 }

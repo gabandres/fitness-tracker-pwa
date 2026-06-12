@@ -437,6 +437,10 @@ export class FoodSearchComponent {
     this.estimated.emit({
       calories: Math.round(s.kcal * m),
       protein: Math.round(s.protein * m),
+      // Older detail-cache entries predate the macro expansion — emit
+      // null (leave the form field untouched) rather than a fake 0.
+      carbs: s.carbs != null ? Math.round(s.carbs * m) : null,
+      fat: s.fat != null ? Math.round(s.fat * m) : null,
       label,
     });
 

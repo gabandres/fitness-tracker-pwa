@@ -52,6 +52,23 @@ describe('summarizeDay / summarizeDays', () => {
       expect(s.exercised).toBe(true);
     });
 
+    it('sums optional carbs/fat, zero when no entry carries them', () => {
+      const date = dayAt([2026, 5, 22]);
+      const key = localDateKey(date);
+      const logs: DailyLog[] = [
+        log({ date, calories: 500, carbs: 40.2, fat: 15 }),
+        log({ date, calories: 300, carbs: 20 }), // no fat -> ignored in fat sum
+        log({ date, calories: 200 }),            // legacy row, no macros
+      ];
+      const s = summarizeDay(key, logs);
+      expect(s.totalCarbs).toBe(60); // round(40.2 + 20)
+      expect(s.totalFat).toBe(15);
+
+      const empty = summarizeDay(key, [log({ date, calories: 100 })]);
+      expect(empty.totalCarbs).toBe(0);
+      expect(empty.totalFat).toBe(0);
+    });
+
     it('detects exercise via legacy lift/cardio flags', () => {
       const date = dayAt([2026, 5, 22]);
       const key = localDateKey(date);

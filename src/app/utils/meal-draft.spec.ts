@@ -75,6 +75,26 @@ describe('parseMealDraft', () => {
     });
   });
 
+  describe('carbs + fat', () => {
+    it('includes carbs/fat when valid', () => {
+      const d = ok({ calories: 500, carbs: '45', fat: 18 });
+      expect(d.entry.carbs).toBe(45);
+      expect(d.entry.fat).toBe(18);
+      expect(d.carbs).toBe(45);
+      expect(d.fat).toBe(18);
+    });
+
+    it('drops carbs/fat when blank or invalid (never blocks the save)', () => {
+      for (const v of ['', '  ', 'abc', null, undefined, NaN] as const) {
+        const d = ok({ calories: 500, carbs: v, fat: v });
+        expect('carbs' in d.entry).toBe(false);
+        expect('fat' in d.entry).toBe(false);
+        expect(d.carbs).toBeUndefined();
+        expect(d.fat).toBeUndefined();
+      }
+    });
+  });
+
   describe('exercise', () => {
     it('reflects the exercise flag as a strict boolean', () => {
       expect(ok({ calories: 500, exerciseCompleted: true }).entry.exerciseCompleted).toBe(true);

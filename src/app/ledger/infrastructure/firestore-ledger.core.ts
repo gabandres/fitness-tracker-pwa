@@ -121,6 +121,8 @@ export class FirestoreLedgerCore {
     };
     if (entry.weight != null) data['weight'] = entry.weight;
     if (entry.protein != null) data['protein'] = entry.protein;
+    if (entry.carbs != null) data['carbs'] = entry.carbs;
+    if (entry.fat != null) data['fat'] = entry.fat;
     if (entry.exerciseCompleted) data['exerciseCompleted'] = true;
     if (entry.mealLabel) data['mealLabel'] = entry.mealLabel;
     const ref = await addDoc(this.userCollection('dailyLogs'), data);
@@ -141,6 +143,8 @@ export class FirestoreLedgerCore {
         calories: data.calories,
         date: data.timestamp.toDate(),
         protein: data.protein,
+        carbs: data.carbs,
+        fat: data.fat,
         exerciseCompleted: data.exerciseCompleted,
         liftCompleted: data.liftCompleted,
         cardioCompleted: data.cardioCompleted,
@@ -154,6 +158,8 @@ export class FirestoreLedgerCore {
     const data: Record<string, unknown> = {
       calories: entry.calories,
       protein: entry.protein != null ? entry.protein : deleteField(),
+      carbs: entry.carbs != null ? entry.carbs : deleteField(),
+      fat: entry.fat != null ? entry.fat : deleteField(),
       exerciseCompleted: entry.exerciseCompleted ? true : deleteField(),
       // Migrate away from legacy fields on every edit.
       liftCompleted: deleteField(),
@@ -222,6 +228,8 @@ export class FirestoreLedgerCore {
       calories: preset.calories,
     };
     if (preset.protein != null) data['protein'] = preset.protein;
+    if (preset.carbs != null) data['carbs'] = preset.carbs;
+    if (preset.fat != null) data['fat'] = preset.fat;
     const ref = await addDoc(this.userCollection('presets'), data);
     return ref.id;
   }

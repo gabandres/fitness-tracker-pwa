@@ -27,13 +27,13 @@ service cloud.firestore {
 
     // ─── Log schema ─────────────────────────────────────────────
     // Required: calories, timestamp
-    // Optional: weight, protein, exerciseCompleted, mealLabel
+    // Optional: weight, protein, carbs, fat, exerciseCompleted, mealLabel
     // Legacy (read-only, may exist on historic docs): liftCompleted, cardioCompleted
     function isValidLog(data) {
       return data.keys().hasAll(['calories', 'timestamp'])
           && data.keys().hasOnly([
               'weight', 'calories', 'timestamp',
-              'protein', 'exerciseCompleted',
+              'protein', 'carbs', 'fat', 'exerciseCompleted',
               'liftCompleted', 'cardioCompleted',
               'mealLabel'
           ])
@@ -46,6 +46,10 @@ service cloud.firestore {
           // Optional fields validated when present
           && (!('protein' in data.keys()) ||
               (data.protein is number && data.protein >= 0 && data.protein < 1000))
+          && (!('carbs' in data.keys()) ||
+              (data.carbs is number && data.carbs >= 0 && data.carbs < 1000))
+          && (!('fat' in data.keys()) ||
+              (data.fat is number && data.fat >= 0 && data.fat < 1000))
           && (!('exerciseCompleted' in data.keys()) ||
               data.exerciseCompleted is bool)
           && (!('liftCompleted' in data.keys()) ||
@@ -113,7 +117,7 @@ service cloud.firestore {
     // ─── Preset schema ────────────────────────────────────────
     function isValidPreset(data) {
       return data.keys().hasAll(['name', 'calories'])
-          && data.keys().hasOnly(['name', 'calories', 'protein'])
+          && data.keys().hasOnly(['name', 'calories', 'protein', 'carbs', 'fat'])
           && data.name is string
           && data.name.size() > 0
           && data.name.size() <= 100
@@ -121,7 +125,11 @@ service cloud.firestore {
           && data.calories >= 0
           && data.calories < 20000
           && (!('protein' in data.keys()) ||
-              (data.protein is number && data.protein >= 0 && data.protein < 1000));
+              (data.protein is number && data.protein >= 0 && data.protein < 1000))
+          && (!('carbs' in data.keys()) ||
+              (data.carbs is number && data.carbs >= 0 && data.carbs < 1000))
+          && (!('fat' in data.keys()) ||
+              (data.fat is number && data.fat >= 0 && data.fat < 1000));
     }
 
     // ─── Workout schemas ────────────────────────────────────────

@@ -3,6 +3,8 @@ import { Injectable } from '@angular/core';
 export interface BarcodeResult {
   calories: number;
   protein: number;
+  carbs: number | null;
+  fat: number | null;
   productName: string;
 }
 
@@ -81,6 +83,8 @@ export class BarcodeService {
       ?? (n['energy_serving'] != null ? Math.round(n['energy_serving'] / KJ_TO_KCAL) : null)
       ?? (n['energy_100g'] != null ? Math.round(n['energy_100g'] / KJ_TO_KCAL) : null);
     const protein = n['proteins_serving'] ?? n['proteins_100g'];
+    const carbs = n['carbohydrates_serving'] ?? n['carbohydrates_100g'];
+    const fat = n['fat_serving'] ?? n['fat_100g'];
 
     if (calories == null) {
       throw new Error(`No calorie data found for "${name}".`);
@@ -89,6 +93,8 @@ export class BarcodeService {
     return {
       calories: Math.round(calories),
       protein: protein != null ? Math.round(protein) : 0,
+      carbs: carbs != null ? Math.round(carbs) : null,
+      fat: fat != null ? Math.round(fat) : null,
       productName: name.slice(0, 100),
     };
   }

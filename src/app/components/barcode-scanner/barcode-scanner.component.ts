@@ -92,6 +92,8 @@ export class BarcodeScannerComponent implements OnDestroy {
       this.estimated.emit({
         calories: result.calories,
         protein: result.protein,
+        carbs: result.carbs,
+        fat: result.fat,
         label: result.productName,
       });
     } catch (err) {

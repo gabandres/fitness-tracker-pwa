@@ -91,6 +91,8 @@ export class PresetPickerComponent {
     this.estimated.emit({
       calories: p.calories,
       protein: p.protein ?? null,
+      carbs: p.carbs ?? null,
+      fat: p.fat ?? null,
       label: p.name,
     });
   }

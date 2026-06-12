@@ -175,6 +175,41 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
                 </div>
               </div>
 
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label for="es-carbs" class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
+                    {{ t('entry.carbs') }}
+                  </label>
+                  <input
+                    id="es-carbs"
+                    type="number"
+                    inputmode="numeric"
+                    step="1"
+                    min="0"
+                    class="v2-num w-full"
+                    style="padding: var(--v2-space-3) var(--v2-space-4); background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md); font-size: 1.125rem; font-weight: 600; color: var(--v2-ink); min-height: var(--v2-tap-min);"
+                    placeholder="0"
+                    [value]="form.carbs() ?? ''"
+                    (input)="onCarbsInput($event)" />
+                </div>
+                <div>
+                  <label for="es-fat" class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
+                    {{ t('entry.fat') }}
+                  </label>
+                  <input
+                    id="es-fat"
+                    type="number"
+                    inputmode="numeric"
+                    step="1"
+                    min="0"
+                    class="v2-num w-full"
+                    style="padding: var(--v2-space-3) var(--v2-space-4); background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md); font-size: 1.125rem; font-weight: 600; color: var(--v2-ink); min-height: var(--v2-tap-min);"
+                    placeholder="0"
+                    [value]="form.fat() ?? ''"
+                    (input)="onFatInput($event)" />
+                </div>
+              </div>
+
               <!-- Date is hidden by default (entries default to today /
                    addingForDay). Show it only in edit mode or when
                    adding for a non-today day. -->
@@ -332,6 +367,14 @@ export class EntrySheetComponent {
 
   protected onProteinInput(e: Event): void {
     this.form.protein.set(parseNumericInput((e.target as HTMLInputElement).value));
+  }
+
+  protected onCarbsInput(e: Event): void {
+    this.form.carbs.set(parseNumericInput((e.target as HTMLInputElement).value));
+  }
+
+  protected onFatInput(e: Event): void {
+    this.form.fat.set(parseNumericInput((e.target as HTMLInputElement).value));
   }
 
   protected save(e: Event): void {

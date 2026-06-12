@@ -52,11 +52,13 @@ export class EntryFormManager {
       on the next successful preset save or form reset. */
   readonly presetLimitHit = signal(false);
 
-  /** Snapshot of the last ADD-mode save (calories, protein, label) so
+  /** Snapshot of the last ADD-mode save (calories, macros, label) so
       the "save as preset" affordance survives the post-save reset that
       clears the form fields. Without this, `confirmSavePreset()` read
       null calories from the cleared form and silently no-op'd. */
-  private lastSavedEntry: { calories: number; protein?: number; label?: string } | null = null;
+  private lastSavedEntry: {
+    calories: number; protein?: number; carbs?: number; fat?: number; label?: string;
+  } | null = null;
 
   /** Handle for the ADD-mode auto-close timer so the "save as preset"
       sub-flow can cancel it. Otherwise the timer fires mid-flow and
@@ -77,6 +79,8 @@ export class EntryFormManager {
   readonly entryDate = signal<string>(localDateKey(new Date()));
   readonly calories = signal<number | null>(null);
   readonly protein = signal<number | null>(null);
+  readonly carbs = signal<number | null>(null);
+  readonly fat = signal<number | null>(null);
   readonly exerciseDone = signal(false);
 
   // ── Mode transitions ────────────────────────────────────────
@@ -100,6 +104,8 @@ export class EntryFormManager {
     this.mode.set('edit');
     this.calories.set(meal.calories);
     this.protein.set(meal.protein ?? null);
+    this.carbs.set(meal.carbs ?? null);
+    this.fat.set(meal.fat ?? null);
     // Derive exercise toggle from the new field OR either legacy flag.
     this.exerciseDone.set(
       meal.exerciseCompleted ?? meal.liftCompleted ?? meal.cardioCompleted ?? false,
@@ -127,6 +133,8 @@ export class EntryFormManager {
   applyEstimate(est: MacroEstimate): void {
     this.calories.set(est.calories);
     if (est.protein != null) this.protein.set(est.protein);
+    if (est.carbs != null) this.carbs.set(est.carbs);
+    if (est.fat != null) this.fat.set(est.fat);
     this.activePresetName.set(est.label);
     this.mealLabel.set(est.label);
   }
@@ -141,6 +149,8 @@ export class EntryFormManager {
     return parseMealDraft({
       calories: this.calories(),
       protein: this.protein(),
+      carbs: this.carbs(),
+      fat: this.fat(),
       exerciseCompleted: this.exerciseDone(),
       mealLabel: this.mealLabel(),
       activePresetName: this.activePresetName(),
@@ -155,7 +165,7 @@ export class EntryFormManager {
       this.errorMsg.set(this.translation.t(MEAL_DRAFT_ERROR_MESSAGE_KEYS[result.error]));
       return;
     }
-    const { entry, calories, protein, label } = result.draft;
+    const { entry, calories, protein, carbs, fat, label } = result.draft;
 
     this.status.set('saving');
     try {
@@ -180,6 +190,8 @@ export class EntryFormManager {
         // silently no-op'd on its `cal == null` guard.
         this.lastSavedEntry = { calories };
         if (protein != null) this.lastSavedEntry.protein = protein;
+        if (carbs != null) this.lastSavedEntry.carbs = carbs;
+        if (fat != null) this.lastSavedEntry.fat = fat;
         if (label) this.lastSavedEntry.label = label;
 
         // Clear fields so a second SAVE click can't duplicate the entry.
@@ -237,6 +249,10 @@ export class EntryFormManager {
     const preset: Omit<MealPreset, 'id'> = { name, calories: Number(cal) };
     const pro = snap?.protein ?? this.protein();
     if (pro != null) preset.protein = Number(pro);
+    const carb = snap?.carbs ?? this.carbs();
+    if (carb != null) preset.carbs = Number(carb);
+    const f = snap?.fat ?? this.fat();
+    if (f != null) preset.fat = Number(f);
     try {
       await this.store.addPreset(preset);
       this.savingPreset.set(false);
@@ -261,6 +277,8 @@ export class EntryFormManager {
   private resetForm(): void {
     this.calories.set(null);
     this.protein.set(null);
+    this.carbs.set(null);
+    this.fat.set(null);
     this.exerciseDone.set(false);
     this.activePresetName.set(null);
     this.mealLabel.set('');

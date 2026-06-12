@@ -147,6 +147,32 @@ describe.skipIf(!EMULATOR_AVAILABLE)('FirestoreLedgerCore — emulator contract'
       expect(entry.id).toBe(id);
     });
 
+    it('round-trips carbs/fat under prod rules, and updateLog clears them when omitted', async () => {
+      await core.addLog({
+        calories: 520, protein: 30, carbs: 45, fat: 18,
+        timestamp: new Date('2026-04-22T12:00:00Z'),
+      });
+      let [entry] = await core.getRecentLogs();
+      expect(entry.carbs).toBe(45);
+      expect(entry.fat).toBe(18);
+
+      // Omitted carbs/fat clear via deleteField, mirroring protein.
+      await core.updateLog(entry.id!, { calories: 520, protein: 30 });
+      [entry] = await core.getRecentLogs();
+      expect(entry.carbs).toBeUndefined();
+      expect(entry.fat).toBeUndefined();
+      expect(entry.protein).toBe(30);
+    });
+
+    it('prod rules reject out-of-range carbs/fat', async () => {
+      await expect(
+        core.addLog({ calories: 100, carbs: 5000, timestamp: new Date('2026-04-22T12:00:00Z') }),
+      ).rejects.toThrow();
+      await expect(
+        core.addLog({ calories: 100, fat: -5, timestamp: new Date('2026-04-22T12:00:00Z') }),
+      ).rejects.toThrow();
+    });
+
     it('caps getRecentLogs at the requested row count, keeping the LATEST rows', async () => {
       for (let i = 0; i < 8; i++) {
         await core.addLog({ calories: i, timestamp: new Date(2026, 3, i + 1) });

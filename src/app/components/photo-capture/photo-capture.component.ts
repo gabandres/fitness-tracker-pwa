@@ -105,6 +105,8 @@ export class PhotoCaptureComponent {
       this.estimated.emit({
         calories: result.calories,
         protein: result.protein,
+        carbs: result.carbs ?? null,
+        fat: result.fat ?? null,
         label: result.description,
       });
       this.photoStatus.set('idle');

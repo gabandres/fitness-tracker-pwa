@@ -66,6 +66,22 @@ import { UiWeightSheet } from './weight-sheet.component';
       </div>
     </div>
 
+    <!-- Carbs + fat chips — hidden until the day has macro-carrying
+         entries (older rows predate the carbs/fat fields, and a
+         "0g · 0g" row would read as data rather than absence). -->
+    @if (carbsConsumed() > 0 || fatConsumed() > 0) {
+      <div class="flex justify-center gap-2 mt-4">
+        <span class="v2-num v2-caption inline-flex items-center gap-1"
+          style="padding: 4px 12px; background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: 999px; color: var(--v2-ink);">
+          {{ t('entry.carbsChip', { n: carbsConsumed() }) }}
+        </span>
+        <span class="v2-num v2-caption inline-flex items-center gap-1"
+          style="padding: 4px 12px; background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: 999px; color: var(--v2-ink);">
+          {{ t('entry.fatChip', { n: fatConsumed() }) }}
+        </span>
+      </div>
+    }
+
     <!-- Exercise toggle -->
     @if (editable()) {
       <div class="flex justify-center mt-4">
@@ -263,6 +279,9 @@ export class UiDaySummary {
 
   protected readonly proteinTargetG = computed(() => this.store.proteinTarget());
   protected readonly proteinConsumed = computed(() => this.summary()?.totalProtein ?? 0);
+
+  protected readonly carbsConsumed = computed(() => this.summary()?.totalCarbs ?? 0);
+  protected readonly fatConsumed = computed(() => this.summary()?.totalFat ?? 0);
 
   protected readonly exercised = computed(() => this.summary()?.exercised ?? false);
 

@@ -5,6 +5,9 @@ import { TranslationService } from './translation.service';
 export interface PhotoAnalysisResult {
   calories: number;
   protein: number;
+  /** Null when the (older) deployed function doesn't return them yet. */
+  carbs: number | null;
+  fat: number | null;
   description: string;
   confidence: 'low' | 'medium' | 'high';
   photosRemaining: number;
@@ -12,7 +15,7 @@ export interface PhotoAnalysisResult {
 
 /**
  * Wraps the analyzePhoto Cloud Function callable.
- * Sends a base64-encoded meal photo, receives calorie + protein estimates.
+ * Sends a base64-encoded meal photo, receives calorie + macro estimates.
  */
 @Injectable({ providedIn: 'root' })
 export class PhotoMacrosService {

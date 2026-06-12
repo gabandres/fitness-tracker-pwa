@@ -193,6 +193,8 @@ export class InMemoryLedgerAdapter implements LedgerPort {
       date: entry.timestamp ?? new Date(),
       weight: entry.weight,
       protein: entry.protein,
+      carbs: entry.carbs,
+      fat: entry.fat,
       exerciseCompleted: entry.exerciseCompleted || undefined,
       mealLabel: entry.mealLabel,
     });
@@ -214,6 +216,8 @@ export class InMemoryLedgerAdapter implements LedgerPort {
       ...existing,
       calories: entry.calories,
       protein: entry.protein ?? undefined,
+      carbs: entry.carbs ?? undefined,
+      fat: entry.fat ?? undefined,
       exerciseCompleted: entry.exerciseCompleted ? true : undefined,
       mealLabel: entry.mealLabel ?? undefined,
       weight: entry.weight ?? existing.weight,

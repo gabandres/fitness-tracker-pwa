@@ -20,6 +20,9 @@ export interface ServingOption {
   grams: number;
   kcal: number;
   protein: number;
+  /** Absent on detail-cache entries written before the macro expansion. */
+  carbs?: number;
+  fat?: number;
   kind: 'per100g' | 'portion';
 }
 

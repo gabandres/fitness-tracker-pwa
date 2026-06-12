@@ -65,7 +65,7 @@ export const analyzePhoto = onCall(
             parts: [
               { inlineData: { mimeType: "image/jpeg", data: photoBase64 } },
               {
-                text: `Analyze this meal photo and estimate total calories and protein in grams.
+                text: `Analyze this meal photo and estimate total calories, protein, carbs, and fat in grams.
 
 Estimation rules:
 - Include ALL visible and implied fats: cooking oil, butter, dressings, sauces, pan drippings.
@@ -114,11 +114,13 @@ Common Puerto Rican / Latin staples for reference:
                 "and sum. Must precede and justify the calorie/protein totals." },
               calories:    { type: "integer", description: "Total estimated calories (must follow from reasoning)" },
               protein:     { type: "integer", description: "Total protein in grams (must follow from reasoning)" },
+              carbs:       { type: "integer", description: "Total carbohydrates in grams (must follow from reasoning)" },
+              fat:         { type: "integer", description: "Total fat in grams, including cooking fats (must follow from reasoning)" },
               description: { type: "string",  description: "Brief 3-5 word description of the meal" },
               confidence:  { type: "string",  enum: ["low", "medium", "high"],
                              description: "Estimation confidence based on image clarity and portion visibility" },
             },
-            required: ["reasoning", "calories", "protein", "description", "confidence"],
+            required: ["reasoning", "calories", "protein", "carbs", "fat", "description", "confidence"],
           },
         },
       });
@@ -128,6 +130,8 @@ Common Puerto Rican / Latin staples for reference:
         reasoning?: string;
         calories?: number;
         protein?: number;
+        carbs?: number;
+        fat?: number;
         description?: string;
         confidence?: string;
       };
@@ -140,6 +144,8 @@ Common Puerto Rican / Latin staples for reference:
 
       const calories = typeof parsed.calories === "number" ? Math.round(parsed.calories) : null;
       const protein = typeof parsed.protein === "number" ? Math.round(parsed.protein) : null;
+      const carbs = typeof parsed.carbs === "number" ? Math.round(parsed.carbs) : null;
+      const fat = typeof parsed.fat === "number" ? Math.round(parsed.fat) : null;
       const description = typeof parsed.description === "string" ? parsed.description.slice(0, 100) : "Meal";
       const confidence = (parsed.confidence === "low" || parsed.confidence === "medium" || parsed.confidence === "high")
         ? parsed.confidence : "medium";
@@ -155,6 +161,8 @@ Common Puerto Rican / Latin staples for reference:
       return {
         calories,
         protein: protein ?? 0,
+        carbs,
+        fat,
         description,
         confidence,
         // Admins + comped users report "unlimited" by returning the

@@ -53,6 +53,8 @@ const SEARCH_PAGE_SIZE_MAX = 25;
 const NUTRIENT_KCAL = "208";
 const NUTRIENT_KJ = "268";
 const NUTRIENT_PROTEIN = "203";
+const NUTRIENT_FAT = "204";
+const NUTRIENT_CARBS = "205";
 
 interface FdcSearchHit {
   fdcId: number;
@@ -120,6 +122,10 @@ interface ServingOption {
   kcal: number;
   /** Protein in grams for this serving (rounded). */
   protein: number;
+  /** Carbs / fat in grams (rounded). Absent on cache entries written
+   *  before the macro expansion — clients treat undefined as unknown. */
+  carbs?: number;
+  fat?: number;
   /** Discriminator: 'per100g' is the canonical row for metric users;
    *  'portion' is a household measure (cup, tbsp, slice, piece). The
    *  client's unit preference sorts by this tag rather than guessing
@@ -192,12 +198,15 @@ function readKcal(nutrients: FdcFoodNutrient[] | undefined): number | null {
   return null;
 }
 
-function readProtein(nutrients: FdcFoodNutrient[] | undefined): number | null {
+function readNutrient(
+  nutrients: FdcFoodNutrient[] | undefined,
+  nutrientNumber: string,
+): number | null {
   if (!nutrients) return null;
   for (const n of nutrients) {
     const num = n.nutrientNumber ?? n.nutrient?.number;
     const val = n.amount ?? n.value;
-    if (num === NUTRIENT_PROTEIN && typeof val === "number") return val;
+    if (num === nutrientNumber && typeof val === "number") return val;
   }
   return null;
 }
@@ -215,7 +224,17 @@ function buildServings(food: FdcFoodDetail): ServingOption[] {
   // are ALSO per-100g for the nutrients array (despite the labelNutrients
   // sibling being per-serving). Treating the array as per-100g uniformly.
   const kcalPer100g = readKcal(nutrients);
-  const proteinPer100g = readProtein(nutrients);
+  const proteinPer100g = readNutrient(nutrients, NUTRIENT_PROTEIN);
+  const carbsPer100g = readNutrient(nutrients, NUTRIENT_CARBS);
+  const fatPer100g = readNutrient(nutrients, NUTRIENT_FAT);
+
+  /** Scale the per-100g macros to a serving ratio, dropping the fields
+   *  FDC didn't report rather than writing fake zeros. */
+  const macrosAt = (ratio: number) => ({
+    protein: Math.round((proteinPer100g ?? 0) * ratio),
+    ...(carbsPer100g != null ? { carbs: Math.round(carbsPer100g * ratio) } : {}),
+    ...(fatPer100g != null ? { fat: Math.round(fatPer100g * ratio) } : {}),
+  });
 
   const out: ServingOption[] = [];
 
@@ -224,7 +243,7 @@ function buildServings(food: FdcFoodDetail): ServingOption[] {
       label: "100 g",
       grams: 100,
       kcal: Math.round(kcalPer100g),
-      protein: Math.round(proteinPer100g ?? 0),
+      ...macrosAt(1),
       kind: 'per100g',
     });
   }
@@ -240,7 +259,7 @@ function buildServings(food: FdcFoodDetail): ServingOption[] {
         label: sizeStr.slice(0, 60),
         grams: gramsApprox,
         kcal: Math.round(kcalPer100g * ratio),
-        protein: Math.round((proteinPer100g ?? 0) * ratio),
+        ...macrosAt(ratio),
         kind: 'portion',
       });
     }
@@ -263,7 +282,7 @@ function buildServings(food: FdcFoodDetail): ServingOption[] {
       label,
       grams: p.gramWeight,
       kcal: Math.round(kcalPer100g * ratio),
-      protein: Math.round((proteinPer100g ?? 0) * ratio),
+      ...macrosAt(ratio),
       kind: 'portion',
     });
   }

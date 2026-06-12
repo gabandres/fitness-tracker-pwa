@@ -27,6 +27,8 @@ export interface DailyLogDoc {
   calories: number;
   timestamp: Timestamp;
   protein?: number;
+  carbs?: number;
+  fat?: number;
   exerciseCompleted?: boolean;
   liftCompleted?: boolean;
   cardioCompleted?: boolean;
@@ -39,6 +41,8 @@ export interface DailyLog {
   calories: number;
   date: Date;
   protein?: number;
+  carbs?: number;
+  fat?: number;
   exerciseCompleted?: boolean;
   liftCompleted?: boolean;
   cardioCompleted?: boolean;
@@ -68,6 +72,8 @@ export interface MealPreset {
   name: string;
   calories: number;
   protein?: number;
+  carbs?: number;
+  fat?: number;
 }
 
 /** Shape passed to addLog / updateLog — the fields the user submits. */
@@ -75,6 +81,8 @@ export interface LogEntry {
   weight?: number;
   calories: number;
   protein?: number;
+  carbs?: number;
+  fat?: number;
   exerciseCompleted?: boolean;
   mealLabel?: string;
   timestamp?: Date; // for undo-restore at original time

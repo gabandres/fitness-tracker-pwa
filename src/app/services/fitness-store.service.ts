@@ -62,6 +62,9 @@ export interface MonthlySummary {
 export interface TodaySummary {
   totalCalories: number;
   totalProtein: number;
+  /** Grams. Zero when no entry today carried the optional field. */
+  totalCarbs: number;
+  totalFat: number;
 }
 
 /**
@@ -407,6 +410,8 @@ export class FitnessStore {
     return {
       totalCalories: todayLogs.reduce((s, l) => s + l.calories, 0),
       totalProtein: todayLogs.reduce((s, l) => s + (l.protein ?? 0), 0),
+      totalCarbs: Math.round(todayLogs.reduce((s, l) => s + (l.carbs ?? 0), 0)),
+      totalFat: Math.round(todayLogs.reduce((s, l) => s + (l.fat ?? 0), 0)),
     };
   });
 
@@ -426,6 +431,8 @@ export class FitnessStore {
   summaryFor(dateKey: string): {
     totalCalories: number;
     totalProtein: number;
+    totalCarbs: number;
+    totalFat: number;
     exercised: boolean;
     count: number;
   } | null {
@@ -445,6 +452,8 @@ export class FitnessStore {
     return {
       totalCalories: s.totalCalories,
       totalProtein: s.totalProtein,
+      totalCarbs: s.totalCarbs,
+      totalFat: s.totalFat,
       exercised: s.exercised,
       count: s.mealCount,
     };
@@ -946,6 +955,8 @@ export class FitnessStore {
     };
     if (entry.weight != null) log.weight = entry.weight;
     if (entry.protein != null) log.protein = entry.protein;
+    if (entry.carbs != null) log.carbs = entry.carbs;
+    if (entry.fat != null) log.fat = entry.fat;
     if (entry.exerciseCompleted) log.exerciseCompleted = true;
     if (entry.mealLabel) log.mealLabel = entry.mealLabel;
 
@@ -973,6 +984,8 @@ export class FitnessStore {
         calories: entry.calories,
         date: entry.timestamp ?? l.date,
         protein: entry.protein != null ? entry.protein : undefined,
+        carbs: entry.carbs != null ? entry.carbs : undefined,
+        fat: entry.fat != null ? entry.fat : undefined,
         exerciseCompleted: entry.exerciseCompleted ? true : undefined,
         liftCompleted: undefined,
         cardioCompleted: undefined,
