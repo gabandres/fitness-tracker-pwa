@@ -69,6 +69,13 @@ These three windows look similar and are NOT interchangeable. See
 - **Free-tier 90-day cap** — `CHART_HISTORY_DAYS_FREE = 90`. Applied
   inside `allTimeLogs()`; the underlying `_allTimeLogs` stays uncapped
   so CSV export and `monthlySummary` still see lifetime history.
+- **TierLimits** — `src/app/models/tier-limits.ts`, the one module that
+  states what "free" means: `PRESET_LIMIT_FREE`,
+  `CHART_HISTORY_DAYS_FREE`, `CUSTOM_TEMPLATE_LIMIT_FREE`,
+  `WORKOUT_HISTORY_DAYS_FREE`. Never re-declare these numbers; the gate
+  check itself stays `SubscriptionService.isPaid()`. Server-side photo /
+  consultation caps live in `functions/src/daily-quota.ts` (deliberate
+  twin, no shared package).
 
 ## Aggregations
 
@@ -170,6 +177,12 @@ collections + a `WorkoutStore` facet back the Train tab.
   `suggestProgression` (deterministic double-progression — hit
   `targetReps` for `holdSessions` → `+incrementLb`), `computeExercisePRs`
   + `estimateOneRepMax` (Epley). No AI in v1.
+- **RestTimer** — `components/train/rest-timer.ts`. The between-set rest
+  countdown, one instance per session sheet (plain class, not
+  injectable). Interface: `start(s)` / `stop()` / `remaining` / `label`;
+  the interval handle, tick, clamp, and `m:ss` formatting are internal.
+  Mini-sets get `restMiniSec`, everything else `restClusterSec` (both
+  off the template).
 - **finishWorkout** — Hub orchestration on `FitnessStore`: flips the
   session to `completed`, mirrors session bodyweight into `dailyWeights`,
   and stamps the day's exercise marker via `markExercised`.

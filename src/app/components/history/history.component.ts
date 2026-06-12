@@ -22,8 +22,7 @@ import { UiIconButton } from '../ui/icon-button.component';
 import { UiCard } from '../ui/card.component';
 import { UiRing } from '../ui/ring.component';
 import { UiFastingPill } from '../ui/fasting-pill.component';
-
-const FREE_TIER_DAYS = 90;
+import { CHART_HISTORY_DAYS_FREE } from '../../models/tier-limits';
 
 /**
  * Month-grid history view. Each day cell shows a mini kcal ring driven
@@ -155,7 +154,7 @@ export class HistoryComponent {
    *  visible cell is `cells()[0]` (Sunday before the first of the month). */
   protected readonly showFreeTierUpsell = computed(() => {
     if (this.subs.isPaid()) return false;
-    const cutoffKey = localDateKey(addDays(new Date(), -FREE_TIER_DAYS));
+    const cutoffKey = localDateKey(addDays(new Date(), -CHART_HISTORY_DAYS_FREE));
     return this.cells()[0].key < cutoffKey;
   });
 

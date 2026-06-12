@@ -79,9 +79,9 @@ export class UpsellCardComponent {
   }
 
   protected shouldShow(): boolean {
-    // Only free-tier users see this. Admins and comped friends never see
-    // a pitch; paid users don't need one.
-    return !this.subs.isPaid() && !this.subs.isAdmin() && !this.subs.isComped();
+    // Only free-tier users see this. `isPaid()` already folds in admin
+    // and comped, so one check covers all three never-pitch groups.
+    return !this.subs.isPaid();
   }
 
   protected open(): void {

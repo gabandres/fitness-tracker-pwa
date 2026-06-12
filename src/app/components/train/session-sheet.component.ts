@@ -15,6 +15,7 @@ import { WorkoutStore } from '../../services/workout-store.service';
 import { TranslationService } from '../../services/translation.service';
 import { UiSheet } from '../ui/sheet.component';
 import { UiButton } from '../ui/button.component';
+import { RestTimer } from './rest-timer';
 import type { LogStyle, SessionExercise, WorkoutSession, WorkoutSet } from '../../models/workout';
 import { DEFAULT_LOG_STYLE } from '../../models/workout';
 import {
@@ -55,11 +56,11 @@ const SAVE_DEBOUNCE_MS = 800;
         </header>
 
         <!-- Rest timer -->
-        @if (restRemaining() > 0) {
+        @if (rest.remaining() > 0) {
           <div class="v2-rest-timer mb-3 flex items-center justify-between gap-3 px-4 py-2 rounded-xl"
                style="background: var(--v2-accent-soft);">
-            <span class="v2-num" style="font-size: 1.25rem; font-weight: 600;">{{ restLabel() }}</span>
-            <button type="button" class="v2-btn v2-btn--ghost v2-btn--sm" (click)="stopRest()">{{ t('train.skipRest') }}</button>
+            <span class="v2-num" style="font-size: 1.25rem; font-weight: 600;">{{ rest.label() }}</span>
+            <button type="button" class="v2-btn v2-btn--ghost v2-btn--sm" (click)="rest.stop()">{{ t('train.skipRest') }}</button>
           </div>
         }
 
@@ -235,7 +236,8 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
   protected readonly nextNotes = signal('');
   protected readonly prevNotes = signal('');
   protected readonly saving = signal(false);
-  protected readonly restRemaining = signal(0);
+  /** Between-set rest countdown — see RestTimer for the state machine. */
+  protected readonly rest = new RestTimer();
 
   /** Rest seconds snapshotted off the source template (rest config lives
    *  on the template, not the session). Falls back to sane defaults. */
@@ -249,7 +251,6 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
   private historyByExercise = new Map<string, SessionExercise[]>();
   private prCache = new Map<string, ExercisePRs>();
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
-  private restTimer: ReturnType<typeof setInterval> | null = null;
   private hydratedFor: string | null = null;
 
   constructor() {
@@ -262,7 +263,7 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     this.flushSave();
-    if (this.restTimer) clearInterval(this.restTimer);
+    this.rest.stop();
   }
 
   private async hydrate(): Promise<void> {
@@ -395,8 +396,8 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
     // short rest; everything else the longer between-cluster rest.
     if (nowDone) {
       const { mini, cluster } = this.restSecs();
-      const rest = set.kind === 'mini' ? mini : cluster;
-      if (rest > 0) this.startRest(rest);
+      const restSec = set.kind === 'mini' ? mini : cluster;
+      if (restSec > 0) this.rest.start(restSec);
     }
     this.scheduleSave();
   }
@@ -432,31 +433,6 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
       nextNotes: this.nextNotes() || undefined,
     });
   }
-
-  // ─── Rest timer ───────────────────────────────────────────────
-  private startRest(seconds: number): void {
-    this.stopRest();
-    this.restRemaining.set(seconds);
-    this.restTimer = setInterval(() => {
-      this.restRemaining.update((r) => Math.max(0, r - 1));
-      if (this.restRemaining() === 0) this.stopRest();
-    }, 1000);
-  }
-
-  protected stopRest(): void {
-    if (this.restTimer) {
-      clearInterval(this.restTimer);
-      this.restTimer = null;
-    }
-    this.restRemaining.set(0);
-  }
-
-  protected readonly restLabel = computed(() => {
-    const s = this.restRemaining();
-    const m = Math.floor(s / 60);
-    const sec = (s % 60).toString().padStart(2, '0');
-    return `${m}:${sec}`;
-  });
 
   // ─── Lifecycle actions ────────────────────────────────────────
   protected async finish(): Promise<void> {

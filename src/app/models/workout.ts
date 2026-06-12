@@ -160,12 +160,10 @@ export type ExerciseDraft = Omit<Exercise, 'id' | 'createdAt'>;
 export type TemplateDraft = Omit<WorkoutTemplate, 'id' | 'createdAt' | 'updatedAt'>;
 export type SessionDraft = Omit<WorkoutSession, 'id' | 'createdAt' | 'updatedAt'>;
 
-// ─── Free / Pro caps (mirrors PRESET_LIMIT_FREE / CHART_HISTORY_DAYS) ─
-/** Max custom templates for non-paid users. Pro is unlimited. */
-export const CUSTOM_TEMPLATE_LIMIT_FREE = 3;
-
-/** Free-tier visible exercise-history window. Pro sees all-time. */
-export const WORKOUT_HISTORY_DAYS_FREE = 30;
+// ─── Free / Pro caps ──────────────────────────────────────────────
+// Numbers live in models/tier-limits.ts with the other free-tier
+// thresholds; re-exported here so workout call sites keep one import.
+export { CUSTOM_TEMPLATE_LIMIT_FREE, WORKOUT_HISTORY_DAYS_FREE } from './tier-limits';
 
 /** Thrown by WorkoutStore.addTemplate when a free-tier user is at cap.
  *  Mirrors PresetLimitError so the UI can show a specific upsell. */

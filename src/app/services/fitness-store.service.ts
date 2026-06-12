@@ -17,13 +17,13 @@ import { WorkoutStore } from './workout-store.service';
 import { MilestoneTracker } from './milestone-tracker.service';
 import type { SessionDraft } from '../models/workout';
 
+import { CHART_HISTORY_DAYS_FREE, PRESET_LIMIT_FREE } from '../models/tier-limits';
+
+// Re-exported so existing import sites (specs, components) keep working;
+// the numbers themselves live in models/tier-limits.ts.
+export { CHART_HISTORY_DAYS_FREE, PRESET_LIMIT_FREE };
+
 export type StoreStatus = 'idle' | 'loading' | 'ready' | 'error';
-
-/** Max preset slots for non-paid users (matches freemium table). */
-export const PRESET_LIMIT_FREE = 10;
-
-/** Free-tier visible chart history window. Pro sees all-time. */
-export const CHART_HISTORY_DAYS_FREE = 90;
 
 /** Pro perk: streak survives up to N consecutive missed days. Free users
     break their streak on any miss. Capped at one week so a Pro user who
