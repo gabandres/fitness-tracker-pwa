@@ -300,6 +300,22 @@
       "exportButton": "descargar csv",
       "exportPreparing": "preparando…",
       "exportError": "falló la exportación. inténtalo de nuevo.",
+      "importTitle": "importa desde otra app",
+      "importDesc": "trae tu historial de MyFitnessPal, Lose It! o Cronometer — sube su exportación CSV.",
+      "importChoose": "elegir csv",
+      "importPreview": "{{n}} entradas encontradas, {{from}} → {{to}}.",
+      "importSkipped": "{{n}} filas omitidas (sin fecha o calorías).",
+      "importDupWarning": "importar el mismo archivo dos veces crea entradas duplicadas.",
+      "importConfirm": "importar",
+      "importImporting": "importando…",
+      "importCancel": "cancelar",
+      "importDone": "{{n}} entradas importadas.",
+      "importError": {
+        "empty-file": "ese archivo parece vacío.",
+        "no-header-match": "no se encontraron columnas de fecha + calorías — ¿es una exportación de nutrición?",
+        "no-rows": "no se encontraron filas utilizables (a cada fila le faltaba fecha o calorías).",
+        "failed": "la importación falló a medias — revisa el Historial antes de reintentar, o aparecerán duplicados."
+      },
       "delete": "eliminar tu cuenta",
       "deleteDesc": "borra permanentemente cada registro, preset, peso e informe.",
       "deleteManage": "gestionar →"

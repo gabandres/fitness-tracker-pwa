@@ -164,6 +164,22 @@ describe.skipIf(!EMULATOR_AVAILABLE)('FirestoreLedgerCore — emulator contract'
       expect(entry.protein).toBe(30);
     });
 
+    it('importLogs bulk-writes across the 450-row batch boundary under prod rules', async () => {
+      const entries = Array.from({ length: 460 }, (_, i) => ({
+        calories: 100 + i,
+        protein: 10,
+        carbs: 20,
+        fat: 5,
+        mealLabel: `import-${i}`,
+        timestamp: new Date(2026, 0, 1 + (i % 28), 12, 0, 0),
+      }));
+      const written = await core.importLogs(entries);
+      expect(written).toBe(460);
+      const logs = await core.getRecentLogs(9999);
+      expect(logs.length).toBe(460);
+      expect(logs[0].carbs).toBe(20); // macros survive the batched path
+    });
+
     it('prod rules reject out-of-range carbs/fat', async () => {
       await expect(
         core.addLog({ calories: 100, carbs: 5000, timestamp: new Date('2026-04-22T12:00:00Z') }),

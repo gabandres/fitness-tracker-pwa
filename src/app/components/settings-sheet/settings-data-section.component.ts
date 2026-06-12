@@ -1,6 +1,6 @@
 import {
-  ChangeDetectionStrategy, Component,
-  inject, signal,
+  ChangeDetectionStrategy, Component, ElementRef,
+  inject, signal, viewChild,
 } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { LucideAngularModule } from 'lucide-angular';
@@ -8,6 +8,7 @@ import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { AnalyticsService } from '../../services/analytics.service';
 import { buildCsv, downloadCsv } from '../../utils/csv-export';
+import { ImportParseResult, parseImportCsv } from '../../utils/import-csv';
 import { UiCard } from '../ui/card.component';
 import { UiButton } from '../ui/button.component';
 
@@ -69,6 +70,52 @@ import { UiButton } from '../ui/button.component';
                 </ui-button>
               }
             </div>
+          }
+        </div>
+
+        <!-- Switcher import: MyFitnessPal / Lose It! / Cronometer CSV.
+             Parsing is fully client-side (utils/import-csv.ts); the
+             ledger bulk-writes in ≤450-row batches. -->
+        <div class="mb-4">
+          <div class="flex items-center justify-between gap-3 mb-2">
+            <div class="min-w-0">
+              <div class="v2-body" style="font-weight: 500;">{{ t('settings.data.importTitle') }}</div>
+              <p class="v2-caption mt-0.5">{{ t('settings.data.importDesc') }}</p>
+            </div>
+            <ui-button variant="secondary" size="sm" (click)="pickImportFile()" [disabled]="importing()">
+              <lucide-icon name="upload" [size]="14" />
+              {{ t('settings.data.importChoose') }}
+            </ui-button>
+          </div>
+          <input #importFile type="file" accept=".csv,text/csv" class="sr-only"
+            (change)="onImportFile($event)" />
+          @if (importPreview(); as p) {
+            <div style="padding: 12px; background: var(--v2-paper-2); border-radius: var(--v2-radius-sm); border: 1px solid var(--v2-rule);">
+              <p class="v2-body" style="font-weight: 500;">
+                {{ t('settings.data.importPreview', { n: p.entries.length, from: p.firstDate, to: p.lastDate }) }}
+              </p>
+              @if (p.skipped > 0) {
+                <p class="v2-caption mt-1">{{ t('settings.data.importSkipped', { n: p.skipped }) }}</p>
+              }
+              <p class="v2-caption mt-1" style="color: var(--v2-accent);">
+                {{ t('settings.data.importDupWarning') }}
+              </p>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <ui-button variant="primary" size="sm" (click)="confirmImport()" [disabled]="importing()">
+                  {{ importing() ? t('settings.data.importImporting') : t('settings.data.importConfirm') }}
+                </ui-button>
+                <ui-button variant="ghost" size="sm" (click)="cancelImport()" [disabled]="importing()">
+                  {{ t('settings.data.importCancel') }}
+                </ui-button>
+              </div>
+            </div>
+          } @else if (importDone(); as n) {
+            <p class="v2-caption" role="status" aria-live="polite" style="color: var(--v2-sage);">
+              {{ t('settings.data.importDone', { n }) }}
+            </p>
+          }
+          @if (importError(); as errKey) {
+            <p class="v2-caption mt-1" role="alert" style="color: var(--v2-danger);">{{ t(errKey) }}</p>
           }
         </div>
 
@@ -140,6 +187,62 @@ export class SettingsDataSectionComponent {
     } finally {
       this.exporting.set(false);
     }
+  }
+
+  // ─── Switcher import (MFP / Lose It / Cronometer CSV) ─────────
+  private readonly importFileInput = viewChild<ElementRef<HTMLInputElement>>('importFile');
+  protected readonly importPreview = signal<ImportParseResult | null>(null);
+  protected readonly importing = signal(false);
+  protected readonly importDone = signal<number | null>(null);
+  protected readonly importError = signal<string | null>(null);
+
+  protected pickImportFile(): void {
+    this.importDone.set(null);
+    this.importError.set(null);
+    this.importFileInput()?.nativeElement.click();
+  }
+
+  protected async onImportFile(ev: Event): Promise<void> {
+    const input = ev.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = ''; // re-selecting the same file must re-fire change
+    if (!file) return;
+    const text = await file.text();
+    const parsed = parseImportCsv(text);
+    if (!parsed.ok) {
+      this.importPreview.set(null);
+      this.importError.set(`settings.data.importError.${parsed.error}`);
+      return;
+    }
+    this.importError.set(null);
+    this.importPreview.set(parsed.result);
+  }
+
+  protected async confirmImport(): Promise<void> {
+    const preview = this.importPreview();
+    if (!preview || this.importing()) return;
+    this.importing.set(true);
+    this.importError.set(null);
+    try {
+      const written = await this.firebase.importLogs(preview.entries);
+      this.importPreview.set(null);
+      this.importDone.set(written);
+      this.analytics.track('data_import_csv', { rows: written, skipped: preview.skipped });
+      // Full reload so the rolling window, all-time cache, and every
+      // derivation see the imported history.
+      void this.store.refresh();
+    } catch {
+      // Batches are not atomic — earlier chunks may have landed. The
+      // user re-importing would duplicate those; tell them to check
+      // History rather than blindly retry.
+      this.importError.set('settings.data.importError.failed');
+    } finally {
+      this.importing.set(false);
+    }
+  }
+
+  protected cancelImport(): void {
+    this.importPreview.set(null);
   }
 
   protected async copyWebhookKey(): Promise<void> {

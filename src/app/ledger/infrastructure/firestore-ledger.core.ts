@@ -175,6 +175,38 @@ export class FirestoreLedgerCore {
     await deleteDoc(this.userDocIn('dailyLogs', logId));
   }
 
+  /**
+   * Bulk-create log rows (switcher import). Batched in ≤450-write chunks
+   * to stay under Firestore's 500-op limit, same pattern as
+   * mergeExercises. Field semantics mirror addLog exactly. Returns the
+   * number of rows written. NOT atomic across chunks — a mid-import
+   * failure leaves earlier chunks committed (caller surfaces the count).
+   */
+  async importLogs(entries: readonly LogEntry[]): Promise<number> {
+    const coll = this.userCollection('dailyLogs');
+    let written = 0;
+    for (let i = 0; i < entries.length; i += 450) {
+      const batch = writeBatch(this.firestore);
+      const chunk = entries.slice(i, i + 450);
+      for (const entry of chunk) {
+        const data: Record<string, unknown> = {
+          calories: entry.calories,
+          timestamp: Timestamp.fromDate(entry.timestamp ?? new Date()),
+        };
+        if (entry.weight != null) data['weight'] = entry.weight;
+        if (entry.protein != null) data['protein'] = entry.protein;
+        if (entry.carbs != null) data['carbs'] = entry.carbs;
+        if (entry.fat != null) data['fat'] = entry.fat;
+        if (entry.exerciseCompleted) data['exerciseCompleted'] = true;
+        if (entry.mealLabel) data['mealLabel'] = entry.mealLabel;
+        batch.set(doc(coll), data);
+      }
+      await batch.commit();
+      written += chunk.length;
+    }
+    return written;
+  }
+
   // ─── Daily weights ────────────────────────────────────────────
 
   /** All daily weights as a map of dateKey → weight (lb). */

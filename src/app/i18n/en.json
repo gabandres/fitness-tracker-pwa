@@ -300,6 +300,22 @@
       "exportButton": "download csv",
       "exportPreparing": "preparing…",
       "exportError": "export failed. try again.",
+      "importTitle": "import from another app",
+      "importDesc": "bring your history from MyFitnessPal, Lose It!, or Cronometer — upload their CSV export.",
+      "importChoose": "choose csv",
+      "importPreview": "{{n}} entries found, {{from}} → {{to}}.",
+      "importSkipped": "{{n}} rows skipped (no date or calories).",
+      "importDupWarning": "importing the same file twice creates duplicate entries.",
+      "importConfirm": "import",
+      "importImporting": "importing…",
+      "importCancel": "cancel",
+      "importDone": "imported {{n}} entries.",
+      "importError": {
+        "empty-file": "that file looks empty.",
+        "no-header-match": "couldn't find date + calories columns — is this a nutrition export?",
+        "no-rows": "no usable rows found (every row was missing a date or calories).",
+        "failed": "import failed partway — check History before retrying, or duplicates may appear."
+      },
       "delete": "delete your account",
       "deleteDesc": "permanently erase every log, preset, weight, and report.",
       "deleteManage": "manage →"

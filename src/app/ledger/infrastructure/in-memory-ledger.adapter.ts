@@ -231,6 +231,11 @@ export class InMemoryLedgerAdapter implements LedgerPort {
     if (!this.logs.delete(logId)) throw new Error(`Log not found: ${logId}`);
   }
 
+  async importLogs(entries: readonly LogEntry[]): Promise<number> {
+    for (const e of entries) await this.addLog(e);
+    return entries.length;
+  }
+
   async getDailyWeights(): Promise<Record<string, number>> {
     return { ...this.weights };
   }

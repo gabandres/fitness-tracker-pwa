@@ -636,6 +636,11 @@ export class FirebaseService implements LedgerPort {
     await this.core.deleteLog(logId);
   }
 
+  /** Bulk-create rows (switcher import). See the core for batching. */
+  async importLogs(entries: readonly LogEntry[]): Promise<number> {
+    return this.core.importLogs(entries);
+  }
+
   // ─── Daily weights (FirestoreLedgerCore) ───────────────────────
   /** Get all daily weights as a map of dateKey → weight. */
   async getDailyWeights(): Promise<Record<string, number>> {

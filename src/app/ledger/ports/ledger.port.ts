@@ -64,6 +64,9 @@ export interface LedgerPort {
   getRecentLogs(days?: number): Promise<DailyLog[]>;
   updateLog(logId: string, entry: LogEntry): Promise<void>;
   deleteLog(logId: string): Promise<void>;
+  /** Bulk-create rows (switcher import). Batched, NOT atomic across
+   *  chunks; returns the number of rows written. */
+  importLogs(entries: readonly LogEntry[]): Promise<number>;
 
   getDailyWeights(): Promise<Record<string, number>>;
   setDailyWeight(dateKey: string, weight: number): Promise<void>;
