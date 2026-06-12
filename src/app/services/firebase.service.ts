@@ -35,6 +35,7 @@ import type {
   WorkoutTemplate,
 } from '../models/workout';
 import { toDomainProfile, toDomainProfilePatch } from '../ledger/infrastructure/profile-mapper';
+import { FirestoreLedgerCore } from '../ledger/infrastructure/firestore-ledger.core';
 
 // ─── Log types ──────────────────────────────────────────────────
 // Note: `liftCompleted` and `cardioCompleted` are legacy fields kept
@@ -304,6 +305,12 @@ export class FirebaseService implements LedgerPort {
   private readonly auth = inject(Auth);
   private readonly callables = inject(CallableGateway);
 
+  /** Framework-free I/O core (issue #6 phase 3) — profile-doc primitives
+   *  + dailyLog verbs live there and are emulator-tested via
+   *  `npm run test:ledger`. This service keeps the signals, auth wiring,
+   *  and the not-yet-migrated verbs. */
+  private readonly core = new FirestoreLedgerCore(this.firestore, () => this.requireUid());
+
   private readonly _profile = signal<Profile | null>(null);
   readonly profile = this._profile.asReadonly();
   /** True once the user has submitted onboarding. Drives the main gate. */
@@ -313,10 +320,6 @@ export class FirebaseService implements LedgerPort {
     const uid = this.auth.currentUser?.uid;
     if (!uid) throw new Error('FirebaseService called while unauthenticated.');
     return uid;
-  }
-
-  private logsCollection() {
-    return collection(this.firestore, 'users', this.requireUid(), 'dailyLogs');
   }
 
   private userDoc() {
@@ -334,14 +337,13 @@ export class FirebaseService implements LedgerPort {
     const user = this.auth.currentUser;
     if (!user) throw new Error('ensureUserProfile called while unauthenticated.');
 
-    const ref = this.userDoc();
-    // Hard 15s ceiling per Firestore call. The Firestore SDK retries
-    // 504s internally without ever rejecting → app-shell loader hangs
-    // forever. Surfacing a timeout lets the caller put up a retry UI.
-    const snap = await this.withTimeout(getDoc(ref), 15_000, 'profile-read');
+    // The core applies a hard 15s ceiling per Firestore call. The SDK
+    // retries 504s internally without ever rejecting → app-shell loader
+    // hangs forever. A surfaced timeout lets the caller put up retry UI.
+    const existing = await this.core.readProfileDoc();
     const now = Timestamp.now();
 
-    if (!snap.exists()) {
+    if (existing === null) {
       const initial: UserProfileDoc = {
         email: user.email ?? '',
         createdAt: now,
@@ -360,26 +362,17 @@ export class FirebaseService implements LedgerPort {
       // Setting the local signal BEFORE the write resolves the loader
       // immediately on the create path; if the write fails the user
       // sees an error toast on next mutation rather than a dead app.
-      await this.withTimeout(setDoc(ref, initial), 15_000, 'profile-create');
+      await this.core.createProfileDoc(initial);
       this._profile.set(toDomainProfile(initial));
     } else {
-      const existing = snap.data() as UserProfileDoc;
       // Map Timestamp -> Date at the seam; overlay the bumped lastSeenAt.
       this._profile.set({ ...toDomainProfile(existing), lastSeenAt: now.toDate() });
       // Bump lastSeenAt fire-and-forget — the loader was already gated
       // on the read, so the write doesn't need to block UI.
-      void updateDoc(ref, { lastSeenAt: now }).catch((err) => {
+      void this.core.updateProfileDoc({ lastSeenAt: now }).catch((err) => {
         console.warn('lastSeenAt bump failed (non-fatal):', err);
       });
     }
-  }
-
-  private withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error(`Timeout: ${label} (${ms}ms)`)), ms);
-      p.then((v) => { clearTimeout(t); resolve(v); },
-             (e) => { clearTimeout(t); reject(e); });
-    });
   }
 
   /** Clear the local profile signal on sign-out. */
@@ -395,7 +388,6 @@ export class FirebaseService implements LedgerPort {
     const current = this._profile();
     if (!current) throw new Error('No profile loaded.');
 
-    const ref = this.userDoc();
     const patch: Partial<UserProfileDoc> = {
       heightIn: fields.heightIn,
       age: fields.age,
@@ -423,7 +415,7 @@ export class FirebaseService implements LedgerPort {
       patch.preferredLocale = fields.preferredLocale;
     }
 
-    await updateDoc(ref, patch);
+    await this.core.updateProfileDoc(patch);
     this._profile.set({ ...current, ...toDomainProfilePatch(patch) });
   }
 
@@ -652,59 +644,22 @@ export class FirebaseService implements LedgerPort {
     } as Profile);
   }
 
-  // ─── Daily logs ────────────────────────────────────────────────
+  // ─── Daily logs (delegated to FirestoreLedgerCore) ─────────────
   async addLog(entry: LogEntry): Promise<void> {
-    const data: Record<string, unknown> = {
-      calories: entry.calories,
-      timestamp: Timestamp.fromDate(entry.timestamp ?? new Date()),
-    };
-    if (entry.weight != null) data['weight'] = entry.weight;
-    if (entry.protein != null) data['protein'] = entry.protein;
-    if (entry.exerciseCompleted) data['exerciseCompleted'] = true;
-    if (entry.mealLabel) data['mealLabel'] = entry.mealLabel;
-    await addDoc(this.logsCollection(), data);
+    await this.core.addLog(entry);
   }
 
   async getRecentLogs(days = 14): Promise<DailyLog[]> {
-    const q = query(this.logsCollection(), orderBy('timestamp', 'desc'), limit(days));
-    const snap = await getDocs(q);
-    const results: DailyLog[] = snap.docs.map((d) => {
-      const data = d.data() as DailyLogDoc;
-      return {
-        id: d.id,
-        weight: data.weight,
-        calories: data.calories,
-        date: data.timestamp.toDate(),
-        protein: data.protein,
-        exerciseCompleted: data.exerciseCompleted,
-        liftCompleted: data.liftCompleted,
-        cardioCompleted: data.cardioCompleted,
-        mealLabel: data.mealLabel,
-      };
-    });
-    return results.reverse();
+    return this.core.getRecentLogs(days);
   }
 
   async updateLog(logId: string, entry: LogEntry): Promise<void> {
-    const ref = doc(this.firestore, 'users', this.requireUid(), 'dailyLogs', logId);
-    const data: Record<string, unknown> = {
-      calories: entry.calories,
-      protein: entry.protein != null ? entry.protein : deleteField(),
-      exerciseCompleted: entry.exerciseCompleted ? true : deleteField(),
-      // Migrate away from legacy fields on every edit.
-      liftCompleted: deleteField(),
-      cardioCompleted: deleteField(),
-      mealLabel: entry.mealLabel ? entry.mealLabel : deleteField(),
-    };
-    if (entry.weight != null) data['weight'] = entry.weight;
-    if (entry.timestamp != null) data['timestamp'] = Timestamp.fromDate(entry.timestamp);
-    await updateDoc(ref, data);
+    await this.core.updateLog(logId, entry);
   }
 
   /** Delete a log entry. */
   async deleteLog(logId: string): Promise<void> {
-    const ref = doc(this.firestore, 'users', this.requireUid(), 'dailyLogs', logId);
-    await deleteDoc(ref);
+    await this.core.deleteLog(logId);
   }
 
   // ─── Daily weights ────────────────────────────────────────────

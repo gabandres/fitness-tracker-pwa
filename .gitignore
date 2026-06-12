@@ -60,3 +60,4 @@ __screenshots__/
 Thumbs.db
 .aider*
 .claude/
+firestore-debug.log

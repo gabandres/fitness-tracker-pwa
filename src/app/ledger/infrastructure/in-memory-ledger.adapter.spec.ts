@@ -8,12 +8,16 @@ import type { ProfileFields } from '../../services/firebase.service';
  * the SAME cases run against every adapter — one interface, verified at N
  * seams (issue #6). Today only the in-memory adapter runs here.
  *
- * To add the Firestore adapter: extract its I/O into a framework-free core
- * (`new`-able without Angular DI), point it at the Firestore emulator, and
- * append `['FirestoreLedger', () => configure(core)]` below. That arm runs
- * under `firebase emulators:exec --only firestore` (needs Java) exactly
- * like `functions/` `test:rules` — it is intentionally NOT booted in the
- * default app unit run, which has no emulator.
+ * The Firestore arm exists at the CORE level instead: `FirestoreLedgerCore`
+ * (framework-free, profile + dailyLog slice) is exercised against the real
+ * emulator with prod rules in `firestore-ledger-core.emulator.test.ts`,
+ * via `npm run test:ledger`. It is intentionally NOT part of the default
+ * app unit run, which has no emulator.
+ *
+ * Known fidelity divergence: this adapter REJECTS `deleteLog` on an
+ * unknown id; real Firestore `deleteDoc` is an idempotent no-op. The
+ * in-memory strictness is deliberate (catches bad-id bugs in store
+ * tests); the emulator suite asserts the real semantics.
  */
 
 type ConfigureAdapter = () => void;

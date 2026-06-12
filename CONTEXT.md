@@ -204,6 +204,16 @@ collections + a `WorkoutStore` facet back the Train tab.
   the ledger seam. The adapter's `toDomainProfile` / `toProfileDoc`
   mapper is the single conversion point — see the *Date type at the
   seam* convention below.
+- **FirestoreLedgerCore** — `ledger/infrastructure/firestore-ledger.core.ts`.
+  Framework-free Firestore I/O core behind `FirebaseService` (issue #6
+  phase 3): `new`-able without Angular DI, imports only
+  `firebase/firestore`. Current slice: profile-doc primitives + the four
+  dailyLog verbs (query shapes, oldest-first reversal, `deleteField`
+  semantics live here). Emulator-tested with prod rules via
+  `npm run test:ledger` (`firestore-ledger-core.emulator.test.ts`).
+  Remaining verbs (presets, weights/water, measurements, workout)
+  migrate in later slices; `FirebaseService` keeps the signals + auth
+  wiring.
 
 ## Stores (post-#3 split — see [ADR-0005](docs/adr/0005-store-facets-split.md))
 

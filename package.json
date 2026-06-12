@@ -7,6 +7,7 @@
     "build": "ng build && node scripts/prerender-seo.mjs && node scripts/sentry-release.mjs",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
+    "test:ledger": "firebase emulators:exec --only firestore \"vitest run --config vitest.ledger.config.ts\"",
     "test:rules": "npm --prefix functions run test:rules"
   },
   "private": true,
@@ -33,6 +34,7 @@
     "@angular/build": "^21.2.6",
     "@angular/cli": "^21.2.6",
     "@angular/compiler-cli": "^21.2.0",
+    "@firebase/rules-unit-testing": "^5.0.1",
     "@jsverse/transloco-keys-manager": "^8.1.0",
     "@tailwindcss/postcss": "^4.2.2",
     "jsdom": "^28.0.0",
