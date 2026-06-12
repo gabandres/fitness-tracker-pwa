@@ -60,9 +60,13 @@ const baseProfile = (): UserProfileDoc => ({
   profileCompleted: false,
 });
 
+/** Uid of the core under test — for seeding server-written docs. */
+let currentUid = '';
+
 /** Fresh core per test: new uid, authed context, prod rules enforced. */
 function makeCore(): FirestoreLedgerCore {
   const uid = `core-user-${uidCounter++}`;
+  currentUid = uid;
   const db = env
     .authenticatedContext(uid, { email_verified: true })
     .firestore() as unknown as Firestore;
@@ -192,6 +196,166 @@ describe.skipIf(!EMULATOR_AVAILABLE)('FirestoreLedgerCore — emulator contract'
       await expect(
         core.addLog({ calories: 999999, timestamp: new Date('2026-04-22T12:00:00Z') }),
       ).rejects.toThrow();
+    });
+  });
+
+  describe('daily weights + water', () => {
+    it('round-trips weights keyed by dateKey', async () => {
+      await core.setDailyWeight('2026-04-21', 180.4);
+      await core.setDailyWeight('2026-04-22', 179.8);
+      await core.setDailyWeight('2026-04-22', 179.6); // overwrite same day
+      const weights = await core.getDailyWeights();
+      expect(weights).toEqual({ '2026-04-21': 180.4, '2026-04-22': 179.6 });
+    });
+
+    it('clamps water to [0, 20000] ml and rounds', async () => {
+      await core.setDailyWater('2026-04-22', 999999);
+      await core.setDailyWater('2026-04-21', -50);
+      await core.setDailyWater('2026-04-20', 123.7);
+      const water = await core.getDailyWater();
+      expect(water['2026-04-22']).toBe(20000);
+      expect(water['2026-04-21']).toBe(0);
+      expect(water['2026-04-20']).toBe(124);
+    });
+  });
+
+  describe('presets + measurements', () => {
+    it('round-trips presets, dropping the optional protein when absent', async () => {
+      await core.addPreset({ name: 'Oatmeal', calories: 300, protein: 10 });
+      await core.addPreset({ name: 'Eggs', calories: 140 });
+      const presets = await core.getPresets();
+      expect(presets.length).toBe(2);
+      const eggs = presets.find((p) => p.name === 'Eggs')!;
+      expect(eggs.protein).toBeUndefined();
+      await core.deletePreset(presets[0].id!);
+      expect((await core.getPresets()).length).toBe(1);
+    });
+
+    it('measurements return newest-first with Date at the seam', async () => {
+      await core.addMeasurement({ waist: 34 });
+      await new Promise((r) => setTimeout(r, 5));
+      await core.addMeasurement({ waist: 33, chest: 41 });
+      const ms = await core.getRecentMeasurements();
+      expect(ms[0].waist).toBe(33);
+      expect(ms[0].chest).toBe(41);
+      expect(ms[0].date).toBeInstanceOf(Date);
+      await core.deleteMeasurement(ms[0].id!);
+      expect((await core.getRecentMeasurements()).length).toBe(1);
+    });
+  });
+
+  describe('weekly reports (server-written, client-read)', () => {
+    it('returns null with no reports, newest report otherwise', async () => {
+      expect(await core.getLatestReport()).toBeNull();
+      // Reports are admin-SDK-written in prod (client writes blocked by
+      // rules) — seed through the rules-disabled context accordingly.
+      const uid = currentUid;
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        const { doc, setDoc, Timestamp: Ts } = await import('firebase/firestore');
+        await setDoc(doc(db, 'users', uid, 'reports', 'old'), {
+          markdown: 'old', generatedAt: Ts.fromDate(new Date('2026-04-01')),
+        });
+        await setDoc(doc(db, 'users', uid, 'reports', 'new'), {
+          markdown: 'new', generatedAt: Ts.fromDate(new Date('2026-04-08')),
+        });
+      });
+      const latest = await core.getLatestReport();
+      expect(latest?.markdown).toBe('new');
+      expect(latest?.generatedAt).toBeInstanceOf(Date);
+    });
+  });
+
+  describe('workout: exercises, templates, sessions', () => {
+    it('exercise catalog round-trips ordered by name, pruning undefined logStyle', async () => {
+      const idB = await core.addExercise({ name: 'Bench Press', muscles: ['chest'], defaultCues: ['arch'] });
+      await core.addExercise({ name: 'Arnold Press', muscles: ['shoulders'], defaultCues: [], logStyle: 'weight-reps' });
+      const exercises = await core.getExercises();
+      expect(exercises.map((e) => e.name)).toEqual(['Arnold Press', 'Bench Press']);
+      expect(exercises[1].createdAt).toBeInstanceOf(Date);
+
+      await core.updateExercise(idB, { name: 'Paused Bench' });
+      expect((await core.getExercises()).map((e) => e.name)).toEqual(['Arnold Press', 'Paused Bench']);
+
+      await core.deleteExercise(idB);
+      expect((await core.getExercises()).length).toBe(1);
+    });
+
+    it('templates round-trip newest-updated-first', async () => {
+      const t1 = await core.addTemplate({ name: 'Push', exercises: [] });
+      await new Promise((r) => setTimeout(r, 5));
+      await core.addTemplate({ name: 'Pull', restMiniSec: 60, exercises: [] });
+      let templates = await core.getTemplates();
+      expect(templates.map((t) => t.name)).toEqual(['Pull', 'Push']);
+      expect(templates[1].createdAt).toBeInstanceOf(Date);
+
+      await core.updateTemplate(t1, { name: 'Push Day', exercises: [] });
+      templates = await core.getTemplates();
+      expect(templates[0].name).toBe('Push Day'); // updatedAt bump reorders
+
+      await core.deleteTemplate(t1);
+      expect((await core.getTemplates()).length).toBe(1);
+    });
+
+    it('session lifecycle: start active → update → complete → query by template', async () => {
+      const tplId = await core.addTemplate({ name: 'Legs', exercises: [] });
+      const sessionId = await core.startSession({
+        status: 'active',
+        templateId: tplId,
+        templateName: 'Legs',
+        date: new Date('2026-06-10T10:00:00Z'),
+        exercises: [{
+          exerciseId: 'x1', name: 'Squat', cues: [],
+          sets: [{ kind: 'working', weight: 185, reps: 5 }],
+        }],
+      });
+
+      const active = await core.getActiveSession();
+      expect(active?.id).toBe(sessionId);
+      expect(active?.date).toBeInstanceOf(Date);
+      expect(active?.exercises[0].sets[0].weight).toBe(185);
+
+      // Completed sessions stop matching the active query and start
+      // matching the per-template history query.
+      await core.updateSession(sessionId, { status: 'completed', bodyweight: 180 });
+      expect(await core.getActiveSession()).toBeNull();
+
+      const forTemplate = await core.getSessionsForTemplate(tplId);
+      expect(forTemplate.length).toBe(1);
+      expect(forTemplate[0].bodyweight).toBe(180);
+
+      expect((await core.getAllSessions()).length).toBe(1);
+      expect((await core.getRecentSessions()).length).toBe(1);
+
+      await core.deleteSession(sessionId);
+      expect((await core.getAllSessions()).length).toBe(0);
+    });
+
+    it('mergeExercises remaps sessions + templates onto the survivor and deletes the victim', async () => {
+      const fromId = await core.addExercise({ name: 'DB Press', muscles: ['chest'], defaultCues: [] });
+      const toId = await core.addExercise({ name: 'Machine Press', muscles: ['chest'], defaultCues: [] });
+      const tplId = await core.addTemplate({
+        name: 'Chest',
+        exercises: [{ exerciseId: fromId, name: 'DB Press', plannedSets: [] }],
+      });
+      const sessId = await core.startSession({
+        status: 'completed',
+        templateId: tplId,
+        date: new Date('2026-06-09T10:00:00Z'),
+        exercises: [{ exerciseId: fromId, name: 'DB Press', cues: [], sets: [] }],
+      });
+
+      await core.mergeExercises(fromId, toId);
+
+      const exercises = await core.getExercises();
+      expect(exercises.map((e) => e.id)).toEqual([toId]); // victim deleted
+
+      const [tpl] = await core.getTemplates();
+      expect(tpl.exercises[0].exerciseId).toBe(toId);
+      expect(tpl.exercises[0].name).toBe('Machine Press'); // survivor name adopted
+
+      const sessions = await core.getAllSessions();
+      expect(sessions.find((s) => s.id === sessId)!.exercises[0].exerciseId).toBe(toId);
     });
   });
 });

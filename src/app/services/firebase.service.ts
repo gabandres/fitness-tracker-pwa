@@ -1,23 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import type { LedgerPort } from '../ledger/ports/ledger.port';
-import {
-  Firestore,
-  collection,
-  doc,
-  addDoc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  limit,
-  Timestamp,
-  deleteDoc,
-  deleteField,
-  writeBatch,
-} from '@angular/fire/firestore';
+import { Firestore, Timestamp, deleteField } from '@angular/fire/firestore';
 import { Auth } from '@angular/fire/auth';
 import { CallableGateway } from './callable.gateway';
 import { readReferrer, clearReferrer } from '../utils/referral';
@@ -31,7 +14,6 @@ import type {
   TemplateDraft,
   TemplateExercise,
   WorkoutSession,
-  WorkoutSet,
   WorkoutTemplate,
 } from '../models/workout';
 import { toDomainProfile, toDomainProfilePatch } from '../ledger/infrastructure/profile-mapper';
@@ -100,8 +82,8 @@ export interface LogEntry {
 
 // ─── Workout stored shapes (Timestamp at the seam) ──────────────
 // Only top-level dated fields carry Timestamps; nested set/exercise
-// objects have no Date fields. The adapter's workout mappers below are
-// the only place Timestamp ↔ Date conversion happens.
+// objects have no Date fields. The FirestoreLedgerCore's workout
+// mappers are the only place Timestamp ↔ Date conversion happens.
 export interface ExerciseDoc {
   name: string;
   muscles: string[];
@@ -295,9 +277,15 @@ export type UserProfileDoc = Omit<Profile, ProfileDateField> & {
 };
 
 /**
- * All Firestore I/O is scoped to the currently signed-in user's
- * subtree at `users/{uid}`. Methods throw if called while
- * unauthenticated — the UI is responsible for gating.
+ * The Angular face of the Firestore ledger adapter. All I/O is scoped to
+ * the signed-in user's subtree at `users/{uid}`; methods throw if called
+ * while unauthenticated — the UI is responsible for gating.
+ *
+ * Division of labour (issue #6 phase 3): every Firestore verb lives in
+ * the framework-free {@link FirestoreLedgerCore} (emulator-tested via
+ * `npm run test:ledger`); this service owns the profile signal, the
+ * optimistic signal updates, auth/uid wiring, and the callable-backed
+ * GDPR verbs.
  */
 @Injectable({ providedIn: 'root' })
 export class FirebaseService implements LedgerPort {
@@ -305,10 +293,6 @@ export class FirebaseService implements LedgerPort {
   private readonly auth = inject(Auth);
   private readonly callables = inject(CallableGateway);
 
-  /** Framework-free I/O core (issue #6 phase 3) — profile-doc primitives
-   *  + dailyLog verbs live there and are emulator-tested via
-   *  `npm run test:ledger`. This service keeps the signals, auth wiring,
-   *  and the not-yet-migrated verbs. */
   private readonly core = new FirestoreLedgerCore(this.firestore, () => this.requireUid());
 
   private readonly _profile = signal<Profile | null>(null);
@@ -322,14 +306,10 @@ export class FirebaseService implements LedgerPort {
     return uid;
   }
 
-  private userDoc() {
-    return doc(this.firestore, 'users', this.requireUid());
-  }
-
   /**
    * Idempotent profile upsert. Call on every sign-in:
    *   - First time:      creates users/{uid} with profileCompleted=false
-   *   - Subsequent times: updateDoc bumps lastSeenAt, leaves everything else alone
+   *   - Subsequent times: update bumps lastSeenAt, leaves everything else alone
    *
    * Always populates the local profile signal with the latest state.
    */
@@ -428,7 +408,6 @@ export class FirebaseService implements LedgerPort {
     const current = this._profile();
     if (!current) throw new Error('No profile loaded.');
 
-    const ref = this.userDoc();
     const patch: Partial<UserProfileDoc> = {
       goalDirection: submission.goalDirection,
       manualCaloriesTarget: submission.manualCaloriesTarget,
@@ -444,7 +423,7 @@ export class FirebaseService implements LedgerPort {
     if (submission.targetWeightLbs != null) {
       patch.targetWeightLbs = submission.targetWeightLbs;
     }
-    await updateDoc(ref, patch);
+    await this.core.updateProfileDoc(patch);
     this._profile.set({ ...current, ...toDomainProfilePatch(patch) });
   }
 
@@ -456,9 +435,8 @@ export class FirebaseService implements LedgerPort {
     const current = this._profile();
     if (!current) throw new Error('No profile loaded.');
 
-    const ref = this.userDoc();
     const stamp = Timestamp.now();
-    await updateDoc(ref, {
+    await this.core.updateProfileDoc({
       heightIn: submission.heightIn,
       age: submission.age,
       sex: submission.sex,
@@ -485,8 +463,7 @@ export class FirebaseService implements LedgerPort {
   /** Generate a new webhook API key (UUID v4) and persist on the profile. */
   async generateWebhookApiKey(): Promise<string> {
     const key = crypto.randomUUID();
-    const ref = this.userDoc();
-    await updateDoc(ref, { webhookApiKey: key, lastSeenAt: Timestamp.now() });
+    await this.core.updateProfileDoc({ webhookApiKey: key, lastSeenAt: Timestamp.now() });
     const current = this._profile();
     if (current) this._profile.set({ ...current, webhookApiKey: key } as any);
     return key;
@@ -494,8 +471,7 @@ export class FirebaseService implements LedgerPort {
 
   /** Revoke the webhook API key. */
   async revokeWebhookApiKey(): Promise<void> {
-    const ref = this.userDoc();
-    await updateDoc(ref, { webhookApiKey: deleteField(), lastSeenAt: Timestamp.now() });
+    await this.core.updateProfileDoc({ webhookApiKey: deleteField(), lastSeenAt: Timestamp.now() });
     const current = this._profile();
     if (current) {
       const updated = { ...current };
@@ -506,9 +482,8 @@ export class FirebaseService implements LedgerPort {
 
   /** Save FCM push token + timezone offset on the profile. */
   async saveFcmToken(token: string): Promise<void> {
-    const ref = this.userDoc();
     const tz = new Date().getTimezoneOffset();
-    await updateDoc(ref, { fcmToken: token, timezoneOffsetMin: tz, lastSeenAt: Timestamp.now() });
+    await this.core.updateProfileDoc({ fcmToken: token, timezoneOffsetMin: tz, lastSeenAt: Timestamp.now() });
     const current = this._profile();
     if (current) this._profile.set({ ...current, fcmToken: token, timezoneOffsetMin: tz } as any);
   }
@@ -530,8 +505,7 @@ export class FirebaseService implements LedgerPort {
 
   /** Clear FCM token (permission revoked). */
   async clearFcmToken(): Promise<void> {
-    const ref = this.userDoc();
-    await updateDoc(ref, { fcmToken: deleteField(), lastSeenAt: Timestamp.now() });
+    await this.core.updateProfileDoc({ fcmToken: deleteField(), lastSeenAt: Timestamp.now() });
     const current = this._profile();
     if (current) {
       const updated = { ...current };
@@ -545,9 +519,8 @@ export class FirebaseService implements LedgerPort {
       travel / DST shifts (without this, push fires at the user's
       original-signup local hour forever). */
   async saveReminderHour(hour: number): Promise<void> {
-    const ref = this.userDoc();
     const tz = new Date().getTimezoneOffset();
-    await updateDoc(ref, {
+    await this.core.updateProfileDoc({
       reminderHour: hour,
       timezoneOffsetMin: tz,
       lastSeenAt: Timestamp.now(),
@@ -560,35 +533,27 @@ export class FirebaseService implements LedgerPort {
    *  Accepts a past timestamp so users can backdate a fast they forgot
    *  to log when they actually stopped eating. */
   async startFast(startedAt?: Date): Promise<void> {
-    const ref = this.userDoc();
     const start = startedAt ? Timestamp.fromDate(startedAt) : Timestamp.now();
     const now = Timestamp.now();
-    await updateDoc(ref, { fastStartedAt: start, lastSeenAt: now });
+    await this.core.updateProfileDoc({ fastStartedAt: start, lastSeenAt: now });
     const current = this._profile();
     if (current) this._profile.set({ ...current, fastStartedAt: start.toDate() } as any);
   }
 
   /** Break the fast — clears the timestamp. */
   async breakFast(): Promise<void> {
-    const ref = this.userDoc();
-    await updateDoc(ref, { fastStartedAt: null, lastSeenAt: Timestamp.now() });
+    await this.core.updateProfileDoc({ fastStartedAt: null, lastSeenAt: Timestamp.now() });
     const current = this._profile();
     if (current) this._profile.set({ ...current, fastStartedAt: null } as any);
   }
 
   /** Toggle travel mode on the profile. */
   async setTravelMode(on: boolean): Promise<void> {
-    const ref = this.userDoc();
-    await updateDoc(ref, { travelMode: on, lastSeenAt: Timestamp.now() });
+    await this.core.updateProfileDoc({ travelMode: on, lastSeenAt: Timestamp.now() });
     const current = this._profile();
     if (current) this._profile.set({ ...current, travelMode: on } as Profile);
   }
 
-  /** Persist the user's preferred unit system. Drives the default
-   *  portion option (per-100g vs household) in the food-search picker.
-   *  Writing the same value back is a no-op latency-wise — Firestore
-   *  collapses the patch — so the callers can avoid local equality
-   *  checks. */
   /** Add a meal label to the user's recent-quick-add hide list. The
    *  label is normalized to lowercase before storage so duplicates with
    *  different casing collapse to one entry. Capped at 200 entries to
@@ -601,8 +566,7 @@ export class FirebaseService implements LedgerPort {
     const existing = ((current as { hiddenRecentLabels?: string[] } | null)?.hiddenRecentLabels) ?? [];
     if (existing.includes(norm)) return;
     const next = [...existing, norm].slice(-200);
-    const ref = this.userDoc();
-    await updateDoc(ref, { hiddenRecentLabels: next, lastSeenAt: Timestamp.now() });
+    await this.core.updateProfileDoc({ hiddenRecentLabels: next, lastSeenAt: Timestamp.now() });
     if (current) this._profile.set({ ...current, hiddenRecentLabels: next } as Profile);
   }
 
@@ -615,14 +579,17 @@ export class FirebaseService implements LedgerPort {
     const existing = ((current as { hiddenRecentLabels?: string[] } | null)?.hiddenRecentLabels) ?? [];
     const next = existing.filter((l) => l !== norm);
     if (next.length === existing.length) return;
-    const ref = this.userDoc();
-    await updateDoc(ref, { hiddenRecentLabels: next, lastSeenAt: Timestamp.now() });
+    await this.core.updateProfileDoc({ hiddenRecentLabels: next, lastSeenAt: Timestamp.now() });
     if (current) this._profile.set({ ...current, hiddenRecentLabels: next } as Profile);
   }
 
+  /** Persist the user's preferred unit system. Drives the default
+   *  portion option (per-100g vs household) in the food-search picker.
+   *  Writing the same value back is a no-op latency-wise — Firestore
+   *  collapses the patch — so the callers can avoid local equality
+   *  checks. */
   async setUnitSystem(system: UnitSystem): Promise<void> {
-    const ref = this.userDoc();
-    await updateDoc(ref, { unitSystem: system, lastSeenAt: Timestamp.now() });
+    await this.core.updateProfileDoc({ unitSystem: system, lastSeenAt: Timestamp.now() });
     const current = this._profile();
     if (current) this._profile.set({ ...current, unitSystem: system } as Profile);
   }
@@ -631,9 +598,8 @@ export class FirebaseService implements LedgerPort {
    *  scheduled CF can fire at the user's local Sunday morning even after
    *  travel / DST. */
   async setWeeklyDigestOptIn(on: boolean): Promise<void> {
-    const ref = this.userDoc();
     const tz = new Date().getTimezoneOffset();
-    await updateDoc(ref, {
+    await this.core.updateProfileDoc({
       weeklyDigestOptIn: on,
       timezoneOffsetMin: tz,
       lastSeenAt: Timestamp.now(),
@@ -644,7 +610,7 @@ export class FirebaseService implements LedgerPort {
     } as Profile);
   }
 
-  // ─── Daily logs (delegated to FirestoreLedgerCore) ─────────────
+  // ─── Daily logs (FirestoreLedgerCore) ──────────────────────────
   async addLog(entry: LogEntry): Promise<void> {
     await this.core.addLog(entry);
   }
@@ -662,380 +628,121 @@ export class FirebaseService implements LedgerPort {
     await this.core.deleteLog(logId);
   }
 
-  // ─── Daily weights ────────────────────────────────────────────
-  private weightsCollection() {
-    return collection(this.firestore, 'users', this.requireUid(), 'dailyWeights');
-  }
-
+  // ─── Daily weights (FirestoreLedgerCore) ───────────────────────
   /** Get all daily weights as a map of dateKey → weight. */
   async getDailyWeights(): Promise<Record<string, number>> {
-    const snap = await getDocs(this.weightsCollection());
-    const weights: Record<string, number> = {};
-    for (const d of snap.docs) {
-      const data = d.data() as { weight: number };
-      weights[d.id] = data.weight;
-    }
-    return weights;
+    return this.core.getDailyWeights();
   }
 
   /** Set (or overwrite) the weight for a specific day. Doc ID = dateKey. */
   async setDailyWeight(dateKey: string, weight: number): Promise<void> {
-    const ref = doc(this.firestore, 'users', this.requireUid(), 'dailyWeights', dateKey);
-    await setDoc(ref, { weight });
+    await this.core.setDailyWeight(dateKey, weight);
   }
 
-  // ─── Daily water ──────────────────────────────────────────────
-  // Stored in milliliters (single source of truth); client renders oz/ml
-  // based on locale. Same shape as dailyWeights: one doc per date keyed
-  // by the dateKey. Rules cap at 20000 ml (~5 gal) to catch fat-finger
-  // entries that would otherwise pollute charts.
-  private waterCollection() {
-    return collection(this.firestore, 'users', this.requireUid(), 'dailyWater');
-  }
-
+  // ─── Daily water (FirestoreLedgerCore) ─────────────────────────
   async getDailyWater(): Promise<Record<string, number>> {
-    const snap = await getDocs(this.waterCollection());
-    const water: Record<string, number> = {};
-    for (const d of snap.docs) {
-      const data = d.data() as { ml: number };
-      water[d.id] = data.ml;
-    }
-    return water;
+    return this.core.getDailyWater();
   }
 
   async setDailyWater(dateKey: string, ml: number): Promise<void> {
-    const ref = doc(this.firestore, 'users', this.requireUid(), 'dailyWater', dateKey);
-    await setDoc(ref, { ml: Math.max(0, Math.min(20000, Math.round(ml))) });
+    await this.core.setDailyWater(dateKey, ml);
   }
 
-  // ─── Meal presets ─────────────────────────────────────────────
-  private presetsCollection() {
-    return collection(this.firestore, 'users', this.requireUid(), 'presets');
-  }
-
+  // ─── Meal presets (FirestoreLedgerCore) ────────────────────────
   async getPresets(): Promise<MealPreset[]> {
-    const snap = await getDocs(this.presetsCollection());
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as MealPreset));
+    return this.core.getPresets();
   }
 
   async addPreset(preset: Omit<MealPreset, 'id'>): Promise<void> {
-    const data: Record<string, unknown> = {
-      name: preset.name,
-      calories: preset.calories,
-    };
-    if (preset.protein != null) data['protein'] = preset.protein;
-    await addDoc(this.presetsCollection(), data);
+    await this.core.addPreset(preset);
   }
 
   async deletePreset(presetId: string): Promise<void> {
-    const ref = doc(this.firestore, 'users', this.requireUid(), 'presets', presetId);
-    await deleteDoc(ref);
+    await this.core.deletePreset(presetId);
   }
 
-  // ─── Weekly reports ───────────────────────────────────────────
-  private reportsCollection() {
-    return collection(this.firestore, 'users', this.requireUid(), 'reports');
-  }
-
+  // ─── Weekly reports (FirestoreLedgerCore) ──────────────────────
   async getLatestReport(): Promise<WeeklyReport | null> {
-    const q = query(this.reportsCollection(), orderBy('generatedAt', 'desc'), limit(1));
-    const snap = await getDocs(q);
-    if (snap.empty) return null;
-    const d = snap.docs[0];
-    const data = d.data() as { markdown: string; generatedAt: Timestamp };
-    return { id: d.id, markdown: data.markdown, generatedAt: data.generatedAt.toDate() };
+    return this.core.getLatestReport();
   }
 
-  // New report docs are written by the `generateWeeklyReport` Cloud
-  // Function via the admin SDK. Client writes are blocked by rules.
-
-  // ─── Body measurements ────────────────────────────────────────
-  private measurementsCollection() {
-    return collection(this.firestore, 'users', this.requireUid(), 'measurements');
-  }
-
+  // ─── Body measurements (FirestoreLedgerCore) ───────────────────
   async getRecentMeasurements(count = 10): Promise<Measurement[]> {
-    const q = query(this.measurementsCollection(), orderBy('timestamp', 'desc'), limit(count));
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => {
-      const data = d.data() as { waist?: number; chest?: number; bicep?: number; hip?: number; timestamp: Timestamp };
-      return { id: d.id, waist: data.waist, chest: data.chest, bicep: data.bicep, hip: data.hip, date: data.timestamp.toDate() };
-    });
+    return this.core.getRecentMeasurements(count);
   }
 
   async addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<void> {
-    const data: Record<string, unknown> = { timestamp: Timestamp.now() };
-    if (entry.waist != null) data['waist'] = entry.waist;
-    if (entry.chest != null) data['chest'] = entry.chest;
-    if (entry.bicep != null) data['bicep'] = entry.bicep;
-    if (entry.hip != null) data['hip'] = entry.hip;
-    await addDoc(this.measurementsCollection(), data);
+    await this.core.addMeasurement(entry);
   }
 
   async deleteMeasurement(id: string): Promise<void> {
-    const ref = doc(this.firestore, 'users', this.requireUid(), 'measurements', id);
-    await deleteDoc(ref);
+    await this.core.deleteMeasurement(id);
   }
 
-  // ─── Workout: exercise catalog ────────────────────────────────
-  private exercisesCollection() {
-    return collection(this.firestore, 'users', this.requireUid(), 'exercises');
-  }
-
+  // ─── Workout (FirestoreLedgerCore) ─────────────────────────────
   async getExercises(): Promise<Exercise[]> {
-    const snap = await getDocs(query(this.exercisesCollection(), orderBy('name')));
-    return snap.docs.map((d) => {
-      const data = d.data() as ExerciseDoc;
-      return {
-        id: d.id,
-        name: data.name,
-        muscles: (data.muscles ?? []) as Exercise['muscles'],
-        defaultCues: data.defaultCues ?? [],
-        logStyle: data.logStyle,
-        createdAt: data.createdAt.toDate(),
-      };
-    });
+    return this.core.getExercises();
   }
 
   async addExercise(exercise: ExerciseDraft): Promise<string> {
-    const data: ExerciseDoc = {
-      name: exercise.name,
-      muscles: exercise.muscles ?? [],
-      defaultCues: exercise.defaultCues ?? [],
-      logStyle: exercise.logStyle,
-      createdAt: Timestamp.now(),
-    };
-    const ref = await addDoc(this.exercisesCollection(), pruneUndefined(data));
-    return ref.id;
+    return this.core.addExercise(exercise);
   }
 
   async updateExercise(id: string, patch: Partial<ExerciseDraft>): Promise<void> {
-    const ref = doc(this.firestore, 'users', this.requireUid(), 'exercises', id);
-    await updateDoc(ref, pruneUndefined({ ...patch }));
+    await this.core.updateExercise(id, patch);
   }
 
   async deleteExercise(id: string): Promise<void> {
-    const ref = doc(this.firestore, 'users', this.requireUid(), 'exercises', id);
-    await deleteDoc(ref);
+    await this.core.deleteExercise(id);
   }
 
-  /**
-   * Merge exercise `fromId` into `toId`: rewrite every session and template
-   * that references the victim so it points at the survivor (and adopts the
-   * survivor's display name), then delete the victim catalog doc. Writes are
-   * chunked into ≤450-op batches to stay under Firestore's 500-write limit.
-   */
+  /** Merge exercise `fromId` into `toId` across all sessions/templates,
+   *  then delete the victim catalog doc. See the core for the batching. */
   async mergeExercises(fromId: string, toId: string): Promise<void> {
-    if (fromId === toId) return;
-    const uid = this.requireUid();
-    const toSnap = await getDoc(doc(this.firestore, 'users', uid, 'exercises', toId));
-    const toName = (toSnap.data() as ExerciseDoc | undefined)?.name;
-
-    const remap = <T extends { exercises?: { exerciseId: string; name: string }[] }>(data: T) => {
-      let changed = false;
-      const exercises = (data.exercises ?? []).map((ex) =>
-        ex.exerciseId === fromId
-          ? ((changed = true), { ...ex, exerciseId: toId, name: toName ?? ex.name })
-          : ex,
-      );
-      return changed ? exercises : null;
-    };
-
-    const ops: { ref: ReturnType<typeof doc>; exercises: unknown[] }[] = [];
-    const [sessSnap, tplSnap] = await Promise.all([
-      getDocs(this.sessionsCollection()),
-      getDocs(this.templatesCollection()),
-    ]);
-    sessSnap.forEach((d) => {
-      const next = remap(d.data() as WorkoutSessionDoc);
-      if (next) ops.push({ ref: d.ref, exercises: next });
-    });
-    tplSnap.forEach((d) => {
-      const next = remap(d.data() as WorkoutTemplateDoc);
-      if (next) ops.push({ ref: d.ref, exercises: next });
-    });
-
-    for (let i = 0; i < ops.length; i += 450) {
-      const batch = writeBatch(this.firestore);
-      for (const op of ops.slice(i, i + 450)) {
-        batch.update(op.ref, pruneUndefined({ exercises: op.exercises, updatedAt: Timestamp.now() }));
-      }
-      await batch.commit();
-    }
-
-    await deleteDoc(doc(this.firestore, 'users', uid, 'exercises', fromId));
-  }
-
-  // ─── Workout: templates ───────────────────────────────────────
-  private templatesCollection() {
-    return collection(this.firestore, 'users', this.requireUid(), 'workoutTemplates');
+    await this.core.mergeExercises(fromId, toId);
   }
 
   async getTemplates(): Promise<WorkoutTemplate[]> {
-    const snap = await getDocs(query(this.templatesCollection(), orderBy('updatedAt', 'desc')));
-    return snap.docs.map((d) => toDomainTemplate(d.id, d.data() as WorkoutTemplateDoc));
+    return this.core.getTemplates();
   }
 
   async addTemplate(template: TemplateDraft): Promise<string> {
-    const now = Timestamp.now();
-    const data = pruneUndefined({
-      name: template.name,
-      notes: template.notes,
-      restMiniSec: template.restMiniSec,
-      restClusterSec: template.restClusterSec,
-      exercises: template.exercises ?? [],
-      createdAt: now,
-      updatedAt: now,
-    });
-    const ref = await addDoc(this.templatesCollection(), data);
-    return ref.id;
+    return this.core.addTemplate(template);
   }
 
   async updateTemplate(id: string, template: TemplateDraft): Promise<void> {
-    const ref = doc(this.firestore, 'users', this.requireUid(), 'workoutTemplates', id);
-    // Full overwrite of mutable fields + bump updatedAt; createdAt left
-    // untouched by merge.
-    const data = pruneUndefined({
-      name: template.name,
-      notes: template.notes,
-      restMiniSec: template.restMiniSec,
-      restClusterSec: template.restClusterSec,
-      exercises: template.exercises ?? [],
-      updatedAt: Timestamp.now(),
-    });
-    await setDoc(ref, data, { merge: true });
+    await this.core.updateTemplate(id, template);
   }
 
   async deleteTemplate(id: string): Promise<void> {
-    const ref = doc(this.firestore, 'users', this.requireUid(), 'workoutTemplates', id);
-    await deleteDoc(ref);
-  }
-
-  // ─── Workout: sessions ────────────────────────────────────────
-  private sessionsCollection() {
-    return collection(this.firestore, 'users', this.requireUid(), 'workoutSessions');
+    await this.core.deleteTemplate(id);
   }
 
   async getActiveSession(): Promise<WorkoutSession | null> {
-    const q = query(this.sessionsCollection(), where('status', '==', 'active'), limit(1));
-    const snap = await getDocs(q);
-    if (snap.empty) return null;
-    const d = snap.docs[0];
-    return toDomainSession(d.id, d.data() as WorkoutSessionDoc);
+    return this.core.getActiveSession();
   }
 
   async getRecentSessions(count = 30): Promise<WorkoutSession[]> {
-    const q = query(this.sessionsCollection(), orderBy('timestamp', 'desc'), limit(count));
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => toDomainSession(d.id, d.data() as WorkoutSessionDoc));
+    return this.core.getRecentSessions(count);
   }
 
   async getSessionsForTemplate(templateId: string, count = 10): Promise<WorkoutSession[]> {
-    const q = query(
-      this.sessionsCollection(),
-      where('templateId', '==', templateId),
-      where('status', '==', 'completed'),
-      orderBy('timestamp', 'desc'),
-      limit(count),
-    );
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => toDomainSession(d.id, d.data() as WorkoutSessionDoc));
+    return this.core.getSessionsForTemplate(templateId, count);
   }
 
   async getAllSessions(): Promise<WorkoutSession[]> {
-    const q = query(this.sessionsCollection(), orderBy('timestamp', 'desc'));
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => toDomainSession(d.id, d.data() as WorkoutSessionDoc));
+    return this.core.getAllSessions();
   }
 
   async startSession(session: SessionDraft): Promise<string> {
-    const now = Timestamp.now();
-    const data = pruneUndefined({
-      status: session.status,
-      templateId: session.templateId,
-      templateName: session.templateName,
-      timestamp: Timestamp.fromDate(session.date),
-      bodyweight: session.bodyweight,
-      sleepHours: session.sleepHours,
-      durationMin: session.durationMin,
-      exercises: session.exercises ?? [],
-      nextNotes: session.nextNotes,
-      createdAt: now,
-      updatedAt: now,
-    });
-    const ref = await addDoc(this.sessionsCollection(), data);
-    return ref.id;
+    return this.core.startSession(session);
   }
 
   async updateSession(id: string, patch: Partial<SessionDraft>): Promise<void> {
-    const ref = doc(this.firestore, 'users', this.requireUid(), 'workoutSessions', id);
-    const data: Record<string, unknown> = { updatedAt: Timestamp.now() };
-    if (patch.status !== undefined) data['status'] = patch.status;
-    if (patch.templateId !== undefined) data['templateId'] = patch.templateId;
-    if (patch.templateName !== undefined) data['templateName'] = patch.templateName;
-    if (patch.date !== undefined) data['timestamp'] = Timestamp.fromDate(patch.date);
-    if (patch.bodyweight !== undefined) data['bodyweight'] = patch.bodyweight;
-    if (patch.sleepHours !== undefined) data['sleepHours'] = patch.sleepHours;
-    if (patch.durationMin !== undefined) data['durationMin'] = patch.durationMin;
-    if (patch.exercises !== undefined) data['exercises'] = patch.exercises;
-    if (patch.nextNotes !== undefined) data['nextNotes'] = patch.nextNotes;
-    await setDoc(ref, pruneUndefined(data), { merge: true });
+    await this.core.updateSession(id, patch);
   }
 
   async deleteSession(id: string): Promise<void> {
-    const ref = doc(this.firestore, 'users', this.requireUid(), 'workoutSessions', id);
-    await deleteDoc(ref);
+    await this.core.deleteSession(id);
   }
-}
-
-// ─── Workout mappers (Timestamp ↔ Date at the seam) ─────────────
-function toDomainTemplate(id: string, data: WorkoutTemplateDoc): WorkoutTemplate {
-  return {
-    id,
-    name: data.name,
-    notes: data.notes,
-    restMiniSec: data.restMiniSec,
-    restClusterSec: data.restClusterSec,
-    exercises: (data.exercises ?? []) as TemplateExercise[],
-    createdAt: data.createdAt.toDate(),
-    updatedAt: data.updatedAt.toDate(),
-  };
-}
-
-function toDomainSession(id: string, data: WorkoutSessionDoc): WorkoutSession {
-  return {
-    id,
-    status: data.status,
-    templateId: data.templateId,
-    templateName: data.templateName,
-    date: data.timestamp.toDate(),
-    bodyweight: data.bodyweight,
-    sleepHours: data.sleepHours,
-    durationMin: data.durationMin,
-    exercises: ((data.exercises ?? []) as SessionExercise[]).map((ex) => ({
-      ...ex,
-      sets: (ex.sets ?? []) as WorkoutSet[],
-    })),
-    nextNotes: data.nextNotes,
-    createdAt: data.createdAt.toDate(),
-    updatedAt: data.updatedAt.toDate(),
-  };
-}
-
-/** Firestore rejects `undefined` (no `ignoreUndefinedProperties` set on
- *  this app's Firestore instance). Recursively drops undefined-valued
- *  keys from objects/arrays before a write. Timestamps and Dates are
- *  left intact (they are not plain objects we want to descend into). */
-function pruneUndefined<T>(value: T): T {
-  if (Array.isArray(value)) {
-    return value.map((v) => pruneUndefined(v)) as unknown as T;
-  }
-  if (value !== null && typeof value === 'object' && !(value instanceof Timestamp) && !(value instanceof Date)) {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      if (v !== undefined) out[k] = pruneUndefined(v);
-    }
-    return out as T;
-  }
-  return value;
 }

@@ -207,13 +207,16 @@ collections + a `WorkoutStore` facet back the Train tab.
 - **FirestoreLedgerCore** — `ledger/infrastructure/firestore-ledger.core.ts`.
   Framework-free Firestore I/O core behind `FirebaseService` (issue #6
   phase 3): `new`-able without Angular DI, imports only
-  `firebase/firestore`. Current slice: profile-doc primitives + the four
-  dailyLog verbs (query shapes, oldest-first reversal, `deleteField`
-  semantics live here). Emulator-tested with prod rules via
+  `firebase/firestore`. Owns EVERY collection verb — profile-doc
+  primitives, dailyLogs, dailyWeights, dailyWater, presets, reports,
+  measurements, and the three workout collections (query shapes,
+  Timestamp ↔ Date workout mappers, oldest-first reversal,
+  `deleteField` semantics, `mergeExercises` batch chunking,
+  `pruneUndefined`). Emulator-tested with prod rules via
   `npm run test:ledger` (`firestore-ledger-core.emulator.test.ts`).
-  Remaining verbs (presets, weights/water, measurements, workout)
-  migrate in later slices; `FirebaseService` keeps the signals + auth
-  wiring.
+  `FirebaseService` keeps the profile signal, optimistic updates, auth
+  wiring, and the callable-backed GDPR verbs — add new persistence
+  verbs to the core, not the service.
 
 ## Stores (post-#3 split — see [ADR-0005](docs/adr/0005-store-facets-split.md))
 
