@@ -236,6 +236,22 @@ collections + a `WorkoutStore` facet back the Train tab.
   `sendDayThreeCoachPush`, `weekly-digest`, `weeklyFirestoreBackup`,
   `statusPulse`, `publishUserCount`. Triggers: `onDailyLogCreated`,
   `onSubscriptionWritten`, `sendWelcomeEmail`.
+- **CallerAccess** (`functions/src/caller-access.ts`) — the Cloud
+  Functions caller-resolution module: auth check, per-uid rate limit,
+  and tier resolution in one `resolveCaller(request, rateLimit?)` call.
+  `CallerTier` = `admin | comped | paid | free`; `comped` folds together
+  the `config/accessList` friends list AND a future referral
+  `compedUntil` — both grant the same unlimited tier everywhere (see
+  [ADR-0008](docs/adr/0008-cf-caller-access-daily-quota.md)). Admin
+  email list lives here (sync with `subscription.service.ts`).
+- **DailyQuota** (`functions/src/daily-quota.ts`) — the daily-quota
+  ledger for the `photo` and `consultation` kinds. Owns the
+  `${uid}_${utcDay}` doc-key format, per-tier limits (3 free / 30 paid),
+  the atomic `reserve` transaction, the never-below-zero `release`
+  refund, `peek`, the admin `resetToday`, and the GDPR `deleteAll` /
+  `dump` walks. Callables only decide *whether* a caller is subject to
+  quota (`Caller.unlimited`); this module decides everything else.
+  Emulator-tested in `functions/test/`.
 - **`CallableGateway`** (`services/callable.gateway.ts`) — the single
   client→callable seam. `Functions` is injected once here, not in each
   service. `call<Req, Res>(name, payload?)` collapses the

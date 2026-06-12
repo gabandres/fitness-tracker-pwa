@@ -10,60 +10,18 @@ import { GoogleGenAI } from "@google/genai";
 import { ErrorCode } from "./error-codes";
 import { getResend, baseSendOptions, resendApiKey } from "./resend-client";
 import { welcomeEmail } from "./email-templates";
+import { CallerAccess } from "./caller-access";
+import { DailyQuota } from "./daily-quota";
 
 initializeApp();
 const db = getFirestore();
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
-// ─── Admin bypass list ────────────────────────────────────────────
-// Emails listed here skip all per-user quotas (consultations, photos)
-// and behave like paid subscribers server-side. Keep this in sync
-// with ADMIN_EMAILS in src/app/services/subscription.service.ts —
-// the two projects can't share code, so it's a deliberate duplicate.
-const ADMIN_EMAILS = new Set([
-  "gabrielandresbermudez@gmail.com",
-]);
-
-function isAdmin(email: string | undefined | null): boolean {
-  return !!email && ADMIN_EMAILS.has(email);
-}
-
-// ─── Comped friends (server-read Firestore config) ────────────────
-// Friends the owner has comped for free access. Lives at
-//   /config/accessList  { compedEmails: string[] }
-// Edit via the Firebase console — no redeploy needed.
-//
-// Cached in memory for 60s per function instance to avoid hammering
-// Firestore on every quota check. Newly-added friends take up to 60s
-// to pick up; that's an acceptable tradeoff for simpler code.
-const ACCESS_CACHE_TTL_MS = 60_000;
-let accessCache: { emails: Set<string>; fetchedAt: number } | null = null;
-
-async function loadCompedEmails(): Promise<Set<string>> {
-  const now = Date.now();
-  if (accessCache && now - accessCache.fetchedAt < ACCESS_CACHE_TTL_MS) {
-    return accessCache.emails;
-  }
-  const snap = await db.doc("config/accessList").get();
-  const emails = new Set<string>(
-    ((snap.data()?.compedEmails as string[] | undefined) ?? [])
-      .map((e) => e.trim().toLowerCase())
-      .filter((e) => !!e),
-  );
-  accessCache = { emails, fetchedAt: now };
-  return emails;
-}
-
-async function isComped(email: string | undefined | null): Promise<boolean> {
-  if (!email) return false;
-  const set = await loadCompedEmails();
-  return set.has(email.toLowerCase());
-}
-
-async function hasUnlimitedAccess(email: string | undefined | null): Promise<boolean> {
-  if (isAdmin(email)) return true;
-  return isComped(email);
-}
+// Caller-access preamble (auth + rate limit + tier) and the daily-quota
+// ledger. Admin list, comped resolution, doc-key format, limits, and the
+// reserve/release transactions all live behind these two modules.
+const callerAccess = new CallerAccess(db);
+const dailyQuota = new DailyQuota(db);
 
 // ─── Shared validation (mirrors Firestore rules isValidLog) ────────
 
@@ -198,81 +156,30 @@ export const logWebhook = onRequest(
 
 // ─── Feature 2: Photo-to-Macros ───────────────────────────────────
 
-// Tiered per-user daily caps (UTC). Admins + comped friends still
-// bypass entirely — they get unlimited access. The freemium table
-// in the UX plan promises 3/day free, 30/day paid.
-const PHOTO_LIMIT_FREE = 3;
-const PHOTO_LIMIT_PAID = 30;
 // Minimum interval between photo analyses per uid. Prevents a malicious
 // client from burning the daily quota (and our Gemini budget) in a few
 // seconds. 3s is long enough to defeat scripted spam, short enough that
 // a legitimate "accidentally tapped twice" user isn't locked out for long.
 const PHOTO_MIN_INTERVAL_MS = 3_000;
 
-/**
- * Enforce a per-uid minimum interval on the given rate-limit collection.
- * Reads the last-call timestamp, throws if too recent, writes the new one.
- * Used by analyzePhoto and the consultation endpoints.
- */
-async function enforceRateLimit(
-  collectionName: string,
-  uid: string,
-  minIntervalMs: number,
-  errorCode: ErrorCode,
-): Promise<void> {
-  const ref = db.collection(collectionName).doc(uid);
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    const last = (snap.data()?.lastCallAt as Timestamp | undefined)?.toMillis() ?? 0;
-    const now = Date.now();
-    if (last && now - last < minIntervalMs) {
-      throw new HttpsError(
-        "resource-exhausted",
-        "Too many requests. Please slow down.",
-        { code: errorCode, retryAfterMs: minIntervalMs - (now - last) },
-      );
-    }
-    tx.set(ref, { lastCallAt: Timestamp.now(), uid }, { merge: true });
-  });
-}
-
 export const analyzePhoto = onCall(
   { secrets: [geminiApiKey], maxInstances: 10 },
   async (request) => {
-    // Auth required (callable protocol auto-verifies ID token)
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Must be signed in.", { code: ErrorCode.UNAUTHENTICATED });
-    }
+    // Auth + rate limit (BEFORE the quota reserve, so a throttled call
+    // doesn't consume a slot) + tier, all in one preamble.
+    const caller = await callerAccess.resolveCaller(request, {
+      collection: "photoRateLimit",
+      minIntervalMs: PHOTO_MIN_INTERVAL_MS,
+      errorCode: ErrorCode.PHOTO_RATE_LIMITED,
+    });
+    const uid = caller.uid;
 
-    const uid = request.auth.uid;
-    const email = request.auth.token.email;
-    const role = (request.auth.token as { stripeRole?: string }).stripeRole;
-    const unlimited = await hasUnlimitedAccess(email);
-    const effectiveLimit = role === "paid" ? PHOTO_LIMIT_PAID : PHOTO_LIMIT_FREE;
-
-    // Per-uid rate limit — independent of daily quota. Runs BEFORE the
-    // quota increment so a throttled call doesn't consume a slot.
-    await enforceRateLimit("photoRateLimit", uid, PHOTO_MIN_INTERVAL_MS, ErrorCode.PHOTO_RATE_LIMITED);
-
-    // ── Daily quota check (per user, resets at UTC midnight) ───────
-    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-    const quotaRef = db.collection("photoQuota").doc(`${uid}_${today}`);
-    let photosUsedAfter = 1;
-    // Admins + comped friends skip the quota entirely.
-    if (!unlimited) {
-      await db.runTransaction(async (tx) => {
-        const doc = await tx.get(quotaRef);
-        const used: number = doc.exists ? (doc.data()!.count as number) : 0;
-        if (used >= effectiveLimit) {
-          throw new HttpsError(
-            "resource-exhausted",
-            `Daily limit of ${effectiveLimit} photo analyses reached. Resets at midnight UTC.`,
-            { code: ErrorCode.PHOTO_QUOTA_EXCEEDED, limit: effectiveLimit },
-          );
-        }
-        photosUsedAfter = used + 1;
-        tx.set(quotaRef, { count: photosUsedAfter, uid, date: today }, { merge: true });
-      });
+    // Daily quota (per user, resets at UTC midnight). Admins + comped
+    // users skip it entirely.
+    let photosRemaining = dailyQuota.limitFor("photo", true);
+    if (!caller.unlimited) {
+      const reserved = await dailyQuota.reserve(uid, "photo", caller.tier === "paid");
+      photosRemaining = reserved.remaining;
     }
 
     const { photoBase64, locale } = request.data as { photoBase64?: string; locale?: string };
@@ -404,7 +311,7 @@ Common Puerto Rican / Latin staples for reference:
         // Admins + comped users report "unlimited" by returning the
         // paid cap. The client treats this as decorative since nothing
         // blocks them.
-        photosRemaining: unlimited ? PHOTO_LIMIT_PAID : effectiveLimit - photosUsedAfter,
+        photosRemaining,
       };
     } catch (err) {
       if (err instanceof HttpsError) throw err;
@@ -429,8 +336,6 @@ Common Puerto Rican / Latin staples for reference:
 // the client proceeds with the direct Gemini SDK call. On failure the
 // client shows an upgrade pitch (free) or a generic limit notice (paid).
 
-const CONSULTATION_LIMIT_FREE = 3;
-const CONSULTATION_LIMIT_PAID = 30;
 // Per-uid min interval for reserve + release. Covers both reserve spam
 // (which would burn Firestore writes on the quota doc) and release spam
 // (which can't build credit past zero but still wastes writes).
@@ -439,47 +344,23 @@ const ACCESS_STATUS_MIN_INTERVAL_MS = 300;
 const DELETE_ACCOUNT_MIN_INTERVAL_MS = 5_000;
 const EXPORT_DATA_MIN_INTERVAL_MS = 30_000;
 
+const CONSULTATION_RATE_LIMIT = {
+  collection: "consultationRateLimit",
+  minIntervalMs: CONSULTATION_MIN_INTERVAL_MS,
+  errorCode: ErrorCode.CONSULTATION_RATE_LIMITED,
+};
+
 export const reserveConsultation = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Must be signed in.", { code: ErrorCode.UNAUTHENTICATED });
-  }
-  const uid = request.auth.uid;
-  const email = request.auth.token.email;
-  const role = (request.auth.token as { stripeRole?: string }).stripeRole;
+  const caller = await callerAccess.resolveCaller(request, CONSULTATION_RATE_LIMIT);
 
-  await enforceRateLimit(
-    "consultationRateLimit",
-    uid,
-    CONSULTATION_MIN_INTERVAL_MS,
-    ErrorCode.CONSULTATION_RATE_LIMITED,
-  );
-
-  // Admins + comped friends bypass the quota entirely.
-  if (await hasUnlimitedAccess(email)) {
-    return { capped: false, remaining: -1, limit: CONSULTATION_LIMIT_PAID };
+  // Admins + comped users bypass the quota entirely.
+  if (caller.unlimited) {
+    return { capped: false, remaining: -1, limit: dailyQuota.limitFor("consultation", true) };
   }
 
-  const effectiveLimit = role === "paid" ? CONSULTATION_LIMIT_PAID : CONSULTATION_LIMIT_FREE;
-  const today = new Date().toISOString().split("T")[0];
-  const quotaRef = db.collection("consultationQuota").doc(`${uid}_${today}`);
-
-  let remaining = 0;
-  await db.runTransaction(async (tx) => {
-    const doc = await tx.get(quotaRef);
-    const used: number = doc.exists ? (doc.data()!.count as number) : 0;
-    if (used >= effectiveLimit) {
-      throw new HttpsError(
-        "resource-exhausted",
-        `Daily limit of ${effectiveLimit} consultations reached. Resets at midnight UTC.`,
-        { code: ErrorCode.CONSULTATION_QUOTA_EXCEEDED, limit: effectiveLimit },
-      );
-    }
-    const newCount = used + 1;
-    tx.set(quotaRef, { count: newCount, uid, date: today }, { merge: true });
-    remaining = effectiveLimit - newCount;
-  });
-
-  return { capped: false, remaining, limit: effectiveLimit };
+  const paid = caller.tier === "paid";
+  const { remaining } = await dailyQuota.reserve(caller.uid, "consultation", paid);
+  return { capped: false, remaining, limit: dailyQuota.limitFor("consultation", paid) };
 });
 
 /**
@@ -492,35 +373,15 @@ export const reserveConsultation = onCall(async (request) => {
  * a bad client can't build up credit by spam-calling release.
  */
 export const releaseConsultation = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Must be signed in.", { code: ErrorCode.UNAUTHENTICATED });
-  }
-  const uid = request.auth.uid;
-  const email = request.auth.token.email;
+  const caller = await callerAccess.resolveCaller(request, CONSULTATION_RATE_LIMIT);
 
-  await enforceRateLimit(
-    "consultationRateLimit",
-    uid,
-    CONSULTATION_MIN_INTERVAL_MS,
-    ErrorCode.CONSULTATION_RATE_LIMITED,
-  );
-
-  // Admins + comped friends never had a slot reserved. Paid users DO
+  // Admins + comped users never had a slot reserved. Paid users DO
   // have a capped slot (30/day) — refund them too.
-  if (await hasUnlimitedAccess(email)) return { released: false };
+  if (caller.unlimited) return { released: false };
 
-  const today = new Date().toISOString().split("T")[0];
-  const quotaRef = db.collection("consultationQuota").doc(`${uid}_${today}`);
-
-  await db.runTransaction(async (tx) => {
-    const doc = await tx.get(quotaRef);
-    if (!doc.exists) return;
-    const used: number = doc.data()!.count as number;
-    if (used <= 0) return;
-    tx.set(quotaRef, { count: used - 1 }, { merge: true });
-  });
-
-  return { released: true };
+  // Honest signal: false when there was nothing to refund (no doc yet,
+  // or already at zero). The client treats release as fire-and-forget.
+  return { released: await dailyQuota.release(caller.uid, "consultation") };
 });
 
 /**
@@ -535,38 +396,29 @@ export const checkAccessStatus = onCall(async (request) => {
     return {
       admin: false, comped: false,
       photosRemaining: null, consultationsRemaining: null,
-      photoLimit: PHOTO_LIMIT_FREE, consultationLimit: CONSULTATION_LIMIT_FREE,
+      photoLimit: dailyQuota.limitFor("photo", false),
+      consultationLimit: dailyQuota.limitFor("consultation", false),
     };
   }
-  const uid = request.auth.uid;
-  await enforceRateLimit(
-    "accessStatusRateLimit",
-    uid,
-    ACCESS_STATUS_MIN_INTERVAL_MS,
-    ErrorCode.RATE_LIMITED,
-  );
-  const email = request.auth.token.email;
-  const admin = isAdmin(email);
-  // Two comped paths: the static config/accessList for friends-and-family,
-  // and the per-user `compedUntil` Timestamp set by the referral trigger.
-  // Either grants the same unlimited tier; checkAccessStatus is the only
-  // place clients learn about it, so the client signal stays unified.
-  const compedFromList = await isComped(email);
-  const profileSnap = await db.doc(`users/${uid}`).get();
-  const compedUntil = profileSnap.exists
-    ? (profileSnap.data()?.["compedUntil"] as Timestamp | undefined)
-    : undefined;
-  const compedFromReferral = !!compedUntil && compedUntil.toMillis() > Date.now();
-  const comped = compedFromList || compedFromReferral;
-  const role = (request.auth.token as { stripeRole?: string }).stripeRole;
-  const unlimitedAccess = admin || comped;
-  const paid = role === "paid";
-  const photoLimit = paid ? PHOTO_LIMIT_PAID : PHOTO_LIMIT_FREE;
-  const consultationLimit = paid ? CONSULTATION_LIMIT_PAID : CONSULTATION_LIMIT_FREE;
+  // Tier resolution (admin / comped-list / referral compedUntil / paid /
+  // free) lives in CallerAccess — the same resolution the quota
+  // callables enforce, so the UI badge can't drift from server behaviour.
+  const caller = await callerAccess.resolveCaller(request, {
+    collection: "accessStatusRateLimit",
+    minIntervalMs: ACCESS_STATUS_MIN_INTERVAL_MS,
+    errorCode: ErrorCode.RATE_LIMITED,
+  });
+  const admin = caller.tier === "admin";
+  const comped = caller.tier === "comped";
+  // Limits key off the raw Stripe claim, not the tier — an admin/comped
+  // user who also pays keeps seeing the paid caps in decorative UI.
+  const paid = caller.paidClaim;
+  const photoLimit = dailyQuota.limitFor("photo", paid);
+  const consultationLimit = dailyQuota.limitFor("consultation", paid);
 
   // Admin/comped users hide the "N left" caption entirely (null signal).
   // Paid users DO see a remaining count against the 30/day cap.
-  if (unlimitedAccess) {
+  if (caller.unlimited) {
     return {
       admin, comped,
       photosRemaining: null, consultationsRemaining: null,
@@ -574,13 +426,10 @@ export const checkAccessStatus = onCall(async (request) => {
     };
   }
 
-  const today = new Date().toISOString().split("T")[0];
-  const [photoSnap, consultSnap] = await Promise.all([
-    db.collection("photoQuota").doc(`${uid}_${today}`).get(),
-    db.collection("consultationQuota").doc(`${uid}_${today}`).get(),
+  const [photosUsed, consultUsed] = await Promise.all([
+    dailyQuota.peek(caller.uid, "photo"),
+    dailyQuota.peek(caller.uid, "consultation"),
   ]);
-  const photosUsed = photoSnap.exists ? (photoSnap.data()!.count as number) : 0;
-  const consultUsed = consultSnap.exists ? (consultSnap.data()!.count as number) : 0;
   return {
     admin, comped,
     photosRemaining: Math.max(0, photoLimit - photosUsed),
@@ -661,25 +510,15 @@ async function cancelStripeSubscriptions(uid: string): Promise<void> {
 // requirement. Response is inline JSON; the heaviest real-world account
 // fits comfortably under the 10 MB callable response cap.
 export const exportUserData = onCall({ maxInstances: 5 }, async (request) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Must be signed in to export your data.", { code: ErrorCode.UNAUTHENTICATED });
-  }
-  const uid = request.auth.uid;
-  await enforceRateLimit(
-    "exportRateLimit",
-    uid,
-    EXPORT_DATA_MIN_INTERVAL_MS,
-    ErrorCode.RATE_LIMITED,
-  );
+  const { uid } = await callerAccess.resolveCaller(request, {
+    collection: "exportRateLimit",
+    minIntervalMs: EXPORT_DATA_MIN_INTERVAL_MS,
+    errorCode: ErrorCode.RATE_LIMITED,
+  });
   const userRef = db.doc(`users/${uid}`);
 
   const dumpCollection = async (name: string) => {
     const snap = await userRef.collection(name).get();
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  };
-
-  const dumpQuota = async (coll: string) => {
-    const snap = await db.collection(coll).where("uid", "==", uid).get();
     return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   };
 
@@ -692,8 +531,8 @@ export const exportUserData = onCall({ maxInstances: 5 }, async (request) => {
       dumpCollection("dailyWeights"),
       dumpCollection("dailyWater"),
       dumpCollection("measurements"),
-      dumpQuota("photoQuota"),
-      dumpQuota("consultationQuota"),
+      dailyQuota.dump(uid, "photo"),
+      dailyQuota.dump(uid, "consultation"),
     ]);
 
   // Redact credentials — GDPR Art. 20 scope is personal data, not bearer
@@ -736,16 +575,11 @@ export const exportUserData = onCall({ maxInstances: 5 }, async (request) => {
 });
 
 export const deleteAccount = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Must be signed in to delete your account.", { code: ErrorCode.UNAUTHENTICATED });
-  }
-  const uid = request.auth.uid;
-  await enforceRateLimit(
-    "deleteRateLimit",
-    uid,
-    DELETE_ACCOUNT_MIN_INTERVAL_MS,
-    ErrorCode.RATE_LIMITED,
-  );
+  const { uid } = await callerAccess.resolveCaller(request, {
+    collection: "deleteRateLimit",
+    minIntervalMs: DELETE_ACCOUNT_MIN_INTERVAL_MS,
+    errorCode: ErrorCode.RATE_LIMITED,
+  });
   const userPath = `users/${uid}`;
 
   try {
@@ -768,18 +602,8 @@ export const deleteAccount = onCall(async (request) => {
       deleteSubcollection(userPath, "measurements"),
     ]);
 
-    // 2. Delete quota docs (photo + consultation). Doc IDs are
-    //    `${uid}_${date}` and carry a `uid` field for query filtering.
-    for (const coll of ["photoQuota", "consultationQuota"]) {
-      const quotaSnap = await db.collection(coll)
-        .where("uid", "==", uid)
-        .get();
-      if (!quotaSnap.empty) {
-        const batch = db.batch();
-        quotaSnap.docs.forEach((d) => batch.delete(d.ref));
-        await batch.commit();
-      }
-    }
+    // 2. Delete quota docs (photo + consultation).
+    await dailyQuota.deleteAll(uid);
 
     // 3. Delete the user profile doc itself.
     await db.doc(userPath).delete();
@@ -996,15 +820,10 @@ interface GenerateReportInput {
 export const generateWeeklyReport = onCall(
   { secrets: [geminiApiKey], maxInstances: 5 },
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Must be signed in.", { code: ErrorCode.UNAUTHENTICATED });
-    }
-
-    const uid = request.auth.uid;
-    const email = request.auth.token.email;
-    const role = (request.auth.token as { stripeRole?: string }).stripeRole;
-    const entitled = role === "paid" || (await hasUnlimitedAccess(email));
-    if (!entitled) {
+    const caller = await callerAccess.resolveCaller(request);
+    const uid = caller.uid;
+    // Gate is paid OR admin OR comped — i.e. anything above free.
+    if (caller.tier === "free") {
       throw new HttpsError(
         "permission-denied",
         "Weekly report is a Pro feature.",

@@ -2,6 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 import { getAuth, UserRecord } from "firebase-admin/auth";
 import { writeAuditLog, tsToIso } from "./audit-log";
+import { DailyQuota } from "./daily-quota";
 
 const STATS_TTL_MS = 5 * 60 * 1000; // 5-min cache — cheap to refresh, expensive to run
 const ACTIVITY_TTL_MS = 30 * 1000;  // 30-sec cache — feed barely changes between rapid refreshes
@@ -499,14 +500,7 @@ export const adminDeleteUser = onCall({ timeoutSeconds: 120 }, async (request) =
       if (snap.size < 500) break;
     }
   }
-  for (const coll of ["photoQuota", "consultationQuota"]) {
-    const qsnap = await db.collection(coll).where("uid", "==", targetUid).get();
-    if (!qsnap.empty) {
-      const batch = db.batch();
-      qsnap.docs.forEach((d) => batch.delete(d.ref));
-      await batch.commit();
-    }
-  }
+  await new DailyQuota(db).deleteAll(targetUid);
   await db.doc(userPath).delete().catch(() => undefined);
   await auth.deleteUser(targetUid);
 
@@ -628,13 +622,7 @@ export const adminResetQuotas = onCall(async (request) => {
   if (!targetUid) {
     throw new HttpsError("invalid-argument", "targetUid required.");
   }
-  const db = getFirestore();
-  const today = new Date().toISOString().split("T")[0];
-  const targets = [
-    db.doc(`photoQuota/${targetUid}_${today}`),
-    db.doc(`consultationQuota/${targetUid}_${today}`),
-  ];
-  await Promise.all(targets.map((r) => r.delete().catch(() => undefined)));
+  await new DailyQuota(getFirestore()).resetToday(targetUid);
 
   const auth = getAuth();
   const target = await auth.getUser(targetUid).catch(() => null);
