@@ -1,3 +1,10 @@
+// IMPORTANT: these imports MUST come from '@angular/fire/firestore' in
+// the app bundle — the injected `Firestore` instance is created through
+// @angular/fire, and mixing it with functions from a second bundled copy
+// of the SDK throws "Expected first argument to doc() to be …" at
+// runtime. The node emulator suite (vitest.ledger.config.ts) aliases
+// this specifier back to plain 'firebase/firestore' so no Angular code
+// is pulled into the framework-free test process.
 import {
   Firestore,
   addDoc,
@@ -15,7 +22,7 @@ import {
   deleteField,
   where,
   writeBatch,
-} from 'firebase/firestore';
+} from '@angular/fire/firestore';
 import type {
   DailyLog,
   DailyLogDoc,
