@@ -13,7 +13,9 @@ add a term when a real ambiguity exists, not preemptively.
 ## Logging concepts
 
 - **DailyLog** — One row of intake. Fields: `id`, `calories`, `protein?`,
-  `weight?`, `mealLabel?`, `exerciseCompleted?`, and a `date` (a JS `Date`
+  `carbs?`, `fat?` (grams, added 2026-06 — older rows lack them; treat
+  absent as unknown, not zero), `weight?`, `mealLabel?`,
+  `exerciseCompleted?`, and a `date` (a JS `Date`
   derived from a Firestore `Timestamp`). Stored at
   `users/{uid}/dailyLogs/{id}`. Despite the name, a `DailyLog` is a single
   meal/entry — a day usually has several. Arrays of `DailyLog` are
