@@ -14,7 +14,7 @@ add a term when a real ambiguity exists, not preemptively.
 
 - **DailyLog** — One row of intake. Fields: `id`, `calories`, `protein?`,
   `carbs?`, `fat?` (grams, added 2026-06 — older rows lack them; treat
-  absent as unknown, not zero), `weight?`, `mealLabel?`,
+  absent as unknown, not zero), `weight?`, `mealLabel?`, `mealType?`,
   `exerciseCompleted?`, and a `date` (a JS `Date`
   derived from a Firestore `Timestamp`). Stored at
   `users/{uid}/dailyLogs/{id}`. Despite the name, a `DailyLog` is a single
@@ -29,6 +29,15 @@ add a term when a real ambiguity exists, not preemptively.
   (`log.mealLabel`). Powers the recent-entries one-tap-relog row and
   recipe deduplication. Empty for weight-only or 0-cal training-marker
   rows.
+- **MealType / meal slot** — Optional diary slot on a `DailyLog`:
+  `breakfast | lunch | dinner | snack` (enum enforced in rules; added
+  2026-06-12). Distinct from `mealLabel` (free text — "Quest bar"). The
+  day view groups entries by slot with per-slot kcal subtotals; rows
+  without one land in an **"other" bucket** and are never silently
+  reassigned — a day whose rows are all unslotted renders flat (legacy
+  look). New entries default by wall-clock hour
+  (`defaultMealTypeForHour` in `utils/meal-draft.ts`); the chip
+  selector toggles off so an entry can be deliberately unslotted.
 - **MealPreset** / **Preset** — A reusable `{ name, calories, protein? }`
   saved by the user under `users/{uid}/presets`. Free tier capped at
   `PRESET_LIMIT_FREE = 10`. `PresetLimitError` carries the cap so the UI
