@@ -25,6 +25,7 @@ import {
   type ExercisePRs,
   type ProgressionSuggestion,
 } from '../../utils/workout-progression';
+import { computePlateLoad, type PlateLoad } from '../../utils/plate-math';
 
 const SAVE_DEBOUNCE_MS = 800;
 
@@ -135,6 +136,9 @@ const SAVE_DEBOUNCE_MS = 800;
                       [attr.aria-label]="t('train.reps')"
                       [value]="set.reps ?? ''"
                       (input)="onSetField(exIdx, setIdx, 'reps', $event)" />
+                    <button type="button" class="v2-btn v2-btn--ghost v2-btn--sm"
+                      [attr.aria-pressed]="platesOpen() === plateKey(exIdx, setIdx)"
+                      (click)="togglePlates(exIdx, setIdx)">{{ t('train.plates') }}</button>
                   }
                 }
                 @if (showRir(set)) {
@@ -152,6 +156,21 @@ const SAVE_DEBOUNCE_MS = 800;
                         (click)="markDone(exIdx, setIdx, set)">
                   <lucide-icon [name]="set.done ? 'check-circle-2' : 'circle'" [size]="18" />
                 </button>
+                @if (platesOpen() === plateKey(exIdx, setIdx)) {
+                  <div class="basis-full mt-1" style="padding-left: 5.5rem;">
+                    @if (plateLoadFor(set.weight); as pl) {
+                      <p class="v2-caption" style="color: var(--v2-ink-muted); font-size: 0.72rem;">
+                        @if (pl.perSide.length) {
+                          {{ t('train.platesPerSide') }}: {{ plateChips(pl) }}@if (pl.remainder > 0) { · {{ t('train.platesShort', { n: pl.remainder }) }}}
+                        } @else {
+                          {{ t('train.platesBarOnly', { bar: pl.bar }) }}
+                        }
+                      </p>
+                    } @else {
+                      <p class="v2-caption" style="color: var(--v2-ink-muted); font-size: 0.72rem;">{{ t('train.platesNeedWeight') }}</p>
+                    }
+                  </div>
+                }
               </div>
             }
             <button type="button" class="v2-btn v2-btn--ghost v2-btn--sm mt-1" (click)="addSet(exIdx)">
@@ -349,6 +368,33 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
   protected setLabel(t: (k: string, p?: Record<string, unknown>) => string, set: WorkoutSet): string {
     const kind = t('train.kind.' + set.kind);
     return set.group != null ? `${t('train.cluster', { n: set.group })} · ${kind}` : kind;
+  }
+
+  // ─── Plate calculator ─────────────────────────────────────────
+  /** Which set's plate breakdown is expanded, keyed `exIdx-setIdx`, or
+   *  null. Only one open at a time — it's an inline helper, not a panel. */
+  protected readonly platesOpen = signal<string | null>(null);
+
+  protected plateKey(exIdx: number, setIdx: number): string {
+    return `${exIdx}-${setIdx}`;
+  }
+
+  protected togglePlates(exIdx: number, setIdx: number): void {
+    const key = this.plateKey(exIdx, setIdx);
+    this.platesOpen.update((cur) => (cur === key ? null : key));
+  }
+
+  /** Plate solve for a set's weight (lb, default bar + plate set), or null
+   *  when the set has no weight yet. */
+  protected plateLoadFor(weight: number | undefined): PlateLoad | null {
+    return weight != null ? computePlateLoad(weight) : null;
+  }
+
+  /** "45 + 25 + 2.5" per-side chip string. */
+  protected plateChips(pl: PlateLoad): string {
+    return pl.perSide
+      .flatMap((p) => Array.from({ length: p.count }, () => p.plate))
+      .join(' + ');
   }
 
   // ─── Editing ──────────────────────────────────────────────────
