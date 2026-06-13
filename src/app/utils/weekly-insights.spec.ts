@@ -1,4 +1,4 @@
-import { computeWeeklyInsights, weightSlopeLbPerWeek } from './weekly-insights';
+import { computeWeeklyInsights, projectWeight, weightSlopeLbPerWeek } from './weekly-insights';
 import type { DaySummary } from './day-summary';
 
 function day(dateKey: string, totalCalories: number, mealCount = 1): DaySummary {
@@ -106,5 +106,52 @@ describe('weightSlopeLbPerWeek', () => {
     const slope = weightSlopeLbPerWeek(points)!;
     expect(slope).toBeLessThan(0);
     expect(slope).toBeGreaterThan(-2.5);
+  });
+});
+
+describe('projectWeight', () => {
+  // Clean −1 lb/week line: 180 on Jun 1 → 179 on Jun 8.
+  const losing = [
+    { dateKey: '2026-06-01', weightLb: 180 },
+    { dateKey: '2026-06-04', weightLb: 179.5 },
+    { dateKey: '2026-06-08', weightLb: 179 },
+  ];
+
+  it('returns null below the slope gate', () => {
+    expect(projectWeight([])).toBeNull();
+    expect(projectWeight(losing.slice(0, 2), 170)).toBeNull();
+  });
+
+  it('reports slope and the fitted current weight without a goal', () => {
+    const p = projectWeight(losing)!;
+    expect(p.slopeLbPerWeek).toBeCloseTo(-1, 1);
+    expect(p.currentFittedLb).toBeCloseTo(179, 1);
+    expect(p.lastDateKey).toBe('2026-06-08');
+    expect(p.goalDateKey).toBeNull(); // no goal supplied
+  });
+
+  it('projects the date the goal is reached when the trend moves toward it', () => {
+    // At −1 lb/wk from ~179 on Jun 8, 175 lb is ~4 weeks out → ~Jul 6.
+    const p = projectWeight(losing, 175)!;
+    expect(p.goalDateKey).not.toBeNull();
+    const [, m, d] = p.goalDateKey!.split('-').map(Number);
+    expect(m).toBe(7);
+    expect(d).toBeGreaterThanOrEqual(4);
+    expect(d).toBeLessThanOrEqual(8);
+  });
+
+  it('gives no goal date when the trend diverges from the goal', () => {
+    // Losing weight but goal is ABOVE current → never reached at this pace.
+    expect(projectWeight(losing, 190)!.goalDateKey).toBeNull();
+  });
+
+  it('gives no goal date when the crossing is implausibly far out', () => {
+    // Near-flat trend toward a distant goal would be years away.
+    const flat = [
+      { dateKey: '2026-06-01', weightLb: 180.0 },
+      { dateKey: '2026-06-05', weightLb: 179.98 },
+      { dateKey: '2026-06-10', weightLb: 179.95 },
+    ];
+    expect(projectWeight(flat, 150)!.goalDateKey).toBeNull();
   });
 });

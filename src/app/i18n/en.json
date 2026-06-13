@@ -571,6 +571,11 @@
     "manage": "manage",
     "done": "done"
   },
+  "body": {
+    "projectionGoalDate": "At this pace: {{weight}} lb by {{date}}",
+    "projectionRate": "Trending {{n}} lb/wk",
+    "projectionSteady": "Holding steady"
+  },
   "trends": {
     "regenerate": "generate fresh report",
     "insightsTitle": "This week's insights",

@@ -14,8 +14,9 @@ import { FitnessStore } from '../../services/fitness-store.service';
 import { FastingStore } from '../../services/fasting-store.service';
 import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { TranslationService } from '../../services/translation.service';
-import { localDateKey } from '../../utils/date';
+import { addDays, localDateKey } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
+import { projectWeight, type WeightPoint } from '../../utils/weekly-insights';
 import { Measurement } from '../../services/firebase.service';
 import { UiCard } from '../ui/card.component';
 import { UiButton } from '../ui/button.component';
@@ -96,10 +97,17 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
         <div class="mt-4">
           <ui-sparkline
             [values]="weightSeries()"
+            [projection]="projectedSeries()"
             [width]="280"
             [height]="56"
             tone="accent"
             [ariaLabel]="t('v2.body.weightTrendAria')" />
+          @if (projectionLabel(); as pl) {
+            <p class="v2-caption mt-2 inline-flex items-center gap-1.5">
+              <lucide-icon name="trending-up" [size]="13" style="color: var(--v2-ink-muted)" />
+              {{ pl }}
+            </p>
+          }
         </div>
 
         @if (goal(); as g) {
@@ -402,6 +410,70 @@ export class BodyComponent implements OnInit, OnDestroy {
   });
 
   protected readonly goal = computed(() => this.store.goalProgress());
+
+  // ─── Weight projection (linear fit, no AI) ─────────────────
+  // Fit over a longer window than the 14-day sparkline so the trend
+  // isn't dominated by this week's water-weight noise.
+  private static readonly PROJECTION_WINDOW_DAYS = 28;
+  private static readonly PROJECTION_CHART_DAYS = 7;
+
+  private readonly weightPoints = computed<WeightPoint[]>(() => {
+    const map = this.body.dailyWeights();
+    const today = new Date();
+    const out: WeightPoint[] = [];
+    for (let i = BodyComponent.PROJECTION_WINDOW_DAYS - 1; i >= 0; i--) {
+      const key = localDateKey(addDays(today, -i));
+      const v = map[key];
+      if (typeof v === 'number') out.push({ dateKey: key, weightLb: v });
+    }
+    return out;
+  });
+
+  protected readonly projection = computed(() =>
+    projectWeight(this.weightPoints(), this.store.profile()?.goalWeightLbs ?? null),
+  );
+
+  /** Dashed forecast for the sparkline: step from the last plotted
+   *  weight along the fitted slope so the dashed line joins the solid
+   *  one. Empty (no dashes) when there's no trend to project. */
+  protected readonly projectedSeries = computed<number[]>(() => {
+    const p = this.projection();
+    const series = this.weightSeries();
+    if (!p || series.length < 2) return [];
+    const last = series[series.length - 1];
+    const perDay = p.slopeLbPerWeek / 7;
+    return Array.from(
+      { length: BodyComponent.PROJECTION_CHART_DAYS },
+      (_, k) => +(last + perDay * (k + 1)).toFixed(1),
+    );
+  });
+
+  /** One-line projection caption. Prefers a concrete goal date; falls
+   *  back to the bare weekly trend; "holding steady" when essentially
+   *  flat (< 0.1 lb/wk either way). Null when there's no fit. */
+  protected readonly projectionLabel = computed<string | null>(() => {
+    const p = this.projection();
+    if (!p) return null;
+    const slope = p.slopeLbPerWeek;
+    if (Math.abs(slope) < 0.1) return this.translation.t('body.projectionSteady');
+    if (p.goalDateKey) {
+      const goal = this.store.goalProgress()?.goalWeight;
+      return this.translation.t('body.projectionGoalDate', {
+        weight: goal != null ? goal.toFixed(0) : '',
+        date: this.formatProjectionDate(p.goalDateKey),
+      });
+    }
+    const signed = slope > 0 ? `+${slope.toFixed(1)}` : slope.toFixed(1);
+    return this.translation.t('body.projectionRate', { n: signed });
+  });
+
+  private formatProjectionDate(dateKey: string): string {
+    const [y, m, d] = dateKey.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(
+      bcp47ForLang(this.translation.language()),
+      { month: 'short', day: 'numeric', year: 'numeric' },
+    );
+  }
 
   protected readonly elapsedHours = computed<number>(() => {
     this.tick();

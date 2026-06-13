@@ -571,6 +571,11 @@
     "manage": "editar",
     "done": "listo"
   },
+  "body": {
+    "projectionGoalDate": "A este ritmo: {{weight}} lb para {{date}}",
+    "projectionRate": "Tendencia {{n}} lb/sem",
+    "projectionSteady": "Estable"
+  },
   "trends": {
     "regenerate": "generar reporte nuevo",
     "insightsTitle": "Lo que dice tu semana",
