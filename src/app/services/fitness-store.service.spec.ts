@@ -317,11 +317,14 @@ describe('FitnessStore', () => {
       await store.addLog(entry);
 
       expect(mockFb.addLog).toHaveBeenCalledWith(entry);
-      const logs = store.logs();
-      const added = logs[logs.length - 1]; // no timestamp → now → newest
-      expect(added.id).toBe('new-log-id');
-      expect(added.calories).toBe(1850);
-      expect(added.weight).toBe(179);
+      // Find by server id, not position: the new row is stamped at the
+      // real current time, while makeLogs stamps "today" at 12:00, so the
+      // row sorts before the noon logs when CI runs before noon (the old
+      // logs[length-1] assertion was wall-clock-of-day dependent).
+      const added = store.logs().find((l) => l.id === 'new-log-id');
+      expect(added).toBeDefined();
+      expect(added!.calories).toBe(1850);
+      expect(added!.weight).toBe(179);
       // Zero recent-window refetches — the cache reconciles locally.
       // (_loadAllTimeLogs may fire once if history wasn't hydrated.)
       expect(mockFb.getRecentLogs.mock.calls.filter((c) => c[0] === 14)).toHaveLength(0);
