@@ -572,7 +572,17 @@
     "done": "done"
   },
   "trends": {
-    "regenerate": "generate fresh report"
+    "regenerate": "generate fresh report",
+    "insightsTitle": "This week's insights",
+    "insightsBestDay": "Best day",
+    "insightsWorstDay": "Toughest day",
+    "insightsAvgVsTarget": "Avg vs target",
+    "insightsWeightTrend": "Weight trend",
+    "insightsDayValue": "{{day}} · {{delta}}",
+    "insightsKcal": "{{n}} kcal",
+    "insightsLbPerWeek": "{{n}} lb/wk",
+    "insightsOnTarget": "on target",
+    "insightsNeedDays": "Log at least 3 days this week to unlock insights."
   },
   "entry": {
     "errorCaloriesRequired": "Calories are required.",

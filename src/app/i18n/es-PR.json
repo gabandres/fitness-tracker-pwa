@@ -572,7 +572,17 @@
     "done": "listo"
   },
   "trends": {
-    "regenerate": "generar reporte nuevo"
+    "regenerate": "generar reporte nuevo",
+    "insightsTitle": "Lo que dice tu semana",
+    "insightsBestDay": "Mejor día",
+    "insightsWorstDay": "Día más difícil",
+    "insightsAvgVsTarget": "Promedio vs meta",
+    "insightsWeightTrend": "Tendencia de peso",
+    "insightsDayValue": "{{day}} · {{delta}}",
+    "insightsKcal": "{{n}} kcal",
+    "insightsLbPerWeek": "{{n}} lb/sem",
+    "insightsOnTarget": "en meta",
+    "insightsNeedDays": "Registra al menos 3 días esta semana para ver tus insights."
   },
   "entry": {
     "errorCaloriesRequired": "Las calorías son requeridas.",

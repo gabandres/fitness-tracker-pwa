@@ -10,6 +10,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { marked } from 'marked';
 import { FitnessStore } from '../../services/fitness-store.service';
+import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { WeeklyReportStore } from '../../services/weekly-report-store.service';
 import { SubscriptionService } from '../../services/subscription.service';
 import { TranslationService } from '../../services/translation.service';
@@ -20,6 +21,13 @@ import { UiButton } from '../ui/button.component';
 import { UiCard } from '../ui/card.component';
 import { UiIconButton } from '../ui/icon-button.component';
 import { UiFastingPill } from '../ui/fasting-pill.component';
+import { summarizeDays } from '../../utils/day-summary';
+import {
+  computeWeeklyInsights,
+  type WeightPoint,
+} from '../../utils/weekly-insights';
+import { addDays, localDateKey } from '../../utils/date';
+import { bcp47ForLang } from '../../utils/locale';
 
 /**
  * Trends route. Single-page scroll with: 7-day twin-bar chart,
@@ -126,6 +134,39 @@ import { UiFastingPill } from '../ui/fasting-pill.component';
         }
       </ui-card>
 
+      <!-- Weekly insights (rule-based, free — no AI involved) -->
+      @if (historyLoaded()) {
+        <ui-card variant="flat" class="mt-4 block">
+          <h2 class="v2-h3 mb-3">{{ t('trends.insightsTitle') }}</h2>
+          @if (insights(); as ins) {
+            <dl class="grid grid-cols-2 gap-x-4 gap-y-3">
+              <div>
+                <dt class="v2-caption">{{ t('trends.insightsBestDay') }}</dt>
+                <dd class="v2-num text-lg font-semibold">
+                  {{ t('trends.insightsDayValue', { day: weekday(ins.bestDay.dateKey), delta: deltaLabel(ins.bestDay.delta) }) }}
+                </dd>
+              </div>
+              <div>
+                <dt class="v2-caption">{{ t('trends.insightsWorstDay') }}</dt>
+                <dd class="v2-num text-lg font-semibold">
+                  {{ t('trends.insightsDayValue', { day: weekday(ins.worstDay.dateKey), delta: deltaLabel(ins.worstDay.delta) }) }}
+                </dd>
+              </div>
+              <div>
+                <dt class="v2-caption">{{ t('trends.insightsAvgVsTarget') }}</dt>
+                <dd class="v2-num text-lg font-semibold">{{ deltaLabel(-ins.avgDeficit) }}</dd>
+              </div>
+              <div>
+                <dt class="v2-caption">{{ t('trends.insightsWeightTrend') }}</dt>
+                <dd class="v2-num text-lg font-semibold">{{ slopeLabel(ins.weightSlopeLbPerWeek) }}</dd>
+              </div>
+            </dl>
+          } @else {
+            <p class="v2-body-soft">{{ t('trends.insightsNeedDays') }}</p>
+          }
+        </ui-card>
+      }
+
       <!-- Weekly report (Pro) -->
       <ui-card variant="default" class="mt-4 block">
         <h2 class="v2-h3 mb-3">{{ t('v2.trends.weeklyReadout') }}</h2>
@@ -205,6 +246,7 @@ import { UiFastingPill } from '../ui/fasting-pill.component';
 })
 export class TrendsComponent {
   protected readonly store = inject(FitnessStore);
+  private readonly body = inject(BodyMetricStore);
   protected readonly report = inject(WeeklyReportStore);
   protected readonly subs = inject(SubscriptionService);
   private readonly upsell = inject(UpsellService);
@@ -231,6 +273,59 @@ export class TrendsComponent {
   protected readonly daysWithLogsThisWeek = computed(
     () => this.chartData().filter((d) => d.kcal > 0).length,
   );
+
+  // ── Weekly insights (rule-based) ────────────────────────────
+
+  /** Window the insights judge: the last 7 calendar days for food, the
+   *  last 28 for the weight slope (a 7-day fit is all noise). */
+  private static readonly INSIGHT_DAYS = 7;
+  private static readonly SLOPE_DAYS = 28;
+
+  private lastNDateKeys(n: number): string[] {
+    const today = new Date();
+    return Array.from({ length: n }, (_, i) => localDateKey(addDays(today, i - (n - 1))));
+  }
+
+  /** Hide the card entirely until lifetime history hydrates (ADR-0004:
+   *  never let "not loaded yet" read as "no data"). */
+  protected readonly historyLoaded = computed(
+    () => this.store.logsForLastDaysState(TrendsComponent.INSIGHT_DAYS).loaded,
+  );
+
+  private readonly weightPoints = computed<WeightPoint[]>(() => {
+    const dw = this.body.dailyWeights();
+    return this.lastNDateKeys(TrendsComponent.SLOPE_DAYS)
+      .filter((k) => typeof dw[k] === 'number')
+      .map((dateKey) => ({ dateKey, weightLb: dw[dateKey] }));
+  });
+
+  protected readonly insights = computed(() => {
+    const win = this.store.logsForLastDaysState(TrendsComponent.INSIGHT_DAYS);
+    if (!win.loaded) return null;
+    const days = summarizeDays(this.lastNDateKeys(TrendsComponent.INSIGHT_DAYS), win.logs);
+    return computeWeeklyInsights(days, this.kcalTarget(), this.weightPoints());
+  });
+
+  protected weekday(dateKey: string): string {
+    const [y, m, d] = dateKey.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(
+      bcp47ForLang(this.translation.language()),
+      { weekday: 'short' },
+    );
+  }
+
+  protected deltaLabel(delta: number): string {
+    const n = Math.round(delta);
+    if (n === 0) return this.translation.t('trends.insightsOnTarget');
+    const signed = n > 0 ? `+${n.toLocaleString()}` : `−${Math.abs(n).toLocaleString()}`;
+    return this.translation.t('trends.insightsKcal', { n: signed });
+  }
+
+  protected slopeLabel(slope: number | null): string {
+    if (slope == null) return '—';
+    const signed = slope > 0 ? `+${slope.toFixed(1)}` : slope.toFixed(1);
+    return this.translation.t('trends.insightsLbPerWeek', { n: signed });
+  }
 
   protected readonly weightDeltaLabel = computed(() => {
     const w = this.weekly();
