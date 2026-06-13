@@ -26,6 +26,7 @@ import {
   computeWeeklyInsights,
   type WeightPoint,
 } from '../../utils/weekly-insights';
+import { computeWeeklyBudget, type WeeklyBudget } from '../../utils/weekly-budget';
 import { addDays, localDateKey } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
 
@@ -163,6 +164,51 @@ import { bcp47ForLang } from '../../utils/locale';
             </dl>
           } @else {
             <p class="v2-body-soft">{{ t('trends.insightsNeedDays') }}</p>
+          }
+        </ui-card>
+      }
+
+      <!-- Weekly calorie budget / banking (rule-based, free) -->
+      @if (historyLoaded()) {
+        <ui-card variant="flat" class="mt-4 block">
+          <h2 class="v2-h3 mb-1">{{ t('trends.budgetTitle') }}</h2>
+          @if (budget(); as b) {
+            <p class="v2-caption mb-3">
+              {{ t('trends.budgetSubtitle', { used: b.consumed.toLocaleString(), total: b.weeklyBudget.toLocaleString() }) }}
+            </p>
+            <!-- Mon→Sun bar strip; baseline = daily target -->
+            <div class="flex items-end gap-1.5 h-20">
+              @for (bar of b.bars; track bar.dateKey) {
+                <div class="flex-1 h-full flex items-end">
+                  <div
+                    class="w-full rounded-sm transition-all"
+                    [style.height.%]="barHeight(bar.calories, b.dailyTarget)"
+                    [style.background]="bar.elapsed ? 'var(--v2-accent)' : 'var(--v2-border)'"
+                    [style.opacity]="bar.calories > 0 ? 1 : 0.35"></div>
+                </div>
+              }
+            </div>
+            <div class="flex mt-1.5">
+              @for (bar of b.bars; track bar.dateKey) {
+                <span class="flex-1 text-center v2-caption">{{ weekdayNarrow(bar.dateKey) }}</span>
+              }
+            </div>
+            <dl class="grid grid-cols-2 gap-x-4 gap-y-3 mt-4">
+              <div>
+                <dt class="v2-caption">{{ t('trends.budgetRemaining') }}</dt>
+                <dd
+                  class="v2-num text-lg font-semibold"
+                  [style.color]="b.remaining < 0 ? 'var(--v2-danger)' : null">
+                  {{ remainingLabel(b.remaining) }}
+                </dd>
+              </div>
+              <div>
+                <dt class="v2-caption">{{ t('trends.budgetPerDay') }}</dt>
+                <dd class="v2-num text-lg font-semibold">{{ paceLabel(b) }}</dd>
+              </div>
+            </dl>
+          } @else {
+            <p class="v2-body-soft">{{ t('trends.budgetNeedTarget') }}</p>
           }
         </ui-card>
       }
@@ -312,6 +358,55 @@ export class TrendsComponent {
       bcp47ForLang(this.translation.language()),
       { weekday: 'short' },
     );
+  }
+
+  // ── Weekly calorie budget / banking ─────────────────────────
+
+  /** ISO-local week (Monday-start): the seven Mon→Sun date keys and
+   *  today's 1-based position. Monday is at most 6 days back, so the
+   *  shared 7-day history window always covers the elapsed week. */
+  private isoWeek(): { keys: string[]; daysElapsed: number } {
+    const today = new Date();
+    const daysSinceMonday = (today.getDay() + 6) % 7; // Sun=0 → 6, Mon=1 → 0
+    const monday = addDays(today, -daysSinceMonday);
+    const keys = Array.from({ length: 7 }, (_, i) => localDateKey(addDays(monday, i)));
+    return { keys, daysElapsed: daysSinceMonday + 1 };
+  }
+
+  protected readonly budget = computed<WeeklyBudget | null>(() => {
+    const win = this.store.logsForLastDaysState(TrendsComponent.INSIGHT_DAYS);
+    if (!win.loaded) return null;
+    const { keys, daysElapsed } = this.isoWeek();
+    const days = summarizeDays(keys, win.logs);
+    return computeWeeklyBudget(days, daysElapsed, this.kcalTarget());
+  });
+
+  protected weekdayNarrow(dateKey: string): string {
+    const [y, m, d] = dateKey.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(
+      bcp47ForLang(this.translation.language()),
+      { weekday: 'narrow' },
+    );
+  }
+
+  /** Bar height as a % of the strip; the daily target sits at ~70% so an
+   *  over-target day still has headroom to render above it. Logged days
+   *  never collapse below a 6% sliver. */
+  protected barHeight(calories: number, dailyTarget: number): number {
+    if (calories <= 0 || dailyTarget <= 0) return 0;
+    return Math.max(6, Math.min(100, (calories / dailyTarget) * 70));
+  }
+
+  protected remainingLabel(remaining: number): string {
+    const n = Math.round(remaining);
+    const signed = n < 0 ? `−${Math.abs(n).toLocaleString()}` : n.toLocaleString();
+    return this.translation.t('trends.budgetKcal', { n: signed });
+  }
+
+  protected paceLabel(b: WeeklyBudget): string {
+    if (b.pacePerRemainingDay == null) return '—';
+    if (b.pacePerRemainingDay < 0) return this.translation.t('trends.budgetOver');
+    return this.translation.t('trends.budgetKcal', { n: b.pacePerRemainingDay.toLocaleString() });
   }
 
   protected deltaLabel(delta: number): string {

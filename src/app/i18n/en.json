@@ -587,7 +587,14 @@
     "insightsKcal": "{{n}} kcal",
     "insightsLbPerWeek": "{{n}} lb/wk",
     "insightsOnTarget": "on target",
-    "insightsNeedDays": "Log at least 3 days this week to unlock insights."
+    "insightsNeedDays": "Log at least 3 days this week to unlock insights.",
+    "budgetTitle": "Weekly budget",
+    "budgetSubtitle": "{{used}} of {{total}} kcal used",
+    "budgetRemaining": "Remaining",
+    "budgetPerDay": "Per day left",
+    "budgetKcal": "{{n}} kcal",
+    "budgetOver": "Over budget",
+    "budgetNeedTarget": "Set a calorie goal to see your weekly budget."
   },
   "entry": {
     "errorCaloriesRequired": "Calories are required.",
