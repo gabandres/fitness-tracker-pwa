@@ -107,36 +107,48 @@ import { UiWeightSheet } from './weight-sheet.component';
       </div>
     }
 
-    <!-- Entries list -->
+    <!-- Entries list, grouped by diary slot. Days with no slotted
+         entries (every row pre-dates mealType) render as one flat
+         heading-less group, so legacy history looks unchanged. -->
     @if (dayLogs().length > 0) {
       <h2 class="v2-h3 mt-8 mb-3">{{ entriesHeading() }}</h2>
-      <ul class="space-y-2" role="list">
-        @for (log of dayLogs(); track log.id) {
-          <li>
-            <button
-              type="button"
-              class="w-full text-left v2-card flex items-center justify-between gap-3"
-              style="padding: var(--v2-space-3) var(--v2-space-4); transition: background-color var(--v2-motion-fast) var(--v2-ease);"
-              [disabled]="!editable()"
-              (click)="editLog(log)"
-              [attr.aria-label]="t('v2.daySummary.editEntryAria', { label: log.mealLabel || t('v2.daySummary.entryFallback'), kcal: log.calories })">
-              <div class="min-w-0 flex-1">
-                <div class="v2-body" style="color: var(--v2-ink); font-weight: 500;">
-                  {{ log.mealLabel || t('v2.daySummary.untitled') }}
-                </div>
-                <div class="v2-caption mt-0.5">{{ logTime(log) }}</div>
-              </div>
-              <div class="text-right shrink-0">
-                <div class="v2-num" style="font-weight: 600;">{{ log.calories }}</div>
-                <div class="v2-caption">
-                  @if (log.protein != null) { {{ t('v2.daySummary.proGrams', { n: log.protein }) }} }
-                  @else { {{ t('v2.daySummary.kcalUnit') }} }
-                </div>
-              </div>
-            </button>
-          </li>
+      @for (group of mealGroups(); track group.key) {
+        @if (grouped()) {
+          <div class="flex items-baseline justify-between mt-4 mb-2">
+            <h3 class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em;">
+              {{ t('entry.mealType.' + group.key) }}
+            </h3>
+            <span class="v2-caption v2-num">{{ t('entry.mealTypeSubtotal', { n: group.kcal }) }}</span>
+          </div>
         }
-      </ul>
+        <ul class="space-y-2" role="list">
+          @for (log of group.logs; track log.id) {
+            <li>
+              <button
+                type="button"
+                class="w-full text-left v2-card flex items-center justify-between gap-3"
+                style="padding: var(--v2-space-3) var(--v2-space-4); transition: background-color var(--v2-motion-fast) var(--v2-ease);"
+                [disabled]="!editable()"
+                (click)="editLog(log)"
+                [attr.aria-label]="t('v2.daySummary.editEntryAria', { label: log.mealLabel || t('v2.daySummary.entryFallback'), kcal: log.calories })">
+                <div class="min-w-0 flex-1">
+                  <div class="v2-body" style="color: var(--v2-ink); font-weight: 500;">
+                    {{ log.mealLabel || t('v2.daySummary.untitled') }}
+                  </div>
+                  <div class="v2-caption mt-0.5">{{ logTime(log) }}</div>
+                </div>
+                <div class="text-right shrink-0">
+                  <div class="v2-num" style="font-weight: 600;">{{ log.calories }}</div>
+                  <div class="v2-caption">
+                    @if (log.protein != null) { {{ t('v2.daySummary.proGrams', { n: log.protein }) }} }
+                    @else { {{ t('v2.daySummary.kcalUnit') }} }
+                  </div>
+                </div>
+              </button>
+            </li>
+          }
+        </ul>
+      }
     }
 
     <!-- Water row -->
@@ -258,6 +270,22 @@ export class UiDaySummary {
 
   protected readonly dayLogs = computed<DailyLog[]>(() =>
     this.store.logsForDay(this.dateKey()),
+  );
+
+  /** Slot order is fixed (meal sequence), not entry order. The "other"
+   *  bucket collects legacy/unslotted rows and always renders last. */
+  private static readonly SLOT_ORDER = ['breakfast', 'lunch', 'dinner', 'snack', 'other'] as const;
+
+  protected readonly mealGroups = computed(() =>
+    UiDaySummary.SLOT_ORDER
+      .map((key) => ({ key, logs: this.dayLogs().filter((l) => (l.mealType ?? 'other') === key) }))
+      .filter((g) => g.logs.length > 0)
+      .map((g) => ({ ...g, kcal: g.logs.reduce((s, l) => s + l.calories, 0) })),
+  );
+
+  /** False when every entry is unslotted — render flat, no headings. */
+  protected readonly grouped = computed(() =>
+    this.mealGroups().some((g) => g.key !== 'other'),
   );
 
   protected readonly summary = computed(() => this.store.summaryFor(this.dateKey()));

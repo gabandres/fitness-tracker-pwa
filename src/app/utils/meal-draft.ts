@@ -1,4 +1,5 @@
-import type { LogEntry } from '../services/firebase.service';
+import type { LogEntry, MealType } from '../services/firebase.service';
+import { MEAL_TYPES } from '../services/firebase.service';
 
 /**
  * The one place a raw entry form becomes a persistable meal. Pure and
@@ -22,6 +23,10 @@ export interface RawMealInput {
   exerciseCompleted?: boolean;
   /** Free-text label the user typed. */
   mealLabel?: string | null;
+  /** Diary slot from the chip selector. Anything outside the four
+   *  known values (including null = "no slot") is dropped, mirroring
+   *  how invalid numerics collapse to "absent". */
+  mealType?: string | null;
   /** Label carried in from a preset / photo / barcode estimate; used when
    *  the user didn't type their own. */
   activePresetName?: string | null;
@@ -70,6 +75,24 @@ export function parseNumericInput(
   if (trimmed === '') return null;
   const n = Number(trimmed);
   return Number.isFinite(n) ? n : null;
+}
+
+/** Narrow an arbitrary string to a MealType, or undefined. */
+export function parseMealType(value: string | null | undefined): MealType | undefined {
+  return (MEAL_TYPES as readonly string[]).includes(value ?? '')
+    ? (value as MealType)
+    : undefined;
+}
+
+/**
+ * Slot a new entry defaults to by wall-clock hour: breakfast until 11,
+ * lunch until 15, dinner 17–21, snack in the gaps (15–17, late night).
+ */
+export function defaultMealTypeForHour(hour: number): MealType {
+  if (hour >= 4 && hour < 11) return 'breakfast';
+  if (hour >= 11 && hour < 15) return 'lunch';
+  if (hour >= 17 && hour < 22) return 'dinner';
+  return 'snack';
 }
 
 /** Resolve the meal label: the user's typed label wins; otherwise the
@@ -122,6 +145,9 @@ export function parseMealDraft(raw: RawMealInput): MealDraftResult {
 
   const label = resolveLabel(raw.mealLabel, raw.activePresetName);
   if (label) entry.mealLabel = label;
+
+  const mealType = parseMealType(raw.mealType);
+  if (mealType) entry.mealType = mealType;
 
   return {
     ok: true,

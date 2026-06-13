@@ -1,5 +1,6 @@
 import {
   MEAL_DRAFT_ERROR_MESSAGE_KEYS,
+  defaultMealTypeForHour,
   parseMealDraft,
   parseNumericInput,
 } from './meal-draft';
@@ -122,6 +123,19 @@ describe('parseMealDraft', () => {
     });
   });
 
+  describe('meal type', () => {
+    it('carries a known slot onto the entry', () => {
+      expect(ok({ calories: 500, mealType: 'breakfast' }).entry.mealType).toBe('breakfast');
+      expect(ok({ calories: 500, mealType: 'snack' }).entry.mealType).toBe('snack');
+    });
+
+    it('drops unknown / null slots (entry lands in the "other" bucket)', () => {
+      expect('mealType' in ok({ calories: 500, mealType: 'brunch' }).entry).toBe(false);
+      expect('mealType' in ok({ calories: 500, mealType: null }).entry).toBe(false);
+      expect('mealType' in ok({ calories: 500 }).entry).toBe(false);
+    });
+  });
+
   describe('timestamp from date key', () => {
     it('stamps local noon for a YYYY-MM-DD key', () => {
       const ts = ok({ calories: 500, dateKey: '2026-04-22' }).entry.timestamp!;
@@ -141,5 +155,19 @@ describe('parseMealDraft', () => {
       expect('timestamp' in ok({ calories: 500, dateKey: 'garbage' }).entry).toBe(false);
       expect('timestamp' in ok({ calories: 500, dateKey: '2026-00-01' }).entry).toBe(false);
     });
+  });
+});
+
+describe('defaultMealTypeForHour', () => {
+  it('maps wall-clock hours to slots with snack in the gaps', () => {
+    expect(defaultMealTypeForHour(7)).toBe('breakfast');
+    expect(defaultMealTypeForHour(10)).toBe('breakfast');
+    expect(defaultMealTypeForHour(11)).toBe('lunch');
+    expect(defaultMealTypeForHour(14)).toBe('lunch');
+    expect(defaultMealTypeForHour(15)).toBe('snack'); // afternoon gap
+    expect(defaultMealTypeForHour(17)).toBe('dinner');
+    expect(defaultMealTypeForHour(21)).toBe('dinner');
+    expect(defaultMealTypeForHour(23)).toBe('snack'); // late night
+    expect(defaultMealTypeForHour(2)).toBe('snack');  // pre-dawn
   });
 });

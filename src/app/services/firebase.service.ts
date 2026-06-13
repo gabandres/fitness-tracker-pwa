@@ -22,6 +22,12 @@ import { FirestoreLedgerCore } from '../ledger/infrastructure/firestore-ledger.c
 // ─── Log types ──────────────────────────────────────────────────
 // Note: `liftCompleted` and `cardioCompleted` are legacy fields kept
 // for reading historic docs. New writes only set `exerciseCompleted`.
+
+/** Diary slot. Absent on legacy rows — those render in an "other"
+ *  bucket, never silently reassigned to a slot. */
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+export const MEAL_TYPES: readonly MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
+
 export interface DailyLogDoc {
   weight?: number;
   calories: number;
@@ -33,6 +39,7 @@ export interface DailyLogDoc {
   liftCompleted?: boolean;
   cardioCompleted?: boolean;
   mealLabel?: string;
+  mealType?: MealType;
 }
 
 export interface DailyLog {
@@ -47,6 +54,7 @@ export interface DailyLog {
   liftCompleted?: boolean;
   cardioCompleted?: boolean;
   mealLabel?: string;
+  mealType?: MealType;
 }
 
 // ─── Measurement types ──────────────────────────────────────────
@@ -85,6 +93,7 @@ export interface LogEntry {
   fat?: number;
   exerciseCompleted?: boolean;
   mealLabel?: string;
+  mealType?: MealType;
   timestamp?: Date; // for undo-restore at original time
 }
 

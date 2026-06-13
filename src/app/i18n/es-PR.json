@@ -591,6 +591,15 @@
     "fat": "grasa (g)",
     "carbsChip": "carbos {{n}}g",
     "fatChip": "grasa {{n}}g",
+    "mealType": {
+      "breakfast": "Desayuno",
+      "lunch": "Almuerzo",
+      "dinner": "Cena",
+      "snack": "Merienda",
+      "other": "Otros"
+    },
+    "mealTypeAria": "Tiempo de comida",
+    "mealTypeSubtotal": "{{n}} kcal",
     "grams": "g",
     "training": "entrenamiento",
     "exercise": "ejercicio",

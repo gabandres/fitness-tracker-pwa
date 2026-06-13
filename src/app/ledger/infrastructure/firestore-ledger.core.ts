@@ -125,6 +125,7 @@ export class FirestoreLedgerCore {
     if (entry.fat != null) data['fat'] = entry.fat;
     if (entry.exerciseCompleted) data['exerciseCompleted'] = true;
     if (entry.mealLabel) data['mealLabel'] = entry.mealLabel;
+    if (entry.mealType) data['mealType'] = entry.mealType;
     const ref = await addDoc(this.userCollection('dailyLogs'), data);
     return ref.id;
   }
@@ -149,6 +150,7 @@ export class FirestoreLedgerCore {
         liftCompleted: data.liftCompleted,
         cardioCompleted: data.cardioCompleted,
         mealLabel: data.mealLabel,
+        mealType: data.mealType,
       };
     });
     return results.reverse();
@@ -165,6 +167,7 @@ export class FirestoreLedgerCore {
       liftCompleted: deleteField(),
       cardioCompleted: deleteField(),
       mealLabel: entry.mealLabel ? entry.mealLabel : deleteField(),
+      mealType: entry.mealType ? entry.mealType : deleteField(),
     };
     if (entry.weight != null) data['weight'] = entry.weight;
     if (entry.timestamp != null) data['timestamp'] = Timestamp.fromDate(entry.timestamp);
@@ -199,6 +202,7 @@ export class FirestoreLedgerCore {
         if (entry.fat != null) data['fat'] = entry.fat;
         if (entry.exerciseCompleted) data['exerciseCompleted'] = true;
         if (entry.mealLabel) data['mealLabel'] = entry.mealLabel;
+        if (entry.mealType) data['mealType'] = entry.mealType;
         batch.set(doc(coll), data);
       }
       await batch.commit();

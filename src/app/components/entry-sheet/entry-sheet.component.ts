@@ -12,6 +12,7 @@ import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { parseNumericInput } from '../../utils/meal-draft';
 import type { MacroEstimate } from '../../models/macro-estimate';
+import { MEAL_TYPES, type MealType } from '../../services/firebase.service';
 import { UiSheet } from '../ui/sheet.component';
 import { UiButton } from '../ui/button.component';
 import { PhotoCaptureComponent } from '../photo-capture/photo-capture.component';
@@ -129,6 +130,21 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
                   [placeholder]="t('v2.entrySheet.mealPlaceholder')"
                   [value]="form.mealLabel()"
                   (input)="form.mealLabel.set($any($event.target).value)" />
+              </div>
+
+              <!-- Diary slot chips. Tapping the active chip clears the
+                   slot (entry lands in the "other" bucket) so legacy
+                   rows can be edited without being forced into one. -->
+              <div role="group" [attr.aria-label]="t('entry.mealTypeAria')" class="flex flex-wrap gap-1.5">
+                @for (mt of mealTypes; track mt) {
+                  <button
+                    type="button"
+                    [class]="form.mealType() === mt ? 'v2-btn v2-btn--sm v2-btn--primary' : 'v2-btn v2-btn--sm v2-btn--ghost'"
+                    [attr.aria-pressed]="form.mealType() === mt"
+                    (click)="toggleMealType(mt)">
+                    {{ t('entry.mealType.' + mt) }}
+                  </button>
+                }
               </div>
 
               <div class="grid grid-cols-2 gap-3">
@@ -322,6 +338,8 @@ export class EntrySheetComponent {
   protected readonly kcalError = signal(false);
   protected readonly showRecipeBuilder = signal(false);
 
+  protected readonly mealTypes = MEAL_TYPES;
+
   protected readonly segments: { id: Segment; labelKey: string; icon: string }[] = [
     { id: 'manual', labelKey: 'v2.entrySheet.segManual', icon: 'type' },
     { id: 'search', labelKey: 'v2.entrySheet.segSearch', icon: 'search' },
@@ -352,6 +370,11 @@ export class EntrySheetComponent {
   protected setSegment(s: Segment): void {
     this.haptic(10);
     this.segment.set(s);
+  }
+
+  protected toggleMealType(mt: MealType): void {
+    this.haptic(10);
+    this.form.mealType.set(this.form.mealType() === mt ? null : mt);
   }
 
   protected apply(est: MacroEstimate): void {

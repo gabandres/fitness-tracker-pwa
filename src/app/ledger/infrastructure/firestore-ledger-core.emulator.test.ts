@@ -164,6 +164,29 @@ describe.skipIf(!EMULATOR_AVAILABLE)('FirestoreLedgerCore — emulator contract'
       expect(entry.protein).toBe(30);
     });
 
+    it('round-trips mealType under prod rules, and updateLog clears it when omitted', async () => {
+      await core.addLog({
+        calories: 400, mealType: 'breakfast',
+        timestamp: new Date('2026-04-22T08:00:00Z'),
+      });
+      let [entry] = await core.getRecentLogs();
+      expect(entry.mealType).toBe('breakfast');
+
+      await core.updateLog(entry.id!, { calories: 400 });
+      [entry] = await core.getRecentLogs();
+      expect(entry.mealType).toBeUndefined();
+    });
+
+    it('prod rules reject an unknown mealType value', async () => {
+      await expect(
+        core.addLog({
+          calories: 100,
+          mealType: 'brunch' as never,
+          timestamp: new Date('2026-04-22T12:00:00Z'),
+        }),
+      ).rejects.toThrow();
+    });
+
     it('importLogs bulk-writes across the 450-row batch boundary under prod rules', async () => {
       const entries = Array.from({ length: 460 }, (_, i) => ({
         calories: 100 + i,

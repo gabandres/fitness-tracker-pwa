@@ -723,7 +723,10 @@ export class FitnessStore {
           timestamp: clonedAt,
         };
         if (src.protein != null) entry.protein = src.protein;
+        if (src.carbs != null) entry.carbs = src.carbs;
+        if (src.fat != null) entry.fat = src.fat;
         if (src.mealLabel) entry.mealLabel = src.mealLabel;
+        if (src.mealType) entry.mealType = src.mealType;
         // Carry exercise flag but collapse the legacy split flags into the
         // modern `exerciseCompleted` so we don't re-persist deprecated fields.
         if (src.exerciseCompleted || src.liftCompleted || src.cardioCompleted) {
@@ -775,7 +778,10 @@ export class FitnessStore {
           timestamp: clonedAt,
         };
         if (src.protein != null) entry.protein = src.protein;
+        if (src.carbs != null) entry.carbs = src.carbs;
+        if (src.fat != null) entry.fat = src.fat;
         if (src.mealLabel) entry.mealLabel = src.mealLabel;
+        if (src.mealType) entry.mealType = src.mealType;
         if (src.exerciseCompleted || src.liftCompleted || src.cardioCompleted) {
           entry.exerciseCompleted = true;
         }
@@ -815,7 +821,10 @@ export class FitnessStore {
       };
       // Preserve unrelated fields that updateLog would otherwise clear.
       if (target.protein != null) patch.protein = target.protein;
+      if (target.carbs != null) patch.carbs = target.carbs;
+      if (target.fat != null) patch.fat = target.fat;
       if (target.mealLabel) patch.mealLabel = target.mealLabel;
+      if (target.mealType) patch.mealType = target.mealType;
       if (target.weight != null) patch.weight = target.weight;
       await this.updateLog(target.id!, patch);
     } else {
@@ -859,11 +868,14 @@ export class FitnessStore {
     };
     if (entry.weight != null) logEntry.weight = entry.weight;
     if (entry.protein != null) logEntry.protein = entry.protein;
+    if (entry.carbs != null) logEntry.carbs = entry.carbs;
+    if (entry.fat != null) logEntry.fat = entry.fat;
     // Collapse legacy lift/cardio flags into the unified exercise flag.
     if (entry.exerciseCompleted || entry.liftCompleted || entry.cardioCompleted) {
       logEntry.exerciseCompleted = true;
     }
     if (entry.mealLabel) logEntry.mealLabel = entry.mealLabel;
+    if (entry.mealType) logEntry.mealType = entry.mealType;
 
     await this.addLog(logEntry);
   }
@@ -959,6 +971,7 @@ export class FitnessStore {
     if (entry.fat != null) log.fat = entry.fat;
     if (entry.exerciseCompleted) log.exerciseCompleted = true;
     if (entry.mealLabel) log.mealLabel = entry.mealLabel;
+    if (entry.mealType) log.mealType = entry.mealType;
 
     const byDate = (a: DailyLog, b: DailyLog) => a.date.getTime() - b.date.getTime();
     const recent = [...this._logs(), log].sort(byDate);
@@ -990,6 +1003,7 @@ export class FitnessStore {
         liftCompleted: undefined,
         cardioCompleted: undefined,
         mealLabel: entry.mealLabel ? entry.mealLabel : undefined,
+        mealType: entry.mealType ?? undefined,
       };
       if (entry.weight != null) next.weight = entry.weight;
       return next;

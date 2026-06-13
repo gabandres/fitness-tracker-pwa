@@ -25,7 +25,10 @@ describe('parseImportCsv', () => {
       expect(b.fat).toBe(12);
       expect(b.carbs).toBe(55);
       expect(b.protein).toBe(22);
-      expect(b.mealLabel).toBe('Breakfast');
+      // The Meal column maps to a slot; a redundant "Breakfast" label is dropped.
+      expect(b.mealType).toBe('breakfast');
+      expect(b.mealLabel).toBeUndefined();
+      expect(r.entries[2].mealType).toBe('dinner');
       // Quoted thousands separator survives.
       expect(r.entries[2].calories).toBe(1020);
       expect(r.totalCalories).toBe(420 + 650 + 1020);
@@ -41,6 +44,7 @@ describe('parseImportCsv', () => {
       expect(r.entries.length).toBe(2);
       expect(r.firstDate).toBe('2026-05-01');
       expect(r.entries[0].mealLabel).toBe('Greek Yogurt');
+      expect(r.entries[0].mealType).toBe('breakfast'); // Lose It! "Type" column
       expect(r.entries[1].protein).toBe(42);
     });
 
@@ -56,6 +60,8 @@ describe('parseImportCsv', () => {
       expect(r.entries[0].timestamp!.getHours()).toBe(8);
       expect(r.entries[0].timestamp!.getMinutes()).toBe(30);
       expect(r.entries[0].carbs).toBe(66);
+      expect(r.entries[0].mealType).toBe('breakfast'); // Cronometer "Group" column
+      expect(r.entries[0].mealLabel).toBe('Oatmeal');  // label still from Food Name
       expect(r.entries[1].timestamp!.getHours()).toBe(19);
     });
   });

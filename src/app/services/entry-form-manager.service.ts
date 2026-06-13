@@ -1,5 +1,5 @@
 import { effect, Injectable, inject, signal } from '@angular/core';
-import { DailyLog, MealPreset } from './firebase.service';
+import { DailyLog, MealPreset, MealType } from './firebase.service';
 import { FitnessStore, PresetLimitError } from './fitness-store.service';
 import { MacroEstimate } from '../models/macro-estimate';
 import { TranslationService } from './translation.service';
@@ -8,6 +8,7 @@ import { localDateKey } from '../utils/date';
 import {
   MEAL_DRAFT_ERROR_MESSAGE_KEYS,
   MealDraftResult,
+  defaultMealTypeForHour,
   parseMealDraft,
 } from '../utils/meal-draft';
 
@@ -76,6 +77,9 @@ export class EntryFormManager {
 
   // ── Form field signals ──────────────────────────────────────
   readonly mealLabel = signal<string>('');
+  /** Diary slot. Defaults by time-of-day on ADD; null = no slot
+   *  ("other" bucket) — edit mode never invents one for legacy rows. */
+  readonly mealType = signal<MealType | null>(defaultMealTypeForHour(new Date().getHours()));
   readonly entryDate = signal<string>(localDateKey(new Date()));
   readonly calories = signal<number | null>(null);
   readonly protein = signal<number | null>(null);
@@ -111,6 +115,7 @@ export class EntryFormManager {
       meal.exerciseCompleted ?? meal.liftCompleted ?? meal.cardioCompleted ?? false,
     );
     this.mealLabel.set(meal.mealLabel ?? '');
+    this.mealType.set(meal.mealType ?? null);
     this.entryDate.set(localDateKey(meal.date));
     this.status.set('idle');
   }
@@ -153,6 +158,7 @@ export class EntryFormManager {
       fat: this.fat(),
       exerciseCompleted: this.exerciseDone(),
       mealLabel: this.mealLabel(),
+      mealType: this.mealType(),
       activePresetName: this.activePresetName(),
       dateKey: this.entryDate(),
     });
@@ -282,6 +288,7 @@ export class EntryFormManager {
     this.exerciseDone.set(false);
     this.activePresetName.set(null);
     this.mealLabel.set('');
+    this.mealType.set(defaultMealTypeForHour(new Date().getHours()));
     this.entryDate.set(localDateKey(new Date()));
     this.presetLimitHit.set(false);
   }

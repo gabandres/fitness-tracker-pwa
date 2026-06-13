@@ -591,6 +591,15 @@
     "fat": "fat (g)",
     "carbsChip": "carbs {{n}}g",
     "fatChip": "fat {{n}}g",
+    "mealType": {
+      "breakfast": "Breakfast",
+      "lunch": "Lunch",
+      "dinner": "Dinner",
+      "snack": "Snack",
+      "other": "Other"
+    },
+    "mealTypeAria": "Meal slot",
+    "mealTypeSubtotal": "{{n}} kcal",
     "grams": "g",
     "training": "training",
     "exercise": "exercise",

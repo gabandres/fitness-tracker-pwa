@@ -1,4 +1,4 @@
-import type { LogEntry } from '../services/firebase.service';
+import type { LogEntry, MealType } from '../services/firebase.service';
 
 /**
  * Switcher-import parser: turns a CSV exported from another tracker
@@ -45,6 +45,10 @@ const CARB_HEADERS = ['carbohydrates (g)', 'carbohydrates', 'carbs (g)', 'carbs'
 const FAT_HEADERS = ['fat (g)', 'fat', 'total fat'];
 const LABEL_HEADERS = ['food name', 'name', 'meal', 'food', 'item', 'description', 'note', 'title'];
 const TIME_HEADERS = ['time'];
+// MFP calls it "Meal", Lose It! "Type", Cronometer "Group". Values map
+// to a diary slot only when recognizable; anything else is left unslotted
+// (safe even for generic header names like "type").
+const MEALTYPE_HEADERS = ['meal', 'meal type', 'type', 'group'];
 
 function findColumn(headers: string[], candidates: string[]): number {
   for (const c of candidates) {
@@ -122,6 +126,17 @@ function parseTime(raw: string | undefined): { h: number; min: number } | null {
   return { h, min };
 }
 
+/** "Breakfast" / "Morning Snack" / "Cena" → diary slot, else null. */
+function parseMealTypeValue(raw: string | undefined): MealType | null {
+  if (!raw) return null;
+  const s = raw.trim().toLowerCase();
+  if (s.startsWith('breakfast') || s === 'desayuno') return 'breakfast';
+  if (s.startsWith('lunch') || s === 'almuerzo') return 'lunch';
+  if (s.startsWith('dinner') || s.startsWith('supper') || s === 'cena') return 'dinner';
+  if (s.includes('snack') || s === 'merienda') return 'snack';
+  return null;
+}
+
 const keyOf = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -145,6 +160,7 @@ export function parseImportCsv(text: string): ImportParse {
   const fatCol = findColumn(headers, FAT_HEADERS);
   const labelCol = findColumn(headers, LABEL_HEADERS);
   const timeCol = findColumn(headers, TIME_HEADERS);
+  const mealTypeCol = findColumn(headers, MEALTYPE_HEADERS);
 
   const entries: LogEntry[] = [];
   let skipped = 0;
@@ -173,8 +189,15 @@ export function parseImportCsv(text: string): ImportParse {
     const fat = num(fatCol !== -1 ? rec[fatCol] : undefined);
     if (fat != null && fat >= 0 && fat < 1000) entry.fat = Math.round(fat);
 
+    const mealType = mealTypeCol !== -1 ? parseMealTypeValue(rec[mealTypeCol]) : null;
+    if (mealType) entry.mealType = mealType;
+
     const label = (labelCol !== -1 ? rec[labelCol] : '')?.trim();
-    if (label) entry.mealLabel = label.slice(0, 100);
+    // When the only label source IS the meal column and it mapped to a
+    // slot, the label would just repeat the slot name — drop it.
+    if (label && !(mealType && labelCol === mealTypeCol)) {
+      entry.mealLabel = label.slice(0, 100);
+    }
 
     totalCalories += entry.calories;
     entries.push(entry);

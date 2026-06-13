@@ -4,7 +4,7 @@ import { localDateKey } from './date';
 
 const COLS = [
   'type', 'date', 'timestamp',
-  'calories', 'protein', 'carbs', 'fat', 'weight', 'exerciseCompleted', 'mealLabel',
+  'calories', 'protein', 'carbs', 'fat', 'weight', 'exerciseCompleted', 'mealLabel', 'mealType',
   'waterMl',
   'waist', 'chest', 'bicep', 'hip',
   // Workout columns — filled on 'workout' (session) + 'workout_set' rows.
@@ -57,6 +57,7 @@ export function buildCsv(data: ExportData): string {
       weight: l.weight,
       exerciseCompleted: l.exerciseCompleted ? 'true' : '',
       mealLabel: l.mealLabel,
+      mealType: l.mealType,
     }));
   }
 
