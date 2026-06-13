@@ -26,6 +26,7 @@ import {
   type ProgressionSuggestion,
 } from '../../utils/workout-progression';
 import { computePlateLoad, type PlateLoad } from '../../utils/plate-math';
+import { generateWarmup, type WarmupSet } from '../../utils/warmup';
 
 const SAVE_DEBOUNCE_MS = 800;
 
@@ -81,6 +82,24 @@ const SAVE_DEBOUNCE_MS = 800;
                   <li class="v2-caption" style="font-size: 0.75rem;">{{ cue }}</li>
                 }
               </ul>
+            }
+
+            <!-- Warm-up ramp (barbell only), seeded from the working load -->
+            @if (styleOf(ex) === 'weight-reps' && warmupSets(ex).length) {
+              <button type="button" class="v2-btn v2-btn--ghost v2-btn--sm mb-1"
+                [attr.aria-pressed]="warmupOpen() === warmupKey(exIdx)"
+                (click)="toggleWarmup(exIdx)">
+                <lucide-icon name="flame" [size]="13" /> {{ t('train.warmup') }}
+              </button>
+              @if (warmupOpen() === warmupKey(exIdx)) {
+                <ul class="mb-2 pl-4" style="list-style: disc; color: var(--v2-ink-muted);">
+                  @for (w of warmupSets(ex); track $index) {
+                    <li class="v2-caption" style="font-size: 0.72rem;">
+                      <span class="v2-num">{{ w.weight }}</span> × {{ w.reps }}@if (w.pct == null) { · {{ t('train.warmupBar') }} } @else { · {{ pctLabel(w.pct) }} }
+                    </li>
+                  }
+                </ul>
+              }
             }
 
             @if (suggestionFor(ex); as sug) {
@@ -395,6 +414,33 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
     return pl.perSide
       .flatMap((p) => Array.from({ length: p.count }, () => p.plate))
       .join(' + ');
+  }
+
+  // ─── Warm-up ramp ─────────────────────────────────────────────
+  protected readonly warmupOpen = signal<string | null>(null);
+
+  protected warmupKey(exIdx: number): string {
+    return `w${exIdx}`;
+  }
+
+  protected toggleWarmup(exIdx: number): void {
+    const key = this.warmupKey(exIdx);
+    this.warmupOpen.update((cur) => (cur === key ? null : key));
+  }
+
+  /** Working load to ramp toward: the snapshot `targetLoad`, else the
+   *  heaviest weight already entered across the exercise's sets. */
+  private warmupSeed(ex: SessionExercise): number {
+    if (ex.targetLoad && ex.targetLoad > 0) return ex.targetLoad;
+    return ex.sets.reduce((max, s) => Math.max(max, s.weight ?? 0), 0);
+  }
+
+  protected warmupSets(ex: SessionExercise): WarmupSet[] {
+    return generateWarmup(this.warmupSeed(ex));
+  }
+
+  protected pctLabel(pct: number): string {
+    return `${Math.round(pct * 100)}%`;
   }
 
   // ─── Editing ──────────────────────────────────────────────────

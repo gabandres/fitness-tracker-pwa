@@ -1705,6 +1705,8 @@
     "reps": "Reps",
     "rest": "Rest",
     "addSet": "Add set",
+    "warmup": "Warm-up",
+    "warmupBar": "Empty bar",
     "plates": "Plates",
     "platesPerSide": "Per side",
     "platesBarOnly": "Empty bar ({{bar}} lb)",

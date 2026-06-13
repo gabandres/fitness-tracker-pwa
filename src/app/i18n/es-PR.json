@@ -1705,6 +1705,8 @@
     "reps": "Reps",
     "rest": "Descanso",
     "addSet": "Añadir serie",
+    "warmup": "Calentamiento",
+    "warmupBar": "Barra sola",
     "plates": "Discos",
     "platesPerSide": "Por lado",
     "platesBarOnly": "Barra sola ({{bar}} lb)",
