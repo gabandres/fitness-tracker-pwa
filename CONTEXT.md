@@ -104,18 +104,31 @@ These three windows look similar and are NOT interchangeable. See
   Function (entitlement check + 6-day rate limit + admin-SDK writes).
   Past reports stay readable on tier downgrade; only new generations
   are blocked.
+- **Coach panel** — The single Trends *AI surface* that presents two
+  actions with their own gates: **"Ask the coach"** (the free, quota'd
+  consultation Q&A — 3 free / 30 paid; shown first as the free hook) and
+  the Pro **WeeklyReport** (lock badge inline → upsell when free).
+  Replaced the former two stacked AI cards. Names only the surface; the
+  consultation flow and `generateWeeklyReport` CF are unchanged.
 - **WeeklyDigest** — The transactional weekly email, **free for opted-in
   users**, computed entirely server-side in the `weekly-digest` Cloud
   Function. Distinct from `WeeklyReport`: the digest is short, email,
   rule-based; the report is long-form, in-app, AI-generated.
-- **Weekly insights** — The **free, rule-based** card on Trends
+- **Weekly insights** — The **free, rule-based** *computation*
   (`utils/weekly-insights.ts`, pure): best/toughest day vs target, avg vs
   target, and a least-squares weight slope. The $0 sibling of
   **WeeklyReport** — no AI, computed client-side from `DaySummary[]`. Don't
-  conflate the two: insights = free/rules/in-app card; report =
-  Pro/Gemini/long-form. Sibling cards from the same module:
-  **WeeklyBudget** (calorie banking over the ISO week, `weekly-budget.ts`)
-  and the **WeightProjection** (linear-fit forecast, also `weekly-insights.ts`).
+  conflate the two: insights = free/rules; report = Pro/Gemini/long-form.
+  Sibling computations from the same module: **WeeklyBudget** (calorie
+  banking over the ISO week, `weekly-budget.ts`) and the
+  **WeightProjection** (linear-fit forecast, also `weekly-insights.ts`).
+- **Weekly panel** — The single Trends *surface* that presents the
+  **Weekly insights**, **WeeklyBudget**, and weekly-averages
+  (avg kcal/protein, adherence %, weight Δ) computations through one
+  toggleable card. Replaced the former four-card stack (averages +
+  insights + budget as separate cards). The underlying computations stay
+  distinct and separately named; "Weekly panel" names only the surface so
+  "Weekly insights" no longer doubles as both a computation and a card.
 - **MonthlySummary** — `FitnessStore.monthlySummary()`. 30-day stats:
   weight delta, adherence %, avg calories, weight count, etc.
 - **TodaySummary** — `{ totalCalories, totalProtein }` for the current
@@ -325,11 +338,22 @@ collections + a `WorkoutStore` facet back the Train tab.
 These are the top-level routes / tabs. Each has a component folder of
 the same name under `src/app/components/`.
 
-- **Today** — Tab. Current-day summary, log entry, refine-targets card,
-  what's-new banner, install hint.
-- **Body** — Tab. Weight + sparkline, goal progress, fasting ring,
-  collapsible measurements.
-- **Trends** — Tab. Weekly chart, EMA, weekly report (Pro).
+- **Today** — Tab. Current-day summary, log entry, plus a **Nudge** and
+  any contextual **utility** cards (see below).
+- **Nudge** vs **utility** (Today) — A **Nudge** is a promotional/optional
+  prompt: what's-new banner, Day-3 refine card, push-enable prompt, iOS
+  install hint. At most **one** Nudge renders at a time (priority: refine
+  → push → install → what's-new); the rest queue. A **utility** is a
+  contextual *action* the user wants (e.g. repeat-yesterday when today is
+  empty) — utilities are NOT Nudges and are never gated by the one-Nudge
+  rule.
+- **Body** — Tab. Weight + sparkline (with **WeightProjection** caption),
+  goal progress, fasting ring, collapsible measurements (now also home to
+  the **Body-fat estimate**), and a collapsed-by-default Progress Photos
+  card last.
+- **Trends** — Tab. Three surfaces: the 7-day chart, the **Weekly panel**
+  (insights ⇄ budget toggle), and the **Coach panel** (free Ask + Pro
+  WeeklyReport). Down from the former six stacked cards.
 - **Train** — Tab (`/train`). Resume/start a workout, templates (start /
   edit / delete / clone starter), exercise catalog → progression detail.
   Components under `components/train/` (`train`, `session-sheet`,

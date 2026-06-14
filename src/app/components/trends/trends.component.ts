@@ -4,6 +4,7 @@ import {
   computed,
   inject,
   output,
+  signal,
 } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { LucideAngularModule } from 'lucide-angular';
@@ -106,161 +107,161 @@ import { bcp47ForLang } from '../../utils/locale';
         }
       </ui-card>
 
-      <!-- Averages -->
-      <ui-card variant="flat" class="mt-4 block">
-        <h2 class="v2-h3 mb-3">{{ t('v2.trends.thisWeek') }}</h2>
-        @if (weekly(); as w) {
-          <dl class="grid grid-cols-2 gap-x-4 gap-y-3">
-            <div>
-              <dt class="v2-caption">{{ t('v2.trends.avgKcal') }}</dt>
-              <dd class="v2-num text-lg font-semibold">{{ w.avgCalories }}</dd>
-            </div>
-            <div>
-              <dt class="v2-caption">{{ t('v2.trends.avgProtein') }}</dt>
-              <dd class="v2-num text-lg font-semibold">
-                {{ w.avgProtein != null ? w.avgProtein + 'g' : '—' }}
-              </dd>
-            </div>
-            <div>
-              <dt class="v2-caption">{{ t('v2.trends.weightDelta') }}</dt>
-              <dd class="v2-num text-lg font-semibold">{{ weightDeltaLabel() }}</dd>
-            </div>
-            <div>
-              <dt class="v2-caption">{{ t('v2.trends.adherence') }}</dt>
-              <dd class="v2-num text-lg font-semibold">{{ w.adherencePct }}%</dd>
-            </div>
-          </dl>
-        } @else {
-          <p class="v2-body-soft">{{ t('v2.trends.needSeven') }}</p>
-        }
-      </ui-card>
-
-      <!-- Weekly insights (rule-based, free — no AI involved) -->
+      <!-- Weekly panel: insights ⇄ budget toggle (rule-based, free, no AI) -->
       @if (historyLoaded()) {
         <ui-card variant="flat" class="mt-4 block">
-          <h2 class="v2-h3 mb-3">{{ t('trends.insightsTitle') }}</h2>
-          @if (insights(); as ins) {
-            <dl class="grid grid-cols-2 gap-x-4 gap-y-3">
-              <div>
-                <dt class="v2-caption">{{ t('trends.insightsBestDay') }}</dt>
-                <dd class="v2-num text-lg font-semibold">
-                  {{ t('trends.insightsDayValue', { day: weekday(ins.bestDay.dateKey), delta: deltaLabel(ins.bestDay.delta) }) }}
-                </dd>
-              </div>
-              <div>
-                <dt class="v2-caption">{{ t('trends.insightsWorstDay') }}</dt>
-                <dd class="v2-num text-lg font-semibold">
-                  {{ t('trends.insightsDayValue', { day: weekday(ins.worstDay.dateKey), delta: deltaLabel(ins.worstDay.delta) }) }}
-                </dd>
-              </div>
-              <div>
-                <dt class="v2-caption">{{ t('trends.insightsAvgVsTarget') }}</dt>
-                <dd class="v2-num text-lg font-semibold">{{ deltaLabel(-ins.avgDeficit) }}</dd>
-              </div>
-              <div>
-                <dt class="v2-caption">{{ t('trends.insightsWeightTrend') }}</dt>
-                <dd class="v2-num text-lg font-semibold">{{ slopeLabel(ins.weightSlopeLbPerWeek) }}</dd>
-              </div>
-            </dl>
-          } @else {
-            <p class="v2-body-soft">{{ t('trends.insightsNeedDays') }}</p>
-          }
-        </ui-card>
-      }
+          <div class="flex items-center gap-2 mb-4">
+            <button
+              type="button"
+              class="v2-btn v2-btn--sm"
+              [class.v2-btn--ghost]="panelView() !== 'insights'"
+              [attr.aria-pressed]="panelView() === 'insights'"
+              (click)="panelView.set('insights')">{{ t('trends.insightsTitle') }}</button>
+            <button
+              type="button"
+              class="v2-btn v2-btn--sm"
+              [class.v2-btn--ghost]="panelView() !== 'budget'"
+              [attr.aria-pressed]="panelView() === 'budget'"
+              (click)="panelView.set('budget')">{{ t('trends.budgetTitle') }}</button>
+          </div>
 
-      <!-- Weekly calorie budget / banking (rule-based, free) -->
-      @if (historyLoaded()) {
-        <ui-card variant="flat" class="mt-4 block">
-          <h2 class="v2-h3 mb-1">{{ t('trends.budgetTitle') }}</h2>
-          @if (budget(); as b) {
-            <p class="v2-caption mb-3">
-              {{ t('trends.budgetSubtitle', { used: b.consumed.toLocaleString(), total: b.weeklyBudget.toLocaleString() }) }}
-            </p>
-            <!-- Mon→Sun bar strip; baseline = daily target -->
-            <div class="flex items-end gap-1.5 h-20">
-              @for (bar of b.bars; track bar.dateKey) {
-                <div class="flex-1 h-full flex items-end">
-                  <div
-                    class="w-full rounded-sm transition-all"
-                    [style.height.%]="barHeight(bar.calories, b.dailyTarget)"
-                    [style.background]="bar.elapsed ? 'var(--v2-accent)' : 'var(--v2-border)'"
-                    [style.opacity]="bar.calories > 0 ? 1 : 0.35"></div>
+          @if (panelView() === 'insights') {
+            @if (insights(); as ins) {
+              <dl class="grid grid-cols-2 gap-x-4 gap-y-3">
+                <div>
+                  <dt class="v2-caption">{{ t('trends.insightsBestDay') }}</dt>
+                  <dd class="v2-num text-lg font-semibold">
+                    {{ t('trends.insightsDayValue', { day: weekday(ins.bestDay.dateKey), delta: deltaLabel(ins.bestDay.delta) }) }}
+                  </dd>
                 </div>
-              }
-            </div>
-            <div class="flex mt-1.5">
-              @for (bar of b.bars; track bar.dateKey) {
-                <span class="flex-1 text-center v2-caption">{{ weekdayNarrow(bar.dateKey) }}</span>
-              }
-            </div>
-            <dl class="grid grid-cols-2 gap-x-4 gap-y-3 mt-4">
-              <div>
-                <dt class="v2-caption">{{ t('trends.budgetRemaining') }}</dt>
-                <dd
-                  class="v2-num text-lg font-semibold"
-                  [style.color]="b.remaining < 0 ? 'var(--v2-danger)' : null">
-                  {{ remainingLabel(b.remaining) }}
-                </dd>
-              </div>
-              <div>
-                <dt class="v2-caption">{{ t('trends.budgetPerDay') }}</dt>
-                <dd class="v2-num text-lg font-semibold">{{ paceLabel(b) }}</dd>
-              </div>
-            </dl>
+                <div>
+                  <dt class="v2-caption">{{ t('trends.insightsWorstDay') }}</dt>
+                  <dd class="v2-num text-lg font-semibold">
+                    {{ t('trends.insightsDayValue', { day: weekday(ins.worstDay.dateKey), delta: deltaLabel(ins.worstDay.delta) }) }}
+                  </dd>
+                </div>
+                <div>
+                  <dt class="v2-caption">{{ t('v2.trends.avgKcal') }}</dt>
+                  <dd class="v2-num text-lg font-semibold">
+                    {{ weekly()?.avgCalories ?? '—' }}
+                    <span class="v2-caption" style="font-weight: 400;">· {{ deltaLabel(-ins.avgDeficit) }}</span>
+                  </dd>
+                </div>
+                <div>
+                  <dt class="v2-caption">{{ t('v2.trends.avgProtein') }}</dt>
+                  <dd class="v2-num text-lg font-semibold">
+                    {{ weekly()?.avgProtein != null ? weekly()!.avgProtein + 'g' : '—' }}
+                  </dd>
+                </div>
+                <div>
+                  <dt class="v2-caption">{{ t('v2.trends.adherence') }}</dt>
+                  <dd class="v2-num text-lg font-semibold">{{ weekly()?.adherencePct ?? 0 }}%</dd>
+                </div>
+                <div>
+                  <dt class="v2-caption">{{ t('trends.insightsWeightTrend') }}</dt>
+                  <dd class="v2-num text-lg font-semibold">{{ slopeLabel(ins.weightSlopeLbPerWeek) }}</dd>
+                </div>
+              </dl>
+            } @else {
+              <p class="v2-body-soft">{{ t('trends.insightsNeedDays') }}</p>
+            }
           } @else {
-            <p class="v2-body-soft">{{ t('trends.budgetNeedTarget') }}</p>
+            @if (budget(); as b) {
+              <p class="v2-caption mb-3">
+                {{ t('trends.budgetSubtitle', { used: b.consumed.toLocaleString(), total: b.weeklyBudget.toLocaleString() }) }}
+              </p>
+              <!-- Mon→Sun bar strip; baseline = daily target -->
+              <div class="flex items-end gap-1.5 h-20">
+                @for (bar of b.bars; track bar.dateKey) {
+                  <div class="flex-1 h-full flex items-end">
+                    <div
+                      class="w-full rounded-sm transition-all"
+                      [style.height.%]="barHeight(bar.calories, b.dailyTarget)"
+                      [style.background]="bar.elapsed ? 'var(--v2-accent)' : 'var(--v2-border)'"
+                      [style.opacity]="bar.calories > 0 ? 1 : 0.35"></div>
+                  </div>
+                }
+              </div>
+              <div class="flex mt-1.5">
+                @for (bar of b.bars; track bar.dateKey) {
+                  <span class="flex-1 text-center v2-caption">{{ weekdayNarrow(bar.dateKey) }}</span>
+                }
+              </div>
+              <dl class="grid grid-cols-2 gap-x-4 gap-y-3 mt-4">
+                <div>
+                  <dt class="v2-caption">{{ t('trends.budgetRemaining') }}</dt>
+                  <dd
+                    class="v2-num text-lg font-semibold"
+                    [style.color]="b.remaining < 0 ? 'var(--v2-danger)' : null">
+                    {{ remainingLabel(b.remaining) }}
+                  </dd>
+                </div>
+                <div>
+                  <dt class="v2-caption">{{ t('trends.budgetPerDay') }}</dt>
+                  <dd class="v2-num text-lg font-semibold">{{ paceLabel(b) }}</dd>
+                </div>
+              </dl>
+            } @else {
+              <p class="v2-body-soft">{{ t('trends.budgetNeedTarget') }}</p>
+            }
           }
         </ui-card>
       }
 
-      <!-- Weekly report (Pro) -->
+      <!-- Coach panel: free Ask (quota'd) first, Pro weekly report below -->
       <ui-card variant="default" class="mt-4 block">
-        <h2 class="v2-h3 mb-3">{{ t('v2.trends.weeklyReadout') }}</h2>
-        @if (reportHtml(); as html) {
-          <div class="v2-prose" [innerHTML]="html"></div>
-          <p class="v2-caption mt-3">{{ reportAge() }}</p>
-          <!-- Generation is strictly user-initiated (the old auto-refresh
-               on staleness burned a Gemini call per Pro user per week).
-               Offer the refresh once the cached report ages out. -->
-          @if (subs.isPaid() && report.isReportStale() && !report.reportLoading()) {
+        <h2 class="v2-h3 mb-3">{{ t('trends.coachAsk') }}</h2>
+        <app-consultation />
+
+        <div class="mt-6 pt-5" style="border-top: 1px solid var(--v2-border);">
+          <h3 class="v2-h3 mb-3 inline-flex items-center gap-2">
+            {{ t('trends.coachReport') }}
+            @if (!subs.isPaid()) {
+              <span class="v2-caption inline-flex items-center gap-1" style="color: var(--v2-accent); font-weight: 600;">
+                <lucide-icon name="sparkles" [size]="12" /> Pro
+              </span>
+            }
+          </h3>
+          @if (reportHtml(); as html) {
+            <div class="v2-prose" [innerHTML]="html"></div>
+            <p class="v2-caption mt-3">{{ reportAge() }}</p>
+            <!-- Generation is strictly user-initiated (the old auto-refresh
+                 on staleness burned a Gemini call per Pro user per week).
+                 Offer the refresh once the cached report ages out. -->
+            @if (subs.isPaid() && report.isReportStale() && !report.reportLoading()) {
+              <div class="mt-3">
+                <ui-button variant="ghost" size="sm" (click)="generate()">
+                  <lucide-icon name="sparkles" [size]="14" />
+                  {{ t('trends.regenerate') }}
+                </ui-button>
+              </div>
+            } @else if (report.reportLoading()) {
+              <p class="v2-body-soft mt-2">{{ t('v2.trends.generating') }}</p>
+            }
+          } @else if (report.reportLoading()) {
+            <p class="v2-body-soft">{{ t('v2.trends.generating') }}</p>
+          } @else if (report.reportError(); as err) {
+            <p class="v2-body-soft" style="color: var(--v2-danger)">{{ err }}</p>
+            @if (subs.isPaid()) {
+              <ui-button variant="ghost" size="sm" (click)="generate()">{{ t('v2.trends.retry') }}</ui-button>
+            }
+          } @else if (!subs.isPaid()) {
+            <p class="v2-body-soft">{{ t('v2.trends.upsellBody') }}</p>
             <div class="mt-3">
-              <ui-button variant="ghost" size="sm" (click)="generate()">
+              <ui-button variant="primary" size="sm" (click)="openUpgrade()">
                 <lucide-icon name="sparkles" [size]="14" />
-                {{ t('trends.regenerate') }}
+                {{ t('v2.trends.upgrade') }}
               </ui-button>
             </div>
-          } @else if (report.reportLoading()) {
-            <p class="v2-body-soft mt-2">{{ t('v2.trends.generating') }}</p>
-          }
-        } @else if (report.reportLoading()) {
-          <p class="v2-body-soft">{{ t('v2.trends.generating') }}</p>
-        } @else if (report.reportError(); as err) {
-          <p class="v2-body-soft" style="color: var(--v2-danger)">{{ err }}</p>
-          @if (subs.isPaid()) {
-            <ui-button variant="ghost" size="sm" (click)="generate()">{{ t('v2.trends.retry') }}</ui-button>
-          }
-        } @else if (!subs.isPaid()) {
-          <p class="v2-body-soft">{{ t('v2.trends.upsellBody') }}</p>
-          <div class="mt-3">
-            <ui-button variant="primary" size="sm" (click)="openUpgrade()">
+          } @else if (daysWithLogsThisWeek() < 3) {
+            <p class="v2-body-soft">{{ t('v2.trends.needThreeDays') }}</p>
+          } @else {
+            <ui-button variant="primary" size="sm" (click)="generate()">
               <lucide-icon name="sparkles" [size]="14" />
-              {{ t('v2.trends.upgrade') }}
+              {{ t('v2.trends.generateThisWeek') }}
             </ui-button>
-          </div>
-        } @else if (daysWithLogsThisWeek() < 3) {
-          <p class="v2-body-soft">{{ t('v2.trends.needThreeDays') }}</p>
-        } @else {
-          <ui-button variant="primary" size="sm" (click)="generate()">
-            <lucide-icon name="sparkles" [size]="14" />
-            {{ t('v2.trends.generateThisWeek') }}
-          </ui-button>
-        }
-      </ui-card>
-
-      <!-- AI coach (v1 consultation, restyled in Week 6) -->
-      <ui-card variant="default" class="mt-4 block">
-        <h2 class="v2-h3 mb-3">{{ t('v2.trends.aiCoach') }}</h2>
-        <app-consultation />
+          }
+        </div>
       </ui-card>
     </section>
     </ng-container>
@@ -312,6 +313,9 @@ export class TrendsComponent {
   protected readonly kcalTarget = computed(() => this.store.targetCalories());
   protected readonly proteinTarget = computed(() => this.store.proteinTarget());
   protected readonly weekly = computed(() => this.store.weekly());
+
+  /** Weekly panel view toggle: rule-based insights vs calorie banking. */
+  protected readonly panelView = signal<'insights' | 'budget'>('insights');
   /** Days in the last 7 with at least one log. Used to gate the
    *  "Generate this week's readout" affordance — Pro users with under
    *  3 logged days get a hint instead of a button. v1 measured all-time
@@ -421,13 +425,6 @@ export class TrendsComponent {
     const signed = slope > 0 ? `+${slope.toFixed(1)}` : slope.toFixed(1);
     return this.translation.t('trends.insightsLbPerWeek', { n: signed });
   }
-
-  protected readonly weightDeltaLabel = computed(() => {
-    const w = this.weekly();
-    if (!w || !w.weightDelta) return '—';
-    const sign = w.weightDelta > 0 ? '+' : '';
-    return `${sign}${w.weightDelta.toFixed(1)} lb`;
-  });
 
   protected readonly reportHtml = computed<SafeHtml | null>(() => {
     const r = this.report.weeklyReport();

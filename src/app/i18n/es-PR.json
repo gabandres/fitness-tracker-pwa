@@ -585,10 +585,13 @@
     "fieldNeck": "Cuello",
     "bodyFat": "Grasa corporal ~{{n}}% (estimación Navy)",
     "photoProTitle": "Fotos de progreso",
-    "photoProCta": "Pro"
+    "photoProCta": "Pro",
+    "photosTitle": "Fotos de progreso"
   },
   "trends": {
     "regenerate": "generar reporte nuevo",
+    "coachAsk": "Pregúntale al coach",
+    "coachReport": "Reporte semanal",
     "insightsTitle": "Lo que dice tu semana",
     "insightsBestDay": "Mejor día",
     "insightsWorstDay": "Día más difícil",
@@ -1731,6 +1734,7 @@
     "addSet": "Añadir serie",
     "warmup": "Calentamiento",
     "warmupBar": "Barra sola",
+    "tools": "Discos y calentamiento",
     "plates": "Discos",
     "platesPerSide": "Por lado",
     "platesBarOnly": "Barra sola ({{bar}} lb)",

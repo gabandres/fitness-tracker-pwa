@@ -31,7 +31,7 @@ import { UiFab } from '../ui/fab.component';
 import { UiDaySummary } from '../ui/day-summary.component';
 import { UiFastingPill } from '../ui/fasting-pill.component';
 import { UiRefineTargetsSheet } from '../refine-targets-sheet/refine-targets-sheet.component';
-import { WhatsNewBannerComponent } from '../whats-new-banner/whats-new-banner.component';
+import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/whats-new-banner.component';
 
 /**
  * v2 Today screen. Owns the today-only chrome (header, day-0 hero,
@@ -95,7 +95,7 @@ import { WhatsNewBannerComponent } from '../whats-new-banner/whats-new-banner.co
         </div>
       </header>
 
-      <app-whats-new-banner />
+      <app-whats-new-banner [suppressed]="activeNudge() !== 'whatsNew'" />
 
       @if (showDay0Hero()) {
         <!-- Day 0 hero — replaces rings until first entry. -->
@@ -122,7 +122,7 @@ import { WhatsNewBannerComponent } from '../whats-new-banner/whats-new-banner.co
            ≥3 unique logged days and is still on the 2-Q heuristic. Tapping
            opens the full Mifflin-St Jeor sheet; saving the sheet stamps
            targetsRefinedAt and the card never returns. -->
-      @if (showRefineCard()) {
+      @if (activeNudge() === 'refine') {
         <ui-card class="mt-6 block">
           <h2 class="v2-h3">{{ t('v2.refineTargets.cardTitle') }}</h2>
           <p class="v2-body-soft mt-1.5">{{ t('v2.refineTargets.cardBody') }}</p>
@@ -153,7 +153,7 @@ import { WhatsNewBannerComponent } from '../whats-new-banner/whats-new-banner.co
            screen first, which most users will never do without
            prompting. Step-by-step copy uses the actual Share / Add
            to Home Screen wording so non-technical users follow. -->
-      @if (showIosInstall()) {
+      @if (activeNudge() === 'install') {
         <ui-card class="mt-6 block">
           <h2 class="v2-h3">{{ t('v2.today.iosInstallTitle') }}</h2>
           <p class="v2-body-soft mt-1.5">{{ t('v2.today.iosInstallBody') }}</p>
@@ -175,7 +175,7 @@ import { WhatsNewBannerComponent } from '../whats-new-banner/whats-new-banner.co
            permission hasn't been answered yet, and the user hasn't
            already dismissed it locally. Single-tap enable: requests
            permission, saves token + a default 8 PM reminder hour. -->
-      @if (showPushPrompt()) {
+      @if (activeNudge() === 'push') {
         <ui-card class="mt-6 block">
           <h2 class="v2-h3">{{ t('v2.today.pushPromptTitle') }}</h2>
           <p class="v2-body-soft mt-1.5">{{ t('v2.today.pushPromptBody') }}</p>
@@ -467,6 +467,22 @@ export class TodayComponent {
     const standaloneLegacy = (navigator as any).standalone === true;
     if (standaloneMql || standaloneLegacy) return false;
     return true;
+  });
+
+  /**
+   * One-Nudge gate: at most one promotional prompt renders at a time, in
+   * priority order. Utilities (repeat-yesterday) and exclusive content
+   * (the Day-0 hero) are NOT nudges and stay outside this gate. See the
+   * "Nudge vs utility" term in CONTEXT.md.
+   */
+  protected readonly activeNudge = computed<
+    'refine' | 'push' | 'install' | 'whatsNew' | null
+  >(() => {
+    if (this.showRefineCard()) return 'refine';
+    if (this.showPushPrompt()) return 'push';
+    if (this.showIosInstall()) return 'install';
+    if (whatsNewVisible()) return 'whatsNew';
+    return null;
   });
 
   protected dismissIosInstall(): void {

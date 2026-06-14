@@ -84,21 +84,46 @@ const SAVE_DEBOUNCE_MS = 800;
               </ul>
             }
 
-            <!-- Warm-up ramp (barbell only), seeded from the working load -->
-            @if (styleOf(ex) === 'weight-reps' && warmupSets(ex).length) {
+            <!-- Plates & warm-up tools (barbell only) — one affordance per
+                 exercise: plate breakdown for each distinct entered weight,
+                 plus the warm-up ramp seeded from the working load. -->
+            @if (styleOf(ex) === 'weight-reps') {
               <button type="button" class="v2-btn v2-btn--ghost v2-btn--sm mb-1"
-                [attr.aria-pressed]="warmupOpen() === warmupKey(exIdx)"
-                (click)="toggleWarmup(exIdx)">
-                <lucide-icon name="flame" [size]="13" /> {{ t('train.warmup') }}
+                [attr.aria-pressed]="toolsOpen() === toolsKey(exIdx)"
+                (click)="toggleTools(exIdx)">
+                <lucide-icon name="flame" [size]="13" /> {{ t('train.tools') }}
               </button>
-              @if (warmupOpen() === warmupKey(exIdx)) {
-                <ul class="mb-2 pl-4" style="list-style: disc; color: var(--v2-ink-muted);">
-                  @for (w of warmupSets(ex); track $index) {
-                    <li class="v2-caption" style="font-size: 0.72rem;">
-                      <span class="v2-num">{{ w.weight }}</span> × {{ w.reps }}@if (w.pct == null) { · {{ t('train.warmupBar') }} } @else { · {{ pctLabel(w.pct) }} }
-                    </li>
+              @if (toolsOpen() === toolsKey(exIdx)) {
+                <div class="mb-2 pl-4">
+                  @if (distinctPlateLoads(ex).length) {
+                    <p class="v2-caption" style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--v2-ink-muted);">{{ t('train.plates') }}</p>
+                    <ul class="mb-2" style="list-style: none; padding: 0; color: var(--v2-ink-muted);">
+                      @for (pl of distinctPlateLoads(ex); track pl.weight) {
+                        <li class="v2-caption" style="font-size: 0.72rem;">
+                          <span class="v2-num">{{ pl.weight }}</span>:
+                          @if (pl.load.perSide.length) {
+                            {{ t('train.platesPerSide') }} {{ plateChips(pl.load) }}@if (pl.load.remainder > 0) { · {{ t('train.platesShort', { n: pl.load.remainder }) }}}
+                          } @else {
+                            {{ t('train.platesBarOnly', { bar: pl.load.bar }) }}
+                          }
+                        </li>
+                      }
+                    </ul>
                   }
-                </ul>
+                  @if (warmupSets(ex).length) {
+                    <p class="v2-caption" style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--v2-ink-muted);">{{ t('train.warmup') }}</p>
+                    <ul class="pl-4" style="list-style: disc; color: var(--v2-ink-muted);">
+                      @for (w of warmupSets(ex); track $index) {
+                        <li class="v2-caption" style="font-size: 0.72rem;">
+                          <span class="v2-num">{{ w.weight }}</span> × {{ w.reps }}@if (w.pct == null) { · {{ t('train.warmupBar') }} } @else { · {{ pctLabel(w.pct) }} }
+                        </li>
+                      }
+                    </ul>
+                  }
+                  @if (!distinctPlateLoads(ex).length && !warmupSets(ex).length) {
+                    <p class="v2-caption" style="font-size: 0.72rem; color: var(--v2-ink-muted);">{{ t('train.platesNeedWeight') }}</p>
+                  }
+                </div>
               }
             }
 
@@ -155,9 +180,6 @@ const SAVE_DEBOUNCE_MS = 800;
                       [attr.aria-label]="t('train.reps')"
                       [value]="set.reps ?? ''"
                       (input)="onSetField(exIdx, setIdx, 'reps', $event)" />
-                    <button type="button" class="v2-btn v2-btn--ghost v2-btn--sm"
-                      [attr.aria-pressed]="platesOpen() === plateKey(exIdx, setIdx)"
-                      (click)="togglePlates(exIdx, setIdx)">{{ t('train.plates') }}</button>
                   }
                 }
                 @if (showRir(set)) {
@@ -175,21 +197,6 @@ const SAVE_DEBOUNCE_MS = 800;
                         (click)="markDone(exIdx, setIdx, set)">
                   <lucide-icon [name]="set.done ? 'check-circle-2' : 'circle'" [size]="18" />
                 </button>
-                @if (platesOpen() === plateKey(exIdx, setIdx)) {
-                  <div class="basis-full mt-1" style="padding-left: 5.5rem;">
-                    @if (plateLoadFor(set.weight); as pl) {
-                      <p class="v2-caption" style="color: var(--v2-ink-muted); font-size: 0.72rem;">
-                        @if (pl.perSide.length) {
-                          {{ t('train.platesPerSide') }}: {{ plateChips(pl) }}@if (pl.remainder > 0) { · {{ t('train.platesShort', { n: pl.remainder }) }}}
-                        } @else {
-                          {{ t('train.platesBarOnly', { bar: pl.bar }) }}
-                        }
-                      </p>
-                    } @else {
-                      <p class="v2-caption" style="color: var(--v2-ink-muted); font-size: 0.72rem;">{{ t('train.platesNeedWeight') }}</p>
-                    }
-                  </div>
-                }
               </div>
             }
             <button type="button" class="v2-btn v2-btn--ghost v2-btn--sm mt-1" (click)="addSet(exIdx)">
@@ -390,23 +397,20 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
   }
 
   // ─── Plate calculator ─────────────────────────────────────────
-  /** Which set's plate breakdown is expanded, keyed `exIdx-setIdx`, or
-   *  null. Only one open at a time — it's an inline helper, not a panel. */
-  protected readonly platesOpen = signal<string | null>(null);
-
-  protected plateKey(exIdx: number, setIdx: number): string {
-    return `${exIdx}-${setIdx}`;
-  }
-
-  protected togglePlates(exIdx: number, setIdx: number): void {
-    const key = this.plateKey(exIdx, setIdx);
-    this.platesOpen.update((cur) => (cur === key ? null : key));
-  }
-
-  /** Plate solve for a set's weight (lb, default bar + plate set), or null
-   *  when the set has no weight yet. */
-  protected plateLoadFor(weight: number | undefined): PlateLoad | null {
-    return weight != null ? computePlateLoad(weight) : null;
+  /** Distinct entered set weights (>0) with their plate solve. Feeds the
+   *  per-exercise tools panel so one affordance covers every loaded weight
+   *  instead of a button on each set row. */
+  protected distinctPlateLoads(ex: SessionExercise): { weight: number; load: PlateLoad }[] {
+    const seen = new Set<number>();
+    const out: { weight: number; load: PlateLoad }[] = [];
+    for (const s of ex.sets) {
+      const w = s.weight;
+      if (w == null || w <= 0 || seen.has(w)) continue;
+      seen.add(w);
+      const load = computePlateLoad(w);
+      if (load) out.push({ weight: w, load });
+    }
+    return out;
   }
 
   /** "45 + 25 + 2.5" per-side chip string. */
@@ -416,16 +420,16 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
       .join(' + ');
   }
 
-  // ─── Warm-up ramp ─────────────────────────────────────────────
-  protected readonly warmupOpen = signal<string | null>(null);
+  // ─── Plates & warm-up tools panel (one toggle per exercise) ───
+  protected readonly toolsOpen = signal<string | null>(null);
 
-  protected warmupKey(exIdx: number): string {
-    return `w${exIdx}`;
+  protected toolsKey(exIdx: number): string {
+    return `t${exIdx}`;
   }
 
-  protected toggleWarmup(exIdx: number): void {
-    const key = this.warmupKey(exIdx);
-    this.warmupOpen.update((cur) => (cur === key ? null : key));
+  protected toggleTools(exIdx: number): void {
+    const key = this.toolsKey(exIdx);
+    this.toolsOpen.update((cur) => (cur === key ? null : key));
   }
 
   /** Working load to ramp toward: the snapshot `targetLoad`, else the

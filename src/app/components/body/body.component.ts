@@ -117,9 +117,6 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
               {{ pl }}
             </p>
           }
-          @if (bodyFatPct(); as bf) {
-            <p class="v2-caption mt-1">{{ t('body.bodyFat', { n: bf }) }}</p>
-          }
         </div>
 
         @if (goal(); as g) {
@@ -141,82 +138,7 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
           </div>
         }
 
-        <!-- Progress photos (ADR-0010) — owner-private, fetched via getBlob.
-             Pro-gated: only paid users can upload, so free users generate no
-             photo egress (the feature's only real cost). -->
-        @if (subs.isPaid()) {
-          <input #photoInput type="file" accept="image/*" capture="environment"
-            style="display:none;" (change)="onPhotoSelected($event)" />
-          <ui-button
-            variant="ghost"
-            size="sm"
-            [block]="true"
-            [disabled]="uploadingPhoto()"
-            (click)="photoInput.click()"
-            [ariaLabel]="t('body.photoAdd')">
-            <span style="display:inline-flex; align-items:center; gap:6px;">
-              <lucide-icon name="camera" [size]="14" />
-              {{ uploadingPhoto() ? t('body.photoUploading') : t('body.photoAdd') }}
-            </span>
-          </ui-button>
-          @if (photoError(); as err) {
-            <p class="v2-caption mt-2" style="color: var(--v2-danger);">{{ err }}</p>
-          }
-          @if (photos().length) {
-            <div class="grid grid-cols-3 gap-2 mt-3">
-              @for (p of photos(); track p.dateKey) {
-                <button type="button" class="relative block w-full rounded-lg overflow-hidden"
-                  style="aspect-ratio: 1; background: var(--v2-line);"
-                  (click)="openViewer(p)"
-                  [attr.aria-label]="t('body.photoViewAria', { date: photoDateLabel(p.dateKey) })">
-                  @if (photoUrls()[p.dateKey]; as url) {
-                    <img [src]="url" alt="" class="w-full h-full" style="object-fit: cover;" />
-                  }
-                  <span class="absolute left-1 bottom-1 px-1.5 py-0.5 rounded"
-                    style="background: rgba(0,0,0,0.5); color: #fff; font-size: 0.62rem;">
-                    {{ photoDateLabel(p.dateKey) }}
-                  </span>
-                </button>
-              }
-            </div>
-          }
-        } @else {
-          <button type="button"
-            class="flex items-center justify-between gap-3 w-full mt-1 px-3 py-2.5 rounded-xl"
-            style="background: var(--v2-accent-soft);"
-            (click)="openPhotoUpgrade()">
-            <span class="flex items-center gap-2 v2-caption" style="color: var(--v2-ink);">
-              <lucide-icon name="camera" [size]="14" />
-              {{ t('body.photoProTitle') }}
-            </span>
-            <span class="v2-caption" style="color: var(--v2-accent); font-weight: 600;">
-              {{ t('body.photoProCta') }}
-            </span>
-          </button>
-        }
       </ui-card>
-
-      <!-- Full-screen photo viewer -->
-      @if (viewer(); as v) {
-        <div class="fixed inset-0 z-50 flex flex-col items-center justify-center p-4"
-          style="background: rgba(0,0,0,0.92);" (click)="closeViewer()">
-          @if (photoUrls()[v.dateKey]; as url) {
-            <img [src]="url" alt="" style="max-width: 100%; max-height: 80vh; object-fit: contain;"
-              class="rounded-lg" />
-          }
-          <div class="flex items-center gap-3 mt-4" (click)="$event.stopPropagation()">
-            <span style="color: #fff;" class="v2-caption">
-              {{ photoDateLabel(v.dateKey) }}@if (v.weightLb != null) { · {{ v.weightLb }} lb }
-            </span>
-            <button type="button" class="v2-btn v2-btn--ghost v2-btn--sm" style="color: #fff;"
-              (click)="removePhoto(v)">
-              <lucide-icon name="trash-2" [size]="14" /> {{ t('body.photoDelete') }}
-            </button>
-            <button type="button" class="v2-btn v2-btn--ghost v2-btn--sm" style="color: #fff;"
-              (click)="closeViewer()">{{ t('body.photoClose') }}</button>
-          </div>
-        </div>
-      }
 
       <!-- ── Fasting ─────────────────────────────────────────── -->
       <ui-card variant="default" class="mt-4 block">
@@ -383,6 +305,10 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
               </div>
             }
 
+            @if (bodyFatPct(); as bf) {
+              <p class="v2-caption mb-4">{{ t('body.bodyFat', { n: bf }) }}</p>
+            }
+
             @if (formOpen()) {
               <form (submit)="saveMeasurement($event)" novalidate class="space-y-3">
                 <div class="grid grid-cols-2 gap-3">
@@ -421,6 +347,107 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
         }
       </ui-card>
 
+      <!-- ── Progress photos (ADR-0010) — owner-private, getBlob only, Pro-gated.
+           Collapsed by default so a Pro gallery never dominates the tab. -->
+      <ui-card variant="default" class="mt-4 block">
+        <button
+          type="button"
+          class="flex items-center justify-between gap-3 w-full"
+          style="background: none; border: none; padding: 0; cursor: pointer; min-height: var(--v2-tap-min);"
+          [attr.aria-expanded]="photosExpanded()"
+          aria-controls="photos-panel"
+          (click)="photosExpanded.set(!photosExpanded())">
+          <div class="flex items-baseline gap-3">
+            <h2 class="v2-h2">{{ t('body.photosTitle') }}</h2>
+            @if (photos().length) {
+              <span class="v2-caption">{{ photos().length }}</span>
+            }
+          </div>
+          <lucide-icon
+            name="chevron-down"
+            [size]="20"
+            [style.transform]="photosExpanded() ? 'rotate(180deg)' : 'rotate(0deg)'"
+            style="transition: transform 200ms var(--v2-ease); color: var(--v2-ink-muted)" />
+        </button>
+
+        @if (photosExpanded()) {
+          <div id="photos-panel" class="mt-4">
+            @if (subs.isPaid()) {
+              <input #photoInput type="file" accept="image/*" capture="environment"
+                style="display:none;" (change)="onPhotoSelected($event)" />
+              <ui-button
+                variant="ghost"
+                size="sm"
+                [block]="true"
+                [disabled]="uploadingPhoto()"
+                (click)="photoInput.click()"
+                [ariaLabel]="t('body.photoAdd')">
+                <span style="display:inline-flex; align-items:center; gap:6px;">
+                  <lucide-icon name="camera" [size]="14" />
+                  {{ uploadingPhoto() ? t('body.photoUploading') : t('body.photoAdd') }}
+                </span>
+              </ui-button>
+              @if (photoError(); as err) {
+                <p class="v2-caption mt-2" style="color: var(--v2-danger);">{{ err }}</p>
+              }
+              @if (photos().length) {
+                <div class="grid grid-cols-3 gap-2 mt-3">
+                  @for (p of photos(); track p.dateKey) {
+                    <button type="button" class="relative block w-full rounded-lg overflow-hidden"
+                      style="aspect-ratio: 1; background: var(--v2-line);"
+                      (click)="openViewer(p)"
+                      [attr.aria-label]="t('body.photoViewAria', { date: photoDateLabel(p.dateKey) })">
+                      @if (photoUrls()[p.dateKey]; as url) {
+                        <img [src]="url" alt="" class="w-full h-full" style="object-fit: cover;" />
+                      }
+                      <span class="absolute left-1 bottom-1 px-1.5 py-0.5 rounded"
+                        style="background: rgba(0,0,0,0.5); color: #fff; font-size: 0.62rem;">
+                        {{ photoDateLabel(p.dateKey) }}
+                      </span>
+                    </button>
+                  }
+                </div>
+              }
+            } @else {
+              <button type="button"
+                class="flex items-center justify-between gap-3 w-full mt-1 px-3 py-2.5 rounded-xl"
+                style="background: var(--v2-accent-soft);"
+                (click)="openPhotoUpgrade()">
+                <span class="flex items-center gap-2 v2-caption" style="color: var(--v2-ink);">
+                  <lucide-icon name="camera" [size]="14" />
+                  {{ t('body.photoProTitle') }}
+                </span>
+                <span class="v2-caption" style="color: var(--v2-accent); font-weight: 600;">
+                  {{ t('body.photoProCta') }}
+                </span>
+              </button>
+            }
+          </div>
+        }
+      </ui-card>
+
+      <!-- Full-screen photo viewer -->
+      @if (viewer(); as v) {
+        <div class="fixed inset-0 z-50 flex flex-col items-center justify-center p-4"
+          style="background: rgba(0,0,0,0.92);" (click)="closeViewer()">
+          @if (photoUrls()[v.dateKey]; as url) {
+            <img [src]="url" alt="" style="max-width: 100%; max-height: 80vh; object-fit: contain;"
+              class="rounded-lg" />
+          }
+          <div class="flex items-center gap-3 mt-4" (click)="$event.stopPropagation()">
+            <span style="color: #fff;" class="v2-caption">
+              {{ photoDateLabel(v.dateKey) }}@if (v.weightLb != null) { · {{ v.weightLb }} lb }
+            </span>
+            <button type="button" class="v2-btn v2-btn--ghost v2-btn--sm" style="color: #fff;"
+              (click)="removePhoto(v)">
+              <lucide-icon name="trash-2" [size]="14" /> {{ t('body.photoDelete') }}
+            </button>
+            <button type="button" class="v2-btn v2-btn--ghost v2-btn--sm" style="color: #fff;"
+              (click)="closeViewer()">{{ t('body.photoClose') }}</button>
+          </div>
+        </div>
+      }
+
       <!-- Weight log sheet -->
       <ui-weight-sheet
         [open]="weightSheetOpen()"
@@ -452,6 +479,7 @@ export class BodyComponent implements OnInit, OnDestroy {
   protected readonly todayKey = signal(localDateKey(new Date()));
   protected readonly weightSheetOpen = signal(false);
   protected readonly expanded = signal(false);
+  protected readonly photosExpanded = signal(false);
   protected readonly formOpen = signal(false);
 
   // Inline fasting start-time editor — used both to backdate a new fast

@@ -585,10 +585,13 @@
     "fieldNeck": "Neck",
     "bodyFat": "Body fat ~{{n}}% (Navy estimate)",
     "photoProTitle": "Progress photos",
-    "photoProCta": "Pro"
+    "photoProCta": "Pro",
+    "photosTitle": "Progress photos"
   },
   "trends": {
     "regenerate": "generate fresh report",
+    "coachAsk": "Ask the coach",
+    "coachReport": "Weekly report",
     "insightsTitle": "This week's insights",
     "insightsBestDay": "Best day",
     "insightsWorstDay": "Toughest day",
@@ -1731,6 +1734,7 @@
     "addSet": "Add set",
     "warmup": "Warm-up",
     "warmupBar": "Empty bar",
+    "tools": "Plates & warm-up",
     "plates": "Plates",
     "platesPerSide": "Per side",
     "platesBarOnly": "Empty bar ({{bar}} lb)",

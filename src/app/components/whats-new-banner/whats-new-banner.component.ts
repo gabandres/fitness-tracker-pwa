@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { LucideAngularModule } from 'lucide-angular';
 
@@ -13,6 +13,17 @@ import { LucideAngularModule } from 'lucide-angular';
  */
 export const WHATS_NEW_VERSION = '2026-06-13';
 const STORAGE_KEY = 'macrolog.lastSeenWhatsNew';
+
+/**
+ * Whether the what's-new banner *wants* to show (stored version is missing
+ * or stale). Today's one-Nudge gate reads this to rank the banner against
+ * the other nudges without owning the localStorage key. Private-mode reads
+ * fall back to "not visible" so the banner never blocks a higher nudge.
+ */
+export function whatsNewVisible(): boolean {
+  try { return localStorage.getItem(STORAGE_KEY) !== WHATS_NEW_VERSION; }
+  catch { return false; }
+}
 
 const ITEMS: ReadonlyArray<{ id: string; iconKey: string }> = [
   { id: 'mealSlots', iconKey: 'sparkles' },
@@ -63,9 +74,14 @@ const ITEMS: ReadonlyArray<{ id: string; iconKey: string }> = [
 export class WhatsNewBannerComponent {
   protected readonly items = ITEMS;
 
+  /** Set by Today's one-Nudge gate when a higher-priority nudge wins. */
+  readonly suppressed = input(false);
+
   private readonly seen = signal(this.readSeen());
 
-  protected readonly visible = computed(() => this.seen() !== WHATS_NEW_VERSION);
+  protected readonly visible = computed(
+    () => !this.suppressed() && this.seen() !== WHATS_NEW_VERSION,
+  );
 
   protected dismiss(): void {
     try { localStorage.setItem(STORAGE_KEY, WHATS_NEW_VERSION); } catch { /* private mode — banner returns next session */ }

@@ -292,6 +292,40 @@ Only after all six are ticked should the app be promoted in any channel outside 
 
 ---
 
+## 🧹 S14 — Feature-declutter audit (2026-06-14)
+
+After the nine-feature batch (`CHANGELOG.md` 2026-06-13), the surface grew
+faster than the **calm / restraint** brand allows. This pass audits every
+tab against that lens — verdicts KEEP / MERGE / DEMOTE / CUT / PRO-GATE —
+and consolidates without deleting capability. **No `utils/*` math is
+removed; only UI placement changes** (cheap to re-expose). Grilled with
+`/grill-with-docs`; new glossary terms **Weekly panel**, **Coach panel**,
+**Nudge vs utility** landed in `CONTEXT.md`.
+
+### Decisions (locked)
+
+| ID | Change | Status |
+|----|--------|--------|
+| **T1** | Trends: merge "Averages" into Insights. Drop raw weight Δ (keep least-squares slope); collapse avgKcal + avg-vs-target into one cell. Result: a 6-cell insights grid (best/worst day · avgKcal+vs-target · avgProtein · adherence % · weight trend). | [ ] |
+| **T2** | Trends: fold WeeklyBudget into the insights card as a toggle → the **Weekly panel** (default view = insights). `weekly-budget.ts` untouched. | [ ] |
+| **T3** | Trends: merge WeeklyReport + AI coach into one **Coach panel** — free "Ask the coach" (quota'd) shown first, Pro WeeklyReport below with an inline lock badge → existing upsell. | [ ] |
+| **B1** | Body: move the Body-fat estimate caption out of the weight card into the Measurements card (its inputs — waist/neck — are entered there). | [ ] |
+| **B2** | Body: pull the Progress Photos block out of the weight card into its own card, **collapsed by default, placed last** (matches Measurements pattern). | [ ] |
+| **TD1** | Today: one-**Nudge**-at-a-time gate (priority refine → push → install → what's-new). Repeat-yesterday reclassified as a **utility**, ungated. Worst-case Today: rings + repeat-yesterday + one Nudge. | [ ] |
+| **TR1** | Train: collapse the per-set "Plates" buttons into the per-exercise warm-up toggle → one **"Plates & warm-up"** tools panel per exercise (plate breakdown per distinct set weight + warm-up ramp). Accepts loss of per-set inline plate glance. `plate-math.ts` / `warmup.ts` untouched. | [ ] |
+
+**Net:** Trends 6 cards → 3 (chart · Weekly panel · Coach panel); Body
+weight card returns to weight; Today caps at one Nudge; Train logger
+loses per-row button noise.
+
+**Untouched:** rings, 7-day chart, fasting, measurements core, share
+button (inline), CSV import, recipe builder.
+
+**ADR check:** none warranted — every change is UI-only and reversible
+with the pure modules preserved, so the "hard to reverse" bar fails.
+
+---
+
 ## 4. Prioritised change list
 
 ### Ship this week (cheap, high-impact)
