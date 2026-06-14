@@ -6,6 +6,41 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-06-13 — Nine free features (plus progress photos)
+
+A batch of non-AI features that close the biggest gaps against the switcher apps — all pure client-side math, Firestore, or canvas, so nothing here adds a recurring AI cost.
+
+- **Meal slots.** Entries can now carry a breakfast / lunch / dinner / snack slot (defaulted by time of day). The day view groups by slot with per-slot kcal subtotals; unslotted rows stay in an "other" bucket and legacy days render flat. CSV import maps MyFitnessPal / Lose It! / Cronometer meal columns onto the slot.
+- **Weekly insights (free, no AI).** A rule-based Trends card: best vs toughest day against target, average vs target, and a least-squares weight slope. The $0 sibling of the Pro AI report.
+- **Weight projection.** A linear fit over the last 28 days draws a dashed forecast on the Body sparkline — "at this pace: X lb by <date>".
+- **Weekly calorie budget / banking.** Trends shows the week's allowance (daily target ×7), consumed vs remaining for the ISO-local week, a Mon→Sun bar strip, and how much you can average per remaining day to stay on budget.
+- **Plate calculator.** Tap "Plates" on any barbell set in a workout to see the per-side plate breakdown for that weight (45-lb bar, standard plate set), with any unreachable remainder called out.
+- **Warm-up generator.** A collapsible "Warm-up" block on barbell exercises ramps empty bar → ~50/70/90% of the working load, each rounded to a loadable weight.
+- **Progress photos (Pro).** A private, owner-only before/after gallery on Body — dated photos in Firebase Storage (the app's first use of Storage), fetched via `getBlob` so no shareable URL is ever minted, and never surfaced on the public profile or share card. Pro-gated: the only real cost is download bandwidth, so gating uploads keeps free accounts from generating any. `deleteAccount` purges the photo bytes too (GDPR Art. 17 stays complete).
+- **Body-fat estimate.** The U.S. Navy circumference formula on Body, from a new optional `neck` measurement plus waist / height (and hip for women). Framed as an estimate, never clinical.
+- **Share card.** Share your streak, days logged, and weight change as a 1200×630 image from Today — numbers only, via the native share sheet with a download fallback.
+
+## 2026-06-12 — Carbs + fat macros, and import from other apps
+
+- **Carbs + fat** join protein as optional macros on every entry, chip across Today and day detail, and flow through CSV export.
+- **Switcher import.** Settings → Data accepts a MyFitnessPal, Lose It!, or Cronometer CSV export and replays your history into the ledger — switch in a couple of minutes and bring your past with you.
+- The weekly AI report no longer auto-generates on staleness; generation is strictly user-initiated to keep AI spend predictable.
+
+## 2026-05-06 — Recipe builder + what's-new banner
+
+- **Build a recipe** inline in the entry sheet: sum several ingredients into one entry, then save it as a reusable preset.
+- A dismissible **what's-new banner** on Today surfaces recent ships, versioned so it only reappears when something new lands.
+
+## 2026-05-05 — One-tap CSV export
+
+Settings → Data → "download CSV" exports every log, weight, water, measurement, and workout as a single file.
+
+## 2026-05-01 — v1 retired, SEO pages, Day-3 target refinement
+
+- The legacy v1 UI is **fully retired** — v2 is the only interface now. The `?ui=v1` escape hatch is gone and the dead code removed.
+- New marketing/SEO surfaces: a free **/calculator** (TDEE + macros) and a **/macros** explainer, plus a refreshed OG image, to open a non-paid acquisition funnel.
+- A **Day-3 "Refine targets"** card invites users onto the full Mifflin-St Jeor target calculation once they've logged a few days, replacing the initial two-question heuristic.
+
 ## 2026-04-29 — v2 design system (warm minimal)
 
 Macro Log's full UI is now warm minimal — a paper-toned, sage + rust palette with Geist Sans / Geist Mono, rounded cards, and Lucide icons. The editorial "Calibration Log" identity (forensic typography, capitalized stamps, monogram, ruler ticks) read as cold and clinical to fitness-focused users; the rebuild trades it for a calmer, more approachable aesthetic without changing what the app *does*.

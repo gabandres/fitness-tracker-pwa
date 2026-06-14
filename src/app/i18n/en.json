@@ -1434,8 +1434,10 @@
       "label": "What's new",
       "dismissAria": "Dismiss what's new",
       "items": {
-        "recipes": "Build a recipe — sum ingredients into one entry, then save as a preset.",
-        "csvExport": "Export every log, weight, and measurement as a single CSV from Settings → Data."
+        "mealSlots": "Your diary now groups by meal — breakfast, lunch, dinner, snack.",
+        "trendsFree": "Trends: free weekly insights, a weekly calorie budget, and a weight projection — no AI.",
+        "bodyTrain": "Body adds progress photos (Pro) and a body-fat estimate; Train adds a plate calculator and warm-up sets.",
+        "shareStreak": "Share your streak as an image from Today."
       }
     },
     "body": {

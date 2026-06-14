@@ -11,12 +11,14 @@ import { LucideAngularModule } from 'lucide-angular';
  * so each release writes copy in en + es-PR before flipping the
  * version. The component renders nothing if there are no items.
  */
-export const WHATS_NEW_VERSION = '2026-05-06';
+export const WHATS_NEW_VERSION = '2026-06-13';
 const STORAGE_KEY = 'macrolog.lastSeenWhatsNew';
 
 const ITEMS: ReadonlyArray<{ id: string; iconKey: string }> = [
-  { id: 'recipes', iconKey: 'chef-hat' },
-  { id: 'csvExport', iconKey: 'download' },
+  { id: 'mealSlots', iconKey: 'sparkles' },
+  { id: 'trendsFree', iconKey: 'trending-up' },
+  { id: 'bodyTrain', iconKey: 'dumbbell' },
+  { id: 'shareStreak', iconKey: 'share-2' },
 ];
 
 @Component({

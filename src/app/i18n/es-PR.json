@@ -1434,8 +1434,10 @@
       "label": "Novedades",
       "dismissAria": "Cerrar novedades",
       "items": {
-        "recipes": "Crea una receta — suma ingredientes en una entrada y guárdala como preset.",
-        "csvExport": "Exporta cada registro, peso y medida en un solo CSV desde Ajustes → Datos."
+        "mealSlots": "Tu diario ahora se agrupa por comida — desayuno, almuerzo, cena, snack.",
+        "trendsFree": "Trends: insights semanales, presupuesto de calorías y proyección de peso — sin IA.",
+        "bodyTrain": "Body añade fotos de progreso (Pro) y estimación de grasa corporal; Train añade calculadora de discos y series de calentamiento.",
+        "shareStreak": "Comparte tu racha como imagen desde Today."
       }
     },
     "body": {

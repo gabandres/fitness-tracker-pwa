@@ -108,6 +108,14 @@ These three windows look similar and are NOT interchangeable. See
   users**, computed entirely server-side in the `weekly-digest` Cloud
   Function. Distinct from `WeeklyReport`: the digest is short, email,
   rule-based; the report is long-form, in-app, AI-generated.
+- **Weekly insights** — The **free, rule-based** card on Trends
+  (`utils/weekly-insights.ts`, pure): best/toughest day vs target, avg vs
+  target, and a least-squares weight slope. The $0 sibling of
+  **WeeklyReport** — no AI, computed client-side from `DaySummary[]`. Don't
+  conflate the two: insights = free/rules/in-app card; report =
+  Pro/Gemini/long-form. Sibling cards from the same module:
+  **WeeklyBudget** (calorie banking over the ISO week, `weekly-budget.ts`)
+  and the **WeightProjection** (linear-fit forecast, also `weekly-insights.ts`).
 - **MonthlySummary** — `FitnessStore.monthlySummary()`. 30-day stats:
   weight delta, adherence %, avg calories, weight count, etc.
 - **TodaySummary** — `{ totalCalories, totalProtein }` for the current
