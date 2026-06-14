@@ -17,6 +17,12 @@ import { PushNotificationService } from '../../services/push-notification.servic
 import { FirebaseService } from '../../services/firebase.service';
 import { AnalyticsService } from '../../services/analytics.service';
 import { localDateKey } from '../../utils/date';
+import {
+  shareStatItems,
+  renderShareCardCanvas,
+  shareImage,
+  type ShareStats,
+} from '../../utils/share-card';
 import { bcp47ForLang } from '../../utils/locale';
 import { UiButton } from '../ui/button.component';
 import { UiIconButton } from '../ui/icon-button.component';
@@ -68,6 +74,11 @@ import { WhatsNewBannerComponent } from '../whats-new-banner/whats-new-banner.co
                   <lucide-icon name="shield" [size]="12" />
                 </span>
               }
+              <button type="button" class="v2-icon-btn" style="margin-left: 2px; color: var(--v2-ink-muted);"
+                [attr.aria-label]="t('today.shareCard')" [disabled]="sharing()"
+                (click)="shareCard()">
+                <lucide-icon name="share-2" [size]="14" />
+              </button>
             </div>
           }
         </div>
@@ -235,6 +246,51 @@ export class TodayComponent {
 
   protected readonly streak = computed(() => this.store.streak());
   protected readonly streakFreezeUsed = computed(() => this.store.streakFreezeUsed());
+
+  // ─── Share card (feature 9) ─────────────────────────────────
+  protected readonly sharing = signal(false);
+
+  /** Distinct calendar days with at least one all-time log. */
+  private loggedDaysCount(): number {
+    const seen = new Set<string>();
+    for (const l of this.store.allTimeLogs()) seen.add(localDateKey(l.date));
+    return seen.size;
+  }
+
+  /**
+   * Render a numbers-only progress card (streak / days / Δweight) and
+   * hand it to the Web Share API, falling back to a download. Never
+   * sources a progress photo (ADR-0010 guardrail).
+   */
+  protected async shareCard(): Promise<void> {
+    if (this.sharing()) return;
+    this.sharing.set(true);
+    try {
+      const gp = this.store.goalProgress();
+      const stats: ShareStats = {
+        streak: this.store.streak(),
+        loggedDays: this.loggedDaysCount(),
+        weightDeltaLb: gp ? +(gp.startWeight - gp.currentWeight).toFixed(1) : null,
+      };
+      const tiles = shareStatItems(stats).map((it) => ({
+        value: it.value,
+        label: this.translation.t(
+          'today.shareLabel' + it.kind.charAt(0).toUpperCase() + it.kind.slice(1),
+        ),
+      }));
+      const blob = await renderShareCardCanvas(tiles, {
+        wordmark: this.translation.t('today.shareWordmark'),
+        tagline: this.translation.t('today.shareTagline'),
+      });
+      await shareImage(blob, 'macrolog-progress.png', this.translation.t('today.shareText'));
+      this.analytics.track('share_card');
+    } catch {
+      // Native-share cancel resolves as success upstream; genuine encode
+      // failures are rare and not worth a blocking error here.
+    } finally {
+      this.sharing.set(false);
+    }
+  }
   protected readonly kcalTarget = computed(() => this.store.targetCalories());
   protected readonly proteinTargetG = computed(() => this.store.proteinTarget());
 

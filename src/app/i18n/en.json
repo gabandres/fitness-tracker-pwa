@@ -1629,6 +1629,16 @@
       }
     ]
   },
+  "today": {
+    "shareCard": "Share progress card",
+    "shareWordmark": "Macro Log",
+    "shareTagline": "macrolog.web.app · free macro & weight tracker",
+    "shareText": "My Macro Log progress 💪",
+    "shareLabelStreak": "Day streak",
+    "shareLabelDays": "Days logged",
+    "shareLabelLost": "Lost",
+    "shareLabelGained": "Gained"
+  },
   "train": {
     "editTemplate": "Edit template",
     "newTemplate": "New",

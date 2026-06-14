@@ -1629,6 +1629,16 @@
       }
     ]
   },
+  "today": {
+    "shareCard": "Compartir tarjeta de progreso",
+    "shareWordmark": "Macro Log",
+    "shareTagline": "macrolog.web.app · rastreador de macros y peso gratis",
+    "shareText": "Mi progreso en Macro Log 💪",
+    "shareLabelStreak": "Días seguidos",
+    "shareLabelDays": "Días registrados",
+    "shareLabelLost": "Bajaste",
+    "shareLabelGained": "Subiste"
+  },
   "train": {
     "editTemplate": "Editar plantilla",
     "newTemplate": "Nueva",
