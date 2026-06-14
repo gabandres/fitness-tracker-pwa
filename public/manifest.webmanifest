@@ -2,7 +2,7 @@
   "id": "/app",
   "name": "Macro Log",
   "short_name": "Macros",
-  "description": "Personal calibration log — rolling 14-day TDEE and calorie tracker.",
+  "description": "A quiet, private calorie + protein log with measured TDEE from your own data.",
   "display": "standalone",
   "orientation": "any",
   "scope": "./",
@@ -60,6 +60,54 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshots/today.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Today — calories and protein left, at a glance"
+    },
+    {
+      "src": "screenshots/trends.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Trends — your week, insights, and budget"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Log food",
+      "short_name": "Log",
+      "url": "/app?action=add",
+      "icons": [{ "src": "icons/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Trends",
+      "short_name": "Trends",
+      "url": "/trends",
+      "icons": [{ "src": "icons/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Body",
+      "short_name": "Body",
+      "url": "/body",
+      "icons": [{ "src": "icons/icon-192x192.png", "sizes": "192x192" }]
     }
   ]
 }

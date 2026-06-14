@@ -947,6 +947,24 @@ export class App {
       } catch { /* non-critical */ }
     });
 
+    // Deep-link: /app?action=add (PWA manifest "Log food" shortcut) opens
+    // the entry sheet once signed in. One-shot + query strip, mirroring the
+    // intent=pro path so a lingering query can't re-trigger on tab changes.
+    let addActionConsumed = false;
+    effect(() => {
+      if (addActionConsumed) return;
+      if (!this.auth.isSignedIn() || !this.firebase.profileCompleted()) return;
+      const qs = new URLSearchParams(window.location.search);
+      if (qs.get('action') !== 'add') return;
+      addActionConsumed = true;
+      this.entryForm.startAdd();
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('action');
+        window.history.replaceState({}, '', url.pathname + (url.search || '') + url.hash);
+      } catch { /* non-critical */ }
+    });
+
     // Auto-dismiss reminder when user logs an entry.
     effect(() => {
       if (this.store.hasLoggedToday()) this.showReminder.set(false);
