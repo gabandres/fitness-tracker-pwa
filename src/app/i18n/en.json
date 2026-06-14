@@ -827,6 +827,7 @@
     "manageAria": "Manage subscription in Stripe Customer Portal",
     "pitchBody": "Macro Log is built by one person. If it's useful to you, subscribing keeps it running and pays for the AI coach.",
     "featureConsultations": "unlimited AI coach consultations",
+    "featureProgressPhotos": "progress photos — private before/after gallery",
     "featurePhoto": "higher photo-to-macros quota",
     "featureWebhook": "apple shortcuts webhook",
     "featureReports": "automatic weekly reports",

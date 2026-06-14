@@ -74,6 +74,7 @@ import { UiButton } from '../ui/button.component';
           <p class="v2-body mb-3">{{ t('subscribe.pitchBody') }}</p>
           <ul class="v2-body-soft mb-4" style="font-size: 0.875rem; padding-left: 1.25rem; list-style: disc;">
             <li>{{ t('subscribe.featureConsultations') }}</li>
+            <li>{{ t('subscribe.featureProgressPhotos') }}</li>
             <li>{{ t('subscribe.featurePhoto') }}</li>
             <li>{{ t('subscribe.featureWebhook') }}</li>
             <li>{{ t('subscribe.featureReports') }}</li>
