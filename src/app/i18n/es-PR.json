@@ -574,7 +574,14 @@
   "body": {
     "projectionGoalDate": "A este ritmo: {{weight}} lb para {{date}}",
     "projectionRate": "Tendencia {{n}} lb/sem",
-    "projectionSteady": "Estable"
+    "projectionSteady": "Estable",
+    "photoAdd": "Añadir foto de progreso",
+    "photoUploading": "Subiendo…",
+    "photoFailed": "No se pudo guardar la foto. Inténtalo de nuevo.",
+    "photoViewAria": "Ver foto de progreso del {{date}}",
+    "photoDelete": "Eliminar",
+    "photoClose": "Cerrar",
+    "photoDeleteConfirm": "¿Eliminar esta foto de progreso? No se puede deshacer."
   },
   "trends": {
     "regenerate": "generar reporte nuevo",

@@ -42,3 +42,4 @@ decisions that are local to a single component.
 | 0007 | [Workout logging — the Train tab](0007-workout-train-tab.md)                            | accepted |
 | 0008 | [CallerAccess + DailyQuota modules in Cloud Functions](0008-cf-caller-access-daily-quota.md) | accepted |
 | 0009 | [LedgerPort phase 5 — id returns, not explicit-UID or Result<T>](0009-ledger-port-phase5-pragmatic.md) | accepted |
+| 0010 | [Progress photos in Firebase Storage, fetched via getBlob](0010-progress-photos-firebase-storage.md) | accepted |

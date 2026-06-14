@@ -1,5 +1,6 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
+import { getStorage } from "firebase-admin/storage";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { ErrorCode } from "./error-codes";
 import { callerAccess, dailyQuota, db } from "./init";
@@ -160,7 +161,7 @@ export const deleteAccount = onCall(async (request) => {
 
     // 1. Delete all subcollections under users/{uid}.
     //    Subcollections known to exist: dailyLogs, presets, reports,
-    //    dailyWeights, measurements. Add new ones here when introduced.
+    //    dailyWeights, measurements, photos. Add new ones here when introduced.
     await Promise.all([
       deleteSubcollection(userPath, "dailyLogs"),
       deleteSubcollection(userPath, "presets"),
@@ -168,7 +169,15 @@ export const deleteAccount = onCall(async (request) => {
       deleteSubcollection(userPath, "dailyWeights"),
       deleteSubcollection(userPath, "dailyWater"),
       deleteSubcollection(userPath, "measurements"),
+      deleteSubcollection(userPath, "photos"),
     ]);
+
+    // 1b. Purge progress-photo BYTES from Storage (ADR-0010). The Firestore
+    //     index docs above don't cascade to the Storage objects, so without
+    //     this the photos linger after account deletion — a GDPR Art. 17 gap.
+    await getStorage()
+      .bucket()
+      .deleteFiles({ prefix: `users/${uid}/photos/` });
 
     // 2. Delete quota docs (photo + consultation).
     await dailyQuota.deleteAll(uid);

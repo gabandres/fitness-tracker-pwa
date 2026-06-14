@@ -574,7 +574,14 @@
   "body": {
     "projectionGoalDate": "At this pace: {{weight}} lb by {{date}}",
     "projectionRate": "Trending {{n}} lb/wk",
-    "projectionSteady": "Holding steady"
+    "projectionSteady": "Holding steady",
+    "photoAdd": "Add progress photo",
+    "photoUploading": "Uploading…",
+    "photoFailed": "Couldn't save the photo. Try again.",
+    "photoViewAria": "View progress photo from {{date}}",
+    "photoDelete": "Delete",
+    "photoClose": "Close",
+    "photoDeleteConfirm": "Delete this progress photo? This can't be undone."
   },
   "trends": {
     "regenerate": "generate fresh report",

@@ -9,6 +9,7 @@ import {
   persistentMultipleTabManager,
 } from '@angular/fire/firestore';
 import { provideAuth, getAuth } from '@angular/fire/auth';
+import { provideStorage, getStorage } from '@angular/fire/storage';
 import { provideFunctions, getFunctions } from '@angular/fire/functions';
 import { provideMessaging, getMessaging } from '@angular/fire/messaging';
 import {
@@ -86,6 +87,7 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes),
     provideFirebaseApp(() => initializeApp(environment.firebase)),
     provideAuth(() => getAuth()),
+    provideStorage(() => getStorage()),
     provideFunctions(() => getFunctions()),
     ...provideMessagingIfSupported(),
     // Enable Firestore offline persistence so writes queue locally
