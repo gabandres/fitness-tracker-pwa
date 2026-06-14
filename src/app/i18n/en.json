@@ -582,7 +582,7 @@
     "photoDelete": "Delete",
     "photoClose": "Close",
     "photoDeleteConfirm": "Delete this progress photo? This can't be undone.",
-    "fieldNeck": "Neck (in)",
+    "fieldNeck": "Neck",
     "bodyFat": "Body fat ~{{n}}% (Navy estimate)"
   },
   "trends": {
