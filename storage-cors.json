@@ -1,0 +1,13 @@
+[
+  {
+    "origin": [
+      "https://macrolog.web.app",
+      "https://fitness-tracker-gb-1775407101.web.app",
+      "https://fitness-tracker-gb-1775407101.firebaseapp.com",
+      "http://localhost:4200"
+    ],
+    "method": ["GET"],
+    "maxAgeSeconds": 3600,
+    "responseHeader": ["Content-Type", "Content-Length"]
+  }
+]
