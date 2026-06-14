@@ -148,9 +148,13 @@ These three windows look similar and are NOT interchangeable. See
   map onto `DailyLog.weight` so derivations don't miss daily-weight-only
   users.
 - **Measurement** — `users/{uid}/measurements`. Optional waist / chest
-  / bicep / hip per dated row. Latest two are exposed as
-  `latestMeasurement` + `previousMeasurement` with a `measurementDeltas`
-  derivation.
+  / bicep / hip / neck (inches) per dated row (`neck` added 2026-06 for
+  the body-fat estimate). Latest two are exposed as `latestMeasurement`
+  + `previousMeasurement` with a `measurementDeltas` derivation.
+- **Body-fat estimate** — U.S. Navy circumference formula
+  (`utils/body-fat.ts`, pure): waist + neck + height (+ hip for female)
+  → est. %. Always framed as an estimate, never clinical. Surfaced on
+  the Body tab off the latest **Measurement** + profile height/sex.
 - **Progress Photo** — A dated, owner-private body photo for before/after
   comparison (added 2026-06). One per local-date key: an index doc at
   `users/{uid}/photos/{YYYY-MM-DD}` (`{storagePath, takenAt, weightLb?}`,

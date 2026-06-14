@@ -581,7 +581,9 @@
     "photoViewAria": "Ver foto de progreso del {{date}}",
     "photoDelete": "Eliminar",
     "photoClose": "Cerrar",
-    "photoDeleteConfirm": "¿Eliminar esta foto de progreso? No se puede deshacer."
+    "photoDeleteConfirm": "¿Eliminar esta foto de progreso? No se puede deshacer.",
+    "fieldNeck": "Cuello (in)",
+    "bodyFat": "Grasa corporal ~{{n}}% (estimación Navy)"
   },
   "trends": {
     "regenerate": "generar reporte nuevo",

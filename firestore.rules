@@ -107,13 +107,14 @@ service cloud.firestore {
     // ─── Measurement schema ─────────────────────────────────────
     function isValidMeasurement(data) {
       return data.keys().hasAll(['timestamp'])
-          && data.keys().hasOnly(['timestamp', 'waist', 'chest', 'bicep', 'hip'])
+          && data.keys().hasOnly(['timestamp', 'waist', 'chest', 'bicep', 'hip', 'neck'])
           && data.timestamp is timestamp
           && data.keys().size() >= 2
           && (!('waist' in data.keys()) || (data.waist is number && data.waist > 0 && data.waist < 200))
           && (!('chest' in data.keys()) || (data.chest is number && data.chest > 0 && data.chest < 200))
           && (!('bicep' in data.keys()) || (data.bicep is number && data.bicep > 0 && data.bicep < 200))
-          && (!('hip' in data.keys()) || (data.hip is number && data.hip > 0 && data.hip < 200));
+          && (!('hip' in data.keys()) || (data.hip is number && data.hip > 0 && data.hip < 200))
+          && (!('neck' in data.keys()) || (data.neck is number && data.neck > 0 && data.neck < 200));
     }
 
     // ─── Preset schema ────────────────────────────────────────

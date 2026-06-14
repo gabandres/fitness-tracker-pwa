@@ -293,8 +293,8 @@ export class FirestoreLedgerCore {
     const q = query(this.userCollection('measurements'), orderBy('timestamp', 'desc'), limit(count));
     const snap = await getDocs(q);
     return snap.docs.map((d) => {
-      const data = d.data() as { waist?: number; chest?: number; bicep?: number; hip?: number; timestamp: Timestamp };
-      return { id: d.id, waist: data.waist, chest: data.chest, bicep: data.bicep, hip: data.hip, date: data.timestamp.toDate() };
+      const data = d.data() as { waist?: number; chest?: number; bicep?: number; hip?: number; neck?: number; timestamp: Timestamp };
+      return { id: d.id, waist: data.waist, chest: data.chest, bicep: data.bicep, hip: data.hip, neck: data.neck, date: data.timestamp.toDate() };
     });
   }
 
@@ -304,6 +304,7 @@ export class FirestoreLedgerCore {
     if (entry.chest != null) data['chest'] = entry.chest;
     if (entry.bicep != null) data['bicep'] = entry.bicep;
     if (entry.hip != null) data['hip'] = entry.hip;
+    if (entry.neck != null) data['neck'] = entry.neck;
     const ref = await addDoc(this.userCollection('measurements'), data);
     return ref.id;
   }

@@ -64,6 +64,9 @@ export interface Measurement {
   chest?: number;
   bicep?: number;
   hip?: number;
+  /** Neck circumference (inches) — added 2026-06 for the Navy body-fat
+   *  estimate. Optional; older rows lack it. */
+  neck?: number;
   date: Date;
 }
 

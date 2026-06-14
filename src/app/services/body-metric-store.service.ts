@@ -26,12 +26,12 @@ export class BodyMetricStore {
   readonly latestMeasurement: Signal<Measurement | null> = computed(() => this._measurements()[0] ?? null);
   readonly previousMeasurement: Signal<Measurement | null> = computed(() => this._measurements()[1] ?? null);
 
-  readonly measurementDeltas: Signal<{ waist?: number; chest?: number; bicep?: number; hip?: number } | null> = computed(() => {
+  readonly measurementDeltas: Signal<{ waist?: number; chest?: number; bicep?: number; hip?: number; neck?: number } | null> = computed(() => {
     const latest = this.latestMeasurement();
     const prev = this.previousMeasurement();
     if (!latest || !prev) return null;
     const delta = (a?: number, b?: number) => (a != null && b != null) ? +(a - b).toFixed(1) : undefined;
-    return { waist: delta(latest.waist, prev.waist), chest: delta(latest.chest, prev.chest), bicep: delta(latest.bicep, prev.bicep), hip: delta(latest.hip, prev.hip) };
+    return { waist: delta(latest.waist, prev.waist), chest: delta(latest.chest, prev.chest), bicep: delta(latest.bicep, prev.bicep), hip: delta(latest.hip, prev.hip), neck: delta(latest.neck, prev.neck) };
   });
 
   /** Bulk-load all body-metric collections. Called from FitnessStore._load(). */

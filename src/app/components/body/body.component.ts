@@ -18,6 +18,7 @@ import { addDays, localDateKey } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
 import { projectWeight, type WeightPoint } from '../../utils/weekly-insights';
 import { resizeToJpegBlob } from '../../utils/resize-image';
+import { navyBodyFat } from '../../utils/body-fat';
 import { Measurement } from '../../services/firebase.service';
 import {
   ProgressPhotoService,
@@ -31,12 +32,13 @@ import { UiWeightSheet } from '../ui/weight-sheet.component';
 import { UiFastingPill } from '../ui/fasting-pill.component';
 
 const FAST_HOURS = 16;
-type MField = 'waist' | 'chest' | 'bicep' | 'hip';
+type MField = 'waist' | 'chest' | 'bicep' | 'hip' | 'neck';
 const M_FIELDS: { key: MField; labelKey: string }[] = [
   { key: 'waist', labelKey: 'v2.body.fieldWaist' },
   { key: 'chest', labelKey: 'v2.body.fieldChest' },
   { key: 'bicep', labelKey: 'v2.body.fieldBicep' },
   { key: 'hip', labelKey: 'v2.body.fieldHip' },
+  { key: 'neck', labelKey: 'body.fieldNeck' },
 ];
 
 /**
@@ -112,6 +114,9 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
               <lucide-icon name="trending-up" [size]="13" style="color: var(--v2-ink-muted)" />
               {{ pl }}
             </p>
+          }
+          @if (bodyFatPct(); as bf) {
+            <p class="v2-caption mt-1">{{ t('body.bodyFat', { n: bf }) }}</p>
           }
         </div>
 
@@ -434,7 +439,7 @@ export class BodyComponent implements OnInit, OnDestroy {
   protected readonly editValue = signal('');
   protected readonly editError = signal('');
   protected readonly formValues = signal<Record<MField, number | null>>({
-    waist: null, chest: null, bicep: null, hip: null,
+    waist: null, chest: null, bicep: null, hip: null, neck: null,
   });
   protected readonly formError = signal<string | null>(null);
   protected readonly saving = signal(false);
@@ -462,6 +467,16 @@ export class BodyComponent implements OnInit, OnDestroy {
   });
 
   protected readonly goal = computed(() => this.store.goalProgress());
+
+  /** U.S. Navy body-fat estimate from the latest measurement + profile.
+   *  Null until a measurement carries waist + neck (and hip for female)
+   *  and the profile has height + sex. */
+  protected readonly bodyFatPct = computed(() => {
+    const p = this.store.profile();
+    const m = this.body.latestMeasurement();
+    if (!p || !p.sex || !p.heightIn || !m || m.waist == null || m.neck == null) return null;
+    return navyBodyFat(p.sex, p.heightIn, m.waist, m.neck, m.hip);
+  });
 
   // ─── Weight projection (linear fit, no AI) ─────────────────
   // Fit over a longer window than the 14-day sparkline so the trend
@@ -671,7 +686,7 @@ export class BodyComponent implements OnInit, OnDestroy {
 
   protected openMeasurementForm(): void {
     this.haptic(10);
-    this.formValues.set({ waist: null, chest: null, bicep: null, hip: null });
+    this.formValues.set({ waist: null, chest: null, bicep: null, hip: null, neck: null });
     this.formError.set(null);
     this.formOpen.set(true);
   }
@@ -694,7 +709,10 @@ export class BodyComponent implements OnInit, OnDestroy {
     for (const f of M_FIELDS) {
       if (vals[f.key] != null) entry[f.key] = vals[f.key]!;
     }
-    if (entry.waist == null && entry.chest == null && entry.bicep == null && entry.hip == null) {
+    if (
+      entry.waist == null && entry.chest == null && entry.bicep == null &&
+      entry.hip == null && entry.neck == null
+    ) {
       this.formError.set(this.translation.t('v2.body.measurementError'));
       this.haptic(50);
       return;
@@ -705,7 +723,7 @@ export class BodyComponent implements OnInit, OnDestroy {
     try {
       await this.body.addMeasurement(entry);
       this.formOpen.set(false);
-      this.formValues.set({ waist: null, chest: null, bicep: null, hip: null });
+      this.formValues.set({ waist: null, chest: null, bicep: null, hip: null, neck: null });
     } catch (err) {
       this.formError.set(err instanceof Error ? err.message : 'Could not save measurement.');
     } finally {
