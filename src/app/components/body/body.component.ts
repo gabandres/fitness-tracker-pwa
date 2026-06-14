@@ -14,6 +14,8 @@ import { FitnessStore } from '../../services/fitness-store.service';
 import { FastingStore } from '../../services/fasting-store.service';
 import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { TranslationService } from '../../services/translation.service';
+import { SubscriptionService } from '../../services/subscription.service';
+import { UpsellService } from '../../services/upsell.service';
 import { addDays, localDateKey } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
 import { projectWeight, type WeightPoint } from '../../utils/weekly-insights';
@@ -139,41 +141,58 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
           </div>
         }
 
-        <!-- Progress photos (ADR-0010) — owner-private, fetched via getBlob -->
-        <input #photoInput type="file" accept="image/*" capture="environment"
-          style="display:none;" (change)="onPhotoSelected($event)" />
-        <ui-button
-          variant="ghost"
-          size="sm"
-          [block]="true"
-          [disabled]="uploadingPhoto()"
-          (click)="photoInput.click()"
-          [ariaLabel]="t('body.photoAdd')">
-          <span style="display:inline-flex; align-items:center; gap:6px;">
-            <lucide-icon name="camera" [size]="14" />
-            {{ uploadingPhoto() ? t('body.photoUploading') : t('body.photoAdd') }}
-          </span>
-        </ui-button>
-        @if (photoError(); as err) {
-          <p class="v2-caption mt-2" style="color: var(--v2-danger);">{{ err }}</p>
-        }
-        @if (photos().length) {
-          <div class="grid grid-cols-3 gap-2 mt-3">
-            @for (p of photos(); track p.dateKey) {
-              <button type="button" class="relative block w-full rounded-lg overflow-hidden"
-                style="aspect-ratio: 1; background: var(--v2-line);"
-                (click)="openViewer(p)"
-                [attr.aria-label]="t('body.photoViewAria', { date: photoDateLabel(p.dateKey) })">
-                @if (photoUrls()[p.dateKey]; as url) {
-                  <img [src]="url" alt="" class="w-full h-full" style="object-fit: cover;" />
-                }
-                <span class="absolute left-1 bottom-1 px-1.5 py-0.5 rounded"
-                  style="background: rgba(0,0,0,0.5); color: #fff; font-size: 0.62rem;">
-                  {{ photoDateLabel(p.dateKey) }}
-                </span>
-              </button>
-            }
-          </div>
+        <!-- Progress photos (ADR-0010) — owner-private, fetched via getBlob.
+             Pro-gated: only paid users can upload, so free users generate no
+             photo egress (the feature's only real cost). -->
+        @if (subs.isPaid()) {
+          <input #photoInput type="file" accept="image/*" capture="environment"
+            style="display:none;" (change)="onPhotoSelected($event)" />
+          <ui-button
+            variant="ghost"
+            size="sm"
+            [block]="true"
+            [disabled]="uploadingPhoto()"
+            (click)="photoInput.click()"
+            [ariaLabel]="t('body.photoAdd')">
+            <span style="display:inline-flex; align-items:center; gap:6px;">
+              <lucide-icon name="camera" [size]="14" />
+              {{ uploadingPhoto() ? t('body.photoUploading') : t('body.photoAdd') }}
+            </span>
+          </ui-button>
+          @if (photoError(); as err) {
+            <p class="v2-caption mt-2" style="color: var(--v2-danger);">{{ err }}</p>
+          }
+          @if (photos().length) {
+            <div class="grid grid-cols-3 gap-2 mt-3">
+              @for (p of photos(); track p.dateKey) {
+                <button type="button" class="relative block w-full rounded-lg overflow-hidden"
+                  style="aspect-ratio: 1; background: var(--v2-line);"
+                  (click)="openViewer(p)"
+                  [attr.aria-label]="t('body.photoViewAria', { date: photoDateLabel(p.dateKey) })">
+                  @if (photoUrls()[p.dateKey]; as url) {
+                    <img [src]="url" alt="" class="w-full h-full" style="object-fit: cover;" />
+                  }
+                  <span class="absolute left-1 bottom-1 px-1.5 py-0.5 rounded"
+                    style="background: rgba(0,0,0,0.5); color: #fff; font-size: 0.62rem;">
+                    {{ photoDateLabel(p.dateKey) }}
+                  </span>
+                </button>
+              }
+            </div>
+          }
+        } @else {
+          <button type="button"
+            class="flex items-center justify-between gap-3 w-full mt-1 px-3 py-2.5 rounded-xl"
+            style="background: var(--v2-accent-soft);"
+            (click)="openPhotoUpgrade()">
+            <span class="flex items-center gap-2 v2-caption" style="color: var(--v2-ink);">
+              <lucide-icon name="camera" [size]="14" />
+              {{ t('body.photoProTitle') }}
+            </span>
+            <span class="v2-caption" style="color: var(--v2-accent); font-weight: 600;">
+              {{ t('body.photoProCta') }}
+            </span>
+          </button>
         }
       </ui-card>
 
@@ -417,6 +436,8 @@ export class BodyComponent implements OnInit, OnDestroy {
   protected readonly body = inject(BodyMetricStore);
   private readonly translation = inject(TranslationService);
   private readonly photoSvc = inject(ProgressPhotoService);
+  protected readonly subs = inject(SubscriptionService);
+  private readonly upsell = inject(UpsellService);
 
   readonly historyRequested = output<void>();
   readonly settingsRequested = output<void>();
@@ -603,7 +624,13 @@ export class BodyComponent implements OnInit, OnDestroy {
     for (const url of Object.values(this.photoUrls())) URL.revokeObjectURL(url);
   }
 
+  protected openPhotoUpgrade(): void {
+    this.upsell.openSubscribe('body-progress-photos');
+  }
+
   private async loadPhotos(): Promise<void> {
+    // Photos are Pro-only; don't fetch (and incur egress) for free users.
+    if (!this.subs.isPaid()) return;
     try {
       const list = await this.photoSvc.list();
       const urls: Record<string, string> = {};
@@ -628,7 +655,7 @@ export class BodyComponent implements OnInit, OnDestroy {
     const input = e.target as HTMLInputElement;
     const file = input.files?.[0];
     input.value = ''; // allow re-selecting the same file
-    if (!file) return;
+    if (!file || !this.subs.isPaid()) return;
     this.photoError.set(null);
     this.uploadingPhoto.set(true);
     this.haptic(10);

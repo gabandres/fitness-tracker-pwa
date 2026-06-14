@@ -583,7 +583,9 @@
     "photoClose": "Close",
     "photoDeleteConfirm": "Delete this progress photo? This can't be undone.",
     "fieldNeck": "Neck",
-    "bodyFat": "Body fat ~{{n}}% (Navy estimate)"
+    "bodyFat": "Body fat ~{{n}}% (Navy estimate)",
+    "photoProTitle": "Progress photos",
+    "photoProCta": "Pro"
   },
   "trends": {
     "regenerate": "generate fresh report",

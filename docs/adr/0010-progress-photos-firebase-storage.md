@@ -52,3 +52,10 @@ gains a `deleteSubcollection('photos')` step **and** a
   reopen the exposure the `getBlob` choice closes.
 - Deploy order: Storage rules + functions ship **before** the client that
   writes photos (same "rules before client" discipline as Firestore).
+- **Pro-gated** (`subs.isPaid()`): the feature's only real cost is download
+  egress ($0.12/GB past 100 GB/mo free), amplified by the no-cache `getBlob`
+  choice. Gating *uploads* to Pro means free users hold no photos, so they
+  generate no photo egress. Gate is client-side (the button + grid + the
+  on-load fetch); Storage rules can't read Stripe state, but since uploads
+  are owner-only and reads are owner-only, client gating fully caps the
+  cost driver.

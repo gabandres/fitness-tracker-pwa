@@ -583,7 +583,9 @@
     "photoClose": "Cerrar",
     "photoDeleteConfirm": "¿Eliminar esta foto de progreso? No se puede deshacer.",
     "fieldNeck": "Cuello",
-    "bodyFat": "Grasa corporal ~{{n}}% (estimación Navy)"
+    "bodyFat": "Grasa corporal ~{{n}}% (estimación Navy)",
+    "photoProTitle": "Fotos de progreso",
+    "photoProCta": "Pro"
   },
   "trends": {
     "regenerate": "generar reporte nuevo",

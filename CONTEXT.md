@@ -161,8 +161,9 @@ These three windows look similar and are NOT interchangeable. See
   **never** a download URL) plus the JPEG bytes in **Firebase Storage** at
   `users/{uid}/photos/{date}.jpg`. Sensitive: fetched only via `getBlob`
   (no public token URLs ever minted) and never surfaced on the public
-  profile or share-card. The first feature to use Storage (see
-  [ADR-0010](docs/adr/0010-progress-photos-firebase-storage.md)).
+  profile or share-card. **Pro-only** (gated client-side) — uploads drive
+  download egress, so free users hold no photos. The first feature to use
+  Storage (see [ADR-0010](docs/adr/0010-progress-photos-firebase-storage.md)).
 - **Water** — Stored in ml under `users/{uid}/dailyWater/{YYYY-MM-DD}`.
   Capped 0–20,000 ml at write time.
 - **FastWindow** — Active fasting window, target 16h. Owned by
