@@ -123,6 +123,7 @@ import { UiButton } from '../ui/button.component';
           <div class="min-w-0">
             <div class="v2-body" style="font-weight: 500;">{{ t('settings.data.export') }}</div>
             <p class="v2-caption mt-0.5">{{ t('settings.data.exportDesc') }}</p>
+            <p class="v2-caption mt-1">{{ t('settings.data.exportHint') }}</p>
             @if (exportError()) {
               <p class="v2-caption mt-1" role="status" aria-live="polite" style="color: var(--v2-danger);">
                 {{ t('settings.data.exportError') }}
