@@ -3,14 +3,43 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, master]
+    branches: [main]
+    # Don't burn a build+deploy on doc-only changes (nothing shippable).
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '_attic/**'
+      - '.playwright-mcp/**'
+
+# A newer commit on the same ref supersedes an in-flight run — cancel the
+# stale one instead of paying for two builds/deploys.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  build-and-test:
-    name: Build, typecheck, test
+  ci:
+    name: Test, build, deploy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Detect which areas changed so we can skip functions work on
+      # frontend-only pushes and deploy ONLY the targets that moved.
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            functions:
+              - 'functions/**'
+            firestore:
+              - 'firestore.rules'
+              - 'firestore.indexes.json'
+            storage:
+              - 'storage.rules'
 
       - uses: actions/setup-node@v4
         with:
@@ -23,17 +52,50 @@ jobs:
       - name: Install app dependencies
         run: npm ci
 
+      # Functions deps only when functions changed — needed for the PR verify
+      # build and for the deploy predeploy hook. Skipped on frontend pushes.
       - name: Install functions dependencies
+        if: steps.changes.outputs.functions == 'true'
         run: npm ci --prefix functions
-
-      - name: Typecheck (app)
-        run: npx tsc --noEmit
-
-      - name: Typecheck (functions)
-        run: npx tsc --noEmit --project functions/tsconfig.json
 
       - name: Unit tests
         run: npx ng test --watch=false
 
-      - name: Production build
+      # Verify functions compile on PRs. On push we skip this: the firebase
+      # deploy predeploy hook (`npm --prefix functions run build`) compiles
+      # them, so building here too would be wasted work.
+      - name: Build functions (PR verify)
+        if: github.event_name == 'pull_request' && steps.changes.outputs.functions == 'true'
+        run: npm run build --prefix functions
+
+      # Production build: typechecks the app, emits ngsw.json, and produces the
+      # dist that hosting serves. The deploy step reuses this exact output —
+      # the build runs once, never twice.
+      - name: Build app
         run: npm run build
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+
+      # ---- Deploy (push to main only) -------------------------------------
+      - name: Resolve deploy targets
+        if: github.event_name == 'push'
+        id: targets
+        run: |
+          if [ -z "${{ secrets.FIREBASE_TOKEN }}" ]; then
+            echo "::error::FIREBASE_TOKEN secret is not set. Generate with 'firebase login:ci' and add it to repo Actions secrets."
+            exit 1
+          fi
+          targets="hosting"
+          [ "${{ steps.changes.outputs.functions }}" = "true" ] && targets="$targets,functions"
+          [ "${{ steps.changes.outputs.firestore }}" = "true" ] && targets="$targets,firestore"
+          [ "${{ steps.changes.outputs.storage }}" = "true" ] && targets="$targets,storage"
+          echo "list=$targets" >> "$GITHUB_OUTPUT"
+          echo "Deploying targets: $targets"
+
+      - name: Deploy to Firebase
+        if: github.event_name == 'push'
+        run: npx -y firebase-tools@15.19.1 deploy --only "${{ steps.targets.outputs.list }}" --non-interactive
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
