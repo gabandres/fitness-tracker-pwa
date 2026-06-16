@@ -61,3 +61,8 @@ Thumbs.db
 .aider*
 .claude/
 firestore-debug.log
+
+# flattened-wrapper leftovers (not part of the project)
+_attic/
+_outer-junk-git-backup/
+.playwright-mcp/

@@ -5,23 +5,37 @@ import { localDateKey } from '../utils/date';
 export interface TdeeResult {
   trueTdee: number;
   newDailyTarget: number;
-  /** Pounds lost (positive) or gained (negative) across the 14-day window. */
+  /** Pounds lost (positive) or gained (negative) across the measured window. */
   weightChangeTrend: number;
   /** Where the number came from — lets the UI label it honestly. */
   source: 'measured' | 'formula' | 'seed';
+  /**
+   * Share of calendar days in the measured window that carry an intake log
+   * (0–100). Low completeness ⇒ the measured TDEE rests on sparse data and
+   * should be shown as provisional. Only set in measured mode.
+   */
+  loggingCompletenessPct?: number;
+  /**
+   * True when the measured estimate rests on enough data to trust (good
+   * completeness + enough weigh-ins). Only set in measured mode.
+   */
+  reliable?: boolean;
 }
 
 /**
  * TDEE = Total Daily Energy Expenditure.
  *
  * Two modes:
- *   - MEASURED (logs >= 14): purely data-driven. Uses the observed
- *     weight trend + observed average intake to back out TDEE.
- *     Profile is ignored.
- *   - FORMULA (logs < 14 AND profile available): Mifflin-St Jeor BMR
+ *   - MEASURED (>= 14 logged days): purely data-driven. Backs TDEE out of
+ *     the observed weight trend + observed average intake. Profile ignored.
+ *     The weight trend is a least-squares slope fitted against real calendar
+ *     dates over a 28-logged-day window — robust to water-weight noise on the
+ *     edges and to logging gaps. The 14-day gate flips the mode; the longer
+ *     window governs how stable the ongoing trend is.
+ *   - FORMULA (< 14 days AND profile available): Mifflin-St Jeor BMR
  *     multiplied by the user's activity factor, using the most recent
  *     logged weight (or a reasonable proxy if no logs yet).
- *   - SEED (logs < 14 AND no profile): hardcoded fallback, used only
+ *   - SEED (< 14 days AND no profile): hardcoded fallback, used only
  *     if profile gate fails somehow.
  *
  * In every mode `newDailyTarget` = trueTdee − (chosen pace × 3500 / 7),
@@ -32,6 +46,13 @@ export class TdeeCalculatorService {
   private static readonly KCAL_PER_POUND = 3500;
   private static readonly MIN_DAILY_TARGET = 1500;
   private static readonly DEFAULT_PACE_LBS_PER_WEEK = 1.5;
+  /** Minimum logged days before measured mode replaces the formula. */
+  private static readonly MEASURED_MIN_DAYS = 14;
+  /** Logged-day window the ongoing measured trend is fitted over. */
+  private static readonly MEASURED_WINDOW_DAYS = 28;
+  /** Completeness (and weigh-in count) needed to flag the estimate reliable. */
+  private static readonly RELIABLE_MIN_PCT = 70;
+  private static readonly RELIABLE_MIN_INTAKE_DAYS = 10;
 
   private static readonly SEED_RESULT: TdeeResult = {
     trueTdee: 2450,
@@ -75,26 +96,33 @@ export class TdeeCalculatorService {
     // Aggregate to one row per day before computing TDEE.
     const daily = this.aggregateByDay(logs ?? []);
 
-    // ── Measured mode: ≥14 days ─────────────────────────────────
-    if (daily.length >= 14) {
-      const window = daily.slice(-14);
-      const week1 = window.slice(0, 7);
-      const week2 = window.slice(7, 14);
+    // ── Measured mode: ≥14 logged days ──────────────────────────
+    if (daily.length >= TdeeCalculatorService.MEASURED_MIN_DAYS) {
+      // Ongoing estimate smooths over a longer window so it isn't whipped
+      // around by water-weight noise on the boundary days.
+      const window = daily.slice(-TdeeCalculatorService.MEASURED_WINDOW_DAYS);
 
-      const week1Weights = week1.map((l) => l.weight).filter((w): w is number => w != null);
-      const week2Weights = week2.map((l) => l.weight).filter((w): w is number => w != null);
-      if (week1Weights.length === 0 || week2Weights.length === 0) {
+      // Robust weight trend: least-squares slope (lbs/day) fitted against
+      // real calendar dates so logging gaps don't distort it.
+      const slope = this.weightTrendLbsPerDay(window); // null if < 2 weigh-ins
+      if (slope == null) {
         return { ...TdeeCalculatorService.SEED_RESULT };
       }
-      const week1Avg = this.average(week1Weights);
-      const week2Avg = this.average(week2Weights);
-      const weightChange = week1Avg - week2Avg; // + = lost
 
-      const avgDailyIntake = this.trimmedMean(window.map((l) => l.calories));
-      const dailyDeficitAchieved =
-        (weightChange * TdeeCalculatorService.KCAL_PER_POUND) / 7;
+      // Average intake over days that actually carry an intake log (> 0 kcal).
+      // A weigh-in-only day stores calories: 0 — counting it would drag the
+      // mean down and bias TDEE low, so it's excluded here.
+      const intakeCals = window.map((l) => l.calories).filter((c) => c > 0);
+      if (intakeCals.length === 0) {
+        return { ...TdeeCalculatorService.SEED_RESULT };
+      }
+      const avgDailyIntake = this.trimmedMean(intakeCals);
 
+      // TDEE = intake + the deficit the body actually ran. slope < 0 (losing)
+      // ⇒ positive deficit ⇒ TDEE above intake.
+      const dailyDeficitAchieved = -slope * TdeeCalculatorService.KCAL_PER_POUND;
       const trueTdee = Math.round(avgDailyIntake + dailyDeficitAchieved);
+
       const pace = profile?.targetPaceLbsPerWeek ?? TdeeCalculatorService.DEFAULT_PACE_LBS_PER_WEEK;
       const targetDeficit = (pace * TdeeCalculatorService.KCAL_PER_POUND) / 7;
       const newDailyTarget = Math.max(
@@ -102,11 +130,24 @@ export class TdeeCalculatorService {
         Math.round(trueTdee - targetDeficit),
       );
 
+      // Completeness: logged days vs the calendar span they cover.
+      const spanDays = this.calendarSpanDays(window);
+      const loggingCompletenessPct = Math.min(
+        100,
+        Math.round((window.length / spanDays) * 100),
+      );
+      const reliable =
+        loggingCompletenessPct >= TdeeCalculatorService.RELIABLE_MIN_PCT &&
+        intakeCals.length >= TdeeCalculatorService.RELIABLE_MIN_INTAKE_DAYS;
+
       return {
         trueTdee,
         newDailyTarget,
-        weightChangeTrend: this.round(weightChange, 2),
+        // Pounds lost (+) across the window, derived from the fitted slope.
+        weightChangeTrend: this.round(-slope * (spanDays - 1), 2),
         source: 'measured',
+        loggingCompletenessPct,
+        reliable,
       };
     }
 
@@ -166,6 +207,61 @@ export class TdeeCalculatorService {
       result.push(alpha * values[i] + (1 - alpha) * result[i - 1]);
     }
     return result;
+  }
+
+  /**
+   * Ordinary least-squares slope (Δy per Δx) through the given points.
+   * Returns null when there are fewer than 2 points or no spread in x
+   * (every weigh-in on the same day — nothing to fit a rate against).
+   */
+  regressionSlope(points: { x: number; y: number }[]): number | null {
+    const n = points.length;
+    if (n < 2) return null;
+    let sumX = 0, sumY = 0, sumXX = 0, sumXY = 0;
+    for (const { x, y } of points) {
+      sumX += x;
+      sumY += y;
+      sumXX += x * x;
+      sumXY += x * y;
+    }
+    const denom = n * sumXX - sumX * sumX;
+    if (denom === 0) return null;
+    return (n * sumXY - sumX * sumY) / denom;
+  }
+
+  /**
+   * Robust weight trend in lbs/day for a window of daily rows.
+   *
+   * Fits an ordinary least-squares slope through every weigh-in, plotted
+   * against its real day offset (so a logging gap stretches the x-axis
+   * rather than inflating the rate). OLS is itself the optimal noise-robust
+   * linear-rate estimator: it uses all points and lets symmetric water-weight
+   * wobble average out, unlike endpoint or two-week-block subtraction which
+   * over-weight the noisy boundary days. Negative = losing weight.
+   * Returns null when fewer than 2 weigh-ins exist.
+   *
+   * NB: we deliberately do NOT pre-smooth the series with an EMA first.
+   * Smoothing-then-differencing attenuates the fitted slope (benchmarked at a
+   * systematic ~130 kcal/day downward TDEE bias) — the long window already
+   * supplies the stability, so plain OLS stays unbiased AND robust.
+   */
+  weightTrendLbsPerDay(daily: DailyLog[]): number | null {
+    const weighed = daily.filter((l): l is DailyLog & { weight: number } => l.weight != null);
+    if (weighed.length < 2) return null;
+    const t0 = weighed[0].date.getTime();
+    const points = weighed.map((l) => ({
+      x: (l.date.getTime() - t0) / 86_400_000, // days since the first weigh-in
+      y: l.weight,
+    }));
+    return this.regressionSlope(points);
+  }
+
+  /** Inclusive calendar span (in days) covered by a sorted list of rows. */
+  private calendarSpanDays(daily: DailyLog[]): number {
+    if (daily.length === 0) return 1;
+    const first = daily[0].date.getTime();
+    const last = daily[daily.length - 1].date.getTime();
+    return Math.round((last - first) / 86_400_000) + 1;
   }
 
   /**

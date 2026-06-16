@@ -40,12 +40,10 @@ describe('TdeeCalculatorService', () => {
   // ────────────────────────────────────────────────────────────────
   describe('calculate() measured mode (>=14 days)', () => {
     it('should compute TDEE from weight trend + average intake', () => {
-      // Week 1 (days 1-7): avg weight ~185, Week 2 (days 8-14): avg weight ~183
-      // Weight change: 185 - 183 = 2 lbs lost
-      // Avg daily intake: 1850
-      // Daily deficit: (2 * 3500) / 7 = 1000
-      // True TDEE: 1850 + 1000 = 2850
-      // Target (1.5 lb/wk): 2850 - 750 = 2100
+      // Two plateaus ~185 then ~183 over 14 days. The least-squares slope
+      // through all points is ≈ -0.218 lb/day → deficit ≈ 0.218 * 3500 ≈ 765
+      // kcal/day. Avg intake ≈ 1850 → true TDEE ≈ 2615.
+      // Target (1.5 lb/wk): 2615 - 750 ≈ 1865.
       const logs = makeLogs([
         { weight: 185.2, calories: 1850 },
         { weight: 185.0, calories: 1800 },
@@ -172,6 +170,124 @@ describe('TdeeCalculatorService', () => {
       const logs = makeLogs([{ weight: 180, calories: 2000 }]);
       const result = service.calculate(logs, null);
       expect(result.source).toBe('seed');
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────
+  // regressionSlope() — least-squares slope
+  // ────────────────────────────────────────────────────────────────
+  describe('regressionSlope()', () => {
+    it('should return null for fewer than 2 points', () => {
+      expect(service.regressionSlope([])).toBeNull();
+      expect(service.regressionSlope([{ x: 1, y: 1 }])).toBeNull();
+    });
+
+    it('should return null when all x are identical (no spread to fit)', () => {
+      expect(service.regressionSlope([{ x: 5, y: 1 }, { x: 5, y: 9 }])).toBeNull();
+    });
+
+    it('should recover the slope of a perfect line', () => {
+      const pts = [{ x: 0, y: 0 }, { x: 1, y: 2 }, { x: 2, y: 4 }, { x: 3, y: 6 }];
+      expect(service.regressionSlope(pts)).toBeCloseTo(2, 6);
+    });
+
+    it('should fit the best-fit slope through noisy points', () => {
+      // y = -0.2x + noise; slope should land near -0.2
+      const pts = [
+        { x: 0, y: 10.1 }, { x: 1, y: 9.7 }, { x: 2, y: 9.6 },
+        { x: 3, y: 9.5 }, { x: 4, y: 9.0 }, { x: 5, y: 9.1 },
+      ];
+      expect(service.regressionSlope(pts)).toBeCloseTo(-0.2, 1);
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────
+  // weightTrendLbsPerDay() — robust trend (the highest-priority fix)
+  // ────────────────────────────────────────────────────────────────
+  describe('weightTrendLbsPerDay()', () => {
+    it('should return null with fewer than 2 weigh-ins', () => {
+      expect(service.weightTrendLbsPerDay([])).toBeNull();
+      expect(service.weightTrendLbsPerDay(makeLogs([{ weight: 180, calories: 2000 }]))).toBeNull();
+    });
+
+    it('should recover a steady loss rate (lbs/day, negative = losing)', () => {
+      const logs = makeLogs(
+        Array.from({ length: 15 }, (_, i) => ({ weight: 185 - i * 0.2, calories: 1900 })),
+      );
+      expect(service.weightTrendLbsPerDay(logs)).toBeCloseTo(-0.2, 2);
+    });
+
+    it('should resist a water-weight spike on the boundary day', () => {
+      const clean = Array.from({ length: 21 }, (_, i) => ({ weight: 185 - i * 0.15, calories: 1900 }));
+      const spiked = clean.map((e, i) => (i === clean.length - 1 ? { ...e, weight: e.weight + 3 } : e));
+
+      const slopeClean = service.weightTrendLbsPerDay(makeLogs(clean))!;
+      const slopeSpiked = service.weightTrendLbsPerDay(makeLogs(spiked))!;
+
+      // A single +3 lb boundary spike must barely move the fitted slope.
+      // Endpoint subtraction (last - first)/days would lurch by ~0.14/day.
+      expect(Math.abs(slopeSpiked - slopeClean)).toBeLessThan(0.05);
+      expect(slopeSpiked).toBeLessThan(0); // still reads as losing
+    });
+
+    it('should use real dates so logging gaps do not inflate the rate', () => {
+      // Two weigh-ins 10 calendar days apart, 2 lb apart → -0.2 lb/day,
+      // NOT -2 lb/"step". makeLogs spaces by startDaysAgo offsets.
+      const a = new Date(); a.setDate(a.getDate() - 10); a.setHours(12, 0, 0, 0);
+      const b = new Date(); b.setHours(12, 0, 0, 0);
+      const logs: DailyLog[] = [
+        { weight: 185, calories: 2000, date: a },
+        { weight: 183, calories: 2000, date: b },
+      ];
+      expect(service.weightTrendLbsPerDay(logs)).toBeCloseTo(-0.2, 6);
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────
+  // calculate() measured — missing-data & completeness handling
+  // ────────────────────────────────────────────────────────────────
+  describe('calculate() measured mode — missing / zero-intake days', () => {
+    it('should exclude logged-but-zero-kcal days from the intake average', () => {
+      // 15 flat-weight days (slope ~0 → deficit ~0, so TDEE ≈ avg intake).
+      // 13 days at 2000 kcal, 2 weigh-in-only days at 0 kcal. If the zeros
+      // were averaged in, intake would crater to ~1733; excluded, it stays
+      // ~2000. (trimmedMean alone only absorbs ONE outlier, not two.)
+      const entries = Array.from({ length: 15 }, (_, i) => ({
+        weight: 180,
+        calories: i < 2 ? 0 : 2000,
+      }));
+      const result = service.calculate(makeLogs(entries), defaultProfile);
+      expect(result.source).toBe('measured');
+      expect(result.trueTdee).toBeGreaterThan(1950); // not dragged toward ~1733
+    });
+
+    it('should fall back to seed when every intake day is zero', () => {
+      const entries = Array.from({ length: 15 }, () => ({ weight: 180, calories: 0 }));
+      const result = service.calculate(makeLogs(entries), defaultProfile);
+      expect(result.source).toBe('seed');
+    });
+
+    it('should report 100% completeness for a fully-logged contiguous window', () => {
+      const entries = Array.from({ length: 20 }, (_, i) => ({ weight: 185 - i * 0.1, calories: 2000 }));
+      const result = service.calculate(makeLogs(entries), defaultProfile);
+      expect(result.loggingCompletenessPct).toBe(100);
+      expect(result.reliable).toBe(true);
+    });
+
+    it('should flag low completeness (and not reliable) when the window is gappy', () => {
+      // 14 weigh-ins spread every OTHER day → spans 27 calendar days.
+      // Completeness ≈ 14/28 = 50%.
+      const logs: DailyLog[] = Array.from({ length: 14 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (27 - i * 2)); // -27, -25, … , -1
+        d.setHours(12, 0, 0, 0);
+        return { weight: 185 - i * 0.1, calories: 2000, date: d };
+      });
+      const result = service.calculate(logs, defaultProfile);
+      expect(result.source).toBe('measured');
+      expect(result.loggingCompletenessPct).toBeLessThanOrEqual(55);
+      expect(result.loggingCompletenessPct).toBeGreaterThanOrEqual(45);
+      expect(result.reliable).toBe(false);
     });
   });
 

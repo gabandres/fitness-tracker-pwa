@@ -387,7 +387,7 @@ export class GeminiService {
     lines.push(`- True TDEE: ${tdee.trueTdee} kcal/day`);
     lines.push(`- Daily target: ${tdee.newDailyTarget} kcal/day`);
     lines.push(
-      `- 14-day weight change: ${tdee.weightChangeTrend} lbs ` +
+      `- Recent weight trend: ${tdee.weightChangeTrend} lbs ` +
       "(positive = lost weight, negative = gained)",
     );
     lines.push(`- TDEE source: ${tdee.source}`);

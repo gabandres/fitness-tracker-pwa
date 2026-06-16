@@ -1384,7 +1384,15 @@
       "saved": "Guardado",
       "saveAsPreset": "Guardar como preset",
       "presetName": "Nombre del preset",
-      "savePreset": "Guardar preset"
+      "savePreset": "Guardar preset",
+      "cookingFat": {
+        "label": "Grasa de cocina",
+        "hint": "Suma kcal por el aceite/mantequilla que usaste al cocinar — lo que más se olvida registrar.",
+        "oil": "1 cda aceite",
+        "butter": "Toque de mantequilla",
+        "dressing": "1 cda aderezo",
+        "addAria": "Añadir {{ kcal }} calorías por {{ name }}"
+      }
     },
     "foodSearch": {
       "label": "Busca un alimento",

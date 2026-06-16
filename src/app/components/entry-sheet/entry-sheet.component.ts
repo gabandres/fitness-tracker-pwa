@@ -191,6 +191,30 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
                 </div>
               </div>
 
+              <!-- Cooking-fat quick-add. Untracked cooking oil/butter is the
+                   main source of systematic under-logging in a kcal-only
+                   tracker, and under-logged intake biases the measured TDEE
+                   low. Each chip BUMPS the kcal field (it's an add-on to the
+                   meal you're already logging), it never overwrites it. -->
+              <div>
+                <div class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
+                  {{ t('v2.entrySheet.cookingFat.label') }}
+                </div>
+                <div class="flex flex-wrap gap-1.5">
+                  @for (f of cookingFats; track f.kcal) {
+                    <button
+                      type="button"
+                      class="tag-btn text-[11px]"
+                      [attr.aria-label]="t('v2.entrySheet.cookingFat.addAria', { kcal: f.kcal, name: t(f.labelKey) })"
+                      (click)="addCookingFat(f.kcal)">
+                      {{ t(f.labelKey) }}
+                      <span class="text-graphite-soft">+{{ f.kcal }}</span>
+                    </button>
+                  }
+                </div>
+                <p class="v2-caption mt-1.5 text-[11px]">{{ t('v2.entrySheet.cookingFat.hint') }}</p>
+              </div>
+
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label for="es-carbs" class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
@@ -340,6 +364,14 @@ export class EntrySheetComponent {
 
   protected readonly mealTypes = MEAL_TYPES;
 
+  /** Cooking-fat add-ons. kcal are rounded one-tap bumps for the fat people
+   *  cook with but rarely log; labels are i18n keys, the +kcal is shown raw. */
+  protected readonly cookingFats: { labelKey: string; kcal: number }[] = [
+    { labelKey: 'v2.entrySheet.cookingFat.oil', kcal: 120 },
+    { labelKey: 'v2.entrySheet.cookingFat.butter', kcal: 35 },
+    { labelKey: 'v2.entrySheet.cookingFat.dressing', kcal: 75 },
+  ];
+
   protected readonly segments: { id: Segment; labelKey: string; icon: string }[] = [
     { id: 'manual', labelKey: 'v2.entrySheet.segManual', icon: 'type' },
     { id: 'search', labelKey: 'v2.entrySheet.segSearch', icon: 'search' },
@@ -386,6 +418,14 @@ export class EntrySheetComponent {
 
   protected onKcalInput(e: Event): void {
     this.form.calories.set(parseNumericInput((e.target as HTMLInputElement).value));
+  }
+
+  /** Bump the kcal field by a cooking-fat add-on (additive, not a replace). */
+  protected addCookingFat(kcal: number): void {
+    this.haptic(10);
+    const base = this.form.calories() ?? 0;
+    this.form.calories.set(base + kcal);
+    this.kcalError.set(false);
   }
 
   protected onProteinInput(e: Event): void {

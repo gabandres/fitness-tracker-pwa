@@ -1384,7 +1384,15 @@
       "saved": "Saved",
       "saveAsPreset": "Save as preset",
       "presetName": "Preset name",
-      "savePreset": "Save preset"
+      "savePreset": "Save preset",
+      "cookingFat": {
+        "label": "Cooking fat",
+        "hint": "Bump kcal for oil/butter you cooked with — the #1 thing people forget to log.",
+        "oil": "1 tbsp oil",
+        "butter": "Butter swipe",
+        "dressing": "1 tbsp dressing",
+        "addAria": "Add {{ kcal }} calories for {{ name }}"
+      }
     },
     "foodSearch": {
       "label": "Find a food",
