@@ -225,7 +225,7 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
                 <p class="text-center mt-2">
                   <button type="button" (click)="beginEdit()"
                     class="v2-caption underline"
-                    style="background: none; border: none; padding: 0; cursor: pointer; color: var(--v2-ink-muted); font-size: 0.75rem;">
+                    style="background: none; border: none; cursor: pointer; color: var(--v2-ink-muted); font-size: 0.75rem; min-height: var(--v2-tap-min); display: inline-flex; align-items: center; padding: 0 8px;">
                     {{ t('v2.body.startedEarlier') }}
                   </button>
                 </p>

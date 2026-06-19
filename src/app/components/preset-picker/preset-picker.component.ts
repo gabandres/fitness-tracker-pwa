@@ -31,6 +31,7 @@ import { MacroEstimate } from '../../models/macro-estimate';
           @if (store.presets().length > 0) {
             <button type="button" (click)="toggleManage()"
               class="font-mono text-[10px] tracking-[0.08em] uppercase"
+              style="min-height: var(--v2-tap-min); display: inline-flex; align-items: center; padding: 0 6px; margin-block: -12px;"
               [style.color]="manage() ? 'var(--color-blood)' : 'var(--color-graphite-soft)'"
               [attr.aria-pressed]="manage()">
               {{ manage() ? t('preset.done') : t('preset.manage') }}

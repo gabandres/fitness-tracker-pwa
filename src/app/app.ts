@@ -448,13 +448,13 @@ import { UiTabBar, type UiTab } from './components/ui/tab-bar.component';
               <span style="color: var(--v2-ink);">{{ u.email }}</span>
               &middot;
             }
-            <a href="/privacy" style="color: var(--v2-ink-muted); text-decoration: underline; text-decoration-style: dotted; display: inline-block; padding: 6px 5px;">{{ t('app.footer.privacy') }}</a>
+            <a href="/privacy" style="color: var(--v2-ink-muted); text-decoration: underline; text-decoration-style: dotted; display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; vertical-align: middle;">{{ t('app.footer.privacy') }}</a>
             &middot;
-            <a href="/terms" style="color: var(--v2-ink-muted); text-decoration: underline; text-decoration-style: dotted; display: inline-block; padding: 6px 5px;">{{ t('app.footer.terms') }}</a>
+            <a href="/terms" style="color: var(--v2-ink-muted); text-decoration: underline; text-decoration-style: dotted; display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; vertical-align: middle;">{{ t('app.footer.terms') }}</a>
             &middot;
-            <a href="/status" style="color: var(--v2-ink-muted); text-decoration: underline; text-decoration-style: dotted; display: inline-block; padding: 6px 5px;">{{ t('app.footer.status') }}</a>
+            <a href="/status" style="color: var(--v2-ink-muted); text-decoration: underline; text-decoration-style: dotted; display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; vertical-align: middle;">{{ t('app.footer.status') }}</a>
             &middot;
-            <a href="mailto:gabrielandresbermudez&#64;gmail.com" style="color: var(--v2-ink-muted); text-decoration: underline; text-decoration-style: dotted; display: inline-block; padding: 6px 5px;">{{ t('app.footer.contact') }}</a>
+            <a href="mailto:gabrielandresbermudez&#64;gmail.com" style="color: var(--v2-ink-muted); text-decoration: underline; text-decoration-style: dotted; display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; vertical-align: middle;">{{ t('app.footer.contact') }}</a>
           </div>
         </footer>
         }

@@ -160,7 +160,7 @@ import { UiWeightSheet } from './weight-sheet.component';
             <button
               type="button"
               class="v2-body-soft"
-              style="background: none; border: none; padding: 0; cursor: pointer; text-align: left;"
+              style="background: none; border: none; padding: 0; cursor: pointer; text-align: left; min-height: var(--v2-tap-min); display: inline-flex; align-items: center;"
               [attr.aria-label]="t('v2.daySummary.editWaterAria', { value: waterDisplay() })"
               (click)="openWaterEditor()">
               {{ t('v2.daySummary.water') }} · <span class="v2-num" style="color: var(--v2-ink); font-weight: 500;">{{ waterDisplay() }}</span>
@@ -215,7 +215,7 @@ import { UiWeightSheet } from './weight-sheet.component';
             <button
               type="button"
               class="v2-body-soft"
-              style="background: none; border: none; padding: 0; cursor: pointer; text-align: left;"
+              style="background: none; border: none; padding: 0; cursor: pointer; text-align: left; min-height: var(--v2-tap-min); display: inline-flex; align-items: center;"
               [attr.aria-label]="t('v2.daySummary.logWeightAria')"
               (click)="openWeightSheet()">
               {{ t('v2.daySummary.weight') }} · <span class="v2-num" style="color: var(--v2-ink-muted); font-weight: 500;">{{ t('v2.daySummary.weightNone') }}</span>
