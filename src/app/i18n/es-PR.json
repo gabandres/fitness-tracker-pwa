@@ -1741,6 +1741,8 @@
     "reps": "Reps",
     "rest": "Descanso",
     "addSet": "Añadir serie",
+    "addDropSet": "Añadir drop set",
+    "missingReps": "{{n}} serie(s) completada(s) no tienen reps. Anota las reps antes de guardar.",
     "warmup": "Calentamiento",
     "warmupBar": "Barra sola",
     "tools": "Discos y calentamiento",

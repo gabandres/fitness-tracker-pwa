@@ -46,6 +46,7 @@ import type {
   WorkoutSet,
   WorkoutTemplate,
 } from '../../models/workout';
+import { normalizeClusterGroups } from '../../utils/cluster-groups';
 
 /**
  * Framework-free Firestore I/O core for the ledger adapter (issue #6
@@ -516,7 +517,10 @@ function toDomainTemplate(id: string, data: WorkoutTemplateDoc): WorkoutTemplate
     notes: data.notes,
     restMiniSec: data.restMiniSec,
     restClusterSec: data.restClusterSec,
-    exercises: (data.exercises ?? []) as TemplateExercise[],
+    exercises: ((data.exercises ?? []) as TemplateExercise[]).map((ex) => ({
+      ...ex,
+      plannedSets: normalizeClusterGroups(ex.plannedSets ?? []),
+    })),
     createdAt: data.createdAt.toDate(),
     updatedAt: data.updatedAt.toDate(),
   };
@@ -534,7 +538,7 @@ function toDomainSession(id: string, data: WorkoutSessionDoc): WorkoutSession {
     durationMin: data.durationMin,
     exercises: ((data.exercises ?? []) as SessionExercise[]).map((ex) => ({
       ...ex,
-      sets: (ex.sets ?? []) as WorkoutSet[],
+      sets: normalizeClusterGroups((ex.sets ?? []) as WorkoutSet[]),
     })),
     nextNotes: data.nextNotes,
     createdAt: data.createdAt.toDate(),

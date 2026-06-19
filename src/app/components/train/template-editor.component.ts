@@ -21,6 +21,7 @@ import {
   type TemplateDraft,
   type TemplateExercise,
 } from '../../models/workout';
+import { normalizeClusterGroups } from '../../utils/cluster-groups';
 
 const SET_KINDS: SetKind[] = ['warmup', 'activation', 'working', 'mini', 'drop'];
 
@@ -138,9 +139,12 @@ interface EditExercise {
                   <option [value]="k" [selected]="k === set.kind">{{ t('train.kind.' + k) }}</option>
                 }
               </select>
-              <input type="number" inputmode="numeric" class="v2-input" style="width: 4rem;"
-                     [attr.placeholder]="t('train.group')"
-                     [value]="set.group ?? ''" (input)="setSetGroup(exIdx, setIdx, asNum($event))" />
+              <!-- Cluster number is derived from the activation/mini
+                   sequence (not free-typed) so clusters always number 1, 2,
+                   3 … and can't be corrupted by append-typing. -->
+              <span class="v2-caption shrink-0" style="width: 4rem; color: var(--v2-ink-muted);">
+                @if (set.group != null) { {{ t('train.cluster', { n: set.group }) }} }
+              </span>
               <ui-icon-button icon="trash-2" [ariaLabel]="t('train.removeSet')" (click)="removeSet(exIdx, setIdx)" />
             </div>
           }
@@ -288,12 +292,13 @@ export class TemplateEditorComponent {
   }
 
   protected addCluster(exIdx: number): void {
-    const group = this.nextGroup(exIdx);
+    // Group numbers are assigned by normalizeClusterGroups (run inside
+    // mutateSets) from the activation/mini ordering — no manual numbering.
     this.mutateSets(exIdx, (sets) => [
       ...sets,
-      { kind: 'activation', group },
-      { kind: 'mini', group },
-      { kind: 'mini', group },
+      { kind: 'activation' },
+      { kind: 'mini' },
+      { kind: 'mini' },
     ]);
   }
 
@@ -306,17 +311,12 @@ export class TemplateEditorComponent {
     this.mutateSets(exIdx, (sets) => sets.map((s, i) => (i === setIdx ? { ...s, kind } : s)));
   }
 
-  protected setSetGroup(exIdx: number, setIdx: number, group: number | undefined): void {
-    this.mutateSets(exIdx, (sets) => sets.map((s, i) => (i === setIdx ? { ...s, group } : s)));
-  }
-
+  /** Every set mutation re-derives cluster groups so numbering stays
+   *  sequential and contiguous after kind changes, inserts, and deletes. */
   private mutateSets(exIdx: number, fn: (sets: PlannedSet[]) => PlannedSet[]): void {
-    this.exercises.update((xs) => xs.map((ex, i) => (i === exIdx ? { ...ex, sets: fn(ex.sets) } : ex)));
-  }
-
-  private nextGroup(exIdx: number): number {
-    const groups = this.exercises()[exIdx]?.sets.map((s) => s.group ?? 0) ?? [];
-    return (groups.length ? Math.max(...groups) : 0) + 1;
+    this.exercises.update((xs) =>
+      xs.map((ex, i) => (i === exIdx ? { ...ex, sets: normalizeClusterGroups(fn(ex.sets)) } : ex)),
+    );
   }
 
   // ─── Save ─────────────────────────────────────────────────────
@@ -351,7 +351,7 @@ export class TemplateEditorComponent {
                 incrementLb: ex.incrementLb ?? 5,
               }
             : undefined,
-          plannedSets: ex.sets.length ? ex.sets : [{ kind: 'working' }],
+          plannedSets: normalizeClusterGroups(ex.sets.length ? ex.sets : [{ kind: 'working' }]),
         });
       }
 

@@ -199,9 +199,14 @@ const SAVE_DEBOUNCE_MS = 800;
                 </button>
               </div>
             }
-            <button type="button" class="v2-btn v2-btn--ghost v2-btn--sm mt-1" (click)="addSet(exIdx)">
-              <lucide-icon name="plus" [size]="13" /> {{ t('train.addSet') }}
-            </button>
+            <div class="flex gap-2 mt-1">
+              <button type="button" class="v2-btn v2-btn--ghost v2-btn--sm" (click)="addSet(exIdx)">
+                <lucide-icon name="plus" [size]="13" /> {{ t('train.addSet') }}
+              </button>
+              <button type="button" class="v2-btn v2-btn--ghost v2-btn--sm" (click)="addDropSet(exIdx)">
+                <lucide-icon name="chevron-down" [size]="13" /> {{ t('train.addDropSet') }}
+              </button>
+            </div>
           </section>
         }
 
@@ -229,6 +234,10 @@ const SAVE_DEBOUNCE_MS = 800;
           <textarea class="v2-input" rows="2" style="width: 100%; resize: vertical;"
                     [value]="nextNotes()" (input)="onNextNotes($event)"></textarea>
         </label>
+
+        @if (saveError()) {
+          <p class="v2-caption mb-2" style="color: var(--v2-danger, #c0392b);">{{ saveError() }}</p>
+        }
 
         <div class="flex gap-3">
           @if (isEditing()) {
@@ -281,6 +290,8 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
   protected readonly nextNotes = signal('');
   protected readonly prevNotes = signal('');
   protected readonly saving = signal(false);
+  /** Surfaced when a save is blocked (missing reps) or fails. */
+  protected readonly saveError = signal('');
   /** Between-set rest countdown — see RestTimer for the state machine. */
   protected readonly rest = new RestTimer();
 
@@ -349,10 +360,11 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
     return ex.logStyle ?? DEFAULT_LOG_STYLE;
   }
 
-  /** RIR is meaningful on working + activation sets; warmups/minis/drops
-   *  are near-failure or throwaway by design, so skip the input there. */
+  /** RIR is logged per hard set: working, activation, and the mini-sets
+   *  that make up a cluster (each mini is taken near failure, so its RIR is
+   *  meaningful). Warm-ups and back-off drops stay unprompted. */
   protected showRir(set: WorkoutSet): boolean {
-    return set.kind === 'working' || set.kind === 'activation';
+    return set.kind === 'working' || set.kind === 'activation' || set.kind === 'mini';
   }
 
   protected suggestionFor(ex: SessionExercise): ProgressionSuggestion {
@@ -479,6 +491,22 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
     this.scheduleSave();
   }
 
+  /** Append a back-off drop set: a standalone set (no cluster group) seeded
+   *  from the last set's load so the user only adjusts the dropped/raised
+   *  weight and its reps. Lets a set whose weight changed mid-effort be
+   *  logged as its own row. */
+  protected addDropSet(exIdx: number): void {
+    this.draft.update((exs) =>
+      exs.map((ex, i) => {
+        if (i !== exIdx) return ex;
+        const last = ex.sets[ex.sets.length - 1];
+        const seed: WorkoutSet = { kind: 'drop', weight: last?.weight };
+        return { ...ex, sets: [...ex.sets, seed] };
+      }),
+    );
+    this.scheduleSave();
+  }
+
   protected markDone(exIdx: number, setIdx: number, set: WorkoutSet): void {
     const nowDone = !set.done;
     this.draft.update((exs) =>
@@ -517,31 +545,58 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
     this.saveTimer = setTimeout(() => this.flushSave(), SAVE_DEBOUNCE_MS);
   }
 
-  private flushSave(): void {
+  private flushSave(): Promise<void> {
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
     }
+    // Never persist before hydrate() has seeded the draft — otherwise a
+    // stray flush (e.g. ngOnDestroy on a quick open/close) would overwrite
+    // the session's logged sets with an empty exercises list.
+    if (!this.hydratedFor) return Promise.resolve();
     const id = this.session()?.id;
-    if (!id) return;
-    void this.workout.updateSession(id, {
+    if (!id) return Promise.resolve();
+    return this.workout.updateSession(id, {
       exercises: this.draft(),
       nextNotes: this.nextNotes() || undefined,
     });
+  }
+
+  /** Count of sets the user marked done but left without a rep count (or,
+   *  for `time` exercises, without a duration). A completed set with no
+   *  count is a data-integrity hole, so saving is blocked until it's
+   *  filled. Warm-ups are exempt. */
+  private missingCountSets(): number {
+    let n = 0;
+    for (const ex of this.draft()) {
+      const isTime = this.styleOf(ex) === 'time';
+      for (const s of ex.sets) {
+        if (!s.done || s.kind === 'warmup') continue;
+        if (isTime ? s.durationSec == null : s.reps == null) n++;
+      }
+    }
+    return n;
   }
 
   // ─── Lifecycle actions ────────────────────────────────────────
   protected async finish(): Promise<void> {
     const id = this.session()?.id;
     if (!id || this.saving()) return;
+    const missing = this.missingCountSets();
+    if (missing > 0) {
+      this.saveError.set(this.i18n.t('train.missingReps', { n: missing }));
+      return;
+    }
+    this.saveError.set('');
     this.saving.set(true);
     try {
-      this.flushSave();
       await this.store.finishWorkout(id, {
         exercises: this.draft(),
         nextNotes: this.nextNotes() || undefined,
       });
       this.closed.emit();
+    } catch {
+      this.saveError.set(this.i18n.t('errors.unknown'));
     } finally {
       this.saving.set(false);
     }
@@ -551,12 +606,20 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
    *  fields already live-write) and close. No finishWorkout — the session
    *  is already completed, so re-running it would double-stamp the day's
    *  exercise marker. */
-  protected saveEdits(): void {
+  protected async saveEdits(): Promise<void> {
     if (this.saving()) return;
+    const missing = this.missingCountSets();
+    if (missing > 0) {
+      this.saveError.set(this.i18n.t('train.missingReps', { n: missing }));
+      return;
+    }
+    this.saveError.set('');
     this.saving.set(true);
     try {
-      this.flushSave();
+      await this.flushSave();
       this.closed.emit();
+    } catch {
+      this.saveError.set(this.i18n.t('errors.unknown'));
     } finally {
       this.saving.set(false);
     }
