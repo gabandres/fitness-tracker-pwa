@@ -115,7 +115,7 @@ type Phase = 'idle' | 'searching' | 'results' | 'detail-loading' | 'portion-pick
     @if (phase() === 'results' && hits().length > 0) {
       <ul role="listbox" class="space-y-1"
         [attr.aria-label]="t('v2.foodSearch.resultsAria')">
-        @for (h of hits(); track h.fdcId) {
+        @for (h of hits(); track h.source + h.id) {
           <li>
             <button type="button"
               role="option"
@@ -360,7 +360,7 @@ export class FoodSearchComponent {
     this.selectedServing.set(null);
     this.multiplier.set(1);
     try {
-      const detail = await this.foodSearch.getDetail(hit.fdcId);
+      const detail = await this.foodSearch.getDetail(hit.source, hit.id);
       // Stale-response guard — newer detail tap arrived first.
       if (gen !== this.detailGen) return;
       // Spread-copy so we don't mutate a possibly-shared (cached) ref.
@@ -453,12 +453,14 @@ export class FoodSearchComponent {
     this.phase.set('idle');
   }
 
-  /** Compress FDC dataType for the chip — "Survey (FNDDS)" is too wide. */
+  /** Compress the source/dataType for the chip — "Survey (FNDDS)" is too
+   *  wide, and OFF hits are tagged so users see the branded-DB provenance. */
   protected dataTypeShort(dt: string): string {
     if (dt.includes('FNDDS')) return 'FNDDS';
     if (dt === 'Branded') return 'Brand';
     if (dt === 'SR Legacy') return 'SR';
     if (dt === 'Foundation') return 'Fnd';
+    if (dt === 'OFF') return 'OFF';
     return dt;
   }
 

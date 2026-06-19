@@ -106,8 +106,14 @@ interface FdcFoodDetail {
   };
 }
 
+type FoodSource = 'fdc' | 'off';
+
 interface FoodSearchHit {
-  fdcId: number;
+  /** Which database the hit came from — drives getFoodDetail dispatch. */
+  source: FoodSource;
+  /** Stable id within the source: FDC's numeric fdcId (stringified) or an
+   *  Open Food Facts barcode. */
+  id: string;
   description: string;
   brand?: string;
   dataType?: string;
@@ -134,10 +140,39 @@ interface ServingOption {
 }
 
 interface FoodDetail {
-  fdcId: number;
+  source: FoodSource;
+  id: string;
   description: string;
   brand?: string;
   servings: ServingOption[];
+}
+
+// ─── Open Food Facts ─────────────────────────────────────────────
+// OFF is free, key-less, and CORS-enabled. It complements FDC: FDC is
+// strong on generic/whole US foods + USDA-verified reference data, OFF
+// is strong on branded + international/packaged items (great barcode
+// coverage). We query both and merge so the typeahead isn't limited to
+// FDC's branded subset. OFF asks API users to send a descriptive UA.
+const OFF_USER_AGENT = "MacroLog/1.0 (https://macrolog.web.app)";
+const OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl";
+const OFF_PRODUCT_URL = "https://world.openfoodfacts.org/api/v2/product";
+const OFF_TIMEOUT_MS = 3500;
+
+interface OffNutriments {
+  ["energy-kcal_100g"]?: number;
+  ["energy_100g"]?: number;
+  proteins_100g?: number;
+  carbohydrates_100g?: number;
+  fat_100g?: number;
+}
+interface OffProduct {
+  code?: string;
+  product_name?: string;
+  generic_name?: string;
+  brands?: string;
+  serving_size?: string;
+  serving_quantity?: number | string;
+  nutriments?: OffNutriments;
 }
 
 async function enforceFoodRateLimit(
@@ -319,6 +354,195 @@ function fdcKeyValue(): string {
   }
 }
 
+/** Non-throwing variant: returns the key or null when unset. Lets search
+ *  degrade to Open Food Facts only (which needs no key) instead of erroring
+ *  out when the USDA key isn't configured. */
+function fdcKeyOrNull(): string | null {
+  try {
+    const v = fdcApiKey.value();
+    return v || null;
+  } catch {
+    return null;
+  }
+}
+
+/** FDC typeahead search, isolated so a FDC outage degrades to OFF-only
+ *  results rather than failing the whole call. Returns [] on any error. */
+async function searchFdc(query: string, size: number, key: string): Promise<FoodSearchHit[]> {
+  const url = new URL(`${FDC_BASE}/foods/search`);
+  url.searchParams.set("api_key", key);
+  url.searchParams.set("query", query);
+  url.searchParams.set("pageSize", String(size));
+  url.searchParams.append("dataType", "Foundation");
+  url.searchParams.append("dataType", "SR Legacy");
+  url.searchParams.append("dataType", "Survey (FNDDS)");
+  url.searchParams.append("dataType", "Branded");
+  try {
+    const resp = await fetch(url.toString());
+    if (!resp.ok) {
+      if (resp.status !== 429) {
+        console.warn("FDC search non-OK:", resp.status);
+      }
+      return [];
+    }
+    const body = (await resp.json()) as FdcSearchResponse;
+    return (body.foods ?? []).map((f) => {
+      const brand = f.brandName || f.brandOwner;
+      const hit: FoodSearchHit = {
+        source: "fdc",
+        id: String(f.fdcId),
+        description: (f.description ?? "").slice(0, 140),
+      };
+      if (brand) hit.brand = brand.slice(0, 80);
+      if (f.dataType) hit.dataType = f.dataType;
+      return hit;
+    });
+  } catch (err) {
+    console.warn("FDC search error (degrading to OFF):", err);
+    return [];
+  }
+}
+
+/** Open Food Facts typeahead search. Sorted by scan popularity so the
+ *  household-name products surface first. Times out fast and returns []
+ *  on any failure so it never stalls or breaks the merged search. */
+async function searchOff(query: string, size: number): Promise<FoodSearchHit[]> {
+  const url = new URL(OFF_SEARCH_URL);
+  url.searchParams.set("search_terms", query);
+  url.searchParams.set("search_simple", "1");
+  url.searchParams.set("action", "process");
+  url.searchParams.set("json", "1");
+  url.searchParams.set("page_size", String(Math.min(size, SEARCH_PAGE_SIZE_MAX)));
+  url.searchParams.set("fields", "code,product_name,brands,nutriments");
+  url.searchParams.set("sort_by", "unique_scans_n");
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), OFF_TIMEOUT_MS);
+  try {
+    const resp = await fetch(url.toString(), {
+      headers: { "User-Agent": OFF_USER_AGENT },
+      signal: ctrl.signal,
+    });
+    if (!resp.ok) return [];
+    const body = (await resp.json()) as { products?: OffProduct[] };
+    const out: FoodSearchHit[] = [];
+    for (const p of body.products ?? []) {
+      const code = p.code;
+      const name = (p.product_name || p.generic_name || "").trim();
+      const n = p.nutriments ?? {};
+      // Skip products with no name or no usable energy — they can't be logged.
+      if (!code || !name) continue;
+      if (n["energy-kcal_100g"] == null && n["energy_100g"] == null) continue;
+      const hit: FoodSearchHit = {
+        source: "off",
+        id: String(code),
+        description: name.slice(0, 140),
+        dataType: "OFF",
+      };
+      if (p.brands) hit.brand = String(p.brands).split(",")[0].trim().slice(0, 80);
+      out.push(hit);
+      if (out.length >= size) break;
+    }
+    return out;
+  } catch {
+    return []; // timeout / network — degrade silently to FDC-only
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Interleave FDC and OFF results (so both databases stay visible even
+ *  when one fills the page), de-duping by name+brand, capped to `size`. */
+function mergeHits(fdc: FoodSearchHit[], off: FoodSearchHit[], size: number): FoodSearchHit[] {
+  const out: FoodSearchHit[] = [];
+  const seen = new Set<string>();
+  const push = (h: FoodSearchHit | undefined) => {
+    if (!h || out.length >= size) return;
+    const key = `${h.description.toLowerCase()}|${(h.brand ?? "").toLowerCase()}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(h);
+  };
+  const max = Math.max(fdc.length, off.length);
+  for (let i = 0; i < max && out.length < size; i++) {
+    push(fdc[i]);
+    push(off[i]);
+  }
+  return out;
+}
+
+/** Build the serving list for an Open Food Facts product. OFF nutriments
+ *  are per-100g; we add a per-serving row when `serving_quantity` (grams)
+ *  is present. Mirrors buildServings()'s "drop unknown macros" rule. */
+function buildOffServings(p: OffProduct): ServingOption[] {
+  const n = p.nutriments ?? {};
+  const KJ_TO_KCAL = 4.184;
+  const kcal100 = n["energy-kcal_100g"]
+    ?? (n["energy_100g"] != null ? n["energy_100g"] / KJ_TO_KCAL : null);
+  if (kcal100 == null) return [];
+  const protein100 = n.proteins_100g;
+  const carbs100 = n.carbohydrates_100g;
+  const fat100 = n.fat_100g;
+  const macrosAt = (ratio: number) => ({
+    protein: Math.round((protein100 ?? 0) * ratio),
+    ...(carbs100 != null ? { carbs: Math.round(carbs100 * ratio) } : {}),
+    ...(fat100 != null ? { fat: Math.round(fat100 * ratio) } : {}),
+  });
+  const out: ServingOption[] = [{
+    label: "100 g",
+    grams: 100,
+    kcal: Math.round(kcal100),
+    ...macrosAt(1),
+    kind: "per100g",
+  }];
+  const sq = typeof p.serving_quantity === "string"
+    ? parseFloat(p.serving_quantity)
+    : p.serving_quantity;
+  if (typeof sq === "number" && Number.isFinite(sq) && sq > 0) {
+    const ratio = sq / 100;
+    const label = (p.serving_size || `${Math.round(sq)} g`).slice(0, 60);
+    out.push({
+      label,
+      grams: sq,
+      kcal: Math.round(kcal100 * ratio),
+      ...macrosAt(ratio),
+      kind: "portion",
+    });
+  }
+  return out;
+}
+
+async function fetchOffDetail(code: string): Promise<FoodDetail> {
+  const url = `${OFF_PRODUCT_URL}/${encodeURIComponent(code)}.json`
+    + "?fields=code,product_name,generic_name,brands,serving_size,serving_quantity,nutriments";
+  let resp: Response;
+  try {
+    resp = await fetch(url, { headers: { "User-Agent": OFF_USER_AGENT } });
+  } catch (err) {
+    console.error("OFF detail network error:", err);
+    throw new HttpsError("unavailable", "Food database unreachable.", { code: ErrorCode.FOOD_DETAIL_FAILED });
+  }
+  if (!resp.ok) {
+    throw new HttpsError("not-found", "Food not found.", { code: ErrorCode.FOOD_NOT_FOUND });
+  }
+  const body = (await resp.json()) as { status?: number; product?: OffProduct };
+  if (!body.product || body.status === 0) {
+    throw new HttpsError("not-found", "Food not found.", { code: ErrorCode.FOOD_NOT_FOUND });
+  }
+  const p = body.product;
+  const servings = buildOffServings(p);
+  if (servings.length === 0) {
+    throw new HttpsError("internal", "No nutrition data available for this food.", { code: ErrorCode.FOOD_NO_NUTRITION });
+  }
+  const detail: FoodDetail = {
+    source: "off",
+    id: code,
+    description: (p.product_name || p.generic_name || "").slice(0, 140),
+    servings,
+  };
+  if (p.brands) detail.brand = String(p.brands).split(",")[0].trim().slice(0, 80);
+  return detail;
+}
+
 export const searchFoods = onCall(
   { secrets: [fdcApiKey], maxInstances: 10 },
   async (request) => {
@@ -348,7 +572,7 @@ export const searchFoods = onCall(
     // Doc id is a SHA-1 of `${size}|${normalized}` to keep the id
     // bounded-length regardless of multibyte input. Collisions on a
     // 160-bit hash are not a concern at this scale.
-    const cacheKey = createHash("sha1").update(`${size}|${normalized}`).digest("hex");
+    const cacheKey = createHash("sha1").update(`v2|${size}|${normalized}`).digest("hex");
     const cacheRef = db.collection("foodSearchCache").doc(cacheKey);
     const cacheSnap = await cacheRef.get();
     if (cacheSnap.exists) {
@@ -359,48 +583,17 @@ export const searchFoods = onCall(
       }
     }
 
-    // Cache miss → enforce rate limit, then go upstream.
+    // Cache miss → enforce rate limit, then query both databases in
+    // parallel and merge. FDC needs a key (skipped if unset); OFF is
+    // key-less, so search keeps working even before the USDA key is set.
     await enforceFoodRateLimit("foodSearchRateLimit", uid, SEARCH_MIN_INTERVAL_MS);
 
-    const url = new URL(`${FDC_BASE}/foods/search`);
-    url.searchParams.set("api_key", fdcKeyValue());
-    url.searchParams.set("query", normalized);
-    url.searchParams.set("pageSize", String(size));
-    // Foundation = USDA reference foods (best for generic items)
-    // SR Legacy = older USDA standard reference (cup/tbsp portions)
-    // Survey (FNDDS) = "What We Eat In America" — cooked dishes with
-    //                  household measures, ideal for the cup/tbsp UX.
-    // Branded   = manufacturer labels (Kirkland, Goya, etc.)
-    url.searchParams.append("dataType", "Foundation");
-    url.searchParams.append("dataType", "SR Legacy");
-    url.searchParams.append("dataType", "Survey (FNDDS)");
-    url.searchParams.append("dataType", "Branded");
-
-    let resp: Response;
-    try {
-      resp = await fetch(url.toString());
-    } catch (err) {
-      console.error("FDC search network error:", err);
-      throw new HttpsError("unavailable", "Food database unreachable.", { code: ErrorCode.FOOD_SEARCH_FAILED });
-    }
-    if (resp.status === 429) {
-      throw new HttpsError("resource-exhausted", "FDC rate limit hit. Try again shortly.", { code: ErrorCode.RATE_LIMITED });
-    }
-    if (!resp.ok) {
-      console.error("FDC search non-OK:", resp.status, await resp.text().catch(() => ""));
-      throw new HttpsError("internal", "Food search failed.", { code: ErrorCode.FOOD_SEARCH_FAILED });
-    }
-    const body = (await resp.json()) as FdcSearchResponse;
-    const hits: FoodSearchHit[] = (body.foods ?? []).map((f) => {
-      const brand = f.brandName || f.brandOwner;
-      const hit: FoodSearchHit = {
-        fdcId: f.fdcId,
-        description: (f.description ?? "").slice(0, 140),
-      };
-      if (brand) hit.brand = brand.slice(0, 80);
-      if (f.dataType) hit.dataType = f.dataType;
-      return hit;
-    });
+    const key = fdcKeyOrNull();
+    const [fdcHits, offHits] = await Promise.all([
+      key ? searchFdc(normalized, size, key) : Promise.resolve<FoodSearchHit[]>([]),
+      searchOff(normalized, size),
+    ]);
+    const hits = mergeHits(fdcHits, offHits, size);
 
     // Best-effort cache write. Never block the response on cache failure.
     void cacheRef.set({
@@ -421,17 +614,31 @@ export const getFoodDetail = onCall(
     }
     const uid = request.auth.uid;
 
-    const { fdcId } = (request.data ?? {}) as { fdcId?: unknown };
-    if (typeof fdcId !== "number" || !Number.isFinite(fdcId) || fdcId <= 0) {
-      throw new HttpsError("invalid-argument", "fdcId must be a positive number.", { code: ErrorCode.FOOD_QUERY_INVALID });
+    // Source-aware args. New clients send { source, id }; older clients
+    // send { fdcId } — treat that as an FDC lookup for back-compat.
+    const data = (request.data ?? {}) as { source?: unknown; id?: unknown; fdcId?: unknown };
+    let source: FoodSource;
+    let id: string;
+    if (data.source === "off" && typeof data.id === "string" && data.id.length > 0) {
+      source = "off";
+      id = data.id.slice(0, 64);
+    } else if (data.source === "fdc" && typeof data.id === "string" && /^\d+$/.test(data.id)) {
+      source = "fdc";
+      id = data.id;
+    } else if (typeof data.fdcId === "number" && Number.isFinite(data.fdcId) && data.fdcId > 0) {
+      source = "fdc";
+      id = String(Math.floor(data.fdcId));
+    } else {
+      throw new HttpsError("invalid-argument", "Provide { source, id }.", { code: ErrorCode.FOOD_QUERY_INVALID });
     }
 
-    // Cache check before rate limit (see searchFoods comment).
-    const cacheRef = db.collection("foodDetailCache").doc(String(fdcId));
+    // Cache check before rate limit (see searchFoods comment). Namespaced
+    // by source so FDC ids and OFF barcodes can't collide.
+    const cacheRef = db.collection("foodDetailCache").doc(`${source}:${id}`);
     const cacheSnap = await cacheRef.get();
     if (cacheSnap.exists) {
-      const data = cacheSnap.data() as { detail?: FoodDetail };
-      if (data.detail) return { detail: data.detail, cached: true };
+      const cached = cacheSnap.data() as { detail?: FoodDetail };
+      if (cached.detail) return { detail: cached.detail, cached: true };
     }
 
     // Cache miss → enforce per-uid detail rate limit (separate collection
@@ -439,41 +646,45 @@ export const getFoodDetail = onCall(
     // window — see the constant declarations near the top).
     await enforceFoodRateLimit("foodDetailRateLimit", uid, DETAIL_MIN_INTERVAL_MS);
 
-    const url = new URL(`${FDC_BASE}/food/${fdcId}`);
-    url.searchParams.set("api_key", fdcKeyValue());
-
-    let resp: Response;
-    try {
-      resp = await fetch(url.toString());
-    } catch (err) {
-      console.error("FDC detail network error:", err);
-      throw new HttpsError("unavailable", "Food database unreachable.", { code: ErrorCode.FOOD_DETAIL_FAILED });
-    }
-    if (resp.status === 404) {
-      throw new HttpsError("not-found", "Food not found.", { code: ErrorCode.FOOD_NOT_FOUND });
-    }
-    if (resp.status === 429) {
-      throw new HttpsError("resource-exhausted", "FDC rate limit hit.", { code: ErrorCode.RATE_LIMITED });
-    }
-    if (!resp.ok) {
-      console.error("FDC detail non-OK:", resp.status, await resp.text().catch(() => ""));
-      throw new HttpsError("internal", "Food detail fetch failed.", { code: ErrorCode.FOOD_DETAIL_FAILED });
-    }
-    const raw = (await resp.json()) as FdcFoodDetail;
-    const detail: FoodDetail = {
-      fdcId: raw.fdcId,
-      description: (raw.description ?? "").slice(0, 140),
-      servings: buildServings(raw),
-    };
-    const brand = raw.brandName || raw.brandOwner;
-    if (brand) detail.brand = brand.slice(0, 80);
-
-    if (detail.servings.length === 0) {
-      throw new HttpsError(
-        "internal",
-        "No nutrition data available for this food.",
-        { code: ErrorCode.FOOD_NO_NUTRITION },
-      );
+    let detail: FoodDetail;
+    if (source === "off") {
+      detail = await fetchOffDetail(id);
+    } else {
+      const url = new URL(`${FDC_BASE}/food/${id}`);
+      url.searchParams.set("api_key", fdcKeyValue());
+      let resp: Response;
+      try {
+        resp = await fetch(url.toString());
+      } catch (err) {
+        console.error("FDC detail network error:", err);
+        throw new HttpsError("unavailable", "Food database unreachable.", { code: ErrorCode.FOOD_DETAIL_FAILED });
+      }
+      if (resp.status === 404) {
+        throw new HttpsError("not-found", "Food not found.", { code: ErrorCode.FOOD_NOT_FOUND });
+      }
+      if (resp.status === 429) {
+        throw new HttpsError("resource-exhausted", "FDC rate limit hit.", { code: ErrorCode.RATE_LIMITED });
+      }
+      if (!resp.ok) {
+        console.error("FDC detail non-OK:", resp.status, await resp.text().catch(() => ""));
+        throw new HttpsError("internal", "Food detail fetch failed.", { code: ErrorCode.FOOD_DETAIL_FAILED });
+      }
+      const raw = (await resp.json()) as FdcFoodDetail;
+      detail = {
+        source: "fdc",
+        id: String(raw.fdcId),
+        description: (raw.description ?? "").slice(0, 140),
+        servings: buildServings(raw),
+      };
+      const brand = raw.brandName || raw.brandOwner;
+      if (brand) detail.brand = brand.slice(0, 80);
+      if (detail.servings.length === 0) {
+        throw new HttpsError(
+          "internal",
+          "No nutrition data available for this food.",
+          { code: ErrorCode.FOOD_NO_NUTRITION },
+        );
+      }
     }
 
     void cacheRef.set({ detail, cachedAt: Timestamp.now() }).catch((err) =>
