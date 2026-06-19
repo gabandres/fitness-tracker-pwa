@@ -88,6 +88,7 @@ import { UiButton } from '../ui/button.component';
             </ui-button>
           </div>
           <input #importFile type="file" accept=".csv,text/csv" class="sr-only"
+            [attr.aria-label]="t('settings.data.importTitle')"
             (change)="onImportFile($event)" />
           @if (importPreview(); as p) {
             <div style="padding: 12px; background: var(--v2-paper-2); border-radius: var(--v2-radius-sm); border: 1px solid var(--v2-rule);">

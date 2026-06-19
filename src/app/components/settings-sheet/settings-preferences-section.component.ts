@@ -97,7 +97,7 @@ import { UiButton } from '../ui/button.component';
           </select>
         </div>
 
-        <p class="v2-caption mt-3" style="opacity: 0.75;">
+        <p class="v2-caption mt-3">
           {{ t('settings.reminders.utcHint') }}
         </p>
 

@@ -81,37 +81,45 @@ import { CHART_HISTORY_DAYS_FREE } from '../../models/tier-limits';
       <!-- Grid -->
       <div role="grid" [attr.aria-label]="t('v2.history.calendarAria')" class="grid grid-cols-7 gap-1">
         @if (loading()) {
-          @for (i of placeholders; track i) {
-            <div
-              role="gridcell"
-              class="aspect-square rounded-md"
-              style="background: var(--v2-paper-2); opacity: 0.5;"
-              aria-hidden="true"></div>
+          @for (row of placeholderRows; track $index) {
+            <div role="row" style="display: contents">
+              @for (i of row; track i) {
+                <div
+                  role="gridcell"
+                  class="aspect-square rounded-md"
+                  style="background: var(--v2-paper-2); opacity: 0.5;"
+                  aria-hidden="true"></div>
+              }
+            </div>
           }
         } @else {
-          @for (cell of cells(); track cell.key) {
-            <button
-              type="button"
-              role="gridcell"
-              class="aspect-square flex flex-col items-center justify-center gap-0.5 rounded-md"
-              [class.opacity-40]="!cell.inMonth || isFuture(cell.key)"
-              [class.cursor-not-allowed]="isFuture(cell.key) || !cell.inMonth"
-              [style]="cellStyle(cell.key)"
-              [disabled]="isFuture(cell.key) || !cell.inMonth"
-              [attr.aria-current]="cell.key === todayKey() ? 'date' : null"
-              [attr.aria-label]="cellAria(cell.date, cell.key)"
-              (click)="onTap(cell)">
-              <span class="v2-caption" style="font-weight: 500;">{{ cell.date.getDate() }}</span>
-              @if (summaryFor(cell.key); as s) {
-                <ui-ring
-                  [value]="s.totalCalories"
-                  [target]="kcalTarget()"
-                  [size]="28"
-                  [stroke]="3"
-                  [tone]="s.totalCalories > kcalTarget() ? 'warn' : 'accent'"
-                  ariaLabel="" />
+          @for (week of weeks(); track $index) {
+            <div role="row" style="display: contents">
+              @for (cell of week; track cell.key) {
+                <button
+                  type="button"
+                  role="gridcell"
+                  class="aspect-square flex flex-col items-center justify-center gap-0.5 rounded-md"
+                  [class.opacity-60]="!cell.inMonth || isFuture(cell.key)"
+                  [class.cursor-not-allowed]="isFuture(cell.key) || !cell.inMonth"
+                  [style]="cellStyle(cell.key)"
+                  [disabled]="isFuture(cell.key) || !cell.inMonth"
+                  [attr.aria-current]="cell.key === todayKey() ? 'date' : null"
+                  [attr.aria-label]="cellAria(cell.date, cell.key)"
+                  (click)="onTap(cell)">
+                  <span class="v2-caption" style="font-weight: 500;">{{ cell.date.getDate() }}</span>
+                  @if (summaryFor(cell.key); as s) {
+                    <ui-ring
+                      [value]="s.totalCalories"
+                      [target]="kcalTarget()"
+                      [size]="28"
+                      [stroke]="3"
+                      [tone]="s.totalCalories > kcalTarget() ? 'warn' : 'accent'"
+                      ariaLabel="" />
+                  }
+                </button>
               }
-            </button>
+            </div>
           }
         }
       </div>
@@ -128,12 +136,24 @@ export class HistoryComponent {
   readonly closeRequested = output<void>();
   readonly bodyRequested = output<void>();
 
-  protected readonly placeholders = Array.from({ length: 42 }, (_, i) => i);
+  /** 6 rows × 7 cells of loading placeholders, mirroring the month grid so
+   *  the ARIA grid keeps a valid row → gridcell hierarchy while loading. */
+  protected readonly placeholderRows = Array.from({ length: 6 }, (_, r) =>
+    Array.from({ length: 7 }, (_, c) => r * 7 + c));
 
   protected readonly viewMonth = signal<Date>(startOfMonth(new Date()));
   protected readonly todayKey = signal(localDateKey(new Date()));
 
   protected readonly cells = computed(() => monthGrid(this.viewMonth()));
+
+  /** Calendar cells chunked into weeks of 7 so the template can wrap each in
+   *  a `role="row"` (ARIA grids require gridcells to sit inside rows). */
+  protected readonly weeks = computed(() => {
+    const c = this.cells();
+    const out: (typeof c)[] = [];
+    for (let i = 0; i < c.length; i += 7) out.push(c.slice(i, i + 7));
+    return out;
+  });
 
   protected readonly weekdays = computed(() =>
     this.translation.t('v2.history.weekdayInitials').split(','),

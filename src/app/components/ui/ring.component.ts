@@ -21,8 +21,9 @@ export type UiRingTone = 'accent' | 'sage' | 'warn' | 'danger';
         [attr.width]="size()"
         [attr.height]="size()"
         [attr.viewBox]="'0 0 ' + size() + ' ' + size()"
-        role="img"
-        [attr.aria-label]="ariaLabel()">
+        [attr.role]="ariaLabel() ? 'img' : null"
+        [attr.aria-label]="ariaLabel() || null"
+        [attr.aria-hidden]="ariaLabel() ? null : 'true'">
         <circle
           class="v2-ring__track"
           [attr.cx]="size() / 2"
