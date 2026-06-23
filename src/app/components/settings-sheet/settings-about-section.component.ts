@@ -122,18 +122,26 @@ export class SettingsAboutSectionComponent {
         this.updateMsg.set({ text: this.translation.t('v2.settings.updateUnavailable'), tone: 'muted' });
         return;
       }
-      const found = await this.swUpdate.checkForUpdate();
+      // SwUpdate.checkForUpdate() can hang indefinitely when no service
+      // worker controls the page yet (lazy registerWhenStable:30000) or the
+      // network stalls, leaving the button stuck on "Checking…". Race it
+      // against a timeout so the control always resolves to a message.
+      const found = await Promise.race([
+        this.swUpdate.checkForUpdate(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('update-check-timeout')), 15_000),
+        ),
+      ]);
       if (found) {
         this.updateAvailable.set(true);
         this.updateMsg.set({ text: this.translation.t('v2.settings.updateFound'), tone: 'accent' });
       } else {
         this.updateMsg.set({ text: this.translation.t('v2.settings.updateLatest'), tone: 'sage' });
       }
-    } catch (err) {
-      this.updateMsg.set({
-        text: err instanceof Error ? err.message : this.translation.t('v2.settings.updateError'),
-        tone: 'muted',
-      });
+    } catch {
+      // Timeout or SW error — show the friendly "Could not check." rather
+      // than leaking an internal message, and never leave the button stuck.
+      this.updateMsg.set({ text: this.translation.t('v2.settings.updateError'), tone: 'muted' });
     } finally {
       this.checkingUpdate.set(false);
     }
