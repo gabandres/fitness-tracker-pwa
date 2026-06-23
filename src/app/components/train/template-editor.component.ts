@@ -88,6 +88,10 @@ interface EditExercise {
           <div class="flex items-center justify-between gap-2 mb-2">
             <input class="v2-input grow" [value]="ex.name" (input)="setEx(exIdx, 'name', asValue($event))"
                    [attr.placeholder]="t('train.exerciseName')" />
+            <ui-icon-button icon="chevron-up" [ariaLabel]="t('train.moveExerciseUp')"
+                            [disabled]="exIdx === 0" (click)="moveEx(exIdx, -1)" />
+            <ui-icon-button icon="chevron-down" [ariaLabel]="t('train.moveExerciseDown')"
+                            [disabled]="exIdx === exercises().length - 1" (click)="moveEx(exIdx, 1)" />
             <ui-icon-button icon="trash-2" [ariaLabel]="t('train.removeExercise')" (click)="removeEx(exIdx)" />
           </div>
 
@@ -263,6 +267,19 @@ export class TemplateEditorComponent {
 
   protected removeEx(idx: number): void {
     this.exercises.update((xs) => xs.filter((_, i) => i !== idx));
+  }
+
+  /** Reorder an exercise row by swapping it with its neighbour. `dir` is
+   *  -1 (up) or +1 (down); out-of-range moves are no-ops so the first/last
+   *  rows' disabled buttons can't corrupt the list. */
+  protected moveEx(idx: number, dir: -1 | 1): void {
+    const to = idx + dir;
+    this.exercises.update((xs) => {
+      if (to < 0 || to >= xs.length) return xs;
+      const next = [...xs];
+      [next[idx], next[to]] = [next[to], next[idx]];
+      return next;
+    });
   }
 
   protected setEx<K extends keyof EditExercise>(idx: number, key: K, value: EditExercise[K]): void {

@@ -1666,6 +1666,8 @@
     "exercisesSection": "Exercises",
     "exerciseName": "Exercise name",
     "removeExercise": "Remove exercise",
+    "moveExerciseUp": "Move exercise up",
+    "moveExerciseDown": "Move exercise down",
     "targetLoad": "Target load (lb)",
     "cues": "Cues (one per line)",
     "progression": "Auto-progression",

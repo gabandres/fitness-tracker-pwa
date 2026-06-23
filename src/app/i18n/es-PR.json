@@ -1666,6 +1666,8 @@
     "exercisesSection": "Ejercicios",
     "exerciseName": "Nombre del ejercicio",
     "removeExercise": "Quitar ejercicio",
+    "moveExerciseUp": "Subir ejercicio",
+    "moveExerciseDown": "Bajar ejercicio",
     "targetLoad": "Carga objetivo (lb)",
     "cues": "Claves (una por línea)",
     "progression": "Auto-progresión",
