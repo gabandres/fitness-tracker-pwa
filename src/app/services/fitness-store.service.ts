@@ -249,7 +249,13 @@ export class FitnessStore {
     const adjusted = fields?.travelMode
       ? { ...fields, targetPaceLbsPerWeek: 0 as any }
       : fields;
-    return this.calc.calculate(this.mergeDailyWeights(this._logs()), adjusted);
+    // Measured mode needs ≥14 *distinct logged days*. The `_logs` cache is
+    // capped at 14 *rows* (getRecentLogs(14)), which for a multi-entry-per-
+    // day user aggregates to far fewer than 14 days — so it can never reach
+    // measured mode. Use the full-history cache once it has settled; fall
+    // back to the rolling cache only during the initial load.
+    const source = this._historyLoaded() ? this._allTimeLogs() : this._logs();
+    return this.calc.calculate(this.mergeDailyWeights(source), adjusted);
   });
 
   readonly targetCalories: Signal<number> = computed(() => {
