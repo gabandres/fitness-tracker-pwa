@@ -239,7 +239,7 @@ export class CalculatorComponent {
 
   protected readonly protein = computed(() => {
     const w = this.weight();
-    return w != null ? computeProtein(w, this.goal()) : 0;
+    return w != null ? computeProtein(w) : 0;
   });
 
   constructor() {

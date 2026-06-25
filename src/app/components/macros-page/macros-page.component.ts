@@ -135,7 +135,7 @@ export class MacrosPageComponent {
 
   protected readonly protein = computed(() => {
     const p = this.parsed();
-    return p ? computeProtein(p.weight, p.goal) : 0;
+    return p ? computeProtein(p.weight) : 0;
   });
 
   protected readonly heading = computed(() => {

@@ -29,9 +29,11 @@ const i18n = JSON.parse(readFileSync(resolve(root, 'src/app/i18n/en.json'), 'utf
 const SITE = 'https://macrolog.web.app';
 
 const KCAL = { lose: 11, maintain: 14, gain: 17 };
-const PROT = { lose: 1.0, maintain: 0.9, gain: 0.8 };
+// Protein: g/kg standard, 1.6 g/kg default (muscle-retention floor on a cut).
+// Keep in sync with src/app/utils/macro-heuristic.ts.
+const PROTEIN_G_PER_KG = 1.6;
 const computeKcal = (w, g) => Math.round((w * KCAL[g]) / 10) * 10;
-const computeProtein = (w, g) => Math.round((w * PROT[g]) / 5) * 5;
+const computeProtein = (w) => Math.round(((w / 2.20462) * PROTEIN_G_PER_KG) / 5) * 5;
 
 const interp = (str, vars) =>
   str.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => String(vars[k] ?? ''));
@@ -225,7 +227,7 @@ const RANGES = {
 for (const goal of Object.keys(RANGES)) {
   for (const weight of RANGES[goal]) {
     const kcal = computeKcal(weight, goal);
-    const protein = computeProtein(weight, goal);
+    const protein = computeProtein(weight);
     const title = interp(i18n.macrosPage.title[goal], { weight });
     const description = interp(i18n.macrosPage.explainer[goal], { weight, kcal, protein }).slice(0, 320);
     const url = `${SITE}/macros/${goal}/${weight}-lb`;

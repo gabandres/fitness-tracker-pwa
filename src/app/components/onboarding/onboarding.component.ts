@@ -263,7 +263,7 @@ export class OnboardingComponent {
     const w = this.weight();
     const g = this.goal();
     if (w == null || g == null) return 0;
-    return computeProtein(w, g);
+    return computeProtein(w);
   });
 
   constructor() {
