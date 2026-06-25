@@ -179,7 +179,12 @@ export class SettingsDataSectionComponent {
         this.firebase.getAllSessions(),
       ]);
       const csv = buildCsv({ logs, measurements, dailyWeights, dailyWater, workoutSessions });
-      const stamp = new Date().toISOString().slice(0, 10);
+      // Local date + time (no colons — invalid in filenames) so repeat
+      // same-day exports get distinct names instead of colliding on
+      // `…-YYYY-MM-DD.csv` and tripping the OS "file already exists" prompt.
+      const d = new Date();
+      const p = (n: number) => String(n).padStart(2, '0');
+      const stamp = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
       downloadCsv(`macrolog-export-${stamp}.csv`, csv);
       this.analytics.track('data_export_csv', {
         rows: logs.length + measurements.length + workoutSessions.length,

@@ -462,7 +462,7 @@
     "legendSmoothed": "— smoothed",
     "actionExport": "↓ export csv",
     "exportFreeCaption": "last {{days}} days — pro for full history",
-    "exportTitle": "downloads as macrolog-export-YYYY-MM-DD.csv",
+    "exportTitle": "downloads as macrolog-export-YYYY-MM-DD-HHMMSS.csv",
     "exportFormatHint": "CSV — opens in Numbers, Excel, or Sheets. on iOS, check Files → Downloads if nothing happens.",
     "csvExercise": "yes"
   },
