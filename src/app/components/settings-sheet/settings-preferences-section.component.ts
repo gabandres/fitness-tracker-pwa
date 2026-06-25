@@ -1,7 +1,10 @@
 import {
   ChangeDetectionStrategy, Component,
-  computed, inject, input, output, signal,
+  computed, effect, inject, input, output, signal,
 } from '@angular/core';
+import {
+  computeProtein, clampProteinPerKg, DEFAULT_PROTEIN_G_PER_KG,
+} from '../../utils/macro-heuristic';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { FitnessStore } from '../../services/fitness-store.service';
@@ -205,6 +208,34 @@ import { UiButton } from '../ui/button.component';
           </p>
         }
       </ui-card>
+
+      <!-- Protein target basis (g/kg). -->
+      <ui-card variant="default" class="block mb-3">
+        <h3 class="v2-h3 mb-2">{{ t('settings.protein.section') }}</h3>
+        <p class="v2-caption mb-3">{{ t('settings.protein.desc') }}</p>
+        <div class="flex items-center gap-3">
+          <ui-button variant="ghost" size="sm"
+            [disabled]="proteinBusy() || proteinPerKg() <= 1.6"
+            [ariaLabel]="t('settings.protein.dec')"
+            (click)="stepProtein(-0.1)">−</ui-button>
+          <div class="text-center" style="flex: 1;">
+            <span class="v2-h3 font-mono">{{ proteinPerKg().toFixed(1) }}</span>
+            <span class="v2-caption"> g/kg</span>
+            @if (proteinGrams() != null) {
+              <div class="v2-caption">≈ {{ proteinGrams() }} g/day</div>
+            }
+          </div>
+          <ui-button variant="ghost" size="sm"
+            [disabled]="proteinBusy() || proteinPerKg() >= 2.2"
+            [ariaLabel]="t('settings.protein.inc')"
+            (click)="stepProtein(0.1)">+</ui-button>
+        </div>
+        @if (proteinError()) {
+          <p class="v2-caption mt-2" role="alert" style="color: var(--v2-danger)">
+            {{ t('settings.protein.saveError') }}
+          </p>
+        }
+      </ui-card>
     </ng-container>
   `,
 })
@@ -291,6 +322,43 @@ export class SettingsPreferencesSectionComponent {
       this.unitsError.set(true);
     } finally {
       this.unitsBusy.set(false);
+    }
+  }
+
+  // ─── Protein basis (g/kg) ───────────────────────────────────
+  /** Local editing copy, seeded from the profile and re-synced whenever it
+   *  loads/changes (unless the user is mid-edit). Stepping persists each
+   *  change via setProteinPerKg. */
+  protected readonly proteinPerKg = signal<number>(DEFAULT_PROTEIN_G_PER_KG);
+  protected readonly proteinBusy = signal(false);
+  protected readonly proteinError = signal(false);
+
+  protected readonly proteinGrams = computed(() => {
+    const w = this.store.currentWeight();
+    return w ? computeProtein(w, this.proteinPerKg()) : null;
+  });
+
+  constructor() {
+    effect(() => {
+      const stored = (this.firebase.profile() as { proteinPerKg?: number } | null)?.proteinPerKg;
+      if (!this.proteinBusy() && stored != null) this.proteinPerKg.set(stored);
+    });
+  }
+
+  protected async stepProtein(delta: number): Promise<void> {
+    if (this.proteinBusy()) return;
+    const next = clampProteinPerKg(Math.round((this.proteinPerKg() + delta) * 10) / 10);
+    if (next === this.proteinPerKg()) return;
+    this.proteinPerKg.set(next);
+    this.proteinBusy.set(true);
+    this.proteinError.set(false);
+    try {
+      await this.firebase.setProteinPerKg(next);
+    } catch (err) {
+      console.error('setProteinPerKg failed:', err);
+      this.proteinError.set(true);
+    } finally {
+      this.proteinBusy.set(false);
     }
   }
 }

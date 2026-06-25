@@ -49,6 +49,7 @@ export interface LedgerPort {
   setTravelMode(on: boolean): Promise<void>;
   setWeeklyDigestOptIn(on: boolean): Promise<void>;
   setUnitSystem(system: UnitSystem): Promise<void>;
+  setProteinPerKg(gPerKg: number): Promise<void>;
   hideRecentLabel(label: string): Promise<void>;
   unhideRecentLabel(label: string): Promise<void>;
 

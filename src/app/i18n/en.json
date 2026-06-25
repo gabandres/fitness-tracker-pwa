@@ -282,6 +282,13 @@
       "metricDesc": "Grams first, then household measures.",
       "saveError": "Couldn't save your preference. Try again in a moment."
     },
+    "protein": {
+      "section": "protein target",
+      "desc": "Grams per kg of body weight. 1.6 is the muscle-retention floor on a cut; lean lifters often run 1.8–2.2.",
+      "dec": "Decrease protein per kg",
+      "inc": "Increase protein per kg",
+      "saveError": "Couldn't save. Check your connection and try again."
+    },
     "data": {
       "section": "data",
       "webhook": "apple shortcuts webhook",
@@ -1355,6 +1362,11 @@
       "actVeryActiveBlurb": "Hard daily training or physical job.",
       "pace": "Pace",
       "lbWeek": "lb/wk",
+      "protein": "Protein (g/kg)",
+      "proteinHint": "1.6 is the muscle-retention floor on a cut; lean lifters often run 1.8–2.2.",
+      "proteinDec": "Decrease protein per kg",
+      "proteinInc": "Increase protein per kg",
+      "gramSuffix": "g",
       "previewLabel": "New daily kcal",
       "save": "Save targets",
       "saving": "Saving…",

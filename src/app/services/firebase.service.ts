@@ -145,6 +145,7 @@ export type CutPace = 0 | 0.5 | 1.0 | 1.5 | 2.0;
 // alongside the kcal/protein multipliers it parameterizes.
 export type { GoalDirection } from '../utils/macro-heuristic';
 import type { GoalDirection } from '../utils/macro-heuristic';
+import { clampProteinPerKg } from '../utils/macro-heuristic';
 
 /** v2 2-question onboarding submission. Heuristic targets are computed
  *  by the caller (component) and persisted as manualCaloriesTarget /
@@ -168,6 +169,9 @@ export interface RefineTargetsSubmission {
   sex: Sex;
   activityLevel: ActivityLevel;
   targetPaceLbsPerWeek: CutPace;
+  /** Personal protein basis (g/kg, 1.6–2.2). Optional: omitted leaves the
+   *  default 1.6 g/kg floor in effect. */
+  proteinPerKg?: number;
 }
 
 /**
@@ -197,7 +201,11 @@ export interface ProfileFields {
   goalDirection?: GoalDirection;
   targetWeightLbs?: number;       // for lose/gain; omitted for maintain
   manualCaloriesTarget?: number;  // heuristic: weight_lb × {11/14/17}
-  manualProteinTarget?: number;   // heuristic: weight_lb × {1.0/0.9/0.8}
+  manualProteinTarget?: number;   // heuristic snapshot (frozen grams) from onboarding
+  // Personal protein basis on the g/kg standard (clamped 1.6–2.2). When set
+  // it drives proteinTarget LIVE off current weight, overriding the frozen
+  // manualProteinTarget snapshot. Lets a lean-cutting lifter dial e.g. 1.9.
+  proteinPerKg?: number;
   onboardingV2CompletedAt?: Date;
   targetsRefinedAt?: Date;        // stamped when the user fills the Day-3
                                    // "Refine targets" sheet — drops the
@@ -456,6 +464,9 @@ export class FirebaseService implements LedgerPort {
     if (!current) throw new Error('No profile loaded.');
 
     const stamp = Timestamp.now();
+    const perKg = submission.proteinPerKg != null
+      ? clampProteinPerKg(submission.proteinPerKg)
+      : undefined;
     await this.core.updateProfileDoc({
       heightIn: submission.heightIn,
       age: submission.age,
@@ -464,6 +475,7 @@ export class FirebaseService implements LedgerPort {
       targetPaceLbsPerWeek: submission.targetPaceLbsPerWeek,
       manualCaloriesTarget: deleteField(),
       manualProteinTarget: deleteField(),
+      ...(perKg != null ? { proteinPerKg: perKg } : {}),
       targetsRefinedAt: stamp,
       lastSeenAt: stamp,
     });
@@ -475,6 +487,7 @@ export class FirebaseService implements LedgerPort {
       targetPaceLbsPerWeek: submission.targetPaceLbsPerWeek,
       targetsRefinedAt: stamp.toDate(),
     };
+    if (perKg != null) updated.proteinPerKg = perKg;
     delete (updated as any).manualCaloriesTarget;
     delete (updated as any).manualProteinTarget;
     this._profile.set(updated);
@@ -612,6 +625,16 @@ export class FirebaseService implements LedgerPort {
     await this.core.updateProfileDoc({ unitSystem: system, lastSeenAt: Timestamp.now() });
     const current = this._profile();
     if (current) this._profile.set({ ...current, unitSystem: system } as Profile);
+  }
+
+  /** Persist the user's personal protein basis (g/kg). Clamped to the
+   *  evidence-based [1.6, 2.2] band before writing. Drives proteinTarget
+   *  live off current weight (overrides the frozen onboarding snapshot). */
+  async setProteinPerKg(gPerKg: number): Promise<void> {
+    const perKg = clampProteinPerKg(gPerKg);
+    await this.core.updateProfileDoc({ proteinPerKg: perKg, lastSeenAt: Timestamp.now() });
+    const current = this._profile();
+    if (current) this._profile.set({ ...current, proteinPerKg: perKg } as Profile);
   }
 
   /** Toggle weekly-digest opt-in. Refreshes `timezoneOffsetMin` so the

@@ -135,6 +135,11 @@ export class InMemoryLedgerAdapter implements LedgerPort {
     this.patchProfile({ unitSystem: system });
   }
 
+  async setProteinPerKg(gPerKg: number): Promise<void> {
+    const clamped = Math.min(2.2, Math.max(1.6, gPerKg));
+    this.patchProfile({ proteinPerKg: clamped });
+  }
+
   async hideRecentLabel(label: string): Promise<void> {
     const norm = label.trim().toLowerCase();
     if (!norm) return;

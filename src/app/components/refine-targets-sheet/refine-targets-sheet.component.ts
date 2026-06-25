@@ -13,6 +13,13 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { FirebaseService, ActivityLevel, CutPace, Sex } from '../../services/firebase.service';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { TdeeCalculatorService } from '../../services/tdee-calculator.service';
+import {
+  computeProtein,
+  clampProteinPerKg,
+  DEFAULT_PROTEIN_G_PER_KG,
+  PROTEIN_G_PER_KG_MIN,
+  PROTEIN_G_PER_KG_MAX,
+} from '../../utils/macro-heuristic';
 import { TranslationService } from '../../services/translation.service';
 import { UiSheet } from '../ui/sheet.component';
 import { UiButton } from '../ui/button.component';
@@ -150,6 +157,38 @@ import { UiButton } from '../ui/button.component';
             </div>
           </div>
 
+          <!-- Protein basis (g/kg) -->
+          <div>
+            <span class="v2-caption block mb-1.5"
+              style="text-transform: uppercase; letter-spacing: 0.08em;">
+              {{ t('v2.refineTargets.protein') }}
+            </span>
+            <div class="flex items-center gap-3">
+              <button
+                type="button"
+                class="v2-card border-2 font-mono"
+                style="border-color: var(--v2-rule); min-width: 44px; min-height: 44px;"
+                [attr.aria-label]="t('v2.refineTargets.proteinDec')"
+                [disabled]="proteinPerKg() <= proteinMin"
+                (click)="stepProtein(-0.1)">−</button>
+              <div class="text-center" style="flex: 1;">
+                <span class="v2-h3 font-mono">{{ proteinPerKg().toFixed(1) }}</span>
+                <span class="v2-caption"> g/kg</span>
+                @if (proteinGrams() != null) {
+                  <div class="v2-caption">≈ {{ proteinGrams() }}{{ t('v2.refineTargets.gramSuffix') }}</div>
+                }
+              </div>
+              <button
+                type="button"
+                class="v2-card border-2 font-mono"
+                style="border-color: var(--v2-rule); min-width: 44px; min-height: 44px;"
+                [attr.aria-label]="t('v2.refineTargets.proteinInc')"
+                [disabled]="proteinPerKg() >= proteinMax"
+                (click)="stepProtein(0.1)">+</button>
+            </div>
+            <p class="v2-caption" style="margin-top: 4px;">{{ t('v2.refineTargets.proteinHint') }}</p>
+          </div>
+
           <!-- Preview kcal target -->
           @if (previewKcal() != null) {
             <div class="v2-card flex items-center justify-between p-3" style="background: var(--v2-paper-2);">
@@ -212,8 +251,23 @@ export class UiRefineTargetsSheet {
   protected readonly heightInExtra = signal<number | null>(null);
   protected readonly activity = signal<ActivityLevel | null>(null);
   protected readonly pace = signal<CutPace | null>(null);
+  protected readonly proteinPerKg = signal<number>(DEFAULT_PROTEIN_G_PER_KG);
   protected readonly saving = signal(false);
   protected readonly saveError = signal<string | null>(null);
+
+  protected readonly proteinMin = PROTEIN_G_PER_KG_MIN;
+  protected readonly proteinMax = PROTEIN_G_PER_KG_MAX;
+
+  /** Live preview of the resulting protein target in grams off current weight. */
+  protected readonly proteinGrams = computed(() => {
+    const w = this.store.currentWeight() ?? this.fb.profile()?.targetWeightLbs ?? null;
+    return w == null ? null : computeProtein(w, this.proteinPerKg());
+  });
+
+  protected stepProtein(delta: number): void {
+    // Round to one decimal to avoid float drift (1.6 + 0.1 = 1.7000…1).
+    this.proteinPerKg.set(clampProteinPerKg(Math.round((this.proteinPerKg() + delta) * 10) / 10));
+  }
 
   protected readonly heightIn = computed(() => {
     const ft = this.heightFt();
@@ -273,6 +327,7 @@ export class UiRefineTargetsSheet {
       }
       this.activity.set((p?.activityLevel as ActivityLevel | undefined) ?? null);
       this.pace.set((p?.targetPaceLbsPerWeek as CutPace | undefined) ?? null);
+      this.proteinPerKg.set(p?.proteinPerKg ?? DEFAULT_PROTEIN_G_PER_KG);
       this.saving.set(false);
       this.saveError.set(null);
     });
@@ -309,6 +364,7 @@ export class UiRefineTargetsSheet {
         sex: this.sex()!,
         activityLevel: this.activity()!,
         targetPaceLbsPerWeek: this.pace()!,
+        proteinPerKg: this.proteinPerKg(),
       });
       this.saved.emit();
       this.close.emit();

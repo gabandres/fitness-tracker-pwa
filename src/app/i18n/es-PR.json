@@ -282,6 +282,13 @@
       "metricDesc": "Gramos primero, luego medidas caseras.",
       "saveError": "No se pudo guardar tu preferencia. Inténtalo de nuevo."
     },
+    "protein": {
+      "section": "meta de proteína",
+      "desc": "Gramos por kg de peso corporal. 1.6 es el mínimo para retener músculo en un déficit; los que entrenan duro suelen usar 1.8–2.2.",
+      "dec": "Bajar proteína por kg",
+      "inc": "Subir proteína por kg",
+      "saveError": "No se pudo guardar. Verifica tu conexión e intenta de nuevo."
+    },
     "data": {
       "section": "datos",
       "webhook": "webhook de apple shortcuts",
@@ -1355,6 +1362,11 @@
       "actVeryActiveBlurb": "Entrenamiento intenso diario o trabajo físico.",
       "pace": "Ritmo",
       "lbWeek": "lb/sem",
+      "protein": "Proteína (g/kg)",
+      "proteinHint": "1.6 es el mínimo para retener músculo en un déficit; los que entrenan duro suelen usar 1.8–2.2.",
+      "proteinDec": "Bajar proteína por kg",
+      "proteinInc": "Subir proteína por kg",
+      "gramSuffix": "g",
       "previewLabel": "Kcal nuevas al día",
       "save": "Guardar metas",
       "saving": "Guardando…",

@@ -10,6 +10,7 @@ import {
 } from './firebase.service';
 import { TdeeCalculatorService, TdeeResult, WeeklySummary, WeeklyEnvelope } from './tdee-calculator.service';
 import { addDays, localDateKey } from '../utils/date';
+import { computeProtein } from '../utils/macro-heuristic';
 import { summarizeDay } from '../utils/day-summary';
 import { SubscriptionService } from './subscription.service';
 import { BodyMetricStore } from './body-metric-store.service';
@@ -252,13 +253,22 @@ export class FitnessStore {
   });
 
   readonly targetCalories: Signal<number> = computed(() => {
-    // v2 onboarding override: when the user has set a manual kcal target
-    // (heuristic-based, weight × {11/14/17}), it takes precedence over
-    // the Mifflin-St Jeor TDEE chain. Lets the 2-question onboarding
-    // produce usable numbers without the full profile.
+    const tdee = this.tdee();
+    // Once the user has enough real history (≥14 logged days) for a
+    // *reliable* measured TDEE, the empirically-derived target (true TDEE
+    // minus the chosen deficit) beats the static onboarding formula
+    // estimate — even if the user never ran the Day-3 "Refine targets"
+    // sheet that would otherwise clear the manual override. Reliability
+    // (≥70% logging completeness + ≥10 intake days) guards against a thin
+    // dataset whipping the target around.
+    if (tdee.source === 'measured' && tdee.reliable) return tdee.newDailyTarget;
+
+    // Pre-data: the v2 onboarding heuristic (weight × {11/14/17}) takes
+    // precedence over the Mifflin-St Jeor chain so the 2-question
+    // onboarding produces usable numbers without the full profile.
     const manual = this.fb.profile()?.manualCaloriesTarget;
     if (manual != null && manual > 0) return manual;
-    return this.tdee().newDailyTarget;
+    return tdee.newDailyTarget;
   });
 
   /**
@@ -292,21 +302,25 @@ export class FitnessStore {
     return null;
   });
 
-  /** Evidence-based protein target: 0.75g/lb (midpoint of 0.7–0.8 range).
-   *  v2 override: when the user has set a manual protein target via the
-   *  2-question onboarding (heuristic = weight × {1.0/0.9/0.8} by goal),
-   *  prefer that. Falls back to weight-derived 0.75g/lb otherwise. */
+  /** Protein target on the evidence-based g/kg standard. Precedence:
+   *   1. proteinPerKg — a personal g/kg basis (1.6–2.2) the user has dialed
+   *      in; recomputed LIVE off current weight so it tracks a cut.
+   *   2. manualProteinTarget — the frozen grams snapshot from onboarding.
+   *   3. computeProtein(weight) — the 1.6 g/kg default (muscle-retention
+   *      floor), used once the onboarding snapshot is cleared (e.g. refine). */
   readonly proteinTarget: Signal<number> = computed(() => {
+    const perKg = this.fb.profile()?.proteinPerKg;
+    const w = this.currentWeight();
+    if (perKg != null && perKg > 0 && w) return computeProtein(w, perKg);
     const manual = this.fb.profile()?.manualProteinTarget;
     if (manual != null && manual > 0) return manual;
-    const w = this.currentWeight();
-    return w ? Math.round(w * 0.75) : 0;
+    return w ? computeProtein(w) : 0;
   });
 
-  /** Minimum adequate protein: 0.7g/lb (lower bound of evidence-based range). */
+  /** Minimum adequate protein: the 1.6 g/kg muscle-retention floor. */
   readonly proteinMinTarget: Signal<number> = computed(() => {
     const w = this.currentWeight();
-    return w ? Math.round(w * 0.70) : 0;
+    return w ? computeProtein(w) : 0;
   });
 
   /** Visible chart history. Free tier is windowed to the last

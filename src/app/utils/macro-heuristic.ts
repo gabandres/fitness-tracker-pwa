@@ -31,6 +31,11 @@ export const DEFAULT_PROTEIN_G_PER_KG = 1.6;
 export const PROTEIN_G_PER_KG_MIN = 1.6;
 export const PROTEIN_G_PER_KG_MAX = 2.2;
 
+/** Clamp a user-supplied g/kg basis into the allowed [1.6, 2.2] band. */
+export function clampProteinPerKg(gPerKg: number): number {
+  return Math.min(PROTEIN_G_PER_KG_MAX, Math.max(PROTEIN_G_PER_KG_MIN, gPerKg));
+}
+
 export const WEIGHT_MIN_LB = 60;
 export const WEIGHT_MAX_LB = 700;
 
@@ -47,7 +52,7 @@ export function computeProtein(
   weightLb: number,
   gPerKg: number = DEFAULT_PROTEIN_G_PER_KG,
 ): number {
-  const clamped = Math.min(PROTEIN_G_PER_KG_MAX, Math.max(PROTEIN_G_PER_KG_MIN, gPerKg));
+  const clamped = clampProteinPerKg(gPerKg);
   const kg = weightLb / LB_PER_KG;
   return Math.round((kg * clamped) / 5) * 5;
 }

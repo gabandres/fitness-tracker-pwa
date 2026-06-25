@@ -232,6 +232,8 @@ service cloud.firestore {
               // goal direction + onboarding stamp.
               'goalDirection', 'targetWeightLbs',
               'manualCaloriesTarget', 'manualProteinTarget',
+              // Personal protein basis (g/kg), dialed in settings / refine.
+              'proteinPerKg',
               'onboardingV2CompletedAt',
               // Day-3 "Refine targets" stamp.
               'targetsRefinedAt',
@@ -286,6 +288,8 @@ service cloud.firestore {
               (data.manualCaloriesTarget is number && data.manualCaloriesTarget > 0 && data.manualCaloriesTarget < 20000))
           && (!('manualProteinTarget' in data.keys()) ||
               (data.manualProteinTarget is number && data.manualProteinTarget > 0 && data.manualProteinTarget < 1000))
+          && (!('proteinPerKg' in data.keys()) ||
+              (data.proteinPerKg is number && data.proteinPerKg >= 1.6 && data.proteinPerKg <= 2.2))
           && (!('onboardingV2CompletedAt' in data.keys()) ||
               data.onboardingV2CompletedAt is timestamp)
           && (!('targetsRefinedAt' in data.keys()) ||
