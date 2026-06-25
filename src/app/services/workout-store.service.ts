@@ -11,6 +11,7 @@ import {
   TemplateLimitError,
   WorkoutSession,
   WorkoutTemplate,
+  dropEmptySets,
 } from '../models/workout';
 import { findSeedExercise, type SeedTemplate } from '../models/workout-seed';
 
@@ -233,7 +234,16 @@ export class WorkoutStore {
    * and refreshes the recent list.
    */
   async completeSession(id: string, patch: Partial<SessionDraft> = {}): Promise<void> {
-    await this.fb.updateSession(id, { ...patch, status: 'completed' });
+    // Strip unfilled cluster-scaffold sets before the session is frozen as
+    // `completed`: the template's `plannedSets` pre-create the full cluster
+    // structure (activation + mini rows) up front, and any cluster the user
+    // didn't complete would otherwise persist as blank rows. Only the
+    // finished doc is cleaned — the live autosave path (`updateSession`)
+    // keeps the scaffold so in-progress rows stay editable.
+    const cleaned = patch.exercises
+      ? { ...patch, exercises: dropEmptySets(patch.exercises) }
+      : patch;
+    await this.fb.updateSession(id, { ...cleaned, status: 'completed' });
     this._activeSession.set(await this.fb.getActiveSession());
     this._recentSessions.set(await this.fb.getRecentSessions());
   }

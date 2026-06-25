@@ -124,6 +124,21 @@ export interface WorkoutSet {
   done?: boolean;
 }
 
+/** A set carries logged data only if it has a load, reps, or a duration.
+ *  Cluster scaffolding (an activation + mini rows pre-created from the
+ *  template's `plannedSets`) that the user never filled in has none of
+ *  these — just a `kind`/`group`. Such rows must not be persisted on
+ *  finish or included in exports. `rir`/`done` alone don't count as data. */
+export function isLoggedSet(s: WorkoutSet): boolean {
+  return s.weight != null || s.reps != null || s.durationSec != null;
+}
+
+/** Drop unfilled scaffold sets from every exercise. Used at the finish/
+ *  export boundary so empty cluster rows never reach the DB or a CSV. */
+export function dropEmptySets(exercises: SessionExercise[]): SessionExercise[] {
+  return exercises.map((ex) => ({ ...ex, sets: ex.sets.filter(isLoggedSet) }));
+}
+
 export interface SessionExercise {
   exerciseId: string;
   name: string; // snapshot

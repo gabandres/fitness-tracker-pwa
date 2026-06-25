@@ -1,5 +1,6 @@
 import type { DailyLog, Measurement } from '../services/firebase.service';
 import type { WorkoutSession } from '../models/workout';
+import { isLoggedSet } from '../models/workout';
 import { localDateKey } from './date';
 
 const COLS = [
@@ -100,7 +101,9 @@ export function buildCsv(data: ExportData): string {
       sleepHours: s.sleepHours,
     }));
     for (const ex of s.exercises) {
-      for (const set of ex.sets) {
+      // Skip unfilled cluster-scaffold rows (no weight/reps/duration) so
+      // already-saved sessions with phantom empty sets export cleanly too.
+      for (const set of ex.sets.filter(isLoggedSet)) {
         rows.push(row({
           type: 'workout_set',
           date,
