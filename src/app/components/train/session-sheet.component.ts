@@ -70,7 +70,7 @@ const SAVE_DEBOUNCE_MS = 800;
         @for (ex of draft(); track ex.exerciseId; let exIdx = $index) {
           <section class="mb-5">
             <div class="flex items-baseline justify-between gap-2">
-              <h3 class="v2-h3" style="font-weight: 600;">{{ ex.name }}</h3>
+              <h3 class="v2-h3">{{ ex.name }}</h3>
               @if (ghostText(ex); as g) {
                 <span class="v2-caption" style="color: var(--v2-ink-muted); font-size: 0.75rem;">{{ g }}</span>
               }

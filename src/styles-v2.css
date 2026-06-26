@@ -417,14 +417,22 @@
 }
 
 /* ── Typography helpers ─────────────────────────────────────── */
+/* ── One fluid type scale, shared by every surface ──────────────
+   Single source for heading sizes. The clamp() sizing (formerly scoped
+   to app-train only) now lives on the base tokens, so all four tabs —
+   and every sheet/card — render the same responsive scale: shrink
+   gracefully on small phones, breathe up to full size on wide screens.
+   No per-component overrides; change a rank here and the whole app
+   moves with it. */
 [data-ui="v2"] .v2-h1 {
   font-family: var(--v2-font-sans);
-  font-size: 2.25rem; line-height: 1.15; font-weight: 600;
+  font-size: clamp(1.75rem, 1.45rem + 1.5vw, 2.25rem);
+  line-height: 1.15; font-weight: 600;
   letter-spacing: -0.02em; color: var(--v2-ink);
 }
-/* Editorial hero variant — Instrument Serif italic warms up the
-   landing + today h1 only. Geist stays everywhere else for precision.
-   Pattern follows Headspace / Calm / Strava — sans body, serif heart. */
+/* Editorial hero variant — Instrument Serif italic. Reserved for the
+   marketing landing hero only; the in-app tabs (incl. today) use the
+   plain Geist .v2-h1 so all four tab titles match. */
 [data-ui="v2"] .v2-h1--hero {
   font-family: "Instrument Serif", "Geist", system-ui, serif;
   font-weight: 400;
@@ -432,31 +440,26 @@
   letter-spacing: -0.015em;
 }
 [data-ui="v2"] .v2-h2 {
-  font-size: 1.5rem; line-height: 1.25; font-weight: 600;
+  font-size: clamp(1.25rem, 1.08rem + 0.85vw, 1.5rem);
+  line-height: 1.25; font-weight: 600;
   letter-spacing: -0.015em; color: var(--v2-ink);
 }
 [data-ui="v2"] .v2-h3 {
-  font-size: 1.1875rem; line-height: 1.35; font-weight: 600;
+  font-size: clamp(1.0625rem, 0.99rem + 0.4vw, 1.1875rem);
+  line-height: 1.35; font-weight: 600;
   letter-spacing: -0.01em; color: var(--v2-ink);
 }
 [data-ui="v2"] .v2-body { font-size: 1.0625rem; line-height: 1.6; color: var(--v2-ink); }
 [data-ui="v2"] .v2-body-soft { font-size: 1.0625rem; line-height: 1.6; color: var(--v2-ink-soft); }
-[data-ui="v2"] .v2-caption { font-size: 0.8125rem; line-height: 1.4; color: var(--v2-ink-muted); }
+[data-ui="v2"] .v2-caption { font-size: clamp(0.75rem, 0.71rem + 0.2vw, 0.8125rem); line-height: 1.45; color: var(--v2-ink-muted); }
 [data-ui="v2"] .v2-num {
   font-family: var(--v2-font-mono);
   font-feature-settings: "tnum" 1, "zero" 1;
   letter-spacing: -0.01em;
 }
 
-/* ── Train tab: fluid typography ─────────────────────────────────
-   The Train surface packs long names (exercise/template titles, recent
-   sessions) into narrow rows. Scope clamp() font-sizing here so headings
-   and labels shrink gracefully on small phones instead of cramping/
-   wrapping, and breathe up to full size on wider screens. */
-[data-ui="v2"] app-train .v2-h1 { font-size: clamp(1.75rem, 1.45rem + 1.5vw, 2.25rem); }
-[data-ui="v2"] app-train .v2-h2 { font-size: clamp(1.25rem, 1.08rem + 0.85vw, 1.5rem); }
-[data-ui="v2"] app-train .v2-h3 { font-size: clamp(1.0625rem, 0.99rem + 0.4vw, 1.1875rem); }
-[data-ui="v2"] app-train .v2-caption { font-size: clamp(0.75rem, 0.71rem + 0.2vw, 0.8125rem); line-height: 1.45; }
+/* (Train's fluid-typography scope was folded into the base type scale
+   above — every surface now shares one responsive scale.) */
 /* Template cards carry their own inner padding (the ui-card host doesn't
    pick up .v2-card padding), so the selected fill has room to breathe and
    selecting doesn't shift layout. */

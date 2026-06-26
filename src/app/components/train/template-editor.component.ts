@@ -82,7 +82,7 @@ interface EditExercise {
       </div>
 
       <!-- Exercises -->
-      <h3 class="v2-h3 mb-2" style="font-weight: 600;">{{ t('train.exercisesSection') }}</h3>
+      <h3 class="v2-h3 mb-2">{{ t('train.exercisesSection') }}</h3>
       @for (ex of exercises(); track $index; let exIdx = $index) {
         <div class="v2-card v2-card--flat px-3 py-3 mb-2">
           <div class="flex items-center justify-between gap-2 mb-2">

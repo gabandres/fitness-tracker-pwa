@@ -112,7 +112,7 @@ import { suggestProgression } from '../../utils/workout-progression';
                         [attr.aria-pressed]="selectedTemplate()?.id === tpl.id"
                         [attr.aria-expanded]="selectedTemplate()?.id === tpl.id" (click)="select(tpl)">
                   <div class="flex items-center gap-1.5">
-                    <h3 class="v2-h3" style="font-weight: 600;">{{ tpl.name }}</h3>
+                    <h3 class="v2-h3">{{ tpl.name }}</h3>
                     <lucide-icon [name]="selectedTemplate()?.id === tpl.id ? 'chevron-down' : 'chevron-right'" [size]="16"
                                  [style.color]="selectedTemplate()?.id === tpl.id ? 'var(--v2-accent)' : 'var(--v2-ink-muted)'" />
                   </div>
@@ -199,7 +199,7 @@ import { suggestProgression } from '../../utils/workout-progression';
               <ui-card variant="flat" class="block">
                 <div class="flex items-center justify-between gap-3">
                   <div>
-                    <h3 class="v2-h3" style="font-weight: 600;">{{ seed.name }}</h3>
+                    <h3 class="v2-h3">{{ seed.name }}</h3>
                     <p class="v2-caption mt-0.5">{{ t('train.exerciseCount', { count: seed.exercises.length }) }}</p>
                   </div>
                   <lucide-icon name="chevron-right" [size]="18" />

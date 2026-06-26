@@ -113,7 +113,7 @@ interface SessionPoint {
         }
 
         <!-- Set history table -->
-        <h3 class="v2-h3 mt-5 mb-2" style="font-weight: 600;">{{ t('train.setHistory') }}</h3>
+        <h3 class="v2-h3 mt-5 mb-2">{{ t('train.setHistory') }}</h3>
         <div class="grid gap-2">
           @for (p of pointsDesc(); track p.date.getTime()) {
             <div class="py-2 border-b" style="border-color: var(--v2-rule);">
