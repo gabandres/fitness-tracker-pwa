@@ -40,7 +40,7 @@ import { CHART_HISTORY_DAYS_FREE } from '../../models/tier-limits';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-    <section class="max-w-[640px] mx-auto pb-32 md:pb-28">
+    <section class="max-w-[640px] mx-auto">
       <!-- Top bar -->
       <header class="flex items-center justify-between gap-3 pt-2 pb-4">
         <ui-icon-button

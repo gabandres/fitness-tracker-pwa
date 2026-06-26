@@ -54,7 +54,7 @@ import { bcp47ForLang } from '../../utils/locale';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-    <section class="max-w-[640px] mx-auto pb-32 md:pb-28">
+    <section class="max-w-[640px] mx-auto">
       <!-- Header -->
       <header class="flex items-start justify-between gap-4 pt-2 pb-2">
         <div>
@@ -214,14 +214,29 @@ import { bcp47ForLang } from '../../utils/locale';
         <app-consultation />
 
         <div class="mt-6 pt-5" style="border-top: 1px solid var(--v2-border);">
-          <h3 class="card-title mb-3 inline-flex items-center gap-2">
-            {{ t('trends.coachReport') }}
-            @if (!subs.isPaid()) {
-              <span class="v2-caption inline-flex items-center gap-1" style="color: var(--v2-accent); font-weight: 600;">
-                <lucide-icon name="sparkles" [size]="12" /> Pro
-              </span>
-            }
-          </h3>
+          <button type="button"
+            class="flex items-center justify-between gap-3 w-full"
+            style="background: none; border: none; padding: 0; cursor: pointer; min-height: var(--v2-tap-min);"
+            [attr.aria-expanded]="reportExpanded()"
+            aria-controls="weekly-report-panel"
+            (click)="reportExpanded.set(!reportExpanded())">
+            <h3 class="card-title inline-flex items-center gap-2">
+              {{ t('trends.coachReport') }}
+              @if (!subs.isPaid()) {
+                <span class="v2-caption inline-flex items-center gap-1" style="color: var(--v2-accent); font-weight: 600;">
+                  <lucide-icon name="sparkles" [size]="12" /> Pro
+                </span>
+              }
+            </h3>
+            <lucide-icon
+              name="chevron-down"
+              [size]="20"
+              [style.transform]="reportExpanded() ? 'rotate(180deg)' : 'rotate(0deg)'"
+              style="transition: transform 200ms var(--v2-ease); color: var(--v2-ink-muted)" />
+          </button>
+
+          @if (reportExpanded()) {
+          <div id="weekly-report-panel" class="mt-3">
           @if (reportHtml(); as html) {
             <div class="v2-prose" [innerHTML]="html"></div>
             <p class="v2-caption mt-3">{{ reportAge() }}</p>
@@ -260,6 +275,8 @@ import { bcp47ForLang } from '../../utils/locale';
               <lucide-icon name="sparkles" [size]="14" />
               {{ t('v2.trends.generateThisWeek') }}
             </ui-button>
+          }
+          </div>
           }
         </div>
       </ui-card>
@@ -316,6 +333,9 @@ export class TrendsComponent {
 
   /** Weekly panel view toggle: rule-based insights vs calorie banking. */
   protected readonly panelView = signal<'insights' | 'budget'>('insights');
+  /** Weekly AI report is collapsed by default — it's long and Pro/on-demand,
+   *  so it shouldn't dominate the tab until the user opens it. */
+  protected readonly reportExpanded = signal(false);
   /** Days in the last 7 with at least one log. Used to gate the
    *  "Generate this week's readout" affordance — Pro users with under
    *  3 logged days get a hint instead of a button. v1 measured all-time

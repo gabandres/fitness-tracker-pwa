@@ -44,7 +44,7 @@ const DEFAULT_SKIP_PROTEIN = 120;
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-    <section class="max-w-[520px] mx-auto px-5 sm:px-6 pt-10 pb-16 min-h-screen flex flex-col">
+    <section class="max-w-[520px] mx-auto px-5 sm:px-6 py-10 min-h-screen flex flex-col justify-center">
       <header class="mb-8">
         <p class="v2-caption" style="color: var(--v2-accent);">
           {{ stepLabel() }}
@@ -53,7 +53,7 @@ const DEFAULT_SKIP_PROTEIN = 120;
       </header>
 
       @if (step() === 'weight') {
-        <form (submit)="submitWeight($event)" class="flex flex-col gap-4 grow">
+        <form (submit)="submitWeight($event)" class="flex flex-col gap-4">
           <div>
             <label for="ob-weight" class="v2-caption block mb-2">
               {{ t('v2.onboarding.weightLabel') }}
@@ -95,7 +95,7 @@ const DEFAULT_SKIP_PROTEIN = 120;
       }
 
       @if (step() === 'goal') {
-        <div class="flex flex-col gap-3 grow">
+        <div class="flex flex-col gap-3">
           @for (opt of goalOptions; track opt.value) {
             <button
               type="button"
@@ -119,7 +119,7 @@ const DEFAULT_SKIP_PROTEIN = 120;
       }
 
       @if (step() === 'targetWeight') {
-        <form (submit)="submitTargetWeight($event)" class="flex flex-col gap-4 grow">
+        <form (submit)="submitTargetWeight($event)" class="flex flex-col gap-4">
           <div>
             <label for="ob-target" class="v2-caption block mb-2">
               {{ goal() === 'lose' ? t('v2.onboarding.targetLoseLabel') : t('v2.onboarding.targetGainLabel') }}
@@ -161,7 +161,7 @@ const DEFAULT_SKIP_PROTEIN = 120;
       }
 
       @if (step() === 'confirm') {
-        <div class="flex flex-col gap-4 grow">
+        <div class="flex flex-col gap-4">
           <p class="v2-body-soft">
             {{ t('v2.onboarding.confirmBody') }}
           </p>

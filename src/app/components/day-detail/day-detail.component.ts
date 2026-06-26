@@ -41,7 +41,7 @@ import { UiFastingPill } from '../ui/fasting-pill.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-    <section class="max-w-[640px] mx-auto pb-32 md:pb-28">
+    <section class="max-w-[640px] mx-auto">
       <header class="flex items-start justify-between gap-4 pt-2 pb-2">
         <div class="flex items-center gap-2 min-w-0">
           <ui-icon-button

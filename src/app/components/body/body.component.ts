@@ -4,6 +4,7 @@ import {
   OnDestroy,
   OnInit,
   computed,
+  effect,
   inject,
   output,
   signal,
@@ -67,7 +68,7 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-    <section class="max-w-[640px] mx-auto pb-32 md:pb-28">
+    <section class="max-w-[640px] mx-auto flex flex-col">
       <!-- Header -->
       <header class="flex items-start justify-between gap-4 pt-2 pb-2">
         <div>
@@ -140,18 +141,34 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
 
       </ui-card>
 
-      <!-- ── Fasting ─────────────────────────────────────────── -->
-      <ui-card variant="default" class="mt-4 block">
-        <div class="flex items-baseline justify-between gap-3">
-          <h2 class="section-title">{{ t('v2.body.fasting') }}</h2>
-          @if (fasting.isFasting()) {
-            <span class="v2-num" style="font-size: 0.8125rem; color: var(--v2-sage); font-weight: 600;">{{ t('v2.body.active') }}</span>
-          } @else {
-            <span class="v2-caption">{{ t('v2.body.idle') }}</span>
-          }
-        </div>
+      <!-- ── Fasting (collapsible, moved to the bottom — rarely used;
+           auto-expands while a fast is active so the timer stays visible.
+           order:1 floats it past the order:0 cards without a DOM move) -->
+      <ui-card variant="default" class="mt-4 block" style="order: 1;">
+        <button
+          type="button"
+          class="flex items-center justify-between gap-3 w-full"
+          style="background: none; border: none; padding: 0; cursor: pointer; min-height: var(--v2-tap-min);"
+          [attr.aria-expanded]="fastingExpanded()"
+          aria-controls="fasting-panel"
+          (click)="fastingExpanded.set(!fastingExpanded())">
+          <div class="flex items-baseline gap-3">
+            <h2 class="section-title">{{ t('v2.body.fasting') }}</h2>
+            @if (fasting.isFasting()) {
+              <span class="v2-num" style="font-size: 0.8125rem; color: var(--v2-sage); font-weight: 600;">{{ elapsedDisplay() }} · {{ t('v2.body.active') }}</span>
+            } @else {
+              <span class="v2-caption">{{ t('v2.body.idle') }}</span>
+            }
+          </div>
+          <lucide-icon
+            name="chevron-down"
+            [size]="20"
+            [style.transform]="fastingExpanded() ? 'rotate(180deg)' : 'rotate(0deg)'"
+            style="transition: transform 200ms var(--v2-ease); color: var(--v2-ink-muted)" />
+        </button>
 
-        <div class="mt-4 flex flex-col items-center">
+        @if (fastingExpanded()) {
+        <div id="fasting-panel" class="mt-4 flex flex-col items-center">
           <!-- Compact ring: 120px, fills clockwise to 16h target. -->
           <div class="relative" style="width: 120px; height: 120px;">
             <svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
@@ -257,6 +274,7 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
             }
           </div>
         </div>
+        }
       </ui-card>
 
       <!-- ── Measurements ────────────────────────────────────── -->
@@ -480,6 +498,12 @@ export class BodyComponent implements OnInit, OnDestroy {
   protected readonly weightSheetOpen = signal(false);
   protected readonly expanded = signal(false);
   protected readonly photosExpanded = signal(false);
+  protected readonly fastingExpanded = signal(false);
+  /** Auto-open the (otherwise collapsed) Fasting card whenever a fast is
+   *  active, so the running timer is never hidden behind the chevron. */
+  private readonly _autoExpandFast = effect(() => {
+    if (this.fasting.isFasting()) this.fastingExpanded.set(true);
+  });
   protected readonly formOpen = signal(false);
 
   // Inline fasting start-time editor — used both to backdate a new fast
