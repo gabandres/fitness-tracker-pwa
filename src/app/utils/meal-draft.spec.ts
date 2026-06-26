@@ -50,13 +50,26 @@ describe('parseMealDraft', () => {
     it('accepts calories as a string or a number', () => {
       expect(ok({ calories: '500' }).entry.calories).toBe(500);
       expect(ok({ calories: 500 }).entry.calories).toBe(500);
-      expect(ok({ calories: 0 }).entry.calories).toBe(0);
     });
 
-    it('maps the error to an i18n key', () => {
+    it('keeps a zero-calorie row when it carries a label or a macro', () => {
+      expect(ok({ calories: 0, mealLabel: 'Black coffee' }).entry.calories).toBe(0);
+      expect(ok({ calories: 0, protein: 5 }).entry.calories).toBe(0);
+    });
+
+    it('rejects an empty zero-calorie row with no label or macros', () => {
+      for (const raw of [{ calories: 0 }, { calories: '0' }, { calories: -5 }, { calories: 0, mealLabel: '   ' }] as const) {
+        const r = parseMealDraft(raw);
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.error).toBe('empty-entry');
+      }
+    });
+
+    it('maps the errors to i18n keys', () => {
       expect(MEAL_DRAFT_ERROR_MESSAGE_KEYS['calories-required']).toBe(
         'entry.errorCaloriesRequired',
       );
+      expect(MEAL_DRAFT_ERROR_MESSAGE_KEYS['empty-entry']).toBe('entry.errorEmptyEntry');
     });
   });
 

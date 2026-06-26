@@ -16,6 +16,8 @@
 // `Timestamp`. The `*Doc` shapes live in firebase.service.ts alongside
 // the other stored shapes.
 
+import { normalizeClusterGroups } from '../utils/cluster-groups';
+
 export type MuscleGroup =
   | 'chest'
   | 'back'
@@ -124,19 +126,27 @@ export interface WorkoutSet {
   done?: boolean;
 }
 
-/** A set carries logged data only if it has a load, reps, or a duration.
- *  Cluster scaffolding (an activation + mini rows pre-created from the
- *  template's `plannedSets`) that the user never filled in has none of
- *  these — just a `kind`/`group`. Such rows must not be persisted on
- *  finish or included in exports. `rir`/`done` alone don't count as data. */
-export function isLoggedSet(s: WorkoutSet): boolean {
-  return s.weight != null || s.reps != null || s.durationSec != null;
+/** A set counts as logged only if it carries the rep/duration count its
+ *  log style requires: a duration for `time` exercises, otherwise reps.
+ *  Weight alone is NOT enough — a half-filled row with a (often seeded)
+ *  load but no reps is exactly the blank-reps / phantom-cluster artifact
+ *  the exports surfaced, so it's treated as unlogged scaffold and dropped.
+ *  Cluster scaffolding (activation + mini rows pre-created from the
+ *  template's `plannedSets`) likewise has no count. `rir`/`done`/`weight`
+ *  alone don't count as data. */
+export function isLoggedSet(s: WorkoutSet, logStyle: LogStyle = DEFAULT_LOG_STYLE): boolean {
+  return logStyle === 'time' ? s.durationSec != null : s.reps != null;
 }
 
-/** Drop unfilled scaffold sets from every exercise. Used at the finish/
- *  export boundary so empty cluster rows never reach the DB or a CSV. */
+/** Drop unfilled scaffold sets from every exercise and re-derive cluster
+ *  `group` numbers on what remains, so the persisted/exported sets are both
+ *  free of blank rows and consistently numbered (no phantom-cluster gaps,
+ *  no cluster set missing its group). Used at the finish/export boundary. */
 export function dropEmptySets(exercises: SessionExercise[]): SessionExercise[] {
-  return exercises.map((ex) => ({ ...ex, sets: ex.sets.filter(isLoggedSet) }));
+  return exercises.map((ex) => {
+    const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
+    return { ...ex, sets: normalizeClusterGroups(ex.sets.filter((s) => isLoggedSet(s, style))) };
+  });
 }
 
 export interface SessionExercise {

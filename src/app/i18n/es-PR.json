@@ -620,6 +620,7 @@
   },
   "entry": {
     "errorCaloriesRequired": "Las calorías son requeridas.",
+    "errorEmptyEntry": "Pon calorías o una etiqueta antes de guardar.",
     "errorFailedToSave": "No se pudo guardar.",
     "errorFailedToDelete": "No se pudo eliminar.",
     "date": "fecha",
@@ -1279,6 +1280,8 @@
       "today": "Hoy",
       "weightLb": "Peso (lb) *",
       "weightRequired": "Pon un peso mayor que 0.",
+      "weightOutOfRange": "Pon un peso entre {{min}} y {{max}} lb.",
+      "weightDeltaConfirm": "Eso es un cambio de {{delta}} lb desde tu última entrada. ¿Guardar de todos modos?",
       "weightSaveError": "No se pudo guardar el peso.",
       "takePhoto": "Tomar foto",
       "takePhotoSoon": "Pronto",

@@ -47,9 +47,11 @@ export interface MealDraft {
   label?: string;
 }
 
-/** Why a raw input could not become a draft. Extend as rules grow; today
- *  only calories are mandatory. */
-export type MealDraftError = 'calories-required';
+/** Why a raw input could not become a draft. Extend as rules grow.
+ *  `calories-required` — no parseable calorie number at all.
+ *  `empty-entry` — a zero-calorie row with no label and no macros, i.e.
+ *  nothing was actually logged; persisting it produces a blank diary row. */
+export type MealDraftError = 'calories-required' | 'empty-entry';
 
 export type MealDraftResult =
   | { ok: true; draft: MealDraft }
@@ -58,6 +60,7 @@ export type MealDraftResult =
 /** i18n key per error, so callers translate without re-encoding the rule. */
 export const MEAL_DRAFT_ERROR_MESSAGE_KEYS: Record<MealDraftError, string> = {
   'calories-required': 'entry.errorCaloriesRequired',
+  'empty-entry': 'entry.errorEmptyEntry',
 };
 
 /**
@@ -145,6 +148,14 @@ export function parseMealDraft(raw: RawMealInput): MealDraftResult {
 
   const label = resolveLabel(raw.mealLabel, raw.activePresetName);
   if (label) entry.mealLabel = label;
+
+  // Reject a row that carries no signal at all: zero/absent calories, no
+  // label, and no macros. Such an entry persists as a blank diary line and
+  // pollutes day rollups, so it never becomes a draft. A labelled or
+  // macro-bearing zero-calorie row (e.g. "black coffee") is still allowed.
+  if (calories <= 0 && !label && protein == null && carbs == null && fat == null) {
+    return { ok: false, error: 'empty-entry' };
+  }
 
   const mealType = parseMealType(raw.mealType);
   if (mealType) entry.mealType = mealType;

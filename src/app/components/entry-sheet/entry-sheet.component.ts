@@ -443,10 +443,14 @@ export class EntrySheetComponent {
   protected save(e: Event): void {
     e.preventDefault();
     // Gate on the same parser submit() uses, so the inline kcal-error
-    // visual and the actual save can never disagree on what's valid.
-    if (!this.form.currentDraft().ok) {
-      this.kcalError.set(true);
+    // visual and the actual save can never disagree on what's valid. The
+    // red kcal border is reserved for the calories-required case; other
+    // rejections (e.g. an empty entry) surface via form.errorMsg().
+    const result = this.form.currentDraft();
+    if (!result.ok) {
+      this.kcalError.set(result.error === 'calories-required');
       this.haptic(50);
+      void this.form.submit(); // populates errorMsg with the specific reason
       return;
     }
     this.kcalError.set(false);

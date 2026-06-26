@@ -1,6 +1,7 @@
 import { Injectable, Signal, computed, inject, signal } from '@angular/core';
 import { LEDGER_PORT } from '../ledger/ports/ledger.port';
 import { Measurement } from './firebase.service';
+import { isStorableWeight, WEIGHT_ABS_MIN_LB, WEIGHT_ABS_MAX_LB } from '../utils/weight-validation';
 
 /**
  * Owns body-metric state: daily weights map, daily water map, and the
@@ -48,7 +49,16 @@ export class BodyMetricStore {
     this._dailyWater.set({});
   }
 
+  /** Absolute sanity backstop on every write path (manual log, CSV import,
+   *  workout-finish mirror): an out-of-range weight is corrupt data that
+   *  would skew the measured-TDEE regression, so it's rejected here rather
+   *  than persisted. The UI enforces a tighter range + delta confirm. */
   async setDailyWeight(dateKey: string, weight: number): Promise<void> {
+    if (!isStorableWeight(weight)) {
+      throw new RangeError(
+        `Weight ${weight} lb is outside the storable range ${WEIGHT_ABS_MIN_LB}-${WEIGHT_ABS_MAX_LB} lb.`,
+      );
+    }
     await this.fb.setDailyWeight(dateKey, weight);
     this._dailyWeights.update((prev) => ({ ...prev, [dateKey]: weight }));
   }

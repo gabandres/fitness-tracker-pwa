@@ -14,6 +14,7 @@ import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { TranslationService } from '../../services/translation.service';
 import { localDateKey } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
+import { checkWeightEntry, WEIGHT_MIN_LB, WEIGHT_MAX_LB } from '../../utils/weight-validation';
 import { UiSheet } from './sheet.component';
 import { UiButton } from './button.component';
 
@@ -130,6 +131,19 @@ export class UiWeightSheet {
     });
   }
 
+  /** The most recent logged weight on a day other than the one being
+   *  edited — the baseline the day-over-day delta check compares against.
+   *  Null when there's no other entry yet (first weigh-in). */
+  private previousWeight(): number | null {
+    const target = this.dateKey();
+    const weights = this.store.dailyWeights();
+    const priorKey = Object.keys(weights)
+      .filter((k) => k !== target)
+      .sort()
+      .at(-1);
+    return priorKey ? weights[priorKey] : null;
+  }
+
   protected onInput(e: Event): void {
     const v = (e.target as HTMLInputElement).value;
     if (v === '') {
@@ -148,6 +162,22 @@ export class UiWeightSheet {
       this.error.set(this.translation.t('v2.weightSheet.weightRequired'));
       this.haptic(50);
       return;
+    }
+    // Guard the OLS-fed weight series against typos: hard-reject implausible
+    // values, confirm-prompt a suspiciously large day-over-day jump.
+    const check = checkWeightEntry(w, this.previousWeight());
+    if (!check.ok) {
+      if (check.reason === 'out-of-range') {
+        this.error.set(this.translation.t('v2.weightSheet.weightOutOfRange', { min: WEIGHT_MIN_LB, max: WEIGHT_MAX_LB }));
+        this.haptic(50);
+        return;
+      }
+      // large-delta: let the user confirm an intentional big swing.
+      const ok = confirm(this.translation.t('v2.weightSheet.weightDeltaConfirm', { delta: check.deltaLb }));
+      if (!ok) {
+        this.haptic(50);
+        return;
+      }
     }
     this.haptic(30);
     this.saving.set(true);

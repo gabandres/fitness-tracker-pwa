@@ -1,6 +1,7 @@
 import type { DailyLog, Measurement } from '../services/firebase.service';
 import type { WorkoutSession } from '../models/workout';
 import { isLoggedSet } from '../models/workout';
+import { normalizeClusterGroups } from './cluster-groups';
 import { localDateKey } from './date';
 
 const COLS = [
@@ -101,9 +102,12 @@ export function buildCsv(data: ExportData): string {
       sleepHours: s.sleepHours,
     }));
     for (const ex of s.exercises) {
-      // Skip unfilled cluster-scaffold rows (no weight/reps/duration) so
-      // already-saved sessions with phantom empty sets export cleanly too.
-      for (const set of ex.sets.filter(isLoggedSet)) {
+      // Drop unfilled scaffold rows (no rep/duration count — phantom
+      // clusters and blank-reps sets) and re-derive cluster groups on what
+      // survives, so already-saved sessions export cleanly: no blank rows,
+      // and every exported cluster set carries its group.
+      const logged = ex.sets.filter((set) => isLoggedSet(set, ex.logStyle));
+      for (const set of normalizeClusterGroups(logged)) {
         rows.push(row({
           type: 'workout_set',
           date,

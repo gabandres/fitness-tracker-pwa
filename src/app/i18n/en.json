@@ -620,6 +620,7 @@
   },
   "entry": {
     "errorCaloriesRequired": "Calories are required.",
+    "errorEmptyEntry": "Add calories or a label before saving.",
     "errorFailedToSave": "Failed to save.",
     "errorFailedToDelete": "Failed to delete.",
     "date": "date",
@@ -1279,6 +1280,8 @@
       "today": "Today",
       "weightLb": "Weight (lb) *",
       "weightRequired": "Enter a weight greater than 0.",
+      "weightOutOfRange": "Enter a weight between {{min}} and {{max}} lb.",
+      "weightDeltaConfirm": "That's a {{delta}} lb change from your last entry. Save it anyway?",
       "weightSaveError": "Could not save weight.",
       "takePhoto": "Take photo",
       "takePhotoSoon": "Soon",
