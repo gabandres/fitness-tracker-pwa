@@ -207,11 +207,12 @@ service cloud.firestore {
     }
 
     function hasValidPace(data) {
-      return data.targetPaceLbsPerWeek == 0
-          || data.targetPaceLbsPerWeek == 0.5
-          || data.targetPaceLbsPerWeek == 1.0
-          || data.targetPaceLbsPerWeek == 1.5
-          || data.targetPaceLbsPerWeek == 2.0;
+      // Continuous lb/week in [0, 2] (slider, 0.1 precision). Widened from
+      // the old discrete {0,0.5,1,1.5,2} set so a lean cut can sit at e.g.
+      // 0.9 lb/wk. Client clamps via clampCutPace; this is the server guard.
+      return data.targetPaceLbsPerWeek is number
+          && data.targetPaceLbsPerWeek >= 0
+          && data.targetPaceLbsPerWeek <= 2;
     }
 
     function hasValidGoalDirection(data) {

@@ -197,6 +197,26 @@
 .v2-icon-btn:focus-visible { outline: 2px solid var(--v2-accent); outline-offset: 2px; }
 .v2-icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+/* ── Range slider (pace, etc.) ──────────────────────────────── */
+[data-ui="v2"] .v2-range {
+  -webkit-appearance: none; appearance: none;
+  height: 6px; border-radius: 999px;
+  background: var(--v2-paper-3);
+  outline: none; cursor: pointer; margin: 10px 0;
+  touch-action: pan-y; /* vertical scroll still works; horizontal drag = slider */
+}
+[data-ui="v2"] .v2-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 24px; height: 24px; border-radius: 999px;
+  background: var(--v2-accent); border: 2px solid var(--v2-paper);
+  box-shadow: var(--v2-shadow-1, 0 1px 3px rgba(0,0,0,0.2));
+}
+[data-ui="v2"] .v2-range::-moz-range-thumb {
+  width: 24px; height: 24px; border-radius: 999px;
+  background: var(--v2-accent); border: 2px solid var(--v2-paper);
+}
+[data-ui="v2"] .v2-range:focus-visible { outline: 2px solid var(--v2-accent); outline-offset: 4px; }
+
 /* ── Card ───────────────────────────────────────────────────── */
 .v2-card {
   background: var(--v2-paper-2);
@@ -424,7 +444,14 @@
    gracefully on small phones, breathe up to full size on wide screens.
    No per-component overrides; change a rank here and the whole app
    moves with it. */
-[data-ui="v2"] .v2-h1 {
+/* Role-named type tokens (Candidate B). The name states the RANK a heading
+   plays — page-title / section-title / card-title — not its pixel size, so
+   the DOM heading level and the look can't drift apart (no more
+   `<h2 class="v2-h3">`). They share declarations with the size-named
+   `.v2-h*` aliases below so older surfaces still render identically while
+   call sites migrate. */
+[data-ui="v2"] .v2-h1,
+[data-ui="v2"] .page-title {
   font-family: var(--v2-font-sans);
   font-size: clamp(1.75rem, 1.45rem + 1.5vw, 2.25rem);
   line-height: 1.15; font-weight: 600;
@@ -439,12 +466,14 @@
   font-style: italic;
   letter-spacing: -0.015em;
 }
-[data-ui="v2"] .v2-h2 {
+[data-ui="v2"] .v2-h2,
+[data-ui="v2"] .section-title {
   font-size: clamp(1.25rem, 1.08rem + 0.85vw, 1.5rem);
   line-height: 1.25; font-weight: 600;
   letter-spacing: -0.015em; color: var(--v2-ink);
 }
-[data-ui="v2"] .v2-h3 {
+[data-ui="v2"] .v2-h3,
+[data-ui="v2"] .card-title {
   font-size: clamp(1.0625rem, 0.99rem + 0.4vw, 1.1875rem);
   line-height: 1.35; font-weight: 600;
   letter-spacing: -0.01em; color: var(--v2-ink);

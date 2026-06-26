@@ -139,7 +139,17 @@ export interface WorkoutSessionDoc {
 // ─── Profile types ──────────────────────────────────────────────
 export type Sex = 'male' | 'female';
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
-export type CutPace = 0 | 0.5 | 1.0 | 1.5 | 2.0;
+/** Target weekly weight-change pace in lb/week. Continuous (slider) in
+ *  [0, 2]; 0 = maintenance. Persisted to 0.1 precision via {@link clampCutPace}.
+ *  (Was a discrete 0|0.5|1|1.5|2 union; widened so a lean cut can sit at,
+ *  e.g., 0.9 lb/wk instead of being forced to a coarse 0.5/1.0 step.) */
+export type CutPace = number;
+
+/** Clamp a raw pace to the storable band and round to 0.1 lb/wk. */
+export function clampCutPace(lbPerWeek: number): CutPace {
+  if (!Number.isFinite(lbPerWeek)) return 1.0;
+  return Math.max(0, Math.min(2, Math.round(lbPerWeek * 10) / 10));
+}
 // Re-export so existing imports of GoalDirection from this module keep
 // working; the canonical definition lives in utils/macro-heuristic.ts
 // alongside the kcal/protein multipliers it parameterizes.
@@ -472,7 +482,7 @@ export class FirebaseService implements LedgerPort {
       age: submission.age,
       sex: submission.sex,
       activityLevel: submission.activityLevel,
-      targetPaceLbsPerWeek: submission.targetPaceLbsPerWeek,
+      targetPaceLbsPerWeek: clampCutPace(submission.targetPaceLbsPerWeek),
       manualCaloriesTarget: deleteField(),
       manualProteinTarget: deleteField(),
       ...(perKg != null ? { proteinPerKg: perKg } : {}),
@@ -484,7 +494,7 @@ export class FirebaseService implements LedgerPort {
       age: submission.age,
       sex: submission.sex,
       activityLevel: submission.activityLevel,
-      targetPaceLbsPerWeek: submission.targetPaceLbsPerWeek,
+      targetPaceLbsPerWeek: clampCutPace(submission.targetPaceLbsPerWeek),
       targetsRefinedAt: stamp.toDate(),
     };
     if (perKg != null) updated.proteinPerKg = perKg;
@@ -635,6 +645,16 @@ export class FirebaseService implements LedgerPort {
     await this.core.updateProfileDoc({ proteinPerKg: perKg, lastSeenAt: Timestamp.now() });
     const current = this._profile();
     if (current) this._profile.set({ ...current, proteinPerKg: perKg } as Profile);
+  }
+
+  /** Persist the target cut pace (lb/week) live from Settings — partial
+   *  profile update, clamped to [0, 2] @ 0.1. Drives the measured-mode
+   *  deficit (trueTdee − pace×3500/7) without re-running the full refine. */
+  async setTargetPace(lbPerWeek: number): Promise<void> {
+    const pace = clampCutPace(lbPerWeek);
+    await this.core.updateProfileDoc({ targetPaceLbsPerWeek: pace, lastSeenAt: Timestamp.now() });
+    const current = this._profile();
+    if (current) this._profile.set({ ...current, targetPaceLbsPerWeek: pace } as Profile);
   }
 
   /** Toggle weekly-digest opt-in. Refreshes `timezoneOffsetMin` so the

@@ -71,7 +71,7 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
       <!-- Header -->
       <header class="flex items-start justify-between gap-4 pt-2 pb-2">
         <div>
-          <h1 class="v2-h1">{{ t('v2.body.title') }}</h1>
+          <h1 class="page-title">{{ t('v2.body.title') }}</h1>
           <p class="v2-caption mt-0.5">{{ t('v2.body.subtitle') }}</p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -84,7 +84,7 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
       <!-- ── Weight ──────────────────────────────────────────── -->
       <ui-card variant="default" class="mt-6 block">
         <div class="flex items-baseline justify-between gap-3 mb-3">
-          <h2 class="v2-h2">{{ t('v2.body.weight') }}</h2>
+          <h2 class="section-title">{{ t('v2.body.weight') }}</h2>
           <ui-button variant="secondary" size="sm" (click)="openWeightSheet()">
             <lucide-icon name="plus" [size]="14" />
             {{ t('v2.body.logWeight') }}
@@ -143,7 +143,7 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
       <!-- ── Fasting ─────────────────────────────────────────── -->
       <ui-card variant="default" class="mt-4 block">
         <div class="flex items-baseline justify-between gap-3">
-          <h2 class="v2-h2">{{ t('v2.body.fasting') }}</h2>
+          <h2 class="section-title">{{ t('v2.body.fasting') }}</h2>
           @if (fasting.isFasting()) {
             <span class="v2-num" style="font-size: 0.8125rem; color: var(--v2-sage); font-weight: 600;">{{ t('v2.body.active') }}</span>
           } @else {
@@ -269,7 +269,7 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
           aria-controls="measurements-panel"
           (click)="toggleExpanded()">
           <div class="flex items-baseline gap-3">
-            <h2 class="v2-h2">{{ t('v2.body.measurements') }}</h2>
+            <h2 class="section-title">{{ t('v2.body.measurements') }}</h2>
             <span class="v2-caption">{{ summaryLabel() }}</span>
           </div>
           <lucide-icon
@@ -358,7 +358,7 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
           aria-controls="photos-panel"
           (click)="photosExpanded.set(!photosExpanded())">
           <div class="flex items-baseline gap-3">
-            <h2 class="v2-h2">{{ t('body.photosTitle') }}</h2>
+            <h2 class="section-title">{{ t('body.photosTitle') }}</h2>
             @if (photos().length) {
               <span class="v2-caption">{{ photos().length }}</span>
             }

@@ -61,7 +61,7 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
       <!-- Header -->
       <header class="flex items-start justify-between gap-4 pt-2 pb-2">
         <div>
-          <h1 class="v2-h1">{{ t('v2.today.title') }}</h1>
+          <h1 class="page-title">{{ t('v2.today.title') }}</h1>
           <p class="v2-caption mt-0.5">{{ dateLabel() }}</p>
           @if (streak() >= 2) {
             <div class="flex items-center gap-1.5 mt-2 v2-caption" style="color: var(--v2-accent)">
@@ -100,7 +100,7 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
       @if (showDay0Hero()) {
         <!-- Day 0 hero — replaces rings until first entry. -->
         <ui-card variant="accent" class="mt-6 block text-center">
-          <h2 class="v2-h2">{{ t('v2.today.day0Title') }}</h2>
+          <h2 class="section-title">{{ t('v2.today.day0Title') }}</h2>
           <p class="v2-body-soft mt-2">
             {{ t('v2.today.day0Body') }}
           </p>
@@ -124,7 +124,7 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
            targetsRefinedAt and the card never returns. -->
       @if (activeNudge() === 'refine') {
         <ui-card class="mt-6 block">
-          <h2 class="v2-h3">{{ t('v2.refineTargets.cardTitle') }}</h2>
+          <h2 class="card-title">{{ t('v2.refineTargets.cardTitle') }}</h2>
           <p class="v2-body-soft mt-1.5">{{ t('v2.refineTargets.cardBody') }}</p>
           <div class="mt-3 flex gap-2">
             <ui-button variant="primary" size="md" (click)="openRefineSheet()">
@@ -155,7 +155,7 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
            to Home Screen wording so non-technical users follow. -->
       @if (activeNudge() === 'install') {
         <ui-card class="mt-6 block">
-          <h2 class="v2-h3">{{ t('v2.today.iosInstallTitle') }}</h2>
+          <h2 class="card-title">{{ t('v2.today.iosInstallTitle') }}</h2>
           <p class="v2-body-soft mt-1.5">{{ t('v2.today.iosInstallBody') }}</p>
           <ol class="v2-body-soft mt-3" style="font-size: 0.875rem; padding-left: 1.25rem; list-style: decimal; line-height: 1.7;">
             <li>{{ t('v2.today.iosInstallStep1') }}</li>
@@ -177,7 +177,7 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
            permission, saves token + a default 8 PM reminder hour. -->
       @if (activeNudge() === 'push') {
         <ui-card class="mt-6 block">
-          <h2 class="v2-h3">{{ t('v2.today.pushPromptTitle') }}</h2>
+          <h2 class="card-title">{{ t('v2.today.pushPromptTitle') }}</h2>
           <p class="v2-body-soft mt-1.5">{{ t('v2.today.pushPromptBody') }}</p>
           <div class="mt-3 flex gap-2">
             <ui-button variant="primary" size="md" [disabled]="pushEnabling()" (click)="enablePush()">

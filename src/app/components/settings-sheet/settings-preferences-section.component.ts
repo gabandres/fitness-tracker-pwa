@@ -236,6 +236,29 @@ import { UiButton } from '../ui/button.component';
           </p>
         }
       </ui-card>
+
+      <!-- Cut pace (lb/week) — continuous slider. Drives the measured-mode
+           deficit; set lower for a lean cut, 0 = maintenance. -->
+      <ui-card variant="default" class="block mb-3">
+        <h3 class="v2-h3 mb-1">{{ t('settings.pace.section') }}</h3>
+        <p class="v2-caption mb-3">{{ t('settings.pace.desc') }}</p>
+        <div class="flex items-baseline justify-between mb-1">
+          <span class="v2-h3 font-mono">{{ pace().toFixed(1) }}</span>
+          <span class="v2-caption">{{ t('settings.pace.lbWeek') }}</span>
+        </div>
+        <input type="range" min="0" max="2" step="0.1" class="v2-range" style="width: 100%;"
+          [value]="pace()" [attr.aria-label]="t('settings.pace.section')"
+          (input)="onPaceInput($event)" (change)="savePace()" />
+        <div class="flex justify-between v2-caption" style="font-size: 0.7rem;">
+          <span>{{ t('settings.pace.maintain') }}</span>
+          <span>2.0</span>
+        </div>
+        @if (paceError()) {
+          <p class="v2-caption mt-2" role="alert" style="color: var(--v2-danger)">
+            {{ t('settings.pace.saveError') }}
+          </p>
+        }
+      </ui-card>
     </ng-container>
   `,
 })
@@ -333,6 +356,13 @@ export class SettingsPreferencesSectionComponent {
   protected readonly proteinBusy = signal(false);
   protected readonly proteinError = signal(false);
 
+  // ─── Cut pace (lb/week) ─────────────────────────────────────
+  /** Local slider copy, seeded from the profile and re-synced on load
+   *  (unless mid-drag). Persisted on release via setTargetPace. */
+  protected readonly pace = signal<number>(1.0);
+  protected readonly paceBusy = signal(false);
+  protected readonly paceError = signal(false);
+
   protected readonly proteinGrams = computed(() => {
     const w = this.store.currentWeight();
     return w ? computeProtein(w, this.proteinPerKg()) : null;
@@ -343,6 +373,29 @@ export class SettingsPreferencesSectionComponent {
       const stored = (this.firebase.profile() as { proteinPerKg?: number } | null)?.proteinPerKg;
       if (!this.proteinBusy() && stored != null) this.proteinPerKg.set(stored);
     });
+    effect(() => {
+      const stored = (this.firebase.profile() as { targetPaceLbsPerWeek?: number } | null)?.targetPaceLbsPerWeek;
+      if (!this.paceBusy() && stored != null) this.pace.set(stored);
+    });
+  }
+
+  protected onPaceInput(e: Event): void {
+    this.paceBusy.set(true); // hold profile re-sync while dragging
+    this.pace.set(Number((e.target as HTMLInputElement).value));
+  }
+
+  /** Persist on slider release (the `change` event) so we write once, not
+   *  on every drag tick. */
+  protected async savePace(): Promise<void> {
+    this.paceError.set(false);
+    try {
+      await this.firebase.setTargetPace(this.pace());
+    } catch (err) {
+      console.error('setTargetPace failed:', err);
+      this.paceError.set(true);
+    } finally {
+      this.paceBusy.set(false);
+    }
   }
 
   protected async stepProtein(delta: number): Promise<void> {

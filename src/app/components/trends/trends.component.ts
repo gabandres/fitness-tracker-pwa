@@ -58,7 +58,7 @@ import { bcp47ForLang } from '../../utils/locale';
       <!-- Header -->
       <header class="flex items-start justify-between gap-4 pt-2 pb-2">
         <div>
-          <h1 class="v2-h1">{{ t('v2.trends.title') }}</h1>
+          <h1 class="page-title">{{ t('v2.trends.title') }}</h1>
           <p class="v2-caption mt-0.5">{{ t('v2.trends.subtitle') }}</p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -210,11 +210,11 @@ import { bcp47ForLang } from '../../utils/locale';
 
       <!-- Coach panel: free Ask (quota'd) first, Pro weekly report below -->
       <ui-card variant="default" class="mt-4 block">
-        <h2 class="v2-h3 mb-3">{{ t('trends.coachAsk') }}</h2>
+        <h2 class="card-title mb-3">{{ t('trends.coachAsk') }}</h2>
         <app-consultation />
 
         <div class="mt-6 pt-5" style="border-top: 1px solid var(--v2-border);">
-          <h3 class="v2-h3 mb-3 inline-flex items-center gap-2">
+          <h3 class="card-title mb-3 inline-flex items-center gap-2">
             {{ t('trends.coachReport') }}
             @if (!subs.isPaid()) {
               <span class="v2-caption inline-flex items-center gap-1" style="color: var(--v2-accent); font-weight: 600;">

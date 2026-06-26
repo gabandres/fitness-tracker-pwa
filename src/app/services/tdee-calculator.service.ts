@@ -45,7 +45,7 @@ export interface TdeeResult {
 export class TdeeCalculatorService {
   private static readonly KCAL_PER_POUND = 3500;
   private static readonly MIN_DAILY_TARGET = 1500;
-  private static readonly DEFAULT_PACE_LBS_PER_WEEK = 1.5;
+  private static readonly DEFAULT_PACE_LBS_PER_WEEK = 1.0;
   /** Minimum logged days before measured mode replaces the formula. */
   private static readonly MEASURED_MIN_DAYS = 14;
   /** Logged-day window the ongoing measured trend is fitted over. */

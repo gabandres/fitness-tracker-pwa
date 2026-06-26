@@ -5,6 +5,7 @@ import { environment } from '../../environments/environment';
 import { DailyLog, ProfileFields } from './firebase.service';
 import { localDateKey } from '../utils/date';
 import { summarizeDays } from '../utils/day-summary';
+import { weightSlopeLbPerWeek, projectWeight, type WeightPoint } from '../utils/weekly-insights';
 import { TdeeResult } from './tdee-calculator.service';
 import { TranslationService } from './translation.service';
 
@@ -282,15 +283,21 @@ export class GeminiService {
       if (!maxDay || d.calories > maxDay.calories) maxDay = d;
     }
     const exerciseDays = days.filter((d) => d.exercised).length;
-    const weightDays = days.filter((d) => d.weight != null);
-    const firstWeight = weightDays[0] ?? null;
-    const lastWeight = weightDays[weightDays.length - 1] ?? null;
-    const weightDelta = firstWeight && lastWeight
-      ? Math.round((lastWeight.weight! - firstWeight.weight!) * 10) / 10
-      : null;
-    const deltaStr = weightDelta == null
-      ? 'n/a (need ≥2 weigh-ins in window)'
-      : `${weightDelta >= 0 ? '+' : ''}${weightDelta} lb`;
+    // Weight trend uses a LONGER 28-day window and a least-squares slope
+    // — not the 14-day endpoint delta, which is dominated by day-to-day
+    // water swings and made the report call genuine progress "stable".
+    // Built from the canonical dailyWeights map.
+    const TREND_WINDOW_DAYS = 28;
+    const trendPoints: WeightPoint[] = [];
+    for (let i = TREND_WINDOW_DAYS - 1; i >= 0; i--) {
+      const key = localDateKey(new Date(today.getTime() - i * DAY_MS));
+      const w = dailyWeights[key];
+      if (w != null) trendPoints.push({ dateKey: key, weightLb: w });
+    }
+    const slopeLbWk = weightSlopeLbPerWeek(trendPoints); // null if too few/clustered
+    const projection = projectWeight(trendPoints, profile?.goalWeightLbs ?? null);
+    const lastPt = trendPoints[trendPoints.length - 1] ?? null;
+    const currentWeightLb = projection?.currentFittedLb ?? lastPt?.weightLb ?? null;
 
     lines.push(`## 14-day summary (${days[0].key} → ${days[days.length - 1].key})`);
     lines.push(`- Days logged: ${daysLoggedN}/14`);
@@ -300,19 +307,42 @@ export class GeminiService {
       lines.push(`- Max daily kcal: ${maxDay.calories} on ${maxDay.key}`);
     }
     lines.push(`- Avg protein (on logged days): ${avgProtein} g`);
-    if (firstWeight && lastWeight && firstWeight.key !== lastWeight.key) {
-      lines.push(`- Weight start → end (14d): ${firstWeight.weight} lb (${firstWeight.key}) → ${lastWeight.weight} lb (${lastWeight.key}) (Δ ${deltaStr})`);
+    if (slopeLbWk != null) {
+      const dir = slopeLbWk < -0.1 ? 'losing' : slopeLbWk > 0.1 ? 'gaining' : 'flat';
+      lines.push(`- Weight trend (28-day regression): ${slopeLbWk >= 0 ? '+' : ''}${Math.round(slopeLbWk * 100) / 100} lb/week (${dir})`);
     } else {
-      lines.push(`- Weight change (14d): ${deltaStr}`);
+      lines.push('- Weight trend (28-day regression): n/a (need ≥3 weigh-ins spanning ≥5 days)');
     }
-    if (lastWeight) {
-      // Label as "Most recent weigh-in" not "Current weight" so Gemini
-      // doesn't quote a 2-day-old reading as today's value when the
-      // user skipped the morning weigh-in.
-      lines.push(`- Most recent weigh-in: ${lastWeight.weight} lb (${lastWeight.key})`);
+    lines.push(`- Weigh-ins in 28-day window: ${trendPoints.length}`);
+    if (lastPt) {
+      // "Most recent weigh-in" (not "current weight") so the model doesn't
+      // quote a stale reading as today's value.
+      lines.push(`- Most recent weigh-in: ${lastPt.weightLb} lb (${lastPt.dateKey})`);
     }
-    if (profile?.goalWeightLbs != null) {
+    // Direction + goal interpretation computed in CODE so the model never has
+    // to infer "progress" from raw distance to the goal — that broke when a
+    // stale goal sat on the wrong side of the user's current weight.
+    if (profile?.goalWeightLbs != null && currentWeightLb != null) {
+      const goal = profile.goalWeightLbs;
+      const gap = Math.round((currentWeightLb - goal) * 10) / 10;
+      lines.push(`- Goal weight: ${goal} lb`);
+      if (Math.abs(gap) <= 1) {
+        lines.push(`- Goal status: at goal (current ≈ ${Math.round(currentWeightLb)} lb) — maintenance, not "no progress".`);
+      } else if (gap < 0) {
+        lines.push(`- Goal status: current weight (${Math.round(currentWeightLb)} lb) is BELOW the goal (${goal} lb). If the user is cutting they have already PASSED this goal — it is likely STALE. Do NOT say "not progressing toward goal"; suggest updating the goal weight.`);
+      } else {
+        lines.push(`- Goal status: cutting toward goal — ${gap} lb to go. PROGRESS = weight DECREASING (negative 28-day slope). Judge by the slope's sign, not week-to-week noise.`);
+      }
+      if (projection?.goalDateKey) {
+        lines.push(`- Projected goal date at current trend: ${projection.goalDateKey}`);
+      } else if (slopeLbWk != null && gap > 1) {
+        lines.push('- Current trend is not moving toward the goal (flat or wrong direction).');
+      }
+    } else if (profile?.goalWeightLbs != null) {
       lines.push(`- Goal weight: ${profile.goalWeightLbs} lb`);
+    }
+    if (trendPoints.length < 8) {
+      lines.push('- NOTE: few weigh-ins / short trend — treat the weight verdict as PROVISIONAL; avoid strong "stable / no progress" claims (2-week scale moves are mostly water).');
     }
     lines.push(`- Exercise days: ${exerciseDays}/14`);
     lines.push('');

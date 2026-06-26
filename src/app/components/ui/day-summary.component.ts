@@ -111,7 +111,7 @@ import { UiWeightSheet } from './weight-sheet.component';
          entries (every row pre-dates mealType) render as one flat
          heading-less group, so legacy history looks unchanged. -->
     @if (dayLogs().length > 0) {
-      <h2 class="v2-h3 mt-8 mb-3">{{ entriesHeading() }}</h2>
+      <h2 class="card-title mt-8 mb-3">{{ entriesHeading() }}</h2>
       @for (group of mealGroups(); track group.key) {
         @if (grouped()) {
           <div class="flex items-baseline justify-between mt-4 mb-2">

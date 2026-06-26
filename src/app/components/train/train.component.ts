@@ -62,7 +62,7 @@ import { suggestProgression } from '../../utils/workout-progression';
     <section class="max-w-[640px] mx-auto pb-32 md:pb-28">
       <header class="flex items-start justify-between gap-4 pt-2 pb-2">
         <div>
-          <h1 class="v2-h1">{{ t('train.title') }}</h1>
+          <h1 class="page-title">{{ t('train.title') }}</h1>
           <p class="v2-caption mt-0.5">{{ t('train.subtitle') }}</p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -79,7 +79,7 @@ import { suggestProgression } from '../../utils/workout-progression';
           <div class="flex items-center justify-between gap-3">
             <div>
               <p class="v2-field-label" style="color: var(--v2-accent); margin-bottom: 0.25rem;">{{ t('train.resumeTitle') }}</p>
-              <h2 class="v2-h2">{{ sessionLabel(a) }}</h2>
+              <h2 class="section-title">{{ sessionLabel(a) }}</h2>
               <p class="v2-caption mt-0.5">{{ t('train.exerciseCount', { count: a.exercises.length }) }}</p>
             </div>
             <ui-button variant="primary" (click)="openSheet()">{{ t('train.resume') }}</ui-button>
@@ -92,7 +92,7 @@ import { suggestProgression } from '../../utils/workout-progression';
       @if (!active()) {
       <!-- Templates -->
       <div class="mt-6 flex items-baseline justify-between">
-        <h2 class="v2-h2">{{ t('train.yourTemplates') }}</h2>
+        <h2 class="section-title">{{ t('train.yourTemplates') }}</h2>
         <ui-button variant="secondary" size="sm" [disabled]="capReached()" (click)="openChooser()">
           <lucide-icon name="plus" [size]="14" /> {{ t('train.newTemplate') }}
         </ui-button>
@@ -112,7 +112,7 @@ import { suggestProgression } from '../../utils/workout-progression';
                         [attr.aria-pressed]="selectedTemplate()?.id === tpl.id"
                         [attr.aria-expanded]="selectedTemplate()?.id === tpl.id" (click)="select(tpl)">
                   <div class="flex items-center gap-1.5">
-                    <h3 class="v2-h3">{{ tpl.name }}</h3>
+                    <h3 class="card-title">{{ tpl.name }}</h3>
                     <lucide-icon [name]="selectedTemplate()?.id === tpl.id ? 'chevron-down' : 'chevron-right'" [size]="16"
                                  [style.color]="selectedTemplate()?.id === tpl.id ? 'var(--v2-accent)' : 'var(--v2-ink-muted)'" />
                   </div>
@@ -132,7 +132,7 @@ import { suggestProgression } from '../../utils/workout-progression';
       }
 
       <!-- Recent sessions -->
-      <h2 class="v2-h2 mt-6">{{ t('train.recentSessions') }}</h2>
+      <h2 class="section-title mt-6">{{ t('train.recentSessions') }}</h2>
       @if (completedRecent().length === 0) {
         <p class="v2-caption mt-2">{{ t('train.noSessions') }}</p>
       } @else {
@@ -158,7 +158,7 @@ import { suggestProgression } from '../../utils/workout-progression';
       <!-- Exercises: the in-progress workout's exercises while active, else
            the selected template's. Workout order; tap for progression. -->
       @if (shownExercises(); as ex) {
-        <h2 class="v2-h2 mt-6">{{ t('train.exercisesSection') }} · {{ ex.name }}</h2>
+        <h2 class="section-title mt-6">{{ t('train.exercisesSection') }} · {{ ex.name }}</h2>
         <div class="mt-2 grid gap-1">
           @for (te of ex.items; track te.exerciseId) {
             <button type="button" class="flex items-center justify-between gap-3 py-2 border-b text-left"
@@ -184,7 +184,7 @@ import { suggestProgression } from '../../utils/workout-progression';
     }
     @if (chooserOpen()) {
       <ui-sheet [labelledBy]="'train-chooser-title'" (close)="chooserOpen.set(false)">
-        <h2 id="train-chooser-title" class="v2-h2 mb-3">{{ t('train.newTemplate') }}</h2>
+        <h2 id="train-chooser-title" class="section-title mb-3">{{ t('train.newTemplate') }}</h2>
         <div class="grid gap-2">
           <button type="button" class="text-left" (click)="blankTemplate()">
             <ui-card variant="default" class="block">
@@ -199,7 +199,7 @@ import { suggestProgression } from '../../utils/workout-progression';
               <ui-card variant="flat" class="block">
                 <div class="flex items-center justify-between gap-3">
                   <div>
-                    <h3 class="v2-h3">{{ seed.name }}</h3>
+                    <h3 class="card-title">{{ seed.name }}</h3>
                     <p class="v2-caption mt-0.5">{{ t('train.exerciseCount', { count: seed.exercises.length }) }}</p>
                   </div>
                   <lucide-icon name="chevron-right" [size]="18" />

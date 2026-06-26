@@ -142,18 +142,17 @@ import { UiButton } from '../ui/button.component';
               style="text-transform: uppercase; letter-spacing: 0.08em;">
               {{ t('v2.refineTargets.pace') }}
             </span>
-            <div class="grid grid-cols-5 gap-1.5">
-              @for (opt of paceOptions; track opt) {
-                <button
-                  type="button"
-                  class="v2-card text-center p-2 border-2"
-                  [style.border-color]="pace() === opt ? 'var(--v2-accent)' : 'var(--v2-rule)'"
-                  [attr.aria-pressed]="pace() === opt"
-                  (click)="pace.set(opt)">
-                  <span class="v2-body font-mono">{{ opt }}</span>
-                  <div class="v2-caption">{{ t('v2.refineTargets.lbWeek') }}</div>
-                </button>
-              }
+            <div class="flex items-baseline justify-between mb-1">
+              <span class="v2-num" style="font-size: 1.25rem; font-weight: 600;">{{ paceLabel() }}</span>
+              <span class="v2-caption">{{ t('v2.refineTargets.lbWeek') }}</span>
+            </div>
+            <input type="range" min="0" max="2" step="0.1" class="v2-range" style="width: 100%;"
+              [value]="pace() ?? 1.0"
+              [attr.aria-label]="t('v2.refineTargets.pace')"
+              (input)="onPaceInput($event)" />
+            <div class="flex justify-between v2-caption" style="font-size: 0.7rem;">
+              <span>{{ t('v2.refineTargets.paceMaintain') }}</span>
+              <span>2.0</span>
             </div>
           </div>
 
@@ -243,8 +242,6 @@ export class UiRefineTargetsSheet {
     { value: 'very_active', labelKey: 'v2.refineTargets.actVeryActiveLabel',  blurbKey: 'v2.refineTargets.actVeryActiveBlurb' },
   ];
 
-  protected readonly paceOptions: CutPace[] = [0, 0.5, 1.0, 1.5, 2.0];
-
   protected readonly sex = signal<Sex | null>(null);
   protected readonly ageInput = signal<number | null>(null);
   protected readonly heightFt = signal<number | null>(null);
@@ -263,6 +260,13 @@ export class UiRefineTargetsSheet {
     const w = this.store.currentWeight() ?? this.fb.profile()?.targetWeightLbs ?? null;
     return w == null ? null : computeProtein(w, this.proteinPerKg());
   });
+
+  /** One-decimal display of the pace slider, e.g. "0.9". */
+  protected readonly paceLabel = computed(() => (this.pace() ?? 1.0).toFixed(1));
+
+  protected onPaceInput(e: Event): void {
+    this.pace.set(Number((e.target as HTMLInputElement).value));
+  }
 
   protected stepProtein(delta: number): void {
     // Round to one decimal to avoid float drift (1.6 + 0.1 = 1.7000…1).
@@ -326,7 +330,7 @@ export class UiRefineTargetsSheet {
         this.heightInExtra.set(null);
       }
       this.activity.set((p?.activityLevel as ActivityLevel | undefined) ?? null);
-      this.pace.set((p?.targetPaceLbsPerWeek as CutPace | undefined) ?? null);
+      this.pace.set((p?.targetPaceLbsPerWeek as CutPace | undefined) ?? 1.0);
       this.proteinPerKg.set(p?.proteinPerKg ?? DEFAULT_PROTEIN_G_PER_KG);
       this.saving.set(false);
       this.saveError.set(null);

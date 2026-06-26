@@ -289,6 +289,13 @@
       "inc": "Subir proteína por kg",
       "saveError": "No se pudo guardar. Verifica tu conexión e intenta de nuevo."
     },
+    "pace": {
+      "section": "ritmo de corte",
+      "desc": "Cambio de peso por semana. Más bajo = corte más lento y magro; 0 = mantener.",
+      "lbWeek": "lb/semana",
+      "maintain": "Mantener",
+      "saveError": "No se pudo guardar. Verifica tu conexión e intenta de nuevo."
+    },
     "data": {
       "section": "datos",
       "webhook": "webhook de apple shortcuts",
@@ -1365,6 +1372,7 @@
       "actVeryActiveBlurb": "Entrenamiento intenso diario o trabajo físico.",
       "pace": "Ritmo",
       "lbWeek": "lb/sem",
+      "paceMaintain": "Mantener",
       "protein": "Proteína (g/kg)",
       "proteinHint": "1.6 es el mínimo para retener músculo en un déficit; los que entrenan duro suelen usar 1.8–2.2.",
       "proteinDec": "Bajar proteína por kg",

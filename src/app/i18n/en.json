@@ -289,6 +289,13 @@
       "inc": "Increase protein per kg",
       "saveError": "Couldn't save. Check your connection and try again."
     },
+    "pace": {
+      "section": "cut pace",
+      "desc": "Target weight change per week. Lower is a leaner, slower cut; 0 is maintenance.",
+      "lbWeek": "lb/week",
+      "maintain": "Maintain",
+      "saveError": "Couldn't save. Check your connection and try again."
+    },
     "data": {
       "section": "data",
       "webhook": "apple shortcuts webhook",
@@ -1365,6 +1372,7 @@
       "actVeryActiveBlurb": "Hard daily training or physical job.",
       "pace": "Pace",
       "lbWeek": "lb/wk",
+      "paceMaintain": "Maintain",
       "protein": "Protein (g/kg)",
       "proteinHint": "1.6 is the muscle-retention floor on a cut; lean lifters often run 1.8–2.2.",
       "proteinDec": "Decrease protein per kg",
