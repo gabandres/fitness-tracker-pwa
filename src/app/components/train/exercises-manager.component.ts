@@ -102,10 +102,10 @@ interface EditState {
         </header>
         <div class="grid gap-1">
           @for (c of others(mv); track c.id) {
-            <button type="button" class="flex items-center justify-between gap-3 py-2 border-b text-left"
+            <button type="button" class="flex items-center justify-between gap-3 py-2 border-b text-left min-w-0"
                     style="border-color: var(--v2-rule);" [disabled]="busy()" (click)="doMerge(mv, c)">
-              <span style="font-weight: 600;">{{ c.name }}</span>
-              <lucide-icon name="arrow-right" [size]="16" />
+              <span class="truncate" style="font-weight: 600;">{{ c.name }}</span>
+              <lucide-icon name="arrow-right" [size]="16" class="shrink-0" />
             </button>
           }
         </div>
@@ -129,7 +129,7 @@ interface EditState {
         } @else {
           <div class="grid gap-1">
             @for (ex of filtered(); track ex.id) {
-              <div class="flex items-center justify-between gap-2 py-2 border-b" style="border-color: var(--v2-rule);">
+              <div class="flex items-center justify-between gap-2 py-2 border-b min-w-0" style="border-color: var(--v2-rule);">
                 <div class="min-w-0">
                   <p style="font-weight: 600;" class="truncate">{{ ex.name }}</p>
                   <p class="v2-caption truncate">

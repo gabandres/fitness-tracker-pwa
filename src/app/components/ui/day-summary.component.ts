@@ -37,7 +37,7 @@ import { UiWeightSheet } from './weight-sheet.component';
   template: `
     <ng-container *transloco="let t">
     <!-- Rings hero -->
-    <div class="flex items-center justify-around gap-4 mt-6">
+    <div class="flex items-center justify-around gap-2 mt-6">
       <div class="flex flex-col items-center">
         <ui-ring
           [value]="kcalConsumed()"

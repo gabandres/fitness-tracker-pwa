@@ -54,9 +54,9 @@ import { bcp47ForLang } from '../../utils/locale';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-    <section class="max-w-[640px] mx-auto px-5 sm:px-6 pb-32 md:pb-28">
+    <section class="max-w-[640px] mx-auto pb-32 md:pb-28">
       <!-- Header -->
-      <header class="flex items-start justify-between gap-4 pt-6 pb-2">
+      <header class="flex items-start justify-between gap-4 pt-2 pb-2">
         <div>
           <h1 class="v2-h1">{{ t('v2.trends.title') }}</h1>
           <p class="v2-caption mt-0.5">{{ t('v2.trends.subtitle') }}</p>

@@ -80,7 +80,7 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
                 [attr.aria-controls]="'panel-' + s.id"
                 [class]="segment() === s.id ? 'v2-btn v2-btn--sm v2-btn--primary' : 'v2-btn v2-btn--sm v2-btn--ghost'"
                 (click)="setSegment(s.id)">
-                <lucide-icon [name]="s.icon" [size]="14" />
+                <lucide-icon [name]="s.icon" [size]="14" class="max-[383px]:hidden" />
                 {{ t(s.labelKey) }}
               </button>
             }

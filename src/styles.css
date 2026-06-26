@@ -140,6 +140,11 @@ html, body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   transition: background-color 300ms ease, color 300ms ease;
+  /* Kill the iOS/Android double-tap-to-zoom gesture (and the 300ms tap
+     delay) app-wide. `manipulation` still allows panning and pinch-zoom,
+     so accessibility zoom is preserved — only the accidental double-tap
+     zoom on quick repeated taps is suppressed. */
+  touch-action: manipulation;
 }
 
 /* ── Keyboard focus ring ─────────────────────────────────────

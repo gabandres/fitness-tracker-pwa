@@ -110,7 +110,7 @@ import { UiTabBar, type UiTab } from './components/ui/tab-bar.component';
            v2 rebuild is in flight (Weeks 1-6). -->
       <ui-dev-gallery />
     } @else {
-    <main id="main" class="min-h-screen px-5 sm:px-8 md:px-12 py-8 sm:py-12 pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-12">
+    <main id="main" class="min-h-screen px-5 sm:px-8 md:px-12 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:pt-5 pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-12">
       <div class="max-w-[560px] md:max-w-[1100px] mx-auto">
 
         @if (route() === 'calculator') {
