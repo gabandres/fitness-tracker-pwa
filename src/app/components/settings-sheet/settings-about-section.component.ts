@@ -38,7 +38,7 @@ import { UiButton } from '../ui/button.component';
 
       <!-- About / Updates -->
       <ui-card variant="default" class="block mb-3">
-        <h3 class="v2-h3 mb-3">{{ t('v2.settings.about') }}</h3>
+        <h3 class="v2-h3 mb-2">{{ t('v2.settings.about') }}</h3>
         <div class="flex items-start justify-between gap-3 mb-2">
           <div class="min-w-0">
             <div class="v2-body" style="font-weight: 500;">{{ t('v2.settings.appVersion') }}</div>
@@ -73,7 +73,7 @@ import { UiButton } from '../ui/button.component';
 
       <!-- Legal -->
       <ui-card variant="flat" class="block mb-3">
-        <h3 class="v2-h3 mb-2">{{ t('settings.legal.section') }}</h3>
+        <h3 class="v2-h3 mb-1">{{ t('settings.legal.section') }}</h3>
         <p class="v2-caption">
           <a href="/privacy" style="text-decoration: underline; text-decoration-style: dotted;">{{ t('settings.legal.privacy') }}</a>
           &middot;

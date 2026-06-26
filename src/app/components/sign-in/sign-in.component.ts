@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { AuthService, PendingLinkInfo } from '../../services/auth.service';
@@ -23,10 +23,10 @@ type Method = 'google' | 'microsoft' | 'email';
           {{ t('signin.section') }}
         </p>
 
-        <h2 class="v2-h1 mt-2">
+        <h1 class="v2-h1 mt-2">
           {{ t('signin.titleLead') }}
           <span style="color: var(--v2-accent);">{{ t('signin.titleEm') }}</span>
-        </h2>
+        </h1>
 
         <p class="v2-body-soft mt-3">{{ t('signin.blurb') }}</p>
         <p class="v2-caption mt-2">{{ t('signin.caption') }}</p>

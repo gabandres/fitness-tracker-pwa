@@ -51,7 +51,7 @@ type FetchStatus = 'loading' | 'ready' | 'notFound' | 'error';
         <p class="v2-caption mt-8" style="text-transform: uppercase; letter-spacing: 0.08em;">
           {{ t('publicProfile.section') }}
         </p>
-        <h1 class="v2-h1 mt-1" style="font-size: 2.25rem; line-height: 1.1;">
+        <h1 class="v2-h1 v2-display mt-1">
           {{ headline() }}
         </h1>
         <p class="v2-caption mt-3">{{ subtitle() }}</p>

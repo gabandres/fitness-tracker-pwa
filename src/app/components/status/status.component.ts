@@ -33,7 +33,7 @@ type FetchStatus = 'loading' | 'ready' | 'error';
       <p class="v2-caption mt-6" style="text-transform: uppercase; letter-spacing: 0.08em;">
         {{ t('status.section') }}
       </p>
-      <h1 class="v2-h1 mt-1" style="font-size: 2.5rem; line-height: 1.05;">
+      <h1 class="v2-h1 v2-display mt-1">
         {{ t('status.titleLead') }}
         <span style="color: var(--v2-accent);">{{ t('status.titleEm') }}</span>
       </h1>

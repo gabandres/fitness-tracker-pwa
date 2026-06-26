@@ -177,7 +177,7 @@ import { bcp47ForLang } from '../../utils/locale';
                     <div
                       class="w-full rounded-sm transition-all"
                       [style.height.%]="barHeight(bar.calories, b.dailyTarget)"
-                      [style.background]="bar.elapsed ? 'var(--v2-accent)' : 'var(--v2-border)'"
+                      [style.background]="bar.elapsed ? 'var(--v2-accent)' : 'var(--v2-rule)'"
                       [style.opacity]="bar.calories > 0 ? 1 : 0.35"></div>
                   </div>
                 }
@@ -213,7 +213,7 @@ import { bcp47ForLang } from '../../utils/locale';
         <h2 class="card-title mb-3">{{ t('trends.coachAsk') }}</h2>
         <app-consultation />
 
-        <div class="mt-6 pt-5" style="border-top: 1px solid var(--v2-border);">
+        <div class="mt-6 pt-5" style="border-top: 1px solid var(--v2-rule);">
           <button type="button"
             class="flex items-center justify-between gap-3 w-full"
             style="background: none; border: none; padding: 0; cursor: pointer; min-height: var(--v2-tap-min);"

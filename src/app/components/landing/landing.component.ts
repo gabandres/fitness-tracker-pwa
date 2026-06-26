@@ -110,7 +110,7 @@ import { UiButton } from '../ui/button.component';
           <p class="v2-caption mb-2" style="text-transform: uppercase; letter-spacing: 0.08em;">
             {{ t('landing.privacyLabel') }}
           </p>
-          <h2 class="v2-h1" style="font-size: 1.875rem; line-height: 1.1;">
+          <h2 class="v2-h2">
             {{ t('landing.privacyLead') }}
             <span style="color: var(--v2-accent);">{{ t('landing.privacyEm') }}</span>
           </h2>

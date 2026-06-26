@@ -118,15 +118,14 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
               (submit)="save($event)"
               novalidate>
               <div>
-                <label for="es-label" class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
+                <label for="es-label" class="v2-field-label">
                   {{ t('v2.entrySheet.mealLabel') }}
                 </label>
                 <input
                   id="es-label"
                   type="text"
                   maxlength="100"
-                  class="w-full"
-                  style="padding: var(--v2-space-3) var(--v2-space-4); background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md); font-family: var(--v2-font-sans); font-size: 1rem; color: var(--v2-ink); min-height: var(--v2-tap-min);"
+                  class="v2-input"
                   [placeholder]="t('v2.entrySheet.mealPlaceholder')"
                   [value]="form.mealLabel()"
                   (input)="form.mealLabel.set($any($event.target).value)" />
@@ -149,7 +148,7 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
 
               <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <label for="es-kcal" class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
+                  <label for="es-kcal" class="v2-field-label">
                     {{ t('v2.entrySheet.calories') }}
                   </label>
                   <input
@@ -159,9 +158,8 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
                     step="1"
                     min="0"
                     required
-                    class="v2-num w-full"
+                    class="v2-input v2-input--num"
                     [class.v2-input-error]="kcalError()"
-                    style="padding: var(--v2-space-3) var(--v2-space-4); background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md); font-size: 1.125rem; font-weight: 600; color: var(--v2-ink); min-height: var(--v2-tap-min);"
                     placeholder="0"
                     [attr.aria-invalid]="kcalError() ? 'true' : null"
                     [attr.aria-describedby]="kcalError() ? 'es-kcal-err' : null"
@@ -174,7 +172,7 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
                   }
                 </div>
                 <div>
-                  <label for="es-protein" class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
+                  <label for="es-protein" class="v2-field-label">
                     {{ t('v2.entrySheet.protein') }}
                   </label>
                   <input
@@ -183,8 +181,7 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
                     inputmode="numeric"
                     step="1"
                     min="0"
-                    class="v2-num w-full"
-                    style="padding: var(--v2-space-3) var(--v2-space-4); background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md); font-size: 1.125rem; font-weight: 600; color: var(--v2-ink); min-height: var(--v2-tap-min);"
+                    class="v2-input v2-input--num"
                     placeholder="0"
                     [value]="form.protein() ?? ''"
                     (input)="onProteinInput($event)" />
@@ -197,7 +194,7 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
                    low. Each chip BUMPS the kcal field (it's an add-on to the
                    meal you're already logging), it never overwrites it. -->
               <div>
-                <div class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
+                <div class="v2-field-label">
                   {{ t('v2.entrySheet.cookingFat.label') }}
                 </div>
                 <div class="flex flex-wrap gap-1.5">
@@ -217,7 +214,7 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
 
               <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <label for="es-carbs" class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
+                  <label for="es-carbs" class="v2-field-label">
                     {{ t('entry.carbs') }}
                   </label>
                   <input
@@ -226,14 +223,13 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
                     inputmode="numeric"
                     step="1"
                     min="0"
-                    class="v2-num w-full"
-                    style="padding: var(--v2-space-3) var(--v2-space-4); background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md); font-size: 1.125rem; font-weight: 600; color: var(--v2-ink); min-height: var(--v2-tap-min);"
+                    class="v2-input v2-input--num"
                     placeholder="0"
                     [value]="form.carbs() ?? ''"
                     (input)="onCarbsInput($event)" />
                 </div>
                 <div>
-                  <label for="es-fat" class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
+                  <label for="es-fat" class="v2-field-label">
                     {{ t('entry.fat') }}
                   </label>
                   <input
@@ -242,8 +238,7 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
                     inputmode="numeric"
                     step="1"
                     min="0"
-                    class="v2-num w-full"
-                    style="padding: var(--v2-space-3) var(--v2-space-4); background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md); font-size: 1.125rem; font-weight: 600; color: var(--v2-ink); min-height: var(--v2-tap-min);"
+                    class="v2-input v2-input--num"
                     placeholder="0"
                     [value]="form.fat() ?? ''"
                     (input)="onFatInput($event)" />
@@ -255,14 +250,13 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
                    adding for a non-today day. -->
               @if (form.mode() === 'edit' || form.addingForDay() != null) {
                 <div>
-                  <label for="es-date" class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
+                  <label for="es-date" class="v2-field-label">
                     {{ t('v2.entrySheet.date') }}
                   </label>
                   <input
                     id="es-date"
                     type="date"
-                    class="w-full"
-                    style="padding: var(--v2-space-3) var(--v2-space-4); background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md); font-family: var(--v2-font-sans); color: var(--v2-ink); min-height: var(--v2-tap-min);"
+                    class="v2-input"
                     [value]="form.entryDate()"
                     (input)="form.entryDate.set($any($event.target).value)" />
                 </div>
@@ -308,8 +302,7 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
                     <input
                       type="text"
                       maxlength="60"
-                      class="flex-1"
-                      style="padding: var(--v2-space-2) var(--v2-space-3); background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); font-family: var(--v2-font-sans); color: var(--v2-ink);"
+                      class="v2-input flex-1"
                       [placeholder]="t('v2.entrySheet.presetName')"
                       [value]="form.presetName()"
                       (input)="form.presetName.set($any($event.target).value)" />

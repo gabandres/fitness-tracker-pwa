@@ -53,7 +53,7 @@ import { share } from '../../utils/share';
           <p class="v2-caption" style="color: var(--v2-accent);">
             {{ t('macrosPage.eyebrow') }}
           </p>
-          <h1 class="v2-h1 mt-1" style="font-size: clamp(1.75rem, 4vw, 2.5rem); line-height: 1.15;">
+          <h1 class="v2-h1 v2-display mt-1">
             {{ heading() }}
           </h1>
           <p class="v2-body-soft mt-3">
@@ -74,7 +74,7 @@ import { share } from '../../utils/share';
         </ui-card>
 
         <ui-card variant="accent" class="block mt-5 text-center">
-          <h2 class="v2-h3">{{ t('macrosPage.ctaTitle') }}</h2>
+          <h3 class="v2-h3">{{ t('macrosPage.ctaTitle') }}</h3>
           <p class="v2-body-soft mt-2">{{ t('macrosPage.ctaBody') }}</p>
           <div class="mt-5 flex flex-wrap justify-center gap-3">
             <a href="/app" class="v2-btn v2-btn--primary v2-btn--lg" (click)="onSignupClick()">
@@ -95,7 +95,7 @@ import { share } from '../../utils/share';
         </ui-card>
 
         <section class="mt-10">
-          <h2 class="v2-h2 mb-3" style="font-size: 1.125rem;">{{ t('macrosPage.howTitle') }}</h2>
+          <h2 class="v2-h2 mb-3">{{ t('macrosPage.howTitle') }}</h2>
           <p class="v2-body-soft">{{ explainer() }}</p>
           <p class="v2-caption mt-4">{{ t('macrosPage.disclaimer') }}</p>
         </section>
@@ -104,7 +104,7 @@ import { share } from '../../utils/share';
              visitors hop to nearby weights / other goals at the same
              weight without bouncing back to /calculator. -->
         <nav class="mt-10" aria-labelledby="related-targets">
-          <h2 id="related-targets" class="v2-h2 mb-3" style="font-size: 1.125rem;">
+          <h2 id="related-targets" class="v2-h2 mb-3">
             {{ t('macrosPage.relatedTitle') }}
           </h2>
           <div class="flex flex-wrap gap-2">

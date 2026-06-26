@@ -42,7 +42,7 @@ interface Ingredient {
         </ui-button>
       </div>
 
-      <label class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
+      <label class="v2-field-label">
         {{ t('v2.recipe.recipeName') }}
       </label>
       <input
@@ -54,7 +54,7 @@ interface Ingredient {
         [value]="recipeName()"
         (input)="recipeName.set($any($event.target).value)" />
 
-      <label class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
+      <label class="v2-field-label">
         {{ t('v2.recipe.ingredients') }}
       </label>
       @for (ing of ingredients(); track $index) {
@@ -105,7 +105,7 @@ interface Ingredient {
 
       <div class="grid grid-cols-2 gap-3 mt-4 pt-3" style="border-top: 1px solid var(--v2-rule);">
         <div>
-          <label for="recipe-servings" class="v2-caption block mb-1.5" style="text-transform: uppercase; letter-spacing: 0.08em;">
+          <label for="recipe-servings" class="v2-field-label">
             {{ t('v2.recipe.servings') }}
           </label>
           <input

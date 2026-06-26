@@ -45,7 +45,7 @@ import { SettingsAboutSectionComponent } from './settings-about-section.componen
   template: `
     <ng-container *transloco="let t">
     <ui-sheet labelledBy="settings-v2-title" (close)="requestClose()">
-      <h2 id="settings-v2-title" class="v2-h1 mb-1">{{ t('settings.titleLead') }}</h2>
+      <h1 id="settings-v2-title" class="v2-h1 mb-1">{{ t('settings.titleLead') }}</h1>
       <p class="v2-caption mb-5">{{ t('settings.sectionLabel') }}</p>
 
       @if (auth.user(); as u) {

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, OnInit } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import {
   Firestore, collection, query, orderBy, limit, getDocs, Timestamp,
@@ -42,7 +42,7 @@ type FetchStatus = 'loading' | 'ready' | 'error';
       <p class="v2-caption mt-8" style="text-transform: uppercase; letter-spacing: 0.08em;">
         {{ t('transformations.section') }}
       </p>
-      <h1 class="v2-h1 mt-1" style="font-size: 2.5rem; line-height: 1.05;">
+      <h1 class="v2-h1 v2-display mt-1">
         {{ t('transformations.titleLead') }}
         <span style="color: var(--v2-accent);">{{ t('transformations.titleEm') }}</span>
       </h1>
@@ -62,7 +62,7 @@ type FetchStatus = 'loading' | 'ready' | 'error';
                 <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em;">
                   {{ headlineFor(p) }}
                 </p>
-                <p class="v2-h2 mt-1" style="font-size: 1.5rem;">{{ p.displayName }}</p>
+                <h2 class="v2-h2 mt-1" style="font-size: 1.5rem;">{{ p.displayName }}</h2>
                 <div class="grid grid-cols-2 gap-3 mt-4">
                   <div>
                     <p class="v2-caption">{{ t('transformations.start') }}</p>

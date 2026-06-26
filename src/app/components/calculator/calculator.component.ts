@@ -91,7 +91,7 @@ function detectGoalFromPath(): GoalDirection {
         <p class="v2-caption" style="color: var(--v2-accent);">
           {{ t(variantEyebrowKey()) }}
         </p>
-        <h1 class="v2-h1 mt-1" style="font-size: clamp(2rem, 4.5vw, 3rem); line-height: 1.1;">
+        <h1 class="v2-h1 v2-display mt-1">
           {{ t(variantH1Key()) }}
         </h1>
         <p class="v2-body-soft mt-3">
@@ -191,7 +191,7 @@ function detectGoalFromPath(): GoalDirection {
       }
 
       <section class="mt-12">
-        <h2 class="v2-h2 mb-3" style="font-size: 1.125rem;">{{ t('calculator.howTitle') }}</h2>
+        <h2 class="v2-h2 mb-3">{{ t('calculator.howTitle') }}</h2>
         <p class="v2-body-soft mb-2">{{ t('calculator.howBody') }}</p>
         <ul class="v2-body-soft list-disc pl-6 space-y-1 mt-3">
           <li>{{ t('calculator.howBullet1') }}</li>

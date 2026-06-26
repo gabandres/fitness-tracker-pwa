@@ -28,7 +28,7 @@ import { UiButton } from '../ui/button.component';
     <ng-container *transloco="let t">
       <!-- Subscription -->
       <ui-card variant="default" id="settings-subscription" class="block mb-3">
-        <h3 class="v2-h3 mb-3">{{ t('settings.subscription.section') }}</h3>
+        <h3 class="v2-h3 mb-2">{{ t('settings.subscription.section') }}</h3>
         <app-subscribe />
       </ui-card>
 

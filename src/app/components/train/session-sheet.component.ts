@@ -191,7 +191,7 @@ const SAVE_DEBOUNCE_MS = 800;
                     (input)="onSetField(exIdx, setIdx, 'rir', $event)" />
                 }
                 @if (isPr(ex, set)) {
-                  <span class="v2-badge" style="color: var(--v2-accent); font-size: 0.7rem;">🏆 {{ t('train.pr') }}</span>
+                  <span class="v2-caption" style="color: var(--v2-accent); font-size: 0.7rem; background: var(--v2-paper-3); padding: 2px 8px; border-radius: var(--v2-radius-full);">🏆 {{ t('train.pr') }}</span>
                 }
                 <button type="button" class="v2-icon-btn ml-auto" [attr.aria-label]="t('train.rest')"
                         (click)="markDone(exIdx, setIdx, set)">
@@ -236,7 +236,7 @@ const SAVE_DEBOUNCE_MS = 800;
         </label>
 
         @if (saveError()) {
-          <p class="v2-caption mb-2" style="color: var(--v2-danger, #c0392b);">{{ saveError() }}</p>
+          <p class="v2-caption mb-2" style="color: var(--v2-danger);">{{ saveError() }}</p>
         }
 
         <div class="flex gap-3">

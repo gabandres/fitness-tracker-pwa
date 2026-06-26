@@ -57,7 +57,7 @@ import { UiButton } from '../ui/button.component';
 
       <!-- Reminders -->
       <ui-card variant="default" class="block mb-3">
-        <h3 class="v2-h3 mb-3">{{ t('settings.reminders.section') }}</h3>
+        <h3 class="v2-h3 mb-2">{{ t('settings.reminders.section') }}</h3>
 
         <div class="flex items-start justify-between gap-3 mb-4">
           <div class="min-w-0">
@@ -123,7 +123,7 @@ import { UiButton } from '../ui/button.component';
 
       <!-- Appearance (Theme + Travel) -->
       <ui-card variant="default" class="block mb-3">
-        <h3 class="v2-h3 mb-3">{{ t('settings.modes.section') }}</h3>
+        <h3 class="v2-h3 mb-2">{{ t('settings.modes.section') }}</h3>
 
         <div class="flex items-start justify-between gap-3 mb-4">
           <div class="min-w-0">
@@ -177,7 +177,7 @@ import { UiButton } from '../ui/button.component';
 
       <!-- Units (drives the food-search portion picker default). -->
       <ui-card variant="default" class="block mb-3">
-        <h3 class="v2-h3 mb-2">{{ t('settings.units.section') }}</h3>
+        <h3 class="v2-h3 mb-1">{{ t('settings.units.section') }}</h3>
         <p class="v2-caption mb-3">{{ t('settings.units.desc') }}</p>
         <div role="radiogroup" [attr.aria-label]="t('settings.units.aria')"
              class="grid grid-cols-2 gap-2">
@@ -211,7 +211,7 @@ import { UiButton } from '../ui/button.component';
 
       <!-- Protein target basis (g/kg). -->
       <ui-card variant="default" class="block mb-3">
-        <h3 class="v2-h3 mb-2">{{ t('settings.protein.section') }}</h3>
+        <h3 class="v2-h3 mb-1">{{ t('settings.protein.section') }}</h3>
         <p class="v2-caption mb-3">{{ t('settings.protein.desc') }}</p>
         <div class="flex items-center gap-3">
           <ui-button variant="ghost" size="sm"

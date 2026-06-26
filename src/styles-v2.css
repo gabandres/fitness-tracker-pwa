@@ -466,6 +466,16 @@
   font-style: italic;
   letter-spacing: -0.015em;
 }
+/* Display hero — the ONE size for marketing / SEO / utility page <h1>
+   titles (calculator, macros, faq, vs, legal, status, changelog, 404…).
+   Replaces a dozen hand-tweaked inline `font-size` overrides (2.25/2.5/3rem
+   + six different clamps) that defeated the single fluid scale. The
+   marketing landing hero keeps its bespoke serif `.v2-h1--hero`. */
+[data-ui="v2"] .v2-display {
+  font-size: clamp(2rem, 1.3rem + 3.2vw, 3rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
 [data-ui="v2"] .v2-h2,
 [data-ui="v2"] .section-title {
   font-size: clamp(1.25rem, 1.08rem + 0.85vw, 1.5rem);

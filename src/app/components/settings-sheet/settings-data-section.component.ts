@@ -25,7 +25,7 @@ import { UiButton } from '../ui/button.component';
   template: `
     <ng-container *transloco="let t">
       <ui-card variant="default" class="block mb-3">
-        <h3 class="v2-h3 mb-3">{{ t('settings.data.section') }}</h3>
+        <h3 class="v2-h3 mb-2">{{ t('settings.data.section') }}</h3>
 
         <div class="mb-4">
           <div class="flex items-start justify-between gap-3 mb-2">

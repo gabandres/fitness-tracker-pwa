@@ -36,7 +36,7 @@ interface FaqItem { q: string; a: string; }
         <p class="v2-caption" style="color: var(--v2-accent);">
           {{ t('faq.eyebrow') }}
         </p>
-        <h1 class="v2-h1 mt-1" style="font-size: clamp(1.875rem, 4vw, 2.75rem); line-height: 1.15;">
+        <h1 class="v2-h1 v2-display mt-1">
           {{ t('faq.title') }}
         </h1>
         <p class="v2-body-soft mt-3">
@@ -60,7 +60,7 @@ interface FaqItem { q: string; a: string; }
       </div>
 
       <ui-card variant="accent" class="block mt-10 text-center">
-        <h2 class="v2-h3">{{ t('faq.ctaTitle') }}</h2>
+        <h3 class="v2-h3">{{ t('faq.ctaTitle') }}</h3>
         <p class="v2-body-soft mt-2">{{ t('faq.ctaBody') }}</p>
         <div class="mt-5">
           <a href="/calculator" class="v2-btn v2-btn--primary v2-btn--lg" (click)="trackCtaClick()">

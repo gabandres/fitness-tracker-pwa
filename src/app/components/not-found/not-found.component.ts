@@ -19,7 +19,7 @@ import { UiCard } from '../ui/card.component';
         <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em;">
           {{ t('notFound.stamp') }}
         </p>
-        <h1 class="v2-h1 mt-3" style="font-size: 3rem; line-height: 1.05;">
+        <h1 class="v2-h1 v2-display mt-3">
           {{ t('notFound.titleLead') }}
           <span style="color: var(--v2-accent);">{{ t('notFound.titleEm') }}</span>
         </h1>

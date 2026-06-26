@@ -174,7 +174,7 @@ interface EditExercise {
       </div>
 
       @if (error()) {
-        <p class="v2-caption mb-2" style="color: var(--v2-danger, #c0392b);">{{ error() }}</p>
+        <p class="v2-caption mb-2" style="color: var(--v2-danger);">{{ error() }}</p>
       }
 
       <div class="flex gap-3">

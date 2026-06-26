@@ -40,8 +40,7 @@ import { UiButton } from './button.component';
 
         <form class="space-y-4" (submit)="save($event)" novalidate>
           <div>
-            <label for="ws-weight" class="v2-caption block mb-1.5"
-              style="text-transform: uppercase; letter-spacing: 0.08em;">
+            <label for="ws-weight" class="v2-field-label">
               {{ t('v2.weightSheet.weightLb') }}
             </label>
             <input

@@ -412,7 +412,7 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
                 <div class="grid grid-cols-3 gap-2 mt-3">
                   @for (p of photos(); track p.dateKey) {
                     <button type="button" class="relative block w-full rounded-lg overflow-hidden"
-                      style="aspect-ratio: 1; background: var(--v2-line);"
+                      style="aspect-ratio: 1; background: var(--v2-paper-2);"
                       (click)="openViewer(p)"
                       [attr.aria-label]="t('body.photoViewAria', { date: photoDateLabel(p.dateKey) })">
                       @if (photoUrls()[p.dateKey]; as url) {

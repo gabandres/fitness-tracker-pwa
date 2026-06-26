@@ -38,14 +38,14 @@ import { VS_PROFILES, VsProfile, vsProfileFor } from './vs-data';
           <p class="v2-caption" style="color: var(--v2-accent);">
             {{ t('vs.eyebrow') }}
           </p>
-          <h1 class="v2-h1 mt-1" style="font-size: clamp(1.875rem, 4vw, 2.5rem); line-height: 1.15;">
+          <h1 class="v2-h1 v2-display mt-1">
             {{ t('vs.heading', { name: p.name }) }}
           </h1>
           <p class="v2-body-soft mt-3">{{ p.tagline }}</p>
         </header>
 
         <ui-card class="block mb-6">
-          <h2 class="v2-h3" style="font-size: 1rem;">{{ t('vs.honestTitle') }}</h2>
+          <h3 class="v2-h3">{{ t('vs.honestTitle') }}</h3>
           <p class="v2-body-soft mt-2">{{ p.honestSummary }}</p>
         </ui-card>
 
@@ -84,7 +84,7 @@ import { VS_PROFILES, VsProfile, vsProfileFor } from './vs-data';
         </div>
 
         <ui-card variant="accent" class="block mt-8 text-center">
-          <h2 class="v2-h3">{{ t('vs.ctaTitle') }}</h2>
+          <h3 class="v2-h3">{{ t('vs.ctaTitle') }}</h3>
           <p class="v2-body-soft mt-2">{{ t('vs.ctaBody') }}</p>
           <div class="mt-5 flex flex-wrap justify-center gap-3">
             <a href="/calculator" class="v2-btn v2-btn--primary v2-btn--lg" (click)="trackCtaClick('calculator')">

@@ -32,7 +32,7 @@ type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'error';
       <p class="v2-caption mt-6" style="text-transform: uppercase; letter-spacing: 0.08em;">
         {{ t('privacy.section') }}
       </p>
-      <h1 class="v2-h1 mt-1" style="font-size: 2.5rem; line-height: 1.05;">
+      <h1 class="v2-h1 v2-display mt-1">
         {{ t('privacy.titleLead') }}
         <span style="color: var(--v2-accent);">{{ t('privacy.titleEm') }}</span>
       </h1>

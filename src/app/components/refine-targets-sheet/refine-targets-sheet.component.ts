@@ -46,8 +46,7 @@ import { UiButton } from '../ui/button.component';
         <form class="space-y-5" (submit)="save($event)" novalidate>
           <!-- Sex -->
           <div>
-            <span class="v2-caption block mb-1.5"
-              style="text-transform: uppercase; letter-spacing: 0.08em;">
+            <span class="v2-field-label">
               {{ t('v2.refineTargets.sex') }}
             </span>
             <div class="grid grid-cols-2 gap-2">
@@ -67,8 +66,7 @@ import { UiButton } from '../ui/button.component';
           <!-- Age + Height -->
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label for="rt-age" class="v2-caption block mb-1.5"
-                style="text-transform: uppercase; letter-spacing: 0.08em;">
+              <label for="rt-age" class="v2-field-label">
                 {{ t('v2.refineTargets.age') }}
               </label>
               <input
@@ -84,8 +82,7 @@ import { UiButton } from '../ui/button.component';
                 (input)="onAgeInput($event)" />
             </div>
             <div>
-              <span class="v2-caption block mb-1.5"
-                style="text-transform: uppercase; letter-spacing: 0.08em;">
+              <span class="v2-field-label">
                 {{ t('v2.refineTargets.height') }}
               </span>
               <div class="flex gap-2">
@@ -117,8 +114,7 @@ import { UiButton } from '../ui/button.component';
 
           <!-- Activity level -->
           <div>
-            <span class="v2-caption block mb-1.5"
-              style="text-transform: uppercase; letter-spacing: 0.08em;">
+            <span class="v2-field-label">
               {{ t('v2.refineTargets.activity') }}
             </span>
             <div class="flex flex-col gap-2">
@@ -138,8 +134,7 @@ import { UiButton } from '../ui/button.component';
 
           <!-- Pace -->
           <div>
-            <span class="v2-caption block mb-1.5"
-              style="text-transform: uppercase; letter-spacing: 0.08em;">
+            <span class="v2-field-label">
               {{ t('v2.refineTargets.pace') }}
             </span>
             <div class="flex items-baseline justify-between mb-1">
@@ -158,8 +153,7 @@ import { UiButton } from '../ui/button.component';
 
           <!-- Protein basis (g/kg) -->
           <div>
-            <span class="v2-caption block mb-1.5"
-              style="text-transform: uppercase; letter-spacing: 0.08em;">
+            <span class="v2-field-label">
               {{ t('v2.refineTargets.protein') }}
             </span>
             <div class="flex items-center gap-3">

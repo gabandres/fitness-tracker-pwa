@@ -43,8 +43,7 @@ type Phase = 'idle' | 'searching' | 'results' | 'detail-loading' | 'portion-pick
     <!-- Search header -->
     @if (phase() !== 'portion-pick' && phase() !== 'detail-loading') {
       <div class="mb-3">
-        <label for="food-search-q" class="v2-caption block mb-1.5"
-          style="text-transform: uppercase; letter-spacing: 0.08em;">
+        <label for="food-search-q" class="v2-field-label">
           {{ t('v2.foodSearch.label') }}
         </label>
         <div class="relative">
@@ -53,8 +52,8 @@ type Phase = 'idle' | 'searching' | 'results' | 'detail-loading' | 'portion-pick
             type="search"
             autocomplete="off"
             spellcheck="false"
-            class="w-full"
-            style="padding: var(--v2-space-3) var(--v2-space-4); padding-right: 2.5rem; background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md); font-family: var(--v2-font-sans); font-size: 1rem; color: var(--v2-ink); min-height: var(--v2-tap-min);"
+            class="v2-input"
+            style="padding-right: 2.5rem;"
             [placeholder]="t('v2.foodSearch.placeholder')"
             [value]="query()"
             (input)="onQueryInput($event)" />
@@ -199,7 +198,7 @@ type Phase = 'idle' | 'searching' | 'results' | 'detail-loading' | 'portion-pick
         </div>
       </div>
 
-      <p class="v2-caption mb-2" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--v2-ink-muted);">
+      <p class="v2-field-label">
         {{ t('v2.foodSearch.servingLabel') }}
       </p>
       <ul role="radiogroup" class="space-y-1 mb-3"
@@ -210,9 +209,10 @@ type Phase = 'idle' | 'searching' | 'results' | 'detail-loading' | 'portion-pick
               role="radio"
               [attr.aria-checked]="selectedServingKey() === s.label"
               class="w-full text-left"
+              [class.v2-active-highlight]="selectedServingKey() === s.label"
               [style.padding]="'var(--v2-space-3)'"
-              [style.background]="selectedServingKey() === s.label ? 'var(--v2-accent-soft)' : 'var(--v2-paper-2)'"
-              [style.border]="'1px solid ' + (selectedServingKey() === s.label ? 'var(--v2-accent)' : 'var(--v2-rule)')"
+              [style.background]="selectedServingKey() === s.label ? null : 'var(--v2-paper-2)'"
+              [style.border]="'1px solid var(--v2-rule)'"
               [style.borderRadius]="'var(--v2-radius-sm)'"
               [style.cursor]="'pointer'"
               [style.minHeight]="'var(--v2-tap-min)'"
