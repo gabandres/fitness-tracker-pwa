@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   ci:
-    name: Test, build, deploy
+    name: Test + build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -78,24 +78,8 @@ jobs:
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
 
-      # ---- Deploy (push to main only) -------------------------------------
-      - name: Resolve deploy targets
-        if: github.event_name == 'push'
-        id: targets
-        run: |
-          if [ -z "${{ secrets.FIREBASE_TOKEN }}" ]; then
-            echo "::error::FIREBASE_TOKEN secret is not set. Generate with 'firebase login:ci' and add it to repo Actions secrets."
-            exit 1
-          fi
-          targets="hosting"
-          [ "${{ steps.changes.outputs.functions }}" = "true" ] && targets="$targets,functions"
-          [ "${{ steps.changes.outputs.firestore }}" = "true" ] && targets="$targets,firestore"
-          [ "${{ steps.changes.outputs.storage }}" = "true" ] && targets="$targets,storage"
-          echo "list=$targets" >> "$GITHUB_OUTPUT"
-          echo "Deploying targets: $targets"
-
-      - name: Deploy to Firebase
-        if: github.event_name == 'push'
-        run: npx -y firebase-tools@15.19.1 deploy --only "${{ steps.targets.outputs.list }}" --non-interactive
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+      # Deploy is intentionally NOT run in CI — releases are pushed manually
+      # from a workstation (`npm run build && firebase deploy`). CI's job is
+      # to keep main green (unit tests + a real production build), not to
+      # ship. This removed the dependency on the brittle, now-deprecated
+      # `firebase login:ci` token that kept expiring and failing the run.
