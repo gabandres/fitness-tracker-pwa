@@ -45,6 +45,7 @@ export class InMemoryLedgerAdapter implements LedgerPort {
   private measurementSeq = 0;
   private readonly weights: Record<string, number> = {};
   private readonly water: Record<string, number> = {};
+  private readonly sleep: Record<string, number> = {};
   private report: WeeklyReport | null = null;
   private readonly exercises = new Map<string, Exercise>();
   private exerciseSeq = 0;
@@ -173,6 +174,7 @@ export class InMemoryLedgerAdapter implements LedgerPort {
     this.measurements.clear();
     for (const k of Object.keys(this.weights)) delete this.weights[k];
     for (const k of Object.keys(this.water)) delete this.water[k];
+    for (const k of Object.keys(this.sleep)) delete this.sleep[k];
     this.exercises.clear();
     this.templates.clear();
     this.sessions.clear();
@@ -188,6 +190,7 @@ export class InMemoryLedgerAdapter implements LedgerPort {
       measurements: [...this.measurements.values()],
       dailyWeights: { ...this.weights },
       dailyWater: { ...this.water },
+      dailySleep: { ...this.sleep },
       reports: this.report ? [this.report] : [],
       exercises: [...this.exercises.values()],
       workoutTemplates: [...this.templates.values()],
@@ -262,6 +265,14 @@ export class InMemoryLedgerAdapter implements LedgerPort {
 
   async setDailyWater(dateKey: string, flOz: number): Promise<void> {
     this.water[dateKey] = Math.max(0, Math.min(676, Math.round(flOz)));
+  }
+
+  async getDailySleep(): Promise<Record<string, number>> {
+    return { ...this.sleep };
+  }
+
+  async setDailySleep(dateKey: string, hours: number): Promise<void> {
+    this.sleep[dateKey] = Math.max(0, Math.min(24, Math.round(hours * 2) / 2));
   }
 
   async getPresets(): Promise<MealPreset[]> {

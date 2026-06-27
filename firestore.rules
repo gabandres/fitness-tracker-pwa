@@ -427,6 +427,18 @@ service cloud.firestore {
             );
       }
 
+      // Daily sleep — hours slept, one doc per calendar day keyed by date,
+      // shape { hours }. Canonical record; the Train session sheet's sleep
+      // mirrors here on finish. Range [0, 24].
+      match /dailySleep/{dateKey} {
+        allow read:   if isOwner(uid) || isAdmin();
+        allow write:  if isOwner(uid)
+            && request.resource.data.keys().hasOnly(['hours'])
+            && request.resource.data.hours is number
+            && request.resource.data.hours >= 0
+            && request.resource.data.hours <= 24;
+      }
+
       // Body measurements — weekly/biweekly body-comp tracking.
       match /measurements/{measurementId} {
         allow read:   if isOwner(uid) || isAdmin();

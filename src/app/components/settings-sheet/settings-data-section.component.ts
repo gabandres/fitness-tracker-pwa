@@ -171,14 +171,15 @@ export class SettingsDataSectionComponent {
     this.exporting.set(true);
     this.exportError.set(false);
     try {
-      const [logs, measurements, dailyWeights, dailyWater, workoutSessions] = await Promise.all([
+      const [logs, measurements, dailyWeights, dailyWater, dailySleep, workoutSessions] = await Promise.all([
         this.firebase.getRecentLogs(9999),
         this.firebase.getRecentMeasurements(9999),
         this.firebase.getDailyWeights(),
         this.firebase.getDailyWater(),
+        this.firebase.getDailySleep(),
         this.firebase.getAllSessions(),
       ]);
-      const csv = buildCsv({ logs, measurements, dailyWeights, dailyWater, workoutSessions });
+      const csv = buildCsv({ logs, measurements, dailyWeights, dailyWater, dailySleep, workoutSessions });
       // Local date + time (no colons — invalid in filenames) so repeat
       // same-day exports get distinct names instead of colliding on
       // `…-YYYY-MM-DD.csv` and tripping the OS "file already exists" prompt.

@@ -712,8 +712,16 @@ export class FirebaseService implements LedgerPort {
     return this.core.getDailyWater();
   }
 
-  async setDailyWater(dateKey: string, ml: number): Promise<void> {
-    await this.core.setDailyWater(dateKey, ml);
+  async setDailyWater(dateKey: string, flOz: number): Promise<void> {
+    await this.core.setDailyWater(dateKey, flOz);
+  }
+
+  async getDailySleep(): Promise<Record<string, number>> {
+    return this.core.getDailySleep();
+  }
+
+  async setDailySleep(dateKey: string, hours: number): Promise<void> {
+    await this.core.setDailySleep(dateKey, hours);
   }
 
   // ─── Meal presets (FirestoreLedgerCore) ────────────────────────

@@ -19,10 +19,12 @@ export class BodyMetricStore {
   private readonly _measurements = signal<Measurement[]>([]);
   private readonly _dailyWeights = signal<Record<string, number>>({});
   private readonly _dailyWater = signal<Record<string, number>>({});
+  private readonly _dailySleep = signal<Record<string, number>>({});
 
   readonly measurements: Signal<Measurement[]> = this._measurements.asReadonly();
   readonly dailyWeights: Signal<Record<string, number>> = this._dailyWeights.asReadonly();
   readonly dailyWater: Signal<Record<string, number>> = this._dailyWater.asReadonly();
+  readonly dailySleep: Signal<Record<string, number>> = this._dailySleep.asReadonly();
 
   readonly latestMeasurement: Signal<Measurement | null> = computed(() => this._measurements()[0] ?? null);
   readonly previousMeasurement: Signal<Measurement | null> = computed(() => this._measurements()[1] ?? null);
@@ -36,10 +38,11 @@ export class BodyMetricStore {
   });
 
   /** Bulk-load all body-metric collections. Called from FitnessStore._load(). */
-  hydrate(input: { measurements: Measurement[]; dailyWeights: Record<string, number>; dailyWater: Record<string, number> }): void {
+  hydrate(input: { measurements: Measurement[]; dailyWeights: Record<string, number>; dailyWater: Record<string, number>; dailySleep: Record<string, number> }): void {
     this._measurements.set(input.measurements);
     this._dailyWeights.set(input.dailyWeights);
     this._dailyWater.set(input.dailyWater);
+    this._dailySleep.set(input.dailySleep);
   }
 
   /** Reset to empty on sign-out. */
@@ -47,6 +50,7 @@ export class BodyMetricStore {
     this._measurements.set([]);
     this._dailyWeights.set({});
     this._dailyWater.set({});
+    this._dailySleep.set({});
   }
 
   /** Absolute sanity backstop on every write path (manual log, CSV import,
@@ -77,6 +81,15 @@ export class BodyMetricStore {
   async addWater(dateKey: string, deltaOz: number): Promise<void> {
     const current = this._dailyWater()[dateKey] ?? 0;
     await this.setDailyWater(dateKey, current + deltaOz);
+  }
+
+  /** Overwrite the hours slept for a specific day. Clamped to [0, 24] in
+   *  half-hour steps. Canonical record — the workout-finish mirror writes
+   *  here too (see FitnessStore.finishWorkout). */
+  async setDailySleep(dateKey: string, hours: number): Promise<void> {
+    const clamped = Math.max(0, Math.min(24, Math.round(hours * 2) / 2));
+    await this.fb.setDailySleep(dateKey, clamped);
+    this._dailySleep.update((prev) => ({ ...prev, [dateKey]: clamped }));
   }
 
   async addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<void> {

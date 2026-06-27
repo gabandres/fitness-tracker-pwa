@@ -260,6 +260,28 @@ export class FirestoreLedgerCore {
     });
   }
 
+  // ─── Daily sleep ──────────────────────────────────────────────
+  // Hours slept, one doc per date keyed by the dateKey, shape { hours }.
+  // Canonical daily record; the Train session sheet's per-workout sleep
+  // mirrors into here on finish (same as bodyweight → dailyWeights), so a
+  // non-workout day can still log sleep. Clamped to [0, 24], half-hour steps.
+
+  async getDailySleep(): Promise<Record<string, number>> {
+    const snap = await getDocs(this.userCollection('dailySleep'));
+    const sleep: Record<string, number> = {};
+    for (const d of snap.docs) {
+      const data = d.data() as { hours?: number };
+      if (typeof data.hours === 'number') sleep[d.id] = data.hours;
+    }
+    return sleep;
+  }
+
+  async setDailySleep(dateKey: string, hours: number): Promise<void> {
+    await setDoc(this.userDocIn('dailySleep', dateKey), {
+      hours: Math.max(0, Math.min(24, Math.round(hours * 2) / 2)),
+    });
+  }
+
   // ─── Meal presets ─────────────────────────────────────────────
 
   async getPresets(): Promise<MealPreset[]> {

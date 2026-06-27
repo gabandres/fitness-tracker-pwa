@@ -30,6 +30,7 @@ export interface ExportData {
   measurements: Measurement[];
   dailyWeights: Record<string, number>;
   dailyWater: Record<string, number>;
+  dailySleep: Record<string, number>;
   /** Completed (and in-progress) workout sessions. Optional so existing
    *  callers without workout data keep working. */
   workoutSessions?: WorkoutSession[];
@@ -37,7 +38,7 @@ export interface ExportData {
 
 /**
  * Long-format CSV: every row carries a `type` discriminator
- * (meal | weight | water | measurement | workout | workout_set) and only
+ * (meal | weight | water | sleep | measurement | workout | workout_set) and only
  * fills the columns relevant to that type. Opens cleanly in Excel/Sheets
  * and lets users filter by type to recover any single dataset. Workout
  * sessions emit one `workout` summary row plus one `workout_set` row per
@@ -72,6 +73,11 @@ export function buildCsv(data: ExportData): string {
   const waterKeys = Object.keys(data.dailyWater).sort();
   for (const date of waterKeys) {
     rows.push(row({ type: 'water', date, waterFlOz: Math.round(data.dailyWater[date]) }));
+  }
+
+  const sleepKeys = Object.keys(data.dailySleep).sort();
+  for (const date of sleepKeys) {
+    rows.push(row({ type: 'sleep', date, sleepHours: data.dailySleep[date] }));
   }
 
   const sortedMeasurements = [...data.measurements].sort((a, b) => a.date.getTime() - b.date.getTime());

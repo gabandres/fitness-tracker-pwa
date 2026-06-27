@@ -249,6 +249,53 @@ import { UiWeightSheet } from './weight-sheet.component';
       </div>
     </ui-card>
 
+    <!-- Sleep row -->
+    <ui-card variant="flat" class="mt-3 block">
+      <div class="flex items-center justify-between gap-3" style="min-height: var(--v2-tap-min);">
+        <div class="flex items-center gap-2 min-w-0">
+          <lucide-icon name="moon" [size]="18" style="color: var(--v2-ink-muted)" />
+          @if (editable()) {
+            <button
+              type="button"
+              class="v2-body-soft"
+              style="background: none; border: none; padding: 0; cursor: pointer; text-align: left; min-height: var(--v2-tap-min); display: inline-flex; align-items: center;"
+              [attr.aria-label]="t('v2.daySummary.editSleepAria', { value: sleepDisplay() })"
+              (click)="openSleepEditor()">
+              {{ t('v2.daySummary.sleep') }} · <span class="v2-num" [style.color]="hasSleep() ? 'var(--v2-ink)' : 'var(--v2-ink-muted)'" style="font-weight: 500;">{{ sleepDisplay() }}</span>
+              <lucide-icon name="pencil" [size]="12" style="color: var(--v2-ink-muted); margin-left: 4px;" />
+            </button>
+          } @else {
+            <span class="v2-body-soft">
+              {{ t('v2.daySummary.sleep') }} · <span class="v2-num" [style.color]="hasSleep() ? 'var(--v2-ink)' : 'var(--v2-ink-muted)'" style="font-weight: 500;">{{ sleepDisplay() }}</span>
+            </span>
+          }
+        </div>
+      </div>
+      @if (editable() && editingSleep()) {
+        <div class="mt-3 space-y-2">
+          <label class="v2-caption block" style="text-transform: uppercase; letter-spacing: 0.06em;">
+            {{ t('v2.daySummary.setExactSleep') }}
+          </label>
+          <div class="flex flex-wrap gap-2 items-center">
+            <input
+              type="number"
+              inputmode="decimal"
+              step="0.5"
+              min="0"
+              max="24"
+              class="v2-field v2-field--num"
+              style="max-width: 140px;"
+              [value]="sleepEditInput()"
+              (input)="onSleepInput($event)"
+              (keydown.enter)="saveSleep()" />
+            <ui-button variant="primary" size="sm" (click)="saveSleep()">{{ t('v2.daySummary.save') }}</ui-button>
+            <ui-button variant="ghost" size="sm" (click)="cancelSleepEdit()">{{ t('v2.daySummary.cancel') }}</ui-button>
+            <ui-button variant="ghost" size="sm" (click)="clearSleep()">{{ t('v2.daySummary.clear') }}</ui-button>
+          </div>
+        </div>
+      }
+    </ui-card>
+
     <ui-weight-sheet
       [open]="weightSheetOpen()"
       [dateKey]="dateKey()"
@@ -395,6 +442,60 @@ export class UiDaySummary {
 
   protected cancelWaterEdit(): void {
     this.editingWater.set(false);
+  }
+
+  // ─── Sleep (hours, canonical daily metric) ──────────────────────
+  protected readonly sleepHoursVal = computed<number | null>(
+    () => this.body.dailySleep()[this.dateKey()] ?? null,
+  );
+
+  /** A logged sleep value of 0 is treated as "none" (nobody logs 0h). */
+  protected readonly hasSleep = computed(() => {
+    const v = this.sleepHoursVal();
+    return v != null && v > 0;
+  });
+
+  protected readonly sleepDisplay = computed(() =>
+    this.hasSleep()
+      ? `${this.sleepHoursVal()} ${this.translation.t('v2.daySummary.hours')}`
+      : this.translation.t('v2.daySummary.weightNone'),
+  );
+
+  protected readonly editingSleep = signal(false);
+  // Hold the raw input string (not a parsed number) so decimal entry like
+  // "6.5" isn't normalized mid-keystroke by the value binding — parsing a
+  // half-typed "6." back to 6 would drop the dot. Parsed only on save.
+  protected readonly sleepEditInput = signal<string>('');
+
+  protected openSleepEditor(): void {
+    if (!this.editable()) return;
+    this.haptic(10);
+    this.sleepEditInput.set(this.hasSleep() ? String(this.sleepHoursVal()) : '');
+    this.editingSleep.set(true);
+  }
+
+  protected onSleepInput(e: Event): void {
+    this.sleepEditInput.set((e.target as HTMLInputElement).value);
+  }
+
+  protected saveSleep(): void {
+    const raw = this.sleepEditInput().trim();
+    if (raw === '') return;
+    const h = Number(raw);
+    if (Number.isNaN(h) || h < 0) return;
+    this.haptic(30);
+    void this.body.setDailySleep(this.dateKey(), h);
+    this.editingSleep.set(false);
+  }
+
+  protected clearSleep(): void {
+    this.haptic(30);
+    void this.body.setDailySleep(this.dateKey(), 0);
+    this.editingSleep.set(false);
+  }
+
+  protected cancelSleepEdit(): void {
+    this.editingSleep.set(false);
   }
 
   private haptic(ms: number): void {

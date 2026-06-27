@@ -703,6 +703,10 @@ export class FitnessStore {
     if (bodyweight != null && bodyweight > 0) {
       await this.body.setDailyWeight(localDateKey(date), bodyweight);
     }
+    const sleepHours = patch.sleepHours ?? session?.sleepHours;
+    if (sleepHours != null && sleepHours > 0) {
+      await this.body.setDailySleep(localDateKey(date), sleepHours);
+    }
     await this.markExercised(date);
   }
 
@@ -939,6 +943,7 @@ export class FitnessStore {
         measurements,
         dailyWeights,
         dailyWater,
+        dailySleep,
         exercises,
         templates,
         recentSessions,
@@ -949,6 +954,7 @@ export class FitnessStore {
         this.fb.getRecentMeasurements(100),
         this.fb.getDailyWeights(),
         this.fb.getDailyWater(),
+        this.fb.getDailySleep(),
         this.fb.getExercises(),
         this.fb.getTemplates(),
         this.fb.getRecentSessions(),
@@ -956,7 +962,7 @@ export class FitnessStore {
       ]);
       this._logs.set(logs);
       this._presets.set(presets);
-      this.body.hydrate({ measurements, dailyWeights, dailyWater });
+      this.body.hydrate({ measurements, dailyWeights, dailyWater, dailySleep });
       this.workout.hydrate({ exercises, templates, recentSessions, activeSession });
       this._status.set('ready');
 

@@ -487,7 +487,7 @@ export const adminDeleteUser = onCall({ timeoutSeconds: 120 }, async (request) =
   // quotas, profile doc, then the auth record itself.
   const userPath = `users/${targetUid}`;
   const subcollections = [
-    "dailyLogs", "presets", "reports", "dailyWeights", "dailyWater", "measurements",
+    "dailyLogs", "presets", "reports", "dailyWeights", "dailyWater", "dailySleep", "measurements",
   ];
   for (const sub of subcollections) {
     const coll = db.collection(`${userPath}/${sub}`);

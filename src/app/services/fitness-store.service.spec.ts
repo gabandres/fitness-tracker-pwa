@@ -38,6 +38,8 @@ describe('FitnessStore', () => {
     setDailyWeight: ReturnType<typeof vi.fn>;
     getDailyWater: ReturnType<typeof vi.fn>;
     setDailyWater: ReturnType<typeof vi.fn>;
+    getDailySleep: ReturnType<typeof vi.fn>;
+    setDailySleep: ReturnType<typeof vi.fn>;
     getExercises: ReturnType<typeof vi.fn>;
     getTemplates: ReturnType<typeof vi.fn>;
     getRecentSessions: ReturnType<typeof vi.fn>;
@@ -97,6 +99,8 @@ describe('FitnessStore', () => {
       setDailyWeight: vi.fn().mockResolvedValue(undefined),
       getDailyWater: vi.fn().mockResolvedValue({}),
       setDailyWater: vi.fn().mockResolvedValue(undefined),
+      getDailySleep: vi.fn().mockResolvedValue({}),
+      setDailySleep: vi.fn().mockResolvedValue(undefined),
       getExercises: vi.fn().mockResolvedValue([]),
       getTemplates: vi.fn().mockResolvedValue([]),
       getRecentSessions: vi.fn().mockResolvedValue([]),

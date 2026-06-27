@@ -76,6 +76,9 @@ export interface LedgerPort {
   getDailyWater(): Promise<Record<string, number>>;
   setDailyWater(dateKey: string, flOz: number): Promise<void>;
 
+  getDailySleep(): Promise<Record<string, number>>;
+  setDailySleep(dateKey: string, hours: number): Promise<void>;
+
   getPresets(): Promise<MealPreset[]>;
   addPreset(preset: Omit<MealPreset, 'id'>): Promise<string>;
   deletePreset(presetId: string): Promise<void>;
