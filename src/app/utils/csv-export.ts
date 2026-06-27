@@ -7,7 +7,7 @@ import { localDateKey } from './date';
 const COLS = [
   'type', 'date', 'timestamp',
   'calories', 'protein', 'carbs', 'fat', 'weight', 'exerciseCompleted', 'mealLabel', 'mealType',
-  'waterMl',
+  'waterFlOz',
   'waist', 'chest', 'bicep', 'hip',
   // Workout columns — filled on 'workout' (session) + 'workout_set' rows.
   'template', 'exercise', 'setKind', 'setGroup', 'setWeight', 'setReps',
@@ -68,9 +68,11 @@ export function buildCsv(data: ExportData): string {
     rows.push(row({ type: 'weight', date, weight: data.dailyWeights[date] }));
   }
 
+  // Stored in ml (single source of truth); exported in US fluid ounces to
+  // match the in-app display. 1 fl oz = 29.5735 ml.
   const waterKeys = Object.keys(data.dailyWater).sort();
   for (const date of waterKeys) {
-    rows.push(row({ type: 'water', date, waterMl: data.dailyWater[date] }));
+    rows.push(row({ type: 'water', date, waterFlOz: Math.round(data.dailyWater[date] / 29.5735) }));
   }
 
   const sortedMeasurements = [...data.measurements].sort((a, b) => a.date.getTime() - b.date.getTime());
