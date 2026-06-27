@@ -279,12 +279,12 @@ describe.skipIf(!EMULATOR_AVAILABLE)('FirestoreLedgerCore — emulator contract'
       expect(weights).toEqual({ '2026-04-21': 180.4, '2026-04-22': 179.6 });
     });
 
-    it('clamps water to [0, 20000] ml and rounds', async () => {
+    it('clamps water to [0, 676] fl oz and rounds', async () => {
       await core.setDailyWater('2026-04-22', 999999);
       await core.setDailyWater('2026-04-21', -50);
       await core.setDailyWater('2026-04-20', 123.7);
       const water = await core.getDailyWater();
-      expect(water['2026-04-22']).toBe(20000);
+      expect(water['2026-04-22']).toBe(676);
       expect(water['2026-04-21']).toBe(0);
       expect(water['2026-04-20']).toBe(124);
     });

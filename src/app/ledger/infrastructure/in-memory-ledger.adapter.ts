@@ -260,8 +260,8 @@ export class InMemoryLedgerAdapter implements LedgerPort {
     return { ...this.water };
   }
 
-  async setDailyWater(dateKey: string, ml: number): Promise<void> {
-    this.water[dateKey] = Math.max(0, Math.min(20000, Math.round(ml)));
+  async setDailyWater(dateKey: string, flOz: number): Promise<void> {
+    this.water[dateKey] = Math.max(0, Math.min(676, Math.round(flOz)));
   }
 
   async getPresets(): Promise<MealPreset[]> {

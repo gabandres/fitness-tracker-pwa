@@ -405,18 +405,26 @@ service cloud.firestore {
       }
 
       // Daily water intake — one doc per calendar day keyed by date.
-      // Stored in milliliters as the single source of truth; the client
-      // renders oz or ml based on locale. Upper bound of 20_000 ml is
-      // ~5 gallons — implausible but catches fat-finger data that would
-      // otherwise pollute long-horizon charts.
+      // Stored in US fluid ounces ({ flOz }) as the single source of
+      // truth. Upper bound of 676 fl oz is ~5 gallons — implausible but
+      // catches fat-finger data that would otherwise pollute charts.
+      //
+      // Legacy { ml } writes (≤ 20_000 ml ≈ 5 gal) are still accepted so
+      // app clients cached from before the 2026-06 unit migration keep
+      // working until they refresh. Drop the ml branch once they have.
       match /dailyWater/{dateKey} {
         allow read:   if isOwner(uid) || isAdmin();
         allow write:  if isOwner(uid)
-            && request.resource.data.keys().hasAll(['ml'])
-            && request.resource.data.keys().hasOnly(['ml'])
-            && request.resource.data.ml is number
-            && request.resource.data.ml >= 0
-            && request.resource.data.ml <= 20000;
+            && (
+              (request.resource.data.keys().hasOnly(['flOz'])
+                && request.resource.data.flOz is number
+                && request.resource.data.flOz >= 0
+                && request.resource.data.flOz <= 676)
+              || (request.resource.data.keys().hasOnly(['ml'])
+                && request.resource.data.ml is number
+                && request.resource.data.ml >= 0
+                && request.resource.data.ml <= 20000)
+            );
       }
 
       // Body measurements — weekly/biweekly body-comp tracking.

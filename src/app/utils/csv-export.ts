@@ -68,11 +68,10 @@ export function buildCsv(data: ExportData): string {
     rows.push(row({ type: 'weight', date, weight: data.dailyWeights[date] }));
   }
 
-  // Stored in ml (single source of truth); exported in US fluid ounces to
-  // match the in-app display. 1 fl oz = 29.5735 ml.
+  // dailyWater is already in US fluid ounces (the stored unit).
   const waterKeys = Object.keys(data.dailyWater).sort();
   for (const date of waterKeys) {
-    rows.push(row({ type: 'water', date, waterFlOz: Math.round(data.dailyWater[date] / 29.5735) }));
+    rows.push(row({ type: 'water', date, waterFlOz: Math.round(data.dailyWater[date]) }));
   }
 
   const sortedMeasurements = [...data.measurements].sort((a, b) => a.date.getTime() - b.date.getTime());

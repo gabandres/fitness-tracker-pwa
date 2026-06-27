@@ -199,12 +199,12 @@ describe.each(ADAPTERS)('LedgerPort contract — %s', (_label, configure) => {
   });
 
   describe('dailyWater clamping', () => {
-    it('clamps input to [0, 20000] and rounds', async () => {
+    it('clamps input to [0, 676] fl oz and rounds', async () => {
       await port.setDailyWater('2026-04-22', 999999);
       await port.setDailyWater('2026-04-21', -50);
       await port.setDailyWater('2026-04-20', 123.7);
       const water = await port.getDailyWater();
-      expect(water['2026-04-22']).toBe(20000);
+      expect(water['2026-04-22']).toBe(676);
       expect(water['2026-04-21']).toBe(0);
       expect(water['2026-04-20']).toBe(124);
     });

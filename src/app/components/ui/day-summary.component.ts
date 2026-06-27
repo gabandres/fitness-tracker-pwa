@@ -317,7 +317,8 @@ export class UiDaySummary {
 
   protected readonly exercised = computed(() => this.summary()?.exercised ?? false);
 
-  protected readonly waterMl = computed(
+  /** Stored and displayed in US fluid ounces. */
+  protected readonly waterOz = computed(
     () => this.body.dailyWater()[this.dateKey()] ?? 0,
   );
 
@@ -333,15 +334,9 @@ export class UiDaySummary {
     this.haptic(10);
     this.weightSheetOpen.set(true);
   }
-  /** Water is stored in milliliters (single source of truth) but the app
-   *  is imperial throughout (weight in lb), so it's displayed and entered
-   *  in US fluid ounces. 1 fl oz = 29.5735 ml. */
-  private static readonly ML_PER_FL_OZ = 29.5735;
-
-  protected readonly waterDisplay = computed(() => {
-    const oz = Math.round(this.waterMl() / UiDaySummary.ML_PER_FL_OZ);
-    return `${oz} ${this.translation.t('v2.daySummary.flOz')}`;
-  });
+  protected readonly waterDisplay = computed(
+    () => `${this.waterOz()} ${this.translation.t('v2.daySummary.flOz')}`,
+  );
 
   protected logTime(log: DailyLog): string {
     const locale = bcp47ForLang(this.translation.language());
@@ -363,7 +358,7 @@ export class UiDaySummary {
   protected addWaterOz(deltaOz: number): void {
     if (!this.editable()) return;
     this.haptic(10);
-    void this.body.addWater(this.dateKey(), Math.round(deltaOz * UiDaySummary.ML_PER_FL_OZ));
+    void this.body.addWater(this.dateKey(), deltaOz);
   }
 
   protected readonly editingWater = signal(false);
@@ -373,7 +368,7 @@ export class UiDaySummary {
   protected openWaterEditor(): void {
     if (!this.editable()) return;
     this.haptic(10);
-    this.waterEditInput.set(Math.round(this.waterMl() / UiDaySummary.ML_PER_FL_OZ));
+    this.waterEditInput.set(this.waterOz());
     this.editingWater.set(true);
   }
 
@@ -388,7 +383,7 @@ export class UiDaySummary {
     const oz = this.waterEditInput();
     if (oz == null || oz < 0) return;
     this.haptic(30);
-    void this.body.setDailyWater(this.dateKey(), Math.round(oz * UiDaySummary.ML_PER_FL_OZ));
+    void this.body.setDailyWater(this.dateKey(), oz);
     this.editingWater.set(false);
   }
 

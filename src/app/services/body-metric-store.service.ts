@@ -63,20 +63,20 @@ export class BodyMetricStore {
     this._dailyWeights.update((prev) => ({ ...prev, [dateKey]: weight }));
   }
 
-  /** Overwrite the water intake total for a specific day (ml). */
-  async setDailyWater(dateKey: string, ml: number): Promise<void> {
-    const clamped = Math.max(0, Math.min(20000, Math.round(ml)));
+  /** Overwrite the water intake total for a specific day (US fluid ounces). */
+  async setDailyWater(dateKey: string, flOz: number): Promise<void> {
+    const clamped = Math.max(0, Math.min(676, Math.round(flOz)));
     await this.fb.setDailyWater(dateKey, clamped);
     this._dailyWater.update((prev) => ({ ...prev, [dateKey]: clamped }));
   }
 
-  /** Increment water intake for a specific day by `deltaMl`. Computes
-      the next total client-side from the current signal value — no
-      transactional read/modify/write since a single-user app doesn't
+  /** Increment water intake for a specific day by `deltaOz` (fl oz).
+      Computes the next total client-side from the current signal value —
+      no transactional read/modify/write since a single-user app doesn't
       have concurrent writers for the same day. */
-  async addWater(dateKey: string, deltaMl: number): Promise<void> {
+  async addWater(dateKey: string, deltaOz: number): Promise<void> {
     const current = this._dailyWater()[dateKey] ?? 0;
-    await this.setDailyWater(dateKey, current + deltaMl);
+    await this.setDailyWater(dateKey, current + deltaOz);
   }
 
   async addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<void> {

@@ -231,24 +231,32 @@ export class FirestoreLedgerCore {
   }
 
   // ─── Daily water ──────────────────────────────────────────────
-  // Stored in milliliters (single source of truth); client renders oz/ml
-  // based on locale. Same shape as dailyWeights: one doc per date keyed
-  // by the dateKey. Clamped at 20000 ml (~5 gal, mirrored in rules) to
-  // catch fat-finger entries that would otherwise pollute charts.
+  // Stored in US fluid ounces (single source of truth — the app is
+  // imperial throughout). One doc per date keyed by the dateKey, shape
+  // { flOz }. Clamped at 676 fl oz (~5 gal, mirrored in rules) to catch
+  // fat-finger entries that would otherwise pollute charts.
+  //
+  // Legacy docs stored { ml } before the 2026-06 unit migration; reads
+  // fall back to converting ml→fl oz (1 fl oz = 29.5735 ml) so any doc
+  // the migration hasn't rewritten yet still renders correctly.
 
   async getDailyWater(): Promise<Record<string, number>> {
     const snap = await getDocs(this.userCollection('dailyWater'));
     const water: Record<string, number> = {};
     for (const d of snap.docs) {
-      const data = d.data() as { ml: number };
-      water[d.id] = data.ml;
+      const data = d.data() as { flOz?: number; ml?: number };
+      water[d.id] = typeof data.flOz === 'number'
+        ? data.flOz
+        : typeof data.ml === 'number'
+          ? Math.round(data.ml / 29.5735)
+          : 0;
     }
     return water;
   }
 
-  async setDailyWater(dateKey: string, ml: number): Promise<void> {
+  async setDailyWater(dateKey: string, flOz: number): Promise<void> {
     await setDoc(this.userDocIn('dailyWater', dateKey), {
-      ml: Math.max(0, Math.min(20000, Math.round(ml))),
+      flOz: Math.max(0, Math.min(676, Math.round(flOz))),
     });
   }
 
