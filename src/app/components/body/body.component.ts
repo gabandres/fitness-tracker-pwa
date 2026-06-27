@@ -299,36 +299,15 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
 
         @if (expanded()) {
           <div id="measurements-panel" class="mt-4">
-            @if (body.latestMeasurement(); as m) {
-              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                @for (f of M_FIELDS; track f.key) {
-                  @if (m[f.key] != null) {
-                    <div>
-                      <div class="v2-num" style="font-size: 1.125rem; font-weight: 600; color: var(--v2-ink)">
-                        {{ m[f.key] }}
-                        @if (deltaFor(f.key); as d) {
-                          <span class="v2-num"
-                            [style.color]="d < 0 ? 'var(--v2-sage)' : d > 0 ? 'var(--v2-accent)' : 'var(--v2-ink-muted)'"
-                            style="font-size: 0.75rem; margin-left: 4px;">
-                            {{ d > 0 ? '+' : '' }}{{ formatDelta(d) }}
-                          </span>
-                        }
-                      </div>
-                      <div class="v2-caption mt-0.5" style="font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.06em;">
-                        {{ t(f.labelKey) }}
-                      </div>
-                    </div>
-                  }
-                }
-              </div>
-            }
-
             @if (bodyFatPct(); as bf) {
               <p class="v2-caption mb-4">{{ t('body.bodyFat', { n: bf }) }}</p>
             }
 
             @if (formOpen()) {
               <form (submit)="saveMeasurement($event)" novalidate class="space-y-3">
+                <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.06em;">
+                  {{ editingMeasurementId() ? t('v2.body.editMeasurement') : t('v2.body.addMeasurement') }}
+                </p>
                 <div class="grid grid-cols-2 gap-3">
                   @for (f of M_FIELDS; track f.key) {
                     <div>
@@ -356,6 +335,46 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
                 </div>
               </form>
             } @else {
+              @if (measurementHistory().length) {
+                <ul class="space-y-2 mb-4">
+                  @for (row of measurementHistory(); track row.m.id) {
+                    <li class="flex items-start justify-between gap-3 py-2"
+                        style="border-bottom: 1px solid var(--v2-hairline);">
+                      <div class="min-w-0">
+                        <div class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.06em;">
+                          {{ row.dateLabel }}
+                        </div>
+                        <div class="v2-num mt-0.5" style="color: var(--v2-ink); font-weight: 500;">
+                          @for (f of M_FIELDS; track f.key) {
+                            @if (row.m[f.key] != null) {
+                              <span style="margin-right: 10px; white-space: nowrap;">
+                                <span style="color: var(--v2-ink-muted); font-weight: 400;">{{ t(f.labelKey) }}</span>
+                                {{ row.m[f.key] }}{{ t('v2.body.inch') }}
+                              </span>
+                            }
+                          }
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-1 shrink-0">
+                        <button type="button" class="v2-icon-btn"
+                          style="background: none; border: none; padding: 8px; cursor: pointer; color: var(--v2-ink-muted);"
+                          [attr.aria-label]="t('v2.body.editMeasurementAria', { date: row.dateLabel })"
+                          (click)="editMeasurement(row.m)">
+                          <lucide-icon name="pencil" [size]="16" />
+                        </button>
+                        <button type="button" class="v2-icon-btn"
+                          style="background: none; border: none; padding: 8px; cursor: pointer; color: var(--v2-ink-muted);"
+                          [attr.aria-label]="t('v2.body.deleteMeasurementAria', { date: row.dateLabel })"
+                          (click)="deleteMeasurement(row.m)">
+                          <lucide-icon name="trash-2" [size]="16" />
+                        </button>
+                      </div>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <p class="v2-caption mb-4">{{ t('v2.body.measurementsNone') }}</p>
+              }
               <ui-button variant="secondary" size="sm" [block]="true" (click)="openMeasurementForm()">
                 <lucide-icon name="plus" [size]="14" />
                 {{ t('v2.body.addMeasurement') }}
@@ -516,6 +535,21 @@ export class BodyComponent implements OnInit, OnDestroy {
   });
   protected readonly formError = signal<string | null>(null);
   protected readonly saving = signal(false);
+  /** Id of the measurement being edited, or null when adding a new one. */
+  protected readonly editingMeasurementId = signal<string | null>(null);
+
+  /** Full measurement history, oldest → newest, with a formatted date
+   *  label per row. The store keeps the list newest-first. */
+  protected readonly measurementHistory = computed(() =>
+    [...this.body.measurements()]
+      .reverse()
+      .map((m) => ({
+        m,
+        dateLabel: m.date.toLocaleDateString(bcp47ForLang(this.translation.language()), {
+          year: 'numeric', month: 'short', day: 'numeric',
+        }),
+      })),
+  );
 
   // ─── Live ticker for fasting progress ──────────────────────
   private readonly tick = signal(0);
@@ -765,14 +799,41 @@ export class BodyComponent implements OnInit, OnDestroy {
 
   protected openMeasurementForm(): void {
     this.haptic(10);
+    this.editingMeasurementId.set(null);
     this.formValues.set({ waist: null, chest: null, bicep: null, hip: null, neck: null });
     this.formError.set(null);
     this.formOpen.set(true);
   }
 
+  protected editMeasurement(m: Measurement): void {
+    this.haptic(10);
+    this.editingMeasurementId.set(m.id ?? null);
+    this.formValues.set({
+      waist: m.waist ?? null,
+      chest: m.chest ?? null,
+      bicep: m.bicep ?? null,
+      hip: m.hip ?? null,
+      neck: m.neck ?? null,
+    });
+    this.formError.set(null);
+    this.formOpen.set(true);
+  }
+
+  protected async deleteMeasurement(m: Measurement): Promise<void> {
+    if (!m.id || !confirm(this.translation.t('v2.body.deleteMeasurementConfirm'))) return;
+    this.haptic(30);
+    try {
+      await this.body.deleteMeasurement(m.id);
+    } catch {
+      this.formError.set(this.translation.t('v2.body.measurementError'));
+      this.haptic(50);
+    }
+  }
+
   protected cancelMeasurement(): void {
     this.formOpen.set(false);
     this.formError.set(null);
+    this.editingMeasurementId.set(null);
   }
 
   protected onMeasurementInput(key: MField, e: Event): void {
@@ -800,8 +861,14 @@ export class BodyComponent implements OnInit, OnDestroy {
     this.formError.set(null);
     this.haptic(30);
     try {
-      await this.body.addMeasurement(entry);
+      const editId = this.editingMeasurementId();
+      if (editId) {
+        await this.body.updateMeasurement(editId, entry);
+      } else {
+        await this.body.addMeasurement(entry);
+      }
       this.formOpen.set(false);
+      this.editingMeasurementId.set(null);
       this.formValues.set({ waist: null, chest: null, bicep: null, hip: null, neck: null });
     } catch (err) {
       this.formError.set(err instanceof Error ? err.message : 'Could not save measurement.');

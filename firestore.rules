@@ -431,6 +431,7 @@ service cloud.firestore {
       match /measurements/{measurementId} {
         allow read:   if isOwner(uid) || isAdmin();
         allow create: if isOwner(uid) && isValidMeasurement(request.resource.data);
+        allow update: if isOwner(uid) && isValidMeasurement(request.resource.data);
         allow delete: if isOwner(uid);
       }
 

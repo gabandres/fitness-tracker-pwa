@@ -318,6 +318,18 @@ export class FirestoreLedgerCore {
     return ref.id;
   }
 
+  async updateMeasurement(id: string, entry: Omit<Measurement, 'id' | 'date'>): Promise<void> {
+    // Leave `timestamp` untouched so the row keeps its original date; set
+    // provided fields and remove any the caller cleared.
+    await updateDoc(this.userDocIn('measurements', id), {
+      waist: entry.waist != null ? entry.waist : deleteField(),
+      chest: entry.chest != null ? entry.chest : deleteField(),
+      bicep: entry.bicep != null ? entry.bicep : deleteField(),
+      hip: entry.hip != null ? entry.hip : deleteField(),
+      neck: entry.neck != null ? entry.neck : deleteField(),
+    });
+  }
+
   async deleteMeasurement(id: string): Promise<void> {
     await deleteDoc(this.userDocIn('measurements', id));
   }

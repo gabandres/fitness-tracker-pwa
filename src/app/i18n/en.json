@@ -1516,7 +1516,12 @@
       "fieldHip": "Hip",
       "measurementError": "Enter at least one measurement.",
       "saving": "Saving…",
-      "addMeasurement": "Add measurement"
+      "addMeasurement": "Add measurement",
+      "editMeasurement": "Edit measurement",
+      "editMeasurementAria": "Edit measurement from {{date}}",
+      "deleteMeasurementAria": "Delete measurement from {{date}}",
+      "deleteMeasurementConfirm": "Delete this measurement?",
+      "inch": "\""
     }
   },
   "calculator": {

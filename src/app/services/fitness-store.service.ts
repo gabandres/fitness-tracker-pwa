@@ -946,7 +946,7 @@ export class FitnessStore {
       ] = await Promise.all([
         this.fb.getRecentLogs(14),
         this.fb.getPresets(),
-        this.fb.getRecentMeasurements(),
+        this.fb.getRecentMeasurements(100),
         this.fb.getDailyWeights(),
         this.fb.getDailyWater(),
         this.fb.getExercises(),

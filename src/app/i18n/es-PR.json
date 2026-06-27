@@ -1516,7 +1516,12 @@
       "fieldHip": "Cadera",
       "measurementError": "Pon por lo menos una medida.",
       "saving": "Guardando…",
-      "addMeasurement": "Añadir medida"
+      "addMeasurement": "Añadir medida",
+      "editMeasurement": "Editar medida",
+      "editMeasurementAria": "Editar medida del {{date}}",
+      "deleteMeasurementAria": "Borrar medida del {{date}}",
+      "deleteMeasurementConfirm": "¿Borrar esta medida?",
+      "inch": "\""
     }
   },
   "calculator": {

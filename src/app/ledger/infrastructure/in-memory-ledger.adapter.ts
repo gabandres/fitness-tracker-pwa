@@ -294,6 +294,12 @@ export class InMemoryLedgerAdapter implements LedgerPort {
     return id;
   }
 
+  async updateMeasurement(id: string, entry: Omit<Measurement, 'id' | 'date'>): Promise<void> {
+    const existing = this.measurements.get(id);
+    if (!existing) throw new Error(`Measurement not found: ${id}`);
+    this.measurements.set(id, { id, date: existing.date, ...entry });
+  }
+
   async deleteMeasurement(id: string): Promise<void> {
     if (!this.measurements.delete(id)) throw new Error(`Measurement not found: ${id}`);
   }

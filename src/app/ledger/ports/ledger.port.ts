@@ -74,7 +74,7 @@ export interface LedgerPort {
   setDailyWeight(dateKey: string, weight: number): Promise<void>;
 
   getDailyWater(): Promise<Record<string, number>>;
-  setDailyWater(dateKey: string, ml: number): Promise<void>;
+  setDailyWater(dateKey: string, flOz: number): Promise<void>;
 
   getPresets(): Promise<MealPreset[]>;
   addPreset(preset: Omit<MealPreset, 'id'>): Promise<string>;
@@ -84,6 +84,9 @@ export interface LedgerPort {
 
   getRecentMeasurements(count?: number): Promise<Measurement[]>;
   addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<string>;
+  /** Overwrite a measurement's fields, preserving its original date. Fields
+   *  absent from `entry` are removed from the doc. */
+  updateMeasurement(id: string, entry: Omit<Measurement, 'id' | 'date'>): Promise<void>;
   deleteMeasurement(id: string): Promise<void>;
 
   // ─── Workout: exercise catalog ────────────────────────────────

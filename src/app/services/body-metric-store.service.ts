@@ -86,8 +86,15 @@ export class BodyMetricStore {
     this._measurements.set([{ ...entry, id, date: new Date() }, ...this._measurements()]);
   }
 
+  async updateMeasurement(id: string, entry: Omit<Measurement, 'id' | 'date'>): Promise<void> {
+    await this.fb.updateMeasurement(id, entry);
+    this._measurements.update((list) =>
+      list.map((m) => (m.id === id ? { id, date: m.date, ...entry } : m)),
+    );
+  }
+
   async deleteMeasurement(id: string): Promise<void> {
     await this.fb.deleteMeasurement(id);
-    this._measurements.set(await this.fb.getRecentMeasurements());
+    this._measurements.update((list) => list.filter((m) => m.id !== id));
   }
 }

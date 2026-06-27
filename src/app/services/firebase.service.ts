@@ -743,6 +743,10 @@ export class FirebaseService implements LedgerPort {
     return this.core.addMeasurement(entry);
   }
 
+  async updateMeasurement(id: string, entry: Omit<Measurement, 'id' | 'date'>): Promise<void> {
+    await this.core.updateMeasurement(id, entry);
+  }
+
   async deleteMeasurement(id: string): Promise<void> {
     await this.core.deleteMeasurement(id);
   }
