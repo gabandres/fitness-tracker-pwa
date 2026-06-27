@@ -30,6 +30,8 @@ import { UiCard } from '../ui/card.component';
 import { UiFab } from '../ui/fab.component';
 import { UiDaySummary } from '../ui/day-summary.component';
 import { UiFastingPill } from '../ui/fasting-pill.component';
+import { UiAvatar } from '../ui/avatar.component';
+import { AuthService } from '../../services/auth.service';
 import { UiRefineTargetsSheet } from '../refine-targets-sheet/refine-targets-sheet.component';
 import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/whats-new-banner.component';
 
@@ -51,6 +53,7 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
     UiFab,
     UiDaySummary,
     UiFastingPill,
+    UiAvatar,
     UiRefineTargetsSheet,
     WhatsNewBannerComponent,
   ],
@@ -88,10 +91,11 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
             icon="calendar"
             [ariaLabel]="t('v2.today.historyAria')"
             (click)="historyRequested.emit()" />
-          <ui-icon-button
-            icon="settings"
+          <ui-avatar
+            [photoUrl]="authUser()?.photoURL ?? null"
+            [name]="authUser()?.displayName || authUser()?.email || null"
             [ariaLabel]="t('v2.today.settingsAria')"
-            (click)="settingsRequested.emit()" />
+            (activate)="settingsRequested.emit()" />
         </div>
       </header>
 
@@ -233,6 +237,10 @@ export class TodayComponent {
   private readonly push = inject(PushNotificationService);
   private readonly fb = inject(FirebaseService);
   private readonly analytics = inject(AnalyticsService);
+  private readonly auth = inject(AuthService);
+
+  /** Drives the header avatar (provider photo / initials fallback). */
+  protected readonly authUser = this.auth.user;
 
   readonly historyRequested = output<void>();
   readonly settingsRequested = output<void>();
