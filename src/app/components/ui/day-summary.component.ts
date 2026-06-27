@@ -177,15 +177,15 @@ import { UiWeightSheet } from './weight-sheet.component';
         @if (editingWater()) {
           <div class="mt-3 space-y-2">
             <label class="v2-caption block" style="text-transform: uppercase; letter-spacing: 0.06em;">
-              {{ t('v2.daySummary.setExactMl') }}
+              {{ t('v2.daySummary.setExactOz') }}
             </label>
             <div class="flex flex-wrap gap-2 items-center">
               <input
                 type="number"
                 inputmode="numeric"
-                step="50"
+                step="1"
                 min="0"
-                max="20000"
+                max="676"
                 class="v2-field v2-field--num"
                 style="max-width: 140px;"
                 [value]="waterEditInput() ?? ''"
@@ -198,9 +198,13 @@ import { UiWeightSheet } from './weight-sheet.component';
           </div>
         } @else {
           <div class="flex flex-wrap gap-2 mt-3">
-            <ui-button variant="ghost" size="sm" (click)="addWater(250)">{{ t('v2.daySummary.addMl', { n: 250 }) }}</ui-button>
-            <ui-button variant="ghost" size="sm" (click)="addWater(500)">{{ t('v2.daySummary.addMl', { n: 500 }) }}</ui-button>
-            <ui-button variant="ghost" size="sm" (click)="addWater(1000)">{{ t('v2.daySummary.addLiter') }}</ui-button>
+            <ui-button variant="ghost" size="sm" (click)="addWaterOz(8)">{{ t('v2.daySummary.addOz', { n: 8 }) }}</ui-button>
+            <ui-button variant="ghost" size="sm" (click)="addWaterOz(16)">{{ t('v2.daySummary.addOz', { n: 16 }) }}</ui-button>
+            <ui-button variant="ghost" size="sm" (click)="addWaterOz(24)">{{ t('v2.daySummary.addOz', { n: 24 }) }}</ui-button>
+            <ui-button variant="secondary" size="sm" (click)="openWaterEditor()">
+              <lucide-icon name="pencil" [size]="14" />
+              {{ t('v2.daySummary.editWater') }}
+            </ui-button>
           </div>
         }
       }
@@ -329,13 +333,14 @@ export class UiDaySummary {
     this.haptic(10);
     this.weightSheetOpen.set(true);
   }
+  /** Water is stored in milliliters (single source of truth) but the app
+   *  is imperial throughout (weight in lb), so it's displayed and entered
+   *  in US fluid ounces. 1 fl oz = 29.5735 ml. */
+  private static readonly ML_PER_FL_OZ = 29.5735;
+
   protected readonly waterDisplay = computed(() => {
-    const ml = this.waterMl();
-    const unitMl = this.translation.t('v2.daySummary.ml');
-    const unitL = this.translation.t('v2.daySummary.liter');
-    if (ml === 0) return `0 ${unitMl}`;
-    if (ml < 1000) return `${ml} ${unitMl}`;
-    return `${(ml / 1000).toFixed(1)} ${unitL}`;
+    const oz = Math.round(this.waterMl() / UiDaySummary.ML_PER_FL_OZ);
+    return `${oz} ${this.translation.t('v2.daySummary.flOz')}`;
   });
 
   protected logTime(log: DailyLog): string {
@@ -355,19 +360,20 @@ export class UiDaySummary {
     void this.store.toggleDayExercise(this.dateKey());
   }
 
-  protected addWater(deltaMl: number): void {
+  protected addWaterOz(deltaOz: number): void {
     if (!this.editable()) return;
     this.haptic(10);
-    void this.body.addWater(this.dateKey(), deltaMl);
+    void this.body.addWater(this.dateKey(), Math.round(deltaOz * UiDaySummary.ML_PER_FL_OZ));
   }
 
   protected readonly editingWater = signal(false);
+  /** Editor input is in fl oz, not ml. */
   protected readonly waterEditInput = signal<number | null>(null);
 
   protected openWaterEditor(): void {
     if (!this.editable()) return;
     this.haptic(10);
-    this.waterEditInput.set(this.waterMl());
+    this.waterEditInput.set(Math.round(this.waterMl() / UiDaySummary.ML_PER_FL_OZ));
     this.editingWater.set(true);
   }
 
@@ -379,10 +385,10 @@ export class UiDaySummary {
   }
 
   protected saveWater(): void {
-    const n = this.waterEditInput();
-    if (n == null || n < 0) return;
+    const oz = this.waterEditInput();
+    if (oz == null || oz < 0) return;
     this.haptic(30);
-    void this.body.setDailyWater(this.dateKey(), Math.round(n));
+    void this.body.setDailyWater(this.dateKey(), Math.round(oz * UiDaySummary.ML_PER_FL_OZ));
     this.editingWater.set(false);
   }
 
