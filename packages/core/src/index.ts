@@ -8,3 +8,5 @@ export * from './unit-system';
 export * from './macro-heuristic';
 export * from './date';
 export * from './day-summary';
+export * from './tdee';
+export * from './targets';
