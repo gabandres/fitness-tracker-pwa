@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,7 +14,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { DailyLog, LogEntry } from '@macrolog/core';
 import { EntrySheet } from '@/components/EntrySheet';
 import { MacroRing } from '@/components/MacroRing';
-import { useAuth } from '@/lib/auth';
 import * as haptics from '@/lib/haptics';
 import { useToday } from '@/hooks/useToday';
 import { colors, font, radius, space } from '@/theme';
@@ -23,7 +23,7 @@ function todayLabel(): string {
 }
 
 export default function Today() {
-  const { signOut } = useAuth();
+  const router = useRouter();
   const { loading, error, summary, targets, todayLogs, addEntry, updateEntry, deleteEntry } = useToday();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<DailyLog | null>(null);
@@ -61,8 +61,8 @@ export default function Today() {
           <Text style={styles.title}>Today</Text>
           <Text style={styles.date}>{todayLabel()}</Text>
         </View>
-        <TouchableOpacity onPress={signOut} testID="signout" hitSlop={10}>
-          <Ionicons name="log-out-outline" size={24} color={colors.muted} />
+        <TouchableOpacity onPress={() => router.push('/settings')} testID="settings-open" hitSlop={10}>
+          <Ionicons name="settings-outline" size={24} color={colors.muted} />
         </TouchableOpacity>
       </View>
 

@@ -17,7 +17,9 @@ import {
   useMemo,
   useState,
 } from 'react';
+import type { Profile } from '@macrolog/core';
 import { auth } from './firebase';
+import { subscribeProfile } from './ledger';
 
 // Required for the web-OAuth popup/redirect to resolve when the app
 // regains focus after the Google consent screen.
@@ -57,6 +59,11 @@ interface AuthState {
   /** True when the user's custom claims grant Pro (Stripe `stripeRole:paid`
    *  or any future entitlement source). */
   isPro: boolean;
+  /** The user's profile doc, or null when signed out / not yet loaded. */
+  profile: Profile | null;
+  /** True until the first profile snapshot arrives — gates the onboarding
+   *  redirect so we don't flash it before the doc loads. */
+  profileLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   /** Launches the Google OAuth flow and signs in to Firebase with the
    *  returned id token. Throws GoogleSignInError on cancel/unavailable. */
@@ -73,6 +80,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [initializing, setInitializing] = useState(true);
   const [isPro, setIsPro] = useState(false);
+  // Profile is keyed by uid so "loaded for the current user" is derivable
+  // synchronously — no effect-set flag that lags a render behind `user` and
+  // briefly makes a signed-in user look un-onboarded.
+  const [profileEntry, setProfileEntry] = useState<{ uid: string; profile: Profile | null } | null>(
+    null,
+  );
 
   // Builds the OAuth request once the client IDs are present. `request` is
   // null until ready; promptAsync() resolves with the redirect result.
@@ -102,11 +115,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Live profile subscription, shared app-wide so the gate can route to
+  // onboarding and Settings can read goals/units off one listener.
+  useEffect(() => {
+    const uid = user?.uid;
+    if (!uid) {
+      setProfileEntry(null);
+      return;
+    }
+    return subscribeProfile(
+      uid,
+      (p) => setProfileEntry({ uid, profile: p }),
+      () => setProfileEntry({ uid, profile: null }),
+    );
+  }, [user?.uid]);
+
+  // Only trust the profile when it belongs to the current user; until then
+  // the gate must treat it as still loading.
+  const matchedProfile = profileEntry && user && profileEntry.uid === user.uid ? profileEntry : null;
+  const profile = matchedProfile ? matchedProfile.profile : null;
+  const profileLoading = !!user && !matchedProfile;
+
   const value = useMemo<AuthState>(
     () => ({
       user,
       initializing,
       isPro,
+      profile,
+      profileLoading,
       googleAvailable,
       signIn: async (email, password) => {
         await signInWithEmailAndPassword(auth, email.trim(), password);
@@ -125,7 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       signOut: () => fbSignOut(auth),
     }),
-    [user, initializing, isPro, googleAvailable, request, promptAsync],
+    [user, initializing, isPro, profile, profileLoading, googleAvailable, request, promptAsync],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

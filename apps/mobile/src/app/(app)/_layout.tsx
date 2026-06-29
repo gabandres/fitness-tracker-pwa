@@ -33,6 +33,8 @@ export default function AppTabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="body-outline" color={color} size={size} />,
         }}
       />
+      {/* Reachable via the Today header gear; hidden from the tab bar. */}
+      <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
   );
 }

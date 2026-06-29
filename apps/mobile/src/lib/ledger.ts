@@ -12,7 +12,13 @@ import {
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
-import type { DailyLog, LogEntry, Profile } from '@macrolog/core';
+import type {
+  DailyLog,
+  LogEntry,
+  OnboardingV2Submission,
+  Profile,
+  UnitSystem,
+} from '@macrolog/core';
 import { db } from './firebase';
 
 // Firestore schema mirrors the PWA exactly (see firestore-ledger.core.ts):
@@ -146,4 +152,27 @@ export function subscribeProfile(
     (snap) => cb(snap.exists() ? toProfile(snap.data()) : null),
     onError,
   );
+}
+
+/** Persist the 2-question onboarding. Mirrors the PWA's
+ *  `FirebaseService.saveOnboardingV2` byte-for-byte: writes the manual
+ *  heuristic targets, stamps completion, and flips `profileCompleted` so the
+ *  TDEE chain prefers these numbers until the user has measured data. The
+ *  profile doc already exists (created at sign-up), so this is an update. */
+export async function saveOnboardingV2(uid: string, s: OnboardingV2Submission): Promise<void> {
+  const patch: Record<string, unknown> = {
+    goalDirection: s.goalDirection,
+    manualCaloriesTarget: s.manualCaloriesTarget,
+    manualProteinTarget: s.manualProteinTarget,
+    onboardingV2CompletedAt: Timestamp.now(),
+    profileCompleted: true,
+    lastSeenAt: Timestamp.now(),
+  };
+  if (s.targetWeightLbs != null) patch['targetWeightLbs'] = s.targetWeightLbs;
+  await updateDoc(userDoc(uid), patch);
+}
+
+/** Portion-display unit system (`us` | `metric`). */
+export async function setUnitSystem(uid: string, unitSystem: UnitSystem): Promise<void> {
+  await updateDoc(userDoc(uid), { unitSystem });
 }
