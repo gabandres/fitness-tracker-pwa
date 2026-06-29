@@ -14,6 +14,7 @@ import type { DailyLog, LogEntry } from '@macrolog/core';
 import { EntrySheet } from '@/components/EntrySheet';
 import { MacroRing } from '@/components/MacroRing';
 import { useAuth } from '@/lib/auth';
+import * as haptics from '@/lib/haptics';
 import { useToday } from '@/hooks/useToday';
 import { colors, font, radius, space } from '@/theme';
 
@@ -34,6 +35,7 @@ export default function Today() {
   const protTarget = targets.proteinTarget || 0;
 
   function openAdd() {
+    haptics.tap();
     setEditing(null);
     setSheetOpen(true);
   }
@@ -44,9 +46,11 @@ export default function Today() {
   async function onSave(entry: LogEntry) {
     if (editing?.id) await updateEntry(editing.id, entry);
     else await addEntry(entry);
+    haptics.success();
   }
   async function onDelete() {
     if (editing?.id) await deleteEntry(editing.id);
+    haptics.success();
     setSheetOpen(false);
   }
 

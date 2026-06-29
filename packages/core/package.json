@@ -9,5 +9,9 @@
     ".": "./src/index.ts",
     "./*": "./src/*.ts"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
 }

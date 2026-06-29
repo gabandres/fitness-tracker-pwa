@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { parseYmd } from '@macrolog/core';
 import { useBody } from '@/hooks/useBody';
+import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
 
 function dayLabel(dateKey: string): string {
@@ -72,6 +73,7 @@ export default function Body() {
         onClose={() => setOpen(false)}
         onSave={async (w) => {
           await setWeight(w);
+          haptics.success();
           setOpen(false);
         }}
       />
