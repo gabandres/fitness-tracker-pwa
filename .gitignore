@@ -24,6 +24,8 @@
 
 # Node
 /node_modules
+# Workspace package/app node_modules (npm workspaces — packages/*, apps/*)
+node_modules/
 npm-debug.log
 yarn-error.log
 
