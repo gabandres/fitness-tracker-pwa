@@ -45,7 +45,7 @@
       "googleAuth": {
         "iosClientId": "REPLACE_WITH_IOS_CLIENT_ID.apps.googleusercontent.com",
         "androidClientId": "REPLACE_WITH_ANDROID_CLIENT_ID.apps.googleusercontent.com",
-        "webClientId": "REPLACE_WITH_WEB_CLIENT_ID.apps.googleusercontent.com"
+        "webClientId": "647810616435-jkiccn16plimkv9smp7ki8m90ghhocsh.apps.googleusercontent.com"
       }
     },
     "experiments": {
