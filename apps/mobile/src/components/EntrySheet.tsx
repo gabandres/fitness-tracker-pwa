@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
+  Dimensions,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -32,6 +34,8 @@ function numOrUndef(s: string): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+const SHEET_OFFSCREEN = Dimensions.get('window').height;
+
 export function EntrySheet({ visible, editing, onSave, onDelete, onClose }: Props) {
   const [label, setLabel] = useState('');
   const [calories, setCalories] = useState('');
@@ -40,6 +44,31 @@ export function EntrySheet({ visible, editing, onSave, onDelete, onClose }: Prop
   const [fat, setFat] = useState('');
   const [mealType, setMealType] = useState<MealType | undefined>(undefined);
   const [busy, setBusy] = useState(false);
+
+  // Keep the Modal mounted through the exit animation. `anim` drives both the
+  // backdrop fade and the sheet's translateY (0 = hidden, 1 = shown), so the
+  // dim stays full-screen and static while only the sheet slides up.
+  const [mounted, setMounted] = useState(visible);
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 240,
+        useNativeDriver: true,
+      }).start();
+    } else if (mounted) {
+      Animated.timing(anim, {
+        toValue: 0,
+        duration: 180,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) setMounted(false);
+      });
+    }
+  }, [visible]);
 
   useEffect(() => {
     if (!visible) return;
@@ -51,6 +80,11 @@ export function EntrySheet({ visible, editing, onSave, onDelete, onClose }: Prop
     setMealType(editing?.mealType);
     setBusy(false);
   }, [visible, editing]);
+
+  const sheetTranslate = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [SHEET_OFFSCREEN, 0],
+  });
 
   const calNum = numOrUndef(calories);
   const canSave = calNum != null && calNum > 0;
@@ -77,13 +111,16 @@ export function EntrySheet({ visible, editing, onSave, onDelete, onClose }: Prop
   }
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
+    <Modal visible={mounted} animationType="none" transparent onRequestClose={onClose}>
+      <Animated.View style={[styles.backdrop, { opacity: anim }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      </Animated.View>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.sheetWrap}
+        pointerEvents="box-none"
       >
-        <View style={styles.sheet}>
+        <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetTranslate }] }]}>
           <View style={styles.handle} />
           <Text style={styles.title}>{editing ? 'Edit entry' : 'Add food'}</Text>
 
@@ -156,7 +193,7 @@ export function EntrySheet({ visible, editing, onSave, onDelete, onClose }: Prop
               <Text style={styles.saveText}>{editing ? 'Save' : 'Add'}</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );
