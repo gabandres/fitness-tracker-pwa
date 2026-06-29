@@ -9,7 +9,6 @@
     "userInterfaceStyle": "light",
     "backgroundColor": "#f2ead7",
     "ios": {
-      "icon": "./assets/expo.icon",
       "bundleIdentifier": "app.macrolog.mobile",
       "supportsTablet": true
     },
@@ -38,7 +37,10 @@
             "imageWidth": 76
           }
         }
-      ]
+      ],
+      "expo-font",
+      "expo-image",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
