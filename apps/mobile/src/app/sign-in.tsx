@@ -14,10 +14,11 @@ import { useAuth } from '@/lib/auth';
 import { colors, font, radius, space } from '@/theme';
 
 export default function SignIn() {
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle, googleAvailable } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function onSubmit() {
@@ -30,6 +31,20 @@ export default function SignIn() {
     } catch (e: unknown) {
       setError(messageFor(e));
       setBusy(false);
+    }
+  }
+
+  async function onGoogle() {
+    if (googleBusy) return;
+    setError(null);
+    setGoogleBusy(true);
+    try {
+      await signInWithGoogle();
+      // AuthGate navigates once auth state flips.
+    } catch (e: unknown) {
+      setError(messageFor(e));
+    } finally {
+      setGoogleBusy(false);
     }
   }
 
@@ -87,6 +102,26 @@ export default function SignIn() {
                 <Text style={styles.buttonText}>Sign in</Text>
               )}
             </TouchableOpacity>
+
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.googleButton, (googleBusy || !googleAvailable) && styles.buttonBusy]}
+              onPress={onGoogle}
+              disabled={googleBusy}
+              testID="signin-google"
+              accessibilityRole="button"
+            >
+              {googleBusy ? (
+                <ActivityIndicator color={colors.ink} />
+              ) : (
+                <Text style={styles.googleButtonText}>Continue with Google</Text>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -102,6 +137,11 @@ function messageFor(e: unknown): string {
   if (code.includes('invalid-email')) return 'That email looks invalid.';
   if (code.includes('too-many-requests')) return 'Too many attempts — try again later.';
   if (code.includes('network')) return 'Network error — check your connection.';
+  if (code === 'expo-go') return 'Google sign-in needs the installed app build (not Expo Go).';
+  if (code === 'cancelled') return 'Google sign-in was cancelled.';
+  if (code.includes('account-exists-with-different-credential')) {
+    return 'That email already uses a different sign-in method.';
+  }
   return 'Could not sign in. Please try again.';
 }
 
@@ -138,4 +178,16 @@ const styles = StyleSheet.create({
   },
   buttonBusy: { opacity: 0.7 },
   buttonText: { color: colors.white, fontSize: font.h3, fontWeight: '700' },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginVertical: space.xs },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.line },
+  dividerText: { color: colors.faint, fontSize: font.small },
+  googleButton: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    paddingVertical: space.lg,
+    alignItems: 'center',
+  },
+  googleButtonText: { color: colors.ink, fontSize: font.h3, fontWeight: '700' },
 });

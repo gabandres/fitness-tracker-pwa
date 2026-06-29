@@ -41,6 +41,13 @@
       "expo-font",
       "expo-web-browser"
     ],
+    "extra": {
+      "googleAuth": {
+        "iosClientId": "REPLACE_WITH_IOS_CLIENT_ID.apps.googleusercontent.com",
+        "androidClientId": "REPLACE_WITH_ANDROID_CLIENT_ID.apps.googleusercontent.com",
+        "webClientId": "REPLACE_WITH_WEB_CLIENT_ID.apps.googleusercontent.com"
+      }
+    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
