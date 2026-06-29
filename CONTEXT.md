@@ -366,6 +366,23 @@ the same name under `src/app/components/`.
   like `UiCard`, `UiButton`, `UiFab`, `UiRing` mark **shared primitives**
   (design-system atoms). They are NOT feature surfaces.
 
+## Platforms (post-#12 — see [ADR-0012](docs/adr/0012-expo-native-app-shared-core.md))
+
+Two frontends over one Firebase backend. Both are Firestore-direct clients
+under the same security rules (ADR-0002 unchanged).
+
+- **PWA** / **web app** — The Angular app at the repo root. The canonical
+  web product, SEO surfaces, and Stripe checkout. Untouched by the native
+  effort.
+- **Mobile app** / **Expo app** — The React Native (Expo) app under
+  `apps/mobile/`. Native iOS UI for **native feel** (the sole reason it
+  exists, ADR-0012). Ships only the logged-in *product* surfaces, never
+  the marketing/SEO ones.
+- **Shared core** — `packages/core/`: the framework-free brain (pure
+  `utils`, `models`, domain types, the Firestore ledger core) imported by
+  *both* frontends. New product logic lands here first. "The math" lives
+  here; "the skin" is per-frontend.
+
 ## Conventions
 
 - **localDateKey** — `YYYY-MM-DD` in the user's local timezone. The

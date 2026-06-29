@@ -12,7 +12,12 @@
   },
   "private": true,
   "packageManager": "npm@11.6.2",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "dependencies": {
+    "@macrolog/core": "*",
     "@angular/common": "^21.2.0",
     "@angular/compiler": "^21.2.0",
     "@angular/core": "^21.2.0",
