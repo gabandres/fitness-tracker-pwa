@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -81,10 +81,27 @@ export function EntrySheet({ visible, editing, onSave, onDelete, onClose }: Prop
     setBusy(false);
   }, [visible, editing]);
 
-  const sheetTranslate = anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [SHEET_OFFSCREEN, 0],
-  });
+  // Memoize the animated nodes + style objects so they keep a stable identity
+  // across the re-renders that every keystroke triggers. Recreating the
+  // interpolation / style object each render makes Animated re-process the
+  // native node per character, which stutters typing.
+  const backdropStyle = useMemo(() => [styles.backdrop, { opacity: anim }], [anim]);
+  const sheetStyle = useMemo(
+    () => [
+      styles.sheet,
+      {
+        transform: [
+          {
+            translateY: anim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [SHEET_OFFSCREEN, 0],
+            }),
+          },
+        ],
+      },
+    ],
+    [anim],
+  );
 
   const calNum = numOrUndef(calories);
   const canSave = calNum != null && calNum > 0;
@@ -112,7 +129,7 @@ export function EntrySheet({ visible, editing, onSave, onDelete, onClose }: Prop
 
   return (
     <Modal visible={mounted} animationType="none" transparent onRequestClose={onClose}>
-      <Animated.View style={[styles.backdrop, { opacity: anim }]}>
+      <Animated.View style={backdropStyle}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
       </Animated.View>
       <KeyboardAvoidingView
@@ -120,7 +137,7 @@ export function EntrySheet({ visible, editing, onSave, onDelete, onClose }: Prop
         style={styles.sheetWrap}
         pointerEvents="box-none"
       >
-        <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetTranslate }] }]}>
+        <Animated.View style={sheetStyle}>
           <View style={styles.handle} />
           <Text style={styles.title}>{editing ? 'Edit entry' : 'Add food'}</Text>
 
