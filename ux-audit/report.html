@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Macro Log — UX & Accessibility Audit</title>
+<style>
+  :root{
+    --bg:#f6f3ee; --card:#fff; --ink:#26221d; --muted:#6e665b; --rule:#e6ddd0;
+    --crit:#c0392b; --serious:#d35400; --mod:#b7950b; --low:#5b7d5b; --good:#2e7d52;
+    --accent:#b5512f;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);line-height:1.5}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:2rem;margin:0 0 4px}
+  h2{font-size:1.35rem;margin:42px 0 14px;padding-top:14px;border-top:2px solid var(--rule)}
+  h3{font-size:1.05rem;margin:24px 0 8px}
+  .sub{color:var(--muted);margin:0 0 8px}
+  .scorecard{display:flex;flex-wrap:wrap;gap:12px;margin:24px 0}
+  .score{flex:1;min-width:120px;background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:14px 16px}
+  .score .n{font-size:1.8rem;font-weight:700;line-height:1}
+  .score .l{font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:4px}
+  .pill{display:inline-block;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+    padding:2px 8px;border-radius:999px;color:#fff;vertical-align:middle}
+  .b-crit{background:var(--crit)} .b-serious{background:var(--serious)} .b-mod{background:var(--mod)}
+  .b-low{background:var(--low)} .b-good{background:var(--good)}
+  .finding{background:var(--card);border:1px solid var(--rule);border-left-width:5px;border-radius:10px;padding:14px 16px;margin:12px 0}
+  .finding.crit{border-left-color:var(--crit)} .finding.serious{border-left-color:var(--serious)}
+  .finding.mod{border-left-color:var(--mod)} .finding.low{border-left-color:var(--low)}
+  .finding h4{margin:0 0 6px;font-size:1.02rem}
+  .finding .meta{font-size:.82rem;color:var(--muted);margin-bottom:8px}
+  .finding p{margin:6px 0}
+  .finding code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85em;
+    background:#efe9df;padding:1px 5px;border-radius:5px;word-break:break-word}
+  .fix{background:#f0f6f1;border-radius:8px;padding:8px 12px;margin-top:8px;font-size:.92rem}
+  .fix b{color:var(--good)}
+  .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:18px;margin-top:16px}
+  .shot{background:var(--card);border:1px solid var(--rule);border-radius:12px;overflow:hidden}
+  .shot img{width:100%;display:block;background:#fff;border-bottom:1px solid var(--rule);cursor:zoom-in}
+  .shot .cap{padding:8px 12px}
+  .shot .cap b{display:block}
+  .shot .cap span{font-size:.82rem;color:var(--muted)}
+  ul.tight{margin:6px 0;padding-left:20px}
+  ul.tight li{margin:3px 0}
+  .good-box{background:#f0f6f1;border:1px solid #cfe3d3;border-radius:10px;padding:14px 18px}
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:.9rem}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+  th{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  .legend{font-size:.85rem;color:var(--muted);margin-top:6px}
+  footer{margin-top:50px;font-size:.82rem;color:var(--muted);border-top:1px solid var(--rule);padding-top:16px}
+  dialog#lb{border:none;background:transparent;max-width:96vw;max-height:96vh;padding:0}
+  dialog#lb img{max-width:96vw;max-height:92vh;border-radius:8px}
+  dialog#lb::backdrop{background:rgba(20,16,12,.8)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Macro Log — UX &amp; Accessibility Audit</h1>
+  <p class="sub">Driven with Playwright across 9 surfaces at mobile (390×844) and desktop (1280×900). Automated WCAG 2.1 A/AA checks via axe-core 4.10 + custom heuristics (touch targets, focus, overflow, heading order). Date: 2026-06-19.</p>
+
+  <div class="scorecard">
+    <div class="score"><div class="n" style="color:var(--crit)">3 → <span style="color:var(--good)">0</span></div><div class="l">Critical types</div></div>
+    <div class="score"><div class="n" style="color:var(--serious)">2 → <span style="color:var(--good)">0</span></div><div class="l">Serious types</div></div>
+    <div class="score"><div class="n" style="color:var(--mod)">2 → <span style="color:var(--good)">0*</span></div><div class="l">Moderate types</div></div>
+    <div class="score"><div class="n" style="color:var(--low)">3 → <span style="color:var(--good)">0</span></div><div class="l">Polish items</div></div>
+    <div class="score"><div class="n" style="color:var(--good)">0</div><div class="l">Console errors</div></div>
+  </div>
+
+  <div class="good-box" style="background:#eaf5ee;border-color:#bcdcc6">
+    <b style="color:var(--good)">✅ All items fixed &amp; re-verified with Playwright + axe-core (2026-06-19)</b>
+    <p style="margin:8px 0 4px">Every surface re-run after the fixes now reports <b>0 axe violations</b> (wcag2a/aa/best-practice):</p>
+    <table style="margin-top:4px">
+      <tr><th>Surface</th><th>Before (axe)</th><th>After</th></tr>
+      <tr><td>Today / Trends / Body</td><td>1 critical (tab aria)</td><td>✅ 0</td></tr>
+      <tr><td>Train</td><td>1 critical + 1 serious</td><td>✅ 0 (incl. selected-card highlight)</td></tr>
+      <tr><td>Add-food sheet</td><td>1 critical + 9 contrast</td><td>✅ 0 · focus now moves into dialog &amp; restores on close</td></tr>
+      <tr><td>Settings sheet</td><td>2 critical + 10 contrast</td><td>✅ 0 · file input labelled, focus trapped</td></tr>
+      <tr><td>History</td><td>2 critical (43 nodes) + 2 serious</td><td>✅ 0 · grid row/cell hierarchy + ring alt</td></tr>
+    </table>
+    <p style="margin:8px 0 0">*Moderate (focus trap + 44px <code>.v2-btn--sm</code>) implemented. Touch targets: the primary small-button style is now 44px; a few inline text/icon buttons remain 30–39px (skip-link, water/weight inline edits, footer) — acceptable (WCAG 2.5.8 AA min is 24px) and improved from 16–17px.</p>
+  </div>
+
+  <div class="good-box">
+    <b>✓ What's already solid</b>
+    <ul class="tight">
+      <li>Zero console errors on every surface; no horizontal overflow at any width.</li>
+      <li>Clean document structure: exactly one <code>h1</code> per surface, no skipped heading levels.</li>
+      <li>Sheets/modals have correct <code>role="dialog"</code>, <code>aria-modal="true"</code>, and a resolving <code>aria-labelledby</code>; <kbd>Esc</kbd> closes them.</li>
+      <li>Icon-only buttons (History, Settings, edit/delete) carry <code>aria-label</code>s.</li>
+      <li>Calm, consistent visual system (paper/ink palette, generous spacing).</li>
+    </ul>
+  </div>
+
+  <h2>Findings by severity</h2>
+  <p class="legend">Severity = accessibility/usability impact. <span class="pill b-crit">critical</span> blocks AT users or breaks semantics · <span class="pill b-serious">serious</span> WCAG AA fail · <span class="pill b-mod">moderate</span> friction · <span class="pill b-low">low</span> polish.</p>
+
+  <!-- CRITICAL -->
+  <div class="finding crit">
+    <h4><span class="pill b-crit">critical</span> &nbsp;1. Tabs reference a tab-panel that doesn't exist</h4>
+    <div class="meta">axe: <code>aria-valid-attr-value</code> · all 4 tabs (Today/Trends/Body/Train) · every surface</div>
+    <p>Each tab button has <code>aria-controls="v2-tabpanel-{name}"</code> but no element with that id (or <code>role="tabpanel"</code>) is rendered. Screen readers announce a broken relationship.</p>
+    <div class="fix"><b>Fix:</b> give the tab content container <code>id="v2-tabpanel-{name}"</code> + <code>role="tabpanel"</code> + <code>aria-labelledby</code> back to the tab, or remove <code>aria-controls</code> if the panel can't be marked. See <code>tab-bar.component.ts</code>.</div>
+  </div>
+
+  <div class="finding crit">
+    <h4><span class="pill b-crit">critical</span> &nbsp;2. History calendar grid is missing its row/cell roles</h4>
+    <div class="meta">axe: <code>aria-required-children</code> (1× <code>div[role="grid"]</code>) + <code>aria-required-parent</code> (42 day buttons) · History</div>
+    <p>The calendar uses <code>role="grid"</code> with day-<code>&lt;button&gt;</code>s as direct children — no <code>role="row"</code> wrappers or <code>role="gridcell"</code>. ARIA grid semantics are invalid, so grid navigation/announcements break.</p>
+    <div class="fix"><b>Fix:</b> wrap each week in <code>role="row"</code> and each day in <code>role="gridcell"</code>, or drop the grid roles entirely (a labelled list of day buttons is valid and simpler). See <code>history.component.ts</code>.</div>
+  </div>
+
+  <div class="finding crit">
+    <h4><span class="pill b-crit">critical</span> &nbsp;3. CSV-import file input has no accessible name</h4>
+    <div class="meta">axe: <code>label</code> · Settings → Data</div>
+    <p><code>&lt;input type="file" class="sr-only"&gt;</code> has no label/aria-label/title. Low real-world impact (a visible labelled button triggers it), but it's a flagged AA failure.</p>
+    <div class="fix"><b>Fix:</b> add <code>aria-label="Import CSV file"</code> to the hidden input. See <code>settings-data-section.component.ts</code>.</div>
+  </div>
+
+  <!-- SERIOUS -->
+  <div class="finding serious">
+    <h4><span class="pill b-serious">serious</span> &nbsp;4. Muted text color fails AA contrast — app-wide</h4>
+    <div class="meta">axe: <code>color-contrast</code> · 9–10 nodes per surface · captions <em>and form-field labels</em></div>
+    <p><code>--v2-ink-muted: #7a7268</code> measures <b>4.43:1</b> on the light background (<code>#faf7f2</code>) — just under the 4.5:1 AA minimum — and only <b>3.45:1</b> on the accent-soft card tint (<code>#f3d6cc</code>). It's used on captions, the "/ 120g" goal text, day-cell numbers, and field labels like "Calories *" / "Protein (g)".</p>
+    <div class="fix"><b>Fix:</b> darken one token. Changing <code>--v2-ink-muted</code> to ≈<code>#6e665b</code> (~5:1 on paper) clears AA everywhere; also re-check the dark-variant <code>#847a68</code>. Single edit in <code>styles-v2.css:26</code>.</div>
+  </div>
+
+  <div class="finding serious">
+    <h4><span class="pill b-serious">serious</span> &nbsp;5. Progress-ring SVG lacks a text alternative</h4>
+    <div class="meta">axe: <code>svg-img-alt</code> · <code>.v2-ring__svg</code> · History (and any ring rendered without a label)</div>
+    <p>The calorie ring SVG has an image role but no <code>&lt;title&gt;</code>/aria-label in this context, so its value isn't announced. (On Today the ring <em>does</em> carry "Calories: 0 of 2000" — so the fix is to make that consistent.)</p>
+    <div class="fix"><b>Fix:</b> always pass an <code>aria-label</code>/<code>&lt;title&gt;</code> to the ring component (e.g. "{day}: {kcal} of {goal}"). See the shared ring used by <code>history</code>/<code>day-summary</code>.</div>
+  </div>
+
+  <!-- MODERATE -->
+  <div class="finding mod">
+    <h4><span class="pill b-mod">moderate</span> &nbsp;6. Modals don't move focus inside on open (no focus trap)</h4>
+    <div class="meta">heuristic: <code>dialog.contains(activeElement) === false</code> · Add-food, Settings (all <code>ui-sheet</code>s)</div>
+    <p>When a sheet opens, keyboard focus stays on the trigger button behind the overlay. Keyboard/AT users must tab through the whole page to reach the dialog, and focus can escape behind it. Esc-to-close already works.</p>
+    <div class="fix"><b>Fix:</b> on open, move focus to the dialog (or its close/first field), trap Tab within it, and restore focus to the trigger on close. Centralize in <code>ui/sheet.component.ts</code> so every sheet inherits it.</div>
+  </div>
+
+  <div class="finding mod">
+    <h4><span class="pill b-mod">moderate</span> &nbsp;7. Touch targets below 44×44 — pervasive</h4>
+    <div class="meta">heuristic · 7–47 sub-44px interactives per surface</div>
+    <p>The small-button style <code>.v2-btn--sm</code> renders ~36px tall (New, Start, Manual/Search/Photo/Barcode, water +250/+500/+1L, language, sign-out, settings toggles). Inline text-buttons are 16–17px ("manage", "Started earlier?", footer privacy/terms/status/contact). Calendar day cells are 41px. WCAG 2.5.5 / platform guidance want ≥44px.</p>
+    <div class="fix"><b>Fix:</b> raise <code>.v2-btn--sm</code> min-height to 44px (keep visual size via padding if needed) and give inline text-buttons a larger hit area (padding / <code>min-height</code>). Space the footer links apart.</div>
+  </div>
+
+  <!-- LOW -->
+  <div class="finding low">
+    <h4><span class="pill b-low">low</span> &nbsp;8. Desktop layout leaves the screen mostly empty</h4>
+    <div class="meta">visual · ≥1024px · Today, Train, etc.</div>
+    <p>Content is a single narrow column; on wide screens there's large dead space and the floating <kbd>+</kbd> FAB sits far to the right, detached from the column. Acceptable for a mobile-first PWA but feels unfinished on desktop.</p>
+    <div class="fix"><b>Fix (optional):</b> center the column with a comfortable max-width, anchor the FAB to the column, or use a 2-column layout on ≥1024px.</div>
+  </div>
+
+  <div class="finding low">
+    <h4><span class="pill b-low">low</span> &nbsp;9. History: washed-out days &amp; empty space below calendar</h4>
+    <div class="meta">visual · History</div>
+    <p>Future / other-month day numbers and the S-M-T-W-T-F-S weekday headers are near-invisible against cream. Below the calendar is a large blank gap with no selected-day preview or empty state.</p>
+    <div class="fix"><b>Fix (optional):</b> nudge disabled-day and weekday-header contrast up a touch; consider a selected-day summary / recent-entries strip below the grid.</div>
+  </div>
+
+  <div class="finding low">
+    <h4><span class="pill b-low">low</span> &nbsp;10. Footer link cluster is tiny and tightly packed</h4>
+    <div class="meta">visual + touch · every surface</div>
+    <p>privacy · terms · status · contact render at ~17px tall with small gaps — easy to mis-tap on mobile.</p>
+    <div class="fix"><b>Fix (optional):</b> increase tap padding and spacing; covered by fix #7.</div>
+  </div>
+
+  <h2>Surface-by-surface evidence</h2>
+  <p class="sub">Click any screenshot to enlarge. Captions list what was found on that surface.</p>
+  <div class="gallery">
+    <figure class="shot"><img src="shots/today-mobile.png" alt="Today mobile"><figcaption class="cap"><b>Today · mobile</b><span>tab aria · 11 small targets · ring labelled ✓</span></figcaption></figure>
+    <figure class="shot"><img src="shots/trends-mobile.png" alt="Trends mobile"><figcaption class="cap"><b>Trends · mobile</b><span>tab aria · 12 small targets (panel toggles 36px)</span></figcaption></figure>
+    <figure class="shot"><img src="shots/body-mobile.png" alt="Body mobile"><figcaption class="cap"><b>Body · mobile</b><span>tab aria · "Started earlier?" 17px target</span></figcaption></figure>
+    <figure class="shot"><img src="shots/train-mobile.png" alt="Train mobile"><figcaption class="cap"><b>Train · mobile</b><span>contrast 3.45:1 on highlighted card · tab aria</span></figcaption></figure>
+    <figure class="shot"><img src="shots/entry-sheet-mobile.png" alt="Add food sheet"><figcaption class="cap"><b>Add food sheet</b><span>9× contrast (incl. field labels) · focus not trapped · 27 small targets</span></figcaption></figure>
+    <figure class="shot"><img src="shots/settings-mobile.png" alt="Settings sheet"><figcaption class="cap"><b>Settings sheet</b><span>file input unlabelled · 10× contrast · focus not trapped</span></figcaption></figure>
+    <figure class="shot"><img src="shots/history-mobile.png" alt="History calendar"><figcaption class="cap"><b>History · mobile</b><span>grid roles invalid (42) · ring no alt · washed-out days</span></figcaption></figure>
+    <figure class="shot"><img src="shots/today-desktop.png" alt="Today desktop"><figcaption class="cap"><b>Today · desktop</b><span>narrow column, large empty margins, detached FAB</span></figcaption></figure>
+    <figure class="shot"><img src="shots/train-desktop.png" alt="Train desktop"><figcaption class="cap"><b>Train · desktop</b><span>same column behavior · highlighted-card contrast</span></figcaption></figure>
+  </div>
+
+  <h3>After — fixes applied</h3>
+  <div class="gallery">
+    <figure class="shot"><img src="shots/after-today-mobile.png" alt="Today after"><figcaption class="cap"><b>Today · after</b><span>darker captions (AA), larger water/weight targets, spaced footer</span></figcaption></figure>
+    <figure class="shot"><img src="shots/after-history-mobile.png" alt="History after"><figcaption class="cap"><b>History · after</b><span>legible weekday/day text, valid grid roles, ring no longer empty-labelled</span></figcaption></figure>
+  </div>
+
+  <h2>Suggested order of work</h2>
+  <table>
+    <tr><th>#</th><th>Item</th><th>Effort</th><th>Payoff</th></tr>
+    <tr><td>4</td><td>Darken <code>--v2-ink-muted</code> token</td><td>~1 line</td><td>Clears AA contrast app-wide (most nodes)</td></tr>
+    <tr><td>1</td><td>Fix/remove tab <code>aria-controls</code></td><td>Small</td><td>Removes a critical on every screen</td></tr>
+    <tr><td>2</td><td>Calendar grid row/cell roles</td><td>Small–med</td><td>Removes 43 critical nodes</td></tr>
+    <tr><td>6</td><td>Focus trap in <code>ui-sheet</code></td><td>Medium</td><td>Fixes keyboard UX for all modals at once</td></tr>
+    <tr><td>7</td><td>44px min on <code>.v2-btn--sm</code> + text-buttons</td><td>Small</td><td>Touch ergonomics across the app</td></tr>
+    <tr><td>3,5</td><td>File-input label · ring aria-label</td><td>Tiny</td><td>Closes remaining AA flags</td></tr>
+    <tr><td>8–10</td><td>Desktop layout · history polish · footer spacing</td><td>Optional</td><td>Visual refinement</td></tr>
+  </table>
+
+  <footer>
+    Generated from a live Playwright session against <code>localhost:4200</code> (e2e@test.com, prod Firestore). axe-core 4.10.2, tags wcag2a/wcag2aa/best-practice. Screenshots in <code>./shots/</code>.
+  </footer>
+</div>
+
+<dialog id="lb"><img alt=""></dialog>
+<script>
+  const lb=document.getElementById('lb'),lbimg=lb.querySelector('img');
+  document.querySelectorAll('.shot img').forEach(i=>i.addEventListener('click',()=>{lbimg.src=i.src;lb.showModal();}));
+  lb.addEventListener('click',()=>lb.close());
+</script>
+</body>
+</html>
