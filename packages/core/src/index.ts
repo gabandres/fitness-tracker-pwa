@@ -13,3 +13,11 @@ export * from './targets';
 export * from './body-fat';
 export * from './weight-projection';
 export * from './weekly-insights';
+// NOTE: workout.ts types are intentionally NOT re-exported here — the PWA's
+// utils shims do `export * from '@macrolog/core'` and already define their own
+// WorkoutSet/LogStyle/etc. in models/workout.ts, so barrel-exporting these
+// names would clash. The pure functions below need the types only in their
+// signatures (structural typing covers call sites in both apps).
+export * from './plate-math';
+export * from './warmup';
+export * from './workout-progression';

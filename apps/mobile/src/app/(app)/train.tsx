@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -17,12 +17,19 @@ import { useTrain } from '@/hooks/useTrain';
 import type {
   Exercise,
   LogStyle,
+  SessionExercise,
   TemplateDraft,
   WorkoutSession,
   WorkoutSet,
   WorkoutTemplate,
 } from '@/lib/workout';
 import { DEFAULT_LOG_STYLE, isLoggedSet, sessionVolume } from '@/lib/workout';
+import {
+  type ProgressionSuggestion,
+  computePlateLoad,
+  generateWarmup,
+  suggestProgression,
+} from '@macrolog/core';
 import { type I18nKey, type TFn, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
@@ -220,15 +227,52 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
   );
 }
 
+/** History rows for one exercise across recent completed sessions, newest
+ *  first (recentSessions is already newest-first). */
+function exerciseHistory(recent: WorkoutSession[], exerciseId: string): SessionExercise[] {
+  const out: SessionExercise[] = [];
+  for (const s of recent) {
+    const match = s.exercises.find((e) => e.exerciseId === exerciseId);
+    if (match) out.push(match);
+  }
+  return out;
+}
+
+function lastHint(sug: ProgressionSuggestion, style: LogStyle, t: TFn): string | null {
+  if (style === 'time') return sug.lastDurationSec != null ? `${t('train.last')}: ${sug.lastDurationSec}s` : null;
+  if (style === 'bodyweight') return sug.lastReps != null ? `${t('train.last')}: ${sug.lastReps} ${t('train.reps')}` : null;
+  if (sug.lastWeight != null && sug.lastReps != null) return `${t('train.last')}: ${sug.lastWeight} × ${sug.lastReps}`;
+  return null;
+}
+
 function ExerciseCard({ train, exerciseIndex }: { train: ReturnType<typeof useTrain>; exerciseIndex: number }) {
   const t = useT();
   const ex = train.active!.exercises[exerciseIndex];
   const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  // "Last time" ghost from prior completed sessions (no rule snapshotted on
+  // mobile yet, so this surfaces the last key set, not an auto-bump).
+  const history = useMemo(
+    () => exerciseHistory(train.recentSessions, ex.exerciseId),
+    [train.recentSessions, ex.exerciseId],
+  );
+  const ghost = lastHint(suggestProgression(history, undefined, style), style, t);
+
+  // Plate + warm-up math keys off the first loaded set's weight, else the
+  // snapshotted target load. Barbell-only (weight-reps).
+  const keyWeight = ex.sets.find((s) => (s.weight ?? 0) > 0)?.weight ?? ex.targetLoad;
+  const showPanel = style === 'weight-reps';
+  const load = panelOpen && keyWeight && keyWeight > 0 ? computePlateLoad(keyWeight) : null;
+  const warm = panelOpen && keyWeight && keyWeight > 0 ? generateWarmup(keyWeight) : [];
 
   return (
     <View style={styles.exCard}>
       <View style={styles.exHead}>
-        <Text style={styles.exName}>{ex.name}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.exName}>{ex.name}</Text>
+          {ghost ? <Text style={styles.ghost}>{ghost}</Text> : null}
+        </View>
         <TouchableOpacity onPress={() => train.removeExercise(exerciseIndex)} hitSlop={8}>
           <Text style={styles.exRemove}>{t('common.remove')}</Text>
         </TouchableOpacity>
@@ -260,6 +304,49 @@ function ExerciseCard({ train, exerciseIndex }: { train: ReturnType<typeof useTr
       <TouchableOpacity style={styles.addSetBtn} onPress={() => train.addSet(exerciseIndex)} testID={`add-set-${exerciseIndex}`}>
         <Text style={styles.addSetText}>{t('train.addSet')}</Text>
       </TouchableOpacity>
+
+      {showPanel ? (
+        <>
+          <TouchableOpacity
+            style={styles.panelToggle}
+            onPress={() => setPanelOpen((o) => !o)}
+            testID={`plates-toggle-${exerciseIndex}`}
+          >
+            <Text style={styles.panelToggleText}>
+              {panelOpen ? t('train.hidePanel') : t('train.platesWarmup')}
+            </Text>
+          </TouchableOpacity>
+          {panelOpen ? (
+            <View style={styles.panel} testID={`plates-panel-${exerciseIndex}`}>
+              {keyWeight && keyWeight > 0 ? (
+                <>
+                  <Text style={styles.panelLabel}>{`${t('train.workingSet')} · ${keyWeight} lb`}</Text>
+                  <Text style={styles.plateText}>
+                    {load && load.perSide.length
+                      ? `${load.perSide.map((p) => `${p.plate}×${p.count}`).join('   ')}  ${t('train.perSidePlates')}`
+                      : t('train.barOnly')}
+                  </Text>
+                  {load && load.remainder > 0 ? (
+                    <Text style={styles.panelHint}>{`+${load.remainder} ${t('train.short')}`}</Text>
+                  ) : null}
+                  {warm.length ? (
+                    <>
+                      <Text style={[styles.panelLabel, { marginTop: space.sm }]}>{t('train.warmupLabel')}</Text>
+                      {warm.map((w, i) => (
+                        <Text key={i} style={styles.warmRow}>
+                          {`${w.weight} × ${w.reps}${w.pct != null ? `   ${Math.round(w.pct * 100)}%` : ''}`}
+                        </Text>
+                      ))}
+                    </>
+                  ) : null}
+                </>
+              ) : (
+                <Text style={styles.panelHint}>{t('train.enterWeight')}</Text>
+              )}
+            </View>
+          ) : null}
+        </>
+      ) : null}
     </View>
   );
 }
@@ -993,4 +1080,20 @@ const styles = StyleSheet.create({
   stepCount: { width: 20, textAlign: 'center', fontSize: font.small, color: colors.ink, fontWeight: '700' },
   editorBtns: { flexDirection: 'row', gap: space.md, marginTop: space.lg },
   btnDisabled: { opacity: 0.4 },
+  // plates & warm-up panel
+  ghost: { fontSize: font.tiny, color: colors.muted, marginTop: 1 },
+  panelToggle: { paddingVertical: space.xs, alignSelf: 'flex-start' },
+  panelToggleText: { fontSize: font.tiny, color: colors.accent, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
+  panel: {
+    backgroundColor: colors.paper,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: space.md,
+    gap: 2,
+  },
+  panelLabel: { fontSize: font.tiny, color: colors.muted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
+  plateText: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
+  panelHint: { fontSize: font.small, color: colors.muted },
+  warmRow: { fontSize: font.small, color: colors.ink },
 });
