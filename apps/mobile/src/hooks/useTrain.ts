@@ -3,9 +3,12 @@ import { useAuth } from '@/lib/auth';
 import {
   addExercise as addExerciseDoc,
   addTemplate as addTemplateDoc,
+  deleteExercise as deleteExerciseDoc,
   deleteSession as deleteSessionDoc,
   deleteTemplate as deleteTemplateDoc,
+  editExercise as editExerciseDoc,
   getActiveSession,
+  mergeExercises as mergeExercisesDoc,
   markExercised,
   setDailySleep,
   setDailyWeight,
@@ -19,6 +22,7 @@ import {
 import { localDateKey } from '@macrolog/core';
 import {
   type Exercise,
+  type ExerciseDraft,
   type LogStyle,
   type SessionExercise,
   type TemplateDraft,
@@ -53,6 +57,12 @@ export interface TrainState {
   /** Create a catalog exercise, returning its id (used by the template
    *  editor when adding a free-typed exercise). */
   addCatalogExercise: (name: string, logStyle: LogStyle) => Promise<string>;
+  /** Edit a catalog exercise's fields (name / logStyle / muscles / cues). */
+  editCatalogExercise: (id: string, patch: Partial<ExerciseDraft>) => Promise<void>;
+  /** Delete a catalog exercise (sessions/templates keep their name snapshot). */
+  deleteCatalogExercise: (id: string) => Promise<void>;
+  /** Merge `fromId` into `toId`, rewriting every referencing session/template. */
+  mergeCatalogExercises: (fromId: string, toId: string) => Promise<void>;
   /** Add an exercise to the active session, creating a catalog entry first
    *  if `exerciseId` is null (free-typed name). */
   addExerciseToActive: (name: string, logStyle: LogStyle, exerciseId?: string) => Promise<void>;
@@ -181,6 +191,27 @@ export function useTrain(): TrainState {
     [uid],
   );
 
+  const editCatalogExercise = useCallback(
+    async (id: string, patch: Partial<ExerciseDraft>) => {
+      if (uid) await editExerciseDoc(uid, id, patch);
+    },
+    [uid],
+  );
+
+  const deleteCatalogExercise = useCallback(
+    async (id: string) => {
+      if (uid) await deleteExerciseDoc(uid, id);
+    },
+    [uid],
+  );
+
+  const mergeCatalogExercises = useCallback(
+    async (fromId: string, toId: string) => {
+      if (uid) await mergeExercisesDoc(uid, fromId, toId);
+    },
+    [uid],
+  );
+
   const addExerciseToActive = useCallback(
     async (name: string, logStyle: LogStyle, exerciseId?: string) => {
       if (!uid || !active) return;
@@ -304,6 +335,9 @@ export function useTrain(): TrainState {
     saveTemplate,
     deleteTemplate,
     addCatalogExercise,
+    editCatalogExercise,
+    deleteCatalogExercise,
+    mergeCatalogExercises,
     addExerciseToActive,
     removeExercise,
     addSet,

@@ -221,6 +221,22 @@ function ExerciseDetailModal({
   onClose: () => void;
 }) {
   const t = useT();
+  const [mode, setMode] = useState<'view' | 'edit' | 'merge'>('view');
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editStyle, setEditStyle] = useState<LogStyle>('weight-reps');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (visible && exercise) {
+      setMode('view');
+      setConfirmDel(false);
+      setEditName(exercise.name);
+      setEditStyle(exercise.logStyle ?? 'weight-reps');
+      setBusy(false);
+    }
+  }, [visible, exercise]);
+
   const style = exercise?.logStyle ?? DEFAULT_LOG_STYLE;
   const rows = exercise
     ? train.recentSessions
@@ -230,6 +246,40 @@ function ExerciseDetailModal({
   const history = rows.map((r) => r.ex);
   const series = exerciseSeries(history, style);
   const prs = computeExercisePRs(history);
+  const others = exercise ? train.catalog.filter((e) => e.id !== exercise.id) : [];
+
+  async function saveEdit() {
+    if (!exercise?.id || !editName.trim() || busy) return;
+    setBusy(true);
+    try {
+      await train.editCatalogExercise(exercise.id, { name: editName.trim(), logStyle: editStyle });
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doDelete() {
+    if (!exercise?.id || busy) return;
+    setBusy(true);
+    try {
+      await train.deleteCatalogExercise(exercise.id);
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doMerge(targetId: string) {
+    if (!exercise?.id || busy) return;
+    setBusy(true);
+    try {
+      await train.mergeCatalogExercises(exercise.id, targetId);
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -240,39 +290,128 @@ function ExerciseDetailModal({
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.sheetTitle}>{exercise?.name}</Text>
 
-            {history.length === 0 ? (
-              <Text style={styles.empty}>{t('train.noExHistory')}</Text>
+            {mode === 'edit' ? (
+              <>
+                <Text style={[styles.fieldLabel, { marginTop: space.sm }]}>{t('train.exerciseName')}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editName}
+                  onChangeText={setEditName}
+                  placeholderTextColor={colors.faint}
+                  testID="edit-exercise-name"
+                />
+                <View style={[styles.styleRow, { marginTop: space.sm }]}>
+                  {LOG_STYLES.map((ls) => {
+                    const on = editStyle === ls.value;
+                    return (
+                      <TouchableOpacity
+                        key={ls.value}
+                        style={[styles.styleChip, on && styles.styleChipOn]}
+                        onPress={() => setEditStyle(ls.value)}
+                      >
+                        <Text style={[styles.styleChipText, on && styles.styleChipTextOn]}>{t(ls.labelKey)}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <View style={styles.editorBtns}>
+                  <TouchableOpacity style={styles.discardBtn} onPress={() => setMode('view')}>
+                    <Text style={styles.discardText}>{t('common.cancel')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.finishBtn, (!editName.trim() || busy) && styles.btnDisabled]}
+                    onPress={saveEdit}
+                    disabled={!editName.trim() || busy}
+                    testID="save-exercise"
+                  >
+                    <Text style={styles.finishText}>{busy ? t('common.saving') : t('common.save')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : mode === 'merge' ? (
+              <>
+                <Text style={[styles.panelLabel, { marginTop: space.sm }]}>{t('train.mergeInto')}</Text>
+                {others.length === 0 ? (
+                  <Text style={styles.empty}>{t('train.noSaved')}</Text>
+                ) : (
+                  others.map((e) => (
+                    <TouchableOpacity
+                      key={e.id}
+                      style={styles.catalogRow}
+                      onPress={() => e.id && doMerge(e.id)}
+                      testID={`merge-into-${e.id}`}
+                    >
+                      <Text style={styles.catalogName}>{e.name}</Text>
+                      <Text style={styles.catalogStyle}>{t(logStyleKey(e.logStyle))}</Text>
+                    </TouchableOpacity>
+                  ))
+                )}
+                <TouchableOpacity style={[styles.discardBtn, { marginTop: space.md }]} onPress={() => setMode('view')}>
+                  <Text style={styles.discardText}>{t('common.cancel')}</Text>
+                </TouchableOpacity>
+              </>
             ) : (
               <>
-                <View style={styles.prRow}>
-                  {style === 'weight-reps' ? (
-                    <>
-                      <PrCard label={t('train.prWeight')} value={`${prs.maxWeight} lb`} />
-                      <PrCard label={t('train.prE1rm')} value={`${Math.round(prs.bestE1RM)} lb`} />
-                    </>
-                  ) : null}
-                  {style === 'bodyweight' ? <PrCard label={t('train.prReps')} value={`${prs.maxReps}`} /> : null}
-                  {style === 'time' ? <PrCard label={t('train.prHold')} value={`${prs.maxDurationSec}s`} /> : null}
-                </View>
+                {history.length === 0 ? (
+                  <Text style={styles.empty}>{t('train.noExHistory')}</Text>
+                ) : (
+                  <>
+                    <View style={styles.prRow}>
+                      {style === 'weight-reps' ? (
+                        <>
+                          <PrCard label={t('train.prWeight')} value={`${prs.maxWeight} lb`} />
+                          <PrCard label={t('train.prE1rm')} value={`${Math.round(prs.bestE1RM)} lb`} />
+                        </>
+                      ) : null}
+                      {style === 'bodyweight' ? <PrCard label={t('train.prReps')} value={`${prs.maxReps}`} /> : null}
+                      {style === 'time' ? <PrCard label={t('train.prHold')} value={`${prs.maxDurationSec}s`} /> : null}
+                    </View>
 
-                {series.length >= 2 ? (
-                  <View style={styles.chartWrap}>
-                    <Text style={styles.panelLabel}>
-                      {style === 'time' ? t('train.trendHold') : style === 'bodyweight' ? t('train.trendReps') : t('train.trendE1rm')}
-                    </Text>
-                    <Sparkline values={series} color={colors.ring} />
+                    {series.length >= 2 ? (
+                      <View style={styles.chartWrap}>
+                        <Text style={styles.panelLabel}>
+                          {style === 'time' ? t('train.trendHold') : style === 'bodyweight' ? t('train.trendReps') : t('train.trendE1rm')}
+                        </Text>
+                        <Sparkline values={series} color={colors.ring} />
+                      </View>
+                    ) : null}
+
+                    <Text style={[styles.panelLabel, { marginTop: space.md }]}>{t('train.history')}</Text>
+                    {rows.map((r, i) => (
+                      <View key={i} style={styles.detailRow}>
+                        <Text style={styles.detailDate}>
+                          {r.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                        </Text>
+                        <Text style={styles.detailSets}>{setLine(r.ex, style)}</Text>
+                      </View>
+                    ))}
+                  </>
+                )}
+
+                <View style={styles.manageRow}>
+                  <TouchableOpacity onPress={() => setMode('edit')} testID="exercise-edit">
+                    <Text style={styles.manageLink}>{t('train.edit')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setMode('merge')} testID="exercise-merge">
+                    <Text style={styles.manageLink}>{t('train.merge')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setConfirmDel(true)} testID="exercise-delete">
+                    <Text style={[styles.manageLink, styles.manageDanger]}>{t('common.remove')}</Text>
+                  </TouchableOpacity>
+                </View>
+                {confirmDel ? (
+                  <View style={styles.confirmRow}>
+                    <Text style={styles.panelHint}>{t('train.deleteExercise')}</Text>
+                    <View style={styles.confirmBtns}>
+                      <TouchableOpacity onPress={() => setConfirmDel(false)} hitSlop={6}>
+                        <Text style={styles.manageLink}>{t('common.cancel')}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={doDelete} hitSlop={6} disabled={busy} testID="exercise-delete-confirm">
+                        <Text style={[styles.manageLink, styles.manageDanger]}>{t('common.remove')}</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 ) : null}
-
-                <Text style={[styles.panelLabel, { marginTop: space.md }]}>{t('train.history')}</Text>
-                {rows.map((r, i) => (
-                  <View key={i} style={styles.detailRow}>
-                    <Text style={styles.detailDate}>
-                      {r.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                    </Text>
-                    <Text style={styles.detailSets}>{setLine(r.ex, style)}</Text>
-                  </View>
-                ))}
               </>
             )}
             <View style={{ height: 24 }} />
@@ -1319,4 +1458,9 @@ const styles = StyleSheet.create({
   detailRow: { flexDirection: 'row', gap: space.md, paddingVertical: space.sm, borderBottomWidth: 1, borderBottomColor: colors.line },
   detailDate: { width: 56, fontSize: font.small, color: colors.muted, fontWeight: '700' },
   detailSets: { flex: 1, fontSize: font.small, color: colors.ink },
+  manageRow: { flexDirection: 'row', gap: space.xl, marginTop: space.lg, paddingTop: space.md, borderTopWidth: 1, borderTopColor: colors.line },
+  manageLink: { fontSize: font.small, color: colors.accent, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
+  manageDanger: { color: colors.danger },
+  confirmRow: { marginTop: space.md, gap: space.sm },
+  confirmBtns: { flexDirection: 'row', gap: space.xl },
 });

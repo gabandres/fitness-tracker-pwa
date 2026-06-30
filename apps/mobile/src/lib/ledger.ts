@@ -5,6 +5,7 @@ import {
   deleteDoc,
   deleteField,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -13,6 +14,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import {
   type DailyLog,
@@ -544,8 +546,54 @@ export async function addExercise(uid: string, draft: ExerciseDraft): Promise<st
   return ref.id;
 }
 
+export async function editExercise(
+  uid: string,
+  id: string,
+  patch: Partial<ExerciseDraft>,
+): Promise<void> {
+  await updateDoc(exerciseDoc(uid, id), pruneUndefined({ ...patch }));
+}
+
 export async function deleteExercise(uid: string, id: string): Promise<void> {
   await deleteDoc(exerciseDoc(uid, id));
+}
+
+/** Merge catalog exercise `fromId` (victim) into `toId` (survivor): rewrite
+ *  every session and template that references the victim to point at the
+ *  survivor (snapshotting the survivor's name), then delete the victim doc.
+ *  Mirrors FirestoreLedgerCore.mergeExercises — batched in chunks of 450. */
+export async function mergeExercises(uid: string, fromId: string, toId: string): Promise<void> {
+  if (fromId === toId) return;
+  const survivor = await getDoc(exerciseDoc(uid, toId));
+  const toName = survivor.data()?.['name'] as string | undefined;
+
+  const remap = (arr: unknown): TemplateExercise[] | null => {
+    let changed = false;
+    const next = ((arr as TemplateExercise[]) ?? []).map((ex) => {
+      if (ex.exerciseId === fromId) {
+        changed = true;
+        return { ...ex, exerciseId: toId, name: toName ?? ex.name };
+      }
+      return ex;
+    });
+    return changed ? next : null;
+  };
+
+  const [sessSnap, tplSnap] = await Promise.all([getDocs(sessionsCol(uid)), getDocs(templatesCol(uid))]);
+  const ops: { ref: ReturnType<typeof doc>; exercises: TemplateExercise[] }[] = [];
+  for (const d of [...sessSnap.docs, ...tplSnap.docs]) {
+    const exercises = remap(d.data()['exercises']);
+    if (exercises) ops.push({ ref: d.ref, exercises });
+  }
+
+  for (let i = 0; i < ops.length; i += 450) {
+    const batch = writeBatch(db);
+    for (const op of ops.slice(i, i + 450)) {
+      batch.update(op.ref, pruneUndefined({ exercises: op.exercises, updatedAt: Timestamp.now() }));
+    }
+    await batch.commit();
+  }
+  await deleteDoc(exerciseDoc(uid, fromId));
 }
 
 // ── Templates ──
