@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTrain } from '@/hooks/useTrain';
+import { useRestTimer } from '@/hooks/useRestTimer';
 import type {
   Exercise,
   LogStyle,
@@ -171,6 +172,14 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
   const session = train.active!;
   const [addOpen, setAddOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
+  const rest = useRestTimer();
+
+  // Rest duration comes from the source template (mini sets get the shorter
+  // rest); ad-hoc sessions fall back to sensible defaults.
+  const tpl = train.templates.find((tt) => tt.id === session.templateId);
+  const restMini = tpl?.restMiniSec ?? 60;
+  const restCluster = tpl?.restClusterSec ?? 120;
+  const startRest = (kind: WorkoutSet['kind']) => rest.start(kind === 'mini' ? restMini : restCluster);
 
   return (
     <>
@@ -184,13 +193,27 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
           <Text style={styles.empty}>{t('train.addFirst')}</Text>
         ) : (
           session.exercises.map((ex, exIdx) => (
-            <ExerciseCard key={`${ex.exerciseId}-${exIdx}`} train={train} exerciseIndex={exIdx} />
+            <ExerciseCard key={`${ex.exerciseId}-${exIdx}`} train={train} exerciseIndex={exIdx} onSetDone={startRest} />
           ))
         )}
 
         <TouchableOpacity style={styles.addExBtn} onPress={() => setAddOpen(true)} testID="add-exercise">
           <Text style={styles.addExText}>{t('train.addExercise')}</Text>
         </TouchableOpacity>
+
+        {rest.remaining > 0 ? (
+          <View style={styles.restBar} testID="rest-bar">
+            <Text style={styles.restLabel}>{`${t('train.rest')} · ${rest.label}`}</Text>
+            <View style={styles.restActions}>
+              <TouchableOpacity onPress={() => rest.start(rest.remaining + 30)} hitSlop={6} testID="rest-plus">
+                <Text style={styles.restPlus}>+30s</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => rest.stop()} hitSlop={6} testID="rest-skip">
+                <Text style={styles.restSkip}>{t('train.skip')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
 
         <View style={styles.footerBtns}>
           <TouchableOpacity style={styles.discardBtn} onPress={() => train.discardWorkout()} testID="discard-workout">
@@ -245,7 +268,15 @@ function lastHint(sug: ProgressionSuggestion, style: LogStyle, t: TFn): string |
   return null;
 }
 
-function ExerciseCard({ train, exerciseIndex }: { train: ReturnType<typeof useTrain>; exerciseIndex: number }) {
+function ExerciseCard({
+  train,
+  exerciseIndex,
+  onSetDone,
+}: {
+  train: ReturnType<typeof useTrain>;
+  exerciseIndex: number;
+  onSetDone?: (kind: WorkoutSet['kind']) => void;
+}) {
   const t = useT();
   const ex = train.active!.exercises[exerciseIndex];
   const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
@@ -298,6 +329,7 @@ function ExerciseCard({ train, exerciseIndex }: { train: ReturnType<typeof useTr
           set={set}
           logStyle={style}
           number={setIdx + 1}
+          onDone={onSetDone}
         />
       ))}
 
@@ -369,6 +401,7 @@ function SetRow({
   set,
   logStyle,
   number,
+  onDone,
 }: {
   train: ReturnType<typeof useTrain>;
   exerciseIndex: number;
@@ -376,6 +409,7 @@ function SetRow({
   set: WorkoutSet;
   logStyle: LogStyle;
   number: number;
+  onDone?: (kind: WorkoutSet['kind']) => void;
 }) {
   // Local string buffers so partial decimal input binds cleanly; the parsed
   // value is pushed into the session state via editSet, persisted on blur.
@@ -427,8 +461,10 @@ function SetRow({
         style={[styles.setDoneCell, styles.doneBox, set.done && styles.doneBoxOn]}
         onPress={() => {
           haptics.tap();
-          train.editSet(exerciseIndex, setIndex, { done: !set.done });
+          const nowDone = !set.done;
+          train.editSet(exerciseIndex, setIndex, { done: nowDone });
           train.commitActive();
+          if (nowDone) onDone?.(set.kind); // start the rest countdown
         }}
         testID={`set-done-${exerciseIndex}-${setIndex}`}
       >
@@ -1096,4 +1132,19 @@ const styles = StyleSheet.create({
   plateText: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
   panelHint: { fontSize: font.small, color: colors.muted },
   warmRow: { fontSize: font.small, color: colors.ink },
+  // rest timer bar
+  restBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.ink,
+    borderRadius: radius.md,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+    marginTop: space.sm,
+  },
+  restLabel: { color: colors.white, fontWeight: '800', fontSize: font.body },
+  restActions: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
+  restPlus: { color: colors.white, fontWeight: '700', fontSize: font.small, opacity: 0.85 },
+  restSkip: { color: colors.ring, fontWeight: '800', fontSize: font.small, textTransform: 'uppercase', letterSpacing: 0.5 },
 });

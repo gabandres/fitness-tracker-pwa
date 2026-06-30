@@ -242,6 +242,8 @@ export const esPR: Record<I18nKey, string> = {
   'train.short': 'lb faltan',
   'train.warmupLabel': 'Calentamiento',
   'train.enterWeight': 'Escribe un peso de trabajo para ver los discos.',
+  'train.rest': 'Descanso',
+  'train.skip': 'Saltar',
   'logStyle.weightReps': 'Peso × reps',
   'logStyle.bodyweight': 'Peso corporal',
   'logStyle.time': 'Tiempo',

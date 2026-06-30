@@ -240,6 +240,8 @@ export const en = {
   'train.short': 'lb short',
   'train.warmupLabel': 'Warm-up',
   'train.enterWeight': 'Enter a working weight to see plates.',
+  'train.rest': 'Rest',
+  'train.skip': 'Skip',
   'logStyle.weightReps': 'Weight × reps',
   'logStyle.bodyweight': 'Bodyweight',
   'logStyle.time': 'Time',
