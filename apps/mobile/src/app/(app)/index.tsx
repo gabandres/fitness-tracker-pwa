@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { DailyLog, LogEntry } from '@macrolog/core';
+import { DailyMetrics } from '@/components/DailyMetrics';
 import { EntrySheet } from '@/components/EntrySheet';
 import { MacroRing } from '@/components/MacroRing';
 import * as haptics from '@/lib/haptics';
@@ -39,6 +40,13 @@ export default function Today() {
     deletePreset,
     hideRecent,
     unitSystem,
+    water,
+    sleep,
+    setWater,
+    setSleep,
+    fastStartedAt,
+    startFast,
+    breakFast,
   } = useToday();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<DailyLog | null>(null);
@@ -113,6 +121,16 @@ export default function Today() {
             <Stat label="Carbs" value={`${summary.totalCarbs}g`} />
             <Stat label="Fat" value={`${summary.totalFat}g`} />
           </View>
+
+          <DailyMetrics
+            water={water}
+            sleep={sleep}
+            fastStartedAt={fastStartedAt}
+            onAddWater={setWater}
+            onSetSleep={setSleep}
+            onStartFast={startFast}
+            onBreakFast={breakFast}
+          />
 
           <Text style={styles.sectionTitle}>Entries</Text>
           {todayLogs.length === 0 ? (

@@ -14,9 +14,15 @@ import { useAuth } from '@/lib/auth';
 import {
   addLog as addLogDoc,
   addPreset as addPresetDoc,
+  breakFast as breakFastDoc,
   deleteLog as deleteLogDoc,
   deletePreset as deletePresetDoc,
+  setDailySleep,
+  setDailyWater,
   setHiddenRecentLabels,
+  startFast as startFastDoc,
+  subscribeDailySleep,
+  subscribeDailyWater,
   subscribeDailyWeights,
   subscribePresets,
   subscribeProfile,
@@ -48,6 +54,15 @@ export interface TodayState {
   hideRecent: (label: string) => Promise<void>;
   /** Portion-display preference for the food-search serving sort. */
   unitSystem: 'us' | 'metric';
+  /** Today's daily metrics + setters. */
+  water: number;
+  sleep: number | null;
+  setWater: (flOz: number) => Promise<void>;
+  setSleep: (hours: number) => Promise<void>;
+  /** Fast start time (Date) or null when not fasting. */
+  fastStartedAt: Date | null;
+  startFast: () => Promise<void>;
+  breakFast: () => Promise<void>;
 }
 
 export function useToday(): TodayState {
@@ -57,6 +72,8 @@ export function useToday(): TodayState {
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [profile, setProfile] = useState<Profile | null>(null);
   const [presets, setPresets] = useState<MealPreset[]>([]);
+  const [water, setWaterMap] = useState<Record<string, number>>({});
+  const [sleep, setSleepMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -76,6 +93,8 @@ export function useToday(): TodayState {
       subscribeDailyWeights(uid, setWeights, setError),
       subscribeProfile(uid, setProfile, setError),
       subscribePresets(uid, setPresets, setError),
+      subscribeDailyWater(uid, setWaterMap, setError),
+      subscribeDailySleep(uid, setSleepMap, setError),
     ];
     return () => unsubs.forEach((u) => u());
   }, [uid]);
@@ -150,6 +169,24 @@ export function useToday(): TodayState {
     },
     [uid, profile],
   );
+  const setWater = useCallback(
+    async (flOz: number) => {
+      if (uid) await setDailyWater(uid, todayKey, flOz);
+    },
+    [uid, todayKey],
+  );
+  const setSleep = useCallback(
+    async (hours: number) => {
+      if (uid) await setDailySleep(uid, todayKey, hours);
+    },
+    [uid, todayKey],
+  );
+  const startFast = useCallback(async () => {
+    if (uid) await startFastDoc(uid);
+  }, [uid]);
+  const breakFast = useCallback(async () => {
+    if (uid) await breakFastDoc(uid);
+  }, [uid]);
 
   return {
     loading,
@@ -166,5 +203,12 @@ export function useToday(): TodayState {
     deletePreset,
     hideRecent,
     unitSystem: profile?.unitSystem === 'metric' ? 'metric' : 'us',
+    water: water[todayKey] ?? 0,
+    sleep: sleep[todayKey] ?? null,
+    setWater,
+    setSleep,
+    fastStartedAt: profile?.fastStartedAt ?? null,
+    startFast,
+    breakFast,
   };
 }

@@ -136,6 +136,82 @@ export async function setDailyWeight(uid: string, dateKey: string, weight: numbe
   await setDoc(weightDoc(uid, dateKey), { weight });
 }
 
+// ─── Daily water ────────────────────────────────────────────────
+// users/{uid}/dailyWater/{dateKey} = { flOz }. Stored in fl oz (the ml
+// branch is legacy — see project_water_unit_migration). Clamp [0, 676].
+const waterCol = (uid: string) => collection(db, 'users', uid, 'dailyWater');
+const waterDoc = (uid: string, dateKey: string) => doc(db, 'users', uid, 'dailyWater', dateKey);
+
+export function subscribeDailyWater(
+  uid: string,
+  cb: (water: Record<string, number>) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    waterCol(uid),
+    (snap) => {
+      const water: Record<string, number> = {};
+      for (const d of snap.docs) {
+        const data = d.data() as { flOz?: number; ml?: number };
+        water[d.id] =
+          typeof data.flOz === 'number'
+            ? data.flOz
+            : typeof data.ml === 'number'
+              ? Math.round(data.ml / 29.5735)
+              : 0;
+      }
+      cb(water);
+    },
+    onError,
+  );
+}
+
+export async function setDailyWater(uid: string, dateKey: string, flOz: number): Promise<void> {
+  await setDoc(waterDoc(uid, dateKey), { flOz: Math.max(0, Math.min(676, Math.round(flOz))) });
+}
+
+// ─── Daily sleep ────────────────────────────────────────────────
+// users/{uid}/dailySleep/{dateKey} = { hours }. Clamp [0, 24], half-hour.
+const sleepCol = (uid: string) => collection(db, 'users', uid, 'dailySleep');
+const sleepDoc = (uid: string, dateKey: string) => doc(db, 'users', uid, 'dailySleep', dateKey);
+
+export function subscribeDailySleep(
+  uid: string,
+  cb: (sleep: Record<string, number>) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    sleepCol(uid),
+    (snap) => {
+      const sleep: Record<string, number> = {};
+      for (const d of snap.docs) {
+        const data = d.data() as { hours?: number };
+        if (typeof data.hours === 'number') sleep[d.id] = data.hours;
+      }
+      cb(sleep);
+    },
+    onError,
+  );
+}
+
+export async function setDailySleep(uid: string, dateKey: string, hours: number): Promise<void> {
+  await setDoc(sleepDoc(uid, dateKey), { hours: Math.max(0, Math.min(24, Math.round(hours * 2) / 2)) });
+}
+
+// ─── Fasting ────────────────────────────────────────────────────
+// Fasting state lives on the profile as `fastStartedAt` (Timestamp | null),
+// mirroring FirebaseService.startFast / breakFast.
+export async function startFast(uid: string, startedAt?: Date): Promise<void> {
+  await updateDoc(userDoc(uid), {
+    fastStartedAt: startedAt ? Timestamp.fromDate(startedAt) : Timestamp.now(),
+    lastSeenAt: Timestamp.now(),
+  });
+}
+
+export async function breakFast(uid: string): Promise<void> {
+  await updateDoc(userDoc(uid), { fastStartedAt: null, lastSeenAt: Timestamp.now() });
+}
+
 // ─── Profile ────────────────────────────────────────────────────
 function toProfile(data: Record<string, unknown>): Profile {
   const d = (v: unknown): Date | undefined =>
