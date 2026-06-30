@@ -5,24 +5,35 @@ import {
   deleteDoc,
   deleteField,
   doc,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
   query,
   setDoc,
   updateDoc,
+  where,
 } from 'firebase/firestore';
-import type {
-  DailyLog,
-  LogEntry,
-  Measurement,
-  MealPreset,
-  OnboardingV2Submission,
-  Profile,
-  UnitSystem,
+import {
+  type DailyLog,
+  type LogEntry,
+  type Measurement,
+  type MealPreset,
+  type OnboardingV2Submission,
+  type Profile,
+  type UnitSystem,
+  localDateKey,
 } from '@macrolog/core';
 import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import { db, storage } from './firebase';
+import type {
+  Exercise,
+  ExerciseDraft,
+  SessionDraft,
+  SessionExercise,
+  WorkoutSession,
+  WorkoutSet,
+} from './workout';
 
 // Firestore schema mirrors the PWA exactly (see firestore-ledger.core.ts):
 //   users/{uid}                       — profile doc
@@ -430,4 +441,163 @@ export async function deleteProgressPhoto(uid: string, dateKey: string): Promise
     // Object already gone — still drop the index doc so no ghost row remains.
   }
   await deleteDoc(photoDoc(uid, dateKey));
+}
+
+// ─── Train tab (workouts, ADR-0007) ─────────────────────────────
+// Three collections, shapes mirror FirestoreLedgerCore + the firestore.rules
+// validators (isValidExercise / isValidWorkoutSession):
+//   users/{uid}/exercises/{id}        — { name, muscles[], defaultCues[], logStyle?, createdAt }
+//   users/{uid}/workoutSessions/{id}  — { status, timestamp, exercises[], …, createdAt, updatedAt }
+// (templates are not written by mobile v1). Firestore rejects `undefined`,
+// so every write is run through pruneUndefined first.
+const exercisesCol = (uid: string) => collection(db, 'users', uid, 'exercises');
+const exerciseDoc = (uid: string, id: string) => doc(db, 'users', uid, 'exercises', id);
+const sessionsCol = (uid: string) => collection(db, 'users', uid, 'workoutSessions');
+const sessionDoc = (uid: string, id: string) => doc(db, 'users', uid, 'workoutSessions', id);
+
+/** Recursively drop undefined-valued keys (Firestore rejects undefined). */
+function pruneUndefined<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((v) => pruneUndefined(v)) as unknown as T;
+  if (value !== null && typeof value === 'object' && !(value instanceof Timestamp)) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v !== undefined) out[k] = pruneUndefined(v);
+    }
+    return out as T;
+  }
+  return value;
+}
+
+// ── Exercise catalog ──
+function toExercise(id: string, data: Record<string, unknown>): Exercise {
+  return {
+    id,
+    name: (data['name'] as string) ?? '',
+    muscles: (data['muscles'] as Exercise['muscles']) ?? [],
+    defaultCues: (data['defaultCues'] as string[]) ?? [],
+    logStyle: data['logStyle'] as Exercise['logStyle'],
+    createdAt: (data['createdAt'] as Timestamp)?.toDate() ?? new Date(0),
+  };
+}
+
+export function subscribeExercises(
+  uid: string,
+  cb: (exercises: Exercise[]) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    query(exercisesCol(uid), orderBy('name')),
+    (snap) => cb(snap.docs.map((d) => toExercise(d.id, d.data()))),
+    onError,
+  );
+}
+
+export async function addExercise(uid: string, draft: ExerciseDraft): Promise<string> {
+  const data = pruneUndefined({
+    name: draft.name,
+    muscles: draft.muscles ?? [],
+    defaultCues: draft.defaultCues ?? [],
+    logStyle: draft.logStyle,
+    createdAt: Timestamp.now(),
+  });
+  const ref = await addDoc(exercisesCol(uid), data);
+  return ref.id;
+}
+
+export async function deleteExercise(uid: string, id: string): Promise<void> {
+  await deleteDoc(exerciseDoc(uid, id));
+}
+
+// ── Sessions ──
+function toSession(id: string, data: Record<string, unknown>): WorkoutSession {
+  return {
+    id,
+    status: data['status'] as WorkoutSession['status'],
+    templateId: data['templateId'] as string | undefined,
+    templateName: data['templateName'] as string | undefined,
+    date: (data['timestamp'] as Timestamp).toDate(),
+    bodyweight: data['bodyweight'] as number | undefined,
+    sleepHours: data['sleepHours'] as number | undefined,
+    durationMin: data['durationMin'] as number | undefined,
+    exercises: ((data['exercises'] as SessionExercise[]) ?? []).map((ex) => ({
+      ...ex,
+      sets: (ex.sets ?? []) as WorkoutSet[],
+    })),
+    nextNotes: data['nextNotes'] as string | undefined,
+    createdAt: (data['createdAt'] as Timestamp)?.toDate() ?? new Date(0),
+    updatedAt: (data['updatedAt'] as Timestamp)?.toDate() ?? new Date(0),
+  };
+}
+
+/** Serialize a SessionDraft to the stored doc shape (date → `timestamp`). */
+function sessionData(draft: Partial<SessionDraft>): Record<string, unknown> {
+  const data: Record<string, unknown> = {};
+  if (draft.status !== undefined) data['status'] = draft.status;
+  if (draft.templateId !== undefined) data['templateId'] = draft.templateId;
+  if (draft.templateName !== undefined) data['templateName'] = draft.templateName;
+  if (draft.date !== undefined) data['timestamp'] = Timestamp.fromDate(draft.date);
+  if (draft.bodyweight !== undefined) data['bodyweight'] = draft.bodyweight;
+  if (draft.sleepHours !== undefined) data['sleepHours'] = draft.sleepHours;
+  if (draft.durationMin !== undefined) data['durationMin'] = draft.durationMin;
+  if (draft.exercises !== undefined) data['exercises'] = draft.exercises;
+  if (draft.nextNotes !== undefined) data['nextNotes'] = draft.nextNotes;
+  return data;
+}
+
+/** One-shot read of the in-progress session, if any (status == 'active'). */
+export async function getActiveSession(uid: string): Promise<WorkoutSession | null> {
+  const snap = await getDocs(query(sessionsCol(uid), where('status', '==', 'active'), limit(1)));
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return toSession(d.id, d.data());
+}
+
+export function subscribeRecentSessions(
+  uid: string,
+  count: number,
+  cb: (sessions: WorkoutSession[]) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    query(sessionsCol(uid), orderBy('timestamp', 'desc'), limit(count)),
+    (snap) => cb(snap.docs.map((d) => toSession(d.id, d.data()))),
+    onError,
+  );
+}
+
+export async function startSession(uid: string, draft: SessionDraft): Promise<string> {
+  const now = Timestamp.now();
+  const data = pruneUndefined({ ...sessionData(draft), createdAt: now, updatedAt: now });
+  const ref = await addDoc(sessionsCol(uid), data);
+  return ref.id;
+}
+
+export async function updateSession(
+  uid: string,
+  id: string,
+  patch: Partial<SessionDraft>,
+): Promise<void> {
+  const data = pruneUndefined({ ...sessionData(patch), updatedAt: Timestamp.now() });
+  await setDoc(sessionDoc(uid, id), data, { merge: true });
+}
+
+export async function deleteSession(uid: string, id: string): Promise<void> {
+  await deleteDoc(sessionDoc(uid, id));
+}
+
+/** Stamp `date` as an exercise day (a 0-kcal DailyLog with
+ *  `exerciseCompleted`) so the workout counts toward the streak — but only
+ *  if no exercise-marked log already exists that day. Mirrors
+ *  FitnessStore.markExercised. */
+export async function markExercised(uid: string, date: Date): Promise<void> {
+  const key = localDateKey(date);
+  const snap = await getDocs(query(logsCol(uid), orderBy('timestamp', 'desc'), limit(60)));
+  const already = snap.docs.some((d) => {
+    const data = d.data() as { timestamp?: Timestamp; exerciseCompleted?: boolean; liftCompleted?: boolean; cardioCompleted?: boolean };
+    if (!data.timestamp) return false;
+    const marked = data.exerciseCompleted || data.liftCompleted || data.cardioCompleted;
+    return marked && localDateKey(data.timestamp.toDate()) === key;
+  });
+  if (already) return;
+  await addLog(uid, { calories: 0, exerciseCompleted: true, timestamp: date });
 }
