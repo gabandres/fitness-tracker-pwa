@@ -279,6 +279,13 @@ export async function setPreferredLocale(uid: string, preferredLocale: string): 
   await updateDoc(userDoc(uid), { preferredLocale });
 }
 
+/** Opt in/out of the Sunday weekly recap email (sent server-side by a CF).
+ *  Off by default; `lastWeeklyDigestSentAt` is server-stamped, never written
+ *  by the client. */
+export async function setWeeklyDigestOptIn(uid: string, on: boolean): Promise<void> {
+  await updateDoc(userDoc(uid), { weeklyDigestOptIn: on });
+}
+
 /** Promote the 2-question onboarding to a full Mifflin–St Jeor TDEE. Mirrors
  *  FirebaseService.saveRefinedTargets: writes the profile fields, DELETES the
  *  manual heuristic targets so the TDEE chain falls through to formula mode,

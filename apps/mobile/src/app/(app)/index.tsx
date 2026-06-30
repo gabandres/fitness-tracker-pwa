@@ -15,6 +15,7 @@ import type { DailyLog, LogEntry } from '@macrolog/core';
 import { DailyMetrics } from '@/components/DailyMetrics';
 import { EntrySheet } from '@/components/EntrySheet';
 import { MacroRing } from '@/components/MacroRing';
+import { WhatsNewBanner } from '@/components/WhatsNewBanner';
 import { type TFn, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useToday } from '@/hooks/useToday';
@@ -98,6 +99,8 @@ export default function Today() {
       ) : (
         <ScrollView contentContainerStyle={styles.body}>
           {error ? <Text style={styles.error}>{t('today.loadErr')}</Text> : null}
+
+          <WhatsNewBanner />
 
           <View style={styles.rings}>
             <MacroRing

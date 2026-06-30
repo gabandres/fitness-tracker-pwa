@@ -71,6 +71,8 @@ export const en = {
   'today.emptyHint': 'Tap + to log your first meal.',
   'today.loadErr': "Couldn't load your data. Pull to retry.",
   'today.entry': 'Entry',
+  'whatsNew.title': "What's new",
+  'whatsNew.body': 'A fresh new look, a Train tab for workouts, search-first logging, and Refine targets to sharpen your numbers.',
 
   // ── daily metrics ──
   'metrics.fasting': 'Fasting',
@@ -265,6 +267,8 @@ export const en = {
   'activity.very_active': 'Very active',
   'settings.refine': 'Refine targets',
   'settings.refineSub': 'Sharpen your calorie target · unlocks body fat',
+  'settings.weeklyDigest': 'Weekly recap email',
+  'settings.weeklyDigestSub': 'A Sunday snapshot of your last 7 days',
 
   // ── history ──
   'history.emptyTitle': 'No history yet.',

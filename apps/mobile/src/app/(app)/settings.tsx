@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { UnitSystem } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
-import { setPreferredLocale, setUnitSystem } from '@/lib/ledger';
+import { setPreferredLocale, setUnitSystem, setWeeklyDigestOptIn } from '@/lib/ledger';
 import { DEFAULT_REMINDER_HOUR, getReminder, setReminder } from '@/lib/reminders';
 import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -81,6 +81,12 @@ export default function Settings() {
     if (next === locale || !user) return;
     haptics.tap();
     await setPreferredLocale(user.uid, next);
+  }
+
+  async function toggleDigest(next: boolean) {
+    if (!user) return;
+    haptics.tap();
+    await setWeeklyDigestOptIn(user.uid, next);
   }
 
   return (
@@ -195,6 +201,19 @@ export default function Settings() {
               </View>
             </View>
           ) : null}
+
+          <View style={styles.digestRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>{t('settings.weeklyDigest')}</Text>
+              <Text style={styles.rowValue}>{t('settings.weeklyDigestSub')}</Text>
+            </View>
+            <Switch
+              value={!!profile?.weeklyDigestOptIn}
+              onValueChange={toggleDigest}
+              trackColor={{ true: colors.ink, false: colors.line }}
+              testID="digest-toggle"
+            />
+          </View>
         </View>
 
         <Text style={styles.section}>{t('settings.account')}</Text>
@@ -255,6 +274,7 @@ const styles = StyleSheet.create({
   },
   editBtnText: { color: colors.ink, fontWeight: '700', fontSize: font.body },
   refineRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingTop: space.sm, borderTopWidth: 1, borderTopColor: colors.line },
+  digestRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space.sm, borderTopWidth: 1, borderTopColor: colors.line },
   segment: { flexDirection: 'row', gap: space.sm },
   segmentBtn: {
     flex: 1,

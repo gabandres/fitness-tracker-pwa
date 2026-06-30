@@ -73,6 +73,8 @@ export const esPR: Record<I18nKey, string> = {
   'today.emptyHint': 'Toca + para registrar tu primera comida.',
   'today.loadErr': 'No se pudieron cargar tus datos. Desliza para reintentar.',
   'today.entry': 'Registro',
+  'whatsNew.title': 'Novedades',
+  'whatsNew.body': 'Un nuevo look, una pestaña Entrenar, registro con búsqueda primero, y Afinar metas para precisar tus números.',
 
   // ── daily metrics ──
   'metrics.fasting': 'Ayuno',
@@ -267,6 +269,8 @@ export const esPR: Record<I18nKey, string> = {
   'activity.very_active': 'Muy activo',
   'settings.refine': 'Afinar metas',
   'settings.refineSub': 'Afina tu meta de calorías · activa grasa corporal',
+  'settings.weeklyDigest': 'Resumen semanal por correo',
+  'settings.weeklyDigestSub': 'Un resumen dominical de tus últimos 7 días',
 
   // ── history ──
   'history.emptyTitle': 'Aún no hay historial.',
