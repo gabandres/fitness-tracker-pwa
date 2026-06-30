@@ -17,7 +17,9 @@ export const colors = {
   muted: '#5b6472',
   faint: '#9aa2ae',
   line: '#e4e7ec',
-  accent: '#d63a2f', // coral — the "energy" pop on the calorie ring + links
+  accent: '#d63a2f', // coral — accent text/links (4.7:1 on white, legible)
+  ring: '#ff6a3d', // warmer coral-orange for the calorie ring — reads as
+                   // "energy", not the alarm-red a deep coral becomes on OLED
   protein: '#0fa968', // green
   carbs: '#f59e0b', // amber
   fat: '#8b5cf6', // violet

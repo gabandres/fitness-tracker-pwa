@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView,
+  Animated,
+  Dimensions,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
@@ -50,6 +52,8 @@ function numOrUndef(s: string): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+const SHEET_OFFSCREEN = Dimensions.get('window').height;
+
 /** Search-first add-food sheet, on a plain RN <Modal> (animationType "slide"
  *  is OS-driven, so it doesn't stutter while typing — unlike the old custom
  *  Animated translateY). Adding opens on a BROWSE view (search + recents +
@@ -80,6 +84,51 @@ export function EntrySheet({
   const [manage, setManage] = useState(false);
   const [mode, setMode] = useState<'browse' | 'custom' | 'recipe'>('browse');
   const [scannerOpen, setScannerOpen] = useState(false);
+
+  // Keep the Modal mounted through the exit animation. `anim` (0 = hidden,
+  // 1 = shown) drives the backdrop opacity (fades IN PLACE, full-screen) and
+  // the sheet's translateY (slides up) independently — so the dim doesn't drag
+  // up with the sheet the way Modal's built-in `animationType="slide"` does.
+  // Native driver → the slide stays smooth even while typing.
+  const [mounted, setMounted] = useState(visible);
+  const anim = useRef(new Animated.Value(0)).current;
+
+  // Track the keyboard height so the sheet's WHITE stays pinned to the screen
+  // bottom (fills behind the keyboard) while only the CONTENT lifts above it —
+  // no grey "cutout" between the sheet and the keyboard (the artifact a
+  // KeyboardAvoidingView wrapper produced by floating the whole sheet up).
+  const [kbHeight, setKbHeight] = useState(0);
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvt, (e) => setKbHeight(e.endCoordinates.height));
+    const hide = Keyboard.addListener(hideEvt, () => setKbHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      Animated.timing(anim, { toValue: 1, duration: 240, useNativeDriver: true }).start();
+    } else if (mounted) {
+      Animated.timing(anim, { toValue: 0, duration: 180, useNativeDriver: true }).start(({ finished }) => {
+        if (finished) setMounted(false);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  const backdropStyle = useMemo(() => [styles.backdrop, { opacity: anim }], [anim]);
+  const sheetStyle = useMemo(
+    () => [
+      styles.sheet,
+      { transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [SHEET_OFFSCREEN, 0] }) }] },
+    ],
+    [anim],
+  );
 
   // Reset form + mode whenever the sheet (re)opens.
   useEffect(() => {
@@ -249,16 +298,13 @@ export function EntrySheet({
   );
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.fill}>
-        <Pressable style={styles.backdrop} onPress={onClose} testID="entry-backdrop" />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.sheetWrap}
-          pointerEvents="box-none"
-        >
-          <View style={styles.sheet}>
-            <View style={styles.handle} />
+    <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
+      <Animated.View style={backdropStyle}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} testID="entry-backdrop" />
+      </Animated.View>
+      <View style={styles.sheetWrap} pointerEvents="box-none">
+        <Animated.View style={[sheetStyle, { paddingBottom: kbHeight > 0 ? kbHeight + space.sm : space.xxl }]}>
+          <View style={styles.handle} />
 
             {mode === 'browse' ? (
               <FoodSearch
@@ -336,9 +382,8 @@ export function EntrySheet({
                 </View>
               </View>
             )}
-          </View>
-        </KeyboardAvoidingView>
-      </View>
+          </Animated.View>
+        </View>
 
       {scannerOpen ? (
         <BarcodeScanner
@@ -378,8 +423,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.lg,
     paddingHorizontal: space.xl,
     paddingTop: space.sm,
-    paddingBottom: space.xxl,
-    maxHeight: '90%',
+    maxHeight: '94%',
   },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line, marginBottom: space.sm },
   // browse

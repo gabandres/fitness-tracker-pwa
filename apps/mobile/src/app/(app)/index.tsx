@@ -103,7 +103,7 @@ export default function Today() {
             <MacroRing
               testID="calorie-ring"
               progress={calTarget ? calConsumed / calTarget : 0}
-              color={calRemaining < 0 ? colors.danger : colors.accent}
+              color={calRemaining < 0 ? colors.danger : colors.ring}
               value={Math.abs(calRemaining).toLocaleString()}
               label={t('today.kcal')}
               sub={calRemaining < 0 ? t('today.over') : t('today.left')}
