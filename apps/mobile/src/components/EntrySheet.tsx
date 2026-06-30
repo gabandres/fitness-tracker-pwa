@@ -20,6 +20,7 @@ import {
   type MealPreset,
   type MealType,
 } from '@macrolog/core';
+import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { FoodSearch } from '@/components/FoodSearch';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
@@ -76,6 +77,7 @@ export function EntrySheet({
   // 'manual' is the form; 'search' swaps in the food-database panel. Only
   // reachable when adding (editing always stays on the manual form).
   const [mode, setMode] = useState<'manual' | 'search'>('manual');
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   // Keep the Modal mounted through the exit animation. `anim` drives both the
   // backdrop fade and the sheet's translateY (0 = hidden, 1 = shown), so the
@@ -205,9 +207,16 @@ export function EntrySheet({
           <Text style={styles.title}>{editing ? 'Edit entry' : 'Add food'}</Text>
 
           {!editing && mode === 'manual' ? (
-            <TouchableOpacity style={styles.searchEntry} onPress={() => { haptics.tap(); setMode('search'); }} testID="open-food-search">
-              <Text style={styles.searchEntryText}>🔍  Search food database</Text>
-            </TouchableOpacity>
+            <View style={styles.discoverRow}>
+              <TouchableOpacity style={styles.searchEntry} onPress={() => { haptics.tap(); setMode('search'); }} testID="open-food-search">
+                <Text style={styles.searchEntryText}>🔍  Search food database</Text>
+              </TouchableOpacity>
+              {Platform.OS !== 'web' ? (
+                <TouchableOpacity style={styles.scanEntry} onPress={() => { haptics.tap(); setScannerOpen(true); }} testID="open-barcode">
+                  <Text style={styles.searchEntryText}>⊟  Scan</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           ) : null}
 
           {mode === 'search' ? (
@@ -357,6 +366,23 @@ export function EntrySheet({
           ) : null}
         </Animated.View>
       </KeyboardAvoidingView>
+
+      {scannerOpen ? (
+        <BarcodeScanner
+          visible={scannerOpen}
+          onClose={() => setScannerOpen(false)}
+          onPick={(est) => {
+            setScannerOpen(false);
+            prefill({
+              calories: est.calories,
+              protein: est.protein,
+              carbs: est.carbs,
+              fat: est.fat,
+              mealLabel: est.mealLabel,
+            });
+          }}
+        />
+      ) : null}
     </Modal>
   );
 }
@@ -409,14 +435,25 @@ const styles = StyleSheet.create({
   qChipKcal: { fontSize: font.tiny, color: colors.muted },
   savePreset: { alignSelf: 'flex-start', paddingVertical: space.xs },
   savePresetText: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
+  discoverRow: { flexDirection: 'row', gap: space.sm, marginBottom: space.md },
   searchEntry: {
+    flex: 1,
     borderWidth: 1,
     borderColor: colors.line,
     borderStyle: 'dashed',
     borderRadius: radius.md,
     paddingVertical: space.md,
     alignItems: 'center',
-    marginBottom: space.md,
+    backgroundColor: colors.white,
+  },
+  scanEntry: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderStyle: 'dashed',
+    borderRadius: radius.md,
+    paddingVertical: space.md,
+    paddingHorizontal: space.lg,
+    alignItems: 'center',
     backgroundColor: colors.white,
   },
   searchEntryText: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
