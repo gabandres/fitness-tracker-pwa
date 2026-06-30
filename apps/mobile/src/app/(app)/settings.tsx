@@ -1,13 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { UnitSystem } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { setUnitSystem } from '@/lib/ledger';
+import { DEFAULT_REMINDER_HOUR, getReminder, setReminder } from '@/lib/reminders';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
+
+/** "8 PM" / "12 PM" / "12 AM" from a 0–23 hour. */
+function hourLabel(h: number): string {
+  const period = h < 12 ? 'AM' : 'PM';
+  const display = h % 12 === 0 ? 12 : h % 12;
+  return `${display} ${period}`;
+}
 
 const GOAL_LABEL: Record<string, string> = {
   lose: 'Lose fat',
@@ -19,6 +27,27 @@ export default function Settings() {
   const { user, profile, signOut } = useAuth();
   const router = useRouter();
   const [savingUnit, setSavingUnit] = useState(false);
+  const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [reminderHour, setReminderHour] = useState(DEFAULT_REMINDER_HOUR);
+
+  useEffect(() => {
+    getReminder().then((r) => {
+      setReminderEnabled(r.enabled);
+      setReminderHour(r.hour);
+    });
+  }, []);
+
+  async function toggleReminder(next: boolean) {
+    haptics.tap();
+    const applied = await setReminder(next, reminderHour);
+    setReminderEnabled(applied);
+  }
+
+  async function bumpReminderHour(delta: number) {
+    const next = (reminderHour + delta + 24) % 24;
+    setReminderHour(next);
+    if (reminderEnabled) await setReminder(true, next);
+  }
 
   const unit: UnitSystem = profile?.unitSystem ?? 'us';
   const kcal = profile?.manualCaloriesTarget;
@@ -88,6 +117,36 @@ export default function Settings() {
               );
             })}
           </View>
+        </View>
+
+        <Text style={styles.section}>Reminders</Text>
+        <View style={styles.card}>
+          <View style={styles.rowBetween}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>Daily reminder</Text>
+              <Text style={styles.rowValue}>Nudge to log your meals</Text>
+            </View>
+            <Switch
+              value={reminderEnabled}
+              onValueChange={toggleReminder}
+              trackColor={{ true: colors.ink, false: colors.line }}
+              testID="reminder-toggle"
+            />
+          </View>
+          {reminderEnabled ? (
+            <View style={styles.rowBetween}>
+              <Text style={styles.rowLabel}>Time</Text>
+              <View style={styles.stepper}>
+                <TouchableOpacity style={styles.step} onPress={() => bumpReminderHour(-1)} testID="reminder-hour-minus">
+                  <Text style={styles.stepText}>−</Text>
+                </TouchableOpacity>
+                <Text style={styles.hourValue} testID="reminder-hour">{hourLabel(reminderHour)}</Text>
+                <TouchableOpacity style={styles.step} onPress={() => bumpReminderHour(1)} testID="reminder-hour-plus">
+                  <Text style={styles.stepText}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
         </View>
 
         <Text style={styles.section}>Account</Text>
@@ -160,6 +219,13 @@ const styles = StyleSheet.create({
   segmentBtnOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   segmentText: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   segmentTextOn: { color: colors.white },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  step: {
+    width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.line,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white,
+  },
+  stepText: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },
+  hourValue: { fontSize: font.body, color: colors.ink, fontWeight: '700', minWidth: 56, textAlign: 'center' },
   signOut: { flexDirection: 'row', alignItems: 'center', gap: space.sm, justifyContent: 'center' },
   signOutText: { color: colors.danger, fontWeight: '700', fontSize: font.body },
 });
