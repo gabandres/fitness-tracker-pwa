@@ -1,7 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { type DailyLog, currentWeight as coreCurrentWeight, localDateKey } from '@macrolog/core';
+import {
+  type DailyLog,
+  type Measurement,
+  type Profile,
+  currentWeight as coreCurrentWeight,
+  localDateKey,
+  navyBodyFat,
+} from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
-import { setDailyWeight, subscribeDailyWeights, subscribeRecentLogs } from '@/lib/ledger';
+import {
+  addMeasurement as addMeasurementDoc,
+  deleteMeasurement as deleteMeasurementDoc,
+  setDailyWeight,
+  subscribeDailyWeights,
+  subscribeMeasurements,
+  subscribeProfile,
+  subscribeRecentLogs,
+} from '@/lib/ledger';
 
 export interface WeighIn {
   dateKey: string;
@@ -18,6 +33,15 @@ export interface BodyState {
   /** All weigh-ins, newest first. */
   weighIns: WeighIn[];
   setWeight: (weight: number, dateKey?: string) => Promise<void>;
+  /** Measurement rows, newest first. */
+  measurements: Measurement[];
+  /** Navy body-fat % from the latest measurement + profile, or null when
+   *  inputs are missing (no sex/height, or no waist/neck — hip for female). */
+  bodyFat: number | null;
+  /** Why body-fat can't be shown, for an inline hint. null when shown. */
+  bodyFatGap: 'profile' | 'measurement' | null;
+  addMeasurement: (entry: Omit<Measurement, 'id' | 'date'>) => Promise<void>;
+  deleteMeasurement: (id: string) => Promise<void>;
 }
 
 export function useBody(): BodyState {
@@ -25,6 +49,8 @@ export function useBody(): BodyState {
   const uid = user?.uid;
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [logs, setLogs] = useState<DailyLog[]>([]);
+  const [measurements, setMeasurements] = useState<Measurement[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -41,6 +67,8 @@ export function useBody(): BodyState {
         setError,
       ),
       subscribeRecentLogs(uid, 400, setLogs, setError),
+      subscribeMeasurements(uid, 20, setMeasurements, setError),
+      subscribeProfile(uid, setProfile, setError),
     ];
     return () => unsubs.forEach((u) => u());
   }, [uid]);
@@ -54,11 +82,36 @@ export function useBody(): BodyState {
     [weights],
   );
 
+  // Body-fat from the latest measurement that carries the inputs the Navy
+  // formula needs. `bodyFatGap` explains a null so the UI can nudge the user
+  // toward the missing piece (profile sex/height vs. a tape measurement).
+  const { bodyFat, bodyFatGap } = useMemo<{ bodyFat: number | null; bodyFatGap: BodyState['bodyFatGap'] }>(() => {
+    if (!profile?.sex || !profile?.heightIn) return { bodyFat: null, bodyFatGap: 'profile' };
+    const latest = measurements[0];
+    if (!latest || latest.waist == null || latest.neck == null) {
+      return { bodyFat: null, bodyFatGap: 'measurement' };
+    }
+    const bf = navyBodyFat(profile.sex, profile.heightIn, latest.waist, latest.neck, latest.hip);
+    return bf == null ? { bodyFat: null, bodyFatGap: 'measurement' } : { bodyFat: bf, bodyFatGap: null };
+  }, [profile, measurements]);
+
   const setWeight = useCallback(
     async (weight: number, dateKey?: string) => {
       if (uid) await setDailyWeight(uid, dateKey ?? todayKey, weight);
     },
     [uid, todayKey],
+  );
+  const addMeasurement = useCallback(
+    async (entry: Omit<Measurement, 'id' | 'date'>) => {
+      if (uid) await addMeasurementDoc(uid, entry);
+    },
+    [uid],
+  );
+  const deleteMeasurement = useCallback(
+    async (id: string) => {
+      if (uid) await deleteMeasurementDoc(uid, id);
+    },
+    [uid],
   );
 
   return {
@@ -68,5 +121,10 @@ export function useBody(): BodyState {
     todayWeight: weights[todayKey] ?? null,
     weighIns,
     setWeight,
+    measurements,
+    bodyFat,
+    bodyFatGap,
+    addMeasurement,
+    deleteMeasurement,
   };
 }

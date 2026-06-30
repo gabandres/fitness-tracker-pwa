@@ -10,3 +10,4 @@ export * from './date';
 export * from './day-summary';
 export * from './tdee';
 export * from './targets';
+export * from './body-fat';

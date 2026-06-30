@@ -15,6 +15,7 @@ import {
 import type {
   DailyLog,
   LogEntry,
+  Measurement,
   MealPreset,
   OnboardingV2Submission,
   Profile,
@@ -34,6 +35,8 @@ const weightsCol = (uid: string) => collection(db, 'users', uid, 'dailyWeights')
 const weightDoc = (uid: string, dateKey: string) => doc(db, 'users', uid, 'dailyWeights', dateKey);
 const presetsCol = (uid: string) => collection(db, 'users', uid, 'presets');
 const presetDoc = (uid: string, id: string) => doc(db, 'users', uid, 'presets', id);
+const measurementsCol = (uid: string) => collection(db, 'users', uid, 'measurements');
+const measurementDoc = (uid: string, id: string) => doc(db, 'users', uid, 'measurements', id);
 const userDoc = (uid: string) => doc(db, 'users', uid);
 
 type Unsub = () => void;
@@ -225,4 +228,51 @@ export async function addPreset(uid: string, preset: Omit<MealPreset, 'id'>): Pr
 
 export async function deletePreset(uid: string, id: string): Promise<void> {
   await deleteDoc(presetDoc(uid, id));
+}
+
+// ─── Body measurements ──────────────────────────────────────────
+// users/{uid}/measurements/{id} — { timestamp, waist?, chest?, bicep?,
+// hip?, neck? } in inches. Shape mirrors FirestoreLedgerCore.addMeasurement.
+function toMeasurement(id: string, data: Record<string, unknown>): Measurement {
+  return {
+    id,
+    date: (data['timestamp'] as Timestamp).toDate(),
+    waist: data['waist'] as number | undefined,
+    chest: data['chest'] as number | undefined,
+    bicep: data['bicep'] as number | undefined,
+    hip: data['hip'] as number | undefined,
+    neck: data['neck'] as number | undefined,
+  };
+}
+
+/** Live-subscribe to the latest `count` measurement rows, newest-first. */
+export function subscribeMeasurements(
+  uid: string,
+  count: number,
+  cb: (measurements: Measurement[]) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  const q = query(measurementsCol(uid), orderBy('timestamp', 'desc'), limit(count));
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => toMeasurement(d.id, d.data()))), onError);
+}
+
+type MeasurementInput = Omit<Measurement, 'id' | 'date'>;
+
+function measurementData(entry: MeasurementInput): Record<string, unknown> {
+  const data: Record<string, unknown> = {};
+  if (entry.waist != null) data['waist'] = entry.waist;
+  if (entry.chest != null) data['chest'] = entry.chest;
+  if (entry.bicep != null) data['bicep'] = entry.bicep;
+  if (entry.hip != null) data['hip'] = entry.hip;
+  if (entry.neck != null) data['neck'] = entry.neck;
+  return data;
+}
+
+export async function addMeasurement(uid: string, entry: MeasurementInput): Promise<string> {
+  const ref = await addDoc(measurementsCol(uid), { timestamp: Timestamp.now(), ...measurementData(entry) });
+  return ref.id;
+}
+
+export async function deleteMeasurement(uid: string, id: string): Promise<void> {
+  await deleteDoc(measurementDoc(uid, id));
 }

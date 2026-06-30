@@ -13,7 +13,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { parseYmd } from '@macrolog/core';
+import { type Measurement, parseYmd } from '@macrolog/core';
 import { useBody } from '@/hooks/useBody';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
@@ -23,8 +23,21 @@ function dayLabel(dateKey: string): string {
 }
 
 export default function Body() {
-  const { loading, error, currentWeight, todayWeight, weighIns, setWeight } = useBody();
+  const {
+    loading,
+    error,
+    currentWeight,
+    todayWeight,
+    weighIns,
+    setWeight,
+    measurements,
+    bodyFat,
+    bodyFatGap,
+    addMeasurement,
+    deleteMeasurement,
+  } = useBody();
   const [open, setOpen] = useState(false);
+  const [measureOpen, setMeasureOpen] = useState(false);
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -50,6 +63,44 @@ export default function Body() {
           <TouchableOpacity style={styles.logBtn} onPress={() => setOpen(true)} testID="log-weight">
             <Text style={styles.logBtnText}>{todayWeight != null ? 'Update today’s weight' : 'Log weight'}</Text>
           </TouchableOpacity>
+
+          <View style={styles.bfCard} testID="bodyfat-card">
+            <View>
+              <Text style={styles.bfLabel}>Body fat</Text>
+              <Text style={styles.bfHint}>
+                {bodyFat != null
+                  ? 'U.S. Navy estimate'
+                  : bodyFatGap === 'profile'
+                    ? 'Set sex + height in onboarding'
+                    : 'Add a waist + neck measurement'}
+              </Text>
+            </View>
+            <Text style={styles.bfValue} testID="bodyfat-value">{bodyFat != null ? `${bodyFat}%` : '—'}</Text>
+          </View>
+
+          <View style={styles.measureHeader}>
+            <Text style={styles.sectionTitle}>Measurements</Text>
+            <TouchableOpacity onPress={() => setMeasureOpen(true)} testID="add-measurement" hitSlop={8}>
+              <Text style={styles.addLink}>+ Add</Text>
+            </TouchableOpacity>
+          </View>
+          {measurements.length === 0 ? (
+            <Text style={styles.empty}>No measurements yet. Tape your waist + neck (inches) to estimate body fat.</Text>
+          ) : (
+            <View style={styles.list}>
+              {measurements.map((m) => (
+                <Pressable
+                  key={m.id}
+                  style={styles.row}
+                  testID={`measurement-${m.id}`}
+                  onLongPress={() => m.id && deleteMeasurement(m.id)}
+                >
+                  <Text style={styles.rowDate}>{m.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</Text>
+                  <Text style={styles.rowMeasure}>{measureLine(m)}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
 
           <Text style={styles.sectionTitle}>History</Text>
           {weighIns.length === 0 ? (
@@ -77,7 +128,117 @@ export default function Body() {
           setOpen(false);
         }}
       />
+
+      <MeasurementModal
+        visible={measureOpen}
+        onClose={() => setMeasureOpen(false)}
+        onSave={async (entry) => {
+          await addMeasurement(entry);
+          haptics.success();
+          setMeasureOpen(false);
+        }}
+      />
     </SafeAreaView>
+  );
+}
+
+function measureLine(m: Measurement): string {
+  const parts: string[] = [];
+  if (m.waist != null) parts.push(`W ${m.waist}`);
+  if (m.neck != null) parts.push(`N ${m.neck}`);
+  if (m.hip != null) parts.push(`H ${m.hip}`);
+  if (m.chest != null) parts.push(`Ch ${m.chest}`);
+  if (m.bicep != null) parts.push(`B ${m.bicep}`);
+  return parts.join(' · ') || '—';
+}
+
+type MeasureKey = 'waist' | 'neck' | 'hip' | 'chest' | 'bicep';
+const MEASURE_FIELDS: { key: MeasureKey; label: string }[] = [
+  { key: 'waist', label: 'Waist' },
+  { key: 'neck', label: 'Neck' },
+  { key: 'hip', label: 'Hip' },
+  { key: 'chest', label: 'Chest' },
+  { key: 'bicep', label: 'Bicep' },
+];
+
+function MeasurementModal({
+  visible,
+  onSave,
+  onClose,
+}: {
+  visible: boolean;
+  onSave: (entry: Omit<Measurement, 'id' | 'date'>) => Promise<void> | void;
+  onClose: () => void;
+}) {
+  const [vals, setVals] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setVals({});
+      setBusy(false);
+    }
+  }, [visible]);
+
+  function parse(s: string): number | undefined {
+    const t = s.trim();
+    if (t === '') return undefined;
+    const n = Number(t);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  }
+
+  const entry = MEASURE_FIELDS.reduce<Record<string, number>>((acc, f) => {
+    const n = parse(vals[f.key] ?? '');
+    if (n != null) acc[f.key] = n;
+    return acc;
+  }, {});
+  const valid = Object.keys(entry).length > 0;
+
+  async function save() {
+    if (!valid || busy) return;
+    setBusy(true);
+    try {
+      await onSave(entry as Omit<Measurement, 'id' | 'date'>);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetWrap}>
+        <View style={styles.sheet}>
+          <View style={styles.handle} />
+          <Text style={styles.sheetTitle}>Add measurement</Text>
+          <Text style={styles.sheetHint}>Inches. Waist + neck (and hip for women) drive the body-fat estimate.</Text>
+          <View style={styles.measureGrid}>
+            {MEASURE_FIELDS.map((f) => (
+              <View key={f.key} style={styles.measureField}>
+                <Text style={styles.fieldLabel}>{f.label}</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="0"
+                  placeholderTextColor={colors.faint}
+                  keyboardType="numeric"
+                  value={vals[f.key] ?? ''}
+                  onChangeText={(t) => setVals((v) => ({ ...v, [f.key]: t }))}
+                  testID={`measure-${f.key}`}
+                />
+              </View>
+            ))}
+          </View>
+          <TouchableOpacity
+            style={[styles.save, !valid && styles.saveDisabled]}
+            onPress={save}
+            disabled={!valid || busy}
+            testID="measure-save"
+          >
+            <Text style={styles.saveText}>Save</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
@@ -169,7 +330,29 @@ const styles = StyleSheet.create({
   },
   logBtnText: { color: colors.white, fontWeight: '700', fontSize: font.h3 },
   sectionTitle: { fontSize: font.h3, fontWeight: '700', color: colors.ink, marginTop: space.md },
-  empty: { fontSize: font.body, color: colors.muted },
+  empty: { fontSize: font.small, color: colors.muted },
+  bfCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.lg,
+    marginTop: space.md,
+  },
+  bfLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
+  bfHint: { fontSize: font.tiny, color: colors.faint, marginTop: 2 },
+  bfValue: { fontSize: font.h1, fontWeight: '800', color: colors.ink },
+  measureHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.md },
+  addLink: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
+  rowMeasure: { fontSize: font.small, fontWeight: '600', color: colors.ink },
+  sheetHint: { fontSize: font.small, color: colors.muted, marginBottom: space.md },
+  measureGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
+  measureField: { width: '47%', gap: space.xs },
+  fieldLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   list: { gap: space.sm },
   row: {
     flexDirection: 'row',
