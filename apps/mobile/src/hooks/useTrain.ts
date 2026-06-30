@@ -26,12 +26,14 @@ import {
   type LogStyle,
   type SessionExercise,
   type TemplateDraft,
+  type TemplateExercise,
   type WorkoutSession,
   type WorkoutSet,
   type WorkoutTemplate,
   dropEmptySets,
   templateToSessionExercises,
 } from '@/lib/workout';
+import { type SeedTemplate, findSeedExercise } from '@/lib/workout-seed';
 
 export interface TrainState {
   loading: boolean;
@@ -53,6 +55,9 @@ export interface TrainState {
   startFromTemplate: (template: WorkoutTemplate) => Promise<void>;
   /** Create (id omitted) or overwrite (id given) a workout template. */
   saveTemplate: (draft: TemplateDraft, id?: string) => Promise<void>;
+  /** Clone a shipped starter template: ensure its library exercises exist in
+   *  the catalog (create the missing ones), then add the template. */
+  cloneStarterTemplate: (seed: SeedTemplate) => Promise<void>;
   deleteTemplate: (id: string) => Promise<void>;
   /** Create a catalog exercise, returning its id (used by the template
    *  editor when adding a free-typed exercise). */
@@ -183,6 +188,43 @@ export function useTrain(): TrainState {
       if (uid) await deleteTemplateDoc(uid, id);
     },
     [uid],
+  );
+
+  const cloneStarterTemplate = useCallback(
+    async (seed: SeedTemplate) => {
+      if (!uid) return;
+      const exercises: TemplateExercise[] = [];
+      for (const se of seed.exercises) {
+        const lib = findSeedExercise(se.key);
+        const name = lib?.name ?? se.key;
+        const existing = catalog.find((c) => c.name.toLowerCase() === name.toLowerCase());
+        const id =
+          existing?.id ??
+          (await addExerciseDoc(uid, {
+            name,
+            muscles: lib?.muscles ?? [],
+            defaultCues: lib?.defaultCues ?? [],
+            logStyle: 'weight-reps',
+          }));
+        exercises.push({
+          exerciseId: id,
+          name,
+          targetLoad: se.targetLoad,
+          cues: se.cues ?? lib?.defaultCues,
+          logStyle: 'weight-reps',
+          progression: se.progression,
+          plannedSets: se.plannedSets,
+        });
+      }
+      await addTemplateDoc(uid, {
+        name: seed.name,
+        notes: seed.notes,
+        restMiniSec: seed.restMiniSec,
+        restClusterSec: seed.restClusterSec,
+        exercises,
+      });
+    },
+    [uid, catalog],
   );
 
   const addCatalogExercise = useCallback(
@@ -356,6 +398,7 @@ export function useTrain(): TrainState {
     startFromTemplate,
     saveTemplate,
     deleteTemplate,
+    cloneStarterTemplate,
     addCatalogExercise,
     editCatalogExercise,
     deleteCatalogExercise,

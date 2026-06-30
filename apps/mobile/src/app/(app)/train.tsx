@@ -25,6 +25,7 @@ import type {
   WorkoutTemplate,
 } from '@/lib/workout';
 import { DEFAULT_LOG_STYLE, isLoggedSet, sessionVolume } from '@/lib/workout';
+import { type SeedTemplate, STARTER_TEMPLATES } from '@/lib/workout-seed';
 import {
   type ProgressionSuggestion,
   computeExercisePRs,
@@ -71,6 +72,7 @@ function StartView({ train }: { train: ReturnType<typeof useTrain> }) {
   // null = closed; a template = edit it; {} = create new.
   const [editing, setEditing] = useState<WorkoutTemplate | Record<string, never> | null>(null);
   const [detailEx, setDetailEx] = useState<Exercise | null>(null);
+  const [startersOpen, setStartersOpen] = useState(false);
 
   return (
     <ScrollView contentContainerStyle={styles.body}>
@@ -89,9 +91,14 @@ function StartView({ train }: { train: ReturnType<typeof useTrain> }) {
 
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>{t('train.templates')}</Text>
-        <TouchableOpacity onPress={() => setEditing({})} hitSlop={8} testID="new-template">
-          <Text style={styles.sectionAction}>{t('train.newTemplate')}</Text>
-        </TouchableOpacity>
+        <View style={styles.sectionActions}>
+          <TouchableOpacity onPress={() => setStartersOpen(true)} hitSlop={8} testID="browse-starters">
+            <Text style={styles.sectionAction}>{t('train.starters')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setEditing({})} hitSlop={8} testID="new-template">
+            <Text style={styles.sectionAction}>{t('train.newTemplate')}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       {train.templates.length === 0 ? (
         <Text style={styles.empty}>{t('train.noTemplates')}</Text>
@@ -173,7 +180,76 @@ function StartView({ train }: { train: ReturnType<typeof useTrain> }) {
         train={train}
         onClose={() => setDetailEx(null)}
       />
+      <StarterTemplatesModal
+        visible={startersOpen}
+        train={train}
+        onClose={() => setStartersOpen(false)}
+      />
     </ScrollView>
+  );
+}
+
+// ─── Starter templates (cold-start helper) ──────────────────────
+function StarterTemplatesModal({
+  visible,
+  train,
+  onClose,
+}: {
+  visible: boolean;
+  train: ReturnType<typeof useTrain>;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (visible) setBusyKey(null);
+  }, [visible]);
+
+  async function use(seed: SeedTemplate) {
+    if (busyKey) return;
+    haptics.tap();
+    setBusyKey(seed.key);
+    try {
+      await train.cloneStarterTemplate(seed);
+      onClose();
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} />
+      <View style={styles.sheetWrap}>
+        <View style={styles.sheet}>
+          <View style={styles.handle} />
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <Text style={styles.sheetTitle}>{t('train.starterTitle')}</Text>
+            <Text style={styles.sheetHint}>{t('train.starterHint')}</Text>
+            {STARTER_TEMPLATES.map((seed) => (
+              <View key={seed.key} style={styles.tplRow}>
+                <View style={styles.tplMain}>
+                  <Text style={styles.histDate}>{seed.name}</Text>
+                  <Text style={styles.histSub}>
+                    {`${seed.exercises.length} ${seed.exercises.length === 1 ? t('train.exerciseOne') : t('train.exerciseMany')}`}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.tplStart}
+                  onPress={() => use(seed)}
+                  disabled={busyKey != null}
+                  testID={`use-starter-${seed.key}`}
+                >
+                  <Text style={styles.tplStartText}>{busyKey === seed.key ? t('common.saving') : t('train.use')}</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+            <View style={{ height: 24 }} />
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -1373,6 +1449,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: space.sm,
   },
+  sectionActions: { flexDirection: 'row', gap: space.lg },
   sectionAction: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
   tplRow: {
     flexDirection: 'row',
