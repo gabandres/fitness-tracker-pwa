@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { type Measurement, parseYmd } from '@macrolog/core';
 import { useBody } from '@/hooks/useBody';
 import { usePhotos } from '@/hooks/usePhotos';
+import { type I18nKey, type TFn, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
 
@@ -25,8 +26,8 @@ function dayLabel(dateKey: string): string {
 }
 
 /** "−0.8 lb/wk" / "+0.3 lb/wk" / "Holding steady" near zero. */
-function trendLabel(slopeLbPerWeek: number): string {
-  if (Math.abs(slopeLbPerWeek) < 0.1) return 'Holding steady';
+function trendLabel(slopeLbPerWeek: number, t: TFn): string {
+  if (Math.abs(slopeLbPerWeek) < 0.1) return t('body.holdingSteady');
   const sign = slopeLbPerWeek < 0 ? '−' : '+';
   return `${sign}${Math.abs(slopeLbPerWeek).toFixed(1)} lb/wk`;
 }
@@ -51,20 +52,21 @@ export default function Body() {
     deleteMeasurement,
     projection,
   } = useBody();
+  const t = useT();
   const photos = usePhotos();
   const [open, setOpen] = useState(false);
   const [measureOpen, setMeasureOpen] = useState(false);
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <Text style={styles.title}>Body</Text>
+      <Text style={styles.title}>{t('nav.body')}</Text>
       {loading ? (
         <View style={styles.fill}>
           <ActivityIndicator color={colors.accent} />
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.body}>
-          {error ? <Text style={styles.error}>Couldn't load your weight history.</Text> : null}
+          {error ? <Text style={styles.error}>{t('body.loadErr')}</Text> : null}
 
           <View style={styles.hero}>
             <Text style={styles.heroValue} testID="current-weight">
@@ -73,22 +75,22 @@ export default function Body() {
             <Text style={styles.heroUnit}>lb</Text>
           </View>
           <Text style={styles.heroCaption}>
-            {todayWeight != null ? "Today's weigh-in" : 'Most recent weight'}
+            {todayWeight != null ? t('body.todayWeighIn') : t('body.recentWeight')}
           </Text>
 
           <TouchableOpacity style={styles.logBtn} onPress={() => setOpen(true)} testID="log-weight">
-            <Text style={styles.logBtnText}>{todayWeight != null ? 'Update today’s weight' : 'Log weight'}</Text>
+            <Text style={styles.logBtnText}>{todayWeight != null ? t('body.updateWeight') : t('body.logWeight')}</Text>
           </TouchableOpacity>
 
           {projection ? (
             <View style={styles.trendCard} testID="trend-card">
               <View style={styles.trendRow}>
-                <Text style={styles.trendLabel}>Trend</Text>
-                <Text style={styles.trendValue}>{trendLabel(projection.slopeLbPerWeek)}</Text>
+                <Text style={styles.trendLabel}>{t('body.trend')}</Text>
+                <Text style={styles.trendValue}>{trendLabel(projection.slopeLbPerWeek, t)}</Text>
               </View>
               {projection.goalDateKey ? (
                 <View style={styles.trendRow}>
-                  <Text style={styles.trendLabel}>Goal pace</Text>
+                  <Text style={styles.trendLabel}>{t('body.goalPace')}</Text>
                   <Text style={styles.trendValue}>{goalEtaLabel(projection.goalDateKey)}</Text>
                 </View>
               ) : null}
@@ -97,26 +99,26 @@ export default function Body() {
 
           <View style={styles.bfCard} testID="bodyfat-card">
             <View>
-              <Text style={styles.bfLabel}>Body fat</Text>
+              <Text style={styles.bfLabel}>{t('body.bodyFat')}</Text>
               <Text style={styles.bfHint}>
                 {bodyFat != null
-                  ? 'U.S. Navy estimate'
+                  ? t('body.navyEstimate')
                   : bodyFatGap === 'profile'
-                    ? 'Set sex + height in onboarding'
-                    : 'Add a waist + neck measurement'}
+                    ? t('body.bfNeedProfile')
+                    : t('body.bfNeedMeasurement')}
               </Text>
             </View>
             <Text style={styles.bfValue} testID="bodyfat-value">{bodyFat != null ? `${bodyFat}%` : '—'}</Text>
           </View>
 
           <View style={styles.measureHeader}>
-            <Text style={styles.sectionTitle}>Measurements</Text>
+            <Text style={styles.sectionTitle}>{t('body.measurements')}</Text>
             <TouchableOpacity onPress={() => setMeasureOpen(true)} testID="add-measurement" hitSlop={8}>
-              <Text style={styles.addLink}>+ Add</Text>
+              <Text style={styles.addLink}>{t('body.add')}</Text>
             </TouchableOpacity>
           </View>
           {measurements.length === 0 ? (
-            <Text style={styles.empty}>No measurements yet. Tape your waist + neck (inches) to estimate body fat.</Text>
+            <Text style={styles.empty}>{t('body.noMeasurements')}</Text>
           ) : (
             <View style={styles.list}>
               {measurements.map((m) => (
@@ -134,7 +136,7 @@ export default function Body() {
           )}
 
           <View style={styles.measureHeader}>
-            <Text style={styles.sectionTitle}>Progress photos</Text>
+            <Text style={styles.sectionTitle}>{t('body.progressPhotos')}</Text>
             <TouchableOpacity
               onPress={() => photos.addPhoto(currentWeight ?? undefined)}
               disabled={photos.uploading}
@@ -142,12 +144,12 @@ export default function Body() {
               hitSlop={8}
             >
               <Text style={[styles.addLink, photos.uploading && styles.addLinkDisabled]}>
-                {photos.uploading ? 'Uploading…' : '+ Add'}
+                {photos.uploading ? t('body.uploading') : t('body.add')}
               </Text>
             </TouchableOpacity>
           </View>
           {photos.photos.length === 0 ? (
-            <Text style={styles.empty}>No photos yet. Add one to track visible progress over time.</Text>
+            <Text style={styles.empty}>{t('body.noPhotos')}</Text>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoRow}>
               {photos.photos.map((p) =>
@@ -167,9 +169,9 @@ export default function Body() {
             </ScrollView>
           )}
 
-          <Text style={styles.sectionTitle}>History</Text>
+          <Text style={styles.sectionTitle}>{t('body.history')}</Text>
           {weighIns.length === 0 ? (
-            <Text style={styles.empty}>No weigh-ins yet.</Text>
+            <Text style={styles.empty}>{t('body.noWeighIns')}</Text>
           ) : (
             <View style={styles.list}>
               {weighIns.map((w) => (
@@ -218,12 +220,12 @@ function measureLine(m: Measurement): string {
 }
 
 type MeasureKey = 'waist' | 'neck' | 'hip' | 'chest' | 'bicep';
-const MEASURE_FIELDS: { key: MeasureKey; label: string }[] = [
-  { key: 'waist', label: 'Waist' },
-  { key: 'neck', label: 'Neck' },
-  { key: 'hip', label: 'Hip' },
-  { key: 'chest', label: 'Chest' },
-  { key: 'bicep', label: 'Bicep' },
+const MEASURE_FIELDS: { key: MeasureKey; labelKey: I18nKey }[] = [
+  { key: 'waist', labelKey: 'measure.waist' },
+  { key: 'neck', labelKey: 'measure.neck' },
+  { key: 'hip', labelKey: 'measure.hip' },
+  { key: 'chest', labelKey: 'measure.chest' },
+  { key: 'bicep', labelKey: 'measure.bicep' },
 ];
 
 function MeasurementModal({
@@ -235,6 +237,7 @@ function MeasurementModal({
   onSave: (entry: Omit<Measurement, 'id' | 'date'>) => Promise<void> | void;
   onClose: () => void;
 }) {
+  const t = useT();
   const [vals, setVals] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
@@ -246,9 +249,9 @@ function MeasurementModal({
   }, [visible]);
 
   function parse(s: string): number | undefined {
-    const t = s.trim();
-    if (t === '') return undefined;
-    const n = Number(t);
+    const trimmed = s.trim();
+    if (trimmed === '') return undefined;
+    const n = Number(trimmed);
     return Number.isFinite(n) && n > 0 ? n : undefined;
   }
 
@@ -275,19 +278,19 @@ function MeasurementModal({
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetWrap}>
         <View style={styles.sheet}>
           <View style={styles.handle} />
-          <Text style={styles.sheetTitle}>Add measurement</Text>
-          <Text style={styles.sheetHint}>Inches. Waist + neck (and hip for women) drive the body-fat estimate.</Text>
+          <Text style={styles.sheetTitle}>{t('body.addMeasurement')}</Text>
+          <Text style={styles.sheetHint}>{t('body.measureHint')}</Text>
           <View style={styles.measureGrid}>
             {MEASURE_FIELDS.map((f) => (
               <View key={f.key} style={styles.measureField}>
-                <Text style={styles.fieldLabel}>{f.label}</Text>
+                <Text style={styles.fieldLabel}>{t(f.labelKey)}</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="0"
                   placeholderTextColor={colors.faint}
                   keyboardType="numeric"
                   value={vals[f.key] ?? ''}
-                  onChangeText={(t) => setVals((v) => ({ ...v, [f.key]: t }))}
+                  onChangeText={(text) => setVals((v) => ({ ...v, [f.key]: text }))}
                   testID={`measure-${f.key}`}
                 />
               </View>
@@ -299,7 +302,7 @@ function MeasurementModal({
             disabled={!valid || busy}
             testID="measure-save"
           >
-            <Text style={styles.saveText}>Save</Text>
+            <Text style={styles.saveText}>{t('common.save')}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -318,6 +321,7 @@ function WeightModal({
   onSave: (weight: number) => Promise<void> | void;
   onClose: () => void;
 }) {
+  const t = useT();
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -347,7 +351,7 @@ function WeightModal({
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetWrap}>
         <View style={styles.sheet}>
           <View style={styles.handle} />
-          <Text style={styles.sheetTitle}>Log weight</Text>
+          <Text style={styles.sheetTitle}>{t('body.logWeight')}</Text>
           <View style={styles.inputRow}>
             <TextInput
               style={styles.input}
@@ -368,7 +372,7 @@ function WeightModal({
             disabled={!valid || busy}
             testID="weight-save"
           >
-            <Text style={styles.saveText}>Save</Text>
+            <Text style={styles.saveText}>{t('common.save')}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

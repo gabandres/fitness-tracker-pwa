@@ -11,9 +11,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth';
+import { type I18nKey, useT } from '@/i18n';
 import { colors, font, radius, space } from '@/theme';
 
 export default function SignIn() {
+  const t = useT();
   const { signIn, signInWithGoogle, googleAvailable } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,7 +31,7 @@ export default function SignIn() {
       await signIn(email, password);
       // Navigation handled by the root AuthGate once auth state flips.
     } catch (e: unknown) {
-      setError(messageFor(e));
+      setError(t(errorKey(e)));
       setBusy(false);
     }
   }
@@ -42,7 +44,7 @@ export default function SignIn() {
       await signInWithGoogle();
       // AuthGate navigates once auth state flips.
     } catch (e: unknown) {
-      setError(messageFor(e));
+      setError(t(errorKey(e)));
     } finally {
       setGoogleBusy(false);
     }
@@ -56,12 +58,12 @@ export default function SignIn() {
       >
         <View style={styles.body}>
           <Text style={styles.brand}>Macro Log</Text>
-          <Text style={styles.tagline}>Sign in to your account</Text>
+          <Text style={styles.tagline}>{t('signIn.tagline')}</Text>
 
           <View style={styles.form}>
             <TextInput
               style={styles.input}
-              placeholder="Email"
+              placeholder={t('signIn.email')}
               placeholderTextColor={colors.faint}
               autoCapitalize="none"
               autoCorrect={false}
@@ -73,7 +75,7 @@ export default function SignIn() {
             />
             <TextInput
               style={styles.input}
-              placeholder="Password"
+              placeholder={t('signIn.password')}
               placeholderTextColor={colors.faint}
               secureTextEntry
               textContentType="password"
@@ -99,13 +101,13 @@ export default function SignIn() {
               {busy ? (
                 <ActivityIndicator color={colors.white} />
               ) : (
-                <Text style={styles.buttonText}>Sign in</Text>
+                <Text style={styles.buttonText}>{t('signIn.submit')}</Text>
               )}
             </TouchableOpacity>
 
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
+              <Text style={styles.dividerText}>{t('common.or')}</Text>
               <View style={styles.dividerLine} />
             </View>
 
@@ -119,7 +121,7 @@ export default function SignIn() {
               {googleBusy ? (
                 <ActivityIndicator color={colors.ink} />
               ) : (
-                <Text style={styles.googleButtonText}>Continue with Google</Text>
+                <Text style={styles.googleButtonText}>{t('signIn.google')}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -129,20 +131,18 @@ export default function SignIn() {
   );
 }
 
-function messageFor(e: unknown): string {
+function errorKey(e: unknown): I18nKey {
   const code = (e as { code?: string })?.code ?? '';
   if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
-    return 'Wrong email or password.';
+    return 'signIn.errWrong';
   }
-  if (code.includes('invalid-email')) return 'That email looks invalid.';
-  if (code.includes('too-many-requests')) return 'Too many attempts — try again later.';
-  if (code.includes('network')) return 'Network error — check your connection.';
-  if (code === 'expo-go') return 'Google sign-in needs the installed app build (not Expo Go).';
-  if (code === 'cancelled') return 'Google sign-in was cancelled.';
-  if (code.includes('account-exists-with-different-credential')) {
-    return 'That email already uses a different sign-in method.';
-  }
-  return 'Could not sign in. Please try again.';
+  if (code.includes('invalid-email')) return 'signIn.errInvalidEmail';
+  if (code.includes('too-many-requests')) return 'signIn.errTooMany';
+  if (code.includes('network')) return 'signIn.errNetwork';
+  if (code === 'expo-go') return 'signIn.errExpoGo';
+  if (code === 'cancelled') return 'signIn.errCancelled';
+  if (code.includes('account-exists-with-different-credential')) return 'signIn.errDiffMethod';
+  return 'signIn.errGeneric';
 }
 
 const styles = StyleSheet.create({

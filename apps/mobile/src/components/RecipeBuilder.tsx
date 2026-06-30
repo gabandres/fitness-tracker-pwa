@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
 
@@ -32,6 +33,7 @@ function num(s: string): number | null {
  *  serving's totals to prefill the manual form. Not persisted — "save as
  *  preset" on the prefilled form is the reuse path. */
 export function RecipeBuilder({ onApply, onCancel }: Props) {
+  const t = useT();
   const [name, setName] = useState('');
   const [servings, setServings] = useState('1');
   const [ingredients, setIngredients] = useState<Ingredient[]>([
@@ -89,15 +91,15 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
   return (
     <View style={styles.wrap}>
       <View style={styles.head}>
-        <Text style={styles.title}>Recipe calculator</Text>
+        <Text style={styles.title}>{t('recipe.title')}</Text>
         <TouchableOpacity onPress={onCancel} hitSlop={8}>
-          <Text style={styles.cancel}>Cancel</Text>
+          <Text style={styles.cancel}>{t('common.cancel')}</Text>
         </TouchableOpacity>
       </View>
 
       <TextInput
         style={styles.input}
-        placeholder="Recipe name (optional)"
+        placeholder={t('recipe.namePlaceholder')}
         placeholderTextColor={colors.faint}
         value={name}
         onChangeText={setName}
@@ -106,19 +108,19 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
 
       <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
         <View style={styles.colHead}>
-          <Text style={[styles.colLabel, styles.colName]}>Ingredient</Text>
-          <Text style={[styles.colLabel, styles.colNum]}>kcal</Text>
-          <Text style={[styles.colLabel, styles.colNum]}>P</Text>
+          <Text style={[styles.colLabel, styles.colName]}>{t('recipe.ingredient')}</Text>
+          <Text style={[styles.colLabel, styles.colNum]}>{t('recipe.kcal')}</Text>
+          <Text style={[styles.colLabel, styles.colNum]}>{t('recipe.proteinShort')}</Text>
           <View style={styles.colDel} />
         </View>
         {ingredients.map((ing, i) => (
           <View key={i} style={styles.ingRow}>
             <TextInput
               style={[styles.input, styles.colName]}
-              placeholder="Name"
+              placeholder={t('recipe.ingredient')}
               placeholderTextColor={colors.faint}
               value={ing.name}
-              onChangeText={(t) => setIng(i, 'name', t)}
+              onChangeText={(v) => setIng(i, 'name', v)}
               testID={`recipe-ing-name-${i}`}
             />
             <TextInput
@@ -127,7 +129,7 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
               placeholderTextColor={colors.faint}
               keyboardType="numeric"
               value={ing.calories}
-              onChangeText={(t) => setIng(i, 'calories', t)}
+              onChangeText={(v) => setIng(i, 'calories', v)}
               testID={`recipe-ing-kcal-${i}`}
             />
             <TextInput
@@ -136,7 +138,7 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
               placeholderTextColor={colors.faint}
               keyboardType="numeric"
               value={ing.protein}
-              onChangeText={(t) => setIng(i, 'protein', t)}
+              onChangeText={(v) => setIng(i, 'protein', v)}
             />
             <TouchableOpacity style={styles.colDel} onPress={() => removeIng(i)} hitSlop={6}>
               <Text style={styles.del}>✕</Text>
@@ -144,13 +146,13 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
           </View>
         ))}
         <TouchableOpacity style={styles.addIng} onPress={addIng} testID="recipe-add-ing">
-          <Text style={styles.addIngText}>+ Add ingredient</Text>
+          <Text style={styles.addIngText}>{t('recipe.addIngredient')}</Text>
         </TouchableOpacity>
       </ScrollView>
 
       <View style={styles.footer}>
         <View style={styles.servingsBox}>
-          <Text style={styles.fieldLabel}>Servings</Text>
+          <Text style={styles.fieldLabel}>{t('recipe.servings')}</Text>
           <TextInput
             style={[styles.input, styles.servingsInput]}
             placeholder="1"
@@ -162,7 +164,7 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
           />
         </View>
         <View style={styles.perServing}>
-          <Text style={styles.fieldLabel}>Per serving</Text>
+          <Text style={styles.fieldLabel}>{t('recipe.perServing')}</Text>
           <Text style={styles.perValue} testID="recipe-per-serving">
             {perServing.kcal} kcal{perServing.protein != null ? ` · ${perServing.protein}g` : ''}
           </Text>
@@ -175,7 +177,7 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
         disabled={!canApply}
         testID="recipe-apply"
       >
-        <Text style={styles.applyText}>Use this</Text>
+        <Text style={styles.applyText}>{t('recipe.useThis')}</Text>
       </TouchableOpacity>
     </View>
   );

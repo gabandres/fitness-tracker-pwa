@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { useT } from '@/i18n';
 import { colors } from '@/theme';
 
 export default function AppTabsLayout() {
+  const t = useT();
   return (
     <Tabs
       screenOptions={{
@@ -15,35 +17,35 @@ export default function AppTabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Today',
+          title: t('nav.today'),
           tabBarIcon: ({ color, size }) => <Ionicons name="today-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
-          title: 'History',
+          title: t('nav.history'),
           tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="train"
         options={{
-          title: 'Train',
+          title: t('nav.train'),
           tabBarIcon: ({ color, size }) => <Ionicons name="barbell-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="trends"
         options={{
-          title: 'Trends',
+          title: t('nav.trends'),
           tabBarIcon: ({ color, size }) => <Ionicons name="trending-up-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="body"
         options={{
-          title: 'Body',
+          title: t('nav.body'),
           tabBarIcon: ({ color, size }) => <Ionicons name="body-outline" color={color} size={size} />,
         }}
       />

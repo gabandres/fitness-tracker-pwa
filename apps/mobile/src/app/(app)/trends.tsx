@@ -2,99 +2,101 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type TdeeResult, parseYmd } from '@macrolog/core';
 import { useTrends } from '@/hooks/useTrends';
+import { type I18nKey, useT } from '@/i18n';
 import { colors, font, radius, space } from '@/theme';
 
 function dayLabel(dateKey: string): string {
   return parseYmd(dateKey).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-const TDEE_MODE: Record<TdeeResult['source'], { label: string; hint: string }> = {
-  measured: { label: 'Measured', hint: 'From your logged intake + weight trend' },
-  formula: { label: 'Formula', hint: 'Mifflin–St Jeor estimate from your profile' },
-  seed: { label: 'Estimate', hint: 'Default until you log ~14 days' },
+const TDEE_MODE: Record<TdeeResult['source'], { labelKey: I18nKey; hintKey: I18nKey }> = {
+  measured: { labelKey: 'trends.measured', hintKey: 'trends.measuredHint' },
+  formula: { labelKey: 'trends.formula', hintKey: 'trends.formulaHint' },
+  seed: { labelKey: 'trends.estimate', hintKey: 'trends.seedHint' },
 };
 
 export default function Trends() {
+  const t = useT();
   const { loading, error, insights, tdee, targetCalories } = useTrends();
   const mode = TDEE_MODE[tdee.source];
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <Text style={styles.title}>Trends</Text>
+      <Text style={styles.title}>{t('nav.trends')}</Text>
       {loading ? (
         <View style={styles.fill}>
           <ActivityIndicator color={colors.accent} />
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.body}>
-          {error ? <Text style={styles.error}>Couldn't load your trends.</Text> : null}
+          {error ? <Text style={styles.error}>{t('trends.loadErr')}</Text> : null}
 
           {/* Adaptive TDEE */}
           <View style={styles.card} testID="tdee-card">
             <View style={styles.cardHead}>
-              <Text style={styles.cardTitle}>Maintenance estimate</Text>
+              <Text style={styles.cardTitle}>{t('trends.maintenance')}</Text>
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>{mode.label}</Text>
+                <Text style={styles.badgeText}>{t(mode.labelKey)}</Text>
               </View>
             </View>
             <Text style={styles.bigValue} testID="tdee-value">
               {tdee.trueTdee > 0 ? `${tdee.trueTdee.toLocaleString()} kcal` : '—'}
             </Text>
-            <Text style={styles.hint}>{mode.hint}</Text>
+            <Text style={styles.hint}>{t(mode.hintKey)}</Text>
             {tdee.source === 'measured' && tdee.loggingCompletenessPct != null ? (
               <Text style={styles.sub}>
-                {Math.round(tdee.loggingCompletenessPct)}% logging completeness
-                {tdee.reliable ? '' : ' · log more days to sharpen this'}
+                {t('trends.completeness', { pct: Math.round(tdee.loggingCompletenessPct) })}
+                {tdee.reliable ? '' : t('trends.logMore')}
               </Text>
             ) : null}
             <View style={styles.divider} />
             <View style={styles.kv}>
-              <Text style={styles.kvLabel}>Daily target</Text>
+              <Text style={styles.kvLabel}>{t('trends.dailyTarget')}</Text>
               <Text style={styles.kvValue}>{targetCalories > 0 ? `${targetCalories.toLocaleString()} kcal` : '—'}</Text>
             </View>
           </View>
 
           {/* Weekly insights */}
-          <Text style={styles.section}>This week</Text>
+          <Text style={styles.section}>{t('trends.thisWeek')}</Text>
           {insights ? (
             <View style={styles.card} testID="insights-card">
               <View style={styles.kv}>
-                <Text style={styles.kvLabel}>Avg intake</Text>
+                <Text style={styles.kvLabel}>{t('trends.avgIntake')}</Text>
                 <Text style={styles.kvValue}>{insights.avgCalories.toLocaleString()} kcal</Text>
               </View>
               <View style={styles.kv}>
-                <Text style={styles.kvLabel}>{insights.avgDeficit >= 0 ? 'Avg deficit' : 'Avg surplus'}</Text>
+                <Text style={styles.kvLabel}>{insights.avgDeficit >= 0 ? t('trends.avgDeficit') : t('trends.avgSurplus')}</Text>
                 <Text style={[styles.kvValue, { color: insights.avgDeficit >= 0 ? colors.accent : colors.danger }]}>
                   {Math.abs(insights.avgDeficit).toLocaleString()} kcal
                 </Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.kv}>
-                <Text style={styles.kvLabel}>Best day</Text>
+                <Text style={styles.kvLabel}>{t('trends.bestDay')}</Text>
                 <Text style={styles.kvValue}>{dayLabel(insights.bestDay.dateKey)}</Text>
               </View>
               <View style={styles.kv}>
-                <Text style={styles.kvLabel}>Off day</Text>
+                <Text style={styles.kvLabel}>{t('trends.offDay')}</Text>
                 <Text style={styles.kvValue}>{dayLabel(insights.worstDay.dateKey)}</Text>
               </View>
               {insights.weightSlopeLbPerWeek != null ? (
                 <>
                   <View style={styles.divider} />
                   <View style={styles.kv}>
-                    <Text style={styles.kvLabel}>Weight trend</Text>
+                    <Text style={styles.kvLabel}>{t('trends.weightTrend')}</Text>
                     <Text style={styles.kvValue}>
                       {Math.abs(insights.weightSlopeLbPerWeek) < 0.1
-                        ? 'Holding steady'
+                        ? t('body.holdingSteady')
                         : `${insights.weightSlopeLbPerWeek < 0 ? '−' : '+'}${Math.abs(insights.weightSlopeLbPerWeek).toFixed(1)} lb/wk`}
                     </Text>
                   </View>
                 </>
               ) : null}
-              <Text style={styles.sub}>{insights.loggedDays} of 7 days logged</Text>
+              <Text style={styles.sub}>{t('trends.daysLogged', { n: insights.loggedDays })}</Text>
             </View>
           ) : (
             <View style={styles.card}>
-              <Text style={styles.empty}>Log at least 3 days this week to see insights.</Text>
+              <Text style={styles.empty}>{t('trends.empty')}</Text>
             </View>
           )}
         </ScrollView>

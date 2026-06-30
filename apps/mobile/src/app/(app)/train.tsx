@@ -16,21 +16,23 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTrain } from '@/hooks/useTrain';
 import type { LogStyle, WorkoutSession, WorkoutSet } from '@/lib/workout';
 import { DEFAULT_LOG_STYLE, isLoggedSet, sessionVolume } from '@/lib/workout';
+import { type I18nKey, type TFn, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
 
-const LOG_STYLES: { value: LogStyle; label: string }[] = [
-  { value: 'weight-reps', label: 'Weight × reps' },
-  { value: 'bodyweight', label: 'Bodyweight' },
-  { value: 'time', label: 'Time' },
+const LOG_STYLES: { value: LogStyle; labelKey: I18nKey }[] = [
+  { value: 'weight-reps', labelKey: 'logStyle.weightReps' },
+  { value: 'bodyweight', labelKey: 'logStyle.bodyweight' },
+  { value: 'time', labelKey: 'logStyle.time' },
 ];
 
 export default function Train() {
+  const t = useT();
   const train = useTrain();
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <Text style={styles.title}>Train</Text>
+      <Text style={styles.title}>{t('nav.train')}</Text>
       {train.loading ? (
         <View style={styles.fill}>
           <ActivityIndicator color={colors.accent} />
@@ -46,9 +48,10 @@ export default function Train() {
 
 // ─── Idle: start button + history ───────────────────────────────
 function StartView({ train }: { train: ReturnType<typeof useTrain> }) {
+  const t = useT();
   return (
     <ScrollView contentContainerStyle={styles.body}>
-      {train.error ? <Text style={styles.error}>Something went wrong. Pull to retry.</Text> : null}
+      {train.error ? <Text style={styles.error}>{t('train.loadErr')}</Text> : null}
 
       <TouchableOpacity
         style={styles.startBtn}
@@ -58,12 +61,12 @@ function StartView({ train }: { train: ReturnType<typeof useTrain> }) {
         }}
         testID="start-workout"
       >
-        <Text style={styles.startBtnText}>Start workout</Text>
+        <Text style={styles.startBtnText}>{t('train.start')}</Text>
       </TouchableOpacity>
 
-      <Text style={styles.sectionTitle}>History</Text>
+      <Text style={styles.sectionTitle}>{t('train.history')}</Text>
       {train.recentSessions.length === 0 ? (
-        <Text style={styles.empty}>No workouts logged yet. Start one above.</Text>
+        <Text style={styles.empty}>{t('train.noWorkouts')}</Text>
       ) : (
         <View style={styles.list}>
           {train.recentSessions.map((s) => (
@@ -77,7 +80,7 @@ function StartView({ train }: { train: ReturnType<typeof useTrain> }) {
                 <Text style={styles.histDate}>
                   {s.date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
                 </Text>
-                <Text style={styles.histSub}>{sessionSummary(s)}</Text>
+                <Text style={styles.histSub}>{sessionSummary(s, t)}</Text>
               </View>
               {sessionVolume(s) > 0 ? <Text style={styles.histVol}>{sessionVolume(s).toLocaleString()} lb</Text> : null}
             </Pressable>
@@ -88,19 +91,20 @@ function StartView({ train }: { train: ReturnType<typeof useTrain> }) {
   );
 }
 
-function sessionSummary(s: WorkoutSession): string {
+function sessionSummary(s: WorkoutSession, t: TFn): string {
   const exCount = s.exercises.length;
   const setCount = s.exercises.reduce(
     (n, ex) => n + ex.sets.filter((set) => isLoggedSet(set, ex.logStyle ?? DEFAULT_LOG_STYLE)).length,
     0,
   );
-  const ex = `${exCount} exercise${exCount === 1 ? '' : 's'}`;
-  const sets = `${setCount} set${setCount === 1 ? '' : 's'}`;
+  const ex = `${exCount} ${exCount === 1 ? t('train.exerciseOne') : t('train.exerciseMany')}`;
+  const sets = `${setCount} ${setCount === 1 ? t('train.setOne') : t('train.setMany')}`;
   return `${ex} · ${sets}`;
 }
 
 // ─── Active session logger ──────────────────────────────────────
 function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
+  const t = useT();
   const session = train.active!;
   const [addOpen, setAddOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
@@ -109,12 +113,12 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
     <>
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <View style={styles.activeBanner}>
-          <Text style={styles.activeText}>Workout in progress</Text>
-          {train.saving ? <Text style={styles.savingText}>Saving…</Text> : null}
+          <Text style={styles.activeText}>{t('train.inProgress')}</Text>
+          {train.saving ? <Text style={styles.savingText}>{t('common.saving')}</Text> : null}
         </View>
 
         {session.exercises.length === 0 ? (
-          <Text style={styles.empty}>Add your first exercise to start logging sets.</Text>
+          <Text style={styles.empty}>{t('train.addFirst')}</Text>
         ) : (
           session.exercises.map((ex, exIdx) => (
             <ExerciseCard key={`${ex.exerciseId}-${exIdx}`} train={train} exerciseIndex={exIdx} />
@@ -122,12 +126,12 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
         )}
 
         <TouchableOpacity style={styles.addExBtn} onPress={() => setAddOpen(true)} testID="add-exercise">
-          <Text style={styles.addExText}>+ Add exercise</Text>
+          <Text style={styles.addExText}>{t('train.addExercise')}</Text>
         </TouchableOpacity>
 
         <View style={styles.footerBtns}>
           <TouchableOpacity style={styles.discardBtn} onPress={() => train.discardWorkout()} testID="discard-workout">
-            <Text style={styles.discardText}>Discard</Text>
+            <Text style={styles.discardText}>{t('train.discard')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.finishBtn}
@@ -137,7 +141,7 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
             }}
             testID="finish-workout"
           >
-            <Text style={styles.finishText}>Finish</Text>
+            <Text style={styles.finishText}>{t('train.finish')}</Text>
           </TouchableOpacity>
         </View>
         <View style={{ height: 40 }} />
@@ -161,6 +165,7 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
 }
 
 function ExerciseCard({ train, exerciseIndex }: { train: ReturnType<typeof useTrain>; exerciseIndex: number }) {
+  const t = useT();
   const ex = train.active!.exercises[exerciseIndex];
   const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
 
@@ -169,17 +174,17 @@ function ExerciseCard({ train, exerciseIndex }: { train: ReturnType<typeof useTr
       <View style={styles.exHead}>
         <Text style={styles.exName}>{ex.name}</Text>
         <TouchableOpacity onPress={() => train.removeExercise(exerciseIndex)} hitSlop={8}>
-          <Text style={styles.exRemove}>Remove</Text>
+          <Text style={styles.exRemove}>{t('common.remove')}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.setHeadRow}>
         <Text style={[styles.setHeadCell, styles.setNumCell]}>#</Text>
-        {style === 'weight-reps' ? <Text style={[styles.setHeadCell, styles.setInputCell]}>lb</Text> : null}
+        {style === 'weight-reps' ? <Text style={[styles.setHeadCell, styles.setInputCell]}>{t('train.lb')}</Text> : null}
         {style === 'time' ? (
-          <Text style={[styles.setHeadCell, styles.setInputCell]}>sec</Text>
+          <Text style={[styles.setHeadCell, styles.setInputCell]}>{t('train.sec')}</Text>
         ) : (
-          <Text style={[styles.setHeadCell, styles.setInputCell]}>reps</Text>
+          <Text style={[styles.setHeadCell, styles.setInputCell]}>{t('train.reps')}</Text>
         )}
         <View style={styles.setDoneCell} />
       </View>
@@ -197,10 +202,14 @@ function ExerciseCard({ train, exerciseIndex }: { train: ReturnType<typeof useTr
       ))}
 
       <TouchableOpacity style={styles.addSetBtn} onPress={() => train.addSet(exerciseIndex)} testID={`add-set-${exerciseIndex}`}>
-        <Text style={styles.addSetText}>+ Add set</Text>
+        <Text style={styles.addSetText}>{t('train.addSet')}</Text>
       </TouchableOpacity>
     </View>
   );
+}
+
+function logStyleKey(style: LogStyle | undefined): I18nKey {
+  return style === 'bodyweight' ? 'logStyle.bodyweight' : style === 'time' ? 'logStyle.time' : 'logStyle.weightReps';
 }
 
 function numOrUndef(s: string): number | undefined {
@@ -300,6 +309,7 @@ function AddExerciseModal({
   train: ReturnType<typeof useTrain>;
   onClose: () => void;
 }) {
+  const t = useT();
   const [name, setName] = useState('');
   const [logStyle, setLogStyle] = useState<LogStyle>('weight-reps');
 
@@ -327,11 +337,11 @@ function AddExerciseModal({
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetWrap}>
         <View style={styles.sheet}>
           <View style={styles.handle} />
-          <Text style={styles.sheetTitle}>Add exercise</Text>
+          <Text style={styles.sheetTitle}>{t('train.addExerciseTitle')}</Text>
 
           <TextInput
             style={styles.input}
-            placeholder="Exercise name"
+            placeholder={t('train.exerciseName')}
             placeholderTextColor={colors.faint}
             value={name}
             onChangeText={setName}
@@ -349,7 +359,7 @@ function AddExerciseModal({
                   onPress={() => setLogStyle(ls.value)}
                   testID={`logstyle-${ls.value}`}
                 >
-                  <Text style={[styles.styleChipText, on && styles.styleChipTextOn]}>{ls.label}</Text>
+                  <Text style={[styles.styleChipText, on && styles.styleChipTextOn]}>{t(ls.labelKey)}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -357,7 +367,7 @@ function AddExerciseModal({
 
           {trimmed ? (
             <TouchableOpacity style={styles.createRow} onPress={() => add(trimmed, logStyle)} testID="create-exercise">
-              <Text style={styles.createText}>+ Add “{trimmed}”</Text>
+              <Text style={styles.createText}>{t('train.addNamed', { name: trimmed })}</Text>
             </TouchableOpacity>
           ) : null}
 
@@ -369,11 +379,11 @@ function AddExerciseModal({
                 onPress={() => add(e.name, e.logStyle ?? 'weight-reps', e.id)}
               >
                 <Text style={styles.catalogName}>{e.name}</Text>
-                <Text style={styles.catalogStyle}>{e.logStyle ?? 'weight-reps'}</Text>
+                <Text style={styles.catalogStyle}>{t(logStyleKey(e.logStyle))}</Text>
               </TouchableOpacity>
             ))}
             {matches.length === 0 ? (
-              <Text style={styles.empty}>No saved exercises yet — type a name above.</Text>
+              <Text style={styles.empty}>{t('train.noSaved')}</Text>
             ) : null}
           </ScrollView>
         </View>
@@ -392,6 +402,7 @@ function FinishModal({
   onFinish: (extras: { bodyweight?: number; sleepHours?: number }) => Promise<void> | void;
   onClose: () => void;
 }) {
+  const t = useT();
   const [bodyweight, setBodyweight] = useState('');
   const [sleep, setSleep] = useState('');
   const [busy, setBusy] = useState(false);
@@ -420,12 +431,12 @@ function FinishModal({
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetWrap}>
         <View style={styles.sheet}>
           <View style={styles.handle} />
-          <Text style={styles.sheetTitle}>Finish workout</Text>
-          <Text style={styles.sheetHint}>Optional — logged to today’s Body + Today.</Text>
+          <Text style={styles.sheetTitle}>{t('train.finishTitle')}</Text>
+          <Text style={styles.sheetHint}>{t('train.finishHint')}</Text>
 
           <View style={styles.finishRow}>
             <View style={styles.finishField}>
-              <Text style={styles.fieldLabel}>Bodyweight (lb)</Text>
+              <Text style={styles.fieldLabel}>{t('train.bodyweight')}</Text>
               <TextInput
                 style={styles.input}
                 placeholder="—"
@@ -437,7 +448,7 @@ function FinishModal({
               />
             </View>
             <View style={styles.finishField}>
-              <Text style={styles.fieldLabel}>Sleep (h)</Text>
+              <Text style={styles.fieldLabel}>{t('train.sleepH')}</Text>
               <TextInput
                 style={styles.input}
                 placeholder="—"
@@ -451,7 +462,7 @@ function FinishModal({
           </View>
 
           <TouchableOpacity style={styles.finishBtn} onPress={finish} disabled={busy} testID="finish-confirm">
-            <Text style={styles.finishText}>{busy ? 'Saving…' : 'Complete workout'}</Text>
+            <Text style={styles.finishText}>{busy ? t('common.saving') : t('train.complete')}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

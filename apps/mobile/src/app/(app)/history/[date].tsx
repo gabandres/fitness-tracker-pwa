@@ -4,9 +4,11 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type DailyLog, localDateKey, parseYmd, summarizeDay } from '@macrolog/core';
 import { useHistory } from '@/hooks/useHistory';
+import { type TFn, useT } from '@/i18n';
 import { colors, font, radius, space } from '@/theme';
 
 export default function DayDetail() {
+  const t = useT();
   const { date } = useLocalSearchParams<{ date: string }>();
   const dateKey = String(date);
   const router = useRouter();
@@ -43,25 +45,25 @@ export default function DayDetail() {
       ) : (
         <ScrollView contentContainerStyle={styles.body}>
           <View style={styles.totals}>
-            <Total label="Calories" value={summary.totalCalories.toLocaleString()} />
-            <Total label="Protein" value={`${summary.totalProtein}g`} />
-            <Total label="Carbs" value={`${summary.totalCarbs}g`} />
-            <Total label="Fat" value={`${summary.totalFat}g`} />
+            <Total label={t('today.calories')} value={summary.totalCalories.toLocaleString()} />
+            <Total label={t('history.protein')} value={`${summary.totalProtein}g`} />
+            <Total label={t('today.carbs')} value={`${summary.totalCarbs}g`} />
+            <Total label={t('today.fat')} value={`${summary.totalFat}g`} />
           </View>
           {summary.weightLb != null ? (
-            <Text style={styles.weight}>Weight: {summary.weightLb} lb</Text>
+            <Text style={styles.weight}>{t('history.weight')}: {summary.weightLb} lb</Text>
           ) : null}
 
-          <Text style={styles.sectionTitle}>Entries</Text>
+          <Text style={styles.sectionTitle}>{t('today.entries')}</Text>
           {dayLogs.length === 0 ? (
-            <Text style={styles.empty}>No food entries this day.</Text>
+            <Text style={styles.empty}>{t('history.noEntries')}</Text>
           ) : (
             <View style={styles.list}>
               {dayLogs.map((log) => (
                 <View key={log.id} style={styles.entry}>
                   <View style={styles.entryMain}>
-                    <Text style={styles.entryLabel}>{log.mealLabel || 'Entry'}</Text>
-                    <Text style={styles.entryMacros}>{macroLine(log)}</Text>
+                    <Text style={styles.entryLabel}>{log.mealLabel || t('today.entry')}</Text>
+                    <Text style={styles.entryMacros}>{macroLine(log, t)}</Text>
                   </View>
                   <Text style={styles.entryKcal}>{log.calories.toLocaleString()}</Text>
                 </View>
@@ -74,12 +76,12 @@ export default function DayDetail() {
   );
 }
 
-function macroLine(log: DailyLog): string {
+function macroLine(log: DailyLog, t: TFn): string {
   const parts: string[] = [];
   if (log.protein != null) parts.push(`P ${log.protein}g`);
   if (log.carbs != null) parts.push(`C ${log.carbs}g`);
   if (log.fat != null) parts.push(`F ${log.fat}g`);
-  if (log.mealType) parts.push(log.mealType);
+  if (log.mealType) parts.push(t(`meal.${log.mealType}`));
   return parts.join(' · ') || '—';
 }
 

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type BarcodeResult, lookupProduct } from '@/lib/barcode';
+import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
 
@@ -25,6 +26,7 @@ interface Props {
  *  the entry form. A `handled` latch makes the first scan win so the lookup
  *  fires once. */
 export function BarcodeScanner({ visible, onClose, onPick }: Props) {
+  const t = useT();
   const [permission, requestPermission] = useCameraPermissions();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -55,7 +57,7 @@ export function BarcodeScanner({ visible, onClose, onPick }: Props) {
         mealLabel: result.productName,
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Lookup failed.');
+      setError(e instanceof Error ? e.message : t('barcode.failed'));
       setBusy(false);
       // Allow another scan after a miss.
       handled.current = false;
@@ -69,12 +71,12 @@ export function BarcodeScanner({ visible, onClose, onPick }: Props) {
           <View style={styles.center}><ActivityIndicator color={colors.white} /></View>
         ) : !permission.granted ? (
           <View style={styles.center}>
-            <Text style={styles.msg}>Camera access is needed to scan barcodes.</Text>
+            <Text style={styles.msg}>{t('barcode.permNeeded')}</Text>
             <TouchableOpacity style={styles.btn} onPress={requestPermission}>
-              <Text style={styles.btnText}>Grant permission</Text>
+              <Text style={styles.btnText}>{t('barcode.grant')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.cancel} onPress={onClose}>
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>{t('common.cancel')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -86,12 +88,12 @@ export function BarcodeScanner({ visible, onClose, onPick }: Props) {
               onBarcodeScanned={busy ? undefined : (r) => onScanned(r.data)}
             />
             <View style={styles.overlay} pointerEvents="box-none">
-              <Text style={styles.hint}>Point at a barcode</Text>
+              <Text style={styles.hint}>{t('barcode.point')}</Text>
               <View style={styles.reticle} />
               {busy ? <ActivityIndicator color={colors.white} style={{ marginTop: space.lg }} /> : null}
               {error ? <Text style={styles.err}>{error}</Text> : null}
               <TouchableOpacity style={styles.cancel} onPress={onClose} testID="barcode-cancel">
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={styles.cancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
             </View>
           </View>

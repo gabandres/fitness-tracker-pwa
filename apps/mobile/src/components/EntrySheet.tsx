@@ -23,6 +23,7 @@ import {
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { FoodSearch } from '@/components/FoodSearch';
 import { RecipeBuilder } from '@/components/RecipeBuilder';
+import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
 
@@ -67,6 +68,7 @@ export function EntrySheet({
   onHideRecent,
   unitSystem = 'us',
 }: Props) {
+  const t = useT();
   const [label, setLabel] = useState('');
   const [calories, setCalories] = useState('');
   const [protein, setProtein] = useState('');
@@ -205,22 +207,22 @@ export function EntrySheet({
       >
         <Animated.View style={sheetStyle}>
           <View style={styles.handle} />
-          <Text style={styles.title}>{editing ? 'Edit entry' : 'Add food'}</Text>
+          <Text style={styles.title}>{editing ? t('entry.editTitle') : t('entry.addTitle')}</Text>
 
           {!editing && mode === 'manual' ? (
             <>
               <View style={styles.discoverRow}>
                 <TouchableOpacity style={styles.searchEntry} onPress={() => { haptics.tap(); setMode('search'); }} testID="open-food-search">
-                  <Text style={styles.searchEntryText}>🔍  Search food database</Text>
+                  <Text style={styles.searchEntryText}>{t('entry.searchDb')}</Text>
                 </TouchableOpacity>
                 {Platform.OS !== 'web' ? (
                   <TouchableOpacity style={styles.scanEntry} onPress={() => { haptics.tap(); setScannerOpen(true); }} testID="open-barcode">
-                    <Text style={styles.searchEntryText}>⊟  Scan</Text>
+                    <Text style={styles.searchEntryText}>{t('entry.scan')}</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
               <TouchableOpacity style={styles.recipeEntry} onPress={() => { haptics.tap(); setMode('recipe'); }} testID="open-recipe">
-                <Text style={styles.searchEntryText}>🧮  Build a recipe</Text>
+                <Text style={styles.searchEntryText}>{t('entry.buildRecipe')}</Text>
               </TouchableOpacity>
             </>
           ) : null}
@@ -257,11 +259,11 @@ export function EntrySheet({
             {showQuickAdd ? (
               <View style={styles.quickAdd}>
                 <View style={styles.quickHeader}>
-                  <Text style={styles.fieldLabel}>Quick add</Text>
+                  <Text style={styles.fieldLabel}>{t('entry.quickAdd')}</Text>
                   {presets.length > 0 && (onDeletePreset || onHideRecent) ? (
                     <TouchableOpacity onPress={() => setManage((m) => !m)} hitSlop={8}>
                       <Text style={[styles.manageText, manage && styles.manageTextOn]}>
-                        {manage ? 'Done' : 'Manage'}
+                        {manage ? t('common.done') : t('common.manage')}
                       </Text>
                     </TouchableOpacity>
                   ) : null}
@@ -305,10 +307,10 @@ export function EntrySheet({
               </View>
             ) : null}
 
-            <Field label="Name (optional)">
+            <Field label={t('entry.name')}>
               <TextInput
                 style={styles.input}
-                placeholder="e.g. Chicken & rice"
+                placeholder={t('entry.namePlaceholder')}
                 placeholderTextColor={colors.faint}
                 value={label}
                 onChangeText={setLabel}
@@ -316,7 +318,7 @@ export function EntrySheet({
               />
             </Field>
 
-            <Field label="Calories">
+            <Field label={t('entry.calories')}>
               <TextInput
                 style={styles.input}
                 placeholder="0"
@@ -329,18 +331,18 @@ export function EntrySheet({
             </Field>
 
             <View style={styles.row}>
-              <Field label="Protein (g)" style={styles.third}>
+              <Field label={t('entry.proteinG')} style={styles.third}>
                 <TextInput style={styles.input} placeholder="0" placeholderTextColor={colors.faint} keyboardType="numeric" value={protein} onChangeText={setProtein} testID="entry-protein" />
               </Field>
-              <Field label="Carbs (g)" style={styles.third}>
+              <Field label={t('entry.carbsG')} style={styles.third}>
                 <TextInput style={styles.input} placeholder="0" placeholderTextColor={colors.faint} keyboardType="numeric" value={carbs} onChangeText={setCarbs} testID="entry-carbs" />
               </Field>
-              <Field label="Fat (g)" style={styles.third}>
+              <Field label={t('entry.fatG')} style={styles.third}>
                 <TextInput style={styles.input} placeholder="0" placeholderTextColor={colors.faint} keyboardType="numeric" value={fat} onChangeText={setFat} testID="entry-fat" />
               </Field>
             </View>
 
-            <Field label="Meal (optional)">
+            <Field label={t('entry.meal')}>
               <View style={styles.chips}>
                 {MEAL_TYPES.map((mt) => {
                   const on = mealType === mt;
@@ -350,7 +352,7 @@ export function EntrySheet({
                       style={[styles.chip, on && styles.chipOn]}
                       onPress={() => setMealType(on ? undefined : mt)}
                     >
-                      <Text style={[styles.chipText, on && styles.chipTextOn]}>{mt}</Text>
+                      <Text style={[styles.chipText, on && styles.chipTextOn]}>{t(`meal.${mt}`)}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -359,7 +361,7 @@ export function EntrySheet({
 
             {canSavePreset ? (
               <TouchableOpacity style={styles.savePreset} onPress={saveAsPreset} testID="save-preset">
-                <Text style={styles.savePresetText}>★ Save as preset</Text>
+                <Text style={styles.savePresetText}>{t('entry.savePreset')}</Text>
               </TouchableOpacity>
             ) : null}
           </ScrollView>
@@ -369,7 +371,7 @@ export function EntrySheet({
             <View style={styles.actions}>
               {editing && onDelete ? (
                 <TouchableOpacity style={styles.delete} onPress={onDelete} testID="entry-delete">
-                  <Text style={styles.deleteText}>Delete</Text>
+                  <Text style={styles.deleteText}>{t('entry.delete')}</Text>
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity
@@ -378,7 +380,7 @@ export function EntrySheet({
                 disabled={!canSave || busy}
                 testID="entry-save"
               >
-                <Text style={styles.saveText}>{editing ? 'Save' : 'Add'}</Text>
+                <Text style={styles.saveText}>{editing ? t('common.save') : t('entry.add')}</Text>
               </TouchableOpacity>
             </View>
           ) : null}

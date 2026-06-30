@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
 
@@ -35,6 +36,7 @@ function elapsedLabel(since: Date, now: number): string {
  *  fasting row re-renders every 30s while a fast is running so the elapsed
  *  clock stays live without a global timer. */
 export function DailyMetrics({ water, sleep, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast }: Props) {
+  const t = useT();
   const [sleepOpen, setSleepOpen] = useState(false);
   const [, setTick] = useState(0);
 
@@ -49,9 +51,9 @@ export function DailyMetrics({ water, sleep, fastStartedAt, onAddWater, onSetSle
       {/* Fasting */}
       <View style={styles.row}>
         <View style={styles.left}>
-          <Text style={styles.label}>Fasting</Text>
+          <Text style={styles.label}>{t('metrics.fasting')}</Text>
           <Text style={styles.value}>
-            {fastStartedAt ? elapsedLabel(fastStartedAt, Date.now()) : 'Not fasting'}
+            {fastStartedAt ? elapsedLabel(fastStartedAt, Date.now()) : t('metrics.notFasting')}
           </Text>
         </View>
         <TouchableOpacity
@@ -63,7 +65,7 @@ export function DailyMetrics({ water, sleep, fastStartedAt, onAddWater, onSetSle
           testID="fast-toggle"
         >
           <Text style={[styles.actionText, fastStartedAt && styles.actionTextStop]}>
-            {fastStartedAt ? 'End' : 'Start fast'}
+            {fastStartedAt ? t('metrics.end') : t('metrics.startFast')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -73,7 +75,7 @@ export function DailyMetrics({ water, sleep, fastStartedAt, onAddWater, onSetSle
       {/* Water */}
       <View style={styles.row}>
         <View style={styles.left}>
-          <Text style={styles.label}>Water</Text>
+          <Text style={styles.label}>{t('metrics.water')}</Text>
           <Text style={styles.value}>{water} fl oz</Text>
         </View>
         <View style={styles.waterBtns}>
@@ -96,11 +98,11 @@ export function DailyMetrics({ water, sleep, fastStartedAt, onAddWater, onSetSle
       {/* Sleep */}
       <View style={styles.row}>
         <View style={styles.left}>
-          <Text style={styles.label}>Sleep</Text>
+          <Text style={styles.label}>{t('metrics.sleep')}</Text>
           <Text style={styles.value}>{sleep != null ? `${sleep}h` : '—'}</Text>
         </View>
         <TouchableOpacity style={styles.action} onPress={() => setSleepOpen(true)} testID="sleep-open">
-          <Text style={styles.actionText}>{sleep != null ? 'Edit' : 'Log'}</Text>
+          <Text style={styles.actionText}>{sleep != null ? t('metrics.edit') : t('metrics.log')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -129,6 +131,7 @@ function SleepModal({
   onSave: (hours: number) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const [value, setValue] = useState('');
 
   useEffect(() => {
@@ -144,7 +147,7 @@ function SleepModal({
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetWrap}>
         <View style={styles.sheet}>
           <View style={styles.handle} />
-          <Text style={styles.sheetTitle}>Hours slept</Text>
+          <Text style={styles.sheetTitle}>{t('metrics.hoursSlept')}</Text>
           <View style={styles.inputRow}>
             <TextInput
               style={styles.input}
@@ -164,7 +167,7 @@ function SleepModal({
             disabled={!valid}
             testID="sleep-save"
           >
-            <Text style={styles.saveText}>Save</Text>
+            <Text style={styles.saveText}>{t('common.save')}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

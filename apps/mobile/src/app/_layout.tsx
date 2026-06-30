@@ -5,6 +5,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { I18nProvider } from '@/i18n';
 import { colors } from '@/theme';
 
 function Splash() {
@@ -72,7 +73,9 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <StatusBar style="dark" />
         <AuthProvider>
-          <AuthGate />
+          <I18nProvider>
+            <AuthGate />
+          </I18nProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

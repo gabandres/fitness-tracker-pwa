@@ -17,6 +17,7 @@ import {
   searchFoods,
   sortServings,
 } from '@/lib/foodSearch';
+import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
 
@@ -42,6 +43,7 @@ type Phase = 'idle' | 'searching' | 'results' | 'detail-loading' | 'portion-pick
  *  pick a serving (× multiplier) → emit a FoodEstimate the sheet bounces
  *  back into the manual form for review. */
 export function FoodSearch({ unitSystem = 'us', onPick, onCancel }: Props) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [hits, setHits] = useState<FoodSearchHit[]>([]);
@@ -80,7 +82,7 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel }: Props) {
       setPhase('results');
     } catch (e) {
       if (id !== reqId.current) return;
-      setErrorMsg(messageFor(e));
+      setErrorMsg(t(messageKey(e)));
       setPhase('error');
     }
   }
@@ -94,7 +96,7 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel }: Props) {
       setDetail(d);
       setPhase('portion-pick');
     } catch (e) {
-      setErrorMsg(messageFor(e));
+      setErrorMsg(t(messageKey(e)));
       setPhase('error');
     }
   }
@@ -117,13 +119,13 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel }: Props) {
     return (
       <View style={styles.wrap}>
         <TouchableOpacity onPress={() => setPhase('results')} style={styles.back} hitSlop={8}>
-          <Text style={styles.backText}>‹ Results</Text>
+          <Text style={styles.backText}>{t('food.results')}</Text>
         </TouchableOpacity>
         <Text style={styles.detailTitle} numberOfLines={2}>{detail.description}</Text>
         {detail.brand ? <Text style={styles.brand}>{detail.brand}</Text> : null}
 
         <View style={styles.multRow}>
-          <Text style={styles.multLabel}>Quantity</Text>
+          <Text style={styles.multLabel}>{t('food.quantity')}</Text>
           <View style={styles.stepper}>
             <TouchableOpacity style={styles.step} onPress={() => setMultiplier((m) => Math.max(0.5, Math.round((m - 0.5) * 10) / 10))}>
               <Text style={styles.stepText}>−</Text>
@@ -144,7 +146,7 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel }: Props) {
                   {Math.round(s.kcal * multiplier)} kcal · P {Math.round(s.protein * multiplier)}g
                 </Text>
               </View>
-              <Text style={styles.servingPick}>Add</Text>
+              <Text style={styles.servingPick}>{t('food.add')}</Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -158,7 +160,7 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel }: Props) {
       <View style={styles.searchRow}>
         <TextInput
           style={styles.search}
-          placeholder="Search foods (e.g. greek yogurt)"
+          placeholder={t('food.placeholder')}
           placeholderTextColor={colors.faint}
           value={query}
           onChangeText={onChange}
@@ -167,7 +169,7 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel }: Props) {
           testID="food-search-input"
         />
         <TouchableOpacity onPress={onCancel} hitSlop={8}>
-          <Text style={styles.cancel}>Cancel</Text>
+          <Text style={styles.cancel}>{t('common.cancel')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -177,12 +179,12 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel }: Props) {
         <View style={styles.center}>
           <Text style={styles.error}>{errorMsg}</Text>
           {query.trim().length >= 2 ? (
-            <TouchableOpacity onPress={() => void runSearch(query.trim())}><Text style={styles.retry}>Retry</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => void runSearch(query.trim())}><Text style={styles.retry}>{t('common.retry')}</Text></TouchableOpacity>
           ) : null}
         </View>
       ) : phase === 'results' ? (
         hits.length === 0 ? (
-          <View style={styles.center}><Text style={styles.muted}>No matches. Try a simpler term.</Text></View>
+          <View style={styles.center}><Text style={styles.muted}>{t('food.noMatches')}</Text></View>
         ) : (
           <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
             {hits.map((h) => (
@@ -194,7 +196,7 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel }: Props) {
           </ScrollView>
         )
       ) : (
-        <View style={styles.center}><Text style={styles.muted}>Type at least 2 characters.</Text></View>
+        <View style={styles.center}><Text style={styles.muted}>{t('food.typeMore')}</Text></View>
       )}
     </View>
   );
@@ -203,10 +205,9 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel }: Props) {
 /** Map a callable error to a user message. The functions attach an
  *  ErrorCode in details; surface the not-configured case specifically since
  *  it's an operator action, not retryable. */
-function messageFor(e: unknown): string {
+function messageKey(e: unknown): I18nKey {
   const code = (e as { details?: { code?: string } })?.details?.code;
-  if (code === 'food_api_not_configured') return 'Food search isn\'t set up yet. Enter macros manually.';
-  return 'Search failed. Check your connection and retry.';
+  return code === 'food_api_not_configured' ? 'food.notConfigured' : 'food.failed';
 }
 
 const styles = StyleSheet.create({

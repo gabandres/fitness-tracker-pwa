@@ -15,13 +15,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { type GoalDirection, computeKcal, computeProtein } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { saveOnboardingV2 } from '@/lib/ledger';
+import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
 
-const GOALS: { key: GoalDirection; label: string; hint: string }[] = [
-  { key: 'lose', label: 'Lose fat', hint: 'Calorie deficit' },
-  { key: 'maintain', label: 'Maintain', hint: 'Stay at weight' },
-  { key: 'gain', label: 'Build', hint: 'Lean gain' },
+const GOALS: { key: GoalDirection; labelKey: I18nKey; hintKey: I18nKey }[] = [
+  { key: 'lose', labelKey: 'goal.lose', hintKey: 'goal.loseHint' },
+  { key: 'maintain', labelKey: 'goal.maintain', hintKey: 'goal.maintainHint' },
+  { key: 'gain', labelKey: 'goal.gain', hintKey: 'goal.gainHint' },
 ];
 
 function numOrUndef(s: string): number | undefined {
@@ -32,6 +33,7 @@ function numOrUndef(s: string): number | undefined {
 }
 
 export default function Onboarding() {
+  const t = useT();
   const { user, profile } = useAuth();
   const router = useRouter();
   // A completed profile only reaches this screen via Settings → "Edit goals".
@@ -68,7 +70,7 @@ export default function Onboarding() {
       // user moves into the app (the gate no longer auto-redirects here).
       router.replace(isRedo ? '/settings' : '/(app)');
     } catch {
-      setError('Could not save. Check your connection and try again.');
+      setError(t('onboarding.saveErr'));
       setBusy(false);
     }
   }
@@ -80,11 +82,11 @@ export default function Onboarding() {
         style={styles.fill}
       >
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-          <Text style={styles.brand}>{isRedo ? 'Edit your goals' : 'Welcome to Macro Log'}</Text>
-          <Text style={styles.tagline}>Two questions and you're set — we'll do the math.</Text>
+          <Text style={styles.brand}>{isRedo ? t('onboarding.titleEdit') : t('onboarding.titleNew')}</Text>
+          <Text style={styles.tagline}>{t('onboarding.tagline')}</Text>
 
           <View style={styles.field}>
-            <Text style={styles.label}>Current weight (lb)</Text>
+            <Text style={styles.label}>{t('onboarding.currentWeight')}</Text>
             <TextInput
               style={styles.input}
               placeholder="e.g. 180"
@@ -97,7 +99,7 @@ export default function Onboarding() {
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>Goal</Text>
+            <Text style={styles.label}>{t('onboarding.goal')}</Text>
             <View style={styles.goals}>
               {GOALS.map((g) => {
                 const on = goal === g.key;
@@ -111,8 +113,8 @@ export default function Onboarding() {
                     }}
                     testID={`onboarding-goal-${g.key}`}
                   >
-                    <Text style={[styles.goalLabel, on && styles.goalLabelOn]}>{g.label}</Text>
-                    <Text style={[styles.goalHint, on && styles.goalHintOn]}>{g.hint}</Text>
+                    <Text style={[styles.goalLabel, on && styles.goalLabelOn]}>{t(g.labelKey)}</Text>
+                    <Text style={[styles.goalHint, on && styles.goalHintOn]}>{t(g.hintKey)}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -121,7 +123,7 @@ export default function Onboarding() {
 
           {goal && goal !== 'maintain' ? (
             <View style={styles.field}>
-              <Text style={styles.label}>Goal weight (lb) — optional</Text>
+              <Text style={styles.label}>{t('onboarding.goalWeight')}</Text>
               <TextInput
                 style={styles.input}
                 placeholder="e.g. 165"
@@ -136,20 +138,18 @@ export default function Onboarding() {
 
           {kcal != null && protein != null ? (
             <View style={styles.preview} testID="onboarding-preview">
-              <Text style={styles.previewTitle}>Your daily targets</Text>
+              <Text style={styles.previewTitle}>{t('onboarding.targets')}</Text>
               <View style={styles.previewRow}>
                 <View style={styles.previewStat}>
                   <Text style={styles.previewValue}>{kcal.toLocaleString()}</Text>
-                  <Text style={styles.previewLabel}>calories</Text>
+                  <Text style={styles.previewLabel}>{t('onboarding.calories')}</Text>
                 </View>
                 <View style={styles.previewStat}>
                   <Text style={styles.previewValue}>{protein}g</Text>
-                  <Text style={styles.previewLabel}>protein</Text>
+                  <Text style={styles.previewLabel}>{t('onboarding.protein')}</Text>
                 </View>
               </View>
-              <Text style={styles.previewNote}>
-                You can refine these anytime in Settings as your weight changes.
-              </Text>
+              <Text style={styles.previewNote}>{t('onboarding.refineNote')}</Text>
             </View>
           ) : null}
 
@@ -159,7 +159,7 @@ export default function Onboarding() {
         <View style={styles.footer}>
           {isRedo ? (
             <TouchableOpacity style={styles.cancel} onPress={() => router.replace('/settings')} testID="onboarding-cancel">
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>{t('common.cancel')}</Text>
             </TouchableOpacity>
           ) : null}
           <TouchableOpacity
@@ -171,7 +171,7 @@ export default function Onboarding() {
             {busy ? (
               <ActivityIndicator color={colors.white} />
             ) : (
-              <Text style={styles.saveText}>{isRedo ? 'Save goals' : 'Start tracking'}</Text>
+              <Text style={styles.saveText}>{isRedo ? t('onboarding.saveEdit') : t('onboarding.saveNew')}</Text>
             )}
           </TouchableOpacity>
         </View>

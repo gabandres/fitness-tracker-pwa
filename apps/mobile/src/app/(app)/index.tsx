@@ -15,6 +15,7 @@ import type { DailyLog, LogEntry } from '@macrolog/core';
 import { DailyMetrics } from '@/components/DailyMetrics';
 import { EntrySheet } from '@/components/EntrySheet';
 import { MacroRing } from '@/components/MacroRing';
+import { type TFn, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useToday } from '@/hooks/useToday';
 import { colors, font, radius, space } from '@/theme';
@@ -24,6 +25,7 @@ function todayLabel(): string {
 }
 
 export default function Today() {
+  const t = useT();
   const router = useRouter();
   const {
     loading,
@@ -81,7 +83,7 @@ export default function Today() {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Today</Text>
+          <Text style={styles.title}>{t('nav.today')}</Text>
           <Text style={styles.date}>{todayLabel()}</Text>
         </View>
         <TouchableOpacity onPress={() => router.push('/settings')} testID="settings-open" hitSlop={10}>
@@ -95,7 +97,7 @@ export default function Today() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.body}>
-          {error ? <Text style={styles.error}>Couldn't load your data. Pull to retry.</Text> : null}
+          {error ? <Text style={styles.error}>{t('today.loadErr')}</Text> : null}
 
           <View style={styles.rings}>
             <MacroRing
@@ -103,23 +105,23 @@ export default function Today() {
               progress={calTarget ? calConsumed / calTarget : 0}
               color={calRemaining < 0 ? colors.danger : colors.accent}
               value={Math.abs(calRemaining).toLocaleString()}
-              label="kcal"
-              sub={calRemaining < 0 ? 'over' : 'left'}
+              label={t('today.kcal')}
+              sub={calRemaining < 0 ? t('today.over') : t('today.left')}
             />
             <MacroRing
               testID="protein-ring"
               progress={protTarget ? protConsumed / protTarget : 0}
               color={colors.protein}
               value={`${protConsumed}g`}
-              label="protein"
+              label={t('today.protein')}
               sub={`/ ${protTarget}g`}
             />
           </View>
 
           <View style={styles.statsRow}>
-            <Stat label="Calories" value={`${calConsumed.toLocaleString()} / ${calTarget.toLocaleString()}`} />
-            <Stat label="Carbs" value={`${summary.totalCarbs}g`} />
-            <Stat label="Fat" value={`${summary.totalFat}g`} />
+            <Stat label={t('today.calories')} value={`${calConsumed.toLocaleString()} / ${calTarget.toLocaleString()}`} />
+            <Stat label={t('today.carbs')} value={`${summary.totalCarbs}g`} />
+            <Stat label={t('today.fat')} value={`${summary.totalFat}g`} />
           </View>
 
           <DailyMetrics
@@ -132,20 +134,20 @@ export default function Today() {
             onBreakFast={breakFast}
           />
 
-          <Text style={styles.sectionTitle}>Entries</Text>
+          <Text style={styles.sectionTitle}>{t('today.entries')}</Text>
           {todayLogs.length === 0 ? (
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>No entries yet.</Text>
-              <Text style={styles.emptyHint}>Tap + to log your first meal.</Text>
+              <Text style={styles.emptyText}>{t('today.emptyTitle')}</Text>
+              <Text style={styles.emptyHint}>{t('today.emptyHint')}</Text>
             </View>
           ) : (
             <View style={styles.list}>
               {todayLogs.map((log) => (
                 <Pressable key={log.id} style={styles.entry} onPress={() => openEdit(log)} testID={`entry-${log.id}`}>
                   <View style={styles.entryMain}>
-                    <Text style={styles.entryLabel}>{log.mealLabel || 'Entry'}</Text>
+                    <Text style={styles.entryLabel}>{log.mealLabel || t('today.entry')}</Text>
                     <Text style={styles.entryMacros}>
-                      {macroLine(log)}
+                      {macroLine(log, t)}
                     </Text>
                   </View>
                   <Text style={styles.entryKcal}>{log.calories.toLocaleString()}</Text>
@@ -178,12 +180,12 @@ export default function Today() {
   );
 }
 
-function macroLine(log: DailyLog): string {
+function macroLine(log: DailyLog, t: TFn): string {
   const parts: string[] = [];
   if (log.protein != null) parts.push(`P ${log.protein}g`);
   if (log.carbs != null) parts.push(`C ${log.carbs}g`);
   if (log.fat != null) parts.push(`F ${log.fat}g`);
-  if (log.mealType) parts.push(log.mealType);
+  if (log.mealType) parts.push(t(`meal.${log.mealType}`));
   return parts.join(' · ') || '—';
 }
 

@@ -271,6 +271,12 @@ export async function setUnitSystem(uid: string, unitSystem: UnitSystem): Promis
   await updateDoc(userDoc(uid), { unitSystem });
 }
 
+/** UI language (`en` | `es-PR`). Shared with the PWA's Transloco active lang
+ *  + server-side email locale. */
+export async function setPreferredLocale(uid: string, preferredLocale: string): Promise<void> {
+  await updateDoc(userDoc(uid), { preferredLocale });
+}
+
 /** Append `hiddenRecentLabels` to the profile. Mirrors the PWA's
  *  `FirebaseService.hideRecentLabel` — the next array is computed by the
  *  caller (the hook holds the live profile) and written whole, so this

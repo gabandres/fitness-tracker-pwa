@@ -5,8 +5,9 @@ import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 're
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { UnitSystem } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
-import { setUnitSystem } from '@/lib/ledger';
+import { setPreferredLocale, setUnitSystem } from '@/lib/ledger';
 import { DEFAULT_REMINDER_HOUR, getReminder, setReminder } from '@/lib/reminders';
+import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
 
@@ -17,13 +18,20 @@ function hourLabel(h: number): string {
   return `${display} ${period}`;
 }
 
-const GOAL_LABEL: Record<string, string> = {
-  lose: 'Lose fat',
-  maintain: 'Maintain',
-  gain: 'Build',
+const GOAL_LABEL: Record<string, I18nKey> = {
+  lose: 'goalShort.lose',
+  maintain: 'goalShort.maintain',
+  gain: 'goalShort.gain',
 };
 
+const LANGUAGES: { value: Locale; label: string }[] = [
+  { value: 'en', label: 'English' },
+  { value: 'es-PR', label: 'Español' },
+];
+
 export default function Settings() {
+  const t = useT();
+  const locale = useLocale();
   const { user, profile, signOut } = useAuth();
   const router = useRouter();
   const [savingUnit, setSavingUnit] = useState(false);
@@ -52,7 +60,7 @@ export default function Settings() {
   const unit: UnitSystem = profile?.unitSystem ?? 'us';
   const kcal = profile?.manualCaloriesTarget;
   const protein = profile?.manualProteinTarget;
-  const goal = profile?.goalDirection ? GOAL_LABEL[profile.goalDirection] : null;
+  const goalKey = profile?.goalDirection ? GOAL_LABEL[profile.goalDirection] : null;
 
   async function pickUnit(next: UnitSystem) {
     if (next === unit || !user || savingUnit) return;
@@ -65,27 +73,33 @@ export default function Settings() {
     }
   }
 
+  async function pickLanguage(next: Locale) {
+    if (next === locale || !user) return;
+    haptics.tap();
+    await setPreferredLocale(user.uid, next);
+  }
+
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={10} testID="settings-back">
           <Ionicons name="chevron-back" size={26} color={colors.ink} />
         </TouchableOpacity>
-        <Text style={styles.title}>Settings</Text>
+        <Text style={styles.title}>{t('nav.settings')}</Text>
         <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
-        <Text style={styles.section}>Goals</Text>
+        <Text style={styles.section}>{t('settings.goals')}</Text>
         <View style={styles.card}>
           <View style={styles.rowBetween}>
             <View>
-              <Text style={styles.rowLabel}>Daily targets</Text>
+              <Text style={styles.rowLabel}>{t('settings.dailyTargets')}</Text>
               <Text style={styles.rowValue}>
-                {kcal != null ? `${kcal.toLocaleString()} kcal` : '—'}
-                {protein != null ? `  ·  ${protein}g protein` : ''}
+                {kcal != null ? `${kcal.toLocaleString()} ${t('settings.kcalUnit')}` : '—'}
+                {protein != null ? `  ·  ${protein}${t('settings.proteinUnit')}` : ''}
               </Text>
-              {goal ? <Text style={styles.rowSub}>Goal: {goal}</Text> : null}
+              {goalKey ? <Text style={styles.rowSub}>{t('settings.goalPrefix', { goal: t(goalKey) })}</Text> : null}
             </View>
           </View>
           <TouchableOpacity
@@ -93,13 +107,13 @@ export default function Settings() {
             onPress={() => router.push('/onboarding')}
             testID="settings-edit-goals"
           >
-            <Text style={styles.editBtnText}>Edit goals</Text>
+            <Text style={styles.editBtnText}>{t('settings.editGoals')}</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.section}>Units</Text>
+        <Text style={styles.section}>{t('settings.units')}</Text>
         <View style={styles.card}>
-          <Text style={styles.rowLabel}>Portion display</Text>
+          <Text style={styles.rowLabel}>{t('settings.portionDisplay')}</Text>
           <View style={styles.segment}>
             {(['us', 'metric'] as UnitSystem[]).map((u) => {
               const on = unit === u;
@@ -111,7 +125,7 @@ export default function Settings() {
                   testID={`settings-unit-${u}`}
                 >
                   <Text style={[styles.segmentText, on && styles.segmentTextOn]}>
-                    {u === 'us' ? 'US (oz, lb)' : 'Metric (g, kg)'}
+                    {u === 'us' ? t('settings.unitUs') : t('settings.unitMetric')}
                   </Text>
                 </TouchableOpacity>
               );
@@ -119,12 +133,31 @@ export default function Settings() {
           </View>
         </View>
 
-        <Text style={styles.section}>Reminders</Text>
+        <Text style={styles.section}>{t('settings.language')}</Text>
+        <View style={styles.card}>
+          <View style={styles.segment}>
+            {LANGUAGES.map((l) => {
+              const on = locale === l.value;
+              return (
+                <TouchableOpacity
+                  key={l.value}
+                  style={[styles.segmentBtn, on && styles.segmentBtnOn]}
+                  onPress={() => pickLanguage(l.value)}
+                  testID={`settings-lang-${l.value}`}
+                >
+                  <Text style={[styles.segmentText, on && styles.segmentTextOn]}>{l.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <Text style={styles.section}>{t('settings.reminders')}</Text>
         <View style={styles.card}>
           <View style={styles.rowBetween}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>Daily reminder</Text>
-              <Text style={styles.rowValue}>Nudge to log your meals</Text>
+              <Text style={styles.rowLabel}>{t('settings.dailyReminder')}</Text>
+              <Text style={styles.rowValue}>{t('settings.reminderSub')}</Text>
             </View>
             <Switch
               value={reminderEnabled}
@@ -135,7 +168,7 @@ export default function Settings() {
           </View>
           {reminderEnabled ? (
             <View style={styles.rowBetween}>
-              <Text style={styles.rowLabel}>Time</Text>
+              <Text style={styles.rowLabel}>{t('settings.time')}</Text>
               <View style={styles.stepper}>
                 <TouchableOpacity style={styles.step} onPress={() => bumpReminderHour(-1)} testID="reminder-hour-minus">
                   <Text style={styles.stepText}>−</Text>
@@ -149,15 +182,15 @@ export default function Settings() {
           ) : null}
         </View>
 
-        <Text style={styles.section}>Account</Text>
+        <Text style={styles.section}>{t('settings.account')}</Text>
         <View style={styles.card}>
           <View style={styles.rowBetween}>
-            <Text style={styles.rowLabel}>Signed in as</Text>
+            <Text style={styles.rowLabel}>{t('settings.signedInAs')}</Text>
             <Text style={styles.rowValueRight}>{user?.email ?? '—'}</Text>
           </View>
           <TouchableOpacity style={styles.signOut} onPress={signOut} testID="settings-signout">
             <Ionicons name="log-out-outline" size={18} color={colors.danger} />
-            <Text style={styles.signOutText}>Sign out</Text>
+            <Text style={styles.signOutText}>{t('settings.signOut')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

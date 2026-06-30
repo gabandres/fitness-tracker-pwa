@@ -4,6 +4,7 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type DaySummary, parseYmd } from '@macrolog/core';
 import { useHistory } from '@/hooks/useHistory';
+import { type TFn, useT } from '@/i18n';
 import { colors, font, radius, space } from '@/theme';
 
 function dayLabel(dateKey: string): string {
@@ -15,42 +16,43 @@ function dayLabel(dateKey: string): string {
 }
 
 export default function HistoryList() {
+  const t = useT();
   const { loading, error, days } = useHistory();
   const router = useRouter();
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <Text style={styles.title}>History</Text>
+      <Text style={styles.title}>{t('nav.history')}</Text>
       {loading ? (
         <View style={styles.fill}>
           <ActivityIndicator color={colors.accent} />
         </View>
       ) : days.length === 0 ? (
         <View style={styles.fill}>
-          <Text style={styles.emptyText}>No history yet.</Text>
-          <Text style={styles.emptyHint}>Logged days will show up here.</Text>
+          <Text style={styles.emptyText}>{t('history.emptyTitle')}</Text>
+          <Text style={styles.emptyHint}>{t('history.emptyHint')}</Text>
         </View>
       ) : (
         <FlatList
           data={days}
           keyExtractor={(d) => d.dateKey}
           contentContainerStyle={styles.list}
-          ListHeaderComponent={error ? <Text style={styles.error}>Couldn't load history.</Text> : null}
-          renderItem={({ item }) => <Row item={item} onPress={() => router.push(`/history/${item.dateKey}`)} />}
+          ListHeaderComponent={error ? <Text style={styles.error}>{t('history.loadErr')}</Text> : null}
+          renderItem={({ item }) => <Row item={item} t={t} onPress={() => router.push(`/history/${item.dateKey}`)} />}
         />
       )}
     </SafeAreaView>
   );
 }
 
-function Row({ item, onPress }: { item: DaySummary; onPress: () => void }) {
+function Row({ item, t, onPress }: { item: DaySummary; t: TFn; onPress: () => void }) {
   return (
     <Pressable style={styles.card} onPress={onPress} testID={`day-${item.dateKey}`}>
       <View style={styles.cardLeft}>
         <Text style={styles.cardDate}>{dayLabel(item.dateKey)}</Text>
         <Text style={styles.cardSub}>
-          {item.mealCount} {item.mealCount === 1 ? 'entry' : 'entries'}
-          {item.exercised ? '  ·  exercised' : ''}
+          {item.mealCount} {item.mealCount === 1 ? t('history.entryOne') : t('history.entryMany')}
+          {item.exercised ? `  ·  ${t('history.exercised')}` : ''}
           {item.weightLb != null ? `  ·  ${item.weightLb} lb` : ''}
         </Text>
       </View>
