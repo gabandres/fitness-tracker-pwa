@@ -13,11 +13,11 @@
 export const colors = {
   paper: '#ffffff', // screen background — true white
   card: '#f6f7f9', // cool-gray surface
-  ink: '#0f1115', // primary text (≈18:1 on white)
+  ink: '#14161b', // primary text + CTAs/FAB — near-black mono base (≈17:1)
   muted: '#5b6472',
   faint: '#9aa2ae',
   line: '#e4e7ec',
-  accent: '#2f6bff', // blue — calorie ring + primary CTAs
+  accent: '#d63a2f', // coral — the "energy" pop on the calorie ring + links
   protein: '#0fa968', // green
   carbs: '#f59e0b', // amber
   fat: '#8b5cf6', // violet
