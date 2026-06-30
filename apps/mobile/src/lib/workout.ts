@@ -51,6 +51,9 @@ export interface SessionExercise {
   targetLoad?: number;
   cues: string[]; // snapshot
   logStyle?: LogStyle;
+  /** Double-progression rule snapshotted from the source template, so the
+   *  logger can surface a deterministic +load bump (not just the ghost). */
+  progression?: ProgressionRule;
   sets: WorkoutSet[];
 }
 
@@ -114,6 +117,7 @@ export function templateToSessionExercises(template: WorkoutTemplate): SessionEx
       targetLoad: ex.targetLoad,
       cues: ex.cues ?? [],
       logStyle: ex.logStyle,
+      progression: ex.progression,
       sets: planned.map((ps) => ({
         kind: ps.kind,
         group: ps.group,

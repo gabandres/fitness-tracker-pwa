@@ -25,6 +25,7 @@ import {
   type ExerciseDraft,
   type LogStyle,
   type SessionExercise,
+  type SetKind,
   type TemplateDraft,
   type TemplateExercise,
   type WorkoutSession,
@@ -77,6 +78,9 @@ export interface TrainState {
   addCluster: (exerciseIndex: number) => Promise<void>;
   /** Edit a set field locally (no write); call commitActive to persist. */
   editSet: (exerciseIndex: number, setIndex: number, patch: Partial<WorkoutSet>) => void;
+  /** Change a set's `kind`, re-derive cluster groups for the exercise, and
+   *  persist (kind changes can form/dissolve a cluster). */
+  setSetKind: (exerciseIndex: number, setIndex: number, kind: SetKind) => Promise<void>;
   removeSet: (exerciseIndex: number, setIndex: number) => Promise<void>;
   /** Flush the local active session to Firestore (call on input blur). */
   commitActive: () => Promise<void>;
@@ -324,6 +328,26 @@ export function useTrain(): TrainState {
     });
   }, []);
 
+  const setSetKind = useCallback(
+    async (exerciseIndex: number, setIndex: number, kind: SetKind) => {
+      if (!active) return;
+      const exercises = active.exercises.map((ex, i) =>
+        i === exerciseIndex
+          ? {
+              ...ex,
+              sets: normalizeClusterGroups(
+                ex.sets.map((s, j) => (j === setIndex ? { ...s, kind } : s)),
+              ),
+            }
+          : ex,
+      );
+      const next = { ...active, exercises };
+      setActive(next);
+      await persist(next);
+    },
+    [active, persist],
+  );
+
   const removeSet = useCallback(
     async (exerciseIndex: number, setIndex: number) => {
       if (!active) return;
@@ -408,6 +432,7 @@ export function useTrain(): TrainState {
     addSet,
     addCluster,
     editSet,
+    setSetKind,
     removeSet,
     commitActive,
     finishWorkout,

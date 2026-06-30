@@ -46,6 +46,14 @@ const LOG_STYLES: { value: LogStyle; labelKey: I18nKey }[] = [
   { value: 'time', labelKey: 'logStyle.time' },
 ];
 
+const SET_KINDS: { value: WorkoutSet['kind']; labelKey: I18nKey }[] = [
+  { value: 'warmup', labelKey: 'train.kind.warmup' },
+  { value: 'working', labelKey: 'train.kind.working' },
+  { value: 'activation', labelKey: 'train.kind.activation' },
+  { value: 'mini', labelKey: 'train.kind.mini' },
+  { value: 'drop', labelKey: 'train.kind.drop' },
+];
+
 export default function Train() {
   const t = useT();
   const train = useTrain();
@@ -642,13 +650,16 @@ function ExerciseCard({
   const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
   const [panelOpen, setPanelOpen] = useState(false);
 
-  // "Last time" ghost from prior completed sessions (no rule snapshotted on
-  // mobile yet, so this surfaces the last key set, not an auto-bump).
+  // "Last time" ghost + deterministic +load bump. The progression rule is
+  // snapshotted from the source template onto the session exercise (ad-hoc
+  // exercises carry none → ghost only, no bump).
   const history = useMemo(
     () => exerciseHistory(train.recentSessions, ex.exerciseId),
     [train.recentSessions, ex.exerciseId],
   );
-  const ghost = lastHint(suggestProgression(history, undefined, style), style, t);
+  const sug = suggestProgression(history, ex.progression, style);
+  const ghost = lastHint(sug, style, t);
+  const bumpTo = sug.bumped ? sug.suggestedWeight : undefined;
 
   // Plate + warm-up math keys off the first loaded set's weight, else the
   // snapshotted target load. Barbell-only (weight-reps).
@@ -663,6 +674,22 @@ function ExerciseCard({
         <View style={{ flex: 1 }}>
           <Text style={styles.exName}>{ex.name}</Text>
           {ghost ? <Text style={styles.ghost}>{ghost}</Text> : null}
+          {bumpTo != null ? (
+            <TouchableOpacity
+              style={styles.bumpChip}
+              onPress={() => {
+                haptics.tap();
+                const idx = ex.sets.findIndex((s) => isWorkingSet(s));
+                if (idx >= 0) {
+                  train.editSet(exerciseIndex, idx, { weight: bumpTo });
+                  train.commitActive();
+                }
+              }}
+              testID={`bump-${exerciseIndex}`}
+            >
+              <Text style={styles.bumpText}>{t('train.bumpTo', { weight: bumpTo })}</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
         <TouchableOpacity onPress={() => train.removeExercise(exerciseIndex)} hitSlop={8}>
           <Text style={styles.exRemove}>{t('common.remove')}</Text>
@@ -786,6 +813,8 @@ function SetRow({
       : set.reps != null ? String(set.reps) : '',
   );
   const [rir, setRir] = useState(set.rir != null ? String(set.rir) : '');
+  const t = useT();
+  const [kindOpen, setKindOpen] = useState(false);
 
   const commit = () => train.commitActive();
   // RIR is meaningful on real working effort, not warmups/back-offs.
@@ -794,8 +823,15 @@ function SetRow({
   const label = set.group != null ? `C${set.group}` : String(number);
 
   return (
+   <View>
     <View style={styles.setRow}>
-      <Text style={[styles.setNumCell, styles.setNum, set.group != null && styles.setNumCluster]}>{label}</Text>
+      <TouchableOpacity
+        style={styles.setNumCell}
+        onPress={() => setKindOpen((o) => !o)}
+        testID={`set-kind-${exerciseIndex}-${setIndex}`}
+      >
+        <Text style={[styles.setNum, set.group != null && styles.setNumCluster]}>{label}</Text>
+      </TouchableOpacity>
 
       {logStyle === 'weight-reps' ? (
         <TextInput
@@ -864,6 +900,32 @@ function SetRow({
         <Text style={styles.setDelText}>✕</Text>
       </TouchableOpacity>
     </View>
+
+    {kindOpen ? (
+      <View style={styles.kindPicker}>
+        <Text style={styles.kindPickerLabel}>{t('train.setType')}</Text>
+        <View style={styles.kindChips}>
+          {SET_KINDS.map((k) => {
+            const on = set.kind === k.value;
+            return (
+              <TouchableOpacity
+                key={k.value}
+                style={[styles.kindChip, on && styles.kindChipOn]}
+                onPress={() => {
+                  haptics.tap();
+                  train.setSetKind(exerciseIndex, setIndex, k.value);
+                  setKindOpen(false);
+                }}
+                testID={`set-kind-${exerciseIndex}-${setIndex}-${k.value}`}
+              >
+                <Text style={[styles.kindChipText, on && styles.kindChipTextOn]}>{t(k.labelKey)}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    ) : null}
+   </View>
   );
 }
 
@@ -1335,6 +1397,20 @@ const styles = StyleSheet.create({
   setNumCell: { width: 24 },
   setNum: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   setNumCluster: { color: colors.accent, fontWeight: '800' },
+  kindPicker: { paddingVertical: space.sm, gap: space.xs },
+  kindPickerLabel: { fontSize: font.tiny, color: colors.muted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
+  kindChips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  kindChip: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.sm,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.xs,
+    backgroundColor: colors.white,
+  },
+  kindChipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  kindChipText: { fontSize: font.tiny, color: colors.muted, fontWeight: '600' },
+  kindChipTextOn: { color: colors.white },
   setInputCell: { width: 62, textAlign: 'center' },
   setRirCell: { width: 40, textAlign: 'center' },
   setInput: {
@@ -1511,6 +1587,15 @@ const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.4 },
   // plates & warm-up panel
   ghost: { fontSize: font.tiny, color: colors.muted, marginTop: 1 },
+  bumpChip: {
+    alignSelf: 'flex-start',
+    marginTop: space.xs,
+    backgroundColor: colors.ring,
+    borderRadius: radius.sm,
+    paddingHorizontal: space.sm,
+    paddingVertical: 2,
+  },
+  bumpText: { fontSize: font.tiny, color: colors.white, fontWeight: '800' },
   panelToggle: { paddingVertical: space.xs, alignSelf: 'flex-start' },
   panelToggleText: { fontSize: font.tiny, color: colors.accent, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
   panel: {
