@@ -49,9 +49,16 @@ export interface BodyState {
   /** Linear-fit weight trend + projected goal date, or null when there
    *  aren't enough weigh-ins to fit a line. */
   projection: WeightProjection | null;
+  /** Last 14 days of daily weights (oldest → newest) for the sparkline. */
+  weightSeries: number[];
+  /** 7-day dashed forecast stepping from the last weight along the fitted
+   *  slope, or [] when there's no trend. */
+  projectedSeries: number[];
 }
 
 const PROJECTION_WINDOW_DAYS = 28;
+const SPARK_DAYS = 14;
+const FORECAST_DAYS = 7;
 
 export function useBody(): BodyState {
   const { user } = useAuth();
@@ -117,6 +124,25 @@ export function useBody(): BodyState {
     return projectWeight(points, profile?.goalWeightLbs ?? profile?.targetWeightLbs ?? null);
   }, [weights, profile]);
 
+  // 14-day weight line (oldest → newest), missed days dropped.
+  const weightSeries = useMemo<number[]>(() => {
+    const today = new Date();
+    const out: number[] = [];
+    for (let i = SPARK_DAYS - 1; i >= 0; i--) {
+      const v = weights[localDateKey(addDays(today, -i))];
+      if (typeof v === 'number') out.push(v);
+    }
+    return out;
+  }, [weights]);
+
+  // Dashed forecast: step from the last plotted weight along the fitted slope.
+  const projectedSeries = useMemo<number[]>(() => {
+    if (!projection || weightSeries.length < 2) return [];
+    const last = weightSeries[weightSeries.length - 1];
+    const perDay = projection.slopeLbPerWeek / 7;
+    return Array.from({ length: FORECAST_DAYS }, (_, k) => +(last + perDay * (k + 1)).toFixed(1));
+  }, [projection, weightSeries]);
+
   const setWeight = useCallback(
     async (weight: number, dateKey?: string) => {
       if (uid) await setDailyWeight(uid, dateKey ?? todayKey, weight);
@@ -149,5 +175,7 @@ export function useBody(): BodyState {
     addMeasurement,
     deleteMeasurement,
     projection,
+    weightSeries,
+    projectedSeries,
   };
 }

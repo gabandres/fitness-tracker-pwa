@@ -27,7 +27,11 @@ export interface TrendsState {
   /** Adaptive TDEE engine state (maintenance estimate + mode). */
   tdee: TdeeResult;
   targetCalories: number;
+  /** Last 14 days of daily weights (oldest → newest) for the weight chart. */
+  weightSeries: number[];
 }
+
+const SPARK_DAYS = 14;
 
 export function useTrends(): TrendsState {
   const { user } = useAuth();
@@ -77,11 +81,22 @@ export function useTrends(): TrendsState {
     return computeWeeklyInsights(summaries, targets.calorieTarget, points);
   }, [logs, weights, targets]);
 
+  const weightSeries = useMemo<number[]>(() => {
+    const today = new Date();
+    const out: number[] = [];
+    for (let i = SPARK_DAYS - 1; i >= 0; i--) {
+      const v = weights[localDateKey(addDays(today, -i))];
+      if (typeof v === 'number') out.push(v);
+    }
+    return out;
+  }, [weights]);
+
   return {
     loading,
     error,
     insights,
     tdee: targets.tdee,
     targetCalories: targets.calorieTarget,
+    weightSeries,
   };
 }

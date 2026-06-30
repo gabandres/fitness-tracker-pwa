@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type Measurement, parseYmd } from '@macrolog/core';
+import { Sparkline } from '@/components/Sparkline';
 import { useBody } from '@/hooks/useBody';
 import { usePhotos } from '@/hooks/usePhotos';
 import { type I18nKey, type TFn, useT } from '@/i18n';
@@ -51,6 +52,8 @@ export default function Body() {
     addMeasurement,
     deleteMeasurement,
     projection,
+    weightSeries,
+    projectedSeries,
   } = useBody();
   const t = useT();
   const photos = usePhotos();
@@ -77,6 +80,12 @@ export default function Body() {
           <Text style={styles.heroCaption}>
             {todayWeight != null ? t('body.todayWeighIn') : t('body.recentWeight')}
           </Text>
+
+          {weightSeries.length >= 2 ? (
+            <View style={styles.chartWrap} testID="weight-chart">
+              <Sparkline values={weightSeries} projection={projectedSeries} width={300} height={64} color={colors.ink} />
+            </View>
+          ) : null}
 
           <TouchableOpacity style={styles.logBtn} onPress={() => setOpen(true)} testID="log-weight">
             <Text style={styles.logBtnText}>{todayWeight != null ? t('body.updateWeight') : t('body.logWeight')}</Text>
@@ -390,6 +399,7 @@ const styles = StyleSheet.create({
   heroValue: { fontSize: 56, fontWeight: '800', color: colors.ink, lineHeight: 60 },
   heroUnit: { fontSize: font.h2, color: colors.muted, marginBottom: space.sm },
   heroCaption: { textAlign: 'center', color: colors.muted, fontSize: font.small },
+  chartWrap: { alignItems: 'center', marginTop: space.md },
   logBtn: {
     backgroundColor: colors.ink,
     borderRadius: radius.md,

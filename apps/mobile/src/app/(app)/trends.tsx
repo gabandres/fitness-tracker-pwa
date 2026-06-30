@@ -1,6 +1,7 @@
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type TdeeResult, parseYmd } from '@macrolog/core';
+import { Sparkline } from '@/components/Sparkline';
 import { useTrends } from '@/hooks/useTrends';
 import { type I18nKey, useT } from '@/i18n';
 import { colors, font, radius, space } from '@/theme';
@@ -17,7 +18,7 @@ const TDEE_MODE: Record<TdeeResult['source'], { labelKey: I18nKey; hintKey: I18n
 
 export default function Trends() {
   const t = useT();
-  const { loading, error, insights, tdee, targetCalories } = useTrends();
+  const { loading, error, insights, tdee, targetCalories, weightSeries } = useTrends();
   const mode = TDEE_MODE[tdee.source];
 
   return (
@@ -55,6 +56,16 @@ export default function Trends() {
               <Text style={styles.kvValue}>{targetCalories > 0 ? `${targetCalories.toLocaleString()} kcal` : '—'}</Text>
             </View>
           </View>
+
+          {/* Weight chart */}
+          {weightSeries.length >= 2 ? (
+            <>
+              <Text style={styles.section}>{t('trends.weightTrend')}</Text>
+              <View style={styles.card} testID="trends-weight-chart">
+                <Sparkline values={weightSeries} width={300} height={70} color={colors.ink} />
+              </View>
+            </>
+          ) : null}
 
           {/* Weekly insights */}
           <Text style={styles.section}>{t('trends.thisWeek')}</Text>
