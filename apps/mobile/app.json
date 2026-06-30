@@ -45,6 +45,13 @@
         {
           "cameraPermission": "Macro Log uses the camera to scan food barcodes."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Macro Log uses your photos to track progress pictures.",
+          "cameraPermission": "Macro Log uses the camera to take progress photos."
+        }
       ]
     ],
     "extra": {

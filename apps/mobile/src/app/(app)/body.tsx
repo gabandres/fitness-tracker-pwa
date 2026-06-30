@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -15,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type Measurement, parseYmd } from '@macrolog/core';
 import { useBody } from '@/hooks/useBody';
+import { usePhotos } from '@/hooks/usePhotos';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
 
@@ -49,6 +51,7 @@ export default function Body() {
     deleteMeasurement,
     projection,
   } = useBody();
+  const photos = usePhotos();
   const [open, setOpen] = useState(false);
   const [measureOpen, setMeasureOpen] = useState(false);
 
@@ -128,6 +131,40 @@ export default function Body() {
                 </Pressable>
               ))}
             </View>
+          )}
+
+          <View style={styles.measureHeader}>
+            <Text style={styles.sectionTitle}>Progress photos</Text>
+            <TouchableOpacity
+              onPress={() => photos.addPhoto(currentWeight ?? undefined)}
+              disabled={photos.uploading}
+              testID="add-photo"
+              hitSlop={8}
+            >
+              <Text style={[styles.addLink, photos.uploading && styles.addLinkDisabled]}>
+                {photos.uploading ? 'Uploading…' : '+ Add'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {photos.photos.length === 0 ? (
+            <Text style={styles.empty}>No photos yet. Add one to track visible progress over time.</Text>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoRow}>
+              {photos.photos.map((p) =>
+                p.url ? (
+                  <Pressable
+                    key={p.dateKey}
+                    onLongPress={() => photos.deletePhoto(p.dateKey)}
+                    testID={`photo-${p.dateKey}`}
+                  >
+                    <Image source={{ uri: p.url }} style={styles.photo} />
+                    <Text style={styles.photoDate}>
+                      {p.takenAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </Text>
+                  </Pressable>
+                ) : null,
+              )}
+            </ScrollView>
           )}
 
           <Text style={styles.sectionTitle}>History</Text>
@@ -388,6 +425,10 @@ const styles = StyleSheet.create({
   bfValue: { fontSize: font.h1, fontWeight: '800', color: colors.ink },
   measureHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.md },
   addLink: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
+  addLinkDisabled: { color: colors.faint },
+  photoRow: { gap: space.sm, paddingVertical: space.xs },
+  photo: { width: 120, height: 160, borderRadius: radius.md, backgroundColor: colors.line },
+  photoDate: { fontSize: font.tiny, color: colors.muted, marginTop: 4, textAlign: 'center' },
   rowMeasure: { fontSize: font.small, fontWeight: '600', color: colors.ink },
   sheetHint: { fontSize: font.small, color: colors.muted, marginBottom: space.md },
   measureGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
