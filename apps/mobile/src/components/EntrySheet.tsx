@@ -13,7 +13,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { MEAL_TYPES, type DailyLog, type LogEntry, type MealType } from '@macrolog/core';
+import {
+  MEAL_TYPES,
+  type DailyLog,
+  type LogEntry,
+  type MealPreset,
+  type MealType,
+} from '@macrolog/core';
+import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
 
 interface Props {
@@ -23,6 +30,12 @@ interface Props {
   onSave: (entry: LogEntry) => Promise<void> | void;
   onDelete?: () => Promise<void> | void;
   onClose: () => void;
+  /** Quick-add data + handlers. Only surfaced when adding (not editing). */
+  presets?: MealPreset[];
+  recentEntries?: DailyLog[];
+  onSavePreset?: (preset: Omit<MealPreset, 'id'>) => Promise<void> | void;
+  onDeletePreset?: (id: string) => Promise<void> | void;
+  onHideRecent?: (label: string) => Promise<void> | void;
 }
 
 /** Keep numeric fields as raw strings so partial input ("12.", "1.5")
@@ -36,7 +49,18 @@ function numOrUndef(s: string): number | undefined {
 
 const SHEET_OFFSCREEN = Dimensions.get('window').height;
 
-export function EntrySheet({ visible, editing, onSave, onDelete, onClose }: Props) {
+export function EntrySheet({
+  visible,
+  editing,
+  onSave,
+  onDelete,
+  onClose,
+  presets = [],
+  recentEntries = [],
+  onSavePreset,
+  onDeletePreset,
+  onHideRecent,
+}: Props) {
   const [label, setLabel] = useState('');
   const [calories, setCalories] = useState('');
   const [protein, setProtein] = useState('');
@@ -44,6 +68,7 @@ export function EntrySheet({ visible, editing, onSave, onDelete, onClose }: Prop
   const [fat, setFat] = useState('');
   const [mealType, setMealType] = useState<MealType | undefined>(undefined);
   const [busy, setBusy] = useState(false);
+  const [manage, setManage] = useState(false);
 
   // Keep the Modal mounted through the exit animation. `anim` drives both the
   // backdrop fade and the sheet's translateY (0 = hidden, 1 = shown), so the
@@ -79,7 +104,37 @@ export function EntrySheet({ visible, editing, onSave, onDelete, onClose }: Prop
     setFat(editing?.fat != null ? String(editing.fat) : '');
     setMealType(editing?.mealType);
     setBusy(false);
+    setManage(false);
   }, [visible, editing]);
+
+  /** Prefill the form from a quick-add chip (preset or recent meal). The
+   *  user lands on a populated manual form so they can tweak before saving,
+   *  matching the PWA's "bounce to manual segment" behavior. */
+  function prefill(src: { calories: number; protein?: number; carbs?: number; fat?: number; mealLabel?: string }) {
+    haptics.tap();
+    setLabel(src.mealLabel ?? '');
+    setCalories(String(src.calories));
+    setProtein(src.protein != null ? String(src.protein) : '');
+    setCarbs(src.carbs != null ? String(src.carbs) : '');
+    setFat(src.fat != null ? String(src.fat) : '');
+  }
+
+  const showQuickAdd = !editing && (presets.length > 0 || recentEntries.length > 0);
+  const canSavePreset =
+    !editing && onSavePreset != null && label.trim().length > 0 && numOrUndef(calories) != null;
+
+  async function saveAsPreset() {
+    const cal = numOrUndef(calories);
+    if (!onSavePreset || !label.trim() || cal == null) return;
+    haptics.tap();
+    await onSavePreset({
+      name: label.trim(),
+      calories: cal,
+      protein: numOrUndef(protein),
+      carbs: numOrUndef(carbs),
+      fat: numOrUndef(fat),
+    });
+  }
 
   // Memoize the animated nodes + style objects so they keep a stable identity
   // across the re-renders that every keystroke triggers. Recreating the
@@ -142,6 +197,57 @@ export function EntrySheet({ visible, editing, onSave, onDelete, onClose }: Prop
           <Text style={styles.title}>{editing ? 'Edit entry' : 'Add food'}</Text>
 
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.form}>
+            {showQuickAdd ? (
+              <View style={styles.quickAdd}>
+                <View style={styles.quickHeader}>
+                  <Text style={styles.fieldLabel}>Quick add</Text>
+                  {presets.length > 0 && (onDeletePreset || onHideRecent) ? (
+                    <TouchableOpacity onPress={() => setManage((m) => !m)} hitSlop={8}>
+                      <Text style={[styles.manageText, manage && styles.manageTextOn]}>
+                        {manage ? 'Done' : 'Manage'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+                <View style={styles.chips}>
+                  {presets.map((p) => (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={[styles.qChip, manage && styles.qChipManage]}
+                      onPress={() =>
+                        manage
+                          ? p.id && onDeletePreset?.(p.id)
+                          : prefill({ calories: p.calories, protein: p.protein, carbs: p.carbs, fat: p.fat, mealLabel: p.name })
+                      }
+                    >
+                      {manage ? <Text style={styles.qChipX}>✕</Text> : null}
+                      <Text style={[styles.qChipText, manage && styles.qChipTextManage]} numberOfLines={1}>
+                        {p.name}
+                      </Text>
+                      <Text style={styles.qChipKcal}>{p.calories}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  {recentEntries.map((r) => (
+                    <TouchableOpacity
+                      key={r.id}
+                      style={[styles.qChip, styles.qChipRecent, manage && styles.qChipManage]}
+                      onPress={() =>
+                        manage
+                          ? r.mealLabel && onHideRecent?.(r.mealLabel)
+                          : prefill(r)
+                      }
+                    >
+                      {manage ? <Text style={styles.qChipX}>✕</Text> : null}
+                      <Text style={[styles.qChipText, manage && styles.qChipTextManage]} numberOfLines={1}>
+                        {r.mealLabel}
+                      </Text>
+                      <Text style={styles.qChipKcal}>{r.calories}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
             <Field label="Name (optional)">
               <TextInput
                 style={styles.input}
@@ -193,6 +299,12 @@ export function EntrySheet({ visible, editing, onSave, onDelete, onClose }: Prop
                 })}
               </View>
             </Field>
+
+            {canSavePreset ? (
+              <TouchableOpacity style={styles.savePreset} onPress={saveAsPreset} testID="save-preset">
+                <Text style={styles.savePresetText}>★ Save as preset</Text>
+              </TouchableOpacity>
+            ) : null}
           </ScrollView>
 
           <View style={styles.actions}>
@@ -240,6 +352,30 @@ const styles = StyleSheet.create({
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line, marginBottom: space.md },
   title: { fontSize: font.h2, fontWeight: '800', color: colors.ink, marginBottom: space.md },
   form: { gap: space.md, paddingBottom: space.md },
+  quickAdd: { gap: space.xs },
+  quickHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  manageText: { fontSize: font.tiny, color: colors.muted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  manageTextOn: { color: colors.danger },
+  qChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.md,
+    paddingVertical: space.xs,
+    backgroundColor: colors.white,
+    maxWidth: '100%',
+  },
+  qChipRecent: { borderStyle: 'dashed' },
+  qChipManage: { borderColor: colors.danger },
+  qChipX: { fontSize: font.small, color: colors.danger, fontWeight: '700' },
+  qChipText: { fontSize: font.small, color: colors.ink, fontWeight: '600', flexShrink: 1 },
+  qChipTextManage: { color: colors.danger },
+  qChipKcal: { fontSize: font.tiny, color: colors.muted },
+  savePreset: { alignSelf: 'flex-start', paddingVertical: space.xs },
+  savePresetText: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
   row: { flexDirection: 'row', gap: space.sm },
   third: { flex: 1 },
   fieldLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },

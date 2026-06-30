@@ -15,6 +15,7 @@ import {
 import type {
   DailyLog,
   LogEntry,
+  MealPreset,
   OnboardingV2Submission,
   Profile,
   UnitSystem,
@@ -31,6 +32,8 @@ const logsCol = (uid: string) => collection(db, 'users', uid, 'dailyLogs');
 const logDoc = (uid: string, id: string) => doc(db, 'users', uid, 'dailyLogs', id);
 const weightsCol = (uid: string) => collection(db, 'users', uid, 'dailyWeights');
 const weightDoc = (uid: string, dateKey: string) => doc(db, 'users', uid, 'dailyWeights', dateKey);
+const presetsCol = (uid: string) => collection(db, 'users', uid, 'presets');
+const presetDoc = (uid: string, id: string) => doc(db, 'users', uid, 'presets', id);
 const userDoc = (uid: string) => doc(db, 'users', uid);
 
 type Unsub = () => void;
@@ -175,4 +178,51 @@ export async function saveOnboardingV2(uid: string, s: OnboardingV2Submission): 
 /** Portion-display unit system (`us` | `metric`). */
 export async function setUnitSystem(uid: string, unitSystem: UnitSystem): Promise<void> {
   await updateDoc(userDoc(uid), { unitSystem });
+}
+
+/** Append `hiddenRecentLabels` to the profile. Mirrors the PWA's
+ *  `FirebaseService.hideRecentLabel` — the next array is computed by the
+ *  caller (the hook holds the live profile) and written whole, so this
+ *  stays a single field write the rules already permit. */
+export async function setHiddenRecentLabels(uid: string, labels: string[]): Promise<void> {
+  await updateDoc(userDoc(uid), { hiddenRecentLabels: labels });
+}
+
+// ─── Meal presets ───────────────────────────────────────────────
+// users/{uid}/presets/{id} — quick-add templates. Shape mirrors the PWA
+// FirestoreLedgerCore.addPreset (name + calories required; macros optional).
+function toPreset(id: string, data: Record<string, unknown>): MealPreset {
+  return {
+    id,
+    name: (data['name'] as string) ?? '',
+    calories: (data['calories'] as number) ?? 0,
+    protein: data['protein'] as number | undefined,
+    carbs: data['carbs'] as number | undefined,
+    fat: data['fat'] as number | undefined,
+  };
+}
+
+export function subscribePresets(
+  uid: string,
+  cb: (presets: MealPreset[]) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    presetsCol(uid),
+    (snap) => cb(snap.docs.map((d) => toPreset(d.id, d.data()))),
+    onError,
+  );
+}
+
+export async function addPreset(uid: string, preset: Omit<MealPreset, 'id'>): Promise<string> {
+  const data: Record<string, unknown> = { name: preset.name, calories: preset.calories };
+  if (preset.protein != null) data['protein'] = preset.protein;
+  if (preset.carbs != null) data['carbs'] = preset.carbs;
+  if (preset.fat != null) data['fat'] = preset.fat;
+  const ref = await addDoc(presetsCol(uid), data);
+  return ref.id;
+}
+
+export async function deletePreset(uid: string, id: string): Promise<void> {
+  await deleteDoc(presetDoc(uid, id));
 }

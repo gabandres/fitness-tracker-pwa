@@ -24,7 +24,21 @@ function todayLabel(): string {
 
 export default function Today() {
   const router = useRouter();
-  const { loading, error, summary, targets, todayLogs, addEntry, updateEntry, deleteEntry } = useToday();
+  const {
+    loading,
+    error,
+    summary,
+    targets,
+    todayLogs,
+    presets,
+    recentEntries,
+    addEntry,
+    updateEntry,
+    deleteEntry,
+    addPreset,
+    deletePreset,
+    hideRecent,
+  } = useToday();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<DailyLog | null>(null);
 
@@ -134,6 +148,11 @@ export default function Today() {
         onSave={onSave}
         onDelete={editing ? onDelete : undefined}
         onClose={() => setSheetOpen(false)}
+        presets={presets}
+        recentEntries={recentEntries}
+        onSavePreset={addPreset}
+        onDeletePreset={deletePreset}
+        onHideRecent={hideRecent}
       />
     </SafeAreaView>
   );
