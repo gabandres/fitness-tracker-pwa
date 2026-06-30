@@ -27,10 +27,14 @@ import type {
 import { DEFAULT_LOG_STYLE, isLoggedSet, sessionVolume } from '@/lib/workout';
 import {
   type ProgressionSuggestion,
+  computeExercisePRs,
   computePlateLoad,
+  estimateOneRepMax,
   generateWarmup,
+  isWorkingSet,
   suggestProgression,
 } from '@macrolog/core';
+import { Sparkline } from '@/components/Sparkline';
 import { type I18nKey, type TFn, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
@@ -66,6 +70,7 @@ function StartView({ train }: { train: ReturnType<typeof useTrain> }) {
   const t = useT();
   // null = closed; a template = edit it; {} = create new.
   const [editing, setEditing] = useState<WorkoutTemplate | Record<string, never> | null>(null);
+  const [detailEx, setDetailEx] = useState<Exercise | null>(null);
 
   return (
     <ScrollView contentContainerStyle={styles.body}>
@@ -137,13 +142,153 @@ function StartView({ train }: { train: ReturnType<typeof useTrain> }) {
         </View>
       )}
 
+      {train.catalog.length ? (
+        <>
+          <Text style={styles.sectionTitle}>{t('train.exercises')}</Text>
+          <View style={styles.list}>
+            {train.catalog.map((e) => (
+              <Pressable
+                key={e.id}
+                style={styles.exLibRow}
+                onPress={() => setDetailEx(e)}
+                testID={`exercise-${e.id}`}
+              >
+                <Text style={styles.histDate}>{e.name}</Text>
+                <Text style={styles.histSub}>{t(logStyleKey(e.logStyle))}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : null}
+
       <TemplateEditorModal
         visible={editing !== null}
         train={train}
         template={editing && 'id' in editing ? (editing as WorkoutTemplate) : null}
         onClose={() => setEditing(null)}
       />
+      <ExerciseDetailModal
+        visible={detailEx !== null}
+        exercise={detailEx}
+        train={train}
+        onClose={() => setDetailEx(null)}
+      />
     </ScrollView>
+  );
+}
+
+// ─── Per-exercise history + e1RM ────────────────────────────────
+/** One metric point per completed session for an exercise, oldest-first
+ *  (for the sparkline). Metric by logStyle: e1RM (weight-reps), max reps
+ *  (bodyweight), max hold (time). Sessions with no qualifying set drop out. */
+function exerciseSeries(history: SessionExercise[], style: LogStyle): number[] {
+  const pts: number[] = [];
+  for (const ex of history) {
+    let metric = 0;
+    for (const s of ex.sets) {
+      if (!isWorkingSet(s)) continue;
+      if (style === 'time') metric = Math.max(metric, s.durationSec ?? 0);
+      else if (style === 'bodyweight') metric = Math.max(metric, s.reps ?? 0);
+      else metric = Math.max(metric, estimateOneRepMax(s.weight, s.reps));
+    }
+    if (metric > 0) pts.push(Math.round(metric));
+  }
+  return pts.reverse(); // history is newest-first → oldest-first for the chart
+}
+
+/** Working-set summary line for one logged exercise, by logStyle. */
+function setLine(ex: SessionExercise, style: LogStyle): string {
+  const parts = ex.sets
+    .filter(isWorkingSet)
+    .map((s) => {
+      if (style === 'time') return s.durationSec != null ? `${s.durationSec}s` : null;
+      if (style === 'bodyweight') return s.reps != null ? `${s.reps}` : null;
+      return s.weight != null && s.reps != null ? `${s.weight}×${s.reps}` : null;
+    })
+    .filter((p): p is string => p != null);
+  return parts.join('   ');
+}
+
+function ExerciseDetailModal({
+  visible,
+  exercise,
+  train,
+  onClose,
+}: {
+  visible: boolean;
+  exercise: Exercise | null;
+  train: ReturnType<typeof useTrain>;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const style = exercise?.logStyle ?? DEFAULT_LOG_STYLE;
+  const rows = exercise
+    ? train.recentSessions
+        .map((s) => ({ date: s.date, ex: s.exercises.find((e) => e.exerciseId === exercise.id) }))
+        .filter((r): r is { date: Date; ex: SessionExercise } => r.ex != null)
+    : [];
+  const history = rows.map((r) => r.ex);
+  const series = exerciseSeries(history, style);
+  const prs = computeExercisePRs(history);
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} />
+      <View style={styles.sheetWrap}>
+        <View style={styles.sheet}>
+          <View style={styles.handle} />
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <Text style={styles.sheetTitle}>{exercise?.name}</Text>
+
+            {history.length === 0 ? (
+              <Text style={styles.empty}>{t('train.noExHistory')}</Text>
+            ) : (
+              <>
+                <View style={styles.prRow}>
+                  {style === 'weight-reps' ? (
+                    <>
+                      <PrCard label={t('train.prWeight')} value={`${prs.maxWeight} lb`} />
+                      <PrCard label={t('train.prE1rm')} value={`${Math.round(prs.bestE1RM)} lb`} />
+                    </>
+                  ) : null}
+                  {style === 'bodyweight' ? <PrCard label={t('train.prReps')} value={`${prs.maxReps}`} /> : null}
+                  {style === 'time' ? <PrCard label={t('train.prHold')} value={`${prs.maxDurationSec}s`} /> : null}
+                </View>
+
+                {series.length >= 2 ? (
+                  <View style={styles.chartWrap}>
+                    <Text style={styles.panelLabel}>
+                      {style === 'time' ? t('train.trendHold') : style === 'bodyweight' ? t('train.trendReps') : t('train.trendE1rm')}
+                    </Text>
+                    <Sparkline values={series} color={colors.ring} />
+                  </View>
+                ) : null}
+
+                <Text style={[styles.panelLabel, { marginTop: space.md }]}>{t('train.history')}</Text>
+                {rows.map((r, i) => (
+                  <View key={i} style={styles.detailRow}>
+                    <Text style={styles.detailDate}>
+                      {r.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </Text>
+                    <Text style={styles.detailSets}>{setLine(r.ex, style)}</Text>
+                  </View>
+                ))}
+              </>
+            )}
+            <View style={{ height: 24 }} />
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function PrCard({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.prCard}>
+      <Text style={styles.prValue}>{value}</Text>
+      <Text style={styles.prLabel}>{label}</Text>
+    </View>
   );
 }
 
@@ -1147,4 +1292,31 @@ const styles = StyleSheet.create({
   restActions: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
   restPlus: { color: colors.white, fontWeight: '700', fontSize: font.small, opacity: 0.85 },
   restSkip: { color: colors.ring, fontWeight: '800', fontSize: font.small, textTransform: 'uppercase', letterSpacing: 0.5 },
+  // exercise library + detail
+  exLibRow: {
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+    gap: 2,
+  },
+  prRow: { flexDirection: 'row', gap: space.sm, marginTop: space.sm },
+  prCard: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingVertical: space.md,
+    paddingHorizontal: space.md,
+    gap: 2,
+  },
+  prValue: { fontSize: font.h3, fontWeight: '800', color: colors.ink },
+  prLabel: { fontSize: font.tiny, color: colors.muted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.3 },
+  chartWrap: { marginTop: space.md, gap: space.xs },
+  detailRow: { flexDirection: 'row', gap: space.md, paddingVertical: space.sm, borderBottomWidth: 1, borderBottomColor: colors.line },
+  detailDate: { width: 56, fontSize: font.small, color: colors.muted, fontWeight: '700' },
+  detailSets: { flex: 1, fontSize: font.small, color: colors.ink },
 });
