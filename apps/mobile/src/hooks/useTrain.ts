@@ -34,7 +34,16 @@ import {
   dropEmptySets,
   templateToSessionExercises,
 } from '@/lib/workout';
-import { type SeedTemplate, findSeedExercise } from '@/lib/workout-seed';
+import {
+  type SeedTemplate,
+  findSeedExercise,
+  seedExerciseCues,
+  seedExerciseName,
+  seedTemplateExerciseCues,
+  seedTemplateName,
+  seedTemplateNotes,
+} from '@/lib/workout-seed';
+import { useLocale } from '@/i18n';
 
 export interface TrainState {
   loading: boolean;
@@ -99,6 +108,7 @@ function newSet(): WorkoutSet {
 export function useTrain(): TrainState {
   const { user } = useAuth();
   const uid = user?.uid;
+  const es = useLocale() === 'es-PR';
   const [catalog, setCatalog] = useState<Exercise[]>([]);
   const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
   const [recentSessions, setRecentSessions] = useState<WorkoutSession[]>([]);
@@ -200,35 +210,37 @@ export function useTrain(): TrainState {
       const exercises: TemplateExercise[] = [];
       for (const se of seed.exercises) {
         const lib = findSeedExercise(se.key);
-        const name = lib?.name ?? se.key;
+        // Resolve display name/cues for the active locale, then store as the
+        // user's own data (dedupe by the RESOLVED name so re-cloning reuses it).
+        const name = lib ? seedExerciseName(lib, es) : se.key;
         const existing = catalog.find((c) => c.name.toLowerCase() === name.toLowerCase());
         const id =
           existing?.id ??
           (await addExerciseDoc(uid, {
             name,
             muscles: lib?.muscles ?? [],
-            defaultCues: lib?.defaultCues ?? [],
+            defaultCues: lib ? seedExerciseCues(lib, es) : [],
             logStyle: 'weight-reps',
           }));
         exercises.push({
           exerciseId: id,
           name,
           targetLoad: se.targetLoad,
-          cues: se.cues ?? lib?.defaultCues,
+          cues: seedTemplateExerciseCues(seed.key, se, lib, es),
           logStyle: 'weight-reps',
           progression: se.progression,
           plannedSets: se.plannedSets,
         });
       }
       await addTemplateDoc(uid, {
-        name: seed.name,
-        notes: seed.notes,
+        name: seedTemplateName(seed, es),
+        notes: seedTemplateNotes(seed, es),
         restMiniSec: seed.restMiniSec,
         restClusterSec: seed.restClusterSec,
         exercises,
       });
     },
-    [uid, catalog],
+    [uid, catalog, es],
   );
 
   const addCatalogExercise = useCallback(

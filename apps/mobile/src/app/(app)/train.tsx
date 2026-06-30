@@ -25,7 +25,7 @@ import type {
   WorkoutTemplate,
 } from '@/lib/workout';
 import { DEFAULT_LOG_STYLE, isLoggedSet, sessionVolume } from '@/lib/workout';
-import { type SeedTemplate, STARTER_TEMPLATES } from '@/lib/workout-seed';
+import { type SeedTemplate, STARTER_TEMPLATES, seedTemplateName } from '@/lib/workout-seed';
 import {
   type ProgressionSuggestion,
   computeExercisePRs,
@@ -36,7 +36,7 @@ import {
   suggestProgression,
 } from '@macrolog/core';
 import { Sparkline } from '@/components/Sparkline';
-import { type I18nKey, type TFn, useT } from '@/i18n';
+import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
 
@@ -208,6 +208,7 @@ function StarterTemplatesModal({
   onClose: () => void;
 }) {
   const t = useT();
+  const es = useLocale() === 'es-PR';
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -238,7 +239,7 @@ function StarterTemplatesModal({
             {STARTER_TEMPLATES.map((seed) => (
               <View key={seed.key} style={styles.tplRow}>
                 <View style={styles.tplMain}>
-                  <Text style={styles.histDate}>{seed.name}</Text>
+                  <Text style={styles.histDate}>{seedTemplateName(seed, es)}</Text>
                   <Text style={styles.histSub}>
                     {`${seed.exercises.length} ${seed.exercises.length === 1 ? t('train.exerciseOne') : t('train.exerciseMany')}`}
                   </Text>

@@ -13,7 +13,16 @@ import {
   WorkoutTemplate,
   dropEmptySets,
 } from '../models/workout';
-import { findSeedExercise, type SeedTemplate } from '../models/workout-seed';
+import {
+  findSeedExercise,
+  seedExerciseCues,
+  seedExerciseName,
+  seedTemplateExerciseCues,
+  seedTemplateName,
+  seedTemplateNotes,
+  type SeedTemplate,
+} from '../models/workout-seed';
+import { TranslationService } from './translation.service';
 
 /**
  * Owns Train-tab state: the exercise catalog, workout templates, the
@@ -32,6 +41,7 @@ import { findSeedExercise, type SeedTemplate } from '../models/workout-seed';
 export class WorkoutStore {
   private readonly fb = inject(LEDGER_PORT);
   private readonly subs = inject(SubscriptionService);
+  private readonly i18n = inject(TranslationService);
 
   private readonly _exercises = signal<Exercise[]>([]);
   private readonly _templates = signal<WorkoutTemplate[]>([]);
@@ -143,6 +153,11 @@ export class WorkoutStore {
       throw new TemplateLimitError(CUSTOM_TEMPLATE_LIMIT_FREE);
     }
 
+    // Resolve seed content for the active locale once, then store as the
+    // user's own data (never re-translated). Dedupe by the RESOLVED name so a
+    // re-clone in the same locale reuses the existing catalog entry.
+    const es = this.i18n.language() === 'es-PR';
+
     const byName = new Map(
       this._exercises().map((e) => [e.name.toLowerCase(), e] as const),
     );
@@ -151,21 +166,19 @@ export class WorkoutStore {
     for (const seedEx of seed.exercises) {
       const lib = findSeedExercise(seedEx.key);
       if (!lib) continue; // skip dangling references defensively
-      let entry = byName.get(lib.name.toLowerCase());
+      const name = seedExerciseName(lib, es);
+      const defaultCues = seedExerciseCues(lib, es);
+      let entry = byName.get(name.toLowerCase());
       if (!entry) {
-        const id = await this.fb.addExercise({
-          name: lib.name,
-          muscles: lib.muscles,
-          defaultCues: lib.defaultCues,
-        });
-        entry = { id, name: lib.name, muscles: lib.muscles, defaultCues: lib.defaultCues, createdAt: new Date() };
-        byName.set(lib.name.toLowerCase(), entry);
+        const id = await this.fb.addExercise({ name, muscles: lib.muscles, defaultCues });
+        entry = { id, name, muscles: lib.muscles, defaultCues, createdAt: new Date() };
+        byName.set(name.toLowerCase(), entry);
       }
       exercises.push({
         exerciseId: entry.id!,
         name: entry.name,
         targetLoad: seedEx.targetLoad,
-        cues: seedEx.cues ?? lib.defaultCues,
+        cues: seedTemplateExerciseCues(seed.key, seedEx, lib, es),
         progression: seedEx.progression,
         plannedSets: seedEx.plannedSets,
       });
@@ -175,8 +188,8 @@ export class WorkoutStore {
     this._exercises.set(await this.fb.getExercises());
 
     const id = await this.fb.addTemplate({
-      name: seed.name,
-      notes: seed.notes,
+      name: seedTemplateName(seed, es),
+      notes: seedTemplateNotes(seed, es),
       restMiniSec: seed.restMiniSec,
       restClusterSec: seed.restClusterSec,
       exercises,

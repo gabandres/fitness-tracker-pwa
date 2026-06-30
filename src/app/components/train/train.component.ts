@@ -21,7 +21,7 @@ import { TemplateEditorComponent } from './template-editor.component';
 import { ExerciseDetailComponent } from './exercise-detail.component';
 import { ExercisesManagerComponent } from './exercises-manager.component';
 import type { Exercise } from '../../models/workout';
-import { STARTER_TEMPLATES, type SeedTemplate } from '../../models/workout-seed';
+import { STARTER_TEMPLATES, seedTemplateName, type SeedTemplate } from '../../models/workout-seed';
 import {
   CUSTOM_TEMPLATE_LIMIT_FREE,
   DEFAULT_LOG_STYLE,
@@ -199,7 +199,7 @@ import { suggestProgression } from '../../utils/workout-progression';
               <ui-card variant="flat" class="block">
                 <div class="flex items-center justify-between gap-3">
                   <div>
-                    <h3 class="card-title">{{ seed.name }}</h3>
+                    <h3 class="card-title">{{ starterName(seed) }}</h3>
                     <p class="v2-caption mt-0.5">{{ t('train.exerciseCount', { count: seed.exercises.length }) }}</p>
                   </div>
                   <lucide-icon name="chevron-right" [size]="18" />
@@ -295,11 +295,18 @@ export class TrainComponent {
     () => !this.subs.isPaid() && this.templates().length >= CUSTOM_TEMPLATE_LIMIT_FREE,
   );
 
-  /** Starter templates the user hasn't cloned yet (matched by name). */
+  /** Starter templates the user hasn't cloned yet (matched by localized name,
+   *  since clones store the name in the user's active locale). */
   protected readonly availableStarters = computed(() => {
+    const es = this.i18n.language() === 'es-PR';
     const have = new Set(this.templates().map((tpl) => tpl.name.toLowerCase()));
-    return STARTER_TEMPLATES.filter((s) => !have.has(s.name.toLowerCase()));
+    return STARTER_TEMPLATES.filter((s) => !have.has(seedTemplateName(s, es).toLowerCase()));
   });
+
+  /** Localized display name for a starter template (chooser list). */
+  protected starterName(seed: SeedTemplate): string {
+    return seedTemplateName(seed, this.i18n.language() === 'es-PR');
+  }
 
   protected openSheet(): void {
     this.showSheet.set(true);
