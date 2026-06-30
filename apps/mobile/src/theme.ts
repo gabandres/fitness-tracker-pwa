@@ -1,7 +1,9 @@
 /**
- * Macro Log "paper" design tokens — mirrors the PWA aesthetic
- * (theme-color #f2ead7). Central palette/spacing so screens stay
- * consistent and a future NativeWind migration is mechanical.
+ * Macro Log "Frost" design tokens — a clean, modern LIGHT theme (true-white
+ * canvas, cool-gray cards, big bold numerals, a single blue accent for
+ * rings/CTAs). Replaces the old warm "paper" look (#f2ead7), which read as
+ * dated next to current trackers (Cal AI / Apple Health north star). Central
+ * palette so screens stay consistent and a theme swap is a one-file change.
  *
  * NOTE: v1 styles with React Native StyleSheet rather than NativeWind.
  * NativeWind v4 requires Tailwind v3, which conflicts with the PWA's
@@ -9,18 +11,18 @@
  * is still preview-only. Revisit once v5 stabilises — see docs/adr/0012.
  */
 export const colors = {
-  paper: '#f2ead7',
-  card: '#fbf7ee',
-  ink: '#1c1917',
-  muted: '#57534e',
-  faint: '#a8a29e',
-  line: '#e7ddc7',
-  accent: '#b45309', // warm amber — calories
-  protein: '#0e7490',
-  carbs: '#b45309',
-  fat: '#9333ea',
-  good: '#15803d',
-  danger: '#b91c1c',
+  paper: '#ffffff', // screen background — true white
+  card: '#f6f7f9', // cool-gray surface
+  ink: '#0f1115', // primary text (≈18:1 on white)
+  muted: '#5b6472',
+  faint: '#9aa2ae',
+  line: '#e4e7ec',
+  accent: '#2f6bff', // blue — calorie ring + primary CTAs
+  protein: '#0fa968', // green
+  carbs: '#f59e0b', // amber
+  fat: '#8b5cf6', // violet
+  good: '#0fa968',
+  danger: '#e0463e',
   white: '#ffffff',
 } as const;
 
