@@ -33,8 +33,11 @@ import type {
   ExerciseDraft,
   SessionDraft,
   SessionExercise,
+  TemplateDraft,
+  TemplateExercise,
   WorkoutSession,
   WorkoutSet,
+  WorkoutTemplate,
 } from './workout';
 
 // Firestore schema mirrors the PWA exactly (see firestore-ledger.core.ts):
@@ -489,6 +492,8 @@ const exercisesCol = (uid: string) => collection(db, 'users', uid, 'exercises');
 const exerciseDoc = (uid: string, id: string) => doc(db, 'users', uid, 'exercises', id);
 const sessionsCol = (uid: string) => collection(db, 'users', uid, 'workoutSessions');
 const sessionDoc = (uid: string, id: string) => doc(db, 'users', uid, 'workoutSessions', id);
+const templatesCol = (uid: string) => collection(db, 'users', uid, 'workoutTemplates');
+const templateDoc = (uid: string, id: string) => doc(db, 'users', uid, 'workoutTemplates', id);
 
 /** Recursively drop undefined-valued keys (Firestore rejects undefined). */
 function pruneUndefined<T>(value: T): T {
@@ -541,6 +546,72 @@ export async function addExercise(uid: string, draft: ExerciseDraft): Promise<st
 
 export async function deleteExercise(uid: string, id: string): Promise<void> {
   await deleteDoc(exerciseDoc(uid, id));
+}
+
+// ── Templates ──
+// users/{uid}/workoutTemplates/{id} — { name, notes?, restMiniSec?,
+// restClusterSec?, exercises[], createdAt, updatedAt } (rules
+// isValidWorkoutTemplate). Mirrors FirestoreLedgerCore add/update/delete.
+function toTemplate(id: string, data: Record<string, unknown>): WorkoutTemplate {
+  return {
+    id,
+    name: (data['name'] as string) ?? '',
+    notes: data['notes'] as string | undefined,
+    restMiniSec: data['restMiniSec'] as number | undefined,
+    restClusterSec: data['restClusterSec'] as number | undefined,
+    exercises: ((data['exercises'] as TemplateExercise[]) ?? []).map((ex) => ({
+      ...ex,
+      plannedSets: ex.plannedSets ?? [],
+    })),
+    createdAt: (data['createdAt'] as Timestamp)?.toDate() ?? new Date(0),
+    updatedAt: (data['updatedAt'] as Timestamp)?.toDate() ?? new Date(0),
+  };
+}
+
+export function subscribeTemplates(
+  uid: string,
+  cb: (templates: WorkoutTemplate[]) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    query(templatesCol(uid), orderBy('updatedAt', 'desc')),
+    (snap) => cb(snap.docs.map((d) => toTemplate(d.id, d.data()))),
+    onError,
+  );
+}
+
+export async function addTemplate(uid: string, draft: TemplateDraft): Promise<string> {
+  const now = Timestamp.now();
+  const data = pruneUndefined({
+    name: draft.name,
+    notes: draft.notes,
+    restMiniSec: draft.restMiniSec,
+    restClusterSec: draft.restClusterSec,
+    exercises: draft.exercises ?? [],
+    createdAt: now,
+    updatedAt: now,
+  });
+  const ref = await addDoc(templatesCol(uid), data);
+  return ref.id;
+}
+
+export async function updateTemplate(uid: string, id: string, draft: TemplateDraft): Promise<void> {
+  // Full overwrite of mutable fields + bump updatedAt; createdAt untouched by
+  // merge. A merge-update of `exercises` would union arrays, so write the
+  // whole template doc (createAt stays, no `exercises` field omitted).
+  const data = pruneUndefined({
+    name: draft.name,
+    notes: draft.notes,
+    restMiniSec: draft.restMiniSec,
+    restClusterSec: draft.restClusterSec,
+    exercises: draft.exercises ?? [],
+    updatedAt: Timestamp.now(),
+  });
+  await setDoc(templateDoc(uid, id), data, { merge: true });
+}
+
+export async function deleteTemplate(uid: string, id: string): Promise<void> {
+  await deleteDoc(templateDoc(uid, id));
 }
 
 // ── Sessions ──

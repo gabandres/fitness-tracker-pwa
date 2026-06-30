@@ -14,7 +14,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTrain } from '@/hooks/useTrain';
-import type { LogStyle, WorkoutSession, WorkoutSet } from '@/lib/workout';
+import type {
+  Exercise,
+  LogStyle,
+  TemplateDraft,
+  WorkoutSession,
+  WorkoutSet,
+  WorkoutTemplate,
+} from '@/lib/workout';
 import { DEFAULT_LOG_STYLE, isLoggedSet, sessionVolume } from '@/lib/workout';
 import { type I18nKey, type TFn, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -46,9 +53,12 @@ export default function Train() {
   );
 }
 
-// ─── Idle: start button + history ───────────────────────────────
+// ─── Idle: start button + templates + history ───────────────────
 function StartView({ train }: { train: ReturnType<typeof useTrain> }) {
   const t = useT();
+  // null = closed; a template = edit it; {} = create new.
+  const [editing, setEditing] = useState<WorkoutTemplate | Record<string, never> | null>(null);
+
   return (
     <ScrollView contentContainerStyle={styles.body}>
       {train.error ? <Text style={styles.error}>{t('train.loadErr')}</Text> : null}
@@ -63,6 +73,37 @@ function StartView({ train }: { train: ReturnType<typeof useTrain> }) {
       >
         <Text style={styles.startBtnText}>{t('train.start')}</Text>
       </TouchableOpacity>
+
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>{t('train.templates')}</Text>
+        <TouchableOpacity onPress={() => setEditing({})} hitSlop={8} testID="new-template">
+          <Text style={styles.sectionAction}>{t('train.newTemplate')}</Text>
+        </TouchableOpacity>
+      </View>
+      {train.templates.length === 0 ? (
+        <Text style={styles.empty}>{t('train.noTemplates')}</Text>
+      ) : (
+        <View style={styles.list}>
+          {train.templates.map((tpl) => (
+            <View key={tpl.id} style={styles.tplRow} testID={`template-${tpl.id}`}>
+              <Pressable style={styles.tplMain} onPress={() => setEditing(tpl)} testID={`edit-template-${tpl.id}`}>
+                <Text style={styles.histDate}>{tpl.name}</Text>
+                <Text style={styles.histSub}>{templateSummary(tpl, t)}</Text>
+              </Pressable>
+              <TouchableOpacity
+                style={styles.tplStart}
+                onPress={() => {
+                  haptics.tap();
+                  train.startFromTemplate(tpl);
+                }}
+                testID={`start-template-${tpl.id}`}
+              >
+                <Text style={styles.tplStartText}>{t('train.startTpl')}</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
 
       <Text style={styles.sectionTitle}>{t('train.history')}</Text>
       {train.recentSessions.length === 0 ? (
@@ -87,6 +128,13 @@ function StartView({ train }: { train: ReturnType<typeof useTrain> }) {
           ))}
         </View>
       )}
+
+      <TemplateEditorModal
+        visible={editing !== null}
+        train={train}
+        template={editing && 'id' in editing ? (editing as WorkoutTemplate) : null}
+        onClose={() => setEditing(null)}
+      />
     </ScrollView>
   );
 }
@@ -97,6 +145,14 @@ function sessionSummary(s: WorkoutSession, t: TFn): string {
     (n, ex) => n + ex.sets.filter((set) => isLoggedSet(set, ex.logStyle ?? DEFAULT_LOG_STYLE)).length,
     0,
   );
+  const ex = `${exCount} ${exCount === 1 ? t('train.exerciseOne') : t('train.exerciseMany')}`;
+  const sets = `${setCount} ${setCount === 1 ? t('train.setOne') : t('train.setMany')}`;
+  return `${ex} · ${sets}`;
+}
+
+function templateSummary(tpl: WorkoutTemplate, t: TFn): string {
+  const exCount = tpl.exercises.length;
+  const setCount = tpl.exercises.reduce((n, ex) => n + ex.plannedSets.length, 0);
   const ex = `${exCount} ${exCount === 1 ? t('train.exerciseOne') : t('train.exerciseMany')}`;
   const sets = `${setCount} ${setCount === 1 ? t('train.setOne') : t('train.setMany')}`;
   return `${ex} · ${sets}`;
@@ -470,6 +526,256 @@ function FinishModal({
   );
 }
 
+// ─── Template editor ────────────────────────────────────────────
+interface DraftEx {
+  exerciseId: string;
+  name: string;
+  logStyle: LogStyle;
+  targetLoad: string; // string buffer; parsed on save
+  setCount: number;
+}
+
+function TemplateEditorModal({
+  visible,
+  train,
+  template,
+  onClose,
+}: {
+  visible: boolean;
+  train: ReturnType<typeof useTrain>;
+  template: WorkoutTemplate | null;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const [name, setName] = useState('');
+  const [notes, setNotes] = useState('');
+  const [exercises, setExercises] = useState<DraftEx[]>([]);
+  const [exName, setExName] = useState('');
+  const [exStyle, setExStyle] = useState<LogStyle>('weight-reps');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    setName(template?.name ?? '');
+    setNotes(template?.notes ?? '');
+    setExercises(
+      (template?.exercises ?? []).map((ex) => ({
+        exerciseId: ex.exerciseId,
+        name: ex.name,
+        logStyle: ex.logStyle ?? 'weight-reps',
+        targetLoad: ex.targetLoad != null ? String(ex.targetLoad) : '',
+        setCount: Math.max(1, ex.plannedSets.length),
+      })),
+    );
+    setExName('');
+    setExStyle('weight-reps');
+    setBusy(false);
+  }, [visible, template]);
+
+  const trimmedEx = exName.trim();
+  const matches = trimmedEx
+    ? train.catalog.filter((e) => e.name.toLowerCase().includes(trimmedEx.toLowerCase())).slice(0, 5)
+    : [];
+
+  function appendEx(exercise: Pick<DraftEx, 'exerciseId' | 'name' | 'logStyle'>) {
+    setExercises((prev) => [...prev, { ...exercise, targetLoad: '', setCount: 3 }]);
+    setExName('');
+  }
+
+  function addFromCatalog(c: Exercise) {
+    haptics.tap();
+    appendEx({ exerciseId: c.id!, name: c.name, logStyle: c.logStyle ?? 'weight-reps' });
+  }
+
+  async function addFreeType() {
+    if (!trimmedEx || busy) return;
+    haptics.tap();
+    setBusy(true);
+    try {
+      const id = await train.addCatalogExercise(trimmedEx, exStyle);
+      appendEx({ exerciseId: id, name: trimmedEx, logStyle: exStyle });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function patchEx(index: number, patch: Partial<DraftEx>) {
+    setExercises((prev) => prev.map((d, i) => (i === index ? { ...d, ...patch } : d)));
+  }
+
+  function removeEx(index: number) {
+    setExercises((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  const canSave = name.trim().length > 0 && !busy;
+
+  async function save() {
+    if (!canSave) return;
+    setBusy(true);
+    try {
+      const draft: TemplateDraft = {
+        name: name.trim(),
+        notes: notes.trim() || undefined,
+        exercises: exercises.map((d) => ({
+          exerciseId: d.exerciseId,
+          name: d.name,
+          logStyle: d.logStyle,
+          targetLoad: numOrUndef(d.targetLoad),
+          plannedSets: Array.from({ length: Math.max(1, d.setCount) }, () => ({ kind: 'working' as const })),
+        })),
+      };
+      await train.saveTemplate(draft, template?.id);
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (!template?.id || busy) return;
+    setBusy(true);
+    try {
+      await train.deleteTemplate(template.id);
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetWrap}>
+        <View style={styles.sheet}>
+          <View style={styles.handle} />
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <Text style={styles.sheetTitle}>{template ? t('train.editTemplate') : t('train.newTemplateTitle')}</Text>
+
+            <Text style={styles.fieldLabel}>{t('train.templateName')}</Text>
+            <TextInput
+              style={styles.input}
+              placeholder={t('train.templateNamePh')}
+              placeholderTextColor={colors.faint}
+              value={name}
+              onChangeText={setName}
+              testID="template-name"
+            />
+
+            <Text style={[styles.fieldLabel, { marginTop: space.sm }]}>{t('train.templateNotes')}</Text>
+            <TextInput
+              style={[styles.input, styles.notesInput]}
+              placeholder={t('train.templateNotesPh')}
+              placeholderTextColor={colors.faint}
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+              testID="template-notes"
+            />
+
+            <Text style={[styles.fieldLabel, { marginTop: space.md }]}>{t('train.templateExercises')}</Text>
+            {exercises.length === 0 ? (
+              <Text style={styles.empty}>{t('train.templateNoEx')}</Text>
+            ) : (
+              exercises.map((d, i) => (
+                <View key={`${d.exerciseId}-${i}`} style={styles.tplExRow}>
+                  <View style={styles.tplExMain}>
+                    <Text style={styles.tplExName}>{d.name}</Text>
+                    <Text style={styles.tplExMeta}>{t(logStyleKey(d.logStyle))}</Text>
+                  </View>
+                  {d.logStyle !== 'bodyweight' ? (
+                    <TextInput
+                      style={styles.tplLoadInput}
+                      placeholder={t('train.target')}
+                      placeholderTextColor={colors.faint}
+                      keyboardType="numeric"
+                      value={d.targetLoad}
+                      onChangeText={(v) => patchEx(i, { targetLoad: v })}
+                      testID={`template-load-${i}`}
+                    />
+                  ) : null}
+                  <View style={styles.stepper}>
+                    <TouchableOpacity
+                      style={styles.stepBtn}
+                      onPress={() => patchEx(i, { setCount: Math.max(1, d.setCount - 1) })}
+                      testID={`template-set-minus-${i}`}
+                    >
+                      <Text style={styles.stepBtnText}>−</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.stepCount}>{d.setCount}</Text>
+                    <TouchableOpacity
+                      style={styles.stepBtn}
+                      onPress={() => patchEx(i, { setCount: Math.min(20, d.setCount + 1) })}
+                      testID={`template-set-plus-${i}`}
+                    >
+                      <Text style={styles.stepBtnText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <TouchableOpacity onPress={() => removeEx(i)} hitSlop={6} style={styles.setDel}>
+                    <Text style={styles.setDelText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
+
+            <TextInput
+              style={[styles.input, { marginTop: space.sm }]}
+              placeholder={t('train.addExercisePh')}
+              placeholderTextColor={colors.faint}
+              value={exName}
+              onChangeText={setExName}
+              testID="template-add-exercise"
+            />
+            {trimmedEx ? (
+              <>
+                <View style={styles.styleRow}>
+                  {LOG_STYLES.map((ls) => {
+                    const on = exStyle === ls.value;
+                    return (
+                      <TouchableOpacity
+                        key={ls.value}
+                        style={[styles.styleChip, on && styles.styleChipOn]}
+                        onPress={() => setExStyle(ls.value)}
+                      >
+                        <Text style={[styles.styleChipText, on && styles.styleChipTextOn]}>{t(ls.labelKey)}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                {matches.map((e) => (
+                  <TouchableOpacity key={e.id} style={styles.catalogRow} onPress={() => addFromCatalog(e)}>
+                    <Text style={styles.catalogName}>{e.name}</Text>
+                    <Text style={styles.catalogStyle}>{t(logStyleKey(e.logStyle))}</Text>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity style={styles.createRow} onPress={addFreeType} testID="template-create-exercise">
+                  <Text style={styles.createText}>{t('train.addNamed', { name: trimmedEx })}</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
+
+            <View style={styles.editorBtns}>
+              {template ? (
+                <TouchableOpacity style={styles.discardBtn} onPress={remove} disabled={busy} testID="delete-template">
+                  <Text style={styles.discardText}>{t('common.remove')}</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                style={[styles.finishBtn, !canSave && styles.btnDisabled]}
+                onPress={save}
+                disabled={!canSave}
+                testID="save-template"
+              >
+                <Text style={styles.finishText}>{busy ? t('common.saving') : t('common.save')}</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ height: 24 }} />
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   title: { fontSize: font.h1, fontWeight: '800', color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
@@ -621,4 +927,70 @@ const styles = StyleSheet.create({
   finishRow: { flexDirection: 'row', gap: space.md },
   finishField: { flex: 1, gap: space.xs },
   fieldLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
+  // templates
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: space.sm,
+  },
+  sectionAction: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
+  tplRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+  },
+  tplMain: { flex: 1, gap: 2 },
+  tplStart: {
+    backgroundColor: colors.ink,
+    borderRadius: radius.sm,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+  },
+  tplStartText: { color: colors.white, fontWeight: '700', fontSize: font.small },
+  // template editor
+  notesInput: { minHeight: 56, textAlignVertical: 'top' },
+  tplExRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingVertical: space.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  tplExMain: { flex: 1, gap: 2 },
+  tplExName: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
+  tplExMeta: { fontSize: font.tiny, color: colors.muted },
+  tplLoadInput: {
+    width: 56,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.sm,
+    paddingVertical: space.xs,
+    textAlign: 'center',
+    fontSize: font.small,
+    color: colors.ink,
+  },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  stepBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+  },
+  stepBtnText: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
+  stepCount: { width: 20, textAlign: 'center', fontSize: font.small, color: colors.ink, fontWeight: '700' },
+  editorBtns: { flexDirection: 'row', gap: space.md, marginTop: space.lg },
+  btnDisabled: { opacity: 0.4 },
 });

@@ -52,6 +52,76 @@ export interface SessionExercise {
   sets: WorkoutSet[];
 }
 
+// ─── Templates ──────────────────────────────────────────────────
+// An editable blueprint (ADR-0007). Starting a session SNAPSHOTS the
+// template's exercises into the session doc, so later template edits never
+// rewrite history. Shapes mirror src/app/models/workout.ts +
+// firestore.rules isValidWorkoutTemplate. Mobile v1 builds plain straight
+// `working` plannedSets (no cluster groups); `progression`/cluster machinery
+// is carried in the type for PWA round-trip but not yet authored here.
+
+/** Deterministic double-progression rule (surfaced in a later slice). */
+export interface ProgressionRule {
+  targetReps: number;
+  holdSessions: number;
+  incrementLb: number;
+}
+
+/** Planned scaffold for one set the session pre-fills. `group` clusters sets
+ *  (C1/C2); omit it for plain straight sets. */
+export interface PlannedSet {
+  kind: SetKind;
+  group?: number;
+}
+
+export interface TemplateExercise {
+  exerciseId: string;
+  name: string; // snapshot of the catalog name
+  targetLoad?: number;
+  cues?: string[];
+  logStyle?: LogStyle;
+  progression?: ProgressionRule;
+  plannedSets: PlannedSet[];
+}
+
+export interface WorkoutTemplate {
+  id?: string;
+  name: string;
+  notes?: string;
+  restMiniSec?: number;
+  restClusterSec?: number;
+  exercises: TemplateExercise[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type TemplateDraft = Omit<WorkoutTemplate, 'id' | 'createdAt' | 'updatedAt'>;
+
+/** Snapshot a template's exercises into fresh session exercises: each
+ *  planned set becomes a scaffold {@link WorkoutSet} (weight pre-filled from
+ *  `targetLoad` for load×reps styles; counts left blank). Unfilled scaffold
+ *  rows are dropped by {@link dropEmptySets} on finish. An exercise with no
+ *  planned sets gets one empty working set so it's loggable. */
+export function templateToSessionExercises(template: WorkoutTemplate): SessionExercise[] {
+  return template.exercises.map((ex) => {
+    const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
+    const planned = ex.plannedSets.length ? ex.plannedSets : [{ kind: 'working' as SetKind }];
+    return {
+      exerciseId: ex.exerciseId,
+      name: ex.name,
+      targetLoad: ex.targetLoad,
+      cues: ex.cues ?? [],
+      logStyle: ex.logStyle,
+      sets: planned.map((ps) => ({
+        kind: ps.kind,
+        group: ps.group,
+        weight: style === 'time' ? undefined : ex.targetLoad,
+        done: false,
+      })),
+    };
+  });
+}
+
 export interface WorkoutSession {
   id?: string;
   status: SessionStatus;

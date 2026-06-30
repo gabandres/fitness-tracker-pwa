@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import {
   addExercise as addExerciseDoc,
+  addTemplate as addTemplateDoc,
   deleteSession as deleteSessionDoc,
+  deleteTemplate as deleteTemplateDoc,
   getActiveSession,
   markExercised,
   setDailySleep,
@@ -10,16 +12,21 @@ import {
   startSession,
   subscribeExercises,
   subscribeRecentSessions,
+  subscribeTemplates,
   updateSession,
+  updateTemplate as updateTemplateDoc,
 } from '@/lib/ledger';
 import { localDateKey } from '@macrolog/core';
 import {
   type Exercise,
   type LogStyle,
   type SessionExercise,
+  type TemplateDraft,
   type WorkoutSession,
   type WorkoutSet,
+  type WorkoutTemplate,
   dropEmptySets,
+  templateToSessionExercises,
 } from '@/lib/workout';
 
 export interface TrainState {
@@ -27,6 +34,8 @@ export interface TrainState {
   error: Error | null;
   /** Exercise catalog (alphabetical). */
   catalog: Exercise[];
+  /** Reusable workout templates, most-recently-updated first. */
+  templates: WorkoutTemplate[];
   /** Completed sessions, newest first. */
   recentSessions: WorkoutSession[];
   /** The in-progress session held in local state, or null. */
@@ -35,6 +44,15 @@ export interface TrainState {
   /** Begin a new empty active session (persisted immediately so it survives
    *  a reload). No-op if one is already active. */
   startWorkout: () => Promise<void>;
+  /** Begin a session seeded from a template (snapshots its exercises +
+   *  planned sets, stamps templateId/templateName). No-op if one is active. */
+  startFromTemplate: (template: WorkoutTemplate) => Promise<void>;
+  /** Create (id omitted) or overwrite (id given) a workout template. */
+  saveTemplate: (draft: TemplateDraft, id?: string) => Promise<void>;
+  deleteTemplate: (id: string) => Promise<void>;
+  /** Create a catalog exercise, returning its id (used by the template
+   *  editor when adding a free-typed exercise). */
+  addCatalogExercise: (name: string, logStyle: LogStyle) => Promise<string>;
   /** Add an exercise to the active session, creating a catalog entry first
    *  if `exerciseId` is null (free-typed name). */
   addExerciseToActive: (name: string, logStyle: LogStyle, exerciseId?: string) => Promise<void>;
@@ -61,6 +79,7 @@ export function useTrain(): TrainState {
   const { user } = useAuth();
   const uid = user?.uid;
   const [catalog, setCatalog] = useState<Exercise[]>([]);
+  const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
   const [recentSessions, setRecentSessions] = useState<WorkoutSession[]>([]);
   const [active, setActive] = useState<WorkoutSession | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,6 +92,7 @@ export function useTrain(): TrainState {
     let alive = true;
     const unsubs = [
       subscribeExercises(uid, setCatalog, setError),
+      subscribeTemplates(uid, setTemplates, setError),
       subscribeRecentSessions(
         uid,
         50,
@@ -120,6 +140,46 @@ export function useTrain(): TrainState {
     const id = await startSession(uid, draft);
     setActive({ ...draft, id, createdAt: new Date(), updatedAt: new Date() });
   }, [uid, active]);
+
+  const startFromTemplate = useCallback(
+    async (template: WorkoutTemplate) => {
+      if (!uid || active) return;
+      const draft = {
+        status: 'active' as const,
+        date: new Date(),
+        templateId: template.id,
+        templateName: template.name,
+        exercises: templateToSessionExercises(template),
+      };
+      const id = await startSession(uid, draft);
+      setActive({ ...draft, id, createdAt: new Date(), updatedAt: new Date() });
+    },
+    [uid, active],
+  );
+
+  const saveTemplate = useCallback(
+    async (draft: TemplateDraft, id?: string) => {
+      if (!uid) return;
+      if (id) await updateTemplateDoc(uid, id, draft);
+      else await addTemplateDoc(uid, draft);
+    },
+    [uid],
+  );
+
+  const deleteTemplate = useCallback(
+    async (id: string) => {
+      if (uid) await deleteTemplateDoc(uid, id);
+    },
+    [uid],
+  );
+
+  const addCatalogExercise = useCallback(
+    async (name: string, logStyle: LogStyle) => {
+      if (!uid) throw new Error('Not signed in');
+      return addExerciseDoc(uid, { name, muscles: [], defaultCues: [], logStyle });
+    },
+    [uid],
+  );
 
   const addExerciseToActive = useCallback(
     async (name: string, logStyle: LogStyle, exerciseId?: string) => {
@@ -235,10 +295,15 @@ export function useTrain(): TrainState {
     loading,
     error,
     catalog,
+    templates,
     recentSessions,
     active,
     saving,
     startWorkout,
+    startFromTemplate,
+    saveTemplate,
+    deleteTemplate,
+    addCatalogExercise,
     addExerciseToActive,
     removeExercise,
     addSet,
