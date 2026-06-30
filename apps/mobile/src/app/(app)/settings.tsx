@@ -109,6 +109,17 @@ export default function Settings() {
           >
             <Text style={styles.editBtnText}>{t('settings.editGoals')}</Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.refineRow}
+            onPress={() => router.push('/refine-targets')}
+            testID="settings-refine"
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>{t('settings.refine')}</Text>
+              <Text style={styles.rowValue}>{t('settings.refineSub')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.section}>{t('settings.units')}</Text>
@@ -239,6 +250,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   editBtnText: { color: colors.ink, fontWeight: '700', fontSize: font.body },
+  refineRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingTop: space.sm, borderTopWidth: 1, borderTopColor: colors.line },
   segment: { flexDirection: 'row', gap: space.sm },
   segmentBtn: {
     flex: 1,

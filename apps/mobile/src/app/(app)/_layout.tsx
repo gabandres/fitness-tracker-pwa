@@ -51,6 +51,8 @@ export default function AppTabsLayout() {
       />
       {/* Reachable via the Today header gear; hidden from the tab bar. */}
       <Tabs.Screen name="settings" options={{ href: null }} />
+      {/* Reachable via Settings → Refine targets; hidden from the tab bar. */}
+      <Tabs.Screen name="refine-targets" options={{ href: null }} />
     </Tabs>
   );
 }

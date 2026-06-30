@@ -21,7 +21,9 @@ import {
   type MealPreset,
   type OnboardingV2Submission,
   type Profile,
+  type RefineTargetsSubmission,
   type UnitSystem,
+  clampCutPace,
   localDateKey,
 } from '@macrolog/core';
 import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
@@ -275,6 +277,26 @@ export async function setUnitSystem(uid: string, unitSystem: UnitSystem): Promis
  *  + server-side email locale. */
 export async function setPreferredLocale(uid: string, preferredLocale: string): Promise<void> {
   await updateDoc(userDoc(uid), { preferredLocale });
+}
+
+/** Promote the 2-question onboarding to a full Mifflin–St Jeor TDEE. Mirrors
+ *  FirebaseService.saveRefinedTargets: writes the profile fields, DELETES the
+ *  manual heuristic targets so the TDEE chain falls through to formula mode,
+ *  and stamps `targetsRefinedAt`. (proteinPerKg omitted in mobile v1 — leaves
+ *  the 1.6 g/kg floor.) */
+export async function saveRefinedTargets(uid: string, s: RefineTargetsSubmission): Promise<void> {
+  const now = Timestamp.now();
+  await updateDoc(userDoc(uid), {
+    heightIn: s.heightIn,
+    age: s.age,
+    sex: s.sex,
+    activityLevel: s.activityLevel,
+    targetPaceLbsPerWeek: clampCutPace(s.targetPaceLbsPerWeek),
+    manualCaloriesTarget: deleteField(),
+    manualProteinTarget: deleteField(),
+    targetsRefinedAt: now,
+    lastSeenAt: now,
+  });
 }
 
 /** Append `hiddenRecentLabels` to the profile. Mirrors the PWA's
