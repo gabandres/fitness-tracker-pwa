@@ -22,6 +22,7 @@ import {
 } from '@macrolog/core';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { FoodSearch } from '@/components/FoodSearch';
+import { RecipeBuilder } from '@/components/RecipeBuilder';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
 
@@ -76,7 +77,7 @@ export function EntrySheet({
   const [manage, setManage] = useState(false);
   // 'manual' is the form; 'search' swaps in the food-database panel. Only
   // reachable when adding (editing always stays on the manual form).
-  const [mode, setMode] = useState<'manual' | 'search'>('manual');
+  const [mode, setMode] = useState<'manual' | 'search' | 'recipe'>('manual');
   const [scannerOpen, setScannerOpen] = useState(false);
 
   // Keep the Modal mounted through the exit animation. `anim` drives both the
@@ -207,16 +208,21 @@ export function EntrySheet({
           <Text style={styles.title}>{editing ? 'Edit entry' : 'Add food'}</Text>
 
           {!editing && mode === 'manual' ? (
-            <View style={styles.discoverRow}>
-              <TouchableOpacity style={styles.searchEntry} onPress={() => { haptics.tap(); setMode('search'); }} testID="open-food-search">
-                <Text style={styles.searchEntryText}>🔍  Search food database</Text>
-              </TouchableOpacity>
-              {Platform.OS !== 'web' ? (
-                <TouchableOpacity style={styles.scanEntry} onPress={() => { haptics.tap(); setScannerOpen(true); }} testID="open-barcode">
-                  <Text style={styles.searchEntryText}>⊟  Scan</Text>
+            <>
+              <View style={styles.discoverRow}>
+                <TouchableOpacity style={styles.searchEntry} onPress={() => { haptics.tap(); setMode('search'); }} testID="open-food-search">
+                  <Text style={styles.searchEntryText}>🔍  Search food database</Text>
                 </TouchableOpacity>
-              ) : null}
-            </View>
+                {Platform.OS !== 'web' ? (
+                  <TouchableOpacity style={styles.scanEntry} onPress={() => { haptics.tap(); setScannerOpen(true); }} testID="open-barcode">
+                    <Text style={styles.searchEntryText}>⊟  Scan</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+              <TouchableOpacity style={styles.recipeEntry} onPress={() => { haptics.tap(); setMode('recipe'); }} testID="open-recipe">
+                <Text style={styles.searchEntryText}>🧮  Build a recipe</Text>
+              </TouchableOpacity>
+            </>
           ) : null}
 
           {mode === 'search' ? (
@@ -229,6 +235,18 @@ export function EntrySheet({
                   protein: est.protein,
                   carbs: est.carbs,
                   fat: est.fat,
+                  mealLabel: est.mealLabel,
+                });
+                setMode('manual');
+              }}
+            />
+          ) : mode === 'recipe' ? (
+            <RecipeBuilder
+              onCancel={() => setMode('manual')}
+              onApply={(est) => {
+                prefill({
+                  calories: est.calories,
+                  protein: est.protein,
                   mealLabel: est.mealLabel,
                 });
                 setMode('manual');
@@ -454,6 +472,16 @@ const styles = StyleSheet.create({
     paddingVertical: space.md,
     paddingHorizontal: space.lg,
     alignItems: 'center',
+    backgroundColor: colors.white,
+  },
+  recipeEntry: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderStyle: 'dashed',
+    borderRadius: radius.md,
+    paddingVertical: space.md,
+    alignItems: 'center',
+    marginBottom: space.md,
     backgroundColor: colors.white,
   },
   searchEntryText: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
