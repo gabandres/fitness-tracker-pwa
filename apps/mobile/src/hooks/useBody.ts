@@ -3,9 +3,13 @@ import {
   type DailyLog,
   type Measurement,
   type Profile,
+  type WeightProjection,
+  type WeightPoint,
+  addDays,
   currentWeight as coreCurrentWeight,
   localDateKey,
   navyBodyFat,
+  projectWeight,
 } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import {
@@ -42,7 +46,12 @@ export interface BodyState {
   bodyFatGap: 'profile' | 'measurement' | null;
   addMeasurement: (entry: Omit<Measurement, 'id' | 'date'>) => Promise<void>;
   deleteMeasurement: (id: string) => Promise<void>;
+  /** Linear-fit weight trend + projected goal date, or null when there
+   *  aren't enough weigh-ins to fit a line. */
+  projection: WeightProjection | null;
 }
+
+const PROJECTION_WINDOW_DAYS = 28;
 
 export function useBody(): BodyState {
   const { user } = useAuth();
@@ -95,6 +104,19 @@ export function useBody(): BodyState {
     return bf == null ? { bodyFat: null, bodyFatGap: 'measurement' } : { bodyFat: bf, bodyFatGap: null };
   }, [profile, measurements]);
 
+  // Fit the trend over a 28-day window of daily weights (longer than the
+  // history list so this week's water-weight noise doesn't dominate).
+  const projection = useMemo<WeightProjection | null>(() => {
+    const today = new Date();
+    const points: WeightPoint[] = [];
+    for (let i = PROJECTION_WINDOW_DAYS - 1; i >= 0; i--) {
+      const key = localDateKey(addDays(today, -i));
+      const v = weights[key];
+      if (typeof v === 'number') points.push({ dateKey: key, weightLb: v });
+    }
+    return projectWeight(points, profile?.goalWeightLbs ?? profile?.targetWeightLbs ?? null);
+  }, [weights, profile]);
+
   const setWeight = useCallback(
     async (weight: number, dateKey?: string) => {
       if (uid) await setDailyWeight(uid, dateKey ?? todayKey, weight);
@@ -126,5 +148,6 @@ export function useBody(): BodyState {
     bodyFatGap,
     addMeasurement,
     deleteMeasurement,
+    projection,
   };
 }

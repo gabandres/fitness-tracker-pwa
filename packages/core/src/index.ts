@@ -11,3 +11,4 @@ export * from './day-summary';
 export * from './tdee';
 export * from './targets';
 export * from './body-fat';
+export * from './weight-projection';

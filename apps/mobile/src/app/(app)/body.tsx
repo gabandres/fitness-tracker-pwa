@@ -22,6 +22,18 @@ function dayLabel(dateKey: string): string {
   return parseYmd(dateKey).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+/** "−0.8 lb/wk" / "+0.3 lb/wk" / "Holding steady" near zero. */
+function trendLabel(slopeLbPerWeek: number): string {
+  if (Math.abs(slopeLbPerWeek) < 0.1) return 'Holding steady';
+  const sign = slopeLbPerWeek < 0 ? '−' : '+';
+  return `${sign}${Math.abs(slopeLbPerWeek).toFixed(1)} lb/wk`;
+}
+
+/** "Goal ~Jul 6" from a projected date key. */
+function goalEtaLabel(dateKey: string): string {
+  return `~${parseYmd(dateKey).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+}
+
 export default function Body() {
   const {
     loading,
@@ -35,6 +47,7 @@ export default function Body() {
     bodyFatGap,
     addMeasurement,
     deleteMeasurement,
+    projection,
   } = useBody();
   const [open, setOpen] = useState(false);
   const [measureOpen, setMeasureOpen] = useState(false);
@@ -63,6 +76,21 @@ export default function Body() {
           <TouchableOpacity style={styles.logBtn} onPress={() => setOpen(true)} testID="log-weight">
             <Text style={styles.logBtnText}>{todayWeight != null ? 'Update today’s weight' : 'Log weight'}</Text>
           </TouchableOpacity>
+
+          {projection ? (
+            <View style={styles.trendCard} testID="trend-card">
+              <View style={styles.trendRow}>
+                <Text style={styles.trendLabel}>Trend</Text>
+                <Text style={styles.trendValue}>{trendLabel(projection.slopeLbPerWeek)}</Text>
+              </View>
+              {projection.goalDateKey ? (
+                <View style={styles.trendRow}>
+                  <Text style={styles.trendLabel}>Goal pace</Text>
+                  <Text style={styles.trendValue}>{goalEtaLabel(projection.goalDateKey)}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
           <View style={styles.bfCard} testID="bodyfat-card">
             <View>
@@ -329,6 +357,18 @@ const styles = StyleSheet.create({
     marginTop: space.md,
   },
   logBtnText: { color: colors.white, fontWeight: '700', fontSize: font.h3 },
+  trendCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.sm,
+    marginTop: space.md,
+  },
+  trendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.xs },
+  trendLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
+  trendValue: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
   sectionTitle: { fontSize: font.h3, fontWeight: '700', color: colors.ink, marginTop: space.md },
   empty: { fontSize: font.small, color: colors.muted },
   bfCard: {
