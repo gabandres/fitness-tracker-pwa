@@ -5,6 +5,7 @@ import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 're
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { UnitSystem } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
+import { useDailyTargets } from '@/hooks/useDailyTargets';
 import { setPreferredLocale, setUnitSystem } from '@/lib/ledger';
 import { DEFAULT_REMINDER_HOUR, getReminder, setReminder } from '@/lib/reminders';
 import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
@@ -33,6 +34,7 @@ export default function Settings() {
   const t = useT();
   const locale = useLocale();
   const { user, profile, signOut } = useAuth();
+  const targets = useDailyTargets();
   const router = useRouter();
   const [savingUnit, setSavingUnit] = useState(false);
   const [reminderEnabled, setReminderEnabled] = useState(false);
@@ -58,8 +60,10 @@ export default function Settings() {
   }
 
   const unit: UnitSystem = profile?.unitSystem ?? 'us';
-  const kcal = profile?.manualCaloriesTarget;
-  const protein = profile?.manualProteinTarget;
+  // Effective targets (TDEE chain), not the raw manual field — the latter is
+  // deleted once the user refines into formula mode.
+  const kcal = targets.calorieTarget > 0 ? targets.calorieTarget : null;
+  const protein = targets.proteinTarget > 0 ? targets.proteinTarget : null;
   const goalKey = profile?.goalDirection ? GOAL_LABEL[profile.goalDirection] : null;
 
   async function pickUnit(next: UnitSystem) {
