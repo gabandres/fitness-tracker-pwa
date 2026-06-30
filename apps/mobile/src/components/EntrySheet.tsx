@@ -23,7 +23,8 @@ import {
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { FoodSearch } from '@/components/FoodSearch';
 import { RecipeBuilder } from '@/components/RecipeBuilder';
-import { useT } from '@/i18n';
+import { useLocale, useT } from '@/i18n';
+import { starterFoods } from '@/lib/starterFoods';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
 
@@ -74,6 +75,7 @@ export function EntrySheet({
   unitSystem = 'us',
 }: Props) {
   const t = useT();
+  const locale = useLocale();
   const [label, setLabel] = useState('');
   const [calories, setCalories] = useState('');
   const [protein, setProtein] = useState('');
@@ -277,6 +279,25 @@ export function EntrySheet({
         </View>
       ) : null}
 
+      {recentEntries.length === 0 && presets.length === 0 ? (
+        <View style={styles.group}>
+          <Text style={styles.groupLabel}>{t('entry.suggested')}</Text>
+          <View style={styles.starterWrap}>
+            {starterFoods(locale).map((f) => (
+              <TouchableOpacity
+                key={f.label}
+                style={styles.starterChip}
+                testID={`starter-${f.label}`}
+                onPress={() => prefill({ calories: f.calories, protein: f.protein, mealLabel: f.label })}
+              >
+                <Text style={styles.starterLabel} numberOfLines={1}>{f.label}</Text>
+                <Text style={styles.starterKcal}>{f.calories}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      ) : null}
+
       <TouchableOpacity style={styles.customLink} testID="create-custom" onPress={openCustomBlank}>
         <Ionicons name="create-outline" size={18} color={colors.accent} />
         <Text style={styles.customLinkText}>{t('entry.customFood')}</Text>
@@ -447,6 +468,21 @@ const styles = StyleSheet.create({
   rowRemove: { fontSize: font.body, color: colors.danger, fontWeight: '700' },
   customLink: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.md },
   customLinkText: { fontSize: font.body, color: colors.accent, fontWeight: '700' },
+  starterWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  starterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.md,
+    paddingVertical: space.xs,
+    backgroundColor: colors.white,
+    maxWidth: '100%',
+  },
+  starterLabel: { fontSize: font.small, color: colors.ink, fontWeight: '600', flexShrink: 1 },
+  starterKcal: { fontSize: font.tiny, color: colors.muted },
   iconRow: { flexDirection: 'row', gap: space.xs },
   iconBtn: {
     width: 42,

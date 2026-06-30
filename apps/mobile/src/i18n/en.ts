@@ -87,6 +87,7 @@ export const en = {
   'entry.addTitle': 'Add food',
   'entry.editTitle': 'Edit entry',
   'entry.recent': 'Recent',
+  'entry.suggested': 'Suggested',
   'entry.customFood': 'Create custom food',
   'entry.quickAdd': 'Quick add',
   'entry.name': 'Name (optional)',

@@ -89,6 +89,7 @@ export const esPR: Record<I18nKey, string> = {
   'entry.addTitle': 'Añadir comida',
   'entry.editTitle': 'Editar registro',
   'entry.recent': 'Reciente',
+  'entry.suggested': 'Sugeridos',
   'entry.customFood': 'Crear comida personalizada',
   'entry.quickAdd': 'Añadir rápido',
   'entry.name': 'Nombre (opcional)',
