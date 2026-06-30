@@ -86,6 +86,8 @@ export const en = {
   // ── entry sheet ──
   'entry.addTitle': 'Add food',
   'entry.editTitle': 'Edit entry',
+  'entry.recent': 'Recent',
+  'entry.customFood': 'Create custom food',
   'entry.quickAdd': 'Quick add',
   'entry.name': 'Name (optional)',
   'entry.namePlaceholder': 'e.g. Chicken & rice',

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
@@ -97,7 +98,7 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
         </TouchableOpacity>
       </View>
 
-      <TextInput
+      <BottomSheetTextInput
         style={styles.input}
         placeholder={t('recipe.namePlaceholder')}
         placeholderTextColor={colors.faint}
@@ -106,7 +107,7 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
         testID="recipe-name"
       />
 
-      <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
+      <BottomSheetScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
         <View style={styles.colHead}>
           <Text style={[styles.colLabel, styles.colName]}>{t('recipe.ingredient')}</Text>
           <Text style={[styles.colLabel, styles.colNum]}>{t('recipe.kcal')}</Text>
@@ -115,7 +116,7 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
         </View>
         {ingredients.map((ing, i) => (
           <View key={i} style={styles.ingRow}>
-            <TextInput
+            <BottomSheetTextInput
               style={[styles.input, styles.colName]}
               placeholder={t('recipe.ingredient')}
               placeholderTextColor={colors.faint}
@@ -123,7 +124,7 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
               onChangeText={(v) => setIng(i, 'name', v)}
               testID={`recipe-ing-name-${i}`}
             />
-            <TextInput
+            <BottomSheetTextInput
               style={[styles.input, styles.colNum]}
               placeholder="0"
               placeholderTextColor={colors.faint}
@@ -132,7 +133,7 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
               onChangeText={(v) => setIng(i, 'calories', v)}
               testID={`recipe-ing-kcal-${i}`}
             />
-            <TextInput
+            <BottomSheetTextInput
               style={[styles.input, styles.colNum]}
               placeholder="0"
               placeholderTextColor={colors.faint}
@@ -148,12 +149,12 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
         <TouchableOpacity style={styles.addIng} onPress={addIng} testID="recipe-add-ing">
           <Text style={styles.addIngText}>{t('recipe.addIngredient')}</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </BottomSheetScrollView>
 
       <View style={styles.footer}>
         <View style={styles.servingsBox}>
           <Text style={styles.fieldLabel}>{t('recipe.servings')}</Text>
-          <TextInput
+          <BottomSheetTextInput
             style={[styles.input, styles.servingsInput]}
             placeholder="1"
             placeholderTextColor={colors.faint}

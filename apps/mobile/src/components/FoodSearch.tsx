@@ -1,14 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import {
   type FoodDetail,
   type FoodSearchHit,
@@ -33,7 +25,14 @@ export interface FoodEstimate {
 interface Props {
   unitSystem?: 'us' | 'metric';
   onPick: (estimate: FoodEstimate) => void;
-  onCancel: () => void;
+  /** Optional explicit "Cancel" affordance. Omit when the search panel is
+   *  the sheet's root (the sheet's own drag-to-dismiss replaces it). */
+  onCancel?: () => void;
+  /** Rendered to the right of the search field — e.g. scan / recipe icons. */
+  headerRight?: ReactNode;
+  /** Rendered below the search field when the query is empty (idle), instead
+   *  of the "type 2 characters" hint — used to host recents / quick-add. */
+  emptyContent?: ReactNode;
 }
 
 type Phase = 'idle' | 'searching' | 'results' | 'detail-loading' | 'portion-pick' | 'error';
@@ -42,7 +41,7 @@ type Phase = 'idle' | 'searching' | 'results' | 'detail-loading' | 'portion-pick
  *  type ≥2 chars → debounced searchFoods → tap result → getFoodDetail →
  *  pick a serving (× multiplier) → emit a FoodEstimate the sheet bounces
  *  back into the manual form for review. */
-export function FoodSearch({ unitSystem = 'us', onPick, onCancel }: Props) {
+export function FoodSearch({ unitSystem = 'us', onPick, onCancel, headerRight, emptyContent }: Props) {
   const t = useT();
   const [query, setQuery] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
@@ -137,7 +136,7 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel }: Props) {
           </View>
         </View>
 
-        <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
+        <BottomSheetScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
           {servings.map((s, i) => (
             <Pressable key={`${s.label}-${i}`} style={styles.serving} onPress={() => pickServing(s)}>
               <View style={styles.servingMain}>
@@ -149,7 +148,7 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel }: Props) {
               <Text style={styles.servingPick}>{t('food.add')}</Text>
             </Pressable>
           ))}
-        </ScrollView>
+        </BottomSheetScrollView>
       </View>
     );
   }
@@ -158,19 +157,21 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel }: Props) {
   return (
     <View style={styles.wrap}>
       <View style={styles.searchRow}>
-        <TextInput
+        <BottomSheetTextInput
           style={styles.search}
           placeholder={t('food.placeholder')}
           placeholderTextColor={colors.faint}
           value={query}
           onChangeText={onChange}
           autoCorrect={false}
-          autoFocus
           testID="food-search-input"
         />
-        <TouchableOpacity onPress={onCancel} hitSlop={8}>
-          <Text style={styles.cancel}>{t('common.cancel')}</Text>
-        </TouchableOpacity>
+        {headerRight}
+        {onCancel ? (
+          <TouchableOpacity onPress={onCancel} hitSlop={8}>
+            <Text style={styles.cancel}>{t('common.cancel')}</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {phase === 'searching' || phase === 'detail-loading' ? (
@@ -186,15 +187,19 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel }: Props) {
         hits.length === 0 ? (
           <View style={styles.center}><Text style={styles.muted}>{t('food.noMatches')}</Text></View>
         ) : (
-          <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
+          <BottomSheetScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
             {hits.map((h) => (
               <Pressable key={`${h.source}-${h.id}`} style={styles.hit} onPress={() => openDetail(h)}>
                 <Text style={styles.hitDesc} numberOfLines={2}>{h.description}</Text>
                 {h.brand ? <Text style={styles.hitBrand}>{h.brand}</Text> : null}
               </Pressable>
             ))}
-          </ScrollView>
+          </BottomSheetScrollView>
         )
+      ) : emptyContent != null ? (
+        <BottomSheetScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
+          {emptyContent}
+        </BottomSheetScrollView>
       ) : (
         <View style={styles.center}><Text style={styles.muted}>{t('food.typeMore')}</Text></View>
       )}
