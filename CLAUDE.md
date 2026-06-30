@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Macro Log — a free, private kcal+protein tracker (live at <https://macrolog.web.app>). The repo is an **npm-workspaces monorepo** with three buildable units plus shared code:
 
 - **`src/`** — the root project IS the Angular 21 PWA (the flagship product). Despite being a workspace root, it has its own `src/` and is the default `ng` project (`fitness-tracker-pwa`).
-- **`apps/mobile/`** — Expo SDK 55 React Native app (v1 built, not yet shipped to device). Has its own `CLAUDE.md` → `AGENTS.md`; read those when working there.
+- **`apps/mobile/`** — Expo SDK 54 React Native app (v1 built, not yet shipped to device). Has its own `CLAUDE.md` → `AGENTS.md`; read those when working there.
 - **`packages/core/`** (`@macrolog/core`) — framework-free shared "brain": domain types + pure math (TDEE, targets, date, unit-system). Imported by BOTH the Angular app and the Expo app. Keep it dependency-free and pure.
 - **`functions/`** — Firebase Cloud Functions (gen2, Node 22), its own package + tsconfig.
 
@@ -77,7 +77,7 @@ There is no app server. `firestore.rules` (30k+ lines of logic) + Firebase Auth 
 - **`README.md`** — product positioning, full Cloud Functions list, secrets policy (what's safe to commit vs. server-only), operator post-deploy checklist.
 
 ## Conventions
-- **Latest versions, not LTS pins** — this repo intentionally tracks bleeding-edge (Angular 21, Firebase 12, Expo 55). Don't silently downgrade to dodge peer conflicts.
+- **Latest versions, not LTS pins** — this repo intentionally tracks bleeding-edge (Angular 21, Firebase 12, Expo 54). Don't silently downgrade to dodge peer conflicts.
 - **Styling**: Tailwind v4 (`@tailwindcss/postcss`) in the web app; the Expo app uses StyleSheet (NOT NativeWind — a tailwind v3/v4 monorepo conflict, see ADR-0012).
 - **i18n**: Transloco, locales `en` + `es-PR` in `src/app/i18n/`. Keep both in parity.
 - **No new AI features** without checking — the owner is AI-cost-averse; weekly-report autogenerate was killed for cost.
