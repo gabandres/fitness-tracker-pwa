@@ -19,7 +19,7 @@ import {
   updateSession,
   updateTemplate as updateTemplateDoc,
 } from '@/lib/ledger';
-import { localDateKey } from '@macrolog/core';
+import { localDateKey, normalizeClusterGroups } from '@macrolog/core';
 import {
   type Exercise,
   type ExerciseDraft,
@@ -68,6 +68,8 @@ export interface TrainState {
   addExerciseToActive: (name: string, logStyle: LogStyle, exerciseId?: string) => Promise<void>;
   removeExercise: (index: number) => Promise<void>;
   addSet: (exerciseIndex: number) => Promise<void>;
+  /** Append a cluster (one activation + two mini sets) and renumber groups. */
+  addCluster: (exerciseIndex: number) => Promise<void>;
   /** Edit a set field locally (no write); call commitActive to persist. */
   editSet: (exerciseIndex: number, setIndex: number, patch: Partial<WorkoutSet>) => void;
   removeSet: (exerciseIndex: number, setIndex: number) => Promise<void>;
@@ -250,6 +252,24 @@ export function useTrain(): TrainState {
     [active, persist],
   );
 
+  const addCluster = useCallback(
+    async (exerciseIndex: number) => {
+      if (!active) return;
+      const cluster: WorkoutSet[] = [
+        { kind: 'activation', done: false },
+        { kind: 'mini', done: false },
+        { kind: 'mini', done: false },
+      ];
+      const exercises = active.exercises.map((ex, i) =>
+        i === exerciseIndex ? { ...ex, sets: normalizeClusterGroups([...ex.sets, ...cluster]) } : ex,
+      );
+      const next = { ...active, exercises };
+      setActive(next);
+      await persist(next);
+    },
+    [active, persist],
+  );
+
   const editSet = useCallback((exerciseIndex: number, setIndex: number, patch: Partial<WorkoutSet>) => {
     setActive((prev) => {
       if (!prev) return prev;
@@ -266,7 +286,9 @@ export function useTrain(): TrainState {
     async (exerciseIndex: number, setIndex: number) => {
       if (!active) return;
       const exercises = active.exercises.map((ex, i) =>
-        i === exerciseIndex ? { ...ex, sets: ex.sets.filter((_, j) => j !== setIndex) } : ex,
+        i === exerciseIndex
+          ? { ...ex, sets: normalizeClusterGroups(ex.sets.filter((_, j) => j !== setIndex)) }
+          : ex,
       );
       const next = { ...active, exercises };
       setActive(next);
@@ -341,6 +363,7 @@ export function useTrain(): TrainState {
     addExerciseToActive,
     removeExercise,
     addSet,
+    addCluster,
     editSet,
     removeSet,
     commitActive,

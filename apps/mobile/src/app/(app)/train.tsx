@@ -601,6 +601,7 @@ function ExerciseCard({
         ) : (
           <Text style={[styles.setHeadCell, styles.setInputCell]}>{t('train.reps')}</Text>
         )}
+        <Text style={[styles.setHeadCell, styles.setRirCell]}>{t('train.rirShort')}</Text>
         <View style={styles.setDoneCell} />
       </View>
 
@@ -617,9 +618,14 @@ function ExerciseCard({
         />
       ))}
 
-      <TouchableOpacity style={styles.addSetBtn} onPress={() => train.addSet(exerciseIndex)} testID={`add-set-${exerciseIndex}`}>
-        <Text style={styles.addSetText}>{t('train.addSet')}</Text>
-      </TouchableOpacity>
+      <View style={styles.addSetRow}>
+        <TouchableOpacity style={styles.addSetBtn} onPress={() => train.addSet(exerciseIndex)} testID={`add-set-${exerciseIndex}`}>
+          <Text style={styles.addSetText}>{t('train.addSet')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.addSetBtn} onPress={() => train.addCluster(exerciseIndex)} testID={`add-cluster-${exerciseIndex}`}>
+          <Text style={styles.addSetText}>{t('train.addCluster')}</Text>
+        </TouchableOpacity>
+      </View>
 
       {showPanel ? (
         <>
@@ -703,12 +709,17 @@ function SetRow({
       ? set.durationSec != null ? String(set.durationSec) : ''
       : set.reps != null ? String(set.reps) : '',
   );
+  const [rir, setRir] = useState(set.rir != null ? String(set.rir) : '');
 
   const commit = () => train.commitActive();
+  // RIR is meaningful on real working effort, not warmups/back-offs.
+  const showRir = set.kind === 'working' || set.kind === 'activation' || set.kind === 'mini';
+  // Clustered sets show C1/C2 in place of the plain set number.
+  const label = set.group != null ? `C${set.group}` : String(number);
 
   return (
     <View style={styles.setRow}>
-      <Text style={[styles.setNumCell, styles.setNum]}>{number}</Text>
+      <Text style={[styles.setNumCell, styles.setNum, set.group != null && styles.setNumCluster]}>{label}</Text>
 
       {logStyle === 'weight-reps' ? (
         <TextInput
@@ -740,6 +751,24 @@ function SetRow({
         onEndEditing={commit}
         testID={`set-count-${exerciseIndex}-${setIndex}`}
       />
+
+      {showRir ? (
+        <TextInput
+          style={[styles.setInput, styles.setRirCell]}
+          placeholder="–"
+          placeholderTextColor={colors.faint}
+          keyboardType="numeric"
+          value={rir}
+          onChangeText={(t) => {
+            setRir(t);
+            train.editSet(exerciseIndex, setIndex, { rir: numOrUndef(t) });
+          }}
+          onEndEditing={commit}
+          testID={`set-rir-${exerciseIndex}-${setIndex}`}
+        />
+      ) : (
+        <View style={styles.setRirCell} />
+      )}
 
       <TouchableOpacity
         style={[styles.setDoneCell, styles.doneBox, set.done && styles.doneBoxOn]}
@@ -1227,9 +1256,11 @@ const styles = StyleSheet.create({
   setHeadRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   setHeadCell: { fontSize: font.tiny, color: colors.muted, fontWeight: '600', textTransform: 'uppercase' },
   setRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  setNumCell: { width: 20 },
+  setNumCell: { width: 24 },
   setNum: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
-  setInputCell: { width: 70, textAlign: 'center' },
+  setNumCluster: { color: colors.accent, fontWeight: '800' },
+  setInputCell: { width: 62, textAlign: 'center' },
+  setRirCell: { width: 40, textAlign: 'center' },
   setInput: {
     backgroundColor: colors.white,
     borderWidth: 1,
@@ -1255,6 +1286,7 @@ const styles = StyleSheet.create({
   doneCheckOn: { color: colors.white },
   setDel: { paddingHorizontal: space.xs },
   setDelText: { color: colors.danger, fontSize: font.small, fontWeight: '700' },
+  addSetRow: { flexDirection: 'row', gap: space.xl },
   addSetBtn: { paddingVertical: space.sm },
   addSetText: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
   addExBtn: {

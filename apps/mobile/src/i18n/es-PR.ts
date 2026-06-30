@@ -257,6 +257,8 @@ export const esPR: Record<I18nKey, string> = {
   'train.merge': 'Combinar',
   'train.mergeInto': 'Combinar con…',
   'train.deleteExercise': '¿Borrar este ejercicio? El historial conserva su nombre.',
+  'train.rirShort': 'RIR',
+  'train.addCluster': '+ Añadir clúster',
   'logStyle.weightReps': 'Peso × reps',
   'logStyle.bodyweight': 'Peso corporal',
   'logStyle.time': 'Tiempo',

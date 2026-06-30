@@ -5,6 +5,8 @@
 // documented dup pattern as body-fat / weight-projection); cluster-set and
 // template/progression machinery is intentionally omitted from v1.
 
+import { normalizeClusterGroups } from '@macrolog/core';
+
 export type MuscleGroup =
   | 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps' | 'quads'
   | 'hamstrings' | 'glutes' | 'calves' | 'core' | 'forearms';
@@ -147,12 +149,12 @@ export function isLoggedSet(s: WorkoutSet, logStyle: LogStyle = DEFAULT_LOG_STYL
 }
 
 /** Drop unfilled scaffold sets from every exercise before a session is
- *  frozen as `completed`. v1 has no cluster groups, so this is a plain
- *  filter (the PWA additionally re-derives cluster `group` numbers). */
+ *  frozen as `completed`, then re-derive cluster `group` numbers on what
+ *  remains (so no phantom-cluster gaps survive). */
 export function dropEmptySets(exercises: SessionExercise[]): SessionExercise[] {
   return exercises.map((ex) => ({
     ...ex,
-    sets: ex.sets.filter((s) => isLoggedSet(s, ex.logStyle ?? DEFAULT_LOG_STYLE)),
+    sets: normalizeClusterGroups(ex.sets.filter((s) => isLoggedSet(s, ex.logStyle ?? DEFAULT_LOG_STYLE))),
   }));
 }
 

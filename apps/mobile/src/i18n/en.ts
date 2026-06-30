@@ -255,6 +255,8 @@ export const en = {
   'train.merge': 'Merge',
   'train.mergeInto': 'Merge into…',
   'train.deleteExercise': 'Delete this exercise? History keeps its name.',
+  'train.rirShort': 'RIR',
+  'train.addCluster': '+ Add cluster',
   'logStyle.weightReps': 'Weight × reps',
   'logStyle.bodyweight': 'Bodyweight',
   'logStyle.time': 'Time',

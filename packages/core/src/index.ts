@@ -21,3 +21,5 @@ export * from './weekly-insights';
 export * from './plate-math';
 export * from './warmup';
 export * from './workout-progression';
+// Function-only export (the ./workout types stay un-barreled — see note above).
+export { normalizeClusterGroups } from './cluster-groups';
