@@ -20,6 +20,7 @@ import {
   type MealPreset,
   type MealType,
 } from '@macrolog/core';
+import { FoodSearch } from '@/components/FoodSearch';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
 
@@ -36,6 +37,8 @@ interface Props {
   onSavePreset?: (preset: Omit<MealPreset, 'id'>) => Promise<void> | void;
   onDeletePreset?: (id: string) => Promise<void> | void;
   onHideRecent?: (label: string) => Promise<void> | void;
+  /** Portion-display preference for the food-search serving sort. */
+  unitSystem?: 'us' | 'metric';
 }
 
 /** Keep numeric fields as raw strings so partial input ("12.", "1.5")
@@ -60,6 +63,7 @@ export function EntrySheet({
   onSavePreset,
   onDeletePreset,
   onHideRecent,
+  unitSystem = 'us',
 }: Props) {
   const [label, setLabel] = useState('');
   const [calories, setCalories] = useState('');
@@ -69,6 +73,9 @@ export function EntrySheet({
   const [mealType, setMealType] = useState<MealType | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [manage, setManage] = useState(false);
+  // 'manual' is the form; 'search' swaps in the food-database panel. Only
+  // reachable when adding (editing always stays on the manual form).
+  const [mode, setMode] = useState<'manual' | 'search'>('manual');
 
   // Keep the Modal mounted through the exit animation. `anim` drives both the
   // backdrop fade and the sheet's translateY (0 = hidden, 1 = shown), so the
@@ -105,6 +112,7 @@ export function EntrySheet({
     setMealType(editing?.mealType);
     setBusy(false);
     setManage(false);
+    setMode('manual');
   }, [visible, editing]);
 
   /** Prefill the form from a quick-add chip (preset or recent meal). The
@@ -196,6 +204,28 @@ export function EntrySheet({
           <View style={styles.handle} />
           <Text style={styles.title}>{editing ? 'Edit entry' : 'Add food'}</Text>
 
+          {!editing && mode === 'manual' ? (
+            <TouchableOpacity style={styles.searchEntry} onPress={() => { haptics.tap(); setMode('search'); }} testID="open-food-search">
+              <Text style={styles.searchEntryText}>🔍  Search food database</Text>
+            </TouchableOpacity>
+          ) : null}
+
+          {mode === 'search' ? (
+            <FoodSearch
+              unitSystem={unitSystem}
+              onCancel={() => setMode('manual')}
+              onPick={(est) => {
+                prefill({
+                  calories: est.calories,
+                  protein: est.protein,
+                  carbs: est.carbs,
+                  fat: est.fat,
+                  mealLabel: est.mealLabel,
+                });
+                setMode('manual');
+              }}
+            />
+          ) : (
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.form}>
             {showQuickAdd ? (
               <View style={styles.quickAdd}>
@@ -306,22 +336,25 @@ export function EntrySheet({
               </TouchableOpacity>
             ) : null}
           </ScrollView>
+          )}
 
-          <View style={styles.actions}>
-            {editing && onDelete ? (
-              <TouchableOpacity style={styles.delete} onPress={onDelete} testID="entry-delete">
-                <Text style={styles.deleteText}>Delete</Text>
+          {mode === 'manual' ? (
+            <View style={styles.actions}>
+              {editing && onDelete ? (
+                <TouchableOpacity style={styles.delete} onPress={onDelete} testID="entry-delete">
+                  <Text style={styles.deleteText}>Delete</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                style={[styles.save, !canSave && styles.saveDisabled]}
+                onPress={save}
+                disabled={!canSave || busy}
+                testID="entry-save"
+              >
+                <Text style={styles.saveText}>{editing ? 'Save' : 'Add'}</Text>
               </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity
-              style={[styles.save, !canSave && styles.saveDisabled]}
-              onPress={save}
-              disabled={!canSave || busy}
-              testID="entry-save"
-            >
-              <Text style={styles.saveText}>{editing ? 'Save' : 'Add'}</Text>
-            </TouchableOpacity>
-          </View>
+            </View>
+          ) : null}
         </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
@@ -376,6 +409,17 @@ const styles = StyleSheet.create({
   qChipKcal: { fontSize: font.tiny, color: colors.muted },
   savePreset: { alignSelf: 'flex-start', paddingVertical: space.xs },
   savePresetText: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
+  searchEntry: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderStyle: 'dashed',
+    borderRadius: radius.md,
+    paddingVertical: space.md,
+    alignItems: 'center',
+    marginBottom: space.md,
+    backgroundColor: colors.white,
+  },
+  searchEntryText: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   row: { flexDirection: 'row', gap: space.sm },
   third: { flex: 1 },
   fieldLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },

@@ -9,6 +9,7 @@ import {
   initializeAuth,
 } from 'firebase/auth';
 import { type Firestore, getFirestore } from 'firebase/firestore';
+import { type Functions, getFunctions } from 'firebase/functions';
 
 // Same Firebase project as the PWA (see src/environments/environment.ts).
 // This is public client config, not a secret (ADR-0002).
@@ -36,5 +37,8 @@ try {
 }
 
 const db: Firestore = getFirestore(app);
+// Callables default to us-central1 — same region the PWA uses (getFunctions()
+// with no arg in app.config.ts), so searchFoods/getFoodDetail resolve.
+const functions: Functions = getFunctions(app);
 
-export { app, auth, db };
+export { app, auth, db, functions };

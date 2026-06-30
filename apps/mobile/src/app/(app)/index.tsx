@@ -38,6 +38,7 @@ export default function Today() {
     addPreset,
     deletePreset,
     hideRecent,
+    unitSystem,
   } = useToday();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<DailyLog | null>(null);
@@ -153,6 +154,7 @@ export default function Today() {
         onSavePreset={addPreset}
         onDeletePreset={deletePreset}
         onHideRecent={hideRecent}
+        unitSystem={unitSystem}
       />
     </SafeAreaView>
   );

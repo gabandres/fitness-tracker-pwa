@@ -46,6 +46,8 @@ export interface TodayState {
   deletePreset: (id: string) => Promise<void>;
   /** Suppress a label from the recents row (does NOT delete log rows). */
   hideRecent: (label: string) => Promise<void>;
+  /** Portion-display preference for the food-search serving sort. */
+  unitSystem: 'us' | 'metric';
 }
 
 export function useToday(): TodayState {
@@ -163,5 +165,6 @@ export function useToday(): TodayState {
     addPreset,
     deletePreset,
     hideRecent,
+    unitSystem: profile?.unitSystem === 'metric' ? 'metric' : 'us',
   };
 }
