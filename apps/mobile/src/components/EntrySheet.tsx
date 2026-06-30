@@ -1,14 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  BottomSheetBackdrop,
-  type BottomSheetBackdropProps,
-  BottomSheetModal,
-  BottomSheetScrollView,
-  BottomSheetTextInput,
-  BottomSheetView,
-} from '@gorhom/bottom-sheet';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import {
   MEAL_TYPES,
   type DailyLog,
@@ -48,11 +50,12 @@ function numOrUndef(s: string): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-/** Search-first add-food sheet, on @gorhom/bottom-sheet (UI-thread animation +
- *  BottomSheetTextInput keyboard sync — no more JS-thread stutter). Adding
- *  opens on BROWSE (search + recents + quick-add); the manual macro form is a
- *  secondary CUSTOM mode reached via "Create custom food" or any estimate
- *  (search portion / recipe / barcode). Editing opens straight to CUSTOM. */
+/** Search-first add-food sheet, on a plain RN <Modal> (animationType "slide"
+ *  is OS-driven, so it doesn't stutter while typing — unlike the old custom
+ *  Animated translateY). Adding opens on a BROWSE view (search + recents +
+ *  scan/recipe icons); the manual macro form is a secondary CUSTOM mode
+ *  (also used when editing). Search portion / recipe / barcode prefill CUSTOM
+ *  for review. Recents/presets are one-tap relog. */
 export function EntrySheet({
   visible,
   editing,
@@ -67,9 +70,6 @@ export function EntrySheet({
   unitSystem = 'us',
 }: Props) {
   const t = useT();
-  const sheetRef = useRef<BottomSheetModal>(null);
-  const snapPoints = useMemo(() => ['90%'], []);
-
   const [label, setLabel] = useState('');
   const [calories, setCalories] = useState('');
   const [protein, setProtein] = useState('');
@@ -80,12 +80,6 @@ export function EntrySheet({
   const [manage, setManage] = useState(false);
   const [mode, setMode] = useState<'browse' | 'custom' | 'recipe'>('browse');
   const [scannerOpen, setScannerOpen] = useState(false);
-
-  // Present / dismiss the sheet in lockstep with the `visible` prop.
-  useEffect(() => {
-    if (visible) sheetRef.current?.present();
-    else sheetRef.current?.dismiss();
-  }, [visible]);
 
   // Reset form + mode whenever the sheet (re)opens.
   useEffect(() => {
@@ -160,12 +154,16 @@ export function EntrySheet({
     });
   }
 
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} pressBehavior="close" />
-    ),
-    [],
-  );
+  function openCustomBlank() {
+    haptics.tap();
+    setLabel('');
+    setCalories('');
+    setProtein('');
+    setCarbs('');
+    setFat('');
+    setMealType(undefined);
+    setMode('custom');
+  }
 
   // ── Browse empty-state: recents + presets + custom-food link ──
   const browseEmpty = (
@@ -194,11 +192,7 @@ export function EntrySheet({
               }
             >
               <Text style={styles.rowName} numberOfLines={1}>{r.mealLabel}</Text>
-              {manage ? (
-                <Text style={styles.rowRemove}>✕</Text>
-              ) : (
-                <Text style={styles.rowKcal}>{r.calories}</Text>
-              )}
+              {manage ? <Text style={styles.rowRemove}>✕</Text> : <Text style={styles.rowKcal}>{r.calories}</Text>}
             </TouchableOpacity>
           ))}
         </View>
@@ -234,20 +228,7 @@ export function EntrySheet({
         </View>
       ) : null}
 
-      <TouchableOpacity
-        style={styles.customLink}
-        testID="create-custom"
-        onPress={() => {
-          haptics.tap();
-          setLabel('');
-          setCalories('');
-          setProtein('');
-          setCarbs('');
-          setFat('');
-          setMealType(undefined);
-          setMode('custom');
-        }}
-      >
+      <TouchableOpacity style={styles.customLink} testID="create-custom" onPress={openCustomBlank}>
         <Ionicons name="create-outline" size={18} color={colors.accent} />
         <Text style={styles.customLinkText}>{t('entry.customFood')}</Text>
       </TouchableOpacity>
@@ -268,111 +249,96 @@ export function EntrySheet({
   );
 
   return (
-    <BottomSheetModal
-      ref={sheetRef}
-      snapPoints={snapPoints}
-      enableDynamicSizing={false}
-      onDismiss={onClose}
-      backdropComponent={renderBackdrop}
-      keyboardBehavior="interactive"
-      keyboardBlurBehavior="restore"
-      android_keyboardInputMode="adjustResize"
-      handleIndicatorStyle={{ backgroundColor: colors.line }}
-      backgroundStyle={{ backgroundColor: colors.paper }}
-    >
-      <BottomSheetView style={styles.content}>
-        {mode === 'browse' ? (
-          <FoodSearch
-            unitSystem={unitSystem}
-            headerRight={headerIcons}
-            emptyContent={browseEmpty}
-            onPick={(est) => prefill(est)}
-          />
-        ) : mode === 'recipe' ? (
-          <RecipeBuilder onCancel={() => setMode('browse')} onApply={(est) => prefill(est)} />
-        ) : (
-          <View style={styles.customWrap}>
-            <View style={styles.customHead}>
-              {!editing ? (
-                <TouchableOpacity onPress={() => setMode('browse')} hitSlop={8} testID="custom-back">
-                  <Ionicons name="chevron-back" size={22} color={colors.ink} />
-                </TouchableOpacity>
-              ) : (
-                <View style={{ width: 22 }} />
-              )}
-              <Text style={styles.title}>{editing ? t('entry.editTitle') : t('entry.addTitle')}</Text>
-              <View style={{ width: 22 }} />
-            </View>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.fill}>
+        <Pressable style={styles.backdrop} onPress={onClose} testID="entry-backdrop" />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.sheetWrap}
+          pointerEvents="box-none"
+        >
+          <View style={styles.sheet}>
+            <View style={styles.handle} />
 
-            <BottomSheetScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.form}>
-              <Field label={t('entry.name')}>
-                <BottomSheetTextInput
-                  style={styles.input}
-                  placeholder={t('entry.namePlaceholder')}
-                  placeholderTextColor={colors.faint}
-                  value={label}
-                  onChangeText={setLabel}
-                  testID="entry-label"
-                />
-              </Field>
-
-              <Field label={t('entry.calories')}>
-                <BottomSheetTextInput
-                  style={styles.input}
-                  placeholder="0"
-                  placeholderTextColor={colors.faint}
-                  keyboardType="numeric"
-                  value={calories}
-                  onChangeText={setCalories}
-                  testID="entry-calories"
-                />
-              </Field>
-
-              <View style={styles.row3}>
-                <Field label={t('entry.proteinG')} style={styles.third}>
-                  <BottomSheetTextInput style={styles.input} placeholder="0" placeholderTextColor={colors.faint} keyboardType="numeric" value={protein} onChangeText={setProtein} testID="entry-protein" />
-                </Field>
-                <Field label={t('entry.carbsG')} style={styles.third}>
-                  <BottomSheetTextInput style={styles.input} placeholder="0" placeholderTextColor={colors.faint} keyboardType="numeric" value={carbs} onChangeText={setCarbs} testID="entry-carbs" />
-                </Field>
-                <Field label={t('entry.fatG')} style={styles.third}>
-                  <BottomSheetTextInput style={styles.input} placeholder="0" placeholderTextColor={colors.faint} keyboardType="numeric" value={fat} onChangeText={setFat} testID="entry-fat" />
-                </Field>
-              </View>
-
-              <Field label={t('entry.meal')}>
-                <View style={styles.chips}>
-                  {MEAL_TYPES.map((mt) => {
-                    const on = mealType === mt;
-                    return (
-                      <TouchableOpacity key={mt} style={[styles.chip, on && styles.chipOn]} onPress={() => setMealType(on ? undefined : mt)}>
-                        <Text style={[styles.chipText, on && styles.chipTextOn]}>{t(`meal.${mt}`)}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+            {mode === 'browse' ? (
+              <FoodSearch
+                unitSystem={unitSystem}
+                headerRight={headerIcons}
+                emptyContent={browseEmpty}
+                onPick={(est) => prefill(est)}
+              />
+            ) : mode === 'recipe' ? (
+              <RecipeBuilder onCancel={() => setMode('browse')} onApply={(est) => prefill(est)} />
+            ) : (
+              <View style={styles.customWrap}>
+                <View style={styles.customHead}>
+                  {!editing ? (
+                    <TouchableOpacity onPress={() => setMode('browse')} hitSlop={8} testID="custom-back">
+                      <Ionicons name="chevron-back" size={22} color={colors.ink} />
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={{ width: 22 }} />
+                  )}
+                  <Text style={styles.title}>{editing ? t('entry.editTitle') : t('entry.addTitle')}</Text>
+                  <View style={{ width: 22 }} />
                 </View>
-              </Field>
 
-              {canSavePreset ? (
-                <TouchableOpacity style={styles.savePreset} onPress={saveAsPreset} testID="save-preset">
-                  <Text style={styles.savePresetText}>{t('entry.savePreset')}</Text>
-                </TouchableOpacity>
-              ) : null}
-            </BottomSheetScrollView>
+                <View style={styles.form}>
+                  <Field label={t('entry.name')}>
+                    <TextInputBase placeholder={t('entry.namePlaceholder')} value={label} onChangeText={setLabel} testID="entry-label" />
+                  </Field>
 
-            <View style={styles.actions}>
-              {editing && onDelete ? (
-                <TouchableOpacity style={styles.delete} onPress={onDelete} testID="entry-delete">
-                  <Text style={styles.deleteText}>{t('entry.delete')}</Text>
-                </TouchableOpacity>
-              ) : null}
-              <TouchableOpacity style={[styles.save, !canSave && styles.saveDisabled]} onPress={save} disabled={!canSave || busy} testID="entry-save">
-                <Text style={styles.saveText}>{editing ? t('common.save') : t('entry.add')}</Text>
-              </TouchableOpacity>
-            </View>
+                  <Field label={t('entry.calories')}>
+                    <TextInputBase placeholder="0" keyboardType="numeric" value={calories} onChangeText={setCalories} testID="entry-calories" />
+                  </Field>
+
+                  <View style={styles.row3}>
+                    <Field label={t('entry.proteinG')} style={styles.third}>
+                      <TextInputBase placeholder="0" keyboardType="numeric" value={protein} onChangeText={setProtein} testID="entry-protein" />
+                    </Field>
+                    <Field label={t('entry.carbsG')} style={styles.third}>
+                      <TextInputBase placeholder="0" keyboardType="numeric" value={carbs} onChangeText={setCarbs} testID="entry-carbs" />
+                    </Field>
+                    <Field label={t('entry.fatG')} style={styles.third}>
+                      <TextInputBase placeholder="0" keyboardType="numeric" value={fat} onChangeText={setFat} testID="entry-fat" />
+                    </Field>
+                  </View>
+
+                  <Field label={t('entry.meal')}>
+                    <View style={styles.chips}>
+                      {MEAL_TYPES.map((mt) => {
+                        const on = mealType === mt;
+                        return (
+                          <TouchableOpacity key={mt} style={[styles.chip, on && styles.chipOn]} onPress={() => setMealType(on ? undefined : mt)}>
+                            <Text style={[styles.chipText, on && styles.chipTextOn]}>{t(`meal.${mt}`)}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </Field>
+
+                  {canSavePreset ? (
+                    <TouchableOpacity style={styles.savePreset} onPress={saveAsPreset} testID="save-preset">
+                      <Text style={styles.savePresetText}>{t('entry.savePreset')}</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+
+                <View style={styles.actions}>
+                  {editing && onDelete ? (
+                    <TouchableOpacity style={styles.delete} onPress={onDelete} testID="entry-delete">
+                      <Text style={styles.deleteText}>{t('entry.delete')}</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  <TouchableOpacity style={[styles.save, !canSave && styles.saveDisabled]} onPress={save} disabled={!canSave || busy} testID="entry-save">
+                    <Text style={styles.saveText}>{editing ? t('common.save') : t('entry.add')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </View>
-        )}
-      </BottomSheetView>
+        </KeyboardAvoidingView>
+      </View>
 
       {scannerOpen ? (
         <BarcodeScanner
@@ -384,8 +350,13 @@ export function EntrySheet({
           }}
         />
       ) : null}
-    </BottomSheetModal>
+    </Modal>
   );
+}
+
+/** Plain text input styled to the sheet — shared look for the custom form. */
+function TextInputBase(props: React.ComponentProps<typeof TextInput>) {
+  return <TextInput style={styles.input} placeholderTextColor={colors.faint} {...props} />;
 }
 
 function Field({ label, children, style }: { label: string; children: React.ReactNode; style?: object }) {
@@ -398,7 +369,19 @@ function Field({ label, children, style }: { label: string; children: React.Reac
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, paddingHorizontal: space.xl, paddingTop: space.xs },
+  fill: { flex: 1 },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
+  sheetWrap: { flex: 1, justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: colors.paper,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    paddingHorizontal: space.xl,
+    paddingTop: space.sm,
+    paddingBottom: space.xxl,
+    maxHeight: '90%',
+  },
+  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line, marginBottom: space.sm },
   // browse
   browse: { gap: space.lg, paddingTop: space.sm },
   group: { gap: space.xs },
@@ -432,7 +415,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   // custom
-  customWrap: { flex: 1 },
+  customWrap: { flexShrink: 1 },
   customHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.sm },
   title: { fontSize: font.h2, fontWeight: '800', color: colors.ink },
   form: { gap: space.md, paddingBottom: space.md },

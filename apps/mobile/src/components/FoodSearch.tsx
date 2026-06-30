@@ -1,6 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import {
   type FoodDetail,
   type FoodSearchHit,
@@ -136,7 +135,7 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel, headerRight, e
           </View>
         </View>
 
-        <BottomSheetScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
+        <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
           {servings.map((s, i) => (
             <Pressable key={`${s.label}-${i}`} style={styles.serving} onPress={() => pickServing(s)}>
               <View style={styles.servingMain}>
@@ -148,7 +147,7 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel, headerRight, e
               <Text style={styles.servingPick}>{t('food.add')}</Text>
             </Pressable>
           ))}
-        </BottomSheetScrollView>
+        </ScrollView>
       </View>
     );
   }
@@ -157,7 +156,7 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel, headerRight, e
   return (
     <View style={styles.wrap}>
       <View style={styles.searchRow}>
-        <BottomSheetTextInput
+        <TextInput
           style={styles.search}
           placeholder={t('food.placeholder')}
           placeholderTextColor={colors.faint}
@@ -187,19 +186,19 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel, headerRight, e
         hits.length === 0 ? (
           <View style={styles.center}><Text style={styles.muted}>{t('food.noMatches')}</Text></View>
         ) : (
-          <BottomSheetScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
+          <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
             {hits.map((h) => (
               <Pressable key={`${h.source}-${h.id}`} style={styles.hit} onPress={() => openDetail(h)}>
                 <Text style={styles.hitDesc} numberOfLines={2}>{h.description}</Text>
                 {h.brand ? <Text style={styles.hitBrand}>{h.brand}</Text> : null}
               </Pressable>
             ))}
-          </BottomSheetScrollView>
+          </ScrollView>
         )
       ) : emptyContent != null ? (
-        <BottomSheetScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
+        <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
           {emptyContent}
-        </BottomSheetScrollView>
+        </ScrollView>
       ) : (
         <View style={styles.center}><Text style={styles.muted}>{t('food.typeMore')}</Text></View>
       )}
