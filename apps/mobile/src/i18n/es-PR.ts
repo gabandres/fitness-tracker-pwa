@@ -301,6 +301,8 @@ export const esPR: Record<I18nKey, string> = {
   'settings.account': 'Cuenta',
   'settings.signedInAs': 'Sesión iniciada como',
   'settings.signOut': 'Cerrar sesión',
+  'settings.deleteAccount': 'Eliminar cuenta',
+  'settings.deleteAccountSub': 'Borra permanentemente tu cuenta y datos.',
   'settings.data': 'Datos',
   'settings.exportTitle': 'Exporta tus datos',
   'settings.exportSub': 'Un CSV con cada comida, peso, agua, sueño, medida y entreno.',

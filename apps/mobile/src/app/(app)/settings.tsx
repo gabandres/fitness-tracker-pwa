@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import { type ImportParseError, type ImportParseResult, type UnitSystem, parseImportCsv } from '@macrolog/core';
@@ -366,6 +366,18 @@ export default function Settings() {
             <Ionicons name="log-out-outline" size={18} color={colors.danger} />
             <Text style={styles.signOutText}>{t('settings.signOut')}</Text>
           </TouchableOpacity>
+          <View style={styles.deleteDivider} />
+          <TouchableOpacity
+            style={styles.deleteRow}
+            onPress={() => Linking.openURL('https://macrolog.web.app/privacy#delete')}
+            testID="settings-delete-account"
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.deleteLabel}>{t('settings.deleteAccount')}</Text>
+              <Text style={styles.rowValue}>{t('settings.deleteAccountSub')}</Text>
+            </View>
+            <Ionicons name="open-outline" size={16} color={colors.muted} />
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -453,4 +465,7 @@ const styles = StyleSheet.create({
   hourValue: { fontSize: font.body, color: colors.ink, fontWeight: '700', minWidth: 56, textAlign: 'center' },
   signOut: { flexDirection: 'row', alignItems: 'center', gap: space.sm, justifyContent: 'center' },
   signOutText: { color: colors.danger, fontWeight: '700', fontSize: font.body },
+  deleteDivider: { height: 1, backgroundColor: colors.line, marginVertical: space.md },
+  deleteRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  deleteLabel: { fontSize: font.body, color: colors.danger, fontWeight: '600' },
 });

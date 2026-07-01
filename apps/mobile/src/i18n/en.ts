@@ -299,6 +299,8 @@ export const en = {
   'settings.account': 'Account',
   'settings.signedInAs': 'Signed in as',
   'settings.signOut': 'Sign out',
+  'settings.deleteAccount': 'Delete account',
+  'settings.deleteAccountSub': 'Permanently erase your account and data.',
   'settings.data': 'Data',
   'settings.exportTitle': 'Export your data',
   'settings.exportSub': 'A CSV of every meal, weight, water, sleep, measurement, and workout.',
