@@ -1,28 +1,20 @@
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { BrandLoader } from '@/components/BrandLoader';
 import { I18nProvider } from '@/i18n';
 import { colors } from '@/theme';
 
+/** Full-screen branded loading overlay while auth/profile settle. Same warm
+ *  canvas as the native splash so the handoff has no color flash. */
 function Splash() {
   return (
-    <View
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: colors.paper,
-      }}
-    >
-      <ActivityIndicator color={colors.accent} />
+    <View style={styles.splash}>
+      <BrandLoader />
     </View>
   );
 }
@@ -66,6 +58,15 @@ function AuthGate() {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  splash: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.paper,
+  },
+});
 
 export default function RootLayout() {
   return (

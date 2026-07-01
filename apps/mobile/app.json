@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "macrolog",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#f2ead7",
+    "backgroundColor": "#faf9f6",
     "ios": {
       "bundleIdentifier": "app.macrolog.mobile",
       "supportsTablet": true
@@ -31,10 +31,13 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#f2ead7",
+          "backgroundColor": "#faf9f6",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 120,
+          "resizeMode": "contain",
           "android": {
             "image": "./assets/images/splash-icon.png",
-            "imageWidth": 76
+            "imageWidth": 100
           }
         }
       ],
