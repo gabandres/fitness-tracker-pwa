@@ -579,6 +579,15 @@
     "done": "done",
     "empty": "no saved presets yet — use \"save as preset\" on any entry you log often."
   },
+  "myFoods": {
+    "quickAdd": "my foods",
+    "manage": "manage",
+    "done": "done",
+    "removeAria": "Remove {{ name }} from My Foods",
+    "saveToMyFoods": "save to my foods",
+    "namePlaceholder": "food name",
+    "save": "save food"
+  },
   "recent": {
     "label": "recent",
     "pickTitle": "Re-log {{label}} · {{calories}} kcal",

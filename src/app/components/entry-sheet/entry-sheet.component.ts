@@ -18,6 +18,7 @@ import { UiButton } from '../ui/button.component';
 import { PhotoCaptureComponent } from '../photo-capture/photo-capture.component';
 import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.component';
 import { PresetPickerComponent } from '../preset-picker/preset-picker.component';
+import { MyFoodsPickerComponent } from '../my-foods-picker/my-foods-picker.component';
 import { RecentEntriesComponent } from '../recent-entries/recent-entries.component';
 import { RecipeBuilderComponent } from '../recipe-builder/recipe-builder.component';
 import { FoodSearchComponent } from '../food-search/food-search.component';
@@ -46,6 +47,7 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
     PhotoCaptureComponent,
     BarcodeScannerComponent,
     PresetPickerComponent,
+    MyFoodsPickerComponent,
     RecentEntriesComponent,
     RecipeBuilderComponent,
     FoodSearchComponent,
@@ -96,6 +98,7 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
                    functionality is intact. -->
               <app-recent-entries (estimated)="apply($event)" />
               <app-preset-picker (estimated)="apply($event)" />
+              <app-my-foods-picker (estimated)="apply($event)" />
 
               @if (showRecipeBuilder()) {
                 <div class="mb-4">
@@ -315,6 +318,34 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
                     </ui-button>
                   </div>
                 }
+
+                <!-- Save to My Foods (ADR-0013) — sibling of save-as-preset;
+                     saves a reusable, re-loggable CustomFood. -->
+                <div class="mt-2">
+                  @if (!form.savingCustomFood()) {
+                    <ui-button variant="ghost" size="sm" (click)="form.promptSaveCustomFood()">
+                      <lucide-icon name="bookmark" [size]="14" />
+                      {{ t('myFoods.saveToMyFoods') }}
+                    </ui-button>
+                  } @else {
+                    <div class="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        maxlength="60"
+                        class="v2-input flex-1"
+                        [placeholder]="t('myFoods.namePlaceholder')"
+                        [value]="form.customFoodName()"
+                        (input)="form.customFoodName.set($any($event.target).value)" />
+                      <ui-button
+                        variant="primary"
+                        size="sm"
+                        (click)="form.confirmSaveCustomFood()"
+                        [disabled]="!form.customFoodName().trim()">
+                        {{ t('myFoods.save') }}
+                      </ui-button>
+                    </div>
+                  }
+                </div>
               </div>
             }
           </div>

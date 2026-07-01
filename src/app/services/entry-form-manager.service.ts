@@ -1,5 +1,5 @@
 import { effect, Injectable, inject, signal } from '@angular/core';
-import { DailyLog, MealPreset, MealType } from './firebase.service';
+import { CustomFood, DailyLog, MealPreset, MealType } from './firebase.service';
 import { FitnessStore, PresetLimitError } from './fitness-store.service';
 import { MacroEstimate } from '../models/macro-estimate';
 import { TranslationService } from './translation.service';
@@ -52,6 +52,14 @@ export class EntryFormManager {
       entry-form template to surface the contextual upsell card. Cleared
       on the next successful preset save or form reset. */
   readonly presetLimitHit = signal(false);
+
+  // ── Save-to-My-Foods sub-flow (ADR-0013) ────────────────────
+  // Sibling of the preset save flow. Saves the just-logged entry as a
+  // reusable CustomFood. Manual entries have no gram serving, so they save
+  // as { servingUnit: 'serving', servingSize: 1 } — one tap in My Foods
+  // re-logs exactly these macros. Free + uncapped (no limit affordance).
+  readonly savingCustomFood = signal(false);
+  readonly customFoodName = signal('');
 
   /** Snapshot of the last ADD-mode save (calories, macros, label) so
       the "save as preset" affordance survives the post-save reset that
@@ -278,6 +286,44 @@ export class EntryFormManager {
     }
   }
 
+  // ── Save-to-My-Foods flow (ADR-0013) ────────────────────────
+
+  promptSaveCustomFood(): void {
+    if (this.addAutoCloseTimer) {
+      clearTimeout(this.addAutoCloseTimer);
+      this.addAutoCloseTimer = null;
+    }
+    this.savingCustomFood.set(true);
+    this.customFoodName.set(this.lastSavedEntry?.label ?? '');
+  }
+
+  async confirmSaveCustomFood(): Promise<void> {
+    const name = this.customFoodName().trim();
+    // Prefer the post-save snapshot (form fields clear after ADD save),
+    // same as confirmSavePreset.
+    const snap = this.lastSavedEntry;
+    const cal = snap?.calories ?? this.calories();
+    if (!name || cal == null) return;
+    const food: Omit<CustomFood, 'id'> = {
+      name,
+      servingSize: 1,
+      servingUnit: 'serving',
+      calories: Number(cal),
+      source: 'manual',
+      createdAt: new Date(),
+    };
+    const pro = snap?.protein ?? this.protein();
+    if (pro != null) food.protein = Number(pro);
+    const carb = snap?.carbs ?? this.carbs();
+    if (carb != null) food.carbs = Number(carb);
+    const f = snap?.fat ?? this.fat();
+    if (f != null) food.fat = Number(f);
+    // My Foods is free + uncapped, so no try/catch limit branch (unlike presets).
+    await this.store.addCustomFood(food);
+    this.savingCustomFood.set(false);
+    this.cancel();
+  }
+
   // ── Private ─────────────────────────────────────────────────
 
   private resetForm(): void {
@@ -313,6 +359,8 @@ export class EntryFormManager {
     this.errorMsg.set('');
     this.savingPreset.set(false);
     this.presetName.set('');
+    this.savingCustomFood.set(false);
+    this.customFoodName.set('');
     this.resetForm();
   }
 }

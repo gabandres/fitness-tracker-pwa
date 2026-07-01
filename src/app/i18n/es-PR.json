@@ -579,6 +579,15 @@
     "manage": "editar",
     "done": "listo"
   },
+  "myFoods": {
+    "quickAdd": "mis alimentos",
+    "manage": "editar",
+    "done": "listo",
+    "removeAria": "Quitar {{ name }} de Mis Alimentos",
+    "saveToMyFoods": "guardar en mis alimentos",
+    "namePlaceholder": "nombre del alimento",
+    "save": "guardar alimento"
+  },
   "recent": {
     "label": "recientes",
     "pickTitle": "Registrar de nuevo {{label}} · {{calories}} kcal",
