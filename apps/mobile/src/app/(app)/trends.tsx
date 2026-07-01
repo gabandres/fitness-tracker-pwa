@@ -2,7 +2,9 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type TdeeResult, parseYmd } from '@macrolog/core';
 import { Sparkline } from '@/components/Sparkline';
+import { ProUpsell } from '@/components/ProUpsell';
 import { useTrends } from '@/hooks/useTrends';
+import { useSubscription } from '@/lib/subscription';
 import { type I18nKey, useT } from '@/i18n';
 import { colors, font, radius, space } from '@/theme';
 
@@ -23,6 +25,7 @@ const TDEE_MODE: Record<TdeeResult['source'], { labelKey: I18nKey; hintKey: I18n
 export default function Trends() {
   const t = useT();
   const { loading, error, insights, tdee, targetCalories, weightSeries, budget } = useTrends();
+  const { isPro } = useSubscription();
   const mode = TDEE_MODE[tdee.source];
 
   return (
@@ -71,7 +74,14 @@ export default function Trends() {
             </>
           ) : null}
 
-          {/* Weekly insights */}
+          {/* Weekly insights + budget — Pro (basic maintenance + weight chart
+              above stay free). */}
+          {!isPro ? (
+            <View style={{ marginTop: space.lg }}>
+              <ProUpsell feature={t('pro.advancedTrends')} />
+            </View>
+          ) : (
+          <>
           <Text style={styles.section}>{t('trends.thisWeek')}</Text>
           {insights ? (
             <View style={styles.card} testID="insights-card">
@@ -173,6 +183,8 @@ export default function Trends() {
               </View>
             </>
           ) : null}
+          </>
+          )}
         </ScrollView>
       )}
     </SafeAreaView>

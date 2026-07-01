@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
 import { importLogs, setPreferredLocale, setUnitSystem, setWeeklyDigestOptIn } from '@/lib/ledger';
 import { exportDataCsv } from '@/lib/dataExport';
+import { useSubscription } from '@/lib/subscription';
 import { DEFAULT_REMINDER_HOUR, getReminder, setReminder } from '@/lib/reminders';
 import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -53,6 +54,7 @@ export default function Settings() {
   const t = useT();
   const locale = useLocale();
   const { user, profile, signOut } = useAuth();
+  const { isPro, proPreview, setProPreview } = useSubscription();
   const targets = useDailyTargets();
   const router = useRouter();
   const [savingUnit, setSavingUnit] = useState(false);
@@ -205,6 +207,45 @@ export default function Settings() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.faint} />
           </TouchableOpacity>
+        </View>
+
+        <Text style={styles.section}>{t('pro.title')}</Text>
+        <View style={styles.card}>
+          {isPro ? (
+            <View style={styles.proActiveRow}>
+              <Ionicons name="checkmark-circle" size={20} color={colors.good} />
+              <Text style={styles.proActive}>{t('pro.active')}</Text>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.rowValue}>{t('pro.desc')}</Text>
+              <View style={styles.proFeatures}>
+                {[t('pro.featHistory'), t('pro.featLimits'), t('pro.featThemes'), t('pro.featTrends')].map((f) => (
+                  <View key={f} style={styles.proFeatRow}>
+                    <Ionicons name="checkmark" size={15} color={colors.accent} />
+                    <Text style={styles.proFeat}>{f}</Text>
+                  </View>
+                ))}
+              </View>
+              <TouchableOpacity style={[styles.exportBtn, styles.proUnlockBtn]} disabled testID="pro-unlock">
+                <Ionicons name="lock-open-outline" size={16} color={colors.white} />
+                <Text style={styles.exportBtnText}>{t('pro.unlock')} · {t('pro.unlockSoon')}</Text>
+              </TouchableOpacity>
+            </>
+          )}
+          <View style={styles.importDivider} />
+          <View style={styles.rowBetween}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>{t('pro.preview')}</Text>
+              <Text style={styles.rowValue}>{t('pro.previewSub')}</Text>
+            </View>
+            <Switch
+              value={proPreview}
+              onValueChange={(v) => setProPreview(v)}
+              trackColor={{ true: colors.tealSolid, false: colors.line }}
+              testID="pro-preview-toggle"
+            />
+          </View>
         </View>
 
         <Text style={styles.section}>{t('settings.units')}</Text>
@@ -437,6 +478,12 @@ const styles = StyleSheet.create({
   exportBtnDisabled: { opacity: 0.5 },
   exportBtnText: { color: colors.white, fontWeight: '700', fontSize: font.small },
   exportMsg: { fontSize: font.small, color: colors.muted, marginTop: space.sm },
+  proActiveRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  proActive: { fontSize: font.body, color: colors.good, fontWeight: '700' },
+  proFeatures: { gap: space.xs, marginTop: space.sm },
+  proFeatRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  proFeat: { fontSize: font.small, color: colors.ink },
+  proUnlockBtn: { marginTop: space.md, alignSelf: 'flex-start', opacity: 0.6 },
   importDivider: { height: 1, backgroundColor: colors.line, marginVertical: space.md },
   importPreview: { marginTop: space.sm, gap: space.xs, backgroundColor: colors.paper, borderRadius: radius.md, padding: space.md },
   importActions: { flexDirection: 'row', alignItems: 'center', gap: space.lg, marginTop: space.sm },

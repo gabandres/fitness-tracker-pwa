@@ -7,12 +7,14 @@ import {
   type MealPreset,
   type Profile,
   type ShareStats,
+  STREAK_FREEZE_MAX_GAP_PRO,
   computeStreak,
   currentWeight as coreCurrentWeight,
   dailyTargets,
   localDateKey,
   summarizeDay,
 } from '@macrolog/core';
+import { useSubscription } from '@/lib/subscription';
 import { useAuth } from '@/lib/auth';
 import {
   addLog as addLogDoc,
@@ -140,7 +142,11 @@ export function useToday(): TodayState {
     return out;
   }, [logs, profile]);
 
-  const streak = useMemo(() => computeStreak(logs).streak, [logs]);
+  const { isPro } = useSubscription();
+  const streak = useMemo(
+    () => computeStreak(logs, { freezeMaxGap: isPro ? STREAK_FREEZE_MAX_GAP_PRO : 0 }).streak,
+    [logs, isPro],
+  );
 
   const shareStats = useMemo<ShareStats>(() => {
     const loggedDays = new Set(
