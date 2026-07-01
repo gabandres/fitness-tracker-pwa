@@ -1,13 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { captureAndShare } from '@/lib/shareCapture';
 import type { DailyLog, LogEntry } from '@macrolog/core';
 import { DailyMetrics } from '@/components/DailyMetrics';
 import { EntrySheet } from '@/components/EntrySheet';
 import { MacroRing } from '@/components/MacroRing';
 import { MealEntries } from '@/components/MealEntries';
+import { ShareCard } from '@/components/ShareCard';
 import { WhatsNewBanner } from '@/components/WhatsNewBanner';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -45,9 +47,20 @@ export default function Today() {
     breakFast,
     streak,
     repeatYesterday,
+    shareStats,
   } = useToday();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [repeating, setRepeating] = useState(false);
+  const shareRef = useRef<View>(null);
+
+  async function onShare() {
+    haptics.tap();
+    try {
+      await captureAndShare(shareRef, t('today.shareCard'));
+    } catch {
+      /* capture/share failed or user dismissed — no-op */
+    }
+  }
 
   async function onRepeatYesterday() {
     if (repeating) return;
@@ -102,9 +115,19 @@ export default function Today() {
               <Text style={styles.streakNum}>{streak}</Text>
             </View>
           ) : null}
+          <TouchableOpacity onPress={onShare} testID="share-progress" hitSlop={10}>
+            <Ionicons name="share-outline" size={22} color={colors.muted} />
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => router.push('/settings')} testID="settings-open" hitSlop={10}>
             <Ionicons name="settings-outline" size={24} color={colors.muted} />
           </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Off-screen capture target for the share card (native share only). */}
+      <View style={styles.shareCapture} pointerEvents="none">
+        <View ref={shareRef} collapsable={false}>
+          <ShareCard stats={shareStats} />
         </View>
       </View>
 
@@ -240,6 +263,7 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: font.body, color: colors.muted, fontWeight: '600' },
   emptyHint: { fontSize: font.small, color: colors.faint },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  shareCapture: { position: 'absolute', left: -10000, top: 0, opacity: 0 },
   streakChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3 },
   streakFlame: { fontSize: font.small },
   streakNum: { fontSize: font.small, fontWeight: '800', color: colors.ink },

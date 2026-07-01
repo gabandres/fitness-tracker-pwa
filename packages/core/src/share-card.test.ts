@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { shareStatItems } from './share-card';
 
 describe('shareStatItems', () => {

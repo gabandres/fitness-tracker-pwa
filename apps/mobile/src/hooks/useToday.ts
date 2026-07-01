@@ -6,7 +6,9 @@ import {
   type LogEntry,
   type MealPreset,
   type Profile,
+  type ShareStats,
   computeStreak,
+  currentWeight as coreCurrentWeight,
   dailyTargets,
   localDateKey,
   summarizeDay,
@@ -69,6 +71,9 @@ export interface TodayState {
   /** Copy yesterday's food entries onto today (time-of-day preserved).
    *  Returns how many were copied. */
   repeatYesterday: () => Promise<number>;
+  /** Numbers-only progress stats for the share card (streak, logged days,
+   *  weight change). */
+  shareStats: ShareStats;
 }
 
 export function useToday(): TodayState {
@@ -136,6 +141,25 @@ export function useToday(): TodayState {
   }, [logs, profile]);
 
   const streak = useMemo(() => computeStreak(logs).streak, [logs]);
+
+  const shareStats = useMemo<ShareStats>(() => {
+    const loggedDays = new Set(
+      logs.filter((l) => l.calories > 0).map((l) => localDateKey(l.date)),
+    ).size;
+    const current = coreCurrentWeight(logs, weights);
+    const wKeys = Object.keys(weights).sort();
+    let start: number | null = wKeys.length > 0 ? weights[wKeys[0]] : null;
+    if (start == null) {
+      for (const l of logs) {
+        if (l.weight != null) {
+          start = l.weight;
+          break;
+        }
+      }
+    }
+    const weightDeltaLb = start != null && current != null ? +(start - current).toFixed(1) : null;
+    return { streak, loggedDays, weightDeltaLb };
+  }, [logs, weights, streak]);
 
   const repeatYesterday = useCallback(async () => {
     if (!uid) return 0;
@@ -242,5 +266,6 @@ export function useToday(): TodayState {
     breakFast,
     streak,
     repeatYesterday,
+    shareStats,
   };
 }
