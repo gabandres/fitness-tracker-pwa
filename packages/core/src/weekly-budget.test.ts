@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { computeWeeklyBudget } from './weekly-budget';
 import type { DaySummary } from './day-summary';
 

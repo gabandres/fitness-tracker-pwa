@@ -190,6 +190,11 @@ export const esPR: Record<I18nKey, string> = {
   'trends.weightTrend': 'Tendencia de peso',
   'trends.daysLogged': '{n} de 7 días registrados',
   'trends.empty': 'Registra al menos 3 días esta semana para ver análisis.',
+  'trends.budgetTitle': 'Presupuesto semanal',
+  'trends.budgetUsed': 'Usado esta semana',
+  'trends.budgetRemaining': 'Restante',
+  'trends.budgetPerDay': 'Disponible por día',
+  'trends.budgetOver': 'Sobre presupuesto',
   'trends.loadErr': 'No se pudieron cargar tus tendencias.',
 
   // ── train ──

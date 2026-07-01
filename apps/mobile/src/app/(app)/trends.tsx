@@ -10,6 +10,10 @@ function dayLabel(dateKey: string): string {
   return parseYmd(dateKey).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+function weekdayNarrow(dateKey: string): string {
+  return parseYmd(dateKey).toLocaleDateString(undefined, { weekday: 'narrow' });
+}
+
 const TDEE_MODE: Record<TdeeResult['source'], { labelKey: I18nKey; hintKey: I18nKey }> = {
   measured: { labelKey: 'trends.measured', hintKey: 'trends.measuredHint' },
   formula: { labelKey: 'trends.formula', hintKey: 'trends.formulaHint' },
@@ -18,7 +22,7 @@ const TDEE_MODE: Record<TdeeResult['source'], { labelKey: I18nKey; hintKey: I18n
 
 export default function Trends() {
   const t = useT();
-  const { loading, error, insights, tdee, targetCalories, weightSeries } = useTrends();
+  const { loading, error, insights, tdee, targetCalories, weightSeries, budget } = useTrends();
   const mode = TDEE_MODE[tdee.source];
 
   return (
@@ -110,6 +114,65 @@ export default function Trends() {
               <Text style={styles.empty}>{t('trends.empty')}</Text>
             </View>
           )}
+
+          {/* Weekly calorie budget / banking */}
+          {budget ? (
+            <>
+              <Text style={styles.section}>{t('trends.budgetTitle')}</Text>
+              <View style={styles.card} testID="budget-card">
+                <View style={styles.kv}>
+                  <Text style={styles.kvLabel}>{t('trends.budgetUsed')}</Text>
+                  <Text style={styles.kvValue}>
+                    {Math.round(budget.consumed).toLocaleString()} / {budget.weeklyBudget.toLocaleString()}
+                  </Text>
+                </View>
+                <View style={styles.barStrip}>
+                  {budget.bars.map((b) => {
+                    const h =
+                      b.calories > 0 && budget.dailyTarget > 0
+                        ? Math.max(6, Math.min(100, (b.calories / budget.dailyTarget) * 70))
+                        : 0;
+                    const over = b.calories > budget.dailyTarget;
+                    return (
+                      <View key={b.dateKey} style={styles.barCol}>
+                        <View style={styles.barTrack}>
+                          <View
+                            style={[
+                              styles.barFill,
+                              {
+                                height: `${h}%`,
+                                backgroundColor: over ? colors.danger : colors.ring,
+                                opacity: b.elapsed ? 1 : 0.3,
+                              },
+                            ]}
+                          />
+                        </View>
+                        <Text style={styles.barDay}>{weekdayNarrow(b.dateKey)}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+                <View style={styles.divider} />
+                <View style={styles.kv}>
+                  <Text style={styles.kvLabel}>{t('trends.budgetRemaining')}</Text>
+                  <Text style={[styles.kvValue, { color: budget.remaining < 0 ? colors.danger : colors.accent }]}>
+                    {budget.remaining < 0 ? '−' : ''}
+                    {Math.abs(Math.round(budget.remaining)).toLocaleString()} kcal
+                  </Text>
+                </View>
+                {budget.pacePerRemainingDay != null ? (
+                  <View style={styles.kv}>
+                    <Text style={styles.kvLabel}>{t('trends.budgetPerDay')}</Text>
+                    <Text style={styles.kvValue}>
+                      {budget.pacePerRemainingDay < 0
+                        ? t('trends.budgetOver')
+                        : `${budget.pacePerRemainingDay.toLocaleString()} kcal`}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            </>
+          ) : null}
         </ScrollView>
       )}
     </SafeAreaView>
@@ -151,4 +214,9 @@ const styles = StyleSheet.create({
   kvLabel: { fontSize: font.body, color: colors.muted },
   kvValue: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
   empty: { fontSize: font.small, color: colors.muted },
+  barStrip: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 84, marginVertical: space.xs },
+  barCol: { flex: 1, alignItems: 'center', gap: 4 },
+  barTrack: { width: '55%', height: 64, borderRadius: radius.sm, backgroundColor: colors.line, justifyContent: 'flex-end', overflow: 'hidden' },
+  barFill: { width: '100%', borderRadius: radius.sm },
+  barDay: { fontSize: font.tiny, color: colors.faint, textTransform: 'uppercase' },
 });

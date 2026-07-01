@@ -188,6 +188,11 @@ export const en = {
   'trends.weightTrend': 'Weight trend',
   'trends.daysLogged': '{n} of 7 days logged',
   'trends.empty': 'Log at least 3 days this week to see insights.',
+  'trends.budgetTitle': 'Weekly budget',
+  'trends.budgetUsed': 'Used this week',
+  'trends.budgetRemaining': 'Remaining',
+  'trends.budgetPerDay': 'Left per day',
+  'trends.budgetOver': 'Over budget',
   'trends.loadErr': "Couldn't load your trends.",
 
   // ── train ──

@@ -4,9 +4,11 @@ import {
   type DailyTargets,
   type Profile,
   type TdeeResult,
+  type WeeklyBudget,
   type WeeklyInsights,
   type WeightPoint,
   addDays,
+  computeWeeklyBudget,
   computeWeeklyInsights,
   dailyTargets,
   localDateKey,
@@ -29,6 +31,9 @@ export interface TrendsState {
   targetCalories: number;
   /** Last 14 days of daily weights (oldest → newest) for the weight chart. */
   weightSeries: number[];
+  /** Weekly calorie budget / banking (Mon→Sun), or null below the target
+   *  gate. */
+  budget: WeeklyBudget | null;
 }
 
 const SPARK_DAYS = 14;
@@ -91,6 +96,18 @@ export function useTrends(): TrendsState {
     return out;
   }, [weights]);
 
+  const budget = useMemo<WeeklyBudget | null>(() => {
+    // ISO-local week (Monday-start): the seven Mon→Sun date keys and today's
+    // 1-based position. Monday is at most 6 days back, so the log window covers
+    // the elapsed week.
+    const today = new Date();
+    const daysSinceMonday = (today.getDay() + 6) % 7; // Sun=0 → 6, Mon=1 → 0
+    const monday = addDays(today, -daysSinceMonday);
+    const keys = Array.from({ length: 7 }, (_, i) => localDateKey(addDays(monday, i)));
+    const days = summarizeDays(keys, logs, weights);
+    return computeWeeklyBudget(days, daysSinceMonday + 1, targets.calorieTarget);
+  }, [logs, weights, targets]);
+
   return {
     loading,
     error,
@@ -98,5 +115,6 @@ export function useTrends(): TrendsState {
     tdee: targets.tdee,
     targetCalories: targets.calorieTarget,
     weightSeries,
+    budget,
   };
 }
