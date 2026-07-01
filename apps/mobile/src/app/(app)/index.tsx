@@ -50,8 +50,23 @@ export default function Today() {
     fastStartedAt,
     startFast,
     breakFast,
+    streak,
+    repeatYesterday,
   } = useToday();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [repeating, setRepeating] = useState(false);
+
+  async function onRepeatYesterday() {
+    if (repeating) return;
+    haptics.tap();
+    setRepeating(true);
+    try {
+      await repeatYesterday();
+      haptics.success();
+    } finally {
+      setRepeating(false);
+    }
+  }
   const [editing, setEditing] = useState<DailyLog | null>(null);
 
   const calTarget = targets.calorieTarget || 0;
@@ -87,9 +102,17 @@ export default function Today() {
           <Text style={styles.title}>{t('nav.today')}</Text>
           <Text style={styles.date}>{todayLabel()}</Text>
         </View>
-        <TouchableOpacity onPress={() => router.push('/settings')} testID="settings-open" hitSlop={10}>
-          <Ionicons name="settings-outline" size={24} color={colors.muted} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          {streak > 0 ? (
+            <View style={styles.streakChip} testID="streak-chip">
+              <Text style={styles.streakFlame}>🔥</Text>
+              <Text style={styles.streakNum}>{streak}</Text>
+            </View>
+          ) : null}
+          <TouchableOpacity onPress={() => router.push('/settings')} testID="settings-open" hitSlop={10}>
+            <Ionicons name="settings-outline" size={24} color={colors.muted} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (
@@ -142,6 +165,17 @@ export default function Today() {
             <View style={styles.empty}>
               <Text style={styles.emptyText}>{t('today.emptyTitle')}</Text>
               <Text style={styles.emptyHint}>{t('today.emptyHint')}</Text>
+              <TouchableOpacity
+                style={[styles.repeatBtn, repeating && styles.repeatBtnDisabled]}
+                onPress={onRepeatYesterday}
+                disabled={repeating}
+                testID="repeat-yesterday"
+              >
+                <Ionicons name="refresh" size={15} color={colors.ink} />
+                <Text style={styles.repeatText}>
+                  {repeating ? t('common.saving') : t('today.repeatYesterday')}
+                </Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.list}>
@@ -233,6 +267,13 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingVertical: space.xl, gap: space.xs },
   emptyText: { fontSize: font.body, color: colors.muted, fontWeight: '600' },
   emptyHint: { fontSize: font.small, color: colors.faint },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  streakChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3 },
+  streakFlame: { fontSize: font.small },
+  streakNum: { fontSize: font.small, fontWeight: '800', color: colors.ink },
+  repeatBtn: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginTop: space.sm, borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.lg, paddingVertical: space.sm },
+  repeatBtnDisabled: { opacity: 0.5 },
+  repeatText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
   list: { gap: space.sm },
   entry: {
     flexDirection: 'row',

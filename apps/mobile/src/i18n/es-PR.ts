@@ -71,6 +71,7 @@ export const esPR: Record<I18nKey, string> = {
   'today.entries': 'Registros',
   'today.emptyTitle': 'Aún no hay registros.',
   'today.emptyHint': 'Toca + para registrar tu primera comida.',
+  'today.repeatYesterday': 'Repetir ayer',
   'today.loadErr': 'No se pudieron cargar tus datos. Desliza para reintentar.',
   'today.entry': 'Registro',
   'whatsNew.title': 'Novedades',

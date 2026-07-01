@@ -6,6 +6,7 @@ import {
   type LogEntry,
   type MealPreset,
   type Profile,
+  computeStreak,
   dailyTargets,
   localDateKey,
   summarizeDay,
@@ -63,6 +64,11 @@ export interface TodayState {
   fastStartedAt: Date | null;
   startFast: () => Promise<void>;
   breakFast: () => Promise<void>;
+  /** Consecutive logged-day streak ending today (or yesterday). */
+  streak: number;
+  /** Copy yesterday's food entries onto today (time-of-day preserved).
+   *  Returns how many were copied. */
+  repeatYesterday: () => Promise<number>;
 }
 
 export function useToday(): TodayState {
@@ -128,6 +134,30 @@ export function useToday(): TodayState {
     }
     return out;
   }, [logs, profile]);
+
+  const streak = useMemo(() => computeStreak(logs).streak, [logs]);
+
+  const repeatYesterday = useCallback(async () => {
+    if (!uid) return 0;
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    const yKey = localDateKey(y);
+    const yLogs = logs.filter((l) => localDateKey(l.date) === yKey && l.calories > 0);
+    for (const l of yLogs) {
+      const ts = new Date();
+      ts.setHours(l.date.getHours(), l.date.getMinutes(), 0, 0);
+      await addLogDoc(uid, {
+        calories: l.calories,
+        protein: l.protein,
+        carbs: l.carbs,
+        fat: l.fat,
+        mealLabel: l.mealLabel,
+        mealType: l.mealType,
+        timestamp: ts,
+      });
+    }
+    return yLogs.length;
+  }, [uid, logs]);
 
   const addEntry = useCallback(
     async (entry: LogEntry) => {
@@ -210,5 +240,7 @@ export function useToday(): TodayState {
     fastStartedAt: profile?.fastStartedAt ?? null,
     startFast,
     breakFast,
+    streak,
+    repeatYesterday,
   };
 }

@@ -69,6 +69,7 @@ export const en = {
   'today.entries': 'Entries',
   'today.emptyTitle': 'No entries yet.',
   'today.emptyHint': 'Tap + to log your first meal.',
+  'today.repeatYesterday': 'Repeat yesterday',
   'today.loadErr': "Couldn't load your data. Pull to retry.",
   'today.entry': 'Entry',
   'whatsNew.title': "What's new",
