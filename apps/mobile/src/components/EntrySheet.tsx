@@ -42,6 +42,18 @@ interface Props {
   onHideRecent?: (label: string) => Promise<void> | void;
   /** Portion-display preference for the food-search serving sort. */
   unitSystem?: 'us' | 'metric';
+  /** When set (and NOT editing), a new/relogged entry is stamped to local
+   *  noon on this YYYY-MM-DD instead of "now" — for adding food to a past
+   *  day from the day-detail screen. */
+  dateKey?: string;
+}
+
+/** Local noon on a YYYY-MM-DD. Noon (not midnight) so a backdated entry can't
+ *  bleed into the previous day under a negative UTC offset — matches the CSV
+ *  import default. */
+function noonOf(dateKey: string): Date {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  return new Date(y, m - 1, d, 12, 0, 0);
 }
 
 /** Keep numeric fields as raw strings so partial input ("12.", "1.5")
@@ -73,9 +85,13 @@ export function EntrySheet({
   onDeletePreset,
   onHideRecent,
   unitSystem = 'us',
+  dateKey,
 }: Props) {
   const t = useT();
   const locale = useLocale();
+  // Which date a saved/relogged entry lands on: the edited row's own date,
+  // else local noon on `dateKey` (past-day add), else undefined ("now").
+  const forDate = editing?.date ?? (dateKey ? noonOf(dateKey) : undefined);
   const [label, setLabel] = useState('');
   const [calories, setCalories] = useState('');
   const [protein, setProtein] = useState('');
@@ -162,10 +178,11 @@ export function EntrySheet({
     [],
   );
 
-  /** One-tap relog: log a known entry (recent / preset) and close. */
+  /** One-tap relog: log a known entry (recent / preset) and close. On a past
+   *  day, restamp it to that day rather than keeping the source's date. */
   function quickLog(entry: LogEntry) {
     haptics.success();
-    void onSave(entry);
+    void onSave(forDate ? { ...entry, timestamp: forDate } : entry);
     onClose();
   }
 
@@ -183,7 +200,7 @@ export function EntrySheet({
       fat: numOrUndef(fat),
       mealLabel: label.trim() || undefined,
       mealType,
-      timestamp: editing?.date,
+      timestamp: forDate,
     };
     try {
       await onSave(entry);

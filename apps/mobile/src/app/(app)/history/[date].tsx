@@ -1,10 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { type DailyLog, localDateKey, parseYmd, summarizeDay } from '@macrolog/core';
+import { type DailyLog, type LogEntry, localDateKey, parseYmd, summarizeDay } from '@macrolog/core';
+import { EntrySheet } from '@/components/EntrySheet';
 import { useHistory } from '@/hooks/useHistory';
 import { type TFn, useT } from '@/i18n';
+import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
 
 export default function DayDetail() {
@@ -12,12 +15,35 @@ export default function DayDetail() {
   const { date } = useLocalSearchParams<{ date: string }>();
   const dateKey = String(date);
   const router = useRouter();
-  const { loading, logs, weights } = useHistory();
+  const { loading, logs, weights, presets, addEntry, updateEntry, deleteEntry, addPreset, deletePreset } = useHistory();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [editing, setEditing] = useState<DailyLog | null>(null);
 
   const summary = summarizeDay(dateKey, logs, weights);
   const dayLogs = logs
     .filter((l) => localDateKey(l.date) === dateKey && l.calories > 0)
     .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  function openAdd() {
+    haptics.tap();
+    setEditing(null);
+    setSheetOpen(true);
+  }
+  function openEdit(log: DailyLog) {
+    haptics.tap();
+    setEditing(log);
+    setSheetOpen(true);
+  }
+  async function onSave(entry: LogEntry) {
+    if (editing?.id) await updateEntry(editing.id, entry);
+    else await addEntry(entry);
+    haptics.success();
+  }
+  async function onDelete() {
+    if (editing?.id) await deleteEntry(editing.id);
+    haptics.success();
+    setSheetOpen(false);
+  }
 
   const title = parseYmd(dateKey).toLocaleDateString(undefined, {
     weekday: 'long',
@@ -60,18 +86,36 @@ export default function DayDetail() {
           ) : (
             <View style={styles.list}>
               {dayLogs.map((log) => (
-                <View key={log.id} style={styles.entry}>
+                <TouchableOpacity key={log.id} style={styles.entry} onPress={() => openEdit(log)} testID={`entry-${log.id}`}>
                   <View style={styles.entryMain}>
                     <Text style={styles.entryLabel}>{log.mealLabel || t('today.entry')}</Text>
                     <Text style={styles.entryMacros}>{macroLine(log, t)}</Text>
                   </View>
                   <Text style={styles.entryKcal}>{log.calories.toLocaleString()}</Text>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           )}
         </ScrollView>
       )}
+
+      {!loading ? (
+        <TouchableOpacity style={styles.fab} onPress={openAdd} testID="add-food-day" activeOpacity={0.85}>
+          <Ionicons name="add" size={28} color={colors.white} />
+        </TouchableOpacity>
+      ) : null}
+
+      <EntrySheet
+        visible={sheetOpen}
+        editing={editing}
+        dateKey={dateKey}
+        presets={presets}
+        onSave={onSave}
+        onDelete={editing ? onDelete : undefined}
+        onClose={() => setSheetOpen(false)}
+        onSavePreset={addPreset}
+        onDeletePreset={deletePreset}
+      />
     </SafeAreaView>
   );
 }
@@ -138,4 +182,20 @@ const styles = StyleSheet.create({
   entryLabel: { fontSize: font.body, fontWeight: '600', color: colors.ink },
   entryMacros: { fontSize: font.small, color: colors.muted },
   entryKcal: { fontSize: font.body, fontWeight: '700', color: colors.ink, marginLeft: space.md },
+  fab: {
+    position: 'absolute',
+    right: space.xl,
+    bottom: space.xl,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
+  },
 });
