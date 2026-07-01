@@ -76,7 +76,7 @@ export function DailyMetrics({ water, sleep, fastStartedAt, onAddWater, onSetSle
       <View style={styles.row}>
         <View style={styles.left}>
           <Text style={styles.label}>{t('metrics.water')}</Text>
-          <Text style={styles.value}>{water} fl oz</Text>
+          <Text style={[styles.value, styles.waterValue]}>{water} fl oz</Text>
         </View>
         <View style={styles.waterBtns}>
           {water > 0 ? (
@@ -200,15 +200,16 @@ const styles = StyleSheet.create({
   actionText: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
   actionTextStop: { color: colors.danger },
   waterBtns: { flexDirection: 'row', gap: space.xs },
+  waterValue: { color: colors.teal },
   pill: {
     paddingHorizontal: space.md,
     paddingVertical: space.xs,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.white,
+    borderColor: colors.tealSoft,
+    backgroundColor: colors.tealSoft,
   },
-  pillText: { fontSize: font.small, color: colors.ink, fontWeight: '700' },
+  pillText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' },
   sheetWrap: { flex: 1, justifyContent: 'flex-end' },
   sheet: {

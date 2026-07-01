@@ -258,7 +258,7 @@ export default function Settings() {
             <Switch
               value={reminderEnabled}
               onValueChange={toggleReminder}
-              trackColor={{ true: colors.ink, false: colors.line }}
+              trackColor={{ true: colors.tealSolid, false: colors.line }}
               testID="reminder-toggle"
             />
           </View>
@@ -285,7 +285,7 @@ export default function Settings() {
             <Switch
               value={!!profile?.weeklyDigestOptIn}
               onValueChange={toggleDigest}
-              trackColor={{ true: colors.ink, false: colors.line }}
+              trackColor={{ true: colors.tealSolid, false: colors.line }}
               testID="digest-toggle"
             />
           </View>

@@ -1,9 +1,16 @@
 /**
- * Macro Log "Frost" design tokens — a clean, modern LIGHT theme (true-white
- * canvas, cool-gray cards, big bold numerals, a single blue accent for
- * rings/CTAs). Replaces the old warm "paper" look (#f2ead7), which read as
- * dated next to current trackers (Cal AI / Apple Health north star). Central
- * palette so screens stay consistent and a theme swap is a one-file change.
+ * Macro Log "Frost" design tokens — a clean, modern LIGHT theme. v2 (2026-07)
+ * warms the neutrals off pure white (which read clinical) and adds a calm TEAL
+ * secondary accent alongside the coral hero — the "coastal-premium" palette,
+ * research-backed (Radix Tomato/Teal/Sand ramps; MacroFactor/Oura/Gentler
+ * Streak north stars). Discipline: coral = the calorie hero + primary CTAs;
+ * teal = secondary interactive (links, toggles, secondary surfaces); saturation
+ * is reserved for data + semantic state. Central palette so a theme swap stays
+ * a one-file change.
+ *
+ * Contrast: text tokens are WCAG-AA on the warm canvas (accent ~4.6:1, teal
+ * ~4.9:1, good/warn/info all ≥4.5:1). `ring` is intentionally brighter — it's a
+ * large fill, not text.
  *
  * NOTE: v1 styles with React Native StyleSheet rather than NativeWind.
  * NativeWind v4 requires Tailwind v3, which conflicts with the PWA's
@@ -11,20 +18,25 @@
  * is still preview-only. Revisit once v5 stabilises — see docs/adr/0012.
  */
 export const colors = {
-  paper: '#ffffff', // screen background — true white
-  card: '#f6f7f9', // cool-gray surface
-  ink: '#14161b', // primary text + CTAs/FAB — near-black mono base (≈17:1)
-  muted: '#5b6472',
-  faint: '#9aa2ae',
-  line: '#e4e7ec',
-  accent: '#d63a2f', // coral — accent text/links (4.7:1 on white, legible)
-  ring: '#ff6a3d', // warmer coral-orange for the calorie ring — reads as
-                   // "energy", not the alarm-red a deep coral becomes on OLED
-  protein: '#0fa968', // green
-  carbs: '#f59e0b', // amber
-  fat: '#8b5cf6', // violet
-  good: '#0fa968',
-  danger: '#e0463e',
+  paper: '#faf9f6', // screen background — warm off-white (was true white)
+  card: '#f4f2ee', // warm-gray surface (temperature-matched to the canvas)
+  ink: '#1c1917', // primary text + strong CTAs/FAB — warm near-black
+  muted: '#57534e', // warm secondary text
+  faint: '#a8a29e', // warm tertiary text / placeholders
+  line: '#e7e5e2', // warm hairline border
+  accent: '#c62f27', // coral HERO — accent text/links, AA on canvas (~4.6:1)
+  accentSoft: '#faf3f1', // coral section wash (tinted surface)
+  ring: '#ff6a3d', // bright coral-orange calorie ring — "energy", large fill
+  teal: '#0f766e', // SECONDARY accent — links/toggles, AA text (~4.9:1)
+  tealSolid: '#12a594', // teal fill — switch tracks, indicators
+  tealSoft: '#e6f2f0', // teal section wash (tinted surface)
+  protein: '#0fa968', // green (macro data)
+  carbs: '#f59e0b', // amber (macro data)
+  fat: '#8b5cf6', // violet (macro data)
+  good: '#208368', // success text (jade, AA)
+  warn: '#ab6400', // warning text (amber, AA — bright amber fails on white)
+  info: '#0d74ce', // info text (blue, AA)
+  danger: '#dc2626', // danger red — distinct from the coral brand
   white: '#ffffff',
 } as const;
 
