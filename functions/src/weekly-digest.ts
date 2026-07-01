@@ -1,7 +1,6 @@
-import { onSchedule } from "firebase-functions/v2/scheduler";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
-import { getResend, baseSendOptions, resendApiKey } from "./resend-client";
+import { getResend, baseSendOptions } from "./resend-client";
 import { weeklyDigestEmail } from "./email-templates";
 
 // ─── Weekly digest scheduler ────────────────────────────────────
@@ -140,14 +139,10 @@ async function computeStatsForUser(uid: string, nowMs: number): Promise<DigestSt
   return { avgCalories, avgProtein, weightDeltaLbs, daysLogged, streak };
 }
 
-export const sendWeeklyDigest = onSchedule(
-  {
-    schedule: "every 1 hours",
-    secrets: [resendApiKey],
-    timeoutSeconds: 540,
-    memory: "512MiB",
-  },
-  async () => {
+// Plain async task run by the hourly dispatcher (`hourly-tasks.ts`).
+// The dispatcher owns the schedule, the resend secret binding, and the
+// 512MiB / 540s config that this per-user aggregation needs.
+export async function runWeeklyDigest(): Promise<void> {
     const db = getFirestore();
     const nowMs = Date.now();
 
@@ -240,5 +235,4 @@ export const sendWeeklyDigest = onSchedule(
     }
 
     console.log(`sendWeeklyDigest: attempted=${attempted} sent=${sent} skipped=${skipped}`);
-  },
-);
+}

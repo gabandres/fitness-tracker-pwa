@@ -12,9 +12,9 @@ export { logWebhook } from "./log-webhook";
 export { analyzePhoto } from "./analyze-photo";
 export { reserveConsultation, releaseConsultation, checkAccessStatus } from "./consultation";
 export { exportUserData, deleteAccount } from "./gdpr";
-export { sendDailyReminders, sendDayThreeCoachPush } from "./push-reminders";
 export { generateWeeklyReport } from "./weekly-report";
-export { statusPulse, publishUserCount, weeklyFirestoreBackup } from "./ops";
+export { statusPulse, weeklyFirestoreBackup } from "./ops";
+export { hourlyTasks } from "./hourly-tasks";
 export { sendWelcomeEmail, onDailyLogCreated, onSubscriptionWritten } from "./user-lifecycle";
 
 // ─── Satellite modules ──────────────────────────────────────────────
@@ -24,7 +24,6 @@ export {
   onUserUpdateMirrorPublicProfile,
   onDailyWeightWriteMirrorPublicProfile,
 } from "./public-profile";
-export { sendWeeklyDigest } from "./weekly-digest";
 export { searchFoods, getFoodDetail } from "./food-search";
 export { ogImagePublicProfile, servePublicProfilePage } from "./og-image";
 export { bootstrapAdmin, setAdminClaims } from "./admin-claims";

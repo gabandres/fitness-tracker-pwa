@@ -4,15 +4,15 @@ import { db } from "./init";
 
 // ─── Status heartbeat ───────────────────────────────────────────────
 //
-// Writes a heartbeat doc every 5 minutes so the public /status page
+// Writes a heartbeat doc every 15 minutes so the public /status page
 // can show whether the scheduler + Firestore admin write path are
-// healthy. If the last pulse is >10 min old, the page renders
-// "degraded". >30 min ⇒ "down". The fact that /status loads at all
+// healthy. The /status page thresholds (healthy <20 min, degraded
+// <45 min) are sized to this cadence. The fact that /status loads at all
 // proves hosting + client fetch to Firestore work, so this signal
 // covers the Cloud Functions scheduler side specifically.
 
 export const statusPulse = onSchedule(
-  { schedule: "every 5 minutes", timeZone: "UTC" },
+  { schedule: "every 15 minutes", timeZone: "UTC" },
   async () => {
     await db.doc("status/heartbeat").set({
       lastPulseAt: Timestamp.now(),
@@ -28,17 +28,15 @@ export const statusPulse = onSchedule(
 // early adopters don't see "join 3+ quiet loggers" (anti-social-proof).
 // Using count() aggregation keeps the read cost a single billed unit
 // regardless of collection size.
-export const publishUserCount = onSchedule(
-  { schedule: "every 60 minutes", timeZone: "UTC" },
-  async () => {
+// Plain async task run by the hourly dispatcher (`hourly-tasks.ts`).
+export async function runPublishUserCount(): Promise<void> {
     const snap = await db.collection("users").count().get();
     const total = snap.data().count;
     await db.doc("public/stats").set({
       totalUsers: total,
       updatedAt: Timestamp.now(),
     }, { merge: true });
-  },
-);
+}
 
 // ─── Weekly Firestore backup ────────────────────────────────────────
 //

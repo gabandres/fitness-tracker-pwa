@@ -10,8 +10,8 @@ type FetchStatus = 'loading' | 'ready' | 'error';
 /**
  * Public /status route — a lightweight dashboard showing whether the
  * backing services are alive. The signal is a Cloud Functions-written
- * heartbeat doc at `/status/heartbeat`. `statusPulse` runs every 5
- * minutes; we flag "healthy" under 10 min, "degraded" under 30 min,
+ * heartbeat doc at `/status/heartbeat`. `statusPulse` runs every 15
+ * minutes; we flag "healthy" under 20 min, "degraded" under 45 min,
  * "down" beyond that.
  *
  * The fact that this page renders at all proves hosting + client
@@ -116,8 +116,8 @@ export class StatusComponent {
     const at = this.lastPulseAt();
     if (!at) return 'unknown';
     const ageMs = Date.now() - at.getTime();
-    if (ageMs < 10 * 60 * 1000) return 'healthy';
-    if (ageMs < 30 * 60 * 1000) return 'degraded';
+    if (ageMs < 20 * 60 * 1000) return 'healthy';
+    if (ageMs < 45 * 60 * 1000) return 'degraded';
     return 'down';
   });
 

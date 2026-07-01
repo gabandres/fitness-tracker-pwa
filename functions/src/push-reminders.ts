@@ -1,13 +1,14 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
-import { onSchedule } from "firebase-functions/v2/scheduler";
 import { db } from "./init";
 
 // ─── Daily Push Reminder ────────────────────────────────────────────
+//
+// Plain async task run by the hourly dispatcher (`hourly-tasks.ts`) —
+// no longer its own scheduled function. Consolidating the hourly jobs
+// keeps us within Cloud Scheduler's 3-job free tier.
 
-export const sendDailyReminders = onSchedule(
-  { schedule: "every 1 hours", timeZone: "UTC" },
-  async () => {
+export async function runDailyReminders(): Promise<void> {
     const messaging = getMessaging();
 
     // Find all users with an FCM token.
@@ -80,8 +81,7 @@ export const sendDailyReminders = onSchedule(
         }
       }),
     );
-  },
-);
+}
 
 // ─── Day-3 ask-coach push ──────────────────────────────────────────
 //
@@ -98,9 +98,7 @@ export const sendDailyReminders = onSchedule(
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export const sendDayThreeCoachPush = onSchedule(
-  { schedule: "every 1 hours", timeZone: "UTC" },
-  async () => {
+export async function runDayThreeCoachPush(): Promise<void> {
     const messaging = getMessaging();
 
     const usersSnap = await db
@@ -172,5 +170,4 @@ export const sendDayThreeCoachPush = onSchedule(
         }
       }),
     );
-  },
-);
+}
