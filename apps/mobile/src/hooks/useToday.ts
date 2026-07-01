@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  type CustomFood,
   type DailyLog,
   type DailyTargets,
   type DaySummary,
@@ -10,6 +11,7 @@ import {
   STREAK_FREEZE_MAX_GAP_PRO,
   computeStreak,
   currentWeight as coreCurrentWeight,
+  customFoodDocId,
   dailyTargets,
   localDateKey,
   summarizeDay,
@@ -17,15 +19,18 @@ import {
 import { useSubscription } from '@/lib/subscription';
 import { useAuth } from '@/lib/auth';
 import {
+  addCustomFood as addCustomFoodDoc,
   addLog as addLogDoc,
   addPreset as addPresetDoc,
   breakFast as breakFastDoc,
+  deleteCustomFood as deleteCustomFoodDoc,
   deleteLog as deleteLogDoc,
   deletePreset as deletePresetDoc,
   setDailySleep,
   setDailyWater,
   setHiddenRecentLabels,
   startFast as startFastDoc,
+  subscribeCustomFoods,
   subscribeDailySleep,
   subscribeDailyWater,
   subscribeDailyWeights,
@@ -55,6 +60,12 @@ export interface TodayState {
   deleteEntry: (id: string) => Promise<void>;
   addPreset: (preset: Omit<MealPreset, 'id'>) => Promise<void>;
   deletePreset: (id: string) => Promise<void>;
+  /** User's saved food library (My Foods, ADR-0013). */
+  customFoods: CustomFood[];
+  /** Save a food to the library. Barcode-sourced foods de-dup at their
+   *  barcode doc id via `customFoodDocId`; others auto-id. */
+  addCustomFood: (food: Omit<CustomFood, 'id'>) => Promise<void>;
+  deleteCustomFood: (id: string) => Promise<void>;
   /** Suppress a label from the recents row (does NOT delete log rows). */
   hideRecent: (label: string) => Promise<void>;
   /** Portion-display preference for the food-search serving sort. */
@@ -85,6 +96,7 @@ export function useToday(): TodayState {
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [profile, setProfile] = useState<Profile | null>(null);
   const [presets, setPresets] = useState<MealPreset[]>([]);
+  const [customFoods, setCustomFoods] = useState<CustomFood[]>([]);
   const [water, setWaterMap] = useState<Record<string, number>>({});
   const [sleep, setSleepMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -106,6 +118,7 @@ export function useToday(): TodayState {
       subscribeDailyWeights(uid, setWeights, setError),
       subscribeProfile(uid, setProfile, setError),
       subscribePresets(uid, setPresets, setError),
+      subscribeCustomFoods(uid, setCustomFoods, setError),
       subscribeDailyWater(uid, setWaterMap, setError),
       subscribeDailySleep(uid, setSleepMap, setError),
     ];
@@ -219,6 +232,18 @@ export function useToday(): TodayState {
     },
     [uid],
   );
+  const addCustomFood = useCallback(
+    async (food: Omit<CustomFood, 'id'>) => {
+      if (uid) await addCustomFoodDoc(uid, food, customFoodDocId(food));
+    },
+    [uid],
+  );
+  const deleteCustomFood = useCallback(
+    async (id: string) => {
+      if (uid) await deleteCustomFoodDoc(uid, id);
+    },
+    [uid],
+  );
   const hideRecent = useCallback(
     async (label: string) => {
       const norm = label.trim().toLowerCase();
@@ -261,6 +286,9 @@ export function useToday(): TodayState {
     deleteEntry,
     addPreset,
     deletePreset,
+    customFoods,
+    addCustomFood,
+    deleteCustomFood,
     hideRecent,
     unitSystem: profile?.unitSystem === 'metric' ? 'metric' : 'us',
     water: water[todayKey] ?? 0,

@@ -17,6 +17,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import {
+  type CustomFood,
   type DailyLog,
   type LogEntry,
   type Measurement,
@@ -380,6 +381,66 @@ export async function addPreset(uid: string, preset: Omit<MealPreset, 'id'>): Pr
 
 export async function deletePreset(uid: string, id: string): Promise<void> {
   await deleteDoc(presetDoc(uid, id));
+}
+
+// ─── Custom foods (My Foods library, ADR-0013) ──────────────────
+// users/{uid}/customFoods/{id} — a saved, portionable food. Shape + Date⇄
+// Timestamp mapping mirror FirestoreLedgerCore.getCustomFoods/addCustomFood so
+// both apps share the collection and pass the isValidCustomFood rule. Barcode-
+// sourced foods upsert at the barcode doc id (caller passes it for de-dup);
+// others auto-id.
+const customFoodsCol = (uid: string) => collection(db, 'users', uid, 'customFoods');
+const customFoodDoc = (uid: string, id: string) => doc(db, 'users', uid, 'customFoods', id);
+
+function toCustomFood(id: string, data: Record<string, unknown>): CustomFood {
+  const raw = data['createdAt'];
+  const createdAt =
+    raw && typeof (raw as { toDate?: unknown }).toDate === 'function'
+      ? (raw as Timestamp).toDate()
+      : new Date(0);
+  return { ...(data as object), id, createdAt } as CustomFood;
+}
+
+export function subscribeCustomFoods(
+  uid: string,
+  cb: (foods: CustomFood[]) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    customFoodsCol(uid),
+    (snap) => cb(snap.docs.map((d) => toCustomFood(d.id, d.data()))),
+    onError,
+  );
+}
+
+export async function addCustomFood(
+  uid: string,
+  food: Omit<CustomFood, 'id'>,
+  id?: string | null,
+): Promise<string> {
+  const data: Record<string, unknown> = {
+    name: food.name,
+    servingSize: food.servingSize,
+    servingUnit: food.servingUnit,
+    calories: food.calories,
+    source: food.source,
+    createdAt: Timestamp.fromDate(food.createdAt),
+  };
+  if (food.brand != null) data['brand'] = food.brand;
+  if (food.barcode != null) data['barcode'] = food.barcode;
+  if (food.protein != null) data['protein'] = food.protein;
+  if (food.carbs != null) data['carbs'] = food.carbs;
+  if (food.fat != null) data['fat'] = food.fat;
+  if (id) {
+    await setDoc(customFoodDoc(uid, id), data);
+    return id;
+  }
+  const ref = await addDoc(customFoodsCol(uid), data);
+  return ref.id;
+}
+
+export async function deleteCustomFood(uid: string, id: string): Promise<void> {
+  await deleteDoc(customFoodDoc(uid, id));
 }
 
 // ─── Body measurements ──────────────────────────────────────────

@@ -16,7 +16,7 @@ export default function DayDetail() {
   const { date } = useLocalSearchParams<{ date: string }>();
   const dateKey = String(date);
   const router = useRouter();
-  const { loading, logs, weights, presets, addEntry, updateEntry, deleteEntry, addPreset, deletePreset } = useHistory();
+  const { loading, logs, weights, presets, customFoods, addEntry, updateEntry, deleteEntry, addPreset, deletePreset, addCustomFood, deleteCustomFood } = useHistory();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<DailyLog | null>(null);
 
@@ -106,6 +106,9 @@ export default function DayDetail() {
         onClose={() => setSheetOpen(false)}
         onSavePreset={addPreset}
         onDeletePreset={deletePreset}
+        customFoods={customFoods}
+        onSaveCustomFood={addCustomFood}
+        onDeleteCustomFood={deleteCustomFood}
       />
     </SafeAreaView>
   );

@@ -36,6 +36,9 @@ export default function Today() {
     deleteEntry,
     addPreset,
     deletePreset,
+    customFoods,
+    addCustomFood,
+    deleteCustomFood,
     hideRecent,
     unitSystem,
     water,
@@ -215,6 +218,9 @@ export default function Today() {
         onSavePreset={addPreset}
         onDeletePreset={deletePreset}
         onHideRecent={hideRecent}
+        customFoods={customFoods}
+        onSaveCustomFood={addCustomFood}
+        onDeleteCustomFood={deleteCustomFood}
         unitSystem={unitSystem}
       />
     </SafeAreaView>

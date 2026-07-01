@@ -15,10 +15,12 @@ import {
 } from 'react-native';
 import {
   MEAL_TYPES,
+  type CustomFood,
   type DailyLog,
   type LogEntry,
   type MealPreset,
   type MealType,
+  scaleCustomFood,
 } from '@macrolog/core';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { FoodSearch } from '@/components/FoodSearch';
@@ -40,6 +42,10 @@ interface Props {
   onSavePreset?: (preset: Omit<MealPreset, 'id'>) => Promise<void> | void;
   onDeletePreset?: (id: string) => Promise<void> | void;
   onHideRecent?: (label: string) => Promise<void> | void;
+  /** Saved food library (My Foods, ADR-0013). */
+  customFoods?: CustomFood[];
+  onSaveCustomFood?: (food: Omit<CustomFood, 'id'>) => Promise<void> | void;
+  onDeleteCustomFood?: (id: string) => Promise<void> | void;
   /** Portion-display preference for the food-search serving sort. */
   unitSystem?: 'us' | 'metric';
   /** When set (and NOT editing), a new/relogged entry is stamped to local
@@ -88,6 +94,9 @@ export function EntrySheet({
   onSavePreset,
   onDeletePreset,
   onHideRecent,
+  customFoods = [],
+  onSaveCustomFood,
+  onDeleteCustomFood,
   unitSystem = 'us',
   dateKey,
 }: Props) {
@@ -210,6 +219,7 @@ export function EntrySheet({
   const calNum = numOrUndef(calories);
   const canSave = calNum != null && calNum > 0;
   const canSavePreset = onSavePreset != null && label.trim().length > 0 && calNum != null;
+  const canSaveCustomFood = onSaveCustomFood != null && label.trim().length > 0 && calNum != null;
 
   async function save() {
     if (!canSave || busy) return;
@@ -241,6 +251,29 @@ export function EntrySheet({
       carbs: numOrUndef(carbs),
       fat: numOrUndef(fat),
     });
+  }
+
+  /** Save the current custom form as a reusable CustomFood. Manual path only
+   *  (serving:1) — mirrors the PWA entry-form-manager fallback; grams-first
+   *  enrichment from search/scan is a later ADR-0013 step. */
+  async function saveAsCustomFood() {
+    if (!onSaveCustomFood || !label.trim() || calNum == null) return;
+    haptics.tap();
+    const food: Omit<CustomFood, 'id'> = {
+      name: label.trim(),
+      servingSize: 1,
+      servingUnit: 'serving',
+      calories: calNum,
+      source: 'manual',
+      createdAt: new Date(),
+    };
+    const p = numOrUndef(protein);
+    const c = numOrUndef(carbs);
+    const f = numOrUndef(fat);
+    if (p != null) food.protein = p;
+    if (c != null) food.carbs = c;
+    if (f != null) food.fat = f;
+    await onSaveCustomFood(food);
   }
 
   function openCustomBlank() {
@@ -287,6 +320,39 @@ export function EntrySheet({
         </View>
       ) : null}
 
+      {customFoods.length > 0 ? (
+        <View style={styles.group}>
+          <View style={styles.groupHead}>
+            <Text style={styles.groupLabel}>{t('entry.myFoods')}</Text>
+            {onDeleteCustomFood ? (
+              <TouchableOpacity onPress={() => setManage((m) => !m)} hitSlop={8}>
+                <Text style={[styles.manageText, manage && styles.manageOn]}>
+                  {manage ? t('common.done') : t('common.manage')}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          {customFoods.map((f) => {
+            const m = scaleCustomFood(f, 1);
+            return (
+              <TouchableOpacity
+                key={f.id}
+                style={styles.row}
+                testID={`customfood-${f.id}`}
+                onPress={() =>
+                  manage
+                    ? f.id && onDeleteCustomFood?.(f.id)
+                    : quickLog({ calories: m.calories, protein: m.protein, carbs: m.carbs, fat: m.fat, mealLabel: f.name })
+                }
+              >
+                <Text style={styles.rowName} numberOfLines={1}>{f.name}</Text>
+                {manage ? <Text style={styles.rowRemove}>✕</Text> : <Text style={styles.rowKcal}>{m.calories}</Text>}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
+
       {presets.length > 0 ? (
         <View style={styles.group}>
           <View style={styles.groupHead}>
@@ -317,7 +383,7 @@ export function EntrySheet({
         </View>
       ) : null}
 
-      {recentEntries.length === 0 && presets.length === 0 ? (
+      {recentEntries.length === 0 && presets.length === 0 && customFoods.length === 0 ? (
         <View style={styles.group}>
           <Text style={styles.groupLabel}>{t('entry.suggested')}</Text>
           <View style={styles.starterWrap}>
@@ -446,6 +512,12 @@ export function EntrySheet({
                   {canSavePreset ? (
                     <TouchableOpacity style={styles.savePreset} onPress={saveAsPreset} testID="save-preset">
                       <Text style={styles.savePresetText}>{t('entry.savePreset')}</Text>
+                    </TouchableOpacity>
+                  ) : null}
+
+                  {canSaveCustomFood ? (
+                    <TouchableOpacity style={styles.savePreset} onPress={saveAsCustomFood} testID="save-customfood">
+                      <Text style={styles.savePresetText}>{t('entry.saveMyFood')}</Text>
                     </TouchableOpacity>
                   ) : null}
                 </View>
