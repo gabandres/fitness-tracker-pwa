@@ -59,3 +59,20 @@ export interface SessionExercise {
   logStyle?: LogStyle;
   sets: WorkoutSet[];
 }
+
+/** Minimal completed-session shape the shared CSV export reads. Both apps'
+ *  richer WorkoutSession (with ids/status/timestamps) satisfy it structurally. */
+export interface WorkoutSession {
+  date: Date;
+  templateName?: string;
+  bodyweight?: number;
+  sleepHours?: number;
+  durationMin?: number;
+  exercises: SessionExercise[];
+}
+
+/** True when a set carries a logged value for its style: a duration for
+ *  `time` exercises, otherwise a rep count. Filters unfilled scaffold sets. */
+export function isLoggedSet(s: WorkoutSet, logStyle: LogStyle = DEFAULT_LOG_STYLE): boolean {
+  return logStyle === 'time' ? s.durationSec != null : s.reps != null;
+}

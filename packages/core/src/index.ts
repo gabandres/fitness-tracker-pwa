@@ -27,3 +27,6 @@ export { normalizeClusterGroups } from './cluster-groups';
 // Exported names are seed-specific (Seed*, EXERCISE_LIBRARY, seed*) — no clash
 // with the intentionally-un-barreled ./workout types.
 export * from './workout-seed';
+// Shared CSV export serializer (both apps). buildCsv + ExportData are unique
+// names; the ./workout types it consumes stay un-barreled (see note above).
+export { buildCsv, type ExportData } from './csv-export';
