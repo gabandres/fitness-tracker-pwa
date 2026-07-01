@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { currentWeight, dailyTargets } from './targets';
+import { computeGoalProgress, currentWeight, dailyTargets } from './targets';
 import { computeProtein } from './macro-heuristic';
 import type { DailyLog, Profile } from './types';
 
@@ -29,6 +29,34 @@ describe('currentWeight', () => {
   });
   it('returns null with no weight anywhere', () => {
     expect(currentWeight([log(0, 500)], {})).toBeNull();
+  });
+});
+
+describe('computeGoalProgress', () => {
+  it('computes cut progress from the oldest daily weight', () => {
+    // start 200 (oldest), current 190 (latest), goal 180 → 10 of 20 lb = 50%.
+    const gp = computeGoalProgress([], { '2026-06-01': 200, '2026-06-20': 190 }, 180);
+    expect(gp).not.toBeNull();
+    expect(gp!.startWeight).toBe(200);
+    expect(gp!.currentWeight).toBe(190);
+    expect(gp!.pct).toBe(50);
+    expect(gp!.remaining).toBe(10);
+  });
+
+  it('computes bulk progress (current above start)', () => {
+    const gp = computeGoalProgress([], { '2026-06-01': 150, '2026-06-20': 160 }, 170);
+    expect(gp!.pct).toBe(50); // 10 of 20 lb gained
+  });
+
+  it('falls back to the oldest log weight when no daily weights', () => {
+    const gp = computeGoalProgress([log(10, 500, 210), log(0, 500, 205)], {}, 200);
+    expect(gp!.startWeight).toBe(210);
+  });
+
+  it('returns null with no goal, no weight, or start === goal', () => {
+    expect(computeGoalProgress([], { '2026-06-01': 200 }, null)).toBeNull();
+    expect(computeGoalProgress([], {}, 180)).toBeNull();
+    expect(computeGoalProgress([], { '2026-06-01': 180 }, 180)).toBeNull();
   });
 });
 

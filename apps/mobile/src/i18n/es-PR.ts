@@ -149,6 +149,8 @@ export const esPR: Record<I18nKey, string> = {
   'body.loadErr': 'No se pudo cargar tu historial de peso.',
   'body.trend': 'Tendencia',
   'body.goalPace': 'Ritmo a la meta',
+  'body.goalRemaining': '{n} lb para la meta',
+  'body.goalReached': 'Meta alcanzada 🎉',
   'body.holdingSteady': 'Estable',
   'body.bodyFat': 'Grasa corporal',
   'body.navyEstimate': 'Estimación U.S. Navy',

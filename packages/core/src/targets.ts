@@ -35,6 +35,51 @@ export function currentWeight(
   return null;
 }
 
+export interface GoalProgress {
+  startWeight: number;
+  currentWeight: number;
+  goalWeight: number;
+  /** Percent of the way from start to goal, 0–100 (clamped). */
+  pct: number;
+  /** Pounds still to go (absolute, 1 decimal). */
+  remaining: number;
+}
+
+/**
+ * Progress from the earliest recorded weight toward the goal weight — cut-
+ * and bulk-aware. Start weight is the oldest dailyWeight entry, else the
+ * oldest log-embedded weight, else the current reading. Returns null when
+ * there's no goal, no current weight, or start === goal (progress undefined).
+ * Pure port of the Angular FitnessStore.goalProgress derivation.
+ */
+export function computeGoalProgress(
+  logs: DailyLog[],
+  dailyWeights: Record<string, number>,
+  goalWeight: number | null | undefined,
+): GoalProgress | null {
+  const current = currentWeight(logs, dailyWeights);
+  if (!goalWeight || current == null) return null;
+
+  const keys = Object.keys(dailyWeights ?? {}).sort();
+  let start: number | null = keys.length > 0 ? dailyWeights[keys[0]] : null;
+  if (start == null) {
+    for (const l of logs) {
+      if (l.weight != null) {
+        start = l.weight;
+        break;
+      }
+    }
+  }
+  if (start == null) start = current;
+
+  const totalDelta = Math.abs(goalWeight - start);
+  if (totalDelta === 0) return null;
+  const progressed = start > goalWeight ? start - current : current - start;
+  const pct = Math.min(100, Math.max(0, Math.round((progressed / totalDelta) * 100)));
+  const remaining = Math.max(0, +Math.abs(current - goalWeight).toFixed(1));
+  return { startWeight: start, currentWeight: current, goalWeight, pct, remaining };
+}
+
 /** Extract the TDEE-relevant ProfileFields, or null when onboarding is
  *  incomplete (forces seed mode, mirroring the Angular store). */
 export function toProfileFields(p?: Profile | null): ProfileFields | null {

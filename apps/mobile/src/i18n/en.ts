@@ -147,6 +147,8 @@ export const en = {
   'body.loadErr': "Couldn't load your weight history.",
   'body.trend': 'Trend',
   'body.goalPace': 'Goal pace',
+  'body.goalRemaining': '{n} lb to goal',
+  'body.goalReached': 'Goal reached 🎉',
   'body.holdingSteady': 'Holding steady',
   'body.bodyFat': 'Body fat',
   'body.navyEstimate': 'U.S. Navy estimate',

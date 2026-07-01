@@ -54,6 +54,7 @@ export default function Body() {
     projection,
     weightSeries,
     projectedSeries,
+    goalProgress,
   } = useBody();
   const t = useT();
   const photos = usePhotos();
@@ -84,6 +85,24 @@ export default function Body() {
           {weightSeries.length >= 2 ? (
             <View style={styles.chartWrap} testID="weight-chart">
               <Sparkline values={weightSeries} projection={projectedSeries} width={300} height={64} color={colors.ink} />
+            </View>
+          ) : null}
+
+          {goalProgress ? (
+            <View style={styles.goalCard} testID="goal-card">
+              <View style={styles.goalHead}>
+                <Text style={styles.goalStart}>{goalProgress.startWeight.toFixed(1)} lb</Text>
+                <Text style={styles.goalPct}>{goalProgress.pct}%</Text>
+                <Text style={styles.goalEnd}>{goalProgress.goalWeight.toFixed(1)} lb</Text>
+              </View>
+              <View style={styles.goalTrack}>
+                <View style={[styles.goalFill, { width: `${goalProgress.pct}%` }]} />
+              </View>
+              <Text style={styles.goalRemaining}>
+                {goalProgress.remaining > 0
+                  ? t('body.goalRemaining', { n: goalProgress.remaining.toFixed(1) })
+                  : t('body.goalReached')}
+              </Text>
             </View>
           ) : null}
 
@@ -420,6 +439,22 @@ const styles = StyleSheet.create({
   trendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.xs },
   trendLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   trendValue: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
+  goalCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: space.lg,
+    marginTop: space.md,
+    gap: space.sm,
+  },
+  goalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  goalStart: { fontSize: font.small, color: colors.muted },
+  goalPct: { fontSize: font.body, color: colors.ink, fontWeight: '800' },
+  goalEnd: { fontSize: font.small, color: colors.muted },
+  goalTrack: { height: 8, borderRadius: radius.pill, backgroundColor: colors.line, overflow: 'hidden' },
+  goalFill: { height: '100%', borderRadius: radius.pill, backgroundColor: colors.accent },
+  goalRemaining: { fontSize: font.small, color: colors.muted, textAlign: 'center' },
   sectionTitle: { fontSize: font.h3, fontWeight: '700', color: colors.ink, marginTop: space.md },
   empty: { fontSize: font.small, color: colors.muted },
   bfCard: {

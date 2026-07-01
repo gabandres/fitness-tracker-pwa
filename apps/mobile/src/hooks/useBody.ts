@@ -3,9 +3,11 @@ import {
   type DailyLog,
   type Measurement,
   type Profile,
+  type GoalProgress,
   type WeightProjection,
   type WeightPoint,
   addDays,
+  computeGoalProgress,
   currentWeight as coreCurrentWeight,
   localDateKey,
   navyBodyFat,
@@ -54,6 +56,9 @@ export interface BodyState {
   /** 7-day dashed forecast stepping from the last weight along the fitted
    *  slope, or [] when there's no trend. */
   projectedSeries: number[];
+  /** Progress from the starting weight toward the goal (cut/bulk-aware), or
+   *  null when there's no goal or no weight history. */
+  goalProgress: GoalProgress | null;
 }
 
 const PROJECTION_WINDOW_DAYS = 28;
@@ -177,5 +182,6 @@ export function useBody(): BodyState {
     projection,
     weightSeries,
     projectedSeries,
+    goalProgress: computeGoalProgress(logs, weights, profile?.goalWeightLbs ?? profile?.targetWeightLbs ?? null),
   };
 }
