@@ -45,6 +45,28 @@ add a term when a real ambiguity exists, not preemptively.
 - **RecipeBuilder** — The "build a recipe" sheet on the entry form. Sums
   several component lines into one preset/log. See
   `src/app/components/recipe-builder/`.
+- **CustomFood** — A user-saved, *portionable* food record at
+  `users/{uid}/customFoods` (added 2026-07, [ADR-0013](docs/adr/0013-food-resolution-my-foods-library.md)).
+  Distinct from **MealPreset**: a preset is a minimal `{name, calories,
+  protein?}` quick-add capped at 10; a `CustomFood` carries `brand?`,
+  `barcode?`, a **serving definition** (`servingSize` + `servingUnit`,
+  grams-first), full per-serving macros, and a `source`
+  (`barcode | label | text | manual`). Logging is `quantity × serving` and
+  writes a **macro snapshot** into the `DailyLog` (never a reference-link, so
+  editing the food doesn't rewrite history — same as `WorkoutSession`).
+- **My Foods** — The UI surface listing the user's **CustomFood** library +
+  recents/favorites for one-tap re-logging. The stickiness/data-lock-in
+  engine (mirrors MacroFactor/Cronometer custom-foods).
+- **Food-resolution pipeline** — The shared `packages/core` flow that turns
+  a **barcode**, a **Nutrition Facts label** photo, or a **text** description
+  into an editable macro draft, then a `CustomFood`. Barcode → OFF/USDA-
+  Branded live lookup; label → on-device ML Kit OCR + deterministic panel
+  parse; text → quantity/unit parse + USDA fuzzy/embedding match. On-device
+  and $0 by default; an LLM decomposes *only* (never emits macro numbers) and
+  a paid cloud vision-LLM is a rare opt-in fallback. See
+  [ADR-0013](docs/adr/0013-food-resolution-my-foods-library.md). NOT the same
+  as the legacy meal-photo `analyzePhoto` path (deliberately de-emphasized —
+  meal-photo guessing has a ~26–36% error floor).
 - **Legacy log fields** — `liftCompleted` and `cardioCompleted` exist on
   historic docs. New writes only set `exerciseCompleted`. Aggregation
   treats any of the three as "exercised that day".
@@ -292,8 +314,16 @@ collections + a `WorkoutStore` facet back the Train tab.
 - **Firestore** — User-owned collections under `users/{uid}/`:
   `dailyLogs` (the per-meal `DailyLog` rows), `dailyWeights` (flat
   `{YYYY-MM-DD: lb}` map, one doc per date), `dailyWater` (same shape,
-  ml), `presets` (`MealPreset`), `reports` (`WeeklyReport` cache),
-  `measurements`. Profile fields live directly on `users/{uid}`.
+  ml), `presets` (`MealPreset`), `customFoods` (`CustomFood` library,
+  [ADR-0013](docs/adr/0013-food-resolution-my-foods-library.md)), `reports`
+  (`WeeklyReport` cache), `measurements`. Profile fields live directly on
+  `users/{uid}`.
+- **Food databases** — Grounding sources for the **food-resolution
+  pipeline**. **USDA FoodData Central** (CC0 public domain): a curated
+  whole-foods subset (~1–2 MB) is bundled/precached client-side. **Open Food
+  Facts** (ODbL — share-alike on cached copies): queried **live** for
+  barcodes with attribution, never bundled. See
+  [ADR-0013](docs/adr/0013-food-resolution-my-foods-library.md).
 - **Gemini** — Two paths. **Client-key** path drives in-app chat /
   photo-macro analysis from the browser, protected by referrer + API
   restrictions on the GCP key (the key is in the bundle). **Server-key**

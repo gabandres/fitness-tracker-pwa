@@ -77,6 +77,48 @@ export interface MealPreset {
   fat?: number;
 }
 
+// ─── Custom food library types (ADR-0013) ──────────────────────
+/** How a CustomFood entered the library. Drives provenance UI and tracks
+ *  which resolution path produced it. */
+export type FoodSource = 'barcode' | 'label' | 'text' | 'manual';
+
+/** Serving unit for a CustomFood. Grams-first: mass units are exact;
+ *  volume/count units are display conveniences the user defines. */
+export type ServingUnit = 'g' | 'ml' | 'oz' | 'piece' | 'serving';
+export const SERVING_UNITS: readonly ServingUnit[] = ['g', 'ml', 'oz', 'piece', 'serving'];
+
+/**
+ * A user-saved, *portionable* food — the My Foods library
+ * ([ADR-0013](../../../docs/adr/0013-food-resolution-my-foods-library.md)).
+ * Stored at `users/{uid}/customFoods`. Macros are per **one serving** as
+ * defined by `servingSize` + `servingUnit`; logging multiplies by the eaten
+ * quantity and writes a macro **snapshot** into the `DailyLog` (never a
+ * reference-link, so editing the food doesn't rewrite history). USDA whole
+ * foods normalize as `{ servingSize: 100, servingUnit: 'g' }`.
+ *
+ * Distinct from {@link MealPreset}: a preset is a minimal, free-capped
+ * quick-add; a CustomFood carries brand/barcode/serving/source and is not
+ * capped.
+ */
+export interface CustomFood {
+  id?: string;
+  name: string;
+  brand?: string;
+  /** GTIN/EAN/UPC, when the food came from a scan. Enables next-scan
+   *  auto-match against the user's own library. */
+  barcode?: string;
+  /** Size of one serving, expressed in `servingUnit` (grams-first). */
+  servingSize: number;
+  servingUnit: ServingUnit;
+  // Macros for ONE serving.
+  calories: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  source: FoodSource;
+  createdAt: Date;
+}
+
 // ─── Profile types ──────────────────────────────────────────────
 export type Sex = 'male' | 'female';
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';

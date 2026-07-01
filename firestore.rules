@@ -135,6 +135,37 @@ service cloud.firestore {
               (data.fat is number && data.fat >= 0 && data.fat < 1000));
     }
 
+    // ─── Custom food schema (My Foods library, ADR-0013) ────────
+    // A portionable, barcode-keyed saved food. Macros are per ONE serving
+    // (servingSize + servingUnit); source records the resolution path.
+    function isValidCustomFood(data) {
+      return data.keys().hasAll(['name', 'calories', 'servingSize', 'servingUnit', 'source', 'createdAt'])
+          && data.keys().hasOnly(['name', 'brand', 'barcode', 'servingSize', 'servingUnit',
+                                  'calories', 'protein', 'carbs', 'fat', 'source', 'createdAt'])
+          && data.name is string
+          && data.name.size() > 0
+          && data.name.size() <= 100
+          && data.calories is number
+          && data.calories >= 0
+          && data.calories < 20000
+          && data.servingSize is number
+          && data.servingSize > 0
+          && data.servingSize < 100000
+          && data.servingUnit in ['g', 'ml', 'oz', 'piece', 'serving']
+          && data.source in ['barcode', 'label', 'text', 'manual']
+          && data.createdAt is timestamp
+          && (!('brand' in data.keys()) ||
+              (data.brand is string && data.brand.size() <= 100))
+          && (!('barcode' in data.keys()) ||
+              (data.barcode is string && data.barcode.size() <= 32))
+          && (!('protein' in data.keys()) ||
+              (data.protein is number && data.protein >= 0 && data.protein < 1000))
+          && (!('carbs' in data.keys()) ||
+              (data.carbs is number && data.carbs >= 0 && data.carbs < 1000))
+          && (!('fat' in data.keys()) ||
+              (data.fat is number && data.fat >= 0 && data.fat < 1000));
+    }
+
     // ─── Workout schemas ────────────────────────────────────────
     // Owner-scoped data with deeply-nested set/exercise arrays. We
     // validate top-level scalars, list-size caps, and string caps to
@@ -394,6 +425,15 @@ service cloud.firestore {
         allow read:   if isOwner(uid) || isAdmin();
         allow create: if isOwner(uid) && isValidPreset(request.resource.data);
         allow update: if isOwner(uid) && isValidPreset(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+
+      // Custom foods — the My Foods library (ADR-0013). Portionable,
+      // barcode-keyed foods saved from a scan / label OCR / text resolve.
+      match /customFoods/{foodId} {
+        allow read:   if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid) && isValidCustomFood(request.resource.data);
+        allow update: if isOwner(uid) && isValidCustomFood(request.resource.data);
         allow delete: if isOwner(uid);
       }
 

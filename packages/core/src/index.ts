@@ -18,6 +18,9 @@ export * from './streak';
 export * from './meal-slots';
 export * from './share-card';
 export * from './tier-limits';
+// My Foods library helpers (ADR-0013). Types (CustomFood, FoodSource,
+// ServingUnit) live in ./types; these are the pure scaling helpers.
+export * from './custom-food';
 // NOTE: workout.ts types are intentionally NOT re-exported here — the PWA's
 // utils shims do `export * from '@macrolog/core'` and already define their own
 // WorkoutSet/LogStyle/etc. in models/workout.ts, so barrel-exporting these

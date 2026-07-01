@@ -45,3 +45,4 @@ decisions that are local to a single component.
 | 0010 | [Progress photos in Firebase Storage, fetched via getBlob](0010-progress-photos-firebase-storage.md) | accepted |
 | 0011 | [Native app store path: Capacitor shell + IAP](0011-capacitor-iap-migration.md) | superseded by ADR-0012 (framework) |
 | 0012 | [Native iOS app via Expo (separate RN frontend, shared core)](0012-expo-native-app-shared-core.md) | accepted |
+| 0013 | [AI food-resolution pipeline + My Foods library](0013-food-resolution-my-foods-library.md) | accepted |
