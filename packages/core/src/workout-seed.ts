@@ -1,17 +1,19 @@
-// Shipped starter content for the Train tab. This is read-only catalog
-// data baked into the bundle (not per-user). When a user taps "use this
-// template" or "add exercise", the clone flow copies the relevant entries
-// into their own editable `users/{uid}/exercises` + `workoutTemplates`
-// collections (see WorkoutStore.cloneStarterTemplate). Seed entries are
-// keyed by a stable slug so a starter template can reference library
-// exercises before any Firestore ids exist.
+// Shipped starter content for the Train tab — the single shared source for
+// BOTH apps (Angular PWA + Expo). Read-only catalog data baked into the
+// bundle (not per-user). When a user taps "use this template" or "add
+// exercise", the clone flow copies the relevant entries into their own
+// editable `users/{uid}/exercises` + `workoutTemplates` collections. Seed
+// entries are keyed by a stable slug so a starter template can reference
+// library exercises before any Firestore ids exist.
 //
 // LOCALIZATION: the English content below is the source; es-PR strings live in
 // the side-maps at the bottom (EXERCISE_ES / TEMPLATE_ES / TEMPLATE_CUES_ES),
 // keyed by the same stable `key`. The clone flow resolves name/cues/notes for
 // the user's ACTIVE locale once (via the seed* helpers) and stores the result
 // as plain user data — once cloned it's the user's own (never re-translated).
-// Keep in parity with apps/mobile/src/lib/workout-seed.ts.
+// The stable `key` is ALSO persisted as `seedKey` on the cloned exercise /
+// template so re-cloning in a different locale reuses the same doc instead of
+// creating a locale-named duplicate.
 
 import type { MuscleGroup, PlannedSet, ProgressionRule } from './workout';
 
@@ -51,7 +53,7 @@ const cluster = (group: number, minis = 2): PlannedSet[] => [
   ...Array.from({ length: minis }, () => ({ kind: 'mini' as const, group })),
 ];
 
-// ─── Exercise library (~55 common lifts) ────────────────────────
+// ─── Exercise library (~60 common lifts) ────────────────────────
 export const EXERCISE_LIBRARY: readonly SeedExercise[] = [
   // Chest
   { key: 'barbell-bench-press', name: 'Barbell Bench Press', muscles: ['chest', 'triceps'], defaultCues: ['Retract scapula, slight arch', 'Bar to nipple line', 'Drive feet into floor'] },
@@ -240,12 +242,25 @@ export const STARTER_TEMPLATES: readonly SeedTemplate[] = [
       { key: 'standing-calf-raise', progression: { targetReps: 15, holdSessions: 2, incrementLb: 5 }, plannedSets: straight(4) },
     ],
   },
+  {
+    key: 'full-body',
+    name: 'Full Body',
+    notes: 'One big lift per pattern. 3 working sets each, ~8–12 reps @ RIR 1–2.',
+    restMiniSec: 90,
+    restClusterSec: 150,
+    exercises: [
+      { key: 'back-squat', progression: { targetReps: 8, holdSessions: 2, incrementLb: 10 }, plannedSets: straight(3) },
+      { key: 'barbell-bench-press', progression: { targetReps: 8, holdSessions: 2, incrementLb: 5 }, plannedSets: straight(3) },
+      { key: 'barbell-row', progression: { targetReps: 8, holdSessions: 2, incrementLb: 5 }, plannedSets: straight(3) },
+      { key: 'seated-db-shoulder-press', progression: DOUBLE_PROG, plannedSets: straight(3) },
+      { key: 'romanian-deadlift', progression: { targetReps: 8, holdSessions: 2, incrementLb: 10 }, plannedSets: straight(3) },
+    ],
+  },
 ] as const;
 
 // ─── es-PR translations (Puerto Rican Spanish) ──────────────────
 // Side-maps keyed by the stable seed `key`. Only entries present here are
-// localized; anything missing falls back to the English source above. Keep in
-// parity with apps/mobile/src/lib/workout-seed.ts.
+// localized; anything missing falls back to the English source above.
 export const EXERCISE_ES: Record<string, { nameEs: string; defaultCuesEs: string[] }> = {
   // Chest
   'barbell-bench-press': { nameEs: 'Press de Banca con Barra', defaultCuesEs: ['Retrae escápulas, arco leve', 'Barra a la línea del pezón', 'Empuja los pies contra el piso'] },

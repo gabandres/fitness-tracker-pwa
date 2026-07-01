@@ -23,3 +23,7 @@ export * from './warmup';
 export * from './workout-progression';
 // Function-only export (the ./workout types stay un-barreled — see note above).
 export { normalizeClusterGroups } from './cluster-groups';
+// Shipped Train starter content (library + templates + es-PR maps + resolvers).
+// Exported names are seed-specific (Seed*, EXERCISE_LIBRARY, seed*) — no clash
+// with the intentionally-un-barreled ./workout types.
+export * from './workout-seed';

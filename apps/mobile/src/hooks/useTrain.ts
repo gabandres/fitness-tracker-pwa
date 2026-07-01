@@ -42,7 +42,7 @@ import {
   seedTemplateExerciseCues,
   seedTemplateName,
   seedTemplateNotes,
-} from '@/lib/workout-seed';
+} from '@macrolog/core';
 import { useLocale } from '@/i18n';
 
 export interface TrainState {
@@ -87,6 +87,9 @@ export interface TrainState {
   addCluster: (exerciseIndex: number) => Promise<void>;
   /** Edit a set field locally (no write); call commitActive to persist. */
   editSet: (exerciseIndex: number, setIndex: number, patch: Partial<WorkoutSet>) => void;
+  /** Patch a set AND persist atomically (no stale close-over). Use for
+   *  one-shot taps like the +load bump chip or the set-done toggle. */
+  applySetPatch: (exerciseIndex: number, setIndex: number, patch: Partial<WorkoutSet>) => Promise<void>;
   /** Change a set's `kind`, re-derive cluster groups for the exercise, and
    *  persist (kind changes can form/dissolve a cluster). */
   setSetKind: (exerciseIndex: number, setIndex: number, kind: SetKind) => Promise<void>;
@@ -340,6 +343,21 @@ export function useTrain(): TrainState {
     });
   }, []);
 
+  const applySetPatch = useCallback(
+    async (exerciseIndex: number, setIndex: number, patch: Partial<WorkoutSet>) => {
+      if (!active) return;
+      const exercises = active.exercises.map((ex, i) =>
+        i === exerciseIndex
+          ? { ...ex, sets: ex.sets.map((s, j) => (j === setIndex ? { ...s, ...patch } : s)) }
+          : ex,
+      );
+      const next = { ...active, exercises };
+      setActive(next);
+      await persist(next);
+    },
+    [active, persist],
+  );
+
   const setSetKind = useCallback(
     async (exerciseIndex: number, setIndex: number, kind: SetKind) => {
       if (!active) return;
@@ -444,6 +462,7 @@ export function useTrain(): TrainState {
     addSet,
     addCluster,
     editSet,
+    applySetPatch,
     setSetKind,
     removeSet,
     commitActive,

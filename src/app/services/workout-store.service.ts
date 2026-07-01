@@ -21,7 +21,7 @@ import {
   seedTemplateName,
   seedTemplateNotes,
   type SeedTemplate,
-} from '../models/workout-seed';
+} from '@macrolog/core';
 import { TranslationService } from './translation.service';
 
 /**

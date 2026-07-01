@@ -12,6 +12,18 @@
  *  math; `drop` is a back-off set. */
 export type SetKind = 'warmup' | 'activation' | 'working' | 'mini' | 'drop';
 
+/** Muscle groups a catalog exercise can target. */
+export type MuscleGroup =
+  | 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps' | 'quads'
+  | 'hamstrings' | 'glutes' | 'calves' | 'core' | 'forearms';
+
+/** Planned scaffold for one set the session pre-fills. `group` clusters sets
+ *  (C1/C2); omit it for plain straight sets. */
+export interface PlannedSet {
+  kind: SetKind;
+  group?: number;
+}
+
 /** How an exercise is logged. `weight-reps` (default) is load×reps;
  *  `bodyweight` logs reps only; `time` logs a hold duration in seconds. */
 export type LogStyle = 'weight-reps' | 'bodyweight' | 'time';

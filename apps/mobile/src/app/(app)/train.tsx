@@ -25,7 +25,7 @@ import type {
   WorkoutTemplate,
 } from '@/lib/workout';
 import { DEFAULT_LOG_STYLE, isLoggedSet, sessionVolume } from '@/lib/workout';
-import { type SeedTemplate, STARTER_TEMPLATES, seedTemplateName } from '@/lib/workout-seed';
+import { type SeedTemplate, STARTER_TEMPLATES, seedTemplateName } from '@macrolog/core';
 import {
   type ProgressionSuggestion,
   computeExercisePRs,
@@ -682,8 +682,7 @@ function ExerciseCard({
                 haptics.tap();
                 const idx = ex.sets.findIndex((s) => isWorkingSet(s));
                 if (idx >= 0) {
-                  train.editSet(exerciseIndex, idx, { weight: bumpTo });
-                  train.commitActive();
+                  train.applySetPatch(exerciseIndex, idx, { weight: bumpTo });
                 }
               }}
               testID={`bump-${exerciseIndex}`}
@@ -888,8 +887,7 @@ function SetRow({
         onPress={() => {
           haptics.tap();
           const nowDone = !set.done;
-          train.editSet(exerciseIndex, setIndex, { done: nowDone });
-          train.commitActive();
+          train.applySetPatch(exerciseIndex, setIndex, { done: nowDone });
           if (nowDone) onDone?.(set.kind); // start the rest countdown
         }}
         testID={`set-done-${exerciseIndex}-${setIndex}`}

@@ -21,7 +21,7 @@ import { TemplateEditorComponent } from './template-editor.component';
 import { ExerciseDetailComponent } from './exercise-detail.component';
 import { ExercisesManagerComponent } from './exercises-manager.component';
 import type { Exercise } from '../../models/workout';
-import { STARTER_TEMPLATES, seedTemplateName, type SeedTemplate } from '../../models/workout-seed';
+import { STARTER_TEMPLATES, seedTemplateName, type SeedTemplate } from '@macrolog/core';
 import {
   CUSTOM_TEMPLATE_LIMIT_FREE,
   DEFAULT_LOG_STYLE,
