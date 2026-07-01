@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { scaleCustomFood, servingsFromGrams } from './custom-food';
+import { scaleCustomFood, servingsFromGrams, buildCustomFood, customFoodDocId } from './custom-food';
 import type { CustomFood } from './types';
 
 function food(over: Partial<CustomFood> = {}): CustomFood {
@@ -55,5 +55,76 @@ describe('servingsFromGrams', () => {
   it('returns 0 for non-positive grams or serving size', () => {
     expect(servingsFromGrams(food(), 0)).toBe(0);
     expect(servingsFromGrams(food({ servingSize: 0 }), 100)).toBe(0);
+  });
+});
+
+describe('buildCustomFood', () => {
+  const now = new Date('2026-07-01T12:00:00Z');
+
+  it('maps the selected serving into a grams-first CustomFood', () => {
+    const out = buildCustomFood(
+      {
+        name: '  Chobani 0% Plain  ',
+        brand: ' Chobani ',
+        barcode: '894700010045',
+        source: 'barcode',
+        serving: { grams: 170, calories: 100, protein: 17, carbs: 6, fat: 0.7 },
+      },
+      now,
+    );
+    expect(out).toEqual({
+      name: 'Chobani 0% Plain',
+      brand: 'Chobani',
+      barcode: '894700010045',
+      servingSize: 170,
+      servingUnit: 'g',
+      calories: 100,
+      protein: 17,
+      carbs: 6,
+      fat: 0.7,
+      source: 'barcode',
+      createdAt: now,
+    });
+  });
+
+  it('omits absent macros, brand, and barcode rather than writing zeros/empties', () => {
+    const out = buildCustomFood(
+      { name: 'Brown rice', source: 'text', serving: { grams: 100, calories: 111, protein: 2.6 } },
+      now,
+    );
+    expect(out).toEqual({
+      name: 'Brown rice',
+      servingSize: 100,
+      servingUnit: 'g',
+      calories: 111,
+      protein: 2.6,
+      source: 'text',
+      createdAt: now,
+    });
+    expect('brand' in out).toBe(false);
+    expect('barcode' in out).toBe(false);
+    expect('carbs' in out).toBe(false);
+  });
+
+  it('clamps out-of-range values into the isValidCustomFood bounds', () => {
+    const out = buildCustomFood(
+      { name: 'x', source: 'manual', serving: { grams: -5, calories: 999999, protein: 5000 } },
+      now,
+    );
+    expect(out.servingSize).toBe(0.1); // clamped up from -5
+    expect(out.calories).toBe(19999); // clamped down
+    expect(out.protein).toBe(999); // clamped down
+  });
+});
+
+describe('customFoodDocId', () => {
+  it('returns the barcode as the doc id for a scanned food (de-dup key)', () => {
+    expect(customFoodDocId({ source: 'barcode', barcode: '894700010045' })).toBe('894700010045');
+  });
+
+  it('returns null (→ auto-id) for non-barcode sources or missing barcode', () => {
+    expect(customFoodDocId({ source: 'text', barcode: undefined })).toBeNull();
+    expect(customFoodDocId({ source: 'label', barcode: undefined })).toBeNull();
+    expect(customFoodDocId({ source: 'barcode', barcode: undefined })).toBeNull();
   });
 });

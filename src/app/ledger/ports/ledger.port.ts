@@ -9,6 +9,7 @@ import type {
   WorkoutTemplate,
 } from '../../models/workout';
 import type {
+  CustomFood,
   DailyLog,
   LogEntry,
   MealPreset,
@@ -82,6 +83,14 @@ export interface LedgerPort {
   getPresets(): Promise<MealPreset[]>;
   addPreset(preset: Omit<MealPreset, 'id'>): Promise<string>;
   deletePreset(presetId: string): Promise<void>;
+
+  // ─── Custom foods (My Foods library — ADR-0013) ───────────────
+  getCustomFoods(): Promise<CustomFood[]>;
+  /** Save a food to the library. When `id` is provided (the barcode for
+   *  scanned foods) the write is a deterministic upsert at that id — free
+   *  de-dup + instant re-scan match; omit it for an auto-id. Returns the id. */
+  addCustomFood(food: Omit<CustomFood, 'id'>, id?: string | null): Promise<string>;
+  deleteCustomFood(foodId: string): Promise<void>;
 
   getLatestReport(): Promise<WeeklyReport | null>;
 

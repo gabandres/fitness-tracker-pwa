@@ -28,6 +28,9 @@ describe('FitnessStore', () => {
     getPresets: ReturnType<typeof vi.fn>;
     addPreset: ReturnType<typeof vi.fn>;
     deletePreset: ReturnType<typeof vi.fn>;
+    getCustomFoods: ReturnType<typeof vi.fn>;
+    addCustomFood: ReturnType<typeof vi.fn>;
+    deleteCustomFood: ReturnType<typeof vi.fn>;
     clearProfile: ReturnType<typeof vi.fn>;
     saveProfile: ReturnType<typeof vi.fn>;
     getRecentMeasurements: ReturnType<typeof vi.fn>;
@@ -89,6 +92,9 @@ describe('FitnessStore', () => {
       getPresets: vi.fn().mockResolvedValue([]),
       addPreset: vi.fn().mockResolvedValue('new-preset-id'),
       deletePreset: vi.fn().mockResolvedValue(undefined),
+      getCustomFoods: vi.fn().mockResolvedValue([]),
+      addCustomFood: vi.fn().mockResolvedValue('new-food-id'),
+      deleteCustomFood: vi.fn().mockResolvedValue(undefined),
       clearProfile: vi.fn(),
       saveProfile: vi.fn().mockResolvedValue(undefined),
       getRecentMeasurements: vi.fn().mockResolvedValue([]),

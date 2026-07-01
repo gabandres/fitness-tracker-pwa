@@ -141,3 +141,44 @@ Load-bearing choices:
 2. Portion model: **per-serving, grams-first**.
 3. Barcode / label-OCR / My Foods are **free**; only the cloud-LLM fallback
    is Pro.
+
+## Step 2 — persistence + surface (grill, 2026-07-01)
+
+Discovery: the **lookup layer already exists and is deployed** —
+`functions/src/food-search.ts` (`searchFoods` + `getFoodDetail`) queries USDA
+FDC + Open Food Facts, merges, **caches in Firestore**
+(`foodSearchCache`/`foodDetailCache`), rate-limits per-uid, and proxies the
+FDC key; plus the PWA `BarcodeService` and mobile `BarcodeScanner`. The
+research's "USDA+OFF, cache, proxy the key" recommendation is therefore
+**already built**. What was missing is *persistence*: looked-up foods only
+prefill a one-off log, then vanish.
+
+So Step 2 is **persist + re-log surface, not lookup**:
+
+- **The on-device bundled-USDA / embedding grounding path (phases 3–4) is
+  superseded** by the already-built cached server search for now. Keep it as a
+  future cost/offline optimization, not a second lookup path to build.
+- **Save maps the *selected* `ServingOption` → the `CustomFood`'s one
+  serving** (`servingSize = option.grams`, `servingUnit = 'g'`, macros = that
+  option's values). A `ServingOption` already *is* a per-serving snapshot, so
+  the map is lossless. Default selection = package/household portion if
+  present, else per-100g.
+- **Explicit "Save to My Foods", distinct from Log** (no auto-save — the
+  implicit case is already covered by the `mealLabel` Recents row; saving
+  never auto-logs and logging never auto-saves).
+- **My Foods is a sibling of Presets**: a `my-foods-picker` in the manual
+  tab's quick-fill row (next to Recents + Presets), and "Save to My Foods"
+  reuses the existing **save-as-preset** post-save sub-flow. No new
+  navigation. Presets and CustomFoods stay separate collections but may later
+  share one "Saved" surface.
+- **Save UX:** a minimal confirm (editable name/brand + the chosen serving).
+  **Barcode-sourced foods use the barcode as the `customFoods` doc id** →
+  free de-dup, O(1) "already saved?" check, instant re-scan match; text/label/
+  manual foods get auto-ids. Rules (`match /customFoods/{foodId}`) already
+  accept any id.
+- **PWA-first (velocity), mobile is the committed endgame** (the PWA's
+  lifespan is uncertain). So the `FoodDetail → CustomFood` map, the dedup-key,
+  and serving-selection logic land in **`packages/core`** (pure, tested), and
+  only the thin Firestore-write shim differs per frontend — the PWA via
+  `LEDGER_PORT` (mirror the preset verbs across FirebaseService /
+  FirestoreLedgerCore / in-memory), mobile via the Firebase JS SDK.

@@ -42,6 +42,20 @@ const validLog = () => ({
   protein: 30,
 });
 
+const validCustomFood = () => ({
+  name: 'Chobani 0% Plain',
+  brand: 'Chobani',
+  barcode: '894700010045',
+  servingSize: 170,
+  servingUnit: 'g',
+  calories: 100,
+  protein: 17,
+  carbs: 6,
+  fat: 0.7,
+  source: 'barcode',
+  createdAt: Timestamp.now(),
+});
+
 beforeAll(async () => {
   env = await initializeTestEnvironment({
     projectId: PROJECT_ID,
@@ -124,6 +138,57 @@ describe('firestore.rules', () => {
         markdown: 'forged',
         generatedAt: Timestamp.now(),
       }),
+    );
+  });
+
+  it('allows owner to create a valid customFood at a barcode doc id', async () => {
+    const db = authed('alice');
+    await assertSucceeds(
+      setDoc(doc(db, 'users', 'alice', 'customFoods', '894700010045'), validCustomFood()),
+    );
+  });
+
+  it('allows a minimal customFood (auto-id, no optional fields)', async () => {
+    const db = authed('alice');
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'customFoods'), {
+        name: 'Brown rice',
+        servingSize: 100,
+        servingUnit: 'g',
+        calories: 111,
+        source: 'text',
+        createdAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it('rejects a customFood with an invalid source enum', async () => {
+    const db = authed('alice');
+    await assertFails(
+      addDoc(collection(db, 'users', 'alice', 'customFoods'), {
+        ...validCustomFood(),
+        source: 'guess',
+      }),
+    );
+  });
+
+  it('rejects a customFood missing a required field (servingUnit)', async () => {
+    const db = authed('alice');
+    await assertFails(
+      setDoc(doc(db, 'users', 'alice', 'customFoods', 'x'), {
+        name: 'No unit',
+        servingSize: 100,
+        calories: 100,
+        source: 'text',
+        createdAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it("blocks writing another user's customFoods", async () => {
+    const db = authed('alice');
+    await assertFails(
+      setDoc(doc(db, 'users', 'bob', 'customFoods', 'x'), validCustomFood()),
     );
   });
 

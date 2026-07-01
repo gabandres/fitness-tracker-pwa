@@ -9,6 +9,7 @@ import type {
   WorkoutTemplate,
 } from '../../models/workout';
 import type {
+  CustomFood,
   DailyLog,
   LogEntry,
   MealPreset,
@@ -41,6 +42,8 @@ export class InMemoryLedgerAdapter implements LedgerPort {
   private logSeq = 0;
   private readonly presets = new Map<string, MealPreset>();
   private presetSeq = 0;
+  private readonly customFoods = new Map<string, CustomFood>();
+  private customFoodSeq = 0;
   private readonly measurements = new Map<string, Measurement>();
   private measurementSeq = 0;
   private readonly weights: Record<string, number> = {};
@@ -171,6 +174,7 @@ export class InMemoryLedgerAdapter implements LedgerPort {
   async deleteMyAccount(): Promise<void> {
     this.logs.clear();
     this.presets.clear();
+    this.customFoods.clear();
     this.measurements.clear();
     for (const k of Object.keys(this.weights)) delete this.weights[k];
     for (const k of Object.keys(this.water)) delete this.water[k];
@@ -187,6 +191,7 @@ export class InMemoryLedgerAdapter implements LedgerPort {
       profile: this._profile(),
       logs: [...this.logs.values()],
       presets: [...this.presets.values()],
+      customFoods: [...this.customFoods.values()],
       measurements: [...this.measurements.values()],
       dailyWeights: { ...this.weights },
       dailyWater: { ...this.water },
@@ -287,6 +292,20 @@ export class InMemoryLedgerAdapter implements LedgerPort {
 
   async deletePreset(presetId: string): Promise<void> {
     if (!this.presets.delete(presetId)) throw new Error(`Preset not found: ${presetId}`);
+  }
+
+  async getCustomFoods(): Promise<CustomFood[]> {
+    return [...this.customFoods.values()];
+  }
+
+  async addCustomFood(food: Omit<CustomFood, 'id'>, id?: string | null): Promise<string> {
+    const docId = id ?? `customFood-${++this.customFoodSeq}`;
+    this.customFoods.set(docId, { id: docId, ...food });
+    return docId;
+  }
+
+  async deleteCustomFood(foodId: string): Promise<void> {
+    if (!this.customFoods.delete(foodId)) throw new Error(`CustomFood not found: ${foodId}`);
   }
 
   async getLatestReport(): Promise<WeeklyReport | null> {

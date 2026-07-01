@@ -24,6 +24,7 @@ import {
   writeBatch,
 } from '@angular/fire/firestore';
 import type {
+  CustomFood,
   DailyLog,
   DailyLogDoc,
   ExerciseDoc,
@@ -303,6 +304,50 @@ export class FirestoreLedgerCore {
 
   async deletePreset(presetId: string): Promise<void> {
     await deleteDoc(this.userDocIn('presets', presetId));
+  }
+
+  // ─── Custom foods (My Foods library, ADR-0013) ────────────────
+
+  async getCustomFoods(): Promise<CustomFood[]> {
+    const snap = await getDocs(this.userCollection('customFoods'));
+    return snap.docs.map((d) => {
+      const data = d.data() as Record<string, unknown>;
+      const raw = data['createdAt'];
+      const createdAt =
+        raw && typeof (raw as { toDate?: unknown }).toDate === 'function'
+          ? (raw as Timestamp).toDate()
+          : new Date(0);
+      return { ...data, id: d.id, createdAt } as CustomFood;
+    });
+  }
+
+  /** Save a food. When `id` (the barcode for scanned foods) is provided the
+   *  write is a deterministic upsert at that id (de-dup + re-scan match);
+   *  omit it for an auto-id. `createdAt` maps Date → Timestamp at the seam. */
+  async addCustomFood(food: Omit<CustomFood, 'id'>, id?: string | null): Promise<string> {
+    const data: Record<string, unknown> = {
+      name: food.name,
+      servingSize: food.servingSize,
+      servingUnit: food.servingUnit,
+      calories: food.calories,
+      source: food.source,
+      createdAt: Timestamp.fromDate(food.createdAt),
+    };
+    if (food.brand != null) data['brand'] = food.brand;
+    if (food.barcode != null) data['barcode'] = food.barcode;
+    if (food.protein != null) data['protein'] = food.protein;
+    if (food.carbs != null) data['carbs'] = food.carbs;
+    if (food.fat != null) data['fat'] = food.fat;
+    if (id) {
+      await setDoc(this.userDocIn('customFoods', id), data);
+      return id;
+    }
+    const ref = await addDoc(this.userCollection('customFoods'), data);
+    return ref.id;
+  }
+
+  async deleteCustomFood(foodId: string): Promise<void> {
+    await deleteDoc(this.userDocIn('customFoods', foodId));
   }
 
   // ─── Weekly reports ───────────────────────────────────────────

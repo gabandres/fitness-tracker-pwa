@@ -5,6 +5,7 @@ import { Auth } from '@angular/fire/auth';
 import { CallableGateway } from './callable.gateway';
 import { readReferrer, clearReferrer } from '../utils/referral';
 import type { UnitSystem } from '../models/unit-system';
+import type { CustomFood, ServingUnit } from '@macrolog/core';
 import type {
   Exercise,
   ExerciseDraft,
@@ -86,6 +87,13 @@ export interface MealPreset {
   carbs?: number;
   fat?: number;
 }
+
+// ─── Custom food (My Foods library, ADR-0013) ───────────────────
+// Single source of truth is @macrolog/core (shared with the Expo app);
+// re-exported here so app imports resolve alongside the other domain types.
+// The CustomFood.createdAt Date ⇄ Firestore Timestamp mapping lives in
+// FirestoreLedgerCore, like every other dated field.
+export type { CustomFood, ServingUnit };
 
 /** Shape passed to addLog / updateLog — the fields the user submits. */
 export interface LogEntry {
@@ -750,6 +758,22 @@ export class FirebaseService implements LedgerPort {
 
   async deletePreset(presetId: string): Promise<void> {
     await this.core.deletePreset(presetId);
+  }
+
+  // ─── Custom foods (FirestoreLedgerCore) ─────────────────────────
+  async getCustomFoods(): Promise<CustomFood[]> {
+    return this.core.getCustomFoods();
+  }
+
+  /** Save a food to the library. `id` (the barcode for scanned foods) makes
+   *  the write a deterministic upsert for de-dup / re-scan match; omit for an
+   *  auto-id. Returns the doc id. */
+  async addCustomFood(food: Omit<CustomFood, 'id'>, id?: string | null): Promise<string> {
+    return this.core.addCustomFood(food, id);
+  }
+
+  async deleteCustomFood(foodId: string): Promise<void> {
+    await this.core.deleteCustomFood(foodId);
   }
 
   // ─── Weekly reports (FirestoreLedgerCore) ──────────────────────

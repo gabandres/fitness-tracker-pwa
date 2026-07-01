@@ -2,6 +2,7 @@ import { Injectable, Signal, computed, effect, inject, signal } from '@angular/c
 import { AuthService } from './auth.service';
 import { LEDGER_PORT } from '../ledger/ports/ledger.port';
 import {
+  CustomFood,
   DailyLog,
   LogEntry,
   MealPreset,
@@ -120,6 +121,7 @@ export class FitnessStore {
    */
   private readonly _logs = signal<DailyLog[]>([]);
   private readonly _presets = signal<MealPreset[]>([]);
+  private readonly _customFoods = signal<CustomFood[]>([]);
   private readonly _status = signal<StoreStatus>('idle');
   private readonly _error = signal<string | null>(null);
   /**
@@ -148,6 +150,8 @@ export class FitnessStore {
   // ─── Public read-only state ─────────────────────────────────
   readonly logs: Signal<DailyLog[]> = this._logs.asReadonly();
   readonly presets: Signal<MealPreset[]> = this._presets.asReadonly();
+  /** The user's saved food library (My Foods, ADR-0013). */
+  readonly customFoods: Signal<CustomFood[]> = this._customFoods.asReadonly();
   readonly profile: Signal<Profile | null> = this.fb.profile;
   readonly status: Signal<StoreStatus> = this._status.asReadonly();
   readonly undoEntry: Signal<DailyLog | null> = this._undoEntry.asReadonly();
@@ -920,6 +924,21 @@ export class FitnessStore {
     this._presets.set(await this.fb.getPresets());
   }
 
+  /** Save a food to the library (My Foods). `id` (the barcode for scanned
+   *  foods) upserts for de-dup / re-scan match; omit for an auto-id. Free +
+   *  uncapped (ADR-0013). Updates the cache optimistically (upsert by id). */
+  async addCustomFood(food: Omit<CustomFood, 'id'>, id?: string | null): Promise<string> {
+    const newId = await this.fb.addCustomFood(food, id);
+    const without = this._customFoods().filter((f) => f.id !== newId);
+    this._customFoods.set([{ ...food, id: newId }, ...without]);
+    return newId;
+  }
+
+  async deleteCustomFood(id: string): Promise<void> {
+    await this.fb.deleteCustomFood(id);
+    this._customFoods.set(this._customFoods().filter((f) => f.id !== id));
+  }
+
   /** Explicit re-fetch for the refresh button. */
   async refresh(): Promise<void> {
     await this._load();
@@ -943,6 +962,7 @@ export class FitnessStore {
       const [
         logs,
         presets,
+        customFoods,
         measurements,
         dailyWeights,
         dailyWater,
@@ -954,6 +974,7 @@ export class FitnessStore {
       ] = await Promise.all([
         this.fb.getRecentLogs(14),
         this.fb.getPresets(),
+        this.fb.getCustomFoods(),
         this.fb.getRecentMeasurements(100),
         this.fb.getDailyWeights(),
         this.fb.getDailyWater(),
@@ -965,6 +986,7 @@ export class FitnessStore {
       ]);
       this._logs.set(logs);
       this._presets.set(presets);
+      this._customFoods.set(customFoods);
       this.body.hydrate({ measurements, dailyWeights, dailyWater, dailySleep });
       this.workout.hydrate({ exercises, templates, recentSessions, activeSession });
       this._status.set('ready');
