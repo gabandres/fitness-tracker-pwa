@@ -15,6 +15,7 @@ export * from './weight-projection';
 export * from './weekly-insights';
 export * from './weekly-budget';
 export * from './streak';
+export * from './meal-slots';
 // NOTE: workout.ts types are intentionally NOT re-exported here — the PWA's
 // utils shims do `export * from '@macrolog/core'` and already define their own
 // WorkoutSet/LogStyle/etc. in models/workout.ts, so barrel-exporting these

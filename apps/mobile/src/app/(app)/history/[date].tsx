@@ -5,8 +5,9 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type DailyLog, type LogEntry, localDateKey, parseYmd, summarizeDay } from '@macrolog/core';
 import { EntrySheet } from '@/components/EntrySheet';
+import { MealEntries } from '@/components/MealEntries';
 import { useHistory } from '@/hooks/useHistory';
-import { type TFn, useT } from '@/i18n';
+import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { colors, font, radius, space } from '@/theme';
 
@@ -84,17 +85,7 @@ export default function DayDetail() {
           {dayLogs.length === 0 ? (
             <Text style={styles.empty}>{t('history.noEntries')}</Text>
           ) : (
-            <View style={styles.list}>
-              {dayLogs.map((log) => (
-                <TouchableOpacity key={log.id} style={styles.entry} onPress={() => openEdit(log)} testID={`entry-${log.id}`}>
-                  <View style={styles.entryMain}>
-                    <Text style={styles.entryLabel}>{log.mealLabel || t('today.entry')}</Text>
-                    <Text style={styles.entryMacros}>{macroLine(log, t)}</Text>
-                  </View>
-                  <Text style={styles.entryKcal}>{log.calories.toLocaleString()}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <MealEntries logs={dayLogs} onPress={openEdit} />
           )}
         </ScrollView>
       )}
@@ -118,15 +109,6 @@ export default function DayDetail() {
       />
     </SafeAreaView>
   );
-}
-
-function macroLine(log: DailyLog, t: TFn): string {
-  const parts: string[] = [];
-  if (log.protein != null) parts.push(`P ${log.protein}g`);
-  if (log.carbs != null) parts.push(`C ${log.carbs}g`);
-  if (log.fat != null) parts.push(`F ${log.fat}g`);
-  if (log.mealType) parts.push(t(`meal.${log.mealType}`));
-  return parts.join(' · ') || '—';
 }
 
 function Total({ label, value }: { label: string; value: string }) {

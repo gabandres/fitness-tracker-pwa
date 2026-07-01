@@ -1,22 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { DailyLog, LogEntry } from '@macrolog/core';
 import { DailyMetrics } from '@/components/DailyMetrics';
 import { EntrySheet } from '@/components/EntrySheet';
 import { MacroRing } from '@/components/MacroRing';
+import { MealEntries } from '@/components/MealEntries';
 import { WhatsNewBanner } from '@/components/WhatsNewBanner';
-import { type TFn, useT } from '@/i18n';
+import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useToday } from '@/hooks/useToday';
 import { colors, font, radius, space } from '@/theme';
@@ -178,19 +171,7 @@ export default function Today() {
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={styles.list}>
-              {todayLogs.map((log) => (
-                <Pressable key={log.id} style={styles.entry} onPress={() => openEdit(log)} testID={`entry-${log.id}`}>
-                  <View style={styles.entryMain}>
-                    <Text style={styles.entryLabel}>{log.mealLabel || t('today.entry')}</Text>
-                    <Text style={styles.entryMacros}>
-                      {macroLine(log, t)}
-                    </Text>
-                  </View>
-                  <Text style={styles.entryKcal}>{log.calories.toLocaleString()}</Text>
-                </Pressable>
-              ))}
-            </View>
+            <MealEntries logs={todayLogs} onPress={openEdit} />
           )}
           <View style={{ height: 96 }} />
         </ScrollView>
@@ -215,15 +196,6 @@ export default function Today() {
       />
     </SafeAreaView>
   );
-}
-
-function macroLine(log: DailyLog, t: TFn): string {
-  const parts: string[] = [];
-  if (log.protein != null) parts.push(`P ${log.protein}g`);
-  if (log.carbs != null) parts.push(`C ${log.carbs}g`);
-  if (log.fat != null) parts.push(`F ${log.fat}g`);
-  if (log.mealType) parts.push(t(`meal.${log.mealType}`));
-  return parts.join(' · ') || '—';
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

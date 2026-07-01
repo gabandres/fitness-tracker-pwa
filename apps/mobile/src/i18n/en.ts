@@ -112,6 +112,7 @@ export const en = {
   'meal.lunch': 'lunch',
   'meal.dinner': 'dinner',
   'meal.snack': 'snack',
+  'meal.other': 'other',
 
   // ── food search ──
   'food.placeholder': 'Search foods (e.g. greek yogurt)',

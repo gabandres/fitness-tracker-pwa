@@ -114,6 +114,7 @@ export const esPR: Record<I18nKey, string> = {
   'meal.lunch': 'almuerzo',
   'meal.dinner': 'cena',
   'meal.snack': 'merienda',
+  'meal.other': 'otro',
 
   // ── food search ──
   'food.placeholder': 'Buscar comidas (ej. yogur griego)',
