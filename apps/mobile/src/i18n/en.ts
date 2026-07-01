@@ -365,6 +365,7 @@ export const en = {
   'history.emptyTitle': 'No history yet.',
   'history.emptyHint': 'Logged days will show up here.',
   'history.loadErr': "Couldn't load history.",
+  'history.recent': 'Recent days',
   'history.entryOne': 'entry',
   'history.entryMany': 'entries',
   'history.exercised': 'exercised',

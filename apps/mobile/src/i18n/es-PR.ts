@@ -367,6 +367,7 @@ export const esPR: Record<I18nKey, string> = {
   'history.emptyTitle': 'Aún no hay historial.',
   'history.emptyHint': 'Los días registrados aparecerán aquí.',
   'history.loadErr': 'No se pudo cargar el historial.',
+  'history.recent': 'Días recientes',
   'history.entryOne': 'registro',
   'history.entryMany': 'registros',
   'history.exercised': 'ejercicio',

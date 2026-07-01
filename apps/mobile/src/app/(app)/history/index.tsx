@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { type DaySummary, localDateKey, monthGrid } from '@macrolog/core';
+import { type DaySummary, localDateKey, monthGrid, parseYmd } from '@macrolog/core';
 import { useHistory } from '@/hooks/useHistory';
 import { useT } from '@/i18n';
 import { colors, font, radius, space } from '@/theme';
@@ -12,6 +12,10 @@ import { colors, font, radius, space } from '@/theme';
 const WEEKDAYS = Array.from({ length: 7 }, (_, i) =>
   new Date(2023, 0, 1 + i).toLocaleDateString(undefined, { weekday: 'narrow' }),
 );
+
+function dayLabel(dateKey: string): string {
+  return parseYmd(dateKey).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
 
 export default function HistoryCalendar() {
   const t = useT();
@@ -73,7 +77,6 @@ export default function HistoryCalendar() {
                 <Pressable
                   key={cell.key}
                   style={styles.cell}
-                  disabled={!cell.inMonth}
                   onPress={() => router.push(`/history/${cell.key}`)}
                   testID={`day-${cell.key}`}
                 >
@@ -96,7 +99,32 @@ export default function HistoryCalendar() {
               <Text style={styles.emptyText}>{t('history.emptyTitle')}</Text>
               <Text style={styles.emptyHint}>{t('history.emptyHint')}</Text>
             </View>
-          ) : null}
+          ) : (
+            <>
+              <Text style={styles.recentHead}>{t('history.recent')}</Text>
+              <View style={styles.recentList}>
+                {days.slice(0, 10).map((d) => (
+                  <Pressable
+                    key={d.dateKey}
+                    style={styles.recentRow}
+                    onPress={() => router.push(`/history/${d.dateKey}`)}
+                    testID={`recent-${d.dateKey}`}
+                  >
+                    <View style={styles.recentLeft}>
+                      <Text style={styles.recentDate}>{dayLabel(d.dateKey)}</Text>
+                      <Text style={styles.recentSub}>
+                        {d.mealCount} {d.mealCount === 1 ? t('history.entryOne') : t('history.entryMany')}
+                        {d.exercised ? `  ·  ${t('history.exercised')}` : ''}
+                        {d.weightLb != null ? `  ·  ${d.weightLb} lb` : ''}
+                      </Text>
+                    </View>
+                    <Text style={styles.recentKcal}>{d.totalCalories.toLocaleString()}</Text>
+                    <Ionicons name="chevron-forward" size={16} color={colors.faint} />
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
         </ScrollView>
       )}
     </SafeAreaView>
@@ -121,11 +149,35 @@ const styles = StyleSheet.create({
   cellToday: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.accent },
   cellNum: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
   cellNumToday: { color: colors.accent, fontWeight: '800' },
-  cellOut: { color: colors.line },
+  cellOut: { color: colors.faint }, // adjacent-month days: dimmer, still tappable
   dotRow: { flexDirection: 'row', gap: 3, height: 6, alignItems: 'center' },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
-  dotWeight: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.muted },
+  dotWeight: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.teal },
   empty: { alignItems: 'center', gap: space.xs, paddingVertical: space.xl },
   emptyText: { fontSize: font.body, color: colors.muted, fontWeight: '600' },
   emptyHint: { fontSize: font.small, color: colors.faint },
+  recentHead: {
+    fontSize: font.small,
+    color: colors.muted,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: space.lg,
+  },
+  recentList: { gap: space.sm },
+  recentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+    gap: space.sm,
+  },
+  recentLeft: { flex: 1, gap: 2 },
+  recentDate: { fontSize: font.body, fontWeight: '700', color: colors.ink },
+  recentSub: { fontSize: font.small, color: colors.muted },
+  recentKcal: { fontSize: font.body, fontWeight: '700', color: colors.ink },
 });
