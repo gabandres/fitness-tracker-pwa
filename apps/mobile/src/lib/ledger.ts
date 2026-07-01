@@ -744,6 +744,57 @@ export async function deleteSession(uid: string, id: string): Promise<void> {
   await deleteDoc(sessionDoc(uid, id));
 }
 
+// ─── One-shot full reads (data export) ──────────────────────────
+// Unwindowed getDocs reads that back the CSV export; the live app otherwise
+// reads through the windowed subscriptions above.
+
+export async function getAllLogs(uid: string): Promise<DailyLog[]> {
+  const snap = await getDocs(query(logsCol(uid), orderBy('timestamp', 'asc')));
+  return snap.docs.map((d) => toDailyLog(d.id, d.data()));
+}
+
+export async function getAllMeasurements(uid: string): Promise<Measurement[]> {
+  const snap = await getDocs(query(measurementsCol(uid), orderBy('timestamp', 'asc')));
+  return snap.docs.map((d) => toMeasurement(d.id, d.data()));
+}
+
+export async function getAllDailyWeights(uid: string): Promise<Record<string, number>> {
+  const snap = await getDocs(weightsCol(uid));
+  const out: Record<string, number> = {};
+  for (const d of snap.docs) out[d.id] = (d.data() as { weight: number }).weight;
+  return out;
+}
+
+export async function getAllDailyWater(uid: string): Promise<Record<string, number>> {
+  const snap = await getDocs(waterCol(uid));
+  const out: Record<string, number> = {};
+  for (const d of snap.docs) {
+    const data = d.data() as { flOz?: number; ml?: number };
+    out[d.id] =
+      typeof data.flOz === 'number'
+        ? data.flOz
+        : typeof data.ml === 'number'
+          ? Math.round(data.ml / 29.5735)
+          : 0;
+  }
+  return out;
+}
+
+export async function getAllDailySleep(uid: string): Promise<Record<string, number>> {
+  const snap = await getDocs(sleepCol(uid));
+  const out: Record<string, number> = {};
+  for (const d of snap.docs) {
+    const data = d.data() as { hours?: number };
+    if (typeof data.hours === 'number') out[d.id] = data.hours;
+  }
+  return out;
+}
+
+export async function getAllSessions(uid: string): Promise<WorkoutSession[]> {
+  const snap = await getDocs(query(sessionsCol(uid), orderBy('timestamp', 'asc')));
+  return snap.docs.map((d) => toSession(d.id, d.data()));
+}
+
 /** Stamp `date` as an exercise day (a 0-kcal DailyLog with
  *  `exerciseCompleted`) so the workout counts toward the streak — but only
  *  if no exercise-marked log already exists that day. Mirrors

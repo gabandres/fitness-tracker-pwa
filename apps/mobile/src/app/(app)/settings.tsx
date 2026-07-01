@@ -7,6 +7,7 @@ import type { UnitSystem } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
 import { setPreferredLocale, setUnitSystem, setWeeklyDigestOptIn } from '@/lib/ledger';
+import { exportDataCsv } from '@/lib/dataExport';
 import { DEFAULT_REMINDER_HOUR, getReminder, setReminder } from '@/lib/reminders';
 import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -39,6 +40,23 @@ export default function Settings() {
   const [savingUnit, setSavingUnit] = useState(false);
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderHour, setReminderHour] = useState(DEFAULT_REMINDER_HOUR);
+  const [exporting, setExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState<string | null>(null);
+
+  async function onExport() {
+    if (!user || exporting) return;
+    haptics.tap();
+    setExporting(true);
+    setExportMsg(null);
+    try {
+      const { rows } = await exportDataCsv(user.uid);
+      setExportMsg(t('settings.exportDone', { n: rows }));
+    } catch {
+      setExportMsg(t('settings.exportError'));
+    } finally {
+      setExporting(false);
+    }
+  }
 
   useEffect(() => {
     getReminder().then((r) => {
@@ -216,6 +234,28 @@ export default function Settings() {
           </View>
         </View>
 
+        <Text style={styles.section}>{t('settings.data')}</Text>
+        <View style={styles.card}>
+          <View style={styles.rowBetween}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>{t('settings.exportTitle')}</Text>
+              <Text style={styles.rowValue}>{t('settings.exportSub')}</Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.exportBtn, exporting && styles.exportBtnDisabled]}
+              onPress={onExport}
+              disabled={exporting}
+              testID="settings-export"
+            >
+              <Ionicons name="download-outline" size={16} color={colors.white} />
+              <Text style={styles.exportBtnText}>
+                {exporting ? t('settings.exportPreparing') : t('settings.exportButton')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {exportMsg ? <Text style={styles.exportMsg}>{exportMsg}</Text> : null}
+        </View>
+
         <Text style={styles.section}>{t('settings.account')}</Text>
         <View style={styles.card}>
           <View style={styles.rowBetween}>
@@ -273,6 +313,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   editBtnText: { color: colors.ink, fontWeight: '700', fontSize: font.body },
+  exportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    backgroundColor: colors.ink,
+    borderRadius: radius.md,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.md,
+  },
+  exportBtnDisabled: { opacity: 0.5 },
+  exportBtnText: { color: colors.white, fontWeight: '700', fontSize: font.small },
+  exportMsg: { fontSize: font.small, color: colors.muted, marginTop: space.sm },
   refineRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingTop: space.sm, borderTopWidth: 1, borderTopColor: colors.line },
   digestRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space.sm, borderTopWidth: 1, borderTopColor: colors.line },
   segment: { flexDirection: 'row', gap: space.sm },
