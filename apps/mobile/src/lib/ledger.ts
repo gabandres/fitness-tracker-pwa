@@ -518,6 +518,7 @@ function toExercise(id: string, data: Record<string, unknown>): Exercise {
     muscles: (data['muscles'] as Exercise['muscles']) ?? [],
     defaultCues: (data['defaultCues'] as string[]) ?? [],
     logStyle: data['logStyle'] as Exercise['logStyle'],
+    seedKey: data['seedKey'] as string | undefined,
     createdAt: (data['createdAt'] as Timestamp)?.toDate() ?? new Date(0),
   };
 }
@@ -540,6 +541,7 @@ export async function addExercise(uid: string, draft: ExerciseDraft): Promise<st
     muscles: draft.muscles ?? [],
     defaultCues: draft.defaultCues ?? [],
     logStyle: draft.logStyle,
+    seedKey: draft.seedKey,
     createdAt: Timestamp.now(),
   });
   const ref = await addDoc(exercisesCol(uid), data);
@@ -611,6 +613,7 @@ function toTemplate(id: string, data: Record<string, unknown>): WorkoutTemplate 
       ...ex,
       plannedSets: ex.plannedSets ?? [],
     })),
+    seedKey: data['seedKey'] as string | undefined,
     createdAt: (data['createdAt'] as Timestamp)?.toDate() ?? new Date(0),
     updatedAt: (data['updatedAt'] as Timestamp)?.toDate() ?? new Date(0),
   };
@@ -636,6 +639,7 @@ export async function addTemplate(uid: string, draft: TemplateDraft): Promise<st
     restMiniSec: draft.restMiniSec,
     restClusterSec: draft.restClusterSec,
     exercises: draft.exercises ?? [],
+    seedKey: draft.seedKey,
     createdAt: now,
     updatedAt: now,
   });
@@ -653,6 +657,7 @@ export async function updateTemplate(uid: string, id: string, draft: TemplateDra
     restMiniSec: draft.restMiniSec,
     restClusterSec: draft.restClusterSec,
     exercises: draft.exercises ?? [],
+    seedKey: draft.seedKey,
     updatedAt: Timestamp.now(),
   });
   await setDoc(templateDoc(uid, id), data, { merge: true });

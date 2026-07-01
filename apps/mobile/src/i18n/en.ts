@@ -267,6 +267,7 @@ export const en = {
   'train.starters': 'Starters',
   'train.starterTitle': 'Starter templates',
   'train.starterHint': 'Pick a proven split to get going — you can edit it after.',
+  'train.starterAllCloned': 'You’ve added every starter. Edit or delete them from your templates.',
   'train.use': 'Use',
   'logStyle.weightReps': 'Weight × reps',
   'logStyle.bodyweight': 'Bodyweight',

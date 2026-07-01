@@ -269,6 +269,7 @@ export const esPR: Record<I18nKey, string> = {
   'train.starters': 'Plantillas base',
   'train.starterTitle': 'Plantillas base',
   'train.starterHint': 'Elige una rutina probada para empezar — la puedes editar después.',
+  'train.starterAllCloned': 'Ya añadiste todas las plantillas base. Edítalas o bórralas desde tus plantillas.',
   'train.use': 'Usar',
   'logStyle.weightReps': 'Peso × reps',
   'logStyle.bodyweight': 'Peso corporal',

@@ -154,10 +154,17 @@ export class WorkoutStore {
     }
 
     // Resolve seed content for the active locale once, then store as the
-    // user's own data (never re-translated). Dedupe by the RESOLVED name so a
-    // re-clone in the same locale reuses the existing catalog entry.
+    // user's own data (never re-translated). Dedupe by the stable seedKey
+    // (falling back to the resolved name for pre-seedKey clones) so a re-clone
+    // — even after a locale switch — reuses the existing catalog entry instead
+    // of splitting history/e1RM across a locale-named duplicate.
     const es = this.i18n.language() === 'es-PR';
 
+    const bySeedKey = new Map(
+      this._exercises()
+        .filter((e) => e.seedKey)
+        .map((e) => [e.seedKey!, e] as const),
+    );
     const byName = new Map(
       this._exercises().map((e) => [e.name.toLowerCase(), e] as const),
     );
@@ -168,10 +175,11 @@ export class WorkoutStore {
       if (!lib) continue; // skip dangling references defensively
       const name = seedExerciseName(lib, es);
       const defaultCues = seedExerciseCues(lib, es);
-      let entry = byName.get(name.toLowerCase());
+      let entry = bySeedKey.get(seedEx.key) ?? byName.get(name.toLowerCase());
       if (!entry) {
-        const id = await this.fb.addExercise({ name, muscles: lib.muscles, defaultCues });
-        entry = { id, name, muscles: lib.muscles, defaultCues, createdAt: new Date() };
+        const id = await this.fb.addExercise({ name, muscles: lib.muscles, defaultCues, seedKey: seedEx.key });
+        entry = { id, name, muscles: lib.muscles, defaultCues, seedKey: seedEx.key, createdAt: new Date() };
+        bySeedKey.set(seedEx.key, entry);
         byName.set(name.toLowerCase(), entry);
       }
       exercises.push({
@@ -193,6 +201,7 @@ export class WorkoutStore {
       restMiniSec: seed.restMiniSec,
       restClusterSec: seed.restClusterSec,
       exercises,
+      seedKey: seed.key,
     });
     this._templates.set(await this.fb.getTemplates());
     return id;

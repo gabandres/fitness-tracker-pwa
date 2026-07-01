@@ -195,4 +195,45 @@ describe('firestore.rules', () => {
       }),
     );
   });
+
+  it('accepts a catalog exercise carrying a seedKey', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'exercises'), {
+        name: 'Barbell Bench Press',
+        muscles: ['chest', 'triceps'],
+        defaultCues: ['Retract scapula'],
+        logStyle: 'weight-reps',
+        seedKey: 'barbell-bench-press',
+        createdAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it('rejects a catalog exercise with a non-string seedKey', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      addDoc(collection(db, 'users', 'alice', 'exercises'), {
+        name: 'Barbell Bench Press',
+        seedKey: 42,
+        createdAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it('accepts a workout template carrying a seedKey', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'workoutTemplates'), {
+        name: 'Push Day',
+        exercises: [],
+        seedKey: 'push-day',
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
 });

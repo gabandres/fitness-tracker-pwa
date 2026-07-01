@@ -368,6 +368,7 @@ export class FirestoreLedgerCore {
         muscles: (data.muscles ?? []) as Exercise['muscles'],
         defaultCues: data.defaultCues ?? [],
         logStyle: data.logStyle,
+        seedKey: data.seedKey,
         createdAt: data.createdAt.toDate(),
       };
     });
@@ -379,6 +380,7 @@ export class FirestoreLedgerCore {
       muscles: exercise.muscles ?? [],
       defaultCues: exercise.defaultCues ?? [],
       logStyle: exercise.logStyle,
+      seedKey: exercise.seedKey,
       createdAt: Timestamp.now(),
     };
     const ref = await addDoc(this.userCollection('exercises'), pruneUndefined(data));
@@ -454,6 +456,7 @@ export class FirestoreLedgerCore {
       restMiniSec: template.restMiniSec,
       restClusterSec: template.restClusterSec,
       exercises: template.exercises ?? [],
+      seedKey: template.seedKey,
       createdAt: now,
       updatedAt: now,
     });
@@ -470,6 +473,7 @@ export class FirestoreLedgerCore {
       restMiniSec: template.restMiniSec,
       restClusterSec: template.restClusterSec,
       exercises: template.exercises ?? [],
+      seedKey: template.seedKey,
       updatedAt: Timestamp.now(),
     });
     await setDoc(this.userDocIn('workoutTemplates', id), data, { merge: true });
@@ -563,6 +567,7 @@ function toDomainTemplate(id: string, data: WorkoutTemplateDoc): WorkoutTemplate
       ...ex,
       plannedSets: normalizeClusterGroups(ex.plannedSets ?? []),
     })),
+    seedKey: data.seedKey,
     createdAt: data.createdAt.toDate(),
     updatedAt: data.updatedAt.toDate(),
   };

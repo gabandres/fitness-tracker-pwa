@@ -30,6 +30,10 @@ export interface Exercise {
   muscles: MuscleGroup[];
   defaultCues: string[];
   logStyle?: LogStyle;
+  /** Stable slug of the shipped library entry this was cloned from, if any.
+   *  Lets re-cloning (even in another locale) reuse this doc instead of
+   *  creating a locale-named duplicate that would split history/e1RM. */
+  seedKey?: string;
   createdAt: Date;
 }
 
@@ -96,6 +100,9 @@ export interface WorkoutTemplate {
   restMiniSec?: number;
   restClusterSec?: number;
   exercises: TemplateExercise[];
+  /** Stable slug of the shipped starter this was cloned from, if any. Lets
+   *  the chooser hide an already-cloned starter across locales. */
+  seedKey?: string;
   createdAt: Date;
   updatedAt: Date;
 }

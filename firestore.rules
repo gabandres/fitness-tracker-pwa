@@ -144,7 +144,7 @@ service cloud.firestore {
     // request.resource.data is the POST-write doc so the required
     // stamps remain present and the same validator covers update.
     function isValidExercise(data) {
-      return data.keys().hasOnly(['name', 'muscles', 'defaultCues', 'logStyle', 'createdAt'])
+      return data.keys().hasOnly(['name', 'muscles', 'defaultCues', 'logStyle', 'seedKey', 'createdAt'])
           && data.keys().hasAll(['name', 'createdAt'])
           && data.name is string && data.name.size() > 0 && data.name.size() <= 100
           && data.createdAt is timestamp
@@ -153,13 +153,15 @@ service cloud.firestore {
           && (!('defaultCues' in data.keys()) ||
               (data.defaultCues is list && data.defaultCues.size() <= 30))
           && (!('logStyle' in data.keys()) ||
-              (data.logStyle in ['weight-reps', 'bodyweight', 'time']));
+              (data.logStyle in ['weight-reps', 'bodyweight', 'time']))
+          && (!('seedKey' in data.keys()) ||
+              (data.seedKey is string && data.seedKey.size() <= 100));
     }
 
     function isValidWorkoutTemplate(data) {
       return data.keys().hasOnly([
               'name', 'notes', 'restMiniSec', 'restClusterSec',
-              'exercises', 'createdAt', 'updatedAt'
+              'exercises', 'seedKey', 'createdAt', 'updatedAt'
           ])
           && data.keys().hasAll(['name', 'exercises', 'createdAt', 'updatedAt'])
           && data.name is string && data.name.size() > 0 && data.name.size() <= 100
@@ -170,7 +172,9 @@ service cloud.firestore {
           && (!('restMiniSec' in data.keys()) ||
               (data.restMiniSec is number && data.restMiniSec >= 0 && data.restMiniSec <= 3600))
           && (!('restClusterSec' in data.keys()) ||
-              (data.restClusterSec is number && data.restClusterSec >= 0 && data.restClusterSec <= 3600));
+              (data.restClusterSec is number && data.restClusterSec >= 0 && data.restClusterSec <= 3600))
+          && (!('seedKey' in data.keys()) ||
+              (data.seedKey is string && data.seedKey.size() <= 100));
     }
 
     function isValidWorkoutSession(data) {

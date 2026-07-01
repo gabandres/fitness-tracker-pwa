@@ -214,9 +214,16 @@ export function useTrain(): TrainState {
       for (const se of seed.exercises) {
         const lib = findSeedExercise(se.key);
         // Resolve display name/cues for the active locale, then store as the
-        // user's own data (dedupe by the RESOLVED name so re-cloning reuses it).
+        // user's own data. Dedupe by the stable seedKey (falling back to the
+        // resolved name for pre-seedKey clones) so re-cloning — even in another
+        // locale — reuses the existing catalog entry instead of splitting
+        // history/e1RM across a duplicate.
         const name = lib ? seedExerciseName(lib, es) : se.key;
-        const existing = catalog.find((c) => c.name.toLowerCase() === name.toLowerCase());
+        const existing = catalog.find(
+          (c) =>
+            (c.seedKey && c.seedKey === se.key) ||
+            c.name.toLowerCase() === name.toLowerCase(),
+        );
         const id =
           existing?.id ??
           (await addExerciseDoc(uid, {
@@ -224,6 +231,7 @@ export function useTrain(): TrainState {
             muscles: lib?.muscles ?? [],
             defaultCues: lib ? seedExerciseCues(lib, es) : [],
             logStyle: 'weight-reps',
+            seedKey: se.key,
           }));
         exercises.push({
           exerciseId: id,
@@ -241,6 +249,7 @@ export function useTrain(): TrainState {
         restMiniSec: seed.restMiniSec,
         restClusterSec: seed.restClusterSec,
         exercises,
+        seedKey: seed.key,
       });
     },
     [uid, catalog, es],

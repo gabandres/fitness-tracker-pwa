@@ -211,6 +211,19 @@ function StarterTemplatesModal({
   const es = useLocale() === 'es-PR';
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
+  // Hide starters the user has already cloned (matched by stable seedKey, so
+  // it holds across a locale switch). Falls back to the localized name for
+  // clones made before seedKey existed.
+  const cloned = new Set<string>();
+  for (const tpl of train.templates) {
+    if (tpl.seedKey) cloned.add(tpl.seedKey);
+  }
+  const available = STARTER_TEMPLATES.filter(
+    (seed) =>
+      !cloned.has(seed.key) &&
+      !train.templates.some((tpl) => !tpl.seedKey && tpl.name.toLowerCase() === seedTemplateName(seed, es).toLowerCase()),
+  );
+
   useEffect(() => {
     if (visible) setBusyKey(null);
   }, [visible]);
@@ -236,7 +249,10 @@ function StarterTemplatesModal({
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.sheetTitle}>{t('train.starterTitle')}</Text>
             <Text style={styles.sheetHint}>{t('train.starterHint')}</Text>
-            {STARTER_TEMPLATES.map((seed) => (
+            {available.length === 0 ? (
+              <Text style={styles.sheetEmpty}>{t('train.starterAllCloned')}</Text>
+            ) : null}
+            {available.map((seed) => (
               <View key={seed.key} style={styles.tplRow}>
                 <View style={styles.tplMain}>
                   <Text style={styles.histDate}>{seedTemplateName(seed, es)}</Text>
@@ -1478,6 +1494,7 @@ const styles = StyleSheet.create({
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line, marginBottom: space.sm },
   sheetTitle: { fontSize: font.h2, fontWeight: '800', color: colors.ink },
   sheetHint: { fontSize: font.small, color: colors.muted },
+  sheetEmpty: { fontSize: font.small, color: colors.muted, paddingVertical: space.lg, textAlign: 'center' },
   input: {
     backgroundColor: colors.white,
     borderWidth: 1,

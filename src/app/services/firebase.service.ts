@@ -109,6 +109,7 @@ export interface ExerciseDoc {
   muscles: string[];
   defaultCues: string[];
   logStyle?: 'weight-reps' | 'bodyweight' | 'time';
+  seedKey?: string;
   createdAt: Timestamp;
 }
 
@@ -118,6 +119,7 @@ export interface WorkoutTemplateDoc {
   restMiniSec?: number;
   restClusterSec?: number;
   exercises: TemplateExercise[];
+  seedKey?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

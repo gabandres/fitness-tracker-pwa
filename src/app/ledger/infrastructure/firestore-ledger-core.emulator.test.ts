@@ -368,6 +368,23 @@ describe.skipIf(!EMULATOR_AVAILABLE)('FirestoreLedgerCore — emulator contract'
       expect((await core.getTemplates()).length).toBe(1);
     });
 
+    it('round-trips seedKey on exercises + templates under prod rules', async () => {
+      await core.addExercise({
+        name: 'Barbell Bench Press',
+        muscles: ['chest'],
+        defaultCues: ['arch'],
+        seedKey: 'barbell-bench-press',
+      });
+      expect((await core.getExercises())[0].seedKey).toBe('barbell-bench-press');
+
+      const tid = await core.addTemplate({ name: 'Push Day', exercises: [], seedKey: 'push-day' });
+      expect((await core.getTemplates())[0].seedKey).toBe('push-day');
+
+      // merge:true update leaves seedKey intact when the draft omits it.
+      await core.updateTemplate(tid, { name: 'Push Day', exercises: [] });
+      expect((await core.getTemplates())[0].seedKey).toBe('push-day');
+    });
+
     it('session lifecycle: start active → update → complete → query by template', async () => {
       const tplId = await core.addTemplate({ name: 'Legs', exercises: [] });
       const sessionId = await core.startSession({

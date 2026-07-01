@@ -295,12 +295,17 @@ export class TrainComponent {
     () => !this.subs.isPaid() && this.templates().length >= CUSTOM_TEMPLATE_LIMIT_FREE,
   );
 
-  /** Starter templates the user hasn't cloned yet (matched by localized name,
-   *  since clones store the name in the user's active locale). */
+  /** Starter templates the user hasn't cloned yet. Matched by stable seedKey
+   *  (holds across a locale switch); falls back to the localized name for
+   *  clones made before seedKey existed. */
   protected readonly availableStarters = computed(() => {
     const es = this.i18n.language() === 'es-PR';
-    const have = new Set(this.templates().map((tpl) => tpl.name.toLowerCase()));
-    return STARTER_TEMPLATES.filter((s) => !have.has(seedTemplateName(s, es).toLowerCase()));
+    const cloned = this.templates();
+    const seedKeys = new Set(cloned.filter((tpl) => tpl.seedKey).map((tpl) => tpl.seedKey));
+    const names = new Set(cloned.filter((tpl) => !tpl.seedKey).map((tpl) => tpl.name.toLowerCase()));
+    return STARTER_TEMPLATES.filter(
+      (s) => !seedKeys.has(s.key) && !names.has(seedTemplateName(s, es).toLowerCase()),
+    );
   });
 
   /** Localized display name for a starter template (chooser list). */
