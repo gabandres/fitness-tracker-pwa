@@ -6,6 +6,11 @@ export interface BarcodeResult {
   carbs: number | null;
   fat: number | null;
   productName: string;
+  brand?: string;
+  /** Grams the returned macros correspond to — the product's serving weight
+   *  when known, else 100 (per-100g basis), else null when the product only
+   *  had per-serving macros with no gram weight (ADR-0013: honest grams). */
+  grams: number | null;
 }
 
 /**
@@ -76,15 +81,41 @@ export class BarcodeService {
     const p = data.product;
     const n = p.nutriments ?? {};
     const name = p.product_name ?? p.generic_name ?? 'Unknown product';
+    const brand = typeof p.brands === 'string' ? p.brands.split(',')[0].trim() : undefined;
 
-    // Prefer per-serving kcal, fall back to per-100g kcal, then kJ conversions.
     const KJ_TO_KCAL = 4.184;
-    const calories = n['energy-kcal_serving'] ?? n['energy-kcal_100g']
-      ?? (n['energy_serving'] != null ? Math.round(n['energy_serving'] / KJ_TO_KCAL) : null)
-      ?? (n['energy_100g'] != null ? Math.round(n['energy_100g'] / KJ_TO_KCAL) : null);
-    const protein = n['proteins_serving'] ?? n['proteins_100g'];
-    const carbs = n['carbohydrates_serving'] ?? n['carbohydrates_100g'];
-    const fat = n['fat_serving'] ?? n['fat_100g'];
+    // Pick a single consistent basis so `grams` matches the macros (grams-first
+    // save, ADR-0013). Prefer the per-serving basis when the product declares a
+    // serving weight; otherwise per-100g; otherwise per-serving macros with an
+    // unknown weight (grams = null → saved as `serving:1`).
+    const servingGramsRaw = typeof p.serving_quantity === 'string'
+      ? parseFloat(p.serving_quantity)
+      : p.serving_quantity;
+    const servingGrams = typeof servingGramsRaw === 'number' && Number.isFinite(servingGramsRaw) && servingGramsRaw > 0
+      ? servingGramsRaw : null;
+    const kcalServing = n['energy-kcal_serving']
+      ?? (n['energy_serving'] != null ? n['energy_serving'] / KJ_TO_KCAL : null);
+    const kcal100 = n['energy-kcal_100g']
+      ?? (n['energy_100g'] != null ? n['energy_100g'] / KJ_TO_KCAL : null);
+
+    let grams: number | null;
+    let calories: number | null;
+    let protein: number | undefined;
+    let carbs: number | undefined;
+    let fat: number | undefined;
+    if (servingGrams != null && kcalServing != null) {
+      grams = servingGrams;
+      calories = kcalServing;
+      protein = n['proteins_serving']; carbs = n['carbohydrates_serving']; fat = n['fat_serving'];
+    } else if (kcal100 != null) {
+      grams = 100;
+      calories = kcal100;
+      protein = n['proteins_100g']; carbs = n['carbohydrates_100g']; fat = n['fat_100g'];
+    } else {
+      grams = null; // per-serving macros, no weight
+      calories = kcalServing;
+      protein = n['proteins_serving']; carbs = n['carbohydrates_serving']; fat = n['fat_serving'];
+    }
 
     if (calories == null) {
       throw new Error(`No calorie data found for "${name}".`);
@@ -96,6 +127,8 @@ export class BarcodeService {
       carbs: carbs != null ? Math.round(carbs) : null,
       fat: fat != null ? Math.round(fat) : null,
       productName: name.slice(0, 100),
+      ...(brand ? { brand: brand.slice(0, 80) } : {}),
+      grams,
     };
   }
 }

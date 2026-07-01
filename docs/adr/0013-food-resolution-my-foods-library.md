@@ -182,3 +182,23 @@ So Step 2 is **persist + re-log surface, not lookup**:
   only the thin Firestore-write shim differs per frontend — the PWA via
   `LEDGER_PORT` (mirror the preset verbs across FirebaseService /
   FirestoreLedgerCore / in-memory), mobile via the Firebase JS SDK.
+
+### 2a-ii shipped, 2a-iii decisions (grill, 2026-07-01)
+
+- **2a-ii (shipped + browser-smoked):** `my-foods-picker` + a manual post-save
+  "Save to My Foods" affordance. Manual entries save as
+  `servingUnit:'serving', servingSize:1` (honest: manual has no gram weight).
+- **2a-iii (barcode/search enrichment):** carry serving context on the emitted
+  `MacroEstimate` (`serving?: { grams, source, barcode?, brand? }`) rather than
+  adding a second save button — **one** progressive save path. `applyEstimate`
+  stashes it; `confirmSaveCustomFood` uses `buildCustomFood` with the real
+  serving when present, else the manual `serving:1` fallback. The context is
+  **invalidated if the user edits the applied calories** (so an edited entry
+  saves as manual, never with stale grams).
+- **Grams are honest-tiered:** a picked portion's grams → store those; else
+  per-100g data → `servingSize:100,'g'`; else (per-serving macros, no gram
+  weight) → `servingSize:1,'serving'`. Never fabricate a gram number.
+- **`source`/dedup:** an actual barcode **scan** → `source:'barcode'` + the
+  scanned `barcode` → barcode-as-doc-id upsert. A **text search** result →
+  `source:'text'`, no barcode stored (auto-id), even for OFF hits — keeps the
+  scan-dedup semantics clean.

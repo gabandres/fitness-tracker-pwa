@@ -2,6 +2,7 @@ import { effect, Injectable, inject, signal } from '@angular/core';
 import { CustomFood, DailyLog, MealPreset, MealType } from './firebase.service';
 import { FitnessStore, PresetLimitError } from './fitness-store.service';
 import { MacroEstimate } from '../models/macro-estimate';
+import { buildCustomFood, customFoodDocId } from '@macrolog/core';
 import { TranslationService } from './translation.service';
 import { AuthService } from './auth.service';
 import { localDateKey } from '../utils/date';
@@ -67,7 +68,16 @@ export class EntryFormManager {
       null calories from the cleared form and silently no-op'd. */
   private lastSavedEntry: {
     calories: number; protein?: number; carbs?: number; fat?: number; label?: string;
+    /** Food-library context carried from a barcode/search estimate (ADR-0013
+     *  2a-iii) so "Save to My Foods" can store a grams-first, dedup-keyed
+     *  CustomFood. Only set when the applied calories weren't manually edited. */
+    serving?: NonNullable<MacroEstimate['serving']>;
   } | null = null;
+
+  /** Serving context from the most recent applyEstimate, held until submit so
+   *  a barcode/search entry can save grams-first. Cleared on manual edits via
+   *  the appliedCalories match at submit time. */
+  private pendingServing: { ctx: NonNullable<MacroEstimate['serving']>; appliedCalories: number } | null = null;
 
   /** Handle for the ADD-mode auto-close timer so the "save as preset"
       sub-flow can cancel it. Otherwise the timer fires mid-flow and
@@ -150,6 +160,10 @@ export class EntryFormManager {
     if (est.fat != null) this.fat.set(est.fat);
     this.activePresetName.set(est.label);
     this.mealLabel.set(est.label);
+    // Hold the food-library context (barcode/search) for the post-save
+    // "Save to My Foods" flow. Keyed on the applied calories so a later
+    // manual edit invalidates it (see submit()).
+    this.pendingServing = est.serving ? { ctx: est.serving, appliedCalories: est.calories } : null;
   }
 
   // ── Submit / Delete ─────────────────────────────────────────
@@ -207,6 +221,12 @@ export class EntryFormManager {
         if (carbs != null) this.lastSavedEntry.carbs = carbs;
         if (fat != null) this.lastSavedEntry.fat = fat;
         if (label) this.lastSavedEntry.label = label;
+        // Carry the barcode/search context ONLY if the applied calories
+        // survived unedited — else the grams no longer match the macros, so
+        // the food saves as a plain manual entry (ADR-0013 2a-iii honesty).
+        if (this.pendingServing && this.pendingServing.appliedCalories === calories) {
+          this.lastSavedEntry.serving = this.pendingServing.ctx;
+        }
 
         // Clear fields so a second SAVE click can't duplicate the entry.
         this.resetForm();
@@ -294,7 +314,11 @@ export class EntryFormManager {
       this.addAutoCloseTimer = null;
     }
     this.savingCustomFood.set(true);
-    this.customFoodName.set(this.lastSavedEntry?.label ?? '');
+    // Prefer the clean food name from a barcode/search context (no portion
+    // suffix); fall back to the entry label.
+    this.customFoodName.set(
+      this.lastSavedEntry?.serving?.name ?? this.lastSavedEntry?.label ?? '',
+    );
   }
 
   async confirmSaveCustomFood(): Promise<void> {
@@ -304,22 +328,53 @@ export class EntryFormManager {
     const snap = this.lastSavedEntry;
     const cal = snap?.calories ?? this.calories();
     if (!name || cal == null) return;
-    const food: Omit<CustomFood, 'id'> = {
-      name,
-      servingSize: 1,
-      servingUnit: 'serving',
-      calories: Number(cal),
-      source: 'manual',
-      createdAt: new Date(),
-    };
-    const pro = snap?.protein ?? this.protein();
-    if (pro != null) food.protein = Number(pro);
-    const carb = snap?.carbs ?? this.carbs();
-    if (carb != null) food.carbs = Number(carb);
-    const f = snap?.fat ?? this.fat();
-    if (f != null) food.fat = Number(f);
+    const calories = Number(cal);
+    const protein = (snap?.protein ?? this.protein()) as number | null;
+    const carbs = (snap?.carbs ?? this.carbs()) as number | null;
+    const fat = (snap?.fat ?? this.fat()) as number | null;
+    const ctx = snap?.serving;
+
+    let food: Omit<CustomFood, 'id'>;
+    if (ctx?.grams != null) {
+      // Grams-first, dedup-keyed save from a barcode scan or search portion.
+      food = buildCustomFood(
+        {
+          name,
+          brand: ctx.brand,
+          barcode: ctx.barcode,
+          source: ctx.source,
+          serving: {
+            grams: ctx.grams,
+            calories,
+            protein: protein ?? undefined,
+            carbs: carbs ?? undefined,
+            fat: fat ?? undefined,
+          },
+        },
+        new Date(),
+      );
+    } else {
+      // No gram weight: a plain manual entry, or a barcode/search food whose
+      // DB lacked a serving weight. Honest `serving:1`; keep source/barcode
+      // when we have them (so a weightless scan still de-dups by barcode).
+      food = {
+        name,
+        servingSize: 1,
+        servingUnit: 'serving',
+        calories,
+        source: ctx?.source ?? 'manual',
+        createdAt: new Date(),
+      };
+      if (ctx?.brand) food.brand = ctx.brand;
+      if (ctx?.barcode) food.barcode = ctx.barcode;
+      if (protein != null) food.protein = Number(protein);
+      if (carbs != null) food.carbs = Number(carbs);
+      if (fat != null) food.fat = Number(fat);
+    }
+
     // My Foods is free + uncapped, so no try/catch limit branch (unlike presets).
-    await this.store.addCustomFood(food);
+    // Barcode-sourced foods upsert at their barcode doc id (de-dup); others auto-id.
+    await this.store.addCustomFood(food, customFoodDocId(food));
     this.savingCustomFood.set(false);
     this.cancel();
   }
@@ -337,6 +392,7 @@ export class EntryFormManager {
     this.mealType.set(defaultMealTypeForHour(new Date().getHours()));
     this.entryDate.set(localDateKey(new Date()));
     this.presetLimitHit.set(false);
+    this.pendingServing = null;
   }
 
   /**

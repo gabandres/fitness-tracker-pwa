@@ -15,6 +15,7 @@ describe('EntryFormManager', () => {
     deleteLog: ReturnType<typeof vi.fn>;
     addPreset: ReturnType<typeof vi.fn>;
     deletePreset: ReturnType<typeof vi.fn>;
+    addCustomFood: ReturnType<typeof vi.fn>;
     presets: ReturnType<typeof signal>;
   };
 
@@ -25,6 +26,7 @@ describe('EntryFormManager', () => {
       deleteLog: vi.fn().mockResolvedValue(undefined),
       addPreset: vi.fn().mockResolvedValue(undefined),
       deletePreset: vi.fn().mockResolvedValue(undefined),
+      addCustomFood: vi.fn().mockResolvedValue('new-food-id'),
       presets: signal([]),
     };
 
@@ -335,5 +337,57 @@ describe('EntryFormManager', () => {
     form.presetName.set('Test');
     await form.confirmSavePreset();
     expect(mockStore.addPreset).not.toHaveBeenCalled();
+  });
+
+  // ── Save-to-My-Foods flow (ADR-0013) ────────────────────────
+
+  it('saves a manual entry as a serving:1 custom food (auto-id)', async () => {
+    form.calories.set(320);
+    form.protein.set(24);
+    form.customFoodName.set('Chili');
+    await form.confirmSaveCustomFood();
+    expect(mockStore.addCustomFood).toHaveBeenCalledTimes(1);
+    const [food, id] = mockStore.addCustomFood.mock.calls[0];
+    expect(food).toMatchObject({
+      name: 'Chili', servingSize: 1, servingUnit: 'serving', calories: 320, protein: 24, source: 'manual',
+    });
+    expect(id).toBeNull();
+    expect(form.savingCustomFood()).toBe(false);
+  });
+
+  it('saves a scanned food grams-first, de-duped by barcode', async () => {
+    form.startAdd();
+    // Barcode estimate carries serving context.
+    form.applyEstimate({
+      calories: 100, protein: 17, carbs: 6, fat: 1, label: 'Chobani • 0% Plain',
+      serving: { grams: 170, source: 'barcode', barcode: '894700010045', brand: 'Chobani', name: '0% Plain' },
+    });
+    await form.submit();
+    form.promptSaveCustomFood();
+    // Name defaults to the clean serving name.
+    expect(form.customFoodName()).toBe('0% Plain');
+    await form.confirmSaveCustomFood();
+    const [food, id] = mockStore.addCustomFood.mock.calls[0];
+    expect(food).toMatchObject({
+      name: '0% Plain', brand: 'Chobani', barcode: '894700010045',
+      servingSize: 170, servingUnit: 'g', calories: 100, protein: 17, source: 'barcode',
+    });
+    expect(id).toBe('894700010045'); // barcode-as-doc-id
+  });
+
+  it('drops the serving context when the applied calories were edited', async () => {
+    form.startAdd();
+    form.applyEstimate({
+      calories: 100, protein: 17, label: 'Chobani • 0% Plain',
+      serving: { grams: 170, source: 'barcode', barcode: '894700010045', name: '0% Plain' },
+    });
+    form.calories.set(140); // manual edit — grams no longer match
+    await form.submit();
+    form.customFoodName.set('0% Plain');
+    await form.confirmSaveCustomFood();
+    const [food, id] = mockStore.addCustomFood.mock.calls[0];
+    expect(food).toMatchObject({ servingUnit: 'serving', servingSize: 1, source: 'manual', calories: 140 });
+    expect(food.barcode).toBeUndefined();
+    expect(id).toBeNull();
   });
 });

@@ -89,13 +89,22 @@ export class BarcodeScannerComponent implements OnDestroy {
       this.cancelScan();
 
       const result = await this.barcodeService.lookupProduct(barcode);
-      this.estimated.emit({
+      const estimate: MacroEstimate = {
         calories: result.calories,
         protein: result.protein,
         carbs: result.carbs,
         fat: result.fat,
-        label: result.productName,
-      });
+        label: result.brand ? `${result.brand} • ${result.productName}` : result.productName,
+        // Food-library context (ADR-0013): a scan is dedup-keyed by barcode.
+        serving: {
+          source: 'barcode',
+          barcode,
+          name: result.productName,
+          ...(result.grams != null ? { grams: result.grams } : {}),
+          ...(result.brand ? { brand: result.brand } : {}),
+        },
+      };
+      this.estimated.emit(estimate);
     } catch (err) {
       this.cancelScan();
       this.error.set(err instanceof Error ? err.message : this.translation.t('barcode.errorFallback'));

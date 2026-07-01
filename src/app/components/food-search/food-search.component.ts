@@ -442,6 +442,15 @@ export class FoodSearchComponent {
       carbs: s.carbs != null ? Math.round(s.carbs * m) : null,
       fat: s.fat != null ? Math.round(s.fat * m) : null,
       label,
+      // Food-library context (ADR-0013): a searched food saves grams-first
+      // (the picked portion × multiplier) as `source:'text'` — no barcode
+      // stored even for OFF hits, keeping scan-dedup semantics clean.
+      serving: {
+        grams: Math.round(s.grams * m),
+        source: 'text',
+        name: labelBase.slice(0, 100),
+        ...(d.brand ? { brand: d.brand } : {}),
+      },
     });
 
     // Reset the picker so the next entry session starts fresh.
