@@ -51,7 +51,12 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "emu": "expo start --android",
+    "apk": "eas build --platform android --profile preview",
+    "apk:run": "eas build:run --platform android --latest",
+    "build:android": "eas build --platform android --profile production",
+    "submit:android": "eas submit --platform android --latest"
   },
   "private": true
 }
