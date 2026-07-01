@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { UnitSystem } from '@macrolog/core';
+import * as DocumentPicker from 'expo-document-picker';
+import { type ImportParseError, type ImportParseResult, type UnitSystem, parseImportCsv } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
-import { setPreferredLocale, setUnitSystem, setWeeklyDigestOptIn } from '@/lib/ledger';
+import { importLogs, setPreferredLocale, setUnitSystem, setWeeklyDigestOptIn } from '@/lib/ledger';
 import { exportDataCsv } from '@/lib/dataExport';
 import { DEFAULT_REMINDER_HOUR, getReminder, setReminder } from '@/lib/reminders';
 import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
@@ -30,6 +31,23 @@ const LANGUAGES: { value: Locale; label: string }[] = [
   { value: 'en', label: 'English' },
   { value: 'es-PR', label: 'Español' },
 ];
+
+const IMPORT_ERR_KEY: Record<ImportParseError, I18nKey> = {
+  'empty-file': 'settings.importErrEmpty',
+  'no-header-match': 'settings.importErrHeader',
+  'no-rows': 'settings.importErrRows',
+};
+
+/** Read a picked CSV's text cross-platform: fetch a blob URL on web, the
+ *  expo-file-system File API on device. */
+async function readCsvText(uri: string): Promise<string> {
+  if (Platform.OS === 'web') {
+    const res = await fetch(uri);
+    return res.text();
+  }
+  const { File } = await import('expo-file-system');
+  return new File(uri).text();
+}
 
 export default function Settings() {
   const t = useT();
@@ -55,6 +73,45 @@ export default function Settings() {
       setExportMsg(t('settings.exportError'));
     } finally {
       setExporting(false);
+    }
+  }
+
+  const [importPreview, setImportPreview] = useState<ImportParseResult | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+
+  async function pickImport() {
+    haptics.tap();
+    setImportMsg(null);
+    const res = await DocumentPicker.getDocumentAsync({
+      type: ['text/csv', 'text/comma-separated-values', 'application/vnd.ms-excel', '*/*'],
+      copyToCacheDirectory: true,
+    });
+    if (res.canceled || !res.assets?.[0]) return;
+    try {
+      const text = await readCsvText(res.assets[0].uri);
+      const parsed = parseImportCsv(text);
+      if (!parsed.ok) {
+        setImportMsg(t(IMPORT_ERR_KEY[parsed.error]));
+        return;
+      }
+      setImportPreview(parsed.result);
+    } catch {
+      setImportMsg(t('settings.importErrGeneric'));
+    }
+  }
+
+  async function confirmImport() {
+    if (!user || !importPreview || importing) return;
+    setImporting(true);
+    try {
+      const n = await importLogs(user.uid, importPreview.entries);
+      setImportPreview(null);
+      setImportMsg(t('settings.importDone', { n }));
+    } catch {
+      setImportMsg(t('settings.importErrGeneric'));
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -254,6 +311,49 @@ export default function Settings() {
             </TouchableOpacity>
           </View>
           {exportMsg ? <Text style={styles.exportMsg}>{exportMsg}</Text> : null}
+
+          <View style={styles.importDivider} />
+          <View style={styles.rowBetween}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>{t('settings.importTitle')}</Text>
+              <Text style={styles.rowValue}>{t('settings.importSub')}</Text>
+            </View>
+            <TouchableOpacity style={styles.exportBtn} onPress={pickImport} testID="settings-import">
+              <Ionicons name="cloud-upload-outline" size={16} color={colors.white} />
+              <Text style={styles.exportBtnText}>{t('settings.importButton')}</Text>
+            </TouchableOpacity>
+          </View>
+          {importPreview ? (
+            <View style={styles.importPreview}>
+              <Text style={styles.rowLabel}>
+                {t('settings.importPreview', {
+                  n: importPreview.entries.length,
+                  from: importPreview.firstDate ?? '?',
+                  to: importPreview.lastDate ?? '?',
+                })}
+              </Text>
+              {importPreview.skipped > 0 ? (
+                <Text style={styles.rowValue}>{t('settings.importSkipped', { n: importPreview.skipped })}</Text>
+              ) : null}
+              <Text style={[styles.rowValue, { color: colors.accent }]}>{t('settings.importDupWarning')}</Text>
+              <View style={styles.importActions}>
+                <TouchableOpacity
+                  style={[styles.exportBtn, importing && styles.exportBtnDisabled]}
+                  onPress={confirmImport}
+                  disabled={importing}
+                  testID="settings-import-confirm"
+                >
+                  <Text style={styles.exportBtnText}>
+                    {importing ? t('settings.importImporting') : t('settings.importConfirm')}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setImportPreview(null)} disabled={importing}>
+                  <Text style={styles.importCancel}>{t('settings.importCancel')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
+          {importMsg ? <Text style={styles.exportMsg}>{importMsg}</Text> : null}
         </View>
 
         <Text style={styles.section}>{t('settings.account')}</Text>
@@ -325,6 +425,10 @@ const styles = StyleSheet.create({
   exportBtnDisabled: { opacity: 0.5 },
   exportBtnText: { color: colors.white, fontWeight: '700', fontSize: font.small },
   exportMsg: { fontSize: font.small, color: colors.muted, marginTop: space.sm },
+  importDivider: { height: 1, backgroundColor: colors.line, marginVertical: space.md },
+  importPreview: { marginTop: space.sm, gap: space.xs, backgroundColor: colors.paper, borderRadius: radius.md, padding: space.md },
+  importActions: { flexDirection: 'row', alignItems: 'center', gap: space.lg, marginTop: space.sm },
+  importCancel: { fontSize: font.body, color: colors.muted, fontWeight: '700' },
   refineRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingTop: space.sm, borderTopWidth: 1, borderTopColor: colors.line },
   digestRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space.sm, borderTopWidth: 1, borderTopColor: colors.line },
   segment: { flexDirection: 'row', gap: space.sm },

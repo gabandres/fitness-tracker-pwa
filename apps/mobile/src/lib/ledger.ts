@@ -134,6 +134,20 @@ export async function deleteLog(uid: string, id: string): Promise<void> {
   await deleteDoc(logDoc(uid, id));
 }
 
+/** Bulk-import parsed LogEntry rows in ≤450-op batches (Firestore's 500-write
+ *  cap). Returns the number written. Mirrors FirestoreLedgerCore.importLogs. */
+export async function importLogs(uid: string, entries: readonly LogEntry[]): Promise<number> {
+  const coll = logsCol(uid);
+  let written = 0;
+  for (let i = 0; i < entries.length; i += 450) {
+    const batch = writeBatch(db);
+    for (const entry of entries.slice(i, i + 450)) batch.set(doc(coll), logData(entry));
+    await batch.commit();
+    written += Math.min(450, entries.length - i);
+  }
+  return written;
+}
+
 // ─── Daily weights ──────────────────────────────────────────────
 export function subscribeDailyWeights(
   uid: string,

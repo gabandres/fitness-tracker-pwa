@@ -31,3 +31,5 @@ export * from './workout-seed';
 // Shared CSV export serializer (both apps). buildCsv + ExportData are unique
 // names; the ./workout types it consumes stay un-barreled (see note above).
 export { buildCsv, type ExportData } from './csv-export';
+// Switcher CSV import parser (MFP / Lose It! / Cronometer), pure + shared.
+export * from './import-csv';
