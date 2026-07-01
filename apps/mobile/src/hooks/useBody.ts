@@ -126,7 +126,7 @@ export function useBody(): BodyState {
       const v = weights[key];
       if (typeof v === 'number') points.push({ dateKey: key, weightLb: v });
     }
-    return projectWeight(points, profile?.goalWeightLbs ?? profile?.targetWeightLbs ?? null);
+    return projectWeight(points, profile?.targetWeightLbs ?? profile?.goalWeightLbs ?? null);
   }, [weights, profile]);
 
   // 14-day weight line (oldest → newest), missed days dropped.
@@ -182,6 +182,6 @@ export function useBody(): BodyState {
     projection,
     weightSeries,
     projectedSeries,
-    goalProgress: computeGoalProgress(logs, weights, profile?.goalWeightLbs ?? profile?.targetWeightLbs ?? null),
+    goalProgress: computeGoalProgress(logs, weights, profile?.targetWeightLbs ?? profile?.goalWeightLbs ?? null),
   };
 }

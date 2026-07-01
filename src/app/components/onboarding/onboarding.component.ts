@@ -270,9 +270,10 @@ export class OnboardingComponent {
     // In redo mode pre-fill weight from any prior value; goal direction
     // pre-fills on the goal step.
     const p = this.fb.profile();
-    if (p?.targetWeightLbs != null) {
-      this.targetWeight.set(p.targetWeightLbs);
-      this.targetInput.set(String(p.targetWeightLbs));
+    const priorGoal = p?.targetWeightLbs ?? p?.goalWeightLbs;
+    if (priorGoal != null) {
+      this.targetWeight.set(priorGoal);
+      this.targetInput.set(String(priorGoal));
     }
     if (p?.goalDirection) {
       this.goal.set(p.goalDirection);

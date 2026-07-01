@@ -283,7 +283,17 @@ export async function saveOnboardingV2(uid: string, s: OnboardingV2Submission): 
     profileCompleted: true,
     lastSeenAt: Timestamp.now(),
   };
-  if (s.targetWeightLbs != null) patch['targetWeightLbs'] = s.targetWeightLbs;
+  // Goal weight lives in TWO legacy fields (targetWeightLbs from onboarding,
+  // goalWeightLbs read by the goal-progress bar). Keep them in sync, and CLEAR
+  // both when the goal is "maintain" — otherwise a stale goalWeightLbs shadows
+  // the new goal forever (the "redo onboarding didn't update it" bug).
+  if (s.targetWeightLbs != null) {
+    patch['targetWeightLbs'] = s.targetWeightLbs;
+    patch['goalWeightLbs'] = s.targetWeightLbs;
+  } else {
+    patch['targetWeightLbs'] = deleteField();
+    patch['goalWeightLbs'] = deleteField();
+  }
   await updateDoc(userDoc(uid), patch);
 }
 

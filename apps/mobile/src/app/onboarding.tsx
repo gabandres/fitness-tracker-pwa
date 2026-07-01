@@ -41,9 +41,10 @@ export default function Onboarding() {
 
   const [weight, setWeight] = useState('');
   const [goal, setGoal] = useState<GoalDirection | null>(profile?.goalDirection ?? null);
-  const [targetWeight, setTargetWeight] = useState(
-    profile?.targetWeightLbs != null ? String(profile.targetWeightLbs) : '',
-  );
+  const [targetWeight, setTargetWeight] = useState(() => {
+    const g = profile?.targetWeightLbs ?? profile?.goalWeightLbs;
+    return g != null ? String(g) : '';
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

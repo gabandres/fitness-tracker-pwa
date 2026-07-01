@@ -460,11 +460,24 @@ export class FirebaseService implements LedgerPort {
       profileCompleted: true,
       lastSeenAt: Timestamp.now(),
     };
+    // Goal weight lives in TWO legacy fields (targetWeightLbs from onboarding,
+    // goalWeightLbs read by the goal-progress bar). Keep them in sync, and
+    // CLEAR both on "maintain" — otherwise a stale goalWeightLbs shadows the
+    // new goal forever (the "redo onboarding didn't update it" bug).
+    const goalWrite: Record<string, unknown> =
+      submission.targetWeightLbs != null
+        ? { targetWeightLbs: submission.targetWeightLbs, goalWeightLbs: submission.targetWeightLbs }
+        : { targetWeightLbs: deleteField(), goalWeightLbs: deleteField() };
+    await this.core.updateProfileDoc({ ...patch, ...goalWrite });
+    const updated: Profile = { ...current, ...toDomainProfilePatch(patch) };
     if (submission.targetWeightLbs != null) {
-      patch.targetWeightLbs = submission.targetWeightLbs;
+      updated.targetWeightLbs = submission.targetWeightLbs;
+      updated.goalWeightLbs = submission.targetWeightLbs;
+    } else {
+      delete (updated as any).targetWeightLbs;
+      delete (updated as any).goalWeightLbs;
     }
-    await this.core.updateProfileDoc(patch);
-    this._profile.set({ ...current, ...toDomainProfilePatch(patch) });
+    this._profile.set(updated);
   }
 
   /** Persist the Day-3 "Refine targets" sheet. Writes the full

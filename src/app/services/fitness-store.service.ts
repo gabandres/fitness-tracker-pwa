@@ -375,7 +375,10 @@ export class FitnessStore {
 
   readonly goalProgress: Signal<GoalProgress | null> = computed(() => {
     const profile = this.fb.profile();
-    const goal = profile?.goalWeightLbs;
+    // Prefer targetWeightLbs (the field onboarding writes) over the legacy
+    // goalWeightLbs, so redoing onboarding actually moves the bar. See the
+    // saveOnboardingV2 sync note.
+    const goal = profile?.targetWeightLbs ?? profile?.goalWeightLbs;
     const current = this.currentWeight();
     if (!goal || current == null) return null;
 

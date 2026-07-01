@@ -604,7 +604,10 @@ export class BodyComponent implements OnInit, OnDestroy {
   });
 
   protected readonly projection = computed(() =>
-    projectWeight(this.weightPoints(), this.store.profile()?.goalWeightLbs ?? null),
+    projectWeight(
+      this.weightPoints(),
+      this.store.profile()?.targetWeightLbs ?? this.store.profile()?.goalWeightLbs ?? null,
+    ),
   );
 
   /** Dashed forecast for the sparkline: step from the last plotted
