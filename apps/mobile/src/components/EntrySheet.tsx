@@ -56,6 +56,10 @@ function noonOf(dateKey: string): Date {
   return new Date(y, m - 1, d, 12, 0, 0);
 }
 
+function isSameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
 /** Keep numeric fields as raw strings so partial input ("12.", "1.5")
  *  binds cleanly; parse only on save (see the decimal-input gotcha). */
 function numOrUndef(s: string): number | undefined {
@@ -98,6 +102,11 @@ export function EntrySheet({
   const [carbs, setCarbs] = useState('');
   const [fat, setFat] = useState('');
   const [mealType, setMealType] = useState<MealType | undefined>(undefined);
+  // Editable entry date — lets the user MOVE an entry to another day (shown
+  // only when editing or adding to a specific past day). Plain today-adds keep
+  // the "now" timestamp and hide the row.
+  const [entryDate, setEntryDate] = useState<Date>(new Date());
+  const showDateRow = editing != null || dateKey != null;
   const [busy, setBusy] = useState(false);
   const [manage, setManage] = useState(false);
   const [mode, setMode] = useState<'browse' | 'custom' | 'recipe'>('browse');
@@ -157,10 +166,22 @@ export function EntrySheet({
     setCarbs(editing?.carbs != null ? String(editing.carbs) : '');
     setFat(editing?.fat != null ? String(editing.fat) : '');
     setMealType(editing?.mealType);
+    setEntryDate(editing?.date ?? (dateKey ? noonOf(dateKey) : new Date()));
     setBusy(false);
     setManage(false);
     setMode(editing ? 'custom' : 'browse');
-  }, [visible, editing]);
+  }, [visible, editing, dateKey]);
+
+  /** Shift the editable entry date by whole days (move-to-date), keeping the
+   *  time-of-day. Clamped so you can't push an entry into the future. */
+  function shiftEntryDate(deltaDays: number) {
+    haptics.tap();
+    setEntryDate((prev) => {
+      const next = new Date(prev);
+      next.setDate(next.getDate() + deltaDays);
+      return next.getTime() > Date.now() ? prev : next;
+    });
+  }
 
   /** Prefill the manual form from an estimate (search portion, recipe,
    *  barcode) and move to CUSTOM for review before saving. */
@@ -200,7 +221,7 @@ export function EntrySheet({
       fat: numOrUndef(fat),
       mealLabel: label.trim() || undefined,
       mealType,
-      timestamp: forDate,
+      timestamp: showDateRow ? entryDate : forDate,
     };
     try {
       await onSave(entry);
@@ -401,6 +422,27 @@ export function EntrySheet({
                     </View>
                   </Field>
 
+                  {showDateRow ? (
+                    <Field label={t('entry.date')}>
+                      <View style={styles.dateRow}>
+                        <TouchableOpacity style={styles.dateStep} onPress={() => shiftEntryDate(-1)} testID="entry-date-prev">
+                          <Text style={styles.dateStepText}>−</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.dateLabel} testID="entry-date">
+                          {entryDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </Text>
+                        <TouchableOpacity
+                          style={[styles.dateStep, isSameDay(entryDate, new Date()) && styles.dateStepDisabled]}
+                          onPress={() => shiftEntryDate(1)}
+                          disabled={isSameDay(entryDate, new Date())}
+                          testID="entry-date-next"
+                        >
+                          <Text style={styles.dateStepText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </Field>
+                  ) : null}
+
                   {canSavePreset ? (
                     <TouchableOpacity style={styles.savePreset} onPress={saveAsPreset} testID="save-preset">
                       <Text style={styles.savePresetText}>{t('entry.savePreset')}</Text>
@@ -543,6 +585,11 @@ const styles = StyleSheet.create({
   chipTextOn: { color: colors.white },
   savePreset: { alignSelf: 'flex-start', paddingVertical: space.xs },
   savePresetText: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
+  dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
+  dateStep: { width: 40, height: 40, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
+  dateStepDisabled: { opacity: 0.4 },
+  dateStepText: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },
+  dateLabel: { flex: 1, textAlign: 'center', fontSize: font.body, color: colors.ink, fontWeight: '700' },
   actions: { flexDirection: 'row', gap: space.md, paddingTop: space.md, alignItems: 'center' },
   delete: { paddingHorizontal: space.lg, paddingVertical: space.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.danger },
   deleteText: { color: colors.danger, fontWeight: '700', fontSize: font.body },

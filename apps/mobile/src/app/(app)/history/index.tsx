@@ -1,24 +1,38 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { type DaySummary, parseYmd } from '@macrolog/core';
+import { type DaySummary, localDateKey, monthGrid } from '@macrolog/core';
 import { useHistory } from '@/hooks/useHistory';
-import { type TFn, useT } from '@/i18n';
+import { useT } from '@/i18n';
 import { colors, font, radius, space } from '@/theme';
 
-function dayLabel(dateKey: string): string {
-  return parseYmd(dateKey).toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
-}
+// Narrow weekday letters, locale-aware (Jan 1 2023 was a Sunday).
+const WEEKDAYS = Array.from({ length: 7 }, (_, i) =>
+  new Date(2023, 0, 1 + i).toLocaleDateString(undefined, { weekday: 'narrow' }),
+);
 
-export default function HistoryList() {
+export default function HistoryCalendar() {
   const t = useT();
   const { loading, error, days } = useHistory();
   const router = useRouter();
+  // A date within the viewed month; starts on the current month.
+  const [view, setView] = useState(() => new Date());
+
+  const byDate = useMemo(() => {
+    const m = new Map<string, DaySummary>();
+    for (const d of days) m.set(d.dateKey, d);
+    return m;
+  }, [days]);
+
+  const cells = useMemo(() => monthGrid(view), [view]);
+  const todayKey = localDateKey(new Date());
+  const monthLabel = view.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+  function shiftMonth(delta: number) {
+    setView((v) => new Date(v.getFullYear(), v.getMonth() + delta, 1));
+  }
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -27,67 +41,91 @@ export default function HistoryList() {
         <View style={styles.fill}>
           <ActivityIndicator color={colors.accent} />
         </View>
-      ) : days.length === 0 ? (
-        <View style={styles.fill}>
-          <Text style={styles.emptyText}>{t('history.emptyTitle')}</Text>
-          <Text style={styles.emptyHint}>{t('history.emptyHint')}</Text>
-        </View>
       ) : (
-        <FlatList
-          data={days}
-          keyExtractor={(d) => d.dateKey}
-          contentContainerStyle={styles.list}
-          ListHeaderComponent={error ? <Text style={styles.error}>{t('history.loadErr')}</Text> : null}
-          renderItem={({ item }) => <Row item={item} t={t} onPress={() => router.push(`/history/${item.dateKey}`)} />}
-        />
+        <ScrollView contentContainerStyle={styles.body}>
+          {error ? <Text style={styles.error}>{t('history.loadErr')}</Text> : null}
+
+          <View style={styles.monthNav}>
+            <Pressable onPress={() => shiftMonth(-1)} hitSlop={12} testID="month-prev">
+              <Ionicons name="chevron-back" size={22} color={colors.ink} />
+            </Pressable>
+            <Text style={styles.monthLabel}>{monthLabel}</Text>
+            <Pressable onPress={() => shiftMonth(1)} hitSlop={12} testID="month-next">
+              <Ionicons name="chevron-forward" size={22} color={colors.ink} />
+            </Pressable>
+          </View>
+
+          <View style={styles.weekHead}>
+            {WEEKDAYS.map((w, i) => (
+              <Text key={i} style={styles.weekHeadCell}>
+                {w}
+              </Text>
+            ))}
+          </View>
+
+          <View style={styles.grid}>
+            {cells.map((cell) => {
+              const summary = byDate.get(cell.key);
+              const logged = (summary?.totalCalories ?? 0) > 0;
+              const weighed = summary?.weightLb != null;
+              const isToday = cell.key === todayKey;
+              return (
+                <Pressable
+                  key={cell.key}
+                  style={styles.cell}
+                  disabled={!cell.inMonth}
+                  onPress={() => router.push(`/history/${cell.key}`)}
+                  testID={`day-${cell.key}`}
+                >
+                  <View style={[styles.cellInner, isToday && styles.cellToday]}>
+                    <Text style={[styles.cellNum, !cell.inMonth && styles.cellOut, isToday && styles.cellNumToday]}>
+                      {parseInt(cell.key.slice(8), 10)}
+                    </Text>
+                    <View style={styles.dotRow}>
+                      {logged ? <View style={styles.dot} /> : null}
+                      {weighed ? <View style={styles.dotWeight} /> : null}
+                    </View>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {days.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>{t('history.emptyTitle')}</Text>
+              <Text style={styles.emptyHint}>{t('history.emptyHint')}</Text>
+            </View>
+          ) : null}
+        </ScrollView>
       )}
     </SafeAreaView>
   );
 }
 
-function Row({ item, t, onPress }: { item: DaySummary; t: TFn; onPress: () => void }) {
-  return (
-    <Pressable style={styles.card} onPress={onPress} testID={`day-${item.dateKey}`}>
-      <View style={styles.cardLeft}>
-        <Text style={styles.cardDate}>{dayLabel(item.dateKey)}</Text>
-        <Text style={styles.cardSub}>
-          {item.mealCount} {item.mealCount === 1 ? t('history.entryOne') : t('history.entryMany')}
-          {item.exercised ? `  ·  ${t('history.exercised')}` : ''}
-          {item.weightLb != null ? `  ·  ${item.weightLb} lb` : ''}
-        </Text>
-      </View>
-      <View style={styles.cardRight}>
-        <Text style={styles.cardKcal}>{item.totalCalories.toLocaleString()}</Text>
-        <Text style={styles.cardKcalLabel}>kcal · {item.totalProtein}g P</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color={colors.faint} />
-    </Pressable>
-  );
-}
+const CELL = `${100 / 7}%`;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   title: { fontSize: font.h1, fontWeight: '800', color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.xs },
+  body: { padding: space.xl, gap: space.md },
+  error: { color: colors.danger, fontSize: font.small },
+  monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.sm },
+  monthLabel: { fontSize: font.h3, fontWeight: '800', color: colors.ink, textTransform: 'capitalize' },
+  weekHead: { flexDirection: 'row' },
+  weekHeadCell: { width: CELL, textAlign: 'center', fontSize: font.tiny, color: colors.faint, fontWeight: '700', textTransform: 'uppercase' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  cell: { width: CELL, aspectRatio: 1, padding: 2 },
+  cellInner: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, gap: 3 },
+  cellToday: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.accent },
+  cellNum: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
+  cellNumToday: { color: colors.accent, fontWeight: '800' },
+  cellOut: { color: colors.line },
+  dotRow: { flexDirection: 'row', gap: 3, height: 6, alignItems: 'center' },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
+  dotWeight: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.muted },
+  empty: { alignItems: 'center', gap: space.xs, paddingVertical: space.xl },
   emptyText: { fontSize: font.body, color: colors.muted, fontWeight: '600' },
   emptyHint: { fontSize: font.small, color: colors.faint },
-  error: { color: colors.danger, fontSize: font.small, paddingBottom: space.sm },
-  list: { padding: space.xl, gap: space.sm },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    paddingHorizontal: space.lg,
-    paddingVertical: space.md,
-    gap: space.sm,
-  },
-  cardLeft: { flex: 1, gap: 2 },
-  cardDate: { fontSize: font.body, fontWeight: '700', color: colors.ink },
-  cardSub: { fontSize: font.small, color: colors.muted },
-  cardRight: { alignItems: 'flex-end' },
-  cardKcal: { fontSize: font.body, fontWeight: '700', color: colors.ink },
-  cardKcalLabel: { fontSize: font.tiny, color: colors.muted },
 });

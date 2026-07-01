@@ -106,6 +106,7 @@ export const en = {
   'entry.carbsG': 'Carbs (g)',
   'entry.fatG': 'Fat (g)',
   'entry.meal': 'Meal (optional)',
+  'entry.date': 'Date',
   'entry.savePreset': '★ Save as preset',
   'entry.searchDb': '🔍  Search food database',
   'entry.scan': '⊟  Scan',

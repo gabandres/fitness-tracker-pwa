@@ -108,6 +108,7 @@ export const esPR: Record<I18nKey, string> = {
   'entry.carbsG': 'Carbohidratos (g)',
   'entry.fatG': 'Grasa (g)',
   'entry.meal': 'Comida (opcional)',
+  'entry.date': 'Fecha',
   'entry.savePreset': '★ Guardar como preajuste',
   'entry.searchDb': '🔍  Buscar en la base de datos',
   'entry.scan': '⊟  Escanear',
