@@ -10,7 +10,16 @@
     "backgroundColor": "#faf9f6",
     "ios": {
       "bundleIdentifier": "app.macrolog.mobile",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.647810616435-h0cjjths1qefusi2erohqm94e75gdnmi"
+            ]
+          }
+        ]
+      }
     },
     "android": {
       "package": "app.macrolog.mobile",
@@ -20,7 +29,11 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -59,9 +72,13 @@
     ],
     "extra": {
       "googleAuth": {
-        "iosClientId": "REPLACE_WITH_IOS_CLIENT_ID.apps.googleusercontent.com",
-        "androidClientId": "REPLACE_WITH_ANDROID_CLIENT_ID.apps.googleusercontent.com",
+        "iosClientId": "647810616435-h0cjjths1qefusi2erohqm94e75gdnmi.apps.googleusercontent.com",
+        "androidClientId": "647810616435-8fq849lqju9rrbnva3nqsvdqlbucr33n.apps.googleusercontent.com",
         "webClientId": "647810616435-jkiccn16plimkv9smp7ki8m90ghhocsh.apps.googleusercontent.com"
+      },
+      "router": {},
+      "eas": {
+        "projectId": "d0ccbe2d-b0f1-4333-9e2d-a02a21b23854"
       }
     },
     "experiments": {
