@@ -20,7 +20,9 @@ import { UiBarChart } from '../ui/bar-chart.component';
 import { UiButton } from '../ui/button.component';
 import { UiCard } from '../ui/card.component';
 import { UiIconButton } from '../ui/icon-button.component';
+import { UiAvatar } from '../ui/avatar.component';
 import { UiFastingPill } from '../ui/fasting-pill.component';
+import { AuthService } from '../../services/auth.service';
 import { summarizeDays } from '../../utils/day-summary';
 import {
   computeWeeklyInsights,
@@ -47,6 +49,7 @@ import { bcp47ForLang } from '../../utils/locale';
     UiButton,
     UiCard,
     UiIconButton,
+    UiAvatar,
     UiFastingPill,
     ConsultationComponent,
   ],
@@ -66,10 +69,11 @@ import { bcp47ForLang } from '../../utils/locale';
             icon="calendar"
             [ariaLabel]="t('v2.trends.historyAria')"
             (click)="historyRequested.emit()" />
-          <ui-icon-button
-            icon="settings"
+          <ui-avatar
+            [photoUrl]="authUser()?.photoURL ?? null"
+            [name]="authUser()?.displayName || authUser()?.email || null"
             [ariaLabel]="t('v2.trends.settingsAria')"
-            (click)="settingsRequested.emit()" />
+            (activate)="settingsRequested.emit()" />
         </div>
       </header>
 
@@ -310,6 +314,8 @@ import { bcp47ForLang } from '../../utils/locale';
 export class TrendsComponent {
   protected readonly store = inject(FitnessStore);
   private readonly body = inject(BodyMetricStore);
+  private readonly auth = inject(AuthService);
+  protected readonly authUser = this.auth.user;
   protected readonly report = inject(WeeklyReportStore);
   protected readonly subs = inject(SubscriptionService);
   private readonly upsell = inject(UpsellService);

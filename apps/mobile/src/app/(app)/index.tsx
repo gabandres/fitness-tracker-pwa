@@ -1,11 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureAndShare } from '@/lib/shareCapture';
 import type { DailyLog, LogEntry } from '@macrolog/core';
 import { DailyMetrics } from '@/components/DailyMetrics';
+import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { EntrySheet } from '@/components/EntrySheet';
 import { MacroRing } from '@/components/MacroRing';
 import { MealEntries } from '@/components/MealEntries';
@@ -22,7 +22,6 @@ function todayLabel(): string {
 
 export default function Today() {
   const t = useT();
-  const router = useRouter();
   const {
     loading,
     error,
@@ -121,9 +120,7 @@ export default function Today() {
           <TouchableOpacity onPress={onShare} testID="share-progress" hitSlop={10}>
             <Ionicons name="share-outline" size={22} color={colors.muted} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push('/settings')} testID="settings-open" hitSlop={10}>
-            <Ionicons name="settings-outline" size={24} color={colors.muted} />
-          </TouchableOpacity>
+          <HeaderAvatar />
         </View>
       </View>
 

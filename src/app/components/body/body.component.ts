@@ -17,6 +17,7 @@ import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { TranslationService } from '../../services/translation.service';
 import { SubscriptionService } from '../../services/subscription.service';
 import { UpsellService } from '../../services/upsell.service';
+import { AuthService } from '../../services/auth.service';
 import { addDays, localDateKey } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
 import { projectWeight, type WeightPoint } from '../../utils/weekly-insights';
@@ -30,6 +31,7 @@ import {
 import { UiCard } from '../ui/card.component';
 import { UiButton } from '../ui/button.component';
 import { UiIconButton } from '../ui/icon-button.component';
+import { UiAvatar } from '../ui/avatar.component';
 import { UiSparkline } from '../ui/sparkline.component';
 import { UiWeightSheet } from '../ui/weight-sheet.component';
 import { UiFastingPill } from '../ui/fasting-pill.component';
@@ -61,6 +63,7 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
     UiCard,
     UiButton,
     UiIconButton,
+    UiAvatar,
     UiSparkline,
     UiWeightSheet,
     UiFastingPill,
@@ -78,7 +81,11 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
         <div class="flex items-center gap-2 shrink-0">
           <ui-fasting-pill (bodyRequested)="bodyRequested.emit()" />
           <ui-icon-button icon="calendar" [ariaLabel]="t('v2.body.historyAria')" (click)="historyRequested.emit()" />
-          <ui-icon-button icon="settings" [ariaLabel]="t('v2.body.settingsAria')" (click)="settingsRequested.emit()" />
+          <ui-avatar
+            [photoUrl]="authUser()?.photoURL ?? null"
+            [name]="authUser()?.displayName || authUser()?.email || null"
+            [ariaLabel]="t('v2.body.settingsAria')"
+            (activate)="settingsRequested.emit()" />
         </div>
       </header>
 
@@ -498,6 +505,8 @@ export class BodyComponent implements OnInit, OnDestroy {
   protected readonly store = inject(FitnessStore);
   protected readonly fasting = inject(FastingStore);
   protected readonly body = inject(BodyMetricStore);
+  private readonly auth = inject(AuthService);
+  protected readonly authUser = this.auth.user;
   private readonly translation = inject(TranslationService);
   private readonly photoSvc = inject(ProgressPhotoService);
   protected readonly subs = inject(SubscriptionService);

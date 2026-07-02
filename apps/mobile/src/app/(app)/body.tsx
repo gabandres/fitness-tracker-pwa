@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type Measurement, parseYmd } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
+import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { Sparkline } from '@/components/Sparkline';
 import { useBody } from '@/hooks/useBody';
 import { usePhotos } from '@/hooks/usePhotos';
@@ -61,7 +62,10 @@ export default function Body() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <Text style={styles.title}>{t('nav.body')}</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>{t('nav.body')}</Text>
+        <HeaderAvatar />
+      </View>
       {loading ? (
         <View style={styles.fill}>
           <ActivityIndicator color={colors.accent} />
@@ -397,6 +401,7 @@ function WeightModal({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   title: { fontSize: font.h1, fontWeight: '800', color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   body: { padding: space.xl, gap: space.md },
   error: { color: colors.danger, fontSize: font.small },

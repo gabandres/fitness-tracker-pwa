@@ -15,6 +15,8 @@ import { bcp47ForLang } from '../../utils/locale';
 import { UiCard } from '../ui/card.component';
 import { UiButton } from '../ui/button.component';
 import { UiIconButton } from '../ui/icon-button.component';
+import { UiAvatar } from '../ui/avatar.component';
+import { AuthService } from '../../services/auth.service';
 import { UiSheet } from '../ui/sheet.component';
 import { WorkoutSessionSheetComponent } from './session-sheet.component';
 import { TemplateEditorComponent } from './template-editor.component';
@@ -50,6 +52,7 @@ import { suggestProgression } from '../../utils/workout-progression';
     UiCard,
     UiButton,
     UiIconButton,
+    UiAvatar,
     UiSheet,
     WorkoutSessionSheetComponent,
     TemplateEditorComponent,
@@ -68,7 +71,11 @@ import { suggestProgression } from '../../utils/workout-progression';
         <div class="flex items-center gap-2 shrink-0">
           <ui-icon-button icon="dumbbell" [ariaLabel]="t('train.manageExercises')" (click)="managerOpen.set(true)" />
           <ui-icon-button icon="calendar" [ariaLabel]="t('train.historyAria')" (click)="historyRequested.emit()" />
-          <ui-icon-button icon="settings" [ariaLabel]="t('train.settingsAria')" (click)="settingsRequested.emit()" />
+          <ui-avatar
+            [photoUrl]="authUser()?.photoURL ?? null"
+            [name]="authUser()?.displayName || authUser()?.email || null"
+            [ariaLabel]="t('train.settingsAria')"
+            (activate)="settingsRequested.emit()" />
         </div>
       </header>
 
@@ -224,6 +231,8 @@ import { suggestProgression } from '../../utils/workout-progression';
 })
 export class TrainComponent {
   private readonly workout = inject(WorkoutStore);
+  private readonly auth = inject(AuthService);
+  protected readonly authUser = this.auth.user;
   private readonly subs = inject(SubscriptionService);
   private readonly i18n = inject(TranslationService);
 

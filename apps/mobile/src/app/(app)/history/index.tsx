@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type DaySummary, localDateKey, monthGrid, parseYmd } from '@macrolog/core';
+import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { useHistory } from '@/hooks/useHistory';
 import { useT } from '@/i18n';
 import { colors, font, radius, space } from '@/theme';
@@ -40,7 +41,10 @@ export default function HistoryCalendar() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <Text style={styles.title}>{t('nav.history')}</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>{t('nav.history')}</Text>
+        <HeaderAvatar />
+      </View>
       {loading ? (
         <View style={styles.fill}>
           <ActivityIndicator color={colors.accent} />
@@ -136,6 +140,7 @@ const CELL = `${100 / 7}%`;
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   title: { fontSize: font.h1, fontWeight: '800', color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.xs },
   body: { padding: space.xl, gap: space.md },
   error: { color: colors.danger, fontSize: font.small },

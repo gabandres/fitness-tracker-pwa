@@ -35,6 +35,7 @@ import {
   isWorkingSet,
   suggestProgression,
 } from '@macrolog/core';
+import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { Sparkline } from '@/components/Sparkline';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -60,7 +61,10 @@ export default function Train() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <Text style={styles.title}>{t('nav.train')}</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>{t('nav.train')}</Text>
+        <HeaderAvatar />
+      </View>
       {train.loading ? (
         <View style={styles.fill}>
           <ActivityIndicator color={colors.accent} />
@@ -1397,6 +1401,7 @@ function TemplateEditorModal({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   title: { fontSize: font.h1, fontWeight: '800', color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   body: { padding: space.xl, gap: space.md },
   error: { color: colors.danger, fontSize: font.small },
