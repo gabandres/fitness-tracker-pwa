@@ -1,21 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <rect width="512" height="512" fill="#f4f0e8"/>
 
-  <circle cx="256" cy="256" r="174" fill="none" stroke="#c8b8a0" stroke-width="28" opacity="0.6"/>
-
-  <circle cx="256" cy="256" r="174"
+  <!-- Outer ring = calories. Muted track + a deep-red arc (~76% filled). -->
+  <circle cx="256" cy="256" r="176" fill="none" stroke="#c8b8a0" stroke-width="26" opacity="0.5"/>
+  <circle cx="256" cy="256" r="176"
           fill="none"
           stroke="#6e121a"
-          stroke-width="28"
-          stroke-dasharray="853 240"
+          stroke-width="26"
+          stroke-linecap="round"
+          stroke-dasharray="840 266"
           transform="rotate(-90 256 256)"/>
 
-  <g fill="#1a1816" font-family="Georgia, 'Times New Roman', serif" font-weight="700">
-    <text x="256" y="302"
-          font-size="196"
-          text-anchor="middle"
-          font-style="italic">M</text>
-  </g>
+  <!-- Inner ring = protein. Lighter track + a terracotta arc (~62% filled),
+       same warm family as the outer so the two read as macro rings. -->
+  <circle cx="256" cy="256" r="112" fill="none" stroke="#d8cdba" stroke-width="22" opacity="0.7"/>
+  <circle cx="256" cy="256" r="112"
+          fill="none"
+          stroke="#a8402e"
+          stroke-width="22"
+          stroke-linecap="round"
+          stroke-dasharray="436 268"
+          transform="rotate(-90 256 256)"/>
 
-  <circle cx="256" cy="352" r="9" fill="#6e121a"/>
+  <!-- Brand monogram in the center hole. -->
+  <text x="256" y="300"
+        fill="#1a1816"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-weight="700"
+        font-style="italic"
+        font-size="122"
+        text-anchor="middle">M</text>
 </svg>
