@@ -183,6 +183,8 @@ export const esPR: Record<I18nKey, string> = {
   'body.bfNeedMeasurement': 'Añade una medida de cintura + cuello',
   'body.measurements': 'Medidas',
   'body.add': '+ Añadir',
+  'body.showAll': 'Ver todas',
+  'body.showLess': 'Ver menos',
   'body.noMeasurements': 'Aún no hay medidas. Mide tu cintura + cuello (pulgadas) para estimar la grasa corporal.',
   'body.history': 'Historial',
   'body.noWeighIns': 'Aún no hay pesajes.',

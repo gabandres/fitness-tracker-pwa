@@ -343,8 +343,8 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
               </form>
             } @else {
               @if (measurementHistory().length) {
-                <ul class="space-y-2 mb-4">
-                  @for (row of measurementHistory(); track row.m.id) {
+                <ul class="space-y-2 mb-2">
+                  @for (row of visibleMeasurementHistory(); track row.m.id) {
                     <li class="flex items-start justify-between gap-3 py-2"
                         style="border-bottom: 1px solid var(--v2-hairline);">
                       <div class="min-w-0">
@@ -379,6 +379,16 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
                     </li>
                   }
                 </ul>
+                @if (measurementHistory().length > visibleMeasurementHistory().length || showAllMeasurements()) {
+                  <button type="button"
+                    class="v2-caption mb-4"
+                    style="background: none; border: none; padding: 6px 0; cursor: pointer; color: var(--v2-accent, var(--v2-ink)); text-transform: uppercase; letter-spacing: 0.06em;"
+                    (click)="showAllMeasurements.set(!showAllMeasurements())">
+                    {{ showAllMeasurements()
+                       ? t('v2.body.showLess')
+                       : t('v2.body.showAllMeasurements', { n: measurementHistory().length }) }}
+                  </button>
+                }
               } @else {
                 <p class="v2-caption mb-4">{{ t('v2.body.measurementsNone') }}</p>
               }
@@ -547,18 +557,29 @@ export class BodyComponent implements OnInit, OnDestroy {
   /** Id of the measurement being edited, or null when adding a new one. */
   protected readonly editingMeasurementId = signal<string | null>(null);
 
-  /** Full measurement history, oldest → newest, with a formatted date
-   *  label per row. The store keeps the list newest-first. */
+  /** How many measurement rows show before "Show all" — keeps the card short
+   *  as history accumulates; the rest are one tap away. */
+  private readonly MEASURE_PREVIEW = 4;
+  protected readonly showAllMeasurements = signal(false);
+
+  /** Measurement history newest-first with a formatted date label per row.
+   *  Newest-first (not the old oldest-first) so the capped preview shows the
+   *  most recent entries — the ones a user actually reaches for. */
   protected readonly measurementHistory = computed(() =>
-    [...this.body.measurements()]
-      .reverse()
-      .map((m) => ({
-        m,
-        dateLabel: m.date.toLocaleDateString(bcp47ForLang(this.translation.language()), {
-          year: 'numeric', month: 'short', day: 'numeric',
-        }),
-      })),
+    this.body.measurements().map((m) => ({
+      m,
+      dateLabel: m.date.toLocaleDateString(bcp47ForLang(this.translation.language()), {
+        year: 'numeric', month: 'short', day: 'numeric',
+      }),
+    })),
   );
+
+  /** The rows actually rendered: the recent {@link MEASURE_PREVIEW} unless the
+   *  user expanded the full list. */
+  protected readonly visibleMeasurementHistory = computed(() => {
+    const all = this.measurementHistory();
+    return this.showAllMeasurements() ? all : all.slice(0, this.MEASURE_PREVIEW);
+  });
 
   // ─── Live ticker for fasting progress ──────────────────────
   private readonly tick = signal(0);

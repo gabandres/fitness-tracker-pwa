@@ -181,6 +181,8 @@ export const en = {
   'body.bfNeedMeasurement': 'Add a waist + neck measurement',
   'body.measurements': 'Measurements',
   'body.add': '+ Add',
+  'body.showAll': 'Show all',
+  'body.showLess': 'Show less',
   'body.noMeasurements': 'No measurements yet. Tape your waist + neck (inches) to estimate body fat.',
   'body.history': 'History',
   'body.noWeighIns': 'No weigh-ins yet.',

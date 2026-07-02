@@ -1543,6 +1543,8 @@
       "editStartInvalid": "Pon una hora válida dentro de las últimas 48 horas.",
       "measurements": "Medidas",
       "measurementsNone": "Ninguna todavía",
+      "showAllMeasurements": "Ver todas ({{ n }})",
+      "showLess": "Ver menos",
       "measurementsLastLogged": "Última registrada el {{date}}",
       "fieldUnit": "{{label}} (pulg)",
       "fieldWaist": "Cintura",

@@ -59,6 +59,9 @@ export default function Body() {
   const photos = usePhotos();
   const [open, setOpen] = useState(false);
   const [measureOpen, setMeasureOpen] = useState(false);
+  // Keep the measurements list short as history grows; the rest is one tap away.
+  const [showAllMeasures, setShowAllMeasures] = useState(false);
+  const MEASURE_PREVIEW = 4;
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -151,7 +154,7 @@ export default function Body() {
             <Text style={styles.empty}>{t('body.noMeasurements')}</Text>
           ) : (
             <View style={styles.list}>
-              {measurements.map((m) => (
+              {(showAllMeasures ? measurements : measurements.slice(0, MEASURE_PREVIEW)).map((m) => (
                 <Pressable
                   key={m.id}
                   style={styles.row}
@@ -162,6 +165,13 @@ export default function Body() {
                   <Text style={styles.rowMeasure}>{measureLine(m)}</Text>
                 </Pressable>
               ))}
+              {measurements.length > MEASURE_PREVIEW ? (
+                <TouchableOpacity onPress={() => setShowAllMeasures((v) => !v)} hitSlop={8} style={styles.showMore}>
+                  <Text style={styles.addLink}>
+                    {showAllMeasures ? t('body.showLess') : `${t('body.showAll')} (${measurements.length})`}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           )}
 
@@ -402,6 +412,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   title: { fontSize: font.h1, fontWeight: '800', color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
+  showMore: { paddingVertical: space.sm, alignItems: 'center' },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   body: { padding: space.xl, gap: space.md },
   error: { color: colors.danger, fontSize: font.small },

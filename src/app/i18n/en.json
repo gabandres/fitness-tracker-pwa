@@ -1543,6 +1543,8 @@
       "editStartInvalid": "Enter a valid time within the last 48 hours.",
       "measurements": "Measurements",
       "measurementsNone": "None yet",
+      "showAllMeasurements": "Show all ({{ n }})",
+      "showLess": "Show less",
       "measurementsLastLogged": "Last logged {{date}}",
       "fieldUnit": "{{label}} (in)",
       "fieldWaist": "Waist",
