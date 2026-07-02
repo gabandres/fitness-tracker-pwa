@@ -6,9 +6,13 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
-## 2026-07-02 — AI coach comes to mobile
+## 2026-07-02 — Mobile parity: AI coach, weekly report, invites
 
-- **AI coach on Expo.** The conversational coach (ask anything about your last 14 days, streamed and grounded in your real log) is now on the mobile app, reachable from Trends → "Ask the Coach". It shares the exact prompt builder and SSE parser with the web app via `packages/core`, streams token-by-token, and honors the same free 3/day quota. No Gemini key on the device — it goes through the same `consultationStream` Cloud Function. English + Puerto Rican Spanish.
+The Expo app closes its biggest gaps against the web app. Shared logic (prompt builders, SSE parser) lives in `packages/core` so both frontends behave identically.
+
+- **AI coach on Expo.** The conversational coach (ask anything about your last 14 days, streamed and grounded in your real log) is now on mobile, reachable from Trends → "Ask the Coach". Shares the exact prompt builder + SSE parser with web, streams token-by-token, honors the same free 3/day quota. No Gemini key on the device — it goes through the `consultationStream` Cloud Function. English + Puerto Rican Spanish.
+- **Weekly report (Pro) on Expo.** The AI weekly review — 14-day progress, adherence, protein, training, and one thing to focus on next — is now generatable in-app on Trends (was web-only; mobile previously had only the digest-email opt-in). Pro-gated, rendered in-app, one generation per ~6 days (server-enforced), reusing the deployed `generateWeeklyReport` function.
+- **Invite a friend.** Mobile Settings gains the referral share: send your link, and when a friend signs up through it you both get a month of Pro free.
 
 ## 2026-07-02 — AI coach moved behind a Cloud Function (security)
 
