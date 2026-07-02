@@ -21,6 +21,9 @@ export * from './tier-limits';
 // My Foods library helpers (ADR-0013). Types (CustomFood, FoodSource,
 // ServingUnit) live in ./types; these are the pure scaling helpers.
 export * from './custom-food';
+// Nutrition Facts panel parser (ADR-0013 phase 3): OCR label text → editable
+// grams-first draft. Native OCR is a per-frontend adapter; the parse is pure.
+export * from './nutrition-label';
 // NOTE: workout.ts types are intentionally NOT re-exported here — the PWA's
 // utils shims do `export * from '@macrolog/core'` and already define their own
 // WorkoutSet/LogStyle/etc. in models/workout.ts, so barrel-exporting these
