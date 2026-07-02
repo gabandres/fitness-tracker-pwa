@@ -10,7 +10,7 @@ import {
   computeGoalProgress,
   currentWeight as coreCurrentWeight,
   localDateKey,
-  navyBodyFat,
+  latestNavyBodyFat,
   projectWeight,
 } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
@@ -108,11 +108,9 @@ export function useBody(): BodyState {
   // toward the missing piece (profile sex/height vs. a tape measurement).
   const { bodyFat, bodyFatGap } = useMemo<{ bodyFat: number | null; bodyFatGap: BodyState['bodyFatGap'] }>(() => {
     if (!profile?.sex || !profile?.heightIn) return { bodyFat: null, bodyFatGap: 'profile' };
-    const latest = measurements[0];
-    if (!latest || latest.waist == null || latest.neck == null) {
-      return { bodyFat: null, bodyFatGap: 'measurement' };
-    }
-    const bf = navyBodyFat(profile.sex, profile.heightIn, latest.waist, latest.neck, latest.hip);
+    // Most recent measurement that actually has the tape inputs — not just the
+    // single newest, which may be a partial (e.g. bicep-only) entry.
+    const bf = latestNavyBodyFat(measurements, profile.sex, profile.heightIn);
     return bf == null ? { bodyFat: null, bodyFatGap: 'measurement' } : { bodyFat: bf, bodyFatGap: null };
   }, [profile, measurements]);
 

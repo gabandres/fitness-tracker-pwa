@@ -48,3 +48,34 @@ export function navyBodyFat(
   const clamped = Math.min(MAX_BF, Math.max(MIN_BF, pct));
   return Math.round(clamped * 10) / 10;
 }
+
+/** The subset of a Measurement the Navy formula reads (inches). */
+export interface BodyFatMeasurement {
+  waist?: number | null;
+  neck?: number | null;
+  hip?: number | null;
+}
+
+/**
+ * Most recent body-fat estimate across a **newest-first** measurement list:
+ * the first measurement that carries the inputs the Navy formula needs (waist
+ * + neck, plus hip for female) and yields a valid result. Returns null when
+ * profile inputs are missing or no measurement qualifies.
+ *
+ * This differs from estimating off only the single newest measurement: a later
+ * partial measurement (e.g. a bicep-only entry) must not hide the last
+ * body-fat you actually have the tape numbers for.
+ */
+export function latestNavyBodyFat(
+  measurements: readonly BodyFatMeasurement[],
+  sex: Sex | null | undefined,
+  heightIn: number | null | undefined,
+): number | null {
+  if (!sex || !(heightIn != null && heightIn > 0)) return null;
+  for (const m of measurements) {
+    if (m.waist == null || m.neck == null) continue;
+    const bf = navyBodyFat(sex, heightIn, m.waist, m.neck, m.hip ?? undefined);
+    if (bf != null) return bf;
+  }
+  return null;
+}

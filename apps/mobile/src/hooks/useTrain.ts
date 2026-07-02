@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import {
   addExercise as addExerciseDoc,
@@ -113,6 +113,9 @@ export interface TrainState {
   /** Finish editing a reopened session: flush the last edit and close, leaving
    *  it completed as it was — no bodyweight prompt, no re-mark-exercised. */
   finishEdit: () => Promise<void>;
+  /** Cancel a reopened-session edit: since set edits live-write, this restores
+   *  the session's pre-edit exercises to Firestore and closes the editor. */
+  cancelEdit: () => Promise<void>;
 }
 
 function newSet(): WorkoutSet {
@@ -128,6 +131,10 @@ export function useTrain(): TrainState {
   const [recentSessions, setRecentSessions] = useState<WorkoutSession[]>([]);
   const [active, setActive] = useState<WorkoutSession | null>(null);
   const [editingExisting, setEditingExisting] = useState(false);
+  // Pristine snapshot of a reopened completed session, captured before any
+  // edit, so Cancel can restore it (set edits live-write, so they're already
+  // in Firestore by the time the user changes their mind).
+  const editOriginal = useRef<WorkoutSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -465,6 +472,9 @@ export function useTrain(): TrainState {
     (session: WorkoutSession) => {
       // Single-active invariant: don't clobber a live in-progress workout.
       if (active || !session.id) return;
+      // Snapshot the pristine session for Cancel. The edit callbacks replace
+      // (map/spread) rather than mutate, so this reference stays untouched.
+      editOriginal.current = session;
       setEditingExisting(true);
       setActive(session);
     },
@@ -485,9 +495,29 @@ export function useTrain(): TrainState {
         setSaving(false);
       }
     }
+    editOriginal.current = null;
     setActive(null);
     setEditingExisting(false);
   }, [uid, active]);
+
+  const cancelEdit = useCallback(async () => {
+    // Set edits live-write, so cancelling means restoring the pre-edit
+    // exercises we snapshotted at reopen — otherwise partial edits would stick.
+    const original = editOriginal.current;
+    if (uid && original?.id) {
+      setSaving(true);
+      try {
+        await updateSession(uid, original.id, { exercises: original.exercises });
+      } catch (e) {
+        setError(e instanceof Error ? e : new Error('Restore failed'));
+      } finally {
+        setSaving(false);
+      }
+    }
+    editOriginal.current = null;
+    setActive(null);
+    setEditingExisting(false);
+  }, [uid]);
 
   return {
     loading,
@@ -521,5 +551,6 @@ export function useTrain(): TrainState {
     editingExisting,
     reopenSession,
     finishEdit,
+    cancelEdit,
   };
 }

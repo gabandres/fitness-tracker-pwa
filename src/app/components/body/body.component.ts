@@ -21,7 +21,7 @@ import { addDays, localDateKey } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
 import { projectWeight, type WeightPoint } from '../../utils/weekly-insights';
 import { resizeToJpegBlob } from '../../utils/resize-image';
-import { navyBodyFat } from '../../utils/body-fat';
+import { latestNavyBodyFat } from '@macrolog/core';
 import { Measurement } from '../../services/firebase.service';
 import {
   ProgressPhotoService,
@@ -580,9 +580,10 @@ export class BodyComponent implements OnInit, OnDestroy {
    *  and the profile has height + sex. */
   protected readonly bodyFatPct = computed(() => {
     const p = this.store.profile();
-    const m = this.body.latestMeasurement();
-    if (!p || !p.sex || !p.heightIn || !m || m.waist == null || m.neck == null) return null;
-    return navyBodyFat(p.sex, p.heightIn, m.waist, m.neck, m.hip);
+    if (!p?.sex || !p?.heightIn) return null;
+    // Most recent measurement that actually carries the tape inputs — not just
+    // the single newest, which may be a partial (bicep-only) entry.
+    return latestNavyBodyFat(this.body.measurements(), p.sex, p.heightIn);
   });
 
   // ─── Weight projection (linear fit, no AI) ─────────────────

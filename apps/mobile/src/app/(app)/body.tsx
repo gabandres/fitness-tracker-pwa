@@ -2,9 +2,6 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type Measurement, parseYmd } from '@macrolog/core';
+import { BottomSheet } from '@/components/BottomSheet';
 import { Sparkline } from '@/components/Sparkline';
 import { useBody } from '@/hooks/useBody';
 import { usePhotos } from '@/hooks/usePhotos';
@@ -301,11 +299,7 @@ function MeasurementModal({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetWrap}>
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
+    <BottomSheet visible={visible} onClose={onClose}>
           <Text style={styles.sheetTitle}>{t('body.addMeasurement')}</Text>
           <Text style={styles.sheetHint}>{t('body.measureHint')}</Text>
           <View style={styles.measureGrid}>
@@ -332,9 +326,7 @@ function MeasurementModal({
           >
             <Text style={styles.saveText}>{t('common.save')}</Text>
           </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+    </BottomSheet>
   );
 }
 
@@ -374,11 +366,7 @@ function WeightModal({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetWrap}>
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
+    <BottomSheet visible={visible} onClose={onClose}>
           <Text style={styles.sheetTitle}>{t('body.logWeight')}</Text>
           <View style={styles.inputRow}>
             <TextInput
@@ -402,9 +390,7 @@ function WeightModal({
           >
             <Text style={styles.saveText}>{t('common.save')}</Text>
           </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+    </BottomSheet>
   );
 }
 

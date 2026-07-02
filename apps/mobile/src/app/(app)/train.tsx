@@ -609,14 +609,23 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
         <View style={styles.footerBtns}>
           {train.editingExisting ? (
             // Editing a past workout: no destructive Discard (that deletes the
-            // whole session) and no bodyweight/finish prompt — just save & close.
-            <TouchableOpacity
-              style={styles.finishBtn}
-              onPress={() => train.finishEdit()}
-              testID="done-editing"
-            >
-              <Text style={styles.finishText}>{t('train.doneEditing')}</Text>
-            </TouchableOpacity>
+            // whole session). Cancel reverts to the pre-edit state; Done saves.
+            <>
+              <TouchableOpacity
+                style={styles.discardBtn}
+                onPress={() => train.cancelEdit()}
+                testID="cancel-editing"
+              >
+                <Text style={styles.discardText}>{t('common.cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.finishBtn}
+                onPress={() => train.finishEdit()}
+                testID="done-editing"
+              >
+                <Text style={styles.finishText}>{t('train.doneEditing')}</Text>
+              </TouchableOpacity>
+            </>
           ) : (
             <>
               <TouchableOpacity style={styles.discardBtn} onPress={() => train.discardWorkout()} testID="discard-workout">

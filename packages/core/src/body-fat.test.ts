@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { navyBodyFat } from './body-fat';
+import { navyBodyFat, latestNavyBodyFat } from './body-fat';
 
 describe('navyBodyFat', () => {
   it('estimates for a male from waist/neck/height', () => {
@@ -37,5 +37,41 @@ describe('navyBodyFat', () => {
   it('rounds to one decimal', () => {
     const bf = navyBodyFat('male', 70, 34, 16)!;
     expect(Number.isInteger(bf * 10)).toBe(true);
+  });
+});
+
+describe('latestNavyBodyFat', () => {
+  const expected = navyBodyFat('male', 70, 34, 16);
+
+  it('uses the most recent measurement that HAS waist+neck, skipping partials', () => {
+    // newest-first: a bicep-only entry, then the full one.
+    const measurements = [
+      { bicep: 15 } as { waist?: number; neck?: number; hip?: number },
+      { waist: 34, neck: 16 },
+    ];
+    expect(latestNavyBodyFat(measurements, 'male', 70)).toBe(expected);
+  });
+
+  it('prefers the newest qualifying measurement', () => {
+    const measurements = [
+      { waist: 34, neck: 16 }, // newest → this one
+      { waist: 40, neck: 16 },
+    ];
+    expect(latestNavyBodyFat(measurements, 'male', 70)).toBe(expected);
+  });
+
+  it('returns null when profile inputs are missing', () => {
+    expect(latestNavyBodyFat([{ waist: 34, neck: 16 }], null, 70)).toBeNull();
+    expect(latestNavyBodyFat([{ waist: 34, neck: 16 }], 'male', null)).toBeNull();
+  });
+
+  it('returns null when no measurement carries waist+neck', () => {
+    expect(latestNavyBodyFat([{ hip: 40 }], 'male', 70)).toBeNull();
+    expect(latestNavyBodyFat([], 'male', 70)).toBeNull();
+  });
+
+  it('skips a waist+neck entry that yields no valid result (neck ≥ waist)', () => {
+    const measurements = [{ waist: 16, neck: 20 }, { waist: 34, neck: 16 }];
+    expect(latestNavyBodyFat(measurements, 'male', 70)).toBe(expected);
   });
 });
