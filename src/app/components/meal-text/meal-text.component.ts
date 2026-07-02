@@ -3,7 +3,7 @@ import {
 } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
-import { parseMealUtterance, resolveMealItem, type ParsedFoodItem } from '@macrolog/core';
+import { parseMealUtterance, resolveMealItem, pickResolutionHit, type ParsedFoodItem } from '@macrolog/core';
 import { UiButton } from '../ui/button.component';
 import { FoodSearchService } from '../../services/food-search.service';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
@@ -234,11 +234,18 @@ export class MealTextComponent {
    *  clearly-flagged row rather than dropping the food. */
   private async resolveItem(item: ParsedFoodItem): Promise<DraftRow> {
     try {
-      const hits = await this.foodSearch.search(item.food, 3);
-      if (hits.length === 0) return this.blankRow(item);
-      const detail = await this.foodSearch.getDetail(hits[0].source, hits[0].id);
+      // Search wider (10) than we show so a USDA generic entry is in reach,
+      // then auto-pick the best one — bare terms like "eggs" otherwise resolve
+      // to a branded/high-fat product that scales into nonsense.
+      const hits = await this.foodSearch.search(item.food, 10);
+      const hit = pickResolutionHit(hits);
+      if (!hit) return this.blankRow(item);
+      const detail = await this.foodSearch.getDetail(hit.source, hit.id);
       const resolved = resolveMealItem(item, detail.servings);
-      if (!resolved) return this.blankRow(item);
+      // A 0-calorie resolution means a degenerate DB entry (e.g. a milligram
+      // "serving" with no macros) — show an honest "enter values" row instead
+      // of a fake-precise zero, per the ADR trust rule.
+      if (!resolved || resolved.calories <= 0) return this.blankRow(item);
       return {
         food: item.food,
         quantity: resolved.quantity,

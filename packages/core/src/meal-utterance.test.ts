@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseMealUtterance, resolveMealItem, type ServingLike } from './meal-utterance';
+import { parseMealUtterance, resolveMealItem, pickResolutionHit, type ServingLike } from './meal-utterance';
 
 /** Terse helper: assert one parsed item's fields (ignores `raw`). */
 function item(text: string) {
@@ -239,5 +239,30 @@ describe('resolveMealItem', () => {
   it('no servings → null', () => {
     const [it0] = parseMealUtterance('2 eggs');
     expect(resolveMealItem(it0, [])).toBeNull();
+  });
+});
+
+describe('pickResolutionHit', () => {
+  const h = (id: string, dataType?: string) => ({ id, dataType });
+
+  it('prefers a USDA generic over a leading branded hit', () => {
+    const hits = [h('a', 'Branded'), h('b', 'SR Legacy'), h('c', 'Foundation')];
+    expect(pickResolutionHit(hits)?.id).toBe('c'); // Foundation wins
+  });
+
+  it('Foundation beats SR Legacy beats FNDDS', () => {
+    expect(pickResolutionHit([h('x', 'Survey (FNDDS)'), h('y', 'SR Legacy')])?.id).toBe('y');
+  });
+
+  it('keeps relevance order within a rank', () => {
+    expect(pickResolutionHit([h('a', 'SR Legacy'), h('b', 'SR Legacy')])?.id).toBe('a');
+  });
+
+  it('falls back to the first hit when none are generic (brand query)', () => {
+    expect(pickResolutionHit([h('a', 'Branded'), h('b', 'OFF')])?.id).toBe('a');
+  });
+
+  it('empty list → undefined', () => {
+    expect(pickResolutionHit([])).toBeUndefined();
   });
 });

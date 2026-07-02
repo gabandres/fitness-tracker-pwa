@@ -3,7 +3,7 @@ import {
   ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import {
-  type LogEntry, type ParsedFoodItem, parseMealUtterance, resolveMealItem,
+  type LogEntry, type ParsedFoodItem, parseMealUtterance, pickResolutionHit, resolveMealItem,
 } from '@macrolog/core';
 import { getFoodDetail, searchFoods } from '@/lib/foodSearch';
 import { useT } from '@/i18n';
@@ -79,11 +79,16 @@ export function MealText({ forDate, onAddMany, onCancel }: Props) {
   /** Resolve one item; a miss yields a blank, flagged row rather than a drop. */
   async function resolveItem(item: ParsedFoodItem): Promise<DraftRow> {
     try {
-      const hits = await searchFoods(item.food, 3);
-      if (hits.length === 0) return blankRow(item);
-      const detail = await getFoodDetail(hits[0].source, hits[0].id);
+      // Search wider than shown, then auto-pick a USDA generic so bare terms
+      // ("eggs") don't resolve to a branded/high-fat product (see core).
+      const hits = await searchFoods(item.food, 10);
+      const hit = pickResolutionHit(hits);
+      if (!hit) return blankRow(item);
+      const detail = await getFoodDetail(hit.source, hit.id);
       const r = resolveMealItem(item, detail.servings);
-      if (!r) return blankRow(item);
+      // 0-calorie resolution = degenerate DB entry (e.g. a milligram serving);
+      // show an honest "enter values" row, not a fake-precise zero.
+      if (!r || r.calories <= 0) return blankRow(item);
       return {
         food: item.food,
         servingLabel: gramsLabel(r.grams, r.servingLabel),

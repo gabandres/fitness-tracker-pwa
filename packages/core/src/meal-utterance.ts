@@ -238,6 +238,47 @@ export function parseMealUtterance(text: string): ParsedFoodItem[] {
   return out;
 }
 
+// ─── Choosing which search hit to auto-resolve ────────────────────
+// When resolving a parsed item we auto-pick ONE search hit (the user never
+// sees the list), so hit quality matters: FDC/OFF relevance ordering often
+// floats a branded/packaged product to the top ("eggs" → a high-fat egg
+// product), which then scales into nonsense. For a bare generic food word the
+// right answer is a USDA generic reference entry. This biases the pick toward
+// those without touching the manual search typeahead (where the user chooses).
+
+/** USDA generic dataTypes, best-first. Foundation is USDA-verified reference
+ *  data; SR Legacy and FNDDS are generic whole/prepared foods. Branded / OFF
+ *  are intentionally absent — they win only when no generic hit exists. */
+const GENERIC_USDA_RANK: Record<string, number> = {
+  Foundation: 0,
+  'SR Legacy': 1,
+  'Survey (FNDDS)': 2,
+};
+
+/**
+ * Pick the hit to auto-resolve from a search result list: the best-ranked
+ * USDA generic entry (Foundation > SR Legacy > FNDDS), else the first
+ * (relevance-ordered) hit. Relevance order is preserved within a rank, so a
+ * brand query — whose hits are all branded — still returns its top match.
+ * Returns undefined only for an empty list.
+ */
+export function pickResolutionHit<T extends { dataType?: string }>(
+  hits: readonly T[],
+): T | undefined {
+  let best: T | undefined;
+  let bestRank = Infinity;
+  for (const h of hits) {
+    const rank = h.dataType != null && h.dataType in GENERIC_USDA_RANK
+      ? GENERIC_USDA_RANK[h.dataType]
+      : Infinity;
+    if (rank < bestRank) {
+      bestRank = rank;
+      best = h;
+    }
+  }
+  return best ?? hits[0];
+}
+
 // ─── Resolving a parsed item against a food's servings ─────────────
 // Bridges the macro-free parse to real numbers WITHOUT guessing them: the
 // caller looks the food up (deployed `searchFoods`/`getFoodDetail`), and this
