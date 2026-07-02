@@ -3,6 +3,7 @@ import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 import { getAuth, UserRecord } from "firebase-admin/auth";
 import { writeAuditLog, tsToIso } from "./audit-log";
 import { DailyQuota } from "./daily-quota";
+import { redactProfileSecrets } from "./redact";
 
 const STATS_TTL_MS = 5 * 60 * 1000; // 5-min cache — cheap to refresh, expensive to run
 const ACTIVITY_TTL_MS = 30 * 1000;  // 30-sec cache — feed barely changes between rapid refreshes
@@ -775,13 +776,10 @@ export const adminGetUserDetails = onCall(async (request) => {
     };
   });
 
-  // Redact webhookApiKey + fcmToken — admin panel shouldn't be the
-  // easy leak path for these.
-  let safeProfile: Record<string, unknown> | null = null;
-  if (profile) {
-    const { webhookApiKey: _wk, fcmToken: _ft, ...rest } = profile as Record<string, unknown>;
-    safeProfile = rest;
-  }
+  // Redact webhookApiKey + fcmToken — admin panel shouldn't be the easy leak
+  // path for these. Shared redactor (see redact.ts) so it can't drift from the
+  // GDPR-export copy.
+  const safeProfile = redactProfileSecrets(profile as Record<string, unknown> | null);
 
   return {
     user: {

@@ -4,6 +4,7 @@ import { getStorage } from "firebase-admin/storage";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { ErrorCode } from "./error-codes";
 import { callerAccess, dailyQuota, db } from "./init";
+import { redactProfileSecrets } from "./redact";
 
 // ─── GDPR: data export (Art. 20) + account deletion (Art. 17) ──────
 
@@ -107,15 +108,12 @@ export const exportUserData = onCall({ maxInstances: 5 }, async (request) => {
     ]);
 
   // Redact credentials — GDPR Art. 20 scope is personal data, not bearer
-  // tokens. `webhookApiKey` is a long-lived shared secret for Apple
-  // Shortcuts and the `fcmToken` binds a device's push channel; including
-  // them in a downloadable JSON widens their blast radius beyond the
-  // server-side stores that originally held them.
-  let profile: Record<string, unknown> | null = null;
-  if (profileSnap.exists) {
-    const { webhookApiKey: _wk, fcmToken: _ft, ...safe } = profileSnap.data() as Record<string, unknown>;
-    profile = safe;
-  }
+  // tokens. `webhookApiKey` (Apple Shortcuts) and `fcmToken` (push channel)
+  // are stripped by the shared redactor so a downloadable JSON can't widen
+  // their blast radius. See redact.ts.
+  const profile = redactProfileSecrets(
+    profileSnap.exists ? (profileSnap.data() as Record<string, unknown>) : null,
+  );
 
   const payload = {
     exportedAt: Timestamp.now().toDate().toISOString(),
