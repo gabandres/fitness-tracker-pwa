@@ -102,6 +102,17 @@ export interface TrainState {
   /** Abandon the active session (delete the doc). */
   discardWorkout: () => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
+  /** True while a COMPLETED session is loaded into `active` for editing (not a
+   *  fresh in-progress workout) — drives the edit-specific chrome so "Discard"
+   *  (delete) and the finish/bodyweight prompt don't apply to history edits. */
+  editingExisting: boolean;
+  /** Load a completed session into `active` as a working copy for editing. No
+   *  status change (mirrors the web session-sheet: edits live-write via the
+   *  same set callbacks). No-op if a workout is already active. */
+  reopenSession: (session: WorkoutSession) => void;
+  /** Finish editing a reopened session: flush the last edit and close, leaving
+   *  it completed as it was — no bodyweight prompt, no re-mark-exercised. */
+  finishEdit: () => Promise<void>;
 }
 
 function newSet(): WorkoutSet {
@@ -116,6 +127,7 @@ export function useTrain(): TrainState {
   const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
   const [recentSessions, setRecentSessions] = useState<WorkoutSession[]>([]);
   const [active, setActive] = useState<WorkoutSession | null>(null);
+  const [editingExisting, setEditingExisting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -449,6 +461,34 @@ export function useTrain(): TrainState {
     [uid],
   );
 
+  const reopenSession = useCallback(
+    (session: WorkoutSession) => {
+      // Single-active invariant: don't clobber a live in-progress workout.
+      if (active || !session.id) return;
+      setEditingExisting(true);
+      setActive(session);
+    },
+    [active],
+  );
+
+  const finishEdit = useCallback(async () => {
+    // Edits already live-write through the set callbacks; flush the final state
+    // (an input may still hold focus) and drop any empty sets, exactly like
+    // finishWorkout — but leave status/date/bodyweight/sleep untouched.
+    if (uid && active?.id) {
+      setSaving(true);
+      try {
+        await updateSession(uid, active.id, { exercises: dropEmptySets(active.exercises) });
+      } catch (e) {
+        setError(e instanceof Error ? e : new Error('Save failed'));
+      } finally {
+        setSaving(false);
+      }
+    }
+    setActive(null);
+    setEditingExisting(false);
+  }, [uid, active]);
+
   return {
     loading,
     error,
@@ -478,5 +518,8 @@ export function useTrain(): TrainState {
     finishWorkout,
     discardWorkout,
     deleteSession,
+    editingExisting,
+    reopenSession,
+    finishEdit,
   };
 }

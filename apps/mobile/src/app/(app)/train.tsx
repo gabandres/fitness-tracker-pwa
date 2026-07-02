@@ -138,11 +138,15 @@ function StartView({ train }: { train: ReturnType<typeof useTrain> }) {
         <Text style={styles.empty}>{t('train.noWorkouts')}</Text>
       ) : (
         <View style={styles.list}>
+          {train.recentSessions.length > 0 ? (
+            <Text style={styles.histHint}>{t('train.editHint')}</Text>
+          ) : null}
           {train.recentSessions.map((s) => (
             <Pressable
               key={s.id}
               style={styles.histRow}
               testID={`session-${s.id}`}
+              onPress={() => train.reopenSession(s)}
               onLongPress={() => s.id && train.deleteSession(s.id)}
             >
               <View style={styles.histMain}>
@@ -570,7 +574,9 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
     <>
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <View style={styles.activeBanner}>
-          <Text style={styles.activeText}>{t('train.inProgress')}</Text>
+          <Text style={styles.activeText}>
+            {train.editingExisting ? t('train.editingSession') : t('train.inProgress')}
+          </Text>
           {train.saving ? <Text style={styles.savingText}>{t('common.saving')}</Text> : null}
         </View>
 
@@ -601,19 +607,33 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
         ) : null}
 
         <View style={styles.footerBtns}>
-          <TouchableOpacity style={styles.discardBtn} onPress={() => train.discardWorkout()} testID="discard-workout">
-            <Text style={styles.discardText}>{t('train.discard')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.finishBtn}
-            onPress={async () => {
-              await train.commitActive();
-              setFinishOpen(true);
-            }}
-            testID="finish-workout"
-          >
-            <Text style={styles.finishText}>{t('train.finish')}</Text>
-          </TouchableOpacity>
+          {train.editingExisting ? (
+            // Editing a past workout: no destructive Discard (that deletes the
+            // whole session) and no bodyweight/finish prompt — just save & close.
+            <TouchableOpacity
+              style={styles.finishBtn}
+              onPress={() => train.finishEdit()}
+              testID="done-editing"
+            >
+              <Text style={styles.finishText}>{t('train.doneEditing')}</Text>
+            </TouchableOpacity>
+          ) : (
+            <>
+              <TouchableOpacity style={styles.discardBtn} onPress={() => train.discardWorkout()} testID="discard-workout">
+                <Text style={styles.discardText}>{t('train.discard')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.finishBtn}
+                onPress={async () => {
+                  await train.commitActive();
+                  setFinishOpen(true);
+                }}
+                testID="finish-workout"
+              >
+                <Text style={styles.finishText}>{t('train.finish')}</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -1388,6 +1408,7 @@ const styles = StyleSheet.create({
     paddingVertical: space.md,
   },
   histMain: { gap: 2 },
+  histHint: { fontSize: font.tiny, color: colors.muted, marginBottom: space.xs },
   histDate: { fontSize: font.body, fontWeight: '700', color: colors.ink },
   histSub: { fontSize: font.small, color: colors.muted },
   histVol: { fontSize: font.small, fontWeight: '700', color: colors.ink },
