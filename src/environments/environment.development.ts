@@ -9,10 +9,6 @@ export const environment = {
     messagingSenderId: '647810616435',
     vapidKey: 'BCPRNDtLom_i5wcXldvbNSl10mPFdUkBS5FEpb9tH9XEKB_tjM9eCTSvYPTHPLzVmvi32nnHz4uS3OJ_EkLErPE',
   },
-  gemini: {
-    apiKey: 'AIzaSyAQ4evv79iwaktmYj-ZN9pD0RU5yT9s53E',
-    model: 'gemini-flash-latest',
-  },
   sentry: {
     dsn: '',
     sampleRate: 1.0,

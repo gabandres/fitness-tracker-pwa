@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { marked } from 'marked';
@@ -144,11 +144,11 @@ export class ConsultationComponent {
   protected readonly subs = inject(SubscriptionService);
   private readonly translation = inject(TranslationService);
 
-  /** Remaining consultations today. Populated after each ask() from the
-      `reserveConsultation` response. `null` means "unknown / unlimited"
+  /** Remaining consultations today. Populated from the consultationStream
+      `meta` event on each ask(). `null` means "unknown / unlimited"
       (admin/comped, or pre-first-ask in this session). */
   protected readonly remaining = signal<number | null>(null);
-  /** Daily cap, populated from the server reservation. The seed value
+  /** Daily cap, populated from the server `meta` event. The seed value
       is just a placeholder for the brief moment before the first
       reservation lands; the real free/paid limits are 3 and 30. */
   protected readonly limit = signal<number>(3);
@@ -186,17 +186,7 @@ export class ConsultationComponent {
     this.errorMsg.set('');
     this.overLimit.set(false);
 
-    // Reserve a consultation slot server-side BEFORE streaming.
-    // Free tier: 5/day; paid: unlimited. Throws resource-exhausted
-    // over the cap. `reserved` tracks whether we owe the user a
-    // release on downstream failure.
-    let reserved = false;
     try {
-      const reservation = await this.gemini.reserveConsultation();
-      this.limit.set(reservation.limit);
-      this.remaining.set(reservation.remaining < 0 ? null : reservation.remaining);
-      reserved = true;
-
       // All data is already cached in the store — no Firestore call needed.
       const logs = this.store.logs();
       const tdee = this.store.tdee();
@@ -210,8 +200,19 @@ export class ConsultationComponent {
           }
         : null;
 
+      // The consultationStream endpoint reserves the slot server-side and
+      // reports the post-reservation counter via the meta callback (before
+      // the first token). Over-limit / rate-limit throw before streaming
+      // and land in catch below. Refunds on Gemini failure are handled
+      // server-side, so there's no client release to do here.
       let buffer = '';
-      for await (const chunk of this.gemini.askAboutMyData(q, logs, tdee, profileFields, this.body.dailyWeights())) {
+      for await (const chunk of this.gemini.askAboutMyData(
+        q, logs, tdee, profileFields, this.body.dailyWeights(),
+        (meta) => {
+          this.limit.set(meta.limit);
+          this.remaining.set(meta.remaining < 0 ? null : meta.remaining);
+        },
+      )) {
         buffer += chunk;
         this.rawResponse.set(buffer);
         // Re-render markdown on every chunk. marked is synchronous in its
@@ -230,15 +231,6 @@ export class ConsultationComponent {
         if (code === ErrorCode.CONSULTATION_QUOTA_EXCEEDED) this.overLimit.set(true);
       } else {
         this.errorMsg.set(err instanceof Error ? err.message : this.translation.t('consultation.errorFallback'));
-      }
-      // If we successfully reserved a slot but the stream then failed,
-      // refund it so the user isn't silently penalised for a transient
-      // error. If reservation itself threw, there's nothing to release.
-      if (reserved) {
-        void this.gemini.releaseConsultation();
-        // Reflect the refund optimistically in the UI counter.
-        const cur = this.remaining();
-        if (cur != null) this.remaining.set(cur + 1);
       }
     }
   }

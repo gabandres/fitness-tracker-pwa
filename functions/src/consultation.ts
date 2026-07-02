@@ -1,25 +1,31 @@
-import { onCall } from "firebase-functions/v2/https";
+import { getAuth } from "firebase-admin/auth";
+import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
+import type { Response } from "express";
+import { GoogleGenAI } from "@google/genai";
 import { ErrorCode } from "./error-codes";
-import { callerAccess, dailyQuota } from "./init";
+import { callerAccess, dailyQuota, geminiApiKey } from "./init";
 
-// ─── Consultation quota (AI coach rate limit) ───────────────────────
+// ─── AI coach (Gemini consultation) ─────────────────────────────────
 //
-// The AI coach (Gemini consultations) is free-tier on the client side
-// but shared across all users on the project's Gemini API quota. One
-// power user could monopolize it. This callable:
-//   1. Verifies auth
-//   2. Gives admins + comped friends unlimited access
-//   3. Caps paid subscribers at the paid cap per UTC day
-//   4. Caps free users at the free cap per UTC day
-//      (atomic Firestore counter; over-limit throws 'resource-exhausted').
+// The coach streams a grounded answer over the user's 14-day log. The
+// Gemini API key lives ONLY on the server (defineSecret) — clients no
+// longer ship it. `consultationStream` is the sole path to Gemini for
+// this feature; it verifies the caller's Firebase ID token, enforces
+// the per-uid rate limit + daily quota, reserves one slot, then relays
+// the model's token stream to the browser as Server-Sent Events.
 //
-// Client calls this BEFORE streaming the Gemini response. On success
-// the client proceeds with the direct Gemini SDK call. On failure the
-// client shows an upgrade pitch (free) or a generic limit notice (paid).
+// Why onRequest (not onCall): onCall buffers the whole response, so the
+// coach's answer would appear all at once. onRequest lets us res.write()
+// each chunk as it arrives from Gemini, preserving the typewriter UX.
+//
+// Refund policy: the slot is reserved BEFORE streaming. If Gemini fails
+// server-side (5xx / safety block), the server refunds the slot itself
+// (dailyQuota.release) and emits an `error` event. A mid-stream client
+// disconnect after the first token is the one case that consumes a slot
+// without a full answer — rare, and the user did receive partial value.
 
-// Per-uid min interval for reserve + release. Covers both reserve spam
-// (which would burn Firestore writes on the quota doc) and release spam
-// (which can't build credit past zero but still wastes writes).
+// Per-uid min interval — covers stream spam that would otherwise burn
+// Gemini tokens past the daily cap one 1.5s-spaced call at a time.
 const CONSULTATION_MIN_INTERVAL_MS = 1_500;
 const ACCESS_STATUS_MIN_INTERVAL_MS = 300;
 
@@ -29,46 +35,149 @@ const CONSULTATION_RATE_LIMIT = {
   errorCode: ErrorCode.CONSULTATION_RATE_LIMITED,
 };
 
-export const reserveConsultation = onCall(async (request) => {
-  const caller = await callerAccess.resolveCaller(request, CONSULTATION_RATE_LIMIT);
+// Same origins the leaked client key was HTTP-referrer-locked to. The
+// coach is only ever invoked from the first-party web app.
+const CONSULT_ALLOWED_ORIGINS = [
+  "https://macrolog.web.app",
+  "https://macrolog.firebaseapp.com",
+  "http://localhost:4200",
+];
 
-  // Admins + comped users bypass the quota entirely.
-  if (caller.unlimited) {
-    return { capped: false, remaining: -1, limit: dailyQuota.limitFor("consultation", true) };
+// The client assembles the grounded system instruction (profile + 14-day
+// table) and the question; the server only relays them. These bound the
+// payload so a hostile caller can't push arbitrary-length prompts at the
+// project's Gemini quota. Mirrors the weekly-report caps.
+const CONSULT_SYSTEM_MAX_CHARS = 20_000;
+const CONSULT_PROMPT_MAX_CHARS = 2_000;
+// Server pins the model so the client can't swap in a pricier one.
+// Matches environment.gemini.model (moving flash alias).
+const CONSULT_MODEL = "gemini-flash-latest";
+
+interface ConsultInput {
+  systemInstruction?: unknown;
+  prompt?: unknown;
+}
+
+/** Map an HttpsError thrown by the caller-access/quota preamble to an
+    HTTP JSON error the client's fetch path understands. Sent BEFORE any
+    SSE bytes, so the client sees a non-200 and reads `{ code }`. */
+function sendPreambleError(res: Response, err: unknown): void {
+  if (err instanceof HttpsError) {
+    const status = err.httpErrorCode?.status ?? 500;
+    const details = (err.details ?? {}) as { code?: string; retryAfterMs?: number };
+    res.status(status).json({ code: details.code, retryAfterMs: details.retryAfterMs });
+    return;
   }
+  console.error("consultationStream preamble error:", err);
+  res.status(500).json({ code: ErrorCode.REPORT_GENERATE_FAILED });
+}
 
-  const paid = caller.tier === "paid";
-  const { remaining } = await dailyQuota.reserve(caller.uid, "consultation", paid);
-  return { capped: false, remaining, limit: dailyQuota.limitFor("consultation", paid) };
-});
+export const consultationStream = onRequest(
+  { secrets: [geminiApiKey], cors: CONSULT_ALLOWED_ORIGINS, maxInstances: 5 },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).json({ code: ErrorCode.RATE_LIMITED });
+      return;
+    }
 
-/**
- * Refund a previously-reserved consultation slot. Called by the client
- * when the streaming Gemini call fails AFTER reservation (network blip,
- * Gemini 5xx, safety block). Without this, a transient failure silently
- * consumes one of the user's daily slots.
- *
- * Decrements the current-day counter but will not go below zero — so
- * a bad client can't build up credit by spam-calling release.
- */
-export const releaseConsultation = onCall(async (request) => {
-  const caller = await callerAccess.resolveCaller(request, CONSULTATION_RATE_LIMIT);
+    // ── Verify the Firebase ID token (Authorization: Bearer <token>) ──
+    const authz = req.headers.authorization;
+    const idToken = authz?.startsWith("Bearer ") ? authz.slice(7) : null;
+    if (!idToken) {
+      res.status(401).json({ code: ErrorCode.UNAUTHENTICATED });
+      return;
+    }
+    let decoded;
+    try {
+      decoded = await getAuth().verifyIdToken(idToken);
+    } catch {
+      res.status(401).json({ code: ErrorCode.UNAUTHENTICATED });
+      return;
+    }
 
-  // Admins + comped users never had a slot reserved. Paid users DO
-  // have a capped slot (30/day) — refund them too.
-  if (caller.unlimited) return { released: false };
+    // ── Validate payload ──
+    const { systemInstruction, prompt } = (req.body ?? {}) as ConsultInput;
+    if (typeof systemInstruction !== "string" || systemInstruction.length === 0 ||
+        systemInstruction.length > CONSULT_SYSTEM_MAX_CHARS) {
+      res.status(400).json({ code: ErrorCode.REPORT_PAYLOAD_INVALID });
+      return;
+    }
+    if (typeof prompt !== "string" || prompt.length === 0 ||
+        prompt.length > CONSULT_PROMPT_MAX_CHARS) {
+      res.status(400).json({ code: ErrorCode.REPORT_PAYLOAD_INVALID });
+      return;
+    }
 
-  // Honest signal: false when there was nothing to refund (no doc yet,
-  // or already at zero). The client treats release as fire-and-forget.
-  return { released: await dailyQuota.release(caller.uid, "consultation") };
-});
+    // ── Resolve caller (auth already checked → rate limit + tier) ──
+    // The decoded ID token is structurally a CallerRequestLike token
+    // (email + stripeRole custom claim live top-level), so we reuse the
+    // exact tier/rate-limit logic the onCall callables use.
+    const callerReq = { auth: { uid: decoded.uid, token: decoded } };
+    let caller;
+    try {
+      caller = await callerAccess.resolveCaller(callerReq, CONSULTATION_RATE_LIMIT);
+    } catch (err) {
+      sendPreambleError(res, err);
+      return;
+    }
+
+    // ── Reserve one slot (admins/comped bypass) ──
+    const limit = dailyQuota.limitFor("consultation", caller.paidClaim);
+    let remaining = -1;
+    let reserved = false;
+    if (!caller.unlimited) {
+      try {
+        const r = await dailyQuota.reserve(caller.uid, "consultation", caller.tier === "paid");
+        remaining = r.remaining;
+        reserved = true;
+      } catch (err) {
+        sendPreambleError(res, err); // 429 CONSULTATION_QUOTA_EXCEEDED
+        return;
+      }
+    }
+
+    // ── Stream Gemini as SSE ──
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("X-Accel-Buffering", "no"); // defeat any proxy buffering
+    res.flushHeaders?.();
+    // First event carries the quota counter so the UI can update "N left".
+    res.write(`event: meta\ndata: ${JSON.stringify({ remaining, limit })}\n\n`);
+
+    try {
+      const client = new GoogleGenAI({ apiKey: geminiApiKey.value() });
+      const stream = await client.models.generateContentStream({
+        model: CONSULT_MODEL,
+        contents: prompt,
+        config: { systemInstruction, temperature: 0.4 },
+      });
+      for await (const chunk of stream) {
+        const text = chunk.text;
+        if (text) res.write(`data: ${JSON.stringify({ text })}\n\n`);
+      }
+      res.write("event: done\ndata: {}\n\n");
+      res.end();
+    } catch (err) {
+      console.error("consultationStream Gemini error:", err);
+      // We already consumed a slot; refund it server-side so a transient
+      // Gemini failure doesn't silently cost the user one of their daily
+      // consultations. (Client can't reliably refund — the rate-limit
+      // window would reject its release call.)
+      if (reserved) {
+        void dailyQuota.release(caller.uid, "consultation");
+      }
+      res.write(`event: error\ndata: ${JSON.stringify({ code: ErrorCode.REPORT_GENERATE_FAILED })}\n\n`);
+      res.end();
+    }
+  },
+);
 
 /**
  * Tells the client whether the signed-in user has unlimited access
  * (admin or comped friend). Client uses this on sign-in to adjust the
  * Subscribe card UI — show the friend/admin badge instead of the
- * $3/mo pitch. Server enforcement is still independent in the
- * quota-reserve functions above; this endpoint only shapes UI.
+ * $3/mo pitch. Server enforcement is independent in consultationStream;
+ * this endpoint only shapes UI.
  */
 export const checkAccessStatus = onCall(async (request) => {
   if (!request.auth) {
@@ -81,7 +190,7 @@ export const checkAccessStatus = onCall(async (request) => {
   }
   // Tier resolution (admin / comped-list / referral compedUntil / paid /
   // free) lives in CallerAccess — the same resolution the quota
-  // callables enforce, so the UI badge can't drift from server behaviour.
+  // enforcement uses, so the UI badge can't drift from server behaviour.
   const caller = await callerAccess.resolveCaller(request, {
     collection: "accessStatusRateLimit",
     minIntervalMs: ACCESS_STATUS_MIN_INTERVAL_MS,

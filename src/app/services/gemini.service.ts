@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { GoogleGenAI } from '@google/genai';
+import { Auth } from '@angular/fire/auth';
 import { CallableGateway } from './callable.gateway';
 import { environment } from '../../environments/environment';
 import { DailyLog, ProfileFields } from './firebase.service';
@@ -8,13 +8,21 @@ import { summarizeDays } from '../utils/day-summary';
 import { weightSlopeLbPerWeek, projectWeight, type WeightPoint } from '../utils/weekly-insights';
 import { TdeeResult } from './tdee-calculator.service';
 import { TranslationService } from './translation.service';
+import { ErrorCode } from '../models/error-codes';
 
-/** Quota reservation response from the `reserveConsultation` Cloud
-    Function. `remaining < 0` means the user is on a paid plan and
-    there is no cap. `capped === true` is reserved for future soft-
-    cap scenarios (we currently only throw or return success). */
-export interface ConsultationReservation {
-  capped: boolean;
+/** Build an error carrying a typed `.details.code` so `extractErrorCode()`
+    treats a coach-stream failure exactly like an HttpsError from an onCall
+    function — the component's error mapping then localizes it unchanged. */
+function consultError(code: string | undefined): Error {
+  const err = new Error(code ?? 'consultation failed') as Error & { details?: { code: string } };
+  if (code) err.details = { code };
+  return err;
+}
+
+/** Quota counter delivered by the `consultationStream` endpoint's first
+    SSE `meta` event, right after it reserves a slot. `remaining < 0`
+    means the caller is admin/comped/paid-unlimited (no visible cap). */
+export interface ConsultationMeta {
   remaining: number;
   limit: number;
 }
@@ -42,27 +50,24 @@ export interface MilestoneContext {
 }
 
 /**
- * Thin wrapper around the Google GenAI SDK.
- *
- * IMPORTANT: the API key is embedded in the client bundle. It is
- * protected by:
- *   1. HTTP referrer restriction (macrolog.web.app + localhost only)
- *   2. API-target restriction (generativelanguage.googleapis.com only)
- *   3. Free tier with no billing linked to the GCP project
- *
- * This is the correct pragmatic choice for a single-user personal
- * tool with a "no backend" architecture constraint. For any multi-
- * tenant use case the key MUST move behind a Cloud Function proxy.
+ * Client seam to the AI coach. The Gemini API key is NOT in the bundle:
+ * conversational streaming goes through the `consultationStream` Cloud
+ * Function (server-held `GEMINI_API_KEY`, ID-token verified, quota +
+ * rate-limit enforced), and the weekly report goes through the
+ * `generateWeeklyReport` callable. This service only assembles the
+ * grounded prompts and relays the server's token stream.
  */
 @Injectable({ providedIn: 'root' })
 export class GeminiService {
   private readonly callables = inject(CallableGateway);
   private readonly translation = inject(TranslationService);
-  private readonly client = new GoogleGenAI({
-    apiKey: environment.gemini.apiKey,
-  });
+  private readonly auth = inject(Auth);
 
-  private readonly model = environment.gemini.model;
+  /** Same-region gen2 endpoint for the SSE coach stream. Built from the
+      project id so it tracks whatever project the bundle is configured
+      for. onRequest (not onCall) so the answer can stream token-by-token. */
+  private readonly consultUrl =
+    `https://us-central1-${environment.firebase.projectId}.cloudfunctions.net/consultationStream`;
 
   /** One-line language instruction appended to every prompt so the coach
       answers in the UI's active language. Keeping this in code (not in
@@ -75,38 +80,18 @@ export class GeminiService {
   }
 
   /**
-   * Atomically reserve one consultation for the signed-in user.
-   * Paid users (stripeRole=paid) always succeed with remaining=-1.
-   * Free users get 5/day; over-limit throws a `FirebaseError` with
-   * code "functions/resource-exhausted".
-   *
-   * Callers should wrap this + the streaming call in a try/catch and
-   * surface the error message — it's user-facing.
-   */
-  async reserveConsultation(): Promise<ConsultationReservation> {
-    return this.callables.call<void, ConsultationReservation>('reserveConsultation');
-  }
-
-  /**
-   * Refund a consultation slot after a post-reserve failure (network,
-   * Gemini 5xx, safety-block). Fire-and-forget — we log but don't
-   * surface failures to the user since the worst case is a single
-   * wasted slot on a rare double-failure.
-   */
-  async releaseConsultation(): Promise<void> {
-    try {
-      await this.callables.call<void, { released: boolean }>('releaseConsultation');
-    } catch (err) {
-      console.warn('releaseConsultation failed; slot remains consumed.', err);
-    }
-  }
-
-  /**
    * Stream a coaching response to the user's question. The 14-day
-   * log, profile, and computed TDEE are all injected into the system
+   * log, profile, and computed TDEE are injected into the system
    * instruction so every answer is grounded in the user's real data.
    *
-   * Yields string chunks as they arrive from the model.
+   * The prompt is assembled here and POSTed to the `consultationStream`
+   * Cloud Function, which reserves a quota slot then relays Gemini's
+   * token stream as Server-Sent Events. Yields text chunks as they
+   * arrive; `onMeta` fires once with the post-reservation quota counter.
+   *
+   * Throws an error whose `.details.code` is a typed ErrorCode
+   * (CONSULTATION_QUOTA_EXCEEDED, CONSULTATION_RATE_LIMITED,
+   * UNAUTHENTICATED, …) so callers can `extractErrorCode()` and localize.
    */
   async *askAboutMyData(
     question: string,
@@ -114,21 +99,59 @@ export class GeminiService {
     tdee: TdeeResult,
     profile: ProfileFields | null,
     dailyWeights: Record<string, number> = {},
+    onMeta?: (meta: ConsultationMeta) => void,
   ): AsyncGenerator<string, void, void> {
     const systemInstruction = this.buildSystemInstruction(logs, tdee, profile, dailyWeights) + this.langSuffix();
 
-    const stream = await this.client.models.generateContentStream({
-      model: this.model,
-      contents: question,
-      config: {
-        systemInstruction,
-        temperature: 0.4,
-      },
+    const user = this.auth.currentUser;
+    if (!user) throw consultError(ErrorCode.UNAUTHENTICATED);
+    const idToken = await user.getIdToken();
+
+    const res = await fetch(this.consultUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ systemInstruction, prompt: question }),
     });
 
-    for await (const chunk of stream) {
-      const text = chunk.text;
-      if (text) yield text;
+    if (!res.ok || !res.body) {
+      // Preamble failure (auth / rate-limit / quota / bad payload): the
+      // server sent a JSON `{ code }` before any stream bytes.
+      let code: string | undefined;
+      try { code = (await res.json())?.code; } catch { /* non-JSON body */ }
+      throw consultError(code);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    // Parse the SSE frame stream. Frames are separated by a blank line;
+    // each frame is an optional `event:` line + a `data:` line.
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let sep: number;
+      while ((sep = buf.indexOf('\n\n')) !== -1) {
+        const frame = buf.slice(0, sep);
+        buf = buf.slice(sep + 2);
+        let event = 'message';
+        let data = '';
+        for (const line of frame.split('\n')) {
+          if (line.startsWith('event:')) event = line.slice(6).trim();
+          else if (line.startsWith('data:')) data += line.slice(5).trim();
+        }
+        if (event === 'meta') {
+          if (onMeta && data) onMeta(JSON.parse(data) as ConsultationMeta);
+        } else if (event === 'error') {
+          const code = data ? (JSON.parse(data) as { code?: string }).code : undefined;
+          throw consultError(code);
+        } else if (event === 'done') {
+          return;
+        } else if (data) {
+          const text = (JSON.parse(data) as { text?: string }).text;
+          if (text) yield text;
+        }
+      }
     }
   }
 

@@ -9,15 +9,6 @@ export const environment = {
     messagingSenderId: '647810616435',
     vapidKey: 'BCPRNDtLom_i5wcXldvbNSl10mPFdUkBS5FEpb9tH9XEKB_tjM9eCTSvYPTHPLzVmvi32nnHz4uS3OJ_EkLErPE',
   },
-  // HTTP-referrer-locked to macrolog.web.app + localhost:4200.
-  // Free tier; no billing linked — worst case of leak is quota burn.
-  gemini: {
-    apiKey: 'AIzaSyAQ4evv79iwaktmYj-ZN9pD0RU5yT9s53E',
-    // Moving alias — always tracks the latest stable flash model.
-    // Real options today include: gemini-2.5-flash (stable pin),
-    // gemini-3-flash-preview, gemini-3.1-flash-lite-preview, gemini-pro-latest.
-    model: 'gemini-flash-latest',
-  },
   // Sentry error monitoring. Paste your DSN here — if left empty, the
   // integration no-ops (no init, no error handler registration), so
   // there's no cost to committing an empty value. DSNs are a public

@@ -6,6 +6,10 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-07-02 — AI coach moved behind a Cloud Function (security)
+
+- **Gemini API key off the client.** The conversational coach used to call Gemini directly from the browser with a key shipped in the app bundle (referrer-locked, free-tier — quota-abuse risk only, no billing). It now streams through a new `consultationStream` Cloud Function that holds the key server-side, verifies the caller's Firebase ID token, enforces the per-uid rate limit + daily quota, and relays Gemini's tokens to the browser as Server-Sent Events — so the typewriter UX is preserved with no key in the bundle. The old `reserveConsultation` / `releaseConsultation` callables are gone (the stream endpoint reserves the slot and refunds server-side on failure). The exposed key still needs a one-time console rotation to kill the leaked value.
+
 ## 2026-06-13 — Nine free features (plus progress photos)
 
 A batch of non-AI features that close the biggest gaps against the switcher apps — all pure client-side math, Firestore, or canvas, so nothing here adds a recurring AI cost.

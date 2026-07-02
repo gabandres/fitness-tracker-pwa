@@ -17,8 +17,6 @@ export type CallableName =
   | 'analyzePhoto'
   | 'searchFoods'
   | 'getFoodDetail'
-  | 'reserveConsultation'
-  | 'releaseConsultation'
   | 'generateWeeklyReport'
   // account / GDPR
   | 'deleteAccount'

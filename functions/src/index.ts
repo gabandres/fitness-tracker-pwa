@@ -10,7 +10,7 @@ import "./init";
 // ─── Feature modules (formerly inline here) ────────────────────────
 export { logWebhook } from "./log-webhook";
 export { analyzePhoto } from "./analyze-photo";
-export { reserveConsultation, releaseConsultation, checkAccessStatus } from "./consultation";
+export { consultationStream, checkAccessStatus } from "./consultation";
 export { exportUserData, deleteAccount } from "./gdpr";
 export { generateWeeklyReport } from "./weekly-report";
 export { statusPulse, weeklyFirestoreBackup } from "./ops";

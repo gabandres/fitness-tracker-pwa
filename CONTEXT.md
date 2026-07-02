@@ -332,7 +332,8 @@ collections + a `WorkoutStore` facet back the Train tab.
   [ADR-0002](docs/adr/0002-firestore-no-backend-architecture.md).
 - **Cloud Functions** — Key callables: `analyzePhoto` (photo macros),
   `generateWeeklyReport` (Pro-gated), `exportUserData` / `deleteAccount`
-  (GDPR), `reserveConsultation` / `releaseConsultation`,
+  (GDPR), `consultationStream` (SSE AI coach — onRequest, server-held
+  Gemini key, verifies ID token + reserves the consultation quota),
   `checkAccessStatus`. Schedules: `sendDailyReminders`,
   `sendDayThreeCoachPush`, `weekly-digest`, `weeklyFirestoreBackup`,
   `statusPulse`, `publishUserCount`. Triggers: `onDailyLogCreated`,
