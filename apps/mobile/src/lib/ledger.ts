@@ -26,6 +26,7 @@ import {
   type Profile,
   type RefineTargetsSubmission,
   type UnitSystem,
+  type WeeklyReport,
   clampCutPace,
   localDateKey,
 } from '@macrolog/core';
@@ -57,6 +58,7 @@ const presetsCol = (uid: string) => collection(db, 'users', uid, 'presets');
 const presetDoc = (uid: string, id: string) => doc(db, 'users', uid, 'presets', id);
 const measurementsCol = (uid: string) => collection(db, 'users', uid, 'measurements');
 const measurementDoc = (uid: string, id: string) => doc(db, 'users', uid, 'measurements', id);
+const reportsCol = (uid: string) => collection(db, 'users', uid, 'reports');
 const userDoc = (uid: string) => doc(db, 'users', uid);
 
 type Unsub = () => void;
@@ -90,6 +92,31 @@ export function subscribeRecentLogs(
   return onSnapshot(
     q,
     (snap) => cb(snap.docs.map((d) => toDailyLog(d.id, d.data())).reverse()),
+    onError,
+  );
+}
+
+/** Live-subscribe to the most recent AI weekly report (or null when none
+ *  exists yet). Reports are written server-side by the generateWeeklyReport
+ *  Cloud Function; rules block client writes, so read-only here. */
+export function subscribeLatestReport(
+  uid: string,
+  cb: (report: WeeklyReport | null) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  const q = query(reportsCol(uid), orderBy('generatedAt', 'desc'), limit(1));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const d = snap.docs[0];
+      if (!d) { cb(null); return; }
+      const data = d.data();
+      cb({
+        id: d.id,
+        markdown: (data['markdown'] as string) ?? '',
+        generatedAt: (data['generatedAt'] as Timestamp).toDate(),
+      });
+    },
     onError,
   );
 }

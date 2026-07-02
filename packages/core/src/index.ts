@@ -29,6 +29,8 @@ export * from './nutrition-label';
 export * from './coach-prompt';
 // Shared SSE frame parser (coach stream) — used by both frontends' readers.
 export * from './sse';
+// Shared Pro weekly-report prompt builder (both frontends → generateWeeklyReport).
+export * from './weekly-report-prompt';
 // NOTE: workout.ts types are intentionally NOT re-exported here — the PWA's
 // utils shims do `export * from '@macrolog/core'` and already define their own
 // WorkoutSet/LogStyle/etc. in models/workout.ts, so barrel-exporting these

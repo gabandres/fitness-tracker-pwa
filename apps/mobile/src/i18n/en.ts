@@ -226,6 +226,17 @@ export const en = {
   'coach.errGeneric': 'Something went wrong. Please try again.',
   'coach.upgradeHint': 'Go Pro for more daily coaching.',
 
+  // ── weekly report (Pro) ──
+  'report.title': 'Weekly report',
+  'report.pro': 'Pro',
+  'report.empty': 'Get an AI summary of your week — progress, adherence, and one thing to focus on next.',
+  'report.generate': 'Generate report',
+  'report.regenerate': 'Regenerate',
+  'report.generatedOn': 'Generated {date}',
+  'report.errTooSoon': 'Your latest report is still fresh — a new one can be generated about once a week.',
+  'report.errNotEntitled': 'Weekly report is a Pro feature.',
+  'report.errGeneric': "Couldn't generate the report. Please try again.",
+
   // ── train ──
   'train.start': 'Start workout',
   'train.history': 'History',

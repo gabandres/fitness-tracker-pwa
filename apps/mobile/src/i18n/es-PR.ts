@@ -228,6 +228,17 @@ export const esPR: Record<I18nKey, string> = {
   'coach.errGeneric': 'Algo salió mal. Inténtalo de nuevo.',
   'coach.upgradeHint': 'Hazte Pro para más coaching diario.',
 
+  // ── reporte semanal (Pro) ──
+  'report.title': 'Reporte semanal',
+  'report.pro': 'Pro',
+  'report.empty': 'Recibe un resumen con IA de tu semana — progreso, adherencia y una cosa en la que enfocarte.',
+  'report.generate': 'Generar reporte',
+  'report.regenerate': 'Regenerar',
+  'report.generatedOn': 'Generado {date}',
+  'report.errTooSoon': 'Tu último reporte todavía está fresco — puedes generar uno nuevo una vez por semana.',
+  'report.errNotEntitled': 'El reporte semanal es una función Pro.',
+  'report.errGeneric': 'No se pudo generar el reporte. Inténtalo de nuevo.',
+
   // ── train ──
   'train.start': 'Empezar entreno',
   'train.history': 'Historial',

@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { type TdeeResult, parseYmd } from '@macrolog/core';
 import { Sparkline } from '@/components/Sparkline';
 import { ProUpsell } from '@/components/ProUpsell';
+import { WeeklyReportCard } from '@/components/WeeklyReportCard';
 import { useTrends } from '@/hooks/useTrends';
 import { useSubscription } from '@/lib/subscription';
 import { type I18nKey, useT } from '@/i18n';
@@ -72,6 +73,9 @@ export default function Trends() {
             <Ionicons name="sparkles-outline" size={18} color={colors.white} />
             <Text style={styles.coachBtnText}>{t('coach.entry')}</Text>
           </TouchableOpacity>
+
+          {/* Pro AI weekly report (upsell for free users). */}
+          <WeeklyReportCard />
 
           {/* Weight chart */}
           {weightSeries.length >= 2 ? (
