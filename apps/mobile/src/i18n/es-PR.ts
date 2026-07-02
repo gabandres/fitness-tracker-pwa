@@ -135,6 +135,20 @@ export const esPR: Record<I18nKey, string> = {
   'food.quantity': 'Cantidad',
   'food.add': 'Añadir',
 
+  // ── meal text (natural-language multi-add) ──
+  'mealText.open': 'Escribe una comida',
+  'mealText.placeholder': 'ej. 2 huevos y una taza de arroz blanco',
+  'mealText.hint': 'Lenguaje natural. Buscamos cada alimento y lo puedes editar antes de añadir.',
+  'mealText.parse': 'Buscar alimentos',
+  'mealText.resolving': 'Buscando alimentos…',
+  'mealText.reviewHint': 'Los números vienen de la base de datos. Edita lo que quieras y añade.',
+  'mealText.assumed': 'Porción supuesta — verifica',
+  'mealText.noMatch': 'Sin resultado — escribe los valores',
+  'mealText.addAll': 'Añadir todo al diario',
+  'mealText.startOver': 'Empezar de nuevo',
+  'mealText.noItems': 'No pude leer alimentos. Prueba con algo más simple.',
+  'mealText.errorSearch': 'No se pudo conectar con la búsqueda. Inténtalo de nuevo.',
+
   // ── recipe ──
   'recipe.title': 'Calculadora de recetas',
   'recipe.namePlaceholder': 'Nombre de la receta (opcional)',

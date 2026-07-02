@@ -133,6 +133,20 @@ export const en = {
   'food.quantity': 'Quantity',
   'food.add': 'Add',
 
+  // ── meal text (natural-language multi-add) ──
+  'mealText.open': 'Type a meal',
+  'mealText.placeholder': 'e.g. 2 eggs and a cup of white rice',
+  'mealText.hint': 'Plain language. We match each food and let you edit before adding.',
+  'mealText.parse': 'Look up foods',
+  'mealText.resolving': 'Matching foods…',
+  'mealText.reviewHint': 'Numbers come from the food database. Edit anything, then add.',
+  'mealText.assumed': 'Assumed portion — double-check',
+  'mealText.noMatch': 'No match — enter values',
+  'mealText.addAll': 'Add all to diary',
+  'mealText.startOver': 'Start over',
+  'mealText.noItems': "Couldn't read any foods. Try simpler phrasing.",
+  'mealText.errorSearch': "Couldn't reach food search. Try again.",
+
   // ── recipe ──
   'recipe.title': 'Recipe calculator',
   'recipe.namePlaceholder': 'Recipe name (optional)',

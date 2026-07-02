@@ -26,6 +26,7 @@ import {
 } from '@macrolog/core';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { FoodSearch } from '@/components/FoodSearch';
+import { MealText } from '@/components/MealText';
 import { RecipeBuilder } from '@/components/RecipeBuilder';
 import { useLocale, useT } from '@/i18n';
 import { starterFoods } from '@/lib/starterFoods';
@@ -130,7 +131,7 @@ export function EntrySheet({
   const showDateRow = editing != null || dateKey != null;
   const [busy, setBusy] = useState(false);
   const [manage, setManage] = useState(false);
-  const [mode, setMode] = useState<'browse' | 'custom' | 'recipe'>('browse');
+  const [mode, setMode] = useState<'browse' | 'custom' | 'recipe' | 'meal'>('browse');
   const [scannerOpen, setScannerOpen] = useState(false);
   // Serving context from the last search/scan prefill + the calories it
   // produced. If the user later edits calories the context is stale (a
@@ -469,6 +470,9 @@ export function EntrySheet({
 
   const headerIcons = (
     <View style={styles.iconRow}>
+      <TouchableOpacity style={styles.iconBtn} onPress={() => { haptics.tap(); setMode('meal'); }} testID="open-mealtext">
+        <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.ink} />
+      </TouchableOpacity>
       {Platform.OS !== 'web' ? (
         <TouchableOpacity style={styles.iconBtn} onPress={() => { haptics.tap(); setScannerOpen(true); }} testID="open-barcode">
           <Ionicons name="barcode-outline" size={22} color={colors.ink} />
@@ -498,6 +502,15 @@ export function EntrySheet({
               />
             ) : mode === 'recipe' ? (
               <RecipeBuilder onCancel={() => setMode('browse')} onApply={(est) => prefill(est)} />
+            ) : mode === 'meal' ? (
+              <MealText
+                forDate={forDate}
+                onCancel={() => setMode('browse')}
+                onAddMany={async (entries) => {
+                  for (const entry of entries) await onSave(entry);
+                  onClose();
+                }}
+              />
             ) : (
               <View style={styles.customWrap}>
                 <View style={styles.customHead}>

@@ -24,6 +24,10 @@ export * from './custom-food';
 // Nutrition Facts panel parser (ADR-0013 phase 3): OCR label text → editable
 // grams-first draft. Native OCR is a per-frontend adapter; the parse is pure.
 export * from './nutrition-label';
+// Natural-language meal parser (ADR-0013 text modality): free-text utterance →
+// macro-free {qty,unit,food}[] + a resolver that scales database servings. The
+// voice/text input adapter is per-frontend; the decomposition + scaling is pure.
+export * from './meal-utterance';
 // Shared AI-coach system-instruction builder (ADR-0012/0013): both frontends
 // assemble the identical grounded prompt, then POST it to consultationStream.
 export * from './coach-prompt';

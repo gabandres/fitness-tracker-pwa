@@ -59,6 +59,9 @@ import {
   Circle,
   GitMerge,
   ArrowRight,
+  Mic,
+  MicOff,
+  AlertTriangle,
 } from 'lucide-angular';
 
 import { routes } from './app.routes';
@@ -126,6 +129,7 @@ export const appConfig: ApplicationConfig = {
       Home, User, Timer, Scale, Ruler, ChevronDown, ChevronUp, Share2, Download, Upload, ChefHat, Shield,
       Search, Loader,
       Dumbbell, StickyNote, CheckCircle2, Circle, GitMerge, ArrowRight,
+      Mic, MicOff, AlertTriangle,
     }).providers!,
   ],
 };

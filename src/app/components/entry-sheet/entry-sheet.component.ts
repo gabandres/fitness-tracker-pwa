@@ -22,8 +22,9 @@ import { MyFoodsPickerComponent } from '../my-foods-picker/my-foods-picker.compo
 import { RecentEntriesComponent } from '../recent-entries/recent-entries.component';
 import { RecipeBuilderComponent } from '../recipe-builder/recipe-builder.component';
 import { FoodSearchComponent } from '../food-search/food-search.component';
+import { MealTextComponent } from '../meal-text/meal-text.component';
 
-type Segment = 'manual' | 'search' | 'photo' | 'barcode';
+type Segment = 'manual' | 'meal' | 'search' | 'photo' | 'barcode';
 
 /**
  * v2 Entry sheet — unified Manual / Photo / Barcode in one bottom-sheet.
@@ -51,6 +52,7 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
     RecentEntriesComponent,
     RecipeBuilderComponent,
     FoodSearchComponent,
+    MealTextComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -351,6 +353,13 @@ type Segment = 'manual' | 'search' | 'photo' | 'barcode';
           </div>
         }
 
+        <!-- Meal-text segment (natural-language → multi-row draft) -->
+        @if (segment() === 'meal' && form.mode() === 'add') {
+          <div role="tabpanel" id="panel-meal" aria-labelledby="seg-meal">
+            <app-meal-text />
+          </div>
+        }
+
         <!-- Search segment (USDA FoodData Central food database) -->
         @if (segment() === 'search' && form.mode() === 'add') {
           <div role="tabpanel" id="panel-search" aria-labelledby="seg-search">
@@ -398,6 +407,7 @@ export class EntrySheetComponent {
 
   protected readonly segments: { id: Segment; labelKey: string; icon: string }[] = [
     { id: 'manual', labelKey: 'v2.entrySheet.segManual', icon: 'type' },
+    { id: 'meal', labelKey: 'v2.entrySheet.segMeal', icon: 'sparkles' },
     { id: 'search', labelKey: 'v2.entrySheet.segSearch', icon: 'search' },
     { id: 'photo', labelKey: 'v2.entrySheet.segPhoto', icon: 'image' },
     { id: 'barcode', labelKey: 'v2.entrySheet.segBarcode', icon: 'scan-line' },
