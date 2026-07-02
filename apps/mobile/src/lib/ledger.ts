@@ -282,6 +282,9 @@ function toProfile(data: Record<string, unknown>): Profile {
     createdAt: d(data['createdAt']) ?? new Date(0),
     lastSeenAt: d(data['lastSeenAt']) ?? new Date(0),
     fastStartedAt: d(data['fastStartedAt']) ?? null,
+    // Referral reward expiry — convert the Timestamp so the Invite section can
+    // compare it as a Date. Absent for users who never earned a reward.
+    ...(data['compedUntil'] ? { compedUntil: d(data['compedUntil']) } : {}),
   } as Profile;
 }
 
