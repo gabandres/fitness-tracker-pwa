@@ -1,4 +1,6 @@
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { type Href, useRouter } from 'expo-router';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type TdeeResult, parseYmd } from '@macrolog/core';
 import { Sparkline } from '@/components/Sparkline';
@@ -24,6 +26,7 @@ const TDEE_MODE: Record<TdeeResult['source'], { labelKey: I18nKey; hintKey: I18n
 
 export default function Trends() {
   const t = useT();
+  const router = useRouter();
   const { loading, error, insights, tdee, targetCalories, weightSeries, budget } = useTrends();
   const { isPro } = useSubscription();
   const mode = TDEE_MODE[tdee.source];
@@ -63,6 +66,12 @@ export default function Trends() {
               <Text style={styles.kvValue}>{targetCalories > 0 ? `${targetCalories.toLocaleString()} kcal` : '—'}</Text>
             </View>
           </View>
+
+          {/* AI coach — free (server-side 3/day quota); grounded in the log. */}
+          <TouchableOpacity style={styles.coachBtn} onPress={() => router.push('/coach' as Href)} testID="coach-entry">
+            <Ionicons name="sparkles-outline" size={18} color={colors.white} />
+            <Text style={styles.coachBtnText}>{t('coach.entry')}</Text>
+          </TouchableOpacity>
 
           {/* Weight chart */}
           {weightSeries.length >= 2 ? (
@@ -214,6 +223,17 @@ const styles = StyleSheet.create({
     padding: space.lg,
     gap: space.sm,
   },
+  coachBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.sm,
+    marginTop: space.lg,
+    backgroundColor: colors.ink,
+    borderRadius: radius.md,
+    paddingVertical: space.md,
+  },
+  coachBtnText: { color: colors.white, fontSize: font.body, fontWeight: '700' },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   badge: { backgroundColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: 2 },

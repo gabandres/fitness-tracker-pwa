@@ -9,6 +9,7 @@ import { weightSlopeLbPerWeek, projectWeight, type WeightPoint } from '../utils/
 import { TdeeResult } from './tdee-calculator.service';
 import { TranslationService } from './translation.service';
 import { ErrorCode } from '../models/error-codes';
+import { buildCoachSystemInstruction, parseSseFrames } from '@macrolog/core';
 
 /** Build an error carrying a typed `.details.code` so `extractErrorCode()`
     treats a coach-stream failure exactly like an HttpsError from an onCall
@@ -101,7 +102,11 @@ export class GeminiService {
     dailyWeights: Record<string, number> = {},
     onMeta?: (meta: ConsultationMeta) => void,
   ): AsyncGenerator<string, void, void> {
-    const systemInstruction = this.buildSystemInstruction(logs, tdee, profile, dailyWeights) + this.langSuffix();
+    // Shared, pure builder (packages/core) — the mobile coach assembles the
+    // identical prompt, so both frontends ground the model on the same data.
+    const systemInstruction = buildCoachSystemInstruction({
+      logs, tdee, profile, dailyWeights, locale: this.translation.language(),
+    });
 
     const user = this.auth.currentUser;
     if (!user) throw consultError(ErrorCode.UNAUTHENTICATED);
@@ -124,22 +129,15 @@ export class GeminiService {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buf = '';
-    // Parse the SSE frame stream. Frames are separated by a blank line;
-    // each frame is an optional `event:` line + a `data:` line.
+    // Accumulate bytes and split off complete SSE frames via the shared core
+    // parser (parseSseFrames) — the same one the Expo coach uses.
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       buf += decoder.decode(value, { stream: true });
-      let sep: number;
-      while ((sep = buf.indexOf('\n\n')) !== -1) {
-        const frame = buf.slice(0, sep);
-        buf = buf.slice(sep + 2);
-        let event = 'message';
-        let data = '';
-        for (const line of frame.split('\n')) {
-          if (line.startsWith('event:')) event = line.slice(6).trim();
-          else if (line.startsWith('data:')) data += line.slice(5).trim();
-        }
+      const { events, rest } = parseSseFrames(buf);
+      buf = rest;
+      for (const { event, data } of events) {
         if (event === 'meta') {
           if (onMeta && data) onMeta(JSON.parse(data) as ConsultationMeta);
         } else if (event === 'error') {
@@ -380,93 +378,6 @@ export class GeminiService {
       const mealsCell = d.meals > 0 ? String(d.meals) : '—';
       const exCell = d.exercised ? '✓' : '—';
       lines.push(`| ${d.key} | ${weightCell} | ${calCell} | ${proCell} | ${mealsCell} | ${exCell} |`);
-    }
-
-    return lines.join('\n');
-  }
-
-  private buildSystemInstruction(
-    logs: DailyLog[],
-    tdee: TdeeResult,
-    profile: ProfileFields | null,
-    dailyWeights: Record<string, number> = {},
-  ): string {
-    const lines: string[] = [];
-    lines.push('You are a precise, data-driven personal fitness consultant.');
-    lines.push('');
-    lines.push(
-      "The user shares their profile, rolling 14-day fitness log, and current " +
-      "computed TDEE values below. Ground every answer in this data — cite " +
-      "specific numbers, dates, and trends. Do not invent values, do not give " +
-      "generic advice that ignores the log, and keep responses concise (3–6 " +
-      "short paragraphs at most). Use markdown formatting. Tone: a knowledgeable " +
-      "coach who respects the user's time.",
-    );
-    lines.push('');
-    lines.push(
-      "If the TDEE source is 'formula' or 'seed', the estimate is PROVISIONAL — " +
-      "say so when making strong claims. Measured mode (14+ days of real data) " +
-      "is the only source that reflects the user's actual metabolism.",
-    );
-    lines.push('');
-    lines.push(
-      "Protein guideline: use 0.7–0.8 g per pound of bodyweight as the " +
-      "evidence-based target for muscle preservation during a caloric deficit " +
-      "(per ISSN position stand and recent meta-analyses). The old '1g/lb' rule " +
-      "is the upper safety margin, not the clinical threshold. Only recommend " +
-      "above 0.8g/lb for very lean or heavily resistance-trained individuals " +
-      "in a steep deficit. " +
-      "Never describe protein as 'critically low' if intake falls within 0.7–0.8 g/lb. " +
-      "Reserve alarm language only for intake genuinely below 0.65 g/lb.",
-    );
-    lines.push('');
-
-    // ── Profile ─────────────────────────────────────────────────
-    if (profile) {
-      lines.push('## User profile');
-      lines.push(`- Height: ${this.formatHeight(profile.heightIn)}`);
-      lines.push(`- Age: ${profile.age}`);
-      lines.push(`- Sex: ${profile.sex}`);
-      lines.push(`- Activity level: ${profile.activityLevel.replace('_', ' ')}`);
-      lines.push(`- Target cut pace: ${profile.targetPaceLbsPerWeek} lb/week`);
-      if (profile.goalWeightLbs != null) {
-        lines.push(`- Goal weight: ${profile.goalWeightLbs} lbs`);
-      }
-      lines.push('');
-    }
-
-    // ── Computed values ────────────────────────────────────────
-    lines.push('## Current computed values');
-    lines.push(`- True TDEE: ${tdee.trueTdee} kcal/day`);
-    lines.push(`- Daily target: ${tdee.newDailyTarget} kcal/day`);
-    lines.push(
-      `- Recent weight trend: ${tdee.weightChangeTrend} lbs ` +
-      "(positive = lost weight, negative = gained)",
-    );
-    lines.push(`- TDEE source: ${tdee.source}`);
-    lines.push(`- Logs available: ${logs.length} days`);
-    lines.push('');
-
-    // ── Log table ──────────────────────────────────────────────
-    if (logs.length > 0) {
-      lines.push('## Daily log (oldest → newest)');
-      lines.push('| Date | Weight (lbs) | Calories | Protein (g) | Exercise |');
-      lines.push('| --- | --- | --- | --- | --- |');
-      for (const log of logs) {
-        const iso = localDateKey(log.date);
-        const pro = log.protein != null ? String(log.protein) : '—';
-        const exercised = (log.exerciseCompleted || log.liftCompleted || log.cardioCompleted) ? '✓' : '—';
-        // Weight is logged once per day in a separate collection, not per meal
-        // entry, so look it up by date key. Older code printed `log.weight`
-        // which is always undefined for meal rows and leaked the literal
-        // string "undefined" into the prompt table.
-        const dayWeight = dailyWeights[iso] ?? log.weight;
-        const weightCell = dayWeight != null ? String(dayWeight) : '—';
-        lines.push(`| ${iso} | ${weightCell} | ${log.calories} | ${pro} | ${exercised} |`);
-      }
-    } else {
-      lines.push('## Daily log');
-      lines.push('_(no entries yet)_');
     }
 
     return lines.join('\n');

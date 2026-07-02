@@ -208,6 +208,24 @@ export const en = {
   'trends.budgetOver': 'Over budget',
   'trends.loadErr': "Couldn't load your trends.",
 
+  // ── coach (AI consultation) ──
+  'coach.title': 'Coach',
+  'coach.entry': 'Ask the Coach',
+  'coach.intro': 'Ask about your progress — grounded in your last 14 days of data.',
+  'coach.remaining': '{n}/{limit} left today',
+  'coach.notMedical': 'General guidance, not medical advice.',
+  'coach.placeholder': 'e.g. Am I on track to hit my goal this week?',
+  'coach.ask': 'Ask',
+  'coach.replyStamp': 'Coach',
+  'coach.suggestOnTrack': 'Am I on track?',
+  'coach.suggestAdjust': 'Should I adjust my target?',
+  'coach.suggestProtein': 'Is my protein enough?',
+  'coach.errQuota': "You've used today's free coaching. Resets at midnight UTC.",
+  'coach.errRate': 'Too many requests — give it a moment and try again.',
+  'coach.errAuth': 'Please sign in again to use the coach.',
+  'coach.errGeneric': 'Something went wrong. Please try again.',
+  'coach.upgradeHint': 'Go Pro for more daily coaching.',
+
   // ── train ──
   'train.start': 'Start workout',
   'train.history': 'History',

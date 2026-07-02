@@ -210,6 +210,24 @@ export const esPR: Record<I18nKey, string> = {
   'trends.budgetOver': 'Sobre presupuesto',
   'trends.loadErr': 'No se pudieron cargar tus tendencias.',
 
+  // ── coach (consulta con IA) ──
+  'coach.title': 'Coach',
+  'coach.entry': 'Pregúntale al Coach',
+  'coach.intro': 'Pregunta sobre tu progreso — basado en tus últimos 14 días de datos.',
+  'coach.remaining': '{n}/{limit} disponibles hoy',
+  'coach.notMedical': 'Orientación general, no consejo médico.',
+  'coach.placeholder': 'ej. ¿Voy bien para llegar a mi meta esta semana?',
+  'coach.ask': 'Preguntar',
+  'coach.replyStamp': 'Coach',
+  'coach.suggestOnTrack': '¿Voy bien?',
+  'coach.suggestAdjust': '¿Debo ajustar mi meta?',
+  'coach.suggestProtein': '¿Es suficiente mi proteína?',
+  'coach.errQuota': 'Ya usaste tu coaching gratis de hoy. Se reinicia a medianoche UTC.',
+  'coach.errRate': 'Demasiadas solicitudes — espera un momento e inténtalo otra vez.',
+  'coach.errAuth': 'Vuelve a iniciar sesión para usar el coach.',
+  'coach.errGeneric': 'Algo salió mal. Inténtalo de nuevo.',
+  'coach.upgradeHint': 'Hazte Pro para más coaching diario.',
+
   // ── train ──
   'train.start': 'Empezar entreno',
   'train.history': 'Historial',

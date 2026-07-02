@@ -24,6 +24,11 @@ export * from './custom-food';
 // Nutrition Facts panel parser (ADR-0013 phase 3): OCR label text → editable
 // grams-first draft. Native OCR is a per-frontend adapter; the parse is pure.
 export * from './nutrition-label';
+// Shared AI-coach system-instruction builder (ADR-0012/0013): both frontends
+// assemble the identical grounded prompt, then POST it to consultationStream.
+export * from './coach-prompt';
+// Shared SSE frame parser (coach stream) — used by both frontends' readers.
+export * from './sse';
 // NOTE: workout.ts types are intentionally NOT re-exported here — the PWA's
 // utils shims do `export * from '@macrolog/core'` and already define their own
 // WorkoutSet/LogStyle/etc. in models/workout.ts, so barrel-exporting these
