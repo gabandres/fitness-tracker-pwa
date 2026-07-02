@@ -17,9 +17,11 @@ import {
   MEAL_TYPES,
   type CustomFood,
   type DailyLog,
+  type FoodSource,
   type LogEntry,
   type MealPreset,
   type MealType,
+  buildCustomFood,
   scaleCustomFood,
 } from '@macrolog/core';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
@@ -75,6 +77,16 @@ function numOrUndef(s: string): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+/** Grams-first save context carried from a search/scan pick (ADR-0013).
+ *  Mirrors the web MacroEstimate.serving. */
+type ServingCtx = {
+  grams?: number;
+  source: FoodSource;
+  barcode?: string;
+  brand?: string;
+  name?: string;
+};
+
 const SHEET_OFFSCREEN = Dimensions.get('window').height;
 
 /** Search-first add-food sheet, on a plain RN <Modal> (animationType "slide"
@@ -120,6 +132,10 @@ export function EntrySheet({
   const [manage, setManage] = useState(false);
   const [mode, setMode] = useState<'browse' | 'custom' | 'recipe'>('browse');
   const [scannerOpen, setScannerOpen] = useState(false);
+  // Serving context from the last search/scan prefill + the calories it
+  // produced. If the user later edits calories the context is stale (a
+  // different portion) → fall back to a manual serving:1 save.
+  const [pendingServing, setPendingServing] = useState<{ ctx: ServingCtx; appliedCalories: number } | null>(null);
 
   // Keep the Modal mounted through the exit animation. `anim` (0 = hidden,
   // 1 = shown) drives the backdrop opacity (fades IN PLACE, full-screen) and
@@ -178,6 +194,7 @@ export function EntrySheet({
     setEntryDate(editing?.date ?? (dateKey ? noonOf(dateKey) : new Date()));
     setBusy(false);
     setManage(false);
+    setPendingServing(null);
     setMode(editing ? 'custom' : 'browse');
   }, [visible, editing, dateKey]);
 
@@ -195,7 +212,14 @@ export function EntrySheet({
   /** Prefill the manual form from an estimate (search portion, recipe,
    *  barcode) and move to CUSTOM for review before saving. */
   const prefill = useCallback(
-    (src: { calories: number; protein?: number; carbs?: number; fat?: number; mealLabel?: string }) => {
+    (src: {
+      calories: number;
+      protein?: number;
+      carbs?: number;
+      fat?: number;
+      mealLabel?: string;
+      serving?: ServingCtx;
+    }) => {
       haptics.tap();
       setLabel(src.mealLabel ?? '');
       setCalories(String(src.calories));
@@ -203,6 +227,10 @@ export function EntrySheet({
       setCarbs(src.carbs != null ? String(src.carbs) : '');
       setFat(src.fat != null ? String(src.fat) : '');
       setMealType(undefined);
+      // Remember the grams-first context so "Save to My Foods" can store a
+      // gram-weighted, barcode-deduped food. Tied to these calories so a later
+      // edit invalidates it (see saveAsCustomFood).
+      setPendingServing(src.serving ? { ctx: src.serving, appliedCalories: src.calories } : null);
       setMode('custom');
     },
     [],
@@ -253,26 +281,55 @@ export function EntrySheet({
     });
   }
 
-  /** Save the current custom form as a reusable CustomFood. Manual path only
-   *  (serving:1) — mirrors the PWA entry-form-manager fallback; grams-first
-   *  enrichment from search/scan is a later ADR-0013 step. */
+  /** Save the current custom form as a reusable CustomFood. Grams-first +
+   *  barcode-dedup when a search/scan supplied a gram weight (and the user
+   *  hasn't edited the calories it produced); otherwise a manual serving:1
+   *  save. Mirrors the PWA entry-form-manager.confirmSaveCustomFood.
+   *  (customFoodDocId — the barcode-as-doc-id de-dup — is applied by the
+   *  onSaveCustomFood handler in the hook.) */
   async function saveAsCustomFood() {
     if (!onSaveCustomFood || !label.trim() || calNum == null) return;
     haptics.tap();
-    const food: Omit<CustomFood, 'id'> = {
-      name: label.trim(),
-      servingSize: 1,
-      servingUnit: 'serving',
-      calories: calNum,
-      source: 'manual',
-      createdAt: new Date(),
-    };
+    const name = label.trim();
     const p = numOrUndef(protein);
     const c = numOrUndef(carbs);
     const f = numOrUndef(fat);
-    if (p != null) food.protein = p;
-    if (c != null) food.carbs = c;
-    if (f != null) food.fat = f;
+    // The context is only valid if the calories still match the picked
+    // portion — editing them means a different amount, so drop to manual.
+    const ctx =
+      pendingServing && pendingServing.appliedCalories === calNum ? pendingServing.ctx : null;
+
+    let food: Omit<CustomFood, 'id'>;
+    if (ctx?.grams != null) {
+      // Grams-first: store the picked portion's gram weight + its macros.
+      food = buildCustomFood(
+        {
+          name,
+          brand: ctx.brand,
+          barcode: ctx.barcode,
+          source: ctx.source,
+          serving: { grams: ctx.grams, calories: calNum, protein: p, carbs: c, fat: f },
+        },
+        new Date(),
+      );
+    } else {
+      // No gram weight (manual entry, or a scan/search food whose DB lacked a
+      // serving weight). Honest serving:1; keep source/barcode/brand so even a
+      // weightless scan still de-dups by barcode.
+      food = {
+        name,
+        servingSize: 1,
+        servingUnit: 'serving',
+        calories: calNum,
+        source: ctx?.source ?? 'manual',
+        createdAt: new Date(),
+      };
+      if (ctx?.brand) food.brand = ctx.brand;
+      if (ctx?.barcode) food.barcode = ctx.barcode;
+      if (p != null) food.protein = p;
+      if (c != null) food.carbs = c;
+      if (f != null) food.fat = f;
+    }
     await onSaveCustomFood(food);
   }
 
@@ -284,6 +341,7 @@ export function EntrySheet({
     setCarbs('');
     setFat('');
     setMealType(undefined);
+    setPendingServing(null);
     setMode('custom');
   }
 
@@ -543,7 +601,7 @@ export function EntrySheet({
           onClose={() => setScannerOpen(false)}
           onPick={(est) => {
             setScannerOpen(false);
-            prefill({ calories: est.calories, protein: est.protein, carbs: est.carbs, fat: est.fat, mealLabel: est.mealLabel });
+            prefill(est);
           }}
         />
       ) : null}

@@ -2,6 +2,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import type { FoodSource } from '@macrolog/core';
 import { type BarcodeResult, lookupProduct } from '@/lib/barcode';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -13,6 +14,15 @@ export interface BarcodeEstimate {
   carbs?: number;
   fat?: number;
   mealLabel: string;
+  /** Grams-first save context (ADR-0013): lets "Save to My Foods" store a
+   *  gram-weighted, barcode-deduped CustomFood instead of `serving:1`. */
+  serving?: {
+    grams?: number;
+    source: FoodSource;
+    barcode?: string;
+    brand?: string;
+    name?: string;
+  };
 }
 
 interface Props {
@@ -55,6 +65,13 @@ export function BarcodeScanner({ visible, onClose, onPick }: Props) {
         carbs: result.carbs ?? undefined,
         fat: result.fat ?? undefined,
         mealLabel: result.productName,
+        serving: {
+          grams: result.grams ?? undefined,
+          source: 'barcode',
+          barcode,
+          brand: result.brand,
+          name: result.productName,
+        },
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : t('barcode.failed'));

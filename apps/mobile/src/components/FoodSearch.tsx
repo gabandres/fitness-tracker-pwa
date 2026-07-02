@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import type { FoodSource } from '@macrolog/core';
 import {
   type FoodDetail,
   type FoodSearchHit,
@@ -19,6 +20,16 @@ export interface FoodEstimate {
   carbs?: number;
   fat?: number;
   mealLabel: string;
+  /** Grams-first save context (ADR-0013). Search results resolve as
+   *  `source:'text'` with the picked portion's gram weight — no barcode (the
+   *  barcode path is the scanner), so a saved search food auto-ids. */
+  serving?: {
+    grams?: number;
+    source: FoodSource;
+    barcode?: string;
+    brand?: string;
+    name?: string;
+  };
 }
 
 interface Props {
@@ -108,6 +119,14 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel, headerRight, e
       carbs: s.carbs != null ? Math.round(s.carbs * m) : undefined,
       fat: s.fat != null ? Math.round(s.fat * m) : undefined,
       mealLabel: detail?.description ?? '',
+      // Grams-first context: the picked portion's gram weight × multiplier is
+      // the eaten weight the emitted macros correspond to.
+      serving: {
+        grams: s.grams > 0 ? Math.round(s.grams * m * 10) / 10 : undefined,
+        source: 'text' as FoodSource,
+        brand: detail?.brand,
+        name: detail?.description,
+      },
     });
   }
 
