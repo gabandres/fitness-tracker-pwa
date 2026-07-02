@@ -1,6 +1,34 @@
-import { Timestamp } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { db } from "./init";
+
+// Per-IP fixed-window throttle. The endpoint authenticates by scanning
+// `users` for a matching `webhookApiKey`, so an unthrottled caller could
+// brute-force keys one request at a time. Cap requests per IP per minute.
+// Backed by Firestore (survives instance recycling); the bucket key embeds
+// the minute so old docs are inert (add a TTL policy on `expiresAt` to prune).
+const RL_WINDOW_MS = 60_000;
+const RL_MAX_PER_WINDOW = 30;
+
+async function throttled(ip: string): Promise<boolean> {
+  const bucket = Math.floor(Date.now() / RL_WINDOW_MS);
+  const ref = db.collection("webhookRateLimits").doc(`${ip}_${bucket}`);
+  try {
+    await ref.set(
+      {
+        count: FieldValue.increment(1),
+        expiresAt: Timestamp.fromMillis((bucket + 2) * RL_WINDOW_MS),
+      },
+      { merge: true },
+    );
+    const snap = await ref.get();
+    return ((snap.data()?.count as number) ?? 0) > RL_MAX_PER_WINDOW;
+  } catch {
+    // Fail OPEN on rate-limiter infra errors — never drop a legitimate log
+    // because the throttle store hiccuped.
+    return false;
+  }
+}
 
 // ─── Shared validation (mirrors Firestore rules isValidLog) ────────
 
@@ -80,6 +108,15 @@ export const logWebhook = onRequest(
     // POST only
     if (req.method !== "POST") {
       res.status(405).json({ error: "Method not allowed. Use POST." });
+      return;
+    }
+
+    // Rate-limit by client IP before the key lookup (brute-force defense).
+    const ip = ((req.headers["x-forwarded-for"] as string) || req.ip || "unknown")
+      .split(",")[0]
+      .trim();
+    if (await throttled(ip)) {
+      res.status(429).json({ error: "Too many requests. Slow down." });
       return;
     }
 

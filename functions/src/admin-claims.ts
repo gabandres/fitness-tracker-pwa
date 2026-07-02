@@ -25,8 +25,18 @@ export const bootstrapAdmin = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "Must be signed in.");
   }
   const callerEmail = request.auth.token["email"];
-  if (!callerEmail || !SEED_ADMINS.includes(callerEmail)) {
-    throw new HttpsError("permission-denied", "Only seed admins can bootstrap.");
+  // Require a VERIFIED seed email — Firebase lets anyone create an
+  // email/password account with an arbitrary unverified address, and the
+  // token still carries it. Without the email_verified gate, someone who
+  // registered a seed email they don't own (before the real owner) could
+  // self-promote on first bootstrap. Defense in depth (the function also
+  // self-disables once config/admins exists).
+  if (
+    !callerEmail ||
+    !SEED_ADMINS.includes(callerEmail) ||
+    request.auth.token["email_verified"] !== true
+  ) {
+    throw new HttpsError("permission-denied", "Only verified seed admins can bootstrap.");
   }
 
   const db = getFirestore();

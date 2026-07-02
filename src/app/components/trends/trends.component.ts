@@ -6,7 +6,6 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { marked } from 'marked';
@@ -314,7 +313,6 @@ export class TrendsComponent {
   protected readonly report = inject(WeeklyReportStore);
   protected readonly subs = inject(SubscriptionService);
   private readonly upsell = inject(UpsellService);
-  private readonly sanitizer = inject(DomSanitizer);
   private readonly translation = inject(TranslationService);
 
   readonly historyRequested = output<void>();
@@ -446,11 +444,14 @@ export class TrendsComponent {
     return this.translation.t('trends.insightsLbPerWeek', { n: signed });
   }
 
-  protected readonly reportHtml = computed<SafeHtml | null>(() => {
+  // Plain HTML string bound via [innerHTML] so Angular's sanitizer scrubs it
+  // (no bypassSecurityTrustHtml). The report markdown is server-generated, but
+  // sanitizing on bind keeps a compromised/edited report field from injecting
+  // executing HTML.
+  protected readonly reportHtml = computed<string | null>(() => {
     const r = this.report.weeklyReport();
     if (!r) return null;
-    const html = marked.parse(r.markdown, { gfm: true, breaks: true }) as string;
-    return this.sanitizer.bypassSecurityTrustHtml(html);
+    return marked.parse(r.markdown, { gfm: true, breaks: true }) as string;
   });
 
   protected readonly reportAge = computed(() => {

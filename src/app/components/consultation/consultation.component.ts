@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { marked } from 'marked';
 import { GeminiService } from '../../services/gemini.service';
@@ -143,7 +142,6 @@ export class ConsultationComponent {
   private readonly body = inject(BodyMetricStore);
   private readonly gemini = inject(GeminiService);
   protected readonly subs = inject(SubscriptionService);
-  private readonly sanitizer = inject(DomSanitizer);
   private readonly translation = inject(TranslationService);
 
   /** Remaining consultations today. Populated after each ask() from the
@@ -166,7 +164,12 @@ export class ConsultationComponent {
   protected readonly question = signal('');
   protected readonly status = signal<Status>('idle');
   protected readonly rawResponse = signal('');
-  protected readonly renderedHtml = signal<SafeHtml>('' as SafeHtml);
+  // Plain HTML string bound via [innerHTML], which Angular's built-in
+  // sanitizer scrubs (strips <script>/on*/javascript: while keeping
+  // markdown formatting). NOT bypassSecurityTrustHtml — the source is the
+  // Gemini stream, so a prompt-injected response must not be able to inject
+  // executing HTML.
+  protected readonly renderedHtml = signal<string>('');
   protected readonly errorMsg = signal('');
 
   protected useSuggestion(prompt: string): void {
@@ -179,7 +182,7 @@ export class ConsultationComponent {
 
     this.status.set('streaming');
     this.rawResponse.set('');
-    this.renderedHtml.set('' as SafeHtml);
+    this.renderedHtml.set('');
     this.errorMsg.set('');
     this.overLimit.set(false);
 
@@ -214,9 +217,8 @@ export class ConsultationComponent {
         // Re-render markdown on every chunk. marked is synchronous in its
         // default config so this stays cheap.
         const html = await marked.parse(buffer, { gfm: true, breaks: true });
-        this.renderedHtml.set(
-          this.sanitizer.bypassSecurityTrustHtml(html),
-        );
+        // Bind the raw string; Angular sanitizes it on the [innerHTML] bind.
+        this.renderedHtml.set(html);
       }
       this.status.set('done');
     } catch (err) {

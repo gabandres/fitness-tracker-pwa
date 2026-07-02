@@ -24,7 +24,8 @@
     "ignore": [
       "firebase.json",
       "**/.*",
-      "**/node_modules/**"
+      "**/node_modules/**",
+      "**/*.map"
     ],
     "rewrites": [
       {
@@ -54,7 +55,7 @@
         ]
       },
       {
-        "source": "**/*.@(js|mjs|css|woff2|woff|ttf|otf|png|svg|jpg|jpeg|webp|gif|ico|map)",
+        "source": "**/*.@(js|mjs|css|woff2|woff|ttf|otf|png|svg|jpg|jpeg|webp|gif|ico)",
         "headers": [
           { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
         ]

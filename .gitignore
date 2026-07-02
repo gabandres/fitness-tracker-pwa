@@ -16,6 +16,9 @@
 /src/environments/environment.local.ts
 .env
 .env.local
+.env.production
+.env.*.local
+.env*.local
 
 # Sentry CLI auth token
 .sentryclirc

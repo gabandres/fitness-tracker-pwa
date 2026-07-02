@@ -53,7 +53,15 @@ export const startImpersonation = onCall(async (request) => {
 /**
  * Returns the admin to their own account. Requires the client to hand
  * over the original admin uid (which the client captured before the
- * impersonation swap). Verified against the custom-claims admin flag.
+ * impersonation swap).
+ *
+ * SECURITY: the caller must be in an active impersonation session that
+ * `startImpersonation` opened for exactly this `originalUid` — proven by
+ * the `impersonatedBy` custom claim baked into the impersonation token
+ * (impersonation.ts:32). Without this check, any signed-in user could
+ * call stopImpersonation({ originalUid: <admin uid> }) and be handed a
+ * custom token to sign in AS that admin — a full-takeover auth bypass.
+ * The admin-flag check below is kept as defense-in-depth.
  */
 export const stopImpersonation = onCall(async (request) => {
   if (!request.auth) {
@@ -63,6 +71,16 @@ export const stopImpersonation = onCall(async (request) => {
   const { originalUid } = request.data as { originalUid?: string };
   if (!originalUid) {
     throw new HttpsError("invalid-argument", "originalUid is required.");
+  }
+
+  // Only a session currently impersonating `originalUid` may swap back to
+  // it. `impersonatedBy` is set on the impersonation token by
+  // startImpersonation and is absent on a normal login.
+  if (request.auth.token["impersonatedBy"] !== originalUid) {
+    throw new HttpsError(
+      "permission-denied",
+      "Not in an impersonation session for this account.",
+    );
   }
 
   const auth = getAuth();

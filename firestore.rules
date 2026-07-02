@@ -411,7 +411,23 @@ service cloud.firestore {
                        // sendWeeklyDigest; clients read but cannot reset
                        // it (which would cause duplicate sends).
                        && (resource.data.get('lastWeeklyDigestSentAt', null) ==
-                           request.resource.data.get('lastWeeklyDigestSentAt', null));
+                           request.resource.data.get('lastWeeklyDigestSentAt', null))
+                       // Server-only notification/lifecycle latches (all
+                       // written by admin-SDK CFs: dayThreeCoachPushSent by
+                       // sendDayThreeCoachPush, welcomeEmailSentAt by
+                       // sendWelcomeEmail, firstEntryAt by onDailyLogCreated).
+                       // Clients read them but must not set/flip them, else a
+                       // user could suppress their own day-3 nudge / welcome
+                       // email or forge activation metrics.
+                       // (ageConfirmedAt / onboardingV2CompletedAt /
+                       // targetsRefinedAt are deliberately NOT pinned — those
+                       // are legitimately client-stamped.)
+                       && (resource.data.get('dayThreeCoachPushSent', null) ==
+                           request.resource.data.get('dayThreeCoachPushSent', null))
+                       && (resource.data.get('welcomeEmailSentAt', null) ==
+                           request.resource.data.get('welcomeEmailSentAt', null))
+                       && (resource.data.get('firstEntryAt', null) ==
+                           request.resource.data.get('firstEntryAt', null));
 
       match /dailyLogs/{logId} {
         allow read:   if isOwner(uid) || isAdmin();
@@ -497,8 +513,11 @@ service cloud.firestore {
       match /photos/{dateKey} {
         allow read:   if isOwner(uid) || isAdmin();
         allow create, update: if isOwner(uid)
+                      && request.resource.data.keys().hasOnly(['storagePath', 'takenAt', 'weightLb'])
                       && request.resource.data.storagePath is string
-                      && request.resource.data.takenAt is timestamp;
+                      && request.resource.data.takenAt is timestamp
+                      && (!request.resource.data.keys().hasAny(['weightLb'])
+                          || request.resource.data.weightLb is number);
         allow delete: if isOwner(uid);
       }
 

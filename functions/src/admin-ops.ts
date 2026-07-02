@@ -725,10 +725,18 @@ export const adminExportData = onCall({ timeoutSeconds: 120 }, async (request) =
 });
 
 function csvEsc(s: string): string {
-  if (s.includes(",") || s.includes("\"") || s.includes("\n")) {
-    return `"${s.replace(/"/g, '""')}"`;
+  // Neutralize spreadsheet formula injection: a cell starting with = + - @
+  // (or tab/CR) is executed as a formula by Excel/Sheets. User-controlled
+  // fields (displayName, email, mealLabel) flow into this export, so prefix
+  // such cells with a single quote before quoting. CWE-1236.
+  let v = s;
+  if (/^[=+\-@\t\r]/.test(v)) {
+    v = `'${v}`;
   }
-  return s;
+  if (v.includes(",") || v.includes("\"") || v.includes("\n")) {
+    return `"${v.replace(/"/g, '""')}"`;
+  }
+  return v;
 }
 
 // ─── Per-user details (drill-down) ─────────────────────────────────
