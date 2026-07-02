@@ -31,8 +31,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.CAMERA"
       ]
     },
     "web": {
@@ -59,7 +58,9 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Macro Log uses the camera to scan food barcodes."
+          "cameraPermission": "Macro Log uses the camera to scan food barcodes.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ],
       [
