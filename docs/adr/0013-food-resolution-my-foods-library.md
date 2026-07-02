@@ -202,3 +202,22 @@ So Step 2 is **persist + re-log surface, not lookup**:
   scanned `barcode` → barcode-as-doc-id upsert. A **text search** result →
   `source:'text'`, no barcode stored (auto-id), even for OFF hits — keeps the
   scan-dedup semantics clean.
+
+## Phase 3 — label OCR: core parser shipped (2026-07-02)
+
+The deterministic panel parser landed in `packages/core/nutrition-label.ts`
+(pure, 28 tests): `parseNutritionLabel(rawText) → NutritionLabelDraft`
+(serving grams, servings/container, calories, protein, Total Carbohydrate,
+Total Fat), plus `nutritionLabelToServing` / `nutritionLabelToCustomFoodDraft`
+bridging a parsed panel into the existing `buildCustomFood` save path.
+Extraction is label-anchored (sub-nutrient disambiguation; skips legacy
+"Calories from Fat"), absent fields stay absent, and `isLikelyPanel` gates OCR
+noise. A barcode supplied alongside a label read rides along as
+`source:'barcode'` so a scanned-then-OCR'd food dedups by barcode doc-id.
+
+**Deferred (next EAS dev-build session):** the native **ML Kit text-recognition
+adapter** (mobile only — dev-build-gated like Google Sign-In, won't load in
+stock Expo Go) that feeds `rawText`, and the mobile confirm-and-save wiring
+(reuse the 2a My Foods save flow). The Angular PWA has no ML Kit; if a web
+label path is ever wanted it needs a WASM OCR adapter (or the opt-in cloud
+fallback). The parser is frontend-agnostic and ready for whichever lands first.
