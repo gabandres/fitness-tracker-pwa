@@ -16,7 +16,7 @@ import { WhatsNewBanner } from '@/components/WhatsNewBanner';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useToday } from '@/hooks/useToday';
-import { enterUp, PressScale } from '@/lib/motion';
+import { enterUp, PressScale, usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
 
@@ -70,6 +70,18 @@ export default function Today() {
     setSheetOpen(true);
   }, [openAddParam]);
 
+  // Celebration: the flame chip bounces when the streak extends mid-session
+  // (null-first ref so it doesn't fire on mount).
+  const [streakPulse, triggerStreakPulse] = usePulse(1.3);
+  const prevStreak = useRef<number | null>(null);
+  useEffect(() => {
+    if (prevStreak.current !== null && streak > prevStreak.current) {
+      haptics.tap();
+      triggerStreakPulse();
+    }
+    prevStreak.current = streak;
+  }, [streak, triggerStreakPulse]);
+
   async function onShare() {
     haptics.tap();
     try {
@@ -116,10 +128,10 @@ export default function Today() {
         </View>
         <View style={styles.headerRight}>
           {streak > 0 ? (
-            <View style={styles.streakChip} testID="streak-chip">
+            <Animated.View style={[styles.streakChip, streakPulse]} testID="streak-chip">
               <Text style={styles.streakFlame}>🔥</Text>
               <Text style={styles.streakNum}>{streak}</Text>
-            </View>
+            </Animated.View>
           ) : null}
           <TouchableOpacity
             onPress={() => { haptics.tap(); router.push('/history'); }}

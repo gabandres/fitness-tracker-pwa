@@ -19,7 +19,8 @@ import { saveOnboardingV2 } from '@/lib/ledger';
 import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { enterUp, PressScale } from '@/lib/motion';
-import { colors, font, radius, shadow, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space, type } from '@/theme';
 
 const GOALS: { key: GoalDirection; labelKey: I18nKey; hintKey: I18nKey }[] = [
   { key: 'lose', labelKey: 'goal.lose', hintKey: 'goal.loseHint' },
@@ -36,6 +37,8 @@ function numOrUndef(s: string): number | undefined {
 
 export default function Onboarding() {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const { user, profile } = useAuth();
   const router = useRouter();
   // A completed profile only reaches this screen via Settings → "Edit goals".
@@ -176,7 +179,7 @@ export default function Onboarding() {
             testID="onboarding-save"
           >
             {busy ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color={colors.onInk} />
             ) : (
               <Text style={styles.saveText}>{isRedo ? t('onboarding.saveEdit') : t('onboarding.saveNew')}</Text>
             )}
@@ -187,16 +190,16 @@ export default function Onboarding() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   fill: { flex: 1 },
   body: { paddingHorizontal: space.xl, paddingTop: space.xl, paddingBottom: space.xl, gap: space.lg },
-  brand: { fontSize: font.h1, fontWeight: '800', color: colors.ink },
+  brand: { fontFamily: type.display, fontSize: font.h1, color: colors.ink },
   tagline: { fontSize: font.body, color: colors.muted, marginTop: -space.sm, marginBottom: space.sm },
   field: { gap: space.xs },
   label: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   input: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.md,
@@ -213,13 +216,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: space.md,
     paddingHorizontal: space.sm,
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
     alignItems: 'center',
     gap: 2,
   },
   goalOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   goalLabel: { fontSize: font.body, fontWeight: '700', color: colors.ink },
-  goalLabelOn: { color: colors.white },
+  goalLabelOn: { color: colors.onInk },
   goalHint: { fontSize: font.tiny, color: colors.faint },
   goalHintOn: { color: colors.line },
   preview: {
@@ -234,7 +237,7 @@ const styles = StyleSheet.create({
   previewTitle: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   previewRow: { flexDirection: 'row', gap: space.xl },
   previewStat: { gap: 2 },
-  previewValue: { fontSize: font.h1, fontWeight: '800', color: colors.ink },
+  previewValue: { fontFamily: type.display, fontSize: font.h1, color: colors.ink },
   previewLabel: { fontSize: font.small, color: colors.muted },
   previewNote: { fontSize: font.small, color: colors.faint },
   error: { color: colors.danger, fontSize: font.small },
@@ -264,5 +267,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   saveDisabled: { opacity: 0.4 },
-  saveText: { color: colors.white, fontWeight: '700', fontSize: font.h3 },
+  saveText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
 });

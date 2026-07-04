@@ -1,4 +1,4 @@
-import { type ComponentProps, useEffect } from 'react';
+import { type ComponentProps, useCallback, useEffect } from 'react';
 import { Pressable, StyleSheet, TextInput, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
@@ -9,6 +9,7 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withSequence,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
@@ -75,6 +76,22 @@ export function PressScale({ style, scaleTo = 0.96, haptic = false, onPress, onP
       }}
     />
   );
+}
+
+/**
+ * Celebration pulse: returns an animated style and a `trigger()` that bounces
+ * the element once (scale up, spring back). No-op under reduce motion — pair
+ * the trigger with a haptic so the reward still lands.
+ */
+export function usePulse(scaleTo = 1.25) {
+  const reduce = useReducedMotion();
+  const scale = useSharedValue(1);
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const trigger = useCallback(() => {
+    if (reduce) return;
+    scale.value = withSequence(withSpring(scaleTo, motion.spring.press), withSpring(1, motion.spring.gentle));
+  }, [reduce, scaleTo, scale]);
+  return [style, trigger] as const;
 }
 
 /** Comma-group an integer ("12345" → "12,345"). Worklet — runs on the UI thread. */

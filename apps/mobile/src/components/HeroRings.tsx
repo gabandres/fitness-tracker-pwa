@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import Animated, {
@@ -7,9 +7,11 @@ import Animated, {
   useReducedMotion,
   useSharedValue,
   withDelay,
+  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import { useT } from '@/i18n';
+import * as haptics from '@/lib/haptics';
 import { CountUpText } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, motion, radius, space, type } from '@/theme';
@@ -84,8 +86,31 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const reduce = useReducedMotion();
   const calRemaining = calTarget - calConsumed;
   const over = calRemaining < 0;
+
+  // Celebration: hitting the protein target flares the inner ring once —
+  // a glow halo swells and fades, with a success haptic. Fires only on the
+  // crossing (null-first ref so a day that ALREADY met the target doesn't
+  // flare on mount). Reduce motion keeps the haptic, skips the glow.
+  const flare = useSharedValue(0);
+  const prevProt = useRef<number | null>(null);
+  useEffect(() => {
+    const p = protTarget ? protConsumed / protTarget : 0;
+    if (prevProt.current !== null && prevProt.current < 1 && p >= 1) {
+      haptics.success();
+      if (!reduce) {
+        flare.value = withSequence(
+          withTiming(1, { duration: motion.dur.base, easing: Easing.out(Easing.cubic) }),
+          withTiming(0, { duration: motion.dur.slow * 2, easing: Easing.out(Easing.cubic) }),
+        );
+      }
+    }
+    prevProt.current = p;
+  }, [protConsumed, protTarget, reduce, flare]);
+  const flareProps = useAnimatedProps(() => ({ opacity: flare.value * 0.35 }));
+
   return (
     <View style={styles.panel} testID="hero-rings">
       <View style={styles.ringWrap}>
@@ -97,6 +122,15 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
             color={over ? colors.danger : colors.ring}
             progress={calTarget ? calConsumed / calTarget : 0}
             delay={100}
+          />
+          <AnimatedCircle
+            cx={SIZE / 2}
+            cy={SIZE / 2}
+            r={INNER_R}
+            stroke={colors.protein}
+            strokeWidth={INNER_STROKE + 10}
+            fill="none"
+            animatedProps={flareProps}
           />
           <Ring
             r={INNER_R}
