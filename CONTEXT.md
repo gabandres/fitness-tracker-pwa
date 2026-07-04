@@ -397,6 +397,22 @@ the same name under `src/app/components/`.
   like `UiCard`, `UiButton`, `UiFab`, `UiRing` mark **shared primitives**
   (design-system atoms). They are NOT feature surfaces.
 
+### Mobile-only surfaces (see [ADR-0014](docs/adr/0014-mobile-dark-first-identity-center-log-nav.md))
+
+- **Hero ring** — The mobile Today centerpiece: one concentric dual-ring
+  element, calories outer / protein inner (the app icon's geometry), with
+  the remaining-kcal count-up in the center. NOT the same as the PWA's
+  `UiRing` primitive or the two side-by-side rings it replaced.
+- **Log button** — The center-docked "+" in the mobile tab bar (4 tabs +
+  center slot). Opens the EntrySheet from any tab. Replaced the
+  Today-only FAB; History left the tab bar for the calendar affordance in
+  Today's header.
+- **Celebration** — A reward animation tied to a *product* event (log
+  saved → ring re-sweep + haptic tick; protein target hit → inner-ring
+  flare; streak extended → flame-chip animation). Distinct from ambient
+  motion (entrances, press-springs), which is not event-tied. No
+  confetti/mascot layer by decision.
+
 ## Platforms (post-#12 — see [ADR-0012](docs/adr/0012-expo-native-app-shared-core.md))
 
 Two frontends over one Firebase backend. Both are Firestore-direct clients
