@@ -1,8 +1,8 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated, Dimensions, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View,
+  Animated, Dimensions, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, StyleSheet, View,
 } from 'react-native';
-import { colors, radius, space } from '@/theme';
+import { colors, radius, shadow, space } from '@/theme';
 
 const OFFSCREEN = Dimensions.get('window').height;
 
@@ -13,24 +13,35 @@ interface Props {
 }
 
 /**
- * Bottom sheet with a **fade-in-place** dim backdrop and a slide-up panel.
+ * Bottom sheet with a **fade-in-place** dim backdrop and a spring slide-up
+ * panel, dismissible by dragging the grab handle down.
  *
  * RN `<Modal animationType="slide">` slides the WHOLE modal — backdrop
- * included — up from the bottom, so the dim reads as a grey rectangle climbing
- * the screen instead of covering it (the "weird backdrop" the meal EntrySheet
- * was rebuilt to avoid). This drives one `Animated.Value`: the backdrop's
- * opacity fades and the sheet's translateY slides, independently, so the dim
- * stays full-screen and still. Mounted through the exit animation so it
- * doesn't pop.
+ * included — so the dim reads as a grey rectangle climbing the screen instead
+ * of covering it (the "weird backdrop" the meal EntrySheet was rebuilt to
+ * avoid). `anim` (0..1) drives the backdrop's opacity and the sheet's base
+ * translateY independently; `drag` adds the finger's live offset on top.
+ * Mounted through the exit animation so it doesn't pop. Built on the RN
+ * Animated API (native driver) — proven smooth in these modals; see
+ * lib/motion.tsx for the Reanimated primitives used elsewhere.
  */
 export function BottomSheet({ visible, onClose, children }: Props) {
   const [mounted, setMounted] = useState(visible);
   const anim = useRef(new Animated.Value(0)).current;
+  const drag = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
       setMounted(true);
-      Animated.timing(anim, { toValue: 1, duration: 240, useNativeDriver: true }).start();
+      drag.setValue(0);
+      Animated.spring(anim, {
+        toValue: 1,
+        stiffness: 250,
+        damping: 28,
+        mass: 1,
+        overshootClamping: true,
+        useNativeDriver: true,
+      }).start();
     } else if (mounted) {
       Animated.timing(anim, { toValue: 0, duration: 180, useNativeDriver: true }).start(({ finished }) => {
         if (finished) setMounted(false);
@@ -39,13 +50,33 @@ export function BottomSheet({ visible, onClose, children }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
+  // Drag-to-dismiss on the handle strip: follow the finger down, release past
+  // the threshold (or a flick) closes; otherwise spring back into place.
+  // (onClose through a ref — the responder is created once, the prop isn't.)
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (_, g) => drag.setValue(Math.max(0, g.dy)),
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > 120 || g.vy > 0.8) onCloseRef.current();
+        else Animated.spring(drag, { toValue: 0, stiffness: 300, damping: 26, useNativeDriver: true }).start();
+      },
+    }),
+  ).current;
+
   const backdropStyle = useMemo(() => [styles.backdrop, { opacity: anim }], [anim]);
   const sheetStyle = useMemo(
     () => [
       styles.sheet,
-      { transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [OFFSCREEN, 0] }) }] },
+      {
+        transform: [
+          { translateY: Animated.add(anim.interpolate({ inputRange: [0, 1], outputRange: [OFFSCREEN, 0] }), drag) },
+        ],
+      },
     ],
-    [anim],
+    [anim, drag],
   );
 
   return (
@@ -59,7 +90,9 @@ export function BottomSheet({ visible, onClose, children }: Props) {
         pointerEvents="box-none"
       >
         <Animated.View style={sheetStyle}>
-          <View style={styles.handle} />
+          <View style={styles.grabZone} {...pan.panHandlers}>
+            <View style={styles.handle} />
+          </View>
           {children}
         </Animated.View>
       </KeyboardAvoidingView>
@@ -78,6 +111,9 @@ const styles = StyleSheet.create({
     paddingTop: space.sm,
     paddingBottom: space.xxl,
     maxHeight: '94%',
+    ...shadow.e3,
   },
-  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line, marginBottom: space.sm },
+  // Generous touch target around the visual handle for the drag gesture.
+  grabZone: { alignSelf: 'stretch', alignItems: 'center', paddingBottom: space.sm, marginTop: -space.sm, paddingTop: space.sm },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line },
 });

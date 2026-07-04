@@ -1,0 +1,132 @@
+import { type ComponentProps, useEffect } from 'react';
+import { Pressable, StyleSheet, TextInput, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import Animated, {
+  Easing,
+  FadeInUp,
+  LinearTransition,
+  ReduceMotion,
+  useAnimatedProps,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import * as haptics from '@/lib/haptics';
+import { motion } from '@/theme';
+
+/**
+ * Motion primitives — the ONLY place components should get animation behavior
+ * from. Everything here derives its timing from the `motion` tokens in
+ * `theme.ts` and honors the OS reduce-motion setting, so a component that uses
+ * these is accessible and on-system by construction.
+ *
+ * Reanimated works in this Expo SDK 54 setup with zero config: babel-preset-expo
+ * auto-loads `react-native-worklets/plugin` when `react-native-worklets` is
+ * installed (it is). If animations ever silently no-op, clear the Metro cache
+ * (`expo start -c`) before suspecting the code.
+ */
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
+
+/** Staggered fade+rise entrance for the Nth card/row of a screen or list. */
+export function enterUp(index = 0) {
+  return FadeInUp.duration(motion.dur.base)
+    .delay(index * motion.stagger)
+    .easing(Easing.out(Easing.cubic))
+    .reduceMotion(ReduceMotion.System);
+}
+
+/** Spring layout transition for rows that move when siblings are added/removed. */
+export const springLayout = LinearTransition.springify()
+  .damping(motion.spring.gentle.damping)
+  .stiffness(motion.spring.gentle.stiffness)
+  .reduceMotion(ReduceMotion.System);
+
+type PressScaleProps = Omit<ComponentProps<typeof Pressable>, 'style'> & {
+  style?: StyleProp<ViewStyle>;
+  /** Scale while pressed. Default 0.96; use ~0.9 for small pills/chips. */
+  scaleTo?: number;
+  /** Fire haptics.tap() on press (skip when the handler already does). */
+  haptic?: boolean;
+};
+
+/** Pressable that springs down while pressed — the app's standard tactile CTA. */
+export function PressScale({ style, scaleTo = 0.96, haptic = false, onPress, onPressIn, onPressOut, ...rest }: PressScaleProps) {
+  const reduce = useReducedMotion();
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <AnimatedPressable
+      {...rest}
+      style={[style, animatedStyle]}
+      onPressIn={(e) => {
+        if (!reduce) scale.value = withSpring(scaleTo, motion.spring.press);
+        onPressIn?.(e);
+      }}
+      onPressOut={(e) => {
+        scale.value = withSpring(1, motion.spring.press);
+        onPressOut?.(e);
+      }}
+      onPress={(e) => {
+        if (haptic) haptics.tap();
+        onPress?.(e);
+      }}
+    />
+  );
+}
+
+/** Comma-group an integer ("12345" → "12,345"). Worklet — runs on the UI thread. */
+function groupDigits(n: number): string {
+  'worklet';
+  const s = String(Math.abs(Math.round(n)));
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    out += s[i];
+    const fromEnd = s.length - 1 - i;
+    if (fromEnd > 0 && fromEnd % 3 === 0) out += ',';
+  }
+  return (n < 0 ? '−' : '') + out;
+}
+
+type CountUpProps = {
+  value: number;
+  /** Unit appended after the number (e.g. "g"). */
+  suffix?: string;
+  style?: StyleProp<TextStyle>;
+  testID?: string;
+};
+
+/**
+ * Number that counts to `value` when it changes (jumps under reduce motion).
+ * Rendered through a read-only TextInput — the standard Reanimated trick for
+ * updating text from the UI thread without re-rendering React.
+ */
+export function CountUpText({ value, suffix = '', style, testID }: CountUpProps) {
+  const reduce = useReducedMotion();
+  const sv = useSharedValue(value);
+  useEffect(() => {
+    sv.value = reduce
+      ? value
+      : withTiming(value, { duration: motion.dur.slow, easing: Easing.out(Easing.cubic) });
+  }, [value, reduce, sv]);
+  const animatedProps = useAnimatedProps(() => {
+    const text = groupDigits(sv.value) + suffix;
+    return { text, defaultValue: text };
+  });
+  return (
+    <AnimatedTextInput
+      editable={false}
+      underlineColorAndroid="transparent"
+      style={[styles.countUp, style]}
+      animatedProps={animatedProps}
+      testID={testID}
+    />
+  );
+}
+
+const styles = StyleSheet.create({
+  // Kill TextInput's platform padding so it lays out like a <Text>.
+  countUp: { padding: 0, paddingVertical: 0, textAlign: 'center' },
+});

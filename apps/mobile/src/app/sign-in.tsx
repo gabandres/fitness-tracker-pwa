@@ -9,9 +9,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BrandMark } from '@/components/BrandMark';
 import { useAuth } from '@/lib/auth';
 import { type I18nKey, useT } from '@/i18n';
+import { enterUp } from '@/lib/motion';
 import { colors, font, radius, space } from '@/theme';
 
 export default function SignIn() {
@@ -57,10 +60,17 @@ export default function SignIn() {
         style={styles.fill}
       >
         <View style={styles.body}>
-          <Text style={styles.brand}>Macro Log</Text>
-          <Text style={styles.tagline}>{t('signIn.tagline')}</Text>
+          <Animated.View style={styles.hero} entering={enterUp(0)}>
+            <BrandMark />
+          </Animated.View>
+          <Animated.Text style={styles.brand} entering={enterUp(1)}>
+            Macro Log
+          </Animated.Text>
+          <Animated.Text style={styles.tagline} entering={enterUp(2)}>
+            {t('signIn.tagline')}
+          </Animated.Text>
 
-          <View style={styles.form}>
+          <Animated.View style={styles.form} entering={enterUp(3)}>
             <TextInput
               style={styles.input}
               placeholder={t('signIn.email')}
@@ -124,7 +134,7 @@ export default function SignIn() {
                 <Text style={styles.googleButtonText}>{t('signIn.google')}</Text>
               )}
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -149,6 +159,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   fill: { flex: 1 },
   body: { flex: 1, justifyContent: 'center', paddingHorizontal: space.xl },
+  hero: { alignItems: 'center', marginBottom: space.lg },
   brand: { fontSize: font.h1, fontWeight: '800', color: colors.ink, textAlign: 'center' },
   tagline: {
     fontSize: font.body,

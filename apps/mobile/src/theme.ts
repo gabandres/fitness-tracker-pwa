@@ -64,3 +64,49 @@ export const font = {
   small: 13,
   tiny: 11,
 } as const;
+
+/**
+ * Motion tokens — every animation in the app draws from these so timing feels
+ * like one system. `spring.*` are Reanimated `withSpring` configs; `press` is
+ * tight (micro-interaction), `gentle` settles slower (rings, sheets, heroes).
+ * All motion must respect reduce-motion — use the helpers in `lib/motion.tsx`
+ * rather than calling Reanimated directly in components.
+ */
+export const motion = {
+  dur: { fast: 140, base: 240, slow: 450 },
+  /** Per-item delay for staggered list/card entrances. */
+  stagger: 55,
+  spring: {
+    press: { damping: 18, stiffness: 350, mass: 0.6 },
+    gentle: { damping: 18, stiffness: 120, mass: 1 },
+  },
+} as const;
+
+/**
+ * Elevation ramp — warm ink-tinted shadows (a grey shadow on the warm canvas
+ * reads dirty). e1 = resting cards, e2 = raised/overlay chrome, e3 = floating
+ * (FAB, sheets). Each includes the Android `elevation` equivalent.
+ */
+export const shadow = {
+  e1: {
+    shadowColor: '#1c1917',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  e2: {
+    shadowColor: '#1c1917',
+    shadowOpacity: 0.09,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  e3: {
+    shadowColor: '#1c1917',
+    shadowOpacity: 0.16,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+} as const;

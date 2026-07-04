@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureAndShare } from '@/lib/shareCapture';
 import type { DailyLog, LogEntry } from '@macrolog/core';
@@ -14,7 +15,8 @@ import { WhatsNewBanner } from '@/components/WhatsNewBanner';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useToday } from '@/hooks/useToday';
-import { colors, font, radius, space } from '@/theme';
+import { enterUp, PressScale } from '@/lib/motion';
+import { colors, font, radius, shadow, space } from '@/theme';
 
 function todayLabel(): string {
   return new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
@@ -141,12 +143,12 @@ export default function Today() {
 
           <WhatsNewBanner />
 
-          <View style={styles.rings}>
+          <Animated.View style={styles.rings} entering={enterUp(0)}>
             <MacroRing
               testID="calorie-ring"
               progress={calTarget ? calConsumed / calTarget : 0}
               color={calRemaining < 0 ? colors.danger : colors.ring}
-              value={Math.abs(calRemaining).toLocaleString()}
+              value={Math.abs(calRemaining)}
               label={t('today.kcal')}
               sub={calRemaining < 0 ? t('today.over') : t('today.left')}
             />
@@ -154,34 +156,39 @@ export default function Today() {
               testID="protein-ring"
               progress={protTarget ? protConsumed / protTarget : 0}
               color={colors.protein}
-              value={`${protConsumed}g`}
+              value={protConsumed}
+              valueSuffix="g"
               label={t('today.protein')}
               sub={`/ ${protTarget}g`}
             />
-          </View>
+          </Animated.View>
 
-          <View style={styles.statsRow}>
+          <Animated.View style={styles.statsRow} entering={enterUp(1)}>
             <Stat label={t('today.calories')} value={`${calConsumed.toLocaleString()} / ${calTarget.toLocaleString()}`} />
             <Stat label={t('today.carbs')} value={`${summary.totalCarbs}g`} />
             <Stat label={t('today.fat')} value={`${summary.totalFat}g`} />
-          </View>
+          </Animated.View>
 
-          <DailyMetrics
-            water={water}
-            sleep={sleep}
-            fastStartedAt={fastStartedAt}
-            onAddWater={setWater}
-            onSetSleep={setSleep}
-            onStartFast={startFast}
-            onBreakFast={breakFast}
-          />
+          <Animated.View entering={enterUp(2)}>
+            <DailyMetrics
+              water={water}
+              sleep={sleep}
+              fastStartedAt={fastStartedAt}
+              onAddWater={setWater}
+              onSetSleep={setSleep}
+              onStartFast={startFast}
+              onBreakFast={breakFast}
+            />
+          </Animated.View>
 
-          <Text style={styles.sectionTitle}>{t('today.entries')}</Text>
+          <Animated.Text style={styles.sectionTitle} entering={enterUp(3)}>
+            {t('today.entries')}
+          </Animated.Text>
           {todayLogs.length === 0 ? (
-            <View style={styles.empty}>
+            <Animated.View style={styles.empty} entering={enterUp(4)}>
               <Text style={styles.emptyText}>{t('today.emptyTitle')}</Text>
               <Text style={styles.emptyHint}>{t('today.emptyHint')}</Text>
-              <TouchableOpacity
+              <PressScale
                 style={[styles.repeatBtn, repeating && styles.repeatBtnDisabled]}
                 onPress={onRepeatYesterday}
                 disabled={repeating}
@@ -191,8 +198,8 @@ export default function Today() {
                 <Text style={styles.repeatText}>
                   {repeating ? t('common.saving') : t('today.repeatYesterday')}
                 </Text>
-              </TouchableOpacity>
-            </View>
+              </PressScale>
+            </Animated.View>
           ) : (
             <MealEntries logs={todayLogs} onPress={openEdit} />
           )}
@@ -200,9 +207,9 @@ export default function Today() {
         </ScrollView>
       )}
 
-      <TouchableOpacity style={styles.fab} onPress={openAdd} testID="add-food" accessibilityLabel="Add food">
+      <PressScale style={styles.fab} scaleTo={0.9} onPress={openAdd} testID="add-food" accessibilityLabel="Add food">
         <Ionicons name="add" size={28} color={colors.white} />
-      </TouchableOpacity>
+      </PressScale>
 
       <EntrySheet
         visible={sheetOpen}
@@ -257,6 +264,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
     padding: space.lg,
+    ...shadow.e1,
   },
   stat: { alignItems: 'center', flex: 1 },
   statValue: { fontSize: font.body, fontWeight: '700', color: colors.ink },
@@ -299,10 +307,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 5,
+    ...shadow.e3,
   },
 });

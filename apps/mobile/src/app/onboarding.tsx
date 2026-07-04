@@ -11,13 +11,15 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type GoalDirection, computeKcal, computeProtein } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { saveOnboardingV2 } from '@/lib/ledger';
 import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { colors, font, radius, space } from '@/theme';
+import { enterUp, PressScale } from '@/lib/motion';
+import { colors, font, radius, shadow, space } from '@/theme';
 
 const GOALS: { key: GoalDirection; labelKey: I18nKey; hintKey: I18nKey }[] = [
   { key: 'lose', labelKey: 'goal.lose', hintKey: 'goal.loseHint' },
@@ -83,10 +85,14 @@ export default function Onboarding() {
         style={styles.fill}
       >
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-          <Text style={styles.brand}>{isRedo ? t('onboarding.titleEdit') : t('onboarding.titleNew')}</Text>
-          <Text style={styles.tagline}>{t('onboarding.tagline')}</Text>
+          <Animated.Text style={styles.brand} entering={enterUp(0)}>
+            {isRedo ? t('onboarding.titleEdit') : t('onboarding.titleNew')}
+          </Animated.Text>
+          <Animated.Text style={styles.tagline} entering={enterUp(1)}>
+            {t('onboarding.tagline')}
+          </Animated.Text>
 
-          <View style={styles.field}>
+          <Animated.View style={styles.field} entering={enterUp(2)}>
             <Text style={styles.label}>{t('onboarding.currentWeight')}</Text>
             <TextInput
               style={styles.input}
@@ -97,17 +103,17 @@ export default function Onboarding() {
               onChangeText={setWeight}
               testID="onboarding-weight"
             />
-          </View>
+          </Animated.View>
 
-          <View style={styles.field}>
+          <Animated.View style={styles.field} entering={enterUp(3)}>
             <Text style={styles.label}>{t('onboarding.goal')}</Text>
             <View style={styles.goals}>
               {GOALS.map((g) => {
                 const on = goal === g.key;
                 return (
-                  <TouchableOpacity
+                  <PressScale
                     key={g.key}
-                    style={[styles.goal, on && styles.goalOn]}
+                    style={[styles.goal, on ? styles.goalOn : null]}
                     onPress={() => {
                       haptics.tap();
                       setGoal(g.key);
@@ -116,11 +122,11 @@ export default function Onboarding() {
                   >
                     <Text style={[styles.goalLabel, on && styles.goalLabelOn]}>{t(g.labelKey)}</Text>
                     <Text style={[styles.goalHint, on && styles.goalHintOn]}>{t(g.hintKey)}</Text>
-                  </TouchableOpacity>
+                  </PressScale>
                 );
               })}
             </View>
-          </View>
+          </Animated.View>
 
           {goal && goal !== 'maintain' ? (
             <View style={styles.field}>
@@ -138,7 +144,7 @@ export default function Onboarding() {
           ) : null}
 
           {kcal != null && protein != null ? (
-            <View style={styles.preview} testID="onboarding-preview">
+            <Animated.View style={styles.preview} testID="onboarding-preview" entering={enterUp(0)}>
               <Text style={styles.previewTitle}>{t('onboarding.targets')}</Text>
               <View style={styles.previewRow}>
                 <View style={styles.previewStat}>
@@ -151,7 +157,7 @@ export default function Onboarding() {
                 </View>
               </View>
               <Text style={styles.previewNote}>{t('onboarding.refineNote')}</Text>
-            </View>
+            </Animated.View>
           ) : null}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -223,6 +229,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     padding: space.lg,
     gap: space.sm,
+    ...shadow.e1,
   },
   previewTitle: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   previewRow: { flexDirection: 'row', gap: space.xl },

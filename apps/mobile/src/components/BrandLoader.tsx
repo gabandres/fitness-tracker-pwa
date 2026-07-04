@@ -11,8 +11,9 @@ const C = 2 * Math.PI * R;
 /**
  * Branded loading / splash indicator: the coral "macro ring" draws around a
  * faint track and spins, with the wordmark below. Built on react-native-svg +
- * the built-in RN Animated API (native-driver rotate) — NOT Reanimated, which
- * silently no-ops in this Expo-Go SDK-54 setup (see ADR-0012 / EntrySheet).
+ * the built-in RN Animated API (native-driver rotate). (Reanimated DOES work
+ * in this setup — babel-preset-expo auto-wires the worklets plugin; see
+ * lib/motion.tsx — this predates that finding and works fine as-is.)
  * Renders identically on web export, so it stays Playwright-verifiable.
  */
 export function BrandLoader() {

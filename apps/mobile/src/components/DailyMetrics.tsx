@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { colors, font, radius, space } from '@/theme';
+import { PressScale } from '@/lib/motion';
+import { colors, font, radius, shadow, space } from '@/theme';
 
 interface Props {
   water: number;
@@ -56,8 +57,9 @@ export function DailyMetrics({ water, sleep, fastStartedAt, onAddWater, onSetSle
             {fastStartedAt ? elapsedLabel(fastStartedAt, Date.now()) : t('metrics.notFasting')}
           </Text>
         </View>
-        <TouchableOpacity
-          style={[styles.action, fastStartedAt && styles.actionStop]}
+        <PressScale
+          scaleTo={0.92}
+          style={[styles.action, fastStartedAt ? styles.actionStop : null]}
           onPress={() => {
             haptics.tap();
             fastStartedAt ? onBreakFast() : onStartFast();
@@ -67,7 +69,7 @@ export function DailyMetrics({ water, sleep, fastStartedAt, onAddWater, onSetSle
           <Text style={[styles.actionText, fastStartedAt && styles.actionTextStop]}>
             {fastStartedAt ? t('metrics.end') : t('metrics.startFast')}
           </Text>
-        </TouchableOpacity>
+        </PressScale>
       </View>
 
       <View style={styles.divider} />
@@ -80,19 +82,19 @@ export function DailyMetrics({ water, sleep, fastStartedAt, onAddWater, onSetSle
         </View>
         <View style={styles.waterBtns}>
           {water > 0 ? (
-            <TouchableOpacity style={styles.pill} onPress={() => { haptics.tap(); onAddWater(Math.max(0, water - 8)); }} testID="water-minus">
+            <PressScale scaleTo={0.88} style={styles.pill} onPress={() => { haptics.tap(); onAddWater(Math.max(0, water - 8)); }} testID="water-minus">
               <Text style={styles.pillText}>−8</Text>
-            </TouchableOpacity>
+            </PressScale>
           ) : null}
-          <TouchableOpacity style={styles.pill} onPress={() => { haptics.tap(); onAddWater(water + 8); }} testID="water-plus-8">
+          <PressScale scaleTo={0.88} style={styles.pill} onPress={() => { haptics.tap(); onAddWater(water + 8); }} testID="water-plus-8">
             <Text style={styles.pillText}>+8</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.pill} onPress={() => { haptics.tap(); onAddWater(water + 16); }} testID="water-plus-16">
+          </PressScale>
+          <PressScale scaleTo={0.88} style={styles.pill} onPress={() => { haptics.tap(); onAddWater(water + 16); }} testID="water-plus-16">
             <Text style={styles.pillText}>+16</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.pill} onPress={() => { haptics.tap(); onAddWater(water + 24); }} testID="water-plus-24">
+          </PressScale>
+          <PressScale scaleTo={0.88} style={styles.pill} onPress={() => { haptics.tap(); onAddWater(water + 24); }} testID="water-plus-24">
             <Text style={styles.pillText}>+24</Text>
-          </TouchableOpacity>
+          </PressScale>
         </View>
       </View>
 
@@ -104,9 +106,9 @@ export function DailyMetrics({ water, sleep, fastStartedAt, onAddWater, onSetSle
           <Text style={styles.label}>{t('metrics.sleep')}</Text>
           <Text style={styles.value}>{sleep != null ? `${sleep}h` : '—'}</Text>
         </View>
-        <TouchableOpacity style={styles.action} onPress={() => setSleepOpen(true)} testID="sleep-open">
+        <PressScale scaleTo={0.92} style={styles.action} onPress={() => { haptics.tap(); setSleepOpen(true); }} testID="sleep-open">
           <Text style={styles.actionText}>{sleep != null ? t('metrics.edit') : t('metrics.log')}</Text>
-        </TouchableOpacity>
+        </PressScale>
       </View>
 
       <SleepModal
@@ -186,6 +188,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     paddingHorizontal: space.lg,
     paddingVertical: space.sm,
+    ...shadow.e1,
   },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.sm },
   left: { gap: 2 },

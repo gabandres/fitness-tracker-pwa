@@ -5,6 +5,7 @@ import {
   Dimensions,
   Keyboard,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   StyleSheet,
@@ -31,7 +32,7 @@ import { RecipeBuilder } from '@/components/RecipeBuilder';
 import { useLocale, useT } from '@/i18n';
 import { starterFoods } from '@/lib/starterFoods';
 import * as haptics from '@/lib/haptics';
-import { colors, font, radius, space } from '@/theme';
+import { colors, font, radius, shadow, space } from '@/theme';
 
 interface Props {
   visible: boolean;
@@ -162,10 +163,20 @@ export function EntrySheet({
     };
   }, []);
 
+  const drag = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     if (visible) {
       setMounted(true);
-      Animated.timing(anim, { toValue: 1, duration: 240, useNativeDriver: true }).start();
+      drag.setValue(0);
+      Animated.spring(anim, {
+        toValue: 1,
+        stiffness: 250,
+        damping: 28,
+        mass: 1,
+        overshootClamping: true,
+        useNativeDriver: true,
+      }).start();
     } else if (mounted) {
       Animated.timing(anim, { toValue: 0, duration: 180, useNativeDriver: true }).start(({ finished }) => {
         if (finished) setMounted(false);
@@ -174,13 +185,39 @@ export function EntrySheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
+  // Drag-to-dismiss on the handle strip: follow the finger, release past the
+  // threshold (or a flick) closes, otherwise spring back. Confined to the
+  // handle so it can't fight the search list's scroll or the keyboard.
+  // (onClose through a ref — the responder is created once, the prop isn't.)
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (_, g) => drag.setValue(Math.max(0, g.dy)),
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > 120 || g.vy > 0.8) onCloseRef.current();
+        else Animated.spring(drag, { toValue: 0, stiffness: 300, damping: 26, useNativeDriver: true }).start();
+      },
+    }),
+  ).current;
+
   const backdropStyle = useMemo(() => [styles.backdrop, { opacity: anim }], [anim]);
   const sheetStyle = useMemo(
     () => [
       styles.sheet,
-      { transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [SHEET_OFFSCREEN, 0] }) }] },
+      {
+        transform: [
+          {
+            translateY: Animated.add(
+              anim.interpolate({ inputRange: [0, 1], outputRange: [SHEET_OFFSCREEN, 0] }),
+              drag,
+            ),
+          },
+        ],
+      },
     ],
-    [anim],
+    [anim, drag],
   );
 
   // Reset form + mode whenever the sheet (re)opens.
@@ -491,7 +528,9 @@ export function EntrySheet({
       </Animated.View>
       <View style={styles.sheetWrap} pointerEvents="box-none">
         <Animated.View style={[sheetStyle, { paddingBottom: kbHeight > 0 ? kbHeight + space.sm : space.xxl }]}>
-          <View style={styles.handle} />
+          <View style={styles.grabZone} {...pan.panHandlers}>
+            <View style={styles.handle} />
+          </View>
 
             {mode === 'browse' ? (
               <FoodSearch
@@ -647,8 +686,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xl,
     paddingTop: space.sm,
     maxHeight: '94%',
+    ...shadow.e3,
   },
-  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line, marginBottom: space.sm },
+  // Generous touch target around the visual handle for the drag gesture.
+  grabZone: { alignSelf: 'stretch', alignItems: 'center', paddingBottom: space.sm, marginTop: -space.sm, paddingTop: space.sm },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line },
   // browse
   browse: { gap: space.lg, paddingTop: space.sm },
   group: { gap: space.xs },

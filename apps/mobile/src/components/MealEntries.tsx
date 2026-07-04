@@ -1,7 +1,9 @@
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeOut } from 'react-native-reanimated';
 import { type DailyLog, type MealSlot, groupByMealSlot } from '@macrolog/core';
 import { type I18nKey, useT } from '@/i18n';
-import { colors, font, radius, space } from '@/theme';
+import { enterUp, PressScale, springLayout } from '@/lib/motion';
+import { colors, font, radius, shadow, space } from '@/theme';
 
 const SLOT_KEY: Record<MealSlot, I18nKey> = {
   breakfast: 'meal.breakfast',
@@ -34,6 +36,10 @@ export function MealEntries({ logs, onPress }: { logs: DailyLog[]; onPress: (log
   const groups = groupByMealSlot(logs);
   const showHeaders = groups.length > 1 || (groups[0]?.slot !== 'other');
 
+  // Rows fade+rise in with a stagger (index counted across groups so the
+  // whole list reads as one cascade), spring into place when a sibling is
+  // added/removed, and fade out on delete.
+  let row = 0;
   return (
     <View style={styles.wrap}>
       {groups.map((g) => (
@@ -47,13 +53,15 @@ export function MealEntries({ logs, onPress }: { logs: DailyLog[]; onPress: (log
           {g.entries.map((log) => {
             const sub = [timeOf(log.date), macroLine(log)].filter(Boolean).join('  ·  ');
             return (
-              <TouchableOpacity key={log.id} style={styles.entry} onPress={() => onPress(log)} testID={`entry-${log.id}`}>
-                <View style={styles.entryMain}>
-                  <Text style={styles.entryLabel}>{log.mealLabel || t('today.entry')}</Text>
-                  <Text style={styles.entryMacros}>{sub || '—'}</Text>
-                </View>
-                <Text style={styles.entryKcal}>{log.calories.toLocaleString()}</Text>
-              </TouchableOpacity>
+              <Animated.View key={log.id} entering={enterUp(row++)} exiting={FadeOut} layout={springLayout}>
+                <PressScale scaleTo={0.98} style={styles.entry} onPress={() => onPress(log)} testID={`entry-${log.id}`}>
+                  <View style={styles.entryMain}>
+                    <Text style={styles.entryLabel}>{log.mealLabel || t('today.entry')}</Text>
+                    <Text style={styles.entryMacros}>{sub || '—'}</Text>
+                  </View>
+                  <Text style={styles.entryKcal}>{log.calories.toLocaleString()}</Text>
+                </PressScale>
+              </Animated.View>
             );
           })}
         </View>
@@ -78,6 +86,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
+    ...shadow.e1,
   },
   entryMain: { flex: 1, gap: 2 },
   entryLabel: { fontSize: font.body, fontWeight: '600', color: colors.ink },

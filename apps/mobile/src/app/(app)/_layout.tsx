@@ -1,7 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { useT } from '@/i18n';
+import * as haptics from '@/lib/haptics';
 import { colors } from '@/theme';
+
+/** Tab icon that swaps to its filled variant when active — reads as "lit up"
+ *  without a custom tab bar. */
+function icon(outline: keyof typeof Ionicons.glyphMap, filled: keyof typeof Ionicons.glyphMap) {
+  return ({ color, size, focused }: { color: string; size: number; focused: boolean }) => (
+    <Ionicons name={focused ? filled : outline} color={color} size={size} />
+  );
+}
 
 export default function AppTabsLayout() {
   const t = useT();
@@ -13,41 +22,27 @@ export default function AppTabsLayout() {
         tabBarInactiveTintColor: colors.faint,
         tabBarStyle: { backgroundColor: colors.paper, borderTopColor: colors.line },
       }}
+      screenListeners={{ tabPress: () => haptics.tap() }}
     >
       <Tabs.Screen
         name="index"
-        options={{
-          title: t('nav.today'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="today-outline" color={color} size={size} />,
-        }}
+        options={{ title: t('nav.today'), tabBarIcon: icon('today-outline', 'today') }}
       />
       <Tabs.Screen
         name="history"
-        options={{
-          title: t('nav.history'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" color={color} size={size} />,
-        }}
+        options={{ title: t('nav.history'), tabBarIcon: icon('calendar-outline', 'calendar') }}
       />
       <Tabs.Screen
         name="train"
-        options={{
-          title: t('nav.train'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="barbell-outline" color={color} size={size} />,
-        }}
+        options={{ title: t('nav.train'), tabBarIcon: icon('barbell-outline', 'barbell') }}
       />
       <Tabs.Screen
         name="trends"
-        options={{
-          title: t('nav.trends'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="trending-up-outline" color={color} size={size} />,
-        }}
+        options={{ title: t('nav.trends'), tabBarIcon: icon('trending-up-outline', 'trending-up') }}
       />
       <Tabs.Screen
         name="body"
-        options={{
-          title: t('nav.body'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="body-outline" color={color} size={size} />,
-        }}
+        options={{ title: t('nav.body'), tabBarIcon: icon('body-outline', 'body') }}
       />
       {/* Reachable via the Today header gear; hidden from the tab bar. */}
       <Tabs.Screen name="settings" options={{ href: null }} />
