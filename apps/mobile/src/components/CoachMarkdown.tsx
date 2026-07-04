@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, font, space } from '@/theme';
+import { useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, space } from '@/theme';
 
 /**
  * A deliberately small Markdown renderer for the coach's streamed answer. The
@@ -11,7 +12,7 @@ import { colors, font, space } from '@/theme';
  */
 
 /** Render `**bold**` spans inline; everything else is plain text. */
-function inline(text: string): React.ReactNode {
+function inline(text: string, styles: ReturnType<typeof createStyles>): React.ReactNode {
   const parts = text.split(/(\*\*[^*]+\*\*)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
@@ -26,6 +27,7 @@ function inline(text: string): React.ReactNode {
 }
 
 export function CoachMarkdown({ text }: { text: string }): React.ReactElement {
+  const styles = useThemedStyles(createStyles);
   const lines = text.split('\n');
   return (
     <View>
@@ -38,7 +40,7 @@ export function CoachMarkdown({ text }: { text: string }): React.ReactElement {
         if (heading) {
           return (
             <Text key={i} style={styles.heading}>
-              {inline(heading[2])}
+              {inline(heading[2], styles)}
             </Text>
           );
         }
@@ -49,7 +51,7 @@ export function CoachMarkdown({ text }: { text: string }): React.ReactElement {
           return (
             <View key={i} style={styles.listRow}>
               <Text style={styles.bulletMark}>•</Text>
-              <Text style={styles.listText}>{inline(bullet[1])}</Text>
+              <Text style={styles.listText}>{inline(bullet[1], styles)}</Text>
             </View>
           );
         }
@@ -60,14 +62,14 @@ export function CoachMarkdown({ text }: { text: string }): React.ReactElement {
           return (
             <View key={i} style={styles.listRow}>
               <Text style={styles.bulletMark}>{numbered[1]}.</Text>
-              <Text style={styles.listText}>{inline(numbered[2])}</Text>
+              <Text style={styles.listText}>{inline(numbered[2], styles)}</Text>
             </View>
           );
         }
 
         return (
           <Text key={i} style={styles.paragraph}>
-            {inline(line)}
+            {inline(line, styles)}
           </Text>
         );
       })}
@@ -75,7 +77,7 @@ export function CoachMarkdown({ text }: { text: string }): React.ReactElement {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   gap: { height: space.sm },
   heading: {
     fontSize: font.h3,

@@ -68,7 +68,7 @@ export function BottomSheet({ visible, onClose, children }: Props) {
     }),
   ).current;
 
-  const backdropStyle = useMemo(() => [styles.backdrop, { opacity: anim }], [anim]);
+  const backdropStyle = useMemo(() => [styles.backdrop, { opacity: anim }], [anim, styles.backdrop]);
   const sheetStyle = useMemo(
     () => [
       styles.sheet,
@@ -78,7 +78,7 @@ export function BottomSheet({ visible, onClose, children }: Props) {
         ],
       },
     ],
-    [anim, drag],
+    [anim, drag, styles.sheet],
   );
 
   return (

@@ -114,11 +114,6 @@ export const palettes = {
   dark: { colors: dark, shadow: darkShadow },
 } as const;
 
-// TRANSITIONAL (do not add new import sites): static light palette for
-// screens not yet converted to `useTheme()`. Every remaining importer is
-// Tier-2 work (ADR-0014). Delete both once the last import is gone.
-export const colors = light;
-export const shadow = lightShadow;
 
 export const space = {
   xs: 4,

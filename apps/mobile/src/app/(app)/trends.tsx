@@ -9,7 +9,8 @@ import { WeeklyReportCard } from '@/components/WeeklyReportCard';
 import { useTrends } from '@/hooks/useTrends';
 import { useSubscription } from '@/lib/subscription';
 import { type I18nKey, useT } from '@/i18n';
-import { colors, font, radius, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
 function dayLabel(dateKey: string): string {
   return parseYmd(dateKey).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
@@ -27,6 +28,8 @@ const TDEE_MODE: Record<TdeeResult['source'], { labelKey: I18nKey; hintKey: I18n
 
 export default function Trends() {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const router = useRouter();
   const { loading, error, insights, tdee, targetCalories, weightSeries, budget } = useTrends();
   const { isPro } = useSubscription();
@@ -70,7 +73,7 @@ export default function Trends() {
 
           {/* AI coach — free (server-side 3/day quota); grounded in the log. */}
           <TouchableOpacity style={styles.coachBtn} onPress={() => router.push('/coach' as Href)} testID="coach-entry">
-            <Ionicons name="sparkles-outline" size={18} color={colors.white} />
+            <Ionicons name="sparkles-outline" size={18} color={colors.onInk} />
             <Text style={styles.coachBtnText}>{t('coach.entry')}</Text>
           </TouchableOpacity>
 
@@ -204,7 +207,7 @@ export default function Trends() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   title: { fontSize: font.h1, fontWeight: '800', color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -237,11 +240,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: space.md,
   },
-  coachBtnText: { color: colors.white, fontSize: font.body, fontWeight: '700' },
+  coachBtnText: { color: colors.onInk, fontSize: font.body, fontWeight: '700' },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   badge: { backgroundColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: 2 },
-  badgeText: { color: colors.white, fontSize: font.tiny, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  badgeText: { color: colors.onInk, fontSize: font.tiny, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   bigValue: { fontSize: font.h1, fontWeight: '800', color: colors.ink },
   hint: { fontSize: font.small, color: colors.muted },
   sub: { fontSize: font.tiny, color: colors.faint, marginTop: 2 },

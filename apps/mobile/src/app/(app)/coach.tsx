@@ -20,7 +20,8 @@ import { useAuth } from '@/lib/auth';
 import { CoachErrorCode, type CoachError, streamCoach } from '@/lib/coach';
 import { type I18nKey, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { colors, font, radius, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
 type Status = 'idle' | 'streaming' | 'done' | 'error';
 
@@ -42,6 +43,8 @@ function errorKey(code: string | undefined): I18nKey {
 
 export default function Coach() {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const locale = useLocale();
   const router = useRouter();
   const { user } = useAuth();
@@ -152,7 +155,7 @@ export default function Coach() {
             testID="coach-ask"
           >
             {streaming ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color={colors.onInk} />
             ) : (
               <Text style={styles.askText}>{t('coach.ask')}</Text>
             )}
@@ -178,7 +181,7 @@ export default function Coach() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   fill: { flex: 1 },
   header: {
@@ -200,7 +203,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     paddingHorizontal: space.md,
     paddingVertical: space.xs,
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
   },
   chipText: { fontSize: font.small, color: colors.ink },
   input: {
@@ -211,7 +214,7 @@ const styles = StyleSheet.create({
     marginTop: space.lg,
     fontSize: font.body,
     color: colors.ink,
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
     minHeight: 88,
     textAlignVertical: 'top',
   },
@@ -223,7 +226,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   askBtnOff: { opacity: 0.4 },
-  askText: { color: colors.white, fontSize: font.body, fontWeight: '700' },
+  askText: { color: colors.onInk, fontSize: font.body, fontWeight: '700' },
   reply: { marginTop: space.xl },
   replyStamp: {
     fontSize: font.tiny,

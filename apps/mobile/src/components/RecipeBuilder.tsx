@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { colors, font, radius, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
 export interface RecipeEstimate {
   calories: number;
@@ -34,6 +35,8 @@ function num(s: string): number | null {
  *  preset" on the prefilled form is the reuse path. */
 export function RecipeBuilder({ onApply, onCancel }: Props) {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const [name, setName] = useState('');
   const [servings, setServings] = useState('1');
   const [ingredients, setIngredients] = useState<Ingredient[]>([
@@ -183,7 +186,7 @@ export function RecipeBuilder({ onApply, onCancel }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   wrap: { minHeight: 320, gap: space.sm },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: font.h3, color: colors.ink, fontWeight: '800' },
@@ -196,7 +199,7 @@ const styles = StyleSheet.create({
   colDel: { width: 24, alignItems: 'center' },
   ingRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginBottom: space.xs },
   input: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.md,
@@ -216,5 +219,5 @@ const styles = StyleSheet.create({
   perValue: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
   apply: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center', marginTop: space.sm },
   applyDisabled: { opacity: 0.4 },
-  applyText: { color: colors.white, fontWeight: '700', fontSize: font.h3 },
+  applyText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
 });

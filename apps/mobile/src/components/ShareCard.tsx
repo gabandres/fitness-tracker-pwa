@@ -1,7 +1,11 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { type ShareStats, shareStatItems } from '@macrolog/core';
 import { type I18nKey, useT } from '@/i18n';
-import { colors, font, radius, space } from '@/theme';
+import { font, palettes, radius, space } from '@/theme';
+
+// Deliberately NOT theme-reactive: the captured share image keeps one fixed
+// brand look (light Frost) no matter what scheme the sharer's phone is in.
+const colors = palettes.light.colors;
 
 const LABEL: Record<'streak' | 'days' | 'lost' | 'gained', I18nKey> = {
   streak: 'today.shareStreak',

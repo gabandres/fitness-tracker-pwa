@@ -7,7 +7,8 @@ import { useSubscription } from '@/lib/subscription';
 import { ReportErrorCode } from '@/lib/weeklyReport';
 import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { colors, font, radius, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
 function errorKey(code: string | null): I18nKey | null {
   switch (code) {
@@ -29,6 +30,8 @@ function errorKey(code: string | null): I18nKey | null {
  */
 export function WeeklyReportCard(): React.ReactElement {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const { isPro } = useSubscription();
   const { report, generating, errorCode, generate } = useWeeklyReport();
 
@@ -68,7 +71,7 @@ export function WeeklyReportCard(): React.ReactElement {
             testID="report-generate"
           >
             {generating ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color={colors.onInk} />
             ) : (
               <Text style={styles.btnText}>{t(report ? 'report.regenerate' : 'report.generate')}</Text>
             )}
@@ -79,7 +82,7 @@ export function WeeklyReportCard(): React.ReactElement {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   wrap: { marginTop: space.lg },
   head: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginBottom: space.sm },
   section: { fontSize: font.h3, fontWeight: '700', color: colors.ink },
@@ -111,5 +114,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   btnOff: { opacity: 0.5 },
-  btnText: { color: colors.white, fontSize: font.body, fontWeight: '700' },
+  btnText: { color: colors.onInk, fontSize: font.body, fontWeight: '700' },
 });

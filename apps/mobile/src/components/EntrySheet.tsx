@@ -205,7 +205,7 @@ export function EntrySheet({
     }),
   ).current;
 
-  const backdropStyle = useMemo(() => [styles.backdrop, { opacity: anim }], [anim]);
+  const backdropStyle = useMemo(() => [styles.backdrop, { opacity: anim }], [anim, styles.backdrop]);
   const sheetStyle = useMemo(
     () => [
       styles.sheet,
@@ -220,7 +220,7 @@ export function EntrySheet({
         ],
       },
     ],
-    [anim, drag],
+    [anim, drag, styles.sheet],
   );
 
   // Reset form + mode whenever the sheet (re)opens.

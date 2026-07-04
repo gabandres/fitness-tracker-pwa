@@ -6,7 +6,8 @@ import type { FoodSource } from '@macrolog/core';
 import { type BarcodeResult, lookupProduct } from '@/lib/barcode';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { colors, font, radius, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
 export interface BarcodeEstimate {
   calories: number;
@@ -37,6 +38,8 @@ interface Props {
  *  fires once. */
 export function BarcodeScanner({ visible, onClose, onPick }: Props) {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -120,7 +123,7 @@ export function BarcodeScanner({ visible, onClose, onPick }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xl, gap: space.md },

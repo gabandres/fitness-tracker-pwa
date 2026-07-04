@@ -7,7 +7,8 @@ import { type DaySummary, localDateKey, monthGrid, parseYmd } from '@macrolog/co
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { useHistory } from '@/hooks/useHistory';
 import { useT } from '@/i18n';
-import { colors, font, radius, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
 // Narrow weekday letters, locale-aware (Jan 1 2023 was a Sunday).
 const WEEKDAYS = Array.from({ length: 7 }, (_, i) =>
@@ -20,6 +21,8 @@ function dayLabel(dateKey: string): string {
 
 export default function HistoryCalendar() {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const { loading, error, days } = useHistory();
   const router = useRouter();
   // A date within the viewed month; starts on the current month.
@@ -137,7 +140,7 @@ export default function HistoryCalendar() {
 
 const CELL = `${100 / 7}%`;
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   title: { fontSize: font.h1, fontWeight: '800', color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },

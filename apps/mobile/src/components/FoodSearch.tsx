@@ -11,7 +11,8 @@ import {
 } from '@/lib/foodSearch';
 import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { colors, font, radius, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
 /** What the user picked — prefills the manual entry form. */
 export interface FoodEstimate {
@@ -53,6 +54,8 @@ type Phase = 'idle' | 'searching' | 'results' | 'detail-loading' | 'portion-pick
  *  back into the manual form for review. */
 export function FoodSearch({ unitSystem = 'us', onPick, onCancel, headerRight, emptyContent }: Props) {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const [query, setQuery] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [hits, setHits] = useState<FoodSearchHit[]>([]);
@@ -233,12 +236,12 @@ function messageKey(e: unknown): I18nKey {
   return code === 'food_api_not_configured' ? 'food.notConfigured' : 'food.failed';
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   wrap: { minHeight: 320, gap: space.sm },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   search: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.md,
@@ -269,7 +272,7 @@ const styles = StyleSheet.create({
   stepper: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   step: {
     width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.line,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.inputBg,
   },
   stepText: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },
   multValue: { fontSize: font.body, color: colors.ink, fontWeight: '700', minWidth: 44, textAlign: 'center' },

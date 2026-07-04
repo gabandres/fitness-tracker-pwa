@@ -8,7 +8,8 @@ import {
 import { getFoodDetail, searchFoods } from '@/lib/foodSearch';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { colors, font, radius, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
 /** One resolved, editable draft row. Numeric fields stay strings so partial
  *  input binds cleanly (the decimal-input gotcha); parsed only on add. */
@@ -55,6 +56,8 @@ function numOrUndef(s: string): number | undefined {
  */
 export function MealText({ forDate, onAddMany, onCancel }: Props) {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const [query, setQuery] = useState('');
   const [phase, setPhase] = useState<Phase>('input');
   const [rows, setRows] = useState<DraftRow[]>([]);
@@ -219,7 +222,7 @@ export function MealText({ forDate, onAddMany, onCancel }: Props) {
         testID="mealtext-parse"
       >
         {phase === 'resolving' ? (
-          <ActivityIndicator color={colors.white} />
+          <ActivityIndicator color={colors.onInk} />
         ) : (
           <Text style={styles.addText}>{t('mealText.parse')}</Text>
         )}
@@ -229,6 +232,8 @@ export function MealText({ forDate, onAddMany, onCancel }: Props) {
 }
 
 function MacroField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   return (
     <View style={styles.macroField}>
       <Text style={styles.macroLabel}>{label}</Text>
@@ -244,13 +249,13 @@ function MacroField({ label, value, onChange }: { label: string; value: string; 
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   wrap: { minHeight: 320, gap: space.sm },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   back: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
   hint: { fontSize: font.small, color: colors.muted },
   input: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.md,
@@ -279,7 +284,7 @@ const styles = StyleSheet.create({
   macroField: { flex: 1, gap: 2 },
   macroLabel: { fontSize: font.tiny, color: colors.muted, textAlign: 'center' },
   macroInput: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.sm,
@@ -290,5 +295,5 @@ const styles = StyleSheet.create({
   },
   add: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center', marginTop: space.sm },
   addDisabled: { opacity: 0.4 },
-  addText: { color: colors.white, fontWeight: '700', fontSize: font.h3 },
+  addText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
 });

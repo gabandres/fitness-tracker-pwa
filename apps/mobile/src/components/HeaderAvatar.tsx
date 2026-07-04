@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
 import { Image, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { useAuth } from '@/lib/auth';
-import { colors, font } from '@/theme';
+import { useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font } from '@/theme';
 
 /** Initials from a display name or email — "Ana Ruiz" → "AR", "e2e@x" → "E2". */
 function initials(name: string | null | undefined): string {
@@ -22,6 +23,7 @@ function initials(name: string | null | undefined): string {
  */
 export function HeaderAvatar() {
   const { user } = useAuth();
+  const styles = useThemedStyles(createStyles);
   const photo = user?.photoURL ?? null;
   const label = user?.displayName || user?.email || null;
 
@@ -43,7 +45,7 @@ export function HeaderAvatar() {
 }
 
 const SIZE = 34;
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   img: { width: SIZE, height: SIZE, borderRadius: SIZE / 2, borderWidth: 1, borderColor: colors.line },
   initials: {
     width: SIZE,

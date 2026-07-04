@@ -19,7 +19,8 @@ import { useBody } from '@/hooks/useBody';
 import { usePhotos } from '@/hooks/usePhotos';
 import { type I18nKey, type TFn, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { colors, font, radius, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
 function dayLabel(dateKey: string): string {
   return parseYmd(dateKey).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
@@ -56,6 +57,8 @@ export default function Body() {
     goalProgress,
   } = useBody();
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const photos = usePhotos();
   const [open, setOpen] = useState(false);
   const [measureOpen, setMeasureOpen] = useState(false);
@@ -278,6 +281,8 @@ function MeasurementModal({
   onClose: () => void;
 }) {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const [vals, setVals] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
@@ -356,6 +361,8 @@ function WeightModal({
   onClose: () => void;
 }) {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -408,7 +415,7 @@ function WeightModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, scheme }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   title: { fontSize: font.h1, fontWeight: '800', color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
@@ -428,7 +435,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: space.md,
   },
-  logBtnText: { color: colors.white, fontWeight: '700', fontSize: font.h3 },
+  logBtnText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
   trendCard: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
@@ -498,7 +505,7 @@ const styles = StyleSheet.create({
   },
   rowDate: { fontSize: font.body, color: colors.muted },
   rowWeight: { fontSize: font.body, fontWeight: '700', color: colors.ink },
-  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' },
+  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.35)' },
   sheetWrap: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: colors.paper,
@@ -513,7 +520,7 @@ const styles = StyleSheet.create({
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   input: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.md,
@@ -525,5 +532,5 @@ const styles = StyleSheet.create({
   inputUnit: { fontSize: font.h3, color: colors.muted },
   save: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center', marginTop: space.lg },
   saveDisabled: { opacity: 0.4 },
-  saveText: { color: colors.white, fontWeight: '700', fontSize: font.h3 },
+  saveText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
 });

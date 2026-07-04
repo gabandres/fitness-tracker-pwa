@@ -39,7 +39,8 @@ import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { Sparkline } from '@/components/Sparkline';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { colors, font, radius, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
 const LOG_STYLES: { value: LogStyle; labelKey: I18nKey }[] = [
   { value: 'weight-reps', labelKey: 'logStyle.weightReps' },
@@ -57,6 +58,8 @@ const SET_KINDS: { value: WorkoutSet['kind']; labelKey: I18nKey }[] = [
 
 export default function Train() {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const train = useTrain();
 
   return (
@@ -81,6 +84,7 @@ export default function Train() {
 // ─── Idle: start button + templates + history ───────────────────
 function StartView({ train }: { train: ReturnType<typeof useTrain> }) {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
   // null = closed; a template = edit it; {} = create new.
   const [editing, setEditing] = useState<WorkoutTemplate | Record<string, never> | null>(null);
   const [detailEx, setDetailEx] = useState<Exercise | null>(null);
@@ -216,6 +220,7 @@ function StarterTemplatesModal({
   onClose: () => void;
 }) {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
   const es = useLocale() === 'es-PR';
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
@@ -330,6 +335,8 @@ function ExerciseDetailModal({
   onClose: () => void;
 }) {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const [mode, setMode] = useState<'view' | 'edit' | 'merge'>('view');
   const [confirmDel, setConfirmDel] = useState(false);
   const [editName, setEditName] = useState('');
@@ -532,6 +539,7 @@ function ExerciseDetailModal({
 }
 
 function PrCard({ label, value }: { label: string; value: string }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.prCard}>
       <Text style={styles.prValue}>{value}</Text>
@@ -562,6 +570,7 @@ function templateSummary(tpl: WorkoutTemplate, t: TFn): string {
 // ─── Active session logger ──────────────────────────────────────
 function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
   const session = train.active!;
   const [addOpen, setAddOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
@@ -696,6 +705,7 @@ function ExerciseCard({
   onSetDone?: (kind: WorkoutSet['kind']) => void;
 }) {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
   const ex = train.active!.exercises[exerciseIndex];
   const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
   const [panelOpen, setPanelOpen] = useState(false);
@@ -863,6 +873,8 @@ function SetRow({
   );
   const [rir, setRir] = useState(set.rir != null ? String(set.rir) : '');
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const [kindOpen, setKindOpen] = useState(false);
 
   const commit = () => train.commitActive();
@@ -988,6 +1000,8 @@ function AddExerciseModal({
   onClose: () => void;
 }) {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const [name, setName] = useState('');
   const [logStyle, setLogStyle] = useState<LogStyle>('weight-reps');
 
@@ -1081,6 +1095,8 @@ function FinishModal({
   onClose: () => void;
 }) {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const [bodyweight, setBodyweight] = useState('');
   const [sleep, setSleep] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1169,6 +1185,8 @@ function TemplateEditorModal({
   onClose: () => void;
 }) {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
   const [exercises, setExercises] = useState<DraftEx[]>([]);
@@ -1398,7 +1416,7 @@ function TemplateEditorModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, scheme }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   title: { fontSize: font.h1, fontWeight: '800', color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
@@ -1408,7 +1426,7 @@ const styles = StyleSheet.create({
   empty: { fontSize: font.small, color: colors.muted },
   sectionTitle: { fontSize: font.h3, fontWeight: '700', color: colors.ink, marginTop: space.sm },
   startBtn: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },
-  startBtnText: { color: colors.white, fontWeight: '700', fontSize: font.h3 },
+  startBtnText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
   list: { gap: space.sm },
   histRow: {
     flexDirection: 'row',
@@ -1456,15 +1474,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingHorizontal: space.sm,
     paddingVertical: space.xs,
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
   },
   kindChipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   kindChipText: { fontSize: font.tiny, color: colors.muted, fontWeight: '600' },
-  kindChipTextOn: { color: colors.white },
+  kindChipTextOn: { color: colors.onInk },
   setInputCell: { width: 62, textAlign: 'center' },
   setRirCell: { width: 40, textAlign: 'center' },
   setInput: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.sm,
@@ -1481,11 +1499,11 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
   },
   doneBoxOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   doneCheck: { color: colors.line, fontWeight: '800' },
-  doneCheckOn: { color: colors.white },
+  doneCheckOn: { color: colors.onInk },
   setDel: { paddingHorizontal: space.xs },
   setDelText: { color: colors.danger, fontSize: font.small, fontWeight: '700' },
   addSetRow: { flexDirection: 'row', gap: space.xl },
@@ -1498,7 +1516,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: space.md,
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
   },
   addExText: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   footerBtns: { flexDirection: 'row', gap: space.md, marginTop: space.sm },
@@ -1512,9 +1530,9 @@ const styles = StyleSheet.create({
   },
   discardText: { color: colors.danger, fontWeight: '700', fontSize: font.body },
   finishBtn: { flex: 1, backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },
-  finishText: { color: colors.white, fontWeight: '700', fontSize: font.h3 },
+  finishText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
   // modal
-  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' },
+  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.35)' },
   sheetWrap: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: colors.paper,
@@ -1531,7 +1549,7 @@ const styles = StyleSheet.create({
   sheetHint: { fontSize: font.small, color: colors.muted },
   sheetEmpty: { fontSize: font.small, color: colors.muted, paddingVertical: space.lg, textAlign: 'center' },
   input: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.md,
@@ -1548,11 +1566,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: space.sm,
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
   },
   styleChipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   styleChipText: { fontSize: font.tiny, color: colors.muted, fontWeight: '600' },
-  styleChipTextOn: { color: colors.white },
+  styleChipTextOn: { color: colors.onInk },
   createRow: { paddingVertical: space.sm },
   createText: { fontSize: font.body, color: colors.accent, fontWeight: '700' },
   catalogList: { maxHeight: 220 },
@@ -1596,7 +1614,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
   },
-  tplStartText: { color: colors.white, fontWeight: '700', fontSize: font.small },
+  tplStartText: { color: colors.onInk, fontWeight: '700', fontSize: font.small },
   // template editor
   notesInput: { minHeight: 56, textAlignVertical: 'top' },
   tplExRow: {
@@ -1612,7 +1630,7 @@ const styles = StyleSheet.create({
   tplExMeta: { fontSize: font.tiny, color: colors.muted },
   tplLoadInput: {
     width: 56,
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.sm,
@@ -1630,7 +1648,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
   },
   stepBtnText: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
   stepCount: { width: 20, textAlign: 'center', fontSize: font.small, color: colors.ink, fontWeight: '700' },
@@ -1672,9 +1690,9 @@ const styles = StyleSheet.create({
     paddingVertical: space.md,
     marginTop: space.sm,
   },
-  restLabel: { color: colors.white, fontWeight: '800', fontSize: font.body },
+  restLabel: { color: colors.onInk, fontWeight: '800', fontSize: font.body },
   restActions: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
-  restPlus: { color: colors.white, fontWeight: '700', fontSize: font.small, opacity: 0.85 },
+  restPlus: { color: colors.onInk, fontWeight: '700', fontSize: font.small, opacity: 0.85 },
   restSkip: { color: colors.ring, fontWeight: '800', fontSize: font.small, textTransform: 'uppercase', letterSpacing: 0.5 },
   // exercise library + detail
   exLibRow: {

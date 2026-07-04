@@ -9,10 +9,13 @@ import { MealEntries } from '@/components/MealEntries';
 import { useHistory } from '@/hooks/useHistory';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { colors, font, radius, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
 export default function DayDetail() {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const { date } = useLocalSearchParams<{ date: string }>();
   const dateKey = String(date);
   const router = useRouter();
@@ -92,7 +95,7 @@ export default function DayDetail() {
 
       {!loading ? (
         <TouchableOpacity style={styles.fab} onPress={openAdd} testID="add-food-day" activeOpacity={0.85}>
-          <Ionicons name="add" size={28} color={colors.white} />
+          <Ionicons name="add" size={28} color={colors.onInk} />
         </TouchableOpacity>
       ) : null}
 
@@ -115,6 +118,7 @@ export default function DayDetail() {
 }
 
 function Total({ label, value }: { label: string; value: string }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.total}>
       <Text style={styles.totalValue}>{value}</Text>
@@ -123,7 +127,7 @@ function Total({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   header: {
     flexDirection: 'row',

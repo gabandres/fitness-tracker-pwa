@@ -3,7 +3,8 @@ import { useRouter } from 'expo-router';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { colors, font, radius, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
 /**
  * Inline "this is a Pro feature" card. Shown in place of a gated surface for
@@ -13,6 +14,8 @@ import { colors, font, radius, space } from '@/theme';
 export function ProUpsell({ feature }: { feature: string }) {
   const t = useT();
   const router = useRouter();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   return (
     <TouchableOpacity
       style={styles.card}
@@ -36,7 +39,7 @@ export function ProUpsell({ feature }: { feature: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   card: {
     backgroundColor: colors.accentSoft,
     borderRadius: radius.lg,

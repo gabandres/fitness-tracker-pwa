@@ -18,7 +18,8 @@ import { useAuth } from '@/lib/auth';
 import { saveRefinedTargets } from '@/lib/ledger';
 import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { colors, font, radius, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
 const ACTIVITY: { value: ActivityLevel; labelKey: I18nKey }[] = [
   { value: 'sedentary', labelKey: 'activity.sedentary' },
@@ -37,6 +38,8 @@ function intOrNull(s: string): number | null {
 
 export default function RefineTargets() {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const router = useRouter();
   const { user, profile } = useAuth();
 
@@ -143,7 +146,7 @@ export default function RefineTargets() {
                     testID={`refine-activity-${a.value}`}
                   >
                     <Text style={[styles.activityText, on && styles.activityTextOn]}>{t(a.labelKey)}</Text>
-                    {on ? <Ionicons name="checkmark" size={18} color={colors.white} /> : null}
+                    {on ? <Ionicons name="checkmark" size={18} color={colors.onInk} /> : null}
                   </TouchableOpacity>
                 );
               })}
@@ -170,7 +173,7 @@ export default function RefineTargets() {
 
         <View style={styles.footer}>
           <TouchableOpacity style={[styles.save, !canSave && styles.saveDisabled]} onPress={onSave} disabled={!canSave} testID="refine-save">
-            {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.saveText}>{t('refine.save')}</Text>}
+            {busy ? <ActivityIndicator color={colors.onInk} /> : <Text style={styles.saveText}>{t('refine.save')}</Text>}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -178,7 +181,7 @@ export default function RefineTargets() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   fill: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.lg, paddingVertical: space.md },
@@ -188,14 +191,14 @@ const styles = StyleSheet.create({
   field: { gap: space.xs },
   label: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   segment: { flexDirection: 'row', gap: space.sm },
-  segBtn: { flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, paddingVertical: space.md, alignItems: 'center', backgroundColor: colors.white },
+  segBtn: { flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, paddingVertical: space.md, alignItems: 'center', backgroundColor: colors.inputBg },
   segBtnOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   segText: { fontSize: font.body, color: colors.muted, fontWeight: '600' },
-  segTextOn: { color: colors.white },
+  segTextOn: { color: colors.onInk },
   row: { flexDirection: 'row', gap: space.md },
   unitInput: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm },
   input: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.md,
@@ -217,18 +220,18 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
   },
   activityRowOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   activityText: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
-  activityTextOn: { color: colors.white },
+  activityTextOn: { color: colors.onInk },
   paceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  step: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white },
+  step: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.inputBg },
   stepText: { fontSize: font.h2, color: colors.ink, fontWeight: '700' },
   paceValue: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },
   error: { color: colors.danger, fontSize: font.small },
   footer: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.lg, borderTopWidth: 1, borderTopColor: colors.line },
   save: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },
   saveDisabled: { opacity: 0.4 },
-  saveText: { color: colors.white, fontWeight: '700', fontSize: font.h3 },
+  saveText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
 });

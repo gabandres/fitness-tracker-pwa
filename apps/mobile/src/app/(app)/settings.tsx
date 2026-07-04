@@ -13,7 +13,8 @@ import { useSubscription } from '@/lib/subscription';
 import { DEFAULT_REMINDER_HOUR, getReminder, setReminder } from '@/lib/reminders';
 import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { colors, font, radius, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
 /** "8 PM" / "12 PM" / "12 AM" from a 0–23 hour. */
 function hourLabel(h: number): string {
@@ -52,6 +53,8 @@ async function readCsvText(uri: string): Promise<string> {
 
 export default function Settings() {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors, preference, setPreference } = useTheme();
   const locale = useLocale();
   const { user, profile, signOut } = useAuth();
   const { isPro, proPreview, setProPreview } = useSubscription();
@@ -245,7 +248,7 @@ export default function Settings() {
                 ))}
               </View>
               <TouchableOpacity style={[styles.exportBtn, styles.proUnlockBtn]} disabled testID="pro-unlock">
-                <Ionicons name="lock-open-outline" size={16} color={colors.white} />
+                <Ionicons name="lock-open-outline" size={16} color={colors.onInk} />
                 <Text style={styles.exportBtnText}>{t('pro.unlock')} · {t('pro.unlockSoon')}</Text>
               </TouchableOpacity>
             </>
@@ -274,7 +277,7 @@ export default function Settings() {
             disabled={!user}
             testID="settings-invite"
           >
-            <Ionicons name="share-outline" size={16} color={colors.white} />
+            <Ionicons name="share-outline" size={16} color={colors.onInk} />
             <Text style={styles.exportBtnText}>{t('settings.inviteShare')}</Text>
           </TouchableOpacity>
           {referralRewardUntil ? (
@@ -300,6 +303,35 @@ export default function Settings() {
                   <Text style={[styles.segmentText, on && styles.segmentTextOn]}>
                     {u === 'us' ? t('settings.unitUs') : t('settings.unitMetric')}
                   </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <Text style={styles.section}>{t('settings.appearance')}</Text>
+        <View style={styles.card}>
+          <Text style={styles.rowLabel}>{t('settings.theme')}</Text>
+          <View style={styles.segment}>
+            {(
+              [
+                { value: 'system', labelKey: 'settings.themeSystem' },
+                { value: 'light', labelKey: 'settings.themeLight' },
+                { value: 'dark', labelKey: 'settings.themeDark' },
+              ] as const
+            ).map((opt) => {
+              const on = preference === opt.value;
+              return (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[styles.segmentBtn, on && styles.segmentBtnOn]}
+                  onPress={() => {
+                    haptics.tap();
+                    setPreference(opt.value);
+                  }}
+                  testID={`settings-theme-${opt.value}`}
+                >
+                  <Text style={[styles.segmentText, on && styles.segmentTextOn]}>{t(opt.labelKey)}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -381,7 +413,7 @@ export default function Settings() {
               disabled={exporting}
               testID="settings-export"
             >
-              <Ionicons name="download-outline" size={16} color={colors.white} />
+              <Ionicons name="download-outline" size={16} color={colors.onInk} />
               <Text style={styles.exportBtnText}>
                 {exporting ? t('settings.exportPreparing') : t('settings.exportButton')}
               </Text>
@@ -396,7 +428,7 @@ export default function Settings() {
               <Text style={styles.rowValue}>{t('settings.importSub')}</Text>
             </View>
             <TouchableOpacity style={styles.exportBtn} onPress={pickImport} testID="settings-import">
-              <Ionicons name="cloud-upload-outline" size={16} color={colors.white} />
+              <Ionicons name="cloud-upload-outline" size={16} color={colors.onInk} />
               <Text style={styles.exportBtnText}>{t('settings.importButton')}</Text>
             </TouchableOpacity>
           </View>
@@ -461,7 +493,7 @@ export default function Settings() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   header: {
     flexDirection: 'row',
@@ -512,7 +544,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md,
   },
   exportBtnDisabled: { opacity: 0.5 },
-  exportBtnText: { color: colors.white, fontWeight: '700', fontSize: font.small },
+  exportBtnText: { color: colors.onInk, fontWeight: '700', fontSize: font.small },
   exportMsg: { fontSize: font.small, color: colors.muted, marginTop: space.sm },
   proActiveRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   proActive: { fontSize: font.body, color: colors.good, fontWeight: '700' },
@@ -534,15 +566,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: space.md,
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
   },
   segmentBtnOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   segmentText: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
-  segmentTextOn: { color: colors.white },
+  segmentTextOn: { color: colors.onInk },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   step: {
     width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.line,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.inputBg,
   },
   stepText: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },
   hourValue: { fontSize: font.body, color: colors.ink, fontWeight: '700', minWidth: 56, textAlign: 'center' },

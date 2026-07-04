@@ -4,13 +4,16 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { WHATS_NEW_VERSION, getWhatsNewSeen, markWhatsNewSeen } from '@/lib/whatsNew';
-import { colors, font, radius, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
 /** One-time "what's new" card on Today. Shows until dismissed, then the seen
  *  version is stored (AsyncStorage) so it stays hidden until WHATS_NEW_VERSION
  *  is bumped. Renders nothing while loading or once dismissed. */
 export function WhatsNewBanner() {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const [show, setShow] = useState(false);
 
   useEffect(() => {
@@ -49,7 +52,7 @@ export function WhatsNewBanner() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'flex-start',
