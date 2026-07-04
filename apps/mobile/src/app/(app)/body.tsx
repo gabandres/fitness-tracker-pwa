@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type Measurement, parseYmd } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
@@ -19,8 +20,9 @@ import { useBody } from '@/hooks/useBody';
 import { usePhotos } from '@/hooks/usePhotos';
 import { type I18nKey, type TFn, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
+import { CountUpText, enterUp, usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, type } from '@/theme';
 
 function dayLabel(dateKey: string): string {
   return parseYmd(dateKey).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
@@ -66,6 +68,21 @@ export default function Body() {
   const [showAllMeasures, setShowAllMeasures] = useState(false);
   const MEASURE_PREVIEW = 4;
 
+  // Celebration (ADR-0014): crossing the goal weight bounces the hero panel
+  // once with a success haptic. Crossing-only (null-first ref), so an
+  // already-reached goal doesn't celebrate every visit.
+  const [goalPulse, triggerGoalPulse] = usePulse(1.05);
+  const prevRemaining = useRef<number | null>(null);
+  useEffect(() => {
+    const rem = goalProgress?.remaining;
+    if (rem == null) return;
+    if (prevRemaining.current !== null && prevRemaining.current > 0 && rem <= 0) {
+      haptics.success();
+      triggerGoalPulse();
+    }
+    prevRemaining.current = rem;
+  }, [goalProgress?.remaining, triggerGoalPulse]);
+
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.headerRow}>
@@ -80,58 +97,62 @@ export default function Body() {
         <ScrollView contentContainerStyle={styles.body}>
           {error ? <Text style={styles.error}>{t('body.loadErr')}</Text> : null}
 
-          <View style={styles.hero}>
-            <Text style={styles.heroValue} testID="current-weight">
-              {currentWeight != null ? `${currentWeight}` : '—'}
+          <Animated.View style={[styles.heroPanel, goalPulse]} entering={enterUp(0)} testID="body-hero">
+            <View style={styles.hero}>
+              {currentWeight != null ? (
+                <CountUpText value={currentWeight} decimals={1} style={styles.heroValue} testID="current-weight" />
+              ) : (
+                <Text style={styles.heroValue} testID="current-weight">—</Text>
+              )}
+              <Text style={styles.heroUnit}>lb</Text>
+            </View>
+            <Text style={styles.heroCaption}>
+              {todayWeight != null ? t('body.todayWeighIn') : t('body.recentWeight')}
             </Text>
-            <Text style={styles.heroUnit}>lb</Text>
-          </View>
-          <Text style={styles.heroCaption}>
-            {todayWeight != null ? t('body.todayWeighIn') : t('body.recentWeight')}
-          </Text>
 
-          {weightSeries.length >= 2 ? (
-            <View style={styles.chartWrap} testID="weight-chart">
-              <Sparkline values={weightSeries} projection={projectedSeries} width={300} height={64} color={colors.ink} />
-            </View>
-          ) : null}
-
-          {goalProgress ? (
-            <View style={styles.goalCard} testID="goal-card">
-              <View style={styles.goalHead}>
-                <Text style={styles.goalStart}>{goalProgress.startWeight.toFixed(1)} lb</Text>
-                <Text style={styles.goalPct}>{goalProgress.pct}%</Text>
-                <Text style={styles.goalEnd}>{goalProgress.goalWeight.toFixed(1)} lb</Text>
+            {weightSeries.length >= 2 ? (
+              <View style={styles.chartWrap} testID="weight-chart">
+                <Sparkline values={weightSeries} projection={projectedSeries} width={300} height={64} color={colors.ring} />
               </View>
-              <View style={styles.goalTrack}>
-                <View style={[styles.goalFill, { width: `${goalProgress.pct}%` }]} />
-              </View>
-              <Text style={styles.goalRemaining}>
-                {goalProgress.remaining > 0
-                  ? t('body.goalRemaining', { n: goalProgress.remaining.toFixed(1) })
-                  : t('body.goalReached')}
-              </Text>
-            </View>
-          ) : null}
+            ) : null}
 
-          <TouchableOpacity style={styles.logBtn} onPress={() => setOpen(true)} testID="log-weight">
-            <Text style={styles.logBtnText}>{todayWeight != null ? t('body.updateWeight') : t('body.logWeight')}</Text>
-          </TouchableOpacity>
-
-          {projection ? (
-            <View style={styles.trendCard} testID="trend-card">
-              <View style={styles.trendRow}>
-                <Text style={styles.trendLabel}>{t('body.trend')}</Text>
-                <Text style={styles.trendValue}>{trendLabel(projection.slopeLbPerWeek, t)}</Text>
+            {projection ? (
+              <View style={styles.trendChips} testID="trend-card">
+                <Text style={styles.trendChip}>
+                  {t('body.trend')}  <Text style={styles.trendChipValue}>{trendLabel(projection.slopeLbPerWeek, t)}</Text>
+                </Text>
+                {projection.goalDateKey ? (
+                  <Text style={styles.trendChip}>
+                    {t('body.goalPace')}  <Text style={styles.trendChipValue}>{goalEtaLabel(projection.goalDateKey)}</Text>
+                  </Text>
+                ) : null}
               </View>
-              {projection.goalDateKey ? (
-                <View style={styles.trendRow}>
-                  <Text style={styles.trendLabel}>{t('body.goalPace')}</Text>
-                  <Text style={styles.trendValue}>{goalEtaLabel(projection.goalDateKey)}</Text>
+            ) : null}
+
+            {goalProgress ? (
+              <View style={styles.goalWrap} testID="goal-card">
+                <View style={styles.goalHead}>
+                  <Text style={styles.goalStart}>{goalProgress.startWeight.toFixed(1)} lb</Text>
+                  <Text style={styles.goalPct}>{goalProgress.pct}%</Text>
+                  <Text style={styles.goalEnd}>{goalProgress.goalWeight.toFixed(1)} lb</Text>
                 </View>
-              ) : null}
-            </View>
-          ) : null}
+                <View style={styles.goalTrack}>
+                  <View style={[styles.goalFill, { width: `${goalProgress.pct}%` }]} />
+                </View>
+                <Text style={styles.goalRemaining}>
+                  {goalProgress.remaining > 0
+                    ? t('body.goalRemaining', { n: goalProgress.remaining.toFixed(1) })
+                    : t('body.goalReached')}
+                </Text>
+              </View>
+            ) : null}
+          </Animated.View>
+
+          <Animated.View entering={enterUp(1)}>
+            <TouchableOpacity style={styles.logBtn} onPress={() => setOpen(true)} testID="log-weight">
+              <Text style={styles.logBtnText}>{todayWeight != null ? t('body.updateWeight') : t('body.logWeight')}</Text>
+            </TouchableOpacity>
+          </Animated.View>
 
           <View style={styles.bfCard} testID="bodyfat-card">
             <View>
@@ -415,19 +436,42 @@ function WeightModal({
   );
 }
 
-const createStyles = ({ colors, scheme }: Theme) => StyleSheet.create({
+const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
-  title: { fontSize: font.h1, fontWeight: '800', color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
+  title: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
   showMore: { paddingVertical: space.sm, alignItems: 'center' },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   body: { padding: space.xl, gap: space.md },
   error: { color: colors.danger, fontSize: font.small },
-  hero: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: space.xs, marginTop: space.lg },
-  heroValue: { fontSize: 56, fontWeight: '800', color: colors.ink, lineHeight: 60 },
-  heroUnit: { fontSize: font.h2, color: colors.muted, marginBottom: space.sm },
-  heroCaption: { textAlign: 'center', color: colors.muted, fontSize: font.small },
-  chartWrap: { alignItems: 'center', marginTop: space.md },
+  // Hero panel — the Today skeleton (ADR-0014 §7): shared dark canvas so the
+  // coral trend line glows identically in both themes.
+  heroPanel: {
+    backgroundColor: colors.heroPanel,
+    borderRadius: radius.xl,
+    paddingVertical: space.xl,
+    paddingHorizontal: space.lg,
+    alignItems: 'center',
+    gap: space.sm,
+    ...shadow.e2,
+  },
+  hero: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: space.xs },
+  heroValue: { fontFamily: type.display, fontSize: 56, color: colors.heroText, lineHeight: 60 },
+  heroUnit: { fontSize: font.h2, color: colors.heroMuted, marginBottom: space.sm },
+  heroCaption: { textAlign: 'center', color: colors.heroMuted, fontSize: font.small },
+  chartWrap: { alignItems: 'center', marginTop: space.xs },
+  trendChips: { flexDirection: 'row', gap: space.sm, flexWrap: 'wrap', justifyContent: 'center' },
+  trendChip: {
+    fontSize: font.small,
+    color: colors.heroMuted,
+    backgroundColor: colors.heroTrack,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.md,
+    paddingVertical: space.xs,
+    overflow: 'hidden',
+  },
+  trendChipValue: { color: colors.heroText, fontFamily: type.heading },
+  goalWrap: { alignSelf: 'stretch', gap: space.sm, marginTop: space.xs },
   logBtn: {
     backgroundColor: colors.ink,
     borderRadius: radius.md,
@@ -436,35 +480,14 @@ const createStyles = ({ colors, scheme }: Theme) => StyleSheet.create({
     marginTop: space.md,
   },
   logBtnText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
-  trendCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    paddingHorizontal: space.lg,
-    paddingVertical: space.sm,
-    marginTop: space.md,
-  },
-  trendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.xs },
-  trendLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
-  trendValue: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
-  goalCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    padding: space.lg,
-    marginTop: space.md,
-    gap: space.sm,
-  },
   goalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  goalStart: { fontSize: font.small, color: colors.muted },
-  goalPct: { fontSize: font.body, color: colors.ink, fontWeight: '800' },
-  goalEnd: { fontSize: font.small, color: colors.muted },
-  goalTrack: { height: 8, borderRadius: radius.pill, backgroundColor: colors.line, overflow: 'hidden' },
-  goalFill: { height: '100%', borderRadius: radius.pill, backgroundColor: colors.accent },
-  goalRemaining: { fontSize: font.small, color: colors.muted, textAlign: 'center' },
-  sectionTitle: { fontSize: font.h3, fontWeight: '700', color: colors.ink, marginTop: space.md },
+  goalStart: { fontSize: font.small, color: colors.heroMuted },
+  goalPct: { fontSize: font.body, color: colors.heroText, fontFamily: type.heading },
+  goalEnd: { fontSize: font.small, color: colors.heroMuted },
+  goalTrack: { height: 8, borderRadius: radius.pill, backgroundColor: colors.heroTrack, overflow: 'hidden' },
+  goalFill: { height: '100%', borderRadius: radius.pill, backgroundColor: colors.ring },
+  goalRemaining: { fontSize: font.small, color: colors.heroMuted, textAlign: 'center' },
+  sectionTitle: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink, marginTop: space.md },
   empty: { fontSize: font.small, color: colors.muted },
   bfCard: {
     flexDirection: 'row',
@@ -480,7 +503,7 @@ const createStyles = ({ colors, scheme }: Theme) => StyleSheet.create({
   },
   bfLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   bfHint: { fontSize: font.tiny, color: colors.faint, marginTop: 2 },
-  bfValue: { fontSize: font.h1, fontWeight: '800', color: colors.ink },
+  bfValue: { fontFamily: type.display, fontSize: font.h1, color: colors.ink },
   measureHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.md },
   addLink: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
   addLinkDisabled: { color: colors.faint },

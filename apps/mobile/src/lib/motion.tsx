@@ -94,21 +94,25 @@ export function usePulse(scaleTo = 1.25) {
   return [style, trigger] as const;
 }
 
-/** Comma-group an integer ("12345" → "12,345"). Worklet — runs on the UI thread. */
-function groupDigits(n: number): string {
+/** Format with comma grouping and fixed decimals ("12345.67", 1 → "12,345.7").
+ *  Worklet — runs on the UI thread. */
+function formatNumber(n: number, decimals: number): string {
   'worklet';
-  const s = String(Math.abs(Math.round(n)));
+  const fixed = Math.abs(n).toFixed(decimals);
+  const [int, frac] = fixed.split('.');
   let out = '';
-  for (let i = 0; i < s.length; i++) {
-    out += s[i];
-    const fromEnd = s.length - 1 - i;
+  for (let i = 0; i < int.length; i++) {
+    out += int[i];
+    const fromEnd = int.length - 1 - i;
     if (fromEnd > 0 && fromEnd % 3 === 0) out += ',';
   }
-  return (n < 0 ? '−' : '') + out;
+  return (n < 0 ? '−' : '') + out + (frac ? '.' + frac : '');
 }
 
 type CountUpProps = {
   value: number;
+  /** Fraction digits to render (default 0 — integers). */
+  decimals?: number;
   /** Unit appended after the number (e.g. "g"). */
   suffix?: string;
   style?: StyleProp<TextStyle>;
@@ -120,7 +124,7 @@ type CountUpProps = {
  * Rendered through a read-only TextInput — the standard Reanimated trick for
  * updating text from the UI thread without re-rendering React.
  */
-export function CountUpText({ value, suffix = '', style, testID }: CountUpProps) {
+export function CountUpText({ value, decimals = 0, suffix = '', style, testID }: CountUpProps) {
   const reduce = useReducedMotion();
   const sv = useSharedValue(value);
   useEffect(() => {
@@ -129,7 +133,7 @@ export function CountUpText({ value, suffix = '', style, testID }: CountUpProps)
       : withTiming(value, { duration: motion.dur.slow, easing: Easing.out(Easing.cubic) });
   }, [value, reduce, sv]);
   const animatedProps = useAnimatedProps(() => {
-    const text = groupDigits(sv.value) + suffix;
+    const text = formatNumber(sv.value, decimals) + suffix;
     return { text, defaultValue: text };
   });
   return (
