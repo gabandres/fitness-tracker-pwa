@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { colors } from '@/theme';
+import { useTheme } from '@/lib/theme-context';
 
 /** Tab icon that swaps to its filled variant when active — reads as "lit up"
  *  without a custom tab bar. */
@@ -14,6 +14,7 @@ function icon(outline: keyof typeof Ionicons.glyphMap, filled: keyof typeof Ioni
 
 export default function AppTabsLayout() {
   const t = useT();
+  const { colors } = useTheme();
   return (
     <Tabs
       screenOptions={{

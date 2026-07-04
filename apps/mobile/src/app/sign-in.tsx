@@ -15,10 +15,13 @@ import { BrandMark } from '@/components/BrandMark';
 import { useAuth } from '@/lib/auth';
 import { type I18nKey, useT } from '@/i18n';
 import { enterUp } from '@/lib/motion';
-import { colors, font, radius, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space, type } from '@/theme';
 
 export default function SignIn() {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const { signIn, signInWithGoogle, googleAvailable } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -109,7 +112,7 @@ export default function SignIn() {
               accessibilityRole="button"
             >
               {busy ? (
-                <ActivityIndicator color={colors.white} />
+                <ActivityIndicator color={colors.onInk} />
               ) : (
                 <Text style={styles.buttonText}>{t('signIn.submit')}</Text>
               )}
@@ -155,12 +158,12 @@ function errorKey(e: unknown): I18nKey {
   return 'signIn.errGeneric';
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   fill: { flex: 1 },
   body: { flex: 1, justifyContent: 'center', paddingHorizontal: space.xl },
   hero: { alignItems: 'center', marginBottom: space.lg },
-  brand: { fontSize: font.h1, fontWeight: '800', color: colors.ink, textAlign: 'center' },
+  brand: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, textAlign: 'center' },
   tagline: {
     fontSize: font.body,
     color: colors.muted,
@@ -170,7 +173,7 @@ const styles = StyleSheet.create({
   },
   form: { gap: space.md },
   input: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.md,
@@ -188,12 +191,12 @@ const styles = StyleSheet.create({
     marginTop: space.sm,
   },
   buttonBusy: { opacity: 0.7 },
-  buttonText: { color: colors.white, fontSize: font.h3, fontWeight: '700' },
+  buttonText: { color: colors.onInk, fontSize: font.h3, fontWeight: '700' },
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginVertical: space.xs },
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.line },
   dividerText: { color: colors.faint, fontSize: font.small },
   googleButton: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.md,

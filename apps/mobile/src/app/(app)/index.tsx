@@ -8,7 +8,7 @@ import type { DailyLog, LogEntry } from '@macrolog/core';
 import { DailyMetrics } from '@/components/DailyMetrics';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { EntrySheet } from '@/components/EntrySheet';
-import { MacroRing } from '@/components/MacroRing';
+import { HeroRings } from '@/components/HeroRings';
 import { MealEntries } from '@/components/MealEntries';
 import { ShareCard } from '@/components/ShareCard';
 import { WhatsNewBanner } from '@/components/WhatsNewBanner';
@@ -16,7 +16,8 @@ import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useToday } from '@/hooks/useToday';
 import { enterUp, PressScale } from '@/lib/motion';
-import { colors, font, radius, shadow, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space, type } from '@/theme';
 
 function todayLabel(): string {
   return new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
@@ -24,6 +25,8 @@ function todayLabel(): string {
 
 export default function Today() {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const {
     loading,
     error,
@@ -78,12 +81,6 @@ export default function Today() {
     }
   }
   const [editing, setEditing] = useState<DailyLog | null>(null);
-
-  const calTarget = targets.calorieTarget || 0;
-  const calConsumed = summary.totalCalories;
-  const calRemaining = calTarget - calConsumed;
-  const protConsumed = summary.totalProtein;
-  const protTarget = targets.proteinTarget || 0;
 
   function openAdd() {
     haptics.tap();
@@ -143,33 +140,18 @@ export default function Today() {
 
           <WhatsNewBanner />
 
-          <Animated.View style={styles.rings} entering={enterUp(0)}>
-            <MacroRing
-              testID="calorie-ring"
-              progress={calTarget ? calConsumed / calTarget : 0}
-              color={calRemaining < 0 ? colors.danger : colors.ring}
-              value={Math.abs(calRemaining)}
-              label={t('today.kcal')}
-              sub={calRemaining < 0 ? t('today.over') : t('today.left')}
-            />
-            <MacroRing
-              testID="protein-ring"
-              progress={protTarget ? protConsumed / protTarget : 0}
-              color={colors.protein}
-              value={protConsumed}
-              valueSuffix="g"
-              label={t('today.protein')}
-              sub={`/ ${protTarget}g`}
+          <Animated.View entering={enterUp(0)}>
+            <HeroRings
+              calConsumed={summary.totalCalories}
+              calTarget={targets.calorieTarget || 0}
+              protConsumed={summary.totalProtein}
+              protTarget={targets.proteinTarget || 0}
+              carbs={summary.totalCarbs}
+              fat={summary.totalFat}
             />
           </Animated.View>
 
-          <Animated.View style={styles.statsRow} entering={enterUp(1)}>
-            <Stat label={t('today.calories')} value={`${calConsumed.toLocaleString()} / ${calTarget.toLocaleString()}`} />
-            <Stat label={t('today.carbs')} value={`${summary.totalCarbs}g`} />
-            <Stat label={t('today.fat')} value={`${summary.totalFat}g`} />
-          </Animated.View>
-
-          <Animated.View entering={enterUp(2)}>
+          <Animated.View entering={enterUp(1)}>
             <DailyMetrics
               water={water}
               sleep={sleep}
@@ -181,11 +163,11 @@ export default function Today() {
             />
           </Animated.View>
 
-          <Animated.Text style={styles.sectionTitle} entering={enterUp(3)}>
+          <Animated.Text style={styles.sectionTitle} entering={enterUp(2)}>
             {t('today.entries')}
           </Animated.Text>
           {todayLogs.length === 0 ? (
-            <Animated.View style={styles.empty} entering={enterUp(4)}>
+            <Animated.View style={styles.empty} entering={enterUp(3)}>
               <Text style={styles.emptyText}>{t('today.emptyTitle')}</Text>
               <Text style={styles.emptyHint}>{t('today.emptyHint')}</Text>
               <PressScale
@@ -208,7 +190,7 @@ export default function Today() {
       )}
 
       <PressScale style={styles.fab} scaleTo={0.9} onPress={openAdd} testID="add-food" accessibilityLabel="Add food">
-        <Ionicons name="add" size={28} color={colors.white} />
+        <Ionicons name="add" size={30} color={colors.white} />
       </PressScale>
 
       <EntrySheet
@@ -231,82 +213,47 @@ export default function Today() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.stat}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
+function createStyles({ colors, shadow }: Theme) {
+  return StyleSheet.create({
+    screen: { flex: 1, backgroundColor: colors.paper },
+    fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      paddingHorizontal: space.xl,
+      paddingTop: space.md,
+      paddingBottom: space.sm,
+    },
+    title: { fontFamily: type.display, fontSize: font.h1, color: colors.ink },
+    date: { fontSize: font.body, color: colors.muted, marginTop: 2 },
+    body: { paddingHorizontal: space.xl, gap: space.lg },
+    error: { color: colors.danger, fontSize: font.small },
+    sectionTitle: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
+    empty: { alignItems: 'center', paddingVertical: space.xl, gap: space.xs },
+    emptyText: { fontSize: font.body, color: colors.muted, fontWeight: '600' },
+    emptyHint: { fontSize: font.small, color: colors.faint },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+    shareCapture: { position: 'absolute', left: -10000, top: 0, opacity: 0 },
+    streakChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3 },
+    streakFlame: { fontSize: font.small },
+    streakNum: { fontSize: font.small, fontWeight: '800', color: colors.ink },
+    repeatBtn: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginTop: space.sm, borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.lg, paddingVertical: space.sm },
+    repeatBtnDisabled: { opacity: 0.5 },
+    repeatText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
+    // The coral log action — becomes the tab bar's center Log button in the
+    // nav restructure; the color is already the brand's.
+    fab: {
+      position: 'absolute',
+      right: space.xl,
+      bottom: space.xl,
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      backgroundColor: colors.ring,
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...shadow.e3,
+    },
+  });
 }
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.paper },
-  fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    paddingHorizontal: space.xl,
-    paddingTop: space.md,
-    paddingBottom: space.sm,
-  },
-  title: { fontSize: font.h1, fontWeight: '800', color: colors.ink },
-  date: { fontSize: font.body, color: colors.muted, marginTop: 2 },
-  body: { paddingHorizontal: space.xl, gap: space.lg },
-  error: { color: colors.danger, fontSize: font.small },
-  rings: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: space.md },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    padding: space.lg,
-    ...shadow.e1,
-  },
-  stat: { alignItems: 'center', flex: 1 },
-  statValue: { fontSize: font.body, fontWeight: '700', color: colors.ink },
-  statLabel: { fontSize: font.tiny, color: colors.muted, marginTop: 2 },
-  sectionTitle: { fontSize: font.h3, fontWeight: '700', color: colors.ink },
-  empty: { alignItems: 'center', paddingVertical: space.xl, gap: space.xs },
-  emptyText: { fontSize: font.body, color: colors.muted, fontWeight: '600' },
-  emptyHint: { fontSize: font.small, color: colors.faint },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  shareCapture: { position: 'absolute', left: -10000, top: 0, opacity: 0 },
-  streakChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3 },
-  streakFlame: { fontSize: font.small },
-  streakNum: { fontSize: font.small, fontWeight: '800', color: colors.ink },
-  repeatBtn: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginTop: space.sm, borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.lg, paddingVertical: space.sm },
-  repeatBtnDisabled: { opacity: 0.5 },
-  repeatText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
-  list: { gap: space.sm },
-  entry: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.card,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    paddingHorizontal: space.lg,
-    paddingVertical: space.md,
-  },
-  entryMain: { flex: 1, gap: 2 },
-  entryLabel: { fontSize: font.body, fontWeight: '600', color: colors.ink },
-  entryMacros: { fontSize: font.small, color: colors.muted },
-  entryKcal: { fontSize: font.body, fontWeight: '700', color: colors.ink, marginLeft: space.md },
-  fab: {
-    position: 'absolute',
-    right: space.xl,
-    bottom: space.xl,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow.e3,
-  },
-});

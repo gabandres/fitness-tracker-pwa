@@ -32,7 +32,8 @@ import { RecipeBuilder } from '@/components/RecipeBuilder';
 import { useLocale, useT } from '@/i18n';
 import { starterFoods } from '@/lib/starterFoods';
 import * as haptics from '@/lib/haptics';
-import { colors, font, radius, shadow, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
 interface Props {
   visible: boolean;
@@ -116,6 +117,8 @@ export function EntrySheet({
 }: Props) {
   const t = useT();
   const locale = useLocale();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   // Which date a saved/relogged entry lands on: the edited row's own date,
   // else local noon on `dateKey` (past-day add), else undefined ("now").
   const forDate = editing?.date ?? (dateKey ? noonOf(dateKey) : undefined);
@@ -663,10 +666,13 @@ export function EntrySheet({
 
 /** Plain text input styled to the sheet — shared look for the custom form. */
 function TextInputBase(props: React.ComponentProps<typeof TextInput>) {
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   return <TextInput style={styles.input} placeholderTextColor={colors.faint} {...props} />;
 }
 
 function Field({ label, children, style }: { label: string; children: React.ReactNode; style?: object }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={[{ gap: space.xs }, style]}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -675,9 +681,9 @@ function Field({ label, children, style }: { label: string; children: React.Reac
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   fill: { flex: 1 },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.35)' },
   sheetWrap: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: colors.paper,
@@ -722,7 +728,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     paddingHorizontal: space.md,
     paddingVertical: space.xs,
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
     maxWidth: '100%',
   },
   starterLabel: { fontSize: font.small, color: colors.ink, fontWeight: '600', flexShrink: 1 },
@@ -736,7 +742,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
   },
   // custom
   customWrap: { flexShrink: 1 },
@@ -747,7 +753,7 @@ const styles = StyleSheet.create({
   third: { flex: 1 },
   fieldLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   input: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.md,
@@ -763,11 +769,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     paddingHorizontal: space.md,
     paddingVertical: space.xs,
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
   },
   chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   chipText: { fontSize: font.small, color: colors.muted, textTransform: 'capitalize' },
-  chipTextOn: { color: colors.white },
+  chipTextOn: { color: colors.onInk },
   savePreset: { alignSelf: 'flex-start', paddingVertical: space.xs },
   savePresetText: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
   dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
@@ -780,5 +786,5 @@ const styles = StyleSheet.create({
   deleteText: { color: colors.danger, fontWeight: '700', fontSize: font.body },
   save: { flex: 1, backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },
   saveDisabled: { opacity: 0.4 },
-  saveText: { color: colors.white, fontWeight: '700', fontSize: font.h3 },
+  saveText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
 });

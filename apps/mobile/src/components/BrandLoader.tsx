@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { colors, font, space } from '@/theme';
+import { useTheme } from '@/lib/theme-context';
+import { font, space, type } from '@/theme';
 
 const SIZE = 76;
 const STROKE = 6;
@@ -17,6 +18,7 @@ const C = 2 * Math.PI * R;
  * Renders identically on web export, so it stays Playwright-verifiable.
  */
 export function BrandLoader() {
+  const { colors } = useTheme();
   const spin = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -52,8 +54,8 @@ export function BrandLoader() {
           />
         </Svg>
       </Animated.View>
-      <Text style={styles.word}>
-        Macro<Text style={styles.wordAccent}> Log</Text>
+      <Text style={[styles.word, { color: colors.ink }]}>
+        Macro<Text style={{ color: colors.accent }}> Log</Text>
       </Text>
     </View>
   );
@@ -61,6 +63,5 @@ export function BrandLoader() {
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', gap: space.lg },
-  word: { fontSize: font.h2, fontWeight: '800', color: colors.ink, letterSpacing: 0.2 },
-  wordAccent: { color: colors.accent },
+  word: { fontFamily: type.display, fontSize: font.h2, letterSpacing: 0.2 },
 });

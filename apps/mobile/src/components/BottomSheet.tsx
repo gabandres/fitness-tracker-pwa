@@ -2,7 +2,8 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated, Dimensions, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, StyleSheet, View,
 } from 'react-native';
-import { colors, radius, shadow, space } from '@/theme';
+import { useThemedStyles, type Theme } from '@/lib/theme-context';
+import { radius, space } from '@/theme';
 
 const OFFSCREEN = Dimensions.get('window').height;
 
@@ -26,6 +27,7 @@ interface Props {
  * lib/motion.tsx for the Reanimated primitives used elsewhere.
  */
 export function BottomSheet({ visible, onClose, children }: Props) {
+  const styles = useThemedStyles(createStyles);
   const [mounted, setMounted] = useState(visible);
   const anim = useRef(new Animated.Value(0)).current;
   const drag = useRef(new Animated.Value(0)).current;
@@ -100,8 +102,8 @@ export function BottomSheet({ visible, onClose, children }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
+const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.35)' },
   wrap: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: colors.paper,

@@ -3,7 +3,8 @@ import Animated, { FadeOut } from 'react-native-reanimated';
 import { type DailyLog, type MealSlot, groupByMealSlot } from '@macrolog/core';
 import { type I18nKey, useT } from '@/i18n';
 import { enterUp, PressScale, springLayout } from '@/lib/motion';
-import { colors, font, radius, shadow, space } from '@/theme';
+import { useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
 const SLOT_KEY: Record<MealSlot, I18nKey> = {
   breakfast: 'meal.breakfast',
@@ -33,6 +34,7 @@ function macroLine(log: DailyLog): string {
  */
 export function MealEntries({ logs, onPress }: { logs: DailyLog[]; onPress: (log: DailyLog) => void }) {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
   const groups = groupByMealSlot(logs);
   const showHeaders = groups.length > 1 || (groups[0]?.slot !== 'other');
 
@@ -70,7 +72,7 @@ export function MealEntries({ logs, onPress }: { logs: DailyLog[]; onPress: (log
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   wrap: { gap: space.md },
   group: { gap: space.sm },
   slotHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xs },

@@ -1,3 +1,4 @@
+import { Manrope_700Bold, Manrope_800ExtraBold, useFonts } from '@expo-google-fonts/manrope';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -7,13 +8,14 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { BrandLoader } from '@/components/BrandLoader';
 import { I18nProvider } from '@/i18n';
-import { colors } from '@/theme';
+import { ThemeProvider, useTheme } from '@/lib/theme-context';
 
-/** Full-screen branded loading overlay while auth/profile settle. Same warm
- *  canvas as the native splash so the handoff has no color flash. */
+/** Full-screen branded loading overlay while auth/profile/fonts settle, on
+ *  the active theme's canvas so the handoff has no color flash. */
 function Splash() {
+  const { colors } = useTheme();
   return (
-    <View style={styles.splash}>
+    <View style={[styles.splash, { backgroundColor: colors.paper }]}>
       <BrandLoader />
     </View>
   );
@@ -21,7 +23,7 @@ function Splash() {
 
 /** Redirects between the authed tab group and the sign-in screen as auth
  *  state settles. The `(app)` group holds every signed-in surface. */
-function AuthGate() {
+function AuthGate({ fontsReady }: { fontsReady: boolean }) {
   const { user, initializing, profile, profileLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
@@ -49,8 +51,8 @@ function AuthGate() {
   }, [user, initializing, profile, profileLoading, segments, router]);
 
   // Always mount <Slot/> so the navigator exists when the redirect effect
-  // fires; cover it with the splash while auth/profile settle.
-  const showSplash = initializing || (!!user && profileLoading);
+  // fires; cover it with the splash while auth/profile/fonts settle.
+  const showSplash = initializing || (!!user && profileLoading) || !fontsReady;
   return (
     <>
       <Slot />
@@ -59,25 +61,34 @@ function AuthGate() {
   );
 }
 
+function ThemedStatusBar() {
+  const { scheme } = useTheme();
+  return <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />;
+}
+
 const styles = StyleSheet.create({
   splash: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.paper,
   },
 });
 
 export default function RootLayout() {
+  // Display faces only (ADR-0014); body text stays system. If loading ever
+  // errors (bad asset on an OTA update), ship system fonts over a blank app.
+  const [fontsLoaded, fontsError] = useFonts({ Manrope_700Bold, Manrope_800ExtraBold });
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <StatusBar style="dark" />
-        <AuthProvider>
-          <I18nProvider>
-            <AuthGate />
-          </I18nProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <ThemedStatusBar />
+          <AuthProvider>
+            <I18nProvider>
+              <AuthGate fontsReady={fontsLoaded || !!fontsError} />
+            </I18nProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -9,7 +9,8 @@ import Animated, {
   withDelay,
   withTiming,
 } from 'react-native-reanimated';
-import { colors, motion } from '@/theme';
+import { useTheme } from '@/lib/theme-context';
+import { motion } from '@/theme';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -23,6 +24,7 @@ function SweepRing({
   size,
   r,
   stroke,
+  trackColor,
   color,
   fill,
   delay,
@@ -30,6 +32,7 @@ function SweepRing({
   size: number;
   r: number;
   stroke: number;
+  trackColor: string;
   color: string;
   fill: number;
   delay: number;
@@ -45,7 +48,7 @@ function SweepRing({
   const animatedProps = useAnimatedProps(() => ({ strokeDashoffset: c * (1 - sweep.value) }));
   return (
     <>
-      <Circle cx={size / 2} cy={size / 2} r={r} stroke={colors.line} strokeWidth={stroke} fill="none" />
+      <Circle cx={size / 2} cy={size / 2} r={r} stroke={trackColor} strokeWidth={stroke} fill="none" />
       <AnimatedCircle
         cx={size / 2}
         cy={size / 2}
@@ -67,6 +70,7 @@ function SweepRing({
  * resting fills. The hero for sign-in / onboarding surfaces.
  */
 export function BrandMark({ size = 96 }: { size?: number }) {
+  const { colors } = useTheme();
   const outerStroke = Math.round(size * 0.1);
   const innerStroke = Math.round(size * 0.08);
   const outerR = (size - outerStroke) / 2;
@@ -74,8 +78,8 @@ export function BrandMark({ size = 96 }: { size?: number }) {
   return (
     <View style={{ width: size, height: size }} testID="brand-mark">
       <Svg width={size} height={size}>
-        <SweepRing size={size} r={outerR} stroke={outerStroke} color={colors.ring} fill={OUTER_FILL} delay={100} />
-        <SweepRing size={size} r={innerR} stroke={innerStroke} color={colors.protein} fill={INNER_FILL} delay={280} />
+        <SweepRing size={size} r={outerR} stroke={outerStroke} trackColor={colors.line} color={colors.ring} fill={OUTER_FILL} delay={100} />
+        <SweepRing size={size} r={innerR} stroke={innerStroke} trackColor={colors.line} color={colors.protein} fill={INNER_FILL} delay={280} />
       </Svg>
     </View>
   );

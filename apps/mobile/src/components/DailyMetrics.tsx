@@ -13,7 +13,8 @@ import {
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
-import { colors, font, radius, shadow, space } from '@/theme';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
 interface Props {
   water: number;
@@ -38,6 +39,7 @@ function elapsedLabel(since: Date, now: number): string {
  *  clock stays live without a global timer. */
 export function DailyMetrics({ water, sleep, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast }: Props) {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
   const [sleepOpen, setSleepOpen] = useState(false);
   const [, setTick] = useState(0);
 
@@ -137,6 +139,8 @@ function SleepModal({
   onClose: () => void;
 }) {
   const t = useT();
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const [value, setValue] = useState('');
 
   useEffect(() => {
@@ -180,7 +184,7 @@ function SleepModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
@@ -231,7 +235,7 @@ const styles = StyleSheet.create({
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   input: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.inputBg,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.md,
@@ -243,5 +247,5 @@ const styles = StyleSheet.create({
   inputUnit: { fontSize: font.h3, color: colors.muted },
   save: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center', marginTop: space.lg },
   saveDisabled: { opacity: 0.4 },
-  saveText: { color: colors.white, fontWeight: '700', fontSize: font.h3 },
+  saveText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
 });
