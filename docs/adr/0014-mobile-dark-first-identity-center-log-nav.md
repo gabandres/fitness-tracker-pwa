@@ -48,6 +48,11 @@ and asked for a substantially deeper revamp: visual identity + structural UX
    type/elevation only, structure later): Train, Trends, Body, History,
    Coach, Settings. Tier 2 restructuring waits for owner approval of
    Tier 1.
+7. **Tier-2 structure (approved 2026-07-04):** Body, Trends, and Train get
+   the Today skeleton — one hero panel, supporting cards, staggered
+   entrance, one celebration each (Body: goal-weight milestone; Train: PR
+   hit; Trends: none — a reading surface). History gets a
+   language-tightening pass only; Coach and Settings keep the skin pass.
 
 ## Alternatives considered
 

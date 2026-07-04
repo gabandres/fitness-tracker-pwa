@@ -316,6 +316,13 @@ export const en = {
   'train.rest': 'Rest',
   'train.skip': 'Skip',
   'train.exercises': 'Exercises',
+  'train.thisWeek': 'This week',
+  'train.workoutsUnit': 'workouts',
+  'train.workoutUnit': 'workout',
+  'train.weekVolume': 'Volume',
+  'train.topSet': 'Top set',
+  'train.weekEmpty': 'No workouts yet this week — start one below.',
+  'train.newPr': 'New personal record! 🏆',
   'train.noExHistory': 'No history yet. Log this exercise to see progress.',
   'train.prWeight': 'Top weight',
   'train.prE1rm': 'Best e1RM',
@@ -441,15 +448,15 @@ export const en = {
 
   // ── history ──
   'history.emptyTitle': 'No history yet.',
-  'history.emptyHint': 'Logged days will show up here.',
+  'history.emptyHint': 'Your logged days appear here.',
   'history.loadErr': "Couldn't load history.",
   'history.recent': 'Recent days',
   'history.entryOne': 'entry',
   'history.entryMany': 'entries',
-  'history.exercised': 'exercised',
+  'history.exercised': 'trained',
   'history.protein': 'Protein',
   'history.weight': 'Weight',
-  'history.noEntries': 'No food entries this day.',
+  'history.noEntries': 'Nothing logged this day.',
 } as const;
 
 export type I18nKey = keyof typeof en;

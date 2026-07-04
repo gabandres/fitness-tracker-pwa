@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTrain } from '@/hooks/useTrain';
 import { useRestTimer } from '@/hooks/useRestTimer';
@@ -39,8 +40,47 @@ import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { Sparkline } from '@/components/Sparkline';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
+import { CountUpText, enterUp, usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, type } from '@/theme';
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Idle-hero numbers: workouts + total volume logged in the last 7 days,
+ *  plus the heaviest working set ever (the "top set" chip). */
+function trainHeroStats(sessions: WorkoutSession[]) {
+  const weekAgo = Date.now() - WEEK_MS;
+  let count = 0;
+  let volume = 0;
+  let topSet = 0;
+  for (const s of sessions) {
+    if (s.date.getTime() >= weekAgo) {
+      count += 1;
+      volume += sessionVolume(s);
+    }
+    for (const ex of s.exercises) {
+      const pr = computeExercisePRs([ex]);
+      if (pr.maxWeight > topSet) topSet = pr.maxWeight;
+    }
+  }
+  return { count, volume, topSet };
+}
+
+/** Best estimated-1RM per exercise across all sessions — the signature the PR
+ *  celebration diffs against to detect a fresh personal record. */
+function bestE1RMByExercise(sessions: WorkoutSession[]): Record<string, number> {
+  const rows = new Map<string, SessionExercise[]>();
+  for (const s of sessions) {
+    for (const ex of s.exercises) {
+      const arr = rows.get(ex.exerciseId) ?? [];
+      arr.push(ex);
+      rows.set(ex.exerciseId, arr);
+    }
+  }
+  const out: Record<string, number> = {};
+  for (const [id, exRows] of rows) out[id] = computeExercisePRs(exRows).bestE1RM;
+  return out;
+}
 
 const LOG_STYLES: { value: LogStyle; labelKey: I18nKey }[] = [
   { value: 'weight-reps', labelKey: 'logStyle.weightReps' },
@@ -62,6 +102,26 @@ export default function Train() {
   const { colors } = useTheme();
   const train = useTrain();
 
+  // Celebration (ADR-0014 §7): finishing a workout that beats a prior best
+  // estimated-1RM bounces the idle hero once with a success haptic.
+  // Crossing-only (null-first ref), computed here in the always-mounted parent
+  // so it survives the active→idle remount when a session is saved.
+  const [prPulse, triggerPrPulse] = usePulse(1.05);
+  const bestByEx = useMemo(() => bestE1RMByExercise(train.recentSessions), [train.recentSessions]);
+  const prevBest = useRef<Record<string, number> | null>(null);
+  useEffect(() => {
+    if (train.loading) return;
+    const prev = prevBest.current;
+    if (prev) {
+      const improved = Object.entries(bestByEx).some(([id, e1rm]) => e1rm > (prev[id] ?? 0));
+      if (improved) {
+        haptics.success();
+        triggerPrPulse();
+      }
+    }
+    prevBest.current = bestByEx;
+  }, [bestByEx, train.loading, triggerPrPulse]);
+
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.headerRow}>
@@ -75,24 +135,59 @@ export default function Train() {
       ) : train.active ? (
         <ActiveSession train={train} />
       ) : (
-        <StartView train={train} />
+        <StartView train={train} heroPulse={prPulse} />
       )}
     </SafeAreaView>
   );
 }
 
-// ─── Idle: start button + templates + history ───────────────────
-function StartView({ train }: { train: ReturnType<typeof useTrain> }) {
+// ─── Idle: hero summary + start button + templates + history ────
+function StartView({
+  train,
+  heroPulse,
+}: {
+  train: ReturnType<typeof useTrain>;
+  heroPulse: ReturnType<typeof usePulse>[0];
+}) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   // null = closed; a template = edit it; {} = create new.
   const [editing, setEditing] = useState<WorkoutTemplate | Record<string, never> | null>(null);
   const [detailEx, setDetailEx] = useState<Exercise | null>(null);
   const [startersOpen, setStartersOpen] = useState(false);
+  const stats = useMemo(() => trainHeroStats(train.recentSessions), [train.recentSessions]);
 
   return (
     <ScrollView contentContainerStyle={styles.body}>
       {train.error ? <Text style={styles.error}>{t('train.loadErr')}</Text> : null}
+
+      {/* Hero panel — the Today skeleton (ADR-0014 §7): workouts this week is
+          the one big number; volume + top set live inside as chips. */}
+      <Animated.View style={[styles.heroPanel, heroPulse]} entering={enterUp(0)} testID="train-hero">
+        <Text style={styles.heroCaption}>{t('train.thisWeek')}</Text>
+        <View style={styles.hero}>
+          <CountUpText value={stats.count} style={styles.heroValue} testID="week-workouts" />
+          <Text style={styles.heroUnit}>
+            {stats.count === 1 ? t('train.workoutUnit') : t('train.workoutsUnit')}
+          </Text>
+        </View>
+        {stats.count === 0 ? (
+          <Text style={styles.heroHint}>{t('train.weekEmpty')}</Text>
+        ) : (
+          <View style={styles.heroChips}>
+            {stats.volume > 0 ? (
+              <Text style={styles.trendChip}>
+                {t('train.weekVolume')}  <Text style={styles.trendChipValue}>{stats.volume.toLocaleString()} lb</Text>
+              </Text>
+            ) : null}
+            {stats.topSet > 0 ? (
+              <Text style={styles.trendChip}>
+                {t('train.topSet')}  <Text style={styles.trendChipValue}>{stats.topSet.toLocaleString()} lb</Text>
+              </Text>
+            ) : null}
+          </View>
+        )}
+      </Animated.View>
 
       <TouchableOpacity
         style={styles.startBtn}
@@ -1416,15 +1511,42 @@ function TemplateEditorModal({
   );
 }
 
-const createStyles = ({ colors, scheme }: Theme) => StyleSheet.create({
+const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
-  title: { fontSize: font.h1, fontWeight: '800', color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
+  title: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   body: { padding: space.xl, gap: space.md },
   error: { color: colors.danger, fontSize: font.small },
   empty: { fontSize: font.small, color: colors.muted },
-  sectionTitle: { fontSize: font.h3, fontWeight: '700', color: colors.ink, marginTop: space.sm },
+  sectionTitle: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink, marginTop: space.sm },
+  // Hero panel — the Today skeleton (ADR-0014 §7): shared dark canvas, the one
+  // big number (workouts this week) with volume + top-set chips beneath.
+  heroPanel: {
+    backgroundColor: colors.heroPanel,
+    borderRadius: radius.xl,
+    paddingVertical: space.xl,
+    paddingHorizontal: space.lg,
+    alignItems: 'center',
+    gap: space.xs,
+    ...shadow.e2,
+  },
+  hero: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: space.xs, marginTop: space.xs },
+  heroValue: { fontFamily: type.display, fontSize: 52, color: colors.heroText, lineHeight: 56 },
+  heroUnit: { fontSize: font.h3, color: colors.heroMuted, marginBottom: space.sm },
+  heroCaption: { textAlign: 'center', color: colors.heroMuted, fontSize: font.small },
+  heroHint: { textAlign: 'center', color: colors.heroMuted, fontSize: font.small, marginTop: space.xs },
+  heroChips: { flexDirection: 'row', gap: space.sm, flexWrap: 'wrap', justifyContent: 'center', marginTop: space.sm },
+  trendChip: {
+    fontSize: font.small,
+    color: colors.heroMuted,
+    backgroundColor: colors.heroTrack,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.md,
+    paddingVertical: space.xs,
+    overflow: 'hidden',
+  },
+  trendChipValue: { color: colors.heroText, fontFamily: type.heading },
   startBtn: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },
   startBtnText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
   list: { gap: space.sm },

@@ -1,16 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
 import { type Href, useRouter } from 'expo-router';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type TdeeResult, parseYmd } from '@macrolog/core';
+import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { Sparkline } from '@/components/Sparkline';
 import { ProUpsell } from '@/components/ProUpsell';
 import { WeeklyReportCard } from '@/components/WeeklyReportCard';
 import { useTrends } from '@/hooks/useTrends';
 import { useSubscription } from '@/lib/subscription';
 import { type I18nKey, useT } from '@/i18n';
+import { CountUpText, enterUp } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, type } from '@/theme';
 
 function dayLabel(dateKey: string): string {
   return parseYmd(dateKey).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
@@ -37,7 +40,10 @@ export default function Trends() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <Text style={styles.title}>{t('nav.trends')}</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>{t('nav.trends')}</Text>
+        <HeaderAvatar />
+      </View>
       {loading ? (
         <View style={styles.fill}>
           <ActivityIndicator color={colors.accent} />
@@ -46,58 +52,78 @@ export default function Trends() {
         <ScrollView contentContainerStyle={styles.body}>
           {error ? <Text style={styles.error}>{t('trends.loadErr')}</Text> : null}
 
-          {/* Adaptive TDEE */}
-          <View style={styles.card} testID="tdee-card">
-            <View style={styles.cardHead}>
-              <Text style={styles.cardTitle}>{t('trends.maintenance')}</Text>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{t(mode.labelKey)}</Text>
-              </View>
+          {/* Hero panel — the Today skeleton (ADR-0014 §7): adaptive maintenance
+              is the one big number; daily target + weight trend live inside as
+              supporting chips. No celebration — Trends is a reading surface. */}
+          <Animated.View style={styles.heroPanel} entering={enterUp(0)} testID="tdee-card">
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{t(mode.labelKey)}</Text>
             </View>
-            <Text style={styles.bigValue} testID="tdee-value">
-              {tdee.trueTdee > 0 ? `${tdee.trueTdee.toLocaleString()} kcal` : '—'}
-            </Text>
-            <Text style={styles.hint}>{t(mode.hintKey)}</Text>
+            <Text style={styles.heroCaption}>{t('trends.maintenance')}</Text>
+            <View style={styles.hero}>
+              {tdee.trueTdee > 0 ? (
+                <CountUpText value={tdee.trueTdee} style={styles.heroValue} testID="tdee-value" />
+              ) : (
+                <Text style={styles.heroValue} testID="tdee-value">—</Text>
+              )}
+              <Text style={styles.heroUnit}>kcal</Text>
+            </View>
+            <Text style={styles.heroHint}>{t(mode.hintKey)}</Text>
             {tdee.source === 'measured' && tdee.loggingCompletenessPct != null ? (
-              <Text style={styles.sub}>
+              <Text style={styles.heroSub}>
                 {t('trends.completeness', { pct: Math.round(tdee.loggingCompletenessPct) })}
                 {tdee.reliable ? '' : t('trends.logMore')}
               </Text>
             ) : null}
-            <View style={styles.divider} />
-            <View style={styles.kv}>
-              <Text style={styles.kvLabel}>{t('trends.dailyTarget')}</Text>
-              <Text style={styles.kvValue}>{targetCalories > 0 ? `${targetCalories.toLocaleString()} kcal` : '—'}</Text>
+            <View style={styles.heroChips}>
+              <Text style={styles.trendChip}>
+                {t('trends.dailyTarget')}  <Text style={styles.trendChipValue}>
+                  {targetCalories > 0 ? `${targetCalories.toLocaleString()} kcal` : '—'}
+                </Text>
+              </Text>
+              {weightSeries.length >= 2 && insights?.weightSlopeLbPerWeek != null ? (
+                <Text style={styles.trendChip}>
+                  {t('trends.weightTrend')}  <Text style={styles.trendChipValue}>
+                    {Math.abs(insights.weightSlopeLbPerWeek) < 0.1
+                      ? t('body.holdingSteady')
+                      : `${insights.weightSlopeLbPerWeek < 0 ? '−' : '+'}${Math.abs(insights.weightSlopeLbPerWeek).toFixed(1)} lb/wk`}
+                  </Text>
+                </Text>
+              ) : null}
             </View>
-          </View>
+          </Animated.View>
 
           {/* AI coach — free (server-side 3/day quota); grounded in the log. */}
-          <TouchableOpacity style={styles.coachBtn} onPress={() => router.push('/coach' as Href)} testID="coach-entry">
-            <Ionicons name="sparkles-outline" size={18} color={colors.onInk} />
-            <Text style={styles.coachBtnText}>{t('coach.entry')}</Text>
-          </TouchableOpacity>
+          <Animated.View entering={enterUp(1)}>
+            <TouchableOpacity style={styles.coachBtn} onPress={() => router.push('/coach' as Href)} testID="coach-entry">
+              <Ionicons name="sparkles-outline" size={18} color={colors.onInk} />
+              <Text style={styles.coachBtnText}>{t('coach.entry')}</Text>
+            </TouchableOpacity>
+          </Animated.View>
 
           {/* Pro AI weekly report (upsell for free users). */}
-          <WeeklyReportCard />
+          <Animated.View entering={enterUp(2)}>
+            <WeeklyReportCard />
+          </Animated.View>
 
           {/* Weight chart */}
           {weightSeries.length >= 2 ? (
-            <>
+            <Animated.View entering={enterUp(3)}>
               <Text style={styles.section}>{t('trends.weightTrend')}</Text>
               <View style={styles.card} testID="trends-weight-chart">
                 <Sparkline values={weightSeries} width={300} height={70} color={colors.ink} />
               </View>
-            </>
+            </Animated.View>
           ) : null}
 
           {/* Weekly insights + budget — Pro (basic maintenance + weight chart
               above stay free). */}
           {!isPro ? (
-            <View style={{ marginTop: space.lg }}>
+            <Animated.View style={{ marginTop: space.lg }} entering={enterUp(4)}>
               <ProUpsell feature={t('pro.advancedTrends')} />
-            </View>
+            </Animated.View>
           ) : (
-          <>
+          <Animated.View entering={enterUp(4)}>
           <Text style={styles.section}>{t('trends.thisWeek')}</Text>
           {insights ? (
             <View style={styles.card} testID="insights-card">
@@ -199,7 +225,7 @@ export default function Trends() {
               </View>
             </>
           ) : null}
-          </>
+          </Animated.View>
           )}
         </ScrollView>
       )}
@@ -207,12 +233,41 @@ export default function Trends() {
   );
 }
 
-const createStyles = ({ colors }: Theme) => StyleSheet.create({
+const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
-  title: { fontSize: font.h1, fontWeight: '800', color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
+  title: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   body: { padding: space.xl, gap: space.sm },
   error: { color: colors.danger, fontSize: font.small },
+  // Hero panel — the Today skeleton (ADR-0014 §7): shared dark canvas, the one
+  // big number (adaptive maintenance) with supporting chips beneath.
+  heroPanel: {
+    backgroundColor: colors.heroPanel,
+    borderRadius: radius.xl,
+    paddingVertical: space.xl,
+    paddingHorizontal: space.lg,
+    alignItems: 'center',
+    gap: space.xs,
+    ...shadow.e2,
+  },
+  hero: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: space.xs, marginTop: space.xs },
+  heroValue: { fontFamily: type.display, fontSize: 52, color: colors.heroText, lineHeight: 56 },
+  heroUnit: { fontSize: font.h2, color: colors.heroMuted, marginBottom: space.sm },
+  heroCaption: { textAlign: 'center', color: colors.heroMuted, fontSize: font.small },
+  heroHint: { textAlign: 'center', color: colors.heroMuted, fontSize: font.small, marginTop: space.xs },
+  heroSub: { textAlign: 'center', color: colors.heroMuted, fontSize: font.tiny, opacity: 0.8 },
+  heroChips: { flexDirection: 'row', gap: space.sm, flexWrap: 'wrap', justifyContent: 'center', marginTop: space.sm },
+  trendChip: {
+    fontSize: font.small,
+    color: colors.heroMuted,
+    backgroundColor: colors.heroTrack,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.md,
+    paddingVertical: space.xs,
+    overflow: 'hidden',
+  },
+  trendChipValue: { color: colors.heroText, fontFamily: type.heading },
   section: {
     fontSize: font.small,
     color: colors.muted,
@@ -241,12 +296,8 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     paddingVertical: space.md,
   },
   coachBtnText: { color: colors.onInk, fontSize: font.body, fontWeight: '700' },
-  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardTitle: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
-  badge: { backgroundColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: 2 },
-  badgeText: { color: colors.onInk, fontSize: font.tiny, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  bigValue: { fontSize: font.h1, fontWeight: '800', color: colors.ink },
-  hint: { fontSize: font.small, color: colors.muted },
+  badge: { backgroundColor: colors.heroTrack, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: 3 },
+  badgeText: { color: colors.heroText, fontSize: font.tiny, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   sub: { fontSize: font.tiny, color: colors.faint, marginTop: 2 },
   divider: { height: 1, backgroundColor: colors.line, marginVertical: space.xs },
   kv: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
