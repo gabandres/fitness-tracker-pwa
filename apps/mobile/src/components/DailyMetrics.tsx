@@ -90,6 +90,9 @@ export function DailyMetrics({ water, sleep, fastStartedAt, onAddWater, onSetSle
           <TouchableOpacity style={styles.pill} onPress={() => { haptics.tap(); onAddWater(water + 16); }} testID="water-plus-16">
             <Text style={styles.pillText}>+16</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.pill} onPress={() => { haptics.tap(); onAddWater(water + 24); }} testID="water-plus-24">
+            <Text style={styles.pillText}>+24</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
