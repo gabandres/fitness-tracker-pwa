@@ -1,51 +1,101 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { router, Tabs } from 'expo-router';
+import { StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { useTheme } from '@/lib/theme-context';
+import { PressScale } from '@/lib/motion';
+import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { font, radius, space } from '@/theme';
 
-/** Tab icon that swaps to its filled variant when active — reads as "lit up"
- *  without a custom tab bar. */
-function icon(outline: keyof typeof Ionicons.glyphMap, filled: keyof typeof Ionicons.glyphMap) {
-  return ({ color, size, focused }: { color: string; size: number; focused: boolean }) => (
-    <Ionicons name={focused ? filled : outline} color={color} size={size} />
+/** The four tab destinations, in bar order. History is deliberately NOT here
+ *  (ADR-0014): it's a lookup surface, reached from Today's calendar icon. */
+const TAB_ICONS: Record<string, { outline: keyof typeof Ionicons.glyphMap; filled: keyof typeof Ionicons.glyphMap }> = {
+  index: { outline: 'today-outline', filled: 'today' },
+  train: { outline: 'barbell-outline', filled: 'barbell' },
+  trends: { outline: 'trending-up-outline', filled: 'trending-up' },
+  body: { outline: 'body-outline', filled: 'body' },
+};
+const LEFT_TABS = ['index', 'train'];
+const RIGHT_TABS = ['trends', 'body'];
+
+/**
+ * Custom tab bar: 4 destinations split around the raised coral **Log
+ * button** — the one-thumb log action from anywhere. It navigates to Today
+ * with an `openAdd` nonce; Today opens the EntrySheet, so every log ends
+ * with the hero ring re-sweeping to the new total (the built-in
+ * celebration).
+ */
+function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+
+  function tab(name: string) {
+    const route = state.routes.find((r) => r.name === name);
+    if (!route) return null;
+    const { options } = descriptors[route.key];
+    const focused = state.index === state.routes.indexOf(route);
+    const icons = TAB_ICONS[name];
+    const label = typeof options.title === 'string' ? options.title : name;
+    return (
+      <PressScale
+        key={route.key}
+        style={styles.tab}
+        scaleTo={0.9}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: focused }}
+        accessibilityLabel={label}
+        testID={`tab-${name}`}
+        onPress={() => {
+          haptics.tap();
+          const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+          if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
+        }}
+      >
+        <Ionicons name={focused ? icons.filled : icons.outline} size={23} color={focused ? colors.ink : colors.faint} />
+        <Text style={[styles.tabLabel, { color: focused ? colors.ink : colors.faint }]}>{label}</Text>
+      </PressScale>
+    );
+  }
+
+  return (
+    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, space.sm) }]}>
+      {LEFT_TABS.map(tab)}
+      <View style={styles.logSlot}>
+        <PressScale
+          style={styles.logBtn}
+          scaleTo={0.88}
+          accessibilityRole="button"
+          accessibilityLabel="Add food"
+          testID="log-button"
+          onPress={() => {
+            haptics.tap();
+            // Nonce param so consecutive presses re-open the sheet.
+            router.navigate({ pathname: '/(app)', params: { openAdd: String(Date.now()) } });
+          }}
+        >
+          <Ionicons name="add" size={32} color={colors.white} />
+        </PressScale>
+      </View>
+      {RIGHT_TABS.map(tab)}
+    </View>
   );
 }
 
 export default function AppTabsLayout() {
   const t = useT();
-  const { colors } = useTheme();
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.ink,
-        tabBarInactiveTintColor: colors.faint,
-        tabBarStyle: { backgroundColor: colors.paper, borderTopColor: colors.line },
-      }}
-      screenListeners={{ tabPress: () => haptics.tap() }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{ title: t('nav.today'), tabBarIcon: icon('today-outline', 'today') }}
-      />
-      <Tabs.Screen
-        name="history"
-        options={{ title: t('nav.history'), tabBarIcon: icon('calendar-outline', 'calendar') }}
-      />
-      <Tabs.Screen
-        name="train"
-        options={{ title: t('nav.train'), tabBarIcon: icon('barbell-outline', 'barbell') }}
-      />
-      <Tabs.Screen
-        name="trends"
-        options={{ title: t('nav.trends'), tabBarIcon: icon('trending-up-outline', 'trending-up') }}
-      />
-      <Tabs.Screen
-        name="body"
-        options={{ title: t('nav.body'), tabBarIcon: icon('body-outline', 'body') }}
-      />
-      {/* Reachable via the Today header gear; hidden from the tab bar. */}
+    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <AppTabBar {...props} />}>
+      <Tabs.Screen name="index" options={{ title: t('nav.today') }} />
+      <Tabs.Screen name="train" options={{ title: t('nav.train') }} />
+      <Tabs.Screen name="trends" options={{ title: t('nav.trends') }} />
+      <Tabs.Screen name="body" options={{ title: t('nav.body') }} />
+      {/* Routes without a tab button: */}
+      {/* History — reached via the Today header calendar icon (ADR-0014). */}
+      <Tabs.Screen name="history" options={{ href: null }} />
+      {/* Reachable via the Today header avatar; hidden from the tab bar. */}
       <Tabs.Screen name="settings" options={{ href: null }} />
       {/* Reachable via Trends → Ask the Coach; hidden from the tab bar. */}
       <Tabs.Screen name="coach" options={{ href: null }} />
@@ -53,4 +103,32 @@ export default function AppTabsLayout() {
       <Tabs.Screen name="refine-targets" options={{ href: null }} />
     </Tabs>
   );
+}
+
+function createStyles({ colors, shadow }: Theme) {
+  return StyleSheet.create({
+    bar: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      backgroundColor: colors.paper,
+      borderTopWidth: 1,
+      borderTopColor: colors.line,
+      paddingTop: space.sm,
+      paddingHorizontal: space.sm,
+    },
+    tab: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: 2 },
+    tabLabel: { fontSize: font.tiny, fontWeight: '600' },
+    logSlot: { flex: 1, alignItems: 'center' },
+    // Raised above the bar line — the app's visual anchor.
+    logBtn: {
+      width: 58,
+      height: 58,
+      borderRadius: radius.pill,
+      backgroundColor: colors.ring,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: -(space.xl + 2),
+      ...shadow.e3,
+    },
+  });
 }

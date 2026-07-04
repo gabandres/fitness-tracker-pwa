@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRef, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -60,6 +61,15 @@ export default function Today() {
   const [repeating, setRepeating] = useState(false);
   const shareRef = useRef<View>(null);
 
+  // The tab bar's Log button navigates here with a fresh `openAdd` nonce —
+  // each new value opens the add sheet (see AppTabBar in the tab layout).
+  const { openAdd: openAddParam } = useLocalSearchParams<{ openAdd?: string }>();
+  useEffect(() => {
+    if (!openAddParam) return;
+    setEditing(null);
+    setSheetOpen(true);
+  }, [openAddParam]);
+
   async function onShare() {
     haptics.tap();
     try {
@@ -82,11 +92,6 @@ export default function Today() {
   }
   const [editing, setEditing] = useState<DailyLog | null>(null);
 
-  function openAdd() {
-    haptics.tap();
-    setEditing(null);
-    setSheetOpen(true);
-  }
   function openEdit(log: DailyLog) {
     setEditing(log);
     setSheetOpen(true);
@@ -116,6 +121,14 @@ export default function Today() {
               <Text style={styles.streakNum}>{streak}</Text>
             </View>
           ) : null}
+          <TouchableOpacity
+            onPress={() => { haptics.tap(); router.push('/history'); }}
+            testID="open-history"
+            hitSlop={10}
+            accessibilityLabel={t('nav.history')}
+          >
+            <Ionicons name="calendar-outline" size={22} color={colors.muted} />
+          </TouchableOpacity>
           <TouchableOpacity onPress={onShare} testID="share-progress" hitSlop={10}>
             <Ionicons name="share-outline" size={22} color={colors.muted} />
           </TouchableOpacity>
@@ -189,10 +202,6 @@ export default function Today() {
         </ScrollView>
       )}
 
-      <PressScale style={styles.fab} scaleTo={0.9} onPress={openAdd} testID="add-food" accessibilityLabel="Add food">
-        <Ionicons name="add" size={30} color={colors.white} />
-      </PressScale>
-
       <EntrySheet
         visible={sheetOpen}
         editing={editing}
@@ -213,7 +222,7 @@ export default function Today() {
   );
 }
 
-function createStyles({ colors, shadow }: Theme) {
+function createStyles({ colors }: Theme) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
     fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -241,19 +250,5 @@ function createStyles({ colors, shadow }: Theme) {
     repeatBtn: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginTop: space.sm, borderWidth: 1, borderColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space.lg, paddingVertical: space.sm },
     repeatBtnDisabled: { opacity: 0.5 },
     repeatText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
-    // The coral log action — becomes the tab bar's center Log button in the
-    // nav restructure; the color is already the brand's.
-    fab: {
-      position: 'absolute',
-      right: space.xl,
-      bottom: space.xl,
-      width: 60,
-      height: 60,
-      borderRadius: 30,
-      backgroundColor: colors.ring,
-      alignItems: 'center',
-      justifyContent: 'center',
-      ...shadow.e3,
-    },
   });
 }
