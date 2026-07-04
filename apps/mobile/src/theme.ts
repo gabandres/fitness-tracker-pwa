@@ -132,14 +132,22 @@ export const radius = {
   pill: 999,
 } as const;
 
+/**
+ * Type scale — sized to platform readability minimums, not shrunk to fit.
+ * `body` is 17 (Apple's standard body size; also keeps text inputs at/above
+ * the 16px floor so iOS never zoom-jumps a focused field), `small` is 14
+ * (Material body-medium), and `tiny` (12) is reserved for uppercase eyebrow
+ * labels only — never body copy. Apple's absolute floor is 11; we sit above it
+ * everywhere a human reads a sentence. Bump the whole scale here, not per-screen.
+ */
 export const font = {
   hero: 44,
   h1: 30,
-  h2: 22,
-  h3: 18,
-  body: 15,
-  small: 13,
-  tiny: 11,
+  h2: 24,
+  h3: 20,
+  body: 17,
+  small: 14,
+  tiny: 12,
 } as const;
 
 /**
