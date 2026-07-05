@@ -1307,6 +1307,8 @@
     },
     "weightSheet": {
       "logWeight": "Registrar peso",
+      "bodyFatTitle": "Grasa corporal",
+      "bodyFatEstimate": "Estimado Navy",
       "today": "Hoy",
       "weightLb": "Peso (lb) *",
       "weightRequired": "Pon un peso mayor que 0.",

@@ -1307,6 +1307,8 @@
     },
     "weightSheet": {
       "logWeight": "Log weight",
+      "bodyFatTitle": "Body fat",
+      "bodyFatEstimate": "Navy estimate",
       "today": "Today",
       "weightLb": "Weight (lb) *",
       "weightRequired": "Enter a weight greater than 0.",

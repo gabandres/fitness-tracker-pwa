@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-export type UiSparklineTone = 'accent' | 'sage' | 'ink';
+export type UiSparklineTone = 'accent' | 'sage' | 'ink' | 'ring';
 
 /**
  * Hand-rolled sparkline. Catmull-Rom-smoothed path through the values
@@ -95,6 +95,7 @@ export class UiSparkline {
     const t = this.tone();
     if (t === 'accent') return 'var(--v2-accent)';
     if (t === 'sage') return 'var(--v2-sage)';
+    if (t === 'ring') return '#ff6a3d';
     return 'var(--v2-ink)';
   });
 

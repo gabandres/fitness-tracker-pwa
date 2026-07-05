@@ -30,11 +30,9 @@ import {
 } from '../../services/progress-photo.service';
 import { UiCard } from '../ui/card.component';
 import { UiButton } from '../ui/button.component';
-import { UiIconButton } from '../ui/icon-button.component';
 import { UiAvatar } from '../ui/avatar.component';
 import { UiSparkline } from '../ui/sparkline.component';
 import { UiWeightSheet } from '../ui/weight-sheet.component';
-import { UiFastingPill } from '../ui/fasting-pill.component';
 
 const FAST_HOURS = 16;
 type MField = 'waist' | 'chest' | 'bicep' | 'hip' | 'neck';
@@ -62,227 +60,87 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
     TranslocoDirective,
     UiCard,
     UiButton,
-    UiIconButton,
     UiAvatar,
     UiSparkline,
     UiWeightSheet,
-    UiFastingPill,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     <section class="max-w-[640px] mx-auto flex flex-col">
-      <!-- Header -->
-      <header class="flex items-start justify-between gap-4 pt-2 pb-2">
-        <div>
-          <h1 class="page-title">{{ t('v2.body.title') }}</h1>
-          <p class="v2-caption mt-0.5">{{ t('v2.body.subtitle') }}</p>
-        </div>
-        <div class="flex items-center gap-2 shrink-0">
-          <ui-fasting-pill (bodyRequested)="bodyRequested.emit()" />
-          <ui-icon-button icon="calendar" [ariaLabel]="t('v2.body.historyAria')" (click)="historyRequested.emit()" />
-          <ui-avatar
-            [photoUrl]="authUser()?.photoURL ?? null"
-            [name]="authUser()?.displayName || authUser()?.email || null"
-            [ariaLabel]="t('v2.body.settingsAria')"
-            (activate)="settingsRequested.emit()" />
-        </div>
+      <!-- Header: title + avatar only (mirrors mobile Body) -->
+      <header class="flex items-center justify-between gap-4 pt-2 pb-2">
+        <h1 class="page-title" style="font-family: var(--v2-font-display);">{{ t('v2.body.title') }}</h1>
+        <ui-avatar
+          [photoUrl]="authUser()?.photoURL ?? null"
+          [name]="authUser()?.displayName || authUser()?.email || null"
+          [ariaLabel]="t('v2.body.settingsAria')"
+          (activate)="settingsRequested.emit()" />
       </header>
 
-      <!-- ── Weight ──────────────────────────────────────────── -->
-      <ui-card variant="default" class="mt-6 block">
-        <div class="flex items-baseline justify-between gap-3 mb-3">
-          <h2 class="section-title">{{ t('v2.body.weight') }}</h2>
-          <ui-button variant="secondary" size="sm" (click)="openWeightSheet()">
-            <lucide-icon name="plus" [size]="14" />
-            {{ t('v2.body.logWeight') }}
-          </ui-button>
-        </div>
-
-        <div class="flex items-baseline gap-2">
+      <!-- ── Weight hero (dark panel, mirrors mobile) ─────────── -->
+      <div class="mt-6" style="background: var(--v2-hero-panel); border-radius: var(--v2-radius-xl); padding: var(--v2-space-5) var(--v2-space-4); display: flex; flex-direction: column; align-items: center; gap: var(--v2-space-2); box-shadow: var(--v2-shadow-2);">
+        <div style="display: flex; align-items: flex-end; gap: var(--v2-space-1);">
           @if (currentWeight(); as w) {
-            <span class="v2-num" style="font-size: 2.5rem; line-height: 1; font-weight: 600;">
-              {{ w.toFixed(1) }}
-            </span>
-            <span class="v2-caption" style="font-size: 0.875rem;">{{ t('v2.body.lb') }}</span>
+            <span style="font-family: var(--v2-font-display); font-weight: 800; font-size: 56px; line-height: 1; color: var(--v2-hero-text);">{{ w.toFixed(1) }}</span>
+            <span style="font-size: 24px; color: var(--v2-hero-muted); margin-bottom: 6px;">{{ t('v2.body.lb') }}</span>
           } @else {
-            <span class="v2-num" style="font-size: 2.5rem; line-height: 1; color: var(--v2-ink-muted);">—</span>
-            <span class="v2-caption" style="font-size: 0.875rem;">{{ t('v2.body.noWeight') }}</span>
+            <span style="font-family: var(--v2-font-display); font-weight: 800; font-size: 56px; line-height: 1; color: var(--v2-hero-muted);">—</span>
           }
         </div>
+        <span style="color: var(--v2-hero-muted); font-size: 14px;">{{ currentWeight() ? t('v2.body.weight') : t('v2.body.noWeight') }}</span>
 
-        <div class="mt-4">
-          <ui-sparkline
-            [values]="weightSeries()"
-            [projection]="projectedSeries()"
-            [width]="280"
-            [height]="56"
-            tone="accent"
-            [ariaLabel]="t('v2.body.weightTrendAria')" />
-          @if (projectionLabel(); as pl) {
-            <p class="v2-caption mt-2 inline-flex items-center gap-1.5">
-              <lucide-icon name="trending-up" [size]="13" style="color: var(--v2-ink-muted)" />
-              {{ pl }}
-            </p>
-          }
-        </div>
+        @if (weightSeries().length >= 2) {
+          <div class="mt-2">
+            <ui-sparkline
+              [values]="weightSeries()"
+              [projection]="projectedSeries()"
+              [width]="300"
+              [height]="64"
+              tone="ring"
+              [ariaLabel]="t('v2.body.weightTrendAria')" />
+          </div>
+        }
+
+        @if (projectionLabel(); as pl) {
+          <span style="font-size: 14px; color: var(--v2-hero-muted); background: var(--v2-hero-track); border-radius: 999px; padding: 4px 12px; margin-top: 4px;">{{ pl }}</span>
+        }
 
         @if (goal(); as g) {
-          <div class="mt-5">
-            <div class="flex items-center justify-between v2-caption mb-1.5">
+          <div class="w-full mt-3">
+            <div class="flex items-center justify-between mb-1.5" style="font-size: 12px; color: var(--v2-hero-muted);">
               <span>{{ g.startWeight.toFixed(1) }} {{ t('v2.body.lb') }}</span>
-              <span style="color: var(--v2-ink)">{{ g.pct }}%</span>
+              <span style="color: var(--v2-hero-text);">{{ g.pct }}%</span>
               <span>{{ g.goalWeight.toFixed(1) }} {{ t('v2.body.lb') }}</span>
             </div>
-            <div class="v2-progress" role="progressbar"
-              [attr.aria-valuemin]="0"
-              [attr.aria-valuemax]="100"
-              [attr.aria-valuenow]="g.pct">
-              <div class="v2-progress__fill" [style.width.%]="g.pct"></div>
+            <div style="height: 8px; border-radius: 999px; background: var(--v2-hero-track); overflow: hidden;">
+              <div [style.width.%]="g.pct" style="height: 100%; background: #ff6a3d; border-radius: 999px;"></div>
             </div>
-            <p class="v2-caption mt-1.5">
+            <p style="font-size: 12px; color: var(--v2-hero-muted); margin-top: 6px; text-align: center;">
               {{ g.remaining > 0 ? t('v2.body.remaining', { n: g.remaining.toFixed(1) }) : t('v2.body.goalReached') }}
             </p>
           </div>
         }
+      </div>
 
-      </ui-card>
+      <!-- Full-width ink log-weight button -->
+      <button type="button" (click)="openWeightSheet()" class="mt-3 w-full"
+              style="background: var(--v2-ink); color: var(--v2-paper); border: none; border-radius: var(--v2-radius-md); padding: var(--v2-space-4); font-weight: 700; font-size: 20px; cursor: pointer;">
+        {{ t('v2.body.logWeight') }}
+      </button>
 
-      <!-- ── Fasting (collapsible, moved to the bottom — rarely used;
-           auto-expands while a fast is active so the timer stays visible.
-           order:1 floats it past the order:0 cards without a DOM move) -->
-      <ui-card variant="default" class="mt-4 block" style="order: 1;">
-        <button
-          type="button"
-          class="flex items-center justify-between gap-3 w-full"
-          style="background: none; border: none; padding: 0; cursor: pointer; min-height: var(--v2-tap-min);"
-          [attr.aria-expanded]="fastingExpanded()"
-          aria-controls="fasting-panel"
-          (click)="fastingExpanded.set(!fastingExpanded())">
-          <div class="flex items-baseline gap-3">
-            <h2 class="section-title">{{ t('v2.body.fasting') }}</h2>
-            @if (fasting.isFasting()) {
-              <span class="v2-num" style="font-size: 0.8125rem; color: var(--v2-sage); font-weight: 600;">{{ elapsedDisplay() }} · {{ t('v2.body.active') }}</span>
-            } @else {
-              <span class="v2-caption">{{ t('v2.body.idle') }}</span>
-            }
-          </div>
-          <lucide-icon
-            name="chevron-down"
-            [size]="20"
-            [style.transform]="fastingExpanded() ? 'rotate(180deg)' : 'rotate(0deg)'"
-            style="transition: transform 200ms var(--v2-ease); color: var(--v2-ink-muted)" />
-        </button>
-
-        @if (fastingExpanded()) {
-        <div id="fasting-panel" class="mt-4 flex flex-col items-center">
-          <!-- Compact ring: 120px, fills clockwise to 16h target. -->
-          <div class="relative" style="width: 120px; height: 120px;">
-            <svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
-              <circle cx="60" cy="60" r="52" fill="none"
-                stroke="var(--v2-rule)" stroke-width="6" />
-              @if (fasting.isFasting()) {
-                <circle cx="60" cy="60" r="52" fill="none"
-                  [attr.stroke]="elapsedHours() >= FAST_HOURS ? 'var(--v2-sage)' : 'var(--v2-accent)'"
-                  stroke-width="6" stroke-linecap="round"
-                  [attr.stroke-dasharray]="fastCircumference"
-                  [attr.stroke-dashoffset]="fastDashOffset()"
-                  style="transform: rotate(-90deg); transform-origin: center; transition: stroke-dashoffset 600ms var(--v2-ease);" />
-              }
-            </svg>
-            <div class="absolute inset-0 flex flex-col items-center justify-center">
-              <span class="v2-num" style="font-size: 1.5rem; font-weight: 600; line-height: 1;">
-                {{ fasting.isFasting() ? elapsedDisplay() : '—' }}
-              </span>
-              <span class="v2-caption" style="font-size: 0.6875rem; margin-top: 2px;">
-                {{ fasting.isFasting() ? t('v2.body.ofHours', { n: FAST_HOURS }) : t('v2.body.hourTarget', { n: FAST_HOURS }) }}
-              </span>
+      <!-- ── Body fat (standalone card) ───────────────────────── -->
+      @if (bodyFatPct(); as bf) {
+        <ui-card variant="default" class="mt-4 block">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h2 class="section-title">{{ t('v2.body.bodyFatTitle') }}</h2>
+              <p class="v2-caption mt-0.5">{{ t('v2.body.bodyFatEstimate') }}</p>
             </div>
+            <span class="v2-num" style="font-size: 2rem; font-weight: 700; color: var(--v2-ink);">{{ bf }}%</span>
           </div>
-
-          <div class="mt-5 w-full">
-            @if (fasting.isFasting()) {
-              @if (!editing()) {
-                <p class="v2-caption text-center mb-3" style="font-size: 0.75rem;">
-                  {{ t('v2.body.startedAt', { time: startTimeLabel() }) }}
-                  <button type="button" (click)="beginEdit()"
-                    [attr.aria-label]="t('v2.body.editStartAria')"
-                    class="ml-1 underline"
-                    style="background: none; border: none; padding: 0; cursor: pointer; color: var(--v2-ink-muted); font: inherit;">
-                    {{ t('v2.body.edit') }}
-                  </button>
-                </p>
-                <ui-button variant="destructive" [block]="true" (click)="endFast()">
-                  {{ t('v2.body.endFast') }}
-                </ui-button>
-              } @else {
-                <p class="v2-caption text-center mb-2" style="font-size: 0.75rem;">
-                  {{ t('v2.body.editStartActivePrompt') }}
-                </p>
-                <div class="flex items-center justify-center mb-2">
-                  <input type="time" [value]="editValue()"
-                    (input)="editValue.set($any($event.target).value)"
-                    [attr.aria-label]="t('v2.body.fastStartTimeAria')"
-                    [attr.aria-invalid]="editError() ? 'true' : null"
-                    [attr.aria-describedby]="editError() ? 'v2-fast-edit-error' : null"
-                    class="v2-num"
-                    style="font-size: 1rem; padding: 8px 12px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); background: var(--v2-paper); color: var(--v2-ink); min-height: var(--v2-tap-min);" />
-                </div>
-                @if (editError()) {
-                  <p id="v2-fast-edit-error" role="alert"
-                    class="v2-caption text-center mb-2"
-                    style="font-size: 0.75rem; color: var(--v2-danger);">
-                    {{ editError() }}
-                  </p>
-                }
-                <div class="flex items-center justify-center gap-2">
-                  <ui-button variant="ghost" (click)="cancelEdit()">{{ t('v2.body.cancel') }}</ui-button>
-                  <ui-button variant="primary" (click)="commitEdit()">{{ t('v2.body.save') }}</ui-button>
-                </div>
-              }
-            } @else {
-              @if (!editing()) {
-                <ui-button variant="primary" [block]="true" (click)="startFast()">
-                  <lucide-icon name="timer" [size]="16" />
-                  {{ t('v2.body.startFast') }}
-                </ui-button>
-                <p class="text-center mt-2">
-                  <button type="button" (click)="beginEdit()"
-                    class="v2-caption underline"
-                    style="background: none; border: none; cursor: pointer; color: var(--v2-ink-muted); font-size: 0.75rem; min-height: var(--v2-tap-min); display: inline-flex; align-items: center; padding: 0 8px;">
-                    {{ t('v2.body.startedEarlier') }}
-                  </button>
-                </p>
-              } @else {
-                <p class="v2-caption text-center mb-2" style="font-size: 0.75rem;">
-                  {{ t('v2.body.editStartIdlePrompt') }}
-                </p>
-                <div class="flex items-center justify-center mb-2">
-                  <input type="time" [value]="editValue()"
-                    (input)="editValue.set($any($event.target).value)"
-                    [attr.aria-label]="t('v2.body.fastStartTimeAria')"
-                    [attr.aria-invalid]="editError() ? 'true' : null"
-                    [attr.aria-describedby]="editError() ? 'v2-fast-edit-error' : null"
-                    class="v2-num"
-                    style="font-size: 1rem; padding: 8px 12px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); background: var(--v2-paper); color: var(--v2-ink); min-height: var(--v2-tap-min);" />
-                </div>
-                @if (editError()) {
-                  <p id="v2-fast-edit-error" role="alert"
-                    class="v2-caption text-center mb-2"
-                    style="font-size: 0.75rem; color: var(--v2-danger);">
-                    {{ editError() }}
-                  </p>
-                }
-                <div class="flex items-center justify-center gap-2">
-                  <ui-button variant="ghost" (click)="cancelEdit()">{{ t('v2.body.cancel') }}</ui-button>
-                  <ui-button variant="primary" (click)="commitEdit()">{{ t('v2.body.startFast') }}</ui-button>
-                </div>
-              }
-            }
-          </div>
-        </div>
-        }
-      </ui-card>
+        </ui-card>
+      }
 
       <!-- ── Measurements ────────────────────────────────────── -->
       <ui-card variant="default" class="mt-4 block">
@@ -306,10 +164,6 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
 
         @if (expanded()) {
           <div id="measurements-panel" class="mt-4">
-            @if (bodyFatPct(); as bf) {
-              <p class="v2-caption mb-4">{{ t('body.bodyFat', { n: bf }) }}</p>
-            }
-
             @if (formOpen()) {
               <form (submit)="saveMeasurement($event)" novalidate class="space-y-3">
                 <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.06em;">
