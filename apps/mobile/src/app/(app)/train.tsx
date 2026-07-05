@@ -163,7 +163,8 @@ function StartView({
 
       {/* Hero panel — the Today skeleton (ADR-0014 §7): workouts this week is
           the one big number; volume + top set live inside as chips. */}
-      <Animated.View style={[styles.heroPanel, heroPulse]} entering={enterUp(0)} testID="train-hero">
+      <Animated.View entering={enterUp(0)}>
+      <Animated.View style={[styles.heroPanel, heroPulse]} testID="train-hero">
         <Text style={styles.heroCaption}>{t('train.thisWeek')}</Text>
         <View style={styles.hero}>
           <CountUpText value={stats.count} style={styles.heroValue} testID="week-workouts" />
@@ -187,6 +188,7 @@ function StartView({
             ) : null}
           </View>
         )}
+      </Animated.View>
       </Animated.View>
 
       <TouchableOpacity

@@ -2,13 +2,21 @@ import { Manrope_700Bold, Manrope_800ExtraBold, useFonts } from '@expo-google-fo
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { LogBox, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { BrandLoader } from '@/components/BrandLoader';
 import { I18nProvider } from '@/i18n';
 import { ThemeProvider, useTheme } from '@/lib/theme-context';
+
+// Silence Expo Go's expo-notifications warnings: we use LOCAL notifications
+// (which work in Expo Go); remote push is deferred to a dev build (ADR-0015),
+// so these "not fully supported in Expo Go" notices are expected, not bugs.
+LogBox.ignoreLogs([
+  'expo-notifications: Android Push notifications',
+  '`expo-notifications` functionality is not fully supported in Expo Go',
+]);
 
 /** Full-screen branded loading overlay while auth/profile/fonts settle, on
  *  the active theme's canvas so the handoff has no color flash. */

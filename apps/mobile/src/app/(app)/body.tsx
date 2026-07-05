@@ -97,7 +97,8 @@ export default function Body() {
         <ScrollView contentContainerStyle={styles.body}>
           {error ? <Text style={styles.error}>{t('body.loadErr')}</Text> : null}
 
-          <Animated.View style={[styles.heroPanel, goalPulse]} entering={enterUp(0)} testID="body-hero">
+          <Animated.View entering={enterUp(0)}>
+          <Animated.View style={[styles.heroPanel, goalPulse]} testID="body-hero">
             <View style={styles.hero}>
               {currentWeight != null ? (
                 <CountUpText value={currentWeight} decimals={1} style={styles.heroValue} testID="current-weight" />
@@ -146,6 +147,7 @@ export default function Body() {
                 </Text>
               </View>
             ) : null}
+          </Animated.View>
           </Animated.View>
 
           <Animated.View entering={enterUp(1)}>
