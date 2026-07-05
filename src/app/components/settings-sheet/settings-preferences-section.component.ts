@@ -33,19 +33,23 @@ import { UiButton } from '../ui/button.component';
       <ui-card variant="default" class="block mb-3">
         <h3 class="v2-h3 mb-1">{{ t('settings.language.section') }}</h3>
         <p class="v2-caption mb-3">{{ t('settings.language.desc') }}</p>
-        <div class="flex gap-2">
-          <ui-button
-            [variant]="translation.language() === 'en' ? 'primary' : 'ghost'"
-            size="sm"
-            (click)="selectLanguage('en')">
+        <div class="grid grid-cols-2 gap-1 p-1" style="background: var(--v2-paper-2); border-radius: var(--v2-radius-md);">
+          <button type="button"
+            [attr.aria-pressed]="translation.language() === 'en'"
+            (click)="selectLanguage('en')"
+            [style.background]="translation.language() === 'en' ? 'var(--v2-ink)' : 'transparent'"
+            [style.color]="translation.language() === 'en' ? 'var(--v2-paper)' : 'var(--v2-ink)'"
+            style="border: none; border-radius: var(--v2-radius-sm); min-height: var(--v2-tap-min); font-weight: 600; font-size: 0.875rem; cursor: pointer;">
             {{ t('settings.language.english') }}
-          </ui-button>
-          <ui-button
-            [variant]="translation.language() === 'es-PR' ? 'primary' : 'ghost'"
-            size="sm"
-            (click)="selectLanguage('es-PR')">
+          </button>
+          <button type="button"
+            [attr.aria-pressed]="translation.language() === 'es-PR'"
+            (click)="selectLanguage('es-PR')"
+            [style.background]="translation.language() === 'es-PR' ? 'var(--v2-ink)' : 'transparent'"
+            [style.color]="translation.language() === 'es-PR' ? 'var(--v2-paper)' : 'var(--v2-ink)'"
+            style="border: none; border-radius: var(--v2-radius-sm); min-height: var(--v2-tap-min); font-weight: 600; font-size: 0.875rem; cursor: pointer;">
             {{ t('settings.language.spanish') }}
-          </ui-button>
+          </button>
         </div>
         @if (showEsBetaBanner()) {
           <p class="v2-caption mt-3 v2-active-highlight" role="status"
@@ -144,26 +148,22 @@ import { UiButton } from '../ui/button.component';
         <h3 class="v2-h3 mb-1">{{ t('settings.units.section') }}</h3>
         <p class="v2-caption mb-3">{{ t('settings.units.desc') }}</p>
         <div role="radiogroup" [attr.aria-label]="t('settings.units.aria')"
-             class="grid grid-cols-2 gap-2">
+             class="grid grid-cols-2 gap-1 p-1" style="background: var(--v2-paper-2); border-radius: var(--v2-radius-md);">
           <button type="button" role="radio"
             [attr.aria-checked]="unitSystem() === 'us'"
             (click)="chooseUnits('us')"
-            class="flex flex-col items-start gap-0.5 p-3 rounded-md transition"
-            [style.background]="unitSystem() === 'us' ? 'var(--v2-accent-soft)' : 'var(--v2-paper-2)'"
-            [style.border]="'1px solid ' + (unitSystem() === 'us' ? 'var(--v2-accent)' : 'var(--v2-rule)')"
-            style="min-height: var(--v2-tap-min); cursor: pointer; font-family: var(--v2-font-sans); color: var(--v2-ink);">
-            <span class="v2-body" style="font-weight: 600;">{{ t('settings.units.us') }}</span>
-            <span class="v2-caption">{{ t('settings.units.usDesc') }}</span>
+            [style.background]="unitSystem() === 'us' ? 'var(--v2-ink)' : 'transparent'"
+            [style.color]="unitSystem() === 'us' ? 'var(--v2-paper)' : 'var(--v2-ink)'"
+            style="border: none; border-radius: var(--v2-radius-sm); min-height: var(--v2-tap-min); font-weight: 600; font-size: 0.875rem; cursor: pointer;">
+            {{ t('settings.units.us') }}
           </button>
           <button type="button" role="radio"
             [attr.aria-checked]="unitSystem() === 'metric'"
             (click)="chooseUnits('metric')"
-            class="flex flex-col items-start gap-0.5 p-3 rounded-md transition"
-            [style.background]="unitSystem() === 'metric' ? 'var(--v2-accent-soft)' : 'var(--v2-paper-2)'"
-            [style.border]="'1px solid ' + (unitSystem() === 'metric' ? 'var(--v2-accent)' : 'var(--v2-rule)')"
-            style="min-height: var(--v2-tap-min); cursor: pointer; font-family: var(--v2-font-sans); color: var(--v2-ink);">
-            <span class="v2-body" style="font-weight: 600;">{{ t('settings.units.metric') }}</span>
-            <span class="v2-caption">{{ t('settings.units.metricDesc') }}</span>
+            [style.background]="unitSystem() === 'metric' ? 'var(--v2-ink)' : 'transparent'"
+            [style.color]="unitSystem() === 'metric' ? 'var(--v2-paper)' : 'var(--v2-ink)'"
+            style="border: none; border-radius: var(--v2-radius-sm); min-height: var(--v2-tap-min); font-weight: 600; font-size: 0.875rem; cursor: pointer;">
+            {{ t('settings.units.metric') }}
           </button>
         </div>
         @if (unitsError()) {
