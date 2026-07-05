@@ -48,6 +48,7 @@ import type {
   WorkoutTemplate,
 } from '../../models/workout';
 import { normalizeClusterGroups } from '../../utils/cluster-groups';
+import { pruneUndefined as pruneUndefinedCore } from '@macrolog/core/prune-undefined';
 
 /**
  * Framework-free Firestore I/O core for the ledger adapter (issue #6
@@ -639,19 +640,9 @@ function toDomainSession(id: string, data: WorkoutSessionDoc): WorkoutSession {
 }
 
 /** Firestore rejects `undefined` (no `ignoreUndefinedProperties` set on
- *  this app's Firestore instance). Recursively drops undefined-valued
- *  keys from objects/arrays before a write. Timestamps and Dates are
- *  left intact (they are not plain objects we want to descend into). */
+ *  this app's Firestore instance). Delegates to the shared core pruner,
+ *  binding this edge's SDK `Timestamp` as an opaque leaf (core guards `Date`
+ *  built-in). Single-sourced with the Expo adapter — see @macrolog/core. */
 function pruneUndefined<T>(value: T): T {
-  if (Array.isArray(value)) {
-    return value.map((v) => pruneUndefined(v)) as unknown as T;
-  }
-  if (value !== null && typeof value === 'object' && !(value instanceof Timestamp) && !(value instanceof Date)) {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      if (v !== undefined) out[k] = pruneUndefined(v);
-    }
-    return out as T;
-  }
-  return value;
+  return pruneUndefinedCore(value, (v) => v instanceof Timestamp);
 }

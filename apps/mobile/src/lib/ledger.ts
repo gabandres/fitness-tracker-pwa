@@ -29,6 +29,7 @@ import {
   type WeeklyReport,
   clampCutPace,
   localDateKey,
+  pruneUndefined as pruneUndefinedCore,
 } from '@macrolog/core';
 import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import { db, storage } from './firebase';
@@ -619,17 +620,12 @@ const sessionDoc = (uid: string, id: string) => doc(db, 'users', uid, 'workoutSe
 const templatesCol = (uid: string) => collection(db, 'users', uid, 'workoutTemplates');
 const templateDoc = (uid: string, id: string) => doc(db, 'users', uid, 'workoutTemplates', id);
 
-/** Recursively drop undefined-valued keys (Firestore rejects undefined). */
+/** Recursively drop undefined-valued keys (Firestore rejects undefined).
+ *  Delegates to the shared core pruner, binding this edge's SDK `Timestamp`
+ *  as an opaque leaf (core guards `Date` built-in). Single-sourced with the
+ *  PWA adapter — see @macrolog/core. */
 function pruneUndefined<T>(value: T): T {
-  if (Array.isArray(value)) return value.map((v) => pruneUndefined(v)) as unknown as T;
-  if (value !== null && typeof value === 'object' && !(value instanceof Timestamp)) {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      if (v !== undefined) out[k] = pruneUndefined(v);
-    }
-    return out as T;
-  }
-  return value;
+  return pruneUndefinedCore(value, (v) => v instanceof Timestamp);
 }
 
 // ── Exercise catalog ──

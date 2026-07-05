@@ -67,3 +67,6 @@ export * from './workout-seed';
 export { buildCsv, type ExportData } from './csv-export';
 // Switcher CSV import parser (MFP / Lose It! / Cronometer), pure + shared.
 export * from './import-csv';
+// Shared Firestore write-path pruner (both frontends' ledger adapters).
+// Date-guard is built in; each edge injects its Timestamp predicate.
+export * from './prune-undefined';
