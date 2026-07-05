@@ -287,6 +287,23 @@ export default function Settings() {
           ) : null}
         </View>
 
+        {/* Donations (ADR-0015): external link only — Apple allows US-storefront
+            donation links post-May-2025, no cut. Unlocks nothing (altruistic),
+            so it can't read as IAP circumvention. TODO: geo-gate to US on iOS
+            and swap the placeholder URL for the real Stripe Payment Link. */}
+        <Text style={styles.section}>{t('settings.support')}</Text>
+        <View style={styles.card}>
+          <Text style={styles.rowValue}>{t('settings.supportBody')}</Text>
+          <TouchableOpacity
+            style={[styles.exportBtn, { marginTop: space.md }]}
+            onPress={() => Linking.openURL('https://macrolog.web.app/support')}
+            testID="settings-support"
+          >
+            <Ionicons name="heart-outline" size={16} color={colors.onInk} />
+            <Text style={styles.exportBtnText}>{t('settings.supportBtn')}</Text>
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.section}>{t('settings.units')}</Text>
         <View style={styles.card}>
           <Text style={styles.rowLabel}>{t('settings.portionDisplay')}</Text>
