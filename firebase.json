@@ -90,7 +90,7 @@
     "site": "macronautapp",
     "public": "hosting/macronautapp",
     "redirects": [
-      { "source": "**", "destination": "https://macrolog.web.app", "type": 302 }
+      { "source": "**", "destination": "https://ignia.fit", "type": 302 }
     ]
   }]
 }

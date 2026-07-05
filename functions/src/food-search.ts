@@ -153,7 +153,7 @@ interface FoodDetail {
 // is strong on branded + international/packaged items (great barcode
 // coverage). We query both and merge so the typeahead isn't limited to
 // FDC's branded subset. OFF asks API users to send a descriptive UA.
-const OFF_USER_AGENT = "MacroLog/1.0 (https://macrolog.web.app)";
+const OFF_USER_AGENT = "MacroLog/1.0 (https://ignia.fit)";
 const OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl";
 const OFF_PRODUCT_URL = "https://world.openfoodfacts.org/api/v2/product";
 const OFF_TIMEOUT_MS = 3500;

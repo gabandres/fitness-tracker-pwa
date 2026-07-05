@@ -72,7 +72,7 @@ function renderSvg(p: {
   ${stat(280, "START", fmtWeight(p.startWeight))}
   ${stat(600, "CURRENT", fmtWeight(p.currentWeight), BLOOD)}
   ${stat(920, "GOAL", fmtWeight(p.goalWeight), SAGE)}
-  <text x="600" y="570" font-family="Courier New, monospace" font-size="18" fill="${GRAPHITE}" text-anchor="middle" letter-spacing="2">macrolog.web.app</text>
+  <text x="600" y="570" font-family="Courier New, monospace" font-size="18" fill="${GRAPHITE}" text-anchor="middle" letter-spacing="2">ignia.fit</text>
 </svg>`;
 }
 
@@ -98,7 +98,7 @@ async function loadIndexHtml(): Promise<string> {
   // Fetch the canonical index.html. The `/u/**` rewrite shadows this
   // function only — `/index.html` still serves the static asset, no
   // recursion.
-  const resp = await fetch("https://macrolog.web.app/index.html");
+  const resp = await fetch("https://ignia.fit/index.html");
   const html = await resp.text();
   cachedIndexHtml = { html, fetchedAt: now };
   return html;
@@ -165,8 +165,8 @@ export const servePublicProfilePage = onRequest(
         ? `${displayName} gained ${Math.abs(totalChange).toFixed(1)} lb · Ignia`
         : `${displayName}'s progress · Ignia`;
     const description = "Tracked with Ignia — a quiet, private calorie and protein log. Free TDEE calculator and weight tracking.";
-    const canonical = `https://macrolog.web.app/u/${slug}`;
-    const ogImage = `https://macrolog.web.app/og/u/${slug}.png`;
+    const canonical = `https://ignia.fit/u/${slug}`;
+    const ogImage = `https://ignia.fit/og/u/${slug}.png`;
 
     const enriched = injectMeta(html, { title, description, ogImage, canonical });
     res.set("Content-Type", "text/html; charset=utf-8");

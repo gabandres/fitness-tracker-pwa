@@ -103,7 +103,7 @@ export const esPR: Record<I18nKey, string> = {
   'today.shareDays': 'días registrados',
   'today.shareLost': 'lb perdidas',
   'today.shareGained': 'lb ganadas',
-  'today.shareTagline': 'Registro gratis de kcal + proteína · macrolog.web.app',
+  'today.shareTagline': 'Registro gratis de kcal + proteína · ignia.fit',
   'today.loadErr': 'No se pudieron cargar tus datos. Desliza para reintentar.',
   'today.entry': 'Registro',
   'whatsNew.title': 'Novedades',

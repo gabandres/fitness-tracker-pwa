@@ -138,12 +138,12 @@ export class TransformationsComponent implements OnInit {
       '@context': 'https://schema.org',
       '@type': 'CollectionPage',
       name: 'Transformations · Ignia',
-      url: 'https://macrolog.web.app/transformations',
+      url: 'https://ignia.fit/transformations',
       description: 'Real users tracking calories, protein, and weight with Ignia.',
       hasPart: items.slice(0, 20).map((p) => ({
         '@type': 'Person',
         name: p.displayName,
-        url: `https://macrolog.web.app/u/${p.slug}`,
+        url: `https://ignia.fit/u/${p.slug}`,
       })),
     };
     const script = document.createElement('script');

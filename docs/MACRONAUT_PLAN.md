@@ -18,11 +18,11 @@ macros), **default Gemini, validate, escalate only on failure**; retention
 - [ ] **USPTO** knockout search (uspto.gov TESS) — classes 9 (software) + 42
       (SaaS). Nothing surfaced in web checks; confirm formally.
 - [ ] Reserve name in **App Store Connect** (surfaces any unpublished holder).
-- [ ] Grab **igniaapp.com** (preferred — no "Ignite Fitness" collision) or
-      `igniafit.com` (fitness/SEO signal, milder collision); both free. Owner
-      registrar purchase. `ignia.fit` dropped ($25). `ignia.com/.app/.io` taken
-      (unrelated LatAm VC firm ignia.vc, diff class). Reserve `@ignia` socials.
-      AVOID `igniafitness.com` — reads as a typo of ignitefitness.net.
+- [x] **PURCHASED `ignia.fit`** (2026-07-05) — canonical domain. Brand-exact +
+      category signal + collision-clean (dot separator, unlike `igniafit.com`
+      which collides w/ ignitefitness, and `igniaapp.com` which typo-collides w/
+      parked `igniapp.com`). `ignia.com/.app/.io` taken (LatAm VC ignia.vc, diff
+      class). Reserve `@ignia` socials. AVOID `igniafitness.com`.
 - Clearance (2026-07-05): US `IGNIA` wordmark USPTO Serial 77506911 is DEAD
       (un-revivable) → registrable; no Ignia app on Apple (us/gb/es/mx/ca/au) or
       Google Play. Caveats: ignia.vc VC firm exists (diff class); "Ignite"

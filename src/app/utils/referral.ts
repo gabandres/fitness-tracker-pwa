@@ -53,5 +53,5 @@ export function clearReferrer(): void {
  *  /calculator link, the pricing, and threads the ref through the
  *  whole funnel. */
 export function buildReferralLink(myUid: string): string {
-  return `https://macrolog.web.app/?ref=${encodeURIComponent(myUid)}`;
+  return `https://ignia.fit/?ref=${encodeURIComponent(myUid)}`;
 }

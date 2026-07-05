@@ -26,7 +26,7 @@ const dist = resolve(root, 'dist/fitness-tracker-pwa/browser');
 const shell = readFileSync(resolve(dist, 'index.html'), 'utf8');
 const i18n = JSON.parse(readFileSync(resolve(root, 'src/app/i18n/en.json'), 'utf8'));
 
-const SITE = 'https://macrolog.web.app';
+const SITE = 'https://ignia.fit';
 
 const KCAL = { lose: 11, maintain: 14, gain: 17 };
 // Protein: g/kg standard, 1.6 g/kg default (muscle-retention floor on a cut).

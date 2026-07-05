@@ -101,7 +101,7 @@ export const en = {
   'today.shareDays': 'days logged',
   'today.shareLost': 'lb lost',
   'today.shareGained': 'lb gained',
-  'today.shareTagline': 'Free kcal + protein tracking · macrolog.web.app',
+  'today.shareTagline': 'Free kcal + protein tracking · ignia.fit',
   'today.loadErr': "Couldn't load your data. Pull to retry.",
   'today.entry': 'Entry',
   'whatsNew.title': "What's new",

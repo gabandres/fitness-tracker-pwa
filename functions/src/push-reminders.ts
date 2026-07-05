@@ -64,7 +64,7 @@ export async function runDailyReminders(): Promise<void> {
               body: "You haven't logged today yet.",
             },
             webpush: {
-              fcmOptions: { link: "https://macrolog.web.app" },
+              fcmOptions: { link: "https://ignia.fit" },
             },
           });
         } catch (err: unknown) {
@@ -153,7 +153,7 @@ export async function runDayThreeCoachPush(): Promise<void> {
               body: "Three days of logs in. Tap to refine your daily targets.",
             },
             webpush: {
-              fcmOptions: { link: "https://macrolog.web.app/" },
+              fcmOptions: { link: "https://ignia.fit/" },
             },
           });
           await userDoc.ref.update({ dayThreeCoachPushSent: true });

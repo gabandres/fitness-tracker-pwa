@@ -1,16 +1,16 @@
 # Ignia
 
-A free, private macro tracker for lifters and people in a cut. **Live at <https://macrolog.web.app>**.
+A free, private macro tracker for lifters and people in a cut. **Live at <https://ignia.fit>**.
 
-> Try it without an account → **<https://macrolog.web.app/calculator>**
+> Try it without an account → **<https://ignia.fit/calculator>**
 
 Two numbers move the needle for fat loss and lean recomp: **calories** and **protein**. Ignia is built around those two — kcal + protein rings, nothing else cluttering the daily flow. Sign-up is two questions; logging a meal takes thirty seconds.
 
 ## What's there
 
-- Free macro calculator (no sign-up): <https://macrolog.web.app/calculator>
-- Per-weight, per-goal landing pages: e.g. <https://macrolog.web.app/macros/lose/180-lb>
-- FAQ on macros / cuts / TDEE: <https://macrolog.web.app/faq>
+- Free macro calculator (no sign-up): <https://ignia.fit/calculator>
+- Per-weight, per-goal landing pages: e.g. <https://ignia.fit/macros/lose/180-lb>
+- FAQ on macros / cuts / TDEE: <https://ignia.fit/faq>
 - Daily kcal + protein rings, 14-day rolling history
 - Adaptive TDEE — switches from formula to a measured TDEE after 14 days of logged data, based on your actual weight trend
 - Photo → macros via Gemini (Pro)
@@ -73,7 +73,7 @@ Firebase project: `fitness-tracker-gb-1775407101`. Hosting site: `macrolog`.
 
 - **Firebase web config** (`apiKey`, `projectId`, `authDomain`, `storageBucket`, `messagingSenderId`, `vapidKey`, `appId`) — these are public by Firebase design; access control is enforced by `firestore.rules` + Firebase Auth, not by hiding the keys.
 - **Sentry DSN** — public; Sentry rate-limits by DSN owner, not by secret.
-- **Gemini client key** (used by the consultation streaming call) — HTTP-referrer-restricted at Google Cloud, so only `https://macrolog.web.app` can use it.
+- **Gemini client key** (used by the consultation streaming call) — HTTP-referrer-restricted at Google Cloud, so only `https://ignia.fit` can use it.
 - **Stripe `priceId` values** — public identifiers.
 
 ### Must stay server-side (never in `src/`)

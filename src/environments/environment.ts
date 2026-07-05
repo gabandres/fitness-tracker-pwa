@@ -51,7 +51,7 @@ export const environment = {
     // off. Sentry breadcrumbs in AnalyticsService still capture the
     // funnel trail on any error report at zero cost.
     plausibleEnabled: false,
-    plausibleDomain: 'macrolog.web.app',
+    plausibleDomain: 'ignia.fit',
     plausibleEndpoint: 'https://plausible.io/api/event',
   },
 };

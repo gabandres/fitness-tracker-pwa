@@ -121,7 +121,7 @@ The Subscribe card will now render in the settings sheet.
 
 ## Step 7 — Verify end-to-end in test mode
 
-1. Open <https://macrolog.web.app> in an incognito window.
+1. Open <https://ignia.fit> in an incognito window.
 2. Sign in with a Google account that's not already subscribed.
 3. Scroll to the footer → you should see **"support · $3/mo (7-day free trial)"**.
 4. Click it → Stripe Checkout opens.

@@ -310,7 +310,7 @@ export class CalculatorComponent {
     // Share the exact /macros page that mirrors this calculation —
     // recipient sees a real landing page (with their friend's numbers),
     // not a generic /calculator they'd have to re-enter inputs into.
-    const url = `https://macrolog.web.app/macros/${goal}/${w}-lb`;
+    const url = `https://ignia.fit/macros/${goal}/${w}-lb`;
     const channel = await share({
       title: this.translation.t('calculator.shareTitle'),
       text: this.translation.t('calculator.shareText', {

@@ -223,7 +223,7 @@ export class MacrosPageComponent {
   protected async onShare(): Promise<void> {
     const p = this.parsed();
     if (!p) return;
-    const url = `https://macrolog.web.app/macros/${p.goal}/${p.weight}-lb`;
+    const url = `https://ignia.fit/macros/${p.goal}/${p.weight}-lb`;
     const channel = await share({
       title: this.translation.t(`macrosPage.heading.${p.goal}`, { weight: p.weight }),
       text: this.translation.t('macrosPage.shareText', {

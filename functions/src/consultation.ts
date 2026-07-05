@@ -38,7 +38,7 @@ const CONSULTATION_RATE_LIMIT = {
 // Same origins the leaked client key was HTTP-referrer-locked to. The
 // coach is only ever invoked from the first-party web app.
 const CONSULT_ALLOWED_ORIGINS = [
-  "https://macrolog.web.app",
+  "https://ignia.fit",
   "https://macrolog.firebaseapp.com",
   "http://localhost:4200",
 ];

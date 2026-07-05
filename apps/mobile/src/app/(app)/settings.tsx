@@ -82,7 +82,7 @@ export default function Settings() {
   const shareReferral = async () => {
     if (!user) return;
     haptics.tap();
-    const link = `https://macrolog.web.app/?ref=${encodeURIComponent(user.uid)}`;
+    const link = `https://ignia.fit/?ref=${encodeURIComponent(user.uid)}`;
     try {
       await Share.share({ message: `${t('settings.inviteShareMsg')} ${link}` });
     } catch { /* user dismissed the share sheet */ }
@@ -312,7 +312,7 @@ export default function Settings() {
           <Text style={styles.rowValue}>{t('settings.supportBody')}</Text>
           <TouchableOpacity
             style={[styles.exportBtn, { marginTop: space.md }]}
-            onPress={() => Linking.openURL('https://macrolog.web.app/support')}
+            onPress={() => Linking.openURL('https://ignia.fit/support')}
             testID="settings-support"
           >
             <Ionicons name="heart-outline" size={16} color={colors.onInk} />
@@ -540,7 +540,7 @@ export default function Settings() {
           <View style={styles.deleteDivider} />
           <TouchableOpacity
             style={styles.deleteRow}
-            onPress={() => Linking.openURL('https://macrolog.web.app/privacy#delete')}
+            onPress={() => Linking.openURL('https://ignia.fit/privacy#delete')}
             testID="settings-delete-account"
           >
             <View style={{ flex: 1 }}>

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Ignia — a free, private kcal+protein tracker (live at <https://macrolog.web.app>). The repo is an **npm-workspaces monorepo** with three buildable units plus shared code:
+Ignia — a free, private kcal+protein tracker (live at <https://ignia.fit>). The repo is an **npm-workspaces monorepo** with three buildable units plus shared code:
 
 - **`src/`** — the root project IS the Angular 21 PWA (the flagship product). Despite being a workspace root, it has its own `src/` and is the default `ng` project (`fitness-tracker-pwa`).
 - **`apps/mobile/`** — Expo SDK 54 React Native app (v1 built, not yet shipped to device). Has its own `CLAUDE.md` → `AGENTS.md`; read those when working there.

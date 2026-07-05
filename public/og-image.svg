@@ -24,7 +24,7 @@
 
   <!-- Top bar: wordmark + url -->
   <text x="60" y="78" class="wordmark ink">Ignia</text>
-  <text x="1140" y="78" class="caption ink-muted" text-anchor="end">macrolog.web.app</text>
+  <text x="1140" y="78" class="caption ink-muted" text-anchor="end">ignia.fit</text>
 
   <!-- Hairline rule -->
   <rect x="60" y="100" width="1080" height="1" fill="#E3DCCD"/>

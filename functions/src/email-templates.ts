@@ -40,7 +40,7 @@ function layout(heading: string, body: string): string {
           <tr>
             <td align="center" style="padding:18px 8px 4px;">
               <p style="margin:0 0 4px;color:${GRAPHITE};font-family:'Courier New',monospace;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;">private log · no ads · no data selling</p>
-              <a href="https://macrolog.web.app" style="color:${BLOOD};font-family:'Courier New',monospace;font-size:11px;text-decoration:none;font-weight:600;">macrolog.web.app</a>
+              <a href="https://ignia.fit" style="color:${BLOOD};font-family:'Courier New',monospace;font-size:11px;text-decoration:none;font-weight:600;">ignia.fit</a>
             </td>
           </tr>
         </table>
@@ -112,10 +112,10 @@ function welcomeEmailEn(firstName: string | null): { subject: string; html: stri
   ]);
   body += divider();
   body += paragraph("The primary question the app is built to answer is: <em>how many calories do I have left today?</em> Everything else is in service of that.");
-  body += brandButton("open the ledger", "https://macrolog.web.app/app");
+  body += brandButton("open the ledger", "https://ignia.fit/app");
   body += caption("Questions? Reply to this email — it goes straight to a human.");
   body += caption(
-    "Privacy: your logs are yours. We don't sell data, we don't run ads, and the AI coach only sees summaries of your data in-flight — never your email or name. Full policy at <a href=\"https://macrolog.web.app/privacy\" style=\"color:" + BLOOD + ";\">macrolog.web.app/privacy</a>.",
+    "Privacy: your logs are yours. We don't sell data, we don't run ads, and the AI coach only sees summaries of your data in-flight — never your email or name. Full policy at <a href=\"https://ignia.fit/privacy\" style=\"color:" + BLOOD + ";\">ignia.fit/privacy</a>.",
   );
 
   return { subject, html: layout(heading, body) };
@@ -199,7 +199,7 @@ export function weeklyDigestEmail(params: WeeklyDigestParams): { subject: string
     ${statRow(labels.daysLogged, `${params.daysLogged} / 7`)}
     ${statRow(labels.streak, `${params.streak}`)}
   </table>`;
-  body += brandButton(cta, "https://macrolog.web.app/app");
+  body += brandButton(cta, "https://ignia.fit/app");
   body += caption(unsubBlurb);
 
   return { subject, html: layout(heading, body) };
@@ -223,10 +223,10 @@ function welcomeEmailEs(firstName: string | null): { subject: string; html: stri
   ]);
   body += divider();
   body += paragraph("La pregunta principal que la app está hecha para contestar es: <em>¿cuántas calorías me quedan hoy?</em> Todo lo demás está al servicio de eso.");
-  body += brandButton("abrir la bitácora", "https://macrolog.web.app/app");
+  body += brandButton("abrir la bitácora", "https://ignia.fit/app");
   body += caption("¿Preguntas? Responde a este correo — llega directo a una persona.");
   body += caption(
-    "Privacidad: tu bitácora es tuya. No vendemos datos, no mostramos anuncios, y el coach IA solo ve resúmenes de tus datos en tránsito — nunca tu correo o nombre. Política completa en <a href=\"https://macrolog.web.app/privacy\" style=\"color:" + BLOOD + ";\">macrolog.web.app/privacy</a>.",
+    "Privacidad: tu bitácora es tuya. No vendemos datos, no mostramos anuncios, y el coach IA solo ve resúmenes de tus datos en tránsito — nunca tu correo o nombre. Política completa en <a href=\"https://ignia.fit/privacy\" style=\"color:" + BLOOD + ";\">ignia.fit/privacy</a>.",
   );
 
   return { subject, html: layout(heading, body) };

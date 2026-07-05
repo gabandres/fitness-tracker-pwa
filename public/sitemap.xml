@@ -1,113 +1,113 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://macrolog.web.app/</loc>
+    <loc>https://ignia.fit/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://macrolog.web.app/calculator</loc>
+    <loc>https://ignia.fit/calculator</loc>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
   <!-- Programmatic SEO: calculator variants targeting specific search
        intents. Same component as /calculator, different intro + meta. -->
-  <url><loc>https://macrolog.web.app/tdee-calculator-women</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://macrolog.web.app/tdee-calculator-men</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://macrolog.web.app/cutting-calculator</loc><changefreq>monthly</changefreq><priority>0.85</priority></url>
-  <url><loc>https://macrolog.web.app/bulking-calculator</loc><changefreq>monthly</changefreq><priority>0.85</priority></url>
-  <url><loc>https://macrolog.web.app/maintenance-calculator</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://macrolog.web.app/keto-macro-calculator</loc><changefreq>monthly</changefreq><priority>0.85</priority></url>
-  <url><loc>https://macrolog.web.app/weight-loss-calculator</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://macrolog.web.app/protein-calculator</loc><changefreq>monthly</changefreq><priority>0.85</priority></url>
-  <url><loc>https://macrolog.web.app/transformations</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://ignia.fit/tdee-calculator-women</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://ignia.fit/tdee-calculator-men</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://ignia.fit/cutting-calculator</loc><changefreq>monthly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://ignia.fit/bulking-calculator</loc><changefreq>monthly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://ignia.fit/maintenance-calculator</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://ignia.fit/keto-macro-calculator</loc><changefreq>monthly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://ignia.fit/weight-loss-calculator</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://ignia.fit/protein-calculator</loc><changefreq>monthly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://ignia.fit/transformations</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
   <url>
-    <loc>https://macrolog.web.app/faq</loc>
+    <loc>https://ignia.fit/faq</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://macrolog.web.app/vs/myfitnesspal</loc>
+    <loc>https://ignia.fit/vs/myfitnesspal</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://macrolog.web.app/vs/loseit</loc>
+    <loc>https://ignia.fit/vs/loseit</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://macrolog.web.app/vs/cronometer</loc>
+    <loc>https://ignia.fit/vs/cronometer</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://macrolog.web.app/vs/macrofactor</loc>
+    <loc>https://ignia.fit/vs/macrofactor</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://macrolog.web.app/vs/calai</loc>
+    <loc>https://ignia.fit/vs/calai</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://macrolog.web.app/privacy</loc>
+    <loc>https://ignia.fit/privacy</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://macrolog.web.app/terms</loc>
+    <loc>https://ignia.fit/terms</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://macrolog.web.app/changelog</loc>
+    <loc>https://ignia.fit/changelog</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://macrolog.web.app/status</loc>
+    <loc>https://ignia.fit/status</loc>
     <changefreq>always</changefreq>
     <priority>0.4</priority>
   </url>
   <!-- Programmatic SEO: macros for common bodyweights × 3 goals.
        Each URL renders pre-computed kcal + protein from the same
        heuristic the calculator uses, then CTAs into sign-up. -->
-  <url><loc>https://macrolog.web.app/macros/lose/120-lb</loc><priority>0.7</priority></url>
-  <url><loc>https://macrolog.web.app/macros/lose/130-lb</loc><priority>0.7</priority></url>
-  <url><loc>https://macrolog.web.app/macros/lose/140-lb</loc><priority>0.7</priority></url>
-  <url><loc>https://macrolog.web.app/macros/lose/150-lb</loc><priority>0.7</priority></url>
-  <url><loc>https://macrolog.web.app/macros/lose/160-lb</loc><priority>0.7</priority></url>
-  <url><loc>https://macrolog.web.app/macros/lose/170-lb</loc><priority>0.7</priority></url>
-  <url><loc>https://macrolog.web.app/macros/lose/180-lb</loc><priority>0.7</priority></url>
-  <url><loc>https://macrolog.web.app/macros/lose/190-lb</loc><priority>0.7</priority></url>
-  <url><loc>https://macrolog.web.app/macros/lose/200-lb</loc><priority>0.7</priority></url>
-  <url><loc>https://macrolog.web.app/macros/lose/210-lb</loc><priority>0.7</priority></url>
-  <url><loc>https://macrolog.web.app/macros/lose/220-lb</loc><priority>0.7</priority></url>
-  <url><loc>https://macrolog.web.app/macros/lose/230-lb</loc><priority>0.7</priority></url>
-  <url><loc>https://macrolog.web.app/macros/lose/240-lb</loc><priority>0.7</priority></url>
-  <url><loc>https://macrolog.web.app/macros/lose/250-lb</loc><priority>0.7</priority></url>
-  <url><loc>https://macrolog.web.app/macros/lose/260-lb</loc><priority>0.7</priority></url>
-  <url><loc>https://macrolog.web.app/macros/maintain/120-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/maintain/130-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/maintain/140-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/maintain/150-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/maintain/160-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/maintain/170-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/maintain/180-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/maintain/190-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/maintain/200-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/maintain/210-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/maintain/220-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/maintain/230-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/gain/120-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/gain/130-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/gain/140-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/gain/150-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/gain/160-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/gain/170-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/gain/180-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/gain/190-lb</loc><priority>0.6</priority></url>
-  <url><loc>https://macrolog.web.app/macros/gain/200-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/lose/120-lb</loc><priority>0.7</priority></url>
+  <url><loc>https://ignia.fit/macros/lose/130-lb</loc><priority>0.7</priority></url>
+  <url><loc>https://ignia.fit/macros/lose/140-lb</loc><priority>0.7</priority></url>
+  <url><loc>https://ignia.fit/macros/lose/150-lb</loc><priority>0.7</priority></url>
+  <url><loc>https://ignia.fit/macros/lose/160-lb</loc><priority>0.7</priority></url>
+  <url><loc>https://ignia.fit/macros/lose/170-lb</loc><priority>0.7</priority></url>
+  <url><loc>https://ignia.fit/macros/lose/180-lb</loc><priority>0.7</priority></url>
+  <url><loc>https://ignia.fit/macros/lose/190-lb</loc><priority>0.7</priority></url>
+  <url><loc>https://ignia.fit/macros/lose/200-lb</loc><priority>0.7</priority></url>
+  <url><loc>https://ignia.fit/macros/lose/210-lb</loc><priority>0.7</priority></url>
+  <url><loc>https://ignia.fit/macros/lose/220-lb</loc><priority>0.7</priority></url>
+  <url><loc>https://ignia.fit/macros/lose/230-lb</loc><priority>0.7</priority></url>
+  <url><loc>https://ignia.fit/macros/lose/240-lb</loc><priority>0.7</priority></url>
+  <url><loc>https://ignia.fit/macros/lose/250-lb</loc><priority>0.7</priority></url>
+  <url><loc>https://ignia.fit/macros/lose/260-lb</loc><priority>0.7</priority></url>
+  <url><loc>https://ignia.fit/macros/maintain/120-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/maintain/130-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/maintain/140-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/maintain/150-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/maintain/160-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/maintain/170-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/maintain/180-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/maintain/190-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/maintain/200-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/maintain/210-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/maintain/220-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/maintain/230-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/gain/120-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/gain/130-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/gain/140-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/gain/150-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/gain/160-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/gain/170-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/gain/180-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/gain/190-lb</loc><priority>0.6</priority></url>
+  <url><loc>https://ignia.fit/macros/gain/200-lb</loc><priority>0.6</priority></url>
 </urlset>
