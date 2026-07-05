@@ -1,31 +1,28 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import Animated from 'react-native-reanimated';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated, { FadeInLeft, FadeInRight, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type GoalDirection, computeKcal, computeProtein } from '@macrolog/core';
+import { BrandMark } from '@/components/BrandMark';
 import { useAuth } from '@/lib/auth';
 import { saveOnboardingV2 } from '@/lib/ledger';
 import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { enterUp, PressScale } from '@/lib/motion';
+import { CountUpText, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, type } from '@/theme';
+import { font, motion, radius, space, type } from '@/theme';
 
-const GOALS: { key: GoalDirection; labelKey: I18nKey; hintKey: I18nKey }[] = [
-  { key: 'lose', labelKey: 'goal.lose', hintKey: 'goal.loseHint' },
-  { key: 'maintain', labelKey: 'goal.maintain', hintKey: 'goal.maintainHint' },
-  { key: 'gain', labelKey: 'goal.gain', hintKey: 'goal.gainHint' },
+type StepId = 'welcome' | 'goal' | 'weight' | 'goalWeight' | 'plan';
+const ORDER: StepId[] = ['welcome', 'goal', 'weight', 'goalWeight', 'plan'];
+/** Steps that get a progress dot (welcome is a greeting, not a form step). */
+const DOT_STEPS: StepId[] = ['goal', 'weight', 'goalWeight', 'plan'];
+
+const GOALS: { key: GoalDirection; labelKey: I18nKey; hintKey: I18nKey; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: 'lose', labelKey: 'goal.lose', hintKey: 'goal.loseHint', icon: 'trending-down-outline' },
+  { key: 'maintain', labelKey: 'goal.maintain', hintKey: 'goal.maintainHint', icon: 'swap-horizontal-outline' },
+  { key: 'gain', labelKey: 'goal.gain', hintKey: 'goal.gainHint', icon: 'trending-up-outline' },
 ];
 
 function numOrUndef(s: string): number | undefined {
@@ -41,9 +38,12 @@ export default function Onboarding() {
   const { colors } = useTheme();
   const { user, profile } = useAuth();
   const router = useRouter();
-  // A completed profile only reaches this screen via Settings → "Edit goals".
+  // A completed profile only reaches this screen via Settings → "Edit goals":
+  // skip the welcome greeting and return to Settings when done.
   const isRedo = !!profile?.profileCompleted;
 
+  const [step, setStep] = useState<StepId>(isRedo ? 'goal' : 'welcome');
+  const [dir, setDir] = useState<1 | -1>(1);
   const [weight, setWeight] = useState('');
   const [goal, setGoal] = useState<GoalDirection | null>(profile?.goalDirection ?? null);
   const [targetWeight, setTargetWeight] = useState(() => {
@@ -56,24 +56,42 @@ export default function Onboarding() {
   const weightLbs = numOrUndef(weight);
   const kcal = weightLbs && goal ? computeKcal(weightLbs, goal) : null;
   const protein = weightLbs ? computeProtein(weightLbs) : null;
-  const canSave = weightLbs != null && goal != null && !busy;
 
-  async function onSave() {
-    if (!canSave || !user || !goal || weightLbs == null || kcal == null || protein == null) return;
+  // Skip the goal-weight step for "maintain" (there's no target to hit).
+  const skipGoalWeight = goal === 'maintain';
+  function neighbor(from: StepId, delta: 1 | -1): StepId {
+    let idx = ORDER.indexOf(from) + delta;
+    if (ORDER[idx] === 'goalWeight' && skipGoalWeight) idx += delta;
+    if (ORDER[idx] === 'welcome' && isRedo) return from; // redo can't go before goal
+    return ORDER[idx] ?? from;
+  }
+
+  const canAdvance =
+    step === 'welcome' ||
+    (step === 'goal' && goal != null) ||
+    (step === 'weight' && weightLbs != null) ||
+    (step === 'goalWeight' && numOrUndef(targetWeight) != null) ||
+    step === 'plan';
+
+  function go(delta: 1 | -1) {
+    haptics.tap();
+    setDir(delta);
+    setStep((s) => neighbor(s, delta));
+  }
+
+  async function onFinish() {
+    if (busy || !user || !goal || weightLbs == null || kcal == null || protein == null) return;
     setError(null);
     setBusy(true);
     try {
       await saveOnboardingV2(user.uid, {
         weightLbs,
         goalDirection: goal,
-        targetWeightLbs: goal === 'maintain' ? undefined : numOrUndef(targetWeight),
+        targetWeightLbs: skipGoalWeight ? undefined : numOrUndef(targetWeight),
         manualCaloriesTarget: kcal,
         manualProteinTarget: protein,
       });
       haptics.success();
-      // Redo came from Settings → return there (back() can't restore the
-      // href:null Settings screen across the group boundary). A first-time
-      // user moves into the app (the gate no longer auto-redirects here).
       router.replace(isRedo ? '/settings' : '/(app)');
     } catch {
       setError(t('onboarding.saveErr'));
@@ -81,191 +99,226 @@ export default function Onboarding() {
     }
   }
 
+  const entering = (dir === 1 ? FadeInRight : FadeInLeft).duration(motion.dur.base).reduceMotion(ReduceMotion.System);
+  const showBack = step !== 'welcome' && !(isRedo && step === 'goal');
+  const dotIndex = DOT_STEPS.filter((s) => !(s === 'goalWeight' && skipGoalWeight)).indexOf(step);
+  const dotTotal = DOT_STEPS.filter((s) => !(s === 'goalWeight' && skipGoalWeight)).length;
+
   return (
-    <SafeAreaView style={styles.screen}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.fill}
-      >
-        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-          <Animated.Text style={styles.brand} entering={enterUp(0)}>
-            {isRedo ? t('onboarding.titleEdit') : t('onboarding.titleNew')}
-          </Animated.Text>
-          <Animated.Text style={styles.tagline} entering={enterUp(1)}>
-            {t('onboarding.tagline')}
-          </Animated.Text>
-
-          <Animated.View style={styles.field} entering={enterUp(2)}>
-            <Text style={styles.label}>{t('onboarding.currentWeight')}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. 180"
-              placeholderTextColor={colors.faint}
-              keyboardType="numeric"
-              value={weight}
-              onChangeText={setWeight}
-              testID="onboarding-weight"
-            />
-          </Animated.View>
-
-          <Animated.View style={styles.field} entering={enterUp(3)}>
-            <Text style={styles.label}>{t('onboarding.goal')}</Text>
-            <View style={styles.goals}>
-              {GOALS.map((g) => {
-                const on = goal === g.key;
-                return (
-                  <PressScale
-                    key={g.key}
-                    style={[styles.goal, on ? styles.goalOn : null]}
-                    onPress={() => {
-                      haptics.tap();
-                      setGoal(g.key);
-                    }}
-                    testID={`onboarding-goal-${g.key}`}
-                  >
-                    <Text style={[styles.goalLabel, on && styles.goalLabelOn]}>{t(g.labelKey)}</Text>
-                    <Text style={[styles.goalHint, on && styles.goalHintOn]}>{t(g.hintKey)}</Text>
-                  </PressScale>
-                );
-              })}
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
+        {/* Top bar: back + progress dots (hidden on the welcome greeting). */}
+        <View style={styles.topBar}>
+          {showBack ? (
+            <PressScale style={styles.back} scaleTo={0.9} onPress={() => go(-1)} testID="onboarding-back">
+              <Ionicons name="chevron-back" size={26} color={colors.ink} />
+            </PressScale>
+          ) : (
+            <View style={styles.back} />
+          )}
+          {dotIndex >= 0 ? (
+            <View style={styles.dots}>
+              {Array.from({ length: dotTotal }).map((_, i) => (
+                <View key={i} style={[styles.dot, i === dotIndex && styles.dotOn, i < dotIndex && styles.dotDone]} />
+              ))}
             </View>
-          </Animated.View>
+          ) : null}
+          <View style={styles.back} />
+        </View>
 
-          {goal && goal !== 'maintain' ? (
-            <View style={styles.field}>
-              <Text style={styles.label}>{t('onboarding.goalWeight')}</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. 165"
-                placeholderTextColor={colors.faint}
-                keyboardType="numeric"
-                value={targetWeight}
-                onChangeText={setTargetWeight}
-                testID="onboarding-target-weight"
-              />
+        <Animated.View key={step} entering={entering} style={styles.stepWrap}>
+          {step === 'welcome' ? (
+            <View style={styles.welcome}>
+              <BrandMark />
+              <Text style={styles.welcomeTitle}>{t('onboarding.titleNew')}</Text>
+              <Text style={styles.welcomeBody}>{t('onboarding.welcomeBody')}</Text>
             </View>
           ) : null}
 
-          {kcal != null && protein != null ? (
-            <Animated.View style={styles.preview} testID="onboarding-preview" entering={enterUp(0)}>
-              <Text style={styles.previewTitle}>{t('onboarding.targets')}</Text>
-              <View style={styles.previewRow}>
-                <View style={styles.previewStat}>
-                  <Text style={styles.previewValue}>{kcal.toLocaleString()}</Text>
-                  <Text style={styles.previewLabel}>{t('onboarding.calories')}</Text>
-                </View>
-                <View style={styles.previewStat}>
-                  <Text style={styles.previewValue}>{protein}g</Text>
-                  <Text style={styles.previewLabel}>{t('onboarding.protein')}</Text>
+          {step === 'goal' ? (
+            <View style={styles.step}>
+              <Text style={styles.question}>{t('onboarding.goalQ')}</Text>
+              <View style={styles.goals}>
+                {GOALS.map((g) => {
+                  const on = goal === g.key;
+                  return (
+                    <PressScale
+                      key={g.key}
+                      style={[styles.goalCard, on && styles.goalCardOn]}
+                      scaleTo={0.97}
+                      onPress={() => {
+                        haptics.tap();
+                        setGoal(g.key);
+                      }}
+                      testID={`onboarding-goal-${g.key}`}
+                    >
+                      <View style={[styles.goalIcon, on && styles.goalIconOn]}>
+                        <Ionicons name={g.icon} size={24} color={on ? colors.onInk : colors.ink} />
+                      </View>
+                      <View style={styles.goalText}>
+                        <Text style={[styles.goalLabel, on && styles.goalLabelOn]}>{t(g.labelKey)}</Text>
+                        <Text style={[styles.goalHint, on && styles.goalHintOn]}>{t(g.hintKey)}</Text>
+                      </View>
+                      {on ? <Ionicons name="checkmark-circle" size={22} color={colors.onInk} /> : null}
+                    </PressScale>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+
+          {step === 'weight' ? (
+            <View style={styles.step}>
+              <Text style={styles.question}>{t('onboarding.weightQ')}</Text>
+              <BigInput value={weight} onChangeText={setWeight} placeholder="180" styles={styles} colors={colors} testID="onboarding-weight" />
+            </View>
+          ) : null}
+
+          {step === 'goalWeight' ? (
+            <View style={styles.step}>
+              <Text style={styles.question}>{t('onboarding.goalWeightQ')}</Text>
+              <BigInput value={targetWeight} onChangeText={setTargetWeight} placeholder="165" styles={styles} colors={colors} testID="onboarding-target-weight" />
+            </View>
+          ) : null}
+
+          {step === 'plan' ? (
+            <View style={styles.step}>
+              <Text style={styles.question}>{t('onboarding.planQ')}</Text>
+              <View style={styles.planPanel} testID="onboarding-preview">
+                <View style={styles.planRow}>
+                  <View style={styles.planStat}>
+                    <CountUpText value={kcal ?? 0} style={styles.planValue} />
+                    <Text style={styles.planLabel}>{t('onboarding.calories')}</Text>
+                  </View>
+                  <View style={styles.planDivider} />
+                  <View style={styles.planStat}>
+                    <CountUpText value={protein ?? 0} suffix="g" style={styles.planValue} />
+                    <Text style={styles.planLabel}>{t('onboarding.protein')}</Text>
+                  </View>
                 </View>
               </View>
-              <Text style={styles.previewNote}>{t('onboarding.refineNote')}</Text>
-            </Animated.View>
+              <Text style={styles.planSub}>{t('onboarding.planSub')}</Text>
+            </View>
           ) : null}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
-        </ScrollView>
+        </Animated.View>
 
         <View style={styles.footer}>
-          {isRedo ? (
-            <TouchableOpacity style={styles.cancel} onPress={() => router.replace('/settings')} testID="onboarding-cancel">
-              <Text style={styles.cancelText}>{t('common.cancel')}</Text>
-            </TouchableOpacity>
-          ) : null}
-          <TouchableOpacity
-            style={[styles.save, !canSave && styles.saveDisabled]}
-            onPress={onSave}
-            disabled={!canSave}
-            testID="onboarding-save"
+          <PressScale
+            style={[styles.cta, !canAdvance && styles.ctaDisabled]}
+            scaleTo={0.98}
+            disabled={!canAdvance || busy}
+            onPress={step === 'plan' ? onFinish : () => go(1)}
+            testID={step === 'plan' ? 'onboarding-save' : 'onboarding-next'}
           >
             {busy ? (
               <ActivityIndicator color={colors.onInk} />
             ) : (
-              <Text style={styles.saveText}>{isRedo ? t('onboarding.saveEdit') : t('onboarding.saveNew')}</Text>
+              <Text style={styles.ctaText}>
+                {step === 'welcome'
+                  ? t('onboarding.welcomeCta')
+                  : step === 'plan'
+                    ? isRedo
+                      ? t('onboarding.saveEdit')
+                      : t('onboarding.saveNew')
+                    : t('onboarding.continue')}
+              </Text>
             )}
-          </TouchableOpacity>
+          </PressScale>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.paper },
-  fill: { flex: 1 },
-  body: { paddingHorizontal: space.xl, paddingTop: space.xl, paddingBottom: space.xl, gap: space.lg },
-  brand: { fontFamily: type.display, fontSize: font.h1, color: colors.ink },
-  tagline: { fontSize: font.body, color: colors.muted, marginTop: -space.sm, marginBottom: space.sm },
-  field: { gap: space.xs },
-  label: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
-  input: {
-    backgroundColor: colors.inputBg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radius.md,
-    paddingHorizontal: space.lg,
-    paddingVertical: space.md,
-    fontSize: font.h3,
-    color: colors.ink,
-  },
-  goals: { flexDirection: 'row', gap: space.sm },
-  goal: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radius.md,
-    paddingVertical: space.md,
-    paddingHorizontal: space.sm,
-    backgroundColor: colors.inputBg,
-    alignItems: 'center',
-    gap: 2,
-  },
-  goalOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  goalLabel: { fontSize: font.body, fontWeight: '700', color: colors.ink },
-  goalLabelOn: { color: colors.onInk },
-  goalHint: { fontSize: font.tiny, color: colors.faint },
-  goalHintOn: { color: colors.line },
-  preview: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    padding: space.lg,
-    gap: space.sm,
-    ...shadow.e1,
-  },
-  previewTitle: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
-  previewRow: { flexDirection: 'row', gap: space.xl },
-  previewStat: { gap: 2 },
-  previewValue: { fontFamily: type.display, fontSize: font.h1, color: colors.ink },
-  previewLabel: { fontSize: font.small, color: colors.muted },
-  previewNote: { fontSize: font.small, color: colors.faint },
-  error: { color: colors.danger, fontSize: font.small },
-  footer: {
-    flexDirection: 'row',
-    gap: space.md,
-    paddingHorizontal: space.xl,
-    paddingTop: space.md,
-    paddingBottom: space.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
-  },
-  cancel: {
-    paddingHorizontal: space.xl,
-    paddingVertical: space.lg,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    justifyContent: 'center',
-  },
-  cancelText: { color: colors.muted, fontWeight: '700', fontSize: font.body },
-  save: {
-    flex: 1,
-    backgroundColor: colors.ink,
-    borderRadius: radius.md,
-    paddingVertical: space.lg,
-    alignItems: 'center',
-  },
-  saveDisabled: { opacity: 0.4 },
-  saveText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
-});
+function BigInput({
+  value,
+  onChangeText,
+  placeholder,
+  styles,
+  colors,
+  testID,
+}: {
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder: string;
+  styles: ReturnType<typeof createStyles>;
+  colors: Theme['colors'];
+  testID: string;
+}) {
+  return (
+    <View style={styles.bigInputRow}>
+      <TextInput
+        style={styles.bigInput}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={colors.faint}
+        keyboardType="numeric"
+        autoFocus
+        selectTextOnFocus
+        maxLength={5}
+        testID={testID}
+      />
+      <Text style={styles.bigUnit}>lb</Text>
+    </View>
+  );
+}
+
+const createStyles = ({ colors, shadow }: Theme) =>
+  StyleSheet.create({
+    screen: { flex: 1, backgroundColor: colors.paper },
+    fill: { flex: 1 },
+    topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xl, paddingTop: space.md, height: 44 },
+    back: { width: 40, height: 40, alignItems: 'flex-start', justifyContent: 'center' },
+    dots: { flexDirection: 'row', gap: space.xs },
+    dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.line },
+    dotOn: { width: 22, backgroundColor: colors.ink },
+    dotDone: { backgroundColor: colors.accent },
+    stepWrap: { flex: 1, paddingHorizontal: space.xl, justifyContent: 'center' },
+    // Welcome greeting.
+    welcome: { alignItems: 'center', gap: space.lg },
+    welcomeTitle: { fontFamily: type.display, fontSize: 34, color: colors.ink, textAlign: 'center', marginTop: space.md },
+    welcomeBody: { fontSize: font.h3, color: colors.muted, textAlign: 'center', lineHeight: font.h3 * 1.45, paddingHorizontal: space.md },
+    // A form step.
+    step: { gap: space.xl },
+    question: { fontFamily: type.display, fontSize: 30, color: colors.ink, lineHeight: 36 },
+    // Goal cards.
+    goals: { gap: space.md },
+    goalCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.md,
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: radius.lg,
+      padding: space.lg,
+      backgroundColor: colors.card,
+    },
+    goalCardOn: { backgroundColor: colors.ink, borderColor: colors.ink, ...shadow.e2 },
+    goalIcon: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.inputBg, alignItems: 'center', justifyContent: 'center' },
+    goalIconOn: { backgroundColor: colors.heroTrack },
+    goalText: { flex: 1, gap: 2 },
+    goalLabel: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
+    goalLabelOn: { color: colors.onInk },
+    goalHint: { fontSize: font.small, color: colors.muted },
+    goalHintOn: { color: colors.heroMuted },
+    // Big numeric input.
+    bigInputRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: space.sm },
+    bigInput: { fontFamily: type.display, fontSize: 72, color: colors.ink, textAlign: 'center', minWidth: 140, padding: 0 },
+    bigUnit: { fontSize: font.h1, color: colors.muted, marginBottom: space.lg },
+    // Plan reveal.
+    planPanel: { backgroundColor: colors.heroPanel, borderRadius: radius.xl, paddingVertical: space.xxl, paddingHorizontal: space.lg, ...shadow.e2 },
+    planRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+    planStat: { flex: 1, alignItems: 'center', gap: space.xs },
+    planValue: { fontFamily: type.display, fontSize: 44, color: colors.heroText },
+    planLabel: { fontSize: font.body, color: colors.heroMuted },
+    planDivider: { width: 1, alignSelf: 'stretch', backgroundColor: colors.heroTrack, marginVertical: space.sm },
+    planSub: { fontSize: font.body, color: colors.muted, textAlign: 'center', paddingHorizontal: space.md },
+    error: { color: colors.danger, fontSize: font.small, textAlign: 'center', marginTop: space.md },
+    footer: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.md },
+    cta: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },
+    ctaDisabled: { opacity: 0.4 },
+    ctaText: { color: colors.onInk, fontSize: font.h3, fontWeight: '700' },
+  });

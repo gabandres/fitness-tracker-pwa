@@ -56,6 +56,14 @@ export const esPR: Record<I18nKey, string> = {
   'signIn.errGeneric': 'No se pudo iniciar sesión. Inténtalo de nuevo.',
 
   // ── onboarding ──
+  'onboarding.welcomeBody': 'Toma una foto de tu comida, registra tus pesas y alcanza tus metas. Configurar tu plan toma unos 30 segundos.',
+  'onboarding.welcomeCta': 'Vamos',
+  'onboarding.goalQ': '¿Cuál es tu meta?',
+  'onboarding.weightQ': '¿Cuánto pesas ahora?',
+  'onboarding.goalWeightQ': '¿Cuál es tu peso meta?',
+  'onboarding.planQ': 'Todo listo',
+  'onboarding.planSub': 'Aquí está tu plan diario — puedes ajustarlo cuando quieras.',
+  'onboarding.continue': 'Continuar',
   'onboarding.titleNew': 'Bienvenido a Macro Log',
   'onboarding.titleEdit': 'Edita tus metas',
   'onboarding.tagline': 'Dos preguntas y listo — nosotros hacemos las cuentas.',
