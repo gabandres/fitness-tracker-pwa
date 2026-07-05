@@ -121,55 +121,19 @@ import { UiButton } from '../ui/button.component';
         </div>
       </ui-card>
 
-      <!-- Appearance (Theme + Travel) -->
+      <!-- Appearance (Theme) — 3-option ink-fill segmented, mirrors mobile -->
       <ui-card variant="default" class="block mb-3">
-        <h3 class="v2-h3 mb-2">{{ t('settings.modes.section') }}</h3>
-
-        <div class="flex items-start justify-between gap-3 mb-4">
-          <div class="min-w-0">
-            <div class="v2-body" style="font-weight: 500;">{{ t('settings.modes.travel') }}</div>
-            <p class="v2-caption mt-0.5">{{ t('settings.modes.travelDesc') }}</p>
-          </div>
-          <ui-button
-            [variant]="store.travelMode() ? 'primary' : 'ghost'"
-            size="sm"
-            (click)="store.toggleTravelMode()"
-            [ariaLabel]="store.travelMode() ? t('settings.modes.travelAriaOff') : t('settings.modes.travelAriaOn')">
-            {{ store.travelMode() ? t('settings.modes.travelOn') : t('settings.modes.travelOff') }}
-          </ui-button>
-        </div>
-
-        <div class="flex items-start justify-between gap-3 mb-3">
-          <div>
-            <div class="v2-body" style="font-weight: 500;">{{ t('settings.modes.theme') }}</div>
-            <p class="v2-caption">{{ t('settings.modes.themeDesc') }}</p>
-          </div>
-          @if (!isPaid()) {
-            <span class="v2-num shrink-0"
-              style="font-size: 0.625rem; padding: 3px 8px; background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: 999px; color: var(--v2-ink-muted); text-transform: uppercase; letter-spacing: 0.06em;">
-              {{ t('settings.modes.themeProBadge') }}
-            </span>
-          }
-        </div>
-
+        <h3 class="v2-h3 mb-3">{{ t('settings.modes.section') }}</h3>
         <div role="radiogroup" [attr.aria-label]="t('settings.modes.themeAriaGroup')"
-             class="grid grid-cols-3 gap-2">
+             class="grid grid-cols-3 gap-1 p-1" style="background: var(--v2-paper-2); border-radius: var(--v2-radius-md);">
           @for (opt of themeOptions; track opt.value) {
             <button type="button" role="radio"
               [attr.aria-checked]="themeChoice() === opt.value"
-              [disabled]="opt.pro && !isPaid()"
               (click)="chooseTheme(opt.value)"
-              class="flex flex-col items-center gap-1.5 p-2.5 rounded-md transition"
-              [class.opacity-50]="opt.pro && !isPaid()"
-              [style.background]="themeChoice() === opt.value ? 'var(--v2-accent-soft)' : 'var(--v2-paper-2)'"
-              [style.border]="'1px solid ' + (themeChoice() === opt.value ? 'var(--v2-accent)' : 'var(--v2-rule)')"
-              style="min-height: var(--v2-tap-min); cursor: pointer; font-family: var(--v2-font-sans); font-size: 0.75rem; color: var(--v2-ink);">
-              <span class="inline-block w-6 h-4 rounded-sm" style="border: 1px solid var(--v2-rule);"
-                [style.background]="opt.swatch"></span>
-              <span>{{ t(opt.labelKey) }}</span>
-              @if (opt.pro && !isPaid()) {
-                <span class="v2-caption" style="font-size: 0.625rem; opacity: 0.7;">{{ t('v2.settings.themeProBadge') }}</span>
-              }
+              [style.background]="themeChoice() === opt.value ? 'var(--v2-ink)' : 'transparent'"
+              [style.color]="themeChoice() === opt.value ? 'var(--v2-paper)' : 'var(--v2-ink)'"
+              style="border: none; border-radius: var(--v2-radius-sm); min-height: var(--v2-tap-min); font-weight: 600; font-size: 0.875rem; cursor: pointer;">
+              {{ t(opt.labelKey) }}
             </button>
           }
         </div>
@@ -277,15 +241,14 @@ export class SettingsPreferencesSectionComponent {
   protected readonly reminderHour = computed(() => (this.firebase.profile() as any)?.reminderHour ?? 20);
   protected readonly showEsBetaBanner = computed(() => this.translation.language() === 'es-PR');
 
+  // Mobile ships three themes only: System / Light / Dark. The Pro palettes
+  // (sepia/graphite/oxblood) + travel mode were web-only and are dropped.
   protected readonly themeOptions: ReadonlyArray<{
-    value: ThemeChoice; labelKey: string; swatch: string; pro: boolean;
+    value: ThemeChoice; labelKey: string;
   }> = [
-    { value: 'auto',         labelKey: 'settings.modes.themeAuto',     swatch: 'linear-gradient(90deg, #faf7f2 50%, #1c1915 50%)', pro: false },
-    { value: 'light',        labelKey: 'settings.modes.themeLightOpt', swatch: '#faf7f2', pro: false },
-    { value: 'dark',         labelKey: 'settings.modes.themeDarkOpt',  swatch: '#1c1915', pro: false },
-    { value: 'sepia',        labelKey: 'settings.modes.themeSepia',    swatch: '#efe6d2', pro: true  },
-    { value: 'graphite',     labelKey: 'settings.modes.themeGraphite', swatch: '#e8e6e2', pro: true  },
-    { value: 'oxblood-dark', labelKey: 'settings.modes.themeOxblood',  swatch: '#1a1010', pro: true  },
+    { value: 'auto',  labelKey: 'settings.modes.themeAuto' },
+    { value: 'light', labelKey: 'settings.modes.themeLightOpt' },
+    { value: 'dark',  labelKey: 'settings.modes.themeDarkOpt' },
   ];
 
   protected chooseTheme(v: ThemeChoice): void { this.themeSelect.emit(v); }

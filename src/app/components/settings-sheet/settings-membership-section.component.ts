@@ -60,62 +60,6 @@ import { UiButton } from '../ui/button.component';
         </ui-card>
       }
 
-      <!-- Public profile -->
-      <ui-card variant="default" class="block mb-3">
-        <h3 class="v2-h3 mb-2">{{ t('publicProfileSettings.title') }}</h3>
-        <p class="v2-body-soft mb-3" style="font-size: 0.875rem;">
-          {{ t('publicProfileSettings.body') }}
-        </p>
-        @if (publicSlug(); as slug) {
-          <p class="v2-caption mb-2">{{ t('publicProfileSettings.linkLabel') }}</p>
-          <a [href]="'/u/' + slug" target="_blank" rel="noopener"
-             style="display: block; padding: 10px 12px; background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); margin-bottom: 8px; text-decoration: none;">
-            <span class="v2-num" style="font-size: 0.75rem; color: var(--v2-ink); word-break: break-all;">
-              macrolog.app/u/{{ slug }}
-            </span>
-          </a>
-        }
-        <label class="v2-caption" style="display: block; margin-bottom: 4px;">
-          {{ t('publicProfileSettings.slugLabel') }}
-        </label>
-        <input type="text"
-          [value]="slugInput()"
-          (input)="onSlugInput($event)"
-          [placeholder]="t('publicProfileSettings.slugPlaceholder')"
-          autocomplete="off"
-          spellcheck="false"
-          maxlength="30"
-          style="width: 100%; padding: 8px 10px; background: var(--v2-paper); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); color: var(--v2-ink); font-size: 0.875rem;" />
-        <p class="v2-caption mt-1 mb-3">{{ t('publicProfileSettings.slugHelp') }}</p>
-        <label class="v2-caption" style="display: block; margin-bottom: 4px;">
-          {{ t('publicProfileSettings.displayNameLabel') }}
-        </label>
-        <input type="text"
-          [value]="publicDisplayNameInput()"
-          (input)="onDisplayNameInput($event)"
-          [placeholder]="t('publicProfileSettings.displayNamePlaceholder')"
-          maxlength="40"
-          style="width: 100%; padding: 8px 10px; background: var(--v2-paper); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); color: var(--v2-ink); font-size: 0.875rem;" />
-        <div class="flex flex-wrap gap-2 mt-3">
-          <ui-button variant="primary" size="sm" (click)="claimSlug()" [disabled]="publicBusy() || !slugInput()">
-            @if (publicBusy()) {
-              {{ t('publicProfileSettings.claimingState') }}
-            } @else if (publicSlug()) {
-              {{ t('publicProfileSettings.updateButton') }}
-            } @else {
-              {{ t('publicProfileSettings.claimButton') }}
-            }
-          </ui-button>
-          @if (publicSlug()) {
-            <ui-button variant="ghost" size="sm" (click)="releaseSlug()" [disabled]="publicBusy()">
-              {{ publicBusy() ? t('publicProfileSettings.releasingState') : t('publicProfileSettings.releaseButton') }}
-            </ui-button>
-          }
-        </div>
-        @if (publicError(); as err) {
-          <p class="v2-caption mt-2" role="alert" style="color: var(--v2-danger);">{{ err }}</p>
-        }
-      </ui-card>
     </ng-container>
   `,
 })
