@@ -1,5 +1,7 @@
+import { Platform, type ViewStyle } from 'react-native';
+
 /**
- * Macro Log design tokens — DUAL THEME as of ADR-0014: **dark leads** (the
+ * Macronaut design tokens — DUAL THEME as of ADR-0014: **dark leads** (the
  * brand/store identity), light "Frost" is the derived daytime variant.
  * Components never import `colors` statically anymore — they read the active
  * palette through `useTheme()` / `useThemedStyles()` in `lib/theme-context`.
@@ -87,27 +89,33 @@ const dark: ColorTokens = {
  * to register at all. e1 = resting cards, e2 = raised chrome, e3 = floating
  * (FAB, sheets). Includes the Android `elevation` equivalent.
  */
-const lightShadow = {
-  e1: { shadowColor: '#1c1917', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
-  e2: { shadowColor: '#1c1917', shadowOpacity: 0.09, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
-  e3: { shadowColor: '#1c1917', shadowOpacity: 0.16, shadowRadius: 20, shadowOffset: { width: 0, height: 6 }, elevation: 6 },
-} as const;
+export type ShadowTokens = Record<'e1' | 'e2' | 'e3', ViewStyle>;
 
-export type ShadowTokens = {
-  readonly [K in keyof typeof lightShadow]: {
-    readonly shadowColor: string;
-    readonly shadowOpacity: number;
-    readonly shadowRadius: number;
-    readonly shadowOffset: { readonly width: number; readonly height: number };
-    readonly elevation: number;
-  };
+// react-native-web deprecated the `shadow*` props in favour of `boxShadow`;
+// native still wants `shadow*`/`elevation`. One helper keeps each elevation a
+// single source that emits the right form per platform (silences the web warn).
+function hexRgba(hex: string, a: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+function elev(color: string, opacity: number, radius: number, height: number, e: number): ViewStyle {
+  return Platform.select<ViewStyle>({
+    web: { boxShadow: `0px ${height}px ${radius}px ${hexRgba(color, opacity)}` } as ViewStyle,
+    default: { shadowColor: color, shadowOpacity: opacity, shadowRadius: radius, shadowOffset: { width: 0, height }, elevation: e },
+  })!;
+}
+
+const lightShadow: ShadowTokens = {
+  e1: elev('#1c1917', 0.05, 8, 2, 1),
+  e2: elev('#1c1917', 0.09, 14, 4, 3),
+  e3: elev('#1c1917', 0.16, 20, 6, 6),
 };
 
 const darkShadow: ShadowTokens = {
-  e1: { shadowColor: '#000000', shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
-  e2: { shadowColor: '#000000', shadowOpacity: 0.45, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
-  e3: { shadowColor: '#000000', shadowOpacity: 0.55, shadowRadius: 20, shadowOffset: { width: 0, height: 6 }, elevation: 6 },
-} as const;
+  e1: elev('#000000', 0.35, 8, 2, 1),
+  e2: elev('#000000', 0.45, 14, 4, 3),
+  e3: elev('#000000', 0.55, 20, 6, 6),
+};
 
 export const palettes = {
   light: { colors: light, shadow: lightShadow },

@@ -1480,42 +1480,54 @@ function TemplateEditorModal({
               <Text style={styles.empty}>{t('train.templateNoEx')}</Text>
             ) : (
               exercises.map((d, i) => (
-                <View key={`${d.exerciseId}-${i}`} style={styles.tplExRow}>
-                  <View style={styles.tplExMain}>
-                    <Text style={styles.tplExName}>{d.name}</Text>
-                    <Text style={styles.tplExMeta}>{t(logStyleKey(d.logStyle))}</Text>
-                  </View>
-                  {d.logStyle !== 'bodyweight' ? (
-                    <TextInput
-                      style={styles.tplLoadInput}
-                      placeholder={t('train.target')}
-                      placeholderTextColor={colors.faint}
-                      keyboardType="numeric"
-                      value={d.targetLoad}
-                      onChangeText={(v) => patchEx(i, { targetLoad: v })}
-                      testID={`template-load-${i}`}
-                    />
-                  ) : null}
-                  <View style={styles.stepper}>
-                    <TouchableOpacity
-                      style={styles.stepBtn}
-                      onPress={() => patchEx(i, { setCount: Math.max(1, d.setCount - 1) })}
-                      testID={`template-set-minus-${i}`}
-                    >
-                      <Text style={styles.stepBtnText}>−</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.stepCount}>{d.setCount}</Text>
-                    <TouchableOpacity
-                      style={styles.stepBtn}
-                      onPress={() => patchEx(i, { setCount: Math.min(20, d.setCount + 1) })}
-                      testID={`template-set-plus-${i}`}
-                    >
-                      <Text style={styles.stepBtnText}>+</Text>
+                <View key={`${d.exerciseId}-${i}`} style={styles.tplExCard}>
+                  <View style={styles.tplExTop}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.tplExName}>{d.name}</Text>
+                      <Text style={styles.tplExMeta}>{t(logStyleKey(d.logStyle))}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => removeEx(i)} hitSlop={8} style={styles.tplDel} testID={`template-remove-${i}`}>
+                      <Ionicons name="close" size={18} color={colors.faint} />
                     </TouchableOpacity>
                   </View>
-                  <TouchableOpacity onPress={() => removeEx(i)} hitSlop={6} style={styles.setDel}>
-                    <Text style={styles.setDelText}>✕</Text>
-                  </TouchableOpacity>
+                  <View style={styles.tplExControls}>
+                    {d.logStyle !== 'bodyweight' ? (
+                      <View style={styles.tplLoadWrap}>
+                        <TextInput
+                          style={styles.tplLoadInput}
+                          placeholder={t('train.target')}
+                          placeholderTextColor={colors.faint}
+                          keyboardType="numeric"
+                          value={d.targetLoad}
+                          onChangeText={(v) => patchEx(i, { targetLoad: v })}
+                          testID={`template-load-${i}`}
+                        />
+                        <Text style={styles.tplLoadUnit}>lb</Text>
+                      </View>
+                    ) : (
+                      <View style={{ flex: 1 }} />
+                    )}
+                    <View style={styles.tplSets}>
+                      <Text style={styles.tplSetsLabel}>{t('train.setMany')}</Text>
+                      <View style={styles.stepper}>
+                        <TouchableOpacity
+                          style={styles.stepBtn}
+                          onPress={() => patchEx(i, { setCount: Math.max(1, d.setCount - 1) })}
+                          testID={`template-set-minus-${i}`}
+                        >
+                          <Text style={styles.stepBtnText}>−</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.stepCount}>{d.setCount}</Text>
+                        <TouchableOpacity
+                          style={styles.stepBtn}
+                          onPress={() => patchEx(i, { setCount: Math.min(20, d.setCount + 1) })}
+                          testID={`template-set-plus-${i}`}
+                        >
+                          <Text style={styles.stepBtnText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
                 </View>
               ))
             )}
@@ -1813,29 +1825,36 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   tplStartText: { color: colors.onInk, fontWeight: '700', fontSize: font.small },
   // template editor
   notesInput: { minHeight: 56, textAlignVertical: 'top' },
-  tplExRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    paddingVertical: space.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
+  tplExCard: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    padding: space.md,
+    gap: space.md,
+    marginBottom: space.sm,
   },
-  tplExMain: { flex: 1, gap: 2 },
-  tplExName: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
-  tplExMeta: { fontSize: font.tiny, color: colors.muted },
+  tplExTop: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm },
+  tplExName: { fontFamily: type.heading, fontSize: font.body, color: colors.ink },
+  tplExMeta: { fontSize: font.small, color: colors.muted, marginTop: 1 },
+  tplDel: { padding: space.xs },
+  tplExControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
+  tplLoadWrap: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  tplLoadUnit: { fontSize: font.small, color: colors.muted },
+  tplSets: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  tplSetsLabel: { fontSize: font.small, color: colors.muted },
   tplLoadInput: {
-    width: 56,
+    width: 64,
     backgroundColor: colors.inputBg,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.sm,
-    paddingVertical: space.xs,
+    paddingVertical: space.sm,
     textAlign: 'center',
-    fontSize: font.small,
+    fontSize: font.body,
     color: colors.ink,
   },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   stepBtn: {
     width: 28,
     height: 28,
