@@ -1,7 +1,7 @@
 import { Platform, type ViewStyle } from 'react-native';
 
 /**
- * Macronaut design tokens — DUAL THEME as of ADR-0014: **dark leads** (the
+ * Ignia design tokens — DUAL THEME as of ADR-0014: **dark leads** (the
  * brand/store identity), light "Frost" is the derived daytime variant.
  * Components never import `colors` statically anymore — they read the active
  * palette through `useTheme()` / `useThemedStyles()` in `lib/theme-context`.

@@ -34,7 +34,7 @@ type FetchStatus = 'loading' | 'ready' | 'notFound' | 'error';
     <ng-container *transloco="let t">
     <section class="max-w-[640px] mx-auto px-5 sm:px-6 py-10">
       <a href="/" class="v2-caption" style="text-decoration: underline; text-decoration-style: dotted;">
-        ← Macronaut
+        ← Ignia
       </a>
 
       @if (status() === 'loading') {
@@ -155,7 +155,7 @@ export class PublicProfileComponent implements OnInit {
       const data = snap.data() as Partial<PublicProfile>;
       this.profile.set({
         slug,
-        displayName: data.displayName || 'Macronaut user',
+        displayName: data.displayName || 'Ignia user',
         startWeight: data.startWeight ?? null,
         currentWeight: data.currentWeight ?? null,
         totalChange: data.totalChange ?? null,

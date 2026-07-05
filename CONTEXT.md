@@ -1,6 +1,6 @@
-# Macronaut — Domain Glossary
+# Ignia — Domain Glossary
 
-This file is the canonical name list for the Macronaut PWA. One concept,
+This file is the canonical name list for the Ignia PWA. One concept,
 one term. When the codebase still has legacy synonyms, the canonical name
 is in **bold** and the synonyms are called out so you know what to grep
 for. Architecture decisions live in [`docs/adr/`](docs/adr/README.md).

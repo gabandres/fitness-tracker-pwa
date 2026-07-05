@@ -173,7 +173,7 @@ async function buildMirrorFromProfile(
 
   const displayName = (profile["publicDisplayName"] as string | undefined)
     || (profile["email"] as string | undefined)?.split("@")[0]
-    || "Macronaut user";
+    || "Ignia user";
 
   return {
     slug,

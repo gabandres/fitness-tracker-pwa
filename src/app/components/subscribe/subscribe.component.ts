@@ -15,7 +15,7 @@ import { UiButton } from '../ui/button.component';
  *      until the Firebase Extension is installed and the price IDs
  *      are pasted in.
  *   2. Not subscribed — shows pitch + cadence toggle (monthly/annual)
- *      + "Support Macronaut · $X" button. Toggle hides if only one
+ *      + "Support Ignia · $X" button. Toggle hides if only one
  *      cadence is configured.
  *   3. Subscribed (trialing or active) — shows status + "Manage"
  *      button. Renewal copy adapts to the active subscription's

@@ -55,7 +55,7 @@ Settings → Data → "download CSV" exports every log, weight, water, measureme
 
 ## 2026-04-29 — v2 design system (warm minimal)
 
-Macronaut's full UI is now warm minimal — a paper-toned, sage + rust palette with Geist Sans / Geist Mono, rounded cards, and Lucide icons. The editorial "Calibration Log" identity (forensic typography, capitalized stamps, monogram, ruler ticks) read as cold and clinical to fitness-focused users; the rebuild trades it for a calmer, more approachable aesthetic without changing what the app *does*.
+Ignia's full UI is now warm minimal — a paper-toned, sage + rust palette with Geist Sans / Geist Mono, rounded cards, and Lucide icons. The editorial "Calibration Log" identity (forensic typography, capitalized stamps, monogram, ruler ticks) read as cold and clinical to fitness-focused users; the rebuild trades it for a calmer, more approachable aesthetic without changing what the app *does*.
 
 - **Today** is now a rings-first hero: kcal accent ring + protein sage ring, entries below, water + exercise inline. No date-chip strip — past days live one tap away on a dedicated history surface.
 - **History** is a month-grid calendar with mini kcal-rings per day. Tap a day for full read/edit access (FAB included for past-day backfills).
@@ -93,7 +93,7 @@ Client-side: new `preferredLocale` field persisted on the user profile so the we
 
 ## 2026-04-19 — Stripe Tax activated + default SaaS tax code
 
-Last §S13 hard blocker cleared. Stripe Tax is live, the account default tax code is `txcd_10103000` ("Software as a service (SaaS) - personal use") which applies to Macronaut Pro via account-default inheritance. Puerto Rico head-office address is registered with Stripe.
+Last §S13 hard blocker cleared. Stripe Tax is live, the account default tax code is `txcd_10103000` ("Software as a service (SaaS) - personal use") which applies to Ignia Pro via account-default inheritance. Puerto Rico head-office address is registered with Stripe.
 
 No jurisdictional tax registrations yet — Stripe monitors US state thresholds for free and flags when any are close, and at today's zero-EU-volume state that's the right posture. When a PR customer buys we'll need to register with Hacienda for SUT/IVU and record it via the Tax Registrations API; when EU volume materializes, EU OSS + UK HMRC registrations go in via the same API.
 
@@ -101,7 +101,7 @@ No jurisdictional tax registrations yet — Stripe monitors US state thresholds 
 
 Proved programmatically via Stripe CLI + Cloud Functions logs that our live-mode Stripe pipeline is consistent — product, both prices, the webhook endpoint, and the signing secret configured in the `firestore-stripe-payments` Firebase extension. This was the last of the §S13 hard blockers we could clear without dashboard-form work.
 
-- Product `prod_UKSEcAQhRmQQ9u` (Macronaut Pro), both prices `price_1TLnJdHvWnhD3GuYy7gWFvyJ` ($3/mo) + `price_1TN1eGHvWnhD3GuYS90n9x3a` ($24/yr) — all `active: true, livemode: true`.
+- Product `prod_UKSEcAQhRmQQ9u` (Ignia Pro), both prices `price_1TLnJdHvWnhD3GuYy7gWFvyJ` ($3/mo) + `price_1TN1eGHvWnhD3GuYS90n9x3a` ($24/yr) — all `active: true, livemode: true`.
 - Webhook `we_1TLnJfHvWnhD3GuYzV5h8a1m` → `ext-firestore-stripe-payments-handleWebhookEvents` on us-central1, enabled, livemode, subscribed to 14 events covering the full subscription + invoice + checkout lifecycle.
 - Signing-secret match confirmed by real recent events appearing as "Successfully handled Stripe event" in the Cloud Functions logs — including `invoice.paid`, `customer.subscription.created`, `checkout.session.completed`. Test-mode-secret-against-live-endpoint would surface as "Webhook signature verification failed"; we see zero.
 
@@ -273,7 +273,7 @@ Still owed for full Pro fulfillment: Pro theme palettes (sepia / graphite / oxbl
 
 ## 2026-04-17 — Microsoft sign-in (Slice A2)
 
-- **Microsoft provider live.** Azure App Registration `Macronaut` (`appId 80eaaf29-9de3-4912-a08a-7f0c6009e310`, audience `AzureADandPersonalMicrosoftAccount`) wired to Firebase Auth. Anyone with a personal Microsoft account (outlook/hotmail/live) or a work/school Azure AD account can sign in.
+- **Microsoft provider live.** Azure App Registration `Ignia` (`appId 80eaaf29-9de3-4912-a08a-7f0c6009e310`, audience `AzureADandPersonalMicrosoftAccount`) wired to Firebase Auth. Anyone with a personal Microsoft account (outlook/hotmail/live) or a work/school Azure AD account can sign in.
 - **Sign-in component**: Microsoft button rendered next to Google with the brand 4-square logo (inline SVG). Both buttons share a `runPopup()` wrapper so spinner/cancellation/error mapping stays DRY.
 - **Provider scopes**: `email` + `profile` — Firebase populates `email` and `displayName` from the Microsoft Graph response. Email comes back verified by default, so Microsoft users skip the verify-email gate just like Google users.
 
@@ -307,7 +307,7 @@ Still owed for full Pro fulfillment: Pro theme palettes (sepia / graphite / oxbl
 
 ## 2026-04-17 — Annual tier ($24/yr) + cadence toggle
 
-- **Annual price live** in Stripe (`price_1TN1eGHvWnhD3GuYS90n9x3a`, $24/yr) on the existing `Macronaut Pro` product. Same `firebaseRole=paid` metadata, same webhook — no extension reinstall needed.
+- **Annual price live** in Stripe (`price_1TN1eGHvWnhD3GuYS90n9x3a`, $24/yr) on the existing `Ignia Pro` product. Same `firebaseRole=paid` metadata, same webhook — no extension reinstall needed.
 - **Subscribe card now shows a monthly/annual toggle.** Default selection is annual to anchor on the higher-LTV option; "save 33%" badge highlights the discount vs 12× monthly. Trial hint (7 days) applies to both cadences.
 - **Renewal copy adapts to the selected price** — manage view reads `displayPriceFor(priceId)` so an annual subscriber sees `$24/yr` instead of the monthly anchor.
 - **Dev-env stripe block added** to `environment.development.ts` (was missing — caused dev builds to hide the Subscribe card entirely).
@@ -325,7 +325,7 @@ Still owed for full Pro fulfillment: Pro theme palettes (sepia / graphite / oxbl
 
 ## 2026-04-13 — Live Stripe mode + admin bypass
 
-- **Live-mode flipped.** Product `Macronaut Pro` (prod_UKSEcAQhRmQQ9u) + price $3/mo (price_1TLnJdHvWnhD3GuYy7gWFvyJ) + webhook endpoint (we_1TLnJfHvWnhD3GuYzV5h8a1m) all created in Stripe live mode. Secret Manager rotated to live API key + live webhook signing secret; extension redeployed. Test-mode webhook disabled to prevent duplicate writes.
+- **Live-mode flipped.** Product `Ignia Pro` (prod_UKSEcAQhRmQQ9u) + price $3/mo (price_1TLnJdHvWnhD3GuYy7gWFvyJ) + webhook endpoint (we_1TLnJfHvWnhD3GuYzV5h8a1m) all created in Stripe live mode. Secret Manager rotated to live API key + live webhook signing secret; extension redeployed. Test-mode webhook disabled to prevent duplicate writes.
 - **Admin bypass.** Emails in `ADMIN_EMAILS` (server `functions/src/index.ts` + client `subscription.service.ts`) skip all quotas and behave as paid. Currently: `gabrielandresbermudez@gmail.com`. Client shows an "admin access" badge instead of the Subscribe pitch.
 - **Test-mode orphans purged.** Old test-mode subscription, checkout sessions, payment record, and customer doc deleted from Firestore for a clean slate in live mode.
 
@@ -341,7 +341,7 @@ Still owed for full Pro fulfillment: Pro theme palettes (sepia / graphite / oxbl
 ## 2026-04-13 — Stripe extension installed and wired
 
 - **Firebase Stripe Extension live** (`invertase/firestore-stripe-payments@0.3.11`). Declarative install via `firebase.json` + `extensions/firestore-stripe-payments.env`. Secrets stored in GCP Secret Manager.
-- **Product + price created in Stripe test mode**: `Macronaut Pro` at `$3/mo` recurring with `firebaseRole=paid` metadata. Synced to Firestore `products` collection via webhook.
+- **Product + price created in Stripe test mode**: `Ignia Pro` at `$3/mo` recurring with `firebaseRole=paid` metadata. Synced to Firestore `products` collection via webhook.
 - **Webhook endpoint registered** pointing at `ext-firestore-stripe-payments-handleWebhookEvents` with the full event list (products, prices, checkout.session, customer.subscription, invoice, tax_rate). Signing secret stored in Secret Manager.
 - **Subscribe card active** on macrolog.web.app footer. End-to-end flow ready for test-mode checkout with card `4242 4242 4242 4242`.
 
@@ -415,7 +415,7 @@ Still owed for full Pro fulfillment: Pro theme palettes (sepia / graphite / oxbl
 
 ## 2026-04-05 — Initial launch
 
-- Deployed to [macrolog.web.app](https://macrolog.web.app) as a PWA (`Macronaut` / `Macros`).
+- Deployed to [macrolog.web.app](https://macrolog.web.app) as a PWA (`Ignia` / `Macros`).
 - **Google Sign-In** (Gmail only) + per-user Firestore isolation.
 - **Profile onboarding** with Mifflin-St Jeor formula as the TDEE seed.
 - **Daily logging** — calorie + protein entries, meal labels, edit/delete, meal presets.

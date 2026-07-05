@@ -11,7 +11,7 @@ go to the public App Store.
 
 ## Context
 
-We want Macronaut on iPhone with genuine **native feel/perf** — a
+We want Ignia on iPhone with genuine **native feel/perf** — a
 nutrition app is list-heavy (day logs, history grids, exercise sets) and
 WebView scrolling is the felt weakness. ADR-0011 chose **Capacitor**
 (wrap the existing Angular build in a WebView, one codebase). That keeps

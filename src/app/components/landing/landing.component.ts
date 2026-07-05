@@ -288,7 +288,7 @@ import { UiButton } from '../ui/button.component';
         </div>
         <div class="md:text-right flex flex-col md:items-end justify-center">
           <a href="/faq" class="v2-link font-medium text-lg">{{ t('landing.faqLink') }}</a>
-          <p class="v2-caption mt-2">&copy; {{ _getYear() }} Macronaut</p>
+          <p class="v2-caption mt-2">&copy; {{ _getYear() }} Ignia</p>
         </div>
       </footer>
     </article>

@@ -145,7 +145,7 @@ routes.push({
 });
 
 // /vs/<slug> — comparison landings. Pre-rendered with Article + WebPage
-// schema so each comparison ranks distinctly for "Macronaut vs X" and
+// schema so each comparison ranks distinctly for "Ignia vs X" and
 // "X alternatives" searches. Mirrors the slug list in
 // src/app/components/vs-page/vs-data.ts — keep them in sync.
 const VS = [
@@ -159,7 +159,7 @@ const VS = [
 for (const v of VS) {
   const url = `${SITE}/vs/${v.slug}`;
   const title = interp(i18n.vs.pageTitle, { name: v.name });
-  const description = `Honest, side-by-side comparison of Macronaut and ${v.name}. Where each one wins, where it loses, and which to pick for which job.`;
+  const description = `Honest, side-by-side comparison of Ignia and ${v.name}. Where each one wins, where it loses, and which to pick for which job.`;
   routes.push({
     file: `vs/${v.slug}.html`,
     title,
@@ -178,10 +178,10 @@ for (const v of VS) {
         description,
         url,
         inLanguage: 'en',
-        author: { '@type': 'Organization', name: 'Macronaut' },
-        publisher: { '@type': 'Organization', name: 'Macronaut' },
+        author: { '@type': 'Organization', name: 'Ignia' },
+        publisher: { '@type': 'Organization', name: 'Ignia' },
         about: [
-          { '@type': 'SoftwareApplication', name: 'Macronaut' },
+          { '@type': 'SoftwareApplication', name: 'Ignia' },
           { '@type': 'SoftwareApplication', name: v.name },
         ],
       },
@@ -198,7 +198,7 @@ routes.push({
   file: 'faq.html',
   title: i18n.faq.pageTitle,
   description:
-    'Straight answers on macros, calorie targets, fat loss pace, and how Macronaut works. No clickbait, no upsell.',
+    'Straight answers on macros, calorie targets, fat loss pace, and how Ignia works. No clickbait, no upsell.',
   canonical: `${SITE}/faq`,
   jsonLd: [
     breadcrumb([
@@ -240,7 +240,7 @@ for (const goal of Object.keys(RANGES)) {
         breadcrumb([
           { name: 'Home', url: `${SITE}/` },
           { name: 'Macro calculator', url: `${SITE}/calculator` },
-          { name: title.replace(' | Macronaut', ''), url },
+          { name: title.replace(' | Ignia', ''), url },
         ]),
         // Lightweight WebPage signal so the URL is recognised as a
         // standalone page, not a homepage duplicate. Includes the
@@ -254,7 +254,7 @@ for (const goal of Object.keys(RANGES)) {
           description,
           url,
           inLanguage: 'en',
-          isPartOf: { '@type': 'WebSite', name: 'Macronaut', url: `${SITE}/` },
+          isPartOf: { '@type': 'WebSite', name: 'Ignia', url: `${SITE}/` },
           about: {
             '@type': 'Thing',
             name: `Daily macro targets for ${weight} lb (${goal})`,

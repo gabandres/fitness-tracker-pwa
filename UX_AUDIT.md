@@ -1,4 +1,4 @@
-# Macronaut — UX Audit
+# Ignia — UX Audit
 
 > Living document. Check items off as they ship. Last updated: 2026-04-17 (market-informed strategic pivot — see §S12).
 

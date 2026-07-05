@@ -1,6 +1,6 @@
 /**
  * Comparison-page data. Each entry powers /vs/<slug>. Honesty is the
- * brand here: comparison-intent traffic ("Macronaut vs MFP") converts
+ * brand here: comparison-intent traffic ("Ignia vs MFP") converts
  * 3-5x better than top-of-funnel queries, but only if the page reads
  * like an actual comparison rather than a one-sided pitch — Google's
  * helpful-content signals down-rank obvious puff and visitors bounce.
@@ -14,7 +14,7 @@ export type Verdict = 'us' | 'them' | 'tie';
 export interface VsRow {
   /** Short feature label, sentence case. */
   feature: string;
-  /** What Macronaut does. Ideally one sentence. */
+  /** What Ignia does. Ideally one sentence. */
   us: string;
   /** What the competitor does. Same constraint — keep it sharp. */
   them: string;
@@ -57,7 +57,7 @@ export const VS_PROFILES: VsProfile[] = [
     name: 'Lose It!',
     tagline: 'Cleaner than MyFitnessPal, focused squarely on weight loss.',
     honestSummary:
-      'Lose It! is what MyFitnessPal would be if it had been redesigned in the last decade — a focused, weight-loss-first app with a polished UX. If you want barcode scanning, a curated food database, and a single goal-setting flow, Lose It is solid. Macronaut skips features they have (barcode, multi-macro tracking) in exchange for a simpler daily flow and adaptive coaching.',
+      'Lose It! is what MyFitnessPal would be if it had been redesigned in the last decade — a focused, weight-loss-first app with a polished UX. If you want barcode scanning, a curated food database, and a single goal-setting flow, Lose It is solid. Ignia skips features they have (barcode, multi-macro tracking) in exchange for a simpler daily flow and adaptive coaching.',
     rows: [
       { feature: 'Free tier', us: 'Full daily logging + history + weight + calculator. No ads.', them: 'Free with ads. Premium ($40/yr) for goals beyond weight loss, meal planning, exercise sync.', winner: 'us' },
       { feature: 'Sign-up', us: 'Two questions then you are logging.', them: 'Goal flow: target weight, weekly pace, height, activity. Five+ screens.', winner: 'us' },
@@ -72,7 +72,7 @@ export const VS_PROFILES: VsProfile[] = [
     name: 'Cronometer',
     tagline: 'The micronutrient nerd\'s tracker.',
     honestSummary:
-      'Cronometer is the gold standard if you care about micronutrients — vitamins, minerals, omega ratios, fiber. It pulls from USDA + NCCDB databases and calculates over 80 nutrients per food. If your goal is a complete nutritional picture (including for clinical reasons), Cronometer is the right tool. Macronaut deliberately ignores micros so the daily flow stays under 30 seconds; we built for cutters and lifters, not nutrition science.',
+      'Cronometer is the gold standard if you care about micronutrients — vitamins, minerals, omega ratios, fiber. It pulls from USDA + NCCDB databases and calculates over 80 nutrients per food. If your goal is a complete nutritional picture (including for clinical reasons), Cronometer is the right tool. Ignia deliberately ignores micros so the daily flow stays under 30 seconds; we built for cutters and lifters, not nutrition science.',
     rows: [
       { feature: 'Free tier', us: 'Full kcal + protein logging + history + adaptive TDEE.', them: 'Full nutrition tracking, but ads on the free tier.', winner: 'tie' },
       { feature: 'Micronutrients', us: 'Not tracked. Out of scope by design.', them: '80+ nutrients per food entry from USDA/NCCDB.', winner: 'them' },
@@ -87,7 +87,7 @@ export const VS_PROFILES: VsProfile[] = [
     name: 'MacroFactor',
     tagline: 'The most accurate adaptive TDEE on the market — and they charge for it.',
     honestSummary:
-      'MacroFactor is the closest competitor on adaptive TDEE — built by Stronger By Science, it has the most rigorous algorithm in the category and is widely considered the best paid coaching app for serious lifters. They are not free, and they do not have a no-signup calculator or photo-AI. Macronaut is what you reach for when you want most of MacroFactor\'s value at a fraction of the cost, with photo logging and a free tier good enough for daily use.',
+      'MacroFactor is the closest competitor on adaptive TDEE — built by Stronger By Science, it has the most rigorous algorithm in the category and is widely considered the best paid coaching app for serious lifters. They are not free, and they do not have a no-signup calculator or photo-AI. Ignia is what you reach for when you want most of MacroFactor\'s value at a fraction of the cost, with photo logging and a free tier good enough for daily use.',
     rows: [
       { feature: 'Free tier', us: 'Full daily logging + adaptive TDEE + 14-day history.', them: 'No free tier — paid only after a 7-day trial.', winner: 'us' },
       { feature: 'Adaptive TDEE algorithm', us: 'Measured TDEE from 14-day weight + intake trend. Solid.', them: 'Best-in-class — built by exercise scientists, peer-reviewed methodology.', winner: 'them' },
@@ -102,7 +102,7 @@ export const VS_PROFILES: VsProfile[] = [
     name: 'Cal AI',
     tagline: 'The viral photo-AI tracker that put one feature on the map.',
     honestSummary:
-      'Cal AI made photo-based macro logging mainstream. Their photo recognition is the category leader. If photo-only logging is the entire feature you want and you do not care about adaptive coaching, weekly trends, or a free tier, Cal AI is fine. Macronaut ships photo-AI too (on Pro), but bundles it with TDEE coaching, weight trend tracking, and a daily ring view that Cal AI does not have.',
+      'Cal AI made photo-based macro logging mainstream. Their photo recognition is the category leader. If photo-only logging is the entire feature you want and you do not care about adaptive coaching, weekly trends, or a free tier, Cal AI is fine. Ignia ships photo-AI too (on Pro), but bundles it with TDEE coaching, weight trend tracking, and a daily ring view that Cal AI does not have.',
     rows: [
       { feature: 'Free tier', us: 'Full daily flow free.', them: 'Limited free scans then paywalled.', winner: 'us' },
       { feature: 'Photo macro recognition', us: 'Gemini-backed, accurate for whole foods + composed plates (Pro).', them: 'Best-in-class — they specialized in this single feature.', winner: 'them' },

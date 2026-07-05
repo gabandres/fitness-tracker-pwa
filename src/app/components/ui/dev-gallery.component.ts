@@ -188,7 +188,7 @@ import { UiWeightSheet } from './weight-sheet.component';
         <hr class="v2-hr" />
 
         <p class="v2-caption text-center">
-          Macronaut v2 · primitives gallery · {{ today() }}
+          Ignia v2 · primitives gallery · {{ today() }}
         </p>
 
         <!-- bottom padding so the FAB + tab-bar don't cover the last items -->

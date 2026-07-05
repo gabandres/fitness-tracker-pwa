@@ -12,7 +12,7 @@ free tier and are unchanged.
 
 ## Context
 
-Two things users already do by hand, outside Macronaut:
+Two things users already do by hand, outside Ignia:
 
 1. Ask a chat AI ("how many kcal/protein in grilled chicken breast ~200g +
    rice?") and copy the numbers into the app.

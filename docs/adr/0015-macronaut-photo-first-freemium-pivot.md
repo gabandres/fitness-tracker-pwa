@@ -1,4 +1,4 @@
-# Macronaut: rebrand + photo-first AI calorie core, freemium (supersedes 0013)
+# Ignia: rebrand + photo-first AI calorie core, freemium (supersedes 0013)
 
 ## Status
 
@@ -34,7 +34,7 @@ rather than reversing 0013 silently.
 
 ## Decision
 
-**Rebrand to "Macronaut"** (App-Store-clear as of 2026-07-04; USPTO + domain
+**Rebrand to "Ignia"** (App-Store-clear as of 2026-07-04; USPTO + domain
 clearance pending before the code rename — see roadmap) and adopt a
 **photo-first AI calorie core** on a **freemium** model, built by **evolving
 the existing Expo app** (not a rebuild) with **Firebase as the source of

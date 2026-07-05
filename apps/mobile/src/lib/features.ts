@@ -1,5 +1,5 @@
 /**
- * Feature flags. The Macronaut photo-scan loop (ADR-0015) ships behind a flag
+ * Feature flags. The Ignia photo-scan loop (ADR-0015) ships behind a flag
  * so `main` stays releasable while it's built out. Flip `photoScan` to reroute
  * the center tab button from text-add to the camera flow. Env override lets a
  * build turn it on without a code change.

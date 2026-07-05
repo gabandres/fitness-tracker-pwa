@@ -162,7 +162,7 @@ export class MacrosPageComponent {
 
   constructor() {
     // Set <title> per parsed weight/goal so each URL has a distinct
-    // search-result title, not the static "Macronaut" default. The
+    // search-result title, not the static "Ignia" default. The
     // effect reads translation.language() so it re-runs when the user
     // toggles language — without that, switching to es-PR while
     // viewing a /macros page would leave the English title stuck.

@@ -60,7 +60,7 @@ export async function runDailyReminders(): Promise<void> {
           await messaging.send({
             token,
             notification: {
-              title: "Macronaut",
+              title: "Ignia",
               body: "You haven't logged today yet.",
             },
             webpush: {
@@ -142,7 +142,7 @@ export async function runDayThreeCoachPush(): Promise<void> {
           await messaging.send({
             token,
             notification: {
-              title: "Macronaut",
+              title: "Ignia",
               // Lands on today-v2 root where the "Refine targets" coach
               // card surfaces for users still on the 2-Q heuristic — the
               // most actionable next step at day 3. Previous body

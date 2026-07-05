@@ -1,4 +1,4 @@
-# Product Hunt Launch Kit — Macronaut
+# Product Hunt Launch Kit — Ignia
 
 Launch day materials. Reuse on other launch platforms (BetaList, r/SideProject
 in show-not-promo mode, IndieHackers) with minor edits.
@@ -14,7 +14,7 @@ Alternates (A/B if you do a soft pre-launch via coming-soon):
 
 ## Description (260 chars max)
 
-Macronaut is a calorie + protein log for people who'd rather track than fight
+Ignia is a calorie + protein log for people who'd rather track than fight
 an app. Measured TDEE from your real data, a weekly AI report grounded in
 your logs, photo→macros via Gemini, full offline PWA. No ads. No data selling.
 $3/mo Pro; core loop is free forever.
@@ -36,7 +36,7 @@ Order matters — first three are the conversion hero trio.
 
 Hey hunters 👋
 
-I'm Gabriel, solo maker. Macronaut is the app I wanted for myself and couldn't
+I'm Gabriel, solo maker. Ignia is the app I wanted for myself and couldn't
 find: a calorie + protein log that doesn't sell my data, doesn't run ads, and
 actually learns what my real TDEE is from my own numbers instead of a
 one-size-fits-all calculator.

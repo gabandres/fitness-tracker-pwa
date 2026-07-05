@@ -67,7 +67,7 @@ export default function SignIn() {
             <BrandMark />
           </Animated.View>
           <Animated.Text style={styles.brand} entering={enterUp(1)}>
-            Macronaut
+            Ignia
           </Animated.Text>
           <Animated.Text style={styles.tagline} entering={enterUp(2)}>
             {t('signIn.tagline')}

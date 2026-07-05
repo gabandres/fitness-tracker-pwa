@@ -56,7 +56,7 @@ const og = `<?xml version="1.0" encoding="UTF-8"?>
   <g transform="translate(90, 110)">
     <rect x="0" y="0" width="130" height="34" fill="none" stroke="${blood}" stroke-width="1.5" rx="2"/>
     <text x="65" y="23" class="sans" font-size="13" font-weight="600" letter-spacing="3" text-anchor="middle" fill="${blood}">CALIBRATION</text>
-    <text x="160" y="23" class="serif" font-size="22" fill="${ink}">Macronaut · no. 001</text>
+    <text x="160" y="23" class="serif" font-size="22" fill="${ink}">Ignia · no. 001</text>
   </g>
 
   <!-- Hero -->

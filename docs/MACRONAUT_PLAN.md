@@ -1,11 +1,11 @@
-# Macronaut — build roadmap
+# Ignia — build roadmap
 
 Companion to [ADR-0015](adr/0015-macronaut-photo-first-freemium-pivot.md)
 (the *why*). This is the *what/when*. Organized by the owner's product
 framework: **core function → core loop → accessory → surface area →
 retention**, then rebrand + clearance + discoverability.
 
-Decisions locked (2026-07-04): brand **Macronaut**; **evolve** the Expo app;
+Decisions locked (2026-07-04): brand **Ignia**; **evolve** the Expo app;
 **Firebase** source of truth; **photo-first, freemium** (5 lifetime free scans →
 Pro unlimited + Coach); vision **split** (Gemini recognition+portion → USDA
 macros), **default Gemini, validate, escalate only on failure**; retention
@@ -18,10 +18,15 @@ macros), **default Gemini, validate, escalate only on failure**; retention
 - [ ] **USPTO** knockout search (uspto.gov TESS) — classes 9 (software) + 42
       (SaaS). Nothing surfaced in web checks; confirm formally.
 - [ ] Reserve name in **App Store Connect** (surfaces any unpublished holder).
-- [ ] Grab **macronaut.app** (check `.com`); reserve `@macronaut` /
-      `@macronautapp` socials.
-- If blocked: backups vetted — Tallio (two SaaS cos on the name) and Plently
-      (live USPTO mark) both weaker; would re-hunt.
+- [ ] Grab **igniaapp.com** (preferred — no "Ignite Fitness" collision) or
+      `igniafit.com` (fitness/SEO signal, milder collision); both free. Owner
+      registrar purchase. `ignia.fit` dropped ($25). `ignia.com/.app/.io` taken
+      (unrelated LatAm VC firm ignia.vc, diff class). Reserve `@ignia` socials.
+      AVOID `igniafitness.com` — reads as a typo of ignitefitness.net.
+- Clearance (2026-07-05): US `IGNIA` wordmark USPTO Serial 77506911 is DEAD
+      (un-revivable) → registrable; no Ignia app on Apple (us/gb/es/mx/ca/au) or
+      Google Play. Caveats: ignia.vc VC firm exists (diff class); "Ignite"
+      fitness lane is crowded — a suffix differentiates but never as `igniafitness`.
 
 ## 1. Core function — photo → macros
 
@@ -100,14 +105,14 @@ the `consultationStream` CF-proxy pattern.
 
 **Split the change — don't sed-replace blindly:**
 
-- **A. Display name → "Macronaut"** (safe, mechanical): i18n `en`/`es-PR`,
+- **A. Display name → "Ignia"** (safe, mechanical): i18n `en`/`es-PR`,
       `apps/mobile/app.json` name/slug, `manifest.webmanifest`, notification
       title in `reminders.ts`, `ShareCard`, email templates, OG image, SEO
       prerender, README/docs, CHANGELOG going forward.
 - **B. Infra identifiers — leave for now:** `macrolog.web.app`, Firebase
       **project** `fitness-tracker-gb-1775407101`, hosting site `macrolog`.
       The project id does **not** need to change. Domain is a *separate*
-      migration: register **macronaut.app** as a custom domain, keep
+      migration: register **ignia.fit** as a custom domain, keep
       `macrolog.web.app` as a 301 redirect. No rush; gate on launch.
 - Do A as one focused commit per surface (mobile app, web app, functions,
       docs) so review is legible. Keep i18n `en`/`es-PR` in parity.
@@ -129,7 +134,7 @@ the real funder; donations are goodwill + community signal. Cheap to add.
 **Build (cheap):**
 - [ ] **Rail:** reuse **Stripe** via a pay-what-you-want **Payment Link** (no
       new vendor/backend). Alt: Buy Me a Coffee / Ko-fi.
-- [ ] **Settings row** "Support Macronaut — keep the AI scans running" →
+- [ ] **Settings row** "Support Ignia — keep the AI scans running" →
       `Linking.openURL(donationUrl)` (external), **US storefront only**.
 - [ ] **Web landing footer** button (no restrictions there).
 - [ ] Copy stays purely altruistic — **unlocks nothing** (a donation that grants
@@ -163,11 +168,11 @@ trend (Body owns weight — was duplicated). Order + gating + never-blank states
 Your Train differentiator **is** the wedge — nobody pairs AI-photo macros with
 a real lifting log (Cal AI has none; MacroFactor only added workouts Jan 2026).
 
-- **App Store title/subtitle** lead with the combo: e.g. *"Macronaut — AI
+- **App Store title/subtitle** lead with the combo: e.g. *"Ignia — AI
       Calorie Photos + Workout Log."* Keywords: `ai calorie tracker, macro
       tracker, food photo, workout log, lifting, protein`.
 - **SEO landing** (reuse the web app's `/calculator` `/vs-page` machinery):
-      "Macronaut vs Cal AI" and "calorie + strength tracker in one app" — the
+      "Ignia vs Cal AI" and "calorie + strength tracker in one app" — the
       exact query the two-app Reddit crowd searches.
 - **The homepage** ("sexy feature page" you asked for) foregrounds the camera
       demo + the lifting log as co-equal heroes.

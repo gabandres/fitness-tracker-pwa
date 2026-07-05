@@ -122,7 +122,7 @@ export class PushNotificationService {
     if (!this.messaging) return;
     this.unsubForeground?.();
     this.unsubForeground = onMessage(this.messaging, (payload) => {
-      const title = payload.notification?.title ?? 'Macronaut';
+      const title = payload.notification?.title ?? 'Ignia';
       const body = payload.notification?.body ?? '';
       callback(title, body);
     });

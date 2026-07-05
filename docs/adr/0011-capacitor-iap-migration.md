@@ -9,7 +9,7 @@
 
 ## Context
 
-Macronaut is an Angular + Firebase PWA, monetized on the web via Stripe
+Ignia is an Angular + Firebase PWA, monetized on the web via Stripe
 (Pro = the `stripeRole: "paid"` custom claim, read by `SubscriptionService.isPaid()`).
 We want an iOS (and Google Play) presence to (a) reach users who only install
 from stores and (b) monetize there.

@@ -1,52 +1,52 @@
 {
   "common": {
-    "appTitle": "Macronaut"
+    "appTitle": "Ignia"
   },
   "calcVariants": {
     "tdeeWomen": {
-      "title": "Calculadora de TDEE para Mujeres · Macronaut",
+      "title": "Calculadora de TDEE para Mujeres · Ignia",
       "eyebrow": "tdee · mujeres",
       "heading": "calculadora de tdee para mujeres",
       "body": "Estima tu gasto calórico diario (TDEE) y tus macros. Usa la misma fórmula Mifflin-St Jeor que usan médicos y dietistas, con valores de proteína afinados para mujeres en déficit, mantenimiento o volumen."
     },
     "tdeeMen": {
-      "title": "Calculadora de TDEE para Hombres · Macronaut",
+      "title": "Calculadora de TDEE para Hombres · Ignia",
       "eyebrow": "tdee · hombres",
       "heading": "calculadora de tdee para hombres",
       "body": "Estima tu gasto calórico diario (TDEE) y tus macros. La misma fórmula Mifflin-St Jeor que usan los clínicos, con valores de proteína afinados para hombres en déficit, volumen o mantenimiento."
     },
     "cutting": {
-      "title": "Calculadora de Déficit · Macronaut",
+      "title": "Calculadora de Déficit · Ignia",
       "eyebrow": "déficit",
       "heading": "calculadora de déficit",
       "body": "Déficit calórico con proteína alta para perder grasa sin perder músculo. Valores: ~11 kcal/lb y 1g/lb de proteína — los mismos que recomiendan los entrenadores de fuerza."
     },
     "bulking": {
-      "title": "Calculadora de Volumen Limpio · Macronaut",
+      "title": "Calculadora de Volumen Limpio · Ignia",
       "eyebrow": "volumen",
       "heading": "calculadora de volumen",
       "body": "Superávit limpio para crecimiento muscular: ~17 kcal/lb y 0.8g/lb de proteína. Suficiente para crecer, controlado para no acumular grasa innecesaria."
     },
     "maintenance": {
-      "title": "Calculadora de Mantenimiento · Macronaut",
+      "title": "Calculadora de Mantenimiento · Ignia",
       "eyebrow": "mantenimiento",
       "heading": "calculadora de mantenimiento",
       "body": "Encuentra las calorías que mantienen tu peso actual. Útil entre déficit y volumen, o como base antes de decidir hacia dónde ir."
     },
     "keto": {
-      "title": "Calculadora de Macros Keto · Macronaut",
+      "title": "Calculadora de Macros Keto · Ignia",
       "eyebrow": "keto · bajo carbohidrato",
       "heading": "calculadora de macros keto",
-      "body": "Calorías y proteína amigables con keto. Macronaut no registra carbohidratos por defecto — en cetosis la palanca que importa son calorías y proteína. Usa esto para fijar tu base."
+      "body": "Calorías y proteína amigables con keto. Ignia no registra carbohidratos por defecto — en cetosis la palanca que importa son calorías y proteína. Usa esto para fijar tu base."
     },
     "weightLoss": {
-      "title": "Calculadora de Pérdida de Peso · Macronaut",
+      "title": "Calculadora de Pérdida de Peso · Ignia",
       "eyebrow": "pérdida de peso",
       "heading": "calculadora de pérdida de peso",
       "body": "¿Cuántas calorías debes comer para bajar de peso? Ingresa tu peso y te damos un objetivo diario de calorías y proteína para perder grasa de forma sostenible."
     },
     "protein": {
-      "title": "Calculadora de Proteína · Macronaut",
+      "title": "Calculadora de Proteína · Ignia",
       "eyebrow": "proteína",
       "heading": "calculadora de proteína",
       "body": "¿Cuánta proteína necesitas? El rango respaldado por la investigación es 0.7–1g por libra de peso, según si estás en déficit, mantenimiento o volumen. Ingresa tu peso para ver tu meta."
@@ -56,7 +56,7 @@
     "section": "transformaciones",
     "titleLead": "usuarios reales.",
     "titleEm": "números reales.",
-    "subtitle": "Cada tarjeta abajo es un usuario real de Macronaut que decidió hacer público su progreso. Haz clic para ver su página completa.",
+    "subtitle": "Cada tarjeta abajo es un usuario real de Ignia que decidió hacer público su progreso. Haz clic para ver su página completa.",
     "loading": "Cargando…",
     "error": "No se pudieron cargar las transformaciones. Intenta luego.",
     "empty": "Aún no hay perfiles públicos — sé el primero.",
@@ -64,14 +64,14 @@
     "current": "Actual",
     "ctaTitle": "Empieza tu propio registro",
     "ctaBody": "Calculadora de calorías y proteína gratis con TDEE incluido.",
-    "ctaButton": "Probar Macronaut"
+    "ctaButton": "Probar Ignia"
   },
   "publicProfile": {
     "section": "transformación",
     "loading": "Cargando…",
     "notFoundTitle": "Perfil no encontrado",
     "notFoundBody": "Este perfil no existe o se hizo privado.",
-    "notFoundCta": "Ir a Macronaut",
+    "notFoundCta": "Ir a Ignia",
     "errorBody": "No se pudo cargar el perfil. Intenta luego.",
     "start": "Inicio",
     "current": "Actual",
@@ -79,7 +79,7 @@
     "weeksTracked": "{{n}} semanas registradas",
     "ctaTitle": "Empieza tu propio registro",
     "ctaBody": "Calculadora de calorías y proteína gratis con TDEE incluido.",
-    "ctaButton": "Probar Macronaut"
+    "ctaButton": "Probar Ignia"
   },
   "publicProfileSettings": {
     "title": "Perfil público",
@@ -177,7 +177,7 @@
     "update": {
       "stamp": "nuevo",
       "title": "Actualización disponible",
-      "body": "Hay una nueva versión de Macronaut lista. Recarga para obtener las últimas mejoras y arreglos.",
+      "body": "Hay una nueva versión de Ignia lista. Recarga para obtener las últimas mejoras y arreglos.",
       "reload": "recargar ahora",
       "later": "luego",
       "bannerText": "Nueva versión lista"
@@ -296,6 +296,14 @@
       "maintain": "Mantener",
       "saveError": "No se pudo guardar. Verifica tu conexión e intenta de nuevo."
     },
+    "calorieFloor": {
+      "section": "piso de calorías",
+      "desc": "Tu meta diaria nunca baja de este valor, aunque una subida temporal de peso por agua haga que tu gasto medido parezca bajo. Predeterminado 1500.",
+      "unit": "kcal",
+      "dec": "Bajar el piso de calorías",
+      "inc": "Subir el piso de calorías",
+      "saveError": "No se pudo guardar. Verifica tu conexión e intenta de nuevo."
+    },
     "data": {
       "section": "datos",
       "webhook": "webhook de apple shortcuts",
@@ -344,8 +352,8 @@
       "copy": "Copiar link",
       "copied": "¡Copiado!",
       "share": "Compartir",
-      "shareTitle": "Prueba Macronaut",
-      "shareText": "Estoy usando Macronaut para mis macros — calculadora gratis, registro diario simple. Pruébalo:",
+      "shareTitle": "Prueba Ignia",
+      "shareText": "Estoy usando Ignia para mis macros — calculadora gratis, registro diario simple. Pruébalo:",
       "rewardActive": "Pro comped hasta {{date}} gracias a una referencia."
     },
     "feedback": {
@@ -354,7 +362,7 @@
       "desc": "abre tu aplicación de correo con la información del navegador y la página ya llena, para que no tengas que explicarlo todo.",
       "send": "enviar correo",
       "aria": "Enviar correo de comentarios",
-      "emailSubject": "Macronaut — comentarios",
+      "emailSubject": "Ignia — comentarios",
       "whatHappened": "Qué pasó:",
       "expected": "Qué esperabas:"
     },
@@ -759,7 +767,7 @@
     "bodyIosMid": "en safari, luego",
     "bodyIosAdd": "Añadir a Pantalla de Inicio",
     "installButton": "instalar",
-    "installButtonAria": "Instalar Macronaut como app",
+    "installButtonAria": "Instalar Ignia como app",
     "dismissAria": "Ignorar mensaje de instalación",
     "dismissTitle": "Ocultar por 7 días"
   },
@@ -795,7 +803,7 @@
     "errorTooMany": "Demasiados intentos. Espera un momento e intenta de nuevo.",
     "errorWrongProvider": "Este email está registrado con otro método. Prueba con Google.",
     "linkStamp": "vincular cuentas",
-    "linkExplainer": "Inicia sesión con el método existente — uniremos tu nueva opción de acceso a la misma cuenta de Macronaut, y ambas funcionarán de aquí en adelante.",
+    "linkExplainer": "Inicia sesión con el método existente — uniremos tu nueva opción de acceso a la misma cuenta de Ignia, y ambas funcionarán de aquí en adelante.",
     "linkWithGoogle": "inicia sesión con google",
     "linkWithMicrosoft": "inicia sesión con microsoft",
     "linkWithPassword": "inicia sesión con contraseña",
@@ -864,7 +872,7 @@
     "opening": "abriendo…",
     "manage": "gestionar",
     "manageAria": "Gestionar suscripción en el Portal de Clientes de Stripe",
-    "pitchBody": "Macronaut lo construyó una sola persona. Si te sirve, suscribirte lo mantiene funcionando y paga por el coach de IA.",
+    "pitchBody": "Ignia lo construyó una sola persona. Si te sirve, suscribirte lo mantiene funcionando y paga por el coach de IA.",
     "featureConsultations": "consultas ilimitadas con el coach de IA",
     "featureProgressPhotos": "fotos de progreso — galería privada de antes/después",
     "featurePhoto": "mayor cuota de foto-a-macros",
@@ -1003,7 +1011,7 @@
     "titleLead": "Historial",
     "titleEm": "de cambios.",
     "subtitle": "lanzamientos importantes, más recientes primero. para el registro completo revisa git log.",
-    "pageTitle": "Historial — Macronaut",
+    "pageTitle": "Historial — Ignia",
     "loading": "cargando…",
     "error": "no se pudo cargar el historial. intenta de nuevo más tarde."
   },
@@ -1014,7 +1022,7 @@
     "body": "esta ruta no es parte del registro. quizás se movió o escribiste mal el url.",
     "home": "volver a macro log",
     "changelog": "últimos cambios",
-    "pageTitle": "No encontrado — Macronaut"
+    "pageTitle": "No encontrado — Ignia"
   },
   "status": {
     "backLink": "← volver a macro log",
@@ -1023,7 +1031,7 @@
     "titleLead": "Estado",
     "titleEm": "del sistema.",
     "subtitle": "salud en vivo de los servicios que mueven macro log.",
-    "pageTitle": "Estado — Macronaut",
+    "pageTitle": "Estado — Ignia",
     "changelogLink": "lanzamientos recientes → /changelog",
     "fetchError": "no se pudo acceder a firestore. la aplicación en sí podría estar degradada.",
     "lastPulse": "último pulso {{ago}}.",
@@ -1077,10 +1085,10 @@
     "section": "privacidad",
     "titleLead": "Política",
     "titleEm": "de privacidad.",
-    "pageTitle": "Privacidad — Macronaut",
+    "pageTitle": "Privacidad — Ignia",
     "lastUpdated": "última actualización 2026-04-12 · en español claro, sin trucos.",
     "storeHeading": "Qué guardamos",
-    "storeBody1": "Cuando inicias sesión con Google, guardamos tu correo, nombre de perfil y URL de la foto de perfil — nada más de tu cuenta de Google. Todo lo demás en Macronaut son cosas que tú mismo escribes: peso, calorías, proteína, fechas, medidas corporales, etiquetas de comidas, toggles de entrenamiento, y presets personalizados.",
+    "storeBody1": "Cuando inicias sesión con Google, guardamos tu correo, nombre de perfil y URL de la foto de perfil — nada más de tu cuenta de Google. Todo lo demás en Ignia son cosas que tú mismo escribes: peso, calorías, proteína, fechas, medidas corporales, etiquetas de comidas, toggles de entrenamiento, y presets personalizados.",
     "storeBody2": "Todo esto se guarda en Google Cloud Firestore, limitado a tu ID de usuario. Nadie más — ni nosotros — puede leerlo sin tu inicio de sesión de Google.",
     "geminiHeading": "Qué enviamos a Gemini AI de Google",
     "geminiIntro": "Dos funciones envían datos a Gemini AI de Google:",
@@ -1109,9 +1117,9 @@
     "ccpaHeading": "Tus derechos bajo CCPA / CPRA",
     "ccpaBody": "Si vives en California, aplican CCPA y CPRA. No vendemos ni compartimos tu información personal con terceros para publicidad conductual entre contextos, punto. Tienes derecho a saber qué datos tenemos, a pedir su eliminación y a apelar cualquier negativa. Usa los controles de exportación / eliminación mencionados arriba, o escríbenos.",
     "jurisdictionHeading": "Responsable del tratamiento y jurisdicción",
-    "jurisdictionBody": "El responsable del tratamiento de datos de Macronaut es el dueño del producto. El contacto preferido para solicitudes de datos es correo electrónico: <a href=\"mailto:gabrielandresbermudez@gmail.com?subject=Solicitud%20de%20datos\" class=\"underline decoration-dotted\">gabrielandresbermudez@gmail.com</a>. Si no puedes usar correo, abre un issue público en <a href=\"https://github.com/gabandres/fitness-tracker-pwa/issues/new?labels=privacy&amp;title=Data+request\" class=\"underline decoration-dotted\" target=\"_blank\" rel=\"noopener\">nuestro rastreador de GitHub</a> o usa el botón Ajustes → Comentarios en la app. Respondemos en 30 días según lo requerido por GDPR. Esta política y tu uso de Macronaut se rigen por las leyes de la jurisdicción del operador (Puerto Rico, Estados Unidos), sin consideración de principios de conflicto de leyes.",
+    "jurisdictionBody": "El responsable del tratamiento de datos de Ignia es el dueño del producto. El contacto preferido para solicitudes de datos es correo electrónico: <a href=\"mailto:gabrielandresbermudez@gmail.com?subject=Solicitud%20de%20datos\" class=\"underline decoration-dotted\">gabrielandresbermudez@gmail.com</a>. Si no puedes usar correo, abre un issue público en <a href=\"https://github.com/gabandres/fitness-tracker-pwa/issues/new?labels=privacy&amp;title=Data+request\" class=\"underline decoration-dotted\" target=\"_blank\" rel=\"noopener\">nuestro rastreador de GitHub</a> o usa el botón Ajustes → Comentarios en la app. Respondemos en 30 días según lo requerido por GDPR. Esta política y tu uso de Ignia se rigen por las leyes de la jurisdicción del operador (Puerto Rico, Estados Unidos), sin consideración de principios de conflicto de leyes.",
     "medicalHeading": "Aviso médico",
-    "medicalBody": "Macronaut no es un dispositivo médico, y el coach de IA no es un dietista. Nada en la app es consejo médico. Si estás haciendo algo clínicamente significativo — un déficit por debajo de 1,500 kcal, pérdida de peso de más del 1% del peso corporal por semana, o comer para tratar una condición médica — habla con un médico o nutricionista real primero.",
+    "medicalBody": "Ignia no es un dispositivo médico, y el coach de IA no es un dietista. Nada en la app es consejo médico. Si estás haciendo algo clínicamente significativo — un déficit por debajo de 1,500 kcal, pérdida de peso de más del 1% del peso corporal por semana, o comer para tratar una condición médica — habla con un médico o nutricionista real primero.",
     "dangerStamp": "peligro",
     "dangerSection": "eliminar cuenta",
     "signInFirst": "inicia sesión primero para eliminar tu cuenta.",
@@ -1134,22 +1142,22 @@
     "section": "términos de uso",
     "titleLead": "Términos",
     "titleEm": "de uso.",
-    "pageTitle": "Términos — Macronaut",
+    "pageTitle": "Términos — Ignia",
     "lastUpdated": "última actualización 2026-04-12 · corto, porque no deberías necesitar un abogado para leer esto.",
     "dealHeading": "El acuerdo",
-    "dealBody": "Macronaut es un tracker de calorías, proteína y peso con un coach de IA. Al iniciar sesión, aceptas usarlo como está pensado — una herramienta personal de registro — y no abusar de él (scraping, hacer ingeniería inversa del webhook, intentar acceder a datos de otros usuarios, etc.).",
+    "dealBody": "Ignia es un tracker de calorías, proteína y peso con un coach de IA. Al iniciar sesión, aceptas usarlo como está pensado — una herramienta personal de registro — y no abusar de él (scraping, hacer ingeniería inversa del webhook, intentar acceder a datos de otros usuarios, etc.).",
     "medHeading": "No es consejo médico",
     "medBody": "Los números que muestra esta app (TDEE, meta, rango, respuestas del coach) son estimaciones, no prescripciones. El coach de IA es un modelo de lenguaje entrenado con texto público — trátalo como un amigo bien informado que puede equivocarse, no como un doctor o dietista. Habla con un profesional humano antes de hacer cambios significativos en tu dieta, especialmente si tienes una condición médica, estás embarazada, eres menor de 18, o te estás recuperando de un trastorno alimentario.",
     "dataHeading": "Tu cuenta, tus datos",
     "dataBody": "Tus datos son tuyos. Puedes exportarlos como CSV o eliminar tu cuenta cuando quieras desde la <a href='/privacy' class='underline'>página de privacidad</a>. Guardamos copias de seguridad por hasta 30 días como parte de las operaciones estándar de Google Cloud Firestore; estas no son accesibles por humanos y se purgan automáticamente.",
     "availHeading": "Disponibilidad + cambios",
-    "availBody": "Macronaut corre en Google Cloud. Hacemos lo posible por mantenerlo disponible, pero no garantizamos uptime. Podemos cambiar funciones, precios o estos términos — cuando lo hagamos, la fecha de \"última actualización\" del pie de página cambiará y los cambios importantes se anunciarán dentro de la app.",
+    "availBody": "Ignia corre en Google Cloud. Hacemos lo posible por mantenerlo disponible, pero no garantizamos uptime. Podemos cambiar funciones, precios o estos términos — cuando lo hagamos, la fecha de \"última actualización\" del pie de página cambiará y los cambios importantes se anunciarán dentro de la app.",
     "liabilityHeading": "Responsabilidad",
-    "liabilityBody": "Macronaut se entrega \"tal cual.\" No somos responsables por decisiones que tomes basado en su salida, por datos perdidos, ni por ningún daño indirecto del uso de la app. En la medida máxima permitida por la ley, nuestra responsabilidad total hacia ti está limitada a lo que nos hayas pagado en los últimos 12 meses (que para la mayoría es cero).",
+    "liabilityBody": "Ignia se entrega \"tal cual.\" No somos responsables por decisiones que tomes basado en su salida, por datos perdidos, ni por ningún daño indirecto del uso de la app. En la medida máxima permitida por la ley, nuestra responsabilidad total hacia ti está limitada a lo que nos hayas pagado en los últimos 12 meses (que para la mayoría es cero).",
     "subsHeading": "Suscripciones + renovación automática",
     "subsBody": "Pro se ofrece mensual ($3/mes) o anual ($24/año) vía Stripe. Toda primera suscripción incluye una prueba gratuita de 7 días. Los planes se <strong>renuevan automáticamente</strong> al final de cada ciclo al precio mostrado en la tarjeta de suscripción. Puedes cancelar en cualquier momento desde Ajustes → Suscripción; la cancelación surte efecto al final del período ya pagado y conservas Pro hasta entonces. Te enviamos un recibo por cada renovación. Si cambiamos precios, lo anunciaremos en la app y respetaremos tu precio actual hasta el fin del término vigente.",
     "refundsHeading": "Reembolsos",
-    "refundsBody": "<strong>UE / Reino Unido / Suiza:</strong> Si eres consumidor en la UE, el Reino Unido o Suiza, tienes un derecho legal de desistimiento de 14 días desde tu primer cobro de suscripción. Para ejercerlo, escribe a <a href='mailto:gabrielandresbermudez@gmail.com?subject=Refund%20request' class='underline'>gabrielandresbermudez&#64;gmail.com</a> dentro de esos 14 días indicando el correo de tu cuenta — emitimos reembolso completo, sin preguntas.<br/><br/><strong>Resto del mundo:</strong> No ofrecemos reembolsos automáticos por períodos parciales, pero si algo se sintió mal — una renovación que no querías, una función que no funcionó, un problema del lado nuestro — escríbenos y lo resolvemos. La prueba gratuita de 7 días te da una ventana sin cobro para confirmar que Macronaut es para ti antes de mover dinero.<br/><br/><strong>Contracargos:</strong> por favor escríbenos antes de abrir un contracargo; casi siempre podemos resolverlo más rápido que Stripe.",
+    "refundsBody": "<strong>UE / Reino Unido / Suiza:</strong> Si eres consumidor en la UE, el Reino Unido o Suiza, tienes un derecho legal de desistimiento de 14 días desde tu primer cobro de suscripción. Para ejercerlo, escribe a <a href='mailto:gabrielandresbermudez@gmail.com?subject=Refund%20request' class='underline'>gabrielandresbermudez&#64;gmail.com</a> dentro de esos 14 días indicando el correo de tu cuenta — emitimos reembolso completo, sin preguntas.<br/><br/><strong>Resto del mundo:</strong> No ofrecemos reembolsos automáticos por períodos parciales, pero si algo se sintió mal — una renovación que no querías, una función que no funcionó, un problema del lado nuestro — escríbenos y lo resolvemos. La prueba gratuita de 7 días te da una ventana sin cobro para confirmar que Ignia es para ti antes de mover dinero.<br/><br/><strong>Contracargos:</strong> por favor escríbenos antes de abrir un contracargo; casi siempre podemos resolverlo más rápido que Stripe.",
     "contactHeading": "Contacto",
     "contactBody": "Escribe a <a href='mailto:gabrielandresbermudez@gmail.com' class='underline'>gabrielandresbermudez&#64;gmail.com</a> para cualquier cosa — reportes de bugs, peticiones de eliminación de datos, ideas de funciones, o quejas."
   },
@@ -1236,11 +1244,11 @@
       "pushPromptEnabling": "Activando…",
       "pushPromptDismiss": "Ahora no",
       "pushPromptError": "No se pudo activar. Inténtalo desde Ajustes.",
-      "iosInstallTitle": "Instala Macronaut en tu iPhone",
+      "iosInstallTitle": "Instala Ignia en tu iPhone",
       "iosInstallBody": "Añádelo a tu pantalla de inicio para recordatorios de un toque, aperturas rápidas y un ícono listo para usar sin conexión — no necesitas el App Store.",
       "iosInstallStep1": "Toca el botón Compartir abajo de Safari.",
       "iosInstallStep2": "Desplázate y elige \"Añadir a inicio\".",
-      "iosInstallStep3": "Toca \"Añadir\" — Macronaut queda en tu pantalla de inicio.",
+      "iosInstallStep3": "Toca \"Añadir\" — Ignia queda en tu pantalla de inicio.",
       "iosInstallDismiss": "Listo"
     },
     "trends": {
@@ -1582,7 +1590,7 @@
     }
   },
   "calculator": {
-    "pageTitle": "Calculadora de macros — calorías y proteína por tu peso | Macronaut",
+    "pageTitle": "Calculadora de macros — calorías y proteína por tu peso | Ignia",
     "eyebrow": "Calculadora gratis de macros",
     "title": "Encuentra tus calorías y proteína diarias.",
     "intro": "Ingresa tu peso, escoge tu meta, recibe un objetivo claro contra el cual registrar comidas. No requiere registro.",
@@ -1608,10 +1616,10 @@
     "shareTitle": "Mis metas de macros",
     "shareText": "{{kcal}} kcal · {{protein}} g de proteína/día. Calcula las tuyas:",
     "howTitle": "Cómo se calcula",
-    "howBody": "Macronaut usa una heurística simple basada en peso para que tengas un número con qué actuar hoy, antes de tener 14 días de datos reales:",
+    "howBody": "Ignia usa una heurística simple basada en peso para que tengas un número con qué actuar hoy, antes de tener 14 días de datos reales:",
     "howBullet1": "Calorías: peso × 11 (bajar), 14 (mantener), o 17 (subir).",
     "howBullet2": "Proteína: peso × 1.0 g (bajar), 0.9 g (mantener), o 0.8 g (subir) por libra.",
-    "howBullet3": "Después de registrar 14+ días, Macronaut cambia a un TDEE medido según la tendencia real de tu peso.",
+    "howBullet3": "Después de registrar 14+ días, Ignia cambia a un TDEE medido según la tendencia real de tu peso.",
     "disclaimer": "Las metas heurísticas no son consejo médico. Si tratas alguna condición, consulta con un nutricionista registrado.",
     "faqLink": "¿Más preguntas? Lee el FAQ →"
   },
@@ -1621,9 +1629,9 @@
     "proteinLabel": "Proteína",
     "gramSuffix": " g",
     "title": {
-      "lose": "Macros para bajar de peso a las {{weight}} lb | Macronaut",
-      "maintain": "Macros para mantener las {{weight}} lb | Macronaut",
-      "gain": "Macros para subir de peso a las {{weight}} lb | Macronaut"
+      "lose": "Macros para bajar de peso a las {{weight}} lb | Ignia",
+      "maintain": "Macros para mantener las {{weight}} lb | Ignia",
+      "gain": "Macros para subir de peso a las {{weight}} lb | Ignia"
     },
     "heading": {
       "lose": "Macros para bajar de peso a las {{weight}} lb",
@@ -1658,13 +1666,13 @@
     "shareText": "{{kcal}} kcal · {{protein}} g de proteína/día:"
   },
   "vs": {
-    "pageTitle": "Macronaut vs {{name}} — comparación honesta | Macronaut",
+    "pageTitle": "Ignia vs {{name}} — comparación honesta | Ignia",
     "eyebrow": "Comparación",
-    "heading": "Macronaut vs {{name}}",
+    "heading": "Ignia vs {{name}}",
     "honestTitle": "Cuándo la otra herramienta es la elección correcta",
-    "tableTitle": "Característica por característica: Macronaut vs {{name}}",
+    "tableTitle": "Característica por característica: Ignia vs {{name}}",
     "colFeature": "Característica",
-    "ctaTitle": "Prueba Macronaut gratis.",
+    "ctaTitle": "Prueba Ignia gratis.",
     "ctaBody": "Una meta diaria en 30 segundos. Sin tarjeta.",
     "ctaCalculator": "Abrir calculadora",
     "ctaSignup": "Crear cuenta gratis",
@@ -1672,10 +1680,10 @@
     "siblingLink": "vs {{name}}"
   },
   "faq": {
-    "pageTitle": "Preguntas frecuentes sobre macros y calorías | Macronaut",
+    "pageTitle": "Preguntas frecuentes sobre macros y calorías | Ignia",
     "eyebrow": "Preguntas frecuentes",
     "title": "Macros, calorías y pérdida de grasa — respuestas directas.",
-    "intro": "Preguntas comunes de quienes usan Macronaut. Cortas, prácticas, sin clickbait.",
+    "intro": "Preguntas comunes de quienes usan Ignia. Cortas, prácticas, sin clickbait.",
     "ctaTitle": "¿Quieres una meta con la que puedas actuar hoy?",
     "ctaBody": "Usa la calculadora gratis. Sin registro.",
     "ctaButton": "Abrir calculadora",
@@ -1702,7 +1710,7 @@
       },
       {
         "q": "¿Qué tan precisa es una estimación calórica basada en peso?",
-        "a": "Dentro de ~10-15% para la persona promedio. Dos personas de 180 lb pueden tener mantenimientos que difieran 300+ kcal por nivel de actividad, masa magra y adaptación metabólica. La calculadora te arranca; después de 14 días registrados, Macronaut cambia a un TDEE medido según tu tendencia real, mucho más preciso."
+        "a": "Dentro de ~10-15% para la persona promedio. Dos personas de 180 lb pueden tener mantenimientos que difieran 300+ kcal por nivel de actividad, masa magra y adaptación metabólica. La calculadora te arranca; después de 14 días registrados, Ignia cambia a un TDEE medido según tu tendencia real, mucho más preciso."
       },
       {
         "q": "¿Necesito pesar la comida para trackear macros?",
@@ -1717,7 +1725,7 @@
         "a": "En general no. Los trackers fitness sobreestiman el quemado por 20-50%, y comer ese número inflado borra tu déficit. Pon una meta diaria sostenible y trata el ejercicio aparte — combustible para rendir, construir hábito, no como tarjeta de débito calórica."
       },
       {
-        "q": "¿Por qué Macronaut no trackea carbos y grasas?",
+        "q": "¿Por qué Ignia no trackea carbos y grasas?",
         "a": "Porque para nuestra audiencia — levantadores, gente en cut, recomp — kcal y proteína son los dos números que mueven la aguja. Añadir dos macros más duplica la fricción al registrar y no cambia los resultados para el 95%. Si los necesitas, MyFitnessPal los tiene; nosotros elegimos foco sobre features."
       },
       {
@@ -1732,9 +1740,9 @@
   },
   "today": {
     "shareCard": "Compartir tarjeta de progreso",
-    "shareWordmark": "Macronaut",
+    "shareWordmark": "Ignia",
     "shareTagline": "macrolog.web.app · rastreador de macros y peso gratis",
-    "shareText": "Mi progreso en Macronaut 💪",
+    "shareText": "Mi progreso en Ignia 💪",
     "shareLabelStreak": "Días seguidos",
     "shareLabelDays": "Días registrados",
     "shareLabelLost": "Bajaste",

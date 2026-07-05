@@ -1,10 +1,10 @@
-# Macronaut
+# Ignia
 
 A free, private macro tracker for lifters and people in a cut. **Live at <https://macrolog.web.app>**.
 
 > Try it without an account → **<https://macrolog.web.app/calculator>**
 
-Two numbers move the needle for fat loss and lean recomp: **calories** and **protein**. Macronaut is built around those two — kcal + protein rings, nothing else cluttering the daily flow. Sign-up is two questions; logging a meal takes thirty seconds.
+Two numbers move the needle for fat loss and lean recomp: **calories** and **protein**. Ignia is built around those two — kcal + protein rings, nothing else cluttering the daily flow. Sign-up is two questions; logging a meal takes thirty seconds.
 
 ## What's there
 

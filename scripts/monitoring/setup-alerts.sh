@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time Cloud Monitoring alert-policy setup for Macronaut.
+# One-time Cloud Monitoring alert-policy setup for Ignia.
 #
 # Requirements:
 #   - gcloud CLI installed + authenticated (`gcloud auth login`)
@@ -15,7 +15,7 @@
 #
 # To create a new email channel:
 #   gcloud beta monitoring channels create \
-#     --display-name="Macronaut oncall" \
+#     --display-name="Ignia oncall" \
 #     --type=email --channel-labels=email_address=gabrielandresbermudez@gmail.com \
 #     --project=$PROJECT_ID
 #
@@ -63,7 +63,7 @@ EOF
 
 # ── Policy 2: statusPulse staleness ──────────────────────────────
 cat > "$TMPDIR/status-stale.yaml" <<EOF
-displayName: "Macronaut — statusPulse stale >30m"
+displayName: "Ignia — statusPulse stale >30m"
 combiner: OR
 notificationChannels:
   - $NOTIFICATION_CHANNEL_ID

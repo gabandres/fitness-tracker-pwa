@@ -53,7 +53,7 @@ function renderSvg(p: {
   })();
   const subtitle = p.startedAt
     ? `Tracking since ${p.startedAt.toDate().toLocaleDateString("en-US", { month: "short", year: "numeric" })}`
-    : "Tracked with Macronaut";
+    : "Tracked with Ignia";
 
   // Stat boxes: 3 columns, big serif numbers, small mono labels.
   const stat = (x: number, label: string, value: string, color = INK) => `
@@ -157,14 +157,14 @@ export const servePublicProfilePage = onRequest(
     }
 
     const data = snap.data() ?? {};
-    const displayName = (data["displayName"] as string | undefined) || "Macronaut user";
+    const displayName = (data["displayName"] as string | undefined) || "Ignia user";
     const totalChange = (data["totalChange"] as number | null | undefined) ?? null;
     const title = totalChange != null && totalChange < 0
-      ? `${displayName} lost ${Math.abs(totalChange).toFixed(1)} lb · Macronaut`
+      ? `${displayName} lost ${Math.abs(totalChange).toFixed(1)} lb · Ignia`
       : totalChange != null && totalChange > 0
-        ? `${displayName} gained ${Math.abs(totalChange).toFixed(1)} lb · Macronaut`
-        : `${displayName}'s progress · Macronaut`;
-    const description = "Tracked with Macronaut — a quiet, private calorie and protein log. Free TDEE calculator and weight tracking.";
+        ? `${displayName} gained ${Math.abs(totalChange).toFixed(1)} lb · Ignia`
+        : `${displayName}'s progress · Ignia`;
+    const description = "Tracked with Ignia — a quiet, private calorie and protein log. Free TDEE calculator and weight tracking.";
     const canonical = `https://macrolog.web.app/u/${slug}`;
     const ogImage = `https://macrolog.web.app/og/u/${slug}.png`;
 
@@ -195,7 +195,7 @@ export const ogImagePublicProfile = onRequest(
     }
     const data = snap.data() ?? {};
     const svg = renderSvg({
-      displayName: (data["displayName"] as string | undefined) ?? "Macronaut user",
+      displayName: (data["displayName"] as string | undefined) ?? "Ignia user",
       startWeight: (data["startWeight"] as number | null | undefined) ?? null,
       currentWeight: (data["currentWeight"] as number | null | undefined) ?? null,
       goalWeight: (data["goalWeight"] as number | null | undefined) ?? null,
