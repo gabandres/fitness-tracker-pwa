@@ -37,6 +37,7 @@ import { UiCard } from './card.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
+    @if (variant() === 'full') {
     <!-- Hero rings — dark concentric dual-ring panel (mirrors mobile HeroRings):
          calories outer (coral), protein inner (sage), remaining-kcal in center,
          legend + carbs/fat chips below, all on the shared dark hero panel. -->
@@ -80,6 +81,32 @@ import { UiCard } from './card.component';
         <span style="font-size: 12px; color: var(--v2-hero-muted); text-transform: capitalize;"><span style="color: #8b5cf6;">●</span> {{ t('entry.fatChip', { n: fatConsumed() }) }}</span>
       </div>
     </div>
+    } @else {
+      <!-- Compact day-detail totals card (mirrors mobile [date] view) -->
+      <ui-card variant="default" class="mt-4 block">
+        <div class="flex items-center justify-between text-center">
+          <div class="flex-1">
+            <div class="v2-num" style="font-weight: 700; font-size: 1.125rem; color: var(--v2-ink);">{{ kcalConsumed().toLocaleString() }}</div>
+            <div class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.05em;">{{ t('v2.daySummary.totalCalories') }}</div>
+          </div>
+          <div class="flex-1">
+            <div class="v2-num" style="font-weight: 700; font-size: 1.125rem; color: var(--v2-ink);">{{ proteinConsumed() }}g</div>
+            <div class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.05em;">{{ t('v2.daySummary.totalProtein') }}</div>
+          </div>
+          <div class="flex-1">
+            <div class="v2-num" style="font-weight: 700; font-size: 1.125rem; color: var(--v2-ink);">{{ carbsConsumed() }}g</div>
+            <div class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.05em;">{{ t('v2.daySummary.totalCarbs') }}</div>
+          </div>
+          <div class="flex-1">
+            <div class="v2-num" style="font-weight: 700; font-size: 1.125rem; color: var(--v2-ink);">{{ fatConsumed() }}g</div>
+            <div class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.05em;">{{ t('v2.daySummary.totalFat') }}</div>
+          </div>
+        </div>
+      </ui-card>
+      @if (dayWeight(); as w) {
+        <p class="v2-caption mt-3">{{ t('v2.body.weight') }} · <span class="v2-num" style="color: var(--v2-ink); font-weight: 600;">{{ w }} {{ t('v2.body.lb') }}</span></p>
+      }
+    }
 
     <!-- Entries list, grouped by diary slot. Days with no slotted
          entries (every row pre-dates mealType) render as one flat
@@ -125,6 +152,7 @@ import { UiCard } from './card.component';
       }
     }
 
+    @if (variant() === 'full') {
     <!-- Daily Metrics (Fasting, Water, Sleep) — mirrors mobile DailyMetrics -->
     <ui-card class="mt-4 block p-0 overflow-hidden" style="padding: 0;">
 
@@ -200,6 +228,7 @@ import { UiCard } from './card.component';
         </div>
       </ui-card>
     }
+    }
     </ng-container>
   `,
 })
@@ -212,7 +241,16 @@ export class UiDaySummary {
 
   readonly dateKey = input.required<string>();
   readonly editable = input<boolean>(true);
+  /** 'full' = Today (hero rings + metrics card); 'compact' = day-detail
+   *  (mobile [date]: 4-stat totals card + weight line, no hero/metrics). */
+  readonly variant = input<'full' | 'compact'>('full');
   readonly bodyRequested = output<void>();
+
+  /** The day's logged weight, for the compact totals view's weight line. */
+  protected readonly dayWeight = computed<number | null>(() => {
+    const w = this.body.dailyWeights()[this.dateKey()];
+    return typeof w === 'number' ? w : null;
+  });
 
   // ─── Fasting row (inline, mirrors mobile DailyMetrics) ──────────
   // 30s ticker keeps the elapsed clock live without a 1s timer; cleared

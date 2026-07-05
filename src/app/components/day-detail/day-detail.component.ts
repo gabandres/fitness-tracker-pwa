@@ -16,7 +16,6 @@ import { bcp47ForLang } from '../../utils/locale';
 import { UiDaySummary } from '../ui/day-summary.component';
 import { UiFab } from '../ui/fab.component';
 import { UiIconButton } from '../ui/icon-button.component';
-import { UiFastingPill } from '../ui/fasting-pill.component';
 
 /**
  * Day-detail surface for `/history/YYYY-MM-DD`. Renders the shared
@@ -36,34 +35,22 @@ import { UiFastingPill } from '../ui/fasting-pill.component';
     UiDaySummary,
     UiFab,
     UiIconButton,
-    UiFastingPill,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     <section class="max-w-[640px] mx-auto">
-      <header class="flex items-start justify-between gap-4 pt-2 pb-2">
-        <div class="flex items-center gap-2 min-w-0">
-          <ui-icon-button
-            icon="arrow-left"
-            [ariaLabel]="t('v2.dayDetail.backAria')"
-            (click)="closeRequested.emit()" />
-          <div class="min-w-0">
-            <h1 class="v2-h1 truncate">{{ dateLabel() }}</h1>
-            @if (showStreak()) {
-              <div class="flex items-center gap-1.5 mt-0.5 v2-caption" style="color: var(--v2-accent)">
-                <lucide-icon name="flame" [size]="14" />
-                <span>{{ t('v2.dayDetail.dayStreak', { n: streak() }) }}</span>
-              </div>
-            }
-          </div>
-        </div>
-        <div class="shrink-0">
-          <ui-fasting-pill (bodyRequested)="bodyRequested.emit()" />
-        </div>
+      <!-- Header: back · centered date (with year) · spacer (mirrors mobile) -->
+      <header class="flex items-center gap-2 pt-2 pb-2">
+        <ui-icon-button
+          icon="arrow-left"
+          [ariaLabel]="t('v2.dayDetail.backAria')"
+          (click)="closeRequested.emit()" />
+        <h1 class="flex-1 text-center truncate" style="font-family: var(--v2-font-display); font-size: 1.25rem; font-weight: 700; color: var(--v2-ink);">{{ dateLabel() }}</h1>
+        <div style="width: 40px;"></div>
       </header>
 
-      <ui-day-summary [dateKey]="dateKey()" [editable]="!isFuture()" />
+      <ui-day-summary [dateKey]="dateKey()" [editable]="!isFuture()" variant="compact" />
     </section>
 
     @if (!isFuture()) {
@@ -96,6 +83,7 @@ export class DayDetailComponent {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
+      year: 'numeric',
     });
   });
 
