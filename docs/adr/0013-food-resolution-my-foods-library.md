@@ -2,7 +2,13 @@
 
 ## Status
 
-accepted (2026-07-01)
+**Superseded by [ADR-0015](0015-macronaut-photo-first-freemium-pivot.md) (2026-07-04).**
+Originally accepted 2026-07-01. The "no meal-photo guessing" stance was
+reversed: ADR-0015 adopts a photo-first AI core, but *keeps this ADR's
+insight* by routing the vision model to **recognition + portion only** and
+grounding the macros in the same USDA/`customFoods` data this ADR built.
+The text/label/barcode paths and My Foods library described here remain the
+free tier and are unchanged.
 
 ## Context
 
