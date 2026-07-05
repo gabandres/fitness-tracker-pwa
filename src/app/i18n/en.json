@@ -1314,8 +1314,6 @@
     },
     "weightSheet": {
       "logWeight": "Log weight",
-      "bodyFatTitle": "Body fat",
-      "bodyFatEstimate": "Navy estimate",
       "today": "Today",
       "weightLb": "Weight (lb) *",
       "weightRequired": "Enter a weight greater than 0.",
@@ -1532,6 +1530,8 @@
     "body": {
       "title": "Body",
       "subtitle": "Weight, fasting, measurements",
+      "bodyFatTitle": "Body fat",
+      "bodyFatEstimate": "Navy estimate",
       "historyAria": "History",
       "settingsAria": "Settings",
       "weight": "Weight",
