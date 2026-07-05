@@ -59,13 +59,9 @@ type Segment = 'manual' | 'meal' | 'search' | 'photo' | 'barcode';
     <ng-container *transloco="let t">
     @if (open()) {
       <ui-sheet labelledBy="entry-sheet-title" (close)="cancel()">
-        <h2 id="entry-sheet-title" class="v2-h2 mb-1">
+        <h2 id="entry-sheet-title" class="v2-h2 mb-4" style="font-weight: 800;">
           {{ form.mode() === 'edit' ? t('v2.entrySheet.editTitle') : t('v2.entrySheet.addTitle') }}
         </h2>
-        <p class="v2-caption mb-4">
-          @if (form.mode() === 'edit') { {{ t('v2.entrySheet.editSubtitle') }} }
-          @else { {{ t('v2.entrySheet.addSubtitle') }} }
-        </p>
 
         <!-- Segmented control. Hidden in edit mode (no point switching to
              photo/barcode when you're correcting an existing entry). -->
@@ -143,7 +139,10 @@ type Segment = 'manual' | 'meal' | 'search' | 'photo' | 'barcode';
                 @for (mt of mealTypes; track mt) {
                   <button
                     type="button"
-                    [class]="form.mealType() === mt ? 'v2-btn v2-btn--sm v2-btn--primary' : 'v2-btn v2-btn--sm v2-btn--ghost'"
+                    [style.background]="form.mealType() === mt ? 'var(--v2-ink)' : 'var(--v2-paper)'"
+                    [style.color]="form.mealType() === mt ? 'var(--v2-paper)' : 'var(--v2-ink)'"
+                    [style.border]="'1px solid ' + (form.mealType() === mt ? 'var(--v2-ink)' : 'var(--v2-rule)')"
+                    style="border-radius: 999px; padding: 6px 14px; font-size: 14px; font-weight: 600; cursor: pointer;"
                     [attr.aria-pressed]="form.mealType() === mt"
                     (click)="toggleMealType(mt)">
                     {{ t('entry.mealType.' + mt) }}
@@ -276,15 +275,14 @@ type Segment = 'manual' | 'meal' | 'search' | 'photo' | 'barcode';
                   </ui-button>
                 }
                 <ui-button variant="ghost" (click)="cancel()">{{ t('v2.entrySheet.cancel') }}</ui-button>
-                <ui-button
+                <button
                   type="submit"
-                  variant="primary"
-                  [block]="true"
-                  [disabled]="form.status() === 'saving'">
+                  [disabled]="form.status() === 'saving'"
+                  style="flex: 1; background: var(--v2-ink); color: var(--v2-paper); border: none; border-radius: var(--v2-radius-md); min-height: var(--v2-tap-min); padding: 0 var(--v2-space-5); font-weight: 700; font-size: 0.9375rem; cursor: pointer;">
                   @if (form.status() === 'saving') { {{ t('v2.entrySheet.saving') }} }
                   @else if (form.status() === 'saved') { {{ t('v2.entrySheet.saved') }} }
                   @else { {{ t('v2.entrySheet.save') }} }
-                </ui-button>
+                </button>
               </div>
 
               @if (form.errorMsg()) {
