@@ -1,5 +1,14 @@
 # Google Sign-In — finishing the wiring
 
+> ⚠️ **Bundle ID changed to `fit.ignia.app` (2026-07-05).** The OAuth client IDs
+> currently in `app.json` (`extra.googleAuth.iosClientId`/`androidClientId`) and
+> the reversed-client URL scheme in `ios.infoPlist.CFBundleURLTypes` were
+> registered against the OLD bundle `app.macrolog.mobile` — they are now STALE.
+> When you do the setup below, create **new iOS + Android OAuth clients for
+> `fit.ignia.app`** and replace those three values (the reversed scheme is the
+> iOS client ID reversed). The **webClientId is not bundle-specific** and can
+> stay.
+
 The code is already merged (`src/lib/auth.tsx`, `src/app/sign-in.tsx`). The
 "Continue with Google" button is **gated off in Expo Go** — it can only work
 in a **development build** (or a store build), because Google OAuth needs a
@@ -22,9 +31,9 @@ Services → **Credentials**. These IDs are public (ADR-0002) — safe to commit
   Service)"*. Copy its Client ID → `webClientId`. Firebase validates the
   returned id token against this, so it's required even on native.
 - **iOS client** — Create credentials → OAuth client ID → **iOS** →
-  bundle ID `app.macrolog.mobile`. Copy → `iosClientId`. Note its
+  bundle ID `fit.ignia.app`. Copy → `iosClientId`. Note its
   **reversed** form `com.googleusercontent.apps.<id>` for step 3.
-- **Android client** — Create → **Android** → package `app.macrolog.mobile`
+- **Android client** — Create → **Android** → package `fit.ignia.app`
   + the **SHA-1** of the build's keystore. With EAS-managed credentials,
   get it from `eas credentials` (Android → Keystore). Copy → `androidClientId`.
 
@@ -37,7 +46,7 @@ redirect lands back in the app:
 
 ```json
 "ios": {
-  "bundleIdentifier": "app.macrolog.mobile",
+  "bundleIdentifier": "fit.ignia.app",
   "supportsTablet": true,
   "infoPlist": {
     "CFBundleURLTypes": [

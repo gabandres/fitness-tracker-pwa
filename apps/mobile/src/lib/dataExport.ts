@@ -56,7 +56,7 @@ export async function exportDataCsv(uid: string): Promise<ExportResult> {
     workoutSessions,
   });
   const rows = logs.length + measurements.length + workoutSessions.length;
-  const filename = `macrolog-export-${stamp()}.csv`;
+  const filename = `ignia-export-${stamp()}.csv`;
 
   if (Platform.OS === 'web') {
     // Expo web / Playwright: browser download (no native FS/share module).

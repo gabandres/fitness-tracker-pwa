@@ -6,7 +6,7 @@ v1.1. That removes the single biggest blocker from the first submission.
 
 ## ✅ Done in code
 - Rebrand → **Ignia**; flame icons, adaptive icon, splash, favicon.
-- Bundle IDs (`app.macrolog.mobile`), version `1.0.0`.
+- Bundle IDs (`fit.ignia.app`), version `1.0.0`.
 - `eas.json` build profiles (development / preview / production) + submit.
   Production build sets `EXPO_PUBLIC_FEATURE_PHOTO_SCAN=0` so v1 ships without
   the (still-unvalidated) photo-scan; flip it on for v1.1 after the vision
@@ -24,7 +24,7 @@ v1.1. That removes the single biggest blocker from the first submission.
    Play Console ($25 one-time) for Android.
 2. **Enable Apple as a sign-in provider** — Firebase Console → Auth → Sign-in
    method → Apple (enable); Apple Developer portal → enable "Sign in with
-   Apple" capability on the `app.macrolog.mobile` App ID. (Code is already in.)
+   Apple" capability on the `fit.ignia.app` App ID. (Code is already in.)
 3. **EAS build + credentials.** `eas login`, then
    `eas build -p ios --profile production` (and `-p android`). First iOS build
    provisions signing certs interactively. This is also the only way to test

@@ -5,11 +5,11 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "macrolog",
+    "scheme": "ignia",
     "userInterfaceStyle": "light",
     "backgroundColor": "#faf9f6",
     "ios": {
-      "bundleIdentifier": "app.macrolog.mobile",
+      "bundleIdentifier": "fit.ignia.app",
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "infoPlist": {
@@ -23,7 +23,7 @@
       }
     },
     "android": {
-      "package": "app.macrolog.mobile",
+      "package": "fit.ignia.app",
       "adaptiveIcon": {
         "backgroundColor": "#f2ead7",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
