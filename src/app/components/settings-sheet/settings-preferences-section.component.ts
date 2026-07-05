@@ -92,16 +92,15 @@ import { UiButton } from '../ui/button.component';
             <div class="v2-body" style="font-weight: 500;">{{ t('settings.reminders.hour') }}</div>
             <p class="v2-caption">{{ t('settings.reminders.hourDesc') }}</p>
           </div>
-          <select
-            [value]="reminderHour()"
-            (change)="setReminderHour(+$any($event.target).value)"
-            [attr.aria-label]="t('settings.reminders.hourAria')"
-            class="v2-field"
-            style="min-width: 110px; width: auto;">
-            @for (h of reminderHours; track h) {
-              <option [value]="h" [selected]="h === reminderHour()">{{ formatHour(h) }}</option>
-            }
-          </select>
+          <div class="flex items-center gap-2 shrink-0" [attr.aria-label]="t('settings.reminders.hourAria')">
+            <button type="button" (click)="setReminderHour((reminderHour() + 23) % 24)"
+              [attr.aria-label]="t('settings.reminders.hour') + ' −'"
+              style="width: 32px; height: 32px; border-radius: 999px; border: 1px solid var(--v2-rule); background: var(--v2-paper-2); color: var(--v2-ink); font-weight: 700; cursor: pointer;">−</button>
+            <span class="v2-num" style="min-width: 64px; text-align: center; font-weight: 600; color: var(--v2-ink);">{{ formatHour(reminderHour()) }}</span>
+            <button type="button" (click)="setReminderHour((reminderHour() + 1) % 24)"
+              [attr.aria-label]="t('settings.reminders.hour') + ' +'"
+              style="width: 32px; height: 32px; border-radius: 999px; border: 1px solid var(--v2-rule); background: var(--v2-paper-2); color: var(--v2-ink); font-weight: 700; cursor: pointer;">+</button>
+          </div>
         </div>
 
         <p class="v2-caption mt-3">
