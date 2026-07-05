@@ -16,22 +16,29 @@
   /* ── Type stack ───────────────────────────────────────────── */
   --v2-font-sans: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
   --v2-font-mono: "Geist Mono", ui-monospace, "JetBrains Mono", monospace;
+  --v2-font-display: "Manrope", sans-serif;
 
   /* ── Palette (light, default) ─────────────────────────────── */
-  --v2-paper: #faf7f2;          /* warm off-white background */
-  --v2-paper-2: #f3eee5;        /* slightly deeper card surface */
-  --v2-paper-3: #ebe4d6;        /* hover / pressed surface */
+  --v2-paper: #faf9f6;          /* warm off-white background */
+  --v2-paper-2: #f4f2ee;        /* slightly deeper card surface */
+  --v2-paper-3: #e7e5e2;        /* hover / pressed surface (line color) */
   --v2-ink: #1c1915;            /* primary text */
-  --v2-ink-soft: #46413a;       /* secondary text */
-  --v2-ink-muted: #6d6458;      /* tertiary / captions — ≥4.5:1 AA on paper */
-  --v2-rule: #e3dccd;           /* hairline borders */
-  --v2-accent: #b4513a;         /* rust — desaturated oxblood */
-  --v2-accent-deep: #8e3c2a;    /* rust pressed / hover */
-  --v2-accent-soft: #f3d6cc;    /* rust 12% tint for backgrounds */
-  --v2-sage: #6b8e5a;           /* success / on-target */
-  --v2-sage-soft: #d8e2cf;      /* sage tint for backgrounds */
-  --v2-warn: #c08a2a;           /* under/over warning amber */
-  --v2-danger: #b03333;         /* destructive */
+  --v2-ink-soft: #57534e;       /* secondary text (muted) */
+  --v2-ink-muted: #a8a29e;      /* tertiary / captions (faint) */
+  --v2-rule: #e7e5e2;           /* hairline borders */
+  --v2-accent: #c62f27;         /* coral hero */
+  --v2-accent-deep: #a82720;    /* rust pressed / hover */
+  --v2-accent-soft: #faf3f1;    /* coral 12% tint for backgrounds */
+  --v2-sage: #0fa968;           /* success / on-target (protein) */
+  --v2-sage-soft: #e6f2f0;      /* teal soft for backgrounds */
+  --v2-teal: #0f766e;
+  --v2-warn: #f59e0b;           /* under/over warning amber (carbs) */
+  --v2-danger: #dc2626;         /* destructive */
+  
+  --v2-hero-panel: #161412;
+  --v2-hero-track: #2e2a25;
+  --v2-hero-text: #f3f1ec;
+  --v2-hero-muted: #a39c91;
 
   /* ── Surfaces & shadows ───────────────────────────────────── */
   --v2-shadow-1: 0 1px 2px rgba(28, 25, 21, 0.06), 0 1px 3px rgba(28, 25, 21, 0.04);
@@ -68,20 +75,21 @@
 
 /* ── Dark palette ───────────────────────────────────────────── */
 [data-ui="v2"][data-theme="dark"] {
-  --v2-paper: #15130f;
-  --v2-paper-2: #1f1c17;
-  --v2-paper-3: #2a261f;
-  --v2-ink: #f1ead8;
-  --v2-ink-soft: #c2b9a4;
-  --v2-ink-muted: #847a68;
-  --v2-rule: #2f2a22;
-  --v2-accent: #d96a52;
-  --v2-accent-deep: #b4513a;
-  --v2-accent-soft: rgba(217, 106, 82, 0.16);
-  --v2-sage: #8eb077;
-  --v2-sage-soft: rgba(142, 176, 119, 0.16);
-  --v2-warn: #d9a040;
-  --v2-danger: #d65454;
+  --v2-paper: #131210;
+  --v2-paper-2: #1d1b18;
+  --v2-paper-3: #2b2822;
+  --v2-ink: #f3f1ec;
+  --v2-ink-soft: #b3ada3;
+  --v2-ink-muted: #7c766c;
+  --v2-rule: #2b2822;
+  --v2-accent: #ff8a5c;
+  --v2-accent-deep: #ff6a3d;
+  --v2-accent-soft: #2a1712;
+  --v2-sage: #34d399;
+  --v2-sage-soft: #11302b;
+  --v2-teal: #3fd6c0;
+  --v2-warn: #fbbf24;
+  --v2-danger: #f2555a;
 
   --v2-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.25);
   --v2-shadow-2: 0 4px 8px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
@@ -156,9 +164,13 @@
 
 .v2-btn--primary {
   background: var(--v2-accent); color: #fff;
-  box-shadow: var(--v2-shadow-1);
+  box-shadow: 0 8px 16px color-mix(in srgb, var(--v2-accent) 40%, transparent);
 }
-.v2-btn--primary:hover:not(:disabled) { background: var(--v2-accent-deep); }
+.v2-btn--primary:hover:not(:disabled) { 
+  background: var(--v2-accent-deep); 
+  box-shadow: 0 12px 24px color-mix(in srgb, var(--v2-accent) 45%, transparent);
+  transform: translateY(-1px);
+}
 
 .v2-btn--secondary {
   background: var(--v2-paper-2); color: var(--v2-ink);
@@ -219,13 +231,20 @@
 
 /* ── Card ───────────────────────────────────────────────────── */
 .v2-card {
-  background: var(--v2-paper-2);
-  border: 1px solid var(--v2-rule);
+  background: color-mix(in srgb, var(--v2-paper-2) 60%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid color-mix(in srgb, var(--v2-rule) 50%, transparent);
   border-radius: var(--v2-radius-lg);
   padding: var(--v2-space-5);
+  transition: transform var(--v2-motion-base) var(--v2-ease), box-shadow var(--v2-motion-base) var(--v2-ease);
 }
-.v2-card--flat { background: transparent; box-shadow: none; }
-.v2-card--raised { box-shadow: var(--v2-shadow-2); border-color: transparent; }
+.v2-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--v2-shadow-1);
+}
+.v2-card--flat { background: transparent; box-shadow: none; border: none; backdrop-filter: none; }
+.v2-card--raised { box-shadow: var(--v2-shadow-2); border-color: color-mix(in srgb, var(--v2-rule) 50%, transparent); transform: translateY(-2px); }
 .v2-card--accent {
   background: var(--v2-accent-soft);
   border-color: color-mix(in srgb, var(--v2-accent) 30%, transparent);
@@ -235,7 +254,8 @@
 .v2-sheet-backdrop {
   position: fixed; inset: 0; z-index: 50;
   background: rgba(28, 25, 21, 0.45);
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex; align-items: flex-end; justify-content: center;
   animation: v2-fade-in var(--v2-motion-base) var(--v2-ease);
 }
@@ -246,8 +266,11 @@
   width: 100%;
   max-width: 480px;
   max-height: 90vh;
-  background: var(--v2-paper);
+  background: color-mix(in srgb, var(--v2-paper) 80%, transparent);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border-radius: var(--v2-radius-xl) var(--v2-radius-xl) 0 0;
+  border-top: 1px solid color-mix(in srgb, var(--v2-rule) 50%, transparent);
   padding: var(--v2-space-5);
   padding-bottom: calc(var(--v2-space-5) + env(safe-area-inset-bottom));
   box-shadow: var(--v2-shadow-3);
@@ -452,9 +475,9 @@
    call sites migrate. */
 [data-ui="v2"] .v2-h1,
 [data-ui="v2"] .page-title {
-  font-family: var(--v2-font-sans);
+  font-family: var(--v2-font-display);
   font-size: clamp(1.75rem, 1.45rem + 1.5vw, 2.25rem);
-  line-height: 1.15; font-weight: 600;
+  line-height: 1.15; font-weight: 700;
   letter-spacing: -0.02em; color: var(--v2-ink);
 }
 /* Editorial hero variant — Instrument Serif italic. Reserved for the
@@ -478,14 +501,16 @@
 }
 [data-ui="v2"] .v2-h2,
 [data-ui="v2"] .section-title {
+  font-family: var(--v2-font-display);
   font-size: clamp(1.25rem, 1.08rem + 0.85vw, 1.5rem);
-  line-height: 1.25; font-weight: 600;
+  line-height: 1.25; font-weight: 700;
   letter-spacing: -0.015em; color: var(--v2-ink);
 }
 [data-ui="v2"] .v2-h3,
 [data-ui="v2"] .card-title {
+  font-family: var(--v2-font-display);
   font-size: clamp(1.0625rem, 0.99rem + 0.4vw, 1.1875rem);
-  line-height: 1.35; font-weight: 600;
+  line-height: 1.35; font-weight: 700;
   letter-spacing: -0.01em; color: var(--v2-ink);
 }
 [data-ui="v2"] .v2-body { font-size: 1.0625rem; line-height: 1.6; color: var(--v2-ink); }

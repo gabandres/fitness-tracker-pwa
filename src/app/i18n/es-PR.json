@@ -674,6 +674,17 @@
     "saveAsPreset": "guardar como preset",
     "presetNamePlaceholder": "nombre del preset"
   },
+  "metrics": {
+    "fasting": "Ayuno",
+    "notFasting": "Sin ayuno",
+    "startFast": "Iniciar ayuno",
+    "end": "Terminar",
+    "water": "Agua",
+    "sleep": "Sueño",
+    "log": "Registrar",
+    "edit": "Editar",
+    "hoursSlept": "Horas dormidas"
+  },
   "fasting": {
     "stamp": "ayunando",
     "sinceShort": "desde las {{time}}",

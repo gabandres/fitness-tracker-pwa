@@ -52,7 +52,6 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
     UiCard,
     UiFab,
     UiDaySummary,
-    UiFastingPill,
     UiAvatar,
     UiRefineTargetsSheet,
     WhatsNewBannerComponent,
@@ -62,35 +61,30 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
     <ng-container *transloco="let t">
     <section class="max-w-[640px] mx-auto">
       <!-- Header -->
-      <header class="flex items-start justify-between gap-4 pt-2 pb-2">
+      <header class="flex items-start justify-between gap-4 pt-4 pb-2">
         <div>
-          <h1 class="page-title">{{ t('v2.today.title') }}</h1>
-          <p class="v2-caption mt-0.5">{{ dateLabel() }}</p>
-          @if (streak() >= 2) {
-            <div class="flex items-center gap-1.5 mt-2 v2-caption" style="color: var(--v2-accent)">
-              <lucide-icon name="flame" [size]="14" />
-              <span>{{ t('v2.today.dayStreak', { n: streak() }) }}</span>
-              @if (streakFreezeUsed()) {
-                <span class="flex items-center gap-1" style="color: var(--v2-sage);"
-                  [attr.aria-label]="t('v2.today.streakProtected')"
-                  [title]="t('v2.today.streakProtected')">
-                  <lucide-icon name="shield" [size]="12" />
-                </span>
-              }
-              <button type="button" class="v2-icon-btn" style="margin-left: 2px; color: var(--v2-ink-muted);"
-                [attr.aria-label]="t('today.shareCard')" [disabled]="sharing()"
-                (click)="shareCard()">
-                <lucide-icon name="share-2" [size]="14" />
-              </button>
-            </div>
-          }
+          <h1 class="v2-h1" style="font-family: var(--v2-font-display); font-size: 2rem;">{{ t('v2.today.title') }}</h1>
+          <p class="v2-body-soft mt-0.5" style="color: var(--v2-ink-muted);">{{ dateLabel() }}</p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <ui-fasting-pill (bodyRequested)="bodyRequested.emit()" />
+          @if (streak() > 0) {
+            <div class="flex items-center gap-1" style="background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: 999px; padding: 4px 10px; box-shadow: var(--v2-shadow-1);">
+              <span style="font-size: 0.8125rem;">🔥</span>
+              <span style="font-size: 0.8125rem; font-weight: 800; color: var(--v2-ink);">{{ streak() }}</span>
+              @if (streakFreezeUsed()) {
+                <lucide-icon name="shield" [size]="12" style="color: var(--v2-sage); margin-left: 2px;" />
+              }
+            </div>
+          }
           <ui-icon-button
             icon="calendar"
             [ariaLabel]="t('v2.today.historyAria')"
             (click)="historyRequested.emit()" />
+          <ui-icon-button
+            icon="share-2"
+            [ariaLabel]="t('today.shareCard')"
+            [disabled]="sharing()"
+            (click)="shareCard()" />
           <ui-avatar
             [photoUrl]="authUser()?.photoURL ?? null"
             [name]="authUser()?.displayName || authUser()?.email || null"
@@ -101,26 +95,7 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
 
       <app-whats-new-banner [suppressed]="activeNudge() !== 'whatsNew'" />
 
-      @if (showDay0Hero()) {
-        <!-- Day 0 hero — replaces rings until first entry. -->
-        <ui-card variant="accent" class="mt-6 block text-center">
-          <h2 class="section-title">{{ t('v2.today.day0Title') }}</h2>
-          <p class="v2-body-soft mt-2">
-            {{ t('v2.today.day0Body') }}
-          </p>
-          <div class="mt-5">
-            <ui-button variant="primary" size="lg" [block]="true" (click)="addFood()">
-              <lucide-icon name="plus" [size]="18" />
-              {{ t('v2.today.addFood') }}
-            </ui-button>
-          </div>
-          <p class="v2-caption mt-4">
-            {{ t('v2.today.day0Targets', { kcal: kcalTarget(), protein: proteinTargetG() }) }}
-          </p>
-        </ui-card>
-      } @else {
-        <ui-day-summary [dateKey]="todayKey()" />
-      }
+      <ui-day-summary [dateKey]="todayKey()" (bodyRequested)="bodyRequested.emit()" />
 
       <!-- Day-3 "Refine targets" coach card — surfaces once the user has
            ≥3 unique logged days and is still on the 2-Q heuristic. Tapping
@@ -141,13 +116,18 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
         </ui-card>
       }
 
-      <!-- Repeat-yesterday — only when today is empty + yesterday has entries -->
-      @if (canRepeatYesterday()) {
-        <div class="mt-6">
-          <ui-button variant="secondary" [block]="true" (click)="repeatYesterday()">
-            <lucide-icon name="check" [size]="16" />
-            {{ t('v2.today.repeatYesterday') }}
-          </ui-button>
+      @if (showDay0Hero()) {
+        <div class="mt-8 mb-12 flex flex-col items-center justify-center text-center px-4">
+          <p class="v2-body" style="font-weight: 600; color: var(--v2-ink-muted);">{{ t('v2.today.day0Title') }}</p>
+          <p class="v2-caption mt-1" style="color: var(--v2-faint);">{{ t('v2.today.day0Body') }}</p>
+          @if (canRepeatYesterday()) {
+            <div class="mt-4">
+              <ui-button variant="secondary" size="md" (click)="repeatYesterday()" style="border-radius: 999px;">
+                <lucide-icon name="refresh-cw" [size]="14" />
+                {{ t('v2.today.repeatYesterday') }}
+              </ui-button>
+            </div>
+          }
         </div>
       }
 
@@ -218,10 +198,8 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
       }
     </section>
 
-    <!-- FAB — hidden on day 0 (in-card button is the only affordance). -->
-    @if (!showDay0Hero()) {
-      <ui-fab icon="plus" [ariaLabel]="t('v2.today.addFoodAria')" (click)="addFood()" />
-    }
+    <!-- FAB -->
+    <ui-fab icon="plus" [ariaLabel]="t('v2.today.addFoodAria')" (click)="addFood()" />
 
     <ui-refine-targets-sheet
       [open]="showRefineSheet()"

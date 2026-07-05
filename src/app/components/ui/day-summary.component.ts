@@ -1,9 +1,11 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   computed,
   inject,
   input,
+  output,
   signal,
 } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
@@ -15,10 +17,9 @@ import { TranslationService } from '../../services/translation.service';
 import type { DailyLog } from '../../services/firebase.service';
 import { localDateKey } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
+import { FastingStore } from '../../services/fasting-store.service';
 import { UiButton } from './button.component';
 import { UiCard } from './card.component';
-import { UiRing } from './ring.component';
-import { UiWeightSheet } from './weight-sheet.component';
 
 /**
  * Shared rings + entries + water + exercise block. Renders the day
@@ -32,80 +33,53 @@ import { UiWeightSheet } from './weight-sheet.component';
 @Component({
   selector: 'ui-day-summary',
   standalone: true,
-  imports: [LucideAngularModule, TranslocoDirective, UiButton, UiCard, UiRing, UiWeightSheet],
+  imports: [LucideAngularModule, TranslocoDirective, UiButton, UiCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-    <!-- Rings hero -->
-    <div class="flex items-center justify-around gap-2 mt-6">
-      <div class="flex flex-col items-center">
-        <ui-ring
-          [value]="kcalConsumed()"
-          [target]="kcalTarget()"
-          [size]="148"
-          [stroke]="14"
-          [tone]="kcalTone()"
-          [ariaLabel]="t('v2.daySummary.kcalAria', { consumed: kcalConsumed(), target: kcalTarget() })">
-          <span class="v2-num text-2xl font-semibold">{{ kcalRemaining() }}</span>
-          <span class="v2-caption mt-0.5">{{ kcalRemainingLabel() }}</span>
-        </ui-ring>
-        <span class="v2-caption mt-2">{{ t('v2.daySummary.kcal') }}</span>
+    <!-- Hero rings — dark concentric dual-ring panel (mirrors mobile HeroRings):
+         calories outer (coral), protein inner (sage), remaining-kcal in center,
+         legend + carbs/fat chips below, all on the shared dark hero panel. -->
+    <div class="mt-6" style="background: var(--v2-hero-panel); border-radius: var(--v2-radius-xl); padding: var(--v2-space-5) var(--v2-space-4); display: flex; flex-direction: column; align-items: center; gap: var(--v2-space-4); box-shadow: var(--v2-shadow-2);">
+      <div style="position: relative; width: 236px; height: 236px;">
+        <svg width="236" height="236" viewBox="0 0 236 236" role="img"
+          [attr.aria-label]="t('v2.daySummary.kcalAria', { consumed: kcalConsumed(), target: kcalTarget() })">
+          <circle cx="118" cy="118" r="110.5" stroke="var(--v2-hero-track)" stroke-width="15" fill="none" />
+          <circle cx="118" cy="118" r="110.5" stroke-width="15" fill="none" stroke-linecap="round"
+            [attr.stroke]="kcalOver() ? 'var(--v2-danger)' : '#ff6a3d'"
+            [attr.stroke-dasharray]="outerC"
+            [attr.stroke-dashoffset]="outerC * (1 - calRingProgress())"
+            transform="rotate(-90 118 118)" />
+          <circle cx="118" cy="118" r="88.5" stroke="var(--v2-hero-track)" stroke-width="12" fill="none" />
+          <circle cx="118" cy="118" r="88.5" stroke="var(--v2-sage)" stroke-width="12" fill="none" stroke-linecap="round"
+            [attr.stroke-dasharray]="innerC"
+            [attr.stroke-dashoffset]="innerC * (1 - protRingProgress())"
+            transform="rotate(-90 118 118)" />
+        </svg>
+        <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none;">
+          <span style="font-family: var(--v2-font-display); font-weight: 800; font-size: 44px; line-height: 1; color: var(--v2-hero-text);">{{ kcalRemainingAbs() }}</span>
+          <span style="font-size: 14px; color: var(--v2-hero-muted); margin-top: 2px;">{{ t('v2.daySummary.kcal') }} {{ kcalOver() ? t('v2.daySummary.over') : t('v2.daySummary.left') }}</span>
+        </div>
       </div>
-      <div class="flex flex-col items-center">
-        <ui-ring
-          [value]="proteinConsumed()"
-          [target]="proteinTargetG()"
-          [size]="120"
-          [stroke]="12"
-          tone="sage"
-          [ariaLabel]="t('v2.daySummary.proteinAria', { consumed: proteinConsumed(), target: proteinTargetG() })">
-          <span class="v2-num text-xl font-semibold">{{ proteinConsumed() }}g</span>
-          <span class="v2-caption mt-0.5">/ {{ proteinTargetG() }}g</span>
-        </ui-ring>
-        <span class="v2-caption mt-2">{{ t('v2.daySummary.protein') }}</span>
+
+      <!-- Legend -->
+      <div style="display: flex; gap: var(--v2-space-5); align-items: center;">
+        <div style="display: flex; align-items: center; gap: var(--v2-space-1);">
+          <span style="width: 8px; height: 8px; border-radius: 4px;" [style.background]="kcalOver() ? 'var(--v2-danger)' : '#ff6a3d'"></span>
+          <span style="font-family: var(--v2-font-display); font-weight: 700; font-size: 14px; color: var(--v2-hero-text);">{{ kcalConsumed().toLocaleString() }} / {{ kcalTarget().toLocaleString() }} {{ t('v2.daySummary.kcal') }}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: var(--v2-space-1);">
+          <span style="width: 8px; height: 8px; border-radius: 4px; background: var(--v2-sage);"></span>
+          <span style="font-family: var(--v2-font-display); font-weight: 700; font-size: 14px; color: var(--v2-hero-text);">{{ proteinConsumed() }}g / {{ proteinTargetG() }}g {{ t('v2.daySummary.protein') }}</span>
+        </div>
+      </div>
+
+      <!-- Carbs + fat value chips (always shown, mirrors mobile) -->
+      <div style="display: flex; gap: var(--v2-space-4);">
+        <span style="font-size: 12px; color: var(--v2-hero-muted); text-transform: capitalize;"><span style="color: #f59e0b;">●</span> {{ t('entry.carbsChip', { n: carbsConsumed() }) }}</span>
+        <span style="font-size: 12px; color: var(--v2-hero-muted); text-transform: capitalize;"><span style="color: #8b5cf6;">●</span> {{ t('entry.fatChip', { n: fatConsumed() }) }}</span>
       </div>
     </div>
-
-    <!-- Carbs + fat chips — hidden until the day has macro-carrying
-         entries (older rows predate the carbs/fat fields, and a
-         "0g · 0g" row would read as data rather than absence). -->
-    @if (carbsConsumed() > 0 || fatConsumed() > 0) {
-      <div class="flex justify-center gap-2 mt-4">
-        <span class="v2-num v2-caption inline-flex items-center gap-1"
-          style="padding: 4px 12px; background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: 999px; color: var(--v2-ink);">
-          {{ t('entry.carbsChip', { n: carbsConsumed() }) }}
-        </span>
-        <span class="v2-num v2-caption inline-flex items-center gap-1"
-          style="padding: 4px 12px; background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: 999px; color: var(--v2-ink);">
-          {{ t('entry.fatChip', { n: fatConsumed() }) }}
-        </span>
-      </div>
-    }
-
-    <!-- Exercise toggle -->
-    @if (editable()) {
-      <div class="flex justify-center mt-4">
-        <ui-button
-          variant="ghost"
-          size="sm"
-          (click)="toggleExercise()"
-          [attr.aria-pressed]="exercised()">
-          @if (exercised()) {
-            <lucide-icon name="check" [size]="16" style="color: var(--v2-sage)" />
-          } @else {
-            <lucide-icon name="footprints" [size]="16" />
-          }
-          {{ exercised() ? t('v2.daySummary.exercised') : t('v2.daySummary.didYouExercise') }}
-        </ui-button>
-      </div>
-    } @else if (exercised()) {
-      <div class="flex justify-center mt-4">
-        <span class="v2-caption inline-flex items-center gap-1.5">
-          <lucide-icon name="check" [size]="14" style="color: var(--v2-sage)" />
-          {{ t('v2.daySummary.exercised') }}
-        </span>
-      </div>
-    }
 
     <!-- Entries list, grouped by diary slot. Days with no slotted
          entries (every row pre-dates mealType) render as one flat
@@ -151,166 +125,118 @@ import { UiWeightSheet } from './weight-sheet.component';
       }
     }
 
-    <!-- Water row -->
-    <ui-card variant="flat" class="mt-6 block">
-      <div class="flex items-center justify-between gap-3">
-        <div class="flex items-center gap-2">
-          <lucide-icon name="droplets" [size]="18" style="color: var(--v2-ink-muted)" />
+    <!-- Daily Metrics (Fasting, Water, Sleep) — mirrors mobile DailyMetrics -->
+    <ui-card class="mt-4 block p-0 overflow-hidden" style="padding: 0;">
+
+      <!-- Fasting Row -->
+      <div class="flex items-center justify-between" style="padding: var(--v2-space-3) var(--v2-space-4); border-bottom: 1px solid var(--v2-rule);">
+        <div>
+          <div class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.05em; color: var(--v2-ink-soft); font-weight: 600;">{{ t('metrics.fasting') }}</div>
+          <div class="v2-body" style="font-weight: 700; color: var(--v2-ink); margin-top: 2px;">{{ fastingValue() }}</div>
+        </div>
+        @if (editable()) {
+          <button type="button" (click)="toggleFast()" class="v2-caption"
+            [style.color]="fasting.isFasting() ? 'var(--v2-danger)' : 'var(--v2-ink)'"
+            [style.border-color]="fasting.isFasting() ? 'var(--v2-danger)' : 'var(--v2-ink)'"
+            style="font-weight: 700; background: transparent; border-width: 1px; border-style: solid; border-radius: 999px; padding: 4px 12px;">
+            {{ fasting.isFasting() ? t('metrics.end') : t('metrics.startFast') }}
+          </button>
+        }
+      </div>
+
+      <!-- Water Row -->
+      <div class="flex items-center justify-between" style="padding: var(--v2-space-3) var(--v2-space-4); border-bottom: 1px solid var(--v2-rule);">
+        <div>
+          <div class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.05em; color: var(--v2-ink-soft); font-weight: 600;">{{ t('metrics.water') }}</div>
+          <div class="v2-body" style="font-weight: 700; color: var(--v2-teal); margin-top: 2px;">{{ waterOz() }} fl oz</div>
+        </div>
+        <div class="flex items-center gap-1.5">
+          @if (waterOz() > 0 && editable()) {
+            <button type="button" (click)="addWaterOz(-8)" class="v2-caption" style="font-weight: 700; color: var(--v2-teal); background: var(--v2-sage-soft); border: 1px solid var(--v2-sage-soft); border-radius: 999px; padding: 4px 12px; transition: transform 0.15s ease;">−8</button>
+          }
           @if (editable()) {
-            <button
-              type="button"
-              class="v2-body-soft"
-              style="background: none; border: none; padding: 0; cursor: pointer; text-align: left; min-height: var(--v2-tap-min); display: inline-flex; align-items: center;"
-              [attr.aria-label]="t('v2.daySummary.editWaterAria', { value: waterDisplay() })"
-              (click)="openWaterEditor()">
-              {{ t('v2.daySummary.water') }} · <span class="v2-num" style="color: var(--v2-ink); font-weight: 500;">{{ waterDisplay() }}</span>
-              <lucide-icon name="pencil" [size]="12" style="color: var(--v2-ink-muted); margin-left: 4px;" />
-            </button>
-          } @else {
-            <span class="v2-body-soft">
-              {{ t('v2.daySummary.water') }} · <span class="v2-num" style="color: var(--v2-ink); font-weight: 500;">{{ waterDisplay() }}</span>
-            </span>
+            <button type="button" (click)="addWaterOz(8)" class="v2-caption" style="font-weight: 700; color: var(--v2-teal); background: var(--v2-sage-soft); border: 1px solid var(--v2-sage-soft); border-radius: 999px; padding: 4px 12px; transition: transform 0.15s ease;">+8</button>
+            <button type="button" (click)="addWaterOz(16)" class="v2-caption" style="font-weight: 700; color: var(--v2-teal); background: var(--v2-sage-soft); border: 1px solid var(--v2-sage-soft); border-radius: 999px; padding: 4px 12px; transition: transform 0.15s ease;">+16</button>
+            <button type="button" (click)="addWaterOz(24)" class="v2-caption" style="font-weight: 700; color: var(--v2-teal); background: var(--v2-sage-soft); border: 1px solid var(--v2-sage-soft); border-radius: 999px; padding: 4px 12px; transition: transform 0.15s ease;">+24</button>
           }
         </div>
       </div>
-      @if (editable()) {
-        @if (editingWater()) {
-          <div class="mt-3 space-y-2">
-            <label class="v2-caption block" style="text-transform: uppercase; letter-spacing: 0.06em;">
-              {{ t('v2.daySummary.setExactOz') }}
-            </label>
-            <div class="flex flex-wrap gap-2 items-center">
-              <input
-                type="number"
-                inputmode="numeric"
-                step="1"
-                min="0"
-                max="676"
-                class="v2-field v2-field--num"
-                style="max-width: 140px;"
-                [value]="waterEditInput() ?? ''"
-                (input)="onWaterInput($event)"
-                (keydown.enter)="saveWater()" />
-              <ui-button variant="primary" size="sm" (click)="saveWater()">{{ t('v2.daySummary.save') }}</ui-button>
-              <ui-button variant="ghost" size="sm" (click)="cancelWaterEdit()">{{ t('v2.daySummary.cancel') }}</ui-button>
-              <ui-button variant="ghost" size="sm" (click)="clearWater()">{{ t('v2.daySummary.clear') }}</ui-button>
-            </div>
-          </div>
-        } @else {
-          <div class="flex flex-wrap gap-2 mt-3">
-            <ui-button variant="ghost" size="sm" (click)="addWaterOz(8)">{{ t('v2.daySummary.addOz', { n: 8 }) }}</ui-button>
-            <ui-button variant="ghost" size="sm" (click)="addWaterOz(16)">{{ t('v2.daySummary.addOz', { n: 16 }) }}</ui-button>
-            <ui-button variant="ghost" size="sm" (click)="addWaterOz(24)">{{ t('v2.daySummary.addOz', { n: 24 }) }}</ui-button>
-            <ui-button variant="secondary" size="sm" (click)="openWaterEditor()">
-              <lucide-icon name="pencil" [size]="14" />
-              {{ t('v2.daySummary.editWater') }}
-            </ui-button>
-          </div>
-        }
-      }
-    </ui-card>
 
-    <!-- Weight row -->
-    <ui-card variant="flat" class="mt-3 block">
-      <div class="flex items-center justify-between gap-3" style="min-height: var(--v2-tap-min);">
-        <div class="flex items-center gap-2 min-w-0">
-          <lucide-icon name="scale" [size]="18" style="color: var(--v2-ink-muted)" />
-          @if (editable() && loggedWeight() == null) {
-            <button
-              type="button"
-              class="v2-body-soft"
-              style="background: none; border: none; padding: 0; cursor: pointer; text-align: left; min-height: var(--v2-tap-min); display: inline-flex; align-items: center;"
-              [attr.aria-label]="t('v2.daySummary.logWeightAria')"
-              (click)="openWeightSheet()">
-              {{ t('v2.daySummary.weight') }} · <span class="v2-num" style="color: var(--v2-ink-muted); font-weight: 500;">{{ t('v2.daySummary.weightNone') }}</span>
-              <lucide-icon name="pencil" [size]="12" style="color: var(--v2-ink-muted); margin-left: 4px;" />
-            </button>
-          } @else {
-            <span class="v2-body-soft">
-              {{ t('v2.daySummary.weight') }} ·
-              @if (loggedWeight() != null) {
-                <span class="v2-num" style="color: var(--v2-ink); font-weight: 500;">{{ loggedWeight() }} {{ t('v2.daySummary.lb') }}</span>
-              } @else {
-                <span class="v2-num" style="color: var(--v2-ink-muted); font-weight: 500;">{{ t('v2.daySummary.weightNone') }}</span>
-              }
-            </span>
-          }
+      <!-- Sleep Row -->
+      <div class="flex items-center justify-between" style="padding: var(--v2-space-3) var(--v2-space-4);">
+        <div>
+          <div class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.05em; color: var(--v2-ink-soft); font-weight: 600;">{{ t('metrics.sleep') }}</div>
+          <div class="v2-body" style="font-weight: 700; color: var(--v2-ink); margin-top: 2px;">{{ hasSleep() ? sleepHoursVal() + 'h' : '—' }}</div>
         </div>
-        @if (editable() && loggedWeight() != null) {
-          <button
-            type="button"
-            class="v2-icon-btn"
-            style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--v2-ink-muted); display: inline-flex; align-items: center; justify-content: center;"
-            [attr.aria-label]="t('v2.daySummary.editWeightAria', { value: loggedWeight() })"
-            (click)="openWeightSheet()">
-            <lucide-icon name="pencil" [size]="14" />
+        @if (editable()) {
+          <button type="button" (click)="openSleepEditor()" class="v2-caption" style="font-weight: 700; color: var(--v2-ink); background: transparent; border: 1px solid var(--v2-ink); border-radius: 999px; padding: 4px 12px; transition: transform 0.15s ease;">
+            {{ hasSleep() ? t('metrics.edit') : t('metrics.log') }}
           </button>
         }
       </div>
     </ui-card>
 
-    <!-- Sleep row -->
-    <ui-card variant="flat" class="mt-3 block">
-      <div class="flex items-center justify-between gap-3" style="min-height: var(--v2-tap-min);">
-        <div class="flex items-center gap-2 min-w-0">
-          <lucide-icon name="moon" [size]="18" style="color: var(--v2-ink-muted)" />
-          @if (editable()) {
-            <button
-              type="button"
-              class="v2-body-soft"
-              style="background: none; border: none; padding: 0; cursor: pointer; text-align: left; min-height: var(--v2-tap-min); display: inline-flex; align-items: center;"
-              [attr.aria-label]="t('v2.daySummary.editSleepAria', { value: sleepDisplay() })"
-              (click)="openSleepEditor()">
-              {{ t('v2.daySummary.sleep') }} · <span class="v2-num" [style.color]="hasSleep() ? 'var(--v2-ink)' : 'var(--v2-ink-muted)'" style="font-weight: 500;">{{ sleepDisplay() }}</span>
-              <lucide-icon name="pencil" [size]="12" style="color: var(--v2-ink-muted); margin-left: 4px;" />
-            </button>
-          } @else {
-            <span class="v2-body-soft">
-              {{ t('v2.daySummary.sleep') }} · <span class="v2-num" [style.color]="hasSleep() ? 'var(--v2-ink)' : 'var(--v2-ink-muted)'" style="font-weight: 500;">{{ sleepDisplay() }}</span>
-            </span>
-          }
+    <!-- Inline sleep editor (opens under the card when editing) -->
+    @if (editable() && editingSleep()) {
+      <ui-card variant="flat" class="mt-3 block">
+        <label class="v2-caption block" style="text-transform: uppercase; letter-spacing: 0.06em;">
+          {{ t('metrics.hoursSlept') }}
+        </label>
+        <div class="flex flex-wrap gap-2 items-center mt-2">
+          <input
+            type="number"
+            inputmode="decimal"
+            step="0.5"
+            min="0"
+            max="24"
+            class="v2-field v2-field--num"
+            style="max-width: 140px;"
+            [value]="sleepEditInput()"
+            (input)="onSleepInput($event)"
+            (keydown.enter)="saveSleep()" />
+          <ui-button variant="primary" size="sm" (click)="saveSleep()">{{ t('v2.daySummary.save') }}</ui-button>
+          <ui-button variant="ghost" size="sm" (click)="cancelSleepEdit()">{{ t('v2.daySummary.cancel') }}</ui-button>
+          <ui-button variant="ghost" size="sm" (click)="clearSleep()">{{ t('v2.daySummary.clear') }}</ui-button>
         </div>
-      </div>
-      @if (editable() && editingSleep()) {
-        <div class="mt-3 space-y-2">
-          <label class="v2-caption block" style="text-transform: uppercase; letter-spacing: 0.06em;">
-            {{ t('v2.daySummary.setExactSleep') }}
-          </label>
-          <div class="flex flex-wrap gap-2 items-center">
-            <input
-              type="number"
-              inputmode="decimal"
-              step="0.5"
-              min="0"
-              max="24"
-              class="v2-field v2-field--num"
-              style="max-width: 140px;"
-              [value]="sleepEditInput()"
-              (input)="onSleepInput($event)"
-              (keydown.enter)="saveSleep()" />
-            <ui-button variant="primary" size="sm" (click)="saveSleep()">{{ t('v2.daySummary.save') }}</ui-button>
-            <ui-button variant="ghost" size="sm" (click)="cancelSleepEdit()">{{ t('v2.daySummary.cancel') }}</ui-button>
-            <ui-button variant="ghost" size="sm" (click)="clearSleep()">{{ t('v2.daySummary.clear') }}</ui-button>
-          </div>
-        </div>
-      }
-    </ui-card>
-
-    <ui-weight-sheet
-      [open]="weightSheetOpen()"
-      [dateKey]="dateKey()"
-      (close)="weightSheetOpen.set(false)" />
+      </ui-card>
+    }
     </ng-container>
   `,
 })
 export class UiDaySummary {
   protected readonly store = inject(FitnessStore);
   protected readonly body = inject(BodyMetricStore);
+  protected readonly fasting = inject(FastingStore);
   private readonly entryForm = inject(EntryFormManager);
   private readonly translation = inject(TranslationService);
 
   readonly dateKey = input.required<string>();
   readonly editable = input<boolean>(true);
+  readonly bodyRequested = output<void>();
+
+  // ─── Fasting row (inline, mirrors mobile DailyMetrics) ──────────
+  // 30s ticker keeps the elapsed clock live without a 1s timer; cleared
+  // on destroy so route swaps don't leak the handle.
+  private readonly fastTick = signal(0);
+  constructor() {
+    const id = setInterval(() => this.fastTick.update((n) => n + 1), 30_000);
+    inject(DestroyRef).onDestroy(() => clearInterval(id));
+  }
+
+  /** "Not fasting" when idle, else "14h 03m" elapsed since the fast start. */
+  protected readonly fastingValue = computed(() => {
+    this.fastTick();
+    const start = this.fasting.fastStartedAt();
+    if (!start) return this.translation.t('metrics.notFasting');
+    const mins = Math.max(0, Math.floor((Date.now() - start.getTime()) / 60000));
+    return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m`;
+  });
+
+  protected toggleFast(): void {
+    if (!this.editable()) return;
+    this.haptic(10);
+    void (this.fasting.isFasting() ? this.fasting.breakFast() : this.fasting.startFast());
+  }
 
   /** "Today's food" on today, "Food" on past days. */
   protected readonly entriesHeading = computed(() =>
@@ -356,6 +282,23 @@ export class UiDaySummary {
     this.kcalConsumed() > this.kcalTarget() ? 'warn' : 'accent',
   );
 
+  // ─── Hero rings geometry (mirrors mobile HeroRings: SIZE 236, outer
+  //     stroke 15 / r 110.5, inner stroke 12 / r 88.5) ─────────────
+  protected readonly outerC = 2 * Math.PI * 110.5;
+  protected readonly innerC = 2 * Math.PI * 88.5;
+  protected readonly kcalOver = computed(() => this.kcalConsumed() > this.kcalTarget());
+  protected readonly kcalRemainingAbs = computed(() =>
+    Math.abs(this.kcalTarget() - this.kcalConsumed()).toLocaleString(),
+  );
+  protected readonly calRingProgress = computed(() => {
+    const tgt = this.kcalTarget();
+    return tgt > 0 ? Math.min(1, Math.max(0, this.kcalConsumed() / tgt)) : 0;
+  });
+  protected readonly protRingProgress = computed(() => {
+    const tgt = this.proteinTargetG();
+    return tgt > 0 ? Math.min(1, Math.max(0, this.proteinConsumed() / tgt)) : 0;
+  });
+
   protected readonly proteinTargetG = computed(() => this.store.proteinTarget());
   protected readonly proteinConsumed = computed(() => this.summary()?.totalProtein ?? 0);
 
@@ -367,22 +310,6 @@ export class UiDaySummary {
   /** Stored and displayed in US fluid ounces. */
   protected readonly waterOz = computed(
     () => this.body.dailyWater()[this.dateKey()] ?? 0,
-  );
-
-  protected readonly weightSheetOpen = signal(false);
-
-  protected readonly loggedWeight = computed<number | null>(() => {
-    const w = this.body.dailyWeights()[this.dateKey()];
-    return typeof w === 'number' ? w : null;
-  });
-
-  protected openWeightSheet(): void {
-    if (!this.editable()) return;
-    this.haptic(10);
-    this.weightSheetOpen.set(true);
-  }
-  protected readonly waterDisplay = computed(
-    () => `${this.waterOz()} ${this.translation.t('v2.daySummary.flOz')}`,
   );
 
   protected logTime(log: DailyLog): string {

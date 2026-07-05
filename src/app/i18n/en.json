@@ -674,6 +674,17 @@
     "saveAsPreset": "save as preset",
     "presetNamePlaceholder": "preset name"
   },
+  "metrics": {
+    "fasting": "Fasting",
+    "notFasting": "Not fasting",
+    "startFast": "Start fast",
+    "end": "End",
+    "water": "Water",
+    "sleep": "Sleep",
+    "log": "Log",
+    "edit": "Edit",
+    "hoursSlept": "Hours slept"
+  },
   "fasting": {
     "stamp": "fasting",
     "sinceShort": "since {{time}}",
