@@ -186,7 +186,7 @@ export class SettingsDataSectionComponent {
       const d = new Date();
       const p = (n: number) => String(n).padStart(2, '0');
       const stamp = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
-      downloadCsv(`macrolog-export-${stamp}.csv`, csv);
+      downloadCsv(`ignia-export-${stamp}.csv`, csv);
       this.analytics.track('data_export_csv', {
         rows: logs.length + measurements.length + workoutSessions.length,
       });

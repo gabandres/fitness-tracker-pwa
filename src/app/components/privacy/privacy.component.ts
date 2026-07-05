@@ -179,7 +179,7 @@ export class PrivacyComponent {
       const a = document.createElement('a');
       const stamp = new Date().toISOString().slice(0, 10);
       a.href = url;
-      a.download = `macrolog-export-${stamp}.json`;
+      a.download = `ignia-export-${stamp}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();

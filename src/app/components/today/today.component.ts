@@ -268,7 +268,7 @@ export class TodayComponent {
         wordmark: this.translation.t('today.shareWordmark'),
         tagline: this.translation.t('today.shareTagline'),
       });
-      await shareImage(blob, 'macrolog-progress.png', this.translation.t('today.shareText'));
+      await shareImage(blob, 'ignia-progress.png', this.translation.t('today.shareText'));
       this.analytics.track('share_card');
     } catch {
       // Native-share cancel resolves as success upstream; genuine encode

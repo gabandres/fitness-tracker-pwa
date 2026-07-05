@@ -818,7 +818,7 @@ export class AdminComponent {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `macrolog-${type}-${new Date().toISOString().split('T')[0]}.csv`;
+      a.download = `ignia-${type}-${new Date().toISOString().split('T')[0]}.csv`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
       this.notice.set(`${type} CSV downloaded`);
