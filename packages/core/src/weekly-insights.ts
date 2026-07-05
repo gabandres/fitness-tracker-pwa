@@ -21,6 +21,10 @@ export interface WeeklyInsights {
   /** Average (target − consumed) across logged days. Positive = average
    *  deficit, negative = average surplus. */
   avgDeficit: number;
+  /** Average protein (g) across logged days. */
+  avgProtein: number;
+  /** Logged days that met/exceeded the protein target (0 when no target). */
+  proteinGoalDays: number;
   /** Logged day closest to target. */
   bestDay: InsightDay;
   /** Logged day furthest from target. Equal to bestDay when only one
@@ -46,6 +50,7 @@ export function computeWeeklyInsights(
   days: readonly DaySummary[],
   targetCalories: number,
   weightPoints: readonly WeightPoint[] = [],
+  proteinTarget = 0,
 ): WeeklyInsights | null {
   if (targetCalories <= 0) return null;
   const logged = days.filter((d) => d.mealCount > 0 && d.totalCalories > 0);
@@ -66,11 +71,15 @@ export function computeWeeklyInsights(
 
   const totalCalories = judged.reduce((s, d) => s + d.calories, 0);
   const avgCalories = Math.round(totalCalories / judged.length);
+  const avgProtein = Math.round(logged.reduce((s, d) => s + d.totalProtein, 0) / logged.length);
+  const proteinGoalDays = proteinTarget > 0 ? logged.filter((d) => d.totalProtein >= proteinTarget).length : 0;
 
   return {
     loggedDays: judged.length,
     avgCalories,
     avgDeficit: targetCalories - avgCalories,
+    avgProtein,
+    proteinGoalDays,
     bestDay: best,
     worstDay: worst,
     weightSlopeLbPerWeek: weightSlopeLbPerWeek(weightPoints),

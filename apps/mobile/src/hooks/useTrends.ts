@@ -26,6 +26,11 @@ export interface TrendsState {
   error: Error | null;
   /** 7-day calorie insights, or null below the logged-day gate. */
   insights: WeeklyInsights | null;
+  /** Days logged in the last 7 (even below the insight gate) — powers the
+   *  "N of 7 days" low-data state. */
+  loggedThisWeek: number;
+  /** The daily protein target (for weekly protein adherence copy). */
+  proteinTarget: number;
   /** Adaptive TDEE engine state (maintenance estimate + mode). */
   tdee: TdeeResult;
   targetCalories: number;
@@ -83,8 +88,16 @@ export function useTrends(): TrendsState {
       const v = weights[key];
       if (typeof v === 'number') points.push({ dateKey: key, weightLb: v });
     }
-    return computeWeeklyInsights(summaries, targets.calorieTarget, points);
+    return computeWeeklyInsights(summaries, targets.calorieTarget, points, targets.proteinTarget);
   }, [logs, weights, targets]);
+
+  const loggedThisWeek = useMemo(() => {
+    const today = new Date();
+    const dayKeys = Array.from({ length: INSIGHT_DAYS }, (_, i) =>
+      localDateKey(addDays(today, -(INSIGHT_DAYS - 1 - i))),
+    );
+    return summarizeDays(dayKeys, logs, weights).filter((d) => d.mealCount > 0 && d.totalCalories > 0).length;
+  }, [logs, weights]);
 
   const weightSeries = useMemo<number[]>(() => {
     const today = new Date();
@@ -112,6 +125,8 @@ export function useTrends(): TrendsState {
     loading,
     error,
     insights,
+    loggedThisWeek,
+    proteinTarget: targets.proteinTarget,
     tdee: targets.tdee,
     targetCalories: targets.calorieTarget,
     weightSeries,

@@ -135,6 +135,29 @@ the real funder; donations are goodwill + community signal. Cheap to add.
 - [ ] Copy stays purely altruistic — **unlocks nothing** (a donation that grants
       features would be an IAP-circumvention rejection).
 
+## 6c. Trends redesign (grilled 2026-07-05)
+
+Purpose: **"your targets + how you're tracking to them."** Removes the weight
+trend (Body owns weight — was duplicated). Order + gating + never-blank states:
+
+- **Order:** Maintenance hero → This week (adherence) → Weekly budget →
+  Coach (Pro) → Weekly report (Pro). Rationale: anchor → status → runway →
+  AI layers. AI CTAs go last (above-the-numbers AI reads as an ad).
+- **Free vs Pro:** free = maintenance + this-week adherence + budget (all $0
+  client math); Pro = Coach + weekly report + the *deeper* insight rows
+  (best/off day, weight-slope). "AI costs money, math on your own data doesn't."
+- **Never-blank / progressive accuracy** (empty-state research: Inform +
+  Inspire + Activate, positive copy, preload estimates):
+  - Hero always shows ≥ the **formula estimate** ("Estimate" badge → "Adaptive"
+    + completeness% as it sharpens). Never a dash.
+  - This week: 0 days → faded skeleton of the stats + "Log a meal to start your
+    week"; partial → "2 of 7 days logged" + averages so far; full → full stats.
+  - Budget: the 7 day-columns are the illustration — faded when empty +
+    "your budget fills as you log".
+- **Protein too:** "this week" reports **calories AND protein** adherence (avg
+  protein vs target + protein-goal days hit) — needs a small weekly-insights
+  core addition. Trends must serve the kcal+protein identity, not calories only.
+
 ## 7. Discoverability / ASO (the "I hope people find it" problem)
 
 Your Train differentiator **is** the wedge — nobody pairs AI-photo macros with
