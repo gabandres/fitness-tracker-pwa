@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Macro Log",
+    "name": "Macronaut",
     "slug": "macro-log",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -58,7 +58,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Macro Log uses the camera to scan food barcodes.",
+          "cameraPermission": "Macronaut uses the camera to scan food barcodes.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
@@ -66,8 +66,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Macro Log uses your photos to track progress pictures.",
-          "cameraPermission": "Macro Log uses the camera to take progress photos."
+          "photosPermission": "Macronaut uses your photos to track progress pictures.",
+          "cameraPermission": "Macronaut uses the camera to take progress photos."
         }
       ]
     ],

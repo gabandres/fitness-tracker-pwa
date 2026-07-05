@@ -25,7 +25,7 @@ export function ShareCard({ stats }: { stats: ShareStats }) {
   return (
     <View style={styles.card}>
       <View style={styles.rule} />
-      <Text style={styles.wordmark}>Macro Log</Text>
+      <Text style={styles.wordmark}>Macronaut</Text>
       <View style={styles.tiles}>
         {tiles.map((tile) => (
           <View key={tile.kind} style={styles.tile}>

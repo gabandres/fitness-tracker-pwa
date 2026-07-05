@@ -66,7 +66,7 @@ export async function setReminder(enabled: boolean, hour: number): Promise<boole
 
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: 'Macro Log',
+      title: 'Macronaut',
       body: "Don't forget to log today's meals.",
     },
     trigger: {

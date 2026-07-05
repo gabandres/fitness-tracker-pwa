@@ -80,7 +80,7 @@ export async function exportDataCsv(uid: string): Promise<ExportResult> {
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(file.uri, {
       mimeType: 'text/csv',
-      dialogTitle: 'Export Macro Log data',
+      dialogTitle: 'Export Macronaut data',
       UTI: 'public.comma-separated-values-text',
     });
     return { rows, shared: true };
