@@ -8,9 +8,10 @@ import {
   getReactNativePersistence,
   initializeAuth,
 } from 'firebase/auth';
-import { type Firestore, getFirestore } from 'firebase/firestore';
-import { type Functions, getFunctions } from 'firebase/functions';
-import { type FirebaseStorage, getStorage } from 'firebase/storage';
+import { type Firestore, connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
+import { type Functions, connectFunctionsEmulator, getFunctions } from 'firebase/functions';
+import { type FirebaseStorage, connectStorageEmulator, getStorage } from 'firebase/storage';
+import { connectAuthEmulator } from 'firebase/auth';
 
 // Same Firebase project as the PWA (see src/environments/environment.ts).
 // This is public client config, not a secret (ADR-0002).
@@ -42,5 +43,19 @@ const db: Firestore = getFirestore(app);
 // with no arg in app.config.ts), so searchFoods/getFoodDetail resolve.
 const functions: Functions = getFunctions(app);
 const storage: FirebaseStorage = getStorage(app);
+
+// OPT-IN local dev against the Firebase Emulator Suite. Unlike the web app
+// (which auto-uses emulators in dev), mobile stays opt-in: Expo Go on a
+// physical device can't reach the dev machine's `localhost`, so you must both
+// enable it and point it at your machine's LAN IP:
+//   EXPO_PUBLIC_USE_EMULATORS=1 EXPO_PUBLIC_EMULATOR_HOST=192.168.x.y npx expo start
+// On the web target / a simulator on the same machine, `localhost` is fine.
+if (__DEV__ && process.env.EXPO_PUBLIC_USE_EMULATORS === '1') {
+  const host = process.env.EXPO_PUBLIC_EMULATOR_HOST || 'localhost';
+  connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
+  connectFirestoreEmulator(db, host, 8080);
+  connectStorageEmulator(storage, host, 9199);
+  connectFunctionsEmulator(functions, host, 5001);
+}
 
 export { app, auth, db, functions, storage };

@@ -72,3 +72,12 @@ _attic/
 _outer-junk-git-backup/
 .playwright-mcp/
 .expo/
+
+# Firebase Emulator Suite (local dev state + logs — see DEV_ENVIRONMENT.md)
+.emulator-data/
+firebase-debug.log
+firestore-debug.log
+database-debug.log
+ui-debug.log
+storage-debug.log
+pubsub-debug.log

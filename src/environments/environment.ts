@@ -1,5 +1,9 @@
 export const environment = {
   production: true,
+  // Prod always talks to the real Firebase project. The dev config
+  // (environment.development.ts) flips this to route local `ng serve` at the
+  // Firebase Emulator Suite instead, so development never writes to prod data.
+  useEmulators: false,
   firebase: {
     projectId: 'fitness-tracker-gb-1775407101',
     appId: '1:647810616435:web:b0d7e4c6484c972a2c2e06',

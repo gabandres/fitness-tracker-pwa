@@ -7,10 +7,11 @@ import {
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
+  connectFirestoreEmulator,
 } from '@angular/fire/firestore';
-import { provideAuth, getAuth } from '@angular/fire/auth';
-import { provideStorage, getStorage } from '@angular/fire/storage';
-import { provideFunctions, getFunctions } from '@angular/fire/functions';
+import { provideAuth, getAuth, connectAuthEmulator } from '@angular/fire/auth';
+import { provideStorage, getStorage, connectStorageEmulator } from '@angular/fire/storage';
+import { provideFunctions, getFunctions, connectFunctionsEmulator } from '@angular/fire/functions';
 import { provideMessaging, getMessaging } from '@angular/fire/messaging';
 import {
   LucideAngularModule,
@@ -91,19 +92,38 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
     provideFirebaseApp(() => initializeApp(environment.firebase)),
-    provideAuth(() => getAuth()),
-    provideStorage(() => getStorage()),
-    provideFunctions(() => getFunctions()),
+    // In dev (environment.useEmulators), point every Firebase service at the
+    // local Emulator Suite (`npm run dev`) so nothing touches prod data. The
+    // connect* calls run once, right after each service is created.
+    provideAuth(() => {
+      const auth = getAuth();
+      if (environment.useEmulators) {
+        connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+      }
+      return auth;
+    }),
+    provideStorage(() => {
+      const storage = getStorage();
+      if (environment.useEmulators) connectStorageEmulator(storage, 'localhost', 9199);
+      return storage;
+    }),
+    provideFunctions(() => {
+      const functions = getFunctions();
+      if (environment.useEmulators) connectFunctionsEmulator(functions, 'localhost', 5001);
+      return functions;
+    }),
     ...provideMessagingIfSupported(),
     // Enable Firestore offline persistence so writes queue locally
     // when the user is offline and sync when the connection returns.
-    provideFirestore(() =>
-      initializeFirestore(getApp(), {
+    provideFirestore(() => {
+      const fs = initializeFirestore(getApp(), {
         localCache: persistentLocalCache({
           tabManager: persistentMultipleTabManager(),
         }),
-      }),
-    ),
+      });
+      if (environment.useEmulators) connectFirestoreEmulator(fs, 'localhost', 8080);
+      return fs;
+    }),
     provideServiceWorker('ngsw-worker.js', {
       enabled: !isDevMode(),
       registrationStrategy: 'registerWhenStable:30000',
