@@ -64,7 +64,22 @@ mobile talks to the real project as before.
 ## 2. Owner runbook — `ignia.fit` cutover + prod hardening
 
 Code side is done (rename, flame brand, URL migration to `ignia.fit`, emulator
-dev env). These are the console/DNS/CLI steps only the owner can do.
+dev env). Most infra was then done via CLI as the owner (`gcloud`/`gsutil`,
+2026-07-05):
+
+| Item | Status |
+|------|--------|
+| Project display name → **Ignia** | ✅ (already renamed) |
+| Storage CORS += `https://ignia.fit` | ✅ `gsutil cors set` |
+| Gemini client key referrers += `ignia.fit`/`www` | ✅ (kept existing) |
+| Firestore **PITR** (7-day) | ✅ enabled |
+| **Billing budget** $50/mo + 50/90/100% alerts | ✅ (adjust amount to taste) |
+| Auth **email-enumeration protection** | ✅ enabled |
+| **Custom domain `ignia.fit` connect + DNS** | ⬜ **owner** — no CLI/Cloudflare token (steps below) |
+| Final `firebase deploy` of ignia.fit canonicals | ⬜ after domain resolves |
+| **App Check** | ⬜ deferred (own pass) |
+
+Remaining steps that genuinely can't be scripted here:
 
 ### A. Point `ignia.fit` at the app (no migration — same prod project)
 1. **Firebase Console → Hosting → site `macrolog` → Add custom domain** →
