@@ -83,4 +83,32 @@ describe('calculateTdee', () => {
     expect(r.trueTdee).toBeLessThan(2450);
     expect(r.reliable).toBe(true);
   });
+
+  it('excludes logged-but-zero-kcal (weigh-in-only) days from the intake average', () => {
+    // 15 flat-weight days: 2 weigh-in-only (0 kcal) + 13 at 2000 kcal. If the
+    // zeros were averaged in, intake would crater toward ~1733; excluded, the
+    // measured TDEE stays near 2000 (flat weight ⇒ ~0 deficit).
+    const logs: DailyLog[] = [];
+    for (let i = 0; i < 15; i++) logs.push(log(15 - i, i < 2 ? 0 : 2000, 180));
+    const r = calculateTdee(logs, baseProfile);
+    expect(r.source).toBe('measured');
+    expect(r.trueTdee).toBeGreaterThan(1950);
+  });
+
+  it('falls back to seed when every intake day is zero', () => {
+    const logs: DailyLog[] = [];
+    for (let i = 0; i < 15; i++) logs.push(log(15 - i, 0, 180));
+    expect(calculateTdee(logs, baseProfile).source).toBe('seed');
+  });
+
+  it('flags low completeness (and not reliable) for a gappy window', () => {
+    // 14 weigh-ins every OTHER day → spans ~27 calendar days → ~50% complete.
+    const logs: DailyLog[] = [];
+    for (let i = 0; i < 14; i++) logs.push(log(27 - i * 2, 2000, 185 - i * 0.1));
+    const r = calculateTdee(logs, baseProfile);
+    expect(r.source).toBe('measured');
+    expect(r.loggingCompletenessPct).toBeGreaterThanOrEqual(45);
+    expect(r.loggingCompletenessPct).toBeLessThanOrEqual(55);
+    expect(r.reliable).toBe(false);
+  });
 });

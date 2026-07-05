@@ -9,10 +9,18 @@ import {
   ProfileFields,
   Profile,
 } from './firebase.service';
-import { TdeeCalculatorService, TdeeResult, WeeklySummary, WeeklyEnvelope } from './tdee-calculator.service';
+import { TdeeCalculatorService, TdeeResult } from './tdee-calculator.service';
 import { addDays, localDateKey } from '../utils/date';
 import { computeProtein } from '../utils/macro-heuristic';
 import { summarizeDay } from '../utils/day-summary';
+import { computeStreak } from '@macrolog/core/streak';
+import {
+  WeeklySummary,
+  WeeklyEnvelope,
+  ema,
+  weeklySummary,
+  weeklyEnvelope,
+} from '@macrolog/core/weekly-summary';
 import { SubscriptionService } from './subscription.service';
 import { BodyMetricStore } from './body-metric-store.service';
 import { WorkoutStore } from './workout-store.service';
@@ -349,7 +357,7 @@ export class FitnessStore {
       any miss. `freezeUsed` is true when the active streak only spans
       because a gap was forgiven — surface this in UI as a Pro indicator. */
   private readonly streakResult = computed(() =>
-    this.calc.computeStreakWithFreeze(this._logs(), {
+    computeStreak(this._logs(), {
       freezeMaxGap: this.subs.isPaid() ? STREAK_FREEZE_MAX_GAP_PRO : 0,
     }),
   );
@@ -357,18 +365,18 @@ export class FitnessStore {
   readonly streakFreezeUsed: Signal<boolean> = computed(() => this.streakResult().freezeUsed);
 
   readonly weekly: Signal<WeeklySummary | null> = computed(() =>
-    this.calc.weeklySummary(this.mergeDailyWeights(this._logs()), this.targetCalories()),
+    weeklySummary(this.mergeDailyWeights(this._logs()), this.targetCalories()),
   );
 
   readonly envelope: Signal<WeeklyEnvelope | null> = computed(() =>
-    this.calc.weeklyEnvelope(this._logs(), this.targetCalories()),
+    weeklyEnvelope(this._logs(), this.targetCalories()),
   );
 
   readonly ema: Signal<number[]> = computed(() => {
     const weights = this.mergeDailyWeights(this._logs())
       .map((l) => l.weight)
       .filter((w): w is number => w != null);
-    return this.calc.ema(weights, 7);
+    return ema(weights, 7);
   });
 
   readonly trendLabel: Signal<string> = computed(() => {

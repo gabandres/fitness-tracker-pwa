@@ -18,6 +18,7 @@ export * from './tdee-diagnostics';
 export * from './body-fat';
 export * from './weight-projection';
 export * from './weekly-insights';
+export * from './weekly-summary';
 export * from './weekly-budget';
 export * from './streak';
 export * from './meal-slots';
