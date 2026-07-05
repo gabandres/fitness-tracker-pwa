@@ -1206,6 +1206,8 @@
     "history": {
       "backAria": "Back",
       "title": "History",
+      "recent": "Recent",
+      "entriesCount": "{{n}} entries",
       "prevMonthAria": "Previous month",
       "nextMonthAria": "Next month",
       "freeTierBody": "Free accounts see the last 90 days. Upgrade to view your full history.",

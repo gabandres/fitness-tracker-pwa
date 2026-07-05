@@ -388,8 +388,10 @@ export class BodyComponent implements OnInit, OnDestroy {
 
   protected readonly todayKey = signal(localDateKey(new Date()));
   protected readonly weightSheetOpen = signal(false);
-  protected readonly expanded = signal(false);
-  protected readonly photosExpanded = signal(false);
+  // Measurements + photos open by default to mirror mobile (which shows them
+  // expanded with an inline "Add" link rather than behind a collapse).
+  protected readonly expanded = signal(true);
+  protected readonly photosExpanded = signal(true);
   protected readonly fastingExpanded = signal(false);
   /** Auto-open the (otherwise collapsed) Fasting card whenever a fast is
    *  active, so the running timer is never hidden behind the chevron. */

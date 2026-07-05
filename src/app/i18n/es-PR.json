@@ -1206,6 +1206,8 @@
     "history": {
       "backAria": "Atrás",
       "title": "Historial",
+      "recent": "Reciente",
+      "entriesCount": "{{n}} entradas",
       "prevMonthAria": "Mes anterior",
       "nextMonthAria": "Mes siguiente",
       "freeTierBody": "Las cuentas gratis ven los últimos 90 días. Súbete a Pro para ver tu historial completo.",

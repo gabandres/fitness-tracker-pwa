@@ -113,6 +113,27 @@ import { UiIconButton } from '../ui/icon-button.component';
           }
         }
       </div>
+
+      <!-- Recent logged days (mirrors mobile's list below the calendar) -->
+      @if (recentDays().length) {
+        <h2 class="mt-6 mb-2" style="font-size: 14px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--v2-ink-muted);">{{ t('v2.history.recent') }}</h2>
+        <div class="grid gap-2">
+          @for (d of recentDays(); track d.key) {
+            <button type="button" class="flex items-center justify-between gap-3 text-left"
+                    style="background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md); padding: var(--v2-space-3) var(--v2-space-4);"
+                    (click)="onTap({ key: d.key, inMonth: true })">
+              <div>
+                <p class="v2-row-title" style="font-weight: 700;">{{ recentDateLabel(d.date) }}</p>
+                <p class="v2-caption">{{ t('v2.history.entriesCount', { n: d.count }) }}@if (weighedOn(d.key)) { · {{ dayWeight(d.key) }} {{ t('v2.body.lb') }} }</p>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <span class="v2-num" style="font-weight: 700; color: var(--v2-ink);">{{ (summaryFor(d.key)?.totalCalories ?? 0).toLocaleString() }}</span>
+                <lucide-icon name="chevron-right" [size]="16" style="color: var(--v2-ink-muted);" />
+              </div>
+            </button>
+          }
+        </div>
+      }
     </section>
     </ng-container>
   `,
@@ -170,6 +191,29 @@ export class HistoryComponent {
   /** A weight was recorded that day (drives the teal dot). */
   protected weighedOn(key: string): boolean {
     return typeof this.body.dailyWeights()[key] === 'number';
+  }
+
+  protected dayWeight(key: string): number | null {
+    const w = this.body.dailyWeights()[key];
+    return typeof w === 'number' ? w : null;
+  }
+
+  /** Up-to-10 most-recent logged days (newest first) for the list below the
+   *  grid, each with its entry count. Mirrors mobile's recent section. */
+  protected readonly recentDays = computed(() => {
+    const byKey = new Map<string, { key: string; date: Date; count: number }>();
+    for (const l of this.store.allTimeLogs()) {
+      const key = localDateKey(l.date);
+      const e = byKey.get(key);
+      if (e) e.count += 1;
+      else byKey.set(key, { key, date: l.date, count: 1 });
+    }
+    return [...byKey.values()].sort((a, b) => (a.key < b.key ? 1 : -1)).slice(0, 10);
+  });
+
+  protected recentDateLabel(d: Date): string {
+    const locale = bcp47ForLang(this.translation.language());
+    return d.toLocaleDateString(locale, { weekday: 'short', month: 'short', day: 'numeric' });
   }
 
   protected isFuture(key: string): boolean {
