@@ -69,7 +69,7 @@ type Segment = 'manual' | 'meal' | 'search' | 'photo' | 'barcode';
           <div
             role="tablist"
             [attr.aria-label]="t('v2.entrySheet.modeAria')"
-            class="grid grid-cols-4 gap-1 p-1 mb-4"
+            class="grid grid-cols-5 gap-1 p-1 mb-4"
             style="background: var(--v2-paper-2); border-radius: var(--v2-radius-md);">
             @for (s of segments; track s.id) {
               <button
@@ -190,30 +190,6 @@ type Segment = 'manual' | 'meal' | 'search' | 'photo' | 'barcode';
                     [value]="form.protein() ?? ''"
                     (input)="onProteinInput($event)" />
                 </div>
-              </div>
-
-              <!-- Cooking-fat quick-add. Untracked cooking oil/butter is the
-                   main source of systematic under-logging in a kcal-only
-                   tracker, and under-logged intake biases the measured TDEE
-                   low. Each chip BUMPS the kcal field (it's an add-on to the
-                   meal you're already logging), it never overwrites it. -->
-              <div>
-                <div class="v2-field-label">
-                  {{ t('v2.entrySheet.cookingFat.label') }}
-                </div>
-                <div class="flex flex-wrap gap-1.5">
-                  @for (f of cookingFats; track f.kcal) {
-                    <button
-                      type="button"
-                      class="tag-btn text-[11px]"
-                      [attr.aria-label]="t('v2.entrySheet.cookingFat.addAria', { kcal: f.kcal, name: t(f.labelKey) })"
-                      (click)="addCookingFat(f.kcal)">
-                      {{ t(f.labelKey) }}
-                      <span class="text-graphite-soft">+{{ f.kcal }}</span>
-                    </button>
-                  }
-                </div>
-                <p class="v2-caption mt-1.5 text-[11px]">{{ t('v2.entrySheet.cookingFat.hint') }}</p>
               </div>
 
               <div class="grid grid-cols-2 gap-3">
@@ -389,35 +365,28 @@ export class EntrySheetComponent {
 
   protected readonly open = computed(() => this.form.mode() !== 'view');
 
-  protected readonly segment = signal<Segment>('manual');
+  // Search-first (mobile): the sheet opens on food search/browse; Manual is
+  // the "custom food" fallback, reached from the segment row.
+  protected readonly segment = signal<Segment>('search');
   protected readonly kcalError = signal(false);
   protected readonly showRecipeBuilder = signal(false);
 
   protected readonly mealTypes = MEAL_TYPES;
 
-  /** Cooking-fat add-ons. kcal are rounded one-tap bumps for the fat people
-   *  cook with but rarely log; labels are i18n keys, the +kcal is shown raw. */
-  protected readonly cookingFats: { labelKey: string; kcal: number }[] = [
-    { labelKey: 'v2.entrySheet.cookingFat.oil', kcal: 120 },
-    { labelKey: 'v2.entrySheet.cookingFat.butter', kcal: 35 },
-    { labelKey: 'v2.entrySheet.cookingFat.dressing', kcal: 75 },
-  ];
-
   protected readonly segments: { id: Segment; labelKey: string; icon: string }[] = [
-    { id: 'manual', labelKey: 'v2.entrySheet.segManual', icon: 'type' },
-    { id: 'meal', labelKey: 'v2.entrySheet.segMeal', icon: 'sparkles' },
     { id: 'search', labelKey: 'v2.entrySheet.segSearch', icon: 'search' },
+    { id: 'meal', labelKey: 'v2.entrySheet.segMeal', icon: 'sparkles' },
     { id: 'photo', labelKey: 'v2.entrySheet.segPhoto', icon: 'image' },
     { id: 'barcode', labelKey: 'v2.entrySheet.segBarcode', icon: 'scan-line' },
+    { id: 'manual', labelKey: 'v2.entrySheet.segManual', icon: 'type' },
   ];
 
   constructor() {
-    // Reset segment to Manual whenever the sheet closes — next open
-    // should always start on Manual regardless of where the previous
-    // session ended (matches the "Manual is canonical" model).
+    // Reset to Search whenever the sheet closes — next open starts on the
+    // search/browse surface (mobile is search-first).
     effect(() => {
       if (this.form.mode() === 'view') {
-        this.segment.set('manual');
+        this.segment.set('search');
         this.kcalError.set(false);
         this.showRecipeBuilder.set(false);
       }
@@ -453,13 +422,6 @@ export class EntrySheetComponent {
   }
 
   /** Bump the kcal field by a cooking-fat add-on (additive, not a replace). */
-  protected addCookingFat(kcal: number): void {
-    this.haptic(10);
-    const base = this.form.calories() ?? 0;
-    this.form.calories.set(base + kcal);
-    this.kcalError.set(false);
-  }
-
   protected onProteinInput(e: Event): void {
     this.form.protein.set(parseNumericInput((e.target as HTMLInputElement).value));
   }
