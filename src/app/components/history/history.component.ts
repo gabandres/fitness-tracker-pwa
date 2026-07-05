@@ -9,20 +9,15 @@ import {
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
-import { SubscriptionService } from '../../services/subscription.service';
+import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { TranslationService } from '../../services/translation.service';
 import {
-  addDays,
   localDateKey,
   monthGrid,
   startOfMonth,
 } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
 import { UiIconButton } from '../ui/icon-button.component';
-import { UiCard } from '../ui/card.component';
-import { UiRing } from '../ui/ring.component';
-import { UiFastingPill } from '../ui/fasting-pill.component';
-import { CHART_HISTORY_DAYS_FREE } from '../../models/tier-limits';
 
 /**
  * Month-grid history view. Each day cell shows a mini kcal ring driven
@@ -36,43 +31,37 @@ import { CHART_HISTORY_DAYS_FREE } from '../../models/tier-limits';
 @Component({
   selector: 'app-history',
   standalone: true,
-  imports: [LucideAngularModule, TranslocoDirective, UiIconButton, UiCard, UiRing, UiFastingPill],
+  imports: [LucideAngularModule, TranslocoDirective, UiIconButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     <section class="max-w-[640px] mx-auto">
-      <!-- Top bar -->
-      <header class="flex items-center justify-between gap-3 pt-2 pb-4">
+      <!-- Header: title + back (mirrors mobile History) -->
+      <header class="flex items-center gap-2 pt-2 pb-2">
         <ui-icon-button
           icon="arrow-left"
           [ariaLabel]="t('v2.history.backAria')"
           (click)="closeRequested.emit()" />
-        <h1 class="v2-h2" aria-live="polite">{{ monthLabel() }}</h1>
-        <div class="flex items-center gap-2">
-          <ui-fasting-pill (bodyRequested)="bodyRequested.emit()" />
-          <ui-icon-button
-            icon="chevron-left"
-            [ariaLabel]="t('v2.history.prevMonthAria')"
-            (click)="prevMonth()" />
-          <ui-icon-button
-            icon="chevron-right"
-            [ariaLabel]="t('v2.history.nextMonthAria')"
-            (click)="nextMonth()" />
-        </div>
+        <h1 class="page-title" style="font-family: var(--v2-font-display);">{{ t('v2.history.title') }}</h1>
       </header>
 
-      @if (showFreeTierUpsell()) {
-        <ui-card variant="accent" class="block mb-4">
-          <p class="v2-body">
-            {{ t('v2.history.freeTierBody') }}
-          </p>
-        </ui-card>
-      }
+      <!-- Month nav on its own row: chevrons flank the centered month -->
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <ui-icon-button
+          icon="chevron-left"
+          [ariaLabel]="t('v2.history.prevMonthAria')"
+          (click)="prevMonth()" />
+        <h2 class="section-title" aria-live="polite" style="text-transform: capitalize;">{{ monthLabel() }}</h2>
+        <ui-icon-button
+          icon="chevron-right"
+          [ariaLabel]="t('v2.history.nextMonthAria')"
+          (click)="nextMonth()" />
+      </div>
 
       <!-- Weekday header -->
       <div class="grid grid-cols-7 gap-1 mb-1" aria-hidden="true">
         @for (w of weekdays(); track $index) {
-          <div class="v2-caption text-center" style="text-transform: uppercase; letter-spacing: 0.08em;">
+          <div class="text-center" style="font-size: 12px; font-weight: 700; color: var(--v2-ink-muted); text-transform: uppercase;">
             {{ w }}
           </div>
         }
@@ -99,24 +88,25 @@ import { CHART_HISTORY_DAYS_FREE } from '../../models/tier-limits';
                 <button
                   type="button"
                   role="gridcell"
-                  class="aspect-square flex flex-col items-center justify-center gap-0.5 rounded-md"
-                  [class.opacity-60]="!cell.inMonth || isFuture(cell.key)"
-                  [class.cursor-not-allowed]="isFuture(cell.key) || !cell.inMonth"
+                  class="aspect-square flex flex-col items-center justify-center gap-1 rounded-md"
+                  [class.opacity-60]="isFuture(cell.key)"
+                  [class.cursor-not-allowed]="isFuture(cell.key)"
                   [style]="cellStyle(cell.key)"
-                  [disabled]="isFuture(cell.key) || !cell.inMonth"
+                  [disabled]="isFuture(cell.key)"
                   [attr.aria-current]="cell.key === todayKey() ? 'date' : null"
                   [attr.aria-label]="cellAria(cell.date, cell.key)"
                   (click)="onTap(cell)">
-                  <span class="v2-caption" style="font-weight: 500;">{{ cell.date.getDate() }}</span>
-                  @if (summaryFor(cell.key); as s) {
-                    <ui-ring
-                      [value]="s.totalCalories"
-                      [target]="kcalTarget()"
-                      [size]="28"
-                      [stroke]="3"
-                      [tone]="s.totalCalories > kcalTarget() ? 'warn' : 'accent'"
-                      ariaLabel="" />
-                  }
+                  <span [style.font-weight]="cell.key === todayKey() ? 800 : 500"
+                        [style.color]="cellNumberColor(cell)"
+                        style="font-size: 14px; line-height: 1;">{{ cell.date.getDate() }}</span>
+                  <span style="display: flex; gap: 3px; height: 6px; align-items: center;">
+                    @if (loggedOn(cell.key)) {
+                      <span style="width: 6px; height: 6px; border-radius: 3px; background: var(--v2-accent);"></span>
+                    }
+                    @if (weighedOn(cell.key)) {
+                      <span style="width: 6px; height: 6px; border-radius: 3px; background: var(--v2-teal);"></span>
+                    }
+                  </span>
                 </button>
               }
             </div>
@@ -129,7 +119,7 @@ import { CHART_HISTORY_DAYS_FREE } from '../../models/tier-limits';
 })
 export class HistoryComponent {
   private readonly store = inject(FitnessStore);
-  private readonly subs = inject(SubscriptionService);
+  private readonly body = inject(BodyMetricStore);
   private readonly translation = inject(TranslationService);
 
   readonly dayTapped = output<string>();
@@ -168,30 +158,36 @@ export class HistoryComponent {
 
   protected readonly kcalTarget = computed(() => this.store.targetCalories());
 
-  /** Show whenever a free user views a month where ANY cell falls
-   *  outside the 90-day window — this includes the current month when
-   *  it's old enough that day-1 is already past the cutoff. The earliest
-   *  visible cell is `cells()[0]` (Sunday before the first of the month). */
-  protected readonly showFreeTierUpsell = computed(() => {
-    if (this.subs.isPaid()) return false;
-    const cutoffKey = localDateKey(addDays(new Date(), -CHART_HISTORY_DAYS_FREE));
-    return this.cells()[0].key < cutoffKey;
-  });
-
   protected summaryFor(key: string) {
     return this.store.summaryFor(key);
+  }
+
+  /** Any food logged that day (drives the coral dot, mirrors mobile). */
+  protected loggedOn(key: string): boolean {
+    return (this.store.summaryFor(key)?.totalCalories ?? 0) > 0;
+  }
+
+  /** A weight was recorded that day (drives the teal dot). */
+  protected weighedOn(key: string): boolean {
+    return typeof this.body.dailyWeights()[key] === 'number';
   }
 
   protected isFuture(key: string): boolean {
     return key > this.todayKey();
   }
 
+  /** Today = filled cell + accent border; other days sit flush on the paper. */
   protected cellStyle(key: string): string {
     const isToday = key === this.todayKey();
-    const base = 'background: var(--v2-paper-2); transition: background-color var(--v2-motion-fast) var(--v2-ease);';
     return isToday
-      ? `${base} outline: 2px solid var(--v2-accent); outline-offset: -2px;`
-      : base;
+      ? 'background: var(--v2-paper-2); border: 1px solid var(--v2-accent);'
+      : 'background: transparent; border: 1px solid transparent;';
+  }
+
+  /** Today → accent; out-of-month → faint; else ink. */
+  protected cellNumberColor(cell: { key: string; inMonth: boolean }): string {
+    if (cell.key === this.todayKey()) return 'var(--v2-accent)';
+    return cell.inMonth ? 'var(--v2-ink)' : 'var(--v2-ink-muted)';
   }
 
   protected cellAria(date: Date, key: string): string {
@@ -215,7 +211,8 @@ export class HistoryComponent {
   }
 
   protected onTap(cell: { key: string; inMonth: boolean }): void {
-    if (this.isFuture(cell.key) || !cell.inMonth) return;
+    // Out-of-month days stay tappable (mirrors mobile); only the future is inert.
+    if (this.isFuture(cell.key)) return;
     this.haptic(10);
     this.dayTapped.emit(cell.key);
   }
