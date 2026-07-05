@@ -3,7 +3,7 @@ import {
   ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import {
-  type LogEntry, type ParsedFoodItem, parseMealUtterance, pickResolutionHit, resolveMealItem,
+  type LogEntry, type ParsedFoodItem, parseMealDraft, parseMealUtterance, pickResolutionHit, resolveMealItem,
 } from '@macrolog/core';
 import { getFoodDetail, searchFoods } from '@/lib/foodSearch';
 import { useT } from '@/i18n';
@@ -131,17 +131,22 @@ export function MealText({ forDate, onAddMany, onCancel }: Props) {
     setBusy(true);
     haptics.success();
     try {
-      const entries: LogEntry[] = rows.map((r) => {
-        const entry: LogEntry = { calories: numOrUndef(r.calories) ?? 0, mealLabel: r.food };
-        const p = numOrUndef(r.protein);
-        const c = numOrUndef(r.carbs);
-        const f = numOrUndef(r.fat);
-        if (p != null) entry.protein = p;
-        if (c != null) entry.carbs = c;
-        if (f != null) entry.fat = f;
-        if (forDate) entry.timestamp = forDate;
-        return entry;
-      });
+      // Build each entry through the shared core seam so macro coercion,
+      // label, and timestamp match the PWA byte-for-byte. Blank calories
+      // coerce to 0 so an unmatched-but-labelled row still logs (the user
+      // fills the number in later) rather than being rejected.
+      const entries: LogEntry[] = [];
+      for (const r of rows) {
+        const res = parseMealDraft({
+          calories: numOrUndef(r.calories) ?? 0,
+          protein: r.protein,
+          carbs: r.carbs,
+          fat: r.fat,
+          mealLabel: r.food,
+          timestamp: forDate,
+        });
+        if (res.ok) entries.push(res.draft.entry);
+      }
       await onAddMany(entries);
     } finally {
       setBusy(false);

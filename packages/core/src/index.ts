@@ -21,6 +21,7 @@ export * from './weekly-insights';
 export * from './weekly-budget';
 export * from './streak';
 export * from './meal-slots';
+export * from './meal-draft';
 export * from './share-card';
 export * from './tier-limits';
 // Meal-photo scan types + macro helpers (ADR-0015). Pure; the CF + both apps
