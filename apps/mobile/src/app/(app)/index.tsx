@@ -149,7 +149,7 @@ export default function Today() {
       </View>
 
       {/* Off-screen capture target for the share card (native share only). */}
-      <View style={styles.shareCapture} pointerEvents="none">
+      <View style={[styles.shareCapture, { pointerEvents: 'none' }]}>
         <View ref={shareRef} collapsable={false}>
           <ShareCard stats={shareStats} />
         </View>

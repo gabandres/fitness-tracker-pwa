@@ -529,7 +529,7 @@ export function EntrySheet({
       <Animated.View style={backdropStyle}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} testID="entry-backdrop" />
       </Animated.View>
-      <View style={styles.sheetWrap} pointerEvents="box-none">
+      <View style={[styles.sheetWrap, { pointerEvents: 'box-none' }]}>
         <Animated.View style={[sheetStyle, { paddingBottom: kbHeight > 0 ? kbHeight + space.sm : space.xxl }]}>
           <View style={styles.grabZone} {...pan.panHandlers}>
             <View style={styles.handle} />

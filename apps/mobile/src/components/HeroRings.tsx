@@ -141,7 +141,7 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
             delay={280}
           />
         </Svg>
-        <View style={styles.center} pointerEvents="none">
+        <View style={[styles.center, { pointerEvents: 'none' }]}>
           <CountUpText value={Math.abs(calRemaining)} style={styles.centerValue} testID="hero-kcal" />
           <Text style={styles.centerCaption}>
             {t('today.kcal')} {over ? t('today.over') : t('today.left')}

@@ -88,8 +88,7 @@ export function BottomSheet({ visible, onClose, children }: Props) {
       </Animated.View>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.wrap}
-        pointerEvents="box-none"
+        style={[styles.wrap, { pointerEvents: 'box-none' }]}
       >
         <Animated.View style={sheetStyle}>
           <View style={styles.grabZone} {...pan.panHandlers}>

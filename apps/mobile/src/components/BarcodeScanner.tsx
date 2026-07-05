@@ -107,7 +107,7 @@ export function BarcodeScanner({ visible, onClose, onPick }: Props) {
               barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e'] }}
               onBarcodeScanned={busy ? undefined : (r) => onScanned(r.data)}
             />
-            <View style={styles.overlay} pointerEvents="box-none">
+            <View style={[styles.overlay, { pointerEvents: 'box-none' }]}>
               <Text style={styles.hint}>{t('barcode.point')}</Text>
               <View style={styles.reticle} />
               {busy ? <ActivityIndicator color={colors.white} style={{ marginTop: space.lg }} /> : null}

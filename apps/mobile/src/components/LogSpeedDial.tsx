@@ -111,18 +111,17 @@ export function LogSpeedDial() {
 
   const pe = open ? 'auto' : 'none';
   return (
-    <View style={styles.slot} pointerEvents="box-none">
+    <View style={[styles.slot, { pointerEvents: 'box-none' }]}>
       {/* Full-screen dimmer — big negative insets so it covers the screen from
           inside the tab bar; taps anywhere close the dial. */}
       <AnimatedPressable
-        style={[styles.backdrop, backdropStyle]}
-        pointerEvents={pe}
+        style={[styles.backdrop, backdropStyle, { pointerEvents: pe }]}
         onPress={close}
         accessibilityElementsHidden={!open}
         testID="log-backdrop"
       />
 
-      <Animated.View style={[styles.satellite, camSatStyle]} pointerEvents={pe}>
+      <Animated.View style={[styles.satellite, camSatStyle, { pointerEvents: pe }]}>
         <Animated.View style={[styles.labelPill, camLabelStyle]}>
           <Text style={styles.labelText}>{t('log.scan')}</Text>
         </Animated.View>
@@ -131,7 +130,7 @@ export function LogSpeedDial() {
         </Pressable>
       </Animated.View>
 
-      <Animated.View style={[styles.satellite, manSatStyle]} pointerEvents={pe}>
+      <Animated.View style={[styles.satellite, manSatStyle, { pointerEvents: pe }]}>
         <Animated.View style={[styles.labelPill, manLabelStyle]}>
           <Text style={styles.labelText}>{t('log.manual')}</Text>
         </Animated.View>
