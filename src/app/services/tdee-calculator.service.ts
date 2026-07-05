@@ -1,209 +1,34 @@
 import { Injectable } from '@angular/core';
-import { DailyLog, ProfileFields, ActivityLevel } from './firebase.service';
+import { DailyLog, ProfileFields } from './firebase.service';
 import { localDateKey } from '../utils/date';
+import { calculateTdee, aggregateByDay, type TdeeResult } from '@macrolog/core/tdee';
 
-export interface TdeeResult {
-  trueTdee: number;
-  newDailyTarget: number;
-  /** Pounds lost (positive) or gained (negative) across the measured window. */
-  weightChangeTrend: number;
-  /** Where the number came from — lets the UI label it honestly. */
-  source: 'measured' | 'formula' | 'seed';
-  /**
-   * Share of calendar days in the measured window that carry an intake log
-   * (0–100). Low completeness ⇒ the measured TDEE rests on sparse data and
-   * should be shown as provisional. Only set in measured mode.
-   */
-  loggingCompletenessPct?: number;
-  /**
-   * True when the measured estimate rests on enough data to trust (good
-   * completeness + enough weigh-ins). Only set in measured mode.
-   */
-  reliable?: boolean;
-}
+// The TDEE algorithm is single-sourced in `@macrolog/core/tdee` (shared with
+// the Expo app so both frontends compute the same calorie target — ADR-0012).
+// Re-exported here so existing `import { TdeeResult } from
+// './tdee-calculator.service'` sites keep working.
+export type { TdeeResult };
 
 /**
- * TDEE = Total Daily Energy Expenditure.
- *
- * Two modes:
- *   - MEASURED (>= 14 logged days): purely data-driven. Backs TDEE out of
- *     the observed weight trend + observed average intake. Profile ignored.
- *     The weight trend is a least-squares slope fitted against real calendar
- *     dates over a 28-logged-day window — robust to water-weight noise on the
- *     edges and to logging gaps. The 14-day gate flips the mode; the longer
- *     window governs how stable the ongoing trend is.
- *   - FORMULA (< 14 days AND profile available): Mifflin-St Jeor BMR
- *     multiplied by the user's activity factor, using the most recent
- *     logged weight (or a reasonable proxy if no logs yet).
- *   - SEED (< 14 days AND no profile): hardcoded fallback, used only
- *     if profile gate fails somehow.
- *
- * In every mode `newDailyTarget` = trueTdee − (chosen pace × 3500 / 7),
- * clamped at the 1500 kcal safety floor.
+ * Angular seam over the shared TDEE core. `calculate` / `aggregateByDay`
+ * delegate to `@macrolog/core/tdee` (the canonical, unit-tested
+ * implementation); the weekly-envelope, streak, weekly-summary, EMA, and
+ * regression helpers below are the derivation math the FitnessStore hub wires
+ * into its signals. See `@macrolog/core/tdee` for the mode/clamp docs.
  */
 @Injectable({ providedIn: 'root' })
 export class TdeeCalculatorService {
-  private static readonly KCAL_PER_POUND = 3500;
-  private static readonly MIN_DAILY_TARGET = 1500;
-  private static readonly DEFAULT_PACE_LBS_PER_WEEK = 1.0;
-  /** Minimum logged days before measured mode replaces the formula. */
-  private static readonly MEASURED_MIN_DAYS = 14;
-  /** Logged-day window the ongoing measured trend is fitted over. */
-  private static readonly MEASURED_WINDOW_DAYS = 28;
-  /** Completeness (and weigh-in count) needed to flag the estimate reliable. */
-  private static readonly RELIABLE_MIN_PCT = 70;
-  private static readonly RELIABLE_MIN_INTAKE_DAYS = 10;
-
-  private static readonly SEED_RESULT: TdeeResult = {
-    trueTdee: 2450,
-    newDailyTarget: 1800,
-    weightChangeTrend: 0,
-    source: 'seed',
-  };
-
-  private static readonly ACTIVITY_MULTIPLIERS: Record<ActivityLevel, number> = {
-    sedentary: 1.2,
-    light: 1.375,
-    moderate: 1.55,
-    active: 1.725,
-    very_active: 1.9,
-  };
-
   /**
    * Aggregate multiple log entries per day into one row per day.
-   * Sums calories/protein, takes first non-null weight, ORs exercise booleans.
+   * Delegates to the shared core so both frontends group identically.
    */
   aggregateByDay(logs: DailyLog[]): DailyLog[] {
-    const byDate = new Map<string, DailyLog>();
-    for (const log of logs) {
-      const key = localDateKey(log.date);
-      const existing = byDate.get(key);
-      if (!existing) {
-        byDate.set(key, { ...log });
-      } else {
-        existing.calories += log.calories;
-        existing.protein = (existing.protein ?? 0) + (log.protein ?? 0);
-        if (existing.weight == null && log.weight != null) existing.weight = log.weight;
-        if (log.exerciseCompleted) existing.exerciseCompleted = true;
-        if (log.liftCompleted) existing.liftCompleted = true;
-        if (log.cardioCompleted) existing.cardioCompleted = true;
-      }
-    }
-    return [...byDate.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
+    return aggregateByDay(logs);
   }
 
+  /** Total Daily Energy Expenditure — delegates to the shared core. */
   calculate(logs: DailyLog[], profile?: ProfileFields | null): TdeeResult {
-    // Aggregate to one row per day before computing TDEE.
-    const daily = this.aggregateByDay(logs ?? []);
-
-    // ── Measured mode: ≥14 logged days ──────────────────────────
-    if (daily.length >= TdeeCalculatorService.MEASURED_MIN_DAYS) {
-      // Ongoing estimate smooths over a longer window so it isn't whipped
-      // around by water-weight noise on the boundary days.
-      const window = daily.slice(-TdeeCalculatorService.MEASURED_WINDOW_DAYS);
-
-      // Robust weight trend: least-squares slope (lbs/day) fitted against
-      // real calendar dates so logging gaps don't distort it.
-      const slope = this.weightTrendLbsPerDay(window); // null if < 2 weigh-ins
-      if (slope == null) {
-        return { ...TdeeCalculatorService.SEED_RESULT };
-      }
-
-      // Average intake over days that actually carry an intake log (> 0 kcal).
-      // A weigh-in-only day stores calories: 0 — counting it would drag the
-      // mean down and bias TDEE low, so it's excluded here.
-      const intakeCals = window.map((l) => l.calories).filter((c) => c > 0);
-      if (intakeCals.length === 0) {
-        return { ...TdeeCalculatorService.SEED_RESULT };
-      }
-      const avgDailyIntake = this.trimmedMean(intakeCals);
-
-      // TDEE = intake + the deficit the body actually ran. slope < 0 (losing)
-      // ⇒ positive deficit ⇒ TDEE above intake.
-      const dailyDeficitAchieved = -slope * TdeeCalculatorService.KCAL_PER_POUND;
-      const trueTdee = Math.round(avgDailyIntake + dailyDeficitAchieved);
-
-      const pace = profile?.targetPaceLbsPerWeek ?? TdeeCalculatorService.DEFAULT_PACE_LBS_PER_WEEK;
-      const targetDeficit = (pace * TdeeCalculatorService.KCAL_PER_POUND) / 7;
-      const newDailyTarget = Math.max(
-        this.calorieFloor(profile),
-        Math.round(trueTdee - targetDeficit),
-      );
-
-      // Completeness: logged days vs the calendar span they cover.
-      const spanDays = this.calendarSpanDays(window);
-      const loggingCompletenessPct = Math.min(
-        100,
-        Math.round((window.length / spanDays) * 100),
-      );
-      const reliable =
-        loggingCompletenessPct >= TdeeCalculatorService.RELIABLE_MIN_PCT &&
-        intakeCals.length >= TdeeCalculatorService.RELIABLE_MIN_INTAKE_DAYS;
-
-      return {
-        trueTdee,
-        newDailyTarget,
-        // Pounds lost (+) across the window, derived from the fitted slope.
-        weightChangeTrend: this.round(-slope * (spanDays - 1), 2),
-        source: 'measured',
-        loggingCompletenessPct,
-        reliable,
-      };
-    }
-
-    // ── Formula mode: profile present, < 14 days of data ────────
-    if (profile) {
-      // Use the most recent non-null weight, else fall back to goal weight.
-      let latestWeight = profile.goalWeightLbs ?? 180;
-      for (let i = daily.length - 1; i >= 0; i--) {
-        if (daily[i].weight != null) { latestWeight = daily[i].weight!; break; }
-      }
-
-      const trueTdee = Math.round(this.mifflinStJeor(profile, latestWeight));
-      const pace = profile.targetPaceLbsPerWeek;
-      const targetDeficit = (pace * TdeeCalculatorService.KCAL_PER_POUND) / 7;
-      const newDailyTarget = Math.max(
-        this.calorieFloor(profile),
-        Math.round(trueTdee - targetDeficit),
-      );
-
-      return {
-        trueTdee,
-        newDailyTarget,
-        weightChangeTrend: 0,
-        source: 'formula',
-      };
-    }
-
-    // ── Seed fallback: no profile, no data ──────────────────────
-    return { ...TdeeCalculatorService.SEED_RESULT };
-  }
-
-  /**
-   * The daily-target safety floor: the user's configured `calorieFloor` when
-   * set to a sane positive value, else the hardcoded MIN_DAILY_TARGET. Keeps a
-   * water-suppressed measured TDEE from silently pushing the target below a
-   * level the user has deemed too aggressive. Kept byte-parallel with the core
-   * copy in packages/core/src/tdee.ts (ADR-0012).
-   */
-  private calorieFloor(profile?: ProfileFields | null): number {
-    const f = profile?.calorieFloor;
-    return f != null && f > 0 ? f : TdeeCalculatorService.MIN_DAILY_TARGET;
-  }
-
-  /**
-   * Mifflin-St Jeor TDEE estimate (BMR × activity multiplier).
-   * Inputs come in imperial; converted to metric internally.
-   */
-  private mifflinStJeor(profile: ProfileFields, weightLbs: number): number {
-    const weightKg = weightLbs * 0.453592;
-    const heightCm = profile.heightIn * 2.54;
-
-    const bmr = profile.sex === 'male'
-      ? 10 * weightKg + 6.25 * heightCm - 5 * profile.age + 5
-      : 10 * weightKg + 6.25 * heightCm - 5 * profile.age - 161;
-
-    return bmr * TdeeCalculatorService.ACTIVITY_MULTIPLIERS[profile.activityLevel];
+    return calculateTdee(logs, profile);
   }
 
   /**
@@ -268,14 +93,6 @@ export class TdeeCalculatorService {
     return this.regressionSlope(points);
   }
 
-  /** Inclusive calendar span (in days) covered by a sorted list of rows. */
-  private calendarSpanDays(daily: DailyLog[]): number {
-    if (daily.length === 0) return 1;
-    const first = daily[0].date.getTime();
-    const last = daily[daily.length - 1].date.getTime();
-    return Math.round((last - first) / 86_400_000) + 1;
-  }
-
   /**
    * Weekly Calorie Envelope: rolling 7-day budget showing how
    * much surplus/deficit has accumulated and how much daily
@@ -296,8 +113,6 @@ export class TdeeCalculatorService {
     const weeklyBudget = dailyTarget * 7;
     const consumed = thisWeekLogs.reduce((s, l) => s + l.calories, 0);
     const surplus = consumed - (dailyTarget * thisWeekLogs.length);
-    // How many days remain (including today if not logged, or tomorrow..next Sun)
-    const dayOfWeek = now.getDay(); // 0=Sun
     const daysElapsed = thisWeekLogs.length;
     const daysRemaining = Math.max(1, 7 - daysElapsed);
     // Adjusted daily target for remaining days to hit the weekly budget
@@ -422,15 +237,6 @@ export class TdeeCalculatorService {
   private average(values: number[]): number {
     if (values.length === 0) return 0;
     return values.reduce((a, v) => a + v, 0) / values.length;
-  }
-
-  /** Mean after removing the single lowest and highest value.
-   *  Protects the 14-day calorie average from one-off outlier days (hospital, travel).
-   *  Falls back to plain average when fewer than 3 values. */
-  private trimmedMean(arr: number[]): number {
-    if (arr.length < 3) return this.average(arr);
-    const sorted = [...arr].sort((a, b) => a - b);
-    return this.average(sorted.slice(1, sorted.length - 1));
   }
 
   private round(value: number, decimals: number): number {
