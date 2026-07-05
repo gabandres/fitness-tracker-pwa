@@ -285,6 +285,7 @@ export const en = {
   'train.noWorkouts': 'No workouts logged yet. Start one above.',
   'train.loadErr': 'Something went wrong. Pull to retry.',
   'train.inProgress': 'Workout in progress',
+  'train.progress': '{done} of {total} done',
   'train.editingSession': 'Editing past workout',
   'train.editHint': 'Tap to edit · hold to delete',
   'train.doneEditing': 'Done',

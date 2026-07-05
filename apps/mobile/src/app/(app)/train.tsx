@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -40,7 +41,7 @@ import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { Sparkline } from '@/components/Sparkline';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { CountUpText, enterUp, usePulse } from '@/lib/motion';
+import { CountUpText, enterUp, springLayout, usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
 
@@ -645,6 +646,13 @@ function PrCard({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** Every set in the exercise is logged — drives the collapsed check badge and
+ *  the "N of M done" session progress. */
+function exFullyDone(ex: SessionExercise): boolean {
+  const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
+  return ex.sets.length > 0 && ex.sets.every((s) => isLoggedSet(s, style));
+}
+
 function sessionSummary(s: WorkoutSession, t: TFn): string {
   const exCount = s.exercises.length;
   const setCount = s.exercises.reduce(
@@ -672,6 +680,13 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
   const [addOpen, setAddOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
   const rest = useRestTimer();
+  // Accordion: one exercise expanded at a time so a 9-exercise session stays
+  // scannable. Start on the first unfinished exercise.
+  const [expanded, setExpanded] = useState<number | null>(() => {
+    const i = session.exercises.findIndex((ex) => !exFullyDone(ex));
+    return i >= 0 ? i : 0;
+  });
+  const doneCount = session.exercises.filter(exFullyDone).length;
 
   // Rest duration comes from the source template (mini sets get the shorter
   // rest); ad-hoc sessions fall back to sensible defaults.
@@ -687,14 +702,28 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
           <Text style={styles.activeText}>
             {train.editingExisting ? t('train.editingSession') : t('train.inProgress')}
           </Text>
-          {train.saving ? <Text style={styles.savingText}>{t('common.saving')}</Text> : null}
+          {train.saving ? (
+            <Text style={styles.savingText}>{t('common.saving')}</Text>
+          ) : session.exercises.length > 0 ? (
+            <Text style={styles.progressText}>{t('train.progress', { done: doneCount, total: session.exercises.length })}</Text>
+          ) : null}
         </View>
 
         {session.exercises.length === 0 ? (
           <Text style={styles.empty}>{t('train.addFirst')}</Text>
         ) : (
           session.exercises.map((ex, exIdx) => (
-            <ExerciseCard key={`${ex.exerciseId}-${exIdx}`} train={train} exerciseIndex={exIdx} onSetDone={startRest} />
+            <ExerciseCard
+              key={`${ex.exerciseId}-${exIdx}`}
+              train={train}
+              exerciseIndex={exIdx}
+              collapsed={expanded !== exIdx}
+              onToggle={() => {
+                haptics.tap();
+                setExpanded((cur) => (cur === exIdx ? null : exIdx));
+              }}
+              onSetDone={startRest}
+            />
           ))
         )}
 
@@ -795,17 +824,28 @@ function lastHint(sug: ProgressionSuggestion, style: LogStyle, t: TFn): string |
 function ExerciseCard({
   train,
   exerciseIndex,
+  collapsed,
+  onToggle,
   onSetDone,
 }: {
   train: ReturnType<typeof useTrain>;
   exerciseIndex: number;
+  collapsed: boolean;
+  onToggle: () => void;
   onSetDone?: (kind: WorkoutSet['kind']) => void;
 }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   const ex = train.active!.exercises[exerciseIndex];
   const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
   const [panelOpen, setPanelOpen] = useState(false);
+
+  // Set progress drives the collapsed-row badge (a check when every set is
+  // logged, else "done/total") so a long session stays scannable at a glance.
+  const totalSets = ex.sets.length;
+  const loggedCount = ex.sets.filter((s) => isLoggedSet(s, style)).length;
+  const allDone = totalSets > 0 && loggedCount === totalSets;
 
   // "Last time" ghost + deterministic +load bump. The progression rule is
   // snapshotted from the source template onto the session exercise (ad-hoc
@@ -826,11 +866,31 @@ function ExerciseCard({
   const warm = panelOpen && keyWeight && keyWeight > 0 ? generateWarmup(keyWeight) : [];
 
   return (
-    <View style={styles.exCard}>
-      <View style={styles.exHead}>
+    <Animated.View style={styles.exCard} layout={springLayout}>
+      <TouchableOpacity
+        style={styles.exHead}
+        onPress={onToggle}
+        activeOpacity={0.7}
+        testID={`exercise-head-${exerciseIndex}`}
+      >
         <View style={{ flex: 1 }}>
           <Text style={styles.exName}>{ex.name}</Text>
           {ghost ? <Text style={styles.ghost}>{ghost}</Text> : null}
+        </View>
+        {allDone ? (
+          <View style={styles.exDone}>
+            <Ionicons name="checkmark" size={15} color={colors.onInk} />
+          </View>
+        ) : totalSets > 0 ? (
+          <View style={styles.exCount}>
+            <Text style={styles.exCountText}>{loggedCount}/{totalSets}</Text>
+          </View>
+        ) : null}
+        <Ionicons name={collapsed ? 'chevron-down' : 'chevron-up'} size={20} color={colors.faint} style={styles.exChevron} />
+      </TouchableOpacity>
+
+      {collapsed ? null : (
+        <>
           {bumpTo != null ? (
             <TouchableOpacity
               style={styles.bumpChip}
@@ -846,11 +906,6 @@ function ExerciseCard({
               <Text style={styles.bumpText}>{t('train.bumpTo', { weight: bumpTo })}</Text>
             </TouchableOpacity>
           ) : null}
-        </View>
-        <TouchableOpacity onPress={() => train.removeExercise(exerciseIndex)} hitSlop={8}>
-          <Text style={styles.exRemove}>{t('common.remove')}</Text>
-        </TouchableOpacity>
-      </View>
 
       <View style={styles.setHeadRow}>
         <Text style={[styles.setHeadCell, styles.setNumCell]}>#</Text>
@@ -928,7 +983,18 @@ function ExerciseCard({
           ) : null}
         </>
       ) : null}
-    </View>
+
+          <TouchableOpacity
+            style={styles.exRemoveRow}
+            onPress={() => train.removeExercise(exerciseIndex)}
+            hitSlop={8}
+            testID={`remove-ex-${exerciseIndex}`}
+          >
+            <Text style={styles.exRemove}>{t('common.remove')}</Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </Animated.View>
   );
 }
 
@@ -1572,6 +1638,14 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   activeBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   activeText: { fontSize: font.small, color: colors.accent, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   savingText: { fontSize: font.tiny, color: colors.faint },
+  progressText: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
+  exHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44 },
+  exName: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
+  exCount: { backgroundColor: colors.inputBg, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: 3, minWidth: 44, alignItems: 'center' },
+  exCountText: { fontSize: font.small, fontWeight: '800', color: colors.muted },
+  exDone: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.good, alignItems: 'center', justifyContent: 'center' },
+  exChevron: { marginLeft: 2 },
+  exRemoveRow: { alignSelf: 'flex-start', paddingVertical: space.sm, marginTop: space.xs },
   exCard: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
@@ -1580,8 +1654,6 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
     padding: space.lg,
     gap: space.xs,
   },
-  exHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.xs },
-  exName: { fontSize: font.body, fontWeight: '700', color: colors.ink, flex: 1 },
   exRemove: { fontSize: font.tiny, color: colors.danger, fontWeight: '700', textTransform: 'uppercase' },
   setHeadRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   setHeadCell: { fontSize: font.tiny, color: colors.muted, fontWeight: '600', textTransform: 'uppercase' },

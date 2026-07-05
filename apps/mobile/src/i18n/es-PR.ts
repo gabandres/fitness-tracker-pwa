@@ -287,6 +287,7 @@ export const esPR: Record<I18nKey, string> = {
   'train.noWorkouts': 'Aún no hay entrenos. Empieza uno arriba.',
   'train.loadErr': 'Algo salió mal. Desliza para reintentar.',
   'train.inProgress': 'Entreno en curso',
+  'train.progress': '{done} de {total} hechos',
   'train.editingSession': 'Editando entreno pasado',
   'train.editHint': 'Toca para editar · mantén para borrar',
   'train.doneEditing': 'Listo',
