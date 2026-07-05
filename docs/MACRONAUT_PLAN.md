@@ -53,25 +53,47 @@ the `consultationStream` CF-proxy pattern.
 
 ## 3. Accessory features (mostly built — reuse)
 
-- **Progress** = fold **Body** (weight/goal/progress-photos) + **Trends**
-      (charts) into one tab.
 - **History** = calendar + day detail (done; Tier-2 copy pass landed).
 - **Home** = kcal+macro rings, streak, today's items, camera CTA (from Today).
-- **Train** = keep as-is (the differentiator).
+- **Train / Trends / Body** = keep as-is (see §4 — no fold).
 
-## 4. Surface area — 4 tabs + camera + settings
+## 4. Surface area — KEEP the 4 tabs (grilled 2026-07-04, reversed the fold)
 
-`Home | Train | 📷 Camera | Progress | History` · Settings on header avatar.
-Archive **Coach** (retain code; disable route/tab) → return as **Pro**.
+`Today | Train | 📷 Camera | Trends | Body` · Settings/History via headers.
 
-## 5. Retention — local-first smart nudges
+- **NO fold.** The current 4-tab bar is already the clean Cal-AI shape and was
+  just Tier-2-polished; merging two polished screens into "Progress" is churn
+  for a cosmetic tab-count win. Decided to keep them.
+- **Coach → Pro-only.** Entry point stays where it is (the "Ask the Coach"
+  button on Trends); gate the screen/CTA behind `isPro`. Bounds free-tier AI
+  spend to just the 5 lifetime photo scans; Pro = unlimited scans + Coach.
+  (Coach's server `consultation` quota stays as defense-in-depth.)
 
-- [ ] Extend `apps/mobile/src/lib/reminders.ts`: 1 daily → **3 meal-window
-      nudges + evening streak-at-risk nudge** (opt-in, configurable).
-- [ ] **Smart reschedule** on app-open / after each log: skip logged windows;
-      cancel streak nudge once today's first log lands.
-- [ ] **Streak milestones** (7/30/100) local congrats.
-- [ ] **Streak-freeze** (`freezeMaxGap`) = Pro perk.
+## 5. Retention — local-first smart nudges (fully grilled 2026-07-04)
+
+- [ ] **Opt-in via a primed prompt after the first logged meal** → then the OS
+      permission ask (never burn iOS's one-shot prompt on a cold launch). Keep
+      the Settings toggle too.
+- [ ] **3 configurable meal-window nudges.** Defaults: **breakfast OFF, lunch
+      ON (~1:00 PM), dinner ON (~7:30 PM)**; all editable. Generalize
+      `reminders.ts` from one hour/flag to per-window settings.
+- [ ] **The split mechanic** (expo-notifications can't make a repeating
+      notification conditional):
+      - Meal-window nudges → **daily-repeating, timed at the window's tail**
+        (lunch ~1:30, dinner ~8:00) so "did you log?" rarely fires after you
+        already did. Reliable; reaches lapsed users.
+      - **Streak-at-risk → smart:** re-armed each evening, **canceled the
+        instant today's first log lands**. Fires ~8:30 PM only when the streak
+        is **≥ 3** and today is unlogged. Copy: "🔥 Your N-day streak ends
+        tonight — log anything to keep it."
+- [ ] **Streak milestones** (7/30/100) local congrats. **Streak-freeze**
+      (`freezeMaxGap`) = Pro perk.
+- [ ] **QA (device-only feature):** extract a pure
+      `planReminders({ now, mealSettings, loggedWindowsToday, streak })
+      → { schedule, cancel }` into `packages/core`, **fully unit-tested**; the
+      expo-notifications layer is a dumb adapter. Verify the Settings UI on
+      8081; add a dev-only "fire a test nudge in 5s" button for on-device
+      delivery smoke.
 - Remote/server push (lapsed re-engage) — **post-launch** (needs dev build + FCM).
 
 ## 6. Rebrand mechanics (465 refs / 141 files — but scoped)
