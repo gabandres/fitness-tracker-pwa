@@ -333,6 +333,13 @@ export async function setUnitSystem(uid: string, unitSystem: UnitSystem): Promis
   await updateDoc(userDoc(uid), { unitSystem });
 }
 
+/** Personal daily-calorie safety floor (kcal). The measured/formula TDEE
+ *  target never drops below this (see packages/core tdee.ts clamp). Pass null
+ *  to clear it (reverts the clamp to the 1500 default). */
+export async function setCalorieFloor(uid: string, floor: number | null): Promise<void> {
+  await updateDoc(userDoc(uid), { calorieFloor: floor == null ? deleteField() : floor });
+}
+
 /** UI language (`en` | `es-PR`). Shared with the PWA's Transloco active lang
  *  + server-side email locale. */
 export async function setPreferredLocale(uid: string, preferredLocale: string): Promise<void> {

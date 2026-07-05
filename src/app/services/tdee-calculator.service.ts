@@ -126,7 +126,7 @@ export class TdeeCalculatorService {
       const pace = profile?.targetPaceLbsPerWeek ?? TdeeCalculatorService.DEFAULT_PACE_LBS_PER_WEEK;
       const targetDeficit = (pace * TdeeCalculatorService.KCAL_PER_POUND) / 7;
       const newDailyTarget = Math.max(
-        TdeeCalculatorService.MIN_DAILY_TARGET,
+        this.calorieFloor(profile),
         Math.round(trueTdee - targetDeficit),
       );
 
@@ -163,7 +163,7 @@ export class TdeeCalculatorService {
       const pace = profile.targetPaceLbsPerWeek;
       const targetDeficit = (pace * TdeeCalculatorService.KCAL_PER_POUND) / 7;
       const newDailyTarget = Math.max(
-        TdeeCalculatorService.MIN_DAILY_TARGET,
+        this.calorieFloor(profile),
         Math.round(trueTdee - targetDeficit),
       );
 
@@ -177,6 +177,18 @@ export class TdeeCalculatorService {
 
     // ── Seed fallback: no profile, no data ──────────────────────
     return { ...TdeeCalculatorService.SEED_RESULT };
+  }
+
+  /**
+   * The daily-target safety floor: the user's configured `calorieFloor` when
+   * set to a sane positive value, else the hardcoded MIN_DAILY_TARGET. Keeps a
+   * water-suppressed measured TDEE from silently pushing the target below a
+   * level the user has deemed too aggressive. Kept byte-parallel with the core
+   * copy in packages/core/src/tdee.ts (ADR-0012).
+   */
+  private calorieFloor(profile?: ProfileFields | null): number {
+    const f = profile?.calorieFloor;
+    return f != null && f > 0 ? f : TdeeCalculatorService.MIN_DAILY_TARGET;
   }
 
   /**

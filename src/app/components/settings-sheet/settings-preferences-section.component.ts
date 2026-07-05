@@ -222,6 +222,33 @@ import { UiButton } from '../ui/button.component';
           </p>
         }
       </ui-card>
+
+      <!-- Calorie floor (kcal) — safety clamp. The daily target never drops
+           below this, even when a water-suppressed measured TDEE would push it
+           lower. Default 1500. -->
+      <ui-card variant="default" class="block mb-3">
+        <h3 class="v2-h3 mb-1">{{ t('settings.calorieFloor.section') }}</h3>
+        <p class="v2-caption mb-3">{{ t('settings.calorieFloor.desc') }}</p>
+        <div class="flex items-center gap-3">
+          <ui-button variant="ghost" size="sm"
+            [disabled]="calorieFloorBusy() || calorieFloor() <= CALORIE_FLOOR_MIN"
+            [ariaLabel]="t('settings.calorieFloor.dec')"
+            (click)="stepCalorieFloor(-50)">−</ui-button>
+          <div class="text-center" style="flex: 1;">
+            <span class="v2-h3 font-mono">{{ calorieFloor() }}</span>
+            <span class="v2-caption"> {{ t('settings.calorieFloor.unit') }}</span>
+          </div>
+          <ui-button variant="ghost" size="sm"
+            [disabled]="calorieFloorBusy() || calorieFloor() >= CALORIE_FLOOR_MAX"
+            [ariaLabel]="t('settings.calorieFloor.inc')"
+            (click)="stepCalorieFloor(50)">+</ui-button>
+        </div>
+        @if (calorieFloorError()) {
+          <p class="v2-caption mt-2" role="alert" style="color: var(--v2-danger)">
+            {{ t('settings.calorieFloor.saveError') }}
+          </p>
+        }
+      </ui-card>
     </ng-container>
   `,
 })
@@ -325,6 +352,17 @@ export class SettingsPreferencesSectionComponent {
   protected readonly paceBusy = signal(false);
   protected readonly paceError = signal(false);
 
+  // ─── Calorie floor (kcal safety clamp) ──────────────────────
+  /** Local stepper copy, seeded from the profile (default 1500 when unset)
+   *  and re-synced on load unless mid-edit. Persisted per step via
+   *  saveCalorieFloor. Bounds keep it in a medically-sane band. */
+  protected readonly CALORIE_FLOOR_MIN = 1200;
+  protected readonly CALORIE_FLOOR_MAX = 3000;
+  protected readonly DEFAULT_CALORIE_FLOOR = 1500;
+  protected readonly calorieFloor = signal<number>(this.DEFAULT_CALORIE_FLOOR);
+  protected readonly calorieFloorBusy = signal(false);
+  protected readonly calorieFloorError = signal(false);
+
   protected readonly proteinGrams = computed(() => {
     const w = this.store.currentWeight();
     return w ? computeProtein(w, this.proteinPerKg()) : null;
@@ -338,6 +376,10 @@ export class SettingsPreferencesSectionComponent {
     effect(() => {
       const stored = (this.firebase.profile() as { targetPaceLbsPerWeek?: number } | null)?.targetPaceLbsPerWeek;
       if (!this.paceBusy() && stored != null) this.pace.set(stored);
+    });
+    effect(() => {
+      const stored = (this.firebase.profile() as { calorieFloor?: number } | null)?.calorieFloor;
+      if (!this.calorieFloorBusy()) this.calorieFloor.set(stored ?? this.DEFAULT_CALORIE_FLOOR);
     });
   }
 
@@ -374,6 +416,26 @@ export class SettingsPreferencesSectionComponent {
       this.proteinError.set(true);
     } finally {
       this.proteinBusy.set(false);
+    }
+  }
+
+  protected async stepCalorieFloor(delta: number): Promise<void> {
+    if (this.calorieFloorBusy()) return;
+    const next = Math.max(
+      this.CALORIE_FLOOR_MIN,
+      Math.min(this.CALORIE_FLOOR_MAX, this.calorieFloor() + delta),
+    );
+    if (next === this.calorieFloor()) return;
+    this.calorieFloor.set(next);
+    this.calorieFloorBusy.set(true);
+    this.calorieFloorError.set(false);
+    try {
+      await this.firebase.saveCalorieFloor(next);
+    } catch (err) {
+      console.error('saveCalorieFloor failed:', err);
+      this.calorieFloorError.set(true);
+    } finally {
+      this.calorieFloorBusy.set(false);
     }
   }
 }

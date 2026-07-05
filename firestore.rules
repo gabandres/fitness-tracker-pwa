@@ -270,6 +270,8 @@ service cloud.firestore {
               'manualCaloriesTarget', 'manualProteinTarget',
               // Personal protein basis (g/kg), dialed in settings / refine.
               'proteinPerKg',
+              // Personal daily-calorie safety floor (kcal), dialed in settings.
+              'calorieFloor',
               'onboardingV2CompletedAt',
               // Day-3 "Refine targets" stamp.
               'targetsRefinedAt',
@@ -326,6 +328,8 @@ service cloud.firestore {
               (data.manualProteinTarget is number && data.manualProteinTarget > 0 && data.manualProteinTarget < 1000))
           && (!('proteinPerKg' in data.keys()) ||
               (data.proteinPerKg is number && data.proteinPerKg >= 1.6 && data.proteinPerKg <= 2.2))
+          && (!('calorieFloor' in data.keys()) ||
+              (data.calorieFloor is number && data.calorieFloor >= 1000 && data.calorieFloor <= 10000))
           && (!('onboardingV2CompletedAt' in data.keys()) ||
               data.onboardingV2CompletedAt is timestamp)
           && (!('targetsRefinedAt' in data.keys()) ||

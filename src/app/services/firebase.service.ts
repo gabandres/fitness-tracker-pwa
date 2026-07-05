@@ -207,6 +207,11 @@ export interface ProfileFields {
   targetPaceLbsPerWeek: CutPace;
   goalWeightLbs?: number;      // optional
   travelMode?: boolean;        // when true, target = maintenance (pace=0)
+  /** Personal safety floor for the daily calorie target, in kcal. Overrides
+   *  the hardcoded MIN_DAILY_TARGET (1500) in the TDEE clamp so a
+   *  water-suppressed measured TDEE can't silently push the target below a
+   *  level the user has deemed too aggressive. Omitted ⇒ 1500 default. */
+  calorieFloor?: number;
   fastStartedAt?: Date | null; // when fasting — ISO timestamp of fast start
   webhookApiKey?: string;      // static UUID for Apple Shortcuts webhook auth
   fcmToken?: string;           // FCM push token
@@ -593,6 +598,23 @@ export class FirebaseService implements LedgerPort {
     });
     const current = this._profile();
     if (current) this._profile.set({ ...current, reminderHour: hour, timezoneOffsetMin: tz } as any);
+  }
+
+  /** Save the user's personal daily-calorie safety floor (kcal). Pass null to
+   *  clear it (reverts the TDEE clamp to the 1500 default). Range-guarded in
+   *  firestore.rules; the UI should keep the value in a sane band. */
+  async saveCalorieFloor(floor: number | null): Promise<void> {
+    await this.core.updateProfileDoc({
+      calorieFloor: floor == null ? deleteField() : floor,
+      lastSeenAt: Timestamp.now(),
+    });
+    const current = this._profile();
+    if (current) {
+      const next = { ...current } as any;
+      if (floor == null) delete next.calorieFloor;
+      else next.calorieFloor = floor;
+      this._profile.set(next);
+    }
   }
 
   /** Start a fast — stores the given start time, or now if omitted.

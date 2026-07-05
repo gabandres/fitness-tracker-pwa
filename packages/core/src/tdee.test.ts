@@ -40,6 +40,36 @@ describe('calculateTdee', () => {
     expect(r.newDailyTarget).toBeGreaterThanOrEqual(1500);
   });
 
+  it('honors a configured calorieFloor above the 1500 default (formula mode)', () => {
+    // Small person + aggressive pace would land the target below 1850.
+    const tiny: ProfileFields = {
+      ...baseProfile, heightIn: 60, age: 60, sex: 'female',
+      activityLevel: 'sedentary', targetPaceLbsPerWeek: 2, calorieFloor: 1850,
+    };
+    const r = calculateTdee([log(0, 1400, 120)], tiny);
+    expect(r.newDailyTarget).toBe(1850);
+  });
+
+  it('ignores an unset / non-positive calorieFloor (falls back to 1500)', () => {
+    const tiny: ProfileFields = {
+      ...baseProfile, heightIn: 48, age: 90, targetPaceLbsPerWeek: 2, calorieFloor: 0,
+    };
+    const r = calculateTdee([log(0, 1200, 100)], tiny);
+    expect(r.newDailyTarget).toBeGreaterThanOrEqual(1500);
+  });
+
+  it('applies calorieFloor in measured mode', () => {
+    // 16 days losing fast on low intake → raw target below the floor.
+    const logs: DailyLog[] = [];
+    for (let i = 0; i < 16; i++) logs.push(log(16 - i, 1500, 150 - i * 0.3));
+    const withFloor = calculateTdee(logs, { ...baseProfile, targetPaceLbsPerWeek: 2, calorieFloor: 1850 });
+    const without = calculateTdee(logs, { ...baseProfile, targetPaceLbsPerWeek: 2 });
+    expect(withFloor.source).toBe('measured');
+    expect(withFloor.newDailyTarget).toBeGreaterThanOrEqual(1850);
+    // The floor only ever raises (never lowers) the target vs the 1500 default.
+    expect(withFloor.newDailyTarget).toBeGreaterThanOrEqual(without.newDailyTarget);
+  });
+
   it('switches to measured mode with >=14 logged days and a weight trend', () => {
     // 20 days, intake ~2000, losing 0.1 lb/day (real deficit).
     const logs: DailyLog[] = [];

@@ -174,6 +174,11 @@ export interface ProfileFields {
   targetPaceLbsPerWeek: CutPace;
   goalWeightLbs?: number;      // optional
   travelMode?: boolean;        // when true, target = maintenance (pace=0)
+  /** Personal safety floor for the daily calorie target, in kcal. When set,
+   *  overrides the hardcoded MIN_DAILY_TARGET (1500) in the TDEE clamp so a
+   *  water-suppressed measured TDEE can never silently push the target below
+   *  a level the user has deemed too aggressive. Omitted ⇒ 1500 default. */
+  calorieFloor?: number;
   fastStartedAt?: Date | null; // when fasting — ISO timestamp of fast start
   webhookApiKey?: string;      // static UUID for Apple Shortcuts webhook auth
   fcmToken?: string;           // FCM push token

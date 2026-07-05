@@ -261,6 +261,40 @@ describe('firestore.rules', () => {
     );
   });
 
+  it('accepts an in-range calorieFloor on a completed profile', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      setDoc(doc(db, 'users', 'alice'), {
+        ...baseProfile(),
+        profileCompleted: true,
+        heightIn: 70,
+        age: 33,
+        sex: 'male',
+        activityLevel: 'moderate',
+        targetPaceLbsPerWeek: 1.0,
+        calorieFloor: 1850,
+      }),
+    );
+  });
+
+  it('rejects an out-of-range calorieFloor on a completed profile', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      setDoc(doc(db, 'users', 'alice'), {
+        ...baseProfile(),
+        profileCompleted: true,
+        heightIn: 70,
+        age: 33,
+        sex: 'male',
+        activityLevel: 'moderate',
+        targetPaceLbsPerWeek: 1.0,
+        calorieFloor: 500, // below the 1000 rule minimum
+      }),
+    );
+  });
+
   it('accepts a catalog exercise carrying a seedKey', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());
