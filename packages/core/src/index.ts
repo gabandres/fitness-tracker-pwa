@@ -21,6 +21,9 @@ export * from './tier-limits';
 // Meal-photo scan types + macro helpers (ADR-0015). Pure; the CF + both apps
 // share these. The scan itself (camera + Gemini) is a per-frontend/CF adapter.
 export * from './photo-scan';
+// Retention nudge planner (ADR-0015). Pure; the expo-notifications layer is a
+// dumb adapter over what this returns.
+export * from './reminder-plan';
 // My Foods library helpers (ADR-0013). Types (CustomFood, FoodSource,
 // ServingUnit) live in ./types; these are the pure scaling helpers.
 export * from './custom-food';
