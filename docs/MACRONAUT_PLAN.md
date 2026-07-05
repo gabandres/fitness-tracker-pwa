@@ -87,6 +87,29 @@ Archive **Coach** (retain code; disable route/tab) → return as **Pro**.
 - Do A as one focused commit per surface (mobile app, web app, functions,
       docs) so review is legible. Keep i18n `en`/`es-PR` in parity.
 
+## 6b. Donations (cost-offset — external-link, US-first)
+
+Optional support path for free-tier users who won't subscribe but want the AI
+scans to keep running. **Reality:** marginal offset only — the subscription is
+the real funder; donations are goodwill + community signal. Cheap to add.
+
+**Apple rule (current, matters — gets apps rejected):**
+- **US App Store (post-May 2025 Epic ruling):** external donation **links are
+  allowed, no entitlement, Apple takes no cut**. ✅ ship it.
+- **Outside US:** developer donations still generally **IAP-only** (the 3.2.1
+  "tips" clause is for tipping *other people*, not the dev). Geo-gate the link
+  to the US storefront, or add consumable "tip" IAPs later for other regions.
+- **Google Play + web PWA:** external links fine.
+
+**Build (cheap):**
+- [ ] **Rail:** reuse **Stripe** via a pay-what-you-want **Payment Link** (no
+      new vendor/backend). Alt: Buy Me a Coffee / Ko-fi.
+- [ ] **Settings row** "Support Macronaut — keep the AI scans running" →
+      `Linking.openURL(donationUrl)` (external), **US storefront only**.
+- [ ] **Web landing footer** button (no restrictions there).
+- [ ] Copy stays purely altruistic — **unlocks nothing** (a donation that grants
+      features would be an IAP-circumvention rejection).
+
 ## 7. Discoverability / ASO (the "I hope people find it" problem)
 
 Your Train differentiator **is** the wedge — nobody pairs AI-photo macros with
