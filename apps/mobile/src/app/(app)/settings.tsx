@@ -7,7 +7,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { type ImportParseError, type ImportParseResult, type UnitSystem, parseImportCsv } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
-import { importLogs, setPreferredLocale, setUnitSystem, setWeeklyDigestOptIn } from '@/lib/ledger';
+import { importLogs, setCalorieFloor, setPreferredLocale, setUnitSystem, setWeeklyDigestOptIn } from '@/lib/ledger';
 import { exportDataCsv } from '@/lib/dataExport';
 import { useSubscription } from '@/lib/subscription';
 import { DEFAULT_REMINDER_HOUR, getReminder, setReminder } from '@/lib/reminders';
@@ -33,6 +33,11 @@ const LANGUAGES: { value: Locale; label: string }[] = [
   { value: 'en', label: 'English' },
   { value: 'es-PR', label: 'Español' },
 ];
+
+// Calorie-floor stepper bounds (kcal). Kept in sync with the PWA settings.
+const CALORIE_FLOOR_MIN = 1200;
+const CALORIE_FLOOR_MAX = 3000;
+const DEFAULT_CALORIE_FLOOR = 1500;
 
 const IMPORT_ERR_KEY: Record<ImportParseError, I18nKey> = {
   'empty-file': 'settings.importErrEmpty',
@@ -154,6 +159,17 @@ export default function Settings() {
     const next = (reminderHour + delta + 24) % 24;
     setReminderHour(next);
     if (reminderEnabled) await setReminder(true, next);
+  }
+
+  // Calorie floor (kcal safety clamp). Seeded from the profile (1500 default
+  // when unset); each ± step persists to Firestore. Bounds match the PWA.
+  const calorieFloor = profile?.calorieFloor ?? DEFAULT_CALORIE_FLOOR;
+  async function bumpCalorieFloor(delta: number) {
+    if (!user) return;
+    const next = Math.max(CALORIE_FLOOR_MIN, Math.min(CALORIE_FLOOR_MAX, calorieFloor + delta));
+    if (next === calorieFloor) return;
+    haptics.tap();
+    await setCalorieFloor(user.uid, next);
   }
 
   const unit: UnitSystem = profile?.unitSystem ?? 'us';
@@ -414,6 +430,35 @@ export default function Settings() {
               trackColor={{ true: colors.tealSolid, false: colors.line }}
               testID="digest-toggle"
             />
+          </View>
+        </View>
+
+        <Text style={styles.section}>{t('settings.calorieFloorSection')}</Text>
+        <View style={styles.card}>
+          <View style={styles.rowBetween}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>{t('settings.calorieFloor')}</Text>
+              <Text style={styles.rowValue}>{t('settings.calorieFloorSub')}</Text>
+            </View>
+            <View style={styles.stepper}>
+              <TouchableOpacity
+                style={[styles.step, calorieFloor <= CALORIE_FLOOR_MIN && { opacity: 0.4 }]}
+                disabled={calorieFloor <= CALORIE_FLOOR_MIN}
+                onPress={() => bumpCalorieFloor(-50)}
+                testID="calorie-floor-minus"
+              >
+                <Text style={styles.stepText}>−</Text>
+              </TouchableOpacity>
+              <Text style={styles.hourValue} testID="calorie-floor">{calorieFloor}</Text>
+              <TouchableOpacity
+                style={[styles.step, calorieFloor >= CALORIE_FLOOR_MAX && { opacity: 0.4 }]}
+                disabled={calorieFloor >= CALORIE_FLOOR_MAX}
+                onPress={() => bumpCalorieFloor(50)}
+                testID="calorie-floor-plus"
+              >
+                <Text style={styles.stepText}>+</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 

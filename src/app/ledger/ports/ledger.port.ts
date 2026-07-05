@@ -52,6 +52,9 @@ export interface LedgerPort {
   setUnitSystem(system: UnitSystem): Promise<void>;
   setProteinPerKg(gPerKg: number): Promise<void>;
   setTargetPace(lbPerWeek: number): Promise<void>;
+  /** Personal daily-calorie safety floor (kcal); pass null to clear (reverts
+   *  the TDEE clamp to the 1500 default). */
+  saveCalorieFloor(floor: number | null): Promise<void>;
   hideRecentLabel(label: string): Promise<void>;
   unhideRecentLabel(label: string): Promise<void>;
 

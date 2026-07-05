@@ -11,7 +11,8 @@ import { localDateKey } from './date';
  *   - FORMULA (<14 days + profile): Mifflin-St Jeor BMR × activity factor.
  *   - SEED (<14 days + no profile): hardcoded fallback.
  *
- * `newDailyTarget` = trueTdee − (pace × 3500 / 7), clamped at a 1500 floor.
+ * `newDailyTarget` = trueTdee − (pace × 3500 / 7), clamped at the user's
+ * configured `calorieFloor` (default MIN_DAILY_TARGET = 1500).
  *
  * NOTE: the canonical copy still lives in the Angular service. This is a
  * faithful duplicate for the mobile app; unifying both onto this module is
@@ -121,6 +122,15 @@ function calendarSpanDays(daily: DailyLog[]): number {
   return Math.round((last - first) / 86_400_000) + 1;
 }
 
+/** The daily-target safety floor: the user's configured `calorieFloor` when
+ *  set to a sane positive value, else the hardcoded MIN_DAILY_TARGET. Keeps a
+ *  water-suppressed measured TDEE from silently pushing the target below a
+ *  level the user has deemed too aggressive. */
+function calorieFloor(profile?: ProfileFields | null): number {
+  const f = profile?.calorieFloor;
+  return f != null && f > 0 ? f : MIN_DAILY_TARGET;
+}
+
 function mifflinStJeor(profile: ProfileFields, weightLbs: number): number {
   const weightKg = weightLbs * 0.453592;
   const heightCm = profile.heightIn * 2.54;
@@ -148,7 +158,8 @@ export function calculateTdee(logs: DailyLog[], profile?: ProfileFields | null):
 
     const pace = profile?.targetPaceLbsPerWeek ?? DEFAULT_PACE_LBS_PER_WEEK;
     const targetDeficit = (pace * KCAL_PER_POUND) / 7;
-    const newDailyTarget = Math.max(MIN_DAILY_TARGET, Math.round(trueTdee - targetDeficit));
+    const floor = calorieFloor(profile);
+    const newDailyTarget = Math.max(floor, Math.round(trueTdee - targetDeficit));
 
     const spanDays = calendarSpanDays(window);
     const loggingCompletenessPct = Math.min(100, Math.round((window.length / spanDays) * 100));
@@ -174,7 +185,8 @@ export function calculateTdee(logs: DailyLog[], profile?: ProfileFields | null):
     const trueTdee = Math.round(mifflinStJeor(profile, latestWeight));
     const pace = profile.targetPaceLbsPerWeek;
     const targetDeficit = (pace * KCAL_PER_POUND) / 7;
-    const newDailyTarget = Math.max(MIN_DAILY_TARGET, Math.round(trueTdee - targetDeficit));
+    const floor = calorieFloor(profile);
+    const newDailyTarget = Math.max(floor, Math.round(trueTdee - targetDeficit));
     return { trueTdee, newDailyTarget, weightChangeTrend: 0, source: 'formula' };
   }
 

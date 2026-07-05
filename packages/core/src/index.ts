@@ -10,6 +10,11 @@ export * from './date';
 export * from './day-summary';
 export * from './tdee';
 export * from './targets';
+// Non-production TDEE inspector (audit tool): reproduces measured-mode math
+// and re-runs it under exclude-recent / energy-balance / longer-window
+// variations so a low trueTdee can be diagnosed as water-suppression vs real
+// drop. Never wired into calculateTdee.
+export * from './tdee-diagnostics';
 export * from './body-fat';
 export * from './weight-projection';
 export * from './weekly-insights';
