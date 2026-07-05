@@ -117,7 +117,7 @@ function detectGoalFromPath(): GoalDirection {
               [ngModel]="weightInput()"
               (ngModelChange)="weightInput.set($event)"
               class="grow text-3xl font-mono w-full"
-              style="padding: var(--v2-space-3) var(--v2-space-4); background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md); color: var(--v2-ink); min-height: var(--v2-tap-min);"
+              style="padding: var(--v2-space-3) var(--v2-space-4); background: color-mix(in srgb, var(--v2-paper-2) 60%, transparent); backdrop-filter: blur(8px); border: 1px solid color-mix(in srgb, var(--v2-rule) 50%, transparent); border-radius: var(--v2-radius-md); color: var(--v2-ink); min-height: var(--v2-tap-min);"
               [attr.aria-invalid]="!!weightError()"
               [attr.aria-describedby]="weightError() ? 'calc-weight-err' : null"
             />
@@ -137,8 +137,8 @@ function detectGoalFromPath(): GoalDirection {
               <button
                 type="button"
                 class="text-left p-3 transition-colors"
-                style="background: var(--v2-paper-2); border-radius: var(--v2-radius-md); border: 2px solid;"
-                [style.border-color]="goal() === opt.value ? 'var(--v2-accent)' : 'var(--v2-rule)'"
+                style="background: color-mix(in srgb, var(--v2-paper-2) 60%, transparent); backdrop-filter: blur(8px); border-radius: var(--v2-radius-md); border: 2px solid;"
+                [style.border-color]="goal() === opt.value ? 'var(--v2-accent)' : 'color-mix(in srgb, var(--v2-rule) 50%, transparent)'"
                 (click)="goal.set(opt.value)"
                 [attr.aria-pressed]="goal() === opt.value">
                 <div class="v2-body" style="font-weight: 600;">{{ t(opt.labelKey) }}</div>

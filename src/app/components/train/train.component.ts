@@ -14,7 +14,6 @@ import { TranslationService } from '../../services/translation.service';
 import { bcp47ForLang } from '../../utils/locale';
 import { UiCard } from '../ui/card.component';
 import { UiButton } from '../ui/button.component';
-import { UiIconButton } from '../ui/icon-button.component';
 import { UiAvatar } from '../ui/avatar.component';
 import { AuthService } from '../../services/auth.service';
 import { UiSheet } from '../ui/sheet.component';
@@ -51,7 +50,6 @@ import { suggestProgression } from '../../utils/workout-progression';
     TranslocoDirective,
     UiCard,
     UiButton,
-    UiIconButton,
     UiAvatar,
     UiSheet,
     WorkoutSessionSheetComponent,
@@ -63,24 +61,18 @@ import { suggestProgression } from '../../utils/workout-progression';
   template: `
     <ng-container *transloco="let t">
     <section class="max-w-[640px] mx-auto">
-      <header class="flex items-start justify-between gap-4 pt-2 pb-2">
-        <div>
-          <h1 class="page-title">{{ t('train.title') }}</h1>
-          <p class="v2-caption mt-0.5">{{ t('train.subtitle') }}</p>
-        </div>
-        <div class="flex items-center gap-2 shrink-0">
-          <ui-icon-button icon="dumbbell" [ariaLabel]="t('train.manageExercises')" (click)="managerOpen.set(true)" />
-          <ui-icon-button icon="calendar" [ariaLabel]="t('train.historyAria')" (click)="historyRequested.emit()" />
-          <ui-avatar
-            [photoUrl]="authUser()?.photoURL ?? null"
-            [name]="authUser()?.displayName || authUser()?.email || null"
-            [ariaLabel]="t('train.settingsAria')"
-            (activate)="settingsRequested.emit()" />
-        </div>
+      <!-- Header: title + avatar only (mirrors mobile Train) -->
+      <header class="flex items-center justify-between gap-4 pt-2 pb-2">
+        <h1 class="page-title" style="font-family: var(--v2-font-display);">{{ t('train.title') }}</h1>
+        <ui-avatar
+          [photoUrl]="authUser()?.photoURL ?? null"
+          [name]="authUser()?.displayName || authUser()?.email || null"
+          [ariaLabel]="t('train.settingsAria')"
+          (activate)="settingsRequested.emit()" />
       </header>
 
-      <!-- Resume in-progress -->
       @if (active(); as a) {
+        <!-- Resume in-progress -->
         <ui-card variant="default" class="mt-4 block v2-active-highlight"
                  style="padding: var(--v2-space-4); border-radius: var(--v2-radius-lg);">
           <div class="flex items-center justify-between gap-3">
@@ -92,94 +84,110 @@ import { suggestProgression } from '../../utils/workout-progression';
             <ui-button variant="primary" (click)="openSheet()">{{ t('train.resume') }}</ui-button>
           </div>
         </ui-card>
-      }
 
-      <!-- Templates + Recent: hidden while a workout is in progress so the
-           in-progress view stays focused on Resume + the exercises below. -->
-      @if (!active()) {
-      <!-- Templates -->
-      <div class="mt-6 flex items-baseline justify-between">
-        <h2 class="section-title">{{ t('train.yourTemplates') }}</h2>
-        <ui-button variant="secondary" size="sm" [disabled]="capReached()" (click)="openChooser()">
-          <lucide-icon name="plus" [size]="14" /> {{ t('train.newTemplate') }}
-        </ui-button>
-      </div>
-
-      @if (templates().length === 0) {
-        <ui-card variant="default" class="mt-2 block">
-          <p class="v2-caption">{{ t('train.noTemplatesBody') }}</p>
-        </ui-card>
-      } @else {
-        <div class="mt-2 grid gap-2">
-          @for (tpl of templates(); track tpl.id) {
-            <ui-card variant="default" class="block v2-template-card"
-                     [class.v2-active-highlight]="selectedTemplate()?.id === tpl.id">
-              <div class="flex items-center justify-between gap-3">
-                <button type="button" class="text-left grow"
-                        [attr.aria-pressed]="selectedTemplate()?.id === tpl.id"
-                        [attr.aria-expanded]="selectedTemplate()?.id === tpl.id" (click)="select(tpl)">
-                  <div class="flex items-center gap-1.5">
-                    <h3 class="card-title">{{ tpl.name }}</h3>
-                    <lucide-icon [name]="selectedTemplate()?.id === tpl.id ? 'chevron-down' : 'chevron-right'" [size]="16"
-                                 [style.color]="selectedTemplate()?.id === tpl.id ? 'var(--v2-accent)' : 'var(--v2-ink-muted)'" />
-                  </div>
-                  <p class="v2-caption mt-0.5">{{ t('train.exerciseCount', { count: tpl.exercises.length }) }}</p>
-                </button>
-                <div class="flex items-center gap-1 shrink-0">
-                  <ui-icon-button icon="pencil" [ariaLabel]="t('train.editTemplate')" (click)="edit(tpl)" />
-                  <ui-icon-button icon="trash-2" [ariaLabel]="t('train.deleteTemplate')" (click)="remove(tpl)" />
-                  @if (!active()) {
-                    <ui-button variant="secondary" size="sm" [disabled]="busy()" (click)="start(tpl)">{{ t('train.start') }}</ui-button>
-                  }
+        <!-- Active session's exercises -->
+        @if (shownExercises(); as ex) {
+          <h2 class="section-title mt-6">{{ t('train.exercisesSection') }} · {{ ex.name }}</h2>
+          <div class="mt-2 grid gap-1">
+            @for (te of ex.items; track te.exerciseId) {
+              <button type="button" class="flex items-center justify-between gap-3 py-2 border-b text-left"
+                      style="border-color: var(--v2-rule);" (click)="openDetailById(te.exerciseId, te.name)">
+                <div>
+                  <p class="v2-row-title">{{ te.name }}</p>
+                  @if (musclesFor(te.exerciseId); as m) { <p class="v2-caption">{{ m }}</p> }
                 </div>
-              </div>
-            </ui-card>
-          }
-        </div>
-      }
-
-      <!-- Recent sessions -->
-      <h2 class="section-title mt-6">{{ t('train.recentSessions') }}</h2>
-      @if (completedRecent().length === 0) {
-        <p class="v2-caption mt-2">{{ t('train.noSessions') }}</p>
-      } @else {
-        <div class="mt-2 grid gap-1">
-          @for (ses of completedRecent(); track ses.id) {
-            <div class="flex items-center justify-between gap-3 py-2 border-b" style="border-color: var(--v2-rule);">
-              <button type="button" class="text-left grow" (click)="editSession(ses)">
-                <p class="v2-row-title">{{ sessionLabel(ses) }}</p>
-                <p class="v2-caption">{{ formatDate(ses.date) }} · {{ t('train.exerciseCount', { count: ses.exercises.length }) }}</p>
+                <lucide-icon name="trending-up" [size]="16" />
               </button>
-              <div class="flex items-center gap-1 shrink-0">
-                @if (ses.durationMin) {
-                  <span class="v2-caption" style="color: var(--v2-ink-muted);">{{ ses.durationMin }}m</span>
-                }
-                <ui-icon-button icon="pencil" [ariaLabel]="t('train.editSession')" (click)="editSession(ses)" />
-                <ui-icon-button icon="trash-2" [ariaLabel]="t('train.deleteSession')" (click)="removeSession(ses)" />
-              </div>
+            }
+          </div>
+        }
+      } @else {
+        <!-- Idle: dark hero + Start + Templates + History + Exercises -->
+        <div class="mt-4" style="background: var(--v2-hero-panel); border-radius: var(--v2-radius-xl); padding: var(--v2-space-5) var(--v2-space-4); display: flex; flex-direction: column; align-items: center; gap: var(--v2-space-1); box-shadow: var(--v2-shadow-2);">
+          <span style="text-align: center; color: var(--v2-hero-muted); font-size: 14px;">{{ t('train.thisWeek') }}</span>
+          <div style="display: flex; align-items: flex-end; gap: var(--v2-space-1); margin-top: var(--v2-space-1);">
+            <span style="font-family: var(--v2-font-display); font-weight: 800; font-size: 52px; line-height: 56px; color: var(--v2-hero-text);">{{ heroStats().count }}</span>
+            <span style="font-size: 20px; color: var(--v2-hero-muted); margin-bottom: var(--v2-space-2);">{{ heroStats().count === 1 ? t('train.workoutUnit') : t('train.workoutsUnit') }}</span>
+          </div>
+          @if (heroStats().count === 0) {
+            <span style="text-align: center; color: var(--v2-hero-muted); font-size: 14px; margin-top: var(--v2-space-1);">{{ t('train.weekEmpty') }}</span>
+          } @else {
+            <div style="display: flex; gap: var(--v2-space-2); flex-wrap: wrap; justify-content: center; margin-top: var(--v2-space-2);">
+              @if (heroStats().volume > 0) {
+                <span style="font-size: 14px; color: var(--v2-hero-muted); background: var(--v2-hero-track); border-radius: 999px; padding: 4px 12px;">{{ t('train.weekVolume') }}&nbsp; <span style="color: var(--v2-hero-text); font-weight: 700;">{{ heroStats().volume.toLocaleString() }} lb</span></span>
+              }
+              @if (heroStats().topSet > 0) {
+                <span style="font-size: 14px; color: var(--v2-hero-muted); background: var(--v2-hero-track); border-radius: 999px; padding: 4px 12px;">{{ t('train.topSet') }}&nbsp; <span style="color: var(--v2-hero-text); font-weight: 700;">{{ heroStats().topSet.toLocaleString() }} lb</span></span>
+              }
             </div>
           }
         </div>
-      }
-      }
-      <!-- Exercises: the in-progress workout's exercises while active, else
-           the selected template's. Workout order; tap for progression. -->
-      @if (shownExercises(); as ex) {
-        <h2 class="section-title mt-6">{{ t('train.exercisesSection') }} · {{ ex.name }}</h2>
-        <div class="mt-2 grid gap-1">
-          @for (te of ex.items; track te.exerciseId) {
-            <button type="button" class="flex items-center justify-between gap-3 py-2 border-b text-left"
-                    style="border-color: var(--v2-rule);" (click)="openDetailById(te.exerciseId, te.name)">
-              <div>
-                <p class="v2-row-title">{{ te.name }}</p>
-                @if (musclesFor(te.exerciseId); as m) {
-                  <p class="v2-caption">{{ m }}</p>
-                }
-              </div>
-              <lucide-icon name="trending-up" [size]="16" />
-            </button>
-          }
+
+        <button type="button" (click)="startEmpty()" class="mt-3 w-full"
+                style="background: var(--v2-ink); color: var(--v2-paper); border: none; border-radius: var(--v2-radius-md); padding: var(--v2-space-4); font-weight: 700; font-size: 20px; cursor: pointer;">
+          {{ t('train.startWorkout') }}
+        </button>
+
+        <!-- Templates -->
+        <div class="mt-6 flex items-center justify-between">
+          <h2 class="section-title" style="font-family: var(--v2-font-display);">{{ t('train.templates') }}</h2>
+          <div class="flex items-center gap-4 shrink-0">
+            <button type="button" (click)="openChooser()" style="background: none; border: none; padding: 0; color: var(--v2-accent); font-weight: 700; font-size: 14px; cursor: pointer;">{{ t('train.starters') }}</button>
+            <button type="button" [disabled]="capReached()" (click)="blankTemplate()" style="background: none; border: none; padding: 0; color: var(--v2-accent); font-weight: 700; font-size: 14px; cursor: pointer;">{{ t('train.newTemplate') }}</button>
+          </div>
         </div>
+        @if (templates().length === 0) {
+          <p class="v2-caption mt-2">{{ t('train.noTemplatesBody') }}</p>
+        } @else {
+          <div class="mt-2 grid gap-2">
+            @for (tpl of templates(); track tpl.id) {
+              <div class="flex items-center gap-3" style="background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md); padding: var(--v2-space-3) var(--v2-space-4);">
+                <button type="button" class="text-left grow" style="background: none; border: none; padding: 0; cursor: pointer;" (click)="edit(tpl)">
+                  <p class="v2-row-title" style="font-weight: 700;">{{ tpl.name }}</p>
+                  <p class="v2-caption mt-0.5">{{ t('train.exerciseCount', { count: tpl.exercises.length }) }}</p>
+                </button>
+                <button type="button" [disabled]="busy()" (click)="start(tpl)"
+                        style="background: var(--v2-ink); color: var(--v2-paper); border: none; border-radius: var(--v2-radius-sm); padding: var(--v2-space-2) var(--v2-space-3); font-weight: 700; font-size: 14px; cursor: pointer;">{{ t('train.start') }}</button>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- History -->
+        <h2 class="section-title mt-6" style="font-family: var(--v2-font-display);">{{ t('train.history') }}</h2>
+        @if (completedRecent().length === 0) {
+          <p class="v2-caption mt-2">{{ t('train.noSessions') }}</p>
+        } @else {
+          <p class="v2-caption mt-2 mb-2">{{ t('train.editHint') }}</p>
+          <div class="grid gap-2">
+            @for (ses of completedRecent(); track ses.id) {
+              <button type="button" class="flex items-center justify-between gap-3 text-left"
+                      style="background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md); padding: var(--v2-space-3) var(--v2-space-4);" (click)="editSession(ses)">
+                <div>
+                  <p class="v2-row-title" style="font-weight: 700;">{{ formatWeekday(ses.date) }}</p>
+                  <p class="v2-caption">{{ t('train.exerciseCount', { count: ses.exercises.length }) }}</p>
+                </div>
+                @if (volumeOf(ses) > 0) {
+                  <span class="v2-num" style="font-weight: 700; color: var(--v2-ink); font-size: 14px;">{{ volumeOf(ses).toLocaleString() }} lb</span>
+                }
+              </button>
+            }
+          </div>
+        }
+
+        <!-- Exercises catalog -->
+        @if (catalog().length) {
+          <h2 class="section-title mt-6" style="font-family: var(--v2-font-display);">{{ t('train.exercisesSection') }}</h2>
+          <div class="mt-2 grid gap-2">
+            @for (e of catalog(); track e.id) {
+              <button type="button" class="text-left"
+                      style="background: var(--v2-paper-2); border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-md); padding: var(--v2-space-3) var(--v2-space-4);" (click)="openDetailById(e.id!, e.name)">
+                <p class="v2-row-title" style="font-weight: 700;">{{ e.name }}</p>
+                <p class="v2-caption mt-0.5">{{ t('train.logStyle.' + (e.logStyle || 'weight-reps')) }}</p>
+              </button>
+            }
+          </div>
+        }
       }
     </section>
 
@@ -260,6 +268,64 @@ export class TrainComponent {
   protected readonly completedRecent = computed(() =>
     this.workout.recentSessions().filter((s) => s.status === 'completed'),
   );
+
+  /** Idle-hero numbers (mirrors mobile trainHeroStats): workouts + total
+   *  volume in the last 7 days, plus the heaviest set weight ever logged. */
+  protected readonly heroStats = computed(() => {
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    let count = 0;
+    let volume = 0;
+    let topSet = 0;
+    for (const s of this.completedRecent()) {
+      if (s.date.getTime() >= weekAgo) {
+        count += 1;
+        volume += this.volumeOf(s);
+      }
+      for (const ex of s.exercises) {
+        for (const set of ex.sets) {
+          if (set.weight != null && set.weight > topSet) topSet = set.weight;
+        }
+      }
+    }
+    return { count, volume, topSet };
+  });
+
+  /** Session tonnage = Σ weight×reps over logged sets (mirrors mobile
+   *  sessionVolume). */
+  protected volumeOf(ses: WorkoutSession): number {
+    let vol = 0;
+    for (const ex of ses.exercises) {
+      for (const s of ex.sets) {
+        if (s.weight != null && s.reps != null) vol += s.weight * s.reps;
+      }
+    }
+    return Math.round(vol);
+  }
+
+  /** Full-width "Start workout": begin an empty active session. */
+  protected async startEmpty(): Promise<void> {
+    if (this.busy()) return;
+    if (this.workout.activeSession()) {
+      this.openSheet();
+      return;
+    }
+    this.busy.set(true);
+    try {
+      await this.workout.startSession({ status: 'active', date: new Date(), exercises: [] });
+      this.openSheet();
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  /** History row date: weekday · month · day (mirrors mobile). */
+  protected formatWeekday(d: Date): string {
+    return d.toLocaleDateString(bcp47ForLang(this.i18n.language()), {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+  }
 
   /** Catalog lookup by id — backs the selected template's muscle subtitles
    *  and the progression-detail open. */

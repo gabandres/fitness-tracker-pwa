@@ -37,7 +37,7 @@ type FetchStatus = 'loading' | 'ready' | 'error';
     <ng-container *transloco="let t">
     <section class="max-w-[1100px] mx-auto px-5 sm:px-6 py-10">
       <a href="/" class="v2-caption" style="text-decoration: underline; text-decoration-style: dotted;">
-        ← Macro Log
+        ← Macronaut
       </a>
       <p class="v2-caption mt-8" style="text-transform: uppercase; letter-spacing: 0.08em;">
         {{ t('transformations.section') }}
@@ -114,7 +114,7 @@ export class TransformationsComponent implements OnInit {
         const data = d.data() as Partial<PublicProfileSummary>;
         return {
           slug: d.id,
-          displayName: data.displayName || 'Macro Log user',
+          displayName: data.displayName || 'Macronaut user',
           startWeight: data.startWeight ?? null,
           currentWeight: data.currentWeight ?? null,
           totalChange: data.totalChange ?? null,
@@ -137,9 +137,9 @@ export class TransformationsComponent implements OnInit {
     const ld = {
       '@context': 'https://schema.org',
       '@type': 'CollectionPage',
-      name: 'Transformations · Macro Log',
+      name: 'Transformations · Macronaut',
       url: 'https://macrolog.web.app/transformations',
-      description: 'Real users tracking calories, protein, and weight with Macro Log.',
+      description: 'Real users tracking calories, protein, and weight with Macronaut.',
       hasPart: items.slice(0, 20).map((p) => ({
         '@type': 'Person',
         name: p.displayName,

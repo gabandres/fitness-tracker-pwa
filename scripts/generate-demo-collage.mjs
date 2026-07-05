@@ -77,7 +77,7 @@ const svg = `<?xml version="1.0" encoding="UTF-8"?>
 
   <!-- Title bar -->
   <text x="${outer + 10}" y="62" class="serif" font-size="42" fill="${ink}">
-    Macro Log <tspan fill="${blood}">— four steps.</tspan>
+    Macronaut <tspan fill="${blood}">— four steps.</tspan>
   </text>
   <text x="${W - outer - 10}" y="62" class="mono" font-size="14" letter-spacing="3" fill="${inkSoft}" text-anchor="end">DEMO · 2026.04.23</text>
 

@@ -28,208 +28,269 @@ import { UiButton } from '../ui/button.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-    <article class="space-y-14 pb-8">
+    <style>
+      .landing-hero {
+        background: var(--v2-hero-panel, #161412);
+        color: var(--v2-hero-text, #f3f1ec);
+        border-radius: var(--v2-radius-xl);
+        padding: var(--v2-space-8) var(--v2-space-5);
+        position: relative;
+        overflow: hidden;
+        margin-top: var(--v2-space-4);
+        box-shadow: 0 24px 48px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.05);
+      }
+      .landing-hero::before {
+        content: '';
+        position: absolute;
+        top: -50%; left: -50%; width: 200%; height: 200%;
+        background: radial-gradient(circle at center, color-mix(in srgb, var(--v2-accent) 15%, transparent) 0%, transparent 60%);
+        pointer-events: none;
+      }
+      .landing-hero-content {
+        position: relative;
+        z-index: 10;
+      }
+      .glass-card {
+        background: color-mix(in srgb, var(--v2-paper-2) 60%, transparent);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid color-mix(in srgb, var(--v2-rule) 50%, transparent);
+        border-radius: var(--v2-radius-xl);
+        padding: var(--v2-space-5);
+        transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+      .glass-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--v2-shadow-3);
+      }
+      .section-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 12px;
+        background: var(--v2-accent-soft);
+        color: var(--v2-accent);
+        border-radius: 999px;
+        font-family: var(--v2-font-mono);
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: var(--v2-space-4);
+      }
+      .hover-link-card {
+        text-decoration: none;
+        display: block;
+        transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+      }
+      .hover-link-card:hover {
+        background: var(--v2-paper-3);
+        border-color: var(--v2-accent);
+        transform: scale(1.02);
+      }
+    </style>
+    <article class="pb-16 px-4 max-w-6xl mx-auto space-y-16">
       <!-- ── 1. Hero ──────────────────────────────────────────────── -->
-      <section>
-        <p class="v2-caption mb-4" style="text-transform: uppercase; letter-spacing: 0.08em;">
-          {{ t('landing.calibrationLogNo') }}
-        </p>
-
-        <div class="grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-12 lg:items-center">
+      <section class="landing-hero">
+        <div class="landing-hero-content grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-12 lg:items-center">
           <div>
-            <h1 class="v2-h1 v2-h1--hero" style="font-size: clamp(2.75rem, 5.5vw, 4.5rem); line-height: 1.05; letter-spacing: -0.025em;">
+            <div class="section-badge" style="background: rgba(255,255,255,0.1); color: var(--v2-accent);">
+              {{ t('landing.calibrationLogNo') }}
+            </div>
+            <h1 class="v2-h1 v2-h1--hero" style="font-size: clamp(3rem, 6vw, 5rem); line-height: 1.05; letter-spacing: -0.03em; color: var(--v2-hero-text, #f3f1ec);">
               {{ t('landing.heroLead') }}<br/>
               <span style="color: var(--v2-accent);">{{ t('landing.heroEm') }}</span>
             </h1>
-            <p class="v2-body-soft mt-5 max-w-2xl" style="font-size: 1.0625rem;">
+            <p class="mt-6 max-w-xl" style="font-size: 1.125rem; line-height: 1.6; color: var(--v2-hero-muted, #a39c91);">
               {{ t('landing.heroSub') }}
             </p>
 
-            <div class="mt-7 flex flex-wrap items-center gap-3">
-              <a href="/app" class="v2-btn v2-btn--primary v2-btn--lg">
+            <div class="mt-8 flex flex-wrap items-center gap-4">
+              <a href="/app" class="v2-btn v2-btn--primary v2-btn--lg" style="box-shadow: 0 8px 16px color-mix(in srgb, var(--v2-accent) 40%, transparent);">
                 {{ t('landing.startLogging') }}
               </a>
-              <a href="/calculator" class="v2-btn v2-btn--secondary">
+              <a href="/calculator" class="v2-btn v2-btn--ghost" style="color: var(--v2-hero-text, #f3f1ec);">
                 {{ t('landing.tryCalculator') }}
               </a>
-              <a href="#pricing" class="v2-btn v2-btn--ghost">{{ t('landing.seePricing') }}</a>
             </div>
 
             @if (socialProofCount(); as n) {
-              <p class="v2-caption mt-4" role="note">
-                {{ t('landing.socialProof', { n }) }}
-              </p>
+              <div class="mt-8 flex items-center gap-3" style="color: var(--v2-hero-muted, #a39c91);">
+                <div class="flex -space-x-2">
+                  <div class="w-8 h-8 rounded-full bg-gray-600 border-2" style="border-color: var(--v2-hero-panel, #161412);"></div>
+                  <div class="w-8 h-8 rounded-full bg-gray-500 border-2" style="border-color: var(--v2-hero-panel, #161412);"></div>
+                  <div class="w-8 h-8 rounded-full bg-gray-400 border-2 flex items-center justify-center text-[10px] font-bold text-white" style="border-color: var(--v2-hero-panel, #161412);">+</div>
+                </div>
+                <p class="v2-caption" role="note" style="font-size: 0.875rem;">
+                  {{ t('landing.socialProof', { n }) }}
+                </p>
+              </div>
             }
           </div>
 
-          <div>
+          <div class="relative flex justify-center">
+            <div class="absolute inset-0 bg-gradient-to-tr from-[var(--v2-accent)] to-[var(--v2-teal)] opacity-20 blur-3xl rounded-full" style="transform: scale(0.8);"></div>
             <img src="/hero-mockup.svg"
               alt="{{ t('landing.heroMockupAlt') }}"
-              width="720" height="720"
+              width="600" height="600"
               loading="eager"
               decoding="async"
               fetchpriority="high"
-              class="w-full h-auto max-w-lg mx-auto lg:max-w-none" />
+              class="relative z-10 w-full h-auto max-w-lg mx-auto drop-shadow-2xl hover:scale-105 transition-transform duration-700 ease-out" />
           </div>
         </div>
       </section>
 
       <!-- ── 2. Product proof — three capture paths + TDEE + AI ──── -->
-      <section>
-        <h2 class="v2-h2 mb-6" style="text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.875rem; color: var(--v2-ink-muted);">
-          {{ t('landing.whatItDoesRule') }}
-        </h2>
-        <div class="grid gap-4 sm:grid-cols-3">
-          <ui-card variant="default" class="block">
-            <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--v2-accent); font-weight: 600;">
-              {{ t('landing.proofCaptureStamp') }}
-            </p>
-            <h3 class="v2-h3 mt-2">{{ t('landing.proofCaptureTitle') }}</h3>
-            <p class="v2-body-soft mt-2">{{ t('landing.proofCaptureBody') }}</p>
-          </ui-card>
-          <ui-card variant="default" class="block">
-            <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--v2-accent); font-weight: 600;">
-              {{ t('landing.proofTdeeStamp') }}
-            </p>
-            <h3 class="v2-h3 mt-2">{{ t('landing.proofTdeeTitle') }}</h3>
-            <p class="v2-body-soft mt-2">{{ t('landing.proofTdeeBody') }}</p>
-          </ui-card>
-          <ui-card variant="default" class="block">
-            <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--v2-accent); font-weight: 600;">
-              {{ t('landing.proofCoachStamp') }}
-            </p>
-            <h3 class="v2-h3 mt-2">{{ t('landing.proofCoachTitle') }}</h3>
-            <p class="v2-body-soft mt-2">{{ t('landing.proofCoachBody') }}</p>
-          </ui-card>
+      <section class="max-w-5xl mx-auto pt-8">
+        <div class="text-center mb-12">
+          <div class="section-badge">{{ t('landing.whatItDoesRule') }}</div>
+          <h2 class="v2-display" style="font-size: clamp(2rem, 4vw, 3rem); line-height: 1.1;">Powerful, simple tracking.</h2>
+        </div>
+        <div class="grid gap-6 sm:grid-cols-3">
+          <div class="glass-card flex flex-col justify-between">
+            <div>
+              <div class="w-12 h-12 rounded-full mb-4 flex items-center justify-center" style="background: var(--v2-accent-soft); color: var(--v2-accent);">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path></svg>
+              </div>
+              <h3 class="v2-h3">{{ t('landing.proofCaptureTitle') }}</h3>
+              <p class="v2-body-soft mt-3">{{ t('landing.proofCaptureBody') }}</p>
+            </div>
+            <p class="v2-caption mt-6 font-mono" style="color: var(--v2-accent);">{{ t('landing.proofCaptureStamp') }}</p>
+          </div>
+          <div class="glass-card flex flex-col justify-between" style="border-top-color: var(--v2-sage); box-shadow: 0 -2px 10px var(--v2-sage-soft);">
+            <div>
+              <div class="w-12 h-12 rounded-full mb-4 flex items-center justify-center" style="background: var(--v2-sage-soft); color: var(--v2-sage);">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+              </div>
+              <h3 class="v2-h3">{{ t('landing.proofTdeeTitle') }}</h3>
+              <p class="v2-body-soft mt-3">{{ t('landing.proofTdeeBody') }}</p>
+            </div>
+            <p class="v2-caption mt-6 font-mono" style="color: var(--v2-sage);">{{ t('landing.proofTdeeStamp') }}</p>
+          </div>
+          <div class="glass-card flex flex-col justify-between">
+            <div>
+              <div class="w-12 h-12 rounded-full mb-4 flex items-center justify-center" style="background: var(--v2-paper-3); color: var(--v2-ink);">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              </div>
+              <h3 class="v2-h3">{{ t('landing.proofCoachTitle') }}</h3>
+              <p class="v2-body-soft mt-3">{{ t('landing.proofCoachBody') }}</p>
+            </div>
+            <p class="v2-caption mt-6 font-mono" style="color: var(--v2-ink-muted);">{{ t('landing.proofCoachStamp') }}</p>
+          </div>
         </div>
       </section>
 
       <!-- ── 3. Privacy pledge ───────────────────────────────────── -->
-      <section>
-        <ui-card variant="flat" class="block">
-          <p class="v2-caption mb-2" style="text-transform: uppercase; letter-spacing: 0.08em;">
-            {{ t('landing.privacyLabel') }}
-          </p>
-          <h2 class="v2-h2">
-            {{ t('landing.privacyLead') }}
-            <span style="color: var(--v2-accent);">{{ t('landing.privacyEm') }}</span>
-          </h2>
-          <p class="v2-body-soft mt-4 max-w-2xl">{{ t('landing.privacyBody') }}</p>
-          <p class="v2-caption mt-4">
-            <a href="/privacy" style="text-decoration: underline; text-decoration-style: dotted;">{{ t('landing.privacyLink') }}</a>
-            &nbsp;·&nbsp;
-            <a href="/terms" style="text-decoration: underline; text-decoration-style: dotted;">{{ t('landing.termsLink') }}</a>
-          </p>
-        </ui-card>
+      <section class="max-w-3xl mx-auto text-center py-12">
+        <div class="section-badge" style="background: transparent; border: 1px solid var(--v2-rule);">{{ t('landing.privacyLabel') }}</div>
+        <h2 class="v2-display mt-4 mb-6">
+          {{ t('landing.privacyLead') }}
+          <span style="color: var(--v2-accent);">{{ t('landing.privacyEm') }}</span>
+        </h2>
+        <p class="v2-body-soft text-lg max-w-2xl mx-auto">{{ t('landing.privacyBody') }}</p>
+        <p class="v2-caption mt-6">
+          <a href="/privacy" class="v2-link">{{ t('landing.privacyLink') }}</a>
+          &nbsp;·&nbsp;
+          <a href="/terms" class="v2-link">{{ t('landing.termsLink') }}</a>
+        </p>
       </section>
 
-      <!-- ── 3.5 Quick targets — internal links into the programmatic
-              SEO grid. Doubles as a crawl-graph signal (Google ranks
-              pages other pages link to) and a low-friction "see what
-              this app's numbers look like" demo for the visitor. -->
-      <section>
-        <h2 class="v2-h2 mb-3" style="text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.875rem; color: var(--v2-ink-muted);">
-          {{ t('landing.quickTargetsRule') }}
-        </h2>
-        <p class="v2-body-soft mb-4 max-w-2xl">{{ t('landing.quickTargetsLead') }}</p>
-        <div class="grid gap-2 sm:grid-cols-3">
-          <a href="/macros/lose/150-lb"     class="v2-card block" style="text-decoration: none;"><span class="v2-body" style="font-weight: 500;">{{ t('landing.qtLose150') }}</span><br/><span class="v2-caption">{{ t('landing.qtLose') }}</span></a>
-          <a href="/macros/lose/180-lb"     class="v2-card block" style="text-decoration: none;"><span class="v2-body" style="font-weight: 500;">{{ t('landing.qtLose180') }}</span><br/><span class="v2-caption">{{ t('landing.qtLose') }}</span></a>
-          <a href="/macros/lose/220-lb"     class="v2-card block" style="text-decoration: none;"><span class="v2-body" style="font-weight: 500;">{{ t('landing.qtLose220') }}</span><br/><span class="v2-caption">{{ t('landing.qtLose') }}</span></a>
-          <a href="/macros/maintain/150-lb" class="v2-card block" style="text-decoration: none;"><span class="v2-body" style="font-weight: 500;">{{ t('landing.qtMaintain150') }}</span><br/><span class="v2-caption">{{ t('landing.qtMaintain') }}</span></a>
-          <a href="/macros/maintain/180-lb" class="v2-card block" style="text-decoration: none;"><span class="v2-body" style="font-weight: 500;">{{ t('landing.qtMaintain180') }}</span><br/><span class="v2-caption">{{ t('landing.qtMaintain') }}</span></a>
-          <a href="/macros/gain/170-lb"     class="v2-card block" style="text-decoration: none;"><span class="v2-body" style="font-weight: 500;">{{ t('landing.qtGain170') }}</span><br/><span class="v2-caption">{{ t('landing.qtGain') }}</span></a>
+      <!-- ── 3.5 Quick targets ──────────────────────────────────── -->
+      <section class="max-w-5xl mx-auto">
+        <div class="flex items-end justify-between mb-6">
+          <div>
+            <h2 class="v2-h2">{{ t('landing.quickTargetsRule') }}</h2>
+            <p class="v2-body-soft mt-1">{{ t('landing.quickTargetsLead') }}</p>
+          </div>
+          <a href="/calculator" class="v2-link hidden sm:inline-flex">{{ t('landing.qtAllWeights') }}</a>
         </div>
-        <p class="v2-caption mt-3">
-          <a href="/calculator" style="text-decoration: underline; text-decoration-style: dotted;">{{ t('landing.qtAllWeights') }}</a>
-        </p>
+        <div class="grid gap-4 grid-cols-2 md:grid-cols-3">
+          <a href="/macros/lose/150-lb"     class="v2-card hover-link-card"><span class="v2-body" style="font-weight: 600;">{{ t('landing.qtLose150') }}</span><br/><span class="v2-caption">{{ t('landing.qtLose') }}</span></a>
+          <a href="/macros/lose/180-lb"     class="v2-card hover-link-card"><span class="v2-body" style="font-weight: 600;">{{ t('landing.qtLose180') }}</span><br/><span class="v2-caption">{{ t('landing.qtLose') }}</span></a>
+          <a href="/macros/lose/220-lb"     class="v2-card hover-link-card"><span class="v2-body" style="font-weight: 600;">{{ t('landing.qtLose220') }}</span><br/><span class="v2-caption">{{ t('landing.qtLose') }}</span></a>
+          <a href="/macros/maintain/150-lb" class="v2-card hover-link-card"><span class="v2-body" style="font-weight: 600;">{{ t('landing.qtMaintain150') }}</span><br/><span class="v2-caption">{{ t('landing.qtMaintain') }}</span></a>
+          <a href="/macros/maintain/180-lb" class="v2-card hover-link-card"><span class="v2-body" style="font-weight: 600;">{{ t('landing.qtMaintain180') }}</span><br/><span class="v2-caption">{{ t('landing.qtMaintain') }}</span></a>
+          <a href="/macros/gain/170-lb"     class="v2-card hover-link-card"><span class="v2-body" style="font-weight: 600;">{{ t('landing.qtGain170') }}</span><br/><span class="v2-caption">{{ t('landing.qtGain') }}</span></a>
+        </div>
       </section>
 
       <!-- ── 4. Pricing ───────────────────────────────────────────── -->
-      <section id="pricing">
-        <h2 class="v2-h2 mb-6" style="text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.875rem; color: var(--v2-ink-muted);">
-          {{ t('landing.pricingRule') }}
-        </h2>
-        <div class="grid gap-4 sm:grid-cols-2">
-          <ui-card variant="default" class="block flex-col" style="display: flex;">
-            <div class="flex items-baseline justify-between gap-3">
-              <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;">
-                {{ t('landing.freeStamp') }}
-              </p>
-              <span class="v2-num" style="font-size: 2rem; font-weight: 600;">{{ t('landing.freePrice') }}</span>
+      <section id="pricing" class="max-w-5xl mx-auto pt-8">
+        <div class="text-center mb-10">
+          <h2 class="v2-display">Simple, transparent pricing.</h2>
+        </div>
+        <div class="grid gap-6 md:grid-cols-2 items-stretch max-w-4xl mx-auto">
+          <!-- Free Tier -->
+          <div class="glass-card flex flex-col p-8 relative overflow-hidden" style="border-radius: var(--v2-radius-xl);">
+            <div class="flex items-baseline justify-between mb-4">
+              <h3 class="v2-h2">{{ t('landing.freeStamp') }}</h3>
+              <span class="v2-num" style="font-size: 2.5rem; font-weight: 800;">{{ t('landing.freePrice') }}</span>
             </div>
-            <p class="v2-body-soft mt-3">{{ t('landing.freeBody') }}</p>
-            <ul class="v2-body-soft mt-3 flex-1" style="font-size: 0.875rem; padding-left: 1.25rem; list-style: disc; line-height: 1.7;">
-              <li>{{ t('landing.freeF1') }}</li>
-              <li>{{ t('landing.freeF2') }}</li>
-              <li>{{ t('landing.freeF3') }}</li>
-              <li>{{ t('landing.freeF4') }}</li>
+            <p class="v2-body-soft mb-6">{{ t('landing.freeBody') }}</p>
+            <ul class="space-y-3 mb-8 flex-1">
+              <li class="flex items-start gap-2 text-sm"><span style="color: var(--v2-sage);">✓</span> {{ t('landing.freeF1') }}</li>
+              <li class="flex items-start gap-2 text-sm"><span style="color: var(--v2-sage);">✓</span> {{ t('landing.freeF2') }}</li>
+              <li class="flex items-start gap-2 text-sm"><span style="color: var(--v2-sage);">✓</span> {{ t('landing.freeF3') }}</li>
+              <li class="flex items-start gap-2 text-sm"><span style="color: var(--v2-sage);">✓</span> {{ t('landing.freeF4') }}</li>
             </ul>
-            <a href="/app" class="v2-btn v2-btn--secondary v2-btn--block mt-4" style="justify-content: center;">
+            <a href="/app" class="v2-btn v2-btn--secondary v2-btn--block v2-btn--lg w-full">
               {{ t('landing.freeCta') }}
             </a>
-          </ui-card>
-          <ui-card variant="accent" class="block flex-col" style="display: flex;">
-            <div class="flex items-baseline justify-between gap-3">
-              <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--v2-accent); font-weight: 600;">
-                {{ t('landing.proStamp') }}
-              </p>
+          </div>
+          <!-- Pro Tier -->
+          <div class="glass-card flex flex-col p-8 relative overflow-hidden" style="background: var(--v2-accent-soft); border-color: color-mix(in srgb, var(--v2-accent) 40%, transparent); box-shadow: 0 12px 32px color-mix(in srgb, var(--v2-accent) 15%, transparent); border-radius: var(--v2-radius-xl); transform: scale(1.02); z-index: 10;">
+            <div class="absolute top-0 right-0 p-4">
+              <div class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider" style="background: var(--v2-accent); color: white;">
+                {{ t('landing.proTrialBadge') }}
+              </div>
+            </div>
+            <div class="flex items-baseline justify-between mb-4 mt-2">
+              <h3 class="v2-h2" style="color: var(--v2-accent);">{{ t('landing.proStamp') }}</h3>
               <div class="text-right">
-                <div>
+                <div class="flex items-center gap-2 justify-end">
                   @if (subs.displayPriceAnnualAnchor) {
-                    <s class="v2-num" style="font-size: 1.125rem; opacity: 0.5; margin-right: 4px;" aria-hidden="true">
-                      {{ subs.displayPriceAnnualAnchor }}
-                    </s>
+                    <s class="v2-num text-lg opacity-50">{{ subs.displayPriceAnnualAnchor }}</s>
                   }
-                  <span class="v2-num" style="font-size: 2rem; font-weight: 600; color: var(--v2-accent);">
+                  <span class="v2-num" style="font-size: 2.5rem; font-weight: 800; color: var(--v2-accent);">
                     {{ subs.displayPriceAnnual }}
                   </span>
                 </div>
-                <div class="v2-caption mt-1">
-                  {{ t('landing.orMonthly', { price: subs.displayPriceMonthly }) }}
-                </div>
+                <div class="v2-caption mt-1 font-medium">{{ t('landing.orMonthly', { price: subs.displayPriceMonthly }) }}</div>
               </div>
             </div>
-            <div class="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1"
-                 style="border: 1px solid var(--v2-accent); background: var(--v2-accent-soft); border-radius: 999px; align-self: flex-start;">
-              <span class="v2-num" style="font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--v2-accent); font-weight: 600;">
-                {{ t('landing.proTrialBadge') }}
-              </span>
-            </div>
-            <p class="v2-body-soft mt-3">{{ t('landing.proBody') }}</p>
-            <ul class="v2-body-soft mt-3 flex-1" style="font-size: 0.875rem; padding-left: 1.25rem; list-style: disc; line-height: 1.7;">
-              <li>{{ t('landing.proF1') }}</li>
-              <li>{{ t('landing.proF2') }}</li>
-              <li>{{ t('landing.proF3') }}</li>
-              <li>{{ t('landing.proF4') }}</li>
-              <li>{{ t('landing.proF5') }}</li>
+            <p class="v2-body-soft mb-6">{{ t('landing.proBody') }}</p>
+            <ul class="space-y-3 mb-8 flex-1">
+              <li class="flex items-start gap-2 text-sm"><span style="color: var(--v2-accent);">✦</span> {{ t('landing.proF1') }}</li>
+              <li class="flex items-start gap-2 text-sm"><span style="color: var(--v2-accent);">✦</span> {{ t('landing.proF2') }}</li>
+              <li class="flex items-start gap-2 text-sm"><span style="color: var(--v2-accent);">✦</span> {{ t('landing.proF3') }}</li>
+              <li class="flex items-start gap-2 text-sm"><span style="color: var(--v2-accent);">✦</span> {{ t('landing.proF4') }}</li>
+              <li class="flex items-start gap-2 text-sm"><span style="color: var(--v2-accent);">✦</span> {{ t('landing.proF5') }}</li>
             </ul>
-            <a href="/app?intent=pro" class="v2-btn v2-btn--primary v2-btn--block mt-4" style="justify-content: center;">
+            <a href="/app?intent=pro" class="v2-btn v2-btn--primary v2-btn--block v2-btn--lg w-full">
               {{ t('landing.proCta') }}
             </a>
-          </ui-card>
+          </div>
         </div>
-        <p class="v2-caption mt-4">{{ t('landing.pricingFinePrint') }}</p>
+        <p class="v2-caption text-center mt-6">{{ t('landing.pricingFinePrint') }}</p>
       </section>
 
       <!-- ── 5. Comparisons + FAQ footer ─────────────────────────── -->
-      <footer class="mt-16 pt-8" style="border-top: 1px solid var(--v2-rule);">
-        <h2 class="v2-h2 mb-3" style="text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.875rem; color: var(--v2-ink-muted);">
-          {{ t('landing.comparisonsRule') }}
-        </h2>
-        <p class="v2-body-soft mb-3 max-w-2xl">{{ t('landing.comparisonsLead') }}</p>
-        <div class="flex flex-wrap gap-2">
-          <a href="/vs/myfitnesspal" class="v2-link" style="padding: 6px 10px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); text-decoration: none;">vs MyFitnessPal</a>
-          <a href="/vs/loseit" class="v2-link" style="padding: 6px 10px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); text-decoration: none;">vs Lose It!</a>
-          <a href="/vs/macrofactor" class="v2-link" style="padding: 6px 10px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); text-decoration: none;">vs MacroFactor</a>
-          <a href="/vs/cronometer" class="v2-link" style="padding: 6px 10px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); text-decoration: none;">vs Cronometer</a>
-          <a href="/vs/calai" class="v2-link" style="padding: 6px 10px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-sm); text-decoration: none;">vs Cal AI</a>
+      <footer class="mt-16 pt-12 max-w-5xl mx-auto flex flex-col md:flex-row justify-between gap-8 border-t" style="border-color: var(--v2-rule);">
+        <div>
+          <h2 class="v2-h3 mb-3">{{ t('landing.comparisonsRule') }}</h2>
+          <div class="flex flex-wrap gap-2 mt-4">
+            <a href="/vs/myfitnesspal" class="v2-link" style="padding: 6px 12px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-full); text-decoration: none; font-size: 0.875rem;">vs MyFitnessPal</a>
+            <a href="/vs/loseit" class="v2-link" style="padding: 6px 12px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-full); text-decoration: none; font-size: 0.875rem;">vs Lose It!</a>
+            <a href="/vs/macrofactor" class="v2-link" style="padding: 6px 12px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-full); text-decoration: none; font-size: 0.875rem;">vs MacroFactor</a>
+            <a href="/vs/cronometer" class="v2-link" style="padding: 6px 12px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-full); text-decoration: none; font-size: 0.875rem;">vs Cronometer</a>
+            <a href="/vs/calai" class="v2-link" style="padding: 6px 12px; border: 1px solid var(--v2-rule); border-radius: var(--v2-radius-full); text-decoration: none; font-size: 0.875rem;">vs Cal AI</a>
+          </div>
         </div>
-        <p class="v2-caption mt-5">
-          <a href="/faq" class="v2-link">{{ t('landing.faqLink') }}</a>
-        </p>
+        <div class="md:text-right flex flex-col md:items-end justify-center">
+          <a href="/faq" class="v2-link font-medium text-lg">{{ t('landing.faqLink') }}</a>
+          <p class="v2-caption mt-2">&copy; {{ _getYear() }} Macronaut</p>
+        </div>
       </footer>
-
     </article>
     </ng-container>
   `,
@@ -258,5 +319,9 @@ export class LandingComponent {
         this.socialProofCount.set(Math.floor(total / 10) * 10);
       }
     } catch { /* non-critical; landing renders fine without it */ }
+  }
+
+  protected _getYear(): number {
+    return new Date().getFullYear();
   }
 }

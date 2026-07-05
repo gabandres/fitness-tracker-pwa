@@ -1,6 +1,6 @@
 # Monitoring setup
 
-One-time operator task to wire Cloud Monitoring alerts for Macro Log. The app
+One-time operator task to wire Cloud Monitoring alerts for Macronaut. The app
 surfaces `/status` for user-facing health; these alerts page the operator when
 something invisible to users breaks (scheduler dead, function errors spiking,
 Gemini quota being burned).
@@ -13,7 +13,7 @@ Gemini quota being burned).
 
 ```sh
 gcloud beta monitoring channels create \
-  --display-name="Macro Log oncall" \
+  --display-name="Macronaut oncall" \
   --type=email \
   --channel-labels=email_address=ppesoftware@gmail.com \
   --project=fitness-tracker-gb-1775407101

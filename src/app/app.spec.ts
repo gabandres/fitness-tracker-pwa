@@ -189,7 +189,7 @@ describe('App', () => {
   // the translation JSON at setup time or switch these to a Playwright
   // smoke test. The "should create the app" case still exercises DI and
   // catches the regressions we care about.
-  it.skip('should render the Macro Log heading', async () => {
+  it.skip('should render the Macronaut heading', async () => {
     window.history.replaceState({}, '', '/app');
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();

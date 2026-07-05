@@ -13,7 +13,7 @@ export const resendApiKey: ReturnType<typeof defineSecret> = defineSecret("RESEN
 // verified domain address at that point — Resend will reject sends from
 // an unverified domain, so an accidental flip without domain verification
 // fails loud rather than silently landing in spam.
-const FROM_FALLBACK = "Macro Log <onboarding@resend.dev>";
+const FROM_FALLBACK = "Macronaut <onboarding@resend.dev>";
 const FROM_ENV = process.env.MACROLOG_EMAIL_FROM;
 export const FROM_EMAIL = FROM_ENV && FROM_ENV.length > 0 ? FROM_ENV : FROM_FALLBACK;
 export const REPLY_TO = "gabrielandresbermudez@gmail.com";

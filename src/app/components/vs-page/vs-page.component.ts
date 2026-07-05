@@ -15,7 +15,7 @@ import { VS_PROFILES, VsProfile, vsProfileFor } from './vs-data';
 
 /**
  * Comparison landing at /vs/<slug>. Targets comparison-intent search
- * traffic ("Macro Log vs MyFitnessPal", "MFP alternatives", etc.) —
+ * traffic ("Macronaut vs MyFitnessPal", "MFP alternatives", etc.) —
  * the highest-converting top-of-funnel category for SaaS because the
  * visitor has already decided they want a tool and is shopping. Pages
  * are intentionally honest — Google's helpful-content signals down-
@@ -55,7 +55,7 @@ import { VS_PROFILES, VsProfile, vsProfileFor } from './vs-data';
             <thead>
               <tr style="border-bottom: 1px solid var(--v2-rule);">
                 <th class="v2-caption" style="text-align: left; padding: 8px 12px; font-weight: 600;">{{ t('vs.colFeature') }}</th>
-                <th class="v2-caption" style="text-align: left; padding: 8px 12px; font-weight: 600;">Macro Log</th>
+                <th class="v2-caption" style="text-align: left; padding: 8px 12px; font-weight: 600;">Macronaut</th>
                 <th class="v2-caption" style="text-align: left; padding: 8px 12px; font-weight: 600;">{{ p.name }}</th>
               </tr>
             </thead>

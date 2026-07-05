@@ -1,4 +1,4 @@
-# Macro Log — Positioning & Store / Paywall Copy
+# Macronaut — Positioning & Store / Paywall Copy
 
 Working draft for App Store + Google Play listings and the in-app paywall.
 Grounded in the *actual* feature set (adaptive TDEE, AI photo logging,
@@ -14,11 +14,11 @@ bilingual en/es-PR). Don't ship claims the build can't back.
 
 **Positioning statement**
 > For lifters and macro-counters who are tired of static calorie goals and
-> apps that ignore the gym, Macro Log is a nutrition + training tracker that
+> apps that ignore the gym, Macronaut is a nutrition + training tracker that
 > learns your real metabolism from your weight trend and adjusts your targets
 > automatically — while logging your workouts, progression, and macros in one
 > place. Unlike MyFitnessPal (static goals, no training) or MacroFactor
-> (no workout logging), Macro Log does both, with photo and barcode logging
+> (no workout logging), Macronaut does both, with photo and barcode logging
 > and a calm, fast interface.
 
 **The wedge (don't fight MyFitnessPal head-on)**
@@ -44,13 +44,13 @@ bilingual en/es-PR). Don't ship claims the build can't back.
 ## 2. App Store (iOS) listing
 
 **App name (30 char max)**
-`Macro Log: Calories & Lifts`
+`Macronaut: Calories & Lifts`
 
 **Subtitle (30 char max)**
 `Adaptive macros + workouts`
 
 **Promotional text (170 char, updatable anytime)**
-> Your calorie target shouldn't be a guess. Macro Log learns your real
+> Your calorie target shouldn't be a guess. Macronaut learns your real
 > metabolism from your weight trend and adjusts automatically — and logs your
 > lifts too.
 
@@ -59,11 +59,11 @@ bilingual en/es-PR). Don't ship claims the build can't back.
 
 **Description**
 ```
-Macro Log is the calorie + macro tracker that adapts to your body — and
+Macronaut is the calorie + macro tracker that adapts to your body — and
 tracks your training in the same app.
 
 WHY IT'S DIFFERENT
-Most apps hand you a fixed calorie number and never change it. Macro Log
+Most apps hand you a fixed calorie number and never change it. Macronaut
 learns your real maintenance calories from your weight trend and adjusts
 your targets each week, so progress doesn't stall. And unlike other macro
 apps, it has a proper strength-training log built in.
@@ -104,7 +104,7 @@ unlimited history.
 ## 3. Google Play listing
 
 **Title (30 char)**
-`Macro Log: Calorie & Lift Log`
+`Macronaut: Calorie & Lift Log`
 
 **Short description (80 char)**
 `Adaptive calorie & macro tracker with AI photo logging and a workout log.`

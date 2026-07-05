@@ -1,52 +1,52 @@
 {
   "common": {
-    "appTitle": "Macro Log"
+    "appTitle": "Macronaut"
   },
   "calcVariants": {
     "tdeeWomen": {
-      "title": "TDEE Calculator for Women · Macro Log",
+      "title": "TDEE Calculator for Women · Macronaut",
       "eyebrow": "tdee · women",
       "heading": "tdee calculator for women",
       "body": "Estimate your daily calorie burn (TDEE) and macro targets. Tuned for the same Mifflin-St Jeor formula doctors and dietitians use, with sensible protein defaults for women cutting, bulking, or maintaining."
     },
     "tdeeMen": {
-      "title": "TDEE Calculator for Men · Macro Log",
+      "title": "TDEE Calculator for Men · Macronaut",
       "eyebrow": "tdee · men",
       "heading": "tdee calculator for men",
       "body": "Estimate your daily calorie burn (TDEE) and macro targets. Same Mifflin-St Jeor formula clinicians use, with protein defaults tuned for men cutting, bulking, or holding lean mass."
     },
     "cutting": {
-      "title": "Cutting Calculator · Calorie Deficit & Protein · Macro Log",
+      "title": "Cutting Calculator · Calorie Deficit & Protein · Macronaut",
       "eyebrow": "cut · deficit",
       "heading": "cutting calculator",
       "body": "Calorie deficit + high protein for fat loss while preserving muscle. Targets ~11 kcal/lb and 1g/lb protein — the same defaults strength coaches recommend for sustainable cutting phases."
     },
     "bulking": {
-      "title": "Bulking Calculator · Lean Surplus · Macro Log",
+      "title": "Bulking Calculator · Lean Surplus · Macronaut",
       "eyebrow": "bulk · surplus",
       "heading": "bulking calculator",
       "body": "Lean surplus targets for clean muscle growth: ~17 kcal/lb and 0.8g/lb protein. Aggressive enough to build, conservative enough to keep fat gain in check."
     },
     "maintenance": {
-      "title": "Maintenance Calorie Calculator · Macro Log",
+      "title": "Maintenance Calorie Calculator · Macronaut",
       "eyebrow": "maintain",
       "heading": "maintenance calorie calculator",
       "body": "Find the calorie target that holds your current weight. Useful between cuts and bulks, or as a baseline before deciding which direction to go."
     },
     "keto": {
-      "title": "Keto Macro Calculator · Macro Log",
+      "title": "Keto Macro Calculator · Macronaut",
       "eyebrow": "keto · low carb",
       "heading": "keto macro calculator",
-      "body": "Keto-friendly calorie + protein targets. Macro Log doesn't track carbs by default — once you're in ketosis the lever that matters is calories in vs out, with adequate protein to keep muscle. Use this to set your baseline."
+      "body": "Keto-friendly calorie + protein targets. Macronaut doesn't track carbs by default — once you're in ketosis the lever that matters is calories in vs out, with adequate protein to keep muscle. Use this to set your baseline."
     },
     "weightLoss": {
-      "title": "Weight Loss Calculator · Macro Log",
+      "title": "Weight Loss Calculator · Macronaut",
       "eyebrow": "weight loss",
       "heading": "weight loss calculator",
       "body": "How many calories should you eat to lose weight? Enter your current weight and we'll estimate your daily kcal + protein target for sustainable fat loss — no crash diet, no zero-carb gimmick."
     },
     "protein": {
-      "title": "Protein Calculator · Daily g per Pound · Macro Log",
+      "title": "Protein Calculator · Daily g per Pound · Macronaut",
       "eyebrow": "protein",
       "heading": "protein calculator",
       "body": "How much protein do you need? The research-backed range is 0.7–1g per pound of bodyweight, depending on whether you're cutting, maintaining, or bulking. Enter your weight to see your target."
@@ -56,7 +56,7 @@
     "section": "transformations",
     "titleLead": "real users.",
     "titleEm": "real numbers.",
-    "subtitle": "Every card below is a real Macro Log user who chose to make their progress public. Click any to see their full transformation page.",
+    "subtitle": "Every card below is a real Macronaut user who chose to make their progress public. Click any to see their full transformation page.",
     "loading": "Loading…",
     "error": "Couldn't load transformations. Try again later.",
     "empty": "No public profiles yet — be the first.",
@@ -64,14 +64,14 @@
     "current": "Current",
     "ctaTitle": "Start your own log",
     "ctaBody": "Free calorie + protein tracker with built-in TDEE calculator.",
-    "ctaButton": "Try Macro Log"
+    "ctaButton": "Try Macronaut"
   },
   "publicProfile": {
     "section": "transformation",
     "loading": "Loading…",
     "notFoundTitle": "Profile not found",
     "notFoundBody": "This profile doesn't exist or has been made private.",
-    "notFoundCta": "Go to Macro Log",
+    "notFoundCta": "Go to Macronaut",
     "errorBody": "Couldn't load this profile. Try again later.",
     "start": "Start",
     "current": "Current",
@@ -79,7 +79,7 @@
     "weeksTracked": "{{n}} weeks tracked",
     "ctaTitle": "Start your own log",
     "ctaBody": "Free calorie + protein tracker with built-in TDEE calculator.",
-    "ctaButton": "Try Macro Log"
+    "ctaButton": "Try Macronaut"
   },
   "publicProfileSettings": {
     "title": "Public profile",
@@ -177,7 +177,7 @@
     "update": {
       "stamp": "new",
       "title": "Update Available",
-      "body": "A new version of Macro Log is ready. Reload to get the latest features and fixes.",
+      "body": "A new version of Macronaut is ready. Reload to get the latest features and fixes.",
       "reload": "reload now",
       "later": "later",
       "bannerText": "New version ready"
@@ -344,8 +344,8 @@
       "copy": "Copy link",
       "copied": "Copied!",
       "share": "Share",
-      "shareTitle": "Try Macro Log",
-      "shareText": "I'm using Macro Log for my macros — free calculator, simple daily logging. Try it:",
+      "shareTitle": "Try Macronaut",
+      "shareText": "I'm using Macronaut for my macros — free calculator, simple daily logging. Try it:",
       "rewardActive": "Pro is comped through {{date}} thanks to a referral."
     },
     "feedback": {
@@ -354,7 +354,7 @@
       "desc": "opens your mail app with your browser + page info auto-filled, so you don't have to explain the setup.",
       "send": "send email",
       "aria": "Send feedback email",
-      "emailSubject": "Macro Log — feedback",
+      "emailSubject": "Macronaut — feedback",
       "whatHappened": "What happened:",
       "expected": "Expected:"
     },
@@ -759,7 +759,7 @@
     "bodyIosMid": "button in safari, then",
     "bodyIosAdd": "Add to Home Screen",
     "installButton": "install",
-    "installButtonAria": "Install Macro Log as an app",
+    "installButtonAria": "Install Macronaut as an app",
     "dismissAria": "Dismiss install prompt",
     "dismissTitle": "Hide for 7 days"
   },
@@ -795,7 +795,7 @@
     "errorTooMany": "Too many attempts. Wait a moment and try again.",
     "errorWrongProvider": "This email is registered with a different sign-in method. Try Google instead.",
     "linkStamp": "link accounts",
-    "linkExplainer": "Sign in with the existing method — we'll attach your new sign-in option to the same Macro Log account, so both work going forward.",
+    "linkExplainer": "Sign in with the existing method — we'll attach your new sign-in option to the same Macronaut account, so both work going forward.",
     "linkWithGoogle": "sign in with google",
     "linkWithMicrosoft": "sign in with microsoft",
     "linkWithPassword": "sign in with password",
@@ -864,7 +864,7 @@
     "opening": "opening…",
     "manage": "manage",
     "manageAria": "Manage subscription in Stripe Customer Portal",
-    "pitchBody": "Macro Log is built by one person. If it's useful to you, subscribing keeps it running and pays for the AI coach.",
+    "pitchBody": "Macronaut is built by one person. If it's useful to you, subscribing keeps it running and pays for the AI coach.",
     "featureConsultations": "unlimited AI coach consultations",
     "featureProgressPhotos": "progress photos — private before/after gallery",
     "featurePhoto": "higher photo-to-macros quota",
@@ -1003,7 +1003,7 @@
     "titleLead": "Ship",
     "titleEm": "log.",
     "subtitle": "significant ships, newest first. for the full record see git log.",
-    "pageTitle": "Changelog — Macro Log",
+    "pageTitle": "Changelog — Macronaut",
     "loading": "loading…",
     "error": "couldn't load the changelog. please try again later."
   },
@@ -1014,7 +1014,7 @@
     "body": "this path isn't part of the ledger. it may have moved, or you may have mistyped the url.",
     "home": "back to macro log",
     "changelog": "recent ships",
-    "pageTitle": "Not found — Macro Log"
+    "pageTitle": "Not found — Macronaut"
   },
   "status": {
     "backLink": "← back to macro log",
@@ -1023,7 +1023,7 @@
     "titleLead": "System",
     "titleEm": "status.",
     "subtitle": "live health of macro log's backing services.",
-    "pageTitle": "Status — Macro Log",
+    "pageTitle": "Status — Macronaut",
     "changelogLink": "recent ships → /changelog",
     "fetchError": "couldn't reach firestore. the app itself may be degraded.",
     "lastPulse": "last pulse {{ago}}.",
@@ -1077,10 +1077,10 @@
     "section": "privacy",
     "titleLead": "Privacy",
     "titleEm": "policy.",
-    "pageTitle": "Privacy — Macro Log",
+    "pageTitle": "Privacy — Macronaut",
     "lastUpdated": "last updated 2026-04-12 · plain english, no dark patterns.",
     "storeHeading": "What we store",
-    "storeBody1": "When you sign in with Google, we store your email, display name, and profile photo URL — nothing else from your Google account. Everything else in Macro Log is stuff you enter yourself: weight, calories, protein, dates, body measurements, meal labels, training toggles, and custom meal presets.",
+    "storeBody1": "When you sign in with Google, we store your email, display name, and profile photo URL — nothing else from your Google account. Everything else in Macronaut is stuff you enter yourself: weight, calories, protein, dates, body measurements, meal labels, training toggles, and custom meal presets.",
     "storeBody2": "All of this is stored in Google Cloud Firestore, scoped to your user ID. No one else — including us — can read it without your Google login.",
     "geminiHeading": "What we send to Google's Gemini AI",
     "geminiIntro": "Two features send data to Google's Gemini AI:",
@@ -1109,9 +1109,9 @@
     "ccpaHeading": "Your rights under CCPA / CPRA",
     "ccpaBody": "If you live in California, the CCPA and CPRA apply. We do not sell or share your personal information with third parties for cross-context behavioural advertising, full stop. You have the right to know what personal data we hold, to request deletion, and to appeal any denial. Use the same export / delete controls above, or email us directly.",
     "jurisdictionHeading": "Data controller & jurisdiction",
-    "jurisdictionBody": "The data controller for Macro Log is the product owner. Preferred contact for data-subject requests is email: <a href=\"mailto:gabrielandresbermudez@gmail.com?subject=Data%20request\" class=\"underline decoration-dotted\">gabrielandresbermudez@gmail.com</a>. If you can't use email, open a public issue at <a href=\"https://github.com/gabandres/fitness-tracker-pwa/issues/new?labels=privacy&amp;title=Data+request\" class=\"underline decoration-dotted\" target=\"_blank\" rel=\"noopener\">our GitHub issue tracker</a> or use the in-app Settings → Feedback button. We respond within 30 days as required by GDPR. This policy and your use of Macro Log are governed by the laws of the operator's home jurisdiction (Puerto Rico, United States), without regard to conflict-of-law principles.",
+    "jurisdictionBody": "The data controller for Macronaut is the product owner. Preferred contact for data-subject requests is email: <a href=\"mailto:gabrielandresbermudez@gmail.com?subject=Data%20request\" class=\"underline decoration-dotted\">gabrielandresbermudez@gmail.com</a>. If you can't use email, open a public issue at <a href=\"https://github.com/gabandres/fitness-tracker-pwa/issues/new?labels=privacy&amp;title=Data+request\" class=\"underline decoration-dotted\" target=\"_blank\" rel=\"noopener\">our GitHub issue tracker</a> or use the in-app Settings → Feedback button. We respond within 30 days as required by GDPR. This policy and your use of Macronaut are governed by the laws of the operator's home jurisdiction (Puerto Rico, United States), without regard to conflict-of-law principles.",
     "medicalHeading": "Medical disclaimer",
-    "medicalBody": "Macro Log is not a medical device, and the AI coach is not a dietician. Nothing in the app is medical advice. If you're doing anything clinically meaningful — a cut below 1,500 kcal, weight loss of more than 1% body weight per week, or eating for a medical condition — talk to a real human doctor or RD first.",
+    "medicalBody": "Macronaut is not a medical device, and the AI coach is not a dietician. Nothing in the app is medical advice. If you're doing anything clinically meaningful — a cut below 1,500 kcal, weight loss of more than 1% body weight per week, or eating for a medical condition — talk to a real human doctor or RD first.",
     "dangerStamp": "danger",
     "dangerSection": "delete account",
     "signInFirst": "sign in first to delete your account.",
@@ -1134,22 +1134,22 @@
     "section": "terms of use",
     "titleLead": "Terms of",
     "titleEm": "use.",
-    "pageTitle": "Terms — Macro Log",
+    "pageTitle": "Terms — Macronaut",
     "lastUpdated": "last updated 2026-04-12 · short, because you shouldn't need a lawyer to read this.",
     "dealHeading": "The deal",
-    "dealBody": "Macro Log is a calorie, protein, and weight tracker with an AI coach. By signing in, you agree to use it as intended — a personal logging tool — and not to abuse it (scraping, reverse-engineering the webhook, attempting to access other users' data, etc).",
+    "dealBody": "Macronaut is a calorie, protein, and weight tracker with an AI coach. By signing in, you agree to use it as intended — a personal logging tool — and not to abuse it (scraping, reverse-engineering the webhook, attempting to access other users' data, etc).",
     "medHeading": "Not medical advice",
     "medBody": "The numbers this app shows (TDEE, target, envelope, coach replies) are estimates, not prescriptions. The AI coach is a language model trained on public text — treat it like a knowledgeable friend who could be wrong, not a doctor or dietitian. Talk to a real human professional before making significant dietary changes, especially if you have a medical condition, are pregnant, under 18, or recovering from an eating disorder.",
     "dataHeading": "Your account, your data",
     "dataBody": "You own your data. You can export it as CSV or delete your account at any time from the <a href='/privacy' class='underline'>privacy page</a>. We keep backups for up to 30 days as part of standard Google Cloud Firestore operations; these are not human-accessible and are auto-purged.",
     "availHeading": "Availability + changes",
-    "availBody": "Macro Log runs on Google Cloud. We do our best to keep it up, but don't guarantee uptime. We may change features, pricing, or these terms — when we do, the footer's \"last updated\" date will change and meaningful changes will be announced in-app.",
+    "availBody": "Macronaut runs on Google Cloud. We do our best to keep it up, but don't guarantee uptime. We may change features, pricing, or these terms — when we do, the footer's \"last updated\" date will change and meaningful changes will be announced in-app.",
     "liabilityHeading": "Liability",
-    "liabilityBody": "Macro Log is provided \"as is.\" We're not liable for decisions you make based on its output, for lost data, or for any indirect harm from using the app. To the maximum extent allowed by law, our total liability to you is capped at whatever you've paid us in the last 12 months (which for most users is zero).",
+    "liabilityBody": "Macronaut is provided \"as is.\" We're not liable for decisions you make based on its output, for lost data, or for any indirect harm from using the app. To the maximum extent allowed by law, our total liability to you is capped at whatever you've paid us in the last 12 months (which for most users is zero).",
     "subsHeading": "Subscriptions + auto-renewal",
     "subsBody": "Pro is offered monthly ($3/mo) or annual ($24/yr) via Stripe. A 7-day free trial comes with every first subscription. Plans <strong>auto-renew</strong> at the end of each billing cycle at the price shown on the subscribe card. You can cancel anytime from Settings → Subscription; cancellation takes effect at the end of the current paid period, and you keep Pro access until then. We email you a receipt for every renewal. If we change prices, we'll announce it in-app and honour your existing price through the current term.",
     "refundsHeading": "Refunds",
-    "refundsBody": "<strong>EU / UK / Switzerland:</strong> If you're a consumer in the EU, UK, or Switzerland, you have a 14-day statutory right of withdrawal from the date of your first subscription charge. To exercise it, email <a href='mailto:gabrielandresbermudez@gmail.com?subject=Refund%20request' class='underline'>gabrielandresbermudez&#64;gmail.com</a> within 14 days with the email address on your account — we'll issue a full refund, no questions asked.<br/><br/><strong>Everywhere else:</strong> We don't offer automatic refunds for partial billing periods, but if something feels wrong — a forgotten renewal you didn't intend, a feature that didn't work for you, a platform issue on our end — email us and we'll make it right. The 7-day free trial gives you a no-charge window to confirm Macro Log is for you before any money moves.<br/><br/><strong>Chargebacks:</strong> please email us before filing a chargeback; we can almost always resolve it faster than Stripe can.",
+    "refundsBody": "<strong>EU / UK / Switzerland:</strong> If you're a consumer in the EU, UK, or Switzerland, you have a 14-day statutory right of withdrawal from the date of your first subscription charge. To exercise it, email <a href='mailto:gabrielandresbermudez@gmail.com?subject=Refund%20request' class='underline'>gabrielandresbermudez&#64;gmail.com</a> within 14 days with the email address on your account — we'll issue a full refund, no questions asked.<br/><br/><strong>Everywhere else:</strong> We don't offer automatic refunds for partial billing periods, but if something feels wrong — a forgotten renewal you didn't intend, a feature that didn't work for you, a platform issue on our end — email us and we'll make it right. The 7-day free trial gives you a no-charge window to confirm Macronaut is for you before any money moves.<br/><br/><strong>Chargebacks:</strong> please email us before filing a chargeback; we can almost always resolve it faster than Stripe can.",
     "contactHeading": "Contact",
     "contactBody": "Email <a href='mailto:gabrielandresbermudez@gmail.com' class='underline'>gabrielandresbermudez&#64;gmail.com</a> with anything — bug reports, data-deletion requests, feature ideas, or complaints."
   },
@@ -1233,11 +1233,11 @@
       "pushPromptEnabling": "Enabling…",
       "pushPromptDismiss": "Not now",
       "pushPromptError": "Couldn't enable reminders. Try again from Settings.",
-      "iosInstallTitle": "Install Macro Log on your iPhone",
+      "iosInstallTitle": "Install Macronaut on your iPhone",
       "iosInstallBody": "Add it to your home screen for one-tap reminders, faster opens, and an offline-ready icon — no app store required.",
       "iosInstallStep1": "Tap the Share button at the bottom of Safari.",
       "iosInstallStep2": "Scroll and pick \"Add to Home Screen\".",
-      "iosInstallStep3": "Tap \"Add\" — Macro Log lives on your home screen.",
+      "iosInstallStep3": "Tap \"Add\" — Macronaut lives on your home screen.",
       "iosInstallDismiss": "Got it"
     },
     "trends": {
@@ -1573,7 +1573,7 @@
     }
   },
   "calculator": {
-    "pageTitle": "Macro calculator — calories + protein from your weight | Macro Log",
+    "pageTitle": "Macro calculator — calories + protein from your weight | Macronaut",
     "eyebrow": "Free macro calculator",
     "title": "Find your daily calories and protein.",
     "intro": "Enter your weight, pick your goal, get a target you can actually log against. No sign-up required.",
@@ -1599,10 +1599,10 @@
     "shareTitle": "My macro targets",
     "shareText": "{{kcal}} kcal · {{protein}} g protein/day. Calculate yours:",
     "howTitle": "How this is calculated",
-    "howBody": "Macro Log uses a simple bodyweight-based heuristic so you can act on a number today, before 14 days of real data:",
+    "howBody": "Macronaut uses a simple bodyweight-based heuristic so you can act on a number today, before 14 days of real data:",
     "howBullet1": "Calories: weight × 11 (lose), 14 (maintain), or 17 (gain).",
     "howBullet2": "Protein: weight × 1.0 g (lose), 0.9 g (maintain), or 0.8 g (gain) per pound.",
-    "howBullet3": "Once you log 14+ days, Macro Log switches to a measured TDEE based on your actual weight trend.",
+    "howBullet3": "Once you log 14+ days, Macronaut switches to a measured TDEE based on your actual weight trend.",
     "disclaimer": "Heuristic targets aren't medical advice. If you're treating a condition, talk to a registered dietitian.",
     "faqLink": "Got more questions? Read the FAQ →"
   },
@@ -1612,9 +1612,9 @@
     "proteinLabel": "Protein",
     "gramSuffix": " g",
     "title": {
-      "lose": "Macros to lose weight at {{weight}} lb | Macro Log",
-      "maintain": "Macros to maintain {{weight}} lb | Macro Log",
-      "gain": "Macros to gain weight at {{weight}} lb | Macro Log"
+      "lose": "Macros to lose weight at {{weight}} lb | Macronaut",
+      "maintain": "Macros to maintain {{weight}} lb | Macronaut",
+      "gain": "Macros to gain weight at {{weight}} lb | Macronaut"
     },
     "heading": {
       "lose": "Macros to lose weight at {{weight}} lb",
@@ -1649,13 +1649,13 @@
     "shareText": "{{kcal}} kcal · {{protein}} g protein/day:"
   },
   "vs": {
-    "pageTitle": "Macro Log vs {{name}} — honest comparison | Macro Log",
+    "pageTitle": "Macronaut vs {{name}} — honest comparison | Macronaut",
     "eyebrow": "Comparison",
-    "heading": "Macro Log vs {{name}}",
+    "heading": "Macronaut vs {{name}}",
     "honestTitle": "When the other tool is the right pick",
-    "tableTitle": "Feature-by-feature: Macro Log vs {{name}}",
+    "tableTitle": "Feature-by-feature: Macronaut vs {{name}}",
     "colFeature": "Feature",
-    "ctaTitle": "Try Macro Log free.",
+    "ctaTitle": "Try Macronaut free.",
     "ctaBody": "Get a daily target in 30 seconds. No card required.",
     "ctaCalculator": "Open the calculator",
     "ctaSignup": "Sign up free",
@@ -1663,10 +1663,10 @@
     "siblingLink": "vs {{name}}"
   },
   "faq": {
-    "pageTitle": "Macro & calorie FAQ — answers without the fluff | Macro Log",
+    "pageTitle": "Macro & calorie FAQ — answers without the fluff | Macronaut",
     "eyebrow": "Frequently asked",
     "title": "Macros, calories, and fat loss — straight answers.",
-    "intro": "Common questions from the people who actually use Macro Log. Short, practical, no clickbait.",
+    "intro": "Common questions from the people who actually use Macronaut. Short, practical, no clickbait.",
     "ctaTitle": "Want a target you can act on today?",
     "ctaBody": "Use the free calculator. No sign-up required.",
     "ctaButton": "Open the calculator",
@@ -1693,7 +1693,7 @@
       },
       {
         "q": "How accurate is a bodyweight-based calorie estimate?",
-        "a": "Within ~10-15% for the average person. Two people at 180 lb can have maintenance calories that differ by 300+ kcal because of activity level, lean mass, and metabolic adaptation. The calculator gets you started; once you've logged 14 days, Macro Log switches to a measured TDEE based on your actual weight trend, which is much more accurate."
+        "a": "Within ~10-15% for the average person. Two people at 180 lb can have maintenance calories that differ by 300+ kcal because of activity level, lean mass, and metabolic adaptation. The calculator gets you started; once you've logged 14 days, Macronaut switches to a measured TDEE based on your actual weight trend, which is much more accurate."
       },
       {
         "q": "Do I need to weigh my food to track macros?",
@@ -1708,7 +1708,7 @@
         "a": "Mostly no. Fitness trackers over-estimate burn by 20-50%, and eating back the inflated number erases your deficit. Pick a sustainable daily calorie target and treat exercise as separate — fuel performance, build the habit, but don't use it as a calorie debit card."
       },
       {
-        "q": "Why does Macro Log not track carbs and fat?",
+        "q": "Why does Macronaut not track carbs and fat?",
         "a": "Because for the audience we built it for — lifters, cutters, people doing recomp — kcal and protein are the two numbers that move the needle. Adding two more macros doubles the friction at log time and doesn't change outcomes for 95% of users. If you really want them, MyFitnessPal has them; we picked focus over features."
       },
       {
@@ -1723,15 +1723,26 @@
   },
   "today": {
     "shareCard": "Share progress card",
-    "shareWordmark": "Macro Log",
+    "shareWordmark": "Macronaut",
     "shareTagline": "macrolog.web.app · free macro & weight tracker",
-    "shareText": "My Macro Log progress 💪",
+    "shareText": "My Macronaut progress 💪",
     "shareLabelStreak": "Day streak",
     "shareLabelDays": "Days logged",
     "shareLabelLost": "Lost",
     "shareLabelGained": "Gained"
   },
   "train": {
+    "thisWeek": "This week",
+    "workoutUnit": "workout",
+    "workoutsUnit": "workouts",
+    "weekEmpty": "No workouts yet this week — start one below.",
+    "weekVolume": "Volume",
+    "topSet": "Top set",
+    "startWorkout": "Start workout",
+    "templates": "Templates",
+    "starters": "Starters",
+    "history": "History",
+    "editHint": "Tap to edit · hold to delete",
     "editTemplate": "Edit template",
     "newTemplate": "New",
     "name": "Name",

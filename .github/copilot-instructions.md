@@ -9,7 +9,7 @@
 
 ## Product summary
 
-- App name: **Macro Log** / **fitness-tracker-pwa**
+- App name: **Macronaut** / **fitness-tracker-pwa**
 - Type: Angular 21 single-page PWA for calorie, protein, weight, fasting, and body-measurement tracking.
 - Primary UX pattern: **log-first ledger on the left, analytics + coaching on the right** on desktop; single-column on mobile.
 - Core design language: warm cream paper, dark charcoal, oxblood accent, serif + mono editorial aesthetic ("Personal Calibration Log").

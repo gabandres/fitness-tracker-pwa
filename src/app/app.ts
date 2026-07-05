@@ -921,8 +921,8 @@ export class App {
       this.translation.setTitleKey(key);
       // /admin: static title when we're actually rendering the panel.
       // Mobile viewports fall through to the regular app, so they get
-      // the default Macro Log title instead of "Admin".
-      if (r === 'admin' && this.isDesktop()) document.title = 'Admin — Macro Log';
+      // the default Macronaut title instead of "Admin".
+      if (r === 'admin' && this.isDesktop()) document.title = 'Admin — Macronaut';
     });
 
     // Deep-link: /app?intent=pro (from landing Pro CTA) opens the

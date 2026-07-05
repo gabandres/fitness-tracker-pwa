@@ -1,4 +1,4 @@
-// Macro Log transactional email templates. Brand is editorial / "Personal
+// Macronaut transactional email templates. Brand is editorial / "Personal
 // Calibration Log" — warm cream paper, dark charcoal ink, oxblood accent,
 // Instrument Serif italic + JetBrains Mono. Email clients that strip CSS
 // fall back to plain serif on cream, which is still on-brand. Keep templates
@@ -95,13 +95,13 @@ export function welcomeEmail(params: WelcomeEmailParams): { subject: string; htm
 }
 
 function welcomeEmailEn(firstName: string | null): { subject: string; html: string } {
-  const subject = "Welcome to Macro Log.";
+  const subject = "Welcome to Macronaut.";
   const heading = "You're in.";
   const salutation = firstName ? `Hi <strong>${escapeHtml(firstName)}</strong>,` : "Hi there,";
 
   let body = paragraph(salutation);
   body += paragraph(
-    "Macro Log is a quiet, private calorie and protein log. No ads, no streaks that shame you, no red-and-green scoreboards — just a calm place to record what you eat so the math can help you.",
+    "Macronaut is a quiet, private calorie and protein log. No ads, no streaks that shame you, no red-and-green scoreboards — just a calm place to record what you eat so the math can help you.",
   );
   body += paragraph("A few things worth knowing your first week:");
   body += list([
@@ -150,7 +150,7 @@ function statRow(label: string, value: string): string {
 export function weeklyDigestEmail(params: WeeklyDigestParams): { subject: string; html: string } {
   const firstName = (params.displayName ?? "").split(" ")[0] || null;
   const isEs = params.locale === "es-PR";
-  const subject = isEs ? "Tu resumen semanal · Macro Log" : "Your weekly recap · Macro Log";
+  const subject = isEs ? "Tu resumen semanal · Macronaut" : "Your weekly recap · Macronaut";
   const heading = isEs ? "Tu semana." : "Your week.";
   const salutation = firstName
     ? (isEs ? `Hola <strong>${escapeHtml(firstName)}</strong>,` : `Hi <strong>${escapeHtml(firstName)}</strong>,`)
@@ -206,13 +206,13 @@ export function weeklyDigestEmail(params: WeeklyDigestParams): { subject: string
 }
 
 function welcomeEmailEs(firstName: string | null): { subject: string; html: string } {
-  const subject = "Bienvenido a Macro Log.";
+  const subject = "Bienvenido a Macronaut.";
   const heading = "Listo.";
   const salutation = firstName ? `Hola <strong>${escapeHtml(firstName)}</strong>,` : "Hola,";
 
   let body = paragraph(salutation);
   body += paragraph(
-    "Macro Log es una bitácora privada y silenciosa de calorías y proteína. Sin anuncios, sin rachas que te avergüencen, sin marcadores rojo-verde — solo un lugar tranquilo para anotar lo que comes, y dejar que las matemáticas te ayuden.",
+    "Macronaut es una bitácora privada y silenciosa de calorías y proteína. Sin anuncios, sin rachas que te avergüencen, sin marcadores rojo-verde — solo un lugar tranquilo para anotar lo que comes, y dejar que las matemáticas te ayuden.",
   );
   body += paragraph("Algunas cosas útiles para tu primera semana:");
   body += list([

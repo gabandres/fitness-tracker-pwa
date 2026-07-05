@@ -7,7 +7,7 @@ import { FitnessStore } from '../../services/fitness-store.service';
 /**
  * Cold-start helper. Rendered only when the user has zero logs.
  *
- * Users hitting Macro Log for the first time often don't know what to log
+ * Users hitting Macronaut for the first time often don't know what to log
  * — there's no food database, and the barcode scanner only helps with
  * packaged goods. This component puts ~18 common foods one tap away so
  * they can land their first meal in seconds, without the "what do I type?"

@@ -14,7 +14,7 @@ const messaging = firebase.messaging();
 
 // Background message handler — customizes the notification display.
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title ?? 'Macro Log';
+  const title = payload.notification?.title ?? 'Macronaut';
   const body = payload.notification?.body ?? "You haven't logged today yet.";
   const options = {
     body,

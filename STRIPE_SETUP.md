@@ -19,7 +19,7 @@ filled in at the bottom of this doc.
 ## Step 2 — Create the product + prices (3 min)
 
 1. Left sidebar → **Product catalog** → **+ Add product**.
-2. Name: `Macro Log Pro`
+2. Name: `Macronaut Pro`
 3. Description: `30/day photo & AI consultations, unlimited presets, full CSV history, all-time charts.`
 4. **Add two prices** (use "Add another price" to create both on the same product):
    - Monthly: `3.00 USD`, **Recurring**, Billing period: **Monthly**

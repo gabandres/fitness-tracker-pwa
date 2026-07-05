@@ -4,7 +4,7 @@
 
 ## Context
 
-Macro Log is a single-user productivity PWA — every document belongs to
+Macronaut is a single-user productivity PWA — every document belongs to
 one user, and there are no cross-user reads outside of opt-in public
 profiles and aggregate admin counters. Standing up a dedicated app
 server would mean operating an extra tier, paying for its idle capacity,
