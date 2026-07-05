@@ -22,3 +22,10 @@ export const WORKOUT_HISTORY_DAYS_FREE = 30;
 /** Consecutive missed days a Pro "streak freeze" forgives mid-streak. Free
  *  users break on any miss (gap 0). */
 export const STREAK_FREEZE_MAX_GAP_PRO = 7;
+
+/** Lifetime free AI meal-photo scans before the Pro paywall (ADR-0015). Not a
+ *  daily allowance — a one-time taste so the loop lands, then Pro unlocks
+ *  unlimited scans (bounded per-day server-side only as an abuse ceiling).
+ *  Manual/text/barcode logging stays free forever, so free users are never
+ *  locked out of the core tracker. */
+export const PHOTO_SCANS_FREE_LIFETIME = 5;

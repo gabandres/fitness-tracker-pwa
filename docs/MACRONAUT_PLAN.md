@@ -28,9 +28,12 @@ macros), **default Gemini, validate, escalate only on failure**; retention
 The split pipeline (ADR-0015 §1–2). Reuses USDA/`customFoods` (ADR-0013) and
 the `consultationStream` CF-proxy pattern.
 
-- [ ] **CF: `scanMeal`** — accepts an image, calls Gemini Flash for
-      **items + portions only**, returns `{items:[{name, grams, confidence}]}`.
-      Key stays server-side. Model prompt forbids emitting macros.
+- [x] **CF already exists: `analyzePhoto`** (functions/src/analyze-photo.ts,
+      live) — Gemini vision + chain-of-thought + PR-food priors + server photo
+      quota. **Reused as-is for the mobile port.** TODO (ADR-0015 itemization):
+      evolve its prompt/schema to return **items + portions** resolved via USDA
+      instead of one whole-meal total. The mobile client already normalizes to
+      an itemized `ScannedFoodItem[]`, so that CF change needs no client rework.
 - [ ] **USDA resolution** — map each returned item → USDA/`customFoods` macros
       (reuse the ADR-0013 resolver). Portion × per-100g = the numbers.
 - [ ] **Server quota** in the CF via `packages/core/tier-limits.ts`:

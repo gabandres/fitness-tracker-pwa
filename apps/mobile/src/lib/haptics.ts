@@ -11,3 +11,8 @@ export function success(): void {
   if (Platform.OS === 'web') return;
   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
 }
+
+export function warning(): void {
+  if (Platform.OS === 'web') return;
+  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+}

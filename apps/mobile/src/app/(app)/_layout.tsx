@@ -1,13 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { router, Tabs } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LogSpeedDial } from '@/components/LogSpeedDial';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, space } from '@/theme';
 
 /** The four tab destinations, in bar order. History is deliberately NOT here
  *  (ADR-0014): it's a lookup surface, reached from Today's calendar icon. */
@@ -63,22 +64,7 @@ function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, space.sm) }]}>
       {LEFT_TABS.map(tab)}
-      <View style={styles.logSlot}>
-        <PressScale
-          style={styles.logBtn}
-          scaleTo={0.88}
-          accessibilityRole="button"
-          accessibilityLabel="Add food"
-          testID="log-button"
-          onPress={() => {
-            haptics.tap();
-            // Nonce param so consecutive presses re-open the sheet.
-            router.navigate({ pathname: '/(app)', params: { openAdd: String(Date.now()) } });
-          }}
-        >
-          <Ionicons name="add" size={32} color={colors.white} />
-        </PressScale>
-      </View>
+      <LogSpeedDial />
       {RIGHT_TABS.map(tab)}
     </View>
   );
@@ -101,11 +87,13 @@ export default function AppTabsLayout() {
       <Tabs.Screen name="coach" options={{ href: null }} />
       {/* Reachable via Settings → Refine targets; hidden from the tab bar. */}
       <Tabs.Screen name="refine-targets" options={{ href: null }} />
+      {/* Meal-photo scan (ADR-0015) — reached via the center camera button. */}
+      <Tabs.Screen name="scan" options={{ href: null }} />
     </Tabs>
   );
 }
 
-function createStyles({ colors, shadow }: Theme) {
+function createStyles({ colors }: Theme) {
   return StyleSheet.create({
     bar: {
       flexDirection: 'row',
@@ -118,17 +106,5 @@ function createStyles({ colors, shadow }: Theme) {
     },
     tab: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: 2 },
     tabLabel: { fontSize: font.tiny, fontWeight: '600' },
-    logSlot: { flex: 1, alignItems: 'center' },
-    // Raised above the bar line — the app's visual anchor.
-    logBtn: {
-      width: 58,
-      height: 58,
-      borderRadius: radius.pill,
-      backgroundColor: colors.ring,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: -(space.xl + 2),
-      ...shadow.e3,
-    },
   });
 }
