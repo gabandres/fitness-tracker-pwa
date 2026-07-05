@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BrandMark } from '@/components/BrandMark';
@@ -21,8 +22,8 @@ import { font, radius, space, type } from '@/theme';
 export default function SignIn() {
   const t = useT();
   const styles = useThemedStyles(createStyles);
-  const { colors } = useTheme();
-  const { signIn, signInWithGoogle, googleAvailable } = useAuth();
+  const { colors, scheme } = useTheme();
+  const { signIn, signInWithGoogle, googleAvailable, signInWithApple, appleAvailable } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -53,6 +54,16 @@ export default function SignIn() {
       setError(t(errorKey(e)));
     } finally {
       setGoogleBusy(false);
+    }
+  }
+
+  async function onApple() {
+    setError(null);
+    try {
+      await signInWithApple();
+      // AuthGate navigates once auth state flips.
+    } catch (e: unknown) {
+      setError(t(errorKey(e)));
     }
   }
 
@@ -123,6 +134,20 @@ export default function SignIn() {
               <Text style={styles.dividerText}>{t('common.or')}</Text>
               <View style={styles.dividerLine} />
             </View>
+
+            {appleAvailable ? (
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                buttonStyle={
+                  scheme === 'dark'
+                    ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                    : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+                }
+                cornerRadius={radius.md}
+                style={styles.appleButton}
+                onPress={onApple}
+              />
+            ) : null}
 
             <TouchableOpacity
               style={[styles.googleButton, (googleBusy || !googleAvailable) && styles.buttonBusy]}
@@ -195,6 +220,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginVertical: space.xs },
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.line },
   dividerText: { color: colors.faint, fontSize: font.small },
+  appleButton: { height: 52, width: '100%' },
   googleButton: {
     backgroundColor: colors.inputBg,
     borderWidth: 1,

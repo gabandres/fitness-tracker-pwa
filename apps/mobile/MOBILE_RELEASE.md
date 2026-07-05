@@ -1,48 +1,51 @@
 # Mobile release readiness (App Store / Play)
 
-Status of shipping the Expo app to stores. **Code-doable items are done or
-tracked here; the rest are owner-gated** (need your Apple/Google/EAS accounts).
+Status of shipping the Ignia Expo app to stores. **v1 scope (decided
+2026-07-05): FREE, no Pro tier → no StoreKit IAP.** Pro + photo-scan land in
+v1.1. That removes the single biggest blocker from the first submission.
 
 ## ✅ Done in code
-- Bundle IDs (`app.macrolog.mobile`), version `1.0.0`, icons, adaptive icon, splash.
+- Rebrand → **Ignia**; flame icons, adaptive icon, splash, favicon.
+- Bundle IDs (`app.macrolog.mobile`), version `1.0.0`.
 - `eas.json` build profiles (development / preview / production) + submit.
+  Production build sets `EXPO_PUBLIC_FEATURE_PHOTO_SCAN=0` so v1 ships without
+  the (still-unvalidated) photo-scan; flip it on for v1.1 after the vision
+  spike.
 - Google Auth client IDs wired (`app.json` → `extra.googleAuth`).
-- Permission hygiene: camera usage string set; **microphone/RECORD_AUDIO removed**
-  (`recordAudioAndroid:false`, `microphonePermission:false`) — the app only scans
-  barcodes, so the unused mic permission (a review-rejection + missing-usage-string
-  risk) is gone.
+- **Sign in with Apple (code) — DONE.** `expo-apple-authentication` +
+  `usesAppleSignIn` capability + plugin (`app.json`); native Apple button on
+  the sign-in screen (iOS-only, gated off in Expo Go); nonce via `expo-crypto`
+  → Firebase `OAuthProvider('apple.com')` in `src/lib/auth.tsx`.
+- Permission hygiene: camera usage string set; mic/RECORD_AUDIO removed.
 
-## 🚫 Owner-gated blockers (cannot be done from code alone)
+## 🚫 Owner-gated blockers (need your Apple/Google/EAS accounts)
 
-1. **Apple Developer Program** ($99/yr) + an App Store Connect app record. Play
-   Console ($25 one-time) for Android.
-2. **EAS build + credentials.** `expo login`, then `eas build -p ios --profile production`
-   (and `-p android`). First iOS build provisions signing certs interactively.
-   This is also what unblocks testing the native-gated features below (they can't
-   run in stock Expo Go): Google Sign-In, ML Kit label OCR.
-3. **Sign in with Apple — REQUIRED.** Apple guideline 4.8: because the app offers
-   Google sign-in, it MUST also offer Sign in with Apple or review will reject it.
-   - Code (I can do): add `expo-apple-authentication`, an Apple button on the
-     sign-in screen, wire to Firebase `OAuthProvider('apple.com')`.
-   - Owner: enable the Apple provider in Firebase Auth; add the Sign-in-with-Apple
-     capability + a Services ID in the Apple Developer portal.
-4. **In-App Purchase for Pro — REQUIRED, biggest effort.** App Store forbids
-   Stripe web checkout for digital subscriptions; it must go through StoreKit IAP.
-   - Owner: create auto-renewable subscription products in App Store Connect
-     (and Play Billing for Android).
-   - Code: adopt RevenueCat (recommended) or `react-native-iap`, then a mobile
-     Pro-gating path that trusts the store receipt instead of the Stripe
-     subscription doc. This is a real project, not a config tweak.
-5. **App privacy details ("nutrition label").** App Store Connect + Play Data
-   Safety form. We collect **health data** (weight, body metrics) — must be
-   declared accurately. Privacy policy URL exists (`/privacy`).
-6. **Store listing assets.** Screenshots (per device class), description,
-   keywords, support URL, marketing URL.
+1. **Apple Developer Program** ($99/yr) + an App Store Connect app record.
+   Play Console ($25 one-time) for Android.
+2. **Enable Apple as a sign-in provider** — Firebase Console → Auth → Sign-in
+   method → Apple (enable); Apple Developer portal → enable "Sign in with
+   Apple" capability on the `app.macrolog.mobile` App ID. (Code is already in.)
+3. **EAS build + credentials.** `eas login`, then
+   `eas build -p ios --profile production` (and `-p android`). First iOS build
+   provisions signing certs interactively. This is also the only way to test
+   the native-gated features (Apple/Google sign-in) — they can't run in Expo Go.
+4. **App privacy details ("nutrition label").** App Store Connect + Play Data
+   Safety. We collect **health data** (weight, body metrics) + email — declare
+   accurately. See `docs/APP_STORE_LISTING.md` for the exact mapping.
+5. **Store listing assets.** Screenshots per device class, description,
+   keywords, support + marketing URL. Draft copy in `docs/APP_STORE_LISTING.md`.
 
-## Recommended order
-Apple Dev + Play accounts → first EAS dev build (test native features) →
-Apple Sign-In → IAP/Pro rework → store metadata + privacy labels → submit.
+## Deferred to v1.1 (post-launch)
+- **Pro tier + StoreKit IAP** (RevenueCat or react-native-iap + receipt-trust
+  gating; App Store Connect + Play Billing subscription products). The big one.
+- **Photo-scan** (flip `EXPO_PUBLIC_FEATURE_PHOTO_SCAN`) after the Gemini
+  vision-accuracy validation spike (30–50 real photos).
+- App Check (abuse/quota protection) — see `docs/DEV_ENVIRONMENT.md`.
 
-Until IAP + Apple Sign-In land, the app is **not submittable** to the App Store.
-Android has no Apple-Sign-In equivalent requirement but still needs Play Billing
-for Pro.
+## Recommended order (v1)
+Apple Dev + Play accounts → enable Apple provider (Firebase + portal) → first
+EAS dev build (test Apple/Google sign-in on device) → privacy labels + store
+metadata → `eas build --profile production` → `eas submit`.
+
+**With free v1, the app IS submittable** once the account + Apple-provider +
+metadata steps above are done — no IAP gate anymore.

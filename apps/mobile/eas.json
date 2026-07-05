@@ -18,7 +18,10 @@
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_FEATURE_PHOTO_SCAN": "0"
+      }
     }
   },
   "submit": {

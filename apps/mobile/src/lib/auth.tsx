@@ -1,8 +1,12 @@
+import * as AppleAuthentication from 'expo-apple-authentication';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Google from 'expo-auth-session/providers/google';
+import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
+import { Platform } from 'react-native';
 import {
   GoogleAuthProvider,
+  OAuthProvider,
   type User,
   onAuthStateChanged,
   signInWithCredential,
@@ -32,6 +36,13 @@ export class GoogleSignInError extends Error {
   }
 }
 
+/** Coded error for the Apple flow, same contract as GoogleSignInError. */
+export class AppleSignInError extends Error {
+  constructor(readonly code: string) {
+    super(code);
+  }
+}
+
 // Public OAuth client IDs (safe to commit — ADR-0002). Filled per build via
 // app.json → expo.extra.googleAuth. Still placeholders until a dev build is
 // wired; see GOOGLE_SIGNIN.md.
@@ -50,6 +61,11 @@ const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreCl
 const hasRealClientId = Object.values(googleAuth ?? {}).some(
   (v) => typeof v === 'string' && v.length > 0 && !v.startsWith('REPLACE_WITH'),
 );
+
+// Sign in with Apple is iOS-only and needs the native module + entitlement,
+// which stock Expo Go lacks — gated like Google. Apple guideline 4.8 REQUIRES
+// this because the app also offers Google sign-in.
+const appleSignInAvailable = Platform.OS === 'ios' && !isExpoGo;
 
 interface AuthState {
   /** The signed-in Firebase user, or null when signed out. */
@@ -71,6 +87,12 @@ interface AuthState {
   /** False in Expo Go or until the OAuth request is ready — drives the
    *  button's enabled state. */
   googleAvailable: boolean;
+  /** Launches Sign in with Apple and signs in to Firebase with the returned
+   *  identity token. Throws AppleSignInError on cancel/unavailable. */
+  signInWithApple: () => Promise<void>;
+  /** iOS-only and unavailable in Expo Go — drives whether the Apple button
+   *  renders at all. */
+  appleAvailable: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -158,6 +180,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const idToken = result.params?.id_token;
         if (!idToken) throw new GoogleSignInError('no-token');
         await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+      },
+      appleAvailable: appleSignInAvailable,
+      signInWithApple: async () => {
+        if (!appleSignInAvailable) throw new AppleSignInError('expo-go');
+        // Apple requires a nonce; Firebase verifies the raw nonce against the
+        // SHA-256 hash we hand to Apple, so send the hash and keep the raw.
+        const rawNonce = `${Crypto.randomUUID()}${Crypto.randomUUID()}`;
+        const hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, rawNonce);
+        let credential: AppleAuthentication.AppleAuthenticationCredential;
+        try {
+          credential = await AppleAuthentication.signInAsync({
+            requestedScopes: [
+              AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+              AppleAuthentication.AppleAuthenticationScope.EMAIL,
+            ],
+            nonce: hashedNonce,
+          });
+        } catch (e) {
+          if ((e as { code?: string }).code === 'ERR_REQUEST_CANCELED') {
+            throw new AppleSignInError('cancelled');
+          }
+          throw new AppleSignInError('failed');
+        }
+        if (!credential.identityToken) throw new AppleSignInError('no-token');
+        const fbCredential = new OAuthProvider('apple.com').credential({
+          idToken: credential.identityToken,
+          rawNonce,
+        });
+        await signInWithCredential(auth, fbCredential);
       },
       signOut: () => fbSignOut(auth),
     }),
