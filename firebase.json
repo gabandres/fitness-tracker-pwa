@@ -94,11 +94,5 @@
         ]
       }
     ]
-  }, {
-    "site": "macronautapp",
-    "public": "hosting/macronautapp",
-    "redirects": [
-      { "source": "**", "destination": "https://ignia.fit", "type": 302 }
-    ]
   }]
 }
