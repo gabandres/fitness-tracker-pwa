@@ -365,9 +365,9 @@ export class EntrySheetComponent {
 
   protected readonly open = computed(() => this.form.mode() !== 'view');
 
-  // Search-first (mobile): the sheet opens on food search/browse; Manual is
-  // the "custom food" fallback, reached from the segment row.
-  protected readonly segment = signal<Segment>('search');
+  // Manual is the default entry surface — the sheet always opens on Manual;
+  // Search / Meal / Photo / Barcode are reached from the segment row.
+  protected readonly segment = signal<Segment>('manual');
   protected readonly kcalError = signal(false);
   protected readonly showRecipeBuilder = signal(false);
 
@@ -382,11 +382,11 @@ export class EntrySheetComponent {
   ];
 
   constructor() {
-    // Reset to Search whenever the sheet closes — next open starts on the
-    // search/browse surface (mobile is search-first).
+    // Reset to Manual whenever the sheet closes — every open starts on the
+    // Manual entry surface.
     effect(() => {
       if (this.form.mode() === 'view') {
-        this.segment.set('search');
+        this.segment.set('manual');
         this.kcalError.set(false);
         this.showRecipeBuilder.set(false);
       }
