@@ -1,25 +1,9 @@
 rules_version = '2';
 
-// Progress photos (ADR-0010). Owner-only: a user can only read/write/delete
-// objects under their own users/{uid}/photos/ prefix. Uploads must be
-// JPEGs under 2 MB (the client resizes to 1080px/0.8 ≈ 150–350 KB; this is
-// a backstop). request.resource is null on delete, so the size/contentType
-// guard is skipped there.
+// No Storage features in use. Progress photos (ADR-0010) were removed; nothing
+// reads or writes Storage now, so everything is denied by default.
 service firebase.storage {
   match /b/{bucket}/o {
-    match /users/{uid}/photos/{name} {
-      allow read: if request.auth != null && request.auth.uid == uid;
-      allow write: if request.auth != null
-        && request.auth.uid == uid
-        && (
-          request.resource == null
-          || (
-            request.resource.size < 2 * 1024 * 1024
-            && request.resource.contentType == 'image/jpeg'
-          )
-        );
-    }
-
-    // Everything else is denied by default (no catch-all match).
+    // No allow rules — all reads and writes are denied.
   }
 }

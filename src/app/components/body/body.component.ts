@@ -15,19 +15,12 @@ import { FitnessStore } from '../../services/fitness-store.service';
 import { FastingStore } from '../../services/fasting-store.service';
 import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { TranslationService } from '../../services/translation.service';
-import { SubscriptionService } from '../../services/subscription.service';
-import { UpsellService } from '../../services/upsell.service';
 import { AuthService } from '../../services/auth.service';
 import { addDays, localDateKey } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
 import { projectWeight, type WeightPoint } from '../../utils/weekly-insights';
-import { resizeToJpegBlob } from '../../utils/resize-image';
 import { latestNavyBodyFat } from '@macrolog/core';
 import { Measurement } from '../../services/firebase.service';
-import {
-  ProgressPhotoService,
-  type ProgressPhoto,
-} from '../../services/progress-photo.service';
 import { UiCard } from '../ui/card.component';
 import { UiButton } from '../ui/button.component';
 import { UiAvatar } from '../ui/avatar.component';
@@ -255,107 +248,6 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
         }
       </ui-card>
 
-      <!-- ── Progress photos (ADR-0010) — owner-private, getBlob only, Pro-gated.
-           Collapsed by default so a Pro gallery never dominates the tab. -->
-      <ui-card variant="default" class="mt-4 block">
-        <button
-          type="button"
-          class="flex items-center justify-between gap-3 w-full"
-          style="background: none; border: none; padding: 0; cursor: pointer; min-height: var(--v2-tap-min);"
-          [attr.aria-expanded]="photosExpanded()"
-          aria-controls="photos-panel"
-          (click)="photosExpanded.set(!photosExpanded())">
-          <div class="flex items-baseline gap-3">
-            <h2 class="section-title">{{ t('body.photosTitle') }}</h2>
-            @if (photos().length) {
-              <span class="v2-caption">{{ photos().length }}</span>
-            }
-          </div>
-          <lucide-icon
-            name="chevron-down"
-            [size]="20"
-            [style.transform]="photosExpanded() ? 'rotate(180deg)' : 'rotate(0deg)'"
-            style="transition: transform 200ms var(--v2-ease); color: var(--v2-ink-muted)" />
-        </button>
-
-        @if (photosExpanded()) {
-          <div id="photos-panel" class="mt-4">
-            @if (subs.isPaid()) {
-              <input #photoInput type="file" accept="image/*" capture="environment"
-                style="display:none;" (change)="onPhotoSelected($event)" />
-              <ui-button
-                variant="ghost"
-                size="sm"
-                [block]="true"
-                [disabled]="uploadingPhoto()"
-                (click)="photoInput.click()"
-                [ariaLabel]="t('body.photoAdd')">
-                <span style="display:inline-flex; align-items:center; gap:6px;">
-                  <lucide-icon name="camera" [size]="14" />
-                  {{ uploadingPhoto() ? t('body.photoUploading') : t('body.photoAdd') }}
-                </span>
-              </ui-button>
-              @if (photoError(); as err) {
-                <p class="v2-caption mt-2" style="color: var(--v2-danger);">{{ err }}</p>
-              }
-              @if (photos().length) {
-                <div class="grid grid-cols-3 gap-2 mt-3">
-                  @for (p of photos(); track p.dateKey) {
-                    <button type="button" class="relative block w-full rounded-lg overflow-hidden"
-                      style="aspect-ratio: 1; background: var(--v2-paper-2);"
-                      (click)="openViewer(p)"
-                      [attr.aria-label]="t('body.photoViewAria', { date: photoDateLabel(p.dateKey) })">
-                      @if (photoUrls()[p.dateKey]; as url) {
-                        <img [src]="url" alt="" class="w-full h-full" style="object-fit: cover;" />
-                      }
-                      <span class="absolute left-1 bottom-1 px-1.5 py-0.5 rounded"
-                        style="background: rgba(0,0,0,0.5); color: #fff; font-size: 0.62rem;">
-                        {{ photoDateLabel(p.dateKey) }}
-                      </span>
-                    </button>
-                  }
-                </div>
-              }
-            } @else {
-              <button type="button"
-                class="flex items-center justify-between gap-3 w-full mt-1 px-3 py-2.5 rounded-xl"
-                style="background: var(--v2-accent-soft);"
-                (click)="openPhotoUpgrade()">
-                <span class="flex items-center gap-2 v2-caption" style="color: var(--v2-ink);">
-                  <lucide-icon name="camera" [size]="14" />
-                  {{ t('body.photoProTitle') }}
-                </span>
-                <span class="v2-caption" style="color: var(--v2-accent); font-weight: 600;">
-                  {{ t('body.photoProCta') }}
-                </span>
-              </button>
-            }
-          </div>
-        }
-      </ui-card>
-
-      <!-- Full-screen photo viewer -->
-      @if (viewer(); as v) {
-        <div class="fixed inset-0 z-50 flex flex-col items-center justify-center p-4"
-          style="background: rgba(0,0,0,0.92);" (click)="closeViewer()">
-          @if (photoUrls()[v.dateKey]; as url) {
-            <img [src]="url" alt="" style="max-width: 100%; max-height: 80vh; object-fit: contain;"
-              class="rounded-lg" />
-          }
-          <div class="flex items-center gap-3 mt-4" (click)="$event.stopPropagation()">
-            <span style="color: #fff;" class="v2-caption">
-              {{ photoDateLabel(v.dateKey) }}@if (v.weightLb != null) { · {{ v.weightLb }} lb }
-            </span>
-            <button type="button" class="v2-btn v2-btn--ghost v2-btn--sm" style="color: #fff;"
-              (click)="removePhoto(v)">
-              <lucide-icon name="trash-2" [size]="14" /> {{ t('body.photoDelete') }}
-            </button>
-            <button type="button" class="v2-btn v2-btn--ghost v2-btn--sm" style="color: #fff;"
-              (click)="closeViewer()">{{ t('body.photoClose') }}</button>
-          </div>
-        </div>
-      }
-
       <!-- Weight log sheet -->
       <ui-weight-sheet
         [open]="weightSheetOpen()"
@@ -372,9 +264,6 @@ export class BodyComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   protected readonly authUser = this.auth.user;
   private readonly translation = inject(TranslationService);
-  private readonly photoSvc = inject(ProgressPhotoService);
-  protected readonly subs = inject(SubscriptionService);
-  private readonly upsell = inject(UpsellService);
 
   readonly historyRequested = output<void>();
   readonly settingsRequested = output<void>();
@@ -391,7 +280,6 @@ export class BodyComponent implements OnInit, OnDestroy {
   // Measurements + photos open by default to mirror mobile (which shows them
   // expanded with an inline "Add" link rather than behind a collapse).
   protected readonly expanded = signal(true);
-  protected readonly photosExpanded = signal(true);
   protected readonly fastingExpanded = signal(false);
   /** Auto-open the (otherwise collapsed) Fasting card whenever a fast is
    *  active, so the running timer is never hidden behind the chevron. */
@@ -577,104 +465,13 @@ export class BodyComponent implements OnInit, OnDestroy {
     return this.translation.t('v2.body.measurementsLastLogged', { date });
   });
 
-  // ─── Progress photos (ADR-0010) ────────────────────────────
-  protected readonly photos = signal<ProgressPhoto[]>([]);
-  /** dateKey → object URL (from getBlob); revoked on reload/destroy. */
-  protected readonly photoUrls = signal<Record<string, string>>({});
-  protected readonly uploadingPhoto = signal(false);
-  protected readonly photoError = signal<string | null>(null);
-  protected readonly viewer = signal<ProgressPhoto | null>(null);
-
   ngOnInit(): void {
     // 30s ticker is enough — display is hh:mm.
     this.intervalId = setInterval(() => this.tick.update((n) => n + 1), 30_000);
-    void this.loadPhotos();
   }
 
   ngOnDestroy(): void {
     if (this.intervalId !== null) clearInterval(this.intervalId);
-    this.revokePhotoUrls();
-  }
-
-  private revokePhotoUrls(): void {
-    for (const url of Object.values(this.photoUrls())) URL.revokeObjectURL(url);
-  }
-
-  protected openPhotoUpgrade(): void {
-    this.upsell.openSubscribe('body-progress-photos');
-  }
-
-  private async loadPhotos(): Promise<void> {
-    // Photos are Pro-only; don't fetch (and incur egress) for free users.
-    if (!this.subs.isPaid()) return;
-    try {
-      const list = await this.photoSvc.list();
-      const urls: Record<string, string> = {};
-      await Promise.all(
-        list.map(async (p) => {
-          try {
-            urls[p.dateKey] = await this.photoSvc.objectUrl(p);
-          } catch {
-            /* one bad object shouldn't blank the whole grid */
-          }
-        }),
-      );
-      this.revokePhotoUrls();
-      this.photos.set(list);
-      this.photoUrls.set(urls);
-    } catch {
-      /* signed out / offline — leave the grid empty */
-    }
-  }
-
-  protected async onPhotoSelected(e: Event): Promise<void> {
-    const input = e.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = ''; // allow re-selecting the same file
-    if (!file || !this.subs.isPaid()) return;
-    this.photoError.set(null);
-    this.uploadingPhoto.set(true);
-    this.haptic(10);
-    try {
-      const blob = await resizeToJpegBlob(file);
-      const dateKey = localDateKey(new Date());
-      const w = this.body.dailyWeights()[dateKey] ?? this.currentWeight();
-      await this.photoSvc.upload(dateKey, blob, typeof w === 'number' ? w : undefined);
-      await this.loadPhotos();
-    } catch {
-      this.photoError.set(this.translation.t('body.photoFailed'));
-      this.haptic(50);
-    } finally {
-      this.uploadingPhoto.set(false);
-    }
-  }
-
-  protected openViewer(p: ProgressPhoto): void {
-    this.haptic(10);
-    this.viewer.set(p);
-  }
-
-  protected closeViewer(): void {
-    this.viewer.set(null);
-  }
-
-  protected async removePhoto(p: ProgressPhoto): Promise<void> {
-    if (!confirm(this.translation.t('body.photoDeleteConfirm'))) return;
-    try {
-      await this.photoSvc.delete(p.dateKey);
-      this.closeViewer();
-      await this.loadPhotos();
-    } catch {
-      this.photoError.set(this.translation.t('body.photoFailed'));
-    }
-  }
-
-  protected photoDateLabel(dateKey: string): string {
-    const [y, m, d] = dateKey.split('-').map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString(
-      bcp47ForLang(this.translation.language()),
-      { month: 'short', day: 'numeric' },
-    );
   }
 
   protected openWeightSheet(): void {

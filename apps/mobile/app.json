@@ -68,8 +68,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Ignia uses your photos to track progress pictures.",
-          "cameraPermission": "Ignia uses the camera to take progress photos."
+          "photosPermission": "Ignia uses your photos so you can attach meal images.",
+          "cameraPermission": "Ignia uses the camera to scan your meals."
         }
       ]
     ],

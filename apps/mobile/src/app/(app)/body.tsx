@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,7 +16,6 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { Sparkline } from '@/components/Sparkline';
 import { useBody } from '@/hooks/useBody';
-import { usePhotos } from '@/hooks/usePhotos';
 import { type I18nKey, type TFn, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { CountUpText, enterUp, usePulse } from '@/lib/motion';
@@ -61,7 +59,6 @@ export default function Body() {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const photos = usePhotos();
   const [open, setOpen] = useState(false);
   const [measureOpen, setMeasureOpen] = useState(false);
   // Keep the measurements list short as history grows; the rest is one tap away.
@@ -199,40 +196,6 @@ export default function Body() {
                 </TouchableOpacity>
               ) : null}
             </View>
-          )}
-
-          <View style={styles.measureHeader}>
-            <Text style={styles.sectionTitle}>{t('body.progressPhotos')}</Text>
-            <TouchableOpacity
-              onPress={() => photos.addPhoto(currentWeight ?? undefined)}
-              disabled={photos.uploading}
-              testID="add-photo"
-              hitSlop={8}
-            >
-              <Text style={[styles.addLink, photos.uploading && styles.addLinkDisabled]}>
-                {photos.uploading ? t('body.uploading') : t('body.add')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-          {photos.photos.length === 0 ? (
-            <Text style={styles.empty}>{t('body.noPhotos')}</Text>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoRow}>
-              {photos.photos.map((p) =>
-                p.url ? (
-                  <Pressable
-                    key={p.dateKey}
-                    onLongPress={() => photos.deletePhoto(p.dateKey)}
-                    testID={`photo-${p.dateKey}`}
-                  >
-                    <Image source={{ uri: p.url }} style={styles.photo} />
-                    <Text style={styles.photoDate}>
-                      {p.takenAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                    </Text>
-                  </Pressable>
-                ) : null,
-              )}
-            </ScrollView>
           )}
 
           <Text style={styles.sectionTitle}>{t('body.history')}</Text>
@@ -508,10 +471,6 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   bfValue: { fontFamily: type.display, fontSize: font.h1, color: colors.ink },
   measureHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.md },
   addLink: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
-  addLinkDisabled: { color: colors.faint },
-  photoRow: { gap: space.sm, paddingVertical: space.xs },
-  photo: { width: 120, height: 160, borderRadius: radius.md, backgroundColor: colors.line },
-  photoDate: { fontSize: font.tiny, color: colors.muted, marginTop: 4, textAlign: 'center' },
   rowMeasure: { fontSize: font.small, fontWeight: '600', color: colors.ink },
   sheetHint: { fontSize: font.small, color: colors.muted, marginBottom: space.md },
   measureGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },

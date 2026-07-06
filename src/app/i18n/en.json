@@ -607,18 +607,8 @@
     "projectionGoalDate": "At this pace: {{weight}} lb by {{date}}",
     "projectionRate": "Trending {{n}} lb/wk",
     "projectionSteady": "Holding steady",
-    "photoAdd": "Add progress photo",
-    "photoUploading": "Uploading…",
-    "photoFailed": "Couldn't save the photo. Try again.",
-    "photoViewAria": "View progress photo from {{date}}",
-    "photoDelete": "Delete",
-    "photoClose": "Close",
-    "photoDeleteConfirm": "Delete this progress photo? This can't be undone.",
     "fieldNeck": "Neck",
-    "bodyFat": "Body fat ~{{n}}% (Navy estimate)",
-    "photoProTitle": "Progress photos",
-    "photoProCta": "Pro",
-    "photosTitle": "Progress photos"
+    "bodyFat": "Body fat ~{{n}}% (Navy estimate)"
   },
   "trends": {
     "regenerate": "generate fresh report",
@@ -874,7 +864,6 @@
     "manageAria": "Manage subscription in Stripe Customer Portal",
     "pitchBody": "Ignia is built by one person. If it's useful to you, subscribing keeps it running and pays for the AI coach.",
     "featureConsultations": "unlimited AI coach consultations",
-    "featureProgressPhotos": "progress photos — private before/after gallery",
     "featurePhoto": "higher photo-to-macros quota",
     "featureWebhook": "apple shortcuts webhook",
     "featureReports": "automatic weekly reports",

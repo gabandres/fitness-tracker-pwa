@@ -198,15 +198,12 @@ These three windows look similar and are NOT interchangeable. See
   (`utils/body-fat.ts`, pure): waist + neck + height (+ hip for female)
   → est. %. Always framed as an estimate, never clinical. Surfaced on
   the Body tab off the latest **Measurement** + profile height/sex.
-- **Progress Photo** — A dated, owner-private body photo for before/after
-  comparison (added 2026-06). One per local-date key: an index doc at
-  `users/{uid}/photos/{YYYY-MM-DD}` (`{storagePath, takenAt, weightLb?}`,
-  **never** a download URL) plus the JPEG bytes in **Firebase Storage** at
-  `users/{uid}/photos/{date}.jpg`. Sensitive: fetched only via `getBlob`
-  (no public token URLs ever minted) and never surfaced on the public
-  profile or share-card. **Pro-only** (gated client-side) — uploads drive
-  download egress, so free users hold no photos. The first feature to use
-  Storage (see [ADR-0010](docs/adr/0010-progress-photos-firebase-storage.md)).
+- **Progress Photo** — *Removed 2026-07-05* (pre-launch scope cut to shrink the
+  health-data/breach surface; [ADR-0010](docs/adr/0010-progress-photos-firebase-storage.md)
+  is now reverted). Was a dated, owner-private before/after body photo in
+  **Firebase Storage** at `users/{uid}/photos/{date}.jpg`. No longer written by
+  either app; Storage is deny-all and account deletion still purges any legacy
+  `users/{uid}/photos/` bytes (`functions/src/gdpr.ts`).
 - **Water** — Stored in ml under `users/{uid}/dailyWater/{YYYY-MM-DD}`.
   Capped 0–20,000 ml at write time.
 - **FastWindow** — Active fasting window, target 16h. Owned by

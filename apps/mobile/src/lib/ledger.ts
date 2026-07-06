@@ -31,8 +31,7 @@ import {
   localDateKey,
   pruneUndefined as pruneUndefinedCore,
 } from '@macrolog/core';
-import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
-import { db, storage } from './firebase';
+import { db } from './firebase';
 import type {
   Exercise,
   ExerciseDraft,
@@ -526,84 +525,6 @@ export async function addMeasurement(uid: string, entry: MeasurementInput): Prom
 
 export async function deleteMeasurement(uid: string, id: string): Promise<void> {
   await deleteDoc(measurementDoc(uid, id));
-}
-
-// ─── Progress photos (ADR-0010) ─────────────────────────────────
-// Bytes live in Storage at users/{uid}/photos/{dateKey}.jpg (owner-only,
-// JPEG <2MB per storage.rules); an index doc users/{uid}/photos/{dateKey}
-// holds { storagePath, takenAt, weightLb? }. One photo per local-date key;
-// re-uploading a day overwrites.
-const photosCol = (uid: string) => collection(db, 'users', uid, 'photos');
-const photoDoc = (uid: string, dateKey: string) => doc(db, 'users', uid, 'photos', dateKey);
-const photoStoragePath = (uid: string, dateKey: string) => `users/${uid}/photos/${dateKey}.jpg`;
-
-export interface ProgressPhoto {
-  dateKey: string;
-  storagePath: string;
-  takenAt: Date;
-  weightLb?: number;
-  /** Resolved download URL for <Image>, populated by subscribeProgressPhotos. */
-  url?: string;
-}
-
-/** Live-subscribe to the photo index (newest first), resolving each row's
- *  download URL so an <Image> can render it. */
-export function subscribeProgressPhotos(
-  uid: string,
-  cb: (photos: ProgressPhoto[]) => void,
-  onError?: (e: Error) => void,
-): Unsub {
-  const q = query(photosCol(uid), orderBy('takenAt', 'desc'));
-  return onSnapshot(
-    q,
-    async (snap) => {
-      const photos = await Promise.all(
-        snap.docs.map(async (d) => {
-          const data = d.data() as { storagePath: string; takenAt: Timestamp; weightLb?: number };
-          let url: string | undefined;
-          try {
-            url = await getDownloadURL(storageRef(storage, data.storagePath));
-          } catch {
-            // Object missing (partial delete) — leave url undefined; the
-            // grid skips broken rows rather than crashing.
-          }
-          return {
-            dateKey: d.id,
-            storagePath: data.storagePath,
-            takenAt: data.takenAt.toDate(),
-            weightLb: data.weightLb,
-            url,
-          };
-        }),
-      );
-      cb(photos);
-    },
-    onError,
-  );
-}
-
-/** Upload a JPEG blob for `dateKey` (Storage object first, then index doc
- *  so a doc never points at a missing object), and return the index row. */
-export async function uploadProgressPhoto(
-  uid: string,
-  dateKey: string,
-  blob: Blob,
-  weightLb?: number,
-): Promise<void> {
-  const path = photoStoragePath(uid, dateKey);
-  await uploadBytes(storageRef(storage, path), blob, { contentType: 'image/jpeg' });
-  const data: Record<string, unknown> = { storagePath: path, takenAt: Timestamp.now() };
-  if (weightLb != null) data['weightLb'] = weightLb;
-  await setDoc(photoDoc(uid, dateKey), data);
-}
-
-export async function deleteProgressPhoto(uid: string, dateKey: string): Promise<void> {
-  try {
-    await deleteObject(storageRef(storage, photoStoragePath(uid, dateKey)));
-  } catch {
-    // Object already gone — still drop the index doc so no ghost row remains.
-  }
-  await deleteDoc(photoDoc(uid, dateKey));
 }
 
 // ─── Train tab (workouts, ADR-0007) ─────────────────────────────

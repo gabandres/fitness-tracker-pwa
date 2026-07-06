@@ -511,20 +511,6 @@ service cloud.firestore {
         allow delete: if isOwner(uid);
       }
 
-      // Progress photos — index docs for owner-private Storage objects
-      // (ADR-0010). Bytes live in Storage (storage.rules); this doc is
-      // just metadata and carries NO download URL. One per local-date key.
-      match /photos/{dateKey} {
-        allow read:   if isOwner(uid) || isAdmin();
-        allow create, update: if isOwner(uid)
-                      && request.resource.data.keys().hasOnly(['storagePath', 'takenAt', 'weightLb'])
-                      && request.resource.data.storagePath is string
-                      && request.resource.data.takenAt is timestamp
-                      && (!request.resource.data.keys().hasAny(['weightLb'])
-                          || request.resource.data.weightLb is number);
-        allow delete: if isOwner(uid);
-      }
-
       // ─── Train tab (workout logging) ──────────────────────────
       // Per-user exercise catalog — the stable identity progression
       // charts aggregate over.

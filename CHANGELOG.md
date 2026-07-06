@@ -6,6 +6,10 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-07-05 — Progress photos removed
+
+Progress photos (the Pro before/after body-photo gallery) are gone from both the web app and the Expo mobile app — a pre-launch scope cut to shrink the app's health-data / breach surface. No body-image bytes are stored anymore: Firebase Storage is locked down (deny-all rules) and account deletion still purges any previously uploaded `users/{uid}/photos/`.
+
 ## 2026-07-02 — Mobile parity: AI coach, weekly report, invites
 
 The Expo app closes its biggest gaps against the web app. Shared logic (prompt builders, SSE parser) lives in `packages/core` so both frontends behave identically.
