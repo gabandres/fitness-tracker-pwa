@@ -186,7 +186,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw new GoogleSignInError('cancelled');
         }
         if (result.type !== 'success') throw new GoogleSignInError('failed');
-        const idToken = result.params?.id_token;
+        // On iOS/Android, useIdTokenAuthRequest runs the authorization-code
+        // flow and auto-exchanges the code — the id_token comes back in
+        // `authentication`, NOT `params`. (params only carries it on the
+        // web/implicit path.) Reading only params → "no-token" → the generic
+        // "Could not sign in" error even though sign-in succeeded up to here.
+        const idToken = result.authentication?.idToken ?? result.params?.id_token;
         if (!idToken) throw new GoogleSignInError('no-token');
         await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
       },

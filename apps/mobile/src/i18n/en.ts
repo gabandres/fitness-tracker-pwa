@@ -270,7 +270,7 @@ export const en = {
   'coach.errRate': 'Too many requests — give it a moment and try again.',
   'coach.errAuth': 'Please sign in again to use the coach.',
   'coach.errGeneric': 'Something went wrong. Please try again.',
-  'coach.upgradeHint': 'Go Pro for more daily coaching.',
+  'coach.upgradeHint': "You've reached today's coaching limit — it resets tomorrow.",
 
   // ── weekly report (Pro) ──
   'report.title': 'Weekly report',
