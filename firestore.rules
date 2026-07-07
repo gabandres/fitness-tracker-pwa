@@ -64,8 +64,13 @@ service cloud.firestore {
 
     // ─── Profile schema ─────────────────────────────────────────
     function hasProfileBase(data) {
-      return data.keys().hasAll(['email', 'createdAt', 'lastSeenAt', 'profileCompleted'])
-          && data.email is string
+      // `email` is NO LONGER stored on the profile doc (PII minimization —
+      // 2026-07-07): the email lives only in Firebase Auth, so the
+      // health-data store is keyed by opaque uid, not identity. Legacy docs
+      // may still carry it, so it stays ALLOWED (in the hasOnly lists below)
+      // and, when present, must be a string — just no longer REQUIRED.
+      return data.keys().hasAll(['createdAt', 'lastSeenAt', 'profileCompleted'])
+          && (!('email' in data.keys()) || data.email is string)
           && data.createdAt is timestamp
           && data.lastSeenAt is timestamp
           && data.profileCompleted is bool;

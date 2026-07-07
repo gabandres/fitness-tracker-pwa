@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentUpdated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 
 // ─── Public profile pages (`/u/<slug>`) ────────────────────────────
 //
@@ -171,8 +172,14 @@ async function buildMirrorFromProfile(
   const totalChange = startWeight != null && currentWeight != null
     ? Math.round((currentWeight - startWeight) * 10) / 10 : null;
 
+  // Email is no longer stored on the profile doc (PII minimization). Keep
+  // the legacy email-localpart fallback for users who enabled a public
+  // profile without setting a display name, but source it from Auth (legacy
+  // docs may still carry `profile.email`; prefer it to save an Auth read).
+  const legacyEmail = (profile["email"] as string | undefined)
+    ?? (await getAuth().getUser(uid).then((u) => u.email).catch(() => undefined));
   const displayName = (profile["publicDisplayName"] as string | undefined)
-    || (profile["email"] as string | undefined)?.split("@")[0]
+    || legacyEmail?.split("@")[0]
     || "Ignia user";
 
   return {

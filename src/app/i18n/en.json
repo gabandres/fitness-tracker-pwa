@@ -994,7 +994,7 @@
     "logAria": "Log {{label}}, {{calories}} calories, {{protein}} grams protein"
   },
   "changelog": {
-    "backLink": "← back to macro log",
+    "backLink": "← back to Ignia",
     "stamp": "log",
     "section": "changelog",
     "titleLead": "Ship",
@@ -1014,7 +1014,7 @@
     "pageTitle": "Not found — Ignia"
   },
   "status": {
-    "backLink": "← back to macro log",
+    "backLink": "← back to Ignia",
     "stamp": "pulse",
     "section": "status",
     "titleLead": "System",
@@ -1069,7 +1069,7 @@
     "empty": "No entries match these filters."
   },
   "privacy": {
-    "backLink": "← back to macro log",
+    "backLink": "← back to Ignia",
     "stamp": "policy",
     "section": "privacy",
     "titleLead": "Privacy",
@@ -1126,13 +1126,13 @@
     "errorFallback": "Account deletion failed."
   },
   "terms": {
-    "backLink": "← back to macro log",
+    "backLink": "← back to Ignia",
     "stamp": "policy",
     "section": "terms of use",
     "titleLead": "Terms of",
     "titleEm": "use.",
     "pageTitle": "Terms — Ignia",
-    "lastUpdated": "last updated 2026-04-12 · short, because you shouldn't need a lawyer to read this.",
+    "lastUpdated": "last updated 2026-07-07 · short, because you shouldn't need a lawyer to read this.",
     "dealHeading": "The deal",
     "dealBody": "Ignia is a calorie, protein, and weight tracker with an AI coach. By signing in, you agree to use it as intended — a personal logging tool — and not to abuse it (scraping, reverse-engineering the webhook, attempting to access other users' data, etc).",
     "medHeading": "Not medical advice",
@@ -1142,7 +1142,11 @@
     "availHeading": "Availability + changes",
     "availBody": "Ignia runs on Google Cloud. We do our best to keep it up, but don't guarantee uptime. We may change features, pricing, or these terms — when we do, the footer's \"last updated\" date will change and meaningful changes will be announced in-app.",
     "liabilityHeading": "Liability",
-    "liabilityBody": "Ignia is provided \"as is.\" We're not liable for decisions you make based on its output, for lost data, or for any indirect harm from using the app. To the maximum extent allowed by law, our total liability to you is capped at whatever you've paid us in the last 12 months (which for most users is zero).",
+    "liabilityBody": "Ignia is provided \"as is\" and \"as available,\" without warranties of any kind, express or implied, including merchantability, fitness for a particular purpose, and non-infringement. We're not liable for decisions you make based on its output, for lost data, or for any indirect, incidental, or consequential harm from using the app. To the maximum extent allowed by law, our total liability to you is capped at whatever you've paid us in the last 12 months (which for most users is zero).",
+    "arbHeading": "Arbitration & class-action waiver",
+    "arbBody": "<strong>Please read this carefully — it affects your legal rights.</strong> If we have a dispute we can't resolve by email, you and the developer agree to resolve it through <strong>binding individual arbitration</strong> rather than in court, except that either of us may bring an eligible claim in small-claims court. <strong>You and the developer waive the right to a jury trial and the right to bring or participate in a class action or class-wide arbitration</strong> — disputes are handled only on an individual basis. Arbitration will be administered under the consumer rules of a recognized provider such as AAA or JAMS. You may opt out of this arbitration agreement within 30 days of first accepting these terms by emailing <a href='mailto:gabrielandresbermudez@gmail.com?subject=Arbitration%20opt-out' class='underline'>gabrielandresbermudez&#64;gmail.com</a> with the subject \"Arbitration opt-out.\" If any part of this section is unenforceable, the rest still applies, except a court (not an arbitrator) decides any claim that cannot be waived.",
+    "lawHeading": "Governing law + who runs Ignia",
+    "lawBody": "Ignia is operated by an individual developer, not a company. These terms are governed by the laws of the Commonwealth of Puerto Rico and applicable U.S. federal law, without regard to conflict-of-laws rules. Ignia is offered only in the United States and Puerto Rico and is not directed to users in the EU, UK, or EEA.",
     "subsHeading": "Subscriptions + auto-renewal",
     "subsBody": "Pro is offered monthly ($3/mo) or annual ($24/yr) via Stripe. A 7-day free trial comes with every first subscription. Plans <strong>auto-renew</strong> at the end of each billing cycle at the price shown on the subscribe card. You can cancel anytime from Settings → Subscription; cancellation takes effect at the end of the current paid period, and you keep Pro access until then. We email you a receipt for every renewal. If we change prices, we'll announce it in-app and honour your existing price through the current term.",
     "refundsHeading": "Refunds",

@@ -93,6 +93,16 @@ describe('firestore.rules', () => {
     await assertFails(setDoc(doc(db, 'users', 'alice'), baseProfile()));
   });
 
+  it('allows profile creation WITHOUT an email field (PII minimization)', async () => {
+    // Email is no longer persisted on the profile doc — it lives only in
+    // Firebase Auth. A verified user must be able to create a profile that
+    // omits `email` entirely.
+    const db = authed('alice');
+    const { email, ...noEmail } = baseProfile();
+    void email;
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice'), noEmail));
+  });
+
   it('blocks cross-user profile reads', async () => {
     // Seed alice's profile via an admin-bypass context so the read target exists.
     await env.withSecurityRulesDisabled(async (ctx) => {

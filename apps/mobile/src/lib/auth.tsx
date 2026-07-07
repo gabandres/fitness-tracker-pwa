@@ -191,8 +191,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         let credential: AppleAuthentication.AppleAuthenticationCredential;
         try {
           credential = await AppleAuthentication.signInAsync({
+            // PII minimization: only request EMAIL. We never read
+            // `credential.fullName`, so requesting FULL_NAME would collect
+            // a real name we don't use (and would populate the Firebase Auth
+            // displayName). Email alone is enough to create the account.
             requestedScopes: [
-              AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
               AppleAuthentication.AppleAuthenticationScope.EMAIL,
             ],
             nonce: hashedNonce,
