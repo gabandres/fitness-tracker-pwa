@@ -23,7 +23,7 @@ import {
 } from 'react';
 import type { Profile } from '@macrolog/core';
 import { auth } from './firebase';
-import { subscribeProfile } from './ledger';
+import { ensureProfile, subscribeProfile } from './ledger';
 
 // Required for the web-OAuth popup/redirect to resolve when the app
 // regains focus after the Google consent screen.
@@ -123,6 +123,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
+        // Create users/{uid} on first sign-in if it doesn't exist yet, so a
+        // mobile-first new user has a profile doc for onboarding to update.
+        // Best-effort: a failure here surfaces later as a save error, not a
+        // dead sign-in. Runs before the profile subscription resolves.
+        try {
+          await ensureProfile(u.uid);
+        } catch (e) {
+          console.warn('ensureProfile failed', e);
+        }
         try {
           const token = await u.getIdTokenResult();
           // Mirrors the PWA's SubscriptionService: Pro = stripeRole "paid".
