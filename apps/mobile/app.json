@@ -10,7 +10,7 @@
     "backgroundColor": "#faf9f6",
     "ios": {
       "bundleIdentifier": "fit.ignia.app",
-      "supportsTablet": true,
+      "supportsTablet": false,
       "usesAppleSignIn": true,
       "infoPlist": {
         "CFBundleURLTypes": [
