@@ -16,7 +16,8 @@
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
-              "com.googleusercontent.apps.647810616435-66v806q2ptpso47ldcgq7h3bdq6h327j"
+              "com.googleusercontent.apps.647810616435-66v806q2ptpso47ldcgq7h3bdq6h327j",
+              "fit.ignia.app"
             ]
           }
         ],
