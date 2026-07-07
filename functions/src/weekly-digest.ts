@@ -172,7 +172,12 @@ export async function runWeeklyDigest(): Promise<void> {
         skipped++;
         continue;
       }
-      const email = data["email"] as string | undefined;
+      // Email is no longer on the profile doc (PII minimization) — fetch
+      // from Auth by uid. Legacy docs may still carry it (preferred, saves
+      // an Auth read). Skip if the account has no email at all.
+      const email =
+        (data["email"] as string | undefined) ??
+        (await getAuth().getUser(uid).then((u) => u.email).catch(() => undefined));
       if (!email) {
         skipped++;
         continue;

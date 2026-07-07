@@ -272,7 +272,7 @@ export const esPR: Record<I18nKey, string> = {
   'coach.errRate': 'Demasiadas solicitudes — espera un momento e inténtalo otra vez.',
   'coach.errAuth': 'Vuelve a iniciar sesión para usar el coach.',
   'coach.errGeneric': 'Algo salió mal. Inténtalo de nuevo.',
-  'coach.upgradeHint': 'Hazte Pro para más coaching diario.',
+  'coach.upgradeHint': 'Llegaste al límite de coaching de hoy — se reinicia mañana.',
 
   // ── reporte semanal (Pro) ──
   'report.title': 'Reporte semanal',

@@ -4,6 +4,8 @@ Draft metadata for the first (free) submission. Edit to taste; character
 limits noted. Support/marketing/privacy URLs assume `ignia.fit` is live.
 
 ## Names & URLs
+- **Seller / developer name:** the owner's **individual legal name** (no LLC —
+  decided 2026-07-07). This shows publicly on both stores. App is still "Ignia".
 - **App name:** Ignia
 - **Subtitle** (iOS, ≤30 chars): `Calorie & protein tracker` (25)
 - **Promotional text** (iOS, ≤170, editable without review): `Track calories,
@@ -50,7 +52,6 @@ fasting, and a clean daily dashboard.`
 | Email address | Contact Info → Email | Personal info → Email | Account / App functionality |
 | Weight, body measurements, body-fat | Health & Fitness | Health & fitness | App functionality |
 | Food/calorie logs, workouts, fasting, water, sleep | Health & Fitness / Other usage data | Health & fitness | App functionality |
-| Progress photos (optional, user-uploaded) | Photos (User Content) | Photos/videos | App functionality (stored in the user's account) |
 | User ID (Firebase UID) | Identifiers | App activity / IDs | App functionality |
 | Crash / diagnostics (Sentry, if DSN set) | Diagnostics | App info & performance → Crash logs | App functionality |
 

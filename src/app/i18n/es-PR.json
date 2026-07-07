@@ -128,6 +128,7 @@
     "termsLink": "lee los términos",
     "pricingRule": "precios",
     "freeStamp": "gratis",
+    "freeHeadline": "Gratis. Toda la app.",
     "freePrice": "$0",
     "freeBody": "el ciclo completo de registro, para siempre. todo lo que necesitas para responder \"¿cuántas calorías me quedan?\" cada día.",
     "freeF1": "entradas manuales ilimitadas, peso, ayuno, medidas",
@@ -994,7 +995,7 @@
     "logAria": "Registrar {{label}}, {{calories}} calorías, {{protein}} gramos de proteína"
   },
   "changelog": {
-    "backLink": "← volver a macro log",
+    "backLink": "← volver a Ignia",
     "stamp": "log",
     "section": "cambios",
     "titleLead": "Historial",
@@ -1014,7 +1015,7 @@
     "pageTitle": "No encontrado — Ignia"
   },
   "status": {
-    "backLink": "← volver a macro log",
+    "backLink": "← volver a Ignia",
     "stamp": "pulso",
     "section": "estado",
     "titleLead": "Estado",
@@ -1069,7 +1070,7 @@
     "empty": "Ninguna entrada coincide con estos filtros."
   },
   "privacy": {
-    "backLink": "← volver a macro log",
+    "backLink": "← volver a Ignia",
     "stamp": "política",
     "section": "privacidad",
     "titleLead": "Política",
@@ -1126,13 +1127,13 @@
     "errorFallback": "Falló la eliminación de la cuenta."
   },
   "terms": {
-    "backLink": "← volver a macro log",
+    "backLink": "← volver a Ignia",
     "stamp": "política",
     "section": "términos de uso",
     "titleLead": "Términos",
     "titleEm": "de uso.",
     "pageTitle": "Términos — Ignia",
-    "lastUpdated": "última actualización 2026-04-12 · corto, porque no deberías necesitar un abogado para leer esto.",
+    "lastUpdated": "última actualización 2026-07-07 · corto, porque no deberías necesitar un abogado para leer esto.",
     "dealHeading": "El acuerdo",
     "dealBody": "Ignia es un tracker de calorías, proteína y peso con un coach de IA. Al iniciar sesión, aceptas usarlo como está pensado — una herramienta personal de registro — y no abusar de él (scraping, hacer ingeniería inversa del webhook, intentar acceder a datos de otros usuarios, etc.).",
     "medHeading": "No es consejo médico",
@@ -1142,7 +1143,11 @@
     "availHeading": "Disponibilidad + cambios",
     "availBody": "Ignia corre en Google Cloud. Hacemos lo posible por mantenerlo disponible, pero no garantizamos uptime. Podemos cambiar funciones, precios o estos términos — cuando lo hagamos, la fecha de \"última actualización\" del pie de página cambiará y los cambios importantes se anunciarán dentro de la app.",
     "liabilityHeading": "Responsabilidad",
-    "liabilityBody": "Ignia se entrega \"tal cual.\" No somos responsables por decisiones que tomes basado en su salida, por datos perdidos, ni por ningún daño indirecto del uso de la app. En la medida máxima permitida por la ley, nuestra responsabilidad total hacia ti está limitada a lo que nos hayas pagado en los últimos 12 meses (que para la mayoría es cero).",
+    "liabilityBody": "Ignia se entrega \"tal cual\" y \"según disponibilidad,\" sin garantías de ningún tipo, expresas o implícitas, incluyendo comerciabilidad, idoneidad para un propósito particular y no infracción. No somos responsables por decisiones que tomes basado en su salida, por datos perdidos, ni por ningún daño indirecto, incidental o consecuente del uso de la app. En la medida máxima permitida por la ley, nuestra responsabilidad total hacia ti está limitada a lo que nos hayas pagado en los últimos 12 meses (que para la mayoría es cero).",
+    "arbHeading": "Arbitraje y renuncia a demandas colectivas",
+    "arbBody": "<strong>Lee esto con cuidado — afecta tus derechos legales.</strong> Si tenemos una disputa que no podemos resolver por correo, tú y el desarrollador acuerdan resolverla mediante <strong>arbitraje individual vinculante</strong> en vez de en corte, excepto que cualquiera puede llevar un reclamo elegible a la corte de reclamos menores. <strong>Tú y el desarrollador renuncian al derecho a un juicio con jurado y al derecho a presentar o participar en una demanda colectiva o arbitraje colectivo</strong> — las disputas se manejan solo de forma individual. El arbitraje se administrará bajo las reglas de consumidor de un proveedor reconocido como AAA o JAMS. Puedes optar por salir de este acuerdo de arbitraje dentro de los 30 días de aceptar estos términos por primera vez, escribiendo a <a href='mailto:gabrielandresbermudez@gmail.com?subject=Arbitration%20opt-out' class='underline'>gabrielandresbermudez&#64;gmail.com</a> con el asunto \"Arbitration opt-out.\" Si alguna parte de esta sección es inaplicable, el resto sigue vigente, excepto que una corte (no un árbitro) decide cualquier reclamo que no se pueda renunciar.",
+    "lawHeading": "Ley aplicable + quién opera Ignia",
+    "lawBody": "Ignia es operada por un desarrollador individual, no una empresa. Estos términos se rigen por las leyes del Estado Libre Asociado de Puerto Rico y la ley federal de EE. UU. aplicable, sin considerar reglas de conflicto de leyes. Ignia se ofrece solo en Estados Unidos y Puerto Rico y no está dirigida a usuarios en la UE, el Reino Unido o el EEE.",
     "subsHeading": "Suscripciones + renovación automática",
     "subsBody": "Pro se ofrece mensual ($3/mes) o anual ($24/año) vía Stripe. Toda primera suscripción incluye una prueba gratuita de 7 días. Los planes se <strong>renuevan automáticamente</strong> al final de cada ciclo al precio mostrado en la tarjeta de suscripción. Puedes cancelar en cualquier momento desde Ajustes → Suscripción; la cancelación surte efecto al final del período ya pagado y conservas Pro hasta entonces. Te enviamos un recibo por cada renovación. Si cambiamos precios, lo anunciaremos en la app y respetaremos tu precio actual hasta el fin del término vigente.",
     "refundsHeading": "Reembolsos",

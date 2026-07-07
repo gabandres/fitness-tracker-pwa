@@ -48,6 +48,12 @@ import { UiCard } from '../ui/card.component';
         <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('terms.liabilityHeading') }}</h2>
         <p>{{ t('terms.liabilityBody') }}</p>
 
+        <h2 class="v2-h2 mt-6 mb-2" id="arbitration" style="color: var(--v2-accent);">{{ t('terms.arbHeading') }}</h2>
+        <p [innerHTML]="t('terms.arbBody')"></p>
+
+        <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('terms.lawHeading') }}</h2>
+        <p>{{ t('terms.lawBody') }}</p>
+
         <h2 class="v2-h2 mt-6 mb-2" id="subscriptions" style="color: var(--v2-accent);">{{ t('terms.subsHeading') }}</h2>
         <p [innerHTML]="t('terms.subsBody')"></p>
 

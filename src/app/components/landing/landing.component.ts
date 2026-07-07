@@ -214,64 +214,16 @@ import { UiButton } from '../ui/button.component';
         </div>
       </section>
 
-      <!-- ── 4. Pricing ───────────────────────────────────────────── -->
-      <section id="pricing" class="max-w-5xl mx-auto pt-8">
-        <div class="text-center mb-10">
-          <h2 class="v2-display">Simple, transparent pricing.</h2>
-        </div>
-        <div class="grid gap-6 md:grid-cols-2 items-stretch max-w-4xl mx-auto">
-          <!-- Free Tier -->
-          <div class="glass-card flex flex-col p-8 relative overflow-hidden" style="border-radius: var(--v2-radius-xl);">
-            <div class="flex items-baseline justify-between mb-4">
-              <h3 class="v2-h2">{{ t('landing.freeStamp') }}</h3>
-              <span class="v2-num" style="font-size: 2.5rem; font-weight: 800;">{{ t('landing.freePrice') }}</span>
-            </div>
-            <p class="v2-body-soft mb-6">{{ t('landing.freeBody') }}</p>
-            <ul class="space-y-3 mb-8 flex-1">
-              <li class="flex items-start gap-2 text-sm"><span style="color: var(--v2-sage);">✓</span> {{ t('landing.freeF1') }}</li>
-              <li class="flex items-start gap-2 text-sm"><span style="color: var(--v2-sage);">✓</span> {{ t('landing.freeF2') }}</li>
-              <li class="flex items-start gap-2 text-sm"><span style="color: var(--v2-sage);">✓</span> {{ t('landing.freeF3') }}</li>
-              <li class="flex items-start gap-2 text-sm"><span style="color: var(--v2-sage);">✓</span> {{ t('landing.freeF4') }}</li>
-            </ul>
-            <a href="/app" class="v2-btn v2-btn--secondary v2-btn--block v2-btn--lg w-full">
-              {{ t('landing.freeCta') }}
-            </a>
-          </div>
-          <!-- Pro Tier -->
-          <div class="glass-card flex flex-col p-8 relative overflow-hidden" style="background: var(--v2-accent-soft); border-color: color-mix(in srgb, var(--v2-accent) 40%, transparent); box-shadow: 0 12px 32px color-mix(in srgb, var(--v2-accent) 15%, transparent); border-radius: var(--v2-radius-xl); transform: scale(1.02); z-index: 10;">
-            <div class="absolute top-0 right-0 p-4">
-              <div class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider" style="background: var(--v2-accent); color: white;">
-                {{ t('landing.proTrialBadge') }}
-              </div>
-            </div>
-            <div class="flex items-baseline justify-between mb-4 mt-2">
-              <h3 class="v2-h2" style="color: var(--v2-accent);">{{ t('landing.proStamp') }}</h3>
-              <div class="text-right">
-                <div class="flex items-center gap-2 justify-end">
-                  @if (subs.displayPriceAnnualAnchor) {
-                    <s class="v2-num text-lg opacity-50">{{ subs.displayPriceAnnualAnchor }}</s>
-                  }
-                  <span class="v2-num" style="font-size: 2.5rem; font-weight: 800; color: var(--v2-accent);">
-                    {{ subs.displayPriceAnnual }}
-                  </span>
-                </div>
-                <div class="v2-caption mt-1 font-medium">{{ t('landing.orMonthly', { price: subs.displayPriceMonthly }) }}</div>
-              </div>
-            </div>
-            <p class="v2-body-soft mb-6">{{ t('landing.proBody') }}</p>
-            <ul class="space-y-3 mb-8 flex-1">
-              <li class="flex items-start gap-2 text-sm"><span style="color: var(--v2-accent);">✦</span> {{ t('landing.proF1') }}</li>
-              <li class="flex items-start gap-2 text-sm"><span style="color: var(--v2-accent);">✦</span> {{ t('landing.proF2') }}</li>
-              <li class="flex items-start gap-2 text-sm"><span style="color: var(--v2-accent);">✦</span> {{ t('landing.proF3') }}</li>
-              <li class="flex items-start gap-2 text-sm"><span style="color: var(--v2-accent);">✦</span> {{ t('landing.proF4') }}</li>
-              <li class="flex items-start gap-2 text-sm"><span style="color: var(--v2-accent);">✦</span> {{ t('landing.proF5') }}</li>
-            </ul>
-            <a href="/app?intent=pro" class="v2-btn v2-btn--primary v2-btn--block v2-btn--lg w-full">
-              {{ t('landing.proCta') }}
-            </a>
-          </div>
-        </div>
-        <p class="v2-caption text-center mt-6">{{ t('landing.pricingFinePrint') }}</p>
+      <!-- ── 4. Free ──────────────────────────────────────────────── -->
+      <!-- Subscription/Pro pricing removed 2026-07-07 — Ignia is free (moving
+           to a donations model, not a paid tier). -->
+      <section id="pricing" class="max-w-3xl mx-auto text-center pt-8">
+        <div class="section-badge" style="background: transparent; border: 1px solid var(--v2-rule);">{{ t('landing.freeStamp') }}</div>
+        <h2 class="v2-display mt-4">{{ t('landing.freeHeadline') }}</h2>
+        <p class="v2-body-soft mt-4 max-w-xl mx-auto">{{ t('landing.freeBody') }}</p>
+        <a href="/app" class="v2-btn v2-btn--primary v2-btn--lg mt-8 inline-flex">
+          {{ t('landing.freeCta') }}
+        </a>
       </section>
 
       <!-- ── 5. Comparisons + FAQ footer ─────────────────────────── -->

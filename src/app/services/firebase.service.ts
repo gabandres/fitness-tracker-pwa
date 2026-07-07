@@ -289,7 +289,10 @@ export interface ProfileFields {
  * and what every store/component consumes.
  */
 export interface Profile extends Partial<ProfileFields> {
-  email: string;
+  /** Legacy-only: no longer written on new profiles (PII minimization,
+   *  2026-07-07). Present on pre-existing docs; email otherwise lives in
+   *  Firebase Auth. Never relied on by the client (all UI reads Auth). */
+  email?: string;
   createdAt: Date;
   lastSeenAt: Date;
   profileCompleted: boolean;
@@ -377,8 +380,10 @@ export class FirebaseService implements LedgerPort {
     const now = Timestamp.now();
 
     if (existing === null) {
+      // PII minimization (2026-07-07): the email is NOT persisted to the
+      // profile doc — it lives only in Firebase Auth. Server-side email
+      // features (welcome, weekly digest) fetch it from Auth by uid.
       const initial: UserProfileDoc = {
-        email: user.email ?? '',
         createdAt: now,
         lastSeenAt: now,
         profileCompleted: false,

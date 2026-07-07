@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/auth';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
 import { importLogs, setCalorieFloor, setPreferredLocale, setUnitSystem, setWeeklyDigestOptIn } from '@/lib/ledger';
 import { exportDataCsv } from '@/lib/dataExport';
-import { useSubscription } from '@/lib/subscription';
+import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
 import { DEFAULT_REMINDER_HOUR, getReminder, setReminder } from '@/lib/reminders';
 import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -245,6 +245,8 @@ export default function Settings() {
           </TouchableOpacity>
         </View>
 
+        {PRO_ENABLED ? (
+        <>
         <Text style={styles.section}>{t('pro.title')}</Text>
         <View style={styles.card}>
           {isPro ? (
@@ -283,6 +285,8 @@ export default function Settings() {
             />
           </View>
         </View>
+        </>
+        ) : null}
 
         <Text style={styles.section}>{t('settings.invite')}</Text>
         <View style={styles.card}>

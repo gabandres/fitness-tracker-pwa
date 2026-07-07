@@ -10,16 +10,18 @@
     "backgroundColor": "#faf9f6",
     "ios": {
       "bundleIdentifier": "fit.ignia.app",
-      "supportsTablet": true,
+      "supportsTablet": false,
       "usesAppleSignIn": true,
       "infoPlist": {
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
-              "com.googleusercontent.apps.647810616435-h0cjjths1qefusi2erohqm94e75gdnmi"
+              "com.googleusercontent.apps.647810616435-66v806q2ptpso47ldcgq7h3bdq6h327j",
+              "fit.ignia.app"
             ]
           }
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -75,7 +77,7 @@
     ],
     "extra": {
       "googleAuth": {
-        "iosClientId": "647810616435-h0cjjths1qefusi2erohqm94e75gdnmi.apps.googleusercontent.com",
+        "iosClientId": "647810616435-66v806q2ptpso47ldcgq7h3bdq6h327j.apps.googleusercontent.com",
         "androidClientId": "647810616435-8fq849lqju9rrbnva3nqsvdqlbucr33n.apps.googleusercontent.com",
         "webClientId": "647810616435-jkiccn16plimkv9smp7ki8m90ghhocsh.apps.googleusercontent.com"
       },

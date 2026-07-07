@@ -23,7 +23,7 @@ import {
 } from 'react';
 import type { Profile } from '@macrolog/core';
 import { auth } from './firebase';
-import { subscribeProfile } from './ledger';
+import { ensureProfile, subscribeProfile } from './ledger';
 
 // Required for the web-OAuth popup/redirect to resolve when the app
 // regains focus after the Google consent screen.
@@ -123,6 +123,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
+        // Create users/{uid} on first sign-in if it doesn't exist yet, so a
+        // mobile-first new user has a profile doc for onboarding to update.
+        // Best-effort: a failure here surfaces later as a save error, not a
+        // dead sign-in. Runs before the profile subscription resolves.
+        try {
+          await ensureProfile(u.uid);
+        } catch (e) {
+          console.warn('ensureProfile failed', e);
+        }
         try {
           const token = await u.getIdTokenResult();
           // Mirrors the PWA's SubscriptionService: Pro = stripeRole "paid".
@@ -177,7 +186,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw new GoogleSignInError('cancelled');
         }
         if (result.type !== 'success') throw new GoogleSignInError('failed');
-        const idToken = result.params?.id_token;
+        // On iOS/Android, useIdTokenAuthRequest runs the authorization-code
+        // flow and auto-exchanges the code — the id_token comes back in
+        // `authentication`, NOT `params`. (params only carries it on the
+        // web/implicit path.) Reading only params → "no-token" → the generic
+        // "Could not sign in" error even though sign-in succeeded up to here.
+        const idToken = result.authentication?.idToken ?? result.params?.id_token;
         if (!idToken) throw new GoogleSignInError('no-token');
         await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
       },
@@ -191,8 +205,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         let credential: AppleAuthentication.AppleAuthenticationCredential;
         try {
           credential = await AppleAuthentication.signInAsync({
+            // PII minimization: only request EMAIL. We never read
+            // `credential.fullName`, so requesting FULL_NAME would collect
+            // a real name we don't use (and would populate the Firebase Auth
+            // displayName). Email alone is enough to create the account.
             requestedScopes: [
-              AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
               AppleAuthentication.AppleAuthenticationScope.EMAIL,
             ],
             nonce: hashedNonce,

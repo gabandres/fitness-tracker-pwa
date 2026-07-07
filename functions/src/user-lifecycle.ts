@@ -37,7 +37,12 @@ export const sendWelcomeEmail = onDocumentUpdated(
     if (after.welcomeEmailSentAt) return; // already sent
 
     const uid = event.params.uid;
-    const email = after.email as string | undefined;
+    // Email is no longer stored on the profile doc (PII minimization) —
+    // read it from Firebase Auth. Legacy docs may still carry `after.email`;
+    // prefer it to save an Auth read, else fetch by uid.
+    const email =
+      (after.email as string | undefined) ??
+      (await getAuth().getUser(uid).then((u) => u.email).catch(() => undefined));
     if (!email) {
       console.warn(`sendWelcomeEmail: user ${uid} has no email — skipping.`);
       return;

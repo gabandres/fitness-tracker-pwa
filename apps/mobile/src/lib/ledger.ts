@@ -300,6 +300,23 @@ export function subscribeProfile(
   );
 }
 
+/** Idempotent profile bootstrap — mirrors the PWA's
+ *  `FirebaseService.ensureUserProfile`. The web app creates `users/{uid}` on
+ *  first sign-in; a user who signs up FIRST on mobile never hits that path, so
+ *  without this their onboarding save (`saveOnboardingV2` = an `updateDoc`)
+ *  writes to a non-existent doc and fails with "Could not save." Call on every
+ *  sign-in. No email is stored (PII minimization — email lives only in Auth). */
+export async function ensureProfile(uid: string): Promise<void> {
+  const ref = userDoc(uid);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    await updateDoc(ref, { lastSeenAt: Timestamp.now() });
+    return;
+  }
+  const now = Timestamp.now();
+  await setDoc(ref, { createdAt: now, lastSeenAt: now, profileCompleted: false });
+}
+
 /** Persist the 2-question onboarding. Mirrors the PWA's
  *  `FirebaseService.saveOnboardingV2` byte-for-byte: writes the manual
  *  heuristic targets, stamps completion, and flips `profileCompleted` so the
