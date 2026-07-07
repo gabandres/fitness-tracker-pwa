@@ -7,7 +7,7 @@ import { type TdeeResult, type WeeklyBudget, type WeeklyInsights, parseYmd } fro
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { WeeklyReportCard } from '@/components/WeeklyReportCard';
 import { useTrends } from '@/hooks/useTrends';
-import { useSubscription } from '@/lib/subscription';
+import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
 import { type I18nKey, type TFn, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { CountUpText, enterUp, PressScale } from '@/lib/motion';
@@ -133,10 +133,13 @@ export default function Trends() {
             )}
           </Animated.View>
 
-          {/* 5. Weekly report — deepest Pro layer (self-gating card). */}
-          <Animated.View entering={enterUp(4)}>
-            <WeeklyReportCard />
-          </Animated.View>
+          {/* 5. Weekly report — Pro + server-entitled AI feature; hidden in
+              the free v1 (no IAP → its "PRO" tag + generate would dead-end). */}
+          {PRO_ENABLED ? (
+            <Animated.View entering={enterUp(4)}>
+              <WeeklyReportCard />
+            </Animated.View>
+          ) : null}
         </ScrollView>
       )}
     </SafeAreaView>
