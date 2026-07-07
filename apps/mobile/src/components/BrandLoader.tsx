@@ -79,5 +79,8 @@ export function BrandLoader() {
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', gap: space.lg },
   ember: { position: 'absolute', bottom: SIZE * 0.34, width: 5, height: 5, borderRadius: 3 },
-  word: { fontFamily: type.display, fontSize: font.h1, letterSpacing: 1.5 },
+  // paddingHorizontal + textAlign guard against iOS clipping the final glyph:
+  // letterSpacing on a custom display font makes RN under-measure the text
+  // width, chopping the trailing "a". The padding gives it room.
+  word: { fontFamily: type.display, fontSize: font.h1, letterSpacing: 1.5, paddingHorizontal: 8, textAlign: 'center' },
 });
