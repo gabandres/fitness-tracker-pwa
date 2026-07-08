@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTrain } from '@/hooks/useTrain';
 import { useRestTimer } from '@/hooks/useRestTimer';
@@ -41,7 +41,7 @@ import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { Sparkline } from '@/components/Sparkline';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { CountUpText, enterUp, springLayout, usePulse } from '@/lib/motion';
+import { CountUpText, enterUp, smoothLayout, usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
 
@@ -731,20 +731,6 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
           <Text style={styles.addExText}>{t('train.addExercise')}</Text>
         </TouchableOpacity>
 
-        {rest.remaining > 0 ? (
-          <View style={styles.restBar} testID="rest-bar">
-            <Text style={styles.restLabel}>{`${t('train.rest')} · ${rest.label}`}</Text>
-            <View style={styles.restActions}>
-              <TouchableOpacity onPress={() => rest.start(rest.remaining + 30)} hitSlop={6} testID="rest-plus">
-                <Text style={styles.restPlus}>+30s</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => rest.stop()} hitSlop={6} testID="rest-skip">
-                <Text style={styles.restSkip}>{t('train.skip')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : null}
-
         <View style={styles.footerBtns}>
           {train.editingExisting ? (
             // Editing a past workout: no destructive Discard (that deletes the
@@ -785,6 +771,22 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
         </View>
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Rest countdown — floats above the tab bar so it stays visible while
+          the session scrolls (was buried inline in the scroll flow before). */}
+      {rest.remaining > 0 ? (
+        <View style={styles.restBarFloat} testID="rest-bar">
+          <Text style={styles.restLabel}>{`${t('train.rest')} · ${rest.label}`}</Text>
+          <View style={styles.restActions}>
+            <TouchableOpacity onPress={() => rest.start(rest.remaining + 30)} hitSlop={6} testID="rest-plus">
+              <Text style={styles.restPlus}>+30s</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => rest.stop()} hitSlop={6} testID="rest-skip">
+              <Text style={styles.restSkip}>{t('train.skip')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
 
       <AddExerciseModal
         visible={addOpen}
@@ -866,7 +868,7 @@ function ExerciseCard({
   const warm = panelOpen && keyWeight && keyWeight > 0 ? generateWarmup(keyWeight) : [];
 
   return (
-    <Animated.View style={styles.exCard} layout={springLayout}>
+    <Animated.View style={styles.exCard} layout={smoothLayout}>
       <TouchableOpacity
         style={styles.exHead}
         onPress={onToggle}
@@ -890,7 +892,7 @@ function ExerciseCard({
       </TouchableOpacity>
 
       {collapsed ? null : (
-        <>
+        <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(120)}>
           {bumpTo != null ? (
             <TouchableOpacity
               style={styles.bumpChip}
@@ -992,7 +994,7 @@ function ExerciseCard({
           >
             <Text style={styles.exRemove}>{t('common.remove')}</Text>
           </TouchableOpacity>
-        </>
+        </Animated.View>
       )}
     </Animated.View>
   );
@@ -1288,6 +1290,13 @@ function FinishModal({
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetWrap}>
         <View style={styles.sheet}>
           <View style={styles.handle} />
+          {/* Scroll so the numeric keyboard can't hide the Complete button
+              (KeyboardAvoidingView under-lifts inside a bottom-sheet Modal). */}
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.finishScroll}
+          >
           <Text style={styles.sheetTitle}>{t('train.finishTitle')}</Text>
           <Text style={styles.sheetHint}>{t('train.finishHint')}</Text>
 
@@ -1321,6 +1330,7 @@ function FinishModal({
           <TouchableOpacity style={styles.finishBtn} onPress={finish} disabled={busy} testID="finish-confirm">
             <Text style={styles.finishText}>{busy ? t('common.saving') : t('train.complete')}</Text>
           </TouchableOpacity>
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -1410,6 +1420,19 @@ function TemplateEditorModal({
     setExercises((prev) => prev.filter((_, i) => i !== index));
   }
 
+  // Reorder by one position (array order IS the saved template order). Robust
+  // ▲▼ controls; true drag-to-reorder is a follow-up (needs on-device tuning).
+  function moveEx(from: number, dir: -1 | 1) {
+    const to = from + dir;
+    setExercises((prev) => {
+      if (to < 0 || to >= prev.length) return prev;
+      const next = [...prev];
+      [next[from], next[to]] = [next[to], next[from]];
+      return next;
+    });
+    haptics.tap();
+  }
+
   const canSave = name.trim().length > 0 && !busy;
 
   async function save() {
@@ -1476,12 +1499,73 @@ function TemplateEditorModal({
             />
 
             <Text style={[styles.fieldLabel, { marginTop: space.md }]}>{t('train.templateExercises')}</Text>
+
+            {/* Adder at the TOP so it's reachable without scrolling past every
+                exercise. Type → pick a catalog match, or create a new one. */}
+            <TextInput
+              style={[styles.input, { marginTop: space.sm }]}
+              placeholder={t('train.addExercisePh')}
+              placeholderTextColor={colors.faint}
+              value={exName}
+              onChangeText={setExName}
+              testID="template-add-exercise"
+            />
+            {trimmedEx ? (
+              <>
+                <View style={styles.styleRow}>
+                  {LOG_STYLES.map((ls) => {
+                    const on = exStyle === ls.value;
+                    return (
+                      <TouchableOpacity
+                        key={ls.value}
+                        style={[styles.styleChip, on && styles.styleChipOn]}
+                        onPress={() => setExStyle(ls.value)}
+                      >
+                        <Text style={[styles.styleChipText, on && styles.styleChipTextOn]}>{t(ls.labelKey)}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                {matches.map((e) => (
+                  <TouchableOpacity key={e.id} style={styles.catalogRow} onPress={() => addFromCatalog(e)}>
+                    <Text style={styles.catalogName}>{e.name}</Text>
+                    <Text style={styles.catalogStyle}>{t(logStyleKey(e.logStyle))}</Text>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity style={styles.createRow} onPress={addFreeType} testID="template-create-exercise">
+                  <Text style={styles.createText}>{t('train.addNamed', { name: trimmedEx })}</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
+
             {exercises.length === 0 ? (
-              <Text style={styles.empty}>{t('train.templateNoEx')}</Text>
+              <Text style={[styles.empty, { marginTop: space.md }]}>{t('train.templateNoEx')}</Text>
             ) : (
               exercises.map((d, i) => (
                 <View key={`${d.exerciseId}-${i}`} style={styles.tplExCard}>
                   <View style={styles.tplExTop}>
+                    <View style={styles.tplReorder}>
+                      <TouchableOpacity
+                        onPress={() => moveEx(i, -1)}
+                        disabled={i === 0}
+                        hitSlop={6}
+                        style={styles.tplMoveBtn}
+                        testID={`template-up-${i}`}
+                        accessibilityLabel={t('train.moveUp')}
+                      >
+                        <Ionicons name="chevron-up" size={18} color={i === 0 ? colors.line : colors.muted} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => moveEx(i, 1)}
+                        disabled={i === exercises.length - 1}
+                        hitSlop={6}
+                        style={styles.tplMoveBtn}
+                        testID={`template-down-${i}`}
+                        accessibilityLabel={t('train.moveDown')}
+                      >
+                        <Ionicons name="chevron-down" size={18} color={i === exercises.length - 1 ? colors.line : colors.muted} />
+                      </TouchableOpacity>
+                    </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.tplExName}>{d.name}</Text>
                       <Text style={styles.tplExMeta}>{t(logStyleKey(d.logStyle))}</Text>
@@ -1531,42 +1615,6 @@ function TemplateEditorModal({
                 </View>
               ))
             )}
-
-            <TextInput
-              style={[styles.input, { marginTop: space.sm }]}
-              placeholder={t('train.addExercisePh')}
-              placeholderTextColor={colors.faint}
-              value={exName}
-              onChangeText={setExName}
-              testID="template-add-exercise"
-            />
-            {trimmedEx ? (
-              <>
-                <View style={styles.styleRow}>
-                  {LOG_STYLES.map((ls) => {
-                    const on = exStyle === ls.value;
-                    return (
-                      <TouchableOpacity
-                        key={ls.value}
-                        style={[styles.styleChip, on && styles.styleChipOn]}
-                        onPress={() => setExStyle(ls.value)}
-                      >
-                        <Text style={[styles.styleChipText, on && styles.styleChipTextOn]}>{t(ls.labelKey)}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-                {matches.map((e) => (
-                  <TouchableOpacity key={e.id} style={styles.catalogRow} onPress={() => addFromCatalog(e)}>
-                    <Text style={styles.catalogName}>{e.name}</Text>
-                    <Text style={styles.catalogStyle}>{t(logStyleKey(e.logStyle))}</Text>
-                  </TouchableOpacity>
-                ))}
-                <TouchableOpacity style={styles.createRow} onPress={addFreeType} testID="template-create-exercise">
-                  <Text style={styles.createText}>{t('train.addNamed', { name: trimmedEx })}</Text>
-                </TouchableOpacity>
-              </>
-            ) : null}
 
             <View style={styles.editorBtns}>
               {template ? (
@@ -1792,6 +1840,7 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   },
   catalogName: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
   catalogStyle: { fontSize: font.tiny, color: colors.muted },
+  finishScroll: { gap: space.sm },
   finishRow: { flexDirection: 'row', gap: space.md },
   finishField: { flex: 1, gap: space.xs },
   fieldLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
@@ -1835,6 +1884,8 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
     marginBottom: space.sm,
   },
   tplExTop: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm },
+  tplReorder: { marginTop: -2 },
+  tplMoveBtn: { paddingHorizontal: 2, paddingVertical: 1 },
   tplExName: { fontFamily: type.heading, fontSize: font.body, color: colors.ink },
   tplExMeta: { fontSize: font.small, color: colors.muted, marginTop: 1 },
   tplDel: { padding: space.xs },
@@ -1895,7 +1946,12 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   panelHint: { fontSize: font.small, color: colors.muted },
   warmRow: { fontSize: font.small, color: colors.ink },
   // rest timer bar
-  restBar: {
+  restBarFloat: {
+    position: 'absolute',
+    left: space.xl,
+    right: space.xl,
+    bottom: space.md,
+    zIndex: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1903,7 +1959,7 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
-    marginTop: space.sm,
+    ...shadow.e3,
   },
   restLabel: { color: colors.onInk, fontWeight: '800', fontSize: font.body },
   restActions: { flexDirection: 'row', alignItems: 'center', gap: space.lg },

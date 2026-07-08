@@ -1,7 +1,7 @@
 import * as AppleAuthentication from 'expo-apple-authentication';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Google from 'expo-auth-session/providers/google';
-import { exchangeCodeAsync } from 'expo-auth-session';
+import { exchangeCodeAsync, makeRedirectUri, useAuthRequest } from 'expo-auth-session';
 import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
@@ -9,10 +9,14 @@ import {
   GoogleAuthProvider,
   OAuthProvider,
   type User,
+  createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendEmailVerification,
+  sendPasswordResetEmail,
   signInWithCredential,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
+  updateProfile,
 } from 'firebase/auth';
 import {
   type ReactNode,
@@ -43,6 +47,28 @@ export class AppleSignInError extends Error {
     super(code);
   }
 }
+
+/** Coded error for the Microsoft flow, same contract as GoogleSignInError. */
+export class MicrosoftSignInError extends Error {
+  constructor(readonly code: string) {
+    super(code);
+  }
+}
+
+// Microsoft (Azure AD v2.0) endpoints. `common` = the app registration is
+// multi-tenant + personal accounts (mirrors the PWA's Firebase Microsoft
+// provider, client 80eaaf29…). The token endpoint returns the id_token
+// Firebase's OAuthProvider('microsoft.com') credential needs.
+const MS_TENANT = 'common';
+const msDiscovery = {
+  authorizationEndpoint: `https://login.microsoftonline.com/${MS_TENANT}/oauth2/v2.0/authorize`,
+  tokenEndpoint: `https://login.microsoftonline.com/${MS_TENANT}/oauth2/v2.0/token`,
+};
+const microsoftAuth = (Constants.expoConfig?.extra as { microsoftAuth?: { clientId?: string } } | undefined)
+  ?.microsoftAuth;
+const msClientId = microsoftAuth?.clientId;
+const hasRealMsClientId =
+  typeof msClientId === 'string' && msClientId.length > 0 && !msClientId.startsWith('REPLACE_WITH');
 
 // Public OAuth client IDs (safe to commit — ADR-0002). Filled per build via
 // app.json → expo.extra.googleAuth. Still placeholders until a dev build is
@@ -82,6 +108,12 @@ interface AuthState {
    *  redirect so we don't flash it before the doc loads. */
   profileLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  /** Creates a new email/password account and signs in. Sets the Firebase Auth
+   *  displayName when provided, and sends a (best-effort) verification email.
+   *  Firebase enforces the project password policy. */
+  signUp: (email: string, password: string, displayName?: string) => Promise<void>;
+  /** Sends a password-reset email to `email`. */
+  resetPassword: (email: string) => Promise<void>;
   /** Launches the Google OAuth flow and signs in to Firebase with the
    *  returned id token. Throws GoogleSignInError on cancel/unavailable. */
   signInWithGoogle: () => Promise<void>;
@@ -94,6 +126,12 @@ interface AuthState {
   /** iOS-only and unavailable in Expo Go — drives whether the Apple button
    *  renders at all. */
   appleAvailable: boolean;
+  /** Launches the Microsoft (Azure AD) OAuth flow and signs in to Firebase
+   *  with the returned id token. Throws MicrosoftSignInError on cancel/etc. */
+  signInWithMicrosoft: () => Promise<void>;
+  /** False in Expo Go or until the OAuth request is ready — drives the
+   *  Microsoft button's enabled state. */
+  microsoftAvailable: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -122,6 +160,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const googleAvailable = !isExpoGo && hasRealClientId && !!request;
+
+  // Microsoft OAuth request (generic AuthSession — no dedicated provider). The
+  // redirect must be registered on the Azure app under "Mobile and desktop
+  // applications"; see MICROSOFT_SIGNIN.md. Gated off in Expo Go like Google.
+  const msRedirectUri = makeRedirectUri({ scheme: 'ignia', path: 'auth' });
+  const [msRequest, , msPromptAsync] = useAuthRequest(
+    {
+      clientId: msClientId ?? '',
+      scopes: ['openid', 'profile', 'email'],
+      redirectUri: msRedirectUri,
+      extraParams: { prompt: 'select_account' },
+    },
+    msDiscovery,
+  );
+  const microsoftAvailable = !isExpoGo && hasRealMsClientId && !!msRequest;
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (u) => {
@@ -181,6 +234,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       googleAvailable,
       signIn: async (email, password) => {
         await signInWithEmailAndPassword(auth, email.trim(), password);
+      },
+      signUp: async (email, password, displayName) => {
+        const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        // Set displayName before the profile subscription resolves so greetings
+        // have a name on first render. Best-effort — never fail the sign-up.
+        const name = displayName?.trim();
+        if (name) {
+          try {
+            await updateProfile(cred.user, { displayName: name });
+          } catch (e) {
+            console.warn('updateProfile(displayName) failed', e);
+          }
+        }
+        try {
+          await sendEmailVerification(cred.user);
+        } catch (e) {
+          console.warn('sendEmailVerification failed', e);
+        }
+      },
+      resetPassword: async (email) => {
+        await sendPasswordResetEmail(auth, email.trim());
       },
       signInWithGoogle: async () => {
         if (isExpoGo || !hasRealClientId) throw new GoogleSignInError('expo-go');
@@ -248,9 +322,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         await signInWithCredential(auth, fbCredential);
       },
+      microsoftAvailable,
+      signInWithMicrosoft: async () => {
+        if (isExpoGo || !hasRealMsClientId) throw new MicrosoftSignInError('expo-go');
+        if (!msRequest) throw new MicrosoftSignInError('not-ready');
+        const result = await msPromptAsync();
+        if (result.type === 'cancel' || result.type === 'dismiss') {
+          throw new MicrosoftSignInError('cancelled');
+        }
+        if (result.type !== 'success') throw new MicrosoftSignInError('failed');
+        // Same code-exchange shape as Google: promptAsync resolves with the raw
+        // authorization CODE; exchange it (with the PKCE verifier) for the
+        // id_token Firebase's microsoft.com credential validates.
+        const code = result.params?.code;
+        if (!code) throw new MicrosoftSignInError('no-token');
+        const token = await exchangeCodeAsync(
+          {
+            clientId: msClientId ?? '',
+            code,
+            redirectUri: msRedirectUri,
+            extraParams: msRequest.codeVerifier ? { code_verifier: msRequest.codeVerifier } : {},
+          },
+          msDiscovery,
+        );
+        const idToken = token.idToken;
+        if (!idToken) throw new MicrosoftSignInError('no-token');
+        const fbCredential = new OAuthProvider('microsoft.com').credential({
+          idToken,
+          accessToken: token.accessToken,
+        });
+        await signInWithCredential(auth, fbCredential);
+      },
       signOut: () => fbSignOut(auth),
     }),
-    [user, initializing, isPro, profile, profileLoading, googleAvailable, request, promptAsync],
+    [
+      user,
+      initializing,
+      isPro,
+      profile,
+      profileLoading,
+      googleAvailable,
+      request,
+      promptAsync,
+      microsoftAvailable,
+      msRequest,
+      msPromptAsync,
+      msRedirectUri,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

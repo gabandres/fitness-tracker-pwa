@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { trackSubs } from '@/lib/sub-debug';
 import {
   type CustomFood,
   type DailyLog,
@@ -102,28 +104,33 @@ export function useToday(): TodayState {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    if (!uid) return;
-    setLoading(true);
-    const unsubs = [
-      subscribeRecentLogs(
-        uid,
-        LOG_WINDOW,
-        (l) => {
-          setLogs(l);
-          setLoading(false);
-        },
-        setError,
-      ),
-      subscribeDailyWeights(uid, setWeights, setError),
-      subscribeProfile(uid, setProfile, setError),
-      subscribePresets(uid, setPresets, setError),
-      subscribeCustomFoods(uid, setCustomFoods, setError),
-      subscribeDailyWater(uid, setWaterMap, setError),
-      subscribeDailySleep(uid, setSleepMap, setError),
-    ];
-    return () => unsubs.forEach((u) => u());
-  }, [uid]);
+  // Focus-gated (not mount-gated): the tab detaches its Firestore listeners
+  // when it blurs, so background tabs stop holding live onSnapshot channels
+  // awake (battery/network). Re-subscribes from cache on refocus — no spinner
+  // flash, hence no setLoading(true) here (initial state covers first load).
+  useFocusEffect(
+    useCallback(() => {
+      if (!uid) return;
+      const unsubs = [
+        subscribeRecentLogs(
+          uid,
+          LOG_WINDOW,
+          (l) => {
+            setLogs(l);
+            setLoading(false);
+          },
+          setError,
+        ),
+        subscribeDailyWeights(uid, setWeights, setError),
+        subscribeProfile(uid, setProfile, setError),
+        subscribePresets(uid, setPresets, setError),
+        subscribeCustomFoods(uid, setCustomFoods, setError),
+        subscribeDailyWater(uid, setWaterMap, setError),
+        subscribeDailySleep(uid, setSleepMap, setError),
+      ];
+      return trackSubs('Today', unsubs);
+    }, [uid]),
+  );
 
   const todayKey = localDateKey(new Date());
   const summary = useMemo(() => summarizeDay(todayKey, logs, weights), [todayKey, logs, weights]);

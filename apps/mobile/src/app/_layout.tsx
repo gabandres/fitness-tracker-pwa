@@ -79,6 +79,10 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
+    // Sit above the tab bar's raised Log FAB (zIndex 30 / elevation) so the
+    // branded loader fully covers it instead of the "+" peeking through.
+    zIndex: 100,
+    elevation: 100,
   },
 });
 

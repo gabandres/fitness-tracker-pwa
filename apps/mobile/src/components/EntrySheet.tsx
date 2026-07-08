@@ -668,7 +668,12 @@ export function EntrySheet({
 function TextInputBase(props: React.ComponentProps<typeof TextInput>) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  return <TextInput style={styles.input} placeholderTextColor={colors.faint} {...props} />;
+  // allowFontScaling off: a large iOS Dynamic-Type setting was scaling the
+  // placeholder past the padded field height, clipping the "0"/text at the
+  // bottom. Fixed field text keeps the sheet's number grid aligned.
+  return (
+    <TextInput style={styles.input} placeholderTextColor={colors.faint} allowFontScaling={false} {...props} />
+  );
 }
 
 function Field({ label, children, style }: { label: string; children: React.ReactNode; style?: object }) {
@@ -758,9 +763,12 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
     borderColor: colors.line,
     borderRadius: radius.md,
     paddingHorizontal: space.md,
-    paddingVertical: space.md,
+    // Fixed height so iOS centers the text deterministically (padding-only
+    // auto-height mis-places the placeholder until a reload — RN iOS quirk).
+    height: 52,
     fontSize: font.body,
     color: colors.ink,
+    textAlignVertical: 'center',
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   chip: {

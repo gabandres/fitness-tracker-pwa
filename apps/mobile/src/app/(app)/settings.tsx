@@ -533,9 +533,13 @@ export default function Settings() {
 
         <Text style={styles.section}>{t('settings.account')}</Text>
         <View style={styles.card}>
-          <View style={styles.rowBetween}>
+          {/* Email on its own line, single-line + middle-ellipsis — a long
+              address wrapped mid-word ("…@gm\nail.com") before. */}
+          <View style={styles.accountHead}>
             <Text style={styles.rowLabel}>{t('settings.signedInAs')}</Text>
-            <Text style={styles.rowValueRight}>{user?.email ?? '—'}</Text>
+            <Text style={styles.accountEmail} numberOfLines={1} ellipsizeMode="middle">
+              {user?.email ?? '—'}
+            </Text>
           </View>
           <TouchableOpacity style={styles.signOut} onPress={signOut} testID="settings-signout">
             <Ionicons name="log-out-outline" size={18} color={colors.danger} />
@@ -644,7 +648,9 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   },
   stepText: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },
   hourValue: { fontSize: font.body, color: colors.ink, fontWeight: '700', minWidth: 56, textAlign: 'center' },
-  signOut: { flexDirection: 'row', alignItems: 'center', gap: space.sm, justifyContent: 'center' },
+  accountHead: { gap: 2, marginBottom: space.md },
+  accountEmail: { fontSize: font.small, color: colors.muted },
+  signOut: { flexDirection: 'row', alignItems: 'center', gap: space.sm, justifyContent: 'flex-start' },
   signOutText: { color: colors.danger, fontWeight: '700', fontSize: font.body },
   deleteDivider: { height: 1, backgroundColor: colors.line, marginVertical: space.md },
   deleteRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },

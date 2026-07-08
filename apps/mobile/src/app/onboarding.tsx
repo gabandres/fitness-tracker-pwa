@@ -123,17 +123,30 @@ export default function Onboarding() {
               ))}
             </View>
           ) : null}
-          {/* Sign out — escape hatch so a user can leave onboarding (e.g. wrong
-              account) instead of being trapped on the flow. */}
-          <PressScale
-            style={styles.back}
-            scaleTo={0.9}
-            onPress={() => { void signOut(); }}
-            testID="onboarding-signout"
-            accessibilityLabel={t('settings.signOut')}
-          >
-            <Ionicons name="log-out-outline" size={22} color={colors.faint} />
-          </PressScale>
+          {/* Escape hatch. First run: sign out (e.g. wrong account). Redo from
+              Settings → Edit goals: the user already has data, so offer a plain
+              Cancel back to Settings instead of a destructive sign-out. */}
+          {isRedo ? (
+            <PressScale
+              style={styles.back}
+              scaleTo={0.9}
+              onPress={() => { haptics.tap(); router.replace('/settings'); }}
+              testID="onboarding-cancel"
+              accessibilityLabel={t('common.cancel')}
+            >
+              <Ionicons name="close" size={24} color={colors.faint} />
+            </PressScale>
+          ) : (
+            <PressScale
+              style={styles.back}
+              scaleTo={0.9}
+              onPress={() => { void signOut(); }}
+              testID="onboarding-signout"
+              accessibilityLabel={t('settings.signOut')}
+            >
+              <Ionicons name="log-out-outline" size={22} color={colors.faint} />
+            </PressScale>
+          )}
         </View>
 
         <Animated.View key={step} entering={entering} style={styles.stepWrap}>

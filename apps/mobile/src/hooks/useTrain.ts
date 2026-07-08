@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { trackSubs } from '@/lib/sub-debug';
 import { useAuth } from '@/lib/auth';
 import {
   addExercise as addExerciseDoc,
@@ -36,6 +38,7 @@ import {
 } from '@/lib/workout';
 import {
   type SeedTemplate,
+  fillMissingClusterLoads,
   findSeedExercise,
   seedExerciseCues,
   seedExerciseName,
@@ -139,37 +142,42 @@ export function useTrain(): TrainState {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    if (!uid) return;
-    setLoading(true);
-    let alive = true;
-    const unsubs = [
-      subscribeExercises(uid, setCatalog, setError),
-      subscribeTemplates(uid, setTemplates, setError),
-      subscribeRecentSessions(
-        uid,
-        50,
-        (s) => {
-          // Recent list shows completed sessions; the active one (if any) is
-          // surfaced separately via getActiveSession below.
-          setRecentSessions(s.filter((x) => x.status === 'completed'));
-          setLoading(false);
-        },
-        setError,
-      ),
-    ];
-    // One-shot load of any in-progress session so set edits aren't clobbered
-    // by a live subscription mid-typing.
-    getActiveSession(uid)
-      .then((s) => {
-        if (alive) setActive(s);
-      })
-      .catch(setError);
-    return () => {
-      alive = false;
-      unsubs.forEach((u) => u());
-    };
-  }, [uid]);
+  // Focus-gated so the Train tab drops its live listeners when it blurs
+  // (battery/network). Re-subscribes + reloads the active session on refocus.
+  // See useToday.
+  useFocusEffect(
+    useCallback(() => {
+      if (!uid) return;
+      let alive = true;
+      const unsubs = [
+        subscribeExercises(uid, setCatalog, setError),
+        subscribeTemplates(uid, setTemplates, setError),
+        subscribeRecentSessions(
+          uid,
+          50,
+          (s) => {
+            // Recent list shows completed sessions; the active one (if any) is
+            // surfaced separately via getActiveSession below.
+            setRecentSessions(s.filter((x) => x.status === 'completed'));
+            setLoading(false);
+          },
+          setError,
+        ),
+      ];
+      // One-shot load of any in-progress session so set edits aren't clobbered
+      // by a live subscription mid-typing.
+      getActiveSession(uid)
+        .then((s) => {
+          if (alive) setActive(s);
+        })
+        .catch(setError);
+      const stop = trackSubs('Train', unsubs);
+      return () => {
+        alive = false;
+        stop();
+      };
+    }, [uid]),
+  );
 
   /** Persist the current local active session. */
   const persist = useCallback(
@@ -431,7 +439,9 @@ export function useTrain(): TrainState {
       setSaving(true);
       try {
         const date = active.date;
-        const exercises = dropEmptySets(active.exercises);
+        // Heal logged-but-loadless sets from their siblings before pruning, so
+        // a blank-weight cluster/activation row can't persist (see core).
+        const exercises = dropEmptySets(fillMissingClusterLoads(active.exercises));
         await updateSession(uid, active.id, {
           status: 'completed',
           exercises,
@@ -488,7 +498,7 @@ export function useTrain(): TrainState {
     if (uid && active?.id) {
       setSaving(true);
       try {
-        await updateSession(uid, active.id, { exercises: dropEmptySets(active.exercises) });
+        await updateSession(uid, active.id, { exercises: dropEmptySets(fillMissingClusterLoads(active.exercises)) });
       } catch (e) {
         setError(e instanceof Error ? e : new Error('Save failed'));
       } finally {

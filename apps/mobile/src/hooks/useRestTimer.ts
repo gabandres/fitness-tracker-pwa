@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import * as haptics from '@/lib/haptics';
 
 export interface RestTimer {
   /** Seconds left; 0 = idle (the rest bar hides). */
@@ -48,6 +49,8 @@ export function useRestTimer(): RestTimer {
           if (r <= 1) {
             if (handle.current) clearInterval(handle.current);
             handle.current = null;
+            // Buzz on natural completion (time to lift) — skip/stop stays silent.
+            haptics.success();
             return 0;
           }
           return r - 1;

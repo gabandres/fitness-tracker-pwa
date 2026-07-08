@@ -81,6 +81,9 @@
         "androidClientId": "647810616435-8fq849lqju9rrbnva3nqsvdqlbucr33n.apps.googleusercontent.com",
         "webClientId": "647810616435-jkiccn16plimkv9smp7ki8m90ghhocsh.apps.googleusercontent.com"
       },
+      "microsoftAuth": {
+        "clientId": "80eaaf29-9de3-4912-a08a-7f0c6009e310"
+      },
       "router": {},
       "eas": {
         "projectId": "d0ccbe2d-b0f1-4333-9e2d-a02a21b23854"

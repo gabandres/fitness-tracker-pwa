@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { trackSubs } from '@/lib/sub-debug';
 import {
   type DailyLog,
   type Measurement,
@@ -75,24 +77,27 @@ export function useBody(): BodyState {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    if (!uid) return;
-    setLoading(true);
-    const unsubs = [
-      subscribeDailyWeights(
-        uid,
-        (w) => {
-          setWeights(w);
-          setLoading(false);
-        },
-        setError,
-      ),
-      subscribeRecentLogs(uid, 400, setLogs, setError),
-      subscribeMeasurements(uid, 20, setMeasurements, setError),
-      subscribeProfile(uid, setProfile, setError),
-    ];
-    return () => unsubs.forEach((u) => u());
-  }, [uid]);
+  // Focus-gated so the Body tab drops its live listeners when it blurs
+  // (battery/network). Re-subscribes from cache on refocus. See useToday.
+  useFocusEffect(
+    useCallback(() => {
+      if (!uid) return;
+      const unsubs = [
+        subscribeDailyWeights(
+          uid,
+          (w) => {
+            setWeights(w);
+            setLoading(false);
+          },
+          setError,
+        ),
+        subscribeRecentLogs(uid, 400, setLogs, setError),
+        subscribeMeasurements(uid, 20, setMeasurements, setError),
+        subscribeProfile(uid, setProfile, setError),
+      ];
+      return trackSubs('Body', unsubs);
+    }, [uid]),
+  );
 
   const todayKey = localDateKey(new Date());
   const weighIns = useMemo<WeighIn[]>(

@@ -45,6 +45,12 @@ export const springLayout = LinearTransition.springify()
   .stiffness(motion.spring.gentle.stiffness)
   .reduceMotion(ReduceMotion.System);
 
+/** Non-bouncy layout transition — for size changes that should settle cleanly
+ *  (e.g. an accordion expanding) where a spring's overshoot reads as "jumpy". */
+export const smoothLayout = LinearTransition.duration(motion.dur.base)
+  .easing(Easing.out(Easing.cubic))
+  .reduceMotion(ReduceMotion.System);
+
 type PressScaleProps = Omit<ComponentProps<typeof Pressable>, 'style'> & {
   style?: StyleProp<ViewStyle>;
   /** Scale while pressed. Default 0.96; use ~0.9 for small pills/chips. */

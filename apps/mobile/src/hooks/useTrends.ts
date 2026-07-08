@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { trackSubs } from '@/lib/sub-debug';
 import {
   type DailyLog,
   type DailyTargets,
@@ -52,24 +54,27 @@ export function useTrends(): TrendsState {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    if (!uid) return;
-    setLoading(true);
-    const unsubs = [
-      subscribeRecentLogs(
-        uid,
-        LOG_WINDOW,
-        (l) => {
-          setLogs(l);
-          setLoading(false);
-        },
-        setError,
-      ),
-      subscribeDailyWeights(uid, setWeights, setError),
-      subscribeProfile(uid, setProfile, setError),
-    ];
-    return () => unsubs.forEach((u) => u());
-  }, [uid]);
+  // Focus-gated so the Trends tab drops its live listeners when it blurs
+  // (battery/network). Re-subscribes from cache on refocus. See useToday.
+  useFocusEffect(
+    useCallback(() => {
+      if (!uid) return;
+      const unsubs = [
+        subscribeRecentLogs(
+          uid,
+          LOG_WINDOW,
+          (l) => {
+            setLogs(l);
+            setLoading(false);
+          },
+          setError,
+        ),
+        subscribeDailyWeights(uid, setWeights, setError),
+        subscribeProfile(uid, setProfile, setError),
+      ];
+      return trackSubs('Trends', unsubs);
+    }, [uid]),
+  );
 
   const targets: DailyTargets = useMemo(
     () => dailyTargets(profile, logs, weights),
