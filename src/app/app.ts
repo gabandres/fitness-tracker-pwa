@@ -42,11 +42,13 @@ import { TrendsComponent } from './components/trends/trends.component';
 import { BodyComponent } from './components/body/body.component';
 import { TrainComponent } from './components/train/train.component';
 import { UiTabBar, type UiTab } from './components/ui/tab-bar.component';
+import { UiBrandLoader } from './components/ui/brand-loader.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
   imports: [
+    UiBrandLoader,
     SignInComponent,
     OnboardingComponent,
     CalculatorComponent,
@@ -259,10 +261,7 @@ import { UiTabBar, type UiTab } from './components/ui/tab-bar.component';
         <!-- Main content gates: auth → profile → app -->
         <div class="mt-10 space-y-12">
           @if (!auth.ready()) {
-            <div class="v2-loader-stack" role="status" aria-live="polite">
-              <div class="v2-loader" aria-hidden="true"></div>
-              <p class="v2-loader-label">{{ t('app.loadingFieldNotes') }}</p>
-            </div>
+            <ui-brand-loader [label]="t('app.loadingFieldNotes')" />
           } @else if (!auth.isSignedIn()) {
             <div class="ink-in delay-3">
               <app-sign-in />
@@ -331,10 +330,7 @@ import { UiTabBar, type UiTab } from './components/ui/tab-bar.component';
                 </div>
               </div>
             } @else {
-              <div class="v2-loader-stack" role="status" aria-live="polite">
-                <div class="v2-loader" aria-hidden="true"></div>
-                <p class="v2-loader-label">{{ t('app.openingYourFile') }}</p>
-              </div>
+              <ui-brand-loader [label]="t('app.openingYourFile')" />
             }
           } @else if (!firebase.profileCompleted()) {
             <!-- New users go through the 2-question v2 onboarding (Q10
