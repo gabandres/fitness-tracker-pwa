@@ -272,7 +272,7 @@ export class SignInComponent {
   // Firebase Apple provider (see APPLE_WEB_SIGNIN.md). Until that's done,
   // signInWithPopup('apple.com') errors — so the button stays hidden. Flip to
   // true once the Services ID is wired to reach full web/app provider parity.
-  protected readonly appleWebEnabled = false;
+  protected readonly appleWebEnabled = true;
 
   private async runPopup(method: Method, fn: () => Promise<void>): Promise<void> {
     this.lastMethod.set(method);
