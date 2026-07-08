@@ -51,11 +51,7 @@ export default function SignIn() {
       await signInWithGoogle();
       // AuthGate navigates once auth state flips.
     } catch (e: unknown) {
-      // TEMP DIAGNOSTIC: surface the raw code + message so we can see the
-      // actual Google failure instead of the generic message. Remove after.
-      const code = (e as { code?: string })?.code ?? 'no-code';
-      const msg = (e as { message?: string })?.message ?? String(e);
-      setError(`${t(errorKey(e))}  ·  [${code}] ${msg}`);
+      setError(t(errorKey(e)));
     } finally {
       setGoogleBusy(false);
     }
