@@ -177,18 +177,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [msRequest, , msPromptAsync] = useAuthRequest(
     {
       clientId: msClientId ?? '',
-      // User.Read yields a real Microsoft Graph access token — Firebase's
-      // microsoft.com handler validates the OAuth access token, not just the id_token.
-      scopes: ['openid', 'profile', 'email', 'User.Read'],
+      scopes: ['openid', 'profile', 'email'],
       redirectUri: msRedirectUri,
       extraParams: { prompt: 'select_account', ...(msNonce ? { nonce: msNonce } : {}) },
     },
     msDiscovery,
   );
-  // Microsoft is OFF for v1: Firebase's JS SDK signInWithCredential doesn't
-  // support microsoft.com (brokered-OAuth; popup/redirect only, unavailable on
-  // RN), and personal/multi-tenant accounts can't be validated. Code + Azure
-  // setup are kept — flip this to true only alongside a WebView-redirect flow.
+  // Microsoft is OFF for v1. The Firebase JS SDK can't validate an external
+  // microsoft.com credential (brokered-OAuth: popup/redirect only), and the
+  // only workaround — a custom OIDC provider (`oidc.microsoft`) — requires a
+  // paid Identity Platform (GCIP) upgrade. Code + the `oidc.microsoft` wiring
+  // are kept; to revisit: enable GCIP, recreate the OIDC provider, flip this true.
   const MICROSOFT_ENABLED = false;
   const microsoftAvailable =
     MICROSOFT_ENABLED && !isExpoGo && hasRealMsClientId && !!msRequest && !!msNonce;
@@ -365,9 +364,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const idToken = token.idToken;
         if (!idToken) throw new MicrosoftSignInError('no-token');
         // rawNonce lets Firebase match the SHA-256 nonce baked into the id_token.
-        const fbCredential = new OAuthProvider('microsoft.com').credential({
+        // Custom OIDC provider (not microsoft.com): Firebase validates this
+        // id_token against the configured issuer's JWKS, matching rawNonce.
+        const fbCredential = new OAuthProvider('oidc.microsoft').credential({
           idToken,
-          accessToken: token.accessToken,
           rawNonce: msNonce ?? undefined,
         });
         try {
