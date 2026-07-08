@@ -10,7 +10,6 @@ import { UiSheet } from '../ui/sheet.component';
 import { UiCard } from '../ui/card.component';
 import { UiButton } from '../ui/button.component';
 import { SettingsPreferencesSectionComponent } from './settings-preferences-section.component';
-import { SettingsMembershipSectionComponent } from './settings-membership-section.component';
 import { SettingsDataSectionComponent } from './settings-data-section.component';
 import { SettingsAboutSectionComponent } from './settings-about-section.component';
 
@@ -37,7 +36,6 @@ import { SettingsAboutSectionComponent } from './settings-about-section.componen
     UiCard,
     UiButton,
     SettingsPreferencesSectionComponent,
-    SettingsMembershipSectionComponent,
     SettingsDataSectionComponent,
     SettingsAboutSectionComponent,
   ],
@@ -71,8 +69,6 @@ import { SettingsAboutSectionComponent } from './settings-about-section.componen
       <app-settings-preferences-section
         [themeChoice]="themeChoice()"
         (themeSelect)="themeSelect.emit($event)" />
-
-      <app-settings-membership-section />
 
       <app-settings-data-section />
 
