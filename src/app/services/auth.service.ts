@@ -15,6 +15,7 @@ import {
   signInWithPopup,
   onAuthStateChanged,
   signOut as fbSignOut,
+  updateProfile,
 } from '@angular/fire/auth';
 import { AnalyticsService } from './analytics.service';
 
@@ -29,14 +30,14 @@ export interface PendingLinkInfo {
    * was able to tell us. With email-enumeration protection enabled (default
    * in newer projects), this will always come back `unknown` — see
    * `candidateProviders` for the fallback list the UI should offer instead. */
-  readonly existingProvider: 'google.com' | 'microsoft.com' | 'password' | 'unknown';
-  readonly attemptedProvider: 'google.com' | 'microsoft.com' | 'password';
+  readonly existingProvider: 'google.com' | 'microsoft.com' | 'apple.com' | 'password' | 'unknown';
+  readonly attemptedProvider: 'google.com' | 'microsoft.com' | 'apple.com' | 'password';
   /** All providers the UI should let the user pick from when linking.
    * Always excludes `attemptedProvider` (that's the one that just failed).
    * When `existingProvider` is resolved, this list has a single entry;
    * under email-enumeration protection it carries the remaining two so
    * the user can pick. */
-  readonly candidateProviders: ReadonlyArray<'google.com' | 'microsoft.com' | 'password'>;
+  readonly candidateProviders: ReadonlyArray<'google.com' | 'microsoft.com' | 'apple.com' | 'password'>;
 }
 
 /**
@@ -185,17 +186,43 @@ export class AuthService {
     }
   }
 
+  async signInWithApple(): Promise<void> {
+    const provider = new OAuthProvider('apple.com');
+    provider.addScope('email');
+    provider.addScope('name');
+    this.analytics.track('signup_started', { provider: 'apple.com' });
+    try {
+      const result = await signInWithPopup(this.auth, provider);
+      await this.completeLinkIfPending(result.user);
+      if (this.isNewAccount(result.user)) {
+        this.analytics.track('signup_completed', { provider: 'apple.com' });
+      }
+    } catch (err) {
+      await this.capturePendingCredential(err, 'apple.com');
+      throw err;
+    }
+  }
+
   /**
    * Creates a new email/password account. Sends a verification email
    * immediately. The user is signed in, but `emailVerified` is false
    * until they click the link, so Firestore writes will fail until
    * they do.
    */
-  async signUpWithEmailPassword(email: string, password: string): Promise<void> {
+  async signUpWithEmailPassword(email: string, password: string, displayName?: string): Promise<void> {
     this.analytics.track('signup_started', { provider: 'password' });
     try {
       const result = await createUserWithEmailAndPassword(this.auth, email, password);
       this.analytics.track('signup_completed', { provider: 'password' });
+      // Set the display name (first + last) so greetings/share cards have it.
+      const name = displayName?.trim();
+      if (name) {
+        try {
+          await updateProfile(result.user, { displayName: name });
+        } catch (err) {
+          console.warn('updateProfile(displayName) failed on sign-up:', err);
+        }
+      }
       // Best-effort: a missing/blocked verification email is recoverable
       // via resendVerificationEmail() from the verify-banner.
       try {
@@ -308,7 +335,7 @@ export class AuthService {
    */
   private async capturePendingCredential(
     err: unknown,
-    attemptedProvider: 'google.com' | 'microsoft.com' | 'password',
+    attemptedProvider: 'google.com' | 'microsoft.com' | 'apple.com' | 'password',
     passwordOverride?: { email: string; password: string },
   ): Promise<void> {
     const code = (err as { code?: string })?.code;

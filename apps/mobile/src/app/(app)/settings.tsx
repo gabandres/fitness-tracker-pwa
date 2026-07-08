@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Linking, Platform, ScrollView, Share, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import { type ImportParseError, type ImportParseResult, type UnitSystem, parseImportCsv } from '@macrolog/core';
@@ -70,23 +70,6 @@ export default function Settings() {
   const [reminderHour, setReminderHour] = useState(DEFAULT_REMINDER_HOUR);
   const [exporting, setExporting] = useState(false);
   const [exportMsg, setExportMsg] = useState<string | null>(null);
-
-  // Referral: share a ?ref=<uid> link (mirrors the web buildReferralLink); a
-  // friend who signs up through it earns the referrer comped Pro time, stamped
-  // server-side onto profile.compedUntil.
-  const referralRewardUntil =
-    profile?.compedUntil && profile.compedUntil.getTime() > Date.now()
-      ? profile.compedUntil.toLocaleDateString()
-      : null;
-
-  const shareReferral = async () => {
-    if (!user) return;
-    haptics.tap();
-    const link = `https://ignia.fit/?ref=${encodeURIComponent(user.uid)}`;
-    try {
-      await Share.share({ message: `${t('settings.inviteShareMsg')} ${link}` });
-    } catch { /* user dismissed the share sheet */ }
-  };
 
   async function onExport() {
     if (!user || exporting) return;
@@ -288,24 +271,6 @@ export default function Settings() {
         </>
         ) : null}
 
-        <Text style={styles.section}>{t('settings.invite')}</Text>
-        <View style={styles.card}>
-          <Text style={styles.rowValue}>{t('settings.inviteBody')}</Text>
-          <TouchableOpacity
-            style={[styles.exportBtn, { marginTop: space.md }]}
-            onPress={shareReferral}
-            disabled={!user}
-            testID="settings-invite"
-          >
-            <Ionicons name="share-outline" size={16} color={colors.onInk} />
-            <Text style={styles.exportBtnText}>{t('settings.inviteShare')}</Text>
-          </TouchableOpacity>
-          {referralRewardUntil ? (
-            <Text style={[styles.rowValue, { marginTop: space.sm, color: colors.good }]}>
-              {t('settings.inviteRewardActive', { date: referralRewardUntil })}
-            </Text>
-          ) : null}
-        </View>
 
         {/* Donations (ADR-0015): external link only — Apple allows US-storefront
             donation links post-May-2025, no cut. Unlocks nothing (altruistic),
