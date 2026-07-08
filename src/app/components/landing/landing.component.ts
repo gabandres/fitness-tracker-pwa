@@ -1,9 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Firestore, doc, getDoc } from '@angular/fire/firestore';
-import { SubscriptionService } from '../../services/subscription.service';
-import { UiCard } from '../ui/card.component';
-import { UiButton } from '../ui/button.component';
 
 /**
  * Public marketing surface at `/`. Shows when the user is not signed
@@ -14,8 +11,7 @@ import { UiButton } from '../ui/button.component';
  *   1. Hero — the one question the app answers (primary "start logging" CTA)
  *   2. Product proof — three capture paths, measured TDEE, AI coach
  *   3. Privacy pledge — the "no ads / no selling" promise
- *   4. Pricing — free vs Pro (price sourced from SubscriptionService,
- *      not hardcoded, so landing never drifts from the Subscribe card)
+ *   4. Free — Ignia is free (donations model, no paid tier)
  *
  * Aesthetic reuses the "Personal Calibration Log" primitives (specimen
  * frames, stamp marks, ruler edges, crop marks) so a first-time visitor
@@ -24,7 +20,7 @@ import { UiButton } from '../ui/button.component';
 @Component({
   selector: 'app-landing',
   standalone: true,
-  imports: [TranslocoDirective, UiCard, UiButton],
+  imports: [TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -250,7 +246,6 @@ import { UiButton } from '../ui/button.component';
 })
 export class LandingComponent {
   private readonly firestore = inject(Firestore);
-  protected readonly subs = inject(SubscriptionService);
 
   /** Social-proof count from `public/stats.totalUsers`. Intentionally
       gated at 100 — below that we'd be doing anti-social-proof ("join

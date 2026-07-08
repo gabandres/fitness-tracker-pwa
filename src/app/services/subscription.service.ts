@@ -42,6 +42,17 @@ const CUSTOMERS = 'customers';
 const EXTENSION_INSTANCE = 'firestore-stripe-payments';
 
 /**
+ * Master Pro feature flag. **False in v1** — there is no purchasable product
+ * yet, so all purchase/upsell surfaces are removed AND server-entitled AI
+ * cost features (the Trends weekly report) are hidden rather than dead-ended.
+ * Mirrors mobile `PRO_ENABLED` (apps/mobile/src/lib/subscription.ts). When
+ * `PRO_ENABLED` is false, `isPaid()` is forced true so every *non-cost* perk
+ * (themes, higher limits, streak-freeze) is unlocked for everyone. Flip to
+ * `true` in v1.1 once Stripe/IAP lands.
+ */
+export const PRO_ENABLED = false;
+
+/**
  * Emails here skip all quotas (consultations, photos) and get treated
  * as paid. Keep in sync with ADMIN_EMAILS in functions/src/index.ts —
  * the two projects can't share code. The server is the source of
@@ -99,11 +110,16 @@ export class SubscriptionService {
     return email ? ADMIN_EMAILS.has(email) : false;
   });
 
-  /** True when the user gets paid features for any reason
-      (subscription, admin, or comped friend). Server enforcement is
-      independent — see functions/src/index.ts. */
+  /** True when the user gets paid ("Pro") non-cost features. In v1
+      (`PRO_ENABLED === false`) this is forced true so themes, higher
+      limits and streak-freeze are unlocked for everyone — matching mobile.
+      When Pro is re-enabled it reverts to the real entitlement (subscription,
+      admin, or comped friend). Server enforcement is independent — see
+      functions/src/index.ts. */
   readonly isPaid = computed(() =>
-    this.isAdmin() || this._isComped() || this._subscriptionActive(),
+    PRO_ENABLED
+      ? this.isAdmin() || this._isComped() || this._subscriptionActive()
+      : true,
   );
 
   /** Non-fatal UI-facing error (e.g. checkout failed). */

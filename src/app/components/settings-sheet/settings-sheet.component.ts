@@ -20,10 +20,11 @@ import { SettingsAboutSectionComponent } from './settings-about-section.componen
  * the four section modules in this folder:
  *
  *   preferences — language, reminders, appearance, units
- *   membership  — subscription, referral, public profile
  *   data        — webhook, CSV export, deletion pointer
  *   about       — feedback, build/updates, legal
  *
+ * The membership section (subscription, referral, public profile) was
+ * retired for the free v1 — see the Pro-retirement sweep.
  * Card order matches the pre-split sheet exactly.
  */
 @Component({

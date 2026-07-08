@@ -5,12 +5,11 @@ import { MacroEstimate } from '../../models/macro-estimate';
 import { TranslationService } from '../../services/translation.service';
 import { SubscriptionService } from '../../services/subscription.service';
 import { extractErrorCode } from '../../models/error-codes';
-import { UpsellCardComponent } from '../upsell-card/upsell-card.component';
 
 @Component({
   selector: 'app-photo-capture',
   standalone: true,
-  imports: [TranslocoDirective, UpsellCardComponent],
+  imports: [TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -51,11 +50,6 @@ import { UpsellCardComponent } from '../upsell-card/upsell-card.component';
       <p class="font-sans text-[11px] mt-1" style="color: var(--color-gold)">
         {{ t('photo.lowConfidence') }}
       </p>
-    }
-    <!-- Contextual upsell: renders only when the free user is out of photo
-         quota for the day. UpsellCardComponent self-gates on isPaid. -->
-    @if (photosRemaining() === 0) {
-      <app-upsell-card context="photoQuota" />
     }
     </ng-container>
   `,

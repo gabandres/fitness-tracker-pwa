@@ -2,13 +2,12 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
-import { UpsellCardComponent } from '../upsell-card/upsell-card.component';
 import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.component';
 
 @Component({
   selector: 'app-entry-form',
   standalone: true,
-  imports: [FormsModule, TranslocoDirective, UpsellCardComponent, BarcodeScannerComponent],
+  imports: [FormsModule, TranslocoDirective, BarcodeScannerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -107,10 +106,6 @@ import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.comp
       @if (form.status() === 'error') {
         <p id="entry-form-error" role="alert" aria-live="assertive"
           class="font-sans text-xs text-blood">✕ {{ form.errorMsg() }}</p>
-      }
-      <!-- Contextual upsell when a free user hits the 10-preset cap. -->
-      @if (form.presetLimitHit()) {
-        <app-upsell-card context="presetLimit" />
       }
     </form>
     </ng-container>

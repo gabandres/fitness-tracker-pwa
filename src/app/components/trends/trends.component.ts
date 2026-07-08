@@ -12,9 +12,8 @@ import { marked } from 'marked';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { WeeklyReportStore } from '../../services/weekly-report-store.service';
-import { SubscriptionService } from '../../services/subscription.service';
+import { SubscriptionService, PRO_ENABLED } from '../../services/subscription.service';
 import { TranslationService } from '../../services/translation.service';
-import { UpsellService } from '../../services/upsell.service';
 import { ConsultationComponent } from '../consultation/consultation.component';
 import { UiBarChart } from '../ui/bar-chart.component';
 import { UiButton } from '../ui/button.component';
@@ -211,11 +210,14 @@ import { bcp47ForLang } from '../../utils/locale';
         </ui-card>
       }
 
-      <!-- Coach panel: free Ask (quota'd) first, Pro weekly report below -->
+      <!-- Coach panel: free Ask (quota'd). The Pro weekly AI report below is
+           hidden in the free v1 (PRO_ENABLED=false) — mirrors mobile, which
+           gates WeeklyReportCard on PRO_ENABLED to avoid a dead-end + AI cost. -->
       <ui-card variant="default" class="mt-4 block">
         <h2 class="card-title mb-3">{{ t('trends.coachAsk') }}</h2>
         <app-consultation />
 
+        @if (proEnabled) {
         <div class="mt-6 pt-5" style="border-top: 1px solid var(--v2-rule);">
           <button type="button"
             class="flex items-center justify-between gap-3 w-full"
@@ -263,14 +265,6 @@ import { bcp47ForLang } from '../../utils/locale';
             @if (subs.isPaid()) {
               <ui-button variant="ghost" size="sm" (click)="generate()">{{ t('v2.trends.retry') }}</ui-button>
             }
-          } @else if (!subs.isPaid()) {
-            <p class="v2-body-soft">{{ t('v2.trends.upsellBody') }}</p>
-            <div class="mt-3">
-              <ui-button variant="primary" size="sm" (click)="openUpgrade()">
-                <lucide-icon name="sparkles" [size]="14" />
-                {{ t('v2.trends.upgrade') }}
-              </ui-button>
-            </div>
           } @else if (daysWithLogsThisWeek() < 3) {
             <p class="v2-body-soft">{{ t('v2.trends.needThreeDays') }}</p>
           } @else {
@@ -282,6 +276,7 @@ import { bcp47ForLang } from '../../utils/locale';
           </div>
           }
         </div>
+        }
       </ui-card>
     </section>
     </ng-container>
@@ -318,8 +313,8 @@ export class TrendsComponent {
   protected readonly authUser = this.auth.user;
   protected readonly report = inject(WeeklyReportStore);
   protected readonly subs = inject(SubscriptionService);
-  private readonly upsell = inject(UpsellService);
   private readonly translation = inject(TranslationService);
+  protected readonly proEnabled = PRO_ENABLED;
 
   readonly historyRequested = output<void>();
   readonly settingsRequested = output<void>();
@@ -471,9 +466,5 @@ export class TrendsComponent {
 
   protected generate(): void {
     void this.report.generateWeeklyReport();
-  }
-
-  protected openUpgrade(): void {
-    this.upsell.openSubscribe('trends-v2-weekly-report');
   }
 }

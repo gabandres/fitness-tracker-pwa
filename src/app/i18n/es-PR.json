@@ -345,19 +345,6 @@
       "deleteDesc": "borra permanentemente cada registro, preset, peso e informe.",
       "deleteManage": "gestionar →"
     },
-    "subscription": {
-      "section": "suscripción"
-    },
-    "referral": {
-      "section": "Refiere a un amigo",
-      "body": "Comparte tu link. Cuando un amigo que refieras empiece Pro, ambos reciben 30 días de Pro gratis.",
-      "copy": "Copiar link",
-      "copied": "¡Copiado!",
-      "share": "Compartir",
-      "shareTitle": "Prueba Ignia",
-      "shareText": "Estoy usando Ignia para mis macros — calculadora gratis, registro diario simple. Pruébalo:",
-      "rewardActive": "Pro comped hasta {{date}} gracias a una referencia."
-    },
     "feedback": {
       "section": "comentarios",
       "label": "reportar un bug o compartir comentarios",

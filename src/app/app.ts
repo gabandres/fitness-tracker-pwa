@@ -29,7 +29,6 @@ import { localDateKey } from './utils/date';
 import { captureReferrerFromUrl } from './utils/referral';
 import { bcp47ForLang } from './utils/locale';
 import { mediaSignal } from './utils/media';
-import { UpsellService } from './services/upsell.service';
 import { AnalyticsService } from './services/analytics.service';
 import { EntryFormManager } from './services/entry-form-manager.service';
 import { AdminService } from './services/admin.service';
@@ -474,7 +473,6 @@ export class App {
   // skip the staleness check.
   private readonly _weeklyReport = inject(WeeklyReportStore);
   protected readonly subs = inject(SubscriptionService);
-  private readonly upsell = inject(UpsellService);
   private readonly analytics = inject(AnalyticsService);
   private readonly entryForm = inject(EntryFormManager);
   private readonly swUpdate = inject(SwUpdate);
@@ -824,35 +822,6 @@ export class App {
       }
     });
 
-    // Upsell cards deep inside child components call `UpsellService.openSubscribe()`
-    // to request the Subscribe card; we respond by opening the settings sheet and
-    // deep-linking to the #settings-subscription anchor. Counter (not boolean)
-    // so repeat clicks re-trigger without an intermediate reset.
-    let lastOpenCount = 0;
-    effect(() => {
-      const n = this.upsell.requestOpenCount();
-      if (n === lastOpenCount) return;
-      lastOpenCount = n;
-      this.showSettings.set(true);
-      // Settings sheet is wrapped in `@defer`, so on the first open the
-      // chunk hasn't loaded yet and the anchor element won't exist on the
-      // next frame. Poll with bounded retries (every 50ms, up to 2s)
-      // until the element appears, then scroll. Gives up silently on
-      // timeout rather than throwing — a failed scroll is not worth
-      // interrupting the user's upgrade intent.
-      const start = Date.now();
-      const tryScroll = (): void => {
-        const el = document.getElementById('settings-subscription');
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          return;
-        }
-        if (Date.now() - start >= 2000) return;
-        setTimeout(tryScroll, 50);
-      };
-      tryScroll();
-    });
-
     // Track system preference so 'auto' responds live.
     window.matchMedia('(prefers-color-scheme: dark)')
       .addEventListener('change', () => {
@@ -923,28 +892,6 @@ export class App {
       // Mobile viewports fall through to the regular app, so they get
       // the default Ignia title instead of "Admin".
       if (r === 'admin' && this.isDesktop()) document.title = 'Admin — Ignia';
-    });
-
-    // Deep-link: /app?intent=pro (from landing Pro CTA) opens the
-    // Subscribe card as soon as the user is signed in + profile
-    // completed. Consumed once per boot so the query persisting in
-    // history doesn't keep re-triggering on tab changes. Fires through
-    // the upsell counter so it dedupes with the contextual upsell path.
-    let intentConsumed = false;
-    effect(() => {
-      if (intentConsumed) return;
-      if (!this.auth.isSignedIn() || !this.firebase.profileCompleted()) return;
-      const qs = new URLSearchParams(window.location.search);
-      if (qs.get('intent') !== 'pro') return;
-      intentConsumed = true;
-      this.upsell.openSubscribe('landing_pro_cta');
-      // Strip the query so a refresh doesn't re-open Subscribe + a
-      // stray `?intent=pro` doesn't leak into shared URLs.
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('intent');
-        window.history.replaceState({}, '', url.pathname + (url.search || '') + url.hash);
-      } catch { /* non-critical */ }
     });
 
     // Deep-link: /app?action=add (PWA manifest "Log food" shortcut) opens
