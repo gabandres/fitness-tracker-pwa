@@ -345,6 +345,11 @@
       "deleteDesc": "borra permanentemente cada registro, preset, peso e informe.",
       "deleteManage": "gestionar →"
     },
+    "support": {
+      "section": "Apoya la app",
+      "body": "Ignia es gratis, sin anuncios y sin vender tus datos. Una pequeña propina ayuda a cubrir el costo — totalmente opcional y no desbloquea nada.",
+      "btn": "Dejar una propina"
+    },
     "feedback": {
       "section": "comentarios",
       "label": "reportar un bug o compartir comentarios",

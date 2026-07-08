@@ -345,6 +345,11 @@
       "deleteDesc": "permanently erase every log, preset, weight, and report.",
       "deleteManage": "manage →"
     },
+    "support": {
+      "section": "Support the app",
+      "body": "Ignia is free, with no ads and no data-selling. A small tip helps cover the running cost — entirely optional, and it unlocks nothing.",
+      "btn": "Leave a tip"
+    },
     "feedback": {
       "section": "feedback",
       "label": "report a bug or share feedback",

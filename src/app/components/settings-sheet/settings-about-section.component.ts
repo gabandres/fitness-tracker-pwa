@@ -21,6 +21,22 @@ import { UiButton } from '../ui/button.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
+      <!-- Support the app (Ko-fi) — mirrors mobile Settings. Links to the
+           /support redirect (→ ko-fi.com/ignia). Free v1, tip is optional. -->
+      <ui-card variant="default" class="block mb-3">
+        <h3 class="v2-h3 mb-2">{{ t('settings.support.section') }}</h3>
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <p class="v2-caption">{{ t('settings.support.body') }}</p>
+          </div>
+          <a href="/support" target="_blank" rel="noopener"
+            class="v2-btn v2-btn--secondary v2-btn--sm shrink-0"
+            style="text-decoration: none;">
+            {{ t('settings.support.btn') }}
+          </a>
+        </div>
+      </ui-card>
+
       <!-- Feedback -->
       <ui-card variant="default" class="block mb-3">
         <h3 class="v2-h3 mb-2">{{ t('settings.feedback.section') }}</h3>
