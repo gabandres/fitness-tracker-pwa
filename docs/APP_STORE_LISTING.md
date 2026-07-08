@@ -46,6 +46,29 @@ Free to use. (A Pro tier with extra features is coming.)
 `First release of Ignia — calorie & protein tracking, workouts, body metrics,
 fasting, and a clean daily dashboard.`
 
+## Spanish localization (ASC = "Spanish (Mexico)"; serves the es-PR audience)
+Apple has no `es-PR`; add the **Spanish (Mexico)** localization. Copy is neutral
+Latin-American / PR-friendly (entreno, pesas, déficit). Screenshots can be reused
+(localized screenshots not required).
+
+- **Name (≤30):** `Ignia — Calorías y Entreno` (26)
+- **Subtitle (≤30):** `Proteína, ayuno y entreno` (25)
+- **Promotional text (≤170):** `Registra calorías, proteína y tu entrenamiento en una app tranquila y privada. Sin anuncios ni relleno — solo los números que de verdad importan.`
+- **Keywords (≤100):** `calorías,proteína,macros,contador,comida,dieta,peso,ayuno,pesas,gym,entreno,nutrición,tdee`
+- **Description (≤4000):**
+```
+Ignia es un contador de calorías y proteína rápido y privado, para quienes levantan pesas y quienes están en déficit — sin el relleno de otras apps.
+
+• Registra comidas en segundos y ve de un vistazo cuántas calorías y proteína te quedan hoy
+• Fija una meta (bajar, mantener, subir) y recibe un objetivo que se ajusta a tu peso
+• Registra tus entrenamientos junto a tu nutrición — la mayoría de los trackers ignoran el entrenamiento
+• Anota tu peso, medidas, agua, sueño y ventanas de ayuno
+• Diseño limpio y tranquilo. Sin anuncios. Sin vender tus datos.
+
+Gratis. Sin anuncios. Sin suscripciones.
+```
+- **What's New / Novedades (1.0.0):** `Primer lanzamiento de Ignia — registro de calorías y proteína, entrenamientos, métricas corporales, ayuno y un panel diario limpio.`
+
 ## Age rating
 - iOS: likely **4+** (no objectionable content). Answer "No" to all restricted
   content questions.
