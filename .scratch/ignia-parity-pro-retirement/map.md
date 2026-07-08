@@ -35,6 +35,7 @@ Today→`components/today/` · Train→`train/` · Trends→`trends/` · Body→
 - [08 — Onboarding + Refine parity](issues/08-onboarding-refine-parity.md) — audited, **at functional parity**, no change: refine = superset; onboarding collects same data; minor cosmetic deltas (mobile welcome intro + step order) noted, not force-fit.
 - [09 — Coach + Scan parity](issues/09-coach-scan-parity.md) — shipped `77f64453`: **photo-scan gated OFF on web** (utils/features.ts, matches mobile prod & ADR-0015 defer); coach at parity (inline vs screen; remaining-quota counter shown → no silent wall).
 - [10 — Deploy](issues/10-deploy.md) — **DONE**: prod build + firebase deploy (hosting[macrolog]) x2; TDEE hero confirmed live on ignia.fit/trends. **Effort complete.**
+- [11 — Loading/empty-state parity](issues/11-loading-empty-states-parity.md) — shipped `b4156ad9`+`b5c24a5c` (deployed): **Trends empty-insights skeleton preview** + **branded flame boot loader** (ui-brand-loader, replaces dual-ring spinner + "Opening your account…" text, matches mobile BrandLoader). Other empty/error states already at parity; spinner/splash platform-specific.
 
 ## Not yet specified
 
