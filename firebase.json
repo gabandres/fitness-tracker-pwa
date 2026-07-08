@@ -31,7 +31,6 @@
     "cleanUrls": true,
     "ignore": [
       "firebase.json",
-      "**/.*",
       "**/node_modules/**",
       "**/*.map"
     ],
