@@ -76,3 +76,37 @@ export interface WorkoutSession {
 export function isLoggedSet(s: WorkoutSet, logStyle: LogStyle = DEFAULT_LOG_STYLE): boolean {
   return logStyle === 'time' ? s.durationSec != null : s.reps != null;
 }
+
+/**
+ * Auto-default missing loads at the finish boundary. For each `weight-reps`
+ * exercise, any LOGGED set (reps entered) with no positive weight inherits the
+ * heaviest weight among its sibling sets — the correct load for cluster
+ * training, where the activation + mini rows share one weight, and the common
+ * data-entry gap where a row gets reps + RIR but the weight is left blank.
+ *
+ * Exercises with no loaded set are left untouched, so a genuine bodyweight /
+ * isometric move (pull-up, plank — often mis-catalogued as `weight-reps`) keeps
+ * its legitimate 0, and `time`/`bodyweight` styles are skipped entirely. Pure;
+ * apply alongside {@link isLoggedSet}-based pruning so a reps-but-no-weight row
+ * can't persist into a completed session (ADR-0012: both apps call this).
+ */
+export function fillMissingClusterLoads<
+  S extends WorkoutSet,
+  E extends { logStyle?: LogStyle; sets: S[] },
+>(exercises: E[]): E[] {
+  return exercises.map((ex) => {
+    const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
+    if (style !== 'weight-reps') return ex;
+    const maxWeight = ex.sets.reduce((m, s) => Math.max(m, s.weight ?? 0), 0);
+    if (maxWeight <= 0) return ex; // no loaded sibling → bodyweight/isometric; 0 is correct
+    let changed = false;
+    const sets = ex.sets.map((s): S => {
+      if (isLoggedSet(s, style) && (s.weight == null || s.weight <= 0)) {
+        changed = true;
+        return { ...s, weight: maxWeight };
+      }
+      return s;
+    });
+    return changed ? { ...ex, sets } : ex;
+  });
+}

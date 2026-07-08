@@ -14,6 +14,7 @@ import {
   dropEmptySets,
 } from '../models/workout';
 import {
+  fillMissingClusterLoads,
   findSeedExercise,
   seedExerciseCues,
   seedExerciseName,
@@ -262,8 +263,11 @@ export class WorkoutStore {
     // didn't complete would otherwise persist as blank rows. Only the
     // finished doc is cleaned — the live autosave path (`updateSession`)
     // keeps the scaffold so in-progress rows stay editable.
+    // Auto-default any logged-but-loadless set from its siblings BEFORE pruning
+    // empties, so a cluster/activation row with reps but a blank weight is
+    // healed (not persisted as weight 0). See fillMissingClusterLoads.
     const cleaned = patch.exercises
-      ? { ...patch, exercises: dropEmptySets(patch.exercises) }
+      ? { ...patch, exercises: dropEmptySets(fillMissingClusterLoads(patch.exercises)) }
       : patch;
     await this.fb.updateSession(id, { ...cleaned, status: 'completed' });
     this._activeSession.set(await this.fb.getActiveSession());

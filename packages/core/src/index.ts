@@ -58,6 +58,9 @@ export * from './warmup';
 export * from './workout-progression';
 // Function-only export (the ./workout types stay un-barreled — see note above).
 export { normalizeClusterGroups } from './cluster-groups';
+// Finish-boundary guard: fill a logged set's missing load from its siblings
+// (both apps — ADR-0012). Function-only, so the ./workout types stay un-barreled.
+export { fillMissingClusterLoads } from './workout';
 // Shipped Train starter content (library + templates + es-PR maps + resolvers).
 // Exported names are seed-specific (Seed*, EXERCISE_LIBRARY, seed*) — no clash
 // with the intentionally-un-barreled ./workout types.
