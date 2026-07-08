@@ -1,6 +1,7 @@
 import * as AppleAuthentication from 'expo-apple-authentication';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Google from 'expo-auth-session/providers/google';
+import { exchangeCodeAsync } from 'expo-auth-session';
 import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
@@ -194,20 +195,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // `authentication`, NOT `params`. (params only carries it on the
         // web/implicit path.) Reading only params → "no-token" → the generic
         // "Could not sign in" error even though sign-in succeeded up to here.
-        const idToken = result.authentication?.idToken ?? result.params?.id_token;
-        if (!idToken) {
-          // TEMP DIAGNOSTIC: dump the result shape so we can see why no
-          // id_token came back (does authentication exist? empty id_token?).
-          const r = result as unknown as {
-            type?: string;
-            params?: Record<string, unknown>;
-            authentication?: Record<string, unknown> | null;
-          };
-          const dbg = `t=${r.type} pk=[${Object.keys(r.params ?? {}).join(',')}] auth=${r.authentication ? Object.keys(r.authentication).join('/') : 'null'} idt=${JSON.stringify(r.params?.id_token)}`;
-          const err = new GoogleSignInError('no-token');
-          (err as { message: string }).message = dbg;
-          throw err;
-        }
+        // promptAsync() resolves with the raw authorization CODE — the
+        // provider's auto-exchange delivers tokens through the (ignored) hook
+        // `response` value, not this promise. So exchange the code ourselves
+        // to get the id_token Firebase needs.
+        const code = result.params?.code;
+        if (!code) throw new GoogleSignInError('no-token');
+        const clientId =
+          (Platform.OS === 'android' ? googleAuth?.androidClientId : googleAuth?.iosClientId) ?? '';
+        const token = await exchangeCodeAsync(
+          {
+            clientId,
+            code,
+            redirectUri: request.redirectUri,
+            extraParams: request.codeVerifier ? { code_verifier: request.codeVerifier } : {},
+          },
+          { tokenEndpoint: 'https://oauth2.googleapis.com/token' },
+        );
+        const idToken = token.idToken;
+        if (!idToken) throw new GoogleSignInError('no-token');
         await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
       },
       appleAvailable: appleSignInAvailable,
