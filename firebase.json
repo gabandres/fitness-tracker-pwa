@@ -34,6 +34,13 @@
       "**/node_modules/**",
       "**/*.map"
     ],
+    "redirects": [
+      {
+        "source": "/support",
+        "destination": "https://ko-fi.com/ignia",
+        "type": 302
+      }
+    ],
     "rewrites": [
       {
         "source": "/og/u/**",

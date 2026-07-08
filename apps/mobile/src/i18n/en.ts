@@ -410,7 +410,7 @@ export const en = {
   'settings.inviteShareMsg': 'Track calories + protein for free with Ignia:',
   'settings.inviteRewardActive': 'Pro reward active until {date}',
   'settings.support': 'Support the app',
-  'settings.supportBody': "Ignia is free to track by hand. If the AI meal scans have been useful, a small tip helps cover the running cost — entirely optional, and it unlocks nothing.",
+  'settings.supportBody': "Ignia is free, with no ads and no data-selling. A small tip helps cover the running cost — entirely optional, and it unlocks nothing.",
   'settings.supportBtn': 'Leave a tip',
   'settings.units': 'Units',
   'settings.portionDisplay': 'Portion display',

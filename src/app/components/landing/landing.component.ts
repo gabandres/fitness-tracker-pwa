@@ -240,6 +240,7 @@ import { UiButton } from '../ui/button.component';
         </div>
         <div class="md:text-right flex flex-col md:items-end justify-center">
           <a href="/faq" class="v2-link font-medium text-lg">{{ t('landing.faqLink') }}</a>
+          <a href="/support" class="v2-link font-medium text-lg mt-1" style="color: var(--v2-accent);">{{ t('landing.supportLink') }} ♥</a>
           <p class="v2-caption mt-2">&copy; {{ _getYear() }} Ignia</p>
         </div>
       </footer>
