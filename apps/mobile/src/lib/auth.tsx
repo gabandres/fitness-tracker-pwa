@@ -161,6 +161,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const googleAvailable = !isExpoGo && hasRealClientId && !!request;
 
+  // Microsoft (generic OIDC, unlike Apple): the IdP echoes the nonce UNHASHED
+  // into the id_token, and Firebase compares its `rawNonce` to that claim
+  // directly (no SHA-256). So use ONE raw value for both the auth request and
+  // the credential — hashing it Apple-style made them mismatch → invalid_credential.
+  const [msNonce, setMsNonce] = useState<string | null>(null);
+  useEffect(() => {
+    setMsNonce(`${Crypto.randomUUID()}${Crypto.randomUUID()}`);
+  }, []);
+
   // Microsoft OAuth request (generic AuthSession — no dedicated provider). The
   // redirect must be registered on the Azure app under "Mobile and desktop
   // applications"; see MICROSOFT_SIGNIN.md. Gated off in Expo Go like Google.
@@ -168,13 +177,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [msRequest, , msPromptAsync] = useAuthRequest(
     {
       clientId: msClientId ?? '',
-      scopes: ['openid', 'profile', 'email'],
+      // User.Read yields a real Microsoft Graph access token — Firebase's
+      // microsoft.com handler validates the OAuth access token, not just the id_token.
+      scopes: ['openid', 'profile', 'email', 'User.Read'],
       redirectUri: msRedirectUri,
-      extraParams: { prompt: 'select_account' },
+      extraParams: { prompt: 'select_account', ...(msNonce ? { nonce: msNonce } : {}) },
     },
     msDiscovery,
   );
-  const microsoftAvailable = !isExpoGo && hasRealMsClientId && !!msRequest;
+  // Microsoft is OFF for v1: Firebase's JS SDK signInWithCredential doesn't
+  // support microsoft.com (brokered-OAuth; popup/redirect only, unavailable on
+  // RN), and personal/multi-tenant accounts can't be validated. Code + Azure
+  // setup are kept — flip this to true only alongside a WebView-redirect flow.
+  const MICROSOFT_ENABLED = false;
+  const microsoftAvailable =
+    MICROSOFT_ENABLED && !isExpoGo && hasRealMsClientId && !!msRequest && !!msNonce;
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (u) => {
@@ -347,11 +364,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
         const idToken = token.idToken;
         if (!idToken) throw new MicrosoftSignInError('no-token');
+        // rawNonce lets Firebase match the SHA-256 nonce baked into the id_token.
         const fbCredential = new OAuthProvider('microsoft.com').credential({
           idToken,
           accessToken: token.accessToken,
+          rawNonce: msNonce ?? undefined,
         });
-        await signInWithCredential(auth, fbCredential);
+        try {
+          await signInWithCredential(auth, fbCredential);
+        } catch (e) {
+          // Surface the real Firebase code in Metro logs for diagnosis (the UI
+          // maps it to a friendly message).
+          console.warn('[microsoft] signInWithCredential failed:', (e as { code?: string })?.code, (e as Error)?.message);
+          throw e;
+        }
       },
       signOut: () => fbSignOut(auth),
     }),
@@ -368,6 +394,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       msRequest,
       msPromptAsync,
       msRedirectUri,
+      msNonce,
     ],
   );
 

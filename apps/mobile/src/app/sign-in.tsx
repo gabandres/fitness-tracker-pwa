@@ -311,25 +311,26 @@ export default function SignIn() {
               )}
             </TouchableOpacity>
 
-            {/* Always rendered (dimmed + disabled when unavailable, e.g. Expo
-                Go) so it's visible alongside Google — matches the Google button
-                rather than hiding entirely. */}
-            <TouchableOpacity
-              style={[styles.googleButton, (msBusy || !microsoftAvailable) && styles.buttonBusy]}
-              onPress={onMicrosoft}
-              disabled={msBusy}
-              testID="signin-microsoft"
-              accessibilityRole="button"
-            >
-              {msBusy ? (
-                <ActivityIndicator color={colors.ink} />
-              ) : (
-                <>
-                  <MicrosoftIcon size={16} />
-                  <Text style={styles.googleButtonText}>{t('signIn.microsoft')}</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            {/* Microsoft OFF for v1 (Firebase JS SDK can't validate an external
+                microsoft.com credential) — gated by MICROSOFT_ENABLED in auth. */}
+            {microsoftAvailable ? (
+              <TouchableOpacity
+                style={[styles.googleButton, msBusy && styles.buttonBusy]}
+                onPress={onMicrosoft}
+                disabled={msBusy}
+                testID="signin-microsoft"
+                accessibilityRole="button"
+              >
+                {msBusy ? (
+                  <ActivityIndicator color={colors.ink} />
+                ) : (
+                  <>
+                    <MicrosoftIcon size={16} />
+                    <Text style={styles.googleButtonText}>{t('signIn.microsoft')}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            ) : null}
 
           </Animated.View>
         </View>
