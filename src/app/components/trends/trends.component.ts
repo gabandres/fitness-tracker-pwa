@@ -186,7 +186,23 @@ import { bcp47ForLang } from '../../utils/locale';
                 </div>
               </dl>
             } @else {
-              <p class="v2-body-soft">{{ t('trends.insightsNeedDays') }}</p>
+              <!-- Below the 3-day gate: faded preview tiles + a keep-logging
+                   nudge (mirrors mobile), so the card shows what's coming and
+                   prompts the next log instead of a bare sentence. -->
+              <dl class="grid grid-cols-2 gap-x-4 gap-y-3">
+                <div>
+                  <dt class="v2-caption">{{ t('trends.avgIntake') }}</dt>
+                  <dd class="mt-1"><div style="height: 1.5rem; width: 70%; border-radius: 4px; background: var(--v2-rule); opacity: 0.6;"></div></dd>
+                </div>
+                <div>
+                  <dt class="v2-caption">{{ t('trends.avgProtein') }}</dt>
+                  <dd class="mt-1"><div style="height: 1.5rem; width: 70%; border-radius: 4px; background: var(--v2-rule); opacity: 0.6;"></div></dd>
+                </div>
+              </dl>
+              <p class="v2-body-soft mt-3" style="font-weight: 600; color: var(--v2-ink);">
+                {{ daysWithLogsThisWeek() > 0 ? t('trends.daysLogged', { n: daysWithLogsThisWeek() }) : t('trends.weekStart') }}
+              </p>
+              <p class="v2-caption mt-1">{{ t('trends.weekLowHint') }}</p>
             }
           } @else {
             @if (budget(); as b) {
