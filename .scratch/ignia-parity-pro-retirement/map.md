@@ -34,6 +34,7 @@ Today→`components/today/` · Train→`train/` · Trends→`trends/` · Body→
 - [07 — Settings parity](issues/07-settings-parity.md) — shipped `42f59d4b`: **added Ko-fi "Support the app" card** (was landing-only); public-profile kept dropped (matches mobile); rest at parity. Minor: mobile has finer unit sub-toggles web lacks (noted).
 - [08 — Onboarding + Refine parity](issues/08-onboarding-refine-parity.md) — audited, **at functional parity**, no change: refine = superset; onboarding collects same data; minor cosmetic deltas (mobile welcome intro + step order) noted, not force-fit.
 - [09 — Coach + Scan parity](issues/09-coach-scan-parity.md) — shipped `77f64453`: **photo-scan gated OFF on web** (utils/features.ts, matches mobile prod & ADR-0015 defer); coach at parity (inline vs screen; remaining-quota counter shown → no silent wall).
+- [10 — Deploy](issues/10-deploy.md) — **DONE**: prod build + firebase deploy (hosting[macrolog]) x2; TDEE hero confirmed live on ignia.fit/trends. **Effort complete.**
 
 ## Not yet specified
 
