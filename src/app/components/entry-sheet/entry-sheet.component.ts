@@ -17,6 +17,7 @@ import { UiSheet } from '../ui/sheet.component';
 import { UiButton } from '../ui/button.component';
 import { PhotoCaptureComponent } from '../photo-capture/photo-capture.component';
 import { BarcodeScannerComponent } from '../barcode-scanner/barcode-scanner.component';
+import { FEATURES } from '../../utils/features';
 import { PresetPickerComponent } from '../preset-picker/preset-picker.component';
 import { MyFoodsPickerComponent } from '../my-foods-picker/my-foods-picker.component';
 import { RecentEntriesComponent } from '../recent-entries/recent-entries.component';
@@ -373,13 +374,18 @@ export class EntrySheetComponent {
 
   protected readonly mealTypes = MEAL_TYPES;
 
-  protected readonly segments: { id: Segment; labelKey: string; icon: string }[] = [
-    { id: 'search', labelKey: 'v2.entrySheet.segSearch', icon: 'search' },
-    { id: 'meal', labelKey: 'v2.entrySheet.segMeal', icon: 'sparkles' },
-    { id: 'photo', labelKey: 'v2.entrySheet.segPhoto', icon: 'image' },
-    { id: 'barcode', labelKey: 'v2.entrySheet.segBarcode', icon: 'scan-line' },
-    { id: 'manual', labelKey: 'v2.entrySheet.segManual', icon: 'type' },
-  ];
+  // Photo-scan is deferred to v1.1 and OFF in v1 on both platforms (mirrors
+  // mobile FEATURES.photoScan). The 'photo' segment is filtered out until the
+  // meal-photo→macros loop ships; the photo-capture panel below stays gated.
+  protected readonly segments: { id: Segment; labelKey: string; icon: string }[] = (
+    [
+      { id: 'search', labelKey: 'v2.entrySheet.segSearch', icon: 'search' },
+      { id: 'meal', labelKey: 'v2.entrySheet.segMeal', icon: 'sparkles' },
+      { id: 'photo', labelKey: 'v2.entrySheet.segPhoto', icon: 'image' },
+      { id: 'barcode', labelKey: 'v2.entrySheet.segBarcode', icon: 'scan-line' },
+      { id: 'manual', labelKey: 'v2.entrySheet.segManual', icon: 'type' },
+    ] as { id: Segment; labelKey: string; icon: string }[]
+  ).filter((s) => s.id !== 'photo' || FEATURES.photoScan);
 
   constructor() {
     // Reset to Manual whenever the sheet closes — every open starts on the
@@ -471,3 +477,4 @@ export class EntrySheetComponent {
     } catch { /* ignore */ }
   }
 }
+
