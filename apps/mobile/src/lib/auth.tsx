@@ -10,6 +10,7 @@ import {
   OAuthProvider,
   type User,
   createUserWithEmailAndPassword,
+  fetchSignInMethodsForEmail,
   onAuthStateChanged,
   sendEmailVerification,
   sendPasswordResetEmail,
@@ -53,6 +54,41 @@ export class MicrosoftSignInError extends Error {
   constructor(readonly code: string) {
     super(code);
   }
+}
+
+/**
+ * Coded hint the sign-in screen maps to "use <provider> instead". Thrown when
+ * an email/password attempt collides with an account that is actually owned by
+ * a federated provider (Google/Apple) and has no password credential — the
+ * exact dead-end a Google-only user hits (signup → email-already-in-use,
+ * signin → invalid-credential). Mirrors the web `pendingLink` intent, minus the
+ * auto-link step: pointing the user at their real provider resolves the loop.
+ */
+export class AuthHintError extends Error {
+  constructor(readonly code: 'use-google' | 'use-apple') {
+    super(code);
+  }
+}
+
+/**
+ * Probes which provider owns `email` after a password collision so the UI can
+ * point the user at the right button.
+ *
+ * IMPORTANT: Firebase email-enumeration protection (on by default for newer
+ * projects) makes `fetchSignInMethodsForEmail` return an EMPTY array regardless
+ * of the truth, so a `null` result is expected and common — callers MUST fall
+ * back to a generic "use the buttons below" message, never treat null as
+ * "no such account".
+ */
+async function providerHintForEmail(email: string): Promise<'use-google' | 'use-apple' | null> {
+  try {
+    const methods = await fetchSignInMethodsForEmail(auth, email.trim());
+    if (methods.includes('google.com')) return 'use-google';
+    if (methods.includes('apple.com')) return 'use-apple';
+  } catch {
+    // Enumeration protection / offline — fall back to generic guidance.
+  }
+  return null;
 }
 
 // Microsoft (Azure AD v2.0) endpoints. `common` = the app registration is
@@ -249,10 +285,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profileLoading,
       googleAvailable,
       signIn: async (email, password) => {
-        await signInWithEmailAndPassword(auth, email.trim(), password);
+        try {
+          await signInWithEmailAndPassword(auth, email.trim(), password);
+        } catch (e) {
+          // A Google/Apple-only account has no password credential, so this
+          // comes back invalid-credential/wrong-password even though the email
+          // exists. Probe the owning provider and steer the user there instead
+          // of the dead-end "wrong email or password".
+          const code = (e as { code?: string })?.code ?? '';
+          if (
+            code.includes('invalid-credential') ||
+            code.includes('wrong-password') ||
+            code.includes('user-not-found')
+          ) {
+            const hint = await providerHintForEmail(email);
+            if (hint) throw new AuthHintError(hint);
+          }
+          throw e;
+        }
       },
       signUp: async (email, password, displayName) => {
-        const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        let cred;
+        try {
+          cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        } catch (e) {
+          // Email already owned — if by a federated provider, route the user to
+          // that provider rather than telling them to "sign in instead" (which
+          // fails: they never set a password).
+          if ((e as { code?: string })?.code === 'auth/email-already-in-use') {
+            const hint = await providerHintForEmail(email);
+            if (hint) throw new AuthHintError(hint);
+          }
+          throw e;
+        }
         // Set displayName before the profile subscription resolves so greetings
         // have a name on first render. Best-effort — never fail the sign-up.
         const name = displayName?.trim();

@@ -342,6 +342,8 @@ export default function SignIn() {
 
 function errorKey(e: unknown): I18nKey {
   const code = (e as { code?: string })?.code ?? '';
+  if (code === 'use-google') return 'signIn.errUseGoogle';
+  if (code === 'use-apple') return 'signIn.errUseApple';
   if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
     return 'signIn.errWrong';
   }
