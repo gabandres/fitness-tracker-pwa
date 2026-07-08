@@ -1,7 +1,7 @@
 # 10 — Deploy the parity + Pro-retirement batch
 
 Type: task
-Status: open
+Status: claimed
 Blocked by: 01, 02, 03, 04, 05, 06, 07, 08, 09
 
 ## Question

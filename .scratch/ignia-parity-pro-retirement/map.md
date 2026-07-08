@@ -25,7 +25,15 @@ Today→`components/today/` · Train→`train/` · Trends→`trends/` · Body→
 
 <!-- one line per resolved ticket: gist + link -->
 
-- [01 — Retire web Pro apparatus](issues/01-retire-web-pro-apparatus.md) — shipped `a7f79454`: mirror mobile's two-flag model — added web `PRO_ENABLED=false`, `isPaid()` forced true (ungates themes/limits/streak-freeze), Trends Pro weekly AI report **hidden** (cost-averse, matches mobile — not exposed to all); deleted /subscribe + upsell-card + membership-section + UpsellService; dead i18n dropped.
+- [01 — Retire web Pro apparatus](issues/01-retire-web-pro-apparatus.md) — shipped `a7f79454` (deployed live): mirror mobile's two-flag model — added web `PRO_ENABLED=false`, `isPaid()` forced true (ungates themes/limits/streak-freeze), Trends Pro weekly AI report **hidden** (cost-averse, matches mobile — not exposed to all); deleted /subscribe + upsell-card + membership-section + UpsellService; dead i18n dropped.
+- [02 — Today parity](issues/02-today-parity.md) — audited, **already at parity**, no change: header/rings/metrics(Fasting→Water→Sleep)/day-0 all match; web's extra nudges are web-only.
+- [03 — Train parity](issues/03-train-parity.md) — audited, **already at parity**, no change: same IA (week hero → start → templates → history); web feature-set is a superset; mobile UX batch was native-only polish.
+- [05 — Body parity](issues/05-body-parity.md) — audited, **already at parity**, no change: weight+sparkline+goal bar, Navy body-fat, collapsible measurements all match; no progress photos on either (v1 privacy).
+- [06 — History parity](issues/06-history-parity.md) — audited, **already at parity**, no change: both = month calendar grid (dots + today) + Recent list + day-detail; mobile calendar built from hardcoded weekdays so keys differ but structure matches.
+- [04 — Trends parity](issues/04-trends-parity.md) — shipped `aa19b833`: **added maintenance/TDEE hero** (was missing on web, mobile foregrounds it); coach kept inline (platform-appropriate); report dead-branches kept (correct for Pro re-enable).
+- [07 — Settings parity](issues/07-settings-parity.md) — shipped `42f59d4b`: **added Ko-fi "Support the app" card** (was landing-only); public-profile kept dropped (matches mobile); rest at parity. Minor: mobile has finer unit sub-toggles web lacks (noted).
+- [08 — Onboarding + Refine parity](issues/08-onboarding-refine-parity.md) — audited, **at functional parity**, no change: refine = superset; onboarding collects same data; minor cosmetic deltas (mobile welcome intro + step order) noted, not force-fit.
+- [09 — Coach + Scan parity](issues/09-coach-scan-parity.md) — shipped `77f64453`: **photo-scan gated OFF on web** (utils/features.ts, matches mobile prod & ADR-0015 defer); coach at parity (inline vs screen; remaining-quota counter shown → no silent wall).
 
 ## Not yet specified
 
