@@ -6,7 +6,11 @@ limits noted. Support/marketing/privacy URLs assume `ignia.fit` is live.
 ## Names & URLs
 - **Seller / developer name:** the owner's **individual legal name** (no LLC —
   decided 2026-07-07). This shows publicly on both stores. App is still "Ignia".
-- **App name:** Ignia
+- **App Store listing title (≤30):** `Ignia — Calorie Tracker` (23) — the bare
+  word "Ignia" was already reserved by another developer in App Store Connect,
+  so the unique listing title carries a descriptor. **On-device the app still
+  reads "Ignia"** (from `app.json` name / CFBundleDisplayName) — unaffected.
+- **App name (on-device / build):** Ignia
 - **Subtitle** (iOS, ≤30 chars): `Calorie & protein tracker` (25)
 - **Promotional text** (iOS, ≤170, editable without review): `Track calories,
   protein, and your training in one simple, private app. No ads, no clutter —
