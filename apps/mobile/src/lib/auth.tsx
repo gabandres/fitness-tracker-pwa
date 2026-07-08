@@ -115,6 +115,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     iosClientId: googleAuth?.iosClientId,
     androidClientId: googleAuth?.androidClientId,
     webClientId: googleAuth?.webClientId,
+    // Explicit scopes so the code-exchange reliably returns an id_token
+    // (Google only issues id_token when `openid` is requested).
+    scopes: ['openid', 'profile', 'email'],
   });
 
   const googleAvailable = !isExpoGo && hasRealClientId && !!request;
@@ -192,7 +195,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // web/implicit path.) Reading only params → "no-token" → the generic
         // "Could not sign in" error even though sign-in succeeded up to here.
         const idToken = result.authentication?.idToken ?? result.params?.id_token;
-        if (!idToken) throw new GoogleSignInError('no-token');
+        if (!idToken) {
+          // TEMP DIAGNOSTIC: dump the result shape so we can see why no
+          // id_token came back (does authentication exist? empty id_token?).
+          const r = result as unknown as {
+            type?: string;
+            params?: Record<string, unknown>;
+            authentication?: Record<string, unknown> | null;
+          };
+          const dbg = `t=${r.type} pk=[${Object.keys(r.params ?? {}).join(',')}] auth=${r.authentication ? Object.keys(r.authentication).join('/') : 'null'} idt=${JSON.stringify(r.params?.id_token)}`;
+          const err = new GoogleSignInError('no-token');
+          (err as { message: string }).message = dbg;
+          throw err;
+        }
         await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
       },
       appleAvailable: appleSignInAvailable,
