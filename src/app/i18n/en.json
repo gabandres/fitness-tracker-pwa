@@ -600,6 +600,15 @@
     "bodyFat": "Body fat ~{{n}}% (Navy estimate)"
   },
   "trends": {
+    "maintenance": "Maintenance estimate",
+    "measured": "Measured",
+    "estimate": "Estimate",
+    "measuredHint": "From your logged intake + weight trend",
+    "formulaHint": "Mifflin–St Jeor estimate from your profile",
+    "seedHint": "Default until you log ~14 days",
+    "completeness": "{{pct}}% logging completeness",
+    "logMore": " · log more days to sharpen this",
+    "dailyTarget": "Daily target",
     "regenerate": "generate fresh report",
     "coachAsk": "Ask the coach",
     "coachReport": "Weekly report",

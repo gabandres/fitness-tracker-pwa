@@ -76,8 +76,29 @@ import { bcp47ForLang } from '../../utils/locale';
         </div>
       </header>
 
+      <!-- 1. Maintenance hero — the anchor (measured/estimated maintenance
+           kcal). Mirrors mobile Trends, which foregrounds true TDEE. -->
+      <ui-card variant="default" class="mt-6 block" style="text-align: center;">
+        <span class="v2-caption inline-block" style="text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; color: var(--v2-accent);">{{ t(tdeeBadgeKey()) }}</span>
+        <p class="v2-caption mt-2" style="color: var(--v2-ink-muted);">{{ t('trends.maintenance') }}</p>
+        <div class="flex items-baseline justify-center gap-1.5 mt-0.5">
+          <span class="v2-num" style="font-size: 2.5rem; font-weight: 800; color: var(--v2-ink);">{{ tdee().trueTdee > 0 ? tdee().trueTdee.toLocaleString() : '—' }}</span>
+          <span class="v2-body-soft">kcal</span>
+        </div>
+        <p class="v2-body-soft mt-1">{{ t(tdeeHintKey()) }}</p>
+        @if (tdee().source === 'measured' && tdee().loggingCompletenessPct != null) {
+          <p class="v2-caption mt-1" style="color: var(--v2-faint);">
+            {{ t('trends.completeness', { pct: completenessPct() }) }}{{ tdee().reliable ? '' : t('trends.logMore') }}
+          </p>
+        }
+        <div class="mt-3 inline-flex items-center gap-1.5 v2-caption" style="border: 1px solid var(--v2-rule); border-radius: 999px; padding: 4px 12px;">
+          <span style="color: var(--v2-ink-muted);">{{ t('trends.dailyTarget') }}</span>
+          <span style="font-weight: 700; color: var(--v2-ink);">{{ kcalTarget() > 0 ? kcalTarget().toLocaleString() + ' kcal' : '—' }}</span>
+        </div>
+      </ui-card>
+
       <!-- Bar chart -->
-      <ui-card variant="default" class="mt-6 block">
+      <ui-card variant="default" class="mt-4 block">
         @if (hasAnyData()) {
           <ui-bar-chart
             [data]="chartData()"
@@ -328,6 +349,23 @@ export class TrendsComponent {
 
   protected readonly kcalTarget = computed(() => this.store.targetCalories());
   protected readonly proteinTarget = computed(() => this.store.proteinTarget());
+
+  // Maintenance hero — mirrors mobile TDEE_MODE: badge is "Measured" for a
+  // measured TDEE, "Estimate" otherwise; the hint explains the source.
+  protected readonly tdee = computed(() => this.store.tdee());
+  protected readonly tdeeBadgeKey = computed(() =>
+    this.tdee().source === 'measured' ? 'trends.measured' : 'trends.estimate',
+  );
+  protected readonly tdeeHintKey = computed(() => {
+    switch (this.tdee().source) {
+      case 'measured': return 'trends.measuredHint';
+      case 'formula': return 'trends.formulaHint';
+      default: return 'trends.seedHint';
+    }
+  });
+  protected readonly completenessPct = computed(() =>
+    Math.round(this.tdee().loggingCompletenessPct ?? 0),
+  );
   protected readonly weekly = computed(() => this.store.weekly());
 
   /** Weekly panel view toggle: rule-based insights vs calorie banking. */

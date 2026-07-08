@@ -600,6 +600,15 @@
     "bodyFat": "Grasa corporal ~{{n}}% (estimación Navy)"
   },
   "trends": {
+    "maintenance": "Estimación de mantenimiento",
+    "measured": "Medido",
+    "estimate": "Estimado",
+    "measuredHint": "De tu consumo registrado + tendencia de peso",
+    "formulaHint": "Estimación Mifflin–St Jeor de tu perfil",
+    "seedHint": "Predeterminado hasta registrar ~14 días",
+    "completeness": "{{pct}}% de días registrados",
+    "logMore": " · registra más días para afinarlo",
+    "dailyTarget": "Meta diaria",
     "regenerate": "generar reporte nuevo",
     "coachAsk": "Pregúntale al coach",
     "coachReport": "Reporte semanal",
