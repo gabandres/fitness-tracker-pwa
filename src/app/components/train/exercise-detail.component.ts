@@ -25,8 +25,8 @@ import {
 } from '../../models/workout';
 import {
   computeExercisePRs,
-  estimateOneRepMax,
   isWorkingSet,
+  metricForSet,
 } from '../../utils/workout-progression';
 
 interface SessionPoint {
@@ -215,15 +215,9 @@ export class ExerciseDetailComponent {
         continue;
       }
       const working = ex.sets.filter(isWorkingSet);
-      // The session's trend value depends on logStyle.
-      let metric = 0;
-      if (style === 'time') {
-        metric = Math.max(0, ...working.map((s) => s.durationSec ?? 0));
-      } else if (style === 'bodyweight') {
-        metric = Math.max(0, ...working.map((s) => s.reps ?? 0));
-      } else {
-        metric = Math.max(0, ...working.map((s) => estimateOneRepMax(s.weight, s.reps)));
-      }
+      // The session's trend value is the best comparable metric for the
+      // logStyle (core owns the selection rule — shared with session-sheet).
+      const metric = Math.max(0, ...working.map((s) => metricForSet(s, style)));
       if (metric === 0) continue; // no comparable data this session
       const topWeight = Math.max(0, ...working.map((s) => s.weight ?? 0));
       pts.push({

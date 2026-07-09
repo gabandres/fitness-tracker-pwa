@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { computeExercisePRs, keySet, suggestProgression } from './workout-progression';
+import {
+  computeExercisePRs,
+  estimateOneRepMax,
+  keySet,
+  metricForSet,
+  prMetricFor,
+  suggestProgression,
+} from './workout-progression';
 import type { LogStyle, ProgressionRule, SessionExercise, WorkoutSet } from './workout';
 
 /** Build a one-exercise history row for a given logStyle. */
@@ -34,6 +41,34 @@ describe('workout-progression — logStyle', () => {
     expect(prs.maxReps).toBe(12);
     expect(prs.maxDurationSec).toBe(75);
     expect(prs.bestE1RM).toBeGreaterThan(100);
+  });
+
+  it('metricForSet selects the comparable metric per logStyle', () => {
+    expect(metricForSet({ kind: 'working', durationSec: 45 }, 'time')).toBe(45);
+    expect(metricForSet({ kind: 'working', reps: 12 }, 'bodyweight')).toBe(12);
+    expect(metricForSet({ kind: 'working', weight: 100, reps: 5 }, 'weight-reps')).toBe(
+      estimateOneRepMax(100, 5),
+    );
+    // Missing metric → 0 (callers gate on > 0), for every style.
+    expect(metricForSet({ kind: 'working' }, 'time')).toBe(0);
+    expect(metricForSet({ kind: 'working' }, 'bodyweight')).toBe(0);
+    expect(metricForSet({ kind: 'working', weight: 100 }, 'weight-reps')).toBe(0);
+  });
+
+  it('prMetricFor picks the maximum comparable to metricForSet', () => {
+    const prs = computeExercisePRs([
+      ex('weight-reps', [
+        { kind: 'working', weight: 100, reps: 5 },
+        { kind: 'working', reps: 12 },
+        { kind: 'working', durationSec: 75 },
+      ]),
+    ]);
+    expect(prMetricFor(prs, 'time')).toBe(prs.maxDurationSec);
+    expect(prMetricFor(prs, 'bodyweight')).toBe(prs.maxReps);
+    expect(prMetricFor(prs, 'weight-reps')).toBe(prs.bestE1RM);
+    // A set beating the best e1RM is a PR under the shared comparison.
+    const better = { kind: 'working' as const, weight: 120, reps: 6 };
+    expect(metricForSet(better, 'weight-reps') > prMetricFor(prs, 'weight-reps')).toBe(true);
   });
 
   it('weight-reps bumps the load when the threshold holds', () => {

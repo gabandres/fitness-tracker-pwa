@@ -20,7 +20,8 @@ import type { LogStyle, SessionExercise, WorkoutSession, WorkoutSet } from '../.
 import { DEFAULT_LOG_STYLE } from '../../models/workout';
 import {
   computeExercisePRs,
-  estimateOneRepMax,
+  metricForSet,
+  prMetricFor,
   suggestProgression,
   type ExercisePRs,
   type ProgressionSuggestion,
@@ -393,14 +394,11 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
     const best = this.prCache.get(ex.exerciseId);
     if (!best) return false; // no prior history → not flagged as PR
     const style = this.styleOf(ex);
-    if (style === 'time') {
-      return set.durationSec != null && best.maxDurationSec > 0 && set.durationSec > best.maxDurationSec;
-    }
-    if (style === 'bodyweight') {
-      return set.reps != null && best.maxReps > 0 && set.reps > best.maxReps;
-    }
-    if (set.weight == null || set.reps == null || best.bestE1RM === 0) return false;
-    return estimateOneRepMax(set.weight, set.reps) > best.bestE1RM;
+    // A set is a PR when its comparable metric beats the best-ever maximum
+    // (core owns the style→metric selection — shared with exercise-detail).
+    const metric = metricForSet(set, style);
+    const prMax = prMetricFor(best, style);
+    return metric > 0 && prMax > 0 && metric > prMax;
   }
 
   protected setLabel(t: (k: string, p?: Record<string, unknown>) => string, set: WorkoutSet): string {

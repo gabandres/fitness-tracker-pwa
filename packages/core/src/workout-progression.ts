@@ -122,3 +122,27 @@ export function computeExercisePRs(rows: SessionExercise[]): ExercisePRs {
   }
   return { maxWeight, bestE1RM, maxReps, maxDurationSec };
 }
+
+/**
+ * The single comparable metric for one set under a logStyle — the rule the
+ * Train UIs use to plot a session's trend point and to flag a set as a PR:
+ * `time` → hold seconds, `bodyweight` → reps, `weight-reps` → Epley e1RM.
+ * Returns 0 when the set lacks the metric (missing/warmup-safe: callers gate
+ * on `> 0`), so `Math.max(0, ...sets.map(...))` yields the session's value.
+ */
+export function metricForSet(set: WorkoutSet, style: LogStyle): number {
+  if (style === 'time') return set.durationSec ?? 0;
+  if (style === 'bodyweight') return set.reps ?? 0;
+  return estimateOneRepMax(set.weight, set.reps);
+}
+
+/**
+ * The best-ever value from {@link ExercisePRs} that {@link metricForSet} is
+ * comparable against — the same style→field selection, so a set is a PR iff
+ * `metricForSet(set, style) > prMetricFor(prs, style)` (both `> 0`).
+ */
+export function prMetricFor(prs: ExercisePRs, style: LogStyle): number {
+  if (style === 'time') return prs.maxDurationSec;
+  if (style === 'bodyweight') return prs.maxReps;
+  return prs.bestE1RM;
+}

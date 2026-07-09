@@ -32,9 +32,9 @@ import {
   type ProgressionSuggestion,
   computeExercisePRs,
   computePlateLoad,
-  estimateOneRepMax,
   generateWarmup,
   isWorkingSet,
+  metricForSet,
   suggestProgression,
 } from '@macrolog/core';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
@@ -399,9 +399,7 @@ function exerciseSeries(history: SessionExercise[], style: LogStyle): number[] {
     let metric = 0;
     for (const s of ex.sets) {
       if (!isWorkingSet(s)) continue;
-      if (style === 'time') metric = Math.max(metric, s.durationSec ?? 0);
-      else if (style === 'bodyweight') metric = Math.max(metric, s.reps ?? 0);
-      else metric = Math.max(metric, estimateOneRepMax(s.weight, s.reps));
+      metric = Math.max(metric, metricForSet(s, style));
     }
     if (metric > 0) pts.push(Math.round(metric));
   }
