@@ -1,13 +1,18 @@
 # Google Sign-In — finishing the wiring
 
-> ⚠️ **Bundle ID changed to `fit.ignia.app` (2026-07-05).** The OAuth client IDs
-> currently in `app.json` (`extra.googleAuth.iosClientId`/`androidClientId`) and
-> the reversed-client URL scheme in `ios.infoPlist.CFBundleURLTypes` were
-> registered against the OLD bundle `app.macrolog.mobile` — they are now STALE.
-> When you do the setup below, create **new iOS + Android OAuth clients for
-> `fit.ignia.app`** and replace those three values (the reversed scheme is the
-> iOS client ID reversed). The **webClientId is not bundle-specific** and can
-> stay.
+> ✅ **RESOLVED 2026-07-09.** The OAuth client IDs in `app.json`
+> (`extra.googleAuth.iosClientId` `…66v806q2…`, `androidClientId` `…pg0gel6i…`,
+> `webClientId` `…jkiccn16…`) and the reversed-client URL scheme in
+> `ios.infoPlist.CFBundleURLTypes` are the **correct clients for `fit.ignia.app`**
+> (verified against the Firebase `fit.ignia.app` Android/iOS apps' SDK config).
+> They are NOT stale. The only thing missing was the **Android signing SHA-1** on
+> the Android OAuth client, which caused `Error 400: invalid_request` /
+> "Access blocked" on device. Fixed by adding the EAS keystore SHA-1
+> `5C:85:B7:1A:87:9D:80:AE:93:8E:66:5B:1B:88:1F:D8:C7:45:4D:EA` to the Ignia
+> Android app in Firebase (auto-provisions it onto the OAuth client). **No
+> app.json change and no rebuild were needed** — it's a server-side change that
+> propagates in minutes. If you ever rebuild with a *different* signing keystore,
+> re-add that keystore's SHA-1 the same way (`apksigner verify --print-certs`).
 
 The code is already merged (`src/lib/auth.tsx`, `src/app/sign-in.tsx`). The
 "Continue with Google" button is **gated off in Expo Go** — it can only work
