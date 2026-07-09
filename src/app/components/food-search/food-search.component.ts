@@ -3,6 +3,7 @@ import {
 } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
+import { sortServings } from '@macrolog/core';
 import { UiButton } from '../ui/button.component';
 import { FoodSearchService, FoodSearchHit, FoodDetail, ServingOption } from '../../services/food-search.service';
 import { FirebaseService } from '../../services/firebase.service';
@@ -285,14 +286,8 @@ export class FoodSearchComponent {
   protected readonly sortedServings = computed(() => {
     const d = this.detail();
     if (!d) return [];
-    const prefersMetric = this.firebase.profile()?.unitSystem === 'metric';
-    const servings = [...d.servings];
-    return servings.sort((a, b) => {
-      const aPer100 = a.kind === 'per100g' ? 1 : 0;
-      const bPer100 = b.kind === 'per100g' ? 1 : 0;
-      if (prefersMetric) return bPer100 - aPer100;
-      return aPer100 - bPer100;
-    });
+    const unit = this.firebase.profile()?.unitSystem === 'metric' ? 'metric' : 'us';
+    return sortServings(d.servings, unit);
   });
 
   constructor() {

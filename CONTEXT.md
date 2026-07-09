@@ -67,6 +67,16 @@ add a term when a real ambiguity exists, not preemptively.
   [ADR-0013](docs/adr/0013-food-resolution-my-foods-library.md). NOT the same
   as the legacy meal-photo `analyzePhoto` path (deliberately de-emphasized —
   meal-photo guessing has a ~26–36% error floor).
+- **FoodSearch** — The shared client for the `searchFoods` / `getFoodDetail`
+  Cloud Functions (typeahead over FDC + OFF → portion picker). Lives once in
+  `packages/core/src/food-search.ts`: the wire types (`FoodSearchHit`,
+  `ServingOption`, `FoodDetail`), legacy-tolerant `normalizeHit`/`normalizeDetail`,
+  the unit-preference `sortServings`, and a transport-injected `makeFoodSearch(call)`
+  client. Each frontend supplies a one-line transport adapter (web
+  `CallableGateway`, mobile `httpsCallable`); `functions/src/food-search.ts` is
+  the server wire source (separate project, kept in sync). **FoodDbSource**
+  (`'fdc' | 'off'`, which *database*) is distinct from the CustomFood
+  **FoodSource** (`'barcode' | 'label' | 'text' | 'manual'`, how it was *captured*).
 - **Legacy log fields** — `liftCompleted` and `cardioCompleted` exist on
   historic docs. New writes only set `exerciseCompleted`. Aggregation
   treats any of the three as "exercised that day".

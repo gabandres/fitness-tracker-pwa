@@ -34,6 +34,11 @@ export * from './reminder-plan';
 // My Foods library helpers (ADR-0013). Types (CustomFood, FoodSource,
 // ServingUnit) live in ./types; these are the pure scaling helpers.
 export * from './custom-food';
+// Food-search wire module (searchFoods / getFoodDetail): shared types +
+// normalize + serving-sort + a transport-injected client. Both frontends'
+// callable adapters plug in via makeFoodSearch. Wire-compatible with
+// functions/src/food-search.ts (separate project).
+export * from './food-search';
 // Nutrition Facts panel parser (ADR-0013 phase 3): OCR label text → editable
 // grams-first draft. Native OCR is a per-frontend adapter; the parse is pure.
 export * from './nutrition-label';
