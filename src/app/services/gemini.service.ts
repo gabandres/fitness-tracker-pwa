@@ -1,12 +1,9 @@
 import { Injectable, inject } from '@angular/core';
-import { Auth } from '@angular/fire/auth';
-import { CallableGateway } from './callable.gateway';
-import { environment } from '../../environments/environment';
+import { CallableGateway, CallableStreamError } from './callable.gateway';
 import { DailyLog, ProfileFields } from './firebase.service';
 import type { TdeeResult } from '@macrolog/core/tdee';
 import { TranslationService } from './translation.service';
-import { ErrorCode } from '../models/error-codes';
-import { buildCoachSystemInstruction, buildWeeklyReportPayload, parseSseFrames } from '@macrolog/core';
+import { buildCoachSystemInstruction, buildWeeklyReportPayload } from '@macrolog/core';
 
 /** Build an error carrying a typed `.details.code` so `extractErrorCode()`
     treats a coach-stream failure exactly like an HttpsError from an onCall
@@ -59,13 +56,6 @@ export interface MilestoneContext {
 export class GeminiService {
   private readonly callables = inject(CallableGateway);
   private readonly translation = inject(TranslationService);
-  private readonly auth = inject(Auth);
-
-  /** Same-region gen2 endpoint for the SSE coach stream. Built from the
-      project id so it tracks whatever project the bundle is configured
-      for. onRequest (not onCall) so the answer can stream token-by-token. */
-  private readonly consultUrl =
-    `https://us-central1-${environment.firebase.projectId}.cloudfunctions.net/consultationStream`;
 
   /**
    * Stream a coaching response to the user's question. The 14-day
@@ -95,36 +85,13 @@ export class GeminiService {
       logs, tdee, profile, dailyWeights, locale: this.translation.language(),
     });
 
-    const user = this.auth.currentUser;
-    if (!user) throw consultError(ErrorCode.UNAUTHENTICATED);
-    const idToken = await user.getIdToken();
-
-    const res = await fetch(this.consultUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-      body: JSON.stringify({ systemInstruction, prompt: question }),
-    });
-
-    if (!res.ok || !res.body) {
-      // Preamble failure (auth / rate-limit / quota / bad payload): the
-      // server sent a JSON `{ code }` before any stream bytes.
-      let code: string | undefined;
-      try { code = (await res.json())?.code; } catch { /* non-JSON body */ }
-      throw consultError(code);
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = '';
-    // Accumulate bytes and split off complete SSE frames via the shared core
-    // parser (parseSseFrames) — the same one the Expo coach uses.
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const { events, rest } = parseSseFrames(buf);
-      buf = rest;
-      for (const { event, data } of events) {
+    // Transport (URL, ID token, POST, SSE decode) lives at the callable seam;
+    // this method just assembles the prompt and interprets the coach protocol.
+    try {
+      for await (const { event, data } of this.callables.stream(
+        'consultationStream',
+        { systemInstruction, prompt: question },
+      )) {
         if (event === 'meta') {
           if (onMeta && data) onMeta(JSON.parse(data) as ConsultationMeta);
         } else if (event === 'error') {
@@ -137,6 +104,12 @@ export class GeminiService {
           if (text) yield text;
         }
       }
+    } catch (e) {
+      // A preamble failure (no auth / non-2xx / bad payload) surfaces as a
+      // typed transport error; map its `code` to the same coach error the
+      // in-stream `error` frame would have produced.
+      if (e instanceof CallableStreamError) throw consultError(e.code);
+      throw e;
     }
   }
 
