@@ -5,7 +5,6 @@ import { FitnessStore, PresetLimitError, PRESET_LIMIT_FREE } from './fitness-sto
 import { AuthService } from './auth.service';
 import { LEDGER_PORT } from '../ledger/ports/ledger.port';
 import { DailyLog, LogEntry, MealPreset, Profile } from './firebase.service';
-import { TdeeCalculatorService } from './tdee-calculator.service';
 import { GeminiService } from './gemini.service';
 import { SubscriptionService } from './subscription.service';
 import { TranslationService } from './translation.service';
@@ -116,7 +115,6 @@ describe('FitnessStore', () => {
     TestBed.configureTestingModule({
       providers: [
         FitnessStore,
-        TdeeCalculatorService,
         {
           provide: GeminiService,
           useValue: {

@@ -12,7 +12,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { FirebaseService, ActivityLevel, CutPace, Sex } from '../../services/firebase.service';
 import { FitnessStore } from '../../services/fitness-store.service';
-import { TdeeCalculatorService } from '../../services/tdee-calculator.service';
+import { calculateTdee } from '@macrolog/core/tdee';
 import {
   computeProtein,
   clampProteinPerKg,
@@ -216,7 +216,6 @@ import { UiButton } from '../ui/button.component';
 export class UiRefineTargetsSheet {
   private readonly fb = inject(FirebaseService);
   private readonly store = inject(FitnessStore);
-  private readonly calc = inject(TdeeCalculatorService);
   private readonly translation = inject(TranslationService);
 
   readonly open = input<boolean>(false);
@@ -296,7 +295,7 @@ export class UiRefineTargetsSheet {
     if (!this.isValid()) return null;
     const w = this.store.currentWeight() ?? this.fb.profile()?.targetWeightLbs ?? null;
     if (w == null) return null;
-    const result = this.calc.calculate([], {
+    const result = calculateTdee([], {
       heightIn: this.heightIn()!,
       age: this.ageInput()!,
       sex: this.sex()!,

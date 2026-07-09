@@ -9,7 +9,7 @@ import {
   ProfileFields,
   Profile,
 } from './firebase.service';
-import { TdeeCalculatorService, TdeeResult } from './tdee-calculator.service';
+import { calculateTdee, aggregateByDay, type TdeeResult } from '@macrolog/core/tdee';
 import { addDays, localDateKey } from '../utils/date';
 import { computeProtein } from '../utils/macro-heuristic';
 import { summarizeDay } from '../utils/day-summary';
@@ -110,7 +110,6 @@ export type HistoryWindow =
 export class FitnessStore {
   private readonly auth = inject(AuthService);
   private readonly fb = inject(LEDGER_PORT);
-  private readonly calc = inject(TdeeCalculatorService);
   private readonly subs = inject(SubscriptionService);
   private readonly body = inject(BodyMetricStore);
   private readonly workout = inject(WorkoutStore);
@@ -267,7 +266,7 @@ export class FitnessStore {
     // measured mode. Use the full-history cache once it has settled; fall
     // back to the rolling cache only during the initial load.
     const source = this._historyLoaded() ? this._allTimeLogs() : this._logs();
-    return this.calc.calculate(this.mergeDailyWeights(source), adjusted);
+    return calculateTdee(this.mergeDailyWeights(source), adjusted);
   });
 
   readonly targetCalories: Signal<number> = computed(() => {
@@ -302,7 +301,7 @@ export class FitnessStore {
     // Compute what formula would have said
     const fields = this._profileFields();
     if (!fields) return null;
-    const formulaResult = this.calc.calculate([], fields); // empty logs = formula mode
+    const formulaResult = calculateTdee([], fields); // empty logs = formula mode
     const diff = tdee.trueTdee - formulaResult.trueTdee;
     const diffPct = Math.round((diff / formulaResult.trueTdee) * 100);
     return { formulaTdee: formulaResult.trueTdee, measuredTdee: tdee.trueTdee, diffPct };
@@ -543,7 +542,7 @@ export class FitnessStore {
     const dwKeys = Object.keys(dw).sort();
     if (logs.length < 7 && dwKeys.length < 7) return null;
 
-    const daily = this.calc.aggregateByDay(logs);
+    const daily = aggregateByDay(logs);
     if (dwKeys.length < 2) return null;
 
     const firstWeight = dw[dwKeys[0]];

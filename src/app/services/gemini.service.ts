@@ -3,7 +3,7 @@ import { Auth } from '@angular/fire/auth';
 import { CallableGateway } from './callable.gateway';
 import { environment } from '../../environments/environment';
 import { DailyLog, ProfileFields } from './firebase.service';
-import { TdeeResult } from './tdee-calculator.service';
+import type { TdeeResult } from '@macrolog/core/tdee';
 import { TranslationService } from './translation.service';
 import { ErrorCode } from '../models/error-codes';
 import { buildCoachSystemInstruction, buildWeeklyReportPayload, parseSseFrames } from '@macrolog/core';
