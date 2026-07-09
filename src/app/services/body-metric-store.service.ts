@@ -2,6 +2,8 @@ import { Injectable, Signal, computed, inject, signal } from '@angular/core';
 import { LEDGER_PORT } from '../ledger/ports/ledger.port';
 import { Measurement } from './firebase.service';
 import { isStorableWeight, WEIGHT_ABS_MIN_LB, WEIGHT_ABS_MAX_LB } from '../utils/weight-validation';
+import { addDays, localDateKey } from '../utils/date';
+import type { WeightPoint } from '../utils/weekly-insights';
 
 /**
  * Owns body-metric state: daily weights map, daily water map, and the
@@ -25,6 +27,26 @@ export class BodyMetricStore {
   readonly dailyWeights: Signal<Record<string, number>> = this._dailyWeights.asReadonly();
   readonly dailyWater: Signal<Record<string, number>> = this._dailyWater.asReadonly();
   readonly dailySleep: Signal<Record<string, number>> = this._dailySleep.asReadonly();
+
+  /**
+   * The daily-weight series for the last `n` calendar days, oldest→newest, as
+   * {@link WeightPoint}s — the weight-window analogue of the log window
+   * (`FitnessStore.logsForLastDaysState`). Missing days drop out. Owns the
+   * single DST-safe local-date walk over the flat `dailyWeights` map that
+   * `body` and `trends` each used to re-implement. Reads the `dailyWeights`
+   * signal, so it stays reactive when called inside a `computed()`.
+   */
+  weightsForLastDays(n: number): WeightPoint[] {
+    const map = this._dailyWeights();
+    const today = new Date();
+    const out: WeightPoint[] = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const dateKey = localDateKey(addDays(today, -i));
+      const v = map[dateKey];
+      if (typeof v === 'number') out.push({ dateKey, weightLb: v });
+    }
+    return out;
+  }
 
   readonly latestMeasurement: Signal<Measurement | null> = computed(() => this._measurements()[0] ?? null);
   readonly previousMeasurement: Signal<Measurement | null> = computed(() => this._measurements()[1] ?? null);

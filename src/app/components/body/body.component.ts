@@ -16,7 +16,7 @@ import { FastingStore } from '../../services/fasting-store.service';
 import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { TranslationService } from '../../services/translation.service';
 import { AuthService } from '../../services/auth.service';
-import { addDays, localDateKey } from '../../utils/date';
+import { localDateKey } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
 import { projectWeight, type WeightPoint } from '../../utils/weekly-insights';
 import { latestNavyBodyFat } from '@macrolog/core';
@@ -331,21 +331,11 @@ export class BodyComponent implements OnInit, OnDestroy {
 
   protected readonly currentWeight = computed(() => this.store.currentWeight());
 
-  protected readonly weightSeries = computed<number[]>(() => {
-    // Last 14 days, oldest → newest, with EMA fallback so missed days
-    // don't leave the sparkline jumping. Empty days drop out (the
-    // sparkline filters nullables itself).
-    const map = this.body.dailyWeights();
-    const today = new Date();
-    const series: number[] = [];
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      const v = map[localDateKey(d)];
-      if (typeof v === 'number') series.push(v);
-    }
-    return series;
-  });
+  protected readonly weightSeries = computed<number[]>(() =>
+    // Last 14 days, oldest → newest; empty days drop out (the sparkline
+    // filters nullables itself). Windowing lives on the store facet.
+    this.body.weightsForLastDays(14).map((p) => p.weightLb),
+  );
 
   protected readonly goal = computed(() => this.store.goalProgress());
 
@@ -366,17 +356,9 @@ export class BodyComponent implements OnInit, OnDestroy {
   private static readonly PROJECTION_WINDOW_DAYS = 28;
   private static readonly PROJECTION_CHART_DAYS = 7;
 
-  private readonly weightPoints = computed<WeightPoint[]>(() => {
-    const map = this.body.dailyWeights();
-    const today = new Date();
-    const out: WeightPoint[] = [];
-    for (let i = BodyComponent.PROJECTION_WINDOW_DAYS - 1; i >= 0; i--) {
-      const key = localDateKey(addDays(today, -i));
-      const v = map[key];
-      if (typeof v === 'number') out.push({ dateKey: key, weightLb: v });
-    }
-    return out;
-  });
+  private readonly weightPoints = computed<WeightPoint[]>(() =>
+    this.body.weightsForLastDays(BodyComponent.PROJECTION_WINDOW_DAYS),
+  );
 
   protected readonly projection = computed(() =>
     projectWeight(

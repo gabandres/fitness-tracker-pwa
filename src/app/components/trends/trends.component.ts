@@ -415,12 +415,9 @@ export class TrendsComponent {
     () => this.store.logsForLastDaysState(TrendsComponent.INSIGHT_DAYS).loaded,
   );
 
-  private readonly weightPoints = computed<WeightPoint[]>(() => {
-    const dw = this.body.dailyWeights();
-    return this.lastNDateKeys(TrendsComponent.SLOPE_DAYS)
-      .filter((k) => typeof dw[k] === 'number')
-      .map((dateKey) => ({ dateKey, weightLb: dw[dateKey] }));
-  });
+  private readonly weightPoints = computed<WeightPoint[]>(() =>
+    this.body.weightsForLastDays(TrendsComponent.SLOPE_DAYS),
+  );
 
   protected readonly insights = computed(() => {
     const win = this.store.logsForLastDaysState(TrendsComponent.INSIGHT_DAYS);
