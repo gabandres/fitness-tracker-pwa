@@ -26,7 +26,6 @@ import {
 import type {
   CustomFood,
   DailyLog,
-  DailyLogDoc,
   ExerciseDoc,
   LogEntry,
   MealPreset,
@@ -49,6 +48,13 @@ import type {
 } from '../../models/workout';
 import { normalizeClusterGroups } from '../../utils/cluster-groups';
 import { pruneUndefined as pruneUndefinedCore } from '@macrolog/core/prune-undefined';
+import {
+  oldestFirst,
+  toCustomFood,
+  toDailyLog,
+  toMeasurement,
+  toWeeklyReport,
+} from '@macrolog/core';
 
 /**
  * Framework-free Firestore I/O core for the ledger adapter (issue #6
@@ -139,24 +145,7 @@ export class FirestoreLedgerCore {
   async getRecentLogs(count = 14): Promise<DailyLog[]> {
     const q = query(this.userCollection('dailyLogs'), orderBy('timestamp', 'desc'), limit(count));
     const snap = await getDocs(q);
-    const results: DailyLog[] = snap.docs.map((d) => {
-      const data = d.data() as DailyLogDoc;
-      return {
-        id: d.id,
-        weight: data.weight,
-        calories: data.calories,
-        date: data.timestamp.toDate(),
-        protein: data.protein,
-        carbs: data.carbs,
-        fat: data.fat,
-        exerciseCompleted: data.exerciseCompleted,
-        liftCompleted: data.liftCompleted,
-        cardioCompleted: data.cardioCompleted,
-        mealLabel: data.mealLabel,
-        mealType: data.mealType,
-      };
-    });
-    return results.reverse();
+    return oldestFirst(snap.docs.map((d) => toDailyLog(d.id, d.data())));
   }
 
   async updateLog(logId: string, entry: LogEntry): Promise<void> {
@@ -311,15 +300,7 @@ export class FirestoreLedgerCore {
 
   async getCustomFoods(): Promise<CustomFood[]> {
     const snap = await getDocs(this.userCollection('customFoods'));
-    return snap.docs.map((d) => {
-      const data = d.data() as Record<string, unknown>;
-      const raw = data['createdAt'];
-      const createdAt =
-        raw && typeof (raw as { toDate?: unknown }).toDate === 'function'
-          ? (raw as Timestamp).toDate()
-          : new Date(0);
-      return { ...data, id: d.id, createdAt } as CustomFood;
-    });
+    return snap.docs.map((d) => toCustomFood(d.id, d.data()));
   }
 
   /** Save a food. When `id` (the barcode for scanned foods) is provided the
@@ -360,8 +341,7 @@ export class FirestoreLedgerCore {
     const snap = await getDocs(q);
     if (snap.empty) return null;
     const d = snap.docs[0];
-    const data = d.data() as { markdown: string; generatedAt: Timestamp };
-    return { id: d.id, markdown: data.markdown, generatedAt: data.generatedAt.toDate() };
+    return toWeeklyReport(d.id, d.data());
   }
 
   // ─── Body measurements ────────────────────────────────────────
@@ -369,10 +349,7 @@ export class FirestoreLedgerCore {
   async getRecentMeasurements(count = 10): Promise<Measurement[]> {
     const q = query(this.userCollection('measurements'), orderBy('timestamp', 'desc'), limit(count));
     const snap = await getDocs(q);
-    return snap.docs.map((d) => {
-      const data = d.data() as { waist?: number; chest?: number; bicep?: number; hip?: number; neck?: number; timestamp: Timestamp };
-      return { id: d.id, waist: data.waist, chest: data.chest, bicep: data.bicep, hip: data.hip, neck: data.neck, date: data.timestamp.toDate() };
-    });
+    return snap.docs.map((d) => toMeasurement(d.id, d.data()));
   }
 
   async addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<string> {

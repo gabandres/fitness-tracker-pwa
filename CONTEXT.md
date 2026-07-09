@@ -77,6 +77,18 @@ add a term when a real ambiguity exists, not preemptively.
   the server wire source (separate project, kept in sync). **FoodDbSource**
   (`'fdc' | 'off'`, which *database*) is distinct from the CustomFood
   **FoodSource** (`'barcode' | 'label' | 'text' | 'manual'`, how it was *captured*).
+- **Firestore mappers** — The shared doc→domain read-path mappers, single-sourced
+  in `packages/core/src/firestore-mappers.ts` (the read-path twin of
+  `prune-undefined`, the write-path pruner). Owns the `Timestamp → Date`
+  conversion (via a structural `TimestampLike { toDate(): Date }` — no `firebase`
+  import, ADR-0012), the `oldestFirst` reverse (see *Log array order*), and the
+  per-collection mappers `toDailyLog` / `toMeasurement` / `toCustomFood` /
+  `toWeeklyReport` / `toDomainProfile`(+`Patch`). Both frontends' adapters map
+  here (web `FirestoreLedgerCore` + `profile-mapper.ts`; mobile `lib/ledger.ts`),
+  keeping their own `onSnapshot`/`getDocs` I/O and the `Timestamp` import. The
+  three **workout** mappers (Exercise / WorkoutTemplate / WorkoutSession) stay
+  per-frontend — their domain types are intentionally un-barreled and the web
+  applies `normalizeClusterGroups` where mobile does not.
 - **Legacy log fields** — `liftCompleted` and `cardioCompleted` exist on
   historic docs. New writes only set `exerciseCompleted`. Aggregation
   treats any of the three as "exercised that day".

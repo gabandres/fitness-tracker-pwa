@@ -78,3 +78,7 @@ export * from './import-csv';
 // Shared Firestore write-path pruner (both frontends' ledger adapters).
 // Date-guard is built in; each edge injects its Timestamp predicate.
 export * from './prune-undefined';
+// Shared Firestore READ-path mappers (doc → domain), the read-path twin of
+// prune-undefined. Structural Timestamp → Date (no firebase import); both
+// frontends' adapters map here. Workout mappers stay per-frontend (see file).
+export * from './firestore-mappers';

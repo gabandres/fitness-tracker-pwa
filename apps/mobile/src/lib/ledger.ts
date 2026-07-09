@@ -29,7 +29,13 @@ import {
   type WeeklyReport,
   clampCutPace,
   localDateKey,
+  oldestFirst,
   pruneUndefined as pruneUndefinedCore,
+  toCustomFood,
+  toDailyLog,
+  toDomainProfile,
+  toMeasurement,
+  toWeeklyReport,
 } from '@macrolog/core';
 import { db } from './firebase';
 import type {
@@ -63,25 +69,9 @@ const userDoc = (uid: string) => doc(db, 'users', uid);
 
 type Unsub = () => void;
 
-function toDailyLog(id: string, data: Record<string, unknown>): DailyLog {
-  return {
-    id,
-    calories: (data['calories'] as number) ?? 0,
-    date: (data['timestamp'] as Timestamp).toDate(),
-    weight: data['weight'] as number | undefined,
-    protein: data['protein'] as number | undefined,
-    carbs: data['carbs'] as number | undefined,
-    fat: data['fat'] as number | undefined,
-    exerciseCompleted: data['exerciseCompleted'] as boolean | undefined,
-    liftCompleted: data['liftCompleted'] as boolean | undefined,
-    cardioCompleted: data['cardioCompleted'] as boolean | undefined,
-    mealLabel: data['mealLabel'] as string | undefined,
-    mealType: data['mealType'] as DailyLog['mealType'],
-  };
-}
-
 /** Live-subscribe to the latest `count` log rows, delivered OLDEST-FIRST
- *  (matches the ledger seam contract). */
+ *  (matches the ledger seam contract). Doc → domain mapping + the oldest-first
+ *  reverse are single-sourced in @macrolog/core (shared with the PWA adapter). */
 export function subscribeRecentLogs(
   uid: string,
   count: number,
@@ -91,7 +81,7 @@ export function subscribeRecentLogs(
   const q = query(logsCol(uid), orderBy('timestamp', 'desc'), limit(count));
   return onSnapshot(
     q,
-    (snap) => cb(snap.docs.map((d) => toDailyLog(d.id, d.data())).reverse()),
+    (snap) => cb(oldestFirst(snap.docs.map((d) => toDailyLog(d.id, d.data())))),
     onError,
   );
 }
@@ -110,12 +100,7 @@ export function subscribeLatestReport(
     (snap) => {
       const d = snap.docs[0];
       if (!d) { cb(null); return; }
-      const data = d.data();
-      cb({
-        id: d.id,
-        markdown: (data['markdown'] as string) ?? '',
-        generatedAt: (data['generatedAt'] as Timestamp).toDate(),
-      });
+      cb(toWeeklyReport(d.id, d.data()));
     },
     onError,
   );
@@ -274,28 +259,17 @@ export async function breakFast(uid: string): Promise<void> {
 }
 
 // ─── Profile ────────────────────────────────────────────────────
-function toProfile(data: Record<string, unknown>): Profile {
-  const d = (v: unknown): Date | undefined =>
-    v && typeof (v as Timestamp).toDate === 'function' ? (v as Timestamp).toDate() : (v as Date | undefined);
-  return {
-    ...(data as object),
-    createdAt: d(data['createdAt']) ?? new Date(0),
-    lastSeenAt: d(data['lastSeenAt']) ?? new Date(0),
-    fastStartedAt: d(data['fastStartedAt']) ?? null,
-    // Referral reward expiry — convert the Timestamp so the Invite section can
-    // compare it as a Date. Absent for users who never earned a reward.
-    ...(data['compedUntil'] ? { compedUntil: d(data['compedUntil']) } : {}),
-  } as Profile;
-}
-
 export function subscribeProfile(
   uid: string,
   cb: (profile: Profile | null) => void,
   onError?: (e: Error) => void,
 ): Unsub {
+  // Timestamp → Date mapping is single-sourced in @macrolog/core
+  // (`toDomainProfile`, shared with the PWA), which converts every
+  // profile date field — not just the four this app formerly handled.
   return onSnapshot(
     userDoc(uid),
-    (snap) => cb(snap.exists() ? toProfile(snap.data()) : null),
+    (snap) => cb(snap.exists() ? toDomainProfile(snap.data()) : null),
     onError,
   );
 }
@@ -446,15 +420,6 @@ export async function deletePreset(uid: string, id: string): Promise<void> {
 const customFoodsCol = (uid: string) => collection(db, 'users', uid, 'customFoods');
 const customFoodDoc = (uid: string, id: string) => doc(db, 'users', uid, 'customFoods', id);
 
-function toCustomFood(id: string, data: Record<string, unknown>): CustomFood {
-  const raw = data['createdAt'];
-  const createdAt =
-    raw && typeof (raw as { toDate?: unknown }).toDate === 'function'
-      ? (raw as Timestamp).toDate()
-      : new Date(0);
-  return { ...(data as object), id, createdAt } as CustomFood;
-}
-
 export function subscribeCustomFoods(
   uid: string,
   cb: (foods: CustomFood[]) => void,
@@ -500,18 +465,6 @@ export async function deleteCustomFood(uid: string, id: string): Promise<void> {
 // ─── Body measurements ──────────────────────────────────────────
 // users/{uid}/measurements/{id} — { timestamp, waist?, chest?, bicep?,
 // hip?, neck? } in inches. Shape mirrors FirestoreLedgerCore.addMeasurement.
-function toMeasurement(id: string, data: Record<string, unknown>): Measurement {
-  return {
-    id,
-    date: (data['timestamp'] as Timestamp).toDate(),
-    waist: data['waist'] as number | undefined,
-    chest: data['chest'] as number | undefined,
-    bicep: data['bicep'] as number | undefined,
-    hip: data['hip'] as number | undefined,
-    neck: data['neck'] as number | undefined,
-  };
-}
-
 /** Live-subscribe to the latest `count` measurement rows, newest-first. */
 export function subscribeMeasurements(
   uid: string,
