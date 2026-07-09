@@ -15,15 +15,12 @@ import { LEDGER_PORT } from '../ledger/ports/ledger.port';
 export class FastingStore {
   private readonly fb = inject(LEDGER_PORT);
 
-  /** The fasting start time, or null if not fasting. */
-  readonly fastStartedAt: Signal<Date | null> = computed(() => {
-    const p = this.fb.profile();
-    if (!p) return null;
-    const raw = (p as any).fastStartedAt;
-    if (!raw) return null;
-    // Could be a Firestore Timestamp or a Date depending on how it was read.
-    return raw instanceof Date ? raw : raw.toDate?.() ?? null;
-  });
+  /** The fasting start time, or null if not fasting. Trust the port: the
+   *  profile-mapper already converts `fastStartedAt` Timestamp→Date, so no
+   *  Timestamp ever reaches here (CONTEXT.md → "Date type at the seam"). */
+  readonly fastStartedAt: Signal<Date | null> = computed(
+    () => this.fb.profile()?.fastStartedAt ?? null,
+  );
 
   readonly isFasting: Signal<boolean> = computed(() => this.fastStartedAt() !== null);
 
