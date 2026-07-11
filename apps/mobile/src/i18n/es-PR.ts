@@ -465,6 +465,8 @@ export const esPR: Record<I18nKey, string> = {
   'reminder.dinnerBody': 'No olvides registrar la cena.',
   'reminder.streakTitle': '🔥 Racha en riesgo',
   'reminder.streakBody': 'Tu racha de {n} días termina esta noche — registra algo para mantenerla.',
+  'reminder.weighInTitle': '⚖️ Hora de pesarte',
+  'reminder.weighInBody': 'Han pasado {n} días — pesarte rápido mantiene tu meta de calorías precisa.',
   'settings.language': 'Idioma',
   'settings.account': 'Cuenta',
   'settings.signedInAs': 'Sesión iniciada como',

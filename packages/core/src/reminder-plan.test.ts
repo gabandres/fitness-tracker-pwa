@@ -63,3 +63,40 @@ describe('planReminders — streak-at-risk', () => {
     expect(fireAt?.getDate()).toBe(4);
   });
 });
+
+describe('planReminders — weigh-in nudge (smart)', () => {
+  const meals = DEFAULT_MEAL_REMINDERS;
+  // 6:00am — before the 8:00am weigh-in slot, so an overdue nudge can fire.
+  const dawn = () => new Date(2026, 6, 4, 6, 0, 0);
+
+  it('fires when it has been ≥7 days since the last weigh-in', () => {
+    const plans = planReminders({ now: dawn(), meals, loggedToday: true, streak: 0, daysSinceWeighIn: 9 });
+    const w = plans.find((p) => p.id === 'weigh-in');
+    expect(w).toMatchObject({ kind: 'date', bodyParams: { n: 9 } });
+    const fireAt = w && w.kind === 'date' ? w.fireAt : null;
+    expect(fireAt?.getHours()).toBe(8);
+    expect(fireAt?.getDate()).toBe(4);
+  });
+
+  it('is independent of loggedToday (weighing ≠ food logging)', () => {
+    const plans = planReminders({ now: dawn(), meals, loggedToday: false, streak: 0, daysSinceWeighIn: 8 });
+    expect(plans.find((p) => p.id === 'weigh-in')).toBeDefined();
+  });
+
+  it('is omitted below the 7-day threshold', () => {
+    expect(planReminders({ now: dawn(), meals, loggedToday: true, streak: 0, daysSinceWeighIn: 6 })
+      .find((p) => p.id === 'weigh-in')).toBeUndefined();
+  });
+
+  it('is omitted when weigh-in data is absent (null / undefined)', () => {
+    expect(planReminders({ now: dawn(), meals, loggedToday: true, streak: 0, daysSinceWeighIn: null })
+      .find((p) => p.id === 'weigh-in')).toBeUndefined();
+    expect(planReminders({ now: dawn(), meals, loggedToday: true, streak: 0 })
+      .find((p) => p.id === 'weigh-in')).toBeUndefined();
+  });
+
+  it('does not schedule in the past (after the 8:00am slot)', () => {
+    expect(planReminders({ now: noon(), meals, loggedToday: true, streak: 0, daysSinceWeighIn: 30 })
+      .find((p) => p.id === 'weigh-in')).toBeUndefined();
+  });
+});

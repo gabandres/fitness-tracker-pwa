@@ -463,6 +463,8 @@ export const en = {
   'reminder.dinnerBody': "Don't forget to log dinner.",
   'reminder.streakTitle': '🔥 Streak at risk',
   'reminder.streakBody': 'Your {n}-day streak ends tonight — log anything to keep it.',
+  'reminder.weighInTitle': '⚖️ Time for a weigh-in',
+  'reminder.weighInBody': "It's been {n} days — a quick weigh-in keeps your calorie target accurate.",
   'settings.language': 'Language',
   'settings.account': 'Account',
   'settings.signedInAs': 'Signed in as',

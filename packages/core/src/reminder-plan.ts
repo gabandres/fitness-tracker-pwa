@@ -48,6 +48,16 @@ export const MEAL_BODY_KEY: Record<MealKey, string> = {
 export const STREAK_TITLE_KEY = 'reminder.streakTitle';
 export const STREAK_BODY_KEY = 'reminder.streakBody';
 
+/** Weigh-in nudge: a smart, data-driven reminder to step on the scale when it's
+ *  been a while. Keeps measured-mode TDEE + the recalibration digest reliable
+ *  (both need recent weigh-ins) — the retention loop that ties back to Adaptive
+ *  TDEE. Fires in the morning, one-shot for today, only when overdue. */
+export const WEIGH_IN_HOUR = 8;
+export const WEIGH_IN_MINUTE = 0;
+export const WEIGH_IN_MIN_DAYS = 7;
+export const WEIGH_IN_TITLE_KEY = 'reminder.weighInTitle';
+export const WEIGH_IN_BODY_KEY = 'reminder.weighInBody';
+
 export type ReminderPlan =
   | {
       id: `meal-${MealKey}`;
@@ -66,6 +76,16 @@ export type ReminderPlan =
       bodyKey: string;
       /** Interpolation for the body copy ("your 6-day streak…"). */
       bodyParams: { n: number };
+    }
+  | {
+      id: 'weigh-in';
+      kind: 'date';
+      /** Absolute local time to fire once. */
+      fireAt: Date;
+      titleKey: string;
+      bodyKey: string;
+      /** Interpolation for the body copy ("it's been 9 days…"). */
+      bodyParams: { n: number };
     };
 
 export interface ReminderInput {
@@ -75,6 +95,9 @@ export interface ReminderInput {
   loggedToday: boolean;
   /** Current consecutive-day logging streak. */
   streak: number;
+  /** Whole days since the last recorded weigh-in, or null when never weighed /
+   *  unknown. Drives the smart weigh-in nudge; omit to disable it. */
+  daysSinceWeighIn?: number | null;
 }
 
 const MEAL_ORDER: MealKey[] = ['breakfast', 'lunch', 'dinner'];
@@ -84,7 +107,9 @@ const MEAL_ORDER: MealKey[] = ['breakfast', 'lunch', 'dinner'];
  * state. Call on app-foreground and after every log; the adapter cancels all
  * previously-scheduled nudges and (re)schedules exactly this list.
  */
-export function planReminders({ now, meals, loggedToday, streak }: ReminderInput): ReminderPlan[] {
+export function planReminders(
+  { now, meals, loggedToday, streak, daysSinceWeighIn }: ReminderInput,
+): ReminderPlan[] {
   const plans: ReminderPlan[] = [];
 
   for (const key of MEAL_ORDER) {
@@ -114,6 +139,22 @@ export function planReminders({ now, meals, loggedToday, streak }: ReminderInput
         titleKey: STREAK_TITLE_KEY,
         bodyKey: STREAK_BODY_KEY,
         bodyParams: { n: streak },
+      });
+    }
+  }
+
+  // Weigh-in nudge: overdue by WEIGH_IN_MIN_DAYS+ and this morning's slot hasn't
+  // passed. Re-armed each app-open, so a missed morning simply rolls to the next.
+  if (daysSinceWeighIn != null && daysSinceWeighIn >= WEIGH_IN_MIN_DAYS) {
+    const fireAt = atToday(now, WEIGH_IN_HOUR, WEIGH_IN_MINUTE);
+    if (fireAt.getTime() > now.getTime()) {
+      plans.push({
+        id: 'weigh-in',
+        kind: 'date',
+        fireAt,
+        titleKey: WEIGH_IN_TITLE_KEY,
+        bodyKey: WEIGH_IN_BODY_KEY,
+        bodyParams: { n: daysSinceWeighIn },
       });
     }
   }
