@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { LogBox, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { BrandLoader } from '@/components/BrandLoader';
@@ -92,16 +93,18 @@ export default function RootLayout() {
   const [fontsLoaded, fontsError] = useFonts({ Manrope_700Bold, Manrope_800ExtraBold });
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <ThemeProvider>
+      <KeyboardProvider>
+        <SafeAreaProvider>
+          <ThemeProvider>
           <ThemedStatusBar />
           <AuthProvider>
             <I18nProvider>
               <AuthGate fontsReady={fontsLoaded || !!fontsError} />
             </I18nProvider>
           </AuthProvider>
-        </ThemeProvider>
-      </SafeAreaProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

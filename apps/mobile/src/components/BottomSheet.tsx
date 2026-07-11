@@ -1,7 +1,9 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated, Dimensions, Easing, Keyboard, Modal, PanResponder, Platform, Pressable, StyleSheet, View,
+  Animated, Dimensions, Modal, PanResponder, Pressable, StyleSheet, View,
 } from 'react-native';
+import Reanimated, { useAnimatedStyle } from 'react-native-reanimated';
+import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { radius, space } from '@/theme';
 
@@ -32,35 +34,18 @@ export function BottomSheet({ visible, onClose, children }: Props) {
   const anim = useRef(new Animated.Value(0)).current;
   const drag = useRef(new Animated.Value(0)).current;
 
-  // Keyboard lift: translate the WHOLE sheet up by the keyboard height, driven
-  // by a native-driver Animated.Value that rises in lock-step with the keyboard.
-  // A `paddingBottom` on a flex-end child does NOT reliably lift a short sheet
-  // inside an iOS <Modal> (it stayed hidden behind the keyboard on device), so
-  // we translate the whole sheet instead. Critically: NOTHING here touches React
-  // state — a state-driven layout change mid-animation is what stuttered before.
-  // The tween matches the keyboard's own `duration` + easing so the sheet and
-  // keyboard move as one (no transient gap / cutout). Bottom padding stays
-  // constant for the same reason (cream fills any slack — never the backdrop).
-  const kbOffset = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    // Approximates the iOS keyboard's animation curve so the sheet tracks it.
-    const KEYBOARD_EASING = Easing.bezier(0.17, 0.59, 0.4, 0.77);
-    const animateTo = (toValue: number, duration: number) =>
-      Animated.timing(kbOffset, {
-        toValue,
-        duration: duration || 250,
-        easing: KEYBOARD_EASING,
-        useNativeDriver: true,
-      }).start();
-    const show = Keyboard.addListener(showEvt, (e) => animateTo(e.endCoordinates.height, e.duration));
-    const hide = Keyboard.addListener(hideEvt, (e) => animateTo(0, e.duration));
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, [kbOffset]);
+  // Keyboard lift: translate the WHOLE sheet up by the keyboard height, tracked
+  // FRAME-BY-FRAME by react-native-keyboard-controller (bundled into Expo Go
+  // SDK 54). `height` is a Reanimated SharedValue that is already negative while
+  // the keyboard is open, so applying it straight to translateY moves the sheet
+  // up exactly with the keyboard — no timing/easing guesswork, no stutter, and
+  // no transient gap. A `paddingBottom` lift did not work here (a short sheet
+  // stayed hidden behind the keyboard inside an iOS <Modal>), and a hand-rolled
+  // Animated tween couldn't match the keyboard's curve. This is the real fix.
+  const { height: keyboardHeight } = useReanimatedKeyboardAnimation();
+  const keyboardStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: keyboardHeight.value }],
+  }));
 
   useEffect(() => {
     if (visible) {
@@ -104,16 +89,11 @@ export function BottomSheet({ visible, onClose, children }: Props) {
       styles.sheet,
       {
         transform: [
-          {
-            translateY: Animated.subtract(
-              Animated.add(anim.interpolate({ inputRange: [0, 1], outputRange: [OFFSCREEN, 0] }), drag),
-              kbOffset,
-            ),
-          },
+          { translateY: Animated.add(anim.interpolate({ inputRange: [0, 1], outputRange: [OFFSCREEN, 0] }), drag) },
         ],
       },
     ],
-    [anim, drag, kbOffset, styles.sheet],
+    [anim, drag, styles.sheet],
   );
 
   return (
@@ -122,12 +102,16 @@ export function BottomSheet({ visible, onClose, children }: Props) {
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
       </Animated.View>
       <View style={[styles.wrap, { pointerEvents: 'box-none' }]}>
-        <Animated.View style={sheetStyle}>
-          <View style={styles.grabZone} {...pan.panHandlers}>
-            <View style={styles.handle} />
-          </View>
-          {children}
-        </Animated.View>
+        {/* Outer Reanimated layer lifts the sheet with the keyboard (frame-
+            perfect); inner RN-Animated layer owns the open/close spring + drag. */}
+        <Reanimated.View style={keyboardStyle}>
+          <Animated.View style={sheetStyle}>
+            <View style={styles.grabZone} {...pan.panHandlers}>
+              <View style={styles.handle} />
+            </View>
+            {children}
+          </Animated.View>
+        </Reanimated.View>
       </View>
     </Modal>
   );
