@@ -16,7 +16,6 @@
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
-              "com.googleusercontent.apps.647810616435-66v806q2ptpso47ldcgq7h3bdq6h327j",
               "fit.ignia.app"
             ]
           }
@@ -72,6 +71,12 @@
         {
           "photosPermission": "Ignia uses your photos so you can attach meal images.",
           "cameraPermission": "Ignia uses the camera to scan your meals."
+        }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.647810616435-66v806q2ptpso47ldcgq7h3bdq6h327j"
         }
       ]
     ],

@@ -1,6 +1,21 @@
 import * as AppleAuthentication from 'expo-apple-authentication';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
-import * as Google from 'expo-auth-session/providers/google';
+// NATIVE module: `@react-native-google-signin/google-signin` registers the
+// `RNGoogleSignin` TurboModule, which does NOT exist in Expo Go. A static
+// top-level import evaluates that binding at bundle load and hard-crashes Expo
+// Go (`Invariant Violation: RNGoogleSignin could not be found`) before any
+// isExpoGo guard runs. So import TYPES only (fully erased at build — no runtime
+// load) and require the runtime module lazily, exclusively inside the
+// dev-build-only code paths below (`loadGoogleSignin`).
+type GoogleSigninModule = typeof import('@react-native-google-signin/google-signin');
+let googleSigninModule: GoogleSigninModule | null = null;
+function loadGoogleSignin(): GoogleSigninModule {
+  // Callers MUST gate on `!isExpoGo` first — in Expo Go this require throws.
+  if (!googleSigninModule) {
+    googleSigninModule = require('@react-native-google-signin/google-signin') as GoogleSigninModule;
+  }
+  return googleSigninModule;
+}
 import { exchangeCodeAsync, makeRedirectUri, useAuthRequest } from 'expo-auth-session';
 import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
@@ -184,18 +199,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     null,
   );
 
-  // Builds the OAuth request once the client IDs are present. `request` is
-  // null until ready; promptAsync() resolves with the redirect result.
-  const [request, , promptAsync] = Google.useIdTokenAuthRequest({
-    iosClientId: googleAuth?.iosClientId,
-    androidClientId: googleAuth?.androidClientId,
-    webClientId: googleAuth?.webClientId,
-    // Explicit scopes so the code-exchange reliably returns an id_token
-    // (Google only issues id_token when `openid` is requested).
-    scopes: ['openid', 'profile', 'email'],
-  });
+  // Native Google Sign-In (Play Services on Android / the Google SDK on iOS).
+  // No browser, no redirect, no custom-URI-scheme — configure once, then
+  // signIn() hands back the id_token directly. This replaces the old
+  // expo-auth-session browser flow, whose redirect back into the app failed on
+  // device (the "invalid_request / doesn't return to Today" bug). Guarded off
+  // in Expo Go (native module absent) and until real client IDs are present.
+  useEffect(() => {
+    if (isExpoGo || !hasRealClientId) return;
+    const { GoogleSignin } = loadGoogleSignin();
+    GoogleSignin.configure({
+      // The WEB client ID is what mints the id_token Firebase validates (it's
+      // the token's audience) on BOTH platforms; iosClientId targets the iOS
+      // OAuth client. Android uses the SHA-1-matched client automatically.
+      webClientId: googleAuth?.webClientId,
+      iosClientId: googleAuth?.iosClientId,
+    });
+  }, []);
 
-  const googleAvailable = !isExpoGo && hasRealClientId && !!request;
+  const googleAvailable = !isExpoGo && hasRealClientId;
 
   // Microsoft (generic OIDC, unlike Apple): the IdP echoes the nonce UNHASHED
   // into the id_token, and Firebase compares its `rawNonce` to that claim
@@ -339,35 +361,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       signInWithGoogle: async () => {
         if (isExpoGo || !hasRealClientId) throw new GoogleSignInError('expo-go');
-        if (!request) throw new GoogleSignInError('not-ready');
-        const result = await promptAsync();
-        if (result.type === 'cancel' || result.type === 'dismiss') {
-          throw new GoogleSignInError('cancelled');
+        const { GoogleSignin, isSuccessResponse, isErrorWithCode, statusCodes } = loadGoogleSignin();
+        let idToken: string | null;
+        try {
+          // Native account picker: Play Services (Android) / Google SDK (iOS).
+          // Returns the id_token in-process — no browser round-trip, so the old
+          // redirect/custom-URI-scheme failures are structurally impossible.
+          await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+          const response = await GoogleSignin.signIn();
+          // A non-success response means the user dismissed the picker.
+          if (!isSuccessResponse(response)) throw new GoogleSignInError('cancelled');
+          idToken = response.data.idToken;
+        } catch (e) {
+          if (e instanceof GoogleSignInError) throw e;
+          if (
+            isErrorWithCode(e) &&
+            (e.code === statusCodes.SIGN_IN_CANCELLED || e.code === statusCodes.IN_PROGRESS)
+          ) {
+            throw new GoogleSignInError('cancelled');
+          }
+          throw new GoogleSignInError('failed');
         }
-        if (result.type !== 'success') throw new GoogleSignInError('failed');
-        // On iOS/Android, useIdTokenAuthRequest runs the authorization-code
-        // flow and auto-exchanges the code — the id_token comes back in
-        // `authentication`, NOT `params`. (params only carries it on the
-        // web/implicit path.) Reading only params → "no-token" → the generic
-        // "Could not sign in" error even though sign-in succeeded up to here.
-        // promptAsync() resolves with the raw authorization CODE — the
-        // provider's auto-exchange delivers tokens through the (ignored) hook
-        // `response` value, not this promise. So exchange the code ourselves
-        // to get the id_token Firebase needs.
-        const code = result.params?.code;
-        if (!code) throw new GoogleSignInError('no-token');
-        const clientId =
-          (Platform.OS === 'android' ? googleAuth?.androidClientId : googleAuth?.iosClientId) ?? '';
-        const token = await exchangeCodeAsync(
-          {
-            clientId,
-            code,
-            redirectUri: request.redirectUri,
-            extraParams: request.codeVerifier ? { code_verifier: request.codeVerifier } : {},
-          },
-          { tokenEndpoint: 'https://oauth2.googleapis.com/token' },
-        );
-        const idToken = token.idToken;
         if (!idToken) throw new GoogleSignInError('no-token');
         await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
       },
@@ -453,8 +467,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       profileLoading,
       googleAvailable,
-      request,
-      promptAsync,
       microsoftAvailable,
       msRequest,
       msPromptAsync,

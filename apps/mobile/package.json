@@ -6,6 +6,7 @@
     "@expo-google-fonts/manrope": "^0.4.2",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-google-signin/google-signin": "^16.1.2",
     "expo": "^54.0.35",
     "expo-apple-authentication": "~8.0.8",
     "expo-auth-session": "~7.0.11",

@@ -14,10 +14,15 @@
 > propagates in minutes. If you ever rebuild with a *different* signing keystore,
 > re-add that keystore's SHA-1 the same way (`apksigner verify --print-certs`).
 
-The code is already merged (`src/lib/auth.tsx`, `src/app/sign-in.tsx`). The
-"Continue with Google" button is **gated off in Expo Go** — it can only work
-in a **development build** (or a store build), because Google OAuth needs a
-stable redirect URI that the Expo Go shell can't provide.
+The code is already merged (`src/lib/auth.tsx`, `src/app/sign-in.tsx`). Sign-in
+now uses the **native** `@react-native-google-signin/google-signin` module
+(the in-process account picker via Play Services / the Google iOS SDK), which
+replaced the old `expo-auth-session` browser flow whose redirect back into the
+app failed on device. The "Continue with Google" button is **gated off in Expo
+Go** — the native `RNGoogleSignin` module isn't in the Expo Go binary, so it
+can only work in a **development build** (or a store build). The module is
+loaded lazily (behind the `isExpoGo` guard in `auth.tsx`) precisely so that a
+static import doesn't crash Expo Go on startup.
 
 To turn it on you need (1) three OAuth client IDs from Google Cloud, pasted
 into `app.json`, and (2) a dev build. ~20 min, mostly waiting on the build.
