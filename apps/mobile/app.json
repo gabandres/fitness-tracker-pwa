@@ -33,7 +33,21 @@
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.health.READ_WEIGHT",
+        "android.permission.health.WRITE_WEIGHT",
+        "android.permission.health.READ_SLEEP",
+        "android.permission.health.WRITE_SLEEP",
+        "android.permission.health.READ_HYDRATION",
+        "android.permission.health.WRITE_HYDRATION",
+        "android.permission.health.READ_BODY_FAT",
+        "android.permission.health.WRITE_BODY_FAT",
+        "android.permission.health.READ_NUTRITION",
+        "android.permission.health.WRITE_NUTRITION",
+        "android.permission.health.READ_EXERCISE",
+        "android.permission.health.WRITE_EXERCISE",
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_ACTIVE_CALORIES_BURNED"
       ]
     },
     "web": {
@@ -83,7 +97,8 @@
         "@kingstinct/react-native-healthkit",
         {
           "NSHealthShareUsageDescription": "Ignia reads your weight, sleep and water from Apple Health so you don't have to re-type them.",
-          "NSHealthUpdateUsageDescription": "Ignia writes the weight, sleep, water and meals you log to Apple Health."
+          "NSHealthUpdateUsageDescription": "Ignia writes the weight, sleep, water and meals you log to Apple Health.",
+          "background": false
         }
       ],
       "react-native-health-connect"
