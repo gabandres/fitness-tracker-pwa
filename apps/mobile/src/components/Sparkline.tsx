@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { View } from 'react-native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { useTheme } from '@/lib/theme-context';
@@ -18,7 +18,7 @@ interface Props {
  *  smoothed line through the values with a dot at the latest point and an
  *  optional dashed projection on the same y-scale. <2 points → a muted dashed
  *  baseline, so the caller keeps a stable footprint regardless of data. */
-export function Sparkline({ values, projection = [], width = 280, height = 56, color }: Props) {
+function SparklineImpl({ values, projection = [], width = 280, height = 56, color }: Props) {
   const { colors } = useTheme();
   const stroke = color ?? colors.ink;
   const PAD = 4;
@@ -81,3 +81,7 @@ export function Sparkline({ values, projection = [], width = 280, height = 56, c
     </View>
   );
 }
+
+/** Memoized: the Body screen re-renders when its sheets open — no need to
+ *  recompute the SVG unless the series/size actually change. */
+export const Sparkline = memo(SparklineImpl);

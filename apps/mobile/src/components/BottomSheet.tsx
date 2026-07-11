@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated, Dimensions, Keyboard, Modal, PanResponder, Platform, Pressable, StyleSheet, View,
+  Animated, Dimensions, Easing, Keyboard, Modal, PanResponder, Platform, Pressable, StyleSheet, View,
 } from 'react-native';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { radius, space } from '@/theme';
@@ -33,33 +33,29 @@ export function BottomSheet({ visible, onClose, children }: Props) {
   const drag = useRef(new Animated.Value(0)).current;
 
   // Keyboard lift: translate the WHOLE sheet up by the keyboard height, driven
-  // by a native-driver Animated.Value that tracks the keyboard's own animation
-  // curve (its event `duration`). This actually moves the sheet above the
-  // keyboard (a `paddingBottom` on a flex-end child does not reliably lift a
-  // short sheet inside an iOS <Modal>), and being native-driven it's smooth —
-  // no stutter, no cutout, no timing race with autoFocus. `kbUp` trims the
-  // resting bottom padding so content sits just above the keyboard.
+  // by a native-driver Animated.Value that rises in lock-step with the keyboard.
+  // A `paddingBottom` on a flex-end child does NOT reliably lift a short sheet
+  // inside an iOS <Modal> (it stayed hidden behind the keyboard on device), so
+  // we translate the whole sheet instead. Critically: NOTHING here touches React
+  // state — a state-driven layout change mid-animation is what stuttered before.
+  // The tween matches the keyboard's own `duration` + easing so the sheet and
+  // keyboard move as one (no transient gap / cutout). Bottom padding stays
+  // constant for the same reason (cream fills any slack — never the backdrop).
   const kbOffset = useRef(new Animated.Value(0)).current;
-  const [kbUp, setKbUp] = useState(false);
   useEffect(() => {
     const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const show = Keyboard.addListener(showEvt, (e) => {
-      setKbUp(true);
+    // Approximates the iOS keyboard's animation curve so the sheet tracks it.
+    const KEYBOARD_EASING = Easing.bezier(0.17, 0.59, 0.4, 0.77);
+    const animateTo = (toValue: number, duration: number) =>
       Animated.timing(kbOffset, {
-        toValue: e.endCoordinates.height,
-        duration: e.duration || 250,
+        toValue,
+        duration: duration || 250,
+        easing: KEYBOARD_EASING,
         useNativeDriver: true,
       }).start();
-    });
-    const hide = Keyboard.addListener(hideEvt, (e) => {
-      setKbUp(false);
-      Animated.timing(kbOffset, {
-        toValue: 0,
-        duration: e.duration || 250,
-        useNativeDriver: true,
-      }).start();
-    });
+    const show = Keyboard.addListener(showEvt, (e) => animateTo(e.endCoordinates.height, e.duration));
+    const hide = Keyboard.addListener(hideEvt, (e) => animateTo(0, e.duration));
     return () => {
       show.remove();
       hide.remove();
@@ -126,9 +122,7 @@ export function BottomSheet({ visible, onClose, children }: Props) {
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
       </Animated.View>
       <View style={[styles.wrap, { pointerEvents: 'box-none' }]}>
-        <Animated.View
-          style={[sheetStyle, { paddingBottom: kbUp ? space.md : space.xxl }]}
-        >
+        <Animated.View style={sheetStyle}>
           <View style={styles.grabZone} {...pan.panHandlers}>
             <View style={styles.handle} />
           </View>
