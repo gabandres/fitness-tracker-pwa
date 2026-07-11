@@ -1,3 +1,4 @@
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 import {
   type HealthKind,
@@ -379,7 +380,7 @@ const healthConnect: HealthPort = {
   },
 };
 
-// ─────────────────────────────── No-op (web) ───────────────────────────────
+// ──────────────────────── No-op (web / Expo Go) ────────────────────────
 
 const noopHealth: HealthPort = {
   async isAvailable() {
@@ -396,7 +397,20 @@ const noopHealth: HealthPort = {
   async writeWorkout() {},
 };
 
-/** The platform's health adapter. iOS → HealthKit, Android → Health Connect,
- *  everything else → a no-op so callers never branch on platform. */
+// The native modules are Nitro-based and hard-throw at load in Expo Go
+// ("NitroModules are not supported in Expo Go"). Detect the Expo Go client and
+// use the no-op adapter there, so the module is never imported and the rest of
+// the app stays usable in Expo Go. Real HealthKit/Health Connect only exist in
+// a dev/prod build (executionEnvironment is 'storeClient' only in Expo Go).
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
+/** The platform's health adapter. iOS → HealthKit, Android → Health Connect;
+ *  Expo Go / web / anything else → a no-op so callers never branch. */
 export const health: HealthPort =
-  Platform.OS === 'ios' ? healthKit : Platform.OS === 'android' ? healthConnect : noopHealth;
+  isExpoGo || Platform.OS === 'web'
+    ? noopHealth
+    : Platform.OS === 'ios'
+      ? healthKit
+      : Platform.OS === 'android'
+        ? healthConnect
+        : noopHealth;
