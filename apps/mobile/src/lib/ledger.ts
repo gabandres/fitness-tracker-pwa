@@ -247,6 +247,37 @@ export async function setDailySleep(uid: string, dateKey: string, hours: number)
   await setDoc(sleepDoc(uid, dateKey), { hours: Math.max(0, Math.min(24, Math.round(hours * 2) / 2)) });
 }
 
+// ─── Health sync — one-shot scalar reads ────────────────────────
+// The live tabs subscribe to these collections; the Health importer needs a
+// point-in-time snapshot (it can run from Settings, which holds no listeners),
+// so it reads once here. `dateKey → value` in each metric's canonical unit
+// (weight lb, sleep hours, water fl oz) — the same units health-mapping uses.
+export async function getHealthScalarsOnce(uid: string): Promise<{
+  weight: Record<string, number>;
+  sleep: Record<string, number>;
+  water: Record<string, number>;
+}> {
+  const [wSnap, sSnap, waSnap] = await Promise.all([
+    getDocs(weightsCol(uid)),
+    getDocs(sleepCol(uid)),
+    getDocs(waterCol(uid)),
+  ]);
+  const weight: Record<string, number> = {};
+  for (const d of wSnap.docs) weight[d.id] = (d.data() as { weight: number }).weight;
+  const sleep: Record<string, number> = {};
+  for (const d of sSnap.docs) {
+    const h = (d.data() as { hours?: number }).hours;
+    if (typeof h === 'number') sleep[d.id] = h;
+  }
+  const water: Record<string, number> = {};
+  for (const d of waSnap.docs) {
+    const data = d.data() as { flOz?: number; ml?: number };
+    const flOz = typeof data.flOz === 'number' ? data.flOz : typeof data.ml === 'number' ? data.ml / 29.5735 : null;
+    if (flOz != null) water[d.id] = flOz;
+  }
+  return { weight, sleep, water };
+}
+
 // ─── Fasting ────────────────────────────────────────────────────
 // Fasting state lives on the profile as `fastStartedAt` (Timestamp | null),
 // mirroring FirebaseService.startFast / breakFast.

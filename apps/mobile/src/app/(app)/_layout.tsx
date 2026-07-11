@@ -5,6 +5,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LogSpeedDial } from '@/components/LogSpeedDial';
 import { useT } from '@/i18n';
+import { useAuth } from '@/lib/auth';
+import { useHealthAutoImport } from '@/lib/health-sync';
 import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -72,6 +74,10 @@ function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
 export default function AppTabsLayout() {
   const t = useT();
+  const { user } = useAuth();
+  // Pull weight/sleep/water from Apple Health / Health Connect on app-open and
+  // every foreground (no-op unless the user connected Health in Settings).
+  useHealthAutoImport(user?.uid);
   return (
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <AppTabBar {...props} />}>
       <Tabs.Screen name="index" options={{ title: t('nav.today') }} />

@@ -1,90 +1,130 @@
 import { describe, expect, it } from 'vitest';
 import {
-  kgToLb, lbToKg, reduceImportedWeights, resolveWeightConflict, weightsToApply,
-  type HealthSample,
+  fractionToPercent, flOzToLiters, isStorableHealthValue, kgToLb, lbToKg, litersToFlOz,
+  percentToFraction, reduceImportedSamples, valuesToApply,
+  type HealthKind, type HealthSample,
 } from './health-mapping';
 
 function sample(over: Partial<HealthSample> = {}): HealthSample {
-  return { dateKey: '2026-07-01', kind: 'weight', valueLb: 180, endMs: 1000, fromUs: false, ...over };
+  return { dateKey: '2026-07-01', kind: 'weight', value: 180, endMs: 1000, fromUs: false, ...over };
 }
 
-describe('kg ↔ lb', () => {
-  it('round-trips within float tolerance', () => {
+describe('unit conversions', () => {
+  it('kg ↔ lb round-trips within float tolerance', () => {
     expect(kgToLb(100)).toBeCloseTo(220.462, 3);
     expect(lbToKg(kgToLb(81.6))).toBeCloseTo(81.6, 6);
   });
+  it('liters ↔ fl oz round-trips', () => {
+    expect(litersToFlOz(1)).toBeCloseTo(33.814, 3);
+    expect(flOzToLiters(litersToFlOz(2))).toBeCloseTo(2, 6);
+  });
+  it('fraction ↔ percent for body-fat', () => {
+    expect(fractionToPercent(0.183)).toBeCloseTo(18.3, 6);
+    expect(percentToFraction(18.3)).toBeCloseTo(0.183, 6);
+  });
 });
 
-describe('reduceImportedWeights', () => {
-  it('keeps one weight per day — latest endMs wins', () => {
-    const out = reduceImportedWeights([
-      sample({ dateKey: '2026-07-01', valueLb: 180, endMs: 100 }),
-      sample({ dateKey: '2026-07-01', valueLb: 179, endMs: 500 }),
-      sample({ dateKey: '2026-07-02', valueLb: 178, endMs: 200 }),
+describe('isStorableHealthValue', () => {
+  const cases: [HealthKind, number, boolean][] = [
+    ['weight', 175, true], ['weight', 0, false], ['weight', 9999, false],
+    ['sleep', 7.5, true], ['sleep', 0, false], ['sleep', 25, false],
+    ['water', 64, true], ['water', 0, true], ['water', 999, false],
+    ['bodyFat', 18, true], ['bodyFat', 2, false], ['bodyFat', 80, false],
+    ['weight', NaN, false],
+  ];
+  it.each(cases)('%s %d → %s', (kind, value, expected) => {
+    expect(isStorableHealthValue(kind, value)).toBe(expected);
+  });
+});
+
+describe('reduceImportedSamples', () => {
+  it('keeps one value per day — latest endMs wins', () => {
+    const out = reduceImportedSamples([
+      sample({ dateKey: '2026-07-01', value: 180, endMs: 100 }),
+      sample({ dateKey: '2026-07-01', value: 179, endMs: 500 }),
+      sample({ dateKey: '2026-07-02', value: 178, endMs: 200 }),
     ]);
     expect(out).toEqual({ '2026-07-01': 179, '2026-07-02': 178 });
   });
 
   it('is order-independent (earlier-listed newer sample still wins)', () => {
-    const out = reduceImportedWeights([
-      sample({ dateKey: 'd', valueLb: 179, endMs: 500 }),
-      sample({ dateKey: 'd', valueLb: 180, endMs: 100 }),
+    const out = reduceImportedSamples([
+      sample({ dateKey: 'd', value: 179, endMs: 500 }),
+      sample({ dateKey: 'd', value: 180, endMs: 100 }),
     ]);
     expect(out).toEqual({ d: 179 });
   });
 
   it('drops samples we wrote (fromUs) so re-sync is idempotent', () => {
-    const out = reduceImportedWeights([
-      sample({ dateKey: 'd', valueLb: 180, endMs: 100, fromUs: true }),
-      sample({ dateKey: 'd', valueLb: 181, endMs: 200, fromUs: false }),
+    const out = reduceImportedSamples([
+      sample({ dateKey: 'd', value: 180, endMs: 100, fromUs: true }),
+      sample({ dateKey: 'd', value: 181, endMs: 200, fromUs: false }),
     ]);
     expect(out).toEqual({ d: 181 });
   });
 
   it('drops a day entirely when every sample for it is ours', () => {
-    const out = reduceImportedWeights([sample({ fromUs: true })]);
-    expect(out).toEqual({});
+    expect(reduceImportedSamples([sample({ fromUs: true })])).toEqual({});
   });
 
-  it('rejects junk values (0 lb, implausible)', () => {
-    const out = reduceImportedWeights([
-      sample({ dateKey: 'a', valueLb: 0 }),
-      sample({ dateKey: 'b', valueLb: 9999 }),
-      sample({ dateKey: 'c', valueLb: 175 }),
+  it('rejects junk values per-kind (0/implausible weight)', () => {
+    const out = reduceImportedSamples([
+      sample({ dateKey: 'a', value: 0 }),
+      sample({ dateKey: 'b', value: 9999 }),
+      sample({ dateKey: 'c', value: 175 }),
     ]);
     expect(out).toEqual({ c: 175 });
   });
 
+  it('sums additive kinds per day (sleep segments → nightly hours)', () => {
+    const out = reduceImportedSamples([
+      sample({ kind: 'sleep', dateKey: 'd', value: 4, endMs: 100 }),
+      sample({ kind: 'sleep', dateKey: 'd', value: 3.5, endMs: 900 }),
+      sample({ kind: 'sleep', dateKey: 'e', value: 8, endMs: 200 }),
+    ]);
+    expect(out).toEqual({ d: 7.5, e: 8 });
+  });
+
+  it('sums additive water sips and rejects an impossible day-total', () => {
+    expect(
+      reduceImportedSamples([
+        sample({ kind: 'water', dateKey: 'd', value: 12 }),
+        sample({ kind: 'water', dateKey: 'd', value: 20 }),
+      ]),
+    ).toEqual({ d: 32 });
+    // 400 + 400 = 800 fl oz > WATER_MAX_FLOZ → the whole day drops.
+    expect(
+      reduceImportedSamples([
+        sample({ kind: 'water', dateKey: 'd', value: 400 }),
+        sample({ kind: 'water', dateKey: 'd', value: 400 }),
+      ]),
+    ).toEqual({});
+  });
+
   it('returns empty for empty / nullish input', () => {
-    expect(reduceImportedWeights([])).toEqual({});
-    expect(reduceImportedWeights(undefined as unknown as HealthSample[])).toEqual({});
+    expect(reduceImportedSamples([])).toEqual({});
+    expect(reduceImportedSamples(undefined as unknown as HealthSample[])).toEqual({});
   });
 });
 
-describe('resolveWeightConflict', () => {
-  it('lets a storable Health reading win (scale is authoritative)', () => {
-    expect(resolveWeightConflict(182, null, 180, 0)).toBe(180);
-    expect(resolveWeightConflict(null, null, 180, 0)).toBe(180);
-  });
-
-  it('keeps the app value when the Health value is junk', () => {
-    expect(resolveWeightConflict(182, null, 0, 0)).toBe(182);
-  });
-});
-
-describe('weightsToApply', () => {
-  it('emits only days that differ from the current dailyWeights', () => {
+describe('valuesToApply', () => {
+  it('emits only days that differ from the current app values', () => {
     const imported = { '2026-07-01': 180, '2026-07-02': 179, '2026-07-03': 178 };
     const current = { '2026-07-01': 180, '2026-07-02': 181 }; // 01 matches, 02 differs, 03 new
-    expect(weightsToApply(imported, current)).toEqual({ '2026-07-02': 179, '2026-07-03': 178 });
+    expect(valuesToApply(imported, current)).toEqual({ '2026-07-02': 179, '2026-07-03': 178 });
   });
 
-  it('treats sub-0.05 lb differences as equal (lb↔kg round-trip noise)', () => {
-    expect(weightsToApply({ d: 180.02 }, { d: 180.0 })).toEqual({});
-    expect(weightsToApply({ d: 180.2 }, { d: 180.0 })).toEqual({ d: 180.2 });
+  it('treats sub-epsilon differences as equal (unit round-trip noise)', () => {
+    expect(valuesToApply({ d: 180.02 }, { d: 180.0 })).toEqual({});
+    expect(valuesToApply({ d: 180.2 }, { d: 180.0 })).toEqual({ d: 180.2 });
+  });
+
+  it('honors a custom epsilon (e.g. whole fl oz for water)', () => {
+    expect(valuesToApply({ d: 64.4 }, { d: 64 }, 1)).toEqual({});
+    expect(valuesToApply({ d: 66 }, { d: 64 }, 1)).toEqual({ d: 66 });
   });
 
   it('applies everything when there is no current data', () => {
-    expect(weightsToApply({ d: 175 }, {})).toEqual({ d: 175 });
+    expect(valuesToApply({ d: 175 }, {})).toEqual({ d: 175 });
   });
 });

@@ -78,7 +78,15 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.647810616435-66v806q2ptpso47ldcgq7h3bdq6h327j"
         }
-      ]
+      ],
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "Ignia reads your weight, sleep and water from Apple Health so you don't have to re-type them.",
+          "NSHealthUpdateUsageDescription": "Ignia writes the weight, sleep, water and meals you log to Apple Health."
+        }
+      ],
+      "react-native-health-connect"
     ],
     "extra": {
       "googleAuth": {

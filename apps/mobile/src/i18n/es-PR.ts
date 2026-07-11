@@ -545,6 +545,17 @@ export const esPR: Record<I18nKey, string> = {
   'settings.weeklyDigest': 'Resumen semanal por correo',
   'settings.weeklyDigestSub': 'Un resumen dominical de tus últimos 7 días',
 
+  // ── health sync ──
+  'settings.healthSection': 'Apple Health / Health Connect',
+  'settings.healthConnectIos': 'Conectar Apple Health',
+  'settings.healthConnectAndroid': 'Conectar Health Connect',
+  'settings.healthSub': 'Sincronización de peso, sueño y agua en ambos sentidos. Se queda en tu dispositivo — nunca se sube a nuestros servidores.',
+  'settings.healthConnected': 'Conectado. Tus datos de salud se mantendrán sincronizados.',
+  'settings.healthDenied': 'Permiso denegado. Activa el acceso a Salud en los Ajustes de tu teléfono para conectar.',
+  'settings.healthSyncHint': 'Traer lo último de Salud',
+  'settings.healthSyncNow': 'Sincronizar ahora',
+  'settings.healthSynced': 'Se sincronizaron {n} día(s) desde Salud.',
+
   // ── history ──
   'history.emptyTitle': 'Aún no hay historial.',
   'history.emptyHint': 'Tus días registrados aparecen aquí.',

@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
 import { importLogs, setCalorieFloor, setPreferredLocale, setUnitSystem, setWeeklyDigestOptIn } from '@/lib/ledger';
 import { exportDataCsv } from '@/lib/dataExport';
+import { useHealthSync } from '@/lib/health-sync';
 import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
 import { DEFAULT_REMINDER_HOUR, getReminder, setReminder, syncReminders } from '@/lib/reminders';
 import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
@@ -192,6 +193,24 @@ export default function Settings() {
     if (!user) return;
     haptics.tap();
     await setWeeklyDigestOptIn(user.uid, next);
+  }
+
+  const healthSync = useHealthSync(user?.uid);
+  const [healthMsg, setHealthMsg] = useState<string | null>(null);
+  async function toggleHealth(next: boolean) {
+    haptics.tap();
+    if (next) {
+      const ok = await healthSync.connect();
+      setHealthMsg(ok ? t('settings.healthConnected') : t('settings.healthDenied'));
+    } else {
+      await healthSync.disconnect();
+      setHealthMsg(null);
+    }
+  }
+  async function onHealthSyncNow() {
+    haptics.tap();
+    const n = await healthSync.syncNow();
+    setHealthMsg(t('settings.healthSynced', { n }));
   }
 
   return (
@@ -413,6 +432,44 @@ export default function Settings() {
             />
           </View>
         </View>
+
+        {healthSync.available ? (
+          <>
+            <Text style={styles.section}>{t('settings.healthSection')}</Text>
+            <View style={styles.card}>
+              <View style={styles.rowBetween}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowLabel}>
+                    {Platform.OS === 'ios' ? t('settings.healthConnectIos') : t('settings.healthConnectAndroid')}
+                  </Text>
+                  <Text style={styles.rowValue}>{t('settings.healthSub')}</Text>
+                </View>
+                <Switch
+                  value={healthSync.connected}
+                  onValueChange={toggleHealth}
+                  trackColor={{ true: colors.tealSolid, false: colors.line }}
+                  testID="health-toggle"
+                />
+              </View>
+              {healthSync.connected ? (
+                <View style={styles.digestRow}>
+                  <Text style={styles.rowValue}>{t('settings.healthSyncHint')}</Text>
+                  <TouchableOpacity
+                    onPress={onHealthSyncNow}
+                    disabled={healthSync.syncing}
+                    style={[styles.exportBtn, healthSync.syncing && styles.exportBtnDisabled]}
+                    testID="health-sync-now"
+                  >
+                    <Text style={styles.exportBtnText}>
+                      {healthSync.syncing ? t('common.saving') : t('settings.healthSyncNow')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+              {healthMsg ? <Text style={styles.exportMsg}>{healthMsg}</Text> : null}
+            </View>
+          </>
+        ) : null}
 
         <Text style={styles.section}>{t('settings.calorieFloorSection')}</Text>
         <View style={styles.card}>

@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { trackSubs } from '@/lib/sub-debug';
+import { exportDaily, exportWorkout } from '@/lib/health-sync';
 import { useAuth } from '@/lib/auth';
 import {
   addExercise as addExerciseDoc,
@@ -448,13 +449,18 @@ export function useTrain(): TrainState {
           bodyweight: extras.bodyweight,
           sleepHours: extras.sleepHours,
         });
+        const dateKey = localDateKey(date);
         if (extras.bodyweight != null && extras.bodyweight > 0) {
-          await setDailyWeight(uid, localDateKey(date), extras.bodyweight);
+          await setDailyWeight(uid, dateKey, extras.bodyweight);
+          void exportDaily('weight', dateKey, extras.bodyweight);
         }
         if (extras.sleepHours != null && extras.sleepHours > 0) {
-          await setDailySleep(uid, localDateKey(date), extras.sleepHours);
+          await setDailySleep(uid, dateKey, extras.sleepHours);
+          void exportDaily('sleep', dateKey, extras.sleepHours);
         }
         await markExercised(uid, date);
+        // Mirror the finished session to Health (ends now; strength training).
+        void exportWorkout({ start: date, end: new Date() });
         setActive(null);
       } catch (e) {
         setError(e instanceof Error ? e : new Error('Finish failed'));

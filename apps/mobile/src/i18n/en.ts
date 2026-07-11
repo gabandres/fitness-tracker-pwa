@@ -543,6 +543,17 @@ export const en = {
   'settings.weeklyDigest': 'Weekly recap email',
   'settings.weeklyDigestSub': 'A Sunday snapshot of your last 7 days',
 
+  // ── health sync ──
+  'settings.healthSection': 'Apple Health / Health Connect',
+  'settings.healthConnectIos': 'Connect Apple Health',
+  'settings.healthConnectAndroid': 'Connect Health Connect',
+  'settings.healthSub': 'Two-way sync for weight, sleep and water. Stays on your device — never uploaded to our servers.',
+  'settings.healthConnected': 'Connected. Your Health data will stay in sync.',
+  'settings.healthDenied': 'Permission denied. Enable Health access in your phone Settings to connect.',
+  'settings.healthSyncHint': 'Pull the latest from Health',
+  'settings.healthSyncNow': 'Sync now',
+  'settings.healthSynced': 'Synced {n} day(s) from Health.',
+
   // ── history ──
   'history.emptyTitle': 'No history yet.',
   'history.emptyHint': 'Your logged days appear here.',

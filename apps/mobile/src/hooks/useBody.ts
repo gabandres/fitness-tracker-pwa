@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { trackSubs } from '@/lib/sub-debug';
+import { exportDaily } from '@/lib/health-sync';
 import {
   type DailyLog,
   type Measurement,
@@ -153,10 +154,29 @@ export function useBody(): BodyState {
 
   const setWeight = useCallback(
     async (weight: number, dateKey?: string) => {
-      if (uid) await setDailyWeight(uid, dateKey ?? todayKey, weight);
+      if (!uid) return;
+      const key = dateKey ?? todayKey;
+      await setDailyWeight(uid, key, weight);
+      void exportDaily('weight', key, weight); // mirror to Health if connected
     },
     [uid, todayKey],
   );
+
+  // Mirror the derived Navy body-fat % to Health when it changes (export-only —
+  // the app computes its own, so it's never imported). Seed on first observation
+  // so opening the tab doesn't re-write an unchanged value every session.
+  const prevBodyFat = useRef<number | null>(null);
+  useEffect(() => {
+    if (bodyFat == null) return;
+    if (prevBodyFat.current == null) {
+      prevBodyFat.current = bodyFat;
+      return;
+    }
+    if (bodyFat !== prevBodyFat.current) {
+      prevBodyFat.current = bodyFat;
+      void exportDaily('bodyFat', todayKey, bodyFat);
+    }
+  }, [bodyFat, todayKey]);
   const addMeasurement = useCallback(
     async (entry: Omit<Measurement, 'id' | 'date'>) => {
       if (uid) await addMeasurementDoc(uid, entry);

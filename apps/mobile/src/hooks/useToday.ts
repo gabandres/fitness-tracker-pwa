@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { trackSubs } from '@/lib/sub-debug';
+import { exportDaily, exportNutrition } from '@/lib/health-sync';
 import {
   type CustomFood,
   type DailyLog,
@@ -211,7 +212,18 @@ export function useToday(): TodayState {
 
   const addEntry = useCallback(
     async (entry: LogEntry) => {
-      if (uid) await addLogDoc(uid, entry);
+      if (!uid) return;
+      await addLogDoc(uid, entry);
+      // Mirror the meal's macros to Health (skip weight-only / marker rows).
+      if (entry.calories > 0) {
+        void exportNutrition({
+          at: entry.timestamp ?? new Date(),
+          kcal: entry.calories,
+          protein: entry.protein,
+          carbs: entry.carbs,
+          fat: entry.fat,
+        });
+      }
     },
     [uid],
   );
@@ -263,13 +275,17 @@ export function useToday(): TodayState {
   );
   const setWater = useCallback(
     async (flOz: number) => {
-      if (uid) await setDailyWater(uid, todayKey, flOz);
+      if (!uid) return;
+      await setDailyWater(uid, todayKey, flOz);
+      void exportDaily('water', todayKey, flOz);
     },
     [uid, todayKey],
   );
   const setSleep = useCallback(
     async (hours: number) => {
-      if (uid) await setDailySleep(uid, todayKey, hours);
+      if (!uid) return;
+      await setDailySleep(uid, todayKey, hours);
+      void exportDaily('sleep', todayKey, hours);
     },
     [uid, todayKey],
   );
