@@ -124,9 +124,32 @@ async function readCapped(res: Response): Promise<string> {
       code: ErrorCode.RECIPE_FETCH_FAILED,
     });
   }
-  const text = await res.text();
-  // Chunked responses (no Content-Length) can still overrun; cap post-hoc.
-  return text.length > MAX_BYTES ? text.slice(0, MAX_BYTES) : text;
+  const reader = res.body?.getReader();
+  if (!reader) return "";
+  const decoder = new TextDecoder();
+  let out = "";
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        total += value.byteLength;
+        out += decoder.decode(value, { stream: true });
+        // Chunked pages (no Content-Length) can't be pre-checked — stop once
+        // we've read enough to hold any <head> JSON-LD. Just break (no
+        // reader.cancel(), whose abort path could crash the undici stream).
+        if (total > MAX_BYTES) break;
+      }
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      /* stream already released/closed */
+    }
+  }
+  return out;
 }
 
 export const importRecipe = onCall(
