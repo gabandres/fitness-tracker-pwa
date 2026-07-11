@@ -10,7 +10,7 @@ import { useDailyTargets } from '@/hooks/useDailyTargets';
 import { importLogs, setCalorieFloor, setPreferredLocale, setUnitSystem, setWeeklyDigestOptIn } from '@/lib/ledger';
 import { exportDataCsv } from '@/lib/dataExport';
 import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
-import { DEFAULT_REMINDER_HOUR, getReminder, setReminder } from '@/lib/reminders';
+import { DEFAULT_REMINDER_HOUR, getReminder, setReminder, syncReminders } from '@/lib/reminders';
 import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -132,16 +132,25 @@ export default function Settings() {
     });
   }, []);
 
+  // Settings has no live streak/weigh-in state, so it schedules the baseline
+  // (meal windows) immediately; the smart streak/weigh-in nudges fill in on the
+  // next Today focus via useReminderSync.
+  const NEUTRAL_STATE = { loggedToday: false, streak: 0, daysSinceWeighIn: null };
+
   async function toggleReminder(next: boolean) {
     haptics.tap();
     const applied = await setReminder(next, reminderHour);
     setReminderEnabled(applied);
+    if (applied) await syncReminders(NEUTRAL_STATE, t);
   }
 
   async function bumpReminderHour(delta: number) {
     const next = (reminderHour + delta + 24) % 24;
     setReminderHour(next);
-    if (reminderEnabled) await setReminder(true, next);
+    if (reminderEnabled) {
+      await setReminder(true, next);
+      await syncReminders(NEUTRAL_STATE, t);
+    }
   }
 
   // Calorie floor (kcal safety clamp). Seeded from the profile (1500 default

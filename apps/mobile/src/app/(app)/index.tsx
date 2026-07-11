@@ -16,6 +16,7 @@ import { ShareCard } from '@/components/ShareCard';
 import { WhatsNewBanner } from '@/components/WhatsNewBanner';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
+import { useReminderSync } from '@/hooks/useReminderSync';
 import { useToday } from '@/hooks/useToday';
 import { enterUp, PressScale, usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -61,6 +62,10 @@ export default function Today() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [repeating, setRepeating] = useState(false);
   const shareRef = useRef<View>(null);
+
+  // Keep on-device smart reminders in sync with today's state (runs on Today
+  // focus + after every log). No-op unless the user enabled reminders.
+  useReminderSync();
 
   // The tab bar's Log button navigates here with a fresh `openAdd` nonce —
   // each new value opens the add sheet (see AppTabBar in the tab layout).
