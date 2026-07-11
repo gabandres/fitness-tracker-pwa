@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getAuth, UserRecord } from "firebase-admin/auth";
 import { writeAuditLog } from "./audit-log";
+import { requireAdmin } from "./admin-guard";
 
 /**
  * Admin signs in as another user. Returns a Firebase custom token the
@@ -8,12 +9,7 @@ import { writeAuditLog } from "./audit-log";
  * (if any) is unaffected — they'd need to re-auth on their own device.
  */
 export const startImpersonation = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Must be signed in.");
-  }
-  if (request.auth.token["admin"] !== true) {
-    throw new HttpsError("permission-denied", "Only admins can impersonate.");
-  }
+  const admin = requireAdmin(request, "Only admins can impersonate.");
 
   const { targetEmail } = request.data as { targetEmail?: string };
   if (!targetEmail) {
@@ -29,13 +25,12 @@ export const startImpersonation = onCall(async (request) => {
   }
 
   const customToken = await auth.createCustomToken(target.uid, {
-    impersonatedBy: request.auth.uid,
+    impersonatedBy: admin.uid,
   });
 
   await writeAuditLog({
     action: "impersonation_start",
-    adminUid: request.auth.uid,
-    adminEmail: (request.auth.token["email"] as string) || "",
+    admin,
     targetUid: target.uid,
     targetEmail,
   });
@@ -100,8 +95,7 @@ export const stopImpersonation = onCall(async (request) => {
 
   await writeAuditLog({
     action: "impersonation_stop",
-    adminUid: originalUid,
-    adminEmail: originalUser.email || "",
+    admin: { uid: originalUid, email: originalUser.email || "" },
   });
 
   return { customToken };

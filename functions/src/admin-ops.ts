@@ -2,20 +2,12 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 import { getAuth, UserRecord } from "firebase-admin/auth";
 import { writeAuditLog, tsToIso } from "./audit-log";
+import { requireAdmin } from "./admin-guard";
 import { DailyQuota } from "./daily-quota";
 import { redactProfileSecrets } from "./redact";
 
 const STATS_TTL_MS = 5 * 60 * 1000; // 5-min cache — cheap to refresh, expensive to run
 const ACTIVITY_TTL_MS = 30 * 1000;  // 30-sec cache — feed barely changes between rapid refreshes
-
-function requireAdmin(request: { auth?: { token?: Record<string, unknown> } }): void {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Must be signed in.");
-  }
-  if (request.auth.token?.["admin"] !== true) {
-    throw new HttpsError("permission-denied", "Admin only.");
-  }
-}
 
 // ─── listUsers ─────────────────────────────────────────────────────
 // Firebase Auth users joined with their Firestore profile so the admin
@@ -418,12 +410,12 @@ export const getAuditLogs = onCall({ timeoutSeconds: 30 }, async (request) => {
 // ─── User management ──────────────────────────────────────────────
 
 export const adminSuspendUser = onCall(async (request) => {
-  requireAdmin(request);
+  const admin = requireAdmin(request);
   const { targetUid, disabled } = (request.data || {}) as { targetUid?: string; disabled?: boolean };
   if (!targetUid || typeof disabled !== "boolean") {
     throw new HttpsError("invalid-argument", "targetUid and disabled required.");
   }
-  if (targetUid === request.auth!.uid) {
+  if (targetUid === admin.uid) {
     throw new HttpsError("failed-precondition", "Cannot suspend your own account.");
   }
   const auth = getAuth();
@@ -443,8 +435,7 @@ export const adminSuspendUser = onCall(async (request) => {
 
   await writeAuditLog({
     action: disabled ? "user_suspend" : "user_unsuspend",
-    adminUid: request.auth!.uid,
-    adminEmail: (request.auth!.token["email"] as string) || "",
+    admin,
     targetUid,
     targetEmail: target.email || "",
   });
@@ -452,12 +443,12 @@ export const adminSuspendUser = onCall(async (request) => {
 });
 
 export const adminDeleteUser = onCall({ timeoutSeconds: 120 }, async (request) => {
-  requireAdmin(request);
+  const admin = requireAdmin(request);
   const { targetUid } = (request.data || {}) as { targetUid?: string };
   if (!targetUid) {
     throw new HttpsError("invalid-argument", "targetUid required.");
   }
-  if (targetUid === request.auth!.uid) {
+  if (targetUid === admin.uid) {
     throw new HttpsError("failed-precondition", "Cannot delete your own account here.");
   }
 
@@ -507,8 +498,7 @@ export const adminDeleteUser = onCall({ timeoutSeconds: 120 }, async (request) =
 
   await writeAuditLog({
     action: "user_delete",
-    adminUid: request.auth!.uid,
-    adminEmail: (request.auth!.token["email"] as string) || "",
+    admin,
     targetUid,
     targetEmail,
   });
@@ -516,7 +506,7 @@ export const adminDeleteUser = onCall({ timeoutSeconds: 120 }, async (request) =
 });
 
 export const adminResetPassword = onCall(async (request) => {
-  requireAdmin(request);
+  const admin = requireAdmin(request);
   const { targetEmail } = (request.data || {}) as { targetEmail?: string };
   if (!targetEmail) {
     throw new HttpsError("invalid-argument", "targetEmail required.");
@@ -532,8 +522,7 @@ export const adminResetPassword = onCall(async (request) => {
 
   await writeAuditLog({
     action: "password_reset_link",
-    adminUid: request.auth!.uid,
-    adminEmail: (request.auth!.token["email"] as string) || "",
+    admin,
     targetUid: target.uid,
     targetEmail,
   });
@@ -547,7 +536,7 @@ export const adminResetPassword = onCall(async (request) => {
 // to appear on the comped-friends list.
 
 export const adminOverridePlan = onCall(async (request) => {
-  requireAdmin(request);
+  const admin = requireAdmin(request);
   const { targetUid, role } = (request.data || {}) as { targetUid?: string; role?: string | null };
   if (!targetUid) {
     throw new HttpsError("invalid-argument", "targetUid required.");
@@ -569,8 +558,7 @@ export const adminOverridePlan = onCall(async (request) => {
 
   await writeAuditLog({
     action: "plan_override",
-    adminUid: request.auth!.uid,
-    adminEmail: (request.auth!.token["email"] as string) || "",
+    admin,
     targetUid,
     targetEmail: target.email || "",
     details: { role: role || null },
@@ -581,7 +569,7 @@ export const adminOverridePlan = onCall(async (request) => {
 // ─── Comped-friends list management ────────────────────────────────
 
 export const adminSetCompedEmail = onCall(async (request) => {
-  requireAdmin(request);
+  const admin = requireAdmin(request);
   const { email, grant } = (request.data || {}) as { email?: string; grant?: boolean };
   if (!email || typeof grant !== "boolean") {
     throw new HttpsError("invalid-argument", "email and grant required.");
@@ -598,8 +586,7 @@ export const adminSetCompedEmail = onCall(async (request) => {
 
   await writeAuditLog({
     action: grant ? "comped_add" : "comped_remove",
-    adminUid: request.auth!.uid,
-    adminEmail: (request.auth!.token["email"] as string) || "",
+    admin,
     targetEmail: normalized,
     details: { total: updated.length },
   });
@@ -618,7 +605,7 @@ export const adminListCompedEmails = onCall(async (request) => {
 // knob when a paying user hits the cap due to a stuck client retry.
 
 export const adminResetQuotas = onCall(async (request) => {
-  requireAdmin(request);
+  const admin = requireAdmin(request);
   const { targetUid } = (request.data || {}) as { targetUid?: string };
   if (!targetUid) {
     throw new HttpsError("invalid-argument", "targetUid required.");
@@ -629,8 +616,7 @@ export const adminResetQuotas = onCall(async (request) => {
   const target = await auth.getUser(targetUid).catch(() => null);
   await writeAuditLog({
     action: "quota_reset",
-    adminUid: request.auth!.uid,
-    adminEmail: (request.auth!.token["email"] as string) || "",
+    admin,
     targetUid,
     targetEmail: target?.email || "",
   });
@@ -642,7 +628,7 @@ export const adminResetQuotas = onCall(async (request) => {
 // covers tens of thousands of rows — plenty of headroom for this app.
 
 export const adminExportData = onCall({ timeoutSeconds: 120 }, async (request) => {
-  requireAdmin(request);
+  const admin = requireAdmin(request);
   const { type } = (request.data || {}) as { type?: "users" | "logs" | "metrics" };
   if (type !== "users" && type !== "logs" && type !== "metrics") {
     throw new HttpsError("invalid-argument", "type must be users | logs | metrics.");
@@ -717,8 +703,7 @@ export const adminExportData = onCall({ timeoutSeconds: 120 }, async (request) =
   // so the audit tab shows the data footprint of each export.
   await writeAuditLog({
     action: "data_export",
-    adminUid: request.auth!.uid,
-    adminEmail: (request.auth!.token["email"] as string) || "",
+    admin,
     details: { type, rowCount },
   });
 

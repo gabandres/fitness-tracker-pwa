@@ -2,6 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import { getAuth, UserRecord } from "firebase-admin/auth";
 import { writeAuditLog } from "./audit-log";
+import { requireAdmin } from "./admin-guard";
 
 const ADMINS_DOC = "config/admins";
 
@@ -72,12 +73,7 @@ export const bootstrapAdmin = onCall(async (request) => {
  * custom claims in sync.
  */
 export const setAdminClaims = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Must be signed in.");
-  }
-  if (request.auth.token["admin"] !== true) {
-    throw new HttpsError("permission-denied", "Only admins can manage admin access.");
-  }
+  const admin = requireAdmin(request, "Only admins can manage admin access.");
 
   const { email, grant } = request.data as { email?: string; grant?: boolean };
   if (!email || typeof grant !== "boolean") {
@@ -123,8 +119,7 @@ export const setAdminClaims = onCall(async (request) => {
 
   await writeAuditLog({
     action: grant ? "admin_grant" : "admin_revoke",
-    adminUid: request.auth.uid,
-    adminEmail: (request.auth.token["email"] as string) || "",
+    admin,
     targetEmail: normalized,
     details: { totalAdmins: updated.length },
   });

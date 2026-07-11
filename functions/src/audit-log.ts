@@ -1,9 +1,11 @@
 import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
+import { AdminCaller } from "./admin-guard";
 
 interface AuditLogEntry {
   action: string;
-  adminUid: string;
-  adminEmail: string;
+  /** The admin who performed the action — supplied by `requireAdmin`, so
+      the `{ adminUid, adminEmail }` stamp is never hand-written at a site. */
+  admin: AdminCaller;
   targetUid?: string;
   targetEmail?: string;
   details?: Record<string, unknown>;
@@ -15,9 +17,12 @@ interface AuditLogEntry {
  * volume is tiny for a single-admin app.
  */
 export async function writeAuditLog(entry: AuditLogEntry): Promise<string> {
+  const { admin, ...rest } = entry;
   const db = getFirestore();
   const ref = await db.collection("auditLogs").add({
-    ...entry,
+    ...rest,
+    adminUid: admin.uid,
+    adminEmail: admin.email,
     timestamp: FieldValue.serverTimestamp(),
   });
   return ref.id;
