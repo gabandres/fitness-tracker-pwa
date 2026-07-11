@@ -396,6 +396,9 @@ export default function Settings() {
               </View>
             </View>
           ) : null}
+          {reminderEnabled ? (
+            <Text style={styles.rowValue}>{t('settings.reminderTimeHint')}</Text>
+          ) : null}
 
           <View style={styles.digestRow}>
             <View style={{ flex: 1 }}>
