@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { type Measurement, parseYmd } from '@macrolog/core';
+import { type Measurement, parseYmd, checkWeightEntry } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { Sparkline } from '@/components/Sparkline';
@@ -360,7 +360,10 @@ function WeightModal({
   }, [visible, initial]);
 
   const n = Number(value.trim());
-  const valid = value.trim() !== '' && Number.isFinite(n) && n > 0 && n < 1500;
+  // Shared plausible-bodyweight bounds (50–500 lb), same rule the web logger
+  // uses — no prior passed, so only the range is enforced (this sheet has no
+  // large-delta confirm flow). Was an ad-hoc `n < 1500`.
+  const valid = value.trim() !== '' && checkWeightEntry(n).ok;
 
   async function save() {
     if (!valid || busy) return;

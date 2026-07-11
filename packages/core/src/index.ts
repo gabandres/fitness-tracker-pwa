@@ -25,6 +25,10 @@ export * from './meal-slots';
 export * from './meal-draft';
 export * from './share-card';
 export * from './tier-limits';
+// Bodyweight sanity rules (shared by both frontends — logger, workout-finish
+// mirror, store backstop). Distinct from ./macro-heuristic's CALC_WEIGHT_*
+// input range; see the header of ./weight-bounds.
+export * from './weight-bounds';
 // Meal-photo scan types + macro helpers (ADR-0015). Pure; the CF + both apps
 // share these. The scan itself (camera + Gemini) is a per-frontend/CF adapter.
 export * from './photo-scan';

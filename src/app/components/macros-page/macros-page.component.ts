@@ -13,8 +13,8 @@ import { AnalyticsService } from '../../services/analytics.service';
 import { UiCard } from '../ui/card.component';
 import {
   GoalDirection,
-  WEIGHT_MIN_LB,
-  WEIGHT_MAX_LB,
+  CALC_WEIGHT_MIN_LB as WEIGHT_MIN_LB,
+  CALC_WEIGHT_MAX_LB as WEIGHT_MAX_LB,
   computeKcal,
   computeProtein,
 } from '../../utils/macro-heuristic';

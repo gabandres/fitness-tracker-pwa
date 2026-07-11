@@ -212,6 +212,16 @@ These three windows look similar and are NOT interchangeable. See
   a time series of rows). The `mergeDailyWeights` helper overlays this
   map onto `DailyLog.weight` so derivations don't miss daily-weight-only
   users.
+- **Plausible weight** — `packages/core/src/weight-bounds.ts` (pure,
+  shared by both frontends): `checkWeightEntry(lb, prev?)` (soft 50–500 lb
+  range hard-reject + a day-over-day `WEIGHT_DELTA_WARN_LB` confirm) and
+  `isStorableWeight` (absolute 30–700 store backstop). The one home for "is
+  this a real logged bodyweight" — web logger, mobile logger, workout-finish
+  mirror, and store backstop all call it. NOT the calculator/onboarding
+  INPUT range (`CALC_WEIGHT_MIN_LB`/`CALC_WEIGHT_MAX_LB` in
+  `macro-heuristic.ts`, 60–700) — that bounds what a user may *type* into
+  the TDEE calculator; renamed apart so the two never collide in the shared
+  barrel.
 - **Measurement** — `users/{uid}/measurements`. Optional waist / chest
   / bicep / hip / neck (inches) per dated row (`neck` added 2026-06 for
   the body-fat estimate). Latest two are exposed as `latestMeasurement`
@@ -365,6 +375,17 @@ collections + a `WorkoutStore` facet back the Train tab.
   `compedUntil` — both grant the same unlimited tier everywhere (see
   [ADR-0008](docs/adr/0008-cf-caller-access-daily-quota.md)). Admin
   email list lives here (sync with `subscription.service.ts`).
+- **AdminGuard** (`functions/src/admin-guard.ts`) — the claim-based admin
+  gate: `requireAdmin(request, message?)` throws unless the caller carries
+  the `admin` custom claim (set by `setAdminClaims`), then returns the
+  audit-ready `AdminCaller` `{ uid, email }`. `writeAuditLog` takes that
+  `admin` and stamps `adminUid`/`adminEmail` itself, so no callable
+  hand-writes the pair. The single home the admin callables (`admin-ops`,
+  `admin-claims`, `impersonation`) share. Distinct from
+  `CallerAccess.isAdmin` (an email-list, Firestore-free quota-bypass check):
+  AdminGuard *gates access* on the claim, CallerAccess *bypasses quota* on
+  the list — different questions, so it stays a pure function, not a method
+  on the db-backed CallerAccess.
 - **DailyQuota** (`functions/src/daily-quota.ts`) — the daily-quota
   ledger for the `photo` and `consultation` kinds. Owns the
   `${uid}_${utcDay}` doc-key format, per-tier limits (3 free / 30 paid),

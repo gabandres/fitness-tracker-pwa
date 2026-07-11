@@ -1,10 +1,11 @@
+import { describe, expect, it } from 'vitest';
 import {
   checkWeightEntry,
   isStorableWeight,
   WEIGHT_MIN_LB,
   WEIGHT_MAX_LB,
   WEIGHT_DELTA_WARN_LB,
-} from './weight-validation';
+} from './weight-bounds';
 
 describe('checkWeightEntry', () => {
   it('accepts a plausible weight with no prior', () => {

@@ -1,4 +1,4 @@
-import { GoalDirection, WEIGHT_MIN_LB, WEIGHT_MAX_LB } from './macro-heuristic';
+import { GoalDirection, CALC_WEIGHT_MIN_LB, CALC_WEIGHT_MAX_LB } from './macro-heuristic';
 
 /**
  * Funnel handoff between unauthed surfaces (`/calculator`, `/macros/...`)
@@ -40,7 +40,7 @@ export function consumeCalcPrefill(): CalcPrefill | null {
     const parsed = JSON.parse(raw) as Partial<CalcPrefill>;
     const w = Number(parsed.weight);
     const g = parsed.goal;
-    if (!Number.isFinite(w) || w < WEIGHT_MIN_LB || w > WEIGHT_MAX_LB) return null;
+    if (!Number.isFinite(w) || w < CALC_WEIGHT_MIN_LB || w > CALC_WEIGHT_MAX_LB) return null;
     if (g !== 'lose' && g !== 'maintain' && g !== 'gain') return null;
     return { weight: w, goal: g };
   } catch {

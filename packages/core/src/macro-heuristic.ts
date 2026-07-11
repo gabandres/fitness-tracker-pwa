@@ -36,8 +36,12 @@ export function clampProteinPerKg(gPerKg: number): number {
   return Math.min(PROTEIN_G_PER_KG_MAX, Math.max(PROTEIN_G_PER_KG_MIN, gPerKg));
 }
 
-export const WEIGHT_MIN_LB = 60;
-export const WEIGHT_MAX_LB = 700;
+/** Plausible range for the bodyweight the user TYPES into the TDEE
+ *  calculator / onboarding — distinct from the LOGGED-bodyweight bounds
+ *  (`WEIGHT_MIN_LB`/`WEIGHT_MAX_LB` in ./weight-bounds, 50–500). Named
+ *  apart so the two never collide in the shared barrel. */
+export const CALC_WEIGHT_MIN_LB = 60;
+export const CALC_WEIGHT_MAX_LB = 700;
 
 export function computeKcal(weightLb: number, goal: GoalDirection): number {
   return Math.round((weightLb * KCAL_MULTIPLIER[goal]) / 10) * 10;
