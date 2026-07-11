@@ -1,9 +1,8 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated, Dimensions, Modal, PanResponder, Pressable, StyleSheet, View,
+  Animated, Dimensions, Keyboard, Modal, PanResponder, Platform, Pressable, StyleSheet, View,
 } from 'react-native';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
-import { useKeyboardHeight } from '@/lib/use-keyboard-height';
 import { radius, space } from '@/theme';
 
 const OFFSCREEN = Dimensions.get('window').height;
@@ -33,10 +32,39 @@ export function BottomSheet({ visible, onClose, children }: Props) {
   const anim = useRef(new Animated.Value(0)).current;
   const drag = useRef(new Animated.Value(0)).current;
 
-  // Anchor the sheet at the bottom (it fills behind the keyboard) and lift only
-  // the CONTENT by padding to the keyboard height — smooth + cutout-free. See
-  // useKeyboardHeight for why this beats a KeyboardAvoidingView wrapper.
-  const kbHeight = useKeyboardHeight();
+  // Keyboard lift: translate the WHOLE sheet up by the keyboard height, driven
+  // by a native-driver Animated.Value that tracks the keyboard's own animation
+  // curve (its event `duration`). This actually moves the sheet above the
+  // keyboard (a `paddingBottom` on a flex-end child does not reliably lift a
+  // short sheet inside an iOS <Modal>), and being native-driven it's smooth —
+  // no stutter, no cutout, no timing race with autoFocus. `kbUp` trims the
+  // resting bottom padding so content sits just above the keyboard.
+  const kbOffset = useRef(new Animated.Value(0)).current;
+  const [kbUp, setKbUp] = useState(false);
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvt, (e) => {
+      setKbUp(true);
+      Animated.timing(kbOffset, {
+        toValue: e.endCoordinates.height,
+        duration: e.duration || 250,
+        useNativeDriver: true,
+      }).start();
+    });
+    const hide = Keyboard.addListener(hideEvt, (e) => {
+      setKbUp(false);
+      Animated.timing(kbOffset, {
+        toValue: 0,
+        duration: e.duration || 250,
+        useNativeDriver: true,
+      }).start();
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [kbOffset]);
 
   useEffect(() => {
     if (visible) {
@@ -80,11 +108,16 @@ export function BottomSheet({ visible, onClose, children }: Props) {
       styles.sheet,
       {
         transform: [
-          { translateY: Animated.add(anim.interpolate({ inputRange: [0, 1], outputRange: [OFFSCREEN, 0] }), drag) },
+          {
+            translateY: Animated.subtract(
+              Animated.add(anim.interpolate({ inputRange: [0, 1], outputRange: [OFFSCREEN, 0] }), drag),
+              kbOffset,
+            ),
+          },
         ],
       },
     ],
-    [anim, drag, styles.sheet],
+    [anim, drag, kbOffset, styles.sheet],
   );
 
   return (
@@ -94,7 +127,7 @@ export function BottomSheet({ visible, onClose, children }: Props) {
       </Animated.View>
       <View style={[styles.wrap, { pointerEvents: 'box-none' }]}>
         <Animated.View
-          style={[sheetStyle, { paddingBottom: kbHeight > 0 ? kbHeight + space.sm : space.xxl }]}
+          style={[sheetStyle, { paddingBottom: kbUp ? space.md : space.xxl }]}
         >
           <View style={styles.grabZone} {...pan.panHandlers}>
             <View style={styles.handle} />
