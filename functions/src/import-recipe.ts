@@ -23,7 +23,11 @@ const MIN_INTERVAL_MS = 1000;          // per-uid spam guard (in-memory, best-ef
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_BYTES = 2_000_000;           // 2 MB cap on the fetched page
 const MAX_URL_LEN = 2048;
-const USER_AGENT = "IgniaRecipeImporter/1.0 (+https://ignia.fit)";
+// A real browser UA — many recipe sites serve a bot challenge (or nothing) to
+// non-browser agents, which would surface as "no recipe found".
+const USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
 const lastCallByUid = new Map<string, number>();
 
@@ -105,25 +109,24 @@ function slimToJsonLd(html: string): string {
   return blocks ? blocks.join("\n") : "";
 }
 
-/** Read the response body up to MAX_BYTES, aborting once the cap is passed. */
+/**
+ * Read the response body as text, bounded by MAX_BYTES. Uses `res.text()`
+ * (single awaited read) rather than a manual getReader()/cancel() loop — the
+ * latter's abort-mid-stream path could error the undici body stream at a level
+ * try/catch can't reach, crashing the instance (→ opaque 503) on large / hostile
+ * pages. When Content-Length advertises more than the cap, we reject before
+ * reading a byte. `res.text()` respects the same AbortController timeout.
+ */
 async function readCapped(res: Response): Promise<string> {
-  const reader = res.body?.getReader();
-  if (!reader) return "";
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (value) {
-      total += value.length;
-      if (total > MAX_BYTES) {
-        await reader.cancel();
-        break;
-      }
-      chunks.push(value);
-    }
+  const len = Number(res.headers.get("content-length") ?? 0);
+  if (Number.isFinite(len) && len > MAX_BYTES) {
+    throw new HttpsError("invalid-argument", "That page is too large to import.", {
+      code: ErrorCode.RECIPE_FETCH_FAILED,
+    });
   }
-  return Buffer.concat(chunks).toString("utf8");
+  const text = await res.text();
+  // Chunked responses (no Content-Length) can still overrun; cap post-hoc.
+  return text.length > MAX_BYTES ? text.slice(0, MAX_BYTES) : text;
 }
 
 export const importRecipe = onCall(
