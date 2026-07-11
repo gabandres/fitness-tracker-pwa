@@ -34,6 +34,11 @@ export * from './tier-limits';
 // mirror, store backstop). Distinct from ./macro-heuristic's CALC_WEIGHT_*
 // input range; see the header of ./weight-bounds.
 export * from './weight-bounds';
+// Health Sync Phase 1 — pure mapping layer (weight two-way). Types + lb↔kg +
+// same-day dedup + conflict policy shared by the iOS/Android health adapters
+// (apps/mobile/src/lib/health.ts). No native imports; the adapter + settings
+// wiring are gated on the EAS dev build. See apps/mobile/HEALTH_PHASE1_PLAN.md.
+export * from './health-mapping';
 // Meal-photo scan types + macro helpers (ADR-0015). Pure; the CF + both apps
 // share these. The scan itself (camera + Gemini) is a per-frontend/CF adapter.
 export * from './photo-scan';
