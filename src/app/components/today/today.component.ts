@@ -116,6 +116,30 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
         </ui-card>
       }
 
+      <!-- Adaptive-TDEE recalibration digest — surfaces the measured-mode
+           TDEE shift the app already applies silently, so the user sees "your
+           real burn moved, here's the new target". Acknowledging latches it
+           off until the reading drifts meaningfully again. -->
+      @if (activeNudge() === 'recalibration') {
+        <ui-card class="mt-6 block">
+          <h2 class="card-title">{{ t('v2.recalibration.cardTitle') }}</h2>
+          <p class="v2-body-soft mt-1.5">
+            {{ t('v2.recalibration.cardBody', {
+              tdee: recalibration().trueTdee,
+              target: recalibration().calorieTarget,
+            }) }}
+          </p>
+          <p class="v2-caption mt-1" style="color: var(--v2-faint);">
+            {{ t('v2.recalibration.trend.' + recalibration().trend) }}
+          </p>
+          <div class="mt-3 flex gap-2">
+            <ui-button variant="primary" size="md" (click)="acknowledgeRecalibration()">
+              {{ t('v2.recalibration.cardCta') }}
+            </ui-button>
+          </div>
+        </ui-card>
+      }
+
       @if (showDay0Hero()) {
         <div class="mt-8 mb-12 flex flex-col items-center justify-center text-center px-4">
           <p class="v2-body" style="font-weight: 600; color: var(--v2-ink-muted);">{{ t('v2.today.day0Title') }}</p>
@@ -342,6 +366,20 @@ export class TodayComponent {
     this.refineDismissedLocal.set(true);
   }
 
+  // ─── Adaptive-TDEE recalibration digest ────────────────────────
+  /** The live recalibration digest (measured TDEE shift the app already
+   *  applies). Read directly by the template for the number + trend copy. */
+  protected readonly recalibration = computed(() => this.store.recalibration());
+  /** Show only when there's a fresh, meaningful recalibration. Sits below the
+   *  refine card in the One-Nudge gate — get the real profile first, then the
+   *  measured recalibration takes over as the recurring insight. */
+  protected readonly showRecalCard = computed(() => this.store.recalibration().shouldSurface);
+
+  protected acknowledgeRecalibration(): void {
+    this.haptic(10);
+    this.store.acknowledgeRecalibration();
+  }
+
   // ─── Post-first-entry push prompt ──────────────────────────────
   /** Local "No thanks" latch — survives reload so we don't badger
    *  users who declined. The browser's `denied` permission state is its
@@ -462,9 +500,10 @@ export class TodayComponent {
    * "Nudge vs utility" term in CONTEXT.md.
    */
   protected readonly activeNudge = computed<
-    'refine' | 'push' | 'install' | 'whatsNew' | null
+    'refine' | 'recalibration' | 'push' | 'install' | 'whatsNew' | null
   >(() => {
     if (this.showRefineCard()) return 'refine';
+    if (this.showRecalCard()) return 'recalibration';
     if (this.showPushPrompt()) return 'push';
     if (this.showIosInstall()) return 'install';
     if (whatsNewVisible()) return 'whatsNew';

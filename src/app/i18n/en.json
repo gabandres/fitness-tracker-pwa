@@ -1398,6 +1398,16 @@
       "saving": "Saving…",
       "saveError": "Couldn't save. Check your connection and try again."
     },
+    "recalibration": {
+      "cardTitle": "Your target just recalibrated",
+      "cardBody": "Your last few weeks of data put your real burn at about {{tdee}} kcal/day. We've set your daily target to {{target}} kcal.",
+      "cardCta": "Got it",
+      "trend": {
+        "metabolism-slowed": "Your metabolism has adapted — real burn is running below the textbook estimate, so the target eases down to keep progress steady.",
+        "metabolism-faster": "You're burning more than expected — the target moves up so you're not under-eating.",
+        "steady": "Your burn is holding steady with what we projected."
+      }
+    },
     "refineTargets": {
       "cardTitle": "Make your target more accurate",
       "cardBody": "You've got 3 days of data. Add height, age, and activity to switch from a quick estimate to a real Mifflin-St Jeor target.",

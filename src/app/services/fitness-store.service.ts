@@ -10,6 +10,11 @@ import {
   Profile,
 } from './firebase.service';
 import { calculateTdee, aggregateByDay, type TdeeResult } from '@macrolog/core/tdee';
+import {
+  recalibrationDigest,
+  type RecalibrationDigest,
+  type RecalibrationAck,
+} from '@macrolog/core/tdee-recalibration';
 // Targets-cluster primitives — the pure, shared home for the daily-weight
 // overlay + latest-weight resolution the Expo app already consumes. The web
 // store composes them here so both frontends read the identical helpers
@@ -297,6 +302,49 @@ export class FitnessStore {
     const diffPct = Math.round((diff / formulaResult.trueTdee) * 100);
     return { formulaTdee: formulaResult.trueTdee, measuredTdee: tdee.trueTdee, diffPct };
   });
+
+  /**
+   * Adaptive-TDEE recalibration digest (v1.1 retention loop). Read-only over
+   * the same measured-mode math `_targets` already applies — it just makes the
+   * silent adaptation *visible*. The "last acknowledged" reference is persisted
+   * per-device in localStorage (mirrors the transition/refine dismiss keys), so
+   * this adds no Firestore field. `acknowledgeRecalibration()` stamps the
+   * current reading and flips `shouldSurface` off until real drift recurs.
+   */
+  private static readonly RECAL_ACK_KEY = 'macrolog.tdee-recal-ack';
+  private readonly _recalAck = signal<RecalibrationAck | null>(this.readRecalAck());
+
+  private readRecalAck(): RecalibrationAck | null {
+    try {
+      const raw = localStorage.getItem(FitnessStore.RECAL_ACK_KEY);
+      if (!raw) return null;
+      const p = JSON.parse(raw);
+      return typeof p?.value === 'number' && typeof p?.at === 'number'
+        ? { value: p.value, at: p.at }
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  readonly recalibration: Signal<RecalibrationDigest> = computed(() =>
+    recalibrationDigest(this.fb.profile(), this._targetsSource(), this.body.dailyWeights(), {
+      now: Date.now(),
+      ack: this._recalAck(),
+    }),
+  );
+
+  acknowledgeRecalibration(): void {
+    const d = this.recalibration();
+    if (!d.available) return;
+    const ack: RecalibrationAck = { value: d.trueTdee, at: Date.now() };
+    try {
+      localStorage.setItem(FitnessStore.RECAL_ACK_KEY, JSON.stringify(ack));
+    } catch {
+      /* ignore */
+    }
+    this._recalAck.set(ack);
+  }
 
   /** Most recent non-null weight (daily weights first, then log weights). */
   readonly currentWeight: Signal<number | null> = computed(() => this._targets().currentWeight);

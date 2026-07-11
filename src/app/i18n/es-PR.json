@@ -1398,6 +1398,16 @@
       "saving": "Guardando…",
       "saveError": "No se pudo guardar. Verifica tu conexión e intenta de nuevo."
     },
+    "recalibration": {
+      "cardTitle": "Tu meta se recalibró",
+      "cardBody": "Tus últimas semanas de datos ponen tu gasto real en unas {{tdee}} kcal/día. Ajustamos tu meta diaria a {{target}} kcal.",
+      "cardCta": "Entendido",
+      "trend": {
+        "metabolism-slowed": "Tu metabolismo se adaptó — tu gasto real está por debajo del estimado, así que la meta baja un poco para mantener el progreso.",
+        "metabolism-faster": "Estás quemando más de lo esperado — la meta sube para que no comas de menos.",
+        "steady": "Tu gasto se mantiene estable con lo que proyectamos."
+      }
+    },
     "refineTargets": {
       "cardTitle": "Haz tu meta más precisa",
       "cardBody": "Ya tienes 3 días de datos. Añade estatura, edad y actividad para pasar de un estimado rápido a una meta Mifflin-St Jeor real.",
