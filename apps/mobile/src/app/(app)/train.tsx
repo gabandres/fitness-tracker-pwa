@@ -42,7 +42,7 @@ import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { CountUpText, enterUp, smoothLayout, usePulse } from '@/lib/motion';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
-import { useKeyboardHeight } from '@/lib/use-keyboard-height';
+import { useKeyboardSheetStyle } from '@/lib/use-keyboard-sheet-style';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
 
@@ -434,7 +434,7 @@ function ExerciseDetailModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const kbHeight = useKeyboardHeight();
+  const keyboardStyle = useKeyboardSheetStyle();
   const [mode, setMode] = useState<'view' | 'edit' | 'merge'>('view');
   const [confirmDel, setConfirmDel] = useState(false);
   const [editName, setEditName] = useState('');
@@ -499,7 +499,7 @@ function ExerciseDetailModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheetWrap}>
-        <View style={[styles.sheet, { paddingBottom: kbHeight > 0 ? kbHeight + space.sm : space.xxl }]}>
+        <Animated.View style={[styles.sheet, keyboardStyle]}>
           <View style={styles.handle} />
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.sheetTitle}>{exercise?.name}</Text>
@@ -630,7 +630,7 @@ function ExerciseDetailModal({
             )}
             <View style={{ height: 24 }} />
           </ScrollView>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -1167,7 +1167,7 @@ function AddExerciseModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const kbHeight = useKeyboardHeight();
+  const keyboardStyle = useKeyboardSheetStyle();
   const addExerciseInputRef = useDeferredFocus(visible);
   const [name, setName] = useState('');
   const [logStyle, setLogStyle] = useState<LogStyle>('weight-reps');
@@ -1194,7 +1194,7 @@ function AddExerciseModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheetWrap}>
-        <View style={[styles.sheet, { paddingBottom: kbHeight > 0 ? kbHeight + space.sm : space.xxl }]}>
+        <Animated.View style={[styles.sheet, keyboardStyle]}>
           <View style={styles.handle} />
           <Text style={styles.sheetTitle}>{t('train.addExerciseTitle')}</Text>
 
@@ -1245,7 +1245,7 @@ function AddExerciseModal({
               <Text style={styles.empty}>{t('train.noSaved')}</Text>
             ) : null}
           </ScrollView>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -1264,7 +1264,7 @@ function FinishModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const kbHeight = useKeyboardHeight();
+  const keyboardStyle = useKeyboardSheetStyle();
   const [bodyweight, setBodyweight] = useState('');
   const [sleep, setSleep] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1291,7 +1291,7 @@ function FinishModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheetWrap}>
-        <View style={[styles.sheet, { paddingBottom: kbHeight > 0 ? kbHeight + space.sm : space.xxl }]}>
+        <Animated.View style={[styles.sheet, keyboardStyle]}>
           <View style={styles.handle} />
           {/* Scroll so the numeric keyboard can't hide the Complete button
               (KeyboardAvoidingView under-lifts inside a bottom-sheet Modal). */}
@@ -1334,7 +1334,7 @@ function FinishModal({
             <Text style={styles.finishText}>{busy ? t('common.saving') : t('train.complete')}</Text>
           </TouchableOpacity>
           </ScrollView>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -1363,7 +1363,7 @@ function TemplateEditorModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const kbHeight = useKeyboardHeight();
+  const keyboardStyle = useKeyboardSheetStyle();
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
   const [exercises, setExercises] = useState<DraftEx[]>([]);
@@ -1476,7 +1476,7 @@ function TemplateEditorModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheetWrap}>
-        <View style={[styles.sheet, { paddingBottom: kbHeight > 0 ? kbHeight + space.sm : space.xxl }]}>
+        <Animated.View style={[styles.sheet, keyboardStyle]}>
           <View style={styles.handle} />
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.sheetTitle}>{template ? t('train.editTemplate') : t('train.newTemplateTitle')}</Text>
@@ -1637,7 +1637,7 @@ function TemplateEditorModal({
             </View>
             <View style={{ height: 24 }} />
           </ScrollView>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );

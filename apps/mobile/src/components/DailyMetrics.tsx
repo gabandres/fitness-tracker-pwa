@@ -10,9 +10,10 @@ import {
 } from 'react-native';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
+import Reanimated from 'react-native-reanimated';
 import { PressScale } from '@/lib/motion';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
-import { useKeyboardHeight } from '@/lib/use-keyboard-height';
+import { useKeyboardSheetStyle } from '@/lib/use-keyboard-sheet-style';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
@@ -141,7 +142,7 @@ function SleepModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const kbHeight = useKeyboardHeight();
+  const keyboardStyle = useKeyboardSheetStyle();
   const inputRef = useDeferredFocus(visible);
   const [value, setValue] = useState('');
 
@@ -156,7 +157,8 @@ function SleepModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheetWrap}>
-        <View style={[styles.sheet, { paddingBottom: kbHeight > 0 ? kbHeight + space.sm : space.xxl }]}>
+        <Reanimated.View style={keyboardStyle}>
+        <View style={styles.sheet}>
           <View style={styles.handle} />
           <Text style={styles.sheetTitle}>{t('metrics.hoursSlept')}</Text>
           <View style={styles.inputRow}>
@@ -181,6 +183,7 @@ function SleepModal({
             <Text style={styles.saveText}>{t('common.save')}</Text>
           </TouchableOpacity>
         </View>
+        </Reanimated.View>
       </View>
     </Modal>
   );

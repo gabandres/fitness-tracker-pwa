@@ -2,9 +2,8 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated, Dimensions, Modal, PanResponder, Pressable, StyleSheet, View,
 } from 'react-native';
-import Reanimated, { interpolate, useAnimatedStyle } from 'react-native-reanimated';
-import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Reanimated from 'react-native-reanimated';
+import { useKeyboardSheetStyle } from '@/lib/use-keyboard-sheet-style';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { radius, space } from '@/theme';
 
@@ -35,25 +34,8 @@ export function BottomSheet({ visible, onClose, children }: Props) {
   const anim = useRef(new Animated.Value(0)).current;
   const drag = useRef(new Animated.Value(0)).current;
 
-  // Keyboard lift: translate the WHOLE sheet up by the keyboard height, tracked
-  // FRAME-BY-FRAME by react-native-keyboard-controller (bundled into Expo Go
-  // SDK 54). `height` is a Reanimated SharedValue that is already negative while
-  // the keyboard is open, so applying it straight to translateY moves the sheet
-  // up exactly with the keyboard — no timing/easing guesswork, no stutter, and
-  // no transient gap. A `paddingBottom` lift did not work here (a short sheet
-  // stayed hidden behind the keyboard inside an iOS <Modal>), and a hand-rolled
-  // Animated tween couldn't match the keyboard's curve. This is the real fix.
-  const insets = useSafeAreaInsets();
-  const { height: keyboardHeight, progress } = useReanimatedKeyboardAnimation();
-  const keyboardStyle = useAnimatedStyle(() => {
-    // The reported keyboard height reaches the physical screen bottom, but the
-    // sheet only needs to clear the keyboard's visible top — overshooting by the
-    // bottom safe-area (home indicator) leaves a dim gap under the sheet. Ramp a
-    // downward nudge by that inset with `progress` (0 closed → 1 open) so the
-    // resting position is untouched and the sheet sits flush on the keyboard.
-    const offset = interpolate(progress.value, [0, 1], [0, insets.bottom]);
-    return { transform: [{ translateY: keyboardHeight.value + offset }] };
-  });
+  // Frame-perfect keyboard lift (shared across every sheet) — see the hook.
+  const keyboardStyle = useKeyboardSheetStyle();
 
   useEffect(() => {
     if (visible) {
