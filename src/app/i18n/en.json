@@ -1530,6 +1530,26 @@
       "noItems": "Couldn't read any foods from that. Try simpler phrasing.",
       "errorSearch": "Couldn't reach food search. Try again."
     },
+    "recipeImport": {
+      "openButton": "Import from URL",
+      "title": "Import from a recipe link",
+      "desc": "Paste a recipe URL — we'll pull its nutrition and prefill one serving for you to review.",
+      "closeAria": "Close recipe import",
+      "urlLabel": "Recipe URL",
+      "urlPlaceholder": "https://…",
+      "fetch": "Import",
+      "fetching": "Importing…",
+      "untitled": "Imported recipe",
+      "perServing": "per serving",
+      "proteinUnit": "g protein",
+      "servings": "{{n}} servings",
+      "ingredientCount": "{{n}} ingredients",
+      "useThis": "Use this serving",
+      "noNutrition": "That page doesn't list nutrition we can read. Try the recipe builder instead.",
+      "errInvalidUrl": "That doesn't look like a valid recipe link.",
+      "errRateLimited": "One moment — try that again in a second.",
+      "errFetch": "Couldn't reach that page. Check the link and try again."
+    },
     "recipe": {
       "openButton": "Build a recipe",
       "title": "Recipe builder",

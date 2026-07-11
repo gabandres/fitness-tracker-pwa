@@ -22,6 +22,7 @@ import { PresetPickerComponent } from '../preset-picker/preset-picker.component'
 import { MyFoodsPickerComponent } from '../my-foods-picker/my-foods-picker.component';
 import { RecentEntriesComponent } from '../recent-entries/recent-entries.component';
 import { RecipeBuilderComponent } from '../recipe-builder/recipe-builder.component';
+import { RecipeImportComponent } from '../recipe-import/recipe-import.component';
 import { FoodSearchComponent } from '../food-search/food-search.component';
 import { MealTextComponent } from '../meal-text/meal-text.component';
 
@@ -52,6 +53,7 @@ type Segment = 'manual' | 'meal' | 'search' | 'photo' | 'barcode';
     MyFoodsPickerComponent,
     RecentEntriesComponent,
     RecipeBuilderComponent,
+    RecipeImportComponent,
     FoodSearchComponent,
     MealTextComponent,
   ],
@@ -106,11 +108,23 @@ type Segment = 'manual' | 'meal' | 'search' | 'photo' | 'barcode';
                     (closed)="showRecipeBuilder.set(false)" />
                 </div>
               } @else {
-                <div class="mb-4">
+                <div class="mb-4 flex flex-wrap gap-2">
                   <ui-button variant="ghost" size="sm" (click)="showRecipeBuilder.set(true)">
                     <lucide-icon name="chef-hat" [size]="14" />
                     {{ t('v2.recipe.openButton') }}
                   </ui-button>
+                  <ui-button variant="ghost" size="sm" (click)="showRecipeImport.set(true)">
+                    <lucide-icon name="link" [size]="14" />
+                    {{ t('v2.recipeImport.openButton') }}
+                  </ui-button>
+                </div>
+              }
+
+              @if (showRecipeImport()) {
+                <div class="mb-4">
+                  <app-recipe-import
+                    (estimated)="apply($event)"
+                    (closed)="showRecipeImport.set(false)" />
                 </div>
               }
             }
@@ -371,6 +385,7 @@ export class EntrySheetComponent {
   protected readonly segment = signal<Segment>('manual');
   protected readonly kcalError = signal(false);
   protected readonly showRecipeBuilder = signal(false);
+  protected readonly showRecipeImport = signal(false);
 
   protected readonly mealTypes = MEAL_TYPES;
 
@@ -395,6 +410,7 @@ export class EntrySheetComponent {
         this.segment.set('manual');
         this.kcalError.set(false);
         this.showRecipeBuilder.set(false);
+        this.showRecipeImport.set(false);
       }
     });
 

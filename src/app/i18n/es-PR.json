@@ -1530,6 +1530,26 @@
       "noItems": "No pude leer alimentos de eso. Prueba con algo más simple.",
       "errorSearch": "No se pudo conectar con la búsqueda. Inténtalo de nuevo."
     },
+    "recipeImport": {
+      "openButton": "Importar desde URL",
+      "title": "Importar desde un enlace de receta",
+      "desc": "Pega el URL de una receta — sacamos su nutrición y te pre-llenamos una porción para revisar.",
+      "closeAria": "Cerrar importar receta",
+      "urlLabel": "URL de la receta",
+      "urlPlaceholder": "https://…",
+      "fetch": "Importar",
+      "fetching": "Importando…",
+      "untitled": "Receta importada",
+      "perServing": "por porción",
+      "proteinUnit": "g proteína",
+      "servings": "{{n}} porciones",
+      "ingredientCount": "{{n}} ingredientes",
+      "useThis": "Usar esta porción",
+      "noNutrition": "Esa página no tiene nutrición que podamos leer. Usa el creador de recetas.",
+      "errInvalidUrl": "Ese enlace de receta no parece válido.",
+      "errRateLimited": "Un momento — inténtalo de nuevo en un segundo.",
+      "errFetch": "No pudimos acceder a esa página. Revisa el enlace e inténtalo de nuevo."
+    },
     "recipe": {
       "openButton": "Crear una receta",
       "title": "Constructor de recetas",

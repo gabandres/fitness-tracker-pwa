@@ -25,6 +25,7 @@ export {
   onDailyWeightWriteMirrorPublicProfile,
 } from "./public-profile";
 export { searchFoods, getFoodDetail } from "./food-search";
+export { importRecipe } from "./import-recipe";
 export { ogImagePublicProfile, servePublicProfilePage } from "./og-image";
 export { bootstrapAdmin, setAdminClaims } from "./admin-claims";
 export { startImpersonation, stopImpersonation } from "./impersonation";
