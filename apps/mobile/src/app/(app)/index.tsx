@@ -11,6 +11,7 @@ import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { EntrySheet } from '@/components/EntrySheet';
 import { HeroRings } from '@/components/HeroRings';
 import { MealEntries } from '@/components/MealEntries';
+import { RecalibrationCard } from '@/components/RecalibrationCard';
 import { ShareCard } from '@/components/ShareCard';
 import { WhatsNewBanner } from '@/components/WhatsNewBanner';
 import { useT } from '@/i18n';
@@ -175,6 +176,8 @@ export default function Today() {
               fat={summary.totalFat}
             />
           </Animated.View>
+
+          <RecalibrationCard />
 
           <Animated.View entering={enterUp(1)}>
             <DailyMetrics

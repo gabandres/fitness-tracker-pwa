@@ -131,6 +131,17 @@ export const esPR: Record<I18nKey, string> = {
   'whatsNew.title': 'Novedades',
   'whatsNew.body': 'Un nuevo look, una pestaña Entrenar, registro con búsqueda primero, y Afinar metas para precisar tus números.',
 
+  // ── adaptive-TDEE recalibration ──
+  'recalibration.cardTitle': 'Tu meta se recalibró',
+  'recalibration.cardBody':
+    'Tus últimas semanas de datos ponen tu gasto real en unas {tdee} kcal/día. Ajustamos tu meta diaria a {target} kcal.',
+  'recalibration.cardCta': 'Entendido',
+  'recalibration.trend.metabolism-slowed':
+    'Tu metabolismo se adaptó — tu gasto real está por debajo del estimado, así que la meta baja un poco para mantener el progreso.',
+  'recalibration.trend.metabolism-faster':
+    'Estás quemando más de lo esperado — la meta sube para que no comas de menos.',
+  'recalibration.trend.steady': 'Tu gasto se mantiene estable con lo que proyectamos.',
+
   // ── daily metrics ──
   'metrics.fasting': 'Ayuno',
   'metrics.notFasting': 'Sin ayuno',

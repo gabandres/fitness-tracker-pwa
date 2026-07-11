@@ -129,6 +129,17 @@ export const en = {
   'whatsNew.title': "What's new",
   'whatsNew.body': 'A fresh new look, a Train tab for workouts, search-first logging, and Refine targets to sharpen your numbers.',
 
+  // ── adaptive-TDEE recalibration ──
+  'recalibration.cardTitle': 'Your target just recalibrated',
+  'recalibration.cardBody':
+    'Your last few weeks of data put your real burn at about {tdee} kcal/day. We’ve set your daily target to {target} kcal.',
+  'recalibration.cardCta': 'Got it',
+  'recalibration.trend.metabolism-slowed':
+    'Your metabolism has adapted — real burn is running below the textbook estimate, so the target eases down to keep progress steady.',
+  'recalibration.trend.metabolism-faster':
+    "You're burning more than expected — the target moves up so you're not under-eating.",
+  'recalibration.trend.steady': 'Your burn is holding steady with what we projected.',
+
   // ── daily metrics ──
   'metrics.fasting': 'Fasting',
   'metrics.notFasting': 'Not fasting',
