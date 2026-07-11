@@ -51,6 +51,10 @@ export * from './food-search';
 // Nutrition Facts panel parser (ADR-0013 phase 3): OCR label text → editable
 // grams-first draft. Native OCR is a per-frontend adapter; the parse is pure.
 export * from './nutrition-label';
+// Recipe-URL import (v1.1): schema.org/Recipe JSON-LD → editable per-serving
+// draft. Pure extract + normalize; the HTML fetch is a per-frontend adapter
+// (mobile direct fetch, web CF proxy — no CORS in RN).
+export * from './recipe-import';
 // Natural-language meal parser (ADR-0013 text modality): free-text utterance →
 // macro-free {qty,unit,food}[] + a resolver that scales database servings. The
 // voice/text input adapter is per-frontend; the decomposition + scaling is pure.
