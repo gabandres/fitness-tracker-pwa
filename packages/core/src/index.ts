@@ -70,6 +70,10 @@ export { normalizeClusterGroups } from './cluster-groups';
 // Finish-boundary guard: fill a logged set's missing load from its siblings
 // (both apps — ADR-0012). Function-only, so the ./workout types stay un-barreled.
 export { fillMissingClusterLoads } from './workout';
+// Workout doc → domain read mappers (both adapters — arch review E).
+// Function-only export; the ./workout types they return stay un-barreled and
+// each frontend assigns the result to its own structurally-identical type.
+export { toWorkoutExercise, toWorkoutTemplate, toWorkoutSession } from './workout-mappers';
 // Shipped Train starter content (library + templates + es-PR maps + resolvers).
 // Exported names are seed-specific (Seed*, EXERCISE_LIBRARY, seed*) — no clash
 // with the intentionally-un-barreled ./workout types.

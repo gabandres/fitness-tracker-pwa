@@ -39,11 +39,8 @@ import type {
   Exercise,
   ExerciseDraft,
   SessionDraft,
-  SessionExercise,
   TemplateDraft,
-  TemplateExercise,
   WorkoutSession,
-  WorkoutSet,
   WorkoutTemplate,
 } from '../../models/workout';
 import { normalizeClusterGroups } from '../../utils/cluster-groups';
@@ -54,6 +51,9 @@ import {
   toDailyLog,
   toMeasurement,
   toWeeklyReport,
+  toWorkoutExercise,
+  toWorkoutTemplate,
+  toWorkoutSession,
 } from '@macrolog/core';
 
 /**
@@ -383,18 +383,7 @@ export class FirestoreLedgerCore {
 
   async getExercises(): Promise<Exercise[]> {
     const snap = await getDocs(query(this.userCollection('exercises'), orderBy('name')));
-    return snap.docs.map((d) => {
-      const data = d.data() as ExerciseDoc;
-      return {
-        id: d.id,
-        name: data.name,
-        muscles: (data.muscles ?? []) as Exercise['muscles'],
-        defaultCues: data.defaultCues ?? [],
-        logStyle: data.logStyle,
-        seedKey: data.seedKey,
-        createdAt: data.createdAt.toDate(),
-      };
-    });
+    return snap.docs.map((d) => toWorkoutExercise(d.id, d.data()));
   }
 
   async addExercise(exercise: ExerciseDraft): Promise<string> {
@@ -579,40 +568,30 @@ export class FirestoreLedgerCore {
 }
 
 // ─── Workout mappers (Timestamp ↔ Date at the seam) ─────────────
+// Shared field-copy + Timestamp→Date lives in @macrolog/core's
+// toWorkoutTemplate / toWorkoutSession (arch review E). The web adapter alone
+// additionally runs normalizeClusterGroups (mobile does not — the historical
+// asymmetry), so it applies that as a post-step here rather than in the shared
+// mapper.
 function toDomainTemplate(id: string, data: WorkoutTemplateDoc): WorkoutTemplate {
+  const t = toWorkoutTemplate(id, data as unknown as Record<string, unknown>);
   return {
-    id,
-    name: data.name,
-    notes: data.notes,
-    restMiniSec: data.restMiniSec,
-    restClusterSec: data.restClusterSec,
-    exercises: ((data.exercises ?? []) as TemplateExercise[]).map((ex) => ({
+    ...t,
+    exercises: t.exercises.map((ex) => ({
       ...ex,
-      plannedSets: normalizeClusterGroups(ex.plannedSets ?? []),
+      plannedSets: normalizeClusterGroups(ex.plannedSets),
     })),
-    seedKey: data.seedKey,
-    createdAt: data.createdAt.toDate(),
-    updatedAt: data.updatedAt.toDate(),
   };
 }
 
 function toDomainSession(id: string, data: WorkoutSessionDoc): WorkoutSession {
+  const s = toWorkoutSession(id, data as unknown as Record<string, unknown>);
   return {
-    id,
-    status: data.status,
-    templateId: data.templateId,
-    templateName: data.templateName,
-    date: data.timestamp.toDate(),
-    bodyweight: data.bodyweight,
-    sleepHours: data.sleepHours,
-    durationMin: data.durationMin,
-    exercises: ((data.exercises ?? []) as SessionExercise[]).map((ex) => ({
+    ...s,
+    exercises: s.exercises.map((ex) => ({
       ...ex,
-      sets: normalizeClusterGroups((ex.sets ?? []) as WorkoutSet[]),
+      sets: normalizeClusterGroups(ex.sets),
     })),
-    nextNotes: data.nextNotes,
-    createdAt: data.createdAt.toDate(),
-    updatedAt: data.updatedAt.toDate(),
   };
 }
 

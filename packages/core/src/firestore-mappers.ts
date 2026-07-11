@@ -18,9 +18,10 @@
  * structural-Timestamp mapper) and `prune-undefined.ts` (the write-path twin).
  *
  * NOTE: the three workout mappers (Exercise / WorkoutTemplate / WorkoutSession)
- * are deliberately NOT here — their domain types are per-frontend and
- * intentionally un-barreled (see `index.ts`), and the web applies
- * `normalizeClusterGroups` where mobile does not, so they are a separate change.
+ * live in the sibling `./workout-mappers` (arch review E), not here — they
+ * return the `./workout` read-model types and the web adapter post-applies
+ * `normalizeClusterGroups` where mobile does not, so that one asymmetry stays
+ * at the call site rather than baked into the shared mapper.
  */
 import type { ProfileDateField } from './types';
 import type { CustomFood, DailyLog, Measurement, Profile, WeeklyReport } from './types';

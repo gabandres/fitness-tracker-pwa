@@ -36,17 +36,20 @@ import {
   toDomainProfile,
   toMeasurement,
   toWeeklyReport,
+  // Shared workout doc→domain mappers (arch review E). Mobile does NOT
+  // normalize cluster groups (the web adapter does), so it uses these directly.
+  toWorkoutExercise as toExercise,
+  toWorkoutTemplate as toTemplate,
+  toWorkoutSession as toSession,
 } from '@macrolog/core';
 import { db } from './firebase';
 import type {
   Exercise,
   ExerciseDraft,
   SessionDraft,
-  SessionExercise,
   TemplateDraft,
   TemplateExercise,
   WorkoutSession,
-  WorkoutSet,
   WorkoutTemplate,
 } from './workout';
 
@@ -520,18 +523,6 @@ function pruneUndefined<T>(value: T): T {
 }
 
 // ── Exercise catalog ──
-function toExercise(id: string, data: Record<string, unknown>): Exercise {
-  return {
-    id,
-    name: (data['name'] as string) ?? '',
-    muscles: (data['muscles'] as Exercise['muscles']) ?? [],
-    defaultCues: (data['defaultCues'] as string[]) ?? [],
-    logStyle: data['logStyle'] as Exercise['logStyle'],
-    seedKey: data['seedKey'] as string | undefined,
-    createdAt: (data['createdAt'] as Timestamp)?.toDate() ?? new Date(0),
-  };
-}
-
 export function subscribeExercises(
   uid: string,
   cb: (exercises: Exercise[]) => void,
@@ -611,23 +602,6 @@ export async function mergeExercises(uid: string, fromId: string, toId: string):
 // users/{uid}/workoutTemplates/{id} — { name, notes?, restMiniSec?,
 // restClusterSec?, exercises[], createdAt, updatedAt } (rules
 // isValidWorkoutTemplate). Mirrors FirestoreLedgerCore add/update/delete.
-function toTemplate(id: string, data: Record<string, unknown>): WorkoutTemplate {
-  return {
-    id,
-    name: (data['name'] as string) ?? '',
-    notes: data['notes'] as string | undefined,
-    restMiniSec: data['restMiniSec'] as number | undefined,
-    restClusterSec: data['restClusterSec'] as number | undefined,
-    exercises: ((data['exercises'] as TemplateExercise[]) ?? []).map((ex) => ({
-      ...ex,
-      plannedSets: ex.plannedSets ?? [],
-    })),
-    seedKey: data['seedKey'] as string | undefined,
-    createdAt: (data['createdAt'] as Timestamp)?.toDate() ?? new Date(0),
-    updatedAt: (data['updatedAt'] as Timestamp)?.toDate() ?? new Date(0),
-  };
-}
-
 export function subscribeTemplates(
   uid: string,
   cb: (templates: WorkoutTemplate[]) => void,
@@ -677,26 +651,6 @@ export async function deleteTemplate(uid: string, id: string): Promise<void> {
 }
 
 // ── Sessions ──
-function toSession(id: string, data: Record<string, unknown>): WorkoutSession {
-  return {
-    id,
-    status: data['status'] as WorkoutSession['status'],
-    templateId: data['templateId'] as string | undefined,
-    templateName: data['templateName'] as string | undefined,
-    date: (data['timestamp'] as Timestamp).toDate(),
-    bodyweight: data['bodyweight'] as number | undefined,
-    sleepHours: data['sleepHours'] as number | undefined,
-    durationMin: data['durationMin'] as number | undefined,
-    exercises: ((data['exercises'] as SessionExercise[]) ?? []).map((ex) => ({
-      ...ex,
-      sets: (ex.sets ?? []) as WorkoutSet[],
-    })),
-    nextNotes: data['nextNotes'] as string | undefined,
-    createdAt: (data['createdAt'] as Timestamp)?.toDate() ?? new Date(0),
-    updatedAt: (data['updatedAt'] as Timestamp)?.toDate() ?? new Date(0),
-  };
-}
-
 /** Serialize a SessionDraft to the stored doc shape (date → `timestamp`). */
 function sessionData(draft: Partial<SessionDraft>): Record<string, unknown> {
   const data: Record<string, unknown> = {};

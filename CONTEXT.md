@@ -86,9 +86,12 @@ add a term when a real ambiguity exists, not preemptively.
   `toWeeklyReport` / `toDomainProfile`(+`Patch`). Both frontends' adapters map
   here (web `FirestoreLedgerCore` + `profile-mapper.ts`; mobile `lib/ledger.ts`),
   keeping their own `onSnapshot`/`getDocs` I/O and the `Timestamp` import. The
-  three **workout** mappers (Exercise / WorkoutTemplate / WorkoutSession) stay
-  per-frontend — their domain types are intentionally un-barreled and the web
-  applies `normalizeClusterGroups` where mobile does not.
+  three **workout** mappers (`toWorkoutExercise` / `toWorkoutTemplate` /
+  `toWorkoutSession`) are also shared, in the sibling
+  `packages/core/src/workout-mappers.ts` (arch review E) — they return the
+  un-barreled `workout.ts` read-model types and do the field-copy + `toDate`
+  only; the web adapter post-applies `normalizeClusterGroups` where mobile does
+  not, so that one asymmetry stays at the call site, not in the shared mapper.
 - **Legacy log fields** — `liftCompleted` and `cardioCompleted` exist on
   historic docs. New writes only set `exerciseCompleted`. Aggregation
   treats any of the three as "exercised that day".

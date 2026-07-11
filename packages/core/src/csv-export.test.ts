@@ -49,9 +49,12 @@ describe('buildCsv', () => {
 
   it('emits a workout summary row + one workout_set row per logged set', () => {
     const session: WorkoutSession = {
+      status: 'completed',
       date: new Date('2026-06-30T12:00:00Z'),
       templateName: 'Push Day',
       bodyweight: 180,
+      createdAt: new Date('2026-06-30T12:00:00Z'),
+      updatedAt: new Date('2026-06-30T12:00:00Z'),
       exercises: [
         {
           exerciseId: 'x1',

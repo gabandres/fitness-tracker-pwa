@@ -53,22 +53,79 @@ export interface WorkoutSet {
 
 export interface SessionExercise {
   exerciseId: string;
-  name: string;
+  name: string; // snapshot
   targetLoad?: number;
-  cues: string[];
+  cues: string[]; // snapshot
   logStyle?: LogStyle;
+  progression?: ProgressionRule; // snapshot
   sets: WorkoutSet[];
 }
 
-/** Minimal completed-session shape the shared CSV export reads. Both apps'
- *  richer WorkoutSession (with ids/status/timestamps) satisfy it structurally. */
+export type SessionStatus = 'active' | 'completed';
+
+/**
+ * A logged workout instance — the full read-model both frontends map to
+ * (was a minimal CSV-only shape; promoted to the canonical domain type so the
+ * shared `toWorkoutSession` mapper can return it). Starting a session snapshots
+ * the template's exercises here so template edits never rewrite history.
+ */
 export interface WorkoutSession {
+  id?: string;
+  status: SessionStatus;
+  templateId?: string;
+  templateName?: string; // snapshot, for reference after template edits
   date: Date;
-  templateName?: string;
+  /** Logged bodyweight; the store mirrors this into dailyWeights on finish. */
   bodyweight?: number;
   sleepHours?: number;
   durationMin?: number;
   exercises: SessionExercise[];
+  /** "Next session notes" carried forward to the next session of the template. */
+  nextNotes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ─── Exercise catalog ───────────────────────────────────────────
+export interface Exercise {
+  id?: string;
+  name: string;
+  muscles: MuscleGroup[];
+  /** Form cues shown by default when this exercise is added to a template. */
+  defaultCues: string[];
+  logStyle?: LogStyle;
+  /** Stable slug of the shipped library entry this was cloned from, if any. */
+  seedKey?: string;
+  createdAt: Date;
+}
+
+// ─── Template ───────────────────────────────────────────────────
+export interface TemplateExercise {
+  exerciseId: string;
+  /** Snapshot of the catalog name so the template renders without a join. */
+  name: string;
+  targetLoad?: number;
+  /** Per-template cue override; falls back to the exercise's defaultCues. */
+  cues?: string[];
+  logStyle?: LogStyle;
+  progression?: ProgressionRule;
+  plannedSets: PlannedSet[];
+}
+
+export interface WorkoutTemplate {
+  id?: string;
+  name: string;
+  /** Protocol notes (e.g. "60-min cap. Cluster format…"). */
+  notes?: string;
+  /** Rest between mini-sets / straight sets, seconds. */
+  restMiniSec?: number;
+  /** Rest between clusters / exercises, seconds. */
+  restClusterSec?: number;
+  exercises: TemplateExercise[];
+  /** Stable slug of the shipped starter this was cloned from, if any. */
+  seedKey?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /** True when a set carries a logged value for its style: a duration for
