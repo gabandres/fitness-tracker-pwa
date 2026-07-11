@@ -29,6 +29,7 @@ import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { FoodSearch } from '@/components/FoodSearch';
 import { MealText } from '@/components/MealText';
 import { RecipeBuilder } from '@/components/RecipeBuilder';
+import { RecipeImport } from '@/components/RecipeImport';
 import { useLocale, useT } from '@/i18n';
 import { starterFoods } from '@/lib/starterFoods';
 import * as haptics from '@/lib/haptics';
@@ -135,7 +136,7 @@ export function EntrySheet({
   const showDateRow = editing != null || dateKey != null;
   const [busy, setBusy] = useState(false);
   const [manage, setManage] = useState(false);
-  const [mode, setMode] = useState<'browse' | 'custom' | 'recipe' | 'meal'>('browse');
+  const [mode, setMode] = useState<'browse' | 'custom' | 'recipe' | 'recipeImport' | 'meal'>('browse');
   const [scannerOpen, setScannerOpen] = useState(false);
   // Serving context from the last search/scan prefill + the calories it
   // produced. If the user later edits calories the context is stale (a
@@ -521,6 +522,11 @@ export function EntrySheet({
       <TouchableOpacity style={styles.iconBtn} onPress={() => { haptics.tap(); setMode('recipe'); }} testID="open-recipe">
         <Ionicons name="calculator-outline" size={22} color={colors.ink} />
       </TouchableOpacity>
+      {Platform.OS !== 'web' ? (
+        <TouchableOpacity style={styles.iconBtn} onPress={() => { haptics.tap(); setMode('recipeImport'); }} testID="open-recipe-import">
+          <Ionicons name="link-outline" size={22} color={colors.ink} />
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 
@@ -544,6 +550,8 @@ export function EntrySheet({
               />
             ) : mode === 'recipe' ? (
               <RecipeBuilder onCancel={() => setMode('browse')} onApply={(est) => prefill(est)} />
+            ) : mode === 'recipeImport' ? (
+              <RecipeImport onCancel={() => setMode('browse')} onApply={(est) => prefill(est)} />
             ) : mode === 'meal' ? (
               <MealText
                 forDate={forDate}

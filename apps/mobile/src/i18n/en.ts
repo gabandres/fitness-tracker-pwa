@@ -140,6 +140,22 @@ export const en = {
     "You're burning more than expected — the target moves up so you're not under-eating.",
   'recalibration.trend.steady': 'Your burn is holding steady with what we projected.',
 
+  // ── recipe URL import ──
+  'recipeImport.title': 'Import from a recipe link',
+  'recipeImport.desc': "Paste a recipe URL — we'll pull its nutrition and prefill one serving for you to review.",
+  'recipeImport.urlPlaceholder': 'https://…',
+  'recipeImport.fetch': 'Import',
+  'recipeImport.fetching': 'Importing…',
+  'recipeImport.untitled': 'Imported recipe',
+  'recipeImport.perServing': 'per serving',
+  'recipeImport.proteinUnit': 'g protein',
+  'recipeImport.servings': '{n} servings',
+  'recipeImport.ingredientCount': '{n} ingredients',
+  'recipeImport.useThis': 'Use this serving',
+  'recipeImport.noNutrition': "That page doesn't list nutrition we can read. Try the recipe builder instead.",
+  'recipeImport.errInvalidUrl': "That doesn't look like a valid recipe link.",
+  'recipeImport.errFetch': "Couldn't reach that page. Check the link and try again.",
+
   // ── daily metrics ──
   'metrics.fasting': 'Fasting',
   'metrics.notFasting': 'Not fasting',

@@ -142,6 +142,22 @@ export const esPR: Record<I18nKey, string> = {
     'Estás quemando más de lo esperado — la meta sube para que no comas de menos.',
   'recalibration.trend.steady': 'Tu gasto se mantiene estable con lo que proyectamos.',
 
+  // ── recipe URL import ──
+  'recipeImport.title': 'Importar desde un enlace de receta',
+  'recipeImport.desc': 'Pega el URL de una receta — sacamos su nutrición y te pre-llenamos una porción para revisar.',
+  'recipeImport.urlPlaceholder': 'https://…',
+  'recipeImport.fetch': 'Importar',
+  'recipeImport.fetching': 'Importando…',
+  'recipeImport.untitled': 'Receta importada',
+  'recipeImport.perServing': 'por porción',
+  'recipeImport.proteinUnit': 'g proteína',
+  'recipeImport.servings': '{n} porciones',
+  'recipeImport.ingredientCount': '{n} ingredientes',
+  'recipeImport.useThis': 'Usar esta porción',
+  'recipeImport.noNutrition': 'Esa página no tiene nutrición que podamos leer. Usa el creador de recetas.',
+  'recipeImport.errInvalidUrl': 'Ese enlace de receta no parece válido.',
+  'recipeImport.errFetch': 'No pudimos acceder a esa página. Revisa el enlace e inténtalo de nuevo.',
+
   // ── daily metrics ──
   'metrics.fasting': 'Ayuno',
   'metrics.notFasting': 'Sin ayuno',
