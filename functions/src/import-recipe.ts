@@ -127,7 +127,7 @@ async function readCapped(res: Response): Promise<string> {
 }
 
 export const importRecipe = onCall(
-  { maxInstances: 5 },
+  { maxInstances: 5, memory: "512MiB" },
   async (request): Promise<{ html: string }> => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Must be signed in.", { code: ErrorCode.UNAUTHENTICATED });
@@ -148,34 +148,42 @@ export const importRecipe = onCall(
 
     const href = await assertPublicUrl(url);
 
+    // The abort timer spans BOTH the fetch and the body read (a recipe host
+    // that accepts the connection but stalls the body would otherwise hang to
+    // the function timeout → 503). Everything network-facing is wrapped so any
+    // unexpected throw becomes a clean callable error, never an instance crash.
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    let res: Response;
+    let html: string;
     try {
-      res = await fetch(href, {
+      const res = await fetch(href, {
         method: "GET",
         redirect: "follow",
         signal: controller.signal,
         headers: { "User-Agent": USER_AGENT, Accept: "text/html,application/xhtml+xml" },
       });
-    } catch {
+
+      // Re-validate after redirects: the final URL must still be public HTML.
+      await assertPublicUrl(res.url || href);
+      if (!res.ok) {
+        throw new HttpsError("unavailable", `Page returned ${res.status}.`, { code: ErrorCode.RECIPE_FETCH_FAILED });
+      }
+      const contentType = res.headers.get("content-type") ?? "";
+      if (!contentType.includes("html")) {
+        throw new HttpsError("invalid-argument", "That URL is not a web page.", { code: ErrorCode.RECIPE_URL_INVALID });
+      }
+
+      html = slimToJsonLd(await readCapped(res));
+    } catch (err) {
+      if (err instanceof HttpsError) throw err;
+      // Network reset, DNS hiccup, abort/timeout, bot-block connection drop, or
+      // an unexpected stream error — surface one clean, typed failure.
+      console.error("importRecipe fetch failed", { href, err });
       throw new HttpsError("unavailable", "Could not fetch that page.", { code: ErrorCode.RECIPE_FETCH_FAILED });
     } finally {
       clearTimeout(timer);
     }
 
-    // Re-validate after redirects: the final URL must still be public HTML.
-    await assertPublicUrl(res.url || href);
-    if (!res.ok) {
-      throw new HttpsError("unavailable", `Page returned ${res.status}.`, { code: ErrorCode.RECIPE_FETCH_FAILED });
-    }
-    const contentType = res.headers.get("content-type") ?? "";
-    if (!contentType.includes("html")) {
-      throw new HttpsError("invalid-argument", "That URL is not a web page.", { code: ErrorCode.RECIPE_URL_INVALID });
-    }
-
-    const body = await readCapped(res);
-    const html = slimToJsonLd(body);
     if (!html) {
       throw new HttpsError("not-found", "No recipe data found on that page.", { code: ErrorCode.RECIPE_NOT_FOUND });
     }
