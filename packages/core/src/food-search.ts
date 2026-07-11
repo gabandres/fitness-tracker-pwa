@@ -7,8 +7,13 @@
  *
  * The transport (Angular `CallableGateway` / RN `httpsCallable`) is injected per
  * frontend via {@link makeFoodSearch} — this module never imports firebase
- * (ADR-0012). Wire-compatible with `functions/src/food-search.ts` (the server
- * side, a separate project) — keep them in sync.
+ * (ADR-0012).
+ *
+ * WIRE CONTRACT: `FoodDbSource`, `FoodSearchHit`, `ServingOption`, and
+ * `FoodDetail` are mirrored by hand in `functions/src/food-search.ts` under the
+ * SAME names (that project deploys independently and can't import this un-built
+ * workspace package). Keep the two byte-for-byte in sync; the db-source union is
+ * `FoodDbSource` on BOTH sides so a rename can't silently drift them.
  */
 
 /**

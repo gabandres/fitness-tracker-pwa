@@ -106,11 +106,19 @@ interface FdcFoodDetail {
   };
 }
 
-type FoodSource = 'fdc' | 'off';
+// ─── Wire contract (mirrors the client) ─────────────────────────
+// `FoodDbSource` + the three response shapes below are the wire contract with
+// the client at `packages/core/src/food-search.ts`, which redefines them under
+// the SAME names. functions/ deploys independently (rootDir: ./src, not a
+// workspace) and can't import the un-built @macrolog/core package, so the
+// contract is mirrored by hand — keep the two byte-for-byte in sync. The enum
+// is `FoodDbSource` on BOTH sides (was `FoodSource` here) so a source-axis
+// rename can't silently drift them apart, which it already had.
+type FoodDbSource = 'fdc' | 'off';
 
 interface FoodSearchHit {
   /** Which database the hit came from — drives getFoodDetail dispatch. */
-  source: FoodSource;
+  source: FoodDbSource;
   /** Stable id within the source: FDC's numeric fdcId (stringified) or an
    *  Open Food Facts barcode. */
   id: string;
@@ -140,7 +148,7 @@ interface ServingOption {
 }
 
 interface FoodDetail {
-  source: FoodSource;
+  source: FoodDbSource;
   id: string;
   description: string;
   brand?: string;
@@ -617,7 +625,7 @@ export const getFoodDetail = onCall(
     // Source-aware args. New clients send { source, id }; older clients
     // send { fdcId } — treat that as an FDC lookup for back-compat.
     const data = (request.data ?? {}) as { source?: unknown; id?: unknown; fdcId?: unknown };
-    let source: FoodSource;
+    let source: FoodDbSource;
     let id: string;
     if (data.source === "off" && typeof data.id === "string" && data.id.length > 0) {
       source = "off";
