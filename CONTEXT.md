@@ -180,10 +180,20 @@ These three windows look similar and are NOT interchangeable. See
 
 ## Targets + derivations
 
-- **TDEE** — `FitnessStore.tdee()`. Switches between **formula mode**
-  (Mifflin-St Jeor with the user's profile) and **measured mode** (weight
-  trend + calorie history once there's enough signal). Result includes
-  `source: 'formula' | 'measured'` and `newDailyTarget`.
+- **DailyTargets projection** — `dailyTargets(profile, logs, dailyWeights)`
+  in `packages/core/src/targets.ts`: the one pure home for the
+  TDEE → calorie-target → protein-target → current-weight chain, plus the
+  `mergeDailyWeights` overlay, `currentWeight` resolution, `toProfileFields`
+  gate, and `computeGoalProgress`. **Both** frontends derive targets from it
+  (mobile `useDailyTargets`; web `FitnessStore._targets` since arch review B)
+  — the web store no longer re-implements the precedence inline, it only
+  assembles the snapshot (it alone picks the source-log window). Change the
+  target math here, not per-frontend.
+- **TDEE** — `FitnessStore.tdee()` (reads `DailyTargets projection`).
+  Switches between **formula mode** (Mifflin-St Jeor with the user's
+  profile) and **measured mode** (weight trend + calorie history once
+  there's enough signal). Result includes `source: 'formula' | 'measured'`
+  and `newDailyTarget`.
 - **TargetCalories** — `FitnessStore.targetCalories()`. The user-facing
   daily kcal goal. Resolution order:
   1. Manual heuristic target from 2-question onboarding

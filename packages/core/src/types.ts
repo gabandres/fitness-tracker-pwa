@@ -240,7 +240,10 @@ export interface ProfileFields {
  * and what every store/component consumes.
  */
 export interface Profile extends Partial<ProfileFields> {
-  email: string;
+  /** Legacy-only: no longer written on new profiles (PII minimization,
+   *  2026-07-07). Present on pre-existing docs; email otherwise lives in
+   *  Firebase Auth. Optional so both frontends' domain Profile agree. */
+  email?: string;
   createdAt: Date;
   lastSeenAt: Date;
   profileCompleted: boolean;

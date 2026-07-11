@@ -10,8 +10,18 @@ import {
   Profile,
 } from './firebase.service';
 import { calculateTdee, aggregateByDay, type TdeeResult } from '@macrolog/core/tdee';
+// Targets-cluster primitives — the pure, shared home for the daily-weight
+// overlay + latest-weight resolution the Expo app already consumes. The web
+// store composes them here so both frontends read the identical helpers
+// rather than re-deriving them inline (ADR-0012 / arch review B).
+import {
+  mergeDailyWeights,
+  dailyTargets,
+  computeGoalProgress,
+  toProfileFields,
+  type DailyTargets,
+} from '@macrolog/core/targets';
 import { addDays, localDateKey } from '../utils/date';
-import { computeProtein } from '../utils/macro-heuristic';
 import { summarizeDay } from '../utils/day-summary';
 import { computeStreak } from '@macrolog/core/streak';
 import {
@@ -204,19 +214,14 @@ export class FitnessStore {
   readonly error: Signal<string | null> = this._error.asReadonly();
 
   // ─── Profile fields extraction (single source of truth) ─────
-  private readonly _profileFields = computed<ProfileFields | null>(() => {
-    const p = this.fb.profile();
-    if (!p?.profileCompleted) return null;
-    return {
-      heightIn: p.heightIn!,
-      age: p.age!,
-      sex: p.sex!,
-      activityLevel: p.activityLevel!,
-      targetPaceLbsPerWeek: p.targetPaceLbsPerWeek!,
-      goalWeightLbs: p.goalWeightLbs,
-      travelMode: p.travelMode,
-    };
-  });
+  // Delegates to the shared `toProfileFields` in @macrolog/core so the web
+  // store, the Expo app, and the `dailyTargets` projection all apply the
+  // SAME gate (the five TDEE fields present) rather than a web-only
+  // profileCompleted check — one definition of "enough profile to derive"
+  // (arch review B).
+  private readonly _profileFields = computed<ProfileFields | null>(() =>
+    toProfileFields(this.fb.profile()),
+  );
 
   /** Public projection of the extracted profile-fields object — read by
    *  WeeklyReportStore when assembling the Gemini prompt. */
@@ -239,54 +244,40 @@ export class FitnessStore {
 
   // ─── Pre-computed derivations ───────────────────────────────
 
-  /** Overlays the dailyWeights map into each log's `weight` field. Current
-   *  weight writes go to the dailyWeights subcollection (not log.weight),
-   *  so any weight-driven calc — weekly delta, measured TDEE, monthly
-   *  trend — must merge before reading `l.weight`, or it sees nothing for
-   *  daily-weight-only users. Returns the original array when there are
-   *  no daily weights to overlay. */
-  private mergeDailyWeights(logs: DailyLog[]): DailyLog[] {
-    const dw = this.body.dailyWeights();
-    if (Object.keys(dw).length === 0) return logs;
-    return logs.map((l) => {
-      const w = dw[localDateKey(l.date)];
-      return w != null ? { ...l, weight: w } : l;
-    });
+  /** The dailyWeights overlay from `@macrolog/core` bound to this store's
+   *  live weight map. Current weight writes go to the dailyWeights
+   *  subcollection (not log.weight), so any weight-driven calc — weekly
+   *  delta, measured TDEE, monthly trend — must merge before reading
+   *  `l.weight`, or it sees nothing for daily-weight-only users. */
+  private mergeWeights(logs: DailyLog[]): DailyLog[] {
+    return mergeDailyWeights(logs, this.body.dailyWeights());
   }
 
-  readonly tdee: Signal<TdeeResult> = computed(() => {
-    const fields = this._profileFields();
-    // In travel mode, override pace to 0 (maintenance — no deficit).
-    const adjusted = fields?.travelMode
-      ? { ...fields, targetPaceLbsPerWeek: 0 as any }
-      : fields;
-    // Measured mode needs ≥14 *distinct logged days*. The `_logs` cache is
-    // capped at 14 *rows* (getRecentLogs(14)), which for a multi-entry-per-
-    // day user aggregates to far fewer than 14 days — so it can never reach
-    // measured mode. Use the full-history cache once it has settled; fall
-    // back to the rolling cache only during the initial load.
-    const source = this._historyLoaded() ? this._allTimeLogs() : this._logs();
-    return calculateTdee(this.mergeDailyWeights(source), adjusted);
-  });
+  // ─── Targets projection (arch review B) ─────────────────────────
+  // The Expo app derives daily calorie + protein targets from the pure
+  // `dailyTargets` projection in @macrolog/core; the web store now feeds
+  // the SAME projection rather than re-deriving TDEE + target + protein
+  // inline, so both frontends compute identical numbers (dedup, ADR-0012).
+  // The store's only remaining job is snapshot assembly — it picks the
+  // source-log window because it alone knows the load state; the merge,
+  // TDEE, precedence, and latest-weight math all live behind the seam.
 
-  readonly targetCalories: Signal<number> = computed(() => {
-    const tdee = this.tdee();
-    // Once the user has enough real history (≥14 logged days) for a
-    // *reliable* measured TDEE, the empirically-derived target (true TDEE
-    // minus the chosen deficit) beats the static onboarding formula
-    // estimate — even if the user never ran the Day-3 "Refine targets"
-    // sheet that would otherwise clear the manual override. Reliability
-    // (≥70% logging completeness + ≥10 intake days) guards against a thin
-    // dataset whipping the target around.
-    if (tdee.source === 'measured' && tdee.reliable) return tdee.newDailyTarget;
+  /** Logs feeding the targets projection. Measured mode needs ≥14 *distinct
+   *  logged days*; the `_logs` cache is capped at 14 *rows* (getRecentLogs),
+   *  which for a multi-entry-per-day user aggregates to far fewer days — so
+   *  use the full-history cache once it has settled and fall back to the
+   *  rolling cache only during the initial load. */
+  private readonly _targetsSource = computed<DailyLog[]>(() =>
+    this._historyLoaded() ? this._allTimeLogs() : this._logs(),
+  );
 
-    // Pre-data: the v2 onboarding heuristic (weight × {11/14/17}) takes
-    // precedence over the Mifflin-St Jeor chain so the 2-question
-    // onboarding produces usable numbers without the full profile.
-    const manual = this.fb.profile()?.manualCaloriesTarget;
-    if (manual != null && manual > 0) return manual;
-    return tdee.newDailyTarget;
-  });
+  private readonly _targets = computed<DailyTargets>(() =>
+    dailyTargets(this.fb.profile(), this._targetsSource(), this.body.dailyWeights()),
+  );
+
+  readonly tdee: Signal<TdeeResult> = computed(() => this._targets().tdee);
+
+  readonly targetCalories: Signal<number> = computed(() => this._targets().calorieTarget);
 
   /**
    * One-time adaptive TDEE notification: when measured mode first kicks in,
@@ -308,37 +299,15 @@ export class FitnessStore {
   });
 
   /** Most recent non-null weight (daily weights first, then log weights). */
-  readonly currentWeight: Signal<number | null> = computed(() => {
-    const dw = this.body.dailyWeights();
-    const keys = Object.keys(dw).sort();
-    if (keys.length > 0) return dw[keys[keys.length - 1]];
-    const list = this._logs();
-    for (let i = list.length - 1; i >= 0; i--) {
-      if (list[i].weight != null) return list[i].weight!;
-    }
-    return null;
-  });
+  readonly currentWeight: Signal<number | null> = computed(() => this._targets().currentWeight);
 
-  /** Protein target on the evidence-based g/kg standard. Precedence:
-   *   1. proteinPerKg — a personal g/kg basis (1.6–2.2) the user has dialed
-   *      in; recomputed LIVE off current weight so it tracks a cut.
-   *   2. manualProteinTarget — the frozen grams snapshot from onboarding.
-   *   3. computeProtein(weight) — the 1.6 g/kg default (muscle-retention
-   *      floor), used once the onboarding snapshot is cleared (e.g. refine). */
-  readonly proteinTarget: Signal<number> = computed(() => {
-    const perKg = this.fb.profile()?.proteinPerKg;
-    const w = this.currentWeight();
-    if (perKg != null && perKg > 0 && w) return computeProtein(w, perKg);
-    const manual = this.fb.profile()?.manualProteinTarget;
-    if (manual != null && manual > 0) return manual;
-    return w ? computeProtein(w) : 0;
-  });
+  /** Protein target on the evidence-based g/kg standard. Precedence
+   *  (proteinPerKg live off weight → frozen manualProteinTarget →
+   *  1.6 g/kg default) lives in the shared `dailyTargets` projection. */
+  readonly proteinTarget: Signal<number> = computed(() => this._targets().proteinTarget);
 
   /** Minimum adequate protein: the 1.6 g/kg muscle-retention floor. */
-  readonly proteinMinTarget: Signal<number> = computed(() => {
-    const w = this.currentWeight();
-    return w ? computeProtein(w) : 0;
-  });
+  readonly proteinMinTarget: Signal<number> = computed(() => this._targets().proteinMinTarget);
 
   /** Visible chart history. Free tier is windowed to the last
       CHART_HISTORY_DAYS_FREE days; Pro sees everything. The internal
@@ -364,7 +333,7 @@ export class FitnessStore {
   readonly streakFreezeUsed: Signal<boolean> = computed(() => this.streakResult().freezeUsed);
 
   readonly weekly: Signal<WeeklySummary | null> = computed(() =>
-    weeklySummary(this.mergeDailyWeights(this._logs()), this.targetCalories()),
+    weeklySummary(this.mergeWeights(this._logs()), this.targetCalories()),
   );
 
   readonly envelope: Signal<WeeklyEnvelope | null> = computed(() =>
@@ -372,7 +341,7 @@ export class FitnessStore {
   );
 
   readonly ema: Signal<number[]> = computed(() => {
-    const weights = this.mergeDailyWeights(this._logs())
+    const weights = this.mergeWeights(this._logs())
       .map((l) => l.weight)
       .filter((w): w is number => w != null);
     return ema(weights, 7);
@@ -390,49 +359,19 @@ export class FitnessStore {
     // goalWeightLbs, so redoing onboarding actually moves the bar. See the
     // saveOnboardingV2 sync note.
     const goal = profile?.targetWeightLbs ?? profile?.goalWeightLbs;
-    const current = this.currentWeight();
-    if (!goal || current == null) return null;
-
-    // Starting weight: the earliest weight on record across ALL sources,
-    // not the rolling 14-day window. Previously the loop walked `_logs()`
-    // (14-day cap) for an `l.weight` — both assumptions were wrong:
-    //   1. The 14-day window made `start` drift forward as old days rolled
-    //      off, shrinking the (start - current) numerator and pinning the
-    //      progress bar at ~0% even after real progress.
-    //   2. Log-embedded `l.weight` is the legacy path; current writes go
-    //      to the `dailyWeights` subcollection, so daily-weight-only users
-    //      had `start === current` from day one.
-    // Now: prefer the oldest dailyWeights entry, then fall back to the
-    // oldest all-time log with a weight, then the current reading.
     const dw = this.body.dailyWeights();
-    const dwKeys = Object.keys(dw).sort();
-    let start: number | null = dwKeys.length > 0 ? dw[dwKeys[0]] : null;
-    if (start == null) {
-      const history = this.allHistoryState();
-      // Don't guess the start weight from `current` before history loads —
-      // that pins the bar near 0% then jumps once the oldest log arrives.
-      // Hide the bar until we actually know the starting point.
-      if (!history.loaded) return null;
-      // logs are oldest-first; walk forward for the first weighted entry.
-      for (const l of history.logs) {
-        if (l.weight != null) { start = l.weight; break; }
-      }
-    }
-    if (start == null) start = current;
-
-    // Supports both cut (start > goal) and bulk (start < goal). Guarding
-    // on identity avoids a divide-by-zero when the user picks a goal
-    // equal to their starting weight — in that edge case, progress is
-    // undefined and we hide the bar.
-    const totalDelta = Math.abs(goal - start);
-    if (totalDelta === 0) return null;
-
-    const progressed = start > goal
-      ? start - current   // cutting: progress counts pounds lost
-      : current - start;  // bulking: progress counts pounds gained
-    const pct = Math.min(100, Math.max(0, Math.round((progressed / totalDelta) * 100)));
-    const remaining = Math.max(0, +Math.abs(current - goal).toFixed(1));
-    return { startWeight: start, currentWeight: current, goalWeight: goal, pct, remaining };
+    // Start weight is the earliest reading across ALL sources (oldest
+    // dailyWeight, else oldest all-time log with a weight), NOT the rolling
+    // 14-day window — that made `start` drift forward and pinned the bar at
+    // ~0%. When no dailyWeight anchors the start, don't guess from `current`
+    // before all-time history settles (it pins near 0% then jumps once the
+    // oldest log arrives) — hide the bar until then.
+    const history = this.allHistoryState();
+    if (Object.keys(dw).length === 0 && !history.loaded) return null;
+    // The start-weight scan + cut/bulk pct math live in the shared
+    // `computeGoalProgress` projection (@macrolog/core), consumed by the
+    // Expo app too — dedup, ADR-0012 / arch review B.
+    return computeGoalProgress(history.loaded ? history.logs : [], dw, goal);
   });
 
   readonly todaySummary: Signal<TodaySummary | null> = computed(() => {
