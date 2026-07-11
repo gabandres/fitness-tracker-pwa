@@ -65,6 +65,13 @@ export default function Body() {
   // Keep the measurements list short as history grows; the rest is one tap away.
   const [showAllMeasures, setShowAllMeasures] = useState(false);
   const MEASURE_PREVIEW = 4;
+  // Same for the weigh-in history: the daily-weights collection is unbounded,
+  // so render a recent preview (not every row in the ScrollView) with a
+  // "show all" escape hatch. The full map is still fetched — start-weight math
+  // (share card delta, goal progress) needs the earliest weigh-in — this only
+  // caps what's mounted.
+  const [showAllWeighIns, setShowAllWeighIns] = useState(false);
+  const WEIGH_PREVIEW = 10;
 
   // Celebration (ADR-0014): crossing the goal weight bounces the hero panel
   // once with a success haptic. Crossing-only (null-first ref), so an
@@ -204,12 +211,19 @@ export default function Body() {
             <Text style={styles.empty}>{t('body.noWeighIns')}</Text>
           ) : (
             <View style={styles.list}>
-              {weighIns.map((w) => (
+              {(showAllWeighIns ? weighIns : weighIns.slice(0, WEIGH_PREVIEW)).map((w) => (
                 <View key={w.dateKey} style={styles.row} testID={`weighin-${w.dateKey}`}>
                   <Text style={styles.rowDate}>{dayLabel(w.dateKey)}</Text>
                   <Text style={styles.rowWeight}>{w.weight} lb</Text>
                 </View>
               ))}
+              {weighIns.length > WEIGH_PREVIEW ? (
+                <TouchableOpacity onPress={() => setShowAllWeighIns((v) => !v)} hitSlop={8} style={styles.showMore}>
+                  <Text style={styles.addLink}>
+                    {showAllWeighIns ? t('body.showLess') : `${t('body.showAll')} (${weighIns.length})`}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           )}
         </ScrollView>

@@ -7,6 +7,7 @@
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-google-signin/google-signin": "^16.1.2",
+    "babel-plugin-react-compiler": "^1.0.0",
     "expo": "^54.0.35",
     "expo-apple-authentication": "~8.0.8",
     "expo-auth-session": "~7.0.11",
