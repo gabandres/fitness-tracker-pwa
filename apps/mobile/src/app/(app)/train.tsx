@@ -433,6 +433,7 @@ function ExerciseDetailModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const kbHeight = useKeyboardHeight();
   const [mode, setMode] = useState<'view' | 'edit' | 'merge'>('view');
   const [confirmDel, setConfirmDel] = useState(false);
   const [editName, setEditName] = useState('');
@@ -497,7 +498,7 @@ function ExerciseDetailModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheetWrap}>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: kbHeight > 0 ? kbHeight + space.sm : space.xxl }]}>
           <View style={styles.handle} />
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.sheetTitle}>{exercise?.name}</Text>
