@@ -1,8 +1,9 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated, Dimensions, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, StyleSheet, View,
+  Animated, Dimensions, Modal, PanResponder, Pressable, StyleSheet, View,
 } from 'react-native';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
+import { useKeyboardHeight } from '@/lib/use-keyboard-height';
 import { radius, space } from '@/theme';
 
 const OFFSCREEN = Dimensions.get('window').height;
@@ -31,6 +32,11 @@ export function BottomSheet({ visible, onClose, children }: Props) {
   const [mounted, setMounted] = useState(visible);
   const anim = useRef(new Animated.Value(0)).current;
   const drag = useRef(new Animated.Value(0)).current;
+
+  // Anchor the sheet at the bottom (it fills behind the keyboard) and lift only
+  // the CONTENT by padding to the keyboard height — smooth + cutout-free. See
+  // useKeyboardHeight for why this beats a KeyboardAvoidingView wrapper.
+  const kbHeight = useKeyboardHeight();
 
   useEffect(() => {
     if (visible) {
@@ -86,17 +92,16 @@ export function BottomSheet({ visible, onClose, children }: Props) {
       <Animated.View style={backdropStyle}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
       </Animated.View>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={[styles.wrap, { pointerEvents: 'box-none' }]}
-      >
-        <Animated.View style={sheetStyle}>
+      <View style={[styles.wrap, { pointerEvents: 'box-none' }]}>
+        <Animated.View
+          style={[sheetStyle, { paddingBottom: kbHeight > 0 ? kbHeight + space.sm : space.xxl }]}
+        >
           <View style={styles.grabZone} {...pan.panHandlers}>
             <View style={styles.handle} />
           </View>
           {children}
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }

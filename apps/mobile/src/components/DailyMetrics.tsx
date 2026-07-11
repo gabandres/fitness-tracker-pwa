@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -13,6 +11,7 @@ import {
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
+import { useKeyboardHeight } from '@/lib/use-keyboard-height';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
@@ -141,6 +140,7 @@ function SleepModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const kbHeight = useKeyboardHeight();
   const [value, setValue] = useState('');
 
   useEffect(() => {
@@ -153,8 +153,8 @@ function SleepModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetWrap}>
-        <View style={styles.sheet}>
+      <View style={styles.sheetWrap}>
+        <View style={[styles.sheet, { paddingBottom: kbHeight > 0 ? kbHeight + space.sm : space.xxl }]}>
           <View style={styles.handle} />
           <Text style={styles.sheetTitle}>{t('metrics.hoursSlept')}</Text>
           <View style={styles.inputRow}>
@@ -179,7 +179,7 @@ function SleepModal({
             <Text style={styles.saveText}>{t('common.save')}</Text>
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }

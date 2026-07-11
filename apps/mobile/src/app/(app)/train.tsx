@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -42,6 +41,7 @@ import { Sparkline } from '@/components/Sparkline';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { CountUpText, enterUp, smoothLayout, usePulse } from '@/lib/motion';
+import { useKeyboardHeight } from '@/lib/use-keyboard-height';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
 
@@ -1165,6 +1165,7 @@ function AddExerciseModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const kbHeight = useKeyboardHeight();
   const [name, setName] = useState('');
   const [logStyle, setLogStyle] = useState<LogStyle>('weight-reps');
 
@@ -1189,8 +1190,8 @@ function AddExerciseModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetWrap}>
-        <View style={styles.sheet}>
+      <View style={styles.sheetWrap}>
+        <View style={[styles.sheet, { paddingBottom: kbHeight > 0 ? kbHeight + space.sm : space.xxl }]}>
           <View style={styles.handle} />
           <Text style={styles.sheetTitle}>{t('train.addExerciseTitle')}</Text>
 
@@ -1242,7 +1243,7 @@ function AddExerciseModal({
             ) : null}
           </ScrollView>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -1260,6 +1261,7 @@ function FinishModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const kbHeight = useKeyboardHeight();
   const [bodyweight, setBodyweight] = useState('');
   const [sleep, setSleep] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1285,8 +1287,8 @@ function FinishModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetWrap}>
-        <View style={styles.sheet}>
+      <View style={styles.sheetWrap}>
+        <View style={[styles.sheet, { paddingBottom: kbHeight > 0 ? kbHeight + space.sm : space.xxl }]}>
           <View style={styles.handle} />
           {/* Scroll so the numeric keyboard can't hide the Complete button
               (KeyboardAvoidingView under-lifts inside a bottom-sheet Modal). */}
@@ -1330,7 +1332,7 @@ function FinishModal({
           </TouchableOpacity>
           </ScrollView>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -1358,6 +1360,7 @@ function TemplateEditorModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const kbHeight = useKeyboardHeight();
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
   const [exercises, setExercises] = useState<DraftEx[]>([]);
@@ -1469,8 +1472,8 @@ function TemplateEditorModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetWrap}>
-        <View style={styles.sheet}>
+      <View style={styles.sheetWrap}>
+        <View style={[styles.sheet, { paddingBottom: kbHeight > 0 ? kbHeight + space.sm : space.xxl }]}>
           <View style={styles.handle} />
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.sheetTitle}>{template ? t('train.editTemplate') : t('train.newTemplateTitle')}</Text>
@@ -1632,7 +1635,7 @@ function TemplateEditorModal({
             <View style={{ height: 24 }} />
           </ScrollView>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
