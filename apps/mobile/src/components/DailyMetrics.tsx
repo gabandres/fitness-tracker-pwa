@@ -11,6 +11,7 @@ import {
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
+import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useKeyboardHeight } from '@/lib/use-keyboard-height';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
@@ -141,6 +142,7 @@ function SleepModal({
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const kbHeight = useKeyboardHeight();
+  const inputRef = useDeferredFocus(visible);
   const [value, setValue] = useState('');
 
   useEffect(() => {
@@ -159,13 +161,13 @@ function SleepModal({
           <Text style={styles.sheetTitle}>{t('metrics.hoursSlept')}</Text>
           <View style={styles.inputRow}>
             <TextInput
+              ref={inputRef}
               style={styles.input}
               placeholder="0"
               placeholderTextColor={colors.faint}
               keyboardType="numeric"
               value={value}
               onChangeText={setValue}
-              autoFocus
               testID="sleep-input"
             />
             <Text style={styles.inputUnit}>h</Text>

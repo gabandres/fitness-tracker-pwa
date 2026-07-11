@@ -18,6 +18,7 @@ import { Sparkline } from '@/components/Sparkline';
 import { useBody } from '@/hooks/useBody';
 import { type I18nKey, type TFn, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
+import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { CountUpText, enterUp, usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
@@ -349,6 +350,7 @@ function WeightModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const inputRef = useDeferredFocus(visible);
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -380,13 +382,13 @@ function WeightModal({
           <Text style={styles.sheetTitle}>{t('body.logWeight')}</Text>
           <View style={styles.inputRow}>
             <TextInput
+              ref={inputRef}
               style={styles.input}
               placeholder="0"
               placeholderTextColor={colors.faint}
               keyboardType="numeric"
               value={value}
               onChangeText={setValue}
-              autoFocus
               testID="weight-input"
               onSubmitEditing={save}
             />

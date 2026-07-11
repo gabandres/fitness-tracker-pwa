@@ -41,6 +41,7 @@ import { Sparkline } from '@/components/Sparkline';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { CountUpText, enterUp, smoothLayout, usePulse } from '@/lib/motion';
+import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useKeyboardHeight } from '@/lib/use-keyboard-height';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
@@ -1167,6 +1168,7 @@ function AddExerciseModal({
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const kbHeight = useKeyboardHeight();
+  const addExerciseInputRef = useDeferredFocus(visible);
   const [name, setName] = useState('');
   const [logStyle, setLogStyle] = useState<LogStyle>('weight-reps');
 
@@ -1197,12 +1199,12 @@ function AddExerciseModal({
           <Text style={styles.sheetTitle}>{t('train.addExerciseTitle')}</Text>
 
           <TextInput
+            ref={addExerciseInputRef}
             style={styles.input}
             placeholder={t('train.exerciseName')}
             placeholderTextColor={colors.faint}
             value={name}
             onChangeText={setName}
-            autoFocus
             testID="exercise-name"
           />
 
