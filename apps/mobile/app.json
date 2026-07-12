@@ -101,7 +101,8 @@
           "background": false
         }
       ],
-      "react-native-health-connect"
+      "react-native-health-connect",
+      "./plugins/withModularHeaders"
     ],
     "extra": {
       "googleAuth": {
