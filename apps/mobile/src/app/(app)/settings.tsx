@@ -9,6 +9,8 @@ import { useAuth } from '@/lib/auth';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
 import { importLogs, setCalorieFloor, setPreferredLocale, setUnitSystem, setWeeklyDigestOptIn } from '@/lib/ledger';
 import { exportDataCsv } from '@/lib/dataExport';
+import { isTipIapAvailable } from '@/lib/purchases';
+import { TipSheet } from '@/components/TipSheet';
 import { useHealthSync } from '@/lib/health-sync';
 import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
 import { DEFAULT_REMINDER_HOUR, getReminder, setReminder, syncReminders } from '@/lib/reminders';
@@ -70,6 +72,7 @@ export default function Settings() {
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderHour, setReminderHour] = useState(DEFAULT_REMINDER_HOUR);
   const [exporting, setExporting] = useState(false);
+  const [showTip, setShowTip] = useState(false);
   const [exportMsg, setExportMsg] = useState<string | null>(null);
 
   async function onExport() {
@@ -300,22 +303,28 @@ export default function Settings() {
         ) : null}
 
 
-        {/* Donations (ADR-0015): external link only — Apple allows US-storefront
-            donation links post-May-2025, no cut. Unlocks nothing (altruistic),
-            so it can't read as IAP circumvention. TODO: geo-gate to US on iOS
-            and swap the placeholder URL for the real Stripe Payment Link. */}
+        {/* Tips (ADR-0015). App Review 3.1.1 (submission fe0a9963): a tip tied to
+            a digital app must use In-App Purchase, not an external link — so on a
+            native iOS build we open the IAP TipSheet. Android (and Expo Go) keep
+            the external, no-cut altruistic link, which Play permits.
+            TODO: swap the placeholder URL for the real Stripe Payment Link. */}
         <Text style={styles.section}>{t('settings.support')}</Text>
         <View style={styles.card}>
           <Text style={styles.rowValue}>{t('settings.supportBody')}</Text>
           <TouchableOpacity
             style={[styles.exportBtn, { marginTop: space.md }]}
-            onPress={() => Linking.openURL('https://ignia.fit/support')}
+            onPress={() =>
+              isTipIapAvailable()
+                ? setShowTip(true)
+                : Linking.openURL('https://ignia.fit/support')
+            }
             testID="settings-support"
           >
             <Ionicons name="heart-outline" size={16} color={colors.onInk} />
             <Text style={styles.exportBtnText}>{t('settings.supportBtn')}</Text>
           </TouchableOpacity>
         </View>
+        <TipSheet visible={showTip} onClose={() => setShowTip(false)} />
 
         <Text style={styles.section}>{t('settings.units')}</Text>
         <View style={styles.card}>

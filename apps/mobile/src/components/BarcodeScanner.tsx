@@ -1,6 +1,6 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Linking, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { FoodSource } from '@macrolog/core';
 import { type BarcodeResult, lookupProduct } from '@/lib/barcode';
@@ -53,6 +53,15 @@ export function BarcodeScanner({ visible, onClose, onPick }: Props) {
     }
   }, [visible]);
 
+  // Auto-request on open — no custom pre-prompt before the OS dialog, per App
+  // Review 5.1.1(iv). The scanner modal only opens after the user taps "Scan",
+  // so intent is already established; fire the system prompt straight away.
+  useEffect(() => {
+    if (visible && permission?.status === 'undetermined') {
+      requestPermission();
+    }
+  }, [visible, permission, requestPermission]);
+
   async function onScanned(barcode: string) {
     if (handled.current) return;
     handled.current = true;
@@ -87,13 +96,15 @@ export function BarcodeScanner({ visible, onClose, onPick }: Props) {
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-        {!permission ? (
+        {!permission || (!permission.granted && permission.canAskAgain) ? (
+          // Loading, or the OS prompt is being presented (auto-requested above).
           <View style={styles.center}><ActivityIndicator color={colors.white} /></View>
         ) : !permission.granted ? (
+          // Permanently denied — direct the user to Settings (no request to make).
           <View style={styles.center}>
             <Text style={styles.msg}>{t('barcode.permNeeded')}</Text>
-            <TouchableOpacity style={styles.btn} onPress={requestPermission}>
-              <Text style={styles.btnText}>{t('barcode.grant')}</Text>
+            <TouchableOpacity style={styles.btn} onPress={() => Linking.openSettings()}>
+              <Text style={styles.btnText}>{t('barcode.openSettings')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.cancel} onPress={onClose}>
               <Text style={styles.cancelText}>{t('common.cancel')}</Text>

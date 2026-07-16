@@ -236,8 +236,8 @@ export const esPR: Record<I18nKey, string> = {
   'recipe.useThis': 'Usar esto',
 
   // ── barcode ──
-  'barcode.permNeeded': 'Se necesita acceso a la cámara para escanear códigos.',
-  'barcode.grant': 'Dar permiso',
+  'barcode.permNeeded': 'El acceso a la cámara está desactivado. Actívalo en Ajustes para escanear códigos.',
+  'barcode.openSettings': 'Abrir Ajustes',
   'barcode.point': 'Apunta a un código de barras',
   'barcode.failed': 'Falló la búsqueda.',
 
@@ -443,6 +443,16 @@ export const esPR: Record<I18nKey, string> = {
   'settings.support': 'Apoya la app',
   'settings.supportBody': 'Ignia es gratis, sin anuncios y sin vender tus datos. Una pequeña propina ayuda a cubrir el costo — totalmente opcional y no desbloquea nada.',
   'settings.supportBtn': 'Dejar una propina',
+  'tip.title': 'Dejar una propina',
+  'tip.body': 'Ignia es gratis — sin anuncios y sin vender tus datos. Una propina ayuda a cubrir el costo. No desbloquea nada; es solo un gracias.',
+  'tip.small': 'Propina pequeña',
+  'tip.medium': 'Propina mediana',
+  'tip.large': 'Propina grande',
+  'tip.unavailable': 'Las propinas no están disponibles ahora.',
+  'tip.loadFailed': 'No se pudieron cargar las opciones de propina.',
+  'tip.failed': 'La compra no se completó.',
+  'tip.thanksTitle': '¡Gracias!',
+  'tip.thanksBody': 'Tu apoyo de verdad ayuda a mantener Ignia gratis.',
   'settings.units': 'Unidades',
   'settings.portionDisplay': 'Mostrar porciones',
   'settings.unitUs': 'EE. UU. (oz, lb)',

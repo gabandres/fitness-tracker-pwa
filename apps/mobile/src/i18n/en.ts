@@ -234,8 +234,8 @@ export const en = {
   'recipe.useThis': 'Use this',
 
   // ── barcode ──
-  'barcode.permNeeded': 'Camera access is needed to scan barcodes.',
-  'barcode.grant': 'Grant permission',
+  'barcode.permNeeded': 'Camera access is off. Enable it in Settings to scan barcodes.',
+  'barcode.openSettings': 'Open Settings',
   'barcode.point': 'Point at a barcode',
   'barcode.failed': 'Lookup failed.',
 
@@ -441,6 +441,16 @@ export const en = {
   'settings.support': 'Support the app',
   'settings.supportBody': "Ignia is free, with no ads and no data-selling. A small tip helps cover the running cost — entirely optional, and it unlocks nothing.",
   'settings.supportBtn': 'Leave a tip',
+  'tip.title': 'Leave a tip',
+  'tip.body': "Ignia is free — no ads, no data-selling. A tip helps cover the running cost. It unlocks nothing; it's just a thank-you.",
+  'tip.small': 'Small tip',
+  'tip.medium': 'Medium tip',
+  'tip.large': 'Large tip',
+  'tip.unavailable': "Tips aren't available right now.",
+  'tip.loadFailed': "Couldn't load tip options.",
+  'tip.failed': "The purchase didn't go through.",
+  'tip.thanksTitle': 'Thank you!',
+  'tip.thanksBody': 'Your support genuinely helps keep Ignia free.',
   'settings.units': 'Units',
   'settings.portionDisplay': 'Portion display',
   'settings.unitUs': 'US (oz, lb)',
