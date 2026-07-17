@@ -18,10 +18,10 @@ import type { PurchasesStoreProduct } from 'react-native-purchases';
 /**
  * RevenueCat public iOS SDK key (starts `appl_…`). This is a publishable client
  * key, safe to commit like the Firebase apiKey (ADR-0002) — it only fetches
- * products and validates receipts; it grants nothing on its own.
- * TODO(owner): paste the real key from RevenueCat → Project → API keys → Apple.
+ * products and validates receipts; it grants nothing on its own. It belongs to
+ * the "Ignia iOS" App Store app (RC project proj1862afb9, app578800fe01).
  */
-const REVENUECAT_IOS_KEY = 'appl_REPLACE_ME';
+const REVENUECAT_IOS_KEY = 'appl_CmdLRdCNCxfQFHsebZAsdqyNyku';
 
 /**
  * Consumable tip products, small → large (also the display order). Create each
