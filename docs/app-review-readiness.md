@@ -21,6 +21,7 @@ Two rejections in a row happened because each pass only surfaced what that revie
 | 9 | **5.2.2** Third-party data | Open Food Facts is **ODbL — attribution is a licence obligation** — and was credited nowhere | Credit in mobile Settings, web footer, and the support page |
 | 10 | **5.1.1(ii)** Purpose strings | `expo-image-picker` overwrote `NSCameraUsageDescription` with *"scan your meals"* — describing a feature disabled in production builds | Both plugins now say *"scan food barcodes"* |
 | — | (not a guideline) | Sign-up silently failed: client checked "a letter", server requires upper+lower+digit | Checklists mirror the policy on both platforms |
+| 11 | **2.1** Completeness | Mobile email/password signup dead-ended at onboarding with "Could not save. Check your connection" — the rules block writes until the email is verified, and mobile had no verify flow (web did). A reviewer signing up fresh would see a broken-looking app | Ported the web verify-email gate to mobile (`apps/mobile/src/app/verify-email.tsx` + AuthGate + `reloadUser`); onboarding now maps permission-denied to a "verify your email" message |
 
 Web changes are **built, tested (182 passing) and deployed**. Mobile changes are committed but **need a new build** — they are not in any binary yet.
 
@@ -40,14 +41,8 @@ These cannot be done from the codebase.
 
 ## 3. Residual risks, ranked
 
-### HIGH — HealthKit ships but has never been device-tested
-`app.json` declares `NSHealthShareUsageDescription` + `NSHealthUpdateUsageDescription` and the HealthKit plugin, so the entitlement is in the binary and **a reviewer can exercise it**. Per `project_health_sync_all_phases`, the sync is code-complete but has had **no native round-trip test**. A permission prompt that leads to a broken or empty feature invites both 2.1 (completeness) and 1.4.1 scrutiny.
-
-Two options — this is a product call:
-- Device-test the Health round-trip on the iPad Air before submitting, or
-- Remove the HealthKit plugin + the two usage strings from the v1 submission and reintroduce in v1.1 once verified.
-
-The privacy policy now covers Health either way, so removing it is safe from a policy standpoint.
+### ~~HIGH — HealthKit never device-tested~~ RESOLVED 2026-07-20
+Owner confirms HealthKit works on his iPhone. **Apple did not reject on HealthKit — it was never in the rejection letter**; this was a precautionary audit flag, now retired. Keep the plugin as-is. iPad was only relevant to the layout clipping (Guideline 4), not to HealthKit. The privacy policy covers Health regardless.
 
 ### MEDIUM — `supportsTablet: false`, but Apple reviews on iPad anyway
 The app is iPhone-only and runs letterboxed/resizable on iPadOS 26, which is how the clipping surfaced. **Recommendation: leave it `false`.** Flipping to `true` obliges a genuine iPad design pass *and* iPad screenshots in ASC (2.3.3) — that is more rejection surface, not less. The scroll fixes make the app robust at any window height, which is what Guideline 4 actually asks for here.
@@ -57,6 +52,9 @@ The app is iPhone-only and runs letterboxed/resizable on iPadOS 26, which is how
 
 ### LOW — `/scan` route still mounts unguarded
 `scan.tsx` has no `FEATURES.photoScan` check of its own; the gate lives upstream in `LogSpeedDial` and the hidden tab. Unreachable through the UI, but a deep link would mount it. Worth an in-route guard when photo-scan returns.
+
+### MEDIUM — verification email lands in spam (deliverability)
+Firebase Auth sends the verification email from its default sender, which frequently lands in **junk/spam**. The verify-email screen now tells users to check their spam folder (the honest interim fix), but real deliverability needs sender-domain authentication (SPF/DKIM/DMARC on `ignia.fit`) and ideally a custom Firebase Auth email action-handler domain. Owner infra task, not code. Until then: a user who never checks spam can't verify → can't use the app. Worth prioritising soon after launch.
 
 ### LOW — screenshots must show the app in use (2.3.3)
 Screenshots may not be login or splash screens, and must not imply features that need purchase. Verify the current ASC set shows real logging screens.
