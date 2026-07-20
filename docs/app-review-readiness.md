@@ -41,14 +41,23 @@ These cannot be done from the codebase.
 
 ## 3. Residual risks, ranked
 
+### HIGH — Demo account MUST be pre-verified (2.1)
+Cited research confirms 2.1 demo accounts are Apple's single largest rejection bucket, AND surfaces a trap specific to us: the new email-verification gate + spam-landing verification emails mean a reviewer given an *unverified* account is walled out of the app. **`review@ignia.fit` is already email-verified and seeded — use it, and confirm it can write before submitting.** Never hand Apple a fresh unverified account.
+
+### MEDIUM — Sign in with Apple token not revoked on account deletion (5.1.1(v))
+`functions/src/gdpr.ts` deletes the Firebase Auth user + all Firestore data, but never calls Apple's `appleid.apple.com/auth/revoke`. Apple expects apps offering SIWA + account deletion to revoke the SIWA token server-side. Enforcement is inconsistent and invisible to a reviewer (server-side), so it's not a likely visible rejection — but it is a genuine compliance gap. Proper fix needs capturing the Apple refresh token at sign-in (Firebase doesn't expose it by default) and calling the revoke endpoint on delete. Flag for post-launch unless we want to close it now.
+
+### MEDIUM/DISCRETIONARY — Health app submitted by an individual, not a legal entity (5.1.1(ix))
+The health-fitness page: a service in a highly regulated field like healthcare that collects sensitive data "should be submitted by a legal entity ... not by an individual developer." Ignia dropped its LLC and submits as a sole individual while accessing HealthKit. Enforcement is inconsistent (many individual-dev trackers pass); a simple calorie tracker is low-risk, but HealthKit raises exposure. Accepted risk per the LLC decision — but know a reviewer *can* raise it.
+
 ### ~~HIGH — HealthKit never device-tested~~ RESOLVED 2026-07-20
 Owner confirms HealthKit works on his iPhone. **Apple did not reject on HealthKit — it was never in the rejection letter**; this was a precautionary audit flag, now retired. Keep the plugin as-is. iPad was only relevant to the layout clipping (Guideline 4), not to HealthKit. The privacy policy covers Health regardless.
 
 ### MEDIUM — `supportsTablet: false`, but Apple reviews on iPad anyway
 The app is iPhone-only and runs letterboxed/resizable on iPadOS 26, which is how the clipping surfaced. **Recommendation: leave it `false`.** Flipping to `true` obliges a genuine iPad design pass *and* iPad screenshots in ASC (2.3.3) — that is more rejection surface, not less. The scroll fixes make the app robust at any window height, which is what Guideline 4 actually asks for here.
 
-### MEDIUM — Photo-library permission is declared but unused in production
-`expo-image-picker` is reached only by photo-scan (`mealScan.ts`), which both EAS profiles disable via `EXPO_PUBLIC_FEATURE_PHOTO_SCAN=0`. So the shipped build asks for a photo-library string it can never use. Apple sometimes queries permissions with no corresponding feature. Cleanest fix is deleting the `expo-image-picker` plugin block from `app.json` before submitting — **not done here** because it changes native build wiring and could not be verified without an EAS build.
+### RESOLVED — Photo-library permission declared-but-unused is BENIGN; do NOT remove it
+**Corrected 2026-07-20 by cited research (reverses the earlier "delete it" advice).** Apple's automated binary scan (ITMS-90683) rejects *missing* purpose strings for APIs referenced by linked code — it never punishes an *extra* string for an unreachable feature. `expo-image-picker` is still linked in the binary, so **removing `NSPhotoLibraryUsageDescription` would risk an ITMS-90683 build rejection**; keeping it is the safe choice. Keep the string, keep its text honest/generic, keep the photo-scan UI unreachable. (Apple guidelines + documented ITMS-90683 behavior, 3-0 verified.)
 
 ### LOW — `/scan` route still mounts unguarded
 `scan.tsx` has no `FEATURES.photoScan` check of its own; the gate lives upstream in `LogSpeedDial` and the hidden tab. Unreachable through the UI, but a deep link would mount it. Worth an in-route guard when photo-scan returns.
