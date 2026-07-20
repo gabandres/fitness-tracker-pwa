@@ -316,7 +316,7 @@ export default function Settings() {
             onPress={() =>
               isTipIapAvailable()
                 ? setShowTip(true)
-                : Linking.openURL('https://ignia.fit/support')
+                : Linking.openURL('https://ignia.fit/tip')
             }
             testID="settings-support"
           >

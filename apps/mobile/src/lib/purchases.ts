@@ -5,7 +5,7 @@ import type { PurchasesStoreProduct } from 'react-native-purchases';
 /**
  * RevenueCat tip jar (App Review 3.1.1 — tips tied to a digital app must use
  * In-App Purchase, not an external link). iOS uses these consumable IAPs;
- * Android keeps the external ignia.fit/support link (Play permits it), so this
+ * Android keeps the external ignia.fit/tip link (Play permits it), so this
  * module is iOS-only.
  *
  * `react-native-purchases` is a native module: it does NOT exist in Expo Go and

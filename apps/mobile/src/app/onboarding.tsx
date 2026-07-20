@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInLeft, FadeInRight, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { type GoalDirection, computeKcal, computeProtein } from '@macrolog/core';
@@ -149,6 +149,15 @@ export default function Onboarding() {
           )}
         </View>
 
+        {/* Scrollable so a tall step (goal cards, the plan summary) can never be
+            clipped on a short/large viewport — the iPad failure mode Apple
+            rejected on sign-in. The footer CTA stays pinned below. */}
+        <ScrollView
+          style={styles.fill}
+          contentContainerStyle={styles.stepScroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
         <Animated.View key={step} entering={entering} style={styles.stepWrap}>
           {step === 'welcome' ? (
             <View style={styles.welcome}>
@@ -226,6 +235,7 @@ export default function Onboarding() {
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </Animated.View>
+        </ScrollView>
 
         <View style={styles.footer}>
           <PressScale
@@ -299,7 +309,10 @@ const createStyles = ({ colors, shadow }: Theme) =>
     dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.line },
     dotOn: { width: 22, backgroundColor: colors.ink },
     dotDone: { backgroundColor: colors.accent },
-    stepWrap: { flex: 1, paddingHorizontal: space.xl, justifyContent: 'center' },
+    // flexGrow centres the step when it fits and scrolls it when it doesn't.
+    stepScroll: { flexGrow: 1, justifyContent: 'center' },
+    // maxWidth keeps the form readable rather than edge-to-edge on an iPad.
+    stepWrap: { paddingHorizontal: space.xl, paddingVertical: space.lg, width: '100%', maxWidth: 480, alignSelf: 'center' },
     // Welcome greeting.
     welcome: { alignItems: 'center', gap: space.lg },
     welcomeTitle: { fontFamily: type.display, fontSize: 34, color: colors.ink, textAlign: 'center', marginTop: space.md },
@@ -340,7 +353,8 @@ const createStyles = ({ colors, shadow }: Theme) =>
     planDivider: { width: 1, alignSelf: 'stretch', backgroundColor: colors.heroTrack, marginVertical: space.sm },
     planSub: { fontSize: font.body, color: colors.muted, textAlign: 'center', paddingHorizontal: space.md },
     error: { color: colors.danger, fontSize: font.small, textAlign: 'center', marginTop: space.md },
-    footer: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.md },
+    // Same maxWidth as stepWrap so the CTA lines up with the step on an iPad.
+    footer: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.md, width: '100%', maxWidth: 480, alignSelf: 'center' },
     cta: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },
     ctaDisabled: { opacity: 0.4 },
     ctaText: { color: colors.onInk, fontSize: font.h3, fontWeight: '700' },

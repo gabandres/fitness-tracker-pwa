@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -50,13 +48,16 @@ export default function SignIn() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // Mirrors the PWA sign-up rule (Firebase also enforces the project policy
-  // server-side): ≥10 chars with at least one letter and one digit. Broken out
-  // so the sign-up checklist can show each requirement's state live.
+  // MUST mirror the Identity Platform password policy exactly (ENFORCE, min 10,
+  // requires upper + lower + numeric). It previously checked only "a letter",
+  // so `password12` lit every checkmark green and was then rejected server-side
+  // — the silent sign-up failure testers hit. Verify with:
+  //   GET identitytoolkit.googleapis.com/admin/v2/projects/{project}/config
   const reqLen = password.length >= 10;
-  const reqLetter = /[A-Za-z]/.test(password);
+  const reqUpper = /[A-Z]/.test(password);
+  const reqLower = /[a-z]/.test(password);
   const reqNum = /\d/.test(password);
-  const strongPassword = reqLen && reqLetter && reqNum;
+  const strongPassword = reqLen && reqUpper && reqLower && reqNum;
 
   async function onSubmit() {
     if (busy) return;
@@ -148,12 +149,20 @@ export default function SignIn() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      {/* Scrolls rather than clips: on a tall-content pass (sign-up shows the
+          name row + password checklist) a centered non-scrolling flex box cut
+          the Google button off the bottom on iPad — App Review 4 (Design),
+          submission 5ba1c7f5. `automaticallyAdjustKeyboardInsets` replaces the
+          old KeyboardAvoidingView (see the mobile-modal keyboard convention).
+          Taps on empty space still dismiss the keyboard via keyboardShouldPersistTaps. */}
+      <ScrollView
         style={styles.fill}
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
+        showsVerticalScrollIndicator={false}
       >
-        {/* Tap anywhere off a field to dismiss the keyboard. */}
-        <Pressable style={styles.fill} onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.body}>
           <Animated.View style={styles.hero} entering={enterUp(0)}>
             <BrandMark />
@@ -236,7 +245,8 @@ export default function SignIn() {
             {mode === 'signup' ? (
               <Animated.View entering={FadeIn.duration(200)} style={styles.checklist}>
                 <ReqRow met={reqLen} label={t('signIn.reqLen')} styles={styles} colors={colors} />
-                <ReqRow met={reqLetter} label={t('signIn.reqLetter')} styles={styles} colors={colors} />
+                <ReqRow met={reqUpper} label={t('signIn.reqUpper')} styles={styles} colors={colors} />
+                <ReqRow met={reqLower} label={t('signIn.reqLower')} styles={styles} colors={colors} />
                 <ReqRow met={reqNum} label={t('signIn.reqNum')} styles={styles} colors={colors} />
               </Animated.View>
             ) : null}
@@ -334,8 +344,7 @@ export default function SignIn() {
 
           </Animated.View>
         </View>
-        </Pressable>
-      </KeyboardAvoidingView>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -412,7 +421,11 @@ function ReqRow({ met, label, styles, colors }: { met: boolean; label: string; s
 const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   fill: { flex: 1 },
-  body: { flex: 1, justifyContent: 'center', paddingHorizontal: space.xl },
+  // flexGrow (not flex) keeps the form vertically centred when it fits and lets
+  // it scroll when it doesn't — the iPad clipping fix.
+  scroll: { flexGrow: 1, justifyContent: 'center', paddingVertical: space.xl },
+  // maxWidth stops the fields spanning a full iPad width.
+  body: { width: '100%', maxWidth: 480, alignSelf: 'center', paddingHorizontal: space.xl },
   hero: { alignItems: 'center', marginBottom: space.lg },
   brand: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, textAlign: 'center' },
   tagline: {

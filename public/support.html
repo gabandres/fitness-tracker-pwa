@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support — Ignia</title>
+<meta name="description" content="Get help with Ignia: contact, FAQ, account deletion, bug reports and feature requests.">
+<meta name="theme-color" content="#f2ead7">
+<link rel="icon" href="/favicon.png">
+<style>
+  :root {
+    --paper: #f2ead7;
+    --ink: #201c17;
+    --muted: #6b6355;
+    --line: #ddd2b8;
+    --card: #fbf7ec;
+    --flame: #d4541e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #16130f;
+      --ink: #f2ead7;
+      --muted: #a49a88;
+      --line: #322b22;
+      --card: #1f1a14;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 40px 20px 72px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  header svg { width: 34px; height: 34px; flex: none; }
+  header .name { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+  h1 { font-size: 32px; line-height: 1.2; letter-spacing: -0.02em; margin: 20px 0 8px; }
+  h2 { font-size: 19px; margin: 36px 0 10px; letter-spacing: -0.01em; }
+  h3 { font-size: 16px; margin: 22px 0 4px; }
+  p { margin: 0 0 12px; }
+  .lede { color: var(--muted); font-size: 17px; margin-bottom: 28px; }
+  a { color: var(--flame); }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px 22px;
+    margin: 20px 0;
+  }
+  .card p:last-child { margin-bottom: 0; }
+  .mail {
+    display: inline-block;
+    background: var(--ink);
+    color: var(--paper);
+    text-decoration: none;
+    font-weight: 700;
+    border-radius: 10px;
+    padding: 12px 20px;
+    margin-top: 6px;
+  }
+  dl { margin: 0; }
+  dt { font-weight: 700; margin-top: 18px; }
+  dd { margin: 4px 0 0; color: var(--muted); }
+  ul { margin: 0 0 12px; padding-left: 20px; color: var(--muted); }
+  footer {
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 14px;
+  }
+  footer a { color: var(--muted); }
+  .sep { opacity: 0.5; padding: 0 8px; }
+  [lang="es"] { border-top: 1px solid var(--line); margin-top: 44px; padding-top: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <svg viewBox="0 0 48 48" aria-hidden="true">
+      <path d="M24 3c1.6 7.4 6.4 10.6 9.9 14.6C37.6 21.7 39 25.4 39 29.3 39 37.4 32.3 44 24 44S9 37.4 9 29.3c0-4.6 2-8.2 4.6-11.3 1 1.6 2.3 2.8 3.9 3.4-.7-6.9 2.4-13.4 6.5-18.4z" fill="#d4541e"/>
+      <path d="M24 44c-4.6 0-8.3-3.6-8.3-8 0-2.5 1.1-4.5 2.6-6.3 2-2.3 3.9-4.7 4.6-8.2 2.2 3.1 4 4.6 5.9 6.8 2 2.3 3.5 4.7 3.5 7.7 0 4.4-3.7 8-8.3 8z" fill="#f5a524"/>
+    </svg>
+    <span class="name">Ignia</span>
+  </header>
+
+  <h1>Support</h1>
+  <p class="lede">
+    Ignia is a free, private calorie and protein tracker. If something is broken,
+    confusing, or missing, email me — a real person reads every message.
+  </p>
+
+  <div class="card">
+    <h2 style="margin-top:0">Contact</h2>
+    <p>
+      Email me with anything: bug reports, questions, account or data deletion
+      requests, feature ideas, or complaints.
+    </p>
+    <!-- email_off/email_on disables Cloudflare Scrape Shield's email
+         obfuscation, which otherwise replaces the address with a placeholder
+         behind a JS decoder — i.e. the support contact reads as broken to
+         anyone (App Review included) whose first paint lacks JS. -->
+    <!--email_off--><a class="mail" href="mailto:gabrielandresbermudez@gmail.com?subject=Ignia%20support">gabrielandresbermudez@gmail.com</a><!--email_on-->
+    <p style="margin-top:14px; color: var(--muted); font-size: 14px;">
+      Typical reply time: within 2 business days. Please include your device
+      (iPhone / iPad / Android), the app version, and what you were doing when
+      the problem happened.
+    </p>
+  </div>
+
+  <h2>Frequently asked questions</h2>
+  <dl>
+    <dt>How much does Ignia cost?</dt>
+    <dd>Nothing. Every feature in the app is free. There is an optional tip if you want to support development — it unlocks no features.</dd>
+
+    <dt>How do I delete my account and data?</dt>
+    <dd>In the app: open <strong>Settings → Delete account</strong>. This permanently removes your account and all logged data. You can also email me and I'll do it for you.</dd>
+
+    <dt>How do I export my data?</dt>
+    <dd><strong>Settings → Data → Download CSV</strong> exports your full log history.</dd>
+
+    <dt>I forgot my password.</dt>
+    <dd>Tap <strong>Forgot password</strong> on the sign-in screen and we'll email you a reset link. If you originally signed up with Google or Apple, use that same button to sign back in — there's no password on those accounts.</dd>
+
+    <dt>The barcode scanner won't open the camera.</dt>
+    <dd>Camera access was declined. Open <strong>iOS Settings → Ignia → Camera</strong> (or Android <strong>Settings → Apps → Ignia → Permissions</strong>) and allow camera access. Ignia only uses the camera to read barcodes; no photos are stored or uploaded.</dd>
+
+    <dt>My calorie target looks wrong.</dt>
+    <dd>Targets come from your height, weight, age, activity level and goal. Re-check them in <strong>Settings → Goals</strong>. Ignia also recalibrates your daily target over time from your real weight trend.</dd>
+
+    <dt>Does Ignia work offline?</dt>
+    <dd>The web app (<a href="https://ignia.fit">ignia.fit</a>) works offline and syncs when you reconnect. The mobile app needs a connection to sync between devices.</dd>
+
+    <dt>Is my data private?</dt>
+    <dd>Yes. Your logs are yours. Ignia does not sell data and shows no ads. See the <a href="https://ignia.fit/privacy">privacy policy</a> for specifics.</dd>
+
+    <dt>How do I report a bug?</dt>
+    <dd>Email the address above with a screenshot if you can. Bug reports are the fastest way to get something fixed.</dd>
+  </dl>
+
+  <section lang="es">
+    <h2>Soporte (Español)</h2>
+    <p>
+      Ignia es un contador de calorías y proteína gratis y privado. Si algo no
+      funciona o tienes una pregunta, escríbeme directamente:
+    </p>
+    <p><!--email_off--><a href="mailto:gabrielandresbermudez@gmail.com?subject=Soporte%20Ignia">gabrielandresbermudez@gmail.com</a><!--email_on--></p>
+    <p style="color: var(--muted); font-size: 14px;">
+      Respondo normalmente en menos de 2 días hábiles. Para borrar tu cuenta y
+      tus datos: <strong>Ajustes → Eliminar cuenta</strong>. Para exportar:
+      <strong>Ajustes → Datos → Descargar CSV</strong>.
+    </p>
+  </section>
+
+  <footer>
+    <a href="https://ignia.fit">ignia.fit</a><span class="sep">·</span>
+    <a href="https://ignia.fit/privacy">Privacy</a><span class="sep">·</span>
+    <a href="https://ignia.fit/terms">Terms</a><span class="sep">·</span>
+    <a href="https://ignia.fit/faq">FAQ</a>
+  </footer>
+
+</div>
+</body>
+</html>

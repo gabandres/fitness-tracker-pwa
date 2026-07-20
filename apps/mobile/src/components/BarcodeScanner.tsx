@@ -1,6 +1,6 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { FoodSource } from '@macrolog/core';
 import { type BarcodeResult, lookupProduct } from '@/lib/barcode';
@@ -30,13 +30,16 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onPick: (estimate: BarcodeEstimate) => void;
+  /** Camera access is permanently denied — there is no OS prompt left to show,
+   *  so the scanner bows out and the caller explains it inline instead. */
+  onDenied: () => void;
 }
 
 /** Full-screen barcode scanner (native only — expo-camera). Scans an EAN/UPC,
  *  looks it up on OpenFoodFacts, and emits a BarcodeEstimate that prefills
  *  the entry form. A `handled` latch makes the first scan win so the lookup
  *  fires once. */
-export function BarcodeScanner({ visible, onClose, onPick }: Props) {
+export function BarcodeScanner({ visible, onClose, onPick, onDenied }: Props) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
@@ -61,6 +64,16 @@ export function BarcodeScanner({ visible, onClose, onPick }: Props) {
       requestPermission();
     }
   }, [visible, permission, requestPermission]);
+
+  // Permanently denied: hand back to the caller rather than rendering our own
+  // message screen here. App Review 5.1.1(iv) (submission 5ba1c7f5) read the
+  // old in-modal "Open Settings / Cancel" screen as a pre-prompt with an exit
+  // button, so this surface now only ever shows a spinner or the live camera.
+  useEffect(() => {
+    if (visible && permission && !permission.granted && !permission.canAskAgain) {
+      onDenied();
+    }
+  }, [visible, permission, onDenied]);
 
   async function onScanned(barcode: string) {
     if (handled.current) return;
@@ -96,20 +109,10 @@ export function BarcodeScanner({ visible, onClose, onPick }: Props) {
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-        {!permission || (!permission.granted && permission.canAskAgain) ? (
-          // Loading, or the OS prompt is being presented (auto-requested above).
+        {!permission?.granted ? (
+          // Loading, the OS prompt is being presented (auto-requested above), or
+          // denied — in which case onDenied() is already closing this modal.
           <View style={styles.center}><ActivityIndicator color={colors.white} /></View>
-        ) : !permission.granted ? (
-          // Permanently denied — direct the user to Settings (no request to make).
-          <View style={styles.center}>
-            <Text style={styles.msg}>{t('barcode.permNeeded')}</Text>
-            <TouchableOpacity style={styles.btn} onPress={() => Linking.openSettings()}>
-              <Text style={styles.btnText}>{t('barcode.openSettings')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.cancel} onPress={onClose}>
-              <Text style={styles.cancelText}>{t('common.cancel')}</Text>
-            </TouchableOpacity>
-          </View>
         ) : (
           <View style={styles.fill}>
             <CameraView
@@ -138,7 +141,6 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xl, gap: space.md },
-  msg: { color: colors.white, fontSize: font.body, textAlign: 'center' },
   overlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', gap: space.lg },
   hint: { color: colors.white, fontSize: font.h3, fontWeight: '700' },
   reticle: {
@@ -150,8 +152,6 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     backgroundColor: 'transparent',
   },
   err: { color: '#ffb4a8', fontSize: font.small, textAlign: 'center', paddingHorizontal: space.xl },
-  btn: { backgroundColor: colors.white, borderRadius: radius.md, paddingHorizontal: space.xl, paddingVertical: space.md },
-  btnText: { color: colors.ink, fontWeight: '700', fontSize: font.body },
   cancel: { marginTop: space.lg, paddingHorizontal: space.xl, paddingVertical: space.md },
   cancelText: { color: colors.white, fontWeight: '700', fontSize: font.body },
 });

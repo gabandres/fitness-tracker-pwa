@@ -120,8 +120,11 @@ type Method = 'google' | 'microsoft' | 'apple' | 'email';
                 <div class="flex items-center gap-2 v2-caption" [style.color]="reqLen ? 'var(--v2-sage)' : 'var(--v2-ink-soft)'">
                   <span [style.color]="reqLen ? 'var(--v2-sage)' : 'var(--v2-rule)'">{{ reqLen ? '●' : '○' }}</span> {{ t('signin.reqLen') }}
                 </div>
-                <div class="flex items-center gap-2 v2-caption" [style.color]="reqLetter ? 'var(--v2-sage)' : 'var(--v2-ink-soft)'">
-                  <span [style.color]="reqLetter ? 'var(--v2-sage)' : 'var(--v2-rule)'">{{ reqLetter ? '●' : '○' }}</span> {{ t('signin.reqLetter') }}
+                <div class="flex items-center gap-2 v2-caption" [style.color]="reqUpper ? 'var(--v2-sage)' : 'var(--v2-ink-soft)'">
+                  <span [style.color]="reqUpper ? 'var(--v2-sage)' : 'var(--v2-rule)'">{{ reqUpper ? '●' : '○' }}</span> {{ t('signin.reqUpper') }}
+                </div>
+                <div class="flex items-center gap-2 v2-caption" [style.color]="reqLower ? 'var(--v2-sage)' : 'var(--v2-ink-soft)'">
+                  <span [style.color]="reqLower ? 'var(--v2-sage)' : 'var(--v2-rule)'">{{ reqLower ? '●' : '○' }}</span> {{ t('signin.reqLower') }}
                 </div>
                 <div class="flex items-center gap-2 v2-caption" [style.color]="reqNum ? 'var(--v2-sage)' : 'var(--v2-ink-soft)'">
                   <span [style.color]="reqNum ? 'var(--v2-sage)' : 'var(--v2-rule)'">{{ reqNum ? '●' : '○' }}</span> {{ t('signin.reqNum') }}
@@ -249,12 +252,15 @@ export class SignInComponent {
   protected lastNameValue = '';
   passwordValue = '';
 
-  // Live password rules (mirror the app checklist). Getters recompute on each
-  // keystroke because ngModel marks the OnPush view for check.
+  // Live password rules — MUST mirror the Identity Platform policy exactly
+  // (ENFORCE, min 10, upper + lower + numeric). Checking only "a letter" let
+  // `password12` show all-green and then fail server-side. Getters recompute on
+  // each keystroke because ngModel marks the OnPush view for check.
   protected get reqLen(): boolean { return this.passwordValue.length >= 10; }
-  protected get reqLetter(): boolean { return /[A-Za-z]/.test(this.passwordValue); }
+  protected get reqUpper(): boolean { return /[A-Z]/.test(this.passwordValue); }
+  protected get reqLower(): boolean { return /[a-z]/.test(this.passwordValue); }
   protected get reqNum(): boolean { return /\d/.test(this.passwordValue); }
-  protected get strongPassword(): boolean { return this.reqLen && this.reqLetter && this.reqNum; }
+  protected get strongPassword(): boolean { return this.reqLen && this.reqUpper && this.reqLower && this.reqNum; }
 
   protected async signInGoogle(): Promise<void> {
     await this.runPopup('google', () => this.auth.signInWithGoogle());
@@ -335,6 +341,10 @@ export class SignInComponent {
       case 'auth/invalid-email':
         return this.translation.t('signin.errorInvalidEmail');
       case 'auth/weak-password':
+      // Identity Platform's custom-policy rejection — a distinct code from
+      // weak-password, and previously unmapped, so a policy failure surfaced as
+      // a generic error with no hint about what was wrong.
+      case 'auth/password-does-not-meet-requirements':
         return this.translation.t('signin.errorWeakPassword');
       case 'auth/wrong-password':
       case 'auth/invalid-credential':

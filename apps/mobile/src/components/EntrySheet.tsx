@@ -4,10 +4,12 @@ import {
   Animated,
   Dimensions,
   Keyboard,
+  Linking,
   Modal,
   PanResponder,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -138,6 +140,10 @@ export function EntrySheet({
   const [manage, setManage] = useState(false);
   const [mode, setMode] = useState<'browse' | 'custom' | 'recipe' | 'recipeImport' | 'meal'>('browse');
   const [scannerOpen, setScannerOpen] = useState(false);
+  // Camera permanently denied: the scanner can't prompt again, so we say so
+  // here — in the app's own UI, not as a gate in front of an OS prompt
+  // (App Review 5.1.1(iv), submission 5ba1c7f5).
+  const [cameraDenied, setCameraDenied] = useState(false);
   // Serving context from the last search/scan prefill + the calories it
   // produced. If the user later edits calories the context is stale (a
   // different portion) → fall back to a manual serving:1 save.
@@ -510,12 +516,13 @@ export function EntrySheet({
   );
 
   const headerIcons = (
+    <>
     <View style={styles.iconRow}>
       <TouchableOpacity style={styles.iconBtn} onPress={() => { haptics.tap(); setMode('meal'); }} testID="open-mealtext">
         <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.ink} />
       </TouchableOpacity>
       {Platform.OS !== 'web' ? (
-        <TouchableOpacity style={styles.iconBtn} onPress={() => { haptics.tap(); setScannerOpen(true); }} testID="open-barcode">
+        <TouchableOpacity style={styles.iconBtn} onPress={() => { haptics.tap(); if (!cameraDenied) setScannerOpen(true); }} testID="open-barcode">
           <Ionicons name="barcode-outline" size={22} color={colors.ink} />
         </TouchableOpacity>
       ) : null}
@@ -528,6 +535,15 @@ export function EntrySheet({
         </TouchableOpacity>
       ) : null}
     </View>
+    {cameraDenied ? (
+      <View style={styles.camDenied}>
+        <Text style={styles.camDeniedText}>{t('barcode.permNeeded')}</Text>
+        <TouchableOpacity onPress={() => Linking.openSettings()} testID="barcode-perm-settings">
+          <Text style={styles.camDeniedLink}>{t('barcode.openSettings')}</Text>
+        </TouchableOpacity>
+      </View>
+    ) : null}
+    </>
   );
 
   return (
@@ -575,7 +591,15 @@ export function EntrySheet({
                   <View style={{ width: 22 }} />
                 </View>
 
-                <View style={styles.form}>
+                {/* Scrolls so the fields can never push Save/Delete out of the
+                    sheet when the keyboard is up — the actions row below stays
+                    pinned and reachable. */}
+                <ScrollView
+                  style={styles.formScroll}
+                  contentContainerStyle={styles.form}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                >
                   <Field label={t('entry.name')}>
                     <TextInputBase placeholder={t('entry.namePlaceholder')} value={label} onChangeText={setLabel} testID="entry-label" />
                   </Field>
@@ -641,7 +665,7 @@ export function EntrySheet({
                       <Text style={styles.savePresetText}>{t('entry.saveMyFood')}</Text>
                     </TouchableOpacity>
                   ) : null}
-                </View>
+                </ScrollView>
 
                 <View style={styles.actions}>
                   {editing && onDelete ? (
@@ -662,6 +686,10 @@ export function EntrySheet({
         <BarcodeScanner
           visible={scannerOpen}
           onClose={() => setScannerOpen(false)}
+          onDenied={() => {
+            setScannerOpen(false);
+            setCameraDenied(true);
+          }}
           onPick={(est) => {
             setScannerOpen(false);
             prefill(est);
@@ -757,10 +785,15 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.inputBg,
   },
+  // Camera-denied notice (shown in place, after the scan icon bows out).
+  camDenied: { marginTop: space.sm, gap: 2 },
+  camDeniedText: { fontSize: font.tiny, color: colors.muted },
+  camDeniedLink: { fontSize: font.tiny, color: colors.ink, fontWeight: '700', textDecorationLine: 'underline' },
   // custom
   customWrap: { flexShrink: 1 },
   customHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.sm },
   title: { fontSize: font.h2, fontWeight: '800', color: colors.ink },
+  formScroll: { flexShrink: 1 },
   form: { gap: space.md, paddingBottom: space.md },
   row3: { flexDirection: 'row', gap: space.sm },
   third: { flex: 1 },
