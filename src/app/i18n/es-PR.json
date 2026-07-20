@@ -213,7 +213,8 @@
       "privacy": "privacidad",
       "terms": "términos",
       "status": "estado",
-      "contact": "contacto"
+      "contact": "contacto",
+      "dataCredit": "Datos de alimentos de Open Food Facts (ODbL) y USDA FoodData Central."
     }
   },
   "settings": {
@@ -1102,6 +1103,8 @@
     "storeHeading": "Qué guardamos",
     "storeBody1": "Cuando inicias sesión con Google, guardamos tu correo, nombre de perfil y URL de la foto de perfil — nada más de tu cuenta de Google. Todo lo demás en Ignia son cosas que tú mismo escribes: peso, calorías, proteína, fechas, medidas corporales, etiquetas de comidas, toggles de entrenamiento, y presets personalizados.",
     "storeBody2": "Todo esto se guarda en Google Cloud Firestore, limitado a tu ID de usuario. Nadie más — ni nosotros — puede leerlo sin tu inicio de sesión de Google.",
+    "healthHeading": "Apple Health y Health Connect",
+    "healthBody": "Si conectas Apple Health (iOS) o Health Connect (Android), Ignia lee solo las métricas que apruebes — peso, sueño y agua — y escribe de vuelta el peso, sueño, agua y nutrición que registras, para mantener ambos sincronizados. Este intercambio ocurre en tu dispositivo entre Ignia y el almacén de salud del sistema. Los datos de salud se usan únicamente para mantener tu propio registro al día: nunca los usamos para publicidad, nunca los vendemos, nunca los compartimos con terceros y nunca los usamos para entrenar modelos. Puedes revocar el acceso cuando quieras en Ajustes de iOS → Privacidad y seguridad → Salud, o en la app Health Connect en Android; revocarlo no borra lo que ya esté guardado en tu registro de Ignia. Eliminar tu cuenta borra esos datos junto con todo lo demás.",
     "geminiHeading": "Qué enviamos a Gemini AI de Google",
     "geminiIntro": "Dos funciones envían datos a Gemini AI de Google:",
     "geminiPhoto": "<strong>Foto-a-Macros</strong>: la foto de comida que tomas se envía a Gemini 2.0 Flash para estimar calorías y proteína. Las fotos se procesan en el momento y nosotros no las retenemos. Aplica la política de retención de la API de Google — ver <a href='https://ai.google.dev/gemini-api/terms' target='_blank' rel='noopener' class='underline'>términos de la API de Gemini</a>.",

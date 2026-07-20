@@ -43,6 +43,11 @@ type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'error';
         <p>{{ t('privacy.storeBody1') }}</p>
         <p>{{ t('privacy.storeBody2') }}</p>
 
+        <!-- Apple requires HealthKit data handling to be disclosed in the
+             privacy policy (5.1.3); the mobile app ships Health read+write. -->
+        <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('privacy.healthHeading') }}</h2>
+        <p>{{ t('privacy.healthBody') }}</p>
+
         <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('privacy.geminiHeading') }}</h2>
         <p>{{ t('privacy.geminiIntro') }}</p>
         <ul>

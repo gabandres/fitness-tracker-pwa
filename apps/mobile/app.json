@@ -83,8 +83,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Ignia uses your photos so you can attach meal images.",
-          "cameraPermission": "Ignia uses the camera to scan your meals."
+          "photosPermission": "Ignia uses your photo library only if you choose a meal photo to log.",
+          "cameraPermission": "Ignia uses the camera to scan food barcodes."
         }
       ],
       [

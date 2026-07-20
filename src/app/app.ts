@@ -450,6 +450,9 @@ import { UiBrandLoader } from './components/ui/brand-loader.component';
             <a href="/status" style="color: var(--v2-ink-muted); text-decoration: underline; text-decoration-style: dotted; display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; vertical-align: middle;">{{ t('app.footer.status') }}</a>
             &middot;
             <a href="mailto:gabrielandresbermudez&#64;gmail.com" style="color: var(--v2-ink-muted); text-decoration: underline; text-decoration-style: dotted; display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; vertical-align: middle;">{{ t('app.footer.contact') }}</a>
+            <!-- Open Food Facts is ODbL — attribution is a licence obligation,
+                 and Apple 5.2.2 asks for proof of third-party data rights. -->
+            <p class="v2-caption" style="margin-top: 8px; opacity: 0.75;">{{ t('app.footer.dataCredit') }}</p>
           </div>
         </footer>
         }

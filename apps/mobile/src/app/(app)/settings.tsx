@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Linking, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import { type ImportParseError, type ImportParseResult, type UnitSystem, parseImportCsv } from '@macrolog/core';
@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
 import { importLogs, setCalorieFloor, setPreferredLocale, setUnitSystem, setWeeklyDigestOptIn } from '@/lib/ledger';
 import { exportDataCsv } from '@/lib/dataExport';
+import { deleteAccountForever } from '@/lib/deleteAccount';
 import { isTipIapAvailable } from '@/lib/purchases';
 import { TipSheet } from '@/components/TipSheet';
 import { useHealthSync } from '@/lib/health-sync';
@@ -72,8 +73,49 @@ export default function Settings() {
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderHour, setReminderHour] = useState(DEFAULT_REMINDER_HOUR);
   const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [showTip, setShowTip] = useState(false);
   const [exportMsg, setExportMsg] = useState<string | null>(null);
+
+  /** Two-step confirm, then delete in-app (Apple 5.1.1(v)). The callable
+   *  cascades Firestore + Storage + the Auth user; deleting the Auth user
+   *  invalidates our token, so we sign out locally either way and let the
+   *  root AuthGate return to the sign-in screen. */
+  function confirmDeleteAccount() {
+    if (deleting) return;
+    haptics.tap();
+    Alert.alert(t('settings.deleteAccount'), t('settings.deleteConfirmBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('settings.deleteConfirmCta'),
+        style: 'destructive',
+        onPress: () => {
+          Alert.alert(t('settings.deleteFinalTitle'), t('settings.deleteFinalBody'), [
+            { text: t('common.cancel'), style: 'cancel' },
+            { text: t('settings.deleteFinalCta'), style: 'destructive', onPress: runDeleteAccount },
+          ]);
+        },
+      },
+    ]);
+  }
+
+  async function runDeleteAccount() {
+    setDeleting(true);
+    try {
+      await deleteAccountForever();
+    } catch (e) {
+      setDeleting(false);
+      Alert.alert(t('settings.deleteAccount'), t('settings.deleteFailed'));
+      console.warn('deleteAccount failed', e);
+      return;
+    }
+    try {
+      await signOut();
+    } catch {
+      // The Auth user is already gone; a failed local sign-out is not fatal.
+    }
+    setDeleting(false);
+  }
 
   async function onExport() {
     if (!user || exporting) return;
@@ -325,6 +367,39 @@ export default function Settings() {
           </TouchableOpacity>
         </View>
         <TipSheet visible={showTip} onClose={() => setShowTip(false)} />
+
+        {/* Legal — Apple 5.1.1(i) requires the privacy policy to be reachable
+            inside the app, and 1.4.1 wants a medical disclaimer on a health
+            app. The Open Food Facts credit satisfies ODbL attribution (5.2.2). */}
+        <Text style={styles.section}>{t('settings.legal')}</Text>
+        <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => Linking.openURL('https://ignia.fit/privacy')}
+            testID="settings-privacy"
+          >
+            <Text style={styles.rowLabel}>{t('settings.privacyPolicy')}</Text>
+            <Ionicons name="open-outline" size={16} color={colors.muted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => Linking.openURL('https://ignia.fit/terms')}
+            testID="settings-terms"
+          >
+            <Text style={styles.rowLabel}>{t('settings.termsOfUse')}</Text>
+            <Ionicons name="open-outline" size={16} color={colors.muted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => Linking.openURL('https://ignia.fit/support')}
+            testID="settings-help"
+          >
+            <Text style={styles.rowLabel}>{t('settings.supportHelp')}</Text>
+            <Ionicons name="open-outline" size={16} color={colors.muted} />
+          </TouchableOpacity>
+          <Text style={styles.legalNote}>{t('settings.medicalDisclaimer')}</Text>
+          <Text style={styles.legalNote}>{t('settings.dataCredit')}</Text>
+        </View>
 
         <Text style={styles.section}>{t('settings.units')}</Text>
         <View style={styles.card}>
@@ -589,16 +664,25 @@ export default function Settings() {
             <Text style={styles.signOutText}>{t('settings.signOut')}</Text>
           </TouchableOpacity>
           <View style={styles.deleteDivider} />
+          {/* Deletion runs IN-APP (Apple 5.1.1(v)) — this used to open the web
+              privacy page, which does not satisfy the guideline. */}
           <TouchableOpacity
             style={styles.deleteRow}
-            onPress={() => Linking.openURL('https://ignia.fit/privacy#delete')}
+            onPress={confirmDeleteAccount}
+            disabled={deleting}
             testID="settings-delete-account"
           >
             <View style={{ flex: 1 }}>
               <Text style={styles.deleteLabel}>{t('settings.deleteAccount')}</Text>
-              <Text style={styles.rowValue}>{t('settings.deleteAccountSub')}</Text>
+              <Text style={styles.rowValue}>
+                {deleting ? t('settings.deleteAccountBusy') : t('settings.deleteAccountSub')}
+              </Text>
             </View>
-            <Ionicons name="open-outline" size={16} color={colors.muted} />
+            {deleting ? (
+              <ActivityIndicator color={colors.danger} />
+            ) : (
+              <Ionicons name="trash-outline" size={16} color={colors.danger} />
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -636,6 +720,8 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   rowLabel: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
+  linkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.sm },
+  legalNote: { fontSize: font.tiny, color: colors.muted, marginTop: space.sm, lineHeight: font.tiny * 1.5 },
   rowValue: { fontSize: font.body, color: colors.muted, marginTop: 2 },
   rowValueRight: { fontSize: font.body, color: colors.muted, maxWidth: '60%', textAlign: 'right' },
   rowSub: { fontSize: font.small, color: colors.faint, marginTop: 2 },
