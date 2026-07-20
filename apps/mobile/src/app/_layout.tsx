@@ -33,7 +33,7 @@ function Splash() {
 /** Redirects between the authed tab group and the sign-in screen as auth
  *  state settles. The `(app)` group holds every signed-in surface. */
 function AuthGate({ fontsReady }: { fontsReady: boolean }) {
-  const { user, initializing, profile, profileLoading } = useAuth();
+  const { user, initializing, profile, profileLoading, emailVerified } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -42,12 +42,22 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
     const route = segments[0];
     const inApp = route === '(app)';
     const onOnboarding = route === 'onboarding';
+    const onVerify = route === 'verify-email';
 
     if (!user) {
-      if (inApp || onOnboarding) router.replace('/sign-in');
+      if (inApp || onOnboarding || onVerify) router.replace('/sign-in');
       return;
     }
-    // Signed in — wait for the profile before choosing onboarding vs app.
+    // Email/password signups must verify before they can write anything
+    // (firestore.rules gate every create/update on email_verified). Federated
+    // providers return verified emails, so they fall straight through. Once
+    // verified, the routing below (which sees onVerify as neither inApp nor
+    // onOnboarding) sends them to onboarding or the app.
+    if (!emailVerified) {
+      if (!onVerify) router.replace('/verify-email');
+      return;
+    }
+    // Signed in and verified — wait for the profile before choosing onboarding.
     if (profileLoading) return;
     const needsOnboarding = !profile?.profileCompleted;
     if (needsOnboarding && !onOnboarding) {
@@ -57,7 +67,7 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
       // open it deliberately (Settings → Edit goals / redo).
       router.replace('/(app)');
     }
-  }, [user, initializing, profile, profileLoading, segments, router]);
+  }, [user, initializing, emailVerified, profile, profileLoading, segments, router]);
 
   // Always mount <Slot/> so the navigator exists when the redirect effect
   // fires; cover it with the splash while auth/profile/fonts settle.

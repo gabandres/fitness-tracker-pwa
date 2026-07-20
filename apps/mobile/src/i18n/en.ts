@@ -589,6 +589,21 @@ export const en = {
   'history.protein': 'Protein',
   'history.weight': 'Weight',
   'history.noEntries': 'Nothing logged this day.',
+  'verify.section': 'email check',
+  'verify.title': 'Verify your email to continue.',
+  'verify.bodyPrefix': 'We sent a verification link to ',
+  'verify.bodySuffix': '. Tap it, then come back and refresh.',
+  'verify.hint': 'No email? Check your spam or junk folder — it often lands there. Or resend below.',
+  'verify.checkNow': 'I verified — refresh',
+  'verify.checking': 'Checking…',
+  'verify.resend': 'Resend email',
+  'verify.resending': 'Sending…',
+  'verify.resent': 'Email sent',
+  'verify.signOut': 'Use a different account',
+  'verify.notYet': 'Still not verified — tap the link in the email, then refresh.',
+  'verify.checkFailed': "Couldn't refresh status. Try again.",
+  'verify.resendFailed': "Couldn't resend the email. Try again.",
+  'onboarding.saveErrVerify': 'Please verify your email first (check your inbox or spam), then try again.',
 } as const;
 
 export type I18nKey = keyof typeof en;

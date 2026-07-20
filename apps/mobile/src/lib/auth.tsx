@@ -158,6 +158,17 @@ interface AuthState {
   /** True until the first profile snapshot arrives — gates the onboarding
    *  redirect so we don't flash it before the doc loads. */
   profileLoading: boolean;
+  /** Whether the signed-in user's email is verified. Email/password signups
+   *  start false; federated providers (Google/Apple) return verified emails.
+   *  Firestore rules block all writes until this is true, so the gate routes
+   *  unverified users to the verify-email screen. */
+  emailVerified: boolean;
+  /** Reloads the Firebase user, force-refreshes the ID token so the rules see
+   *  the new `email_verified` claim, bootstraps the profile doc that the
+   *  unverified create was rejected for, and returns whether it's now verified. */
+  reloadUser: () => Promise<boolean>;
+  /** Re-sends the verification email to the current user. */
+  resendVerification: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   /** Creates a new email/password account and signs in. Sets the Firebase Auth
    *  displayName when provided, and sends a (best-effort) verification email.
@@ -192,6 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [initializing, setInitializing] = useState(true);
   const [isPro, setIsPro] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
   // Profile is keyed by uid so "loaded for the current user" is derivable
   // synchronously — no effect-set flag that lags a render behind `user` and
   // briefly makes a signed-in user look un-onboarded.
@@ -253,15 +265,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     return onAuthStateChanged(auth, async (u) => {
       setUser(u);
+      setEmailVerified(u?.emailVerified ?? false);
       if (u) {
         // Create users/{uid} on first sign-in if it doesn't exist yet, so a
         // mobile-first new user has a profile doc for onboarding to update.
         // Best-effort: a failure here surfaces later as a save error, not a
         // dead sign-in. Runs before the profile subscription resolves.
-        try {
-          await ensureProfile(u.uid);
-        } catch (e) {
-          console.warn('ensureProfile failed', e);
+        //
+        // Only attempt it once verified — the rules reject a create from an
+        // unverified user, so for an email/password signup the doc is created
+        // later by reloadUser() the moment verification completes.
+        if (u.emailVerified) {
+          try {
+            await ensureProfile(u.uid);
+          } catch (e) {
+            console.warn('ensureProfile failed', e);
+          }
         }
         try {
           const token = await u.getIdTokenResult();
@@ -305,6 +324,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isPro,
       profile,
       profileLoading,
+      emailVerified,
+      reloadUser: async () => {
+        const u = auth.currentUser;
+        if (!u) return false;
+        await u.reload();
+        const fresh = auth.currentUser;
+        const verified = fresh?.emailVerified ?? false;
+        if (verified && fresh) {
+          // Force a new ID token so the Firestore rules see email_verified:true
+          // on the very next write (the cached token still says false).
+          try {
+            await fresh.getIdToken(true);
+          } catch {
+            // Non-fatal — the token refreshes on its own within the hour.
+          }
+          // The profile-doc create was rejected while unverified; now it passes.
+          try {
+            await ensureProfile(fresh.uid);
+          } catch (e) {
+            console.warn('ensureProfile failed', e);
+          }
+          setUser(fresh);
+        }
+        setEmailVerified(verified);
+        return verified;
+      },
+      resendVerification: async () => {
+        const u = auth.currentUser;
+        if (!u) throw new Error('no-user');
+        await sendEmailVerification(u);
+      },
       googleAvailable,
       signIn: async (email, password) => {
         try {
@@ -466,6 +516,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isPro,
       profile,
       profileLoading,
+      emailVerified,
       googleAvailable,
       microsoftAvailable,
       msRequest,

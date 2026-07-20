@@ -93,8 +93,13 @@ export default function Onboarding() {
       });
       haptics.success();
       router.replace(isRedo ? '/settings' : '/(app)');
-    } catch {
-      setError(t('onboarding.saveErr'));
+    } catch (e) {
+      // A permission-denied here means the email isn't verified (the rules
+      // block the write) — surface that instead of blaming the connection.
+      // With the verify-email gate in place this is a rare fallback, but the
+      // token can lag verification by up to an hour.
+      const code = (e as { code?: string })?.code;
+      setError(t(code === 'permission-denied' ? 'onboarding.saveErrVerify' : 'onboarding.saveErr'));
       setBusy(false);
     }
   }
