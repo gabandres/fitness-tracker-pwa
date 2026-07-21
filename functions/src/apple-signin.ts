@@ -1,7 +1,6 @@
 import { createPrivateKey, sign as cryptoSign } from "node:crypto";
 import { Timestamp } from "firebase-admin/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { defineSecret } from "firebase-functions/params";
 import { db } from "./init";
 import { ErrorCode } from "./error-codes";
 
@@ -16,12 +15,23 @@ import { ErrorCode } from "./error-codes";
  * (a subcollection no client rule grants access to). On account deletion
  * (gdpr.ts) we read it back and call Apple's revoke endpoint.
  *
- * Owner setup — the 3 secrets below MUST be set before deploying, or
- * `firebase deploy --only functions` fails (same as GEMINI_API_KEY / USDA):
- *   firebase functions:secrets:set APPLE_SIGNIN_PRIVATE_KEY   # the .p8 contents
- *   firebase functions:secrets:set APPLE_SIGNIN_KEY_ID        # 10-char Key ID
- *   firebase functions:secrets:set APPLE_SIGNIN_TEAM_ID       # 10-char Team ID
- * Create the key at developer.apple.com → Keys → enable "Sign in with Apple".
+ * DEPLOY-SAFE / DORMANT until configured: this reads its Apple config from
+ * process.env and no-ops (throws, which callers on the delete path swallow)
+ * when unset, so it ships without any secret bound. Revocation stays inert
+ * until the owner turns it on.
+ *
+ * TO ACTIVATE (owner):
+ *   1. Create a key at developer.apple.com → Keys → enable "Sign in with Apple".
+ *   2. Set the three secrets:
+ *        firebase functions:secrets:set APPLE_SIGNIN_PRIVATE_KEY   # .p8 contents
+ *        firebase functions:secrets:set APPLE_SIGNIN_KEY_ID        # 10-char Key ID
+ *        firebase functions:secrets:set APPLE_SIGNIN_TEAM_ID       # 10-char Team ID
+ *   3. Bind them so Firebase injects them into process.env — add
+ *        { secrets: [defineSecret("APPLE_SIGNIN_PRIVATE_KEY"),
+ *                    defineSecret("APPLE_SIGNIN_KEY_ID"),
+ *                    defineSecret("APPLE_SIGNIN_TEAM_ID")] }
+ *      to BOTH `registerAppleRefreshToken` (here) and `deleteAccount` (gdpr.ts),
+ *      then redeploy. Reading process.env already works with bound secrets.
  */
 
 // For a NATIVE iOS app the SIWA client_id is the app's bundle id (not a
@@ -30,12 +40,13 @@ const APPLE_CLIENT_ID = "fit.ignia.app";
 const APPLE_TOKEN_URL = "https://appleid.apple.com/auth/token";
 const APPLE_REVOKE_URL = "https://appleid.apple.com/auth/revoke";
 
-export const applePrivateKey: ReturnType<typeof defineSecret> = defineSecret("APPLE_SIGNIN_PRIVATE_KEY");
-export const appleKeyId: ReturnType<typeof defineSecret> = defineSecret("APPLE_SIGNIN_KEY_ID");
-export const appleTeamId: ReturnType<typeof defineSecret> = defineSecret("APPLE_SIGNIN_TEAM_ID");
-
-/** All three Apple secrets, for binding to any function that revokes tokens. */
-export const APPLE_SECRETS: ReturnType<typeof defineSecret>[] = [applePrivateKey, appleKeyId, appleTeamId];
+/** Reads an Apple config value from the environment (populated once the secret
+ *  is bound). Throws when unset so the delete-path caller can skip gracefully. */
+function appleEnv(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`Apple Sign-In not configured: ${name} is unset`);
+  return v;
+}
 
 function b64url(input: Buffer | string): string {
   return Buffer.from(input).toString("base64url");
@@ -48,16 +59,16 @@ function b64url(input: Buffer | string): string {
  */
 function makeClientSecret(): string {
   const now = Math.floor(Date.now() / 1000);
-  const header = { alg: "ES256", kid: appleKeyId.value() };
+  const header = { alg: "ES256", kid: appleEnv("APPLE_SIGNIN_KEY_ID") };
   const payload = {
-    iss: appleTeamId.value(),
+    iss: appleEnv("APPLE_SIGNIN_TEAM_ID"),
     iat: now,
     exp: now + 300, // Apple caps client-secret lifetime; 5 min is plenty.
     aud: "https://appleid.apple.com",
     sub: APPLE_CLIENT_ID,
   };
   const signingInput = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(payload))}`;
-  const key = createPrivateKey(applePrivateKey.value());
+  const key = createPrivateKey(appleEnv("APPLE_SIGNIN_PRIVATE_KEY"));
   const signature = cryptoSign("sha256", Buffer.from(signingInput), { key, dsaEncoding: "ieee-p1363" });
   return `${signingInput}.${b64url(signature)}`;
 }
@@ -111,7 +122,7 @@ export async function revokeAppleToken(refreshToken: string): Promise<void> {
  * only means we can't revoke on deletion — it never blocks sign-in.
  */
 export const registerAppleRefreshToken = onCall(
-  { secrets: APPLE_SECRETS, maxInstances: 5 },
+  { maxInstances: 5 },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Must be signed in.", { code: ErrorCode.UNAUTHENTICATED });
