@@ -1,8 +1,16 @@
 import { createPrivateKey, sign as cryptoSign } from "node:crypto";
 import { Timestamp } from "firebase-admin/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
 import { db } from "./init";
 import { ErrorCode } from "./error-codes";
+
+// Bound so Firebase injects them into process.env at runtime. Deploy requires
+// all three to exist (`firebase functions:secrets:set …`).
+export const applePrivateKey: ReturnType<typeof defineSecret> = defineSecret("APPLE_SIGNIN_PRIVATE_KEY");
+export const appleKeyId: ReturnType<typeof defineSecret> = defineSecret("APPLE_SIGNIN_KEY_ID");
+export const appleTeamId: ReturnType<typeof defineSecret> = defineSecret("APPLE_SIGNIN_TEAM_ID");
+export const APPLE_SECRETS: ReturnType<typeof defineSecret>[] = [applePrivateKey, appleKeyId, appleTeamId];
 
 /**
  * Sign in with Apple token revocation (App Review 5.1.1(v)).
@@ -122,7 +130,7 @@ export async function revokeAppleToken(refreshToken: string): Promise<void> {
  * only means we can't revoke on deletion — it never blocks sign-in.
  */
 export const registerAppleRefreshToken = onCall(
-  { maxInstances: 5 },
+  { secrets: APPLE_SECRETS, maxInstances: 5 },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Must be signed in.", { code: ErrorCode.UNAUTHENTICATED });

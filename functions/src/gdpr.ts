@@ -5,7 +5,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { ErrorCode } from "./error-codes";
 import { callerAccess, dailyQuota, db } from "./init";
 import { redactProfileSecrets } from "./redact";
-import { revokeAppleToken } from "./apple-signin";
+import { APPLE_SECRETS, revokeAppleToken } from "./apple-signin";
 
 // ─── GDPR: data export (Art. 20) + account deletion (Art. 17) ──────
 
@@ -146,7 +146,7 @@ export const exportUserData = onCall({ maxInstances: 5 }, async (request) => {
   return payload;
 });
 
-export const deleteAccount = onCall(async (request) => {
+export const deleteAccount = onCall({ secrets: APPLE_SECRETS }, async (request) => {
   const { uid } = await callerAccess.resolveCaller(request, {
     collection: "deleteRateLimit",
     minIntervalMs: DELETE_ACCOUNT_MIN_INTERVAL_MS,
