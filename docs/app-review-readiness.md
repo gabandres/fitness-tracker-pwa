@@ -44,15 +44,8 @@ These cannot be done from the codebase.
 ### HIGH — Demo account MUST be pre-verified (2.1)
 Cited research confirms 2.1 demo accounts are Apple's single largest rejection bucket, AND surfaces a trap specific to us: the new email-verification gate + spam-landing verification emails mean a reviewer given an *unverified* account is walled out of the app. **`review@ignia.fit` is already email-verified and seeded — use it, and confirm it can write before submitting.** Never hand Apple a fresh unverified account.
 
-### ~~MEDIUM — SIWA token not revoked on deletion~~ BUILT 2026-07-20 (commit 97c6be15)
-Now implemented: mobile hands Apple's auth code to `registerAppleRefreshToken` after sign-in; `deleteAccount` revokes the stored token (best-effort, never blocks deletion). Also fixed a GDPR cascade gap (workoutSessions/Templates/exercises were orphaned on delete).
-**OWNER ACTION — deploy-gated:** `firebase deploy --only functions` will FAIL until 3 secrets are set (create a Sign-in-with-Apple key at developer.apple.com → Keys):
-```
-firebase functions:secrets:set APPLE_SIGNIN_PRIVATE_KEY   # .p8 contents
-firebase functions:secrets:set APPLE_SIGNIN_KEY_ID
-firebase functions:secrets:set APPLE_SIGNIN_TEAM_ID
-```
-Not needed for the iOS submission itself — only for the functions deploy that activates revocation.
+### ~~SIWA token not revoked on deletion~~ DONE + LIVE 2026-07-20 (commit ade8cb33)
+Implemented AND deployed. Mobile hands Apple's auth code to `registerAppleRefreshToken`; `deleteAccount` revokes the stored token on deletion (best-effort). 3 secrets set (Team `AE6TTXW92K`, Key `5WY4KMZG7W`, .p8), bindings deployed. Also fixed a GDPR cascade gap (workoutSessions/Templates/exercises + private were orphaned on delete). Nothing left here.
 
 ### MEDIUM/DISCRETIONARY — Health app submitted by an individual, not a legal entity (5.1.1(ix))
 The health-fitness page: a service in a highly regulated field like healthcare that collects sensitive data "should be submitted by a legal entity ... not by an individual developer." Ignia dropped its LLC and submits as a sole individual while accessing HealthKit. Enforcement is inconsistent (many individual-dev trackers pass); a simple calorie tracker is low-risk, but HealthKit raises exposure. Accepted risk per the LLC decision — but know a reviewer *can* raise it.
