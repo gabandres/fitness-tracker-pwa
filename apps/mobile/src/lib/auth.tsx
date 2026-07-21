@@ -45,6 +45,7 @@ import {
 import type { Profile } from '@macrolog/core';
 import { auth } from './firebase';
 import { ensureProfile, subscribeProfile } from './ledger';
+import { registerAppleRefreshToken } from './appleSignin';
 
 // Required for the web-OAuth popup/redirect to resolve when the app
 // regains focus after the Google consent screen.
@@ -466,6 +467,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           rawNonce,
         });
         await signInWithCredential(auth, fbCredential);
+        // Hand Apple's auth code to the server so deletion can revoke the token
+        // later (5.1.1(v)). Fire-and-forget — never block sign-in on this.
+        if (credential.authorizationCode) {
+          registerAppleRefreshToken(credential.authorizationCode).catch((e: unknown) =>
+            console.warn('apple refresh-token register failed', e),
+          );
+        }
       },
       microsoftAvailable,
       signInWithMicrosoft: async () => {

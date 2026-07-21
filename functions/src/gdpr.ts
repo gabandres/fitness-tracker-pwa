@@ -5,6 +5,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { ErrorCode } from "./error-codes";
 import { callerAccess, dailyQuota, db } from "./init";
 import { redactProfileSecrets } from "./redact";
+import { APPLE_SECRETS, revokeAppleToken } from "./apple-signin";
 
 // ─── GDPR: data export (Art. 20) + account deletion (Art. 17) ──────
 
@@ -145,7 +146,7 @@ export const exportUserData = onCall({ maxInstances: 5 }, async (request) => {
   return payload;
 });
 
-export const deleteAccount = onCall(async (request) => {
+export const deleteAccount = onCall({ secrets: APPLE_SECRETS }, async (request) => {
   const { uid } = await callerAccess.resolveCaller(request, {
     collection: "deleteRateLimit",
     minIntervalMs: DELETE_ACCOUNT_MIN_INTERVAL_MS,
@@ -161,9 +162,24 @@ export const deleteAccount = onCall(async (request) => {
     //    that's what this step is for.
     await cancelStripeSubscriptions(uid);
 
-    // 1. Delete all subcollections under users/{uid}.
-    //    Subcollections known to exist: dailyLogs, presets, reports,
-    //    dailyWeights, measurements, photos. Add new ones here when introduced.
+    // 0b. Revoke the Sign in with Apple token (App Review 5.1.1(v)). Read it
+    //     before step 1 wipes `private`. Best-effort: a revoke failure (or the
+    //     Apple secrets not being configured) must never block deletion —
+    //     deletion is the hard requirement, revocation the soft one.
+    try {
+      const appleSnap = await db.doc(`${userPath}/private/appleAuth`).get();
+      const refreshToken = appleSnap.get("refreshToken");
+      if (typeof refreshToken === "string" && refreshToken) {
+        await revokeAppleToken(refreshToken);
+      }
+    } catch (e) {
+      console.warn(`Apple token revoke failed for uid=${uid} (non-fatal):`, e);
+    }
+
+    // 1. Delete all subcollections under users/{uid}. Add new ones here when
+    //    introduced — Firestore does NOT cascade, so a missing name orphans that
+    //    data forever (GDPR Art. 17 gap). `private` holds the Apple refresh
+    //    token; the workout* + exercises trio was previously missing.
     await Promise.all([
       deleteSubcollection(userPath, "dailyLogs"),
       deleteSubcollection(userPath, "presets"),
@@ -174,6 +190,10 @@ export const deleteAccount = onCall(async (request) => {
       deleteSubcollection(userPath, "dailySleep"),
       deleteSubcollection(userPath, "measurements"),
       deleteSubcollection(userPath, "photos"),
+      deleteSubcollection(userPath, "workoutSessions"),
+      deleteSubcollection(userPath, "workoutTemplates"),
+      deleteSubcollection(userPath, "exercises"),
+      deleteSubcollection(userPath, "private"),
     ]);
 
     // 1b. Purge progress-photo BYTES from Storage (ADR-0010). The Firestore

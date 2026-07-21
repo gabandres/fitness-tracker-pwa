@@ -12,6 +12,7 @@ export { logWebhook } from "./log-webhook";
 export { analyzePhoto } from "./analyze-photo";
 export { consultationStream, checkAccessStatus } from "./consultation";
 export { exportUserData, deleteAccount } from "./gdpr";
+export { registerAppleRefreshToken } from "./apple-signin";
 export { generateWeeklyReport } from "./weekly-report";
 export { statusPulse, weeklyFirestoreBackup } from "./ops";
 export { hourlyTasks } from "./hourly-tasks";
