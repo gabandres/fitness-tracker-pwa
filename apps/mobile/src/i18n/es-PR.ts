@@ -444,6 +444,7 @@ export const esPR: Record<I18nKey, string> = {
   'settings.support': 'Apoya la app',
   'settings.supportBody': 'Ignia es gratis, sin anuncios y sin vender tus datos. Una pequeña propina ayuda a cubrir el costo — totalmente opcional y no desbloquea nada.',
   'settings.supportBtn': 'Dejar una propina',
+  'settings.rateApp': 'Califica Ignia en el App Store',
   'tip.title': 'Dejar una propina',
   'tip.body': 'Ignia es gratis — sin anuncios y sin vender tus datos. Una propina ayuda a cubrir el costo. No desbloquea nada; es solo un gracias.',
   'tip.small': 'Propina pequeña',

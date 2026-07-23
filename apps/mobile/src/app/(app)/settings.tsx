@@ -11,6 +11,7 @@ import { importLogs, setCalorieFloor, setPreferredLocale, setUnitSystem, setWeek
 import { exportDataCsv } from '@/lib/dataExport';
 import { deleteAccountForever } from '@/lib/deleteAccount';
 import { isTipIapAvailable } from '@/lib/purchases';
+import { APP_STORE_REVIEW_URL } from '@/lib/reviewPrompt';
 import { TipSheet } from '@/components/TipSheet';
 import { useHealthSync } from '@/lib/health-sync';
 import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
@@ -365,6 +366,22 @@ export default function Settings() {
             <Ionicons name="heart-outline" size={16} color={colors.onInk} />
             <Text style={styles.exportBtnText}>{t('settings.supportBtn')}</Text>
           </TouchableOpacity>
+          {/* A permanent, un-throttled path to the listing for users who
+              *want* to leave a rating. The in-app sheet (reviewPrompt.ts)
+              can only fire a handful of times per year and never on demand,
+              so it can't be the only route. `write-review` opens the
+              listing with the review composer already up. iOS-only until
+              the Play listing is live — there is nothing to link to yet. */}
+          {Platform.OS === 'ios' ? (
+            <TouchableOpacity
+              style={styles.linkRow}
+              onPress={() => Linking.openURL(APP_STORE_REVIEW_URL)}
+              testID="settings-rate"
+            >
+              <Text style={styles.rowLabel}>{t('settings.rateApp')}</Text>
+              <Ionicons name="star-outline" size={16} color={colors.muted} />
+            </TouchableOpacity>
+          ) : null}
         </View>
         <TipSheet visible={showTip} onClose={() => setShowTip(false)} />
 

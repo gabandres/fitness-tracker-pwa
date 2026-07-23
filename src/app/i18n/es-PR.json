@@ -163,7 +163,14 @@
     "comparisonsRule": "Cómo comparamos",
     "comparisonsLead": "Comparaciones honestas, lado a lado, contra las alternativas — incluyendo dónde ellas ganan.",
     "faqLink": "Lee el FAQ →",
-    "supportLink": "Apoya a Ignia"
+    "supportLink": "Apoya a Ignia",
+    "appStoreAlt": "Descarga Ignia en el App Store",
+    "getOnIphone": "Descárgala para iPhone",
+    "downloadStamp": "iphone",
+    "downloadHeadline": "Ignia ya está en el App Store.",
+    "downloadBody": "El mismo tracker, nativo en tu teléfono — gratis, sin anuncios, sin versión de pago. ¿Prefieres el navegador? Todo esto también funciona sin conexión como web app.",
+    "downloadAndroid": "Android todavía está en pruebas. Por ahora, abre Ignia en Chrome y añádela a tu pantalla de inicio.",
+    "downloadMore": "Todas las formas de conseguir Ignia →"
   },
   "app": {
     "skipToMain": "saltar al contenido principal",

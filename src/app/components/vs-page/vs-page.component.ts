@@ -94,6 +94,17 @@ import { VS_PROFILES, VsProfile, vsProfileFor } from './vs-data';
               {{ t('vs.ctaSignup') }}
             </a>
           </div>
+          <!-- Comparison pages are the highest-intent traffic on the site
+               ("MacroFactor alternative", "MyFitnessPal vs …"), so they get
+               a direct route to the store, not just to the web app. -->
+          <div class="mt-5 flex justify-center">
+            <a [href]="APP_STORE_URL" rel="noopener" (click)="trackCtaClick('appstore')"
+              [attr.aria-label]="t('landing.appStoreAlt')">
+              <img src="/appstore-badge.svg" alt="{{ t('landing.appStoreAlt') }}"
+                width="180" height="60" loading="lazy" decoding="async"
+                class="h-[48px] w-auto transition-transform duration-200 hover:scale-105" />
+            </a>
+          </div>
         </ui-card>
 
         <!-- Sibling links to the other comparison pages — both an SEO
@@ -140,7 +151,11 @@ export class VsPageComponent {
     if (p) this.analytics.track('vs_page_viewed', { competitor: p.slug });
   }
 
-  protected trackCtaClick(target: 'calculator' | 'signup'): void {
+  /** App Store listing — mirrors landing.component.ts and the
+   *  `apple-itunes-app` meta in src/index.html. */
+  protected readonly APP_STORE_URL = 'https://apps.apple.com/app/id6788589414';
+
+  protected trackCtaClick(target: 'calculator' | 'signup' | 'appstore'): void {
     const p = this.profile();
     if (!p) return;
     this.analytics.track('vs_cta_click', { competitor: p.slug, target });

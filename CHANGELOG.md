@@ -6,6 +6,14 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-07-23 — App Store funnel + in-app ratings
+
+The iOS app is live, so the site now points at it and the app can ask for the ratings that store ranking runs on.
+
+- **The website funnels to the App Store.** ignia.fit previously had no link to the listing at all — every visitor to the indexed SEO pages (`/calculator` and its 8 keyword variants, `/macros/*`, `/vs/*`, `/faq`) landed in the PWA with no idea a native app existed. There's now a `/download` page (bilingual, with the browser fallback), App Store badges on the landing hero, the download band, the comparison pages and the calculator CTA, and an `apple-itunes-app` smart banner for iOS Safari. Store clicks are tracked separately from web-signup clicks so the two routes can be compared.
+- **In-app rating prompt.** The native rating sheet now fires at genuine positive moments — finishing a workout, or extending a logging streak of 3+ days — after 4 distinct qualifying days, at most once per app version and never within 120 days of the last ask. iOS only shows the sheet 3 times a year per user, so requests are spent deliberately rather than on launch. Settings also gains a permanent **Rate Ignia** row for anyone who goes looking.
+- **Listing copy rewritten against the shipped build.** The store/positioning drafts still sold "$3/mo Pro", a 7-day trial and AI photo→macros — all of which are flag-disabled in v1. `docs/go-to-market.md` and `docs/producthunt-launch.md` were rewritten around what actually ships (free, adaptive TDEE, the training log, barcode + USDA/OFF search, AI coach, es-PR), with an explicit not-claimable list. Adds a Spanish (es-PR) listing draft. The homepage's structured data was carrying the same stale Pro pricing and photo-scan claims; it's now accurate and points at the listing.
+
 ## 2026-07-05 — Progress photos removed
 
 Progress photos (the Pro before/after body-photo gallery) are gone from both the web app and the Expo mobile app — a pre-launch scope cut to shrink the app's health-data / breach surface. No body-image bytes are stored anymore: Firebase Storage is locked down (deny-all rules) and account deletion still purges any previously uploaded `users/{uid}/photos/`.

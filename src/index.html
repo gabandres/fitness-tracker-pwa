@@ -16,10 +16,15 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Macros" />
+    <!-- iOS Safari smart banner → the App Store listing. Only renders in
+         mobile Safari (not in the installed PWA), so it upsells the native
+         app to web visitors without touching the standalone experience.
+         `app-id` is the ASC app ID, mirrored in apps/mobile/eas.json. -->
+    <meta name="apple-itunes-app" content="app-id=6788589414, app-argument=https://ignia.fit/" />
 
     <!-- Search + social preview. og:image lives at /og-image.png (1200×630).
          Generate via `sharp` at build time — see scripts/og-image.ts. -->
-    <meta name="description" content="A quiet, private calorie + protein log with AI coaching. Measured TDEE from your own data. No ads. No data selling. PWA on every device." />
+    <meta name="description" content="A quiet, private calorie + protein log with AI coaching and a real lifting log. Measured TDEE from your own data. Free on iPhone and in any browser. No ads. No data selling." />
     <link rel="canonical" href="https://ignia.fit/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Ignia" />
@@ -44,17 +49,21 @@
         "description": "A quiet, private calorie and protein log with AI coaching. Measured TDEE from your own data. No ads. No data selling. PWA on every device.",
         "applicationCategory": "HealthApplication",
         "applicationSubCategory": "Nutrition",
-        "operatingSystem": "Web, iOS, Android",
+        "operatingSystem": "Web, iOS",
         "url": "https://ignia.fit/",
+        "downloadUrl": "https://apps.apple.com/app/id6788589414",
+        "installUrl": "https://apps.apple.com/app/id6788589414",
         "image": "https://ignia.fit/og-image.png",
         "screenshot": "https://ignia.fit/og-image.png",
         "softwareVersion": "1",
         "inLanguage": ["en", "es-PR"],
+        "isAccessibleForFree": true,
         "featureList": [
           "Daily calorie and protein log",
           "Measured TDEE from 14+ days of real data",
-          "AI weekly report and coaching",
-          "Photo to macros via Gemini",
+          "AI coach grounded in your own logs",
+          "Strength-training log with progression, plate calculator and warm-ups",
+          "Barcode scanning and USDA + Open Food Facts search",
           "Weight trend with 7-day EMA",
           "Fasting chronometer",
           "Body measurements",
@@ -62,9 +71,7 @@
           "Offline-first PWA"
         ],
         "offers": [
-          { "@type": "Offer", "price": "0", "priceCurrency": "USD", "name": "Free" },
-          { "@type": "Offer", "price": "3", "priceCurrency": "USD", "name": "Pro (monthly)" },
-          { "@type": "Offer", "price": "24", "priceCurrency": "USD", "name": "Pro (annual)" }
+          { "@type": "Offer", "price": "0", "priceCurrency": "USD", "name": "Free" }
         ],
         "author": {
           "@type": "Person",

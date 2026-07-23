@@ -19,8 +19,13 @@ import * as haptics from '@/lib/haptics';
 import { useReminderSync } from '@/hooks/useReminderSync';
 import { useToday } from '@/hooks/useToday';
 import { enterUp, PressScale, usePulse } from '@/lib/motion';
+import { recordPositiveMoment } from '@/lib/reviewPrompt';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
+
+/** Streak length below which a streak extension is too early to read as
+ *  "this app is working for me" — see reviewPrompt.ts for the full policy. */
+const MIN_STREAK_FOR_REVIEW = 3;
 
 function todayLabel(): string {
   return new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
@@ -84,6 +89,10 @@ export default function Today() {
     if (prevStreak.current !== null && streak > prevStreak.current) {
       haptics.tap();
       triggerStreakPulse();
+      // Extending a streak is the other reliable "this is working" beat
+      // (the first is finishing a workout). Held back until the streak is
+      // long enough to mean something — a day-2 user has no opinion yet.
+      if (streak >= MIN_STREAK_FOR_REVIEW) void recordPositiveMoment();
     }
     prevStreak.current = streak;
   }, [streak, triggerStreakPulse]);

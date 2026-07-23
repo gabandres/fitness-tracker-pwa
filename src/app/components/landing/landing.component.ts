@@ -109,6 +109,17 @@ import { Firestore, doc, getDoc } from '@angular/fire/firestore';
               </a>
             </div>
 
+            <!-- App Store badge sits below the primary CTA, not beside it:
+                 the web loop stays the fastest path to value (no install),
+                 while iOS visitors still get a one-tap route to the listing. -->
+            <div class="mt-6 flex flex-wrap items-center gap-4">
+              <a [href]="APP_STORE_URL" rel="noopener" [attr.aria-label]="t('landing.appStoreAlt')">
+                <img src="/appstore-badge.svg" alt="{{ t('landing.appStoreAlt') }}"
+                  width="180" height="60" loading="lazy" decoding="async"
+                  class="h-[52px] w-auto transition-transform duration-200 hover:scale-105" />
+              </a>
+            </div>
+
             @if (socialProofCount(); as n) {
               <div class="mt-8 flex items-center gap-3" style="color: var(--v2-hero-muted, #a39c91);">
                 <div class="flex -space-x-2">
@@ -210,6 +221,27 @@ import { Firestore, doc, getDoc } from '@angular/fire/firestore';
         </div>
       </section>
 
+      <!-- ── 3.6 Download ────────────────────────────────────────── -->
+      <!-- The store funnel. /calculator, /macros/* and /vs/* pull organic
+           traffic into this page; without a visible store route that
+           traffic never becomes an App Store install (and install
+           velocity is what moves store ranking). -->
+      <section class="max-w-3xl mx-auto text-center py-4">
+        <div class="section-badge">{{ t('landing.downloadStamp') }}</div>
+        <h2 class="v2-display mt-2">{{ t('landing.downloadHeadline') }}</h2>
+        <p class="v2-body-soft mt-4 max-w-xl mx-auto">{{ t('landing.downloadBody') }}</p>
+        <div class="mt-7 flex flex-wrap items-center justify-center gap-4">
+          <a [href]="APP_STORE_URL" rel="noopener" [attr.aria-label]="t('landing.appStoreAlt')">
+            <img src="/appstore-badge.svg" alt="{{ t('landing.appStoreAlt') }}"
+              width="180" height="60" loading="lazy" decoding="async"
+              class="h-[56px] w-auto transition-transform duration-200 hover:scale-105" />
+          </a>
+          <a href="/app" class="v2-btn v2-btn--ghost">{{ t('landing.startLogging') }}</a>
+        </div>
+        <p class="v2-caption mt-5">{{ t('landing.downloadAndroid') }}</p>
+        <p class="v2-caption mt-2"><a href="/download" class="v2-link">{{ t('landing.downloadMore') }}</a></p>
+      </section>
+
       <!-- ── 4. Free ──────────────────────────────────────────────── -->
       <!-- Subscription/Pro pricing removed 2026-07-07 — Ignia is free (moving
            to a donations model, not a paid tier). -->
@@ -235,7 +267,8 @@ import { Firestore, doc, getDoc } from '@angular/fire/firestore';
           </div>
         </div>
         <div class="md:text-right flex flex-col md:items-end justify-center">
-          <a href="/faq" class="v2-link font-medium text-lg">{{ t('landing.faqLink') }}</a>
+          <a href="/download" class="v2-link font-medium text-lg">{{ t('landing.getOnIphone') }}</a>
+          <a href="/faq" class="v2-link font-medium text-lg mt-1">{{ t('landing.faqLink') }}</a>
           <a href="/support" class="v2-link font-medium text-lg mt-1" style="color: var(--v2-accent);">{{ t('landing.supportLink') }} ♥</a>
           <p class="v2-caption mt-2">&copy; {{ _getYear() }} Ignia</p>
         </div>
@@ -246,6 +279,11 @@ import { Firestore, doc, getDoc } from '@angular/fire/firestore';
 })
 export class LandingComponent {
   private readonly firestore = inject(Firestore);
+
+  /** App Store listing. The ID is the ASC app ID — same value as
+   *  `submit.production.ios.ascAppId` in apps/mobile/eas.json and the
+   *  `apple-itunes-app` smart-banner meta in src/index.html. */
+  protected readonly APP_STORE_URL = 'https://apps.apple.com/app/id6788589414';
 
   /** Social-proof count from `public/stats.totalUsers`. Intentionally
       gated at 100 — below that we'd be doing anti-social-proof ("join

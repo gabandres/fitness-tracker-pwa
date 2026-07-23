@@ -41,6 +41,7 @@ import { Sparkline } from '@/components/Sparkline';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { CountUpText, enterUp, smoothLayout, usePulse } from '@/lib/motion';
+import { recordPositiveMoment } from '@/lib/reviewPrompt';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useKeyboardSheetStyle } from '@/lib/use-keyboard-sheet-style';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -799,6 +800,11 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
         onFinish={async (extras) => {
           await train.finishWorkout(extras);
           setFinishOpen(false);
+          // Finishing a workout is the app's clearest "that went well"
+          // beat — the best place to spend one of iOS's few rating
+          // requests. Fire-and-forget; it self-throttles and no-ops
+          // until the user has enough qualifying days.
+          void recordPositiveMoment();
         }}
       />
     </>

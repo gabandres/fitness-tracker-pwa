@@ -1,115 +1,207 @@
-# Product Hunt Launch Kit — Ignia
+# Ignia — launch kit (App Store era)
 
-Launch day materials. Reuse on other launch platforms (BetaList, r/SideProject
-in show-not-promo mode, IndieHackers) with minor edits.
+**Rewritten 2026-07-23**, after the iOS app went live. The previous version
+was the PWA-era kit: it pitched "$3/mo Pro", a Stripe checkout, a 7-day trial
+and "photo → macros via Gemini". None of that is in the shipped build. Posting
+it would have been a straight-up false claim, and the audiences below punish
+that harder than they punish a boring launch.
 
-## Tagline (60 chars max — hard limit on PH)
+**The claim discipline from `docs/go-to-market.md` §0 applies to every word
+here.** Free, adaptive TDEE, a real training log, barcode + USDA/OFF search,
+AI coach, es-PR. Not: photo scan, Pro, trials, Health sync, widgets, Android.
 
-**Primary:** "A quiet, private calorie log with AI coaching."
+---
 
-Alternates (A/B if you do a soft pre-launch via coming-soon):
-- "Calorie log that learns your real TDEE."
-- "Answer 'how many calories do I have left today?' — fast."
-- "Calorie logging without ads, accounts, or data selling."
+## The one sentence
 
-## Description (260 chars max)
+> A free calorie tracker that learns your real TDEE from your own weight
+> trend — and logs your lifting in the same app.
 
-Ignia is a calorie + protein log for people who'd rather track than fight
-an app. Measured TDEE from your real data, a weekly AI report grounded in
-your logs, photo→macros via Gemini, full offline PWA. No ads. No data selling.
-$3/mo Pro; core loop is free forever.
+Every post below is a variation on that sentence plus the audience's own
+vocabulary. If a draft doesn't contain both halves (**adaptive** *and*
+**training**), it's pitching a commodity calorie counter and will land flat.
 
-## Gallery (PH allows up to ~8 images, first 3 show in grid)
+---
 
-Order matters — first three are the conversion hero trio.
+## Sequencing
 
-1. `screenshots/landing-hero.png` — caption: "how many calories do I have left today?"
-2. `screenshots/dashboard.png` — caption: "the one number that matters, every day"
-3. `screenshots/photo-capture.png` — caption: "photo → macros via Gemini"
-4. `screenshots/weekly-report.png` — caption: "weekly AI report, grounded in your own data"
-5. `screenshots/weight-trend.png` — caption: "weight trend with 7-day EMA"
-6. `screenshots/onboarding.png` — caption: "3-step intake — no BS, no upsell"
-7. `screenshots/pricing.png` — caption: "$3/mo. 7-day free trial. Core loop free forever."
-8. `screenshots/og-product.png` — caption: "calibration log · personal use · confidential"
+Do **not** fire these on the same day. Space them 3–7 days apart so each has a
+clean attribution window and so a bad reception on one doesn't poison the
+others. Order is deliberate: the lowest-stakes audiences go first, so the
+pitch is already tuned by the time it reaches the ones that matter.
 
-## First comment (post at 00:01 PST on launch day)
+```
+Week 1   r/SideProject + IndieHackers      ← rehearsal; friendly, forgiving
+Week 2   Product Hunt                      ← the set-piece
+Week 3   Show HN                           ← technical framing, different pitch
+Week 4+  Fitness communities               ← highest value, slowest burn (see below)
+```
 
-Hey hunters 👋
+---
 
-I'm Gabriel, solo maker. Ignia is the app I wanted for myself and couldn't
-find: a calorie + protein log that doesn't sell my data, doesn't run ads, and
-actually learns what my real TDEE is from my own numbers instead of a
-one-size-fits-all calculator.
+## Product Hunt
 
-A few things that might be different from other trackers:
+**Tagline** (60 max)
 
-- **Measured TDEE, not estimated.** After 14 days of logging, your TDEE is
-  derived from your own weight change + intake, not from a formula that
-  assumed you're average. For me the difference was ~280 kcal/day.
-- **Weekly AI report** grounded in your actual logs — no generic "drink more
-  water" nonsense. It calls out patterns I'd miss (weekend drift, protein
-  dips on travel days).
-- **Photo → macros** in one tap via Gemini. Client-side compressed so images
-  never leave your phone at full size.
-- **PWA-first.** One codebase, works on iOS, Android, desktop, offline. No
-  app store friction.
-- **Free tier is usable forever.** Unlimited manual logging, weight, fasting,
-  measurements. The paywall is AI + higher quotas + full history.
+```
+Free calorie tracker that adapts — and logs your lifting
+```
+*(56 chars)*
 
-Pricing is $3/mo or $24/year with a 7-day free trial. No ads. No selling
-data. No tracking you across sites.
+**Description** (260 max)
 
-I'd love feedback — especially from anyone who's tried to track macros and
-bounced off the UX. What's the one thing another app got wrong that made you
-quit? I'm listening.
+```
+Ignia learns your real maintenance calories from your own weight trend and
+adjusts your targets as you go — instead of handing you one number forever.
+It also has a full strength-training log. Free: no ads, no subscription, no
+locked features.
+```
+*(243 chars)*
 
-Thanks for taking a look. 🫶
+**Gallery** — first three show in the grid, so they carry the whole pitch.
 
-— G
+1. Adaptive target next to the weight trend — *"your target moves because your body did"*
+2. The training log mid-session — *"the only macro tracker with a real lifting log"*
+3. Barcode / search logging — *"log a meal in about five seconds"*
+4. Weekly insights — *"where the week actually went"*
+5. AI coach reading real logs — *"advice from your data, not a template"*
+6. Fasting + body metrics — *"the rest of the picture"*
+7. Free / no-paywall screen — *"every feature. no subscription."*
+8. es-PR screenshot — *"completamente en español"*
 
-## Maker profile bio (if editing)
+> Screenshots must come from the **iOS build**, not the PWA — the previous kit
+> reused web captures and they read as a different product. Check every frame
+> for PII, test-account emails and localhost URLs before upload.
 
-Solo indie dev. Building quiet software: no ads, no dark patterns, no data
-selling. Previously [past project]. Based in Puerto Rico.
+**First comment** (post at 00:01 PT)
 
-## Cross-post prep
+> Hey hunters 👋
+>
+> I'm Gabriel, solo dev. Ignia is the tracker I wanted and couldn't find.
+>
+> Two things make it different:
+>
+> **1. Your calorie target isn't a constant.** Most apps run a formula once at
+> signup and never touch it again. Ignia fits your actual weight trend against
+> your actual intake and recalibrates from there. When I did this by hand on
+> my own data, the formula-estimated number was off by a few hundred calories
+> a day — which is the entire difference between losing weight and wondering
+> why you aren't.
+>
+> **2. It logs your lifting.** Templates, sets/reps/RIR, automatic progression
+> suggestions, plate math, warm-up sets. If you count macros *because* you
+> lift, you currently need two apps. I got tired of that.
+>
+> It's also free. Not freemium, not trial-then-paywall — free. No ads, no data
+> selling. It's a solo project, not a funding round, so there's nobody to
+> monetize you for. There's a tip jar that unlocks nothing.
+>
+> Also: fully translated to Spanish (Puerto Rico), because I live here and the
+> localized options in this category are basically nonexistent.
+>
+> iPhone + any browser today; Android is in testing.
+>
+> The thing I actually want feedback on: **if you've bounced off a macro
+> tracker, what made you quit?** Not what feature was missing — what made you
+> stop opening it. That's the problem I care about.
+>
+> — G
 
-Don't post these same-day — space them 24–72h apart so the signals compound
-rather than overlap.
+**Maker bio**
 
-- **HackerNews (Show HN):** rewrite first comment as a technical post. Lead
-  with architecture (Angular PWA, Firebase, Gemini, adaptive TDEE math), not
-  marketing.
-- **r/SideProject, r/InternetIsBeautiful:** link the PH page, brief "built
-  this over X months, here's what I learned" framing.
-- **IndieHackers milestone:** "Launched on PH today — here's the stack + cost
-  structure." Share numbers if comfortable.
-- **BetaList:** already-ranked launch; submit after PH hype.
-- **Fitness subs (r/loseit, r/intermittentfasting, r/fitness):** DO NOT post
-  as a launch. Wait 2–4 weeks, contribute genuinely, then only mention the
-  app if directly relevant to a question someone asks.
+> Solo dev in Puerto Rico. Building quiet software: no ads, no dark patterns,
+> no data selling.
 
-## Checklist for launch day
+---
 
-- [ ] Maker profile is complete (photo, bio, links)
-- [ ] All 8 gallery images uploaded, captions reviewed
-- [ ] Tagline final (measured chars ≤ 60)
-- [ ] Description final (measured chars ≤ 260)
-- [ ] First comment drafted + ready to paste
-- [ ] Email verification tested end-to-end in incognito
-- [ ] Google + Microsoft + email/password all live-tested
-- [ ] Stripe checkout tested with a real card (refund after)
-- [ ] /status page healthy
-- [ ] CHANGELOG.md has a "launched on PH" entry
-- [ ] Screenshots have no PII, no test-user emails, no local-dev URLs
-- [ ] Loom/demo recording uploaded and linked in description
-- [ ] Backup plan if Firestore rules, auth, or Stripe break mid-launch
-      (have the CLI open, know the rollback commit)
+## Show HN (week 3 — rewrite, don't cross-post)
 
-## Post-launch actions (24h window)
+HN wants the engineering, and reacts badly to marketing copy. Lead technical:
 
-- Respond to every comment within 2h during waking hours.
-- Don't argue with critics; thank them and offer to chat in DMs.
-- If ranked top 5: add a "thanks" edit to the first comment.
-- Signups spike → watch Sentry for 500s and Firestore rule denials.
-- Day 2 writeup: "what happened when I launched on PH" IndieHackers post.
+**Title:** `Show HN: Ignia – free macro tracker that fits your TDEE from your own weight trend`
+
+**Body outline:**
+- The math: least-squares fit over weight trend + intake to derive maintenance
+  calories, and why a static Mifflin-St Jeor number drifts away from reality.
+- The architecture: Angular PWA + Expo React Native sharing a framework-free
+  `packages/core` for all domain math, so both frontends compute identical
+  numbers. Firebase with no app server — Firestore rules *are* the
+  authorization layer.
+- The cost story: what it actually costs to run a free app on Firebase, and
+  the constraints that follow (≤3 scheduled functions to stay in Cloud
+  Scheduler's free tier, no `minInstances`, coarse schedules).
+- What's deliberately absent: AI photo calorie estimation. Say plainly that
+  the published error rates didn't justify it and it was cut rather than
+  shipped as a demo. HN respects a "we didn't ship it" story.
+
+Expect scrutiny on the TDEE math. Have the actual method ready to defend.
+
+---
+
+## r/SideProject + IndieHackers (week 1)
+
+Build-log framing, not launch framing. "Solo dev, shipped a free macro tracker
+to the App Store after N months — here's the stack and what it costs to run."
+Share real numbers; both audiences reward specifics and ignore polish.
+
+## Fitness communities (week 4+, the slow burn)
+
+**These are the highest-value and the easiest to burn permanently.** r/loseit,
+r/fitness, r/gainit, r/intermittentfasting, r/xxfitness and the training
+Discords ban promo on sight, and a burned subreddit does not come back.
+
+Rules:
+- **Do not post a launch.** Not once, not as "I built this for myself".
+- Participate genuinely for weeks first. Answer TDEE and macro questions with
+  actual answers, no link.
+- Mention the app only when someone asks for a recommendation that matches it
+  precisely — free, adaptive, has a training log — and disclose that you built
+  it, in the same sentence.
+- Read each sub's self-promo rule before the first comment.
+
+The `/vs/*` comparison pages exist for exactly these threads: when someone
+asks "MacroFactor alternative that's free?", the honest comparison page is a
+better answer than a store link.
+
+---
+
+## Channels that don't need permission
+
+Worth more than one launch-day spike, and none of them can be revoked:
+
+- **The website funnel.** `/calculator` (plus 8 keyword variants),
+  `/macros/<goal>/<weight>-lb`, `/vs/<competitor>`, `/faq` are already
+  indexed and now carry App Store badges, an iOS smart banner and a
+  `/download` page. This is the compounding channel — every improvement to
+  those pages pays out indefinitely, unlike a launch post.
+- **The es-PR listing** (`docs/go-to-market.md` §4). Localized listings are
+  the cheapest untapped reach available.
+- **Ratings.** The in-app prompt and the Settings → *Rate Ignia* row feed the
+  single biggest store-ranking input we're weakest on.
+- **App Store promotional text.** 170 chars, editable without a build —
+  a free announcement slot for every release.
+
+---
+
+## Launch-day checklist
+
+- [ ] Screenshots are from the **iOS build**, no PII, no test emails
+- [ ] Tagline ≤60, description ≤260 (measured, not eyeballed)
+- [ ] First comment drafted and pasted, not typed live
+- [ ] Sign-in tested cold in a fresh install: Apple, Google, email+password
+- [ ] Email verification tested end-to-end
+- [ ] Account deletion tested (it's the thing reviewers check)
+- [ ] `/status` healthy; `/support` resolves and the mailto works
+- [ ] `CHANGELOG.md` entry written
+- [ ] Sentry open — watch for auth errors and Firestore rule denials as
+      signups spike
+- [ ] Rollback commit identified, Firebase CLI already authenticated
+
+## First 24 hours
+
+- Reply to every comment within ~2h while awake.
+- Don't argue with critics. Thank them, ask a follow-up question.
+- Watch Firestore rule denials specifically — a new-user path nobody has
+  exercised is the most likely thing to break under a signup spike.
+- Day 2: write up what happened, numbers included. That post is often worth
+  more traffic than the launch itself.

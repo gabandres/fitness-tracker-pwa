@@ -185,6 +185,14 @@ function detectGoalFromPath(): GoalDirection {
                 {{ shareLabel() }}
               </button>
             </div>
+            <div class="mt-5 flex justify-center">
+              <a [href]="APP_STORE_URL" rel="noopener" (click)="trackAppStoreClick()"
+                [attr.aria-label]="t('landing.appStoreAlt')">
+                <img src="/appstore-badge.svg" alt="{{ t('landing.appStoreAlt') }}"
+                  width="180" height="60" loading="lazy" decoding="async"
+                  class="h-[48px] w-auto transition-transform duration-200 hover:scale-105" />
+              </a>
+            </div>
             <p class="v2-caption mt-3">{{ t('calculator.ctaFinePrint') }}</p>
           </ui-card>
         </section>
@@ -281,6 +289,16 @@ export class CalculatorComponent {
       this.calculatedTracked = true;
       this.analytics.track('calculator_calculated', { goal: this.goal() });
     }
+  }
+
+  /** App Store listing — mirrors landing.component.ts and the
+   *  `apple-itunes-app` meta in src/index.html. */
+  protected readonly APP_STORE_URL = 'https://apps.apple.com/app/id6788589414';
+
+  /** Separate event from `calculator_cta_signup` so the store route and
+   *  the web-signup route can be compared in the funnel. */
+  protected trackAppStoreClick(): void {
+    this.analytics.track('calculator_cta_appstore', { goal: this.goal() });
   }
 
   protected trackCtaClick(): void {

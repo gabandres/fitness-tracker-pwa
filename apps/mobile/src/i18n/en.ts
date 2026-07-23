@@ -442,6 +442,7 @@ export const en = {
   'settings.support': 'Support the app',
   'settings.supportBody': "Ignia is free, with no ads and no data-selling. A small tip helps cover the running cost — entirely optional, and it unlocks nothing.",
   'settings.supportBtn': 'Leave a tip',
+  'settings.rateApp': 'Rate Ignia on the App Store',
   'tip.title': 'Leave a tip',
   'tip.body': "Ignia is free — no ads, no data-selling. A tip helps cover the running cost. It unlocks nothing; it's just a thank-you.",
   'tip.small': 'Small tip',
