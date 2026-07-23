@@ -14,6 +14,45 @@ photo scanning, Health sync, widgets or Android — all are off or unbuilt.
 
 ---
 
+## Applied status — 2026-07-23
+
+Driven directly in ASC. What the live console actually allowed corrected two
+assumptions in the original draft; both are reflected below.
+
+| Item | State |
+|---|---|
+| 1.0 promotional text | **LIVE** on the released listing |
+| Version **1.1.0** | **Created**, in *Prepare for Submission* |
+| 1.1.0 EN description, keywords, what's new, promo text, marketing URL | **Saved** |
+| EN subtitle → `Adaptive macros + workouts` | **Saved** |
+| App name | **Unchanged on purpose** — see below |
+| es-MX name, subtitle, description, keywords | **NOT saved** — still English. See §2 |
+| Screenshots | Not started — owner, on device |
+
+**Correction 1 — only promotional text is live-editable.** The draft claimed
+the support/marketing URLs could also be changed on a released version. They
+can't: on a version in *Ready for Distribution*, ASC exposes an Edit control
+for **promotional text and copyright only**. Name, subtitle, keywords,
+description, URLs and screenshots are all read-only until a new version
+exists. That makes creating the next version the gate for everything else.
+
+**Correction 2 — the app name stays `Ignia — Calories & Training`.** The draft
+renamed it to "Ignia: Calories & Lifts". That was a regression: the live name
+already indexes *Calories* **and** *Training*, and "training" outsearches
+"lifts". The app name is the highest-weighted field Apple indexes, so dropping
+a strong term out of it to gain a weaker one is a net loss. Keywords below are
+built around keeping it.
+
+**The real ASO win was the keyword field.** It previously read
+`calorie,protein,macro,tracker,food,diet,weight,fasting,workout,gym,lifting,cut,tdee,nutrition`
+— but `calorie` was already in the app name and `protein`, `tracker` and
+`fasting` were already in the subtitle. Apple indexes name, subtitle and
+keywords separately, so those four terms were dead weight: roughly **30 of 100
+characters wasted**. Reclaiming them bought `counter`, `strength`, `barcode`,
+`carb` and `bulk`.
+
+---
+
 ## How to apply
 
 ASC → **Ignia** → *(left rail)* **App Store** tab.
@@ -36,14 +75,14 @@ a build. Use it for anything time-sensitive; the description can't do that.
 
 ---
 
-## 1. English (primary)
+## 1. English (primary) — APPLIED
 
-### App name — 23/30
+### App name — 27/30 · **unchanged, do not edit**
 ```
-Ignia: Calories & Lifts
+Ignia — Calories & Training
 ```
 
-### Subtitle — 26/30
+### Subtitle — 26/30 · saved
 ```
 Adaptive macros + workouts
 ```
@@ -53,13 +92,14 @@ Adaptive macros + workouts
 Your calorie target shouldn't be a guess. Ignia learns your real metabolism from your weight trend and adjusts it — and logs your lifts too. Free, no ads, no paywall.
 ```
 
-### Keywords — 96/100 · comma-separated, **no spaces after commas**
+### Keywords — 98/100 · comma-separated, **no spaces after commas** · saved
 ```
-tdee,protein,counter,tracker,gym,strength,fasting,barcode,diet,weight,food,log,fitness,carb,bulk
+protein,counter,tdee,gym,lifting,strength,fasting,weight,diet,food,barcode,carb,cut,bulk,nutrition
 ```
-Words already in the name and subtitle (*calories, lifts, adaptive, macros,
-workouts*) are deliberately absent — Apple indexes those fields separately and
-repeating a term buys nothing while costing characters.
+Words already in the name (*calories, training*) and subtitle (*adaptive,
+macros, workouts*) are deliberately absent — Apple indexes those fields
+separately, so repeating a term buys nothing while costing characters. If the
+name or subtitle ever changes, rebuild this list against the new wording.
 
 ### Description
 ```
@@ -145,12 +185,20 @@ avoidable rejection.
 
 ---
 
-## 2. Spanish — add as a new localization
+## 2. Spanish — STILL TO DO
 
-ASC has no `es-PR` option. Add **Spanish (Mexico) — `es-MX`** as the
-localization; it is the Spanish variant that serves Puerto Rico and the widest
-LatAm audience. The in-app locale stays `es-PR`; only the store listing
-language differs.
+**The es-MX localization already exists — and it is filled with the English
+copy.** Spanish-locale users currently see an untranslated listing. This is a
+live defect, not a missing nice-to-have.
+
+ASC has no `es-PR` option, which is why the store language is **Spanish
+(Mexico) — `es-MX`**; it serves Puerto Rico and the wider LatAm audience. The
+in-app locale stays `es-PR`; only the store listing language differs.
+
+To apply: on **App Information** and on the **1.1.0 version page**, switch the
+language dropdown (top right of each section) from *English (U.S.)* to
+*Spanish (Mexico)*, then paste the fields below and **Save each page
+separately** — the two pages have independent Save buttons.
 
 ### Nombre — 23/30
 ```
@@ -169,8 +217,10 @@ Tu meta de calorías no debería ser una adivinanza. Ignia aprende tu metabolism
 
 ### Palabras clave — 96/100 · sin espacios
 ```
-tdee,proteina,contador,dieta,gimnasio,pesas,ayuno,codigo,barras,peso,comida,fuerza,carbohidratos
+tdee,proteina,contador,dieta,gimnasio,ayuno,codigo,barras,peso,comida,fuerza,carbohidratos,grasa
 ```
+96/100. `pesas` was dropped because it now sits in the Spanish app name, and
+`calorias` / `macros` are covered by the Spanish name and subtitle.
 
 ### Descripción
 ```
