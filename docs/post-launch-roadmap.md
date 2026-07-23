@@ -25,7 +25,7 @@ Ranked by the rubric's Step-2 sort. Slot rationale + spec pointer per row.
 
 | Rank | Feature | Cost | Native-only | Effort | Why this slot | Spec |
 |---|---|---|---|---|---|---|
-| 1 | **Health sync — Phase 1 (weight two-way)** | $0 | yes | ~3–4d | The lone **adoption-blocker** — every rival ships OS Health sync; its absence is a visible table-stakes gap ([#15](https://github.com/gabandres/fitness-tracker-pwa/issues/15)). | [`apps/mobile/HEALTH_PHASE1_PLAN.md`](../apps/mobile/HEALTH_PHASE1_PLAN.md) — **SPECCED** |
+| 1 | ~~**Health sync — Phase 1 (weight two-way)**~~ **SHIPPED IN 1.0** | $0 | yes | — | Landed early in `0a355deb` (2026-07-11), before 1.0 was submitted, and covers more than Phase 1: import of weight/sleep/water plus export of weight/water/body-fat/nutrition/workouts. Verified 2026-07-23. **Not remaining work.** The only Health gap left is activity import (steps / active energy) — see `docs/aug-2026-build-batch.md`. | [`apps/mobile/HEALTH_PHASE1_PLAN.md`](../apps/mobile/HEALTH_PHASE1_PLAN.md) |
 | 2 | **Smart on-device nudges** | $0 | yes | ~1wk | Native-only + retention; extends the existing reminder infra (no new AI, on-device only). | extends existing push-reminder CFs / local notifications |
 | 3 | **Home-screen widget (rings + quick-add)** | $0 | yes | ~1.5wk | Native-only + retention; the widget extension is unlocked by the same dev build (not a distinct new capability). | [`apps/mobile/WIDGET_PLAN.md`](../apps/mobile/WIDGET_PLAN.md) — **SPECCED** |
 | 4 | **Adaptive-TDEE recalibration** | $0 | no | ~2wk | Strongest retention hook, but non-native so it ranks below the native wins. Pure `packages/core`; algorithm de-risked by the owner's manual TDEE audit. | `packages/core` (TDEE math); see `project_calorie_floor_tdee_audit` |
