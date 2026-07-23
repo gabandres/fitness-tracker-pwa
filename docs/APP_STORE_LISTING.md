@@ -1,5 +1,17 @@
 # Ignia — App Store / Play listing + privacy labels (v1 draft)
 
+> **HISTORICAL — superseded for field values.** This is the pre-launch draft
+> that produced the shipped v1.0 listing. It is kept because it records *why*
+> decisions were made (notably: the bare word "Ignia" was already reserved by
+> another App Store Connect developer, which is why the listing title carries a
+> descriptor).
+>
+> **For what is actually in App Store Connect today, use
+> [`app-store-metadata.md`](app-store-metadata.md).** Several values below are
+> now stale — the subtitle is `Adaptive macros + workouts`, not
+> `Protein tracker & fasting`, and the promotional text and keywords have both
+> been rewritten. Do not paste from this file into ASC.
+
 Draft metadata for the first (free) submission. Edit to taste; character
 limits noted. Support/marketing/privacy URLs assume `ignia.fit` is live.
 

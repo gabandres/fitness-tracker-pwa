@@ -94,199 +94,22 @@ Cronometer) and export · in-app account deletion · offline PWA.
 
 ---
 
-## 2. App Store listing (iOS)
+## 2–4. Listing copy — moved
 
-**App name** (30 max)
+The per-field listing copy that used to live here (app name, subtitle,
+promotional text, keywords, description, Play draft, Spanish listing) now lives
+in **[`app-store-metadata.md`](app-store-metadata.md)**, which is the single
+source of truth and records what is actually saved in App Store Connect.
 
-```
-Ignia: Calories & Lifts
-```
+It was duplicated across three documents and drifted: this file still claimed
+the app was named "Ignia: Calories & Lifts" and carried a keyword list built
+around that name, while the live listing has always been
+`Ignia — Calories & Training`. Copy values *out* of `app-store-metadata.md`
+when you need them; never copy them back in here.
 
-**Subtitle** (30 max)
-
-```
-Adaptive macros + workouts
-```
-
-**Promotional text** (170 max — editable any time without a new build; use it
-for what's-new pushes)
-
-```
-Your calorie target shouldn't be a guess. Ignia learns your real metabolism
-from your weight trend and adjusts it — and logs your lifts too. Free, no
-ads, no paywall.
-```
-
-**Keywords** (100 max, comma-separated, **no spaces**)
-
-```
-tdee,protein,counter,tracker,gym,strength,fasting,barcode,diet,weight,food,log,fitness,carb,bulk
-```
-
-Words already in the app name and subtitle (*calories, lifts, adaptive,
-macros, workouts*) are deliberately **omitted** — Apple indexes those fields
-separately and repeating them wastes characters.
-
-**Description**
-
-```
-Ignia is a calorie and macro tracker that adapts to your body — and tracks
-your training in the same app. Everything is free. No ads, no subscription,
-no locked features.
-
-WHY IT'S DIFFERENT
-Most apps hand you a fixed calorie number and never change it. Your body
-isn't fixed. Ignia learns your real maintenance calories from your own
-weight trend and adjusts your targets as you go, so progress doesn't stall
-after week three. And unlike other macro apps, it has a proper strength
-log built in — you don't need a second app for the gym.
-
-LOG A MEAL IN SECONDS
-• Scan a barcode
-• Search USDA FoodData Central and Open Food Facts
-• Type it in plain language — "2 eggs and a bagel"
-• Tap a saved preset, custom food, or recipe
-
-TARGETS THAT KEEP UP
-• Recalibrated from your real weight trend, not a one-time formula
-• Weekly insights, calorie budget, and weight-trend projection
-• Protein, carb and fat goals
-• An AI coach that reads your actual logs — not generic advice
-
-TRAIN, NOT JUST EAT
-• Workout templates with set / rep / RIR logging
-• Automatic progression suggestions
-• Plate calculator and warm-up generator
-• Cluster set support
-
-ALSO INCLUDED
-• Intermittent fasting timer
-• Body weight, measurements and body-fat estimate
-• Import from MyFitnessPal, Lose It! or Cronometer
-• Export everything to CSV, any time
-• Full English and Spanish (Puerto Rico)
-
-YOUR DATA IS YOURS
-No ads. No data selling. No cross-app tracking. Export or delete your
-account from inside the app whenever you want.
-
-Ignia is free because it's a solo project, not a funding round. There's an
-optional tip if you want to support it — it unlocks nothing, because
-nothing is locked.
-
-Ignia is not a medical device and does not provide medical advice.
-```
-
-**What's New — next release**
-
-```
-• Rate Ignia without leaving the app
-• Faster, more accurate food search
-• Fixes and polish across logging and the training tab
-```
-
-**Review Notes (App Store Connect)** — keep current:
-demo account credentials, "all features are free; the tip is a consumable
-that unlocks nothing", support URL `https://ignia.fit/support`.
-
----
-
-## 3. Google Play listing (drafted, not yet used)
-
-Hold until closed testing (12 testers × 14 consecutive days) completes.
-
-**Title** (30 max)
-
-```
-Ignia: Calorie & Lift Log
-```
-
-**Short description** (80 max)
-
-```
-Free adaptive calorie & macro tracker with a real workout log. No ads.
-```
-
-**Full description** — reuse the iOS description; Play allows 4000 chars.
-Play truncates early, so the adaptive + training hook must land in the first
-two lines (it does).
-
----
-
-## 4. Spanish (es-PR) listing
-
-The app is fully localized, so ship a localized listing. Near-zero competition
-in Spanish for this category — this is cheap reach.
-
-**Nombre** (30 max)
-
-```
-Ignia: Calorías y Pesas
-```
-
-**Subtítulo** (30 max)
-
-```
-Macros que se ajustan a ti
-```
-
-**Texto promocional** (170 max)
-
-```
-Tu meta de calorías no debería ser una adivinanza. Ignia aprende tu
-metabolismo real de tu tendencia de peso y la ajusta — y registra tus pesas.
-Gratis, sin anuncios.
-```
-
-**Palabras clave** (100 max, sin espacios)
-
-```
-tdee,proteina,contador,dieta,gimnasio,pesas,ayuno,codigo,barras,peso,comida,fuerza,carbohidratos
-```
-
-**Descripción**
-
-```
-Ignia es un contador de calorías y macros que se adapta a tu cuerpo — y
-registra tus entrenamientos en la misma app. Todo es gratis. Sin anuncios,
-sin suscripción, sin funciones bloqueadas.
-
-POR QUÉ ES DIFERENTE
-La mayoría de las apps te dan un número de calorías fijo y nunca lo cambian.
-Tu cuerpo no es fijo. Ignia aprende tus calorías de mantenimiento reales de
-tu propia tendencia de peso y ajusta tus metas sobre la marcha, para que el
-progreso no se estanque. Y a diferencia de otras apps de macros, trae un
-registro de pesas completo — no necesitas una segunda app para el gimnasio.
-
-REGISTRA UNA COMIDA EN SEGUNDOS
-• Escanea el código de barras
-• Busca en USDA FoodData Central y Open Food Facts
-• Escríbelo en lenguaje natural
-• Usa un preset guardado, comida propia o receta
-
-METAS QUE TE SIGUEN EL PASO
-• Recalibradas con tu tendencia de peso real, no con una fórmula de una vez
-• Resumen semanal, presupuesto de calorías y proyección de peso
-• Metas de proteína, carbohidratos y grasa
-• Un coach con IA que lee tus propios registros
-
-ENTRENA, NO SOLO COMAS
-• Plantillas de entrenamiento con series, repeticiones y RIR
-• Sugerencias automáticas de progresión
-• Calculadora de discos y generador de calentamiento
-
-TAMBIÉN INCLUYE
-• Cronómetro de ayuno intermitente
-• Peso, medidas y estimado de grasa corporal
-• Importa desde MyFitnessPal, Lose It! o Cronometer
-• Exporta todo a CSV cuando quieras
-• Español (Puerto Rico) e inglés completos
-
-TUS DATOS SON TUYOS
-Sin anuncios. Sin venta de datos. Exporta o borra tu cuenta desde la app.
-
-Ignia no es un dispositivo médico y no da consejo médico.
-```
+**This file owns positioning and strategy** — §0 ground truth, §1 the wedge,
+§5 ASO reasoning, §6 the monetization boundary. Those are the parts worth
+arguing about; the field values are just their output.
 
 ---
 
@@ -309,7 +132,12 @@ Ignia no es un dispositivo médico y no da consejo médico.
 - **"Free" is a headline, not a footnote.** Every visible competitor is
   subscription-gated. Put it in the subtitle line of any post, the first
   screenshot caption, and the promo text.
-- Localize the es-PR listing separately (§4) — the competition there is thin.
+- The Spanish listing is **live as es-MX** (ASC has no es-PR option) — applied
+  2026-07-23. Competition in Spanish is thin, so keep it in parity whenever the
+  English copy changes.
+- **Keyword fields must not repeat words already in the app name or subtitle.**
+  Apple indexes the three separately. The original field wasted ~30 of 100
+  characters this way; see `app-store-metadata.md` for the corrected lists.
 - Screenshot order is the conversion trio: (1) adaptive target with the
   weight trend, (2) the training log mid-session, (3) fast logging /
   barcode. Caption each with a claim, not a feature name.
@@ -321,5 +149,6 @@ Ignia no es un dispositivo médico y no da consejo médico.
 Out of scope for v1 and **not** to be referenced in any current listing. The
 paid direction (AI photo-scan flagship, ADR-0015) and its pricing anchors are
 recorded in `docs/post-launch-roadmap.md` → PARKED. Turning it on means
-flipping `PRO_ENABLED` on both platforms, and rewriting §2 and §4 again — with
-the same rule: never claim what the build can't back.
+flipping `PRO_ENABLED` on both platforms, rewriting §0's not-claimable table,
+and reworking every field in `app-store-metadata.md` — with the same rule:
+never claim what the build can't back.

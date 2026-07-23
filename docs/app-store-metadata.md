@@ -26,8 +26,14 @@ assumptions in the original draft; both are reflected below.
 | 1.1.0 EN description, keywords, what's new, promo text, marketing URL | **Saved** |
 | EN subtitle → `Adaptive macros + workouts` | **Saved** |
 | App name | **Unchanged on purpose** — see below |
-| es-MX name, subtitle, description, keywords | **NOT saved** — still English. See §2 |
-| Screenshots | Not started — owner, on device |
+| es-MX name, subtitle, description, keywords, promo, what's new | **Saved** |
+| es-MX Support URL | **Fixed** — was `ignia.fit`, missing `/support` |
+| Screenshots | Not started — owner, on device (§3) |
+
+**This file is the source of truth for listing field values.** `go-to-market.md`
+owns positioning and strategy; `APP_STORE_LISTING.md` is the historical
+pre-launch draft. Both previously duplicated these fields and drifted out of
+sync — don't copy values back into them.
 
 **Correction 1 — only promotional text is live-editable.** The draft claimed
 the support/marketing URLs could also be changed on a released version. They
@@ -42,6 +48,18 @@ already indexes *Calories* **and** *Training*, and "training" outsearches
 "lifts". The app name is the highest-weighted field Apple indexes, so dropping
 a strong term out of it to gain a weaker one is a net loss. Keywords below are
 built around keeping it.
+
+There is also a constraint the draft didn't know about: per
+`APP_STORE_LISTING.md`, the bare word **"Ignia" was already reserved by another
+developer** in App Store Connect, which is *why* the listing title carries a
+descriptor at all. The on-device name (from `app.json`) is still just "Ignia".
+
+**Third defect class, caught only on re-read: a stray `a` at the start of three
+fields.** `Ctrl+A` intermittently failed to register as a modifier while
+driving ASC, so the `a` landed as a literal character — it hit the English
+promotional text and the Spanish promotional text and What's New. All fixed.
+**Verify every field after saving; the character counter is the tell** (a
+166-char promo showing 3 remaining instead of 4 means a stray character).
 
 **The real ASO win was the keyword field.** It previously read
 `calorie,protein,macro,tracker,food,diet,weight,fasting,workout,gym,lifting,cut,tdee,nutrition`
@@ -185,20 +203,21 @@ avoidable rejection.
 
 ---
 
-## 2. Spanish — STILL TO DO
+## 2. Spanish (es-MX) — APPLIED
 
-**The es-MX localization already exists — and it is filled with the English
-copy.** Spanish-locale users currently see an untranslated listing. This is a
-live defect, not a missing nice-to-have.
+The es-MX localization **already existed and was filled with the English
+copy** — Spanish-locale users were being served an untranslated listing. That
+was a live defect, not a missing nice-to-have. Now fully translated.
 
 ASC has no `es-PR` option, which is why the store language is **Spanish
 (Mexico) — `es-MX`**; it serves Puerto Rico and the wider LatAm audience. The
 in-app locale stays `es-PR`; only the store listing language differs.
 
-To apply: on **App Information** and on the **1.1.0 version page**, switch the
-language dropdown (top right of each section) from *English (U.S.)* to
-*Spanish (Mexico)*, then paste the fields below and **Save each page
-separately** — the two pages have independent Save buttons.
+Mechanics, if you ever edit these by hand: on **App Information** and on the
+**1.1.0 version page**, switch the language dropdown (top right of each
+section) from *English (U.S.)* to *Spanish (Mexico)*, then **Save each page
+separately** — the two pages have independent Save buttons, and switching
+language without saving discards the edits.
 
 ### Nombre — 23/30
 ```
