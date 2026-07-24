@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { trackSubs } from '@/lib/sub-debug';
 import {
+  type ActivityLevel,
   type DailyLog,
   type DailyTargets,
   type Profile,
@@ -10,6 +11,7 @@ import {
   type WeeklyInsights,
   type WeightPoint,
   addDays,
+  basalMifflinStJeor,
   computeWeeklyBudget,
   computeWeeklyInsights,
   dailyTargets,
@@ -41,6 +43,12 @@ export interface TrendsState {
   /** Weekly calorie budget / banking (Mon→Sun), or null below the target
    *  gate. */
   budget: WeeklyBudget | null;
+  /** Bare Mifflin BMR off the profile + latest weight — the basal the
+   *  activity-level correction compares against. 0 when the profile can't
+   *  produce one (no sex/height/age or no weight yet). */
+  basalKcal: number;
+  /** The stored self-reported bucket, or null if never stated. */
+  activityLevel: ActivityLevel | null;
 }
 
 const SPARK_DAYS = 14;
@@ -126,6 +134,19 @@ export function useTrends(): TrendsState {
     return computeWeeklyBudget(days, daysSinceMonday + 1, targets.calorieTarget);
   }, [logs, weights, targets]);
 
+  const basalKcal = useMemo(() => {
+    if (!profile || profile.heightIn == null || profile.age == null || profile.sex == null) return 0;
+    // Latest weigh-in: dateKeys sort chronologically, so the max key is newest.
+    const keys = Object.keys(weights);
+    if (keys.length === 0) return 0;
+    const latest = weights[keys.reduce((a, b) => (a > b ? a : b))];
+    if (!(latest > 0)) return 0;
+    return basalMifflinStJeor(
+      { heightIn: profile.heightIn, age: profile.age, sex: profile.sex },
+      latest,
+    );
+  }, [profile, weights]);
+
   return {
     loading,
     error,
@@ -136,5 +157,7 @@ export function useTrends(): TrendsState {
     targetCalories: targets.calorieTarget,
     weightSeries,
     budget,
+    basalKcal,
+    activityLevel: profile?.activityLevel ?? null,
   };
 }

@@ -9,6 +9,12 @@ export * from './macro-heuristic';
 export * from './date';
 export * from './day-summary';
 export * from './tdee';
+// Activity-informed activity-level correction (docs/activity-informed-tdee-spec.md).
+// Imported Health activeKcal CORRECTS the self-reported activityLevel bucket
+// via a suggestion the user confirms; it never enters calculateTdee's
+// arithmetic (measured mode already contains every training calorie). Pure —
+// the window read + decline memory are mobile-side adapters.
+export * from './activity-level';
 export * from './targets';
 // Non-production TDEE inspector (audit tool): reproduces measured-mode math
 // and re-runs it under exclude-recent / energy-balance / longer-window

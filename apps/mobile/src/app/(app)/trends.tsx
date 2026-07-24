@@ -3,10 +3,12 @@ import { type Href, useRouter } from 'expo-router';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { type TdeeResult, type WeeklyBudget, type WeeklyInsights, parseYmd } from '@macrolog/core';
+import { type ActivityLevel, type TdeeResult, type WeeklyBudget, type WeeklyInsights, parseYmd } from '@macrolog/core';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { WeeklyReportCard } from '@/components/WeeklyReportCard';
 import { useTrends } from '@/hooks/useTrends';
+import { useActivitySuggestion } from '@/lib/activity-suggestion';
+import { useAuth } from '@/lib/auth';
 import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
 import { type I18nKey, type TFn, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -28,6 +30,16 @@ function slopeLabel(slope: number, t: TFn): string {
 }
 
 // seed/formula both read as "Estimate" to the user; measured is "Adaptive".
+/** Bucket → the label the activity-correction card names it by (shared with
+ *  the Refine Targets picker, so both surfaces say the same word). */
+const ACTIVITY_LABEL: Record<ActivityLevel, I18nKey> = {
+  sedentary: 'activity.sedentary',
+  light: 'activity.light',
+  moderate: 'activity.moderate',
+  active: 'activity.active',
+  very_active: 'activity.very_active',
+};
+
 const TDEE_MODE: Record<TdeeResult['source'], { badgeKey: I18nKey; hintKey: I18nKey }> = {
   measured: { badgeKey: 'trends.measured', hintKey: 'trends.measuredHint' },
   formula: { badgeKey: 'trends.estimate', hintKey: 'trends.formulaHint' },
@@ -39,9 +51,20 @@ export default function Trends() {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const router = useRouter();
-  const { loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget } = useTrends();
+  const { loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal, activityLevel } = useTrends();
   const { isPro } = useSubscription();
+  const { user } = useAuth();
   const mode = TDEE_MODE[tdee.source];
+
+  // Activity-level correction. Pre-measured only: in measured mode energy
+  // balance already contains every training calorie, so folding activity in
+  // would double-count it.
+  const { suggestion, guidance, decline } = useActivitySuggestion({
+    uid: user?.uid,
+    basalKcal,
+    currentBucket: activityLevel,
+    enabled: tdee.source !== 'measured' && activityLevel != null,
+  });
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -87,6 +110,55 @@ export default function Trends() {
               </Text>
             </View>
           </Animated.View>
+
+          {/* 1b. Activity correction — sits under the hero because it changes
+              the number above it. Distinct from RecalibrationCard (measured
+              mode only): this one corrects the self-reported activity bucket
+              the FORMULA estimate rests on. Confirm-not-silent — tapping opens
+              Refine Targets pre-filled; the user still saves. */}
+          {suggestion ? (
+            <Animated.View style={styles.correctionCard} entering={enterUp(1)} testID="activity-correction">
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={styles.correctionTitle}>{t('trends.activityCorrectionTitle')}</Text>
+                <Text style={styles.correctionBody}>
+                  {t('trends.activityCorrectionBody', { level: t(ACTIVITY_LABEL[suggestion]) })}
+                </Text>
+                <View style={styles.correctionActions}>
+                  <PressScale
+                    style={styles.correctionPrimary}
+                    onPress={() => {
+                      haptics.tap();
+                      router.push(`/refine-targets?suggested=${suggestion}` as Href);
+                    }}
+                    testID="activity-correction-review"
+                  >
+                    <Text style={styles.correctionPrimaryText}>{t('trends.activityCorrectionCta')}</Text>
+                  </PressScale>
+                  <PressScale
+                    style={styles.correctionDismiss}
+                    onPress={() => { haptics.tap(); decline(); }}
+                    testID="activity-correction-dismiss"
+                  >
+                    <Text style={styles.correctionDismissText}>{t('trends.activityCorrectionDismiss')}</Text>
+                  </PressScale>
+                </View>
+              </View>
+            </Animated.View>
+          ) : null}
+
+          {/* 1c. Accrual line — a four-week wait with no visible progress reads
+              as "nothing happened", which is how a Health connection gets
+              revoked. Deliberately NOT a connect prompt: that ask belongs in
+              Refine Targets, where the user is actually asking the question it
+              answers. Here it would be an abstraction with no context. */}
+          {guidance.kind === 'progress' ? (
+            <Text style={styles.activityProgress} testID="activity-progress">
+              {t('activity.windowProgress', {
+                days: String(guidance.usableDays),
+                needed: String(guidance.needed),
+              })}
+            </Text>
+          ) : null}
 
           {/* 2. This week — adherence (calories + protein), free, never blank. */}
           <Animated.View entering={enterUp(1)}>
@@ -393,6 +465,16 @@ const createStyles = ({ colors, shadow }: Theme) =>
     // Pro row / cards
     proRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
     proRowText: { flex: 1, fontSize: font.small, color: colors.muted, fontWeight: '600' },
+    activityProgress: { fontSize: font.small, color: colors.muted, marginTop: space.sm, paddingHorizontal: space.xs },
+    // Activity-level correction card (sits directly under the hero it changes)
+    correctionCard: { flexDirection: 'row', gap: space.md, marginTop: space.md, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: space.lg },
+    correctionTitle: { fontSize: font.body, fontWeight: '700', color: colors.ink },
+    correctionBody: { fontSize: font.small, color: colors.muted },
+    correctionActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.md },
+    correctionPrimary: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.sm, paddingHorizontal: space.lg },
+    correctionPrimaryText: { color: colors.onInk, fontSize: font.small, fontWeight: '700' },
+    correctionDismiss: { paddingVertical: space.sm, paddingHorizontal: space.md },
+    correctionDismissText: { color: colors.muted, fontSize: font.small, fontWeight: '600' },
     proCard: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.lg, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: space.lg },
     proIcon: { width: 38, height: 38, borderRadius: radius.md, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
     proCardTitle: { fontSize: font.body, fontWeight: '700', color: colors.ink },

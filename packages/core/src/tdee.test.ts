@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { calculateTdee } from './tdee';
-import type { DailyLog, ProfileFields } from './types';
+import { ACTIVITY_MULTIPLIERS, basalMifflinStJeor, calculateTdee } from './tdee';
+import type { ActivityLevel, DailyLog, ProfileFields } from './types';
 
 const baseProfile: ProfileFields = {
   heightIn: 70,
@@ -110,5 +110,46 @@ describe('calculateTdee', () => {
     expect(r.loggingCompletenessPct).toBeGreaterThanOrEqual(45);
     expect(r.loggingCompletenessPct).toBeLessThanOrEqual(55);
     expect(r.reliable).toBe(false);
+  });
+});
+
+describe('basalMifflinStJeor', () => {
+  // Worked by hand from the published Mifflin-St Jeor equation (male +5 /
+  // female −161), NOT from the implementation: 180 lb = 81.64656 kg,
+  // 70 in = 177.8 cm → 10(81.64656) + 6.25(177.8) − 5(30) + 5.
+  it('matches the published male +5 constant', () => {
+    expect(basalMifflinStJeor({ heightIn: 70, age: 30, sex: 'male' }, 180)).toBeCloseTo(1782.7156, 3);
+  });
+
+  it('matches the published female −161 constant', () => {
+    expect(basalMifflinStJeor({ heightIn: 70, age: 30, sex: 'female' }, 180)).toBeCloseTo(1616.7156, 3);
+  });
+
+  it('is the bare BMR — it never applies an activity factor', () => {
+    // The activity bucket is not even part of the input shape (Refine Targets
+    // calls this before a bucket exists), so the five buckets can only differ
+    // through ACTIVITY_MULTIPLIERS, never through the basal.
+    const basal = basalMifflinStJeor({ heightIn: 70, age: 30, sex: 'male' }, 180);
+    expect(basal).toBeLessThan(1800);
+  });
+
+  it('reconstructs formula-mode TDEE for every activity bucket', () => {
+    const buckets: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'active', 'very_active'];
+    for (const activityLevel of buckets) {
+      const profile: ProfileFields = { ...baseProfile, activityLevel, goalWeightLbs: 180 };
+      const r = calculateTdee([log(0, 2000, 180)], profile);
+      const basal = basalMifflinStJeor(profile, 180);
+      expect(r.trueTdee).toBe(Math.round(basal * ACTIVITY_MULTIPLIERS[activityLevel]));
+    }
+  });
+
+  it('exposes the five locked activity multipliers', () => {
+    expect(ACTIVITY_MULTIPLIERS).toEqual({
+      sedentary: 1.2,
+      light: 1.375,
+      moderate: 1.55,
+      active: 1.725,
+      very_active: 1.9,
+    });
   });
 });

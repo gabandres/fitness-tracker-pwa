@@ -284,6 +284,12 @@ export const en = {
   'trends.completeness': '{pct}% logging completeness',
   'trends.logMore': ' · log more days to sharpen this',
   'trends.dailyTarget': 'Daily target',
+  // Activity-level correction card — imported Health activity suggests a
+  // better activity bucket than the one the user self-reported.
+  'trends.activityCorrectionTitle': 'Your Health activity says more',
+  'trends.activityCorrectionBody': 'The last 4 weeks look closer to “{level}”. Updating sharpens your maintenance estimate.',
+  'trends.activityCorrectionCta': 'Review',
+  'trends.activityCorrectionDismiss': 'Not now',
   'trends.thisWeek': 'This week',
   'trends.avgIntake': 'Avg intake',
   'trends.avgDeficit': 'Avg deficit',
@@ -559,6 +565,9 @@ export const en = {
   'refine.inches': 'in',
   'refine.age': 'Age',
   'refine.activity': 'Activity level',
+  'refine.activityFromHealth': 'Estimated from your Health activity — change it if it looks off.',
+  'refine.activityConnect': 'Not sure? Connect Health and we’ll answer this from your last 4 weeks.',
+  'refine.activityConnectCta': 'Connect Health',
   'refine.pace': 'Weekly pace',
   'refine.paceUnit': 'lb/wk',
   'refine.maintain': 'Maintain',
@@ -569,6 +578,12 @@ export const en = {
   'activity.moderate': 'Moderately active',
   'activity.active': 'Active',
   'activity.very_active': 'Very active',
+  // Sub-gate states for the activity correction. Progress makes the 4-week
+  // accrual visible; steps-only names a source problem the user has to fix
+  // (a device logging steps but no active energy).
+  'activity.windowProgress': '{days} of {needed} days of activity so far — we’ll check your level once there’s a full month.',
+  'activity.stepsOnlyAndroid': 'Your steps are syncing, but no active-energy data. Connect a watch or fitness app (Samsung Health, Fitbit, Google Fit) to Health Connect to use this.',
+  'activity.stepsOnlyIos': 'Your steps are syncing, but no active-energy data. Wearing an Apple Watch — or enabling Motion & Fitness for Health — lets us estimate your activity level.',
   'settings.refine': 'Refine targets',
   'settings.refineSub': 'Sharpen your calorie target · unlocks body fat',
   'settings.weeklyDigest': 'Weekly recap email',

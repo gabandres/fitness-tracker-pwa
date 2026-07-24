@@ -42,7 +42,7 @@ const SEED_RESULT: TdeeResult = {
   source: 'seed',
 };
 
-const ACTIVITY_MULTIPLIERS: Record<ActivityLevel, number> = {
+export const ACTIVITY_MULTIPLIERS: Record<ActivityLevel, number> = {
   sedentary: 1.2,
   light: 1.375,
   moderate: 1.55,
@@ -131,13 +131,25 @@ function calorieFloor(profile?: ProfileFields | null): number {
   return f != null && f > 0 ? f : MIN_DAILY_TARGET;
 }
 
-function mifflinStJeor(profile: ProfileFields, weightLbs: number): number {
+/**
+ * Bare Mifflin-St Jeor BMR — NO activity factor. Deliberately takes only
+ * height/age/sex/weight so callers that have no activity bucket yet (Refine
+ * Targets pre-fill, the activity-level correction's basal) can use it.
+ * `mifflinStJeor` = this × ACTIVITY_MULTIPLIERS[bucket].
+ */
+export function basalMifflinStJeor(
+  profile: { heightIn: number; age: number; sex: 'male' | 'female' },
+  weightLbs: number,
+): number {
   const weightKg = weightLbs * 0.453592;
   const heightCm = profile.heightIn * 2.54;
-  const bmr = profile.sex === 'male'
+  return profile.sex === 'male'
     ? 10 * weightKg + 6.25 * heightCm - 5 * profile.age + 5
     : 10 * weightKg + 6.25 * heightCm - 5 * profile.age - 161;
-  return bmr * ACTIVITY_MULTIPLIERS[profile.activityLevel];
+}
+
+function mifflinStJeor(profile: ProfileFields, weightLbs: number): number {
+  return basalMifflinStJeor(profile, weightLbs) * ACTIVITY_MULTIPLIERS[profile.activityLevel];
 }
 
 export function calculateTdee(logs: DailyLog[], profile?: ProfileFields | null): TdeeResult {

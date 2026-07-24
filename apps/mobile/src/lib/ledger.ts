@@ -5,6 +5,7 @@ import {
   deleteDoc,
   deleteField,
   doc,
+  documentId,
   getDoc,
   getDocs,
   limit,
@@ -183,6 +184,20 @@ export function subscribeDailyWeights(
   );
 }
 
+/**
+ * The most recent daily weight, or null if there is none. One doc read: the
+ * `dateKey` doc id sorts chronologically, so "latest" is the last id.
+ * For screens that need a single weight (the activity-correction basal) and
+ * have no reason to hold the whole `subscribeDailyWeights` stream open.
+ */
+export async function getLatestDailyWeight(uid: string): Promise<number | null> {
+  const snap = await getDocs(query(weightsCol(uid), orderBy(documentId(), 'desc'), limit(1)));
+  const d = snap.docs[0];
+  if (!d) return null;
+  const w = (d.data() as { weight?: number }).weight;
+  return typeof w === 'number' ? w : null;
+}
+
 export async function setDailyWeight(uid: string, dateKey: string, weight: number): Promise<void> {
   await setDoc(weightDoc(uid, dateKey), { weight });
 }
@@ -287,6 +302,35 @@ export function subscribeDailyActivity(
     },
     onError,
   );
+}
+
+/**
+ * One-shot read of a bounded dateKey range of activity docs, inclusive both
+ * ends — the activity-level correction's trailing window (`activityWindowRange`
+ * in core supplies the bounds).
+ *
+ * Deliberately a `getDocs`, not a listener, and deliberately NOT folded into
+ * `subscribeDailyActivity`: per ADR-0016 each surface reads for itself, and
+ * this one wants 28 docs once rather than the whole collection live.
+ * `dateKey` IS the doc id, so the range is a documentId() query — no index.
+ */
+export async function getActivityWindow(
+  uid: string,
+  from: string,
+  to: string,
+): Promise<Record<string, DailyActivity>> {
+  const snap = await getDocs(
+    query(activityCol(uid), where(documentId(), '>=', from), where(documentId(), '<=', to)),
+  );
+  const activity: Record<string, DailyActivity> = {};
+  for (const d of snap.docs) {
+    const data = d.data() as DailyActivity;
+    activity[d.id] = {
+      steps: typeof data.steps === 'number' ? data.steps : undefined,
+      activeKcal: typeof data.activeKcal === 'number' ? data.activeKcal : undefined,
+    };
+  }
+  return activity;
 }
 
 export async function setDailySteps(uid: string, dateKey: string, steps: number): Promise<void> {

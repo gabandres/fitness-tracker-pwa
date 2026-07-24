@@ -286,6 +286,12 @@ export const esPR: Record<I18nKey, string> = {
   'trends.completeness': '{pct}% de días registrados',
   'trends.logMore': ' · registra más días para afinarlo',
   'trends.dailyTarget': 'Meta diaria',
+  // Corrección del nivel de actividad — la actividad importada de Health
+  // sugiere un nivel distinto al que la persona reportó.
+  'trends.activityCorrectionTitle': 'Tu actividad en Health dice más',
+  'trends.activityCorrectionBody': 'Las últimas 4 semanas se parecen más a “{level}”. Actualizarlo afina tu estimación de mantenimiento.',
+  'trends.activityCorrectionCta': 'Revisar',
+  'trends.activityCorrectionDismiss': 'Ahora no',
   'trends.thisWeek': 'Esta semana',
   'trends.avgIntake': 'Consumo prom.',
   'trends.avgDeficit': 'Déficit prom.',
@@ -561,6 +567,9 @@ export const esPR: Record<I18nKey, string> = {
   'refine.inches': 'pulg',
   'refine.age': 'Edad',
   'refine.activity': 'Nivel de actividad',
+  'refine.activityFromHealth': 'Estimado desde tu actividad en Health — cámbialo si no cuadra.',
+  'refine.activityConnect': '¿No estás seguro? Conecta Health y lo contestamos con tus últimas 4 semanas.',
+  'refine.activityConnectCta': 'Conectar Health',
   'refine.pace': 'Ritmo semanal',
   'refine.paceUnit': 'lb/sem',
   'refine.maintain': 'Mantener',
@@ -571,6 +580,10 @@ export const esPR: Record<I18nKey, string> = {
   'activity.moderate': 'Moderadamente activo',
   'activity.active': 'Activo',
   'activity.very_active': 'Muy activo',
+  // Estados previos al umbral de la corrección de actividad.
+  'activity.windowProgress': '{days} de {needed} días de actividad hasta ahora — revisamos tu nivel cuando haya un mes completo.',
+  'activity.stepsOnlyAndroid': 'Tus pasos se están sincronizando, pero no hay datos de energía activa. Conecta un reloj o app de fitness (Samsung Health, Fitbit, Google Fit) a Health Connect para usar esto.',
+  'activity.stepsOnlyIos': 'Tus pasos se están sincronizando, pero no hay datos de energía activa. Usar un Apple Watch — o activar Movimiento y Forma Física para Health — nos deja estimar tu nivel de actividad.',
   'settings.refine': 'Afinar metas',
   'settings.refineSub': 'Afina tu meta de calorías · activa grasa corporal',
   'settings.weeklyDigest': 'Resumen semanal por correo',

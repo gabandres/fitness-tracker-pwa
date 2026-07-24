@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -13,9 +13,10 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { ActivityLevel, Sex } from '@macrolog/core';
+import { type ActivityLevel, type Sex, basalMifflinStJeor } from '@macrolog/core';
+import { useActivitySuggestion } from '@/lib/activity-suggestion';
 import { useAuth } from '@/lib/auth';
-import { saveRefinedTargets } from '@/lib/ledger';
+import { getLatestDailyWeight, saveRefinedTargets } from '@/lib/ledger';
 import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -42,12 +43,17 @@ export default function RefineTargets() {
   const { colors } = useTheme();
   const router = useRouter();
   const { user, profile } = useAuth();
+  // Set when the Trends correction card sends the user here: the screen opens
+  // already on the suggested bucket, so accepting is just Save.
+  const { suggested } = useLocalSearchParams<{ suggested?: ActivityLevel }>();
 
   const [sex, setSex] = useState<Sex | null>(profile?.sex ?? null);
   const [feet, setFeet] = useState(profile?.heightIn ? String(Math.floor(profile.heightIn / 12)) : '');
   const [inches, setInches] = useState(profile?.heightIn ? String(profile.heightIn % 12) : '');
   const [age, setAge] = useState(profile?.age != null ? String(profile.age) : '');
-  const [activity, setActivity] = useState<ActivityLevel | null>(profile?.activityLevel ?? null);
+  const [activity, setActivity] = useState<ActivityLevel | null>(
+    suggested ?? profile?.activityLevel ?? null,
+  );
   const [pace, setPace] = useState<number>(profile?.targetPaceLbsPerWeek ?? 1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,10 +65,60 @@ export default function RefineTargets() {
 
   const heightValid = heightIn != null && heightIn >= 40 && heightIn <= 96;
   const ageValid = ageNum != null && ageNum >= 13 && ageNum <= 120;
-  const canSave = sex != null && heightValid && ageValid && activity != null && !busy;
+
+  // ── Activity pre-fill from imported Health activity ──────────────────
+  // Only ever fills an EMPTY activity field. A stored activityLevel is never
+  // swapped underneath someone who came here to edit their pace.
+  const [touched, setTouched] = useState(false);
+  const [weightLbs, setWeightLbs] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    void getLatestDailyWeight(user.uid).then((w) => alive && setWeightLbs(w));
+    return () => {
+      alive = false;
+    };
+  }, [user]);
+
+  // Live basal off the FORM values, not the stored profile — the pre-fill
+  // must track sex/height/age as the user fills them in. 0 until all three
+  // are valid, which `suggestActivityLevel` reads as "can't decide yet".
+  const basalKcal =
+    sex != null && heightValid && ageValid && weightLbs != null
+      ? basalMifflinStJeor({ heightIn: heightIn as number, age: ageNum as number, sex }, weightLbs)
+      : 0;
+
+  const { suggestion, guidance, decline, accept, connect, connecting } = useActivitySuggestion({
+    uid: user?.uid,
+    basalKcal,
+    // Null at seed ⇒ no deadband: this is a pre-fill of an empty field rather
+    // than a correction of a stated answer. When a bucket IS stored the
+    // deadband applies as usual, and the pre-fill can't fire anyway (`activity`
+    // starts non-null), so nothing is swapped underneath the user.
+    currentBucket: profile?.activityLevel ?? null,
+  });
+
+  // Reactive until the first manual tap, then frozen: recomputing under a
+  // user who has just chosen would fight them.
+  const prefill = touched ? null : suggestion;
+  /** What the form will actually save: an explicit tap, else the pre-fill. */
+  const selected = activity ?? prefill;
+  const showDisclosure = activity == null && prefill != null;
+
+  function chooseActivity(value: ActivityLevel) {
+    haptics.tap();
+    // Overriding a live pre-fill IS a decline — the Trends card must not come
+    // back later suggesting the bucket they just rejected by hand.
+    if (prefill != null && value !== prefill) decline();
+    setTouched(true);
+    setActivity(value);
+  }
+
+  const canSave = sex != null && heightValid && ageValid && selected != null && !busy;
 
   async function onSave() {
-    if (!canSave || !user || sex == null || heightIn == null || ageNum == null || activity == null) return;
+    if (!canSave || !user || sex == null || heightIn == null || ageNum == null || selected == null) return;
     setError(null);
     setBusy(true);
     try {
@@ -70,9 +126,12 @@ export default function RefineTargets() {
         heightIn,
         age: ageNum,
         sex,
-        activityLevel: activity,
+        activityLevel: selected,
         targetPaceLbsPerWeek: pace,
       });
+      // Saving a suggested bucket IS the accept — drop any remembered "no" so
+      // a future window is free to suggest that bucket again.
+      if (selected === suggestion || selected === suggested) accept();
       haptics.success();
       router.replace('/settings');
     } catch {
@@ -137,12 +196,12 @@ export default function RefineTargets() {
             <Text style={styles.label}>{t('refine.activity')}</Text>
             <View style={styles.activityCol}>
               {ACTIVITY.map((a) => {
-                const on = activity === a.value;
+                const on = selected === a.value;
                 return (
                   <TouchableOpacity
                     key={a.value}
                     style={[styles.activityRow, on && styles.activityRowOn]}
-                    onPress={() => { haptics.tap(); setActivity(a.value); }}
+                    onPress={() => chooseActivity(a.value)}
                     testID={`refine-activity-${a.value}`}
                   >
                     <Text style={[styles.activityText, on && styles.activityTextOn]}>{t(a.labelKey)}</Text>
@@ -151,6 +210,48 @@ export default function RefineTargets() {
                 );
               })}
             </View>
+            {showDisclosure ? (
+              <Text style={styles.hint} testID="refine-activity-hint">
+                {t('refine.activityFromHealth')}
+              </Text>
+            ) : null}
+
+            {/* The connect ask lives HERE and nowhere else: this is the one
+                moment the user is visibly guessing at the answer imported
+                activity would give them. Progress / steps-only replace it once
+                connected, so the field never carries two messages at once. */}
+            {guidance.kind === 'connect' ? (
+              <View style={styles.healthPrompt} testID="refine-activity-connect">
+                <Text style={styles.hint}>{t('refine.activityConnect')}</Text>
+                <TouchableOpacity
+                  style={styles.healthBtn}
+                  onPress={async () => { haptics.tap(); await connect(); }}
+                  disabled={connecting}
+                  testID="refine-activity-connect-cta"
+                >
+                  {connecting ? (
+                    <ActivityIndicator color={colors.onInk} />
+                  ) : (
+                    <Text style={styles.healthBtnText}>{t('refine.activityConnectCta')}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {guidance.kind === 'progress' ? (
+              <Text style={styles.hint} testID="refine-activity-progress">
+                {t('activity.windowProgress', {
+                  days: String(guidance.usableDays),
+                  needed: String(guidance.needed),
+                })}
+              </Text>
+            ) : null}
+
+            {guidance.kind === 'steps-only' ? (
+              <Text style={styles.hint} testID="refine-activity-steps-only">
+                {t(Platform.OS === 'android' ? 'activity.stepsOnlyAndroid' : 'activity.stepsOnlyIos')}
+              </Text>
+            ) : null}
           </View>
 
           <View style={styles.field}>
@@ -223,6 +324,10 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     backgroundColor: colors.inputBg,
   },
   activityRowOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  hint: { fontSize: font.small, color: colors.muted, marginTop: space.xs },
+  healthPrompt: { marginTop: space.xs, gap: space.sm, alignItems: 'flex-start' },
+  healthBtn: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.sm, paddingHorizontal: space.lg, minWidth: 140, alignItems: 'center' },
+  healthBtnText: { color: colors.onInk, fontSize: font.small, fontWeight: '700' },
   activityText: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
   activityTextOn: { color: colors.onInk },
   paceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

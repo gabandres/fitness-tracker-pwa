@@ -409,11 +409,14 @@ const healthConnect: HealthPort = {
           kind === 'steps' ? g.result?.COUNT_TOTAL : g.result?.ACTIVE_CALORIES_TOTAL?.inKilocalories;
         // An absent metric means the bucket held no records — a missing day,
         // which must stay missing rather than become a 0 (see the iOS branch).
-        // ⚠️ Divergence to confirm on a device: Health Connect may instead
-        // return an explicit 0 for an empty day, where HealthKit omits the
-        // figure entirely. We keep explicit zeros because #23 ruled that zeros
-        // count, but that ruling predates knowing these bucket semantics.
-        if (value == null) return [];
+        // Health Connect diverges from HealthKit here: it may return an
+        // explicit 0 for an empty day where HealthKit omits the figure
+        // entirely. #29 settled that as ABSENCE too — a stored 0 is "the OS
+        // reported nothing", never "burned nothing" — so drop it, matching the
+        // iOS empty-drop. Without this the ~400-day first import writes
+        // hundreds of 0 docs. `reduceActivityWindow` filters `> 0` regardless;
+        // this only spares the writes.
+        if (value == null || Math.round(value) === 0) return [];
         const start = new Date(g.startTime ?? 0);
         return [
           {
