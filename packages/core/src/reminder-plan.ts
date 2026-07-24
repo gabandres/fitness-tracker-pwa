@@ -168,3 +168,64 @@ function atToday(now: Date, hour: number, minute: number): Date {
   d.setHours(hour, minute, 0, 0);
   return d;
 }
+
+/** Fallback evening hour when a device has no stored preference at all. */
+export const DEFAULT_REMINDER_HOUR = 20;
+
+function isMealSettings(x: unknown): x is MealReminderSettings {
+  if (typeof x !== 'object' || x === null) return false;
+  const o = x as Record<string, unknown>;
+  return MEAL_ORDER.every((k) => {
+    const m = o[k] as Record<string, unknown> | undefined;
+    return (
+      typeof m === 'object' &&
+      m !== null &&
+      typeof m['enabled'] === 'boolean' &&
+      typeof m['hour'] === 'number' &&
+      Number.isFinite(m['hour']) &&
+      typeof m['minute'] === 'number' &&
+      Number.isFinite(m['minute'])
+    );
+  });
+}
+
+/**
+ * Decide the per-meal schedule from what a device has on disk. Pure, so the
+ * upgrade path is testable without a device — the frontend adapter just hands
+ * over the two raw stored values.
+ *
+ * **Why the legacy branch matters.** 1.0 stored a single `reminder.hour` and
+ * the adapter pinned it to dinner while silently applying
+ * {@link DEFAULT_MEAL_REMINDERS} for breakfast and lunch. So an upgrading user
+ * is *already* receiving a 1:30pm lunch nudge that had no off switch in the UI.
+ * Reconstructing that exact schedule — rather than resetting to defaults —
+ * means nobody's notifications change on upgrade; what changes is that all
+ * three windows become visible and editable.
+ *
+ * @param storedJson  the saved per-meal blob, or null before the first save
+ * @param legacyHour  the 1.0 single-hour value, or null if never set
+ */
+export function resolveMealReminders(
+  storedJson: string | null | undefined,
+  legacyHour: number | null | undefined,
+): MealReminderSettings {
+  if (storedJson) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(storedJson);
+    } catch {
+      parsed = null;
+    }
+    // A corrupt blob falls back to defaults rather than throwing — losing a
+    // custom reminder time is recoverable; a settings screen that crashes on
+    // open is not.
+    if (isMealSettings(parsed)) return parsed;
+    return DEFAULT_MEAL_REMINDERS;
+  }
+
+  const hour =
+    typeof legacyHour === 'number' && Number.isFinite(legacyHour) && legacyHour >= 0 && legacyHour <= 23
+      ? legacyHour
+      : DEFAULT_REMINDER_HOUR;
+  return { ...DEFAULT_MEAL_REMINDERS, dinner: { enabled: true, hour, minute: 0 } };
+}

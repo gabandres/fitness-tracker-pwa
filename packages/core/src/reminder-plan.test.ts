@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_MEAL_REMINDERS,
+  DEFAULT_REMINDER_HOUR,
   planReminders,
+  resolveMealReminders,
   type MealReminderSettings,
   type ReminderPlan,
 } from './reminder-plan';
@@ -98,5 +100,63 @@ describe('planReminders — weigh-in nudge (smart)', () => {
   it('does not schedule in the past (after the 8:00am slot)', () => {
     expect(planReminders({ now: noon(), meals, loggedToday: true, streak: 0, daysSinceWeighIn: 30 })
       .find((p) => p.id === 'weigh-in')).toBeUndefined();
+  });
+});
+
+describe('resolveMealReminders (1.0 → per-meal upgrade)', () => {
+  it('reconstructs the exact schedule 1.0 was running, not the defaults', () => {
+    // 1.0 pinned the stored hour to dinner and ran DEFAULT_MEAL_REMINDERS for
+    // the rest. An upgrade must not silently move anyone's notifications.
+    expect(resolveMealReminders(null, 19)).toEqual({
+      breakfast: DEFAULT_MEAL_REMINDERS.breakfast,
+      lunch: DEFAULT_MEAL_REMINDERS.lunch,
+      dinner: { enabled: true, hour: 19, minute: 0 },
+    });
+  });
+
+  it('carries the previously-hidden lunch nudge through the upgrade', () => {
+    // The whole point of the fix: lunch was already firing: it just had no off
+    // switch. It must survive so the user can now see and disable it.
+    const m = resolveMealReminders(null, 19);
+    expect(m.lunch.enabled).toBe(true);
+    expect(m.breakfast.enabled).toBe(false);
+  });
+
+  it('falls back to the default hour on a fresh install', () => {
+    expect(resolveMealReminders(null, null).dinner.hour).toBe(DEFAULT_REMINDER_HOUR);
+  });
+
+  it.each([
+    ['out of range high', 24],
+    ['out of range low', -1],
+    ['not a number', Number.NaN],
+  ])('ignores a %s legacy hour', (_label, hour) => {
+    expect(resolveMealReminders(null, hour).dinner.hour).toBe(DEFAULT_REMINDER_HOUR);
+  });
+
+  it('round-trips a saved schedule', () => {
+    const saved: MealReminderSettings = {
+      breakfast: { enabled: true, hour: 7, minute: 15 },
+      lunch: { enabled: false, hour: 13, minute: 30 },
+      dinner: { enabled: true, hour: 21, minute: 0 },
+    };
+    expect(resolveMealReminders(JSON.stringify(saved), 19)).toEqual(saved);
+  });
+
+  it('prefers a saved schedule over the legacy hour', () => {
+    const saved = JSON.stringify({
+      ...DEFAULT_MEAL_REMINDERS,
+      dinner: { enabled: true, hour: 21, minute: 0 },
+    });
+    expect(resolveMealReminders(saved, 19).dinner.hour).toBe(21);
+  });
+
+  it.each([
+    ['truncated', '{"breakfast":'],
+    ['wrong shape', '{"breakfast":{"enabled":true}}'],
+    ['missing a meal', JSON.stringify({ breakfast: DEFAULT_MEAL_REMINDERS.breakfast })],
+    ['not an object', '"nope"'],
+  ])('falls back to defaults rather than throwing on a %s blob', (_label, raw) => {
+    expect(resolveMealReminders(raw, null)).toEqual(DEFAULT_MEAL_REMINDERS);
   });
 });

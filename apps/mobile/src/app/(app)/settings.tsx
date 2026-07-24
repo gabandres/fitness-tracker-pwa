@@ -4,7 +4,15 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
-import { type ImportParseError, type ImportParseResult, type UnitSystem, parseImportCsv } from '@macrolog/core';
+import {
+  DEFAULT_MEAL_REMINDERS,
+  type ImportParseError,
+  type ImportParseResult,
+  type MealKey,
+  type MealReminderSettings,
+  type UnitSystem,
+  parseImportCsv,
+} from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
 import { importLogs, setCalorieFloor, setPreferredLocale, setUnitSystem, setWeeklyDigestOptIn } from '@/lib/ledger';
@@ -15,7 +23,12 @@ import { APP_STORE_REVIEW_URL } from '@/lib/reviewPrompt';
 import { TipSheet } from '@/components/TipSheet';
 import { useHealthSync } from '@/lib/health-sync';
 import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
-import { DEFAULT_REMINDER_HOUR, getReminder, setReminder, syncReminders } from '@/lib/reminders';
+import {
+  getReminderSettings,
+  setMealReminders,
+  setRemindersEnabled,
+  syncReminders,
+} from '@/lib/reminders';
 import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -40,6 +53,14 @@ const LANGUAGES: { value: Locale; label: string }[] = [
 ];
 
 // Calorie-floor stepper bounds (kcal). Kept in sync with the PWA settings.
+/** The meal windows `planReminders` can schedule, in the order they occur.
+ *  Every entry here is user-controllable — that's the point of the row. */
+const MEAL_ROWS: { key: MealKey; labelKey: I18nKey }[] = [
+  { key: 'breakfast', labelKey: 'settings.reminderBreakfast' },
+  { key: 'lunch', labelKey: 'settings.reminderLunch' },
+  { key: 'dinner', labelKey: 'settings.reminderDinner' },
+];
+
 const CALORIE_FLOOR_MIN = 1200;
 const CALORIE_FLOOR_MAX = 3000;
 const DEFAULT_CALORIE_FLOOR = 1500;
@@ -72,7 +93,7 @@ export default function Settings() {
   const router = useRouter();
   const [savingUnit, setSavingUnit] = useState(false);
   const [reminderEnabled, setReminderEnabled] = useState(false);
-  const [reminderHour, setReminderHour] = useState(DEFAULT_REMINDER_HOUR);
+  const [meals, setMeals] = useState<MealReminderSettings>(DEFAULT_MEAL_REMINDERS);
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showTip, setShowTip] = useState(false);
@@ -173,9 +194,9 @@ export default function Settings() {
   }
 
   useEffect(() => {
-    getReminder().then((r) => {
+    getReminderSettings().then((r) => {
       setReminderEnabled(r.enabled);
-      setReminderHour(r.hour);
+      setMeals(r.meals);
     });
   }, []);
 
@@ -186,18 +207,28 @@ export default function Settings() {
 
   async function toggleReminder(next: boolean) {
     haptics.tap();
-    const applied = await setReminder(next, reminderHour);
+    const applied = await setRemindersEnabled(next);
     setReminderEnabled(applied);
     if (applied) await syncReminders(NEUTRAL_STATE, t);
   }
 
-  async function bumpReminderHour(delta: number) {
-    const next = (reminderHour + delta + 24) % 24;
-    setReminderHour(next);
-    if (reminderEnabled) {
-      await setReminder(true, next);
-      await syncReminders(NEUTRAL_STATE, t);
-    }
+  /** Persist one meal's row and reschedule. Every edit rewrites the whole
+   *  schedule because `syncReminders` cancels and re-adds the full set — there
+   *  is no per-notification update path. */
+  async function applyMeals(next: MealReminderSettings) {
+    setMeals(next);
+    await setMealReminders(next);
+    if (reminderEnabled) await syncReminders(NEUTRAL_STATE, t);
+  }
+
+  async function toggleMeal(key: MealKey) {
+    haptics.tap();
+    await applyMeals({ ...meals, [key]: { ...meals[key], enabled: !meals[key].enabled } });
+  }
+
+  async function bumpMealHour(key: MealKey, delta: number) {
+    const hour = (meals[key].hour + delta + 24) % 24;
+    await applyMeals({ ...meals, [key]: { ...meals[key], hour } });
   }
 
   // Calorie floor (kcal safety clamp). Seeded from the profile (1500 default
@@ -502,20 +533,46 @@ export default function Settings() {
               testID="reminder-toggle"
             />
           </View>
-          {reminderEnabled ? (
-            <View style={styles.rowBetween}>
-              <Text style={styles.rowLabel}>{t('settings.time')}</Text>
-              <View style={styles.stepper}>
-                <TouchableOpacity style={styles.step} onPress={() => bumpReminderHour(-1)} testID="reminder-hour-minus">
-                  <Text style={styles.stepText}>−</Text>
-                </TouchableOpacity>
-                <Text style={styles.hourValue} testID="reminder-hour">{hourLabel(reminderHour)}</Text>
-                <TouchableOpacity style={styles.step} onPress={() => bumpReminderHour(1)} testID="reminder-hour-plus">
-                  <Text style={styles.stepText}>+</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : null}
+          {/* Per-meal rows. 1.0 exposed a single hour and quietly ran the
+              default lunch nudge alongside it, so a 1:30pm notification had no
+              off switch anywhere in the UI. Each window the planner can
+              schedule now has its own toggle and time. */}
+          {reminderEnabled
+            ? MEAL_ROWS.map(({ key, labelKey }) => (
+                <View key={key} style={styles.rowBetween}>
+                  <Text style={styles.rowLabel}>{t(labelKey)}</Text>
+                  <View style={styles.mealControls}>
+                    {meals[key].enabled ? (
+                      <View style={styles.stepper}>
+                        <TouchableOpacity
+                          style={styles.step}
+                          onPress={() => bumpMealHour(key, -1)}
+                          testID={`reminder-${key}-hour-minus`}
+                        >
+                          <Text style={styles.stepText}>−</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.hourValue} testID={`reminder-${key}-hour`}>
+                          {hourLabel(meals[key].hour)}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.step}
+                          onPress={() => bumpMealHour(key, 1)}
+                          testID={`reminder-${key}-hour-plus`}
+                        >
+                          <Text style={styles.stepText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+                    <Switch
+                      value={meals[key].enabled}
+                      onValueChange={() => toggleMeal(key)}
+                      trackColor={{ true: colors.tealSolid, false: colors.line }}
+                      testID={`reminder-${key}-toggle`}
+                    />
+                  </View>
+                </View>
+              ))
+            : null}
           {reminderEnabled ? (
             <Text style={styles.rowValue}>{t('settings.reminderTimeHint')}</Text>
           ) : null}
@@ -787,6 +844,9 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   segmentBtnOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   segmentText: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   segmentTextOn: { color: colors.onInk },
+  // Stepper + switch share a row; the stepper is hidden when the meal is off,
+  // so the switch stays put and the row doesn't reflow as it collapses.
+  mealControls: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   step: {
     width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.line,

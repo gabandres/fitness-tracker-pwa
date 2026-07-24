@@ -2,8 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import {
-  DEFAULT_MEAL_REMINDERS,
   planReminders,
+  resolveMealReminders,
   type MealReminderSettings,
   type ReminderPlan,
 } from '@macrolog/core';
@@ -17,12 +17,14 @@ import type { I18nKey, TFn } from '@/i18n';
 // server CF path). State lives in AsyncStorage because it's per-device.
 
 const ENABLED_KEY = 'reminder.enabled';
+/** Legacy single-hour key (shipped in 1.0). Read once to migrate, never written
+ *  again — see {@link getReminderSettings}. */
 const HOUR_KEY = 'reminder.hour';
-export const DEFAULT_REMINDER_HOUR = 20; // 8 PM — the primary evening nudge.
+const MEALS_KEY = 'reminder.meals';
 
 export interface ReminderState {
   enabled: boolean;
-  hour: number; // 0–23
+  meals: MealReminderSettings;
 }
 
 /** Live signals the smart planner needs, gathered by `useReminderSync`. */
@@ -46,29 +48,37 @@ if (isNative) {
   });
 }
 
-export async function getReminder(): Promise<ReminderState> {
-  const [enabled, hour] = await Promise.all([
+/**
+ * Read the master switch plus the per-meal schedule. The 1.0 → per-meal
+ * upgrade decision is pure and lives in core `resolveMealReminders` (tested
+ * there); this only fetches the two raw stored values.
+ */
+export async function getReminderSettings(): Promise<ReminderState> {
+  const [enabled, mealsRaw, legacyHour] = await Promise.all([
     AsyncStorage.getItem(ENABLED_KEY),
+    AsyncStorage.getItem(MEALS_KEY),
     AsyncStorage.getItem(HOUR_KEY),
   ]);
+
   return {
     enabled: enabled === '1',
-    hour: hour != null ? Number(hour) : DEFAULT_REMINDER_HOUR,
+    meals: resolveMealReminders(mealsRaw, legacyHour == null ? null : Number(legacyHour)),
   };
 }
 
+/** Persist the per-meal schedule. Does NOT schedule — the caller follows with
+ *  `syncReminders(...)`, which needs live streak/weigh-in state. */
+export async function setMealReminders(meals: MealReminderSettings): Promise<void> {
+  await AsyncStorage.setItem(MEALS_KEY, JSON.stringify(meals));
+}
+
 /**
- * Persist the reminder preferences. Enabling requests permission first; if
- * denied, returns false and stays off. Disabling clears every scheduled nudge.
- * Does NOT itself schedule — the caller follows a successful enable / hour
- * change with `syncReminders(...)` (scheduling needs live streak/weigh-in
- * state, which only the app screens have).
+ * Flip the master switch. Enabling requests permission first; if denied,
+ * returns false and stays off. Disabling clears every scheduled nudge.
+ * Does NOT itself schedule — see {@link setMealReminders}.
  */
-export async function setReminder(enabled: boolean, hour: number): Promise<boolean> {
-  await AsyncStorage.multiSet([
-    [HOUR_KEY, String(hour)],
-    [ENABLED_KEY, enabled ? '1' : '0'],
-  ]);
+export async function setRemindersEnabled(enabled: boolean): Promise<boolean> {
+  await AsyncStorage.setItem(ENABLED_KEY, enabled ? '1' : '0');
 
   if (!isNative) return enabled;
 
@@ -88,20 +98,17 @@ export async function setReminder(enabled: boolean, hour: number): Promise<boole
 /**
  * Cancel and reschedule the full smart plan from core `planReminders`. Called
  * on Today focus, after every log, and after a settings change. No-op on web or
- * when reminders are disabled. Meal windows use the grilled defaults with the
- * dinner nudge pinned to the user's configured hour.
+ * when reminders are disabled. The meal windows come straight from the user's
+ * saved per-meal schedule — this adapter makes no scheduling decisions of its
+ * own; that is entirely `planReminders`' job.
  */
 export async function syncReminders(state: ReminderLiveState, t: TFn): Promise<void> {
   if (!isNative) return;
-  const { enabled, hour } = await getReminder();
+  const { enabled, meals } = await getReminderSettings();
 
   await Notifications.cancelAllScheduledNotificationsAsync();
   if (!enabled) return;
 
-  const meals: MealReminderSettings = {
-    ...DEFAULT_MEAL_REMINDERS,
-    dinner: { enabled: true, hour, minute: 0 },
-  };
   const plans = planReminders({
     now: new Date(),
     meals,
