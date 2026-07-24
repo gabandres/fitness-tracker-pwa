@@ -27,6 +27,8 @@ import {
   type RefineTargetsSubmission,
   type UnitSystem,
   type WeeklyReport,
+  ACTIVE_ENERGY_MAX_KCAL,
+  STEPS_MAX,
   clampCutPace,
   localDateKey,
   oldestFirst,
@@ -247,20 +249,74 @@ export async function setDailySleep(uid: string, dateKey: string, hours: number)
   await setDoc(sleepDoc(uid, dateKey), { hours: Math.max(0, Math.min(24, Math.round(hours * 2) / 2)) });
 }
 
+// ─── Daily activity (import-only) ───────────────────────────────
+// users/{uid}/dailyActivity/{dateKey} = { steps?, activeKcal? }.
+//
+// One doc per day holding BOTH metrics rather than a collection each: they're
+// written together by the same importer, read together by the same UI, and a
+// single doc halves the reads (and the rule surface). The two setters merge so
+// neither clobbers the other's field.
+//
+// Import-only on purpose — the phone and watch measure these, the app can't, so
+// there is no export path and nothing here ever writes to Health.
+const activityCol = (uid: string) => collection(db, 'users', uid, 'dailyActivity');
+const activityDoc = (uid: string, dateKey: string) => doc(db, 'users', uid, 'dailyActivity', dateKey);
+
+export interface DailyActivity {
+  steps?: number;
+  activeKcal?: number;
+}
+
+export function subscribeDailyActivity(
+  uid: string,
+  cb: (activity: Record<string, DailyActivity>) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    activityCol(uid),
+    (snap) => {
+      const activity: Record<string, DailyActivity> = {};
+      for (const d of snap.docs) {
+        const data = d.data() as DailyActivity;
+        activity[d.id] = {
+          steps: typeof data.steps === 'number' ? data.steps : undefined,
+          activeKcal: typeof data.activeKcal === 'number' ? data.activeKcal : undefined,
+        };
+      }
+      cb(activity);
+    },
+    onError,
+  );
+}
+
+export async function setDailySteps(uid: string, dateKey: string, steps: number): Promise<void> {
+  const v = Math.max(0, Math.min(STEPS_MAX, Math.round(steps)));
+  await setDoc(activityDoc(uid, dateKey), { steps: v }, { merge: true });
+}
+
+export async function setDailyActiveEnergy(uid: string, dateKey: string, kcal: number): Promise<void> {
+  const v = Math.max(0, Math.min(ACTIVE_ENERGY_MAX_KCAL, Math.round(kcal)));
+  await setDoc(activityDoc(uid, dateKey), { activeKcal: v }, { merge: true });
+}
+
 // ─── Health sync — one-shot scalar reads ────────────────────────
 // The live tabs subscribe to these collections; the Health importer needs a
 // point-in-time snapshot (it can run from Settings, which holds no listeners),
 // so it reads once here. `dateKey → value` in each metric's canonical unit
-// (weight lb, sleep hours, water fl oz) — the same units health-mapping uses.
+// (weight lb, sleep hours, water fl oz, steps count, activeEnergy kcal) — the
+// same units health-mapping uses.
 export async function getHealthScalarsOnce(uid: string): Promise<{
   weight: Record<string, number>;
   sleep: Record<string, number>;
   water: Record<string, number>;
+  steps: Record<string, number>;
+  activeEnergy: Record<string, number>;
 }> {
-  const [wSnap, sSnap, waSnap] = await Promise.all([
+  const [wSnap, sSnap, waSnap, actSnap] = await Promise.all([
     getDocs(weightsCol(uid)),
     getDocs(sleepCol(uid)),
     getDocs(waterCol(uid)),
+    getDocs(activityCol(uid)),
   ]);
   const weight: Record<string, number> = {};
   for (const d of wSnap.docs) weight[d.id] = (d.data() as { weight: number }).weight;
@@ -275,7 +331,16 @@ export async function getHealthScalarsOnce(uid: string): Promise<{
     const flOz = typeof data.flOz === 'number' ? data.flOz : typeof data.ml === 'number' ? data.ml / 29.5735 : null;
     if (flOz != null) water[d.id] = flOz;
   }
-  return { weight, sleep, water };
+  // Both activity metrics share one doc, so a day may carry either, both, or
+  // neither — each map only gets the days that actually have that field.
+  const steps: Record<string, number> = {};
+  const activeEnergy: Record<string, number> = {};
+  for (const d of actSnap.docs) {
+    const data = d.data() as DailyActivity;
+    if (typeof data.steps === 'number') steps[d.id] = data.steps;
+    if (typeof data.activeKcal === 'number') activeEnergy[d.id] = data.activeKcal;
+  }
+  return { weight, sleep, water, steps, activeEnergy };
 }
 
 // ─── Fasting ────────────────────────────────────────────────────

@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useT } from '@/i18n';
+import type { DailyActivity } from '@/lib/ledger';
 import * as haptics from '@/lib/haptics';
 import Reanimated from 'react-native-reanimated';
 import { PressScale } from '@/lib/motion';
@@ -20,6 +21,8 @@ import { font, radius, space } from '@/theme';
 interface Props {
   water: number;
   sleep: number | null;
+  /** Today's imported activity, or undefined when Health isn't connected. */
+  activity?: DailyActivity;
   fastStartedAt: Date | null;
   onAddWater: (flOz: number) => void;
   onSetSleep: (hours: number) => void;
@@ -38,7 +41,7 @@ function elapsedLabel(since: Date, now: number): string {
 /** Today's daily-metric strip: fasting timer, water quick-add, sleep. The
  *  fasting row re-renders every 30s while a fast is running so the elapsed
  *  clock stays live without a global timer. */
-export function DailyMetrics({ water, sleep, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast }: Props) {
+export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast }: Props) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const [sleepOpen, setSleepOpen] = useState(false);
@@ -113,6 +116,31 @@ export function DailyMetrics({ water, sleep, fastStartedAt, onAddWater, onSetSle
           <Text style={styles.actionText}>{sleep != null ? t('metrics.edit') : t('metrics.log')}</Text>
         </PressScale>
       </View>
+
+      {/* Activity — imported from Apple Health / Health Connect, so there's no
+          action button: the app can't produce these and never writes them back.
+          The whole row is hidden unless a value actually arrived, so anyone
+          without Health connected sees no permanently-empty strip. */}
+      {activity && (activity.steps != null || activity.activeKcal != null) ? (
+        <>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <View style={styles.left}>
+              <Text style={styles.label}>{t('metrics.activity')}</Text>
+              <Text style={styles.value} testID="activity-value">
+                {[
+                  activity.steps != null ? t('metrics.steps', { n: activity.steps.toLocaleString() }) : null,
+                  activity.activeKcal != null
+                    ? t('metrics.activeKcal', { n: activity.activeKcal.toLocaleString() })
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+            </View>
+          </View>
+        </>
+      ) : null}
 
       <SleepModal
         visible={sleepOpen}

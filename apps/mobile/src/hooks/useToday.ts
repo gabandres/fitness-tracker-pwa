@@ -34,6 +34,7 @@ import {
   setHiddenRecentLabels,
   startFast as startFastDoc,
   subscribeCustomFoods,
+  subscribeDailyActivity,
   subscribeDailySleep,
   subscribeDailyWater,
   subscribeDailyWeights,
@@ -41,6 +42,7 @@ import {
   subscribeProfile,
   subscribeRecentLogs,
   updateLog as updateLogDoc,
+  type DailyActivity,
 } from '@/lib/ledger';
 
 // Generous window so measured-mode TDEE (≥14 distinct days) can engage.
@@ -76,6 +78,7 @@ export interface TodayState {
   /** Today's daily metrics + setters. */
   water: number;
   sleep: number | null;
+  activity: DailyActivity | undefined;
   setWater: (flOz: number) => Promise<void>;
   setSleep: (hours: number) => Promise<void>;
   /** Fast start time (Date) or null when not fasting. */
@@ -102,6 +105,7 @@ export function useToday(): TodayState {
   const [customFoods, setCustomFoods] = useState<CustomFood[]>([]);
   const [water, setWaterMap] = useState<Record<string, number>>({});
   const [sleep, setSleepMap] = useState<Record<string, number>>({});
+  const [activity, setActivityMap] = useState<Record<string, DailyActivity>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -128,6 +132,9 @@ export function useToday(): TodayState {
         subscribeCustomFoods(uid, setCustomFoods, setError),
         subscribeDailyWater(uid, setWaterMap, setError),
         subscribeDailySleep(uid, setSleepMap, setError),
+        // Health-imported steps / active energy. Read-only here — the
+        // device measures these and the app never writes them back.
+        subscribeDailyActivity(uid, setActivityMap, setError),
       ];
       return trackSubs('Today', unsubs);
     }, [uid]),
@@ -316,6 +323,7 @@ export function useToday(): TodayState {
     unitSystem: profile?.unitSystem === 'metric' ? 'metric' : 'us',
     water: water[todayKey] ?? 0,
     sleep: sleep[todayKey] ?? null,
+    activity: activity[todayKey],
     setWater,
     setSleep,
     fastStartedAt: profile?.fastStartedAt ?? null,

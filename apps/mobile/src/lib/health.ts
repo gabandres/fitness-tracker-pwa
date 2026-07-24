@@ -2,6 +2,7 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 import {
   type HealthKind,
+  type WritableKind,
   type HealthSample,
   flOzToLiters,
   kgToLb,
@@ -33,9 +34,13 @@ import {
  *  stamps on samples we write, so import can skip them (idempotent re-sync). */
 const APP_ID = 'fit.ignia.app';
 
-/** Metrics we both read and write (two-way). Body-fat / nutrition / workouts
- *  are export-only — the app is their source of truth, so they're never read. */
-export type ReadableKind = 'weight' | 'sleep' | 'water';
+/**
+ * Metrics we read from the OS store. Weight / sleep / water are two-way;
+ * steps / activeEnergy are **import-only** (the device measures them, the app
+ * can't produce them). Body-fat / nutrition / workouts are the mirror case —
+ * export-only, because the app IS their source of truth.
+ */
+export type ReadableKind = 'weight' | 'sleep' | 'water' | 'steps' | 'activeEnergy';
 
 export interface NutritionExport {
   at: Date;
@@ -62,7 +67,9 @@ export interface HealthPort {
   /** Write one day's canonical-unit value (weight lb / sleep hours / water
    *  fl oz / body-fat percent). The sample is dated within `dateKey`'s day, so
    *  editing a past day exports to Health on that day, not today. */
-  writeDaily(kind: HealthKind, dateKey: string, value: number): Promise<void>;
+  /** Export one day's value. Typed to `WritableKind` so the import-only
+   *  activity metrics can't be passed here — we have nothing to write. */
+  writeDaily(kind: WritableKind, dateKey: string, value: number): Promise<void>;
   /** Export one logged meal's macros as dietary samples. */
   writeNutrition(entry: NutritionExport): Promise<void>;
   /** Export a finished workout session. */
@@ -73,7 +80,7 @@ const sinceDate = (days: number): Date => new Date(Date.now() - days * 86_400_00
 
 /** A concrete timestamp inside `dateKey`'s local day for a written sample:
  *  ~7am for sleep (a plausible wake time for a night's total), noon otherwise. */
-function anchorAt(dateKey: string, kind: HealthKind): Date {
+function anchorAt(dateKey: string, kind: WritableKind): Date {
   const d = parseYmd(dateKey);
   d.setHours(kind === 'sleep' ? 7 : 12, 0, 0, 0);
   return d;
@@ -103,6 +110,17 @@ const HK_READ: Record<ReadableKind, string> = {
   weight: 'HKQuantityTypeIdentifierBodyMass',
   water: 'HKQuantityTypeIdentifierDietaryWater',
   sleep: 'HKCategoryTypeIdentifierSleepAnalysis',
+  steps: 'HKQuantityTypeIdentifierStepCount',
+  activeEnergy: 'HKQuantityTypeIdentifierActiveEnergyBurned',
+};
+
+/** HealthKit unit string per quantity kind (sleep is a category, not a
+ *  quantity, and is handled separately). */
+const HK_UNIT: Record<Exclude<ReadableKind, 'sleep'>, string> = {
+  weight: 'lb',
+  water: 'fl_oz_us',
+  steps: 'count',
+  activeEnergy: 'kcal',
 };
 
 const ms = (d: string | number | Date): number => new Date(d).getTime();
@@ -124,6 +142,11 @@ const healthKit: HealthPort = {
         'HKQuantityTypeIdentifierBodyMass',
         'HKQuantityTypeIdentifierDietaryWater',
         'HKCategoryTypeIdentifierSleepAnalysis',
+        // Import-only: absent from `toShare` on purpose — the watch measures
+        // these, and asking for write access we'd never use is a scope the
+        // permission sheet would make the user grant for nothing.
+        'HKQuantityTypeIdentifierStepCount',
+        'HKQuantityTypeIdentifierActiveEnergyBurned',
       ] as never,
       toShare: [
         'HKQuantityTypeIdentifierBodyMass',
@@ -159,10 +182,9 @@ const healthKit: HealthPort = {
         }));
     }
 
-    const unit = kind === 'weight' ? 'lb' : 'fl_oz_us';
     const rows = (await HK.queryQuantitySamples(HK_READ[kind] as never, {
       limit: 0,
-      unit,
+      unit: HK_UNIT[kind],
       filter,
     } as never)) as unknown as HKQty[];
     return rows.map((s) => ({
@@ -230,6 +252,10 @@ interface HCRecord {
   endTime?: string;
   weight?: { inPounds?: number; inKilograms?: number };
   volume?: { inLiters?: number };
+  /** Steps records carry a plain integer count for their interval. */
+  count?: number;
+  /** ActiveCaloriesBurned records carry an Energy object. */
+  energy?: { inKilocalories?: number };
 }
 
 const hcModule = () => import('react-native-health-connect');
@@ -238,6 +264,8 @@ const HC_READ: Record<ReadableKind, string> = {
   weight: 'Weight',
   water: 'Hydration',
   sleep: 'SleepSession',
+  steps: 'Steps',
+  activeEnergy: 'ActiveCaloriesBurned',
 };
 
 const healthConnect: HealthPort = {
@@ -260,6 +288,10 @@ const healthConnect: HealthPort = {
       { accessType: 'write', recordType: 'SleepSession' },
       { accessType: 'read', recordType: 'Hydration' },
       { accessType: 'write', recordType: 'Hydration' },
+      // Import-only — read, never write (see ReadableKind). The matching
+      // manifest permissions are already declared in app.json.
+      { accessType: 'read', recordType: 'Steps' },
+      { accessType: 'read', recordType: 'ActiveCaloriesBurned' },
       { accessType: 'write', recordType: 'BodyFat' },
       { accessType: 'write', recordType: 'Nutrition' },
       { accessType: 'write', recordType: 'ExerciseSession' },
@@ -302,6 +334,21 @@ const healthConnect: HealthPort = {
           dateKey: localDateKey(new Date(end)),
           kind: 'water' as const,
           value: litersToFlOz(r.volume?.inLiters ?? 0),
+          endMs: end,
+          fromUs: mine(r),
+        };
+      });
+    }
+    // Activity: interval records (one per short bucket), summed per day by
+    // `reduceImportedSamples`. Bucketed to the day the interval ENDS, matching
+    // every other kind here — a walk spanning midnight counts as the new day.
+    if (kind === 'steps' || kind === 'activeEnergy') {
+      return rows.map((r) => {
+        const end = new Date(r.endTime ?? r.startTime ?? 0).getTime();
+        return {
+          dateKey: localDateKey(new Date(end)),
+          kind,
+          value: kind === 'steps' ? (r.count ?? 0) : (r.energy?.inKilocalories ?? 0),
           endMs: end,
           fromUs: mine(r),
         };

@@ -508,6 +508,29 @@ service cloud.firestore {
             && request.resource.data.hours <= 24;
       }
 
+      // Daily activity — steps + active energy imported FROM the OS health
+      // store (Apple Health / Health Connect). One doc per calendar day,
+      // shape { steps?, activeKcal? }; both fields optional because the two
+      // importers write independently and merge into the same doc, so a day
+      // can legitimately carry either one alone.
+      //
+      // Import-only: the device measures these and the app never writes them
+      // back to Health. Bounds mirror STEPS_MAX / ACTIVE_ENERGY_MAX_KCAL in
+      // packages/core/src/health-mapping.ts — keep the two in step.
+      match /dailyActivity/{dateKey} {
+        allow read:   if isOwner(uid) || isAdmin();
+        allow write:  if isOwner(uid)
+            && request.resource.data.keys().hasOnly(['steps', 'activeKcal'])
+            && (!('steps' in request.resource.data)
+              || (request.resource.data.steps is number
+                && request.resource.data.steps >= 0
+                && request.resource.data.steps <= 200000))
+            && (!('activeKcal' in request.resource.data)
+              || (request.resource.data.activeKcal is number
+                && request.resource.data.activeKcal >= 0
+                && request.resource.data.activeKcal <= 20000));
+      }
+
       // Body measurements — weekly/biweekly body-comp tracking.
       match /measurements/{measurementId} {
         allow read:   if isOwner(uid) || isAdmin();

@@ -31,6 +31,10 @@ describe('isStorableHealthValue', () => {
     ['water', 64, true], ['water', 0, true], ['water', 999, false],
     ['bodyFat', 18, true], ['bodyFat', 2, false], ['bodyFat', 80, false],
     ['weight', NaN, false],
+    // Activity: 0 is a real value (a rest day), so it must pass.
+    ['steps', 8432, true], ['steps', 0, true], ['steps', -1, false], ['steps', 200_001, false],
+    ['activeEnergy', 512, true], ['activeEnergy', 0, true],
+    ['activeEnergy', -1, false], ['activeEnergy', 20_001, false],
   ];
   it.each(cases)('%s %d → %s', (kind, value, expected) => {
     expect(isStorableHealthValue(kind, value)).toBe(expected);
@@ -126,5 +130,53 @@ describe('valuesToApply', () => {
 
   it('applies everything when there is no current data', () => {
     expect(valuesToApply({ d: 175 }, {})).toEqual({ d: 175 });
+  });
+});
+
+describe('activity import (steps / active energy)', () => {
+  it('sums the day-buckets rather than taking the latest', () => {
+    // Health stores activity as many short intervals; taking the latest would
+    // report the last 15-minute bucket as the whole day.
+    const out = reduceImportedSamples([
+      sample({ kind: 'steps', dateKey: '2026-07-01', value: 4000, endMs: 100 }),
+      sample({ kind: 'steps', dateKey: '2026-07-01', value: 3200, endMs: 500 }),
+      sample({ kind: 'steps', dateKey: '2026-07-01', value: 1232, endMs: 900 }),
+    ]);
+    expect(out['2026-07-01']).toBe(8432);
+  });
+
+  it('sums active energy per day', () => {
+    const out = reduceImportedSamples([
+      sample({ kind: 'activeEnergy', dateKey: '2026-07-01', value: 300, endMs: 100 }),
+      sample({ kind: 'activeEnergy', dateKey: '2026-07-01', value: 212, endMs: 500 }),
+      sample({ kind: 'activeEnergy', dateKey: '2026-07-02', value: 90, endMs: 600 }),
+    ]);
+    expect(out).toEqual({ '2026-07-01': 512, '2026-07-02': 90 });
+  });
+
+  it('keeps a zero-step rest day (0 is a real reading, not missing data)', () => {
+    const out = reduceImportedSamples([
+      sample({ kind: 'steps', dateKey: '2026-07-01', value: 0, endMs: 100 }),
+    ]);
+    expect(out['2026-07-01']).toBe(0);
+  });
+
+  it('rejects a day whose SUMMED steps are implausible', () => {
+    // The gate applies to the day total, not each bucket — one 100k bucket is
+    // fine on its own but three of them are corrupt data.
+    const out = reduceImportedSamples([
+      sample({ kind: 'steps', dateKey: '2026-07-01', value: 100_000, endMs: 100 }),
+      sample({ kind: 'steps', dateKey: '2026-07-01', value: 100_000, endMs: 200 }),
+      sample({ kind: 'steps', dateKey: '2026-07-01', value: 100_000, endMs: 300 }),
+    ]);
+    expect(out['2026-07-01']).toBeUndefined();
+  });
+
+  it('never re-imports activity we somehow wrote ourselves', () => {
+    const out = reduceImportedSamples([
+      sample({ kind: 'steps', dateKey: '2026-07-01', value: 5000, endMs: 100, fromUs: true }),
+      sample({ kind: 'steps', dateKey: '2026-07-01', value: 3000, endMs: 200 }),
+    ]);
+    expect(out['2026-07-01']).toBe(3000);
   });
 });

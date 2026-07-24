@@ -17,9 +17,22 @@ import { isStorableWeight } from './weight-bounds';
  * only their unit constants live here.
  */
 
-/** The daily-scalar health metrics that two-way sync through `HealthSample`.
- *  Canonical app units: weight=lb, sleep=hours, water=fl oz, bodyFat=percent. */
-export type HealthKind = 'weight' | 'sleep' | 'water' | 'bodyFat';
+/** Metrics the app both reads and writes. The app is a source of truth for
+ *  these, so export is meaningful. Canonical app units: weight=lb, sleep=hours,
+ *  water=fl oz, bodyFat=percent. */
+export type WritableKind = 'weight' | 'sleep' | 'water' | 'bodyFat';
+
+/**
+ * Metrics the app only ever **reads**. The phone and the watch measure these;
+ * the app has no way to produce them, so there is nothing to export and
+ * `writeDaily` deliberately won't accept them.
+ *
+ * Canonical app units: steps=count, activeEnergy=kcal.
+ */
+export type ImportOnlyKind = 'steps' | 'activeEnergy';
+
+/** Every daily-scalar metric that crosses the seam as a `HealthSample`. */
+export type HealthKind = WritableKind | ImportOnlyKind;
 
 export interface HealthSample {
   /** localDateKey — the app's day bucket the sample's end time falls in. */
@@ -53,6 +66,12 @@ export const percentToFraction = (p: number): number => p / 100;
 /** Water clamp — mirrors the ledger's `dailyWater` bound (fl oz). */
 export const WATER_MAX_FLOZ = 676;
 
+/** Activity clamps. Both are generous by design — the point is to reject
+ *  corrupt or duplicated data, not to referee an ultramarathon. The world
+ *  24-hour step record is ~250k and a Tour stage burns ~8k kcal. */
+export const STEPS_MAX = 200_000;
+export const ACTIVE_ENERGY_MAX_KCAL = 20_000;
+
 /**
  * Per-kind validity gate, applied before a sample is imported (or a value is
  * exported) so junk never crosses the seam. Weight reuses `isStorableWeight`
@@ -70,6 +89,10 @@ export function isStorableHealthValue(kind: HealthKind, value: number): boolean 
       return value >= 0 && value <= WATER_MAX_FLOZ;
     case 'bodyFat':
       return value >= 3 && value <= 75;
+    case 'steps':
+      return value >= 0 && value <= STEPS_MAX;
+    case 'activeEnergy':
+      return value >= 0 && value <= ACTIVE_ENERGY_MAX_KCAL;
   }
 }
 
@@ -85,6 +108,11 @@ const ADDITIVE: Record<HealthKind, boolean> = {
   bodyFat: false,
   sleep: true,
   water: true,
+  // Health stores activity as many short buckets across the day (a walk here,
+  // a workout there), so the day's figure is the sum. Taking the latest would
+  // report the last 15-minute bucket as the whole day.
+  steps: true,
+  activeEnergy: true,
 };
 
 /**

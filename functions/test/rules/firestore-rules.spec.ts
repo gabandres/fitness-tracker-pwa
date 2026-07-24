@@ -345,4 +345,62 @@ describe('firestore.rules', () => {
       }),
     );
   });
+
+  // ── dailyActivity (Health steps / active-energy import) ──
+  // The dev app talks to PROD Firestore, so these rules must be deployed
+  // before any client writes the new collection.
+
+  it('accepts a dailyActivity doc with both activity fields', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      setDoc(doc(db, 'users', 'alice', 'dailyActivity', '2026-07-23'), {
+        steps: 8432,
+        activeKcal: 512,
+      }),
+    );
+  });
+
+  it.each([['steps', { steps: 8432 }], ['activeKcal', { activeKcal: 512 }]])(
+    'accepts a dailyActivity doc carrying only %s (the two importers merge)',
+    async (_label, data) => {
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      await assertSucceeds(
+        setDoc(doc(db, 'users', 'alice', 'dailyActivity', '2026-07-23'), data),
+      );
+    },
+  );
+
+  it('rejects a dailyActivity doc with an unknown field', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      setDoc(doc(db, 'users', 'alice', 'dailyActivity', '2026-07-23'), {
+        steps: 8432,
+        distanceKm: 6.2,
+      }),
+    );
+  });
+
+  it.each([
+    ['negative steps', { steps: -1 }],
+    ['absurd steps', { steps: 200001 }],
+    ['negative activeKcal', { activeKcal: -1 }],
+    ['absurd activeKcal', { activeKcal: 20001 }],
+    ['non-numeric steps', { steps: '8432' }],
+  ])('rejects dailyActivity with %s', async (_label, data) => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      setDoc(doc(db, 'users', 'alice', 'dailyActivity', '2026-07-23'), data),
+    );
+  });
+
+  it("rejects writing another user's dailyActivity", async () => {
+    const db = authed('mallory');
+    await assertFails(
+      setDoc(doc(db, 'users', 'alice', 'dailyActivity', '2026-07-23'), { steps: 1 }),
+    );
+  });
 });

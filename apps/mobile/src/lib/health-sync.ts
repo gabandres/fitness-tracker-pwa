@@ -1,8 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
-import { type HealthKind, reduceImportedSamples, valuesToApply } from '@macrolog/core';
-import { getHealthScalarsOnce, setDailySleep, setDailyWater, setDailyWeight } from './ledger';
+import { type WritableKind, reduceImportedSamples, valuesToApply } from '@macrolog/core';
+import {
+  getHealthScalarsOnce,
+  setDailyActiveEnergy,
+  setDailySleep,
+  setDailySteps,
+  setDailyWater,
+  setDailyWeight,
+} from './ledger';
 import { health, type NutritionExport, type ReadableKind, type WorkoutExport } from './health';
 
 /**
@@ -28,7 +35,16 @@ const IMPORT_DAYS = 400;
 
 /** Per-kind "already equal" tolerance for `valuesToApply` — unit round-trips
  *  and the ledger's own rounding (½-hour sleep, whole fl oz) aren't exact. */
-const EPSILON: Record<ReadableKind, number> = { weight: 0.05, sleep: 0.25, water: 1 };
+const EPSILON: Record<ReadableKind, number> = {
+  weight: 0.05,
+  sleep: 0.25,
+  water: 1,
+  // Both store as whole numbers, so anything below 1 is the same value. Health
+  // keeps revising the current day's activity as the watch syncs, and a
+  // sub-unit epsilon would rewrite the same doc all day for no visible change.
+  steps: 1,
+  activeEnergy: 1,
+};
 
 /** Firestore writer per readable kind (all share the `(uid, dateKey, value)`
  *  shape; each clamps/rounds to its own canonical unit). */
@@ -36,7 +52,12 @@ const WRITER: Record<ReadableKind, (uid: string, dateKey: string, value: number)
   weight: setDailyWeight,
   sleep: setDailySleep,
   water: setDailyWater,
+  steps: setDailySteps,
+  activeEnergy: setDailyActiveEnergy,
 };
+
+/** Every kind the importer pulls, in the order it pulls them. */
+const IMPORT_KINDS: ReadableKind[] = ['weight', 'sleep', 'water', 'steps', 'activeEnergy'];
 
 let connectedCache: boolean | null = null;
 
@@ -65,9 +86,9 @@ export async function disconnectHealth(): Promise<void> {
 let importing = false;
 
 /**
- * Pull weight + sleep + water from the OS health store into Firestore. Returns
- * the number of day-values written. No-op (returns 0) when disconnected or when
- * an import is already in flight (guard against overlapping app-open + Sync-now).
+ * Pull every readable kind from the OS health store into Firestore. Returns the
+ * number of day-values written. No-op (returns 0) when disconnected or when an
+ * import is already in flight (guard against overlapping app-open + Sync-now).
  */
 export async function importHealth(uid: string): Promise<number> {
   if (importing || !uid || !(await isHealthConnected())) return 0;
@@ -75,7 +96,7 @@ export async function importHealth(uid: string): Promise<number> {
   try {
     const current = await getHealthScalarsOnce(uid);
     let applied = 0;
-    for (const kind of ['weight', 'sleep', 'water'] as ReadableKind[]) {
+    for (const kind of IMPORT_KINDS) {
       const samples = await health.readSamples(kind, IMPORT_DAYS);
       const reduced = reduceImportedSamples(samples);
       const toApply = valuesToApply(reduced, current[kind], EPSILON[kind]);
@@ -92,7 +113,7 @@ export async function importHealth(uid: string): Promise<number> {
 
 // ── Export wrappers — guarded + swallow (never fail the Firestore write) ──
 
-export async function exportDaily(kind: HealthKind, dateKey: string, value: number): Promise<void> {
+export async function exportDaily(kind: WritableKind, dateKey: string, value: number): Promise<void> {
   try {
     if (await isHealthConnected()) await health.writeDaily(kind, dateKey, value);
   } catch {
