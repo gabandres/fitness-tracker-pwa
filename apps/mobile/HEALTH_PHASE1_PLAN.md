@@ -1,5 +1,12 @@
 # Implementation Plan — Health Sync Phase 1 (Weight two-way)
 
+> **Status (2026-07-23): SHIPPED — and superseded by its own success.** Phase 1
+> never shipped alone; the work landed as all phases at once in the App Store
+> 1.0 build, and is device-confirmed working in prod. Import covers
+> weight/sleep/water/steps/activeEnergy; export covers
+> weight/water/bodyFat/nutrition/workouts. **Historical rationale, not a work
+> list.**
+
 Scope of this doc: the **first shippable slice** of `HEALTHKIT_PLAN.md` — import
 body weight from Apple Health / Android Health Connect and export app-logged
 weight back. Weight only. Everything else (nutrition/workout export, sleep,

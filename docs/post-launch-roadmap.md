@@ -21,33 +21,40 @@ Two v1.1 features (**Adaptive-TDEE**, **Recipe-URL import**) need **no native ca
 
 ## v1.1 — first post-launch batch (5, all FREE, all $0 runtime)
 
+> **STATUS 2026-07-23: all 5 rows are DONE.** Four shipped inside the 1.0
+> binary before this list was even written; the widget was built 2026-07-23.
+> Nothing in this section is remaining work — it is kept as the record of how
+> the batch was ranked. **This table was written from intent, not from the
+> binary, and it mis-scoped three features as unbuilt (Health sync, nudges,
+> barcode). Before scoping anything here, grep the code.**
+
 Ranked by the rubric's Step-2 sort. Slot rationale + spec pointer per row.
 
 | Rank | Feature | Cost | Native-only | Effort | Why this slot | Spec |
 |---|---|---|---|---|---|---|
 | 1 | ~~**Health sync — Phase 1 (weight two-way)**~~ **SHIPPED IN 1.0** | $0 | yes | — | Landed early in `0a355deb` (2026-07-11), before 1.0 was submitted, and covers more than Phase 1: import of weight/sleep/water plus export of weight/water/body-fat/nutrition/workouts. Verified 2026-07-23. **Not remaining work.** The only Health gap left is activity import (steps / active energy) — see `docs/aug-2026-build-batch.md`. | [`apps/mobile/HEALTH_PHASE1_PLAN.md`](../apps/mobile/HEALTH_PHASE1_PLAN.md) |
-| 2 | **Smart on-device nudges** | $0 | yes | ~1wk | Native-only + retention; extends the existing reminder infra (no new AI, on-device only). | extends existing push-reminder CFs / local notifications |
-| 3 | **Home-screen widget (rings + quick-add)** | $0 | yes | ~1.5wk | Native-only + retention; the widget extension is unlocked by the same dev build (not a distinct new capability). | [`apps/mobile/WIDGET_PLAN.md`](../apps/mobile/WIDGET_PLAN.md) — **SPECCED** |
-| 4 | **Adaptive-TDEE recalibration** | $0 | no | ~2wk | Strongest retention hook, but non-native so it ranks below the native wins. Pure `packages/core`; algorithm de-risked by the owner's manual TDEE audit. | `packages/core` (TDEE math); see `project_calorie_floor_tdee_audit` |
-| 5 | **Recipe-URL import (JSON-LD)** | $0 | no | small | Non-native, weak retention, tiny effort → the low-priority tail. Needs no new capability. | JSON-LD recipe parse (long-parked follow-up) |
+| 2 | ~~**Smart on-device nudges**~~ **SHIPPED IN 1.0** | $0 | yes | — | Landed in `89523f6d` (2026-07-11), before 1.0 was submitted: meal windows + streak-at-risk + overdue-weigh-in, via core `planReminders`. The `~1wk` estimate was for zero work. A per-meal Settings gap found on 2026-07-23 is also fixed. **Not remaining work.** | `packages/core/src/reminder-plan.ts` |
+| 3 | **Home-screen widget** — **BUILT, awaiting device QA** | $0 | yes | done | Built 2026-07-23 for iOS (SwiftUI/WidgetKit) + Android (TSX). Shows kcal + protein remaining, taps to the add sheet. Blocked only on the Aug EAS build and the App Groups capability. | [`apps/mobile/WIDGET_PLAN.md`](../apps/mobile/WIDGET_PLAN.md) — **BUILT** |
+| 4 | ~~**Adaptive-TDEE recalibration**~~ **SHIPPED** | $0 | no | — | Built as `packages/core/src/tdee-recalibration.ts`; `RecalibrationCard` is mounted on the mobile Today screen. **Not remaining work.** | `packages/core/src/tdee-recalibration.ts` |
+| 5 | ~~**Recipe-URL import (JSON-LD)**~~ **SHIPPED** | $0 | no | — | `packages/core/src/recipe-import.ts` + the deployed `importRecipe` Cloud Function; mobile UI ships with the next binary. **Not remaining work.** | `packages/core/src/recipe-import.ts` |
 
 Provenance: buckets + intra-batch rank locked in [Go/no-go sweep (#17)](https://github.com/gabandres/fitness-tracker-pwa/issues/17).
 
 ### v1.1 build sequence
 
 ```
-Track A — no native capability (can start immediately, before the dev build):
-  ┌─ 4. Adaptive-TDEE   (packages/core, ~2wk) ── shared by web + mobile
-  └─ 5. Recipe-URL import (~small)
+Track A — no native capability:
+  ┌─ 4. Adaptive-TDEE      ✅ SHIPPED
+  └─ 5. Recipe-URL import  ✅ SHIPPED (core + CF live; mobile UI next binary)
 
-Track B — behind the one shared EAS dev build (owner-gated prerequisite):
-  0. ▶ EAS dev build  ← enabling step; also on the critical path to store launch
-  ├─ 1. Health sync Phase 1   (~3–4d)   ← ship first: the adoption-blocker
-  ├─ 2. Smart nudges          (~1wk)
-  └─ 3. Home widget           (~1.5wk)
+Track B — native:
+  0. ▶ EAS dev build       ⛔ STILL PENDING — quota resets Aug 2026
+  ├─ 1. Health sync        ✅ SHIPPED IN 1.0 + device-confirmed in prod
+  ├─ 2. Smart nudges       ✅ SHIPPED IN 1.0
+  └─ 3. Home widget        ✅ BUILT — awaiting device QA on the Aug build
 ```
 
-Order within Track B follows the rank (Health → Nudges → Widget). Tracks A and B are independent and can run in parallel; A does not wait on the dev build.
+The sequence above is historical. The one item that never happened is the EAS dev build itself: Health sync and nudges shipped *without* it by landing inside the 1.0 release build, which is why the "behind the dev build" framing turned out to be wrong for Track B. Live work now tracks in [`docs/aug-2026-build-batch.md`](aug-2026-build-batch.md).
 
 ---
 

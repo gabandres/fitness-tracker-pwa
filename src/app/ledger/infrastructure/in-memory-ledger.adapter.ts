@@ -225,12 +225,12 @@ export class InMemoryLedgerAdapter implements LedgerPort {
     return id;
   }
 
-  async getRecentLogs(days = 14): Promise<DailyLog[]> {
-    // Mirror prod: sort desc by date, take `days` rows, return oldest-first.
+  async getRecentLogs(count = 14): Promise<DailyLog[]> {
+    // Mirror prod: sort desc by date, take `count` ROWS, return oldest-first.
     const sorted = [...this.logs.values()].sort(
       (a, b) => b.date.getTime() - a.date.getTime(),
     );
-    return sorted.slice(0, days).reverse();
+    return sorted.slice(0, count).reverse();
   }
 
   async updateLog(logId: string, entry: LogEntry): Promise<void> {

@@ -64,10 +64,14 @@ export interface LedgerPort {
   /** Returns the new doc id — callers append to their caches locally
    *  (optimistic) instead of refetching the window. */
   addLog(entry: LogEntry): Promise<string>;
-  /** Returns up to `days` most-recent log rows, oldest-first. The `days`
-   *  parameter is a row cap, not a date window — a heavy logger may get
-   *  a few days' worth; a sparse logger may span weeks. */
-  getRecentLogs(days?: number): Promise<DailyLog[]>;
+  /** Returns up to `count` most-recent log ROWS, oldest-first.
+   *
+   *  `count` is a row cap, NOT a date window — a heavy logger (7 meals/day)
+   *  gets ~2 days from the default 14; a sparse logger may span weeks. The
+   *  parameter was once named `days`, which taught exactly the wrong model;
+   *  mixing this up with a day window is the footgun ADR-0004 exists to
+   *  prevent. See CONTEXT.md "Time windows over logs". */
+  getRecentLogs(count?: number): Promise<DailyLog[]>;
   updateLog(logId: string, entry: LogEntry): Promise<void>;
   deleteLog(logId: string): Promise<void>;
   /** Bulk-create rows (switcher import). Batched, NOT atomic across

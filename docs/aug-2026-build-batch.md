@@ -60,7 +60,14 @@ training load instead of inferring everything from the weight trend.
 ## Ship order (what goes in the binary, ranked)
 
 ### 1. Home-screen widget (Today's rings)
-**Status:** specced, not built. ~1.5wk.
+**Status:** **BUILT 2026-07-23** (iOS + Android), unverified on device.
+Decisions locked, core snapshot contract unit-tested, both widget UIs written.
+
+**App Groups is NOT an owner gate** (corrected 2026-07-23): EAS Build's auto
+capability signing enables it from the local entitlements, and App Groups is on
+its supported list. Watch only for a failure on the *extension* target's
+provisioning (`fit.ignia.app.Today`) — if that happens, create the group in the
+portal and re-run. Device QA checklist is in `WIDGET_PLAN.md`.
 **Why first (was #2):** promoted now that Health sync is off the list. The best
 awareness-adjacent feature available — passive daily brand exposure on the home
 screen, a real DAU lift, and a strong screenshot. $0 runtime. Longest build,
@@ -71,20 +78,53 @@ There are **open decisions to lock before coding** (`WIDGET_PLAN.md` §"Open
 decisions") — settle those first, they're cheap now and expensive later.
 **Spec:** `apps/mobile/WIDGET_PLAN.md`
 
-### 2. Smart on-device nudges
-**Status:** not built. ~1wk. Extends the existing reminder infrastructure; no
-new AI, no server cost.
-**Why second:** retention, but neither an adoption-blocker nor a discovery
-surface. Partially testable in Expo Go (local notifications), so it's the
-least build-gated item here.
+### 2. Smart on-device nudges — ~~not built~~ **ALREADY SHIPPED**
+**CORRECTION (2026-07-23):** this shipped in the live 1.0 build. Commit
+`89523f6d` ("wire reminders to the core smart planner", 2026-07-11) is an
+ancestor of the same submitted build as the Health-sync commit. `planReminders`
+covers meal windows + streak-at-risk (a one-shot that's omitted once you've
+logged) + an overdue-weigh-in nudge, with 12 core tests, a Settings toggle and
+both locales. **The ~1wk estimate was for zero work.**
+
+**Third time this trap has fired** — barcode scan, Health sync, now nudges. The
+roadmap was written from intent, not from the binary. Assume any remaining
+roadmap item is built until a grep says otherwise.
+
+**What was actually missing** (found by checking, and now fixed): the Settings
+UI exposed a single on/off plus one hour, which the adapter pinned to dinner
+while silently running `DEFAULT_MEAL_REMINDERS` for breakfast and lunch. So
+every user with reminders on was getting a **1:30pm lunch notification with no
+off switch anywhere in the app** — the only way to stop it was to disable all
+reminders. Settings now has a per-meal row (toggle + time) for each window the
+planner can schedule, and the upgrade reconstructs each device's existing
+schedule rather than resetting it, so nobody's notifications move.
 
 ### 3. Health activity import (steps / active energy)
-**Status:** not built. Small — the adapter seam already exists; this adds
-`ReadableKind` entries plus HealthKit read permissions.
-**Why third:** the only Health work actually left, and unlike the rest it
-changes a number the user cares about (adaptive TDEE reacting to training
-load). Slots here because it should be verified alongside the existing sync
-once that's confirmed working.
+**Status:** **BUILT 2026-07-23.** Precondition cleared — the owner confirmed
+Health sync works in the live prod app, so the entitlement did ship.
+
+Steps + active energy now import from HealthKit / Health Connect into a new
+`users/{uid}/dailyActivity/{dateKey}` doc (`{ steps?, activeKcal? }`) and show
+as a read-only row on Today. Import-only by construction: `WritableKind` vs
+`ImportOnlyKind` in core makes `writeDaily('steps', …)` a **type error**, since
+the watch measures these and the app has nothing to export.
+
+**⚠️ The stated rationale for this feature was wrong — activity must NOT feed
+measured-mode TDEE.** `calculateTdee` computes
+`trueTdee = avgDailyIntake + (−weightSlope × 3500)`. That's a pure
+energy-balance derivation from intake and the weight trend, so it **already
+contains every calorie burned**, training included. Adding imported active
+energy on top would double-count it and inflate the target — the opposite of
+the intended fix.
+
+Where activity legitimately *could* improve a number is **formula mode**
+(<14 logged days), which currently guesses via Mifflin-St Jeor × a static
+activity multiplier. Measured active energy would beat that guess and isn't
+double-counted there, because formula mode never looks at the weight trend.
+That's a real follow-up, and a separate decision — not this change.
+
+So this ships as **import + display**. Its value is awareness and the data
+being there, not a TDEE change.
 
 ### Rides along free
 - **In-app rating prompt** — committed `84898243`, already on `main`. It needs
@@ -104,9 +144,8 @@ unblocks QA on day one of the reset.
 ```
 Now ──────────────────────────────────────────────────────────► Aug reset
  │
- ├─ TODAY, zero builds: does Health sync actually work in the live app?
- │     └─ Settings → Health on the owner's phone. If the toggle is missing,
- │        the entitlement never shipped and that's a 1.1.0 fix, not a feature.
+ ├─ ✅ DONE 2026-07-23: Health sync CONFIRMED working in the live prod app by
+ │     the owner. The entitlement shipped; nothing to fix.
  │
  ├─ Widget (~1.5wk)  ← longest; lock the open decisions, then build
  │     └─ App Group / shared-storage seam first, UI after
@@ -143,6 +182,9 @@ directly with the widget for the same weeks.
 smart nudges (#3) rather than adding to the batch — three untested native
 surfaces in one binary is how rejections happen.
 
+**DECIDED 2026-07-23: no.** Out of this batch, for the reason above. Revisit
+once the widget has round-tripped on a device.
+
 ---
 
 ## Not in this batch
@@ -158,12 +200,24 @@ surfaces in one binary is how rejections happen.
 
 ## Pre-reset checklist (all doable now, zero builds)
 
-- [ ] Widget open decisions locked (`WIDGET_PLAN.md` §"Open decisions")
-- [ ] Widget implemented, shared-storage seam unit-tested
-- [ ] Health sync verified working in the LIVE app (zero builds)
-- [ ] Health activity import (steps / active energy) built
-- [ ] `/privacy` health-data clause published
+- [x] Widget open decisions locked (`WIDGET_PLAN.md` §"Locked decisions")
+- [x] Widget implemented, shared-storage seam unit-tested
+- [x] ~~**Owner:** App Groups capability on the App id~~ — not required; EAS
+      auto capability signing handles it from the entitlements. Fallback only
+      if the widget *extension* target fails provisioning.
+- [x] Health sync verified working in the LIVE app (owner confirmed 2026-07-23)
+- [x] Health activity import (steps / active energy) built
+- [x] **Deploy `firestore:rules`** for the new `dailyActivity` collection —
+      deployed 2026-07-23, released to `cloud.firestore`. Safe ahead of the
+      binary: no live client writes the collection yet.
+- [x] `/privacy` health-data clause — **already existed** (added for Apple
+      5.1.3); on 2026-07-23 it was found *inaccurate* and corrected: it omitted
+      the body-fat/workout exports and predated the steps/active-energy import.
+      Both locales updated, `lastUpdated` bumped. **Needs a hosting deploy to
+      go live.**
 - [ ] App Intents: yes or no, decided
-- [ ] Smart nudges implemented (if not displaced)
+- [x] ~~Smart nudges implemented~~ — already shipped in 1.0; the per-meal
+      Settings gap found in its place is fixed (no build needed, local
+      notifications work in Expo Go)
 - [ ] App Store metadata + screenshots done (`docs/app-store-metadata.md`) —
       independent of this batch, ships without a binary

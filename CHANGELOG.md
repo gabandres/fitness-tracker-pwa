@@ -1,10 +1,35 @@
 # Changelog
 
-Significant ships to [macrolog.web.app](https://macrolog.web.app), newest first.
+Significant ships to [ignia.fit](https://ignia.fit) and the Ignia iOS app, newest first.
 
 Small copy tweaks, internal refactors, test additions, and bug fixes aren't listed here — see `git log` for the full record, and `UX_AUDIT.md` for the living UX backlog.
 
 ---
+
+## 2026-07-23 — Steps and active energy import from Health (mobile)
+
+Health sync already pushed weight, sleep, water, body fat, nutrition and workouts. It could not read **activity** — so the app knew what you ate but nothing about what you moved. Steps and active energy now import from Apple Health / Health Connect and show as a read-only row on Today.
+
+- **Import-only, and the types enforce it.** Your watch measures these; the app has nothing to contribute, so there is no export path — writing them back to Health is a compile error, not a convention.
+- **Summed per day, not sampled.** Health stores activity as dozens of short buckets; the day's figure is their sum. A zero-step rest day is kept as a real reading rather than treated as missing data.
+- **No change to your calorie target.** Measured-mode TDEE derives your burn from intake and your weight trend, which already includes every training calorie — feeding imported activity in on top would double-count it. Activity is shown for awareness; it does not move your numbers.
+
+## 2026-07-23 — Every meal reminder is now switchable (mobile)
+
+Reminders shipped in 1.0 with a single on/off and one time. That time was applied to the *dinner* nudge, while breakfast and lunch quietly ran on built-in defaults — so anyone with reminders on was also getting a **1:30pm "Time to log lunch" notification with no off switch**, short of turning off reminders entirely.
+
+- **Per-meal rows in Settings.** Breakfast, lunch and dinner each get their own toggle and time, matching what the scheduler could always do but never exposed.
+- **Nobody's notifications move on upgrade.** The migration reconstructs the exact schedule each device was already running rather than resetting to defaults; the only change is that all three windows are now visible and editable.
+- Streak-save and weigh-in nudges are unchanged — they stay automatic and time themselves off your day.
+
+## 2026-07-23 — Home-screen widget (mobile, built — ships with the next binary)
+
+A "Today" home-screen widget for iOS and Android showing **calories and protein left today**, tapping through to the add-entry sheet. Passive daily exposure on the home screen, $0 runtime cost — it reads local shared storage, never the network.
+
+- **Snapshot, not subscribe.** A widget process can't hold the app's Firestore listeners; it wakes on an OS timeline and reads whatever is already on disk. So the app writes a tiny JSON blob to storage the widget can see (iOS App Group `UserDefaults`, Android `AsyncStorage`) on every log, target change and app foreground, then asks the OS to redraw. The contract — build, decode, staleness, remaining-vs-over — is pure and unit-tested in `@macrolog/core`.
+- **It blanks rather than lying.** The blob carries the date it describes, so after midnight the widget shows "Open Ignia to start" instead of yesterday's numbers dressed as today's. Same for a first run, an unreadable blob, or a signed-out account — never a "0 left" that reads as a fully-eaten day.
+- **Spanish follows the app, not the phone.** The active locale rides in the blob, because the widget can't reach `profile.preferredLocale` behind auth. Someone who set Ignia to es-PR on an English phone gets a Spanish widget.
+- **Not verified on a device yet.** iOS widgets need an EAS build and the quota resets August 2026; this ships with that binary. The owner must also enable App Groups on the App id first.
 
 ## 2026-07-23 — App Store funnel + in-app ratings
 

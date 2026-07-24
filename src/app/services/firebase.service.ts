@@ -728,8 +728,8 @@ export class FirebaseService implements LedgerPort {
     return this.core.addLog(entry);
   }
 
-  async getRecentLogs(days = 14): Promise<DailyLog[]> {
-    return this.core.getRecentLogs(days);
+  async getRecentLogs(count = 14): Promise<DailyLog[]> {
+    return this.core.getRecentLogs(count);
   }
 
   async updateLog(logId: string, entry: LogEntry): Promise<void> {

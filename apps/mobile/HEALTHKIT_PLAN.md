@@ -1,6 +1,14 @@
 # Plan — Apple Health (HealthKit) + Android Health Connect
 
-Status: **PLAN ONLY** (not started). Sync the app's body/nutrition/workout data
+> **Status (2026-07-23): SHIPPED AND LIVE.** Every phase in this plan is built
+> and in the App Store 1.0 build (`0a355deb`), and the owner confirmed it works
+> on a real device in prod. Activity import (steps / active energy) — listed
+> below as a Phase 2/3 extra — landed 2026-07-23 and is the last gap closed.
+> **This doc is now historical design rationale, not a work list.** Read
+> `packages/core/src/health-mapping.ts` and `apps/mobile/src/lib/health.ts`
+> for what actually exists.
+
+Original status when written: **PLAN ONLY** (not started). Sync the app's body/nutrition/workout data
 with the OS health store so users don't double-log (a smart scale that writes
 to Health auto-fills weight) and the app contributes to the Health ecosystem
 (activity rings, trends). Fits the privacy stance: **on-device, per-type user
