@@ -213,8 +213,15 @@ once the widget has round-tripped on a device.
 - [x] `/privacy` health-data clause — **already existed** (added for Apple
       5.1.3); on 2026-07-23 it was found *inaccurate* and corrected: it omitted
       the body-fat/workout exports and predated the steps/active-energy import.
-      Both locales updated, `lastUpdated` bumped. **Needs a hosting deploy to
-      go live.**
+      Both locales updated, `lastUpdated` bumped. **Deployed + verified live
+      2026-07-23** on `ignia.fit/privacy` and the `macrolog.web.app` origin.
+
+      Verification gotcha for next time: the Angular service worker serves its
+      cached copy, so a browser that visited before the deploy shows the OLD
+      page and looks like a failed deploy. Confirm against `/ngsw.json`'s
+      `timestamp` + `hashTable` rather than the rendered page, or clear
+      `caches` + unregister the SW first. Cloudflare was NOT involved
+      (`cf-cache-status: DYNAMIC`).
 - [ ] App Intents: yes or no, decided
 - [x] ~~Smart nudges implemented~~ — already shipped in 1.0; the per-meal
       Settings gap found in its place is fixed (no build needed, local
