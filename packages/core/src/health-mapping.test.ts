@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DAILY_FOLD,
   fractionToPercent, flOzToLiters, isStorableHealthValue, kgToLb, lbToKg, litersToFlOz,
   percentToFraction, reduceImportedSamples, valuesToApply,
   type HealthKind, type HealthSample,
@@ -133,25 +134,53 @@ describe('valuesToApply', () => {
   });
 });
 
+describe('DAILY_FOLD', () => {
+  it('marks activity as pre-aggregated, not summed', () => {
+    // The adapters read activity through the OS aggregate APIs (HealthKit
+    // statistics-collection / Health Connect aggregateGroupByPeriod), which
+    // merge multiple sources. What arrives is already the day's total, so
+    // summing here would double-count the very figure the dedup produced.
+    expect(DAILY_FOLD.steps).toBe('preAggregated');
+    expect(DAILY_FOLD.activeEnergy).toBe('preAggregated');
+  });
+
+  it('leaves the writable kinds unchanged', () => {
+    expect(DAILY_FOLD.weight).toBe('latest');
+    expect(DAILY_FOLD.bodyFat).toBe('latest');
+    // Sleep + water still arrive as raw fragments and still sum.
+    expect(DAILY_FOLD.sleep).toBe('sum');
+    expect(DAILY_FOLD.water).toBe('sum');
+  });
+});
+
 describe('activity import (steps / active energy)', () => {
-  it('sums the day-buckets rather than taking the latest', () => {
-    // Health stores activity as many short intervals; taking the latest would
-    // report the last 15-minute bucket as the whole day.
+  it('does NOT sum pre-aggregated day totals', () => {
+    // Regression guard for the double-count this replaced: the adapter hands
+    // us one deduplicated total per day. If a second sample for the same day
+    // ever appears it must replace, never add — 8432, not 16864.
     const out = reduceImportedSamples([
-      sample({ kind: 'steps', dateKey: '2026-07-01', value: 4000, endMs: 100 }),
-      sample({ kind: 'steps', dateKey: '2026-07-01', value: 3200, endMs: 500 }),
-      sample({ kind: 'steps', dateKey: '2026-07-01', value: 1232, endMs: 900 }),
+      sample({ kind: 'steps', dateKey: '2026-07-01', value: 8432, endMs: 100 }),
+      sample({ kind: 'steps', dateKey: '2026-07-01', value: 8432, endMs: 500 }),
     ]);
     expect(out['2026-07-01']).toBe(8432);
   });
 
-  it('sums active energy per day', () => {
+  it('keeps one active-energy total per day', () => {
     const out = reduceImportedSamples([
-      sample({ kind: 'activeEnergy', dateKey: '2026-07-01', value: 300, endMs: 100 }),
-      sample({ kind: 'activeEnergy', dateKey: '2026-07-01', value: 212, endMs: 500 }),
+      sample({ kind: 'activeEnergy', dateKey: '2026-07-01', value: 512, endMs: 100 }),
       sample({ kind: 'activeEnergy', dateKey: '2026-07-02', value: 90, endMs: 600 }),
     ]);
     expect(out).toEqual({ '2026-07-01': 512, '2026-07-02': 90 });
+  });
+
+  it('takes the latest bucket when a day is re-read mid-day', () => {
+    // Health keeps revising today's total as the watch syncs; the newest
+    // aggregate for the day is the authoritative one.
+    const out = reduceImportedSamples([
+      sample({ kind: 'steps', dateKey: '2026-07-01', value: 4000, endMs: 100 }),
+      sample({ kind: 'steps', dateKey: '2026-07-01', value: 9100, endMs: 900 }),
+    ]);
+    expect(out['2026-07-01']).toBe(9100);
   });
 
   it('keeps a zero-step rest day (0 is a real reading, not missing data)', () => {
@@ -161,15 +190,12 @@ describe('activity import (steps / active energy)', () => {
     expect(out['2026-07-01']).toBe(0);
   });
 
-  it('rejects a day whose SUMMED steps are implausible', () => {
-    // The gate applies to the day total, not each bucket — one 100k bucket is
-    // fine on its own but three of them are corrupt data.
+  it('rejects an implausible day total', () => {
     const out = reduceImportedSamples([
-      sample({ kind: 'steps', dateKey: '2026-07-01', value: 100_000, endMs: 100 }),
-      sample({ kind: 'steps', dateKey: '2026-07-01', value: 100_000, endMs: 200 }),
-      sample({ kind: 'steps', dateKey: '2026-07-01', value: 100_000, endMs: 300 }),
+      sample({ kind: 'steps', dateKey: '2026-07-01', value: 200_001, endMs: 100 }),
+      sample({ kind: 'steps', dateKey: '2026-07-02', value: 12_000, endMs: 200 }),
     ]);
-    expect(out['2026-07-01']).toBeUndefined();
+    expect(out).toEqual({ '2026-07-02': 12_000 });
   });
 
   it('never re-imports activity we somehow wrote ourselves', () => {

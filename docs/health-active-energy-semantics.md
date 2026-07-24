@@ -12,7 +12,7 @@ _Last updated: 2026-07-23. No production activity data exists yet — the import
 
 - **No self-inflicted feedback loop from our workout writes.** Neither OS synthesizes active-energy from a saved workout. Apple states the app must add those samples itself ([HKWorkout](https://developer.apple.com/documentation/healthkit/hkworkout)); Ignia never does, and on Android `ExerciseSession` and `ActiveCaloriesBurned` are unrelated record types ([ExerciseSessionRecord](https://developer.android.com/reference/androidx/health/connect/client/records/ExerciseSessionRecord)). **Verdict: the loop we feared does not exist.** Caveat: the `sourceRevision` question is moot *because* no samples are created, not because dedup would catch them.
 - **Semantics are clean and explicit on both platforms.** Active energy excludes resting/basal on iOS ("should not include the resting energy burned") and on Android ("excluding basal metabolic rate (BMR)"). So active energy is a *component* of TDEE, never TDEE itself.
-- **The current read path double-counts across sources. This is the real bug.** Both platforms document that raw sample/record reads return every source's data unmerged, and that the *statistics/aggregate* API is the one that merges. Ignia uses the raw read on both platforms and naively sums. An iPhone + Apple Watch user, or anyone running Strava/Fitbit alongside, gets an inflated daily total. **Verdict: must change before trusting the number.**
+- **The read path double-counted across sources. This was the real bug — now fixed.** Both platforms document that raw sample/record reads return every source's data unmerged, and that the *statistics/aggregate* API is the one that merges. Ignia used the raw read on both platforms and naively summed, so an iPhone + Apple Watch user, or anyone running Strava/Fitbit alongside, got an inflated daily total. **Resolved by [#27](https://github.com/gabandres/fitness-tracker-pwa/issues/27)**: activity now reads through `queryStatisticsCollectionForQuantity` (iOS) / `aggregateGroupByPeriod` (Android), one bucket per local day. The *magnitude* of the old inflation is still device-gated (§5 item 1).
 - **"Measured BMR + measured active" is not available on a stock phone.** Android's own docs call BMR an estimate "based on their height and weight." Apple does not document what produces `basalEnergyBurned` or whether an iPhone alone produces it at all. **Verdict: a measured-BMR TDEE is not achievable; don't design for it.**
 - **Two additional v14 API-shape bugs found in `health.ts`** (date filter silently ignored; `saveWorkoutSample` called with an obsolete positional signature). Both are independent of the TDEE question and both are pre-existing in unshipped-to-device code. See §4.
 
@@ -124,7 +124,7 @@ Apple's reference docs do not spell out the merge algorithm. Apple DTS does, on 
 
 — DTS Engineer, [Apple Developer Forums thread 759709](https://developer.apple.com/forums/thread/759709)
 
-That is a forum statement from Apple, not documentation. It describes exactly Ignia's current failure mode.
+That is a forum statement from Apple, not documentation. It described exactly Ignia's failure mode before [#27](https://github.com/gabandres/fitness-tracker-pwa/issues/27).
 
 **Does Apple document the Health app's "Data Sources & Access" priority order as affecting queries?** Apple's user-facing support article states the ordering and that it is user-reorderable:
 
@@ -152,9 +152,9 @@ And on what actually gets deduped:
 
 — [Read aggregated data](https://developer.android.com/health-and-fitness/guides/health-connect/develop/aggregate-data)
 
-`ActiveCaloriesBurned` and `Steps` are both in the **Activity** category ([data types](https://developer.android.com/health-and-fitness/guides/health-connect/plan/data-types)), so both fall inside the deduped set — **but only via `aggregate()`**. `readRecords()` does not dedupe, and Ignia uses `readRecords()` + a manual sum for both.
+`ActiveCaloriesBurned` and `Steps` are both in the **Activity** category ([data types](https://developer.android.com/health-and-fitness/guides/health-connect/plan/data-types)), so both fall inside the deduped set — **but only via the aggregate API**. `readRecords()` does not dedupe, and Ignia used `readRecords()` + a manual sum for both.
 
-**Verdict for §2:** Ignia's current implementation matches the documented double-counting anti-pattern on both platforms, for both `steps` and `activeEnergy`.
+**Verdict for §2:** Ignia's implementation matched the documented double-counting anti-pattern on both platforms, for both `steps` and `activeEnergy`. **Fixed in [#27](https://github.com/gabandres/fitness-tracker-pwa/issues/27)** — both kinds now read through the deduplicating API and are folded as `preAggregated` in `health-mapping.ts` so the day total is never summed a second time. Sleep and water keep the raw-record path: they are writable kinds that depend on `fromUs` to drop our own exports, and Health Connect dedupes Sleep but not Hydration.
 
 ---
 
@@ -231,7 +231,9 @@ interface FilterForSamplesBase {
 }
 ```
 
-Combined with `limit: 0` — documented as "specify -1, 0 or any non-positive number for fetching **all** samples" — the iOS reader appears to fetch the user's **entire** HealthKit history for each of five kinds on every foreground. The `as never` casts in `health.ts` suppress the type error that would otherwise catch this. Correct shape: `filter: { date: { startDate, endDate } }`.
+Combined with `limit: 0` — documented as "specify -1, 0 or any non-positive number for fetching **all** samples" — the iOS reader appears to fetch the user's **entire** HealthKit history for each kind on every foreground. The `as never` casts in `health.ts` suppress the type error that would otherwise catch this. Correct shape: `filter: { date: { startDate, endDate } }`.
+
+_Status after [#27](https://github.com/gabandres/fitness-tracker-pwa/issues/27): still open for the **three** raw-path kinds (weight, water, sleep). `steps` / `activeEnergy` no longer use `queryQuantitySamples` at all, and their new statistics-collection call uses the correct nested `filter: { date: … }` shape._
 
 **Bug 2 — `saveWorkoutSample` is called with an obsolete positional signature.** v14.0.2 declares ([`src/specs/WorkoutsModule.nitro.ts`](https://github.com/kingstinct/react-native-healthkit/blob/master/packages/react-native-healthkit/src/specs/WorkoutsModule.nitro.ts)):
 

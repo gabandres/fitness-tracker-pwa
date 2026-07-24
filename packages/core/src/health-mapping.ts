@@ -97,38 +97,56 @@ export function isStorableHealthValue(kind: HealthKind, value: number): boolean 
 }
 
 /**
- * How multiple same-day samples of a kind collapse to the day's single value:
- * a point-in-time reading (weight, body-fat) takes the latest by `endMs`; an
- * accumulating metric (sleep segments, water sips) sums across the day. The
- * adapter still does kind-specific pre-filtering before this (e.g. keep only
- * "asleep" sleep stages, not "inBed"); this owns only the per-day fold.
+ * How multiple same-day samples of a kind collapse to the day's single value.
+ *
+ * - `latest` — a point-in-time reading (weight, body-fat): newest `endMs` wins.
+ * - `sum` — an accumulating metric the adapter hands us as raw fragments
+ *   (sleep segments, water sips): add them up across the day.
+ * - `preAggregated` — the adapter already asked the OS for **the day's total**
+ *   and hands us one value per day. Summing here would double-count a figure
+ *   that is complete on arrival, so this folds like `latest`.
  */
-const ADDITIVE: Record<HealthKind, boolean> = {
-  weight: false,
-  bodyFat: false,
-  sleep: true,
-  water: true,
-  // Health stores activity as many short buckets across the day (a walk here,
-  // a workout there), so the day's figure is the sum. Taking the latest would
-  // report the last 15-minute bucket as the whole day.
-  steps: true,
-  activeEnergy: true,
+export type DailyFold = 'latest' | 'sum' | 'preAggregated';
+
+/**
+ * Per-kind fold policy (see {@link DailyFold}). The adapter still does
+ * kind-specific pre-filtering before this (e.g. keep only "asleep" sleep
+ * stages, not "inBed"); this owns only the per-day fold.
+ */
+export const DAILY_FOLD: Record<HealthKind, DailyFold> = {
+  weight: 'latest',
+  bodyFat: 'latest',
+  sleep: 'sum',
+  water: 'sum',
+  // Activity is additive *in nature* — Health stores it as many short buckets
+  // across the day — but we no longer sum those buckets ourselves. Both OSes
+  // document the raw sample/record APIs as double-counting when more than one
+  // source (phone + watch, or a third-party fitness app) records the same
+  // movement, and both put the source merge behind a dedicated aggregating
+  // API: HealthKit's statistics-collection query, Health Connect's
+  // `aggregateGroupByPeriod`. The adapter uses those, so what reaches us is
+  // one deduplicated day-total per day — already folded.
+  steps: 'preAggregated',
+  activeEnergy: 'preAggregated',
 };
 
 /**
  * Collapse many same-day samples into one value per dateKey. Samples we wrote
  * (`fromUs`) are dropped first, so a re-sync never re-imports our own exports
- * (idempotent). Point-in-time kinds keep the latest `endMs`; additive kinds sum
- * (see {@link ADDITIVE}). Junk values are rejected via `isStorableHealthValue`
- * — for additive kinds the gate is applied to the *summed* day total, not each
- * fragment (a single sip is a valid partial). Callers pass one kind's samples
- * per call. Returns `dateKey → value` in the app's canonical unit for that kind.
+ * (idempotent). The fold is per-kind (see {@link DAILY_FOLD}): `sum` adds the
+ * day's fragments, while `latest` and `preAggregated` both keep the newest
+ * `endMs` — for `preAggregated` that is a safety net, since the adapter should
+ * only ever emit one already-summed value per day. Junk values are rejected via
+ * `isStorableHealthValue` — for `sum` kinds the gate is applied to the *summed*
+ * day total, not each fragment (a single sip is a valid partial). Callers pass
+ * one kind's samples per call. Returns `dateKey → value` in the app's canonical
+ * unit for that kind.
  */
 export function reduceImportedSamples(samples: readonly HealthSample[]): Record<string, number> {
   const list = samples ?? [];
   const kind = list[0]?.kind;
   if (!kind) return {};
-  const additive = ADDITIVE[kind];
+  const additive = DAILY_FOLD[kind] === 'sum';
   const bestEndMs: Record<string, number> = {};
   const out: Record<string, number> = {};
   for (const s of list) {

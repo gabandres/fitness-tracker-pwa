@@ -1,7 +1,6 @@
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 import {
-  type HealthKind,
   type WritableKind,
   type HealthSample,
   flOzToLiters,
@@ -78,6 +77,29 @@ export interface HealthPort {
 
 const sinceDate = (days: number): Date => new Date(Date.now() - days * 86_400_000);
 
+/**
+ * Local midnight at the start of `d`'s day.
+ *
+ * Both platforms' aggregate APIs anchor their buckets on the *start of the
+ * requested range*, not on the calendar — ask at 15:00 and you get 15:00→15:00
+ * "days". Anchoring here is what makes a bucket equal one of the app's days.
+ */
+function startOfLocalDay(d: Date): Date {
+  const r = new Date(d);
+  r.setHours(0, 0, 0, 0);
+  return r;
+}
+
+const pad2 = (n: number): string => String(n).padStart(2, '0');
+
+/** Local-naive ISO (`2026-07-23T00:00:00` — no `Z`, no offset), the
+ *  `LocalDateTime` shape Health Connect's **period** slicer expects.
+ *  `toISOString()` would hand it a UTC instant and cut every bucket at the
+ *  wrong hour for any user not on UTC. */
+function localIsoNaive(d: Date): string {
+  return `${localDateKey(d)}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+
 /** A concrete timestamp inside `dateKey`'s local day for a written sample:
  *  ~7am for sleep (a plausible wake time for a night's total), noon otherwise. */
 function anchorAt(dateKey: string, kind: WritableKind): Date {
@@ -98,6 +120,13 @@ interface HKQty {
 }
 interface HKCat extends HKQty {
   value: number;
+}
+/** One interval of a statistics-collection response. `sumQuantity` is absent
+ *  for an interval with no samples at all. */
+interface HKStatsBucket {
+  sumQuantity?: { quantity: number };
+  startDate?: string | number | Date;
+  endDate?: string | number | Date;
 }
 
 const hkModule = () => import('@kingstinct/react-native-healthkit');
@@ -182,6 +211,49 @@ const healthKit: HealthPort = {
         }));
     }
 
+    // Activity must come from the *statistics* API, not raw samples.
+    // `queryQuantitySamples` returns every matching sample from every source
+    // with no merge, so an iPhone + Apple Watch — or Strava / Fitbit writing
+    // alongside — makes the same movement land two or three times.
+    // `queryStatisticsCollectionForQuantity` is HealthKit's merging path: its
+    // options control "the way in which data from multiple sources are merged",
+    // and without `separateBySource` overlapping sources collapse to one figure
+    // per interval. One interval per local day = one deduplicated day-total,
+    // which is why `steps`/`activeEnergy` fold as `preAggregated` in core.
+    if (kind === 'steps' || kind === 'activeEnergy') {
+      const anchor = startOfLocalDay(sinceDate(sinceDays));
+      const buckets = (await HK.queryStatisticsCollectionForQuantity(
+        HK_READ[kind] as never,
+        ['cumulativeSum'] as never,
+        anchor,
+        { day: 1 } as never,
+        // Nested `date` filter — the documented `FilterForSamples` shape.
+        { unit: HK_UNIT[kind], filter: { date: { startDate: anchor, endDate: new Date() } } } as never,
+      )) as unknown as HKStatsBucket[];
+      return buckets.flatMap((b) => {
+        // No `sumQuantity` = the interval held no samples. That is a day the
+        // device recorded nothing — missing, not a zero-activity day — so it
+        // must not enter the ledger as 0. Missing days fall back to the
+        // formula downstream; a fabricated 0 would drag the trailing mean down.
+        const q = b.sumQuantity?.quantity;
+        if (q == null) return [];
+        const start = b.startDate ? new Date(b.startDate) : anchor;
+        return [
+          {
+            // Key the day the bucket STARTS: a [midnight, next-midnight)
+            // interval ends at the *following* day's 00:00, so keying off the
+            // end — as the raw-sample path does — shifts every day forward one.
+            dateKey: localDateKey(start),
+            kind,
+            value: q,
+            endMs: b.endDate ? ms(b.endDate) : start.getTime(),
+            // Import-only: absent from `toShare`, so we can never be a source.
+            fromUs: false,
+          },
+        ];
+      });
+    }
+
     const rows = (await HK.queryQuantitySamples(HK_READ[kind] as never, {
       limit: 0,
       unit: HK_UNIT[kind],
@@ -252,10 +324,21 @@ interface HCRecord {
   endTime?: string;
   weight?: { inPounds?: number; inKilograms?: number };
   volume?: { inLiters?: number };
-  /** Steps records carry a plain integer count for their interval. */
-  count?: number;
-  /** ActiveCaloriesBurned records carry an Energy object. */
-  energy?: { inKilocalories?: number };
+}
+
+/** One period-sliced bucket from `aggregateGroupByPeriod`. `startTime` /
+ *  `endTime` come back as local-naive strings (period slicing is
+ *  `LocalDateTime`-based), so `new Date()` parses them in the device's zone —
+ *  which is exactly the day bucket we want. */
+interface HCPeriodGroup {
+  startTime?: string;
+  endTime?: string;
+  result?: {
+    /** Steps aggregate. */
+    COUNT_TOTAL?: number;
+    /** ActiveCaloriesBurned aggregate. */
+    ACTIVE_CALORIES_TOTAL?: { inKilocalories?: number };
+  };
 }
 
 const hcModule = () => import('react-native-health-connect');
@@ -303,6 +386,49 @@ const healthConnect: HealthPort = {
   async readSamples(kind, sinceDays) {
     const HC = await hcModule();
     await HC.initialize();
+
+    // Activity must come from the *aggregate* API, not `readRecords`. Health
+    // Connect documents that for cumulative types you use `aggregate` instead
+    // of `readRecords` precisely "to avoid double counting from multiple
+    // sources" — and its dedup covers the Activity category both our kinds
+    // live in. `aggregateGroupByPeriod` gives one deduplicated total per
+    // calendar day, which is why they fold as `preAggregated` in core.
+    if (kind === 'steps' || kind === 'activeEnergy') {
+      const anchor = startOfLocalDay(sinceDate(sinceDays));
+      const groups = (await HC.aggregateGroupByPeriod({
+        recordType: HC_READ[kind],
+        timeRangeFilter: {
+          operator: 'between',
+          startTime: localIsoNaive(anchor),
+          endTime: localIsoNaive(new Date()),
+        },
+        timeRangeSlicer: { period: 'DAYS', length: 1 },
+      } as never)) as unknown as HCPeriodGroup[];
+      return (groups ?? []).flatMap((g) => {
+        const value =
+          kind === 'steps' ? g.result?.COUNT_TOTAL : g.result?.ACTIVE_CALORIES_TOTAL?.inKilocalories;
+        // An absent metric means the bucket held no records — a missing day,
+        // which must stay missing rather than become a 0 (see the iOS branch).
+        // ⚠️ Divergence to confirm on a device: Health Connect may instead
+        // return an explicit 0 for an empty day, where HealthKit omits the
+        // figure entirely. We keep explicit zeros because #23 ruled that zeros
+        // count, but that ruling predates knowing these bucket semantics.
+        if (value == null) return [];
+        const start = new Date(g.startTime ?? 0);
+        return [
+          {
+            // Key the day the bucket STARTS — see the iOS branch.
+            dateKey: localDateKey(start),
+            kind,
+            value,
+            endMs: new Date(g.endTime ?? g.startTime ?? 0).getTime(),
+            // Import-only: we never write these, so we can never be a source.
+            fromUs: false,
+          },
+        ];
+      });
+    }
+
     const timeRangeFilter = {
       operator: 'between' as const,
       startTime: sinceDate(sinceDays).toISOString(),
@@ -334,21 +460,6 @@ const healthConnect: HealthPort = {
           dateKey: localDateKey(new Date(end)),
           kind: 'water' as const,
           value: litersToFlOz(r.volume?.inLiters ?? 0),
-          endMs: end,
-          fromUs: mine(r),
-        };
-      });
-    }
-    // Activity: interval records (one per short bucket), summed per day by
-    // `reduceImportedSamples`. Bucketed to the day the interval ENDS, matching
-    // every other kind here — a walk spanning midnight counts as the new day.
-    if (kind === 'steps' || kind === 'activeEnergy') {
-      return rows.map((r) => {
-        const end = new Date(r.endTime ?? r.startTime ?? 0).getTime();
-        return {
-          dateKey: localDateKey(new Date(end)),
-          kind,
-          value: kind === 'steps' ? (r.count ?? 0) : (r.energy?.inKilocalories ?? 0),
           endMs: end,
           fromUs: mine(r),
         };
