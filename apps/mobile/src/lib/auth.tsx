@@ -46,6 +46,7 @@ import type { Profile } from '@macrolog/core';
 import { auth } from './firebase';
 import { ensureProfile, subscribeProfile } from './ledger';
 import { registerAppleRefreshToken } from './appleSignin';
+import { clearWidget } from './widget';
 
 // Required for the web-OAuth popup/redirect to resolve when the app
 // regains focus after the Google consent screen.
@@ -516,7 +517,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw e;
         }
       },
-      signOut: () => fbSignOut(auth),
+      // Blank the home-screen widget before dropping the session — its
+      // snapshot lives outside the app sandbox (iOS App Group) and would
+      // otherwise keep the previous account's numbers on the home screen.
+      signOut: async () => {
+        await clearWidget();
+        await fbSignOut(auth);
+      },
     }),
     [
       user,

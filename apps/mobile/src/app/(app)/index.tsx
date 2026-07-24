@@ -18,6 +18,7 @@ import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useReminderSync } from '@/hooks/useReminderSync';
 import { useToday } from '@/hooks/useToday';
+import { useWidgetSync } from '@/hooks/useWidgetSync';
 import { enterUp, PressScale, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -40,6 +41,7 @@ export default function Today() {
     error,
     summary,
     targets,
+    activity,
     todayLogs,
     presets,
     recentEntries,
@@ -71,6 +73,10 @@ export default function Today() {
   // Keep on-device smart reminders in sync with today's state (runs on Today
   // focus + after every log). No-op unless the user enabled reminders.
   useReminderSync();
+
+  // Push today's totals to the home-screen widget's shared storage. No-op
+  // unless the widget's native module is present (dev/production build only).
+  useWidgetSync(summary, targets);
 
   // The tab bar's Log button navigates here with a fresh `openAdd` nonce —
   // each new value opens the add sheet (see AppTabBar in the tab layout).
@@ -197,6 +203,7 @@ export default function Today() {
             <DailyMetrics
               water={water}
               sleep={sleep}
+              activity={activity}
               fastStartedAt={fastStartedAt}
               onAddWater={setWater}
               onSetSleep={setSleep}

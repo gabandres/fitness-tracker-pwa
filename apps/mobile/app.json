@@ -12,6 +12,11 @@
       "bundleIdentifier": "fit.ignia.app",
       "supportsTablet": false,
       "usesAppleSignIn": true,
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.fit.ignia.app"
+        ]
+      },
       "infoPlist": {
         "CFBundleURLTypes": [
           {
@@ -102,6 +107,24 @@
         }
       ],
       "react-native-health-connect",
+      "@bacons/apple-targets",
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "Today",
+              "label": "Ignia — Today",
+              "description": "Calories and protein left today.",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 2,
+              "targetCellHeight": 2,
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ],
       "./plugins/withModularHeaders"
     ],
     "extra": {

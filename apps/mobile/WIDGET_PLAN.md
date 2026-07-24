@@ -1,5 +1,12 @@
 # Implementation Plan — Home-screen Widget (Today's rings)
 
+> **Status (2026-07-23): BUILT, unverified on device.** All code below is
+> written, typechecked and unit-tested; nothing has ever run on hardware,
+> because a widget needs an EAS build and the quota resets **August 2026**
+> (`docs/aug-2026-build-batch.md`). Device QA is the only remaining step.
+> Decisions previously listed as open are now **locked** — see
+> §"Locked decisions".
+
 Scope: a home-screen widget showing **today's calories + protein remaining**
 (and optionally a small ring), refreshed from a last-known snapshot the app
 writes on each log. Greenfield — nothing exists yet. Runtime cost: **$0** (reads
@@ -76,31 +83,83 @@ state (the app hasn't been opened yet today) rather than stale numbers.
 - Both plugins added to `app.json` `plugins[]`; `group.fit.ignia.app` App Group
   in the iOS config.
 
-## Prerequisites (owner-gated)
+## Prerequisites (owner-gated — STILL OPEN)
 1. **EAS dev build** (native modules — same gate as Health/Google Sign-In).
-2. **iOS:** register the widget-extension target + App Group on the App id.
+   Quota resets August 2026.
+2. **iOS App Groups — probably NOT a manual step.** EAS Build's *auto capability
+   signing* reads the local entitlements and enables matching capabilities on
+   the Apple Developer Console during the build; **App Groups is on its
+   supported list**, and `app.json` already resolves to
+   `{"com.apple.security.application-groups":["group.fit.ignia.app"]}`. So the
+   build is expected to register the group itself.
+
+   *(An earlier revision of this doc claimed the build would fail at signing
+   without a manual portal step. That was wrong — auto capability signing
+   covers it.)*
+
+   **The one part still worth watching:** the widget runs in its own extension
+   target with its own bundle id (`fit.ignia.app.Today`) and its own
+   provisioning profile. If the first build fails on the *extension's*
+   entitlements rather than the app's, create the group manually in the portal
+   and re-run — that's the fallback, not the default expectation.
 3. No Play/store metadata needed for internal testing.
 
-## Open decisions to lock before coding
-- **What the widget shows:** kcal-only (simplest) vs kcal + protein vs a full
-  rings mini. Recommend **kcal remaining + protein remaining** (two numbers),
-  since protein is half the product's identity. A graphical ring is more iOS
-  Swift work — do text-first, ring as a fast follow.
-- **Sizes:** iOS small + medium; Android 2×2. Recommend ship **small/2×2 only**
-  first.
-- **Tap target:** deep-link into the app's add-entry sheet (the PWA already has
-  `?action=add`; mobile can route to the entry sheet) so the widget drives
-  logging, not just display. Recommend yes — it's the engagement payoff.
-- **Empty/first-run state:** before the app has ever written a snapshot, show
-  "Open Ignia to start" rather than zeros that look like a logged 0.
+## Device QA checklist (first thing after the build exists)
+- [ ] Widget appears in the iOS widget gallery and the Android picker.
+- [ ] Add it with the app **never opened on that device** → "Open Ignia to start"
+      (not "0 left").
+- [ ] Log a meal → the numbers move within seconds (this proves the App Group
+      write + `reloadWidget`, the single riskiest seam).
+- [ ] Tap it → the app opens **with the add-entry sheet already up**.
+- [ ] Cross midnight with the app closed → it blanks instead of showing
+      yesterday's totals as today's.
+- [ ] Set the app to es-PR → the widget's words follow the *profile*, not the
+      phone's language.
+- [ ] Sign out → the widget blanks (it must not keep the old account's numbers
+      on the home screen).
 
-## Effort estimate (after Phase 0 dev build exists)
-- Shared core snapshot + adapter + wiring: **~1 day.**
-- **Android** widget (JS/TSX): **~2–3 days.**
-- **iOS** widget (SwiftUI + App Group bridge + native module + timeline):
-  **~4–5 days** (Swift is the cost driver).
-- Total for both: **~1.5 weeks.** Android-first is a cheaper way to validate the
-  snapshot pipeline before paying the iOS Swift cost.
+## Locked decisions
+Settled 2026-07-23, before any code existed.
+
+| Decision | Locked as |
+|---|---|
+| **What it shows** | **kcal remaining + protein remaining, text-first.** No ring — it's a fast-follow once the seam is proven on device. |
+| **Platforms** | **Both.** Android's TSX widget is cheap and validates the snapshot pipeline before the Swift cost is paid; nothing ships on Play until the 12-tester gate is met. |
+| **Sizes** | **iOS `.systemSmall` / Android 2×2 only.** Medium is additive later. |
+| **Tap target** | **Deep-link to the add-entry sheet** (`ignia://?openAdd=1` — the same param the in-app FAB route uses), so the widget drives logging. |
+| **Empty state** | **"Open Ignia to start."** Never zeros — a "0 left" reads as a fully-eaten day. |
+| **Theme** | **One fixed brand face, dark in both themes** (the `heroPanel` family, ADR-0014). A widget sits on the wallpaper and can't follow the in-app theme. |
+| **App Intents / Siri** | **Out of this batch.** Keeps the binary to one untested native surface; three is how the previous two rejections happened. |
+
+## What was built (2026-07-23)
+
+| File | Role |
+|---|---|
+| `packages/core/src/widget-snapshot.ts` | The whole contract: `buildWidgetSnapshot` (app side) + `parseWidgetSnapshot`/`widgetView` (widget side). Pure. 29 tests. |
+| `apps/mobile/src/lib/widget.ts` | Storage + reload adapter. iOS → App Group `UserDefaults` via `ExtensionStorage`; Android → `AsyncStorage` + `requestWidgetUpdate`. Native modules lazy-required (Expo Go / web safe). |
+| `apps/mobile/src/hooks/useWidgetSync.ts` | Mounted on Today. Writes on every summary/target change + on app foreground. No new Firestore listeners (ADR-0016). |
+| `apps/mobile/src/widgets/*` | Android widget UI (TSX), string table, task handler. |
+| `apps/mobile/targets/widget/index.swift` | iOS SwiftUI widget — the hand-written Swift **mirror** of `widget-snapshot.ts`. |
+| `apps/mobile/index.js` | Custom entry; registers the Android task handler before React mounts. |
+
+**The mirroring is the thing to watch.** iOS can't run our JS, so the decode /
+staleness / over-vs-left rules exist twice. `widget-snapshot.ts` is the spec and
+its vitest suite is the reference; a change to one side is a bug until it lands
+on the other. The same applies to the widget string table (`strings.ts` ↔ the
+`strings()` func in `index.swift`) and the palette hexes.
+
+### Locale rides in the blob
+Our locale is `profile.preferredLocale` — behind auth and Firestore, neither of
+which a widget process has. Using the *device* locale instead would hand an
+English widget to someone who set the app to Spanish, so `locale` is a field on
+the snapshot and each widget keeps its own small string table.
+
+## Effort — actual
+The ~1.5wk estimate assumed a bridge would have to be hand-written. It didn't:
+`@bacons/apple-targets` ships `ExtensionStorage` (App Group `UserDefaults` +
+`reloadWidget`), which removed the entire custom-native-module line item, and
+`react-native-android-widget` needed no Kotlin. What's left of the estimate is
+**device QA**, which is build-gated rather than effort-gated.
 
 ## Deferred / separate (NOT this plan)
 - **Fasting Live Activity** (iOS lock-screen fast countdown) — natural given the

@@ -1,8 +1,9 @@
 {
   "name": "mobile",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "version": "1.1.0",
   "dependencies": {
+    "@bacons/apple-targets": "^5.0.0",
     "@expo-google-fonts/manrope": "^0.4.2",
     "@expo/vector-icons": "^15.0.2",
     "@kingstinct/react-native-healthkit": "^14.0.2",
@@ -39,6 +40,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-android-widget": "^0.21.0",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-health-connect": "^3.5.3",
     "react-native-keyboard-controller": "1.18.5",
