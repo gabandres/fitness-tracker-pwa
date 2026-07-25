@@ -127,6 +127,17 @@ buys is a shared container between the **watch app and its own complication on t
 which is genuinely useful: it is the watch-side half of any transport, but never the transport
 itself.
 
+> **Corrected by [#45](https://github.com/gabandres/fitness-tracker-pwa/issues/45) (2026-07-25) —
+> "for free" is wrong, and it fails silently.** A real `npx expo prebuild -p ios` with a
+> `watch-widget` config that omits `entitlements` emits the target with **no
+> `CODE_SIGN_ENTITLEMENTS` build setting at all** and **no `ios/.targets/<name>/` directory** —
+> the `appGroupsByDefault` flag does not fire for this type. Declaring the App Group explicitly
+> in `targets/watch-widget/expo-target.config.js`, exactly as `targets/widget` already does,
+> produces the correct `generated.entitlements` in both Debug and Release. The paragraph above is
+> right about what the entitlement *buys*; it is wrong that the complication gets it unaided.
+> This is risk #1 in [Risks](#risks-and-unproven-edges) — a quiet seam — landing exactly where it
+> was predicted to.
+
 ---
 
 ## Code signing and EAS
