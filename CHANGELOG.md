@@ -6,6 +6,16 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-07-24 — Rebuilt transactional email, and a password reset that's actually ours
+
+Welcome and reset mail had been landing in junk. The reason wasn't the DNS records everyone reaches for first — it was the **From address**: everything shipped from Resend's shared sandbox domain, and password resets came from Firebase's. Neither is a domain we own, so DMARC alignment was impossible no matter what got published on `ignia.fit`.
+
+- **Password reset is a first-class email now.** A server-generated link is delivered through our own sender instead of Firebase's unbrandable default — designed, bilingual, and stating both when the link expires and what to do if you didn't request it. The endpoint answers identically whether or not an account exists, so it can't be used to discover who has one, and it's rate-limited per address and per network.
+- **Every email carries a real plain-text version.** Missing one is a spam signal in its own right. Both versions are now generated from the same source, so they can't drift apart.
+- **Dark mode, and a subject-line preview.** Mail previewed as "Hi there," in the inbox list before, because there was nothing else to scrape.
+- **Back in Ignia's colours.** The templates still wore the pre-pivot cream palette and a "macro log" byline.
+- **The welcome email stopped over-promising.** It advertised photo scanning and "four ways to log a meal"; photo scanning isn't in v1, so a new user's first email broke a promise in their first session.
+
 ## 2026-07-23 — Steps and active energy import from Health (mobile)
 
 Health sync already pushed weight, sleep, water, body fat, nutrition and workouts. It could not read **activity** — so the app knew what you ate but nothing about what you moved. Steps and active energy now import from Apple Health / Health Connect and show as a read-only row on Today.
