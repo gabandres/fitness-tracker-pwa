@@ -606,6 +606,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ─── Password-reset rate limit ──────────────────────────────
+    // Written by the sendPasswordReset Cloud Function via the admin
+    // SDK (which bypasses these rules). The caller is UNAUTHENTICATED
+    // by necessity, so client access must be denied outright: a
+    // readable counter would confirm which addresses have requested a
+    // reset (an enumeration oracle), and a writable one would let an
+    // attacker reset the window and bypass the limit entirely.
+    // Doc ids are salt-free SHA-256 tags, never plaintext addresses.
+    match /emailRateLimits/{limitId} {
+      allow read, write: if false;
+    }
+
     // ─── Stripe Firebase Extension ───────────────────────────────
     // Managed by ext: firestore-stripe-payments.
     // The extension writes customer/subscription/payment records

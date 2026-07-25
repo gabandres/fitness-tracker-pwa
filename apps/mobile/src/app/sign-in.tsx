@@ -16,13 +16,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BrandMark } from '@/components/BrandMark';
 import { GoogleIcon, MicrosoftIcon } from '@/components/BrandIcons';
 import { useAuth } from '@/lib/auth';
-import { type I18nKey, type TFn, useT } from '@/i18n';
+import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import { enterUp } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
 
 export default function SignIn() {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors, scheme } = useTheme();
   const {
@@ -95,7 +96,7 @@ export default function SignIn() {
       return;
     }
     try {
-      await resetPassword(email);
+      await resetPassword(email, locale);
       setNotice(t('signIn.resetSent'));
     } catch (e: unknown) {
       setError(t(errorKey(e)));
@@ -357,7 +358,12 @@ function errorKey(e: unknown): I18nKey {
     return 'signIn.errWrong';
   }
   if (code.includes('invalid-email')) return 'signIn.errInvalidEmail';
-  if (code.includes('too-many-requests')) return 'signIn.errTooMany';
+  // `sendPasswordReset` (our callable) rejects a malformed address with
+  // invalid-argument and a tripped rate limit with resource-exhausted.
+  if (code.includes('invalid-argument')) return 'signIn.errInvalidEmail';
+  if (code.includes('too-many-requests') || code.includes('resource-exhausted')) {
+    return 'signIn.errTooMany';
+  }
   if (code.includes('email-already-in-use')) return 'signIn.errEmailInUse';
   if (code.includes('weak-password') || code.includes('password-does-not-meet')) {
     return 'signIn.errWeakPassword';

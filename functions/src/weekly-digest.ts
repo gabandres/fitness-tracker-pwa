@@ -217,7 +217,7 @@ export async function runWeeklyDigest(): Promise<void> {
       const displayName = (data["displayName"] as string | undefined)
         || (await getAuth().getUser(uid).then((u) => u.displayName).catch(() => null));
 
-      const { subject, html } = weeklyDigestEmail({ locale, displayName, ...stats });
+      const { subject, html, text } = weeklyDigestEmail({ locale, displayName, ...stats });
 
       try {
         const resend = getResend();
@@ -226,6 +226,7 @@ export async function runWeeklyDigest(): Promise<void> {
           to: email,
           subject,
           html,
+          text,
         });
         if (error) {
           // Stamp already claimed above; we deliberately do NOT roll it

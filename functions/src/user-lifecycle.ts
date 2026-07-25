@@ -16,10 +16,11 @@ import { db } from "./init";
 // welcome email is not mission-critical and a transient Resend 5xx
 // must never block onboarding.
 //
-// Deliverability note: until a custom domain is verified in Resend we
-// ship from `onboarding@resend.dev` (Resend's sandbox). Real Day-7
-// retention lift needs macrolog.app (or similar) verified — at that
-// point set the `MACROLOG_EMAIL_FROM` env to the verified from-address.
+// Deliverability note: until `mail.ignia.fit` is verified in Resend we
+// ship from `onboarding@resend.dev` (Resend's shared sandbox), which is
+// unaligned with our domain and lands in junk for a large share of
+// recipients. Set `MACROLOG_EMAIL_FROM` once the domain verifies —
+// see `docs/email-deliverability.md` for the runbook.
 
 export const sendWelcomeEmail = onDocumentUpdated(
   {
@@ -58,7 +59,7 @@ export const sendWelcomeEmail = onDocumentUpdated(
       (after.displayName as string | undefined) ??
       (await getAuth().getUser(uid).then((u) => u.displayName).catch(() => null));
 
-    const { subject, html } = welcomeEmail({ locale, displayName });
+    const { subject, html, text } = welcomeEmail({ locale, displayName });
 
     // Never log email addresses — Cloud Logging is 30d-retained and
     // visible to any project collaborator. Stick to uid; an operator
@@ -70,6 +71,7 @@ export const sendWelcomeEmail = onDocumentUpdated(
         to: email,
         subject,
         html,
+        text,
       });
       if (error) {
         console.error(`sendWelcomeEmail: Resend error for uid=${uid}`, error);

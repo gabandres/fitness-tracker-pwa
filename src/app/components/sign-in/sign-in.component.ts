@@ -352,7 +352,13 @@ export class SignInComponent {
       case 'auth/user-not-found':
         return this.translation.t('signin.errorNoAccount');
       case 'auth/too-many-requests':
+      // Our `sendPasswordReset` callable's rate limit (per-address and
+      // per-IP). Same user-facing meaning as Firebase's throttle.
+      case 'functions/resource-exhausted':
         return this.translation.t('signin.errorTooMany');
+      // Malformed address rejected by the same callable.
+      case 'functions/invalid-argument':
+        return this.translation.t('signin.errorInvalidEmail');
       case 'auth/account-exists-with-different-credential':
         return this.translation.t('signin.errorWrongProvider');
       case 'auth/operation-not-allowed':

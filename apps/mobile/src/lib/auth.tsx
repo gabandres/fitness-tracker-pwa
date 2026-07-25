@@ -28,7 +28,6 @@ import {
   fetchSignInMethodsForEmail,
   onAuthStateChanged,
   sendEmailVerification,
-  sendPasswordResetEmail,
   signInWithCredential,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
@@ -42,8 +41,9 @@ import {
   useMemo,
   useState,
 } from 'react';
+import { httpsCallable } from 'firebase/functions';
 import type { Profile } from '@macrolog/core';
-import { auth } from './firebase';
+import { auth, functions } from './firebase';
 import { ensureProfile, subscribeProfile } from './ledger';
 import { registerAppleRefreshToken } from './appleSignin';
 import { clearWidget } from './widget';
@@ -177,7 +177,10 @@ interface AuthState {
    *  Firebase enforces the project password policy. */
   signUp: (email: string, password: string, displayName?: string) => Promise<void>;
   /** Sends a password-reset email to `email`. */
-  resetPassword: (email: string) => Promise<void>;
+  /** `locale` picks the language of the reset email. The caller supplies it
+   *  because `I18nProvider` mounts inside this provider (it reads the signed-in
+   *  profile), so the locale is not readable from here. */
+  resetPassword: (email: string, locale?: 'en' | 'es-PR') => Promise<void>;
   /** Launches the Google OAuth flow and signs in to Firebase with the
    *  returned id token. Throws GoogleSignInError on cancel/unavailable. */
   signInWithGoogle: () => Promise<void>;
@@ -408,8 +411,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn('sendEmailVerification failed', e);
         }
       },
-      resetPassword: async (email) => {
-        await sendPasswordResetEmail(auth, email.trim());
+      // Routed through our own callable instead of Firebase's client SDK:
+      // Firebase sends from `noreply@<project>.firebaseapp.com`, which is
+      // unaligned with ignia.fit (fails DMARC) and unbrandable. The callable
+      // mints the same action link server-side and delivers it via Resend.
+      // It answers ok for any well-formed address, present or not, so this
+      // cannot report "no account with that email" — that was an enumeration
+      // oracle, and the UI already showed a neutral confirmation either way.
+      resetPassword: async (email, locale) => {
+        const call = httpsCallable<{ email: string; locale: string }, { ok: true }>(
+          functions,
+          'sendPasswordReset',
+        );
+        await call({ email: email.trim(), locale: locale ?? 'en' });
       },
       signInWithGoogle: async () => {
         if (isExpoGo || !hasRealClientId) throw new GoogleSignInError('expo-go');

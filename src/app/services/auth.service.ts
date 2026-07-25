@@ -11,13 +11,14 @@ import {
   linkWithCredential,
   signInWithEmailAndPassword,
   sendEmailVerification,
-  sendPasswordResetEmail,
   signInWithPopup,
   onAuthStateChanged,
   signOut as fbSignOut,
   updateProfile,
 } from '@angular/fire/auth';
 import { AnalyticsService } from './analytics.service';
+import { CallableGateway } from './callable.gateway';
+import { TranslationService } from './translation.service';
 
 /**
  * Metadata the sign-in UI needs to render an account-link prompt:
@@ -63,6 +64,8 @@ export interface PendingLinkInfo {
 export class AuthService {
   private readonly auth = inject(Auth);
   private readonly analytics = inject(AnalyticsService);
+  private readonly callables = inject(CallableGateway);
+  private readonly translation = inject(TranslationService);
 
   private readonly _user = signal<User | null>(null);
   /** Reactive current user, driven by Firebase's onAuthStateChanged. */
@@ -281,10 +284,26 @@ export class AuthService {
     }
   }
 
-  /** Sends a password-reset email. Errors propagate to the caller so
-      the UI can show e.g. "no account with that email". */
+  /**
+   * Sends a password-reset email through our own `sendPasswordReset`
+   * callable rather than Firebase's client SDK.
+   *
+   * Firebase's built-in mail is sent from `noreply@<project>.firebaseapp.com`
+   * — a domain we don't control, so it fails DMARC alignment with ignia.fit
+   * and is unbrandable. The callable generates the same action link
+   * server-side and delivers it via Resend from our own domain.
+   *
+   * The server answers `{ ok: true }` for any syntactically valid address,
+   * present or not, so this deliberately CANNOT report "no account with
+   * that email" — that response was an enumeration oracle. The UI shows the
+   * same neutral confirmation either way (it already did). Errors still
+   * propagate for malformed input and rate limiting.
+   */
   async sendPasswordReset(email: string): Promise<void> {
-    await sendPasswordResetEmail(this.auth, email);
+    await this.callables.call<{ email: string; locale: string }, { ok: true }>(
+      'sendPasswordReset',
+      { email, locale: this.translation.language() },
+    );
   }
 
   /** Re-sends the email-verification link to the current user. */

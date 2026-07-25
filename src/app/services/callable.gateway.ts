@@ -25,6 +25,7 @@ export type CallableName =
   // onRequest SSE endpoint (the AI coach) — invoked via `stream()`, not `call()`
   | 'consultationStream'
   // account / GDPR
+  | 'sendPasswordReset'
   | 'deleteAccount'
   | 'exportUserData'
   | 'checkAccessStatus'
