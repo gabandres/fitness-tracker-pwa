@@ -215,28 +215,49 @@ Flipping this **before** the domain verifies fails loudly — Resend rejects
 sends from an unverified domain — rather than silently junking everything.
 That is the intended failure mode; do not add a fallback.
 
-### 4.5 DMARC — ramp, do not jump
-
-DMARC is a plain TXT record at `_dmarc.ignia.fit`. It is **not** creatable via
-the Resend API.
-
-Start here, and only here:
+### 4.5 DMARC — published at `p=none` 2026-07-24
 
 ```
-_dmarc.ignia.fit  TXT  "v=DMARC1; p=none; rua=mailto:dmarc@ignia.fit; fo=1"
+_dmarc.ignia.fit  TXT  "v=DMARC1; p=none"
 ```
 
-`p=none` is monitor-only: it changes nothing about delivery, it just asks
-receivers to send you aggregate reports. Read those reports for **at least two
-weeks** and confirm every legitimate source is aligned before tightening:
+`p=none` is monitor-only: it changes nothing about delivery. It is published
+now because it is the required first rung, and because some filters treat the
+*absence* of a DMARC record as a mild negative signal.
+
+**It deliberately carries no `rua=`.** Two dead ends to know about before
+adding one:
+
+- `rua=mailto:dmarc@ignia.fit` **cannot work.** The apex has no MX, so there is
+  nowhere for reports to land. (An earlier draft of this doc recommended
+  exactly that — it was wrong.)
+- `rua=mailto:you@gmail.com` **also cannot work.** RFC 7489 §7.1 requires the
+  *receiving* domain to authorise external reporting by publishing
+  `ignia.fit._report._dmarc.gmail.com`. You cannot add records to `gmail.com`,
+  and Google and Microsoft both enforce this check, so reports are silently
+  dropped.
+
+**Recommended: a free DMARC digest service** — Postmark's DMARC Digests or
+dmarcian's free tier. They issue you a reporting address and publish the
+`_report._dmarc` authorisation themselves, so it is a signup plus a one-line
+record edit, with no MX and no XML parsing. Then:
+
+```sh
+# update the record in place
+curl -X PUT "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records/$ID" \
+  -H "Authorization: Bearer $CF_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"type":"TXT","name":"_dmarc","content":"v=DMARC1; p=none; rua=mailto:<issued>; fo=1","ttl":1}'
+```
+
+Only after **two weeks** of reports showing every legitimate source aligned:
 
 ```
 p=none  →  p=quarantine; pct=25  →  p=quarantine  →  p=reject
 ```
 
 ⚠️ Going straight to `p=reject` before alignment is confirmed will blackhole
-real mail — including any mail you send from the apex domain by other means.
-There is no upside to rushing this.
+real mail. There is no upside to rushing this, and ramping blind — tightening
+without ever having read a report — is the same mistake with extra steps.
 
 ### 4.6 After the first real send
 
