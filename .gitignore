@@ -73,6 +73,12 @@ _outer-junk-git-backup/
 .playwright-mcp/
 .expo/
 
+# Store screenshot production — raw captures show a populated demo account's
+# real logs, and the caption font is a downloaded OFL binary. Composited
+# output in store-assets/out/ IS committed (see store-assets/README.md).
+store-assets/raw/
+store-assets/fonts/
+
 # Firebase Emulator Suite (local dev state + logs — see DEV_ENVIRONMENT.md)
 .emulator-data/
 firebase-debug.log

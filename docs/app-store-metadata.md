@@ -330,9 +330,11 @@ must land there.
 | 4 | Trends — weekly insights + weight projection | **See where the week actually went** | **Mira a dónde se fue la semana de verdad** |
 | 5 | Settings or a "no paywall" surface | **Every feature. No subscription. No ads.** | **Todas las funciones. Sin suscripción. Sin anuncios.** |
 
-Captions are burned into the image, not an ASC field — add them as a text band
-above the screenshot in any image editor. Keep the type large enough to read in
-the search-results thumbnail strip, which is where most of them get seen.
+Captions are burned into the image, not an ASC field. Drop the raw captures in
+`store-assets/raw/<locale>/` and run `node scripts/store-screenshots.mjs` — it
+composites the caption band from the table above onto the brand canvas at
+exactly 1320 × 2868. Editing copy means editing this table *and* the `SHOTS`
+list in that script, then re-running it. See `store-assets/README.md`.
 
 ### Capture checklist
 - [ ] Signed in as a demo account with **realistic, populated data** — empty
