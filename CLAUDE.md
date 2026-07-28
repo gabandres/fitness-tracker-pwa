@@ -72,6 +72,7 @@ The Expo app does **not** use `LEDGER_PORT`. It talks to Firestore through the F
 There is no app server. `firestore.rules` (~670 lines, dense — per-collection field/shape/range validation) + Firebase Auth enforce all access; the public web Firebase keys in `src/environments/*` are public by design. **Deploy `firestore:rules` BEFORE clients write any new top-level field** — the dev app talks to PROD Firestore, so an un-deployed rule rejects new writes. Cover rule changes with `npm run test:rules`.
 
 ## Reference docs (read before relevant work)
+- **`CLAUDE.local.md`** (git-ignored, may not exist) — machine-local notes: where the Apple `.p8` keys live, demo-account details, capture paths. Locations only, never secret values. Read it before asking the owner where a credential is.
 - **`CONTEXT.md`** — canonical domain glossary. One concept = one term, with legacy synonyms called out (e.g. Log/Entry/Meal all map to `DailyLog`). Read it before naming things or grepping.
 - **`docs/adr/`** — architecture decisions 0001–0016. The "why" behind the seams above. 0013 (food resolution), 0014 (mobile theming), 0015 (Ignia pivot) and 0016 (per-hook subscriptions) are all load-bearing and are cited throughout this file.
 - **`CHANGELOG.md`** — significant ships, newest first.

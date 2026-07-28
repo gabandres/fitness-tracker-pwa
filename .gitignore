@@ -73,6 +73,10 @@ _outer-junk-git-backup/
 .playwright-mcp/
 .expo/
 
+# Machine-local notes: credential LOCATIONS (never values), demo-account
+# details, capture paths. Ignored because this repo is public.
+CLAUDE.local.md
+
 # Store screenshot production — raw captures show a populated demo account's
 # real logs, and the caption font is a downloaded OFL binary. Composited
 # output in store-assets/out/ IS committed (see store-assets/README.md).
