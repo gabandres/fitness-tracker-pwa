@@ -3,6 +3,8 @@ import { DecimalPipe } from '@angular/common';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Firestore, doc, getDoc, Timestamp } from '@angular/fire/firestore';
 import { stripLangPrefix } from '../../i18n/locale-path';
+import { bcp47ForLang } from '../../utils/locale';
+import { TranslationService } from '../../services/translation.service';
 import { UiCard } from '../ui/card.component';
 
 interface PublicProfile {
@@ -101,27 +103,39 @@ type FetchStatus = 'loading' | 'ready' | 'notFound' | 'error';
 })
 export class PublicProfileComponent implements OnInit {
   private readonly firestore = inject(Firestore);
+  private readonly translation = inject(TranslationService);
 
   protected readonly status = signal<FetchStatus>('loading');
   protected readonly profile = signal<PublicProfile | null>(null);
 
+  // Headline and subtitle were the last hardcoded English on this page, and
+  // it is the one page a stranger can land on from search — including a
+  // Spanish stranger, since /u/<slug> is public and indexed. The date also
+  // read the DEVICE locale rather than the app's.
   protected readonly headline = computed(() => {
     const p = this.profile();
     if (!p) return '';
-    if (p.totalChange != null && p.totalChange < 0) {
-      return `${p.displayName} lost ${Math.abs(p.totalChange).toFixed(1)} lb`;
+    const name = p.displayName;
+    if (p.totalChange != null && p.totalChange !== 0) {
+      const key = p.totalChange < 0 ? 'headlineLost' : 'headlineGained';
+      return this.translation.t(`publicProfile.${key}`, {
+        name,
+        lbs: Math.abs(p.totalChange).toFixed(1),
+      });
     }
-    if (p.totalChange != null && p.totalChange > 0) {
-      return `${p.displayName} gained ${Math.abs(p.totalChange).toFixed(1)} lb`;
-    }
-    return `${p.displayName}'s progress`;
+    return this.translation.t('publicProfile.headlineProgress', { name });
   });
 
   protected readonly subtitle = computed(() => {
     const p = this.profile();
     if (!p?.startedAt) return '';
-    const started = p.startedAt.toDate();
-    return `Tracking since ${started.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`;
+    const date = p.startedAt
+      .toDate()
+      .toLocaleDateString(bcp47ForLang(this.translation.language()), {
+        month: 'short',
+        year: 'numeric',
+      });
+    return this.translation.t('publicProfile.trackingSince', { date });
   });
 
   protected readonly weeksTracked = computed(() => {

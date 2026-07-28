@@ -68,6 +68,10 @@
   },
   "publicProfile": {
     "section": "transformación",
+    "headlineLost": "{{name}} bajó {{lbs}} lb",
+    "headlineGained": "{{name}} subió {{lbs}} lb",
+    "headlineProgress": "El progreso de {{name}}",
+    "trackingSince": "Registrando desde {{date}}",
     "loading": "Cargando…",
     "notFoundTitle": "Perfil no encontrado",
     "notFoundBody": "Este perfil no existe o se hizo privado.",

@@ -27,6 +27,8 @@ import {
   type DailyTargets,
 } from '@macrolog/core/targets';
 import { addDays, localDateKey } from '../utils/date';
+import { bcp47ForLang } from '../utils/locale';
+import { TranslationService } from './translation.service';
 import { summarizeDay } from '../utils/day-summary';
 import { computeStreak } from '@macrolog/core/streak';
 import {
@@ -124,6 +126,7 @@ export type HistoryWindow =
 @Injectable({ providedIn: 'root' })
 export class FitnessStore {
   private readonly auth = inject(AuthService);
+  private readonly translation = inject(TranslationService);
   private readonly fb = inject(LEDGER_PORT);
   private readonly subs = inject(SubscriptionService);
   private readonly body = inject(BodyMetricStore);
@@ -496,7 +499,10 @@ export class FitnessStore {
       const s = this.summaryFor(key);
       out.push({
         key,
-        label: d.toLocaleDateString('en-US', { weekday: 'short' }),
+        // Reading the language signal here (not a constant 'en-US') is what
+        // makes the axis re-label when the user switches language — callers
+        // read this inside a computed, so the signal becomes a dependency.
+        label: d.toLocaleDateString(bcp47ForLang(this.translation.language()), { weekday: 'short' }),
         kcal: s?.totalCalories ?? 0,
         protein: s?.totalProtein ?? 0,
       });
