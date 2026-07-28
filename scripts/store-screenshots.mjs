@@ -141,10 +141,10 @@ async function roundCorners(buf, w, h) {
     .toBuffer();
 }
 
-async function build(locale, file, index, outDir) {
-  const text = SHOTS[locale][index];
+async function build(locale, file, slot, outDir) {
+  const text = SHOTS[locale][slot];
   if (!text) {
-    console.warn(`  ${file} — no caption for slot ${index + 1}, skipped`);
+    console.warn(`  ${file} — no caption for slot ${slot + 1}, skipped`);
     return false;
   }
 
@@ -185,9 +185,21 @@ async function build(locale, file, index, outDir) {
       { input: border, top: SHOT_TOP, left: Math.round((W - SHOT_WIDTH) / 2) },
     ])
     .png()
-    .toFile(join(outDir, `${String(index + 1).padStart(2, '0')}.png`));
+    .toFile(join(outDir, `${String(slot + 1).padStart(2, '0')}.png`));
 
   return true;
+}
+
+/**
+ * Which caption a capture gets. A leading number in the filename IS the slot
+ * (`03-search.png` → shot 3), so a set missing one shot doesn't silently
+ * shift every later caption onto the wrong screen — which is exactly what
+ * position-based numbering does, and it is invisible until the store listing
+ * is live. Unnumbered files fall back to their position in the directory.
+ */
+function slotFor(filename, position) {
+  const m = /^(\d{1,2})/.exec(filename);
+  return m ? Number(m[1]) - 1 : position;
 }
 
 for (const locale of locales) {
@@ -210,9 +222,18 @@ for (const locale of locales) {
   }
 
   console.log(`· ${locale}: ${files.length} capture(s)`);
-  let made = 0;
+  const made = [];
   for (const [i, f] of files.entries()) {
-    if (await build(locale, join(inDir, f), i, outDir)) made++;
+    const slot = slotFor(f, i);
+    if (await build(locale, join(inDir, f), slot, outDir)) made.push(slot + 1);
   }
-  console.log(`  → ${made} frame(s) in store-assets/out/${locale}/ (${W}×${H})`);
+  const missing = SHOTS[locale]
+    .map((_, i) => i + 1)
+    .filter((n) => !made.includes(n));
+  console.log(`  → ${made.length} frame(s) in store-assets/out/${locale}/ (${W}×${H})`);
+  if (missing.length) {
+    // Say it out loud. An incomplete set uploads perfectly happily and the
+    // gap only shows up as a missing frame on the live listing.
+    console.warn(`  ! no capture for shot ${missing.join(', ')} — set is incomplete`);
+  }
 }
