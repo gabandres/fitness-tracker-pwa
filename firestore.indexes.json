@@ -8,6 +8,11 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "timestamp", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "dailyWeights",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "__name__", "order": "DESCENDING" }]
     }
   ],
   "fieldOverrides": [

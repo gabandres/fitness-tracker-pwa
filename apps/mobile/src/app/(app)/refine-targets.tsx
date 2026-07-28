@@ -75,7 +75,13 @@ export default function RefineTargets() {
   useEffect(() => {
     if (!user) return;
     let alive = true;
-    void getLatestDailyWeight(user.uid).then((w) => alive && setWeightLbs(w));
+    // A rejection here used to vanish: no catch, so `weightLbs` stayed null,
+    // `basalKcal` stayed 0, and the activity suggestion silently never
+    // appeared. The screen still works without a weight — it just can't
+    // pre-fill — so log and carry on rather than blocking on it.
+    getLatestDailyWeight(user.uid)
+      .then((w) => alive && setWeightLbs(w))
+      .catch((e: unknown) => console.warn('refine-targets: latest weight unavailable', e));
     return () => {
       alive = false;
     };

@@ -189,6 +189,11 @@ export function subscribeDailyWeights(
  * `dateKey` doc id sorts chronologically, so "latest" is the last id.
  * For screens that need a single weight (the activity-correction basal) and
  * have no reason to hold the whole `subscribeDailyWeights` stream open.
+ *
+ * Ordering by `documentId()` DESCENDING needs an explicit index — Firestore
+ * auto-indexes `__name__` ascending only — so `dailyWeights` carries one in
+ * firestore.indexes.json. Without it this rejects with FAILED_PRECONDITION
+ * in production while passing every emulator test.
  */
 export async function getLatestDailyWeight(uid: string): Promise<number | null> {
   const snap = await getDocs(query(weightsCol(uid), orderBy(documentId(), 'desc'), limit(1)));
