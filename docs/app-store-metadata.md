@@ -195,11 +195,20 @@ gated content. The optional tip (consumable in-app purchase) unlocks nothing
 Account deletion is available in-app: Settings → Delete account.
 
 Demo account:
-  Email: <fill in>
-  Password: <fill in>
+  Email: demo@ignia.fit
+  Password: <paste from the password manager — see below>
 ```
-**Fill in the demo account before submitting** — a missing one is a common
-avoidable rejection.
+**The password is deliberately not written down here. This repository is
+public**, and a committed password would hand anyone the account App Review
+signs in with. Keep it in the password manager and type it straight into the
+App Store Connect review-notes field, which is private to Apple.
+
+The account itself exists and is ready: email verified, and populated with a
+realistic history by `scripts/seed-demo-account.mjs` (21 days of logs, a
+28-day weight trend, five training sessions). Re-run that script any time the
+data goes stale — it overwrites in place rather than stacking a second
+history. A missing or non-working demo account is a common avoidable
+rejection, so verify sign-in on a fresh install before submitting.
 
 ---
 
