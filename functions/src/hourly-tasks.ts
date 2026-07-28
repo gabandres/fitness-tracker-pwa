@@ -3,6 +3,8 @@ import { resendApiKey } from "./resend-client";
 import { runDailyReminders, runDayThreeCoachPush } from "./push-reminders";
 import { runWeeklyDigest } from "./weekly-digest";
 import { runPublishUserCount } from "./ops";
+import { runRetentionCohorts } from "./retention";
+import { db } from "./init";
 
 // ─── Hourly dispatcher ──────────────────────────────────────────────
 //
@@ -31,6 +33,8 @@ export const hourlyTasks = onSchedule(
       ["sendDailyReminders", runDailyReminders],
       ["sendDayThreeCoachPush", runDayThreeCoachPush],
       ["sendWeeklyDigest", runWeeklyDigest],
+      // Self-gating: returns immediately except on its one UTC hour a day.
+      ["retentionCohorts", () => runRetentionCohorts(db)],
     ];
 
     const results = await Promise.allSettled(tasks.map(([, fn]) => fn()));
