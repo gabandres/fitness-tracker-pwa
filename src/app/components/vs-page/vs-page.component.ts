@@ -10,6 +10,7 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslationService } from '../../services/translation.service';
 import { AnalyticsService } from '../../services/analytics.service';
+import { stripLangPrefix } from '../../i18n/locale-path';
 import { UiCard } from '../ui/card.component';
 import { VS_PROFILES, VsProfile, vsProfileFor } from './vs-data';
 
@@ -162,7 +163,7 @@ export class VsPageComponent {
   }
 
   private parseSlug(): VsProfile | null {
-    const m = /^\/vs\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
+    const m = /^\/vs\/([a-z0-9-]+)\/?$/.exec(stripLangPrefix(window.location.pathname));
     if (!m) return null;
     return vsProfileFor(m[1]);
   }

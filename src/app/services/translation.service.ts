@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { TranslocoService } from '@jsverse/transloco';
 import { AVAILABLE_LANGS, AppLang } from '../i18n/transloco.providers';
+import { langFromPath } from '../i18n/locale-path';
 
 type TranslocoParams = Record<string, unknown>;
 
@@ -73,6 +74,15 @@ export class TranslationService {
   }
 
   private resolveInitial(): AppLang {
+    // The URL wins. `/es/...` is an explicit, shareable request for
+    // Spanish — a visitor arriving from a Spanish search result must get
+    // the language the indexed page promised, even if this browser once
+    // chose English. It is not persisted: the stored preference is left
+    // alone so it still applies everywhere else.
+    const fromPath =
+      typeof window !== 'undefined' ? langFromPath(window.location.pathname) : null;
+    if (fromPath) return fromPath;
+
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored && AVAILABLE_LANGS.includes(stored as AppLang)) {

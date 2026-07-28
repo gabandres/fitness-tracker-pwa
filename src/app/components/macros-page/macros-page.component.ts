@@ -10,6 +10,7 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslationService } from '../../services/translation.service';
 import { AnalyticsService } from '../../services/analytics.service';
+import { stripLangPrefix } from '../../i18n/locale-path';
 import { UiCard } from '../ui/card.component';
 import {
   GoalDirection,
@@ -241,7 +242,7 @@ export class MacrosPageComponent {
 
   private parsePath(): { goal: GoalDirection; weight: number } | null {
     const m = /^\/macros\/(lose|maintain|gain)\/(\d{2,3})-lb\/?$/.exec(
-      window.location.pathname,
+      stripLangPrefix(window.location.pathname),
     );
     if (!m) return null;
     const weight = parseInt(m[2], 10);

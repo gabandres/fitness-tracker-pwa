@@ -6,6 +6,15 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-07-28 — The site is bilingual now, not just the app
+
+Spanish was one of the three stated wedges — a fully translated app in a market where almost nothing is localized — and the website shipped **60 English URLs and zero Spanish ones**. Every indexed page now exists in both languages.
+
+- **`/es/…` for every SEO route.** The calculator, all five comparison pages, the FAQ, all 36 macro-bracket pages and a Spanish landing page, each with its own title, description and structured data drawn from the same `es-PR` bundle the app uses. 87 prerendered pages, up from 43.
+- **The prefix is a real route, not just a meta tag.** `/es/calculator` renders the calculator *in Spanish* — the URL now wins over the stored language preference, so someone arriving from a Spanish search result gets the language the search result promised. It isn't saved over their choice; it applies to that visit.
+- **Reciprocal `hreflang` on both halves**, plus `x-default` to English. A one-sided declaration is ignored outright by Google, so the English pages had to change too.
+- **`sitemap.xml` is generated, not hand-written.** 120+ URLs across two locales maintained by hand drift from the routes they describe inside one release; it now comes out of the same table that emits the pages, with the language alternates included.
+
 ## 2026-07-24 — Rebuilt transactional email, and a password reset that's actually ours
 
 Welcome and reset mail had been landing in junk. The reason wasn't the DNS records everyone reaches for first — it was the **From address**: everything shipped from Resend's shared sandbox domain, and password resets came from Firebase's. Neither is a domain we own, so DMARC alignment was impossible no matter what got published on `ignia.fit`.

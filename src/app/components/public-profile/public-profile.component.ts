@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal, OnInit } 
 import { DecimalPipe } from '@angular/common';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Firestore, doc, getDoc, Timestamp } from '@angular/fire/firestore';
+import { stripLangPrefix } from '../../i18n/locale-path';
 import { UiCard } from '../ui/card.component';
 
 interface PublicProfile {
@@ -135,7 +136,9 @@ export class PublicProfileComponent implements OnInit {
   }
 
   private slugFromUrl(): string | null {
-    const m = /^\/u\/([a-z0-9-]+)\/?$/.exec(window.location.pathname.toLowerCase());
+    const m = /^\/u\/([a-z0-9-]+)\/?$/.exec(
+      stripLangPrefix(window.location.pathname.toLowerCase()),
+    );
     return m ? m[1] : null;
   }
 

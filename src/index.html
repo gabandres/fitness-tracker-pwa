@@ -26,6 +26,13 @@
          Generate via `sharp` at build time — see scripts/og-image.ts. -->
     <meta name="description" content="A quiet, private calorie + protein log with AI coaching and a real lifting log. Measured TDEE from your own data. Free on iPhone and in any browser. No ads. No data selling." />
     <link rel="canonical" href="https://ignia.fit/" />
+    <!-- Homepage language pair. Every other URL gets its own set written by
+         scripts/prerender-seo.mjs, which strips these first — the shell is
+         copied for each generated page, so leaving both would give every
+         page two conflicting hreflang sets. -->
+    <link rel="alternate" hreflang="en" href="https://ignia.fit/" />
+    <link rel="alternate" hreflang="es" href="https://ignia.fit/es/" />
+    <link rel="alternate" hreflang="x-default" href="https://ignia.fit/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Ignia" />
     <meta property="og:title" content="Ignia — how many calories do I have left today?" />

@@ -5,6 +5,9 @@ import { InlineTranslocoLoader } from './inline-loader';
 export const AVAILABLE_LANGS = ['en', 'es-PR'] as const;
 export type AppLang = (typeof AVAILABLE_LANGS)[number];
 
+// The `/es` URL-prefix helpers live in ./locale-path so route matching can
+// import them without pulling in the Transloco runtime.
+
 export function provideTranslocoConfig() {
   return provideTransloco({
     config: {

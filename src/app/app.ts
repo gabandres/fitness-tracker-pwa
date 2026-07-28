@@ -3,6 +3,7 @@ import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
 import { concat, filter, first, interval } from 'rxjs';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { TranslationService } from './services/translation.service';
+import { stripLangPrefix } from './i18n/locale-path';
 import { SignInComponent } from './components/sign-in/sign-in.component';
 import { OnboardingComponent } from './components/onboarding/onboarding.component';
 import { CalculatorComponent } from './components/calculator/calculator.component';
@@ -602,7 +603,11 @@ export class App {
   }
 
   private detectRoute(): 'privacy' | 'terms' | 'changelog' | 'status' | 'admin' | 'landing' | 'notFound' | 'devGallery' | 'history' | 'historyDay' | 'trends' | 'body' | 'train' | 'onboarding' | 'calculator' | 'macros' | 'faq' | 'vs' | 'publicProfile' | 'transformations' | null {
-    const path = window.location.pathname.toLowerCase();
+    // The `/es` prefix on the indexed Spanish URLs is a locale marker, not
+    // a route: `/es/calculator` is the same view as `/calculator`, and
+    // TranslationService reads the same prefix to pick the language. Strip
+    // it here so every match below stays written once.
+    const path = stripLangPrefix(window.location.pathname.toLowerCase());
     if (path === '/privacy' || path === '/privacy/') return 'privacy';
     if (path === '/terms' || path === '/terms/') return 'terms';
     if (path === '/changelog' || path === '/changelog/') return 'changelog';
@@ -648,7 +653,9 @@ export class App {
   /** Extract the YYYY-MM-DD segment from `/history/<date>` paths. Null
    *  for any other path. Validated by the same regex as `detectRoute`. */
   private detectHistoryDay(): string | null {
-    const m = /^\/history\/(\d{4}-\d{2}-\d{2})\/?$/.exec(window.location.pathname);
+    const m = /^\/history\/(\d{4}-\d{2}-\d{2})\/?$/.exec(
+      stripLangPrefix(window.location.pathname),
+    );
     return m ? m[1] : null;
   }
 

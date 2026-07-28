@@ -9,6 +9,7 @@ import { FormsModule } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { TranslationService } from '../../services/translation.service';
 import { AnalyticsService } from '../../services/analytics.service';
+import { stripLangPrefix } from '../../i18n/locale-path';
 import { UiButton } from '../ui/button.component';
 import { UiCard } from '../ui/card.component';
 import {
@@ -55,7 +56,10 @@ const VARIANT_PATHS: Record<string, { variant: CalcVariantKey; goal: GoalDirecti
 
 function currentPath(): string {
   if (typeof window === 'undefined') return '/calculator';
-  return window.location.pathname.toLowerCase().replace(/\/$/, '') || '/calculator';
+  // Locale prefix off first — `/es/calculator` is this page in Spanish,
+  // not an unknown path that should fall back to the default variant.
+  const path = stripLangPrefix(window.location.pathname.toLowerCase());
+  return path.replace(/\/$/, '') || '/calculator';
 }
 
 function detectVariant(): CalcVariantKey {
