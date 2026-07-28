@@ -184,6 +184,11 @@ async function build(locale, file, slot, outDir) {
       { input: rounded, top: SHOT_TOP, left: Math.round((W - SHOT_WIDTH) / 2) },
       { input: border, top: SHOT_TOP, left: Math.round((W - SHOT_WIDTH) / 2) },
     ])
+    // App Store Connect REJECTS screenshots carrying an alpha channel, and
+    // the rounded-corner mask puts one there. The canvas is opaque anyway,
+    // so flattening onto it changes no pixel — it only drops the channel.
+    .flatten({ background: BG })
+    .removeAlpha()
     .png()
     .toFile(join(outDir, `${String(slot + 1).padStart(2, '0')}.png`));
 
