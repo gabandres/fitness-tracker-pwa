@@ -46,6 +46,7 @@ import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useKeyboardSheetStyle } from '@/lib/use-keyboard-sheet-style';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
+import { formatDate } from '@/lib/date-format';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -153,6 +154,7 @@ function StartView({
   heroPulse: ReturnType<typeof usePulse>[0];
 }) {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   // null = closed; a template = edit it; {} = create new.
   const [editing, setEditing] = useState<WorkoutTemplate | Record<string, never> | null>(null);
@@ -259,7 +261,7 @@ function StartView({
             >
               <View style={styles.histMain}>
                 <Text style={styles.histDate}>
-                  {s.date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {formatDate(s.date, locale, { weekday: 'short', month: 'short', day: 'numeric' })}
                 </Text>
                 <Text style={styles.histSub}>{sessionSummary(s, t)}</Text>
               </View>
@@ -433,6 +435,7 @@ function ExerciseDetailModal({
   onClose: () => void;
 }) {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const keyboardStyle = useKeyboardSheetStyle();
@@ -595,7 +598,7 @@ function ExerciseDetailModal({
                     {rows.map((r, i) => (
                       <View key={i} style={styles.detailRow}>
                         <Text style={styles.detailDate}>
-                          {r.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          {formatDate(r.date, locale, { month: 'short', day: 'numeric' })}
                         </Text>
                         <Text style={styles.detailSets}>{setLine(r.ex, style)}</Text>
                       </View>

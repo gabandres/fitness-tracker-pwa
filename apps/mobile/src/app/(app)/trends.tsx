@@ -10,18 +10,19 @@ import { useTrends } from '@/hooks/useTrends';
 import { useActivitySuggestion } from '@/lib/activity-suggestion';
 import { useAuth } from '@/lib/auth';
 import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
-import { type I18nKey, type TFn, useT } from '@/i18n';
+import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
+import { formatDate } from '@/lib/date-format';
 
-function dayLabel(dateKey: string): string {
-  return parseYmd(dateKey).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+function dayLabel(dateKey: string, locale: Locale): string {
+  return formatDate(parseYmd(dateKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-function weekdayNarrow(dateKey: string): string {
-  return parseYmd(dateKey).toLocaleDateString(undefined, { weekday: 'narrow' });
+function weekdayNarrow(dateKey: string, locale: Locale): string {
+  return formatDate(parseYmd(dateKey), locale, { weekday: 'narrow' });
 }
 
 function slopeLabel(slope: number, t: TFn): string {
@@ -48,6 +49,7 @@ const TDEE_MODE: Record<TdeeResult['source'], { badgeKey: I18nKey; hintKey: I18n
 
 export default function Trends() {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const router = useRouter();
@@ -172,13 +174,14 @@ export default function Trends() {
               styles={styles}
               colors={colors}
               t={t}
+              locale={locale}
             />
           </Animated.View>
 
           {/* 3. Weekly budget — free, never blank (bars are the illustration). */}
           <Animated.View entering={enterUp(2)}>
             <Text style={styles.section}>{t('trends.budgetTitle')}</Text>
-            <Budget budget={budget} styles={styles} colors={colors} t={t} />
+            <Budget budget={budget} styles={styles} colors={colors} t={t} locale={locale} />
           </Animated.View>
 
           {/* 4. Coach — the Pro AI action. */}
@@ -228,6 +231,7 @@ function ThisWeek({
   styles,
   colors,
   t,
+  locale,
 }: {
   insights: WeeklyInsights | null;
   loggedThisWeek: number;
@@ -237,6 +241,7 @@ function ThisWeek({
   styles: ReturnType<typeof createStyles>;
   colors: Theme['colors'];
   t: TFn;
+  locale: Locale;
 }) {
   // Below the 3-day insight gate: a preview skeleton + a "keep logging" nudge,
   // so day zero still says what the card will show and prompts the next log.
@@ -289,11 +294,11 @@ function ThisWeek({
         <>
           <View style={styles.kv}>
             <Text style={styles.kvLabel}>{t('trends.bestDay')}</Text>
-            <Text style={styles.kvValue}>{dayLabel(insights.bestDay.dateKey)}</Text>
+            <Text style={styles.kvValue}>{dayLabel(insights.bestDay.dateKey, locale)}</Text>
           </View>
           <View style={styles.kv}>
             <Text style={styles.kvLabel}>{t('trends.offDay')}</Text>
-            <Text style={styles.kvValue}>{dayLabel(insights.worstDay.dateKey)}</Text>
+            <Text style={styles.kvValue}>{dayLabel(insights.worstDay.dateKey, locale)}</Text>
           </View>
           {insights.weightSlopeLbPerWeek != null ? (
             <View style={styles.kv}>
@@ -354,11 +359,13 @@ function Budget({
   styles,
   colors,
   t,
+  locale,
 }: {
   budget: WeeklyBudget | null;
   styles: ReturnType<typeof createStyles>;
   colors: Theme['colors'];
   t: TFn;
+  locale: Locale;
 }) {
   // No target/logs yet: faded 7-column placeholder — the bars ARE the
   // illustration of what this fills into.
@@ -396,7 +403,7 @@ function Budget({
               <View style={styles.barTrack}>
                 <View style={[styles.barFill, { height: `${h}%`, backgroundColor: over ? colors.danger : colors.ring, opacity: b.elapsed ? 1 : 0.3 }]} />
               </View>
-              <Text style={styles.barDay}>{weekdayNarrow(b.dateKey)}</Text>
+              <Text style={styles.barDay}>{weekdayNarrow(b.dateKey, locale)}</Text>
             </View>
           );
         })}

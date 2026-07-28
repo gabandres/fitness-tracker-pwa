@@ -16,15 +16,16 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { Sparkline } from '@/components/Sparkline';
 import { useBody } from '@/hooks/useBody';
-import { type I18nKey, type TFn, useT } from '@/i18n';
+import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { CountUpText, enterUp, usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
+import { formatDate } from '@/lib/date-format';
 
-function dayLabel(dateKey: string): string {
-  return parseYmd(dateKey).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+function dayLabel(dateKey: string, locale: Locale): string {
+  return formatDate(parseYmd(dateKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 /** "−0.8 lb/wk" / "+0.3 lb/wk" / "Holding steady" near zero. */
@@ -35,8 +36,8 @@ function trendLabel(slopeLbPerWeek: number, t: TFn): string {
 }
 
 /** "Goal ~Jul 6" from a projected date key. */
-function goalEtaLabel(dateKey: string): string {
-  return `~${parseYmd(dateKey).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+function goalEtaLabel(dateKey: string, locale: Locale): string {
+  return `~${formatDate(parseYmd(dateKey), locale, { month: 'short', day: 'numeric' })}`;
 }
 
 export default function Body() {
@@ -58,6 +59,7 @@ export default function Body() {
     goalProgress,
   } = useBody();
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const [open, setOpen] = useState(false);
@@ -129,7 +131,7 @@ export default function Body() {
                 </Text>
                 {projection.goalDateKey ? (
                   <Text style={styles.trendChip}>
-                    {t('body.goalPace')}  <Text style={styles.trendChipValue}>{goalEtaLabel(projection.goalDateKey)}</Text>
+                    {t('body.goalPace')}  <Text style={styles.trendChipValue}>{goalEtaLabel(projection.goalDateKey, locale)}</Text>
                   </Text>
                 ) : null}
               </View>
@@ -192,7 +194,7 @@ export default function Body() {
                   testID={`measurement-${m.id}`}
                   onLongPress={() => m.id && deleteMeasurement(m.id)}
                 >
-                  <Text style={styles.rowDate}>{m.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</Text>
+                  <Text style={styles.rowDate}>{formatDate(m.date, locale, { month: 'short', day: 'numeric' })}</Text>
                   <Text style={styles.rowMeasure}>{measureLine(m)}</Text>
                 </Pressable>
               ))}
@@ -213,7 +215,7 @@ export default function Body() {
             <View style={styles.list}>
               {(showAllWeighIns ? weighIns : weighIns.slice(0, WEIGH_PREVIEW)).map((w) => (
                 <View key={w.dateKey} style={styles.row} testID={`weighin-${w.dateKey}`}>
-                  <Text style={styles.rowDate}>{dayLabel(w.dateKey)}</Text>
+                  <Text style={styles.rowDate}>{dayLabel(w.dateKey, locale)}</Text>
                   <Text style={styles.rowWeight}>{w.weight} lb</Text>
                 </View>
               ))}
@@ -282,6 +284,7 @@ function MeasurementModal({
   onClose: () => void;
 }) {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const [vals, setVals] = useState<Record<string, string>>({});
@@ -362,6 +365,7 @@ function WeightModal({
   onClose: () => void;
 }) {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const inputRef = useDeferredFocus(visible);

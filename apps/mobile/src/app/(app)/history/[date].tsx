@@ -7,13 +7,15 @@ import { type DailyLog, type LogEntry, localDateKey, parseYmd, summarizeDay } fr
 import { EntrySheet } from '@/components/EntrySheet';
 import { MealEntries } from '@/components/MealEntries';
 import { useHistory } from '@/hooks/useHistory';
-import { useT } from '@/i18n';
+import { useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
+import { formatDate } from '@/lib/date-format';
 
 export default function DayDetail() {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const { date } = useLocalSearchParams<{ date: string }>();
@@ -49,7 +51,7 @@ export default function DayDetail() {
     setSheetOpen(false);
   }
 
-  const title = parseYmd(dateKey).toLocaleDateString(undefined, {
+  const title = formatDate(parseYmd(dateKey), locale, {
     weekday: 'long',
     month: 'long',
     day: 'numeric',

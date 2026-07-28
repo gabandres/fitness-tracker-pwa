@@ -21,7 +21,16 @@
  * Usage:
  *   node scripts/seed-demo-account.mjs --email demo@ignia.fit --password '…'
  *   node scripts/seed-demo-account.mjs --email demo@ignia.fit --dry-run
+ *   node scripts/seed-demo-account.mjs --email demo@ignia.fit --reset
  *   node scripts/seed-demo-account.mjs --email demo@ignia.fit --force
+ *
+ * `--reset` empties the day-keyed collections before writing. Seeding alone
+ * cannot clean them: those docs are keyed by DATE, so anything outside the
+ * seeded window survives, and **Apple Health sync will import the phone
+ * owner's real weight history the moment you sign in on a device** — which
+ * both leaks real PII into a demo account and wrecks the adaptive-TDEE math,
+ * because one stray weigh-in inside the window flips the regression slope.
+ * Turn Health sync OFF on this account, then --reset.
  *
  * Idempotent: doc ids are derived, not random, and the data is generated from
  * a fixed seed, so re-running overwrites the same rows with the same values
@@ -54,6 +63,23 @@ const email = arg('email');
 const password = arg('password');
 const dryRun = has('dry-run');
 const force = has('force');
+const reset = has('reset');
+
+/**
+ * Collections `--reset` empties first. Day-keyed, so a plain re-seed leaves
+ * anything dated outside the window in place — including whatever Apple
+ * Health imported. Training data, presets and custom foods are deliberately
+ * NOT here: they are id-keyed, the seed overwrites its own, and wiping them
+ * would throw away a workout someone started on the device.
+ */
+const DAY_KEYED = [
+  'dailyLogs',
+  'dailyWeights',
+  'dailySleep',
+  'dailyWater',
+  'dailyActivity',
+  'measurements',
+];
 
 if (!email) {
   console.error(
@@ -366,6 +392,19 @@ async function main() {
           'That looks like a real account. Pass --force only if you are certain.',
       );
       process.exit(1);
+    }
+  }
+
+  if (reset) {
+    for (const col of DAY_KEYED) {
+      const snap = await db.collection(`users/${uid}/${col}`).get();
+      if (snap.empty) continue;
+      for (let i = 0; i < snap.docs.length; i += 450) {
+        const batch = db.batch();
+        for (const d of snap.docs.slice(i, i + 450)) batch.delete(d.ref);
+        await batch.commit();
+      }
+      console.log(`  reset ${col}: deleted ${snap.size}`);
     }
   }
 

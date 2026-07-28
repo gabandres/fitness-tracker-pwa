@@ -5,10 +5,11 @@ import { ProUpsell } from '@/components/ProUpsell';
 import { useWeeklyReport } from '@/hooks/useWeeklyReport';
 import { useSubscription } from '@/lib/subscription';
 import { ReportErrorCode } from '@/lib/weeklyReport';
-import { type I18nKey, useT } from '@/i18n';
+import { type I18nKey, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
+import { formatDate } from '@/lib/date-format';
 
 function errorKey(code: string | null): I18nKey | null {
   switch (code) {
@@ -30,6 +31,7 @@ function errorKey(code: string | null): I18nKey | null {
  */
 export function WeeklyReportCard(): React.ReactElement {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const { isPro } = useSubscription();
@@ -55,7 +57,7 @@ export function WeeklyReportCard(): React.ReactElement {
             <>
               <CoachMarkdown text={report.markdown} />
               <Text style={styles.stamp}>
-                {t('report.generatedOn', { date: report.generatedAt.toLocaleDateString() })}
+                {t('report.generatedOn', { date: formatDate(report.generatedAt, locale, { month: 'short', day: 'numeric', year: 'numeric' }) })}
               </Text>
             </>
           ) : (

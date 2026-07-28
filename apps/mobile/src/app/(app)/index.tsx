@@ -14,7 +14,7 @@ import { MealEntries } from '@/components/MealEntries';
 import { RecalibrationCard } from '@/components/RecalibrationCard';
 import { ShareCard } from '@/components/ShareCard';
 import { WhatsNewBanner } from '@/components/WhatsNewBanner';
-import { useT } from '@/i18n';
+import { type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useReminderSync } from '@/hooks/useReminderSync';
 import { useToday } from '@/hooks/useToday';
@@ -23,17 +23,19 @@ import { enterUp, PressScale, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
+import { formatDate } from '@/lib/date-format';
 
 /** Streak length below which a streak extension is too early to read as
  *  "this app is working for me" — see reviewPrompt.ts for the full policy. */
 const MIN_STREAK_FOR_REVIEW = 3;
 
-function todayLabel(): string {
-  return new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+function todayLabel(locale: Locale): string {
+  return formatDate(new Date(), locale, { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
 export default function Today() {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const {
@@ -145,7 +147,7 @@ export default function Today() {
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>{t('nav.today')}</Text>
-          <Text style={styles.date}>{todayLabel()}</Text>
+          <Text style={styles.date}>{todayLabel(locale)}</Text>
         </View>
         <View style={styles.headerRight}>
           {streak > 0 ? (

@@ -6,21 +6,23 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { type DaySummary, localDateKey, monthGrid, parseYmd } from '@macrolog/core';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { useHistory } from '@/hooks/useHistory';
-import { useT } from '@/i18n';
+import { type Locale, useLocale, useT } from '@/i18n';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
+import { formatDate } from '@/lib/date-format';
 
-// Narrow weekday letters, locale-aware (Jan 1 2023 was a Sunday).
-const WEEKDAYS = Array.from({ length: 7 }, (_, i) =>
-  new Date(2023, 0, 1 + i).toLocaleDateString(undefined, { weekday: 'narrow' }),
-);
+// Narrow weekday letters (Jan 1 2023 was a Sunday). Built per locale, not
+// once at module load — the app language can differ from the device's.
+const weekdayLetters = (locale: Locale) =>
+  Array.from({ length: 7 }, (_, i) => formatDate(new Date(2023, 0, 1 + i), locale, { weekday: 'narrow' }));
 
-function dayLabel(dateKey: string): string {
-  return parseYmd(dateKey).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+function dayLabel(dateKey: string, locale: Locale): string {
+  return formatDate(parseYmd(dateKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 export default function HistoryCalendar() {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const { loading, error, days } = useHistory();
@@ -35,8 +37,9 @@ export default function HistoryCalendar() {
   }, [days]);
 
   const cells = useMemo(() => monthGrid(view), [view]);
+  const weekdays = useMemo(() => weekdayLetters(locale), [locale]);
   const todayKey = localDateKey(new Date());
-  const monthLabel = view.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const monthLabel = formatDate(view, locale, { month: 'long', year: 'numeric' });
 
   function shiftMonth(delta: number) {
     setView((v) => new Date(v.getFullYear(), v.getMonth() + delta, 1));
@@ -67,7 +70,7 @@ export default function HistoryCalendar() {
           </View>
 
           <View style={styles.weekHead}>
-            {WEEKDAYS.map((w, i) => (
+            {weekdays.map((w, i) => (
               <Text key={i} style={styles.weekHeadCell}>
                 {w}
               </Text>
@@ -118,7 +121,7 @@ export default function HistoryCalendar() {
                     testID={`recent-${d.dateKey}`}
                   >
                     <View style={styles.recentLeft}>
-                      <Text style={styles.recentDate}>{dayLabel(d.dateKey)}</Text>
+                      <Text style={styles.recentDate}>{dayLabel(d.dateKey, locale)}</Text>
                       <Text style={styles.recentSub}>
                         {d.mealCount} {d.mealCount === 1 ? t('history.entryOne') : t('history.entryMany')}
                         {d.exercised ? `  ·  ${t('history.exercised')}` : ''}

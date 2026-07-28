@@ -37,6 +37,7 @@ import { starterFoods } from '@/lib/starterFoods';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
+import { formatDate } from '@/lib/date-format';
 
 interface Props {
   visible: boolean;
@@ -640,7 +641,7 @@ export function EntrySheet({
                           <Text style={styles.dateStepText}>−</Text>
                         </TouchableOpacity>
                         <Text style={styles.dateLabel} testID="entry-date">
-                          {entryDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                          {formatDate(entryDate, locale, { weekday: 'short', month: 'short', day: 'numeric' })}
                         </Text>
                         <TouchableOpacity
                           style={[styles.dateStep, isSameDay(entryDate, new Date()) && styles.dateStepDisabled]}

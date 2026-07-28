@@ -1,10 +1,11 @@
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeOut } from 'react-native-reanimated';
 import { type DailyLog, type MealSlot, groupByMealSlot } from '@macrolog/core';
-import { type I18nKey, useT } from '@/i18n';
+import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import { enterUp, PressScale, springLayout } from '@/lib/motion';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
+import { formatTime } from '@/lib/date-format';
 
 const SLOT_KEY: Record<MealSlot, I18nKey> = {
   breakfast: 'meal.breakfast',
@@ -14,8 +15,8 @@ const SLOT_KEY: Record<MealSlot, I18nKey> = {
   other: 'meal.other',
 };
 
-function timeOf(d: Date): string {
-  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+function timeOf(d: Date, locale: Locale): string {
+  return formatTime(d, locale);
 }
 
 function macroLine(log: DailyLog): string {
@@ -34,6 +35,7 @@ function macroLine(log: DailyLog): string {
  */
 export function MealEntries({ logs, onPress }: { logs: DailyLog[]; onPress: (log: DailyLog) => void }) {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const groups = groupByMealSlot(logs);
   const showHeaders = groups.length > 1 || (groups[0]?.slot !== 'other');
@@ -53,7 +55,7 @@ export function MealEntries({ logs, onPress }: { logs: DailyLog[]; onPress: (log
             </View>
           ) : null}
           {g.entries.map((log) => {
-            const sub = [timeOf(log.date), macroLine(log)].filter(Boolean).join('  ·  ');
+            const sub = [timeOf(log.date, locale), macroLine(log)].filter(Boolean).join('  ·  ');
             return (
               <Animated.View key={log.id} entering={enterUp(row++)} exiting={FadeOut} layout={springLayout}>
                 <PressScale scaleTo={0.98} style={styles.entry} onPress={() => onPress(log)} testID={`entry-${log.id}`}>
