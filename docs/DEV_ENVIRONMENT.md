@@ -4,7 +4,7 @@ Two things live here: (1) the **local dev environment** (Firebase Emulator
 Suite — how to stop testing against prod), and (2) the **owner runbook** for the
 `ignia.fit` cutover + production hardening (console/DNS/CLI steps the code can't
 do). Decisions behind this: grilled 2026-07-05, see `project_ignia_prod_cutover`
-memory + ADR-0015 / `MACRONAUT_PLAN.md`.
+memory + ADR-0015.
 
 ---
 

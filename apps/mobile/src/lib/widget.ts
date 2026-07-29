@@ -31,7 +31,7 @@ import {
  * react-native-web bundle never evaluate a module that isn't present — the
  * same guard `health.ts` uses. Everything here is `tsc`-verified only; the
  * actual widget round-trip needs an EAS dev build to QA (the build quota
- * resets Aug 2026 — see `docs/aug-2026-build-batch.md`).
+ * resets Aug 2026 — see `STATUS.md` §3).
  */
 
 /** App Group id. Must stay in lockstep with `ios.entitlements` in app.json and

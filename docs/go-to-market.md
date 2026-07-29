@@ -159,7 +159,7 @@ arguing about; the field values are just their output.
 
 Out of scope for v1 and **not** to be referenced in any current listing. The
 paid direction (AI photo-scan flagship, ADR-0015) and its pricing anchors are
-recorded in `docs/post-launch-roadmap.md` → PARKED. Turning it on means
+recorded in `STATUS.md` §5 (decided-not-happening). Turning it on means
 flipping `PRO_ENABLED` on both platforms, rewriting §0's not-claimable table,
 and reworking every field in `app-store-metadata.md` — with the same rule:
 never claim what the build can't back.

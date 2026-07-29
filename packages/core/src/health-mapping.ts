@@ -1,8 +1,7 @@
 import { isStorableWeight } from './weight-bounds';
 
 /**
- * Health Sync — pure mapping layer (see apps/mobile/HEALTH_PHASE1_PLAN.md and
- * apps/mobile/HEALTHKIT_PLAN.md).
+ * Health Sync — pure mapping layer (shipped; see STATUS.md).
  *
  * No native imports, no Firebase: just the types, unit conversion, dedup keys,
  * and conflict policy shared by the iOS (HealthKit) and Android (Health Connect)

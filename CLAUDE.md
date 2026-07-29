@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Ignia — a free, private kcal+protein tracker (live at <https://ignia.fit>). The repo is an **npm-workspaces monorepo** with three buildable units plus shared code:
 
 - **`src/`** — the root project IS the Angular 21 PWA (the flagship product). Despite being a workspace root, it has its own `src/` and is the default `ng` project (`fitness-tracker-pwa`).
-- **`apps/mobile/`** — Expo SDK 54 React Native app. **LIVE on the iOS App Store** — the live version is **1.0 (build 7)**, not 1.1.0: `app.json` says 1.1.0 and ASC has a 1.1.0 version page, but it is `PREPARE_FOR_SUBMISSION` with **no binary attached**, and EAS has never built one. Verify with the ASC snippet in `docs/app-store-metadata.md` §"Correction 4" before claiming a version anywhere. Android not launched — see the Play gate in `docs/`. Has its own `CLAUDE.md` → `AGENTS.md`; read those when working there. Its `main` is a custom `index.js` (not `expo-router/entry`) so the Android widget task handler registers before React mounts.
+- **`apps/mobile/`** — Expo SDK 54 React Native app, **live on the iOS App Store** (which version is live is a question for `STATUS.md`, not for `app.json`). Android not launched. Has its own `CLAUDE.md` → `AGENTS.md`; read those when working there. Its `main` is a custom `index.js` (not `expo-router/entry`) so the Android widget task handler registers before React mounts.
 - **`packages/core/`** (`@macrolog/core`) — framework-free shared "brain": domain types + pure math (TDEE, targets, date, unit-system). Imported by BOTH the Angular app and the Expo app. Keep it dependency-free and pure.
 - **`functions/`** — Firebase Cloud Functions (gen2, Node 22), its own package + tsconfig.
 
@@ -71,15 +71,20 @@ The Expo app does **not** use `LEDGER_PORT`. It talks to Firestore through the F
 ### Firestore rules are the access-control layer
 There is no app server. `firestore.rules` (~670 lines, dense — per-collection field/shape/range validation) + Firebase Auth enforce all access; the public web Firebase keys in `src/environments/*` are public by design. **Deploy `firestore:rules` BEFORE clients write any new top-level field** — the dev app talks to PROD Firestore, so an un-deployed rule rejects new writes. Cover rule changes with `npm run test:rules`.
 
-## Reference docs (read before relevant work)
-- **`CLAUDE.local.md`** (git-ignored, may not exist) — machine-local notes: where the Apple `.p8` keys live, demo-account details, capture paths. Locations only, never secret values. Read it before asking the owner where a credential is.
+## Where to look (one file per question)
+- **`STATUS.md` — what is true right now.** Live version, what is merged but in no binary, what is blocked and on what. **Read it before scoping anything.** If another file disagrees with it, the other file is stale — fix or delete it.
 - **`CONTEXT.md`** — canonical domain glossary. One concept = one term, with legacy synonyms called out (e.g. Log/Entry/Meal all map to `DailyLog`). Read it before naming things or grepping.
-- **`docs/adr/`** — architecture decisions 0001–0016. The "why" behind the seams above. 0013 (food resolution), 0014 (mobile theming), 0015 (Ignia pivot) and 0016 (per-hook subscriptions) are all load-bearing and are cited throughout this file.
-- **`CHANGELOG.md`** — significant ships, newest first.
-- **`docs/seo-status.md`** — what Google has actually indexed, and the 2026-07-29 baseline it is measured against. Read before any SEO/prerender/sitemap work; re-check with `node scripts/gsc.mjs inspect`.
-- **`UX_AUDIT.md`** — living UX backlog; **§S13 is the launch-readiness checklist** (read before any public push).
-- **`STRIPE_SETUP.md`** — one-time Stripe + Firebase Extension wiring.
-- **`README.md`** — product positioning, full Cloud Functions list, secrets policy (what's safe to commit vs. server-only), operator post-deploy checklist.
+- **`docs/adr/`** — architecture decisions 0001-0016: the "why" behind the seams above. 0013 (food resolution), 0014 (mobile theming), 0015 (Ignia pivot) and 0016 (per-hook subscriptions) are load-bearing and cited throughout this file.
+- **`CHANGELOG.md`** — significant ships, newest first. Entries before 2026-06-13 live in `CHANGELOG-archive.md`.
+- **`docs/research/`** — long-form research (watch transport, watchOS targets, activity/TDEE semantics, competitive scan). **Every file opens with a VERDICT block: read that and stop, unless you need the detail.** Cite these conclusions; do not re-derive them.
+- **`UX_AUDIT.md`** — open UX backlog only; **§S13 is the launch-readiness checklist**.
+- **`docs/app-store-metadata.md`** — source of truth for App Store listing field values (`docs/go-to-market.md` owns positioning).
+- **`docs/seo-status.md`** — what Google has actually indexed, and the 2026-07-29 baseline. Re-check with `node scripts/gsc.mjs inspect`.
+- **`docs/DEV_ENVIRONMENT.md`** — emulator dev loop + the owner runbook for console/DNS steps code can't do.
+- **`CLAUDE.local.md`** (git-ignored, may not exist) — machine-local notes: where the Apple `.p8` keys live, demo-account details, capture paths. Locations only, never secret values. Read it before asking the owner where a credential is.
+- **`README.md`** — product positioning, full Cloud Functions list, secrets policy. **`STRIPE_SETUP.md`** — dormant Stripe wiring, for whenever Pro turns on.
+
+**Housekeeping rule: a plan document is deleted the day its work ships.** Its outcome goes to `CHANGELOG.md`, its reasoning to an ADR, its current state to `STATUS.md`. Git keeps the original. A shipped plan left in the tree with a "CORRECTION" block on top is how a wish list becomes indistinguishable from a status report — that failure has already cost this project three re-scopes of work that was already built.
 
 ## Conventions
 - **Latest versions, not LTS pins** — this repo intentionally tracks bleeding-edge (Angular 21, Firebase 12, Expo 54). Don't silently downgrade to dodge peer conflicts.

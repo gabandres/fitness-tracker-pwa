@@ -1,3 +1,8 @@
+> **VERDICT** — Against Cal AI, MacroFactor, MyFitnessPal, Lose It! and Cronometer, Ignia's gaps resolve to twelve validated candidates: Health sync, a home-screen widget, a Watch app, restaurant data and recipe-URL import are table-stakes at $0; meal photo-scan is the category's loudest acquisition hook and its only cost-exposed one; and Ignia already gives away free the barcode, voice logging, coach and fasting timer that competitors paywall at $60-100/yr.
+> **Status:** SETTLED (candidate characterization only — prioritization was deliberately left to other tickets, and Cal AI pricing/DB/integration claims stay flagged unverified) · **Researched:** 2026-07-11
+> **Read this only if:** you are weighing a new feature against the market and need competitor paywall boundaries, cost exposure, or the free-vs-paid positioning wedge.
+> **Do not** re-derive the conclusions below; cite them.
+
 # Competitive Feature Scan
 
 Primary-source survey of leading nutrition apps vs. **Ignia** (free, private kcal + protein tracker; web PWA + soon-to-ship Expo iOS/Android). Purpose: surface feature **gaps** and characterize each as **table-stakes**, **acquisition-hook**, or **retention-loop** — plus a rough runtime-cost note and a native-only flag. **No prioritization decisions here** — candidates only.

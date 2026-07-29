@@ -11,8 +11,12 @@ module scope, before React mounts, because Android can wake the widget when the
 UI was never started. Don't "fix" `main` back to `expo-router/entry`; it
 silently kills the widget on Android. See `WIDGET_PLAN.md`.
 
-# This app is LIVE
+# This app is in production
 
-Shipped on the iOS App Store (v1.1.0). Treat changes here as production
-changes. Android is not launched. Several planning docs in this folder describe
-work that has since shipped — check the code before scoping anything as new.
+Treat every change here as a production change: this app is on the iOS App Store.
+
+**Do not read a version number out of `app.json` — it is not evidence of what
+shipped.** Which version is live, which build backs it, and what is merged but
+not yet in any binary all live in **`STATUS.md`**, which carries the command to
+re-check each one. Nothing in this folder should restate them; a second copy is
+how "planned" and "shipped" became indistinguishable here before.

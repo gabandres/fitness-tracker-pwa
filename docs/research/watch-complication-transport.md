@@ -1,3 +1,8 @@
+> **VERDICT** — With any transport we control, "calories left today" on a watch face is a best-effort, minutes-to-an-hour-stale number that goes arbitrarily stale when watch and phone part company; `WCSession.updateApplicationContext` (A1) is the only option that preserves the widget's $0, no-network, no-auth design, and reading Firestore directly on the watch (B) is structurally unavailable, not merely expensive.
+> **Status:** OPEN QUESTION REMAINS (the transport choice belongs to #37; every latency and budget number here is device-gated) · **Researched:** 2026-07-24
+> **Read this only if:** you are choosing, implementing, or costing the phone-to-watch hop for the complication — or designing what the face shows when the snapshot is stale.
+> **Do not** re-derive the conclusions below; cite them.
+
 # How does a snapshot reach a watch complication, and how fresh can it honestly be?
 
 Research for [#34](https://github.com/gabandres/fitness-tracker-pwa/issues/34), on the map
@@ -12,7 +17,7 @@ owns the choice. This doc is the price list.
 
 [#32](https://github.com/gabandres/fitness-tracker-pwa/issues/32) established that we *can* generate
 a watch app + complication from managed prebuild
-(`docs/watchos-target-viability.md`), and that the complication's free App Group
+(`docs/research/watchos-target-viability.md`), and that the complication's free App Group
 (`group.fit.ignia.app`, via `appGroupsByDefault`) shares a container **with the watch app on the
 watch** and never with the phone. This ticket asks the next question: what carries
 `packages/core/src/widget-snapshot.ts`'s 152-byte blob across that gap, and what does the user
@@ -142,7 +147,7 @@ you have exceeded the daily budget — which is the only way anyone gets a real 
    preferred way."* [`Scene.backgroundTask(_:action:)`](https://developer.apple.com/documentation/swiftui/scene/backgroundtask(_:action:))
    is watchOS 9.0+, and [`.watchConnectivity`](https://developer.apple.com/documentation/swiftui/backgroundtask/watchconnectivity)
    is watchOS 9.0+. This matches the Xcode-14-style single-target SwiftUI watch app that
-   `@bacons/apple-targets` generates (`docs/watchos-target-viability.md`) — no `WKExtensionDelegate`.
+   `@bacons/apple-targets` generates (`docs/research/watchos-target-viability.md`) — no `WKExtensionDelegate`.
    The forum evidence above says the SwiftUI lifecycle is also the one that *works*.
 4. **Watch app → App Group.** `WCSessionDelegate.session(_:didReceiveApplicationContext:)` fires;
    the watch app writes `UserDefaults(suiteName: "group.fit.ignia.app")` — the container the
@@ -205,7 +210,7 @@ because the phone never listens — the watch does. That is materially less code
 3.5-year gap.
 
 Note that whichever way this goes, the module only buys link 1. Links 2–5 are hand-written Swift in
-the watch app regardless — which is the same conclusion `docs/watchos-target-viability.md` reached:
+the watch app regardless — which is the same conclusion `docs/research/watchos-target-viability.md` reached:
 React Native does not run on watchOS.
 
 ---
@@ -555,11 +560,11 @@ Reasoning:
 - `react-native-watch-connectivity-expo` — npm registry metadata only
 
 **Local**
-- `docs/watchos-target-viability.md` (#32) — target generation, App Group scope, `WATCHOS_DEPLOYMENT_TARGET` 9.4 default
+- `docs/research/watchos-target-viability.md` (#32) — target generation, App Group scope, `WATCHOS_DEPLOYMENT_TARGET` 9.4 default
 - `packages/core/src/widget-snapshot.ts` — the contract, the `dateKey` guard, `widgetSnapshotChanged`
 - `apps/mobile/src/lib/widget.ts` — App Group write + `ExtensionStorage.reloadWidget`, `APP_GROUP`, `WIDGET_NAME`
 - `apps/mobile/targets/widget/index.swift` — the Swift mirror, `localDateKey(now)`
 - `apps/mobile/package.json` — no WatchConnectivity module installed; `firebase@^12.11.0` (JS SDK)
 - `apps/mobile/app.json` — no `ios.deploymentTarget`; `group.fit.ignia.app` entitlement
 - `apps/mobile/WIDGET_PLAN.md` — the $0 runtime baseline; "Apple Watch complication / app — separate target, larger"
-- `docs/aug-2026-build-batch.md`, [#35](https://github.com/gabandres/fitness-tracker-pwa/issues/35) — the build gate
+- `STATUS.md` §3, [#35](https://github.com/gabandres/fitness-tracker-pwa/issues/35) — the build gate

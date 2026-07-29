@@ -1,10 +1,15 @@
+> **VERDICT** — No surveyed product adds measured active energy on top of a `BMR x activity-multiplier` TDEE — each either corrects the multiplier's own activity allowance or reconciles against the tracker's whole-day total — so Ignia must not build `formulaTdee + activeKcal`; the supported shape is correcting `profile.activityLevel` (Shape A), with Cronometer's above-baseline additive as the opt-in fallback.
+> **Status:** SETTLED (the six-product survey; the composition model itself is a follow-on decision ticket, and Shape A is device-gated per section 8.3) · **Researched:** 2026-07-23
+> **Read this only if:** you are specifying how measured activity moves a calorie target, and need the per-product composition shape, partial-day, missing-day, or double-count-guard evidence.
+> **Do not** re-derive the conclusions below; cite them.
+
 # How Comparable Products Combine Measured Active Energy With a Basal Estimate
 
 Primary-source research for the wayfinder question (issue #21): **how do comparable products combine *measured* active energy with a basal estimate to produce a daily calorie target?** Six products surveyed — Apple (Move/Activity), Garmin, Fitbit/Google Health, Cronometer, MacroFactor, MyFitnessPal — each classified into one of four composition shapes, plus documented behaviour for partial days and missing days.
 
 Every claim cites the source that owns it. Where a product publishes nothing on a point it is marked **"&lt;Product&gt; does not document this"** rather than inferred. A separate **Inference** label marks conclusions this note draws.
 
-Companion note: `docs/health-active-energy-semantics.md` (what HealthKit / Health Connect actually hand us). This note assumes its conclusions — most importantly that active energy excludes basal on both platforms, and that Ignia's current raw-sample read double-counts across sources.
+Companion note: `docs/research/health-active-energy-semantics.md` (what HealthKit / Health Connect actually hand us). This note assumes its conclusions — most importantly that active energy excludes basal on both platforms, and that Ignia's current raw-sample read double-counts across sources.
 
 _Last updated: 2026-07-23. No production activity data exists yet — the importer has never run on a device._
 
@@ -439,7 +444,7 @@ Three reasons that are peculiar to this codebase rather than to the domain:
 
 1. **`formula` mode's entire lifespan is under 14 aggregated days.** `MEASURED_MIN_DAYS = 14`. Any per-day additive adjustment would be live for at most two weeks per user, then permanently silenced. A profile-level correction to `activityLevel` is cheap, persists as a *user-visible fact*, and does not need to earn its keep daily.
 2. **Ignia has no intraday target.** `newDailyTarget` is a scalar computed from logs, not a running budget. Adopting a shape that grows through the day (§5) or is projected and revised (§7) would be a new concept in the data model, not a parameter change. Shape A adds none.
-3. **Ignia's read path is currently wrong.** Per `docs/health-active-energy-semantics.md` §2, both platforms' raw reads return unmerged multi-source samples and the current code naively sums them. Until that is fixed, `activeKcal` is biased **high** by an unknown factor. A shape that *suggests* a change for the user to confirm degrades into a bad suggestion; a shape that silently adds kcal to a target degrades into overeating. Prefer the shape whose failure mode is visible.
+3. **Ignia's read path is currently wrong.** Per `docs/research/health-active-energy-semantics.md` §2, both platforms' raw reads return unmerged multi-source samples and the current code naively sums them. Until that is fixed, `activeKcal` is biased **high** by an unknown factor. A shape that *suggests* a change for the user to confirm degrades into a bad suggestion; a shape that silently adds kcal to a target degrades into overeating. Prefer the shape whose failure mode is visible.
 
 **`seed` mode: recommend doing nothing.** With no profile there is no BMR, so there is no basal term to compose with and no multiplier to correct. Both shapes are undefined. Displaying imported activity is fine; feeding 2450/1800 from it is not.
 

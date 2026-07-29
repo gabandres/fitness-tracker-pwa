@@ -12,7 +12,7 @@ import {
 } from '@macrolog/core';
 
 /**
- * Per-frontend native health adapter (Health Sync — see HEALTHKIT_PLAN.md).
+ * Per-frontend native health adapter (Health Sync — shipped; see STATUS.md).
  *
  * `Platform.OS` picks HealthKit (iOS) or Health Connect (Android) behind one
  * `HealthPort`; both translate through the pure `health-mapping` brain in

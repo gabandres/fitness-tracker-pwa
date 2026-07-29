@@ -6,7 +6,7 @@
 ## Why (the wedge)
 Today `searchFoods` / `getFoodDetail` (`functions/src/food-search.ts`, 703 lines) hit the **live FDC API** server-side (FDC key mgmt + caching + rate limiting all in the CF). That's a runtime external dependency with a rate ceiling and quality variance. MacroFactor/Cronometer market "verified data" as trust; we can ship the same CC0 USDA data ourselves at $0. (Barcode stays on OpenFoodFacts — that path is untouched.)
 
-## Dataset decision (from primary-source research, `docs/competitive-feature-scan.md` sibling research)
+## Dataset decision (from primary-source research, `docs/research/competitive-feature-scan.md` sibling research)
 Ship **SR Legacy + Foundation Foods only**:
 
 | Dataset | ~Foods | Raw CSV | Why in / out |

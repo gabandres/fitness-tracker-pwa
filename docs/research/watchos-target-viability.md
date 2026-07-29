@@ -1,3 +1,8 @@
+> **VERDICT** — `@bacons/apple-targets@5.0.0` as already installed can generate both a watchOS app and a WidgetKit face complication with no eject and `ios/` still uncommitted (`plugin-viable-with-work`) — but per the #45 correction the complication does **not** get its App Group for free, and the group must be declared explicitly in `targets/watch-widget/expo-target.config.js` or it fails silently.
+> **Status:** SETTLED (top-line verdict stands; one in-doc claim corrected by #45) · **Researched:** 2026-07-24 (corrected 2026-07-25)
+> **Read this only if:** you are adding the watch app or complication targets, or wiring their entitlements, bundle ids, and provisioning profiles.
+> **Do not** re-derive the conclusions below; cite them.
+
 # Can Expo prebuild generate a watchOS app target?
 
 Research for [#32](https://github.com/gabandres/fitness-tracker-pwa/issues/32), on the map

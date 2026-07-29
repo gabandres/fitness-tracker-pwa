@@ -1,3 +1,8 @@
+> **VERDICT** — Imported active energy is trustworthy as a *component* of TDEE and never as TDEE itself: it excludes basal on both platforms, neither OS synthesizes it from our workout writes (so the feared feedback loop does not exist), the raw-read cross-source double-count that inflated it is fixed by #27, and a measured-BMR TDEE is not achievable on a stock phone — don't design for one.
+> **Status:** SETTLED (headline question closed; section 5 keeps seven device-gated verification items and two suspected v14 API-shape bugs) · **Researched:** 2026-07-23
+> **Read this only if:** you are touching the Health import path or deciding what `activeKcal` is allowed to mean in a TDEE calculation.
+> **Do not** re-derive the conclusions below; cite them.
+
 # Health Active-Energy Semantics — Can Imported Active Energy Feed a TDEE Estimate?
 
 Primary-source research for the wayfinder question: **is imported `activeEnergy` trustworthy as an input to a TDEE estimate?** Scope is HealthKit (iOS) and Health Connect (Android) as consumed by `apps/mobile/src/lib/health.ts`, `apps/mobile/src/lib/health-sync.ts`, and `packages/core/src/health-mapping.ts`.

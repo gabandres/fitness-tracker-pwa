@@ -1,16 +1,16 @@
-# Implementation Plan — Home-screen Widget (Today's rings)
+# Home-screen Widget — design, seams and device QA
 
-> **Status (2026-07-23): BUILT, unverified on device.** All code below is
-> written, typechecked and unit-tested; nothing has ever run on hardware,
-> because a widget needs an EAS build and the quota resets **August 2026**
-> (`docs/aug-2026-build-batch.md`). Device QA is the only remaining step.
-> Decisions previously listed as open are now **locked** — see
-> §"Locked decisions".
+> **This file owns the widget's *design*: how it gets its data, what was
+> decided, and how to verify it on hardware. It does not track state.** Whether
+> the widget is built, in a binary, or verified is in **`STATUS.md`**, which has
+> the command to re-check. Do not restate build or quota status here — this doc
+> carried a "BUILT, unverified" banner and an EAS quota date, and both were the
+> kind of claim that goes stale silently.
 
 Scope: a home-screen widget showing **today's calories + protein remaining**
 (and optionally a small ring), refreshed from a last-known snapshot the app
-writes on each log. Greenfield — nothing exists yet. Runtime cost: **$0** (reads
-local shared storage, no network, no Cloud Function).
+writes on each log. Runtime cost: **$0** (reads local shared storage, no
+network, no Cloud Function).
 
 Expo has **no built-in widget support** — widgets are OS-native extensions, so
 this is the most native-heavy of the pipeline features (iOS needs Swift).
@@ -83,10 +83,12 @@ state (the app hasn't been opened yet today) rather than stale numbers.
 - Both plugins added to `app.json` `plugins[]`; `group.fit.ignia.app` App Group
   in the iOS config.
 
-## Prerequisites (owner-gated — STILL OPEN)
-1. **EAS dev build** (native modules — same gate as Health/Google Sign-In).
-   Quota resets August 2026.
-2. **iOS App Groups — probably NOT a manual step.** EAS Build's *auto capability
+## Provisioning — the owner-gated seam
+
+A widget needs an EAS **dev build**; it cannot run in Expo Go (same gate as
+Health and Google Sign-In). Build availability and quota live in `STATUS.md` §3.
+
+1. **iOS App Groups — probably NOT a manual step.** EAS Build's *auto capability
    signing* reads the local entitlements and enables matching capabilities on
    the Apple Developer Console during the build; **App Groups is on its
    supported list**, and `app.json` already resolves to
@@ -102,7 +104,7 @@ state (the app hasn't been opened yet today) rather than stale numbers.
    provisioning profile. If the first build fails on the *extension's*
    entitlements rather than the app's, create the group manually in the portal
    and re-run — that's the fallback, not the default expectation.
-3. No Play/store metadata needed for internal testing.
+2. No Play/store metadata needed for internal testing.
 
 ## Device QA checklist (first thing after the build exists)
 - [ ] Widget appears in the iOS widget gallery and the Android picker.
@@ -131,7 +133,7 @@ Settled 2026-07-23, before any code existed.
 | **Theme** | **One fixed brand face, dark in both themes** (the `heroPanel` family, ADR-0014). A widget sits on the wallpaper and can't follow the in-app theme. |
 | **App Intents / Siri** | **Out of this batch.** Keeps the binary to one untested native surface; three is how the previous two rejections happened. |
 
-## What was built (2026-07-23)
+## Component map — where each half of the seam lives
 
 | File | Role |
 |---|---|
@@ -153,13 +155,6 @@ Our locale is `profile.preferredLocale` — behind auth and Firestore, neither o
 which a widget process has. Using the *device* locale instead would hand an
 English widget to someone who set the app to Spanish, so `locale` is a field on
 the snapshot and each widget keeps its own small string table.
-
-## Effort — actual
-The ~1.5wk estimate assumed a bridge would have to be hand-written. It didn't:
-`@bacons/apple-targets` ships `ExtensionStorage` (App Group `UserDefaults` +
-`reloadWidget`), which removed the entire custom-native-module line item, and
-`react-native-android-widget` needed no Kotlin. What's left of the estimate is
-**device QA**, which is build-gated rather than effort-gated.
 
 ## Deferred / separate (NOT this plan)
 - **Fasting Live Activity** (iOS lock-screen fast countdown) — natural given the

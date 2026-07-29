@@ -56,9 +56,9 @@ node -e "import('./scripts/asc-client.mjs').then(async({api,APP_ID})=>{const r=a
 ```
 
 **This file is the source of truth for listing field values.** `go-to-market.md`
-owns positioning and strategy; `APP_STORE_LISTING.md` is the historical
-pre-launch draft. Both previously duplicated these fields and drifted out of
-sync — don't copy values back into them.
+owns positioning and strategy; The pre-launch listing draft was deleted
+2026-07-29 (recoverable from git history); it duplicated these fields and
+drifted — don't reintroduce a second copy.
 
 **Correction 1 — only promotional text is live-editable.** The draft claimed
 the support/marketing URLs could also be changed on a released version. They
@@ -74,8 +74,8 @@ already indexes *Calories* **and** *Training*, and "training" outsearches
 a strong term out of it to gain a weaker one is a net loss. Keywords below are
 built around keeping it.
 
-There is also a constraint the draft didn't know about: per
-`APP_STORE_LISTING.md`, the bare word **"Ignia" was already reserved by another
+There is also a constraint the draft didn't know about: per an earlier listing draft
+(git history), the bare word **"Ignia" was already reserved by another
 developer** in App Store Connect, which is *why* the listing title carries a
 descriptor at all. The on-device name (from `app.json`) is still just "Ignia".
 

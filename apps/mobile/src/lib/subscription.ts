@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 const OVERRIDE_KEY = 'proPreview';
 
 /**
- * Pro tier is NOT available in v1 — there is no IAP yet (see MOBILE_RELEASE).
+ * Pro tier is NOT available in v1 — there is no IAP yet (see STATUS.md §5).
  * While disabled: every gated feature is unlocked for everyone (`isPro` is
  * always true) and all purchase/upsell/testing surfaces are hidden. Shipping a
  * paywall with no purchasable product is an App Store rejection (Guideline
