@@ -94,10 +94,14 @@ service cloud.firestore {
               // Unit system (food-search portion picker default).
               'unitSystem',
               // Per-user suppress list for the entry-sheet recents row.
-              'hiddenRecentLabels'
+              'hiddenRecentLabels',
+              // Seeded demo/review account marker (admin SDK only; listed so
+              // the client can round-trip a profile that already carries it).
+              'syntheticAccount'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == false
+          && (!('syntheticAccount' in data.keys()) || data.syntheticAccount is bool)
           && (!('referredBy' in data.keys()) ||
               (data.referredBy is string && data.referredBy.size() >= 20 && data.referredBy.size() <= 40))
           && (!('compedUntil' in data.keys()) || data.compedUntil is timestamp)
@@ -295,7 +299,14 @@ service cloud.firestore {
               // Unit system: 'us' (cup/tbsp default) | 'metric' (grams default).
               'unitSystem',
               // Per-user suppress list for the entry-sheet recents row.
-              'hiddenRecentLabels'
+              'hiddenRecentLabels',
+              // Marks a seeded account (the App Store demo/review logins) so
+              // product metrics can exclude it — see functions/src/retention.ts.
+              // Written by scripts/seed-demo-account.mjs over the admin SDK;
+              // pinned immutable to clients on the update rule below, because a
+              // user who could set it would silently remove themselves from
+              // every cohort this project measures.
+              'syntheticAccount'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == true
@@ -381,7 +392,9 @@ service cloud.firestore {
               data.unitSystem == 'us' || data.unitSystem == 'metric')
           && (!('hiddenRecentLabels' in data.keys()) ||
               (data.hiddenRecentLabels is list
-               && data.hiddenRecentLabels.size() <= 200));
+               && data.hiddenRecentLabels.size() <= 200))
+          && (!('syntheticAccount' in data.keys()) ||
+              data.syntheticAccount is bool);
     }
 
     function isValidProfile(data) {
@@ -436,7 +449,15 @@ service cloud.firestore {
                        && (resource.data.get('welcomeEmailSentAt', null) ==
                            request.resource.data.get('welcomeEmailSentAt', null))
                        && (resource.data.get('firstEntryAt', null) ==
-                           request.resource.data.get('firstEntryAt', null));
+                           request.resource.data.get('firstEntryAt', null))
+                       // `syntheticAccount` marks the seeded demo/review
+                       // logins so retention cohorts can drop them. It is a
+                       // measurement flag, not a user setting: a client that
+                       // could set it would delete itself from every product
+                       // metric, and one that could clear it would put the
+                       // seeded 83-log account back into the numbers.
+                       && (resource.data.get('syntheticAccount', null) ==
+                           request.resource.data.get('syntheticAccount', null));
 
       match /dailyLogs/{logId} {
         allow read:   if isOwner(uid) || isAdmin();

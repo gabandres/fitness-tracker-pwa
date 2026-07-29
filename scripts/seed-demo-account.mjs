@@ -23,6 +23,13 @@
  *   node scripts/seed-demo-account.mjs --email demo@ignia.fit --dry-run
  *   node scripts/seed-demo-account.mjs --email demo@ignia.fit --reset
  *   node scripts/seed-demo-account.mjs --email demo@ignia.fit --force
+ *   node scripts/seed-demo-account.mjs --email review@ignia.fit --mark-only
+ *
+ * `--mark-only` writes just `syntheticAccount: true` on the profile and
+ * returns — the backfill path for accounts seeded before that marker existed.
+ * It is what keeps the demo logins out of the retention cohorts, and it does
+ * not touch the account's data, so it is safe on review@ (whose hand-made rows
+ * a real re-seed would overwrite).
  *
  * `--reset` empties the day-keyed collections before writing. Seeding alone
  * cannot clean them: those docs are keyed by DATE, so anything outside the
@@ -64,6 +71,7 @@ const password = arg('password');
 const dryRun = has('dry-run');
 const force = has('force');
 const reset = has('reset');
+const markOnly = has('mark-only');
 
 /**
  * Collections `--reset` empties first. Day-keyed, so a plain re-seed leaves
@@ -211,6 +219,11 @@ function buildDocs(uid) {
       createdAt: Timestamp.fromDate(createdAt),
       lastSeenAt: Timestamp.fromDate(now),
       profileCompleted: true,
+      // Excludes this account from retention cohorts (functions/src/retention.ts).
+      // A seeded account is a perfect user by construction — 83 logs against a
+      // back-dated createdAt — so at this project's sample size it is the single
+      // largest distortion in the metric. Client-immutable per firestore.rules.
+      syntheticAccount: true,
       onboardingV2CompletedAt: Timestamp.fromDate(createdAt),
       ageConfirmedAt: Timestamp.fromDate(createdAt),
       targetsRefinedAt: Timestamp.fromDate(dayAt(WEIGHT_DAYS - 3, 9)),
@@ -362,6 +375,18 @@ async function main() {
   initializeApp({ credential: applicationDefault(), projectId: PROJECT_ID });
   const auth = getAuth();
   const db = getFirestore();
+
+  // `--mark-only` exists for accounts that predate the `syntheticAccount`
+  // marker. A full re-seed would also stamp it, but review@ holds hand-made
+  // rows and re-seeding it needs --force, i.e. overwriting them. This writes
+  // the one field and nothing else.
+  if (markOnly) {
+    const { uid: markUid } = await auth.getUserByEmail(email);
+    await db.doc(`users/${markUid}`).set({ syntheticAccount: true }, { merge: true });
+    console.log(`✓ marked ${email} (uid ${markUid}) syntheticAccount=true — no other field touched`);
+    console.log('  It will drop out of config/retention on the next 09:00 UTC pass.');
+    return;
+  }
 
   let uid;
   let created = false;

@@ -141,10 +141,14 @@ export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
   // before `createdAt` was required is invisible here rather than
   // miscounted. That only affects accounts older than the cohort window,
   // which this query excludes anyway.
+  //
+  // `syntheticAccount` is fetched, not filtered on: a Firestore inequality
+  // (`!=`, `==` false) skips documents that lack the field entirely, which is
+  // every real user. So the seeded accounts are dropped in the loop below.
   const profiles = await db
     .collection("users")
     .where("createdAt", ">=", windowStart)
-    .select("createdAt", "firstEntryAt")
+    .select("createdAt", "firstEntryAt", "syntheticAccount")
     .limit(MAX_USERS_PER_RUN)
     .get();
 
@@ -159,6 +163,7 @@ export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
   const cohorts = new Map<string, CohortRow>();
   let activatedTotal = 0;
   let logsLast7dTotal = 0;
+  let excludedSynthetic = 0;
 
   // Sequential on purpose: three aggregations per user in parallel across
   // thousands of users would burst the Firestore client's connection pool
@@ -166,6 +171,19 @@ export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
   for (const doc of profiles.docs) {
     const createdAt = doc.data()["createdAt"] as Timestamp | undefined;
     if (!createdAt) continue; // unreachable given the filter; narrows the type
+
+    // Seeded accounts (the App Store demo + review logins) are excluded
+    // entirely — not just from the activated subset. `seed-demo-account.mjs`
+    // writes 83 logs and back-dates `createdAt` ~30 days, which produces a
+    // flawless D1/D7/D30 user. At the sample size this project actually has
+    // (n=11 activated on the first real run), two of those distort the only
+    // retention number it owns: they made one week read 2/2 across every
+    // checkpoint. Dropped before the cohort row is created, so a week
+    // containing nothing but seeded signups does not appear at all.
+    if (doc.data()["syntheticAccount"] === true) {
+      excludedSynthetic++;
+      continue;
+    }
 
     const signupMs = createdAt.toMillis();
     const ageDays = (now.getTime() - signupMs) / DAY_MS;
@@ -230,6 +248,10 @@ export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
     windowDays: COHORT_WINDOW_DAYS,
     activationThreshold: ACTIVATION_LOGS,
     usersExamined: profiles.size,
+    /** Seeded accounts dropped from every cohort above. Reported rather than
+     *  silently subtracted: `usersExamined` minus this is the real
+     *  denominator, and a reader who can't see the gap can't check it. */
+    excludedSynthetic,
     truncated,
     activatedTotal,
     /** The PMF signal for a tracker: an activated user logging < ~1×/day
@@ -272,7 +294,9 @@ export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
 
   console.log(
     `retentionCohorts: ${profiles.size} user(s), ${activatedTotal} activated, ` +
-      `${rows.length} cohort(s)${truncated ? " [TRUNCATED]" : ""}`,
+      `${rows.length} cohort(s)` +
+      (excludedSynthetic > 0 ? `, ${excludedSynthetic} synthetic excluded` : "") +
+      (truncated ? " [TRUNCATED]" : ""),
   );
 
   return summary;

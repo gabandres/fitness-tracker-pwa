@@ -271,6 +271,64 @@ describe('firestore.rules', () => {
     );
   });
 
+  // ─── syntheticAccount: the seeded-account marker ────────────────────────
+  // Written by scripts/seed-demo-account.mjs over the admin SDK to keep the
+  // demo/review logins out of the retention cohorts. Two things must hold: a
+  // client can still edit a profile that carries it (or the demo account App
+  // Review signs into becomes read-only), and a client can never change it.
+
+  const completedProfile = () => ({
+    ...baseProfile(),
+    profileCompleted: true,
+    heightIn: 70,
+    age: 33,
+    sex: 'male',
+    activityLevel: 'moderate',
+    targetPaceLbsPerWeek: 1.0,
+  });
+
+  it('lets a client update a profile that already carries syntheticAccount', async () => {
+    // The demo account is seeded with the flag; it must stay usable. Before
+    // the field was added to the hasOnly() allowlist this failed, which would
+    // have locked App Review out of every profile write in the app.
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'alice'), {
+        ...completedProfile(),
+        syntheticAccount: true,
+      });
+    });
+    const db = authed('alice');
+    await assertSucceeds(
+      setDoc(doc(db, 'users', 'alice'), {
+        ...completedProfile(),
+        syntheticAccount: true,
+        manualCaloriesTarget: 2200,
+      }),
+    );
+  });
+
+  it('blocks a client from marking itself syntheticAccount', async () => {
+    // Self-marking would delete the user from every cohort the project
+    // measures — a metrics flag, not a user setting.
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), syntheticAccount: true }),
+    );
+  });
+
+  it('blocks a client from clearing syntheticAccount', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'alice'), {
+        ...completedProfile(),
+        syntheticAccount: true,
+      });
+    });
+    const db = authed('alice');
+    // Dropping the field puts the seeded 83-log account back in the numbers.
+    await assertFails(setDoc(doc(db, 'users', 'alice'), completedProfile()));
+  });
+
   it('accepts an in-range calorieFloor on a completed profile', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());
