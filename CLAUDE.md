@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Ignia — a free, private kcal+protein tracker (live at <https://ignia.fit>). The repo is an **npm-workspaces monorepo** with three buildable units plus shared code:
 
 - **`src/`** — the root project IS the Angular 21 PWA (the flagship product). Despite being a workspace root, it has its own `src/` and is the default `ng` project (`fitness-tracker-pwa`).
-- **`apps/mobile/`** — Expo SDK 54 React Native app. **LIVE on the iOS App Store** (v1.1.0; Android not launched — see the Play gate in `docs/`). Has its own `CLAUDE.md` → `AGENTS.md`; read those when working there. Its `main` is a custom `index.js` (not `expo-router/entry`) so the Android widget task handler registers before React mounts.
+- **`apps/mobile/`** — Expo SDK 54 React Native app. **LIVE on the iOS App Store** — the live version is **1.0 (build 7)**, not 1.1.0: `app.json` says 1.1.0 and ASC has a 1.1.0 version page, but it is `PREPARE_FOR_SUBMISSION` with **no binary attached**, and EAS has never built one. Verify with the ASC snippet in `docs/app-store-metadata.md` §"Correction 4" before claiming a version anywhere. Android not launched — see the Play gate in `docs/`. Has its own `CLAUDE.md` → `AGENTS.md`; read those when working there. Its `main` is a custom `index.js` (not `expo-router/entry`) so the Android widget task handler registers before React mounts.
 - **`packages/core/`** (`@macrolog/core`) — framework-free shared "brain": domain types + pure math (TDEE, targets, date, unit-system). Imported by BOTH the Angular app and the Expo app. Keep it dependency-free and pure.
 - **`functions/`** — Firebase Cloud Functions (gen2, Node 22), its own package + tsconfig.
 

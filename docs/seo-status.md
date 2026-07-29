@@ -78,9 +78,19 @@ about to be crawled for the first time, and they will be crawled correct.
   ordinary pages is outside its documented use. Give the sitemap a few days,
   then spend the daily quota on the pages worth ranking first — `/vs/*`,
   `/calculator`, `/es/calculator`.
-- **`/download` and `/support` have no Spanish versions.** They are static HTML
-  in `public/`, outside the prerender pipeline, so the Spanish funnel currently
-  dead-ends in English at the conversion step.
+- **`/download` and `/support` are bilingual as of 2026-07-29** (`cf21a3ff`).
+  They are hand-written HTML in `public/`, outside the prerender pipeline, so
+  the Spanish versions are files too — `public/es/{download,support}.html`,
+  served at `/es/download` and `/es/support`. Before that the Spanish funnel
+  dead-ended in English at the conversion step. The sitemap generates the
+  hreflang pairs from one table in `prerender-seo.mjs`; the `<link
+  rel="alternate">` tags in the four files must agree with it, and nothing
+  enforces that yet.
+- **The service worker was shadowing `/download`.** `ngsw-config.json`
+  exempted `/support` from `navigationUrls` but never `/download`, so a
+  returning visitor with the SW installed got the Angular shell instead of the
+  page the App Store marketing URL points at. All four static pages are now
+  exempt.
 - **`macrolog.web.app` is still a verified property serving the same content.**
   Every page there canonicalizes to ignia.fit, so it should not compete, but it
   is worth watching that Google does not index the `.web.app` host.

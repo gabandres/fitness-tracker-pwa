@@ -404,7 +404,15 @@ service cloud.firestore {
     // ─── Per-user subtree ───────────────────────────────────────
     match /users/{uid} {
       allow read:   if isOwner(uid) || isAdmin();
-      allow create: if isOwner(uid) && isVerifiedUser() && isValidProfile(request.resource.data);
+      allow create: if isOwner(uid) && isVerifiedUser() && isValidProfile(request.resource.data)
+                       // `syntheticAccount` is listed in both profile
+                       // validators so a seeded account stays editable, but
+                       // it is admin-SDK-only: a client that could set it at
+                       // CREATE time would self-exclude from every product
+                       // metric permanently, and the update rule below would
+                       // then freeze that choice in place. Pinning it on
+                       // update alone left exactly that hole.
+                       && !('syntheticAccount' in request.resource.data.keys());
       allow update: if isOwner(uid) && isValidProfile(request.resource.data)
                        // Referral fields are immutable from the client:
                        //   - `referredBy` is set once on profile create

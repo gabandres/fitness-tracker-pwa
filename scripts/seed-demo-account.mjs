@@ -31,6 +31,13 @@
  * not touch the account's data, so it is safe on review@ (whose hand-made rows
  * a real re-seed would overwrite).
  *
+ * **Deploy firestore.rules BEFORE marking any account.** The Admin SDK
+ * bypasses rules, so this write always succeeds — but the profile validators
+ * are `hasOnly()` allowlists, so against an older deployed ruleset the field
+ * is unlisted and every subsequent CLIENT profile write on that account is
+ * rejected. On review@ that locks App Review out of the app.
+ *     firebase deploy --only firestore:rules
+ *
  * `--reset` empties the day-keyed collections before writing. Seeding alone
  * cannot clean them: those docs are keyed by DATE, so anything outside the
  * seeded window survives, and **Apple Health sync will import the phone

@@ -307,6 +307,24 @@ describe('firestore.rules', () => {
     );
   });
 
+  it('blocks a client from marking itself syntheticAccount at CREATE time', async () => {
+    // The update rule pins the field, but create is a separate path: a brand
+    // new verified user setting it on their first write would permanently
+    // remove themselves from every cohort, and the update pin would then hold
+    // that choice in place. Pinning update alone left this open.
+    const db = authed('alice');
+    await assertFails(
+      setDoc(doc(db, 'users', 'alice'), { ...baseProfile(), syntheticAccount: true }),
+    );
+  });
+
+  it('still allows an ordinary profile create', async () => {
+    // Guards the fix above against over-reach: forbidding the key must not
+    // break the normal first-write path every new user takes.
+    const db = authed('alice');
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice'), baseProfile()));
+  });
+
   it('blocks a client from marking itself syntheticAccount', async () => {
     // Self-marking would delete the user from every cohort the project
     // measures — a metrics flag, not a user setting.
