@@ -81,6 +81,53 @@ export function api(method, path, body) {
   });
 }
 
+/**
+ * Reserve → PUT → commit → poll, for one screenshot into any screenshot set
+ * (a version localization's, or a custom product page localization's — the
+ * resource is the same either way).
+ *
+ * Apple processes asynchronously, so COMPLETE is the only proof it worked;
+ * returning early on a 200 would report success for frames that silently
+ * never appear on the listing.
+ */
+export async function uploadScreenshot(setId, buffer, fileName) {
+  const reservation = await api('POST', '/v1/appScreenshots', {
+    data: {
+      type: 'appScreenshots',
+      attributes: { fileSize: buffer.length, fileName },
+      relationships: { appScreenshotSet: { data: { type: 'appScreenshotSets', id: setId } } },
+    },
+  });
+
+  const id = reservation.data.id;
+  for (const op of reservation.data.attributes.uploadOperations) {
+    await uploadChunk(op, buffer.subarray(op.offset, op.offset + op.length));
+  }
+
+  const { createHash } = await import('node:crypto');
+  await api('PATCH', `/v1/appScreenshots/${id}`, {
+    data: {
+      type: 'appScreenshots',
+      id,
+      attributes: {
+        uploaded: true,
+        sourceFileChecksum: createHash('md5').update(buffer).digest('hex'),
+      },
+    },
+  });
+
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const res = await api('GET', `/v1/appScreenshots/${id}`);
+    const state = res.data.attributes.assetDeliveryState;
+    if (state?.state === 'COMPLETE') return id;
+    if (state?.errors?.length) {
+      throw new Error(`${fileName}: ${state.errors.map((e) => e.description).join('; ')}`);
+    }
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  throw new Error(`${fileName}: still processing after 60s`);
+}
+
 /** Raw byte upload to a pre-signed asset URL from a reservation. These are
  *  NOT api.appstoreconnect.apple.com and must not carry the JWT. */
 export function uploadChunk(operation, buffer) {
