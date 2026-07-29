@@ -125,7 +125,15 @@
           ]
         }
       ],
-      "./plugins/withModularHeaders"
+      "./plugins/withModularHeaders",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
+      ]
     ],
     "extra": {
       "googleAuth": {
