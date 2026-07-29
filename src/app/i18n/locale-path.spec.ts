@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { langFromPath, stripLangPrefix } from './locale-path';
+import { langFromPath, localizedPath, stripLangPrefix } from './locale-path';
 
 // The `/es` prefix is a three-way contract: scripts/prerender-seo.mjs emits
 // the URLs, detectRoute() in app.ts matches them with the prefix removed,
@@ -44,5 +44,26 @@ describe('stripLangPrefix', () => {
     expect(stripLangPrefix('/calculator')).toBe('/calculator');
     expect(stripLangPrefix('/espanol')).toBe('/espanol');
     expect(stripLangPrefix('/')).toBe('/');
+  });
+});
+
+describe('localizedPath', () => {
+  it('prefixes a Spanish reader into the Spanish file', () => {
+    // These two are static files in public/, not SPA routes: public/es/
+    // download.html and public/es/support.html. If this stops matching where
+    // they are written, the Spanish funnel silently dead-ends in English at
+    // the conversion step.
+    expect(localizedPath('/download', 'es-PR')).toBe('/es/download');
+    expect(localizedPath('/support', 'es-PR')).toBe('/es/support');
+  });
+
+  it('leaves English unprefixed', () => {
+    expect(localizedPath('/download', 'en')).toBe('/download');
+    expect(localizedPath('/support', 'en')).toBe('/support');
+  });
+
+  it('round-trips with stripLangPrefix and is idempotent', () => {
+    expect(localizedPath('/es/download', 'es-PR')).toBe('/es/download');
+    expect(stripLangPrefix(localizedPath('/download', 'es-PR'))).toBe('/download');
   });
 });

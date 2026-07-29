@@ -28,3 +28,19 @@ export function stripLangPrefix(pathname: string): string {
   if (!langFromPath(pathname)) return pathname;
   return pathname.slice(ES_PATH_PREFIX.length) || '/';
 }
+
+/**
+ * The inverse: point an English path at the copy for `lang`.
+ * `('/download', 'es-PR')` → `/es/download`; English is unprefixed.
+ *
+ * For links OUT of the SPA into the indexed site — `/download` and
+ * `/support` are hand-written files in `public/`, and a Spanish reader sent
+ * to the English one hits a dead end at the conversion step, which is the
+ * one place it costs a install. Idempotent, so passing an already-prefixed
+ * path is safe.
+ */
+export function localizedPath(path: string, lang: AppLang): string {
+  if (lang !== 'es-PR') return path;
+  if (langFromPath(path)) return path;
+  return `${ES_PATH_PREFIX}${path}`;
+}

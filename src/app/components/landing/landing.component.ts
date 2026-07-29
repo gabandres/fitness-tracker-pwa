@@ -1,7 +1,9 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Firestore, doc, getDoc } from '@angular/fire/firestore';
 import { APP_STORE_URL } from '../../utils/app-store';
+import { TranslationService } from '../../services/translation.service';
+import { localizedPath } from '../../i18n/locale-path';
 
 /**
  * Public marketing surface at `/`. Shows when the user is not signed
@@ -240,7 +242,7 @@ import { APP_STORE_URL } from '../../utils/app-store';
           <a href="/app" class="v2-btn v2-btn--ghost">{{ t('landing.startLogging') }}</a>
         </div>
         <p class="v2-caption mt-5">{{ t('landing.downloadAndroid') }}</p>
-        <p class="v2-caption mt-2"><a href="/download" class="v2-link">{{ t('landing.downloadMore') }}</a></p>
+        <p class="v2-caption mt-2"><a [href]="downloadPath()" class="v2-link">{{ t('landing.downloadMore') }}</a></p>
       </section>
 
       <!-- ── 4. Free ──────────────────────────────────────────────── -->
@@ -268,9 +270,9 @@ import { APP_STORE_URL } from '../../utils/app-store';
           </div>
         </div>
         <div class="md:text-right flex flex-col md:items-end justify-center">
-          <a href="/download" class="v2-link font-medium text-lg">{{ t('landing.getOnIphone') }}</a>
+          <a [href]="downloadPath()" class="v2-link font-medium text-lg">{{ t('landing.getOnIphone') }}</a>
           <a href="/faq" class="v2-link font-medium text-lg mt-1">{{ t('landing.faqLink') }}</a>
-          <a href="/support" class="v2-link font-medium text-lg mt-1" style="color: var(--v2-accent);">{{ t('landing.supportLink') }} ♥</a>
+          <a [href]="supportPath()" class="v2-link font-medium text-lg mt-1" style="color: var(--v2-accent);">{{ t('landing.supportLink') }} ♥</a>
           <p class="v2-caption mt-2">&copy; {{ _getYear() }} Ignia</p>
         </div>
       </footer>
@@ -280,6 +282,15 @@ import { APP_STORE_URL } from '../../utils/app-store';
 })
 export class LandingComponent {
   private readonly firestore = inject(Firestore);
+  private readonly i18n = inject(TranslationService);
+
+  /** `/download` and `/support` are hand-written files in `public/`, not SPA
+   *  routes, so they don't pick up the active language the way the rest of
+   *  the app does. Hard-coding the English paths sent every Spanish visitor
+   *  from the Spanish landing page to an English page at the exact step
+   *  where they decide to install. */
+  protected readonly downloadPath = computed(() => localizedPath('/download', this.i18n.language()));
+  protected readonly supportPath = computed(() => localizedPath('/support', this.i18n.language()));
 
   /** App Store listing. The ID is the ASC app ID — same value as
    *  `submit.production.ios.ascAppId` in apps/mobile/eas.json and the

@@ -147,18 +147,55 @@ const RANGES = {
 };
 const MACROS_PRIORITY = { lose: 0.7, maintain: 0.6, gain: 0.6 };
 
+/** hreflang pair for a page that exists as two hand-written files rather than
+ *  two generated routes. Same shape the route table produces, so the sitemap
+ *  can't tell the difference. */
+const staticPair = (enPath, esPath) => [
+  { hreflang: 'en', url: `${SITE}${enPath}` },
+  { hreflang: 'es', url: `${SITE}${esPath}` },
+];
+
 /**
  * URLs that belong in the sitemap but are not prerendered here: static files
  * served straight from public/ (`/download`, `/support`) and SPA views with
- * nothing to say per-URL (`/privacy`, `/status`, …). English-only — none has
- * a distinct Spanish URL today.
+ * nothing to say per-URL (`/privacy`, `/status`, …).
+ *
+ * `/download` and `/support` are the two **conversion** pages, and they are
+ * hand-written HTML rather than shell rewrites — the pipeline above only
+ * rewrites <head>, it cannot produce their bodies. They are bilingual as of
+ * 2026-07-29: `public/es/{download,support}.html` are the Spanish versions,
+ * and the pairs are declared here so a Spanish visitor is not handed an
+ * English page at the one step that matters. The `<link rel="alternate">`
+ * tags in those four files must agree with these pairs.
  *
  * Anything with per-URL copy belongs in the route table above instead, or it
  * ships the shell's canonical and self-declares as a homepage duplicate.
  */
 const SITEMAP_ONLY = [
-  { path: '/download', changefreq: 'monthly', priority: 0.9 },
-  { path: '/support', changefreq: 'monthly', priority: 0.5 },
+  {
+    path: '/download',
+    changefreq: 'monthly',
+    priority: 0.9,
+    alternates: staticPair('/download', '/es/download'),
+  },
+  {
+    path: '/es/download',
+    changefreq: 'monthly',
+    priority: 0.9,
+    alternates: staticPair('/download', '/es/download'),
+  },
+  {
+    path: '/support',
+    changefreq: 'monthly',
+    priority: 0.5,
+    alternates: staticPair('/support', '/es/support'),
+  },
+  {
+    path: '/es/support',
+    changefreq: 'monthly',
+    priority: 0.5,
+    alternates: staticPair('/support', '/es/support'),
+  },
   { path: '/privacy', changefreq: 'monthly', priority: 0.5 },
   { path: '/terms', changefreq: 'monthly', priority: 0.5 },
   { path: '/changelog', changefreq: 'weekly', priority: 0.6 },
