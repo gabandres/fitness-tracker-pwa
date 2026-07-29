@@ -170,7 +170,7 @@ target, so its applicability to the `watch` target is unverified.
 
 ### Does this re-open the owner-gate question?
 
-`apps/mobile/WIDGET_PLAN.md` already settled that App Groups was **not** an owner gate, because
+`apps/mobile/WIDGET.md` already settled that App Groups was **not** an owner gate, because
 EAS auto capability signing enables matching capabilities on the Apple Developer Console during
 the build. Nothing found here contradicts that, and a watch target introduces **no new
 capability** — the same App Group, plus `CODE_SIGN_STYLE: Automatic` on both new targets. What it
@@ -241,4 +241,4 @@ concern.
 - [Expo — Local credentials, multi-target projects](https://docs.expo.dev/app-signing/local-credentials)
 - [Apple — `WKCompanionAppBundleIdentifier`](https://developer.apple.com/documentation/bundleresources/information-property-list/wkcompanionappbundleidentifier)
 - [Apple — watchOS Info.plist keys](https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/watchOSKeys.html)
-- `apps/mobile/WIDGET_PLAN.md`, `apps/mobile/app.json`, `apps/mobile/eas.json` (local precedent)
+- `apps/mobile/WIDGET.md`, `apps/mobile/app.json`, `apps/mobile/eas.json` (local precedent)

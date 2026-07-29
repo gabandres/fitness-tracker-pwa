@@ -58,6 +58,19 @@ jobs:
         if: steps.changes.outputs.functions == 'true'
         run: npm ci --prefix functions
 
+      # Repo-consistency assertions (scripts/doctor.mjs). --no-cloud runs only
+      # the checks that need no credentials: copy-vs-feature-flags, locale key
+      # parity and markdown hygiene. The gcloud/firebase/gh-backed checks
+      # (released ruleset, deployed functions, free-tier ceilings, issue
+      # tracker) SKIP here and are run from a workstation before deploying —
+      # CI has no credentials and a SKIP must never read as a pass.
+      #
+      # Runs before the tests: it is seconds long and catches the class of
+      # error a green test suite cannot (copy promising a flagged-off feature,
+      # a locale missing a key, a doc linking to a file that was deleted).
+      - name: Doctor (credential-free checks)
+        run: npm run doctor -- --no-cloud
+
       - name: Unit tests
         run: npx ng test --watch=false
 

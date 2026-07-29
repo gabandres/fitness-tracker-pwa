@@ -13,7 +13,7 @@ import {
 
 /**
  * Home-screen widget adapter — the impure half of the feature
- * (`apps/mobile/WIDGET_PLAN.md`). The numbers and the render rules are pure
+ * (`apps/mobile/WIDGET.md`). The numbers and the render rules are pure
  * and shared in `@macrolog/core`'s `widget-snapshot`; everything here is
  * platform plumbing: *where* the blob is stored and *how* the OS is told to
  * redraw.

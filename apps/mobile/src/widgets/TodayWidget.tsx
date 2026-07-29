@@ -7,7 +7,7 @@ import { groupDigits, widgetStrings } from './strings';
  * primitives into a native `RemoteViews` tree — they are NOT React Native
  * components, so only the documented props exist and there is no StyleSheet).
  *
- * Locked design (see `WIDGET_PLAN.md` §"Open decisions"): **text-first**, kcal
+ * Locked design (see `WIDGET.md` §"Open decisions"): **text-first**, kcal
  * remaining over protein remaining. No ring — that's the fast-follow once the
  * snapshot seam is proven on a device.
  *

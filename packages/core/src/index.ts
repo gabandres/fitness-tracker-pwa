@@ -51,7 +51,7 @@ export * from './photo-scan';
 // Retention nudge planner (ADR-0015). Pure; the expo-notifications layer is a
 // dumb adapter over what this returns.
 export * from './reminder-plan';
-// Home-screen widget snapshot contract (apps/mobile/WIDGET_PLAN.md). A widget
+// Home-screen widget snapshot contract (apps/mobile/WIDGET.md). A widget
 // can't hold our onSnapshot listeners, so the app writes a blob to shared
 // storage and the widget renders it: build (app side) + parse/view (widget
 // side) both live here. Android calls these directly; the iOS SwiftUI timeline

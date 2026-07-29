@@ -276,7 +276,7 @@ index entries read as if you had issued a brand-new query"* — a widget process
 seconds at a time can never amortize a listener, so **every** wake is a cold query. Plus Cloud
 Function invocations, which are a second meter.
 
-Against a stated $0 runtime cost for the current widget (`apps/mobile/WIDGET_PLAN.md`), and an owner
+Against a stated $0 runtime cost for the current widget (`apps/mobile/WIDGET.md`), and an owner
 who is GCP-cost-averse (`CLAUDE.md`), this is the number that decides it.
 
 ---
@@ -566,5 +566,5 @@ Reasoning:
 - `apps/mobile/targets/widget/index.swift` — the Swift mirror, `localDateKey(now)`
 - `apps/mobile/package.json` — no WatchConnectivity module installed; `firebase@^12.11.0` (JS SDK)
 - `apps/mobile/app.json` — no `ios.deploymentTarget`; `group.fit.ignia.app` entitlement
-- `apps/mobile/WIDGET_PLAN.md` — the $0 runtime baseline; "Apple Watch complication / app — separate target, larger"
+- `apps/mobile/WIDGET.md` — the $0 runtime baseline; "Apple Watch complication / app — separate target, larger"
 - `STATUS.md` §3, [#35](https://github.com/gabandres/fitness-tracker-pwa/issues/35) — the build gate

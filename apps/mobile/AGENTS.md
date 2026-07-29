@@ -9,7 +9,7 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v54.0.0/ before 
 registers the Android home-screen widget's task handler — which must run at
 module scope, before React mounts, because Android can wake the widget when the
 UI was never started. Don't "fix" `main` back to `expo-router/entry`; it
-silently kills the widget on Android. See `WIDGET_PLAN.md`.
+silently kills the widget on Android. See `WIDGET.md`.
 
 # This app is in production
 

@@ -202,7 +202,7 @@ private struct TodayWidgetView: SwiftUI.View {
   let entry: Entry
 
   var body: some SwiftUI.View {
-    // Locked design (WIDGET_PLAN.md §"Open decisions"): text-first, kcal over
+    // Locked design (WIDGET.md §"Open decisions"): text-first, kcal over
     // protein. The ring is a deliberate fast-follow, not an omission.
     VStack(alignment: .leading, spacing: 0) {
       switch entry.view {

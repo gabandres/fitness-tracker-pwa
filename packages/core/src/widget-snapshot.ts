@@ -1,6 +1,6 @@
 /**
  * Home-screen widget snapshot — the pure half of the widget feature
- * (`apps/mobile/WIDGET_PLAN.md`).
+ * (`apps/mobile/WIDGET.md`).
  *
  * ## Why a snapshot instead of a subscription
  * A widget process cannot hold our Firestore `onSnapshot` listeners. It wakes

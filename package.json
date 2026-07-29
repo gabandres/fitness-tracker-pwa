@@ -13,7 +13,8 @@
     "seed": "firebase emulators:exec --only auth,firestore,storage --export-on-exit=./.emulator-data \"node scripts/seed-emulators.mjs\"",
     "seed:emulators": "node scripts/seed-emulators.mjs",
     "test:ledger": "firebase emulators:exec --only firestore \"vitest run --config vitest.ledger.config.ts\"",
-    "test:rules": "npm --prefix functions run test:rules"
+    "test:rules": "npm --prefix functions run test:rules",
+    "doctor": "node scripts/doctor.mjs"
   },
   "private": true,
   "packageManager": "npm@11.6.2",

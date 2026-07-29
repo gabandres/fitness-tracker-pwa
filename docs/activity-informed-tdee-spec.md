@@ -2,7 +2,7 @@
 
 **Status:** decision-complete, ready to build. Hand off to a `/tdd` session.
 **Source of truth:** wayfinder map [#19](https://github.com/gabandres/fitness-tracker-pwa/issues/19) and its ten closed tickets (#20–#30). This file is the *build-ordered* consolidation; when a decision's rationale is needed, follow the ticket link — the reasoning is not repeated here.
-**Companion docs (already written):** [`health-active-energy-semantics.md`](./health-active-energy-semantics.md) (what the OSes mean by active energy + §5 falsifiable-later list), [`activity-tdee-composition-survey.md`](./activity-tdee-composition-survey.md) (competitor survey → Shape A), [`activity-tdee-validation-protocol.md`](./activity-tdee-validation-protocol.md) (the post-ship trip-wire).
+**Companion docs (already written):** [`health-active-energy-semantics.md`](./research/health-active-energy-semantics.md) (what the OSes mean by active energy + §5 falsifiable-later list), [`activity-tdee-composition-survey.md`](./research/activity-tdee-composition-survey.md) (competitor survey → Shape A), [`activity-tdee-validation-protocol.md`](./activity-tdee-validation-protocol.md) (the post-ship trip-wire).
 
 ---
 
