@@ -9,7 +9,10 @@
  * Config comes from CLAUDE.local.md's recorded locations, overridable by env:
  *   ASC_KEY_PATH   path to AuthKey_<KEYID>.p8
  *   ASC_KEY_ID     the key id (also embedded in the filename)
- *   ASC_ISSUER_ID  the account's issuer UUID (console only, not in the .p8)
+ *   ASC_ISSUER_ID  the account's issuer UUID — REQUIRED, no default. It
+ *                  identifies this Apple account, so it does not belong in a
+ *                  tracked file of a public repo. Put it in the git-ignored
+ *                  `.env.local` at the repo root (loaded below) or export it.
  */
 import jwt from 'jsonwebtoken';
 import { readFileSync } from 'node:fs';
@@ -17,16 +20,33 @@ import { request } from 'node:https';
 
 export const APP_ID = '6788589414';
 
+// Repo-root .env.local is git-ignored, so it is the one place local-only
+// config can live and still be picked up by every script automatically —
+// without which every ASC check would depend on the shell that launched it.
+try {
+  process.loadEnvFile(new URL('../.env.local', import.meta.url));
+} catch {
+  /* absent or unreadable — env vars may still be exported by the shell */
+}
+
 const KEY_PATH =
   process.env.ASC_KEY_PATH ?? 'C:/Users/gabri/Downloads/AuthKey_47Z9RY8MT5.p8';
 const KEY_ID = process.env.ASC_KEY_ID ?? '47Z9RY8MT5';
-const ISSUER_ID = process.env.ASC_ISSUER_ID ?? '69a6de88-6f9e-47e3-e053-5b8c7c11a4d1';
+const ISSUER_ID = process.env.ASC_ISSUER_ID;
 
 const HOST = 'api.appstoreconnect.apple.com';
 
 let cached = null;
 /** Apple caps token lifetime at 20 minutes; 10 leaves room for slow uploads. */
 function token() {
+  if (!ISSUER_ID) {
+    throw new Error(
+      'ASC_ISSUER_ID is not set. Find it in App Store Connect → Users and Access → ' +
+        'Integrations → App Store Connect API (shown above the key table), then add ' +
+        '`ASC_ISSUER_ID=<uuid>` to the git-ignored .env.local at the repo root. ' +
+        'It is deliberately not hardcoded — this repo is public.',
+    );
+  }
   const now = Math.floor(Date.now() / 1000);
   if (cached && cached.exp - now > 60) return cached.value;
   const exp = now + 600;
