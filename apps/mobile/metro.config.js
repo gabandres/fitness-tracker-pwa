@@ -12,8 +12,28 @@ const config = getDefaultConfig(__dirname);
 // Disable package-exports ONLY for that package and any import originating inside
 // it, so it falls back to classic resolution (its `react-native`/`source` field
 // → src). Everything else (Firebase, etc.) keeps package exports on.
+// The `@/…` aliases come from tsconfig `paths`, which Metro reads from
+// whatever it treats as the project root. In this monorepo the Android
+// RELEASE bundle runs rooted at the WORKSPACE — where tsconfig.json is the
+// Angular app's and has no such mapping — so the alias silently vanishes and
+// only that one build fails, with "Unable to resolve module @/lib/widget".
+// Declaring them here makes resolution independent of which tsconfig gets
+// discovered. Order matters: `@/assets` must be tested before the broader `@`.
+const path = require('path');
+const ALIASES = [
+  ['@/assets', path.resolve(__dirname, 'assets')],
+  ['@', path.resolve(__dirname, 'src')],
+];
+
 const HK = '@kingstinct/react-native-healthkit';
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  for (const [prefix, target] of ALIASES) {
+    if (moduleName === prefix || moduleName.startsWith(`${prefix}/`)) {
+      const rest = moduleName.slice(prefix.length).replace(/^\//, '');
+      return context.resolveRequest(context, rest ? path.join(target, rest) : target, platform);
+    }
+  }
+
   const fromHealthkit =
     typeof context.originModulePath === 'string' && context.originModulePath.includes(HK);
   if (moduleName === HK || moduleName.startsWith(`${HK}/`) || fromHealthkit) {
