@@ -13,6 +13,19 @@
 > app.json change and no rebuild were needed** — it's a server-side change that
 > propagates in minutes. If you ever rebuild with a *different* signing keystore,
 > re-add that keystore's SHA-1 the same way (`apksigner verify --print-certs`).
+>
+> **Both signing keys are now registered (2026-07-29):**
+>
+> | Keystore | SHA-1 | Used by |
+> |---|---|---|
+> | EAS-managed | `5C:85:B7:1A:87:9D:80:AE:93:8E:66:5B:1B:88:1F:D8:C7:45:4D:EA` | cloud builds (`eas build` without `credentialsSource: local`) |
+> | `credentials/dev.keystore` | `3C:E1:5E:38:97:88:41:F2:3A:E8:7E:27:6C:AC:FC:5A:57:15:E4:D5` | local builds using `credentials.json` |
+>
+> So a locally-built sideload APK signs with a different key than the cloud
+> build and would otherwise fail Google sign-in with *Access blocked*. Both are
+> on the Firebase Android app now, so either path works. Print a keystore's
+> SHA-1 with:
+> `keytool -list -v -keystore credentials/dev.keystore -alias macrolog-dev`
 
 The code is already merged (`src/lib/auth.tsx`, `src/app/sign-in.tsx`). Sign-in
 now uses the **native** `@react-native-google-signin/google-signin` module
