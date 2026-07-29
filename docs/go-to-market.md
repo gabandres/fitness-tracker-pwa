@@ -45,10 +45,21 @@ Cronometer) and export · in-app account deletion · offline PWA.
 | AI meal photo → macros | `photoScan: false` on both platforms (ADR-0015, deferred) |
 | Pro / premium / unlimited-anything | `PRO_ENABLED = false`; there is no paid tier to upsell |
 | Free trial, "upgrade", pricing anchors | nothing to buy |
-| Apple Health / Health Connect sync | code-complete but **never device-tested**; not enabled |
-| Home-screen widget, Apple Watch | not built |
+| Apple Watch | not built |
 | Progress photos | uploading works, but it was cut from the v1 story — don't market it |
 | Android app | not shipped |
+
+**Claimable only on the *next* build, and only after device QA** — both were
+in the table above as "not built", which was wrong by 2026-07-29:
+
+| Feature | Status |
+|---|---|
+| Apple Health / Health Connect sync | **shipped inside 1.0** (`0a355deb`, corrected in `eb939520`) — import of weight, sleep, water; export of weight, water, body fat, nutrition, workouts. Still never device-verified, so confirm it connects before marketing it |
+| Health **activity** import (steps, active energy) + activity-informed activity level | built (`4a84dc64`, `dc009ae4`), not in a binary yet |
+| Home-screen widget | built (`79e9fbff`), **never run on a device**, not in a binary yet |
+
+Nothing in this group belongs in the *live* 1.0 listing — only in 1.1.0
+release notes, and only once the binary carrying them exists.
 
 ---
 

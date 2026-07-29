@@ -30,6 +30,31 @@ assumptions in the original draft; both are reflected below.
 | es-MX Support URL | **Fixed** — was `ignia.fit`, missing `/support` |
 | Screenshots | Not started — owner, on device (§3) |
 
+**Correction 4 (2026-07-29) — what is live is 1.0, not 1.1.0.** Several docs
+(including the repo `CLAUDE.md`) describe the App Store app as "v1.1.0". The
+ASC API disagrees, and it is authoritative:
+
+| Version | State | Build |
+|---|---|---|
+| 1.1.0 | `PREPARE_FOR_SUBMISSION` | **none attached** |
+| 1.0 | `READY_FOR_SALE` | build 7, uploaded 2026-07-20 |
+
+`1.1.0` today is a metadata shell plus an `app.json` version bump
+(`2110fbb7`); EAS has never built a 1.1.0 iOS binary — the newest iOS build of
+any version is 1.0.0 build 7, from commit `168e0394`. Two consequences:
+
+- **What's New for 1.1.0 spans `168e0394..HEAD`**, which is far more than the
+  placeholder claimed. That is the range the copy below was written from.
+- Anything described as "fixed on the shipped 1.1.0 binary" was in fact fixed
+  against **1.0**. The `dailyWeights` index is the live example: it repaired
+  Refine Targets for users on 1.0 without an app update, because the fix was
+  server-side.
+
+Re-check with:
+```sh
+node -e "import('./scripts/asc-client.mjs').then(async({api,APP_ID})=>{const r=await api('GET','/v1/apps/'+APP_ID+'/appStoreVersions?limit=5&fields[appStoreVersions]=versionString,appStoreState');r.data.forEach(v=>console.log(v.attributes.versionString,v.attributes.appStoreState))})"
+```
+
 **This file is the source of truth for listing field values.** `go-to-market.md`
 owns positioning and strategy; `APP_STORE_LISTING.md` is the historical
 pre-launch draft. Both previously duplicated these fields and drifted out of
@@ -179,12 +204,44 @@ Ignia is not a medical device and does not provide medical advice.
 > page written to convert a store visitor, and it carries the browser fallback
 > for anyone who bounces off the install.
 
-### What's New — next version
+### What's New — 1.1.0
+
+Drafted 2026-07-29 from `git log 168e0394..HEAD`, i.e. everything committed
+since the binary that is live today. **Every bullet is backed by a commit**;
+the three-line placeholder this replaces was not — it promised "faster, more
+accurate food search", and no food-search change has shipped since 1.0.
+
 ```
+• Home-screen widget — today's calories and protein at a glance
+• Apple Health now imports steps and active energy, and your activity level corrects itself from what you actually did
+• One stray weigh-in no longer drags your weight trend — outliers are ignored
+• Refine Targets reliably loads your latest weight
+• Meal reminders can each be turned off on their own
+• Dates now follow the app's language instead of the phone's
 • Rate Ignia without leaving the app
-• Faster, more accurate food search
-• Fixes and polish across logging and the training tab
+• Rebuilt password-reset emails
 ```
+
+| Bullet | Commit |
+|---|---|
+| Widget | `79e9fbff` |
+| Health activity import + activity-informed TDEE | `4a84dc64`, `2d1e22d6`, `dc009ae4` |
+| Weigh-in outlier rejection | `946e7250` |
+| Refine Targets / `dailyWeights` index | `4f91b1f0` |
+| Per-reminder switches | `6bae19cd` |
+| Date localization | `5028a9e8` |
+| In-app rating prompt | `84898243` |
+| Password-reset emails | `6cf63df3` |
+
+**Two bullets are gated on device QA — cut them if it hasn't happened:**
+
+1. **The widget has never run on a device.** It is why the Android APK
+   (`084347c2`) was built. If it fails QA, drop the bullet; release notes are
+   what App Review reads the build against, and a 2.3.1 rejection for a
+   feature that doesn't work costs a review cycle.
+2. **Health sync itself has never been device-verified either** (it shipped
+   inside 1.0 — see `eb939520`). Activity import is new here and rides on it,
+   so confirm Health connects on device before claiming either.
 
 ### Review notes
 ```
@@ -313,12 +370,25 @@ Sin anuncios. Sin venta de datos. Exporta o borra tu cuenta desde la app.
 Ignia no es un dispositivo médico y no da consejo médico.
 ```
 
-### Novedades
+### Novedades — 1.1.0
+
+Same gating as the English block above: if the widget or Health bullets are
+cut there, cut them here too, or the two localizations claim different builds.
+
 ```
+• Widget en la pantalla de inicio — tus calorías y proteína de un vistazo
+• Apple Health ahora importa pasos y energía activa, y tu nivel de actividad se corrige según lo que realmente hiciste
+• Un pesaje atípico ya no arrastra tu tendencia de peso — se ignoran los valores fuera de rango
+• Refinar metas carga tu peso más reciente de forma confiable
+• Cada recordatorio de comida se puede desactivar por separado
+• Las fechas ahora siguen el idioma de la app, no el del teléfono
 • Califica Ignia sin salir de la app
-• Búsqueda de alimentos más rápida y precisa
-• Correcciones y mejoras en el registro y en la pestaña de entrenamiento
+• Correos de restablecimiento de contraseña rehechos
 ```
+
+The date-localization bullet matters most to this audience: it is the bug
+where a Spanish-language user saw English weekday and month names throughout
+the app because the formatter read the phone's locale rather than the app's.
 
 ---
 
