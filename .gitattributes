@@ -1,0 +1,21 @@
+# Line endings.
+#
+# This is a Windows-primary repo whose git installs `core.autocrlf=true` in the
+# SYSTEM config (C:/Program Files/Git/etc/gitconfig). That setting checks files
+# out as CRLF while storing them as LF, which is invisible until something
+# writes a file back — then a diff appears that is 100% line-ending churn with
+# no content change. 187 tracked files were sitting in that state (index LF,
+# worktree CRLF) when this file was added.
+#
+# `text=auto eol=lf` makes the checkout match what is stored, so the working
+# tree stops disagreeing with the index. The index was already LF throughout,
+# so this needs no `git add --renormalize` and produces no tree-wide
+# normalization commit — the existing history is already correct.
+* text=auto eol=lf
+
+# The two exceptions that must stay CRLF: Windows batch and PowerShell.
+# cmd.exe mis-parses LF-only .bat files (a label or a multi-line block can be
+# read past its terminator), and PowerShell's signature blocks are CRLF-
+# sensitive. Both are executed by Windows tooling, not read by git.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
