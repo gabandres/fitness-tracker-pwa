@@ -2,8 +2,9 @@
 /**
  * doctor — assert the facts this repo has actually drifted on.
  *
- *   npm run doctor              # everything the current credentials allow
+ *   npm run doctor                 # everything the current credentials allow
  *   npm run doctor -- --no-cloud   # only checks that need no credentials (CI)
+ *   npm run doctor -- --strict     # a SKIP is a failure (pre-deploy gate)
  *   npm run doctor -- --json       # machine-readable
  *
  * This is not a linter and not a test suite; both of those already pass while
@@ -42,6 +43,10 @@ const PROJECT = 'fitness-tracker-gb-1775407101';
 const argv = process.argv.slice(2);
 const NO_CLOUD = argv.includes('--no-cloud');
 const AS_JSON = argv.includes('--json');
+/** Treat a SKIP as a failure. "Run doctor before deploying" is only a real
+ *  gate if an absent credential can't quietly turn the deploy-critical checks
+ *  into no-ops — with --strict, a machine that cannot verify says so loudly. */
+const STRICT = argv.includes('--strict');
 
 // ─── Tiny check harness ────────────────────────────────────────────────
 const results = [];
@@ -64,9 +69,26 @@ function guard(group, name, fn) {
 const read = (p) => readFileSync(resolve(root, p), 'utf8');
 const has = (p) => existsSync(resolve(root, p));
 
-/** Run a command, returning null instead of throwing when it is missing or
- *  unauthenticated — that is a SKIP condition, not a failure. `shell: true`
- *  because firebase/gh/gcloud are .cmd shims on Windows. */
+/**
+ * Run a command and say WHICH kind of not-working it was.
+ *
+ * Collapsing both into "null" hid real breakage: a tool that is absent and a
+ * tool that ran and rejected the request both read as SKIP, so an expired
+ * login or a revoked permission looked exactly like "you don't have gcloud
+ * installed" and the run stayed green.
+ *
+ *   { missing: true }  — the binary is not on PATH. A genuine SKIP.
+ *   { ok: false }      — it ran and failed. That is a FAIL, with its stderr.
+ *   { ok: true, stdout }
+ *
+ * `shell: true` because firebase/gh/gcloud are .cmd shims on Windows; that
+ * also means ENOENT rarely surfaces as r.error, since the shell itself starts
+ * fine and then reports the missing command on stderr — hence matching the
+ * shell's own wording as well as the errno.
+ */
+const MISSING_TOOL =
+  /(is not recognized as an internal or external command|command not found|: not found|No such file or directory)/i;
+
 function sh(cmd, args, { timeout = 120_000 } = {}) {
   const r = spawnSync(cmd, args, {
     encoding: 'utf8',
@@ -75,8 +97,31 @@ function sh(cmd, args, { timeout = 120_000 } = {}) {
     cwd: root,
     windowsHide: true,
   });
-  if (r.error || r.status !== 0) return null;
-  return r.stdout;
+  const stderr = (r.stderr ?? '').trim();
+  if (r.error?.code === 'ENOENT') return { missing: true, cmd, stderr };
+  if (r.status !== 0 && MISSING_TOOL.test(stderr)) return { missing: true, cmd, stderr };
+  if (r.error) return { ok: false, cmd, stderr: stderr || r.error.message };
+  if (r.status !== 0) return { ok: false, cmd, stderr };
+  return { ok: true, stdout: r.stdout, cmd, stderr };
+}
+
+/** First line of a command's stderr, for a failure message that fits on one. */
+const firstLine = (s) => (s ?? '').split('\n').map((x) => x.trim()).filter(Boolean)[0] ?? 'no stderr';
+
+/**
+ * Resolve a command result to either usable stdout or a recorded SKIP/FAIL.
+ * Returns null when the caller should stop — the result is already recorded.
+ */
+function useOutput(group, name, res, { skipHint }) {
+  if (res.missing) {
+    skip(group, name, skipHint ?? `${res.cmd} is not installed`);
+    return null;
+  }
+  if (!res.ok) {
+    fail(group, name, `\`${res.cmd}\` exited non-zero: ${firstLine(res.stderr)}`);
+    return null;
+  }
+  return res.stdout;
 }
 
 /** CLI wrappers print banners and update notices around their JSON. */
@@ -103,9 +148,12 @@ function parseJsonLoose(text) {
  * Results are de-duplicated regardless.
  */
 const gitFiles = (glob) => {
-  const out = sh('git', ['ls-files', `"${glob}"`]);
-  if (!out) return [];
-  return [...new Set(out.split('\n').map((s) => s.trim()).filter(Boolean))];
+  const res = sh('git', ['ls-files', `"${glob}"`]);
+  // git failing is never a SKIP — every file-scanning check would then report
+  // "0 files, all good" and pass vacuously. Throw so guard() records a FAIL.
+  if (res.missing) throw new Error('git is not installed');
+  if (!res.ok) throw new Error(`git ls-files failed: ${firstLine(res.stderr)}`);
+  return [...new Set(res.stdout.split('\n').map((s) => s.trim()).filter(Boolean))];
 };
 
 // ═══ 1. Copy never promises a feature whose flag is off ═════════════════
@@ -369,18 +417,25 @@ function checkCopyVsFlags() {
 // ═══ 2. Deployed artifacts match the tree ═══════════════════════════════
 const G2 = '2. deployed vs local';
 
+/** Returns { token } | { missing } | { failed, stderr } so the caller can tell
+ *  "no gcloud" from "gcloud is there and your login expired". */
 function gcloudToken() {
-  const t = sh('gcloud', ['auth', 'print-access-token'], { timeout: 60_000 });
-  return t ? t.trim() : null;
+  const res = sh('gcloud', ['auth', 'print-access-token'], { timeout: 60_000 });
+  if (res.missing) return { missing: true };
+  if (!res.ok) return { failed: true, stderr: res.stderr };
+  return { token: res.stdout.trim() };
 }
 
 async function checkRulesMatchReleased() {
   const name = 'firestore.rules matches the released ruleset';
   if (!has('firestore.rules')) return fail(G2, name, 'firestore.rules not found');
-  const token = gcloudToken();
-  if (!token) {
-    return skip(G2, name, 'no gcloud access token (run `gcloud auth application-default login`)');
+  const tok = gcloudToken();
+  if (tok.missing) return skip(G2, name, 'gcloud is not installed');
+  if (tok.failed) {
+    return fail(G2, name, `gcloud could not mint a token: ${firstLine(tok.stderr)} — ` +
+      'run `gcloud auth application-default login`');
   }
+  const token = tok.token;
   // `x-goog-user-project` is required, not optional: a user ADC token carries
   // no quota project, and firebaserules.googleapis.com answers 403
   // SERVICE_DISABLED without it — which reads exactly like "you lack
@@ -442,13 +497,15 @@ function declaredFunctionNames() {
 function checkDeployedFunctions() {
   const name = 'deployed functions match functions/src exports';
   if (!has('functions/src/index.ts')) return fail(G2, name, 'functions/src/index.ts not found');
-  const out = sh('firebase', ['functions:list', '--json', '--project', PROJECT], {
+  const res = sh('firebase', ['functions:list', '--json', '--project', PROJECT], {
     timeout: 180_000,
   });
+  const out = useOutput(G2, name, res, { skipHint: 'firebase CLI is not installed' });
+  if (out === null) return;
   const parsed = parseJsonLoose(out);
   const list = Array.isArray(parsed) ? parsed : parsed?.result;
   if (!Array.isArray(list)) {
-    return skip(G2, name, 'firebase CLI unavailable or not logged in (`firebase login`)');
+    return skip(G2, name, 'firebase returned no parseable function list (logged in?)');
   }
   // Firebase Extensions deploy their own functions into the same project;
   // they are not ours and must not read as drift.
@@ -474,6 +531,104 @@ function checkDeployedFunctions() {
   }
 }
 
+/**
+ * STATUS.md §1 vs App Store Connect.
+ *
+ * This is the claim that has been wrong the longest and cost the most: several
+ * docs called the live app "v1.1.0" while ASC had 1.1.0 in
+ * PREPARE_FOR_SUBMISSION with no binary attached, and 1.0 was what users
+ * actually had. A version number in prose is not evidence; the store is.
+ *
+ * Versions are compared numerically, not as strings — ASC says "1.0" where
+ * STATUS.md says "1.0.0, build 7", and those are the same release.
+ */
+function normalizeVersion(v) {
+  const parts = String(v).split('.').map((n) => Number(n) || 0);
+  while (parts.length > 1 && parts[parts.length - 1] === 0) parts.pop();
+  return parts.join('.');
+}
+
+const ASC_STATES =
+  /\b(READY_FOR_SALE|PREPARE_FOR_SUBMISSION|WAITING_FOR_REVIEW|IN_REVIEW|PENDING_DEVELOPER_RELEASE|REJECTED|DEVELOPER_REJECTED|METADATA_REJECTED|PENDING_APPLE_RELEASE|PROCESSING_FOR_APP_STORE|REPLACED_WITH_NEW_VERSION|REMOVED_FROM_SALE)\b/;
+
+function statusSection(n) {
+  const text = read('STATUS.md');
+  const start = text.search(new RegExp(`^##\\s*${n}\\.`, 'm'));
+  if (start === -1) return null;
+  const rest = text.slice(start + 1);
+  const end = rest.search(/^##\s/m);
+  return end === -1 ? rest : rest.slice(0, end);
+}
+
+async function checkStatusVsAsc() {
+  const name = 'STATUS.md §1 matches App Store Connect';
+  if (!has('STATUS.md')) return fail(G2, name, 'STATUS.md not found');
+  if (!has('scripts/asc-client.mjs')) return skip(G2, name, 'scripts/asc-client.mjs not found');
+  const section = statusSection(1);
+  if (section === null) return fail(G2, name, 'no "## 1." section in STATUS.md');
+
+  let api;
+  let APP_ID;
+  try {
+    ({ api, APP_ID } = await import('./asc-client.mjs'));
+  } catch (e) {
+    return skip(G2, name, `asc-client could not load: ${e.message}`);
+  }
+
+  let versions;
+  try {
+    const r = await api(
+      'GET',
+      `/v1/apps/${APP_ID}/appStoreVersions?limit=10` +
+        '&fields[appStoreVersions]=versionString,appStoreState',
+    );
+    versions = r.data.map((v) => ({
+      version: v.attributes.versionString,
+      state: v.attributes.appStoreState,
+    }));
+  } catch (e) {
+    // A missing .p8, an unset issuer id or a 401 are all "no credentials
+    // here", which is a SKIP. Only a successful read can prove drift.
+    return skip(G2, name, `ASC unreachable: ${String(e.message).split('\n')[0].slice(0, 120)}`);
+  }
+  if (!versions.length) return skip(G2, name, 'ASC returned no versions');
+
+  const byVersion = new Map(versions.map((v) => [normalizeVersion(v.version), v.state]));
+  const problems = [];
+
+  // Every "<version> … <STATE>" pair asserted in §1 must match ASC.
+  for (const line of section.split('\n')) {
+    const st = line.match(ASC_STATES);
+    if (!st) continue;
+    const ver = line.match(/\b(\d+\.\d+(?:\.\d+)?)\b/);
+    if (!ver) continue;
+    const key = normalizeVersion(ver[1]);
+    const actual = byVersion.get(key);
+    if (!actual) problems.push(`§1 names version ${ver[1]}, which ASC does not have`);
+    else if (actual !== st[1]) {
+      problems.push(`§1 says ${ver[1]} is ${st[1]}, ASC says ${actual}`);
+    }
+  }
+
+  // …and whatever ASC actually sells must be the version §1 calls live.
+  const liveAsc = versions.find((v) => v.state === 'READY_FOR_SALE');
+  if (liveAsc) {
+    const cited = [...section.matchAll(/\b(\d+\.\d+(?:\.\d+)?)\b/g)].map((m) =>
+      normalizeVersion(m[1]),
+    );
+    if (!cited.includes(normalizeVersion(liveAsc.version))) {
+      problems.push(
+        `ASC has ${liveAsc.version} READY_FOR_SALE, but §1 never mentions that version`,
+      );
+    }
+  }
+
+  if (problems.length) fail(G2, name, problems.join(' · '));
+  else {
+    pass(G2, name, versions.map((v) => `${v.version}=${v.state}`).join(' '));
+  }
+}
+
 // ═══ 3. Free-tier ceilings ══════════════════════════════════════════════
 const G3 = '3. free-tier ceilings';
 const MAX_SCHEDULER_JOBS = 3;
@@ -481,12 +636,14 @@ const MAX_SECRET_VERSIONS = 6;
 
 function checkSchedulerJobs() {
   const name = `Cloud Scheduler jobs <= ${MAX_SCHEDULER_JOBS}`;
-  const out = sh('gcloud', [
+  const res = sh('gcloud', [
     'scheduler', 'jobs', 'list', '--project', PROJECT,
     '--location', 'us-central1', '--format=json',
   ]);
+  const out = useOutput(G3, name, res, { skipHint: 'gcloud is not installed' });
+  if (out === null) return;
   const jobs = parseJsonLoose(out);
-  if (!Array.isArray(jobs)) return skip(G3, name, 'gcloud unavailable or not authenticated');
+  if (!Array.isArray(jobs)) return skip(G3, name, 'gcloud returned no parseable job list');
   const ids = jobs.map((j) => (j.name ?? '').split('/').pop());
   if (jobs.length <= MAX_SCHEDULER_JOBS) {
     pass(G3, name, `${jobs.length}/${MAX_SCHEDULER_JOBS} — ${ids.join(', ')}`);
@@ -502,18 +659,25 @@ function checkSchedulerJobs() {
 
 function checkSecretVersions() {
   const name = `active secret versions <= ${MAX_SECRET_VERSIONS}`;
-  const listOut = sh('gcloud', ['secrets', 'list', '--project', PROJECT, '--format=json']);
+  const listRes = sh('gcloud', ['secrets', 'list', '--project', PROJECT, '--format=json']);
+  const listOut = useOutput(G3, name, listRes, { skipHint: 'gcloud is not installed' });
+  if (listOut === null) return;
   const secrets = parseJsonLoose(listOut);
-  if (!Array.isArray(secrets)) return skip(G3, name, 'gcloud unavailable or not authenticated');
+  if (!Array.isArray(secrets)) return skip(G3, name, 'gcloud returned no parseable secret list');
 
   let total = 0;
   const per = [];
   for (const s of secrets) {
     const id = (s.name ?? '').split('/').pop();
-    const vOut = sh('gcloud', [
+    const vRes = sh('gcloud', [
       'secrets', 'versions', 'list', id, '--project', PROJECT, '--format=json',
     ]);
-    const versions = parseJsonLoose(vOut);
+    // A per-secret failure would silently undercount and turn a real overage
+    // into a pass, so it fails the check rather than skipping the secret.
+    if (!vRes.ok) {
+      return fail(G3, name, `could not list versions of ${id}: ${firstLine(vRes.stderr)}`);
+    }
+    const versions = parseJsonLoose(vRes.stdout);
     if (!Array.isArray(versions)) continue;
     // --format=json reports state as ENABLED; the `--filter` flag sees the
     // lowercased display value and silently matches nothing, which is why
@@ -542,6 +706,55 @@ function checkSecretVersions() {
             'nothing here is safe to destroy — each one is in use. Going under the cap means ' +
             'retiring a secret (the dormant Stripe extension holds 2), otherwise this is a ' +
             'deliberate ~$0.06/version/month over the free tier.'),
+    );
+  }
+}
+
+/**
+ * STATUS.md §3's iOS build-quota line vs what EAS reports.
+ *
+ * The number was carried in prose as a hand-copied observation and was acted
+ * on days after it stopped being true. `eas account:usage` is authoritative
+ * and easy to miss — it does not appear in `eas-cli --help`.
+ *
+ * Format drift SKIPs rather than fails: this parses a third-party CLI's JSON
+ * and a sentence written by a human, and neither is a contract. A doctor that
+ * cries wolf when Expo renames a field gets muted.
+ */
+function checkEasQuota() {
+  const name = 'STATUS.md §3 matches the EAS iOS quota';
+  if (!has('STATUS.md')) return fail(G3, name, 'STATUS.md not found');
+  const section = statusSection(3);
+  if (section === null) return skip(G3, name, 'no "## 3." section in STATUS.md');
+
+  // e.g. "iOS is 15/15" — the claim being audited.
+  const claim = section.match(/iOS[^.\n]*?\b(\d+)\s*\/\s*(\d+)\b/i);
+  if (!claim) return skip(G3, name, '§3 states no parseable "iOS <used>/<limit>" figure');
+
+  const res = sh('npx', ['eas-cli', 'account:usage', 'gabandres', '--non-interactive'], {
+    timeout: 240_000,
+  });
+  if (res.missing) return skip(G3, name, 'eas-cli is not installed');
+  if (!res.ok) return skip(G3, name, `eas account:usage failed: ${firstLine(res.stderr)}`);
+
+  const usage = parseJsonLoose(res.stdout);
+  const ios = usage?.builds?.ios?.plan;
+  if (!ios || typeof ios.used !== 'number' || typeof ios.limit !== 'number') {
+    return skip(G3, name, 'could not parse builds.ios.plan from eas account:usage output');
+  }
+
+  const [, used, limit] = claim;
+  if (Number(used) === ios.used && Number(limit) === ios.limit) {
+    const period = usage?.account?.billingPeriod?.end;
+    pass(G3, name, `§3 and EAS agree: iOS ${ios.used}/${ios.limit}` + (period ? ` · resets ${String(period).slice(0, 10)}` : ''));
+  } else {
+    fail(
+      G3,
+      name,
+      `§3 says iOS ${used}/${limit}, EAS reports ${ios.used}/${ios.limit}` +
+        (usage?.account?.billingPeriod?.end
+          ? ` (period ends ${String(usage.account.billingPeriod.end).slice(0, 10)})`
+          : ''),
     );
   }
 }
@@ -603,28 +816,21 @@ function checkMobileI18n() {
 // ═══ 5. STATUS.md §4 vs open issues ═════════════════════════════════════
 const G5 = '5. STATUS.md vs issue tracker';
 
-function statusSection4() {
-  const text = read('STATUS.md');
-  const start = text.search(/^##\s*4\./m);
-  if (start === -1) return null;
-  const rest = text.slice(start + 1);
-  const end = rest.search(/^##\s/m);
-  return end === -1 ? rest : rest.slice(0, end);
-}
-
 function checkStatusVsIssues() {
   const name = 'STATUS.md §4 matches open issues';
   if (!has('STATUS.md')) return fail(G5, name, 'STATUS.md not found');
-  const section = statusSection4();
+  const section = statusSection(4);
   if (section === null) return fail(G5, name, 'no "## 4." section in STATUS.md');
 
-  const out = sh('gh', [
+  const res = sh('gh', [
     'issue', 'list', '--state', 'open', '--limit', '200',
     '--json', 'number,title,labels',
   ]);
+  const out = useOutput(G5, name, res, { skipHint: 'gh CLI is not installed' });
+  if (out === null) return;
   const open = parseJsonLoose(out);
   if (!Array.isArray(open)) {
-    return skip(G5, name, 'gh CLI unavailable or not authenticated (`gh auth login`)');
+    return skip(G5, name, 'gh returned no parseable issue list (`gh auth login`?)');
   }
   const openNums = new Set(open.map((i) => i.number));
   const cited = [...new Set([...section.matchAll(/#(\d+)/g)].map((m) => Number(m[1])))];
@@ -739,16 +945,22 @@ guard(G1, 'copy vs flags', checkCopyVsFlags);
 if (NO_CLOUD) {
   skip(G2, 'firestore.rules matches the released ruleset', '--no-cloud');
   skip(G2, 'deployed functions match functions/src exports', '--no-cloud');
+  skip(G2, 'STATUS.md §1 matches App Store Connect', '--no-cloud');
   skip(G3, `Cloud Scheduler jobs <= ${MAX_SCHEDULER_JOBS}`, '--no-cloud');
   skip(G3, `active secret versions <= ${MAX_SECRET_VERSIONS}`, '--no-cloud');
+  skip(G3, 'STATUS.md §3 matches the EAS iOS quota', '--no-cloud');
   skip(G5, 'STATUS.md §4 matches open issues', '--no-cloud');
 } else {
   await checkRulesMatchReleased().catch((e) =>
     fail(G2, 'firestore.rules matches the released ruleset', `check threw: ${e.message}`),
   );
   guard(G2, 'deployed functions match functions/src exports', checkDeployedFunctions);
+  await checkStatusVsAsc().catch((e) =>
+    fail(G2, 'STATUS.md §1 matches App Store Connect', `check threw: ${e.message}`),
+  );
   guard(G3, `Cloud Scheduler jobs <= ${MAX_SCHEDULER_JOBS}`, checkSchedulerJobs);
   guard(G3, `active secret versions <= ${MAX_SECRET_VERSIONS}`, checkSecretVersions);
+  guard(G3, 'STATUS.md §3 matches the EAS iOS quota', checkEasQuota);
   guard(G5, 'STATUS.md §4 matches open issues', checkStatusVsIssues);
 }
 
@@ -784,9 +996,14 @@ if (AS_JSON) {
     `\n${results.filter((r) => r.status === 'PASS').length}/${n} passed · ` +
       `${failed.length} failed · ${skipped.length} skipped`,
   );
-  if (skipped.length && !NO_CLOUD) {
+  if (skipped.length && STRICT) {
+    console.log(
+      `--strict: ${skipped.length} skipped check(s) count as failures. ` +
+        'Nothing below was actually verified.',
+    );
+  } else if (skipped.length && !NO_CLOUD) {
     console.log('Skipped checks need credentials; they never fail the run.');
   }
 }
 
-process.exit(failed.length ? 1 : 0);
+process.exit(failed.length || (STRICT && skipped.length) ? 1 : 0);
