@@ -107,6 +107,28 @@ const COPY = {
   },
 };
 
+/**
+ * Calculator variants — the same component under intent-specific URLs.
+ * `key` indexes `calcVariants.<key>` in the i18n bundles; `slug` must match
+ * VARIANT_PATHS in src/app/components/calculator/calculator.component.ts.
+ *
+ * These were in the sitemap but NOT prerendered, which was worse than being
+ * absent: they served the shell, so every one of them declared
+ * `canonical=https://ignia.fit/` and told Google it was a duplicate of the
+ * homepage. Nothing repairs that at runtime — the app sets a title, but no
+ * code anywhere writes a canonical tag.
+ */
+const CALC_VARIANTS = [
+  { slug: 'tdee-calculator-women', key: 'tdeeWomen', priority: 0.9 },
+  { slug: 'tdee-calculator-men', key: 'tdeeMen', priority: 0.9 },
+  { slug: 'cutting-calculator', key: 'cutting', priority: 0.85 },
+  { slug: 'bulking-calculator', key: 'bulking', priority: 0.85 },
+  { slug: 'maintenance-calculator', key: 'maintenance', priority: 0.7 },
+  { slug: 'keto-macro-calculator', key: 'keto', priority: 0.85 },
+  { slug: 'weight-loss-calculator', key: 'weightLoss', priority: 0.9 },
+  { slug: 'protein-calculator', key: 'protein', priority: 0.85 },
+];
+
 /** Comparison landings. Mirrors the slug list in
  *  src/app/components/vs-page/vs-data.ts — keep them in sync. */
 const VS = [
@@ -126,24 +148,16 @@ const RANGES = {
 const MACROS_PRIORITY = { lose: 0.7, maintain: 0.6, gain: 0.6 };
 
 /**
- * URLs that belong in the sitemap but are not prerendered here: static
- * files served straight from public/ (`/download`, `/support`), and SPA
- * views whose <head> is set at runtime. English-only — none of them has
+ * URLs that belong in the sitemap but are not prerendered here: static files
+ * served straight from public/ (`/download`, `/support`) and SPA views with
+ * nothing to say per-URL (`/privacy`, `/status`, …). English-only — none has
  * a distinct Spanish URL today.
+ *
+ * Anything with per-URL copy belongs in the route table above instead, or it
+ * ships the shell's canonical and self-declares as a homepage duplicate.
  */
 const SITEMAP_ONLY = [
   { path: '/download', changefreq: 'monthly', priority: 0.9 },
-  // Programmatic SEO: calculator variants targeting specific search
-  // intents. Same component as /calculator, different intro + meta.
-  { path: '/tdee-calculator-women', changefreq: 'monthly', priority: 0.9 },
-  { path: '/tdee-calculator-men', changefreq: 'monthly', priority: 0.9 },
-  { path: '/cutting-calculator', changefreq: 'monthly', priority: 0.85 },
-  { path: '/bulking-calculator', changefreq: 'monthly', priority: 0.85 },
-  { path: '/maintenance-calculator', changefreq: 'monthly', priority: 0.7 },
-  { path: '/keto-macro-calculator', changefreq: 'monthly', priority: 0.85 },
-  { path: '/weight-loss-calculator', changefreq: 'monthly', priority: 0.9 },
-  { path: '/protein-calculator', changefreq: 'monthly', priority: 0.85 },
-  { path: '/transformations', changefreq: 'weekly', priority: 0.8 },
   { path: '/support', changefreq: 'monthly', priority: 0.5 },
   { path: '/privacy', changefreq: 'monthly', priority: 0.5 },
   { path: '/terms', changefreq: 'monthly', priority: 0.5 },
@@ -318,6 +332,41 @@ function buildRoutes(locale) {
     changefreq: 'monthly',
     priority: 0.9,
     jsonLd: breadcrumb([home, { name: copy.crumbCalculator, url: url('/calculator') }]),
+  });
+
+  for (const v of CALC_VARIANTS) {
+    const variant = i18n.calcVariants[v.key];
+    routes.push({
+      key: `/${v.slug}`,
+      locale,
+      file: file(`${v.slug}.html`),
+      path: `${prefix}/${v.slug}`,
+      title: variant.title,
+      description: variant.body.slice(0, 320),
+      canonical: url(`/${v.slug}`),
+      changefreq: 'monthly',
+      priority: v.priority,
+      jsonLd: breadcrumb([
+        home,
+        { name: copy.crumbCalculator, url: url('/calculator') },
+        { name: variant.title.replace(/ · Ignia$/, ''), url: url(`/${v.slug}`) },
+      ]),
+    });
+  }
+
+  // /transformations has no pageTitle key of its own — the page's own lead and
+  // subtitle are the copy, so the title is composed from them.
+  routes.push({
+    key: '/transformations',
+    locale,
+    file: file('transformations.html'),
+    path: `${prefix}/transformations`,
+    title: `${i18n.transformations.titleLead} ${i18n.transformations.titleEm} | Ignia`,
+    description: i18n.transformations.subtitle.slice(0, 320),
+    canonical: url('/transformations'),
+    changefreq: 'weekly',
+    priority: 0.8,
+    jsonLd: breadcrumb([home, { name: i18n.transformations.section, url: url('/transformations') }]),
   });
 
   for (const v of VS) {
