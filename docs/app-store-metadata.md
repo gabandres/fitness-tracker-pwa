@@ -194,21 +194,41 @@ gated content. The optional tip (consumable in-app purchase) unlocks nothing
 
 Account deletion is available in-app: Settings → Delete account.
 
-Demo account:
-  Email: demo@ignia.fit
-  Password: <paste from the password manager — see below>
+Demo account: **`review@ignia.fit`** — set in the dedicated *Demo Account*
+fields, not in the notes body.
 ```
+
+### The two accounts — do not mix them up
+
+| Account | Used for | Set where |
+|---|---|---|
+| **`review@ignia.fit`** | **App Review signs in here.** Always. | ASC → App Review Information → Demo Account name/password |
+| `demo@ignia.fit` | Screenshot captures only | nowhere in ASC |
+
+App Store Connect carries the demo-account fields forward to each new version
+automatically, so `review@ignia.fit` stays set without anyone re-entering it —
+verified on both 1.0 and 1.1.0. **If it ever needs changing, change it on the
+version, not by swapping which account is seeded.**
+
 **The password is deliberately not written down here. This repository is
 public**, and a committed password would hand anyone the account App Review
-signs in with. Keep it in the password manager and type it straight into the
-App Store Connect review-notes field, which is private to Apple.
+signs in with. It lives in the password manager and in ASC's own field, which
+is private to Apple.
 
-The account itself exists and is ready: email verified, and populated with a
-realistic history by `scripts/seed-demo-account.mjs` (21 days of logs, a
-28-day weight trend, five training sessions). Re-run that script any time the
-data goes stale — it overwrites in place rather than stacking a second
-history. A missing or non-working demo account is a common avoidable
-rejection, so verify sign-in on a fresh install before submitting.
+Keep both accounts populated with `scripts/seed-demo-account.mjs` (21 days of
+logs, a 28-day weight trend, five training sessions). It overwrites in place
+rather than stacking a second history:
+
+```sh
+node scripts/seed-demo-account.mjs --email review@ignia.fit --reset --force
+node scripts/seed-demo-account.mjs --email demo@ignia.fit --reset
+```
+
+`--force` is needed for the review account because it predates the script and
+carries hand-made rows the guard refuses to touch unasked.
+
+A missing or non-working demo account is a common avoidable rejection, so
+verify sign-in on a fresh install before submitting.
 
 ---
 
