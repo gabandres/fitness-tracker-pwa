@@ -22,6 +22,7 @@ import {
 import { setCalcPrefill } from '../../utils/calc-prefill';
 import { share } from '../../utils/share';
 import { LucideAngularModule } from 'lucide-angular';
+import { APP_STORE_URL } from '../../utils/app-store';
 
 // ─── Programmatic SEO variants ──────────────────────────────────
 //
@@ -297,7 +298,7 @@ export class CalculatorComponent {
 
   /** App Store listing — mirrors landing.component.ts and the
    *  `apple-itunes-app` meta in src/index.html. */
-  protected readonly APP_STORE_URL = 'https://apps.apple.com/app/id6788589414';
+  protected readonly APP_STORE_URL = APP_STORE_URL;
 
   /** Separate event from `calculator_cta_signup` so the store route and
    *  the web-signup route can be compared in the funnel. */

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Firestore, doc, getDoc } from '@angular/fire/firestore';
+import { APP_STORE_URL } from '../../utils/app-store';
 
 /**
  * Public marketing surface at `/`. Shows when the user is not signed
@@ -283,7 +284,7 @@ export class LandingComponent {
   /** App Store listing. The ID is the ASC app ID — same value as
    *  `submit.production.ios.ascAppId` in apps/mobile/eas.json and the
    *  `apple-itunes-app` smart-banner meta in src/index.html. */
-  protected readonly APP_STORE_URL = 'https://apps.apple.com/app/id6788589414';
+  protected readonly APP_STORE_URL = APP_STORE_URL;
 
   /** Social-proof count from `public/stats.totalUsers`. Intentionally
       gated at 100 — below that we'd be doing anti-social-proof ("join

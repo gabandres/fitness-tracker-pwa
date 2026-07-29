@@ -11,6 +11,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { TranslationService } from '../../services/translation.service';
 import { AnalyticsService } from '../../services/analytics.service';
 import { stripLangPrefix } from '../../i18n/locale-path';
+import { APP_STORE_CPP } from '../../utils/app-store';
 import { UiCard } from '../ui/card.component';
 import { VS_PROFILES, VsProfile, vsProfileFor } from './vs-data';
 
@@ -152,9 +153,14 @@ export class VsPageComponent {
     if (p) this.analytics.track('vs_page_viewed', { competitor: p.slug });
   }
 
-  /** App Store listing — mirrors landing.component.ts and the
-   *  `apple-itunes-app` meta in src/index.html. */
-  protected readonly APP_STORE_URL = 'https://apps.apple.com/app/id6788589414';
+  /**
+   * The Switchers Custom Product Page, not the plain listing. Everyone who
+   * reaches a `/vs/*` page is comparing Ignia against something they already
+   * use, so the store page they land on leads with the adaptive target and
+   * the fact that it is free — the two things the comparison is about.
+   * Falls back to the default listing until Apple approves the page.
+   */
+  protected readonly APP_STORE_URL = APP_STORE_CPP.switchers;
 
   protected trackCtaClick(target: 'calculator' | 'signup' | 'appstore'): void {
     const p = this.profile();
