@@ -68,15 +68,31 @@ You do **not** need the paid EAS plan. Two facts drive this:
   npx eas-cli build -p ios --profile production      # cloud, free tier
   npx eas-cli submit -p ios --latest                 # upload to App Store Connect
   ```
-- **Android can build locally on Windows for free (unlimited).** With the
-  Android SDK + JDK installed, `--local` runs on your machine, no EAS queue:
+- **Android can build locally on Windows for free (unlimited)** — but **not
+  through `eas build --local`**, which refuses to run here:
+  `Unsupported platform, macOS or Linux is required to build apps for Android`.
+  (An earlier version of this file claimed otherwise. Verified false on
+  2026-07-29 with eas-cli 21.x.) Drive Gradle directly instead:
   ```sh
-  npx eas-cli build -p android --profile production --local
-  # → produces an .aab; upload it in Play Console, or:
-  npx eas-cli submit -p android --latest
+  cd apps/mobile
+  npx expo prebuild -p android --no-install     # generates ./android (git-ignored)
+  # then, from ./android — signing injected so no generated file needs editing:
+  ./gradlew.bat assembleRelease --no-daemon     -Pandroid.injected.signing.store.file=<abs path to credentials/dev.keystore>     -Pandroid.injected.signing.store.password=…     -Pandroid.injected.signing.key.alias=macrolog-dev     -Pandroid.injected.signing.key.password=…
+  # → android/app/build/outputs/apk/release/app-release.apk
   ```
-  Or just use the free EAS cloud tier for Android too if you don't want to set
-  up the local Android toolchain.
+  Use `assembleRelease` for a sideloadable **APK** (friends, testing) and
+  `bundleRelease` for the **.aab** Play requires.
+
+  Two traps:
+  - `prebuild` rewrites the `android` / `ios` npm scripts to `expo run:*`.
+    Revert that — this project runs Expo Go / dev-client, not `run:`.
+  - The local keystore signs with a **different SHA-1** than the EAS-managed
+    one, so Google sign-in breaks unless that fingerprint is registered in
+    Firebase. Both are registered as of 2026-07-29 — see `GOOGLE_SIGNIN.md`.
+
+  The free EAS cloud tier also builds Android, if you would rather not keep a
+  local toolchain — but it spends the same monthly quota as iOS, which is the
+  scarce resource.
 
 Bottom line: **free EAS tier covers iOS; local build covers Android.** The
 "infinite builds" paid plan only buys speed and concurrency you don't need yet.
