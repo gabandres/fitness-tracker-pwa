@@ -91,9 +91,21 @@ function parseJsonLoose(text) {
   }
 }
 
+/**
+ * Tracked files matching a git pathspec. The pattern is quoted because `sh`
+ * runs through a shell: unquoted, bash expands the glob itself against the CWD
+ * (so `public/*.html` never reaches git and nested files are missed), while
+ * cmd.exe does not expand and git sees the pattern. That difference showed up
+ * as CI scanning 1517 copy lines against 1669 locally.
+ *
+ * Note git pathspec `*` crosses `/` — `public/*.html` already matches
+ * `public/es/download.html`, so a second `**` pattern would double-count.
+ * Results are de-duplicated regardless.
+ */
 const gitFiles = (glob) => {
-  const out = sh('git', ['ls-files', glob]);
-  return out ? out.split('\n').map((s) => s.trim()).filter(Boolean) : [];
+  const out = sh('git', ['ls-files', `"${glob}"`]);
+  if (!out) return [];
+  return [...new Set(out.split('\n').map((s) => s.trim()).filter(Boolean))];
 };
 
 // ═══ 1. Copy never promises a feature whose flag is off ═════════════════
@@ -229,7 +241,7 @@ function htmlSentences(file) {
 
 function copySources() {
   const src = [];
-  for (const f of [...gitFiles('public/*.html'), ...gitFiles('public/**/*.html')]) {
+  for (const f of gitFiles('public/*.html')) {
     src.push(...htmlSentences(f));
   }
   if (has('functions/src/email-templates.ts')) {
