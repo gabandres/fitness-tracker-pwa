@@ -153,3 +153,66 @@ describe('basalMifflinStJeor', () => {
     });
   });
 });
+
+describe('weight-trend outlier rejection', () => {
+  /** 21 days of clean data: 2000 kcal/day, losing 0.2 lb/day from 185. */
+  const clean = () =>
+    Array.from({ length: 21 }, (_, i) => log(20 - i, 2000, 185 - 0.2 * (20 - (20 - i))));
+
+  it('changes nothing when every weigh-in is plausible', () => {
+    const r = calculateTdee(clean(), baseProfile);
+    expect(r.source).toBe('measured');
+    expect(r.outliersDropped).toBe(0);
+    // intake 2000 + 0.2 lb/day * 3500 = 2700
+    expect(r.trueTdee).toBeGreaterThan(2650);
+    expect(r.trueTdee).toBeLessThan(2750);
+  });
+
+  it('ignores one wildly wrong weigh-in instead of rewriting the trend', () => {
+    const withTypo = clean();
+    // A mis-synced reading — the exact shape that took a real account's
+    // maintenance from 2,741 to 1,619 kcal.
+    withTypo[0] = log(20, 2000, 158);
+
+    const dirty = calculateTdee(withTypo, baseProfile);
+    const pristine = calculateTdee(clean(), baseProfile);
+
+    expect(dirty.outliersDropped).toBe(1);
+    // Within 50 kcal of the clean answer, versus ~1,100 kcal adrift before.
+    expect(Math.abs(dirty.trueTdee - pristine.trueTdee)).toBeLessThan(50);
+  });
+
+  it('does not flip the sign of the deficit on a single bad entry', () => {
+    const withTypo = clean();
+    withTypo[0] = log(20, 2000, 158);
+    const r = calculateTdee(withTypo, baseProfile);
+    // Losing weight ⇒ maintenance above intake. The bug made this inequality
+    // fail, which is what pinned the target to the 1500 floor.
+    expect(r.trueTdee).toBeGreaterThan(2000);
+  });
+
+  it('keeps normal day-to-day fluctuation', () => {
+    // ±1.5 lb of water swing is real data, not an outlier.
+    const noisy = clean().map((l, i) =>
+      l.weight != null ? { ...l, weight: l.weight + (i % 2 ? 1.5 : -1.5) } : l,
+    );
+    expect(calculateTdee(noisy, baseProfile).outliersDropped).toBe(0);
+  });
+
+  it('trusts the data when a third or more of it looks anomalous', () => {
+    // A genuine whoosh: half the window steps down hard. If that many points
+    // are "outliers", the trend is the anomaly — keep everything.
+    const stepped = clean().map((l, i) =>
+      l.weight != null && i > 10 ? { ...l, weight: l.weight - 8 } : l,
+    );
+    expect(calculateTdee(stepped, baseProfile).outliersDropped).toBe(0);
+  });
+
+  it('leaves short weigh-in histories alone', () => {
+    // 14 logged days but only 4 weigh-ins — too few to estimate spread from.
+    const sparse = Array.from({ length: 15 }, (_, i) =>
+      i % 4 === 0 ? log(14 - i, 2000, 185 - i * 0.2) : log(14 - i, 2000),
+    );
+    expect(calculateTdee(sparse, baseProfile).outliersDropped).toBe(0);
+  });
+});

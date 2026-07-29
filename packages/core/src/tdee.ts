@@ -14,9 +14,9 @@ import { localDateKey } from './date';
  * `newDailyTarget` = trueTdee − (pace × 3500 / 7), clamped at the user's
  * configured `calorieFloor` (default MIN_DAILY_TARGET = 1500).
  *
- * NOTE: the canonical copy still lives in the Angular service. This is a
- * faithful duplicate for the mobile app; unifying both onto this module is
- * a documented follow-up (see docs/adr/0012).
+ * Both frontends import THIS module — the Angular app has no TDEE service of
+ * its own, whatever older comments claimed — so a change here lands on web and
+ * mobile alike.
  */
 export interface TdeeResult {
   trueTdee: number;
@@ -25,6 +25,9 @@ export interface TdeeResult {
   source: 'measured' | 'formula' | 'seed';
   loggingCompletenessPct?: number;
   reliable?: boolean;
+  /** Weigh-ins discarded as implausible before fitting the trend. Non-zero
+   *  means the user has a bad entry worth surfacing to them. */
+  outliersDropped?: number;
 }
 
 const KCAL_PER_POUND = 3500;
@@ -103,8 +106,61 @@ function regressionSlope(points: { x: number; y: number }[]): number | null {
   return (n * sumXY - sumX * sumY) / denom;
 }
 
-/** Robust weight trend in lbs/day (OLS over weigh-ins). */
-function weightTrendLbsPerDay(daily: DailyLog[]): number | null {
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/**
+ * Theil–Sen slope: the median of the slopes between every pair of points.
+ * Unlike least squares it cannot be dragged by a single bad value, which is
+ * exactly what we need to *identify* bad values before fitting properly.
+ * O(n²), but n is capped at MEASURED_WINDOW_DAYS, so ~380 pairs at worst.
+ */
+function theilSenSlope(points: { x: number; y: number }[]): number | null {
+  const slopes: number[] = [];
+  for (let i = 0; i < points.length; i++) {
+    for (let j = i + 1; j < points.length; j++) {
+      const dx = points[j].x - points[i].x;
+      if (dx !== 0) slopes.push((points[j].y - points[i].y) / dx);
+    }
+  }
+  return slopes.length ? median(slopes) : null;
+}
+
+/** Minimum residual, in lb, before a weigh-in can be called an outlier.
+ *  Day-to-day water and food weight moves a real person by a pound or two;
+ *  without this floor, a very consistent logger's tiny MAD would make normal
+ *  fluctuation look anomalous. */
+const OUTLIER_FLOOR_LB = 3;
+/** Residual cutoff as a multiple of the robust spread (MAD → σ via 1.4826). */
+const OUTLIER_SIGMAS = 4;
+/** Below this many weigh-ins the spread cannot be estimated, so nothing is
+ *  dropped — with 3 points a "majority" is meaningless. */
+const OUTLIER_MIN_POINTS = 5;
+
+/**
+ * Weight trend in lbs/day, robust to a bad weigh-in.
+ *
+ * Plain least squares treats every point as equally trustworthy, so ONE
+ * mistyped or mis-synced entry rewrites the trend — and because measured TDEE
+ * is `intake + slope × 3500`, a 20 lb error moves maintenance by roughly 1,100
+ * kcal/day and can invert the sign of the deficit. That is not hypothetical:
+ * a stray 158 lb reading against a 178–182 lb history took a real account's
+ * maintenance from 2,741 to 1,619 kcal and pinned the target to the floor.
+ *
+ * So: fit a Theil–Sen line first (immune to the outlier that is skewing
+ * things), measure each point's distance from it, drop anything absurdly far
+ * out, then run the original least-squares fit on what survives. Clean data
+ * loses no points and gets the exact slope it always did — this only
+ * intervenes when something is genuinely wrong.
+ *
+ * Deliberately NOT a smoother: the goal is to ignore bad data, not to blunt
+ * real change. Someone who truly drops 4 lb in a week still reads as dropping
+ * 4 lb in a week.
+ */
+function weightTrendLbsPerDay(daily: DailyLog[]): { slope: number; dropped: number } | null {
   const weighed = daily.filter((l): l is DailyLog & { weight: number } => l.weight != null);
   if (weighed.length < 2) return null;
   const t0 = weighed[0].date.getTime();
@@ -112,7 +168,36 @@ function weightTrendLbsPerDay(daily: DailyLog[]): number | null {
     x: (l.date.getTime() - t0) / 86_400_000,
     y: l.weight,
   }));
-  return regressionSlope(points);
+
+  if (points.length < OUTLIER_MIN_POINTS) {
+    const slope = regressionSlope(points);
+    return slope == null ? null : { slope, dropped: 0 };
+  }
+
+  const robustSlope = theilSenSlope(points);
+  if (robustSlope == null) {
+    const slope = regressionSlope(points);
+    return slope == null ? null : { slope, dropped: 0 };
+  }
+  // Intercept that puts the robust line through the middle of the data.
+  const robustIntercept = median(points.map((p) => p.y - robustSlope * p.x));
+
+  const residuals = points.map((p) => p.y - (robustIntercept + robustSlope * p.x));
+  const mad = median(residuals.map((r) => Math.abs(r)));
+  const cutoff = Math.max(OUTLIER_SIGMAS * 1.4826 * mad, OUTLIER_FLOOR_LB);
+
+  const kept = points.filter((_, i) => Math.abs(residuals[i]) <= cutoff);
+  const dropped = points.length - kept.length;
+
+  // Refuse to discard most of the data: if that many points are "outliers",
+  // the trend is the anomaly, not the points.
+  if (kept.length < 2 || dropped > points.length / 3) {
+    const slope = regressionSlope(points);
+    return slope == null ? null : { slope, dropped: 0 };
+  }
+
+  const slope = regressionSlope(kept);
+  return slope == null ? null : { slope, dropped };
 }
 
 function calendarSpanDays(daily: DailyLog[]): number {
@@ -158,8 +243,9 @@ export function calculateTdee(logs: DailyLog[], profile?: ProfileFields | null):
   // ── Measured mode: ≥14 logged days ──
   if (daily.length >= MEASURED_MIN_DAYS) {
     const window = daily.slice(-MEASURED_WINDOW_DAYS);
-    const slope = weightTrendLbsPerDay(window);
-    if (slope == null) return { ...SEED_RESULT };
+    const trend = weightTrendLbsPerDay(window);
+    if (trend == null) return { ...SEED_RESULT };
+    const { slope, dropped: outliersDropped } = trend;
 
     const intakeCals = window.map((l) => l.calories).filter((c) => c > 0);
     if (intakeCals.length === 0) return { ...SEED_RESULT };
@@ -185,6 +271,7 @@ export function calculateTdee(logs: DailyLog[], profile?: ProfileFields | null):
       source: 'measured',
       loggingCompletenessPct,
       reliable,
+      outliersDropped,
     };
   }
 
