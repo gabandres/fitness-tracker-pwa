@@ -76,6 +76,7 @@ There is no app server. `firestore.rules` (~670 lines, dense — per-collection 
 - **`CONTEXT.md`** — canonical domain glossary. One concept = one term, with legacy synonyms called out (e.g. Log/Entry/Meal all map to `DailyLog`). Read it before naming things or grepping.
 - **`docs/adr/`** — architecture decisions 0001–0016. The "why" behind the seams above. 0013 (food resolution), 0014 (mobile theming), 0015 (Ignia pivot) and 0016 (per-hook subscriptions) are all load-bearing and are cited throughout this file.
 - **`CHANGELOG.md`** — significant ships, newest first.
+- **`docs/seo-status.md`** — what Google has actually indexed, and the 2026-07-29 baseline it is measured against. Read before any SEO/prerender/sitemap work; re-check with `node scripts/gsc.mjs inspect`.
 - **`UX_AUDIT.md`** — living UX backlog; **§S13 is the launch-readiness checklist** (read before any public push).
 - **`STRIPE_SETUP.md`** — one-time Stripe + Firebase Extension wiring.
 - **`README.md`** — product positioning, full Cloud Functions list, secrets policy (what's safe to commit vs. server-only), operator post-deploy checklist.
