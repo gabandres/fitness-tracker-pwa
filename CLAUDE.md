@@ -44,7 +44,7 @@ firebase deploy --only functions                 # functions only
 firebase deploy --only firestore:rules           # rules only
 ```
 
-Firebase project `fitness-tracker-gb-1775407101`, hosting site `macrolog`. **Always run a PROD build before `firebase deploy`** — dev builds skip `ngsw.json`, which leaves the update banner firing for users. CI build/test runs on every PR (`.github/workflows/ci.yml`); deploy is manual (`deploy.yml`, `workflow_dispatch`).
+Firebase project `fitness-tracker-gb-1775407101`, hosting site `macrolog`. **Always run a PROD build before `firebase deploy`** — dev builds skip `ngsw.json`, which leaves the update banner firing for users. CI build/test runs on every PR + push to main (`.github/workflows/ci.yml`); **CI never deploys** — there is no deploy workflow. Releases are pushed by hand from a workstation with the commands above.
 
 ## Architecture — the big picture
 

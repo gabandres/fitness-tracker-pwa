@@ -87,8 +87,8 @@ Local-only overrides belong in `src/environments/environment.local.ts` (gitignor
 
 ## CI / CD
 
-- **`.github/workflows/ci.yml`** runs on every PR + push to main/master: install, typecheck (app + functions), unit tests, production build.
-- **`.github/workflows/deploy.yml`** is manual-trigger only (`workflow_dispatch`). Requires `FIREBASE_TOKEN` secret; optionally uploads sourcemaps if Sentry secrets are present.
+- **`.github/workflows/ci.yml`** runs on every PR + push to main: `npm run doctor -- --no-cloud`, unit tests, a functions build (PRs that touch `functions/**`), and a real production build. Doc-only pushes are skipped (`paths-ignore`). Sourcemaps upload to Sentry when the `SENTRY_*` secrets are present.
+- **There is no deploy workflow.** CI's job is to keep `main` green, not to ship — releases are pushed by hand from a workstation (`npm run build && firebase deploy`). This removed a dependency on the deprecated `firebase login:ci` token, which kept expiring and failing the run.
 
 ## Operator checklist (post-deploy)
 
