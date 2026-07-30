@@ -3,6 +3,7 @@ import {
   OnDestroy, output, signal, viewChild,
 } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
+import { OffLookupError } from '@macrolog/core';
 import { BarcodeService } from '../../services/barcode.service';
 import { MacroEstimate } from '../../models/macro-estimate';
 import { TranslationService } from '../../services/translation.service';
@@ -88,26 +89,23 @@ export class BarcodeScannerComponent implements OnDestroy {
       const barcode = await this.barcodeService.scanFromStream(videoEl);
       this.cancelScan();
 
-      const result = await this.barcodeService.lookupProduct(barcode);
+      const { calories, protein, carbs, fat, productName, brand, serving } =
+        await this.barcodeService.lookupProduct(barcode);
       const estimate: MacroEstimate = {
-        calories: result.calories,
-        protein: result.protein,
-        carbs: result.carbs,
-        fat: result.fat,
-        label: result.brand ? `${result.brand} • ${result.productName}` : result.productName,
+        calories, protein, carbs, fat,
+        label: brand ? `${brand} • ${productName}` : productName,
         // Food-library context (ADR-0013): a scan is dedup-keyed by barcode.
-        serving: {
-          source: 'barcode',
-          barcode,
-          name: result.productName,
-          ...(result.grams != null ? { grams: result.grams } : {}),
-          ...(result.brand ? { brand: result.brand } : {}),
-        },
+        // Assembled by the resolver so both frontends emit the same shape.
+        serving,
       };
       this.estimated.emit(estimate);
     } catch (err) {
       this.cancelScan();
-      this.error.set(err instanceof Error ? err.message : this.translation.t('barcode.errorFallback'));
+      this.error.set(
+        err instanceof OffLookupError
+          ? this.translation.tError(err.code)
+          : this.translation.t('barcode.errorFallback'),
+      );
     }
   }
 

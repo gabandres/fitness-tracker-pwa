@@ -242,6 +242,8 @@ export const en = {
   'barcode.openSettings': 'Open Settings',
   'barcode.point': 'Point at a barcode',
   'barcode.failed': 'Lookup failed.',
+  'errors.foodNotFound': "That product isn't in the Open Food Facts database yet.",
+  'errors.foodNoNutrition': 'Open Food Facts has no nutrition data for that product.',
 
   // ── body ──
   'body.todayWeighIn': "Today's weigh-in",

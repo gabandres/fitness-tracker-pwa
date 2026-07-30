@@ -65,6 +65,11 @@ export * from './custom-food';
 // callable adapters plug in via makeFoodSearch. Wire-compatible with
 // functions/src/food-search.ts (separate project).
 export * from './food-search';
+// Open Food Facts product resolution (ADR-0013 barcode path): OFF payload →
+// single-basis ResolvedProduct + the barcode-keyed save context. Pure; each
+// frontend keeps its own fetch and scanner adapter. Distinct from the cached
+// server search path in functions/src/food-search.ts — see the file header.
+export * from './off-product';
 // Nutrition Facts panel parser (ADR-0013 phase 3): OCR label text → editable
 // grams-first draft. Native OCR is a per-frontend adapter; the parse is pure.
 export * from './nutrition-label';

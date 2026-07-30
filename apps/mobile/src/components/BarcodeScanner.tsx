@@ -2,9 +2,9 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { FoodSource } from '@macrolog/core';
-import { type BarcodeResult, lookupProduct } from '@/lib/barcode';
-import { useT } from '@/i18n';
+import { OffLookupError, type FoodSource } from '@macrolog/core';
+import { lookupProduct } from '@/lib/barcode';
+import { useT, type I18nKey } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
@@ -24,6 +24,19 @@ export interface BarcodeEstimate {
     brand?: string;
     name?: string;
   };
+}
+
+/** Mobile has no `tError` — `t` takes a typed I18nKey, not a runtime code — so
+ *  the two codes the resolver can raise map to keys here. Kept local on
+ *  purpose: a general helper would have exactly one caller today (the coach
+ *  path at lib/coach.ts already has its own working handling). */
+const ERROR_KEYS: Record<string, I18nKey> = {
+  FOOD_NOT_FOUND: 'errors.foodNotFound',
+  FOOD_NO_NUTRITION: 'errors.foodNoNutrition',
+};
+
+function errorKeyFor(e: unknown): I18nKey {
+  return (e instanceof OffLookupError && ERROR_KEYS[e.code]) || 'barcode.failed';
 }
 
 interface Props {
@@ -82,24 +95,19 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied }: Props) {
     setError('');
     haptics.tap();
     try {
-      const result: BarcodeResult = await lookupProduct(barcode);
+      const { calories, protein, carbs, fat, productName, serving } = await lookupProduct(barcode);
       haptics.success();
       onPick({
-        calories: result.calories,
-        protein: result.protein,
-        carbs: result.carbs ?? undefined,
-        fat: result.fat ?? undefined,
-        mealLabel: result.productName,
-        serving: {
-          grams: result.grams ?? undefined,
-          source: 'barcode',
-          barcode,
-          brand: result.brand,
-          name: result.productName,
-        },
+        calories,
+        protein,
+        carbs: carbs ?? undefined,
+        fat: fat ?? undefined,
+        mealLabel: productName,
+        // Assembled by the resolver so both frontends emit the same shape.
+        serving,
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('barcode.failed'));
+      setError(t(errorKeyFor(e)));
       setBusy(false);
       // Allow another scan after a miss.
       handled.current = false;

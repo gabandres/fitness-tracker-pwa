@@ -67,6 +67,22 @@ add a term when a real ambiguity exists, not preemptively.
   [ADR-0013](docs/adr/0013-food-resolution-my-foods-library.md). NOT the same
   as the legacy meal-photo `analyzePhoto` path (deliberately de-emphasized —
   meal-photo guessing has a ~26–36% error floor).
+- **ResolvedProduct** — One Open Food Facts product reduced to a **single
+  nutriment basis**, the output of `resolveOffProduct(body, barcode)` in
+  `packages/core/src/off-product.ts` (the barcode arm of the
+  **food-resolution pipeline**). The basis precedence is the whole point:
+  per-serving when the product declares a serving weight, else per-100g, else
+  per-serving macros with `grams: null` — so the returned `grams` always
+  describes the same portion as the returned macros (ADR-0013 honest grams).
+  Carries the barcode-keyed `serving` save-context both frontends previously
+  assembled by hand. Pure: each frontend keeps its own `fetch` and scanner
+  adapter (web `BarcodeService` = `BarcodeDetector`, mobile
+  `lib/barcode.ts` + expo-camera). Failures raise `OffLookupError` with a
+  `FOOD_NOT_FOUND` / `FOOD_NO_NUTRITION` code — the module never emits a
+  user-facing string, so callers translate. **Not** the same path as
+  `functions/src/food-search.ts` `buildOffServings`, which serves the cached
+  `getFoodDetail` portion picker, emits `ServingOption[]`, and stays separate
+  by ADR-0013 step 2.
 - **FoodSearch** — The shared client for the `searchFoods` / `getFoodDetail`
   Cloud Functions (typeahead over FDC + OFF → portion picker). Lives once in
   `packages/core/src/food-search.ts`: the wire types (`FoodSearchHit`,

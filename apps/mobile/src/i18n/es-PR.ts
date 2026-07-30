@@ -244,6 +244,8 @@ export const esPR: Record<I18nKey, string> = {
   'barcode.openSettings': 'Abrir Ajustes',
   'barcode.point': 'Apunta a un código de barras',
   'barcode.failed': 'Falló la búsqueda.',
+  'errors.foodNotFound': 'Ese producto todavía no está en la base de datos de Open Food Facts.',
+  'errors.foodNoNutrition': 'Open Food Facts no tiene datos nutricionales de ese producto.',
 
   // ── body ──
   'body.todayWeighIn': 'Pesaje de hoy',

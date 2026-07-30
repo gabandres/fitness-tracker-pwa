@@ -1206,7 +1206,9 @@
     "reportNotEntitled": "Los reportes semanales son una función Pro. Actualiza para regenerar.",
     "reportTooSoon": "Se generó un reporte reciente. Podrás regenerar 6 días después del último.",
     "reportPayloadInvalid": "La solicitud del reporte no es válida. Refresca la página e intenta de nuevo.",
-    "reportGenerateFailed": "No pudimos generar el reporte. Intenta de nuevo en un minuto."
+    "reportGenerateFailed": "No pudimos generar el reporte. Intenta de nuevo en un minuto.",
+    "foodNotFound": "Ese producto todavía no está en la base de datos de Open Food Facts.",
+    "foodNoNutrition": "Open Food Facts no tiene datos nutricionales de ese producto."
   },
   "tabs": {
     "log": "registro",
