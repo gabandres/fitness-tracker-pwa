@@ -64,7 +64,19 @@ __screenshots__/
 .DS_Store
 Thumbs.db
 .aider*
-.claude/
+# Claude Code local state stays out (settings.local.json, worktrees, task
+# locks) but the skills are project documentation — they encode the repo's
+# own workflows, so they are tracked. Keep credential VALUES and locations
+# out of them; this repo is public (see CLAUDE.local.md).
+/.claude/*
+!/.claude/skills/
+# Nested workspace-level .claude dirs stay ignored entirely. (The root rules
+# above must be anchored with a leading slash, and the ignore must be on the
+# dir CONTENTS — git will not descend into an ignored directory, so a bare
+# `.claude/` would make the negation inert.)
+apps/**/.claude/
+packages/**/.claude/
+functions/.claude/
 firestore-debug.log
 
 # flattened-wrapper leftovers (not part of the project)
