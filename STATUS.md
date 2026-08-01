@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-07-31 · **Owns:** current state only. Not history (`CHANGELOG.md`),
+**Updated:** 2026-08-01 · **Owns:** current state only. Not history (`CHANGELOG.md`),
 not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`).
 
 If a statement here conflicts with any other file in this repo, **this file wins** —
@@ -66,10 +66,10 @@ review those commits fixed.
 - iOS cannot be built on this machine. Windows, no Xcode. There is no local path.
 - iOS builds come from **EAS cloud, free tier**: 15 iOS builds/month, low-priority
   queue, 1 concurrent, 45-minute timeout.
-- **iOS is 15/15 — exhausted. Measured 2026-07-29 from the API, not from a doc.**
-  Android is 8/15. The billing period is **2026-07-01 → 2026-08-01**, so the reset
-  is **2026-08-01** and nothing changes it. Do not start an iOS build before then;
-  it will be refused, and the queue position is not the constraint, the counter is.
+- **The quota reset landed. iOS is 0/15, Android 0/15 (0/30 total) for the
+  2026-08-01 → 2026-09-01 period — measured 2026-08-01 from the API.** The counter
+  is no longer the constraint; see the credentials blocker directly below, which
+  is.
 
 ```sh
 cd apps/mobile && npx eas-cli account:usage gabandres --non-interactive
@@ -81,6 +81,24 @@ cd apps/mobile && npx eas-cli account:usage gabandres --non-interactive
   `eas-cli --help`, which lists only the `account` topic.
 - Android **does** build locally and free, via Gradle directly — *not* through
   `eas build --local`, which refuses to run on Windows. See §6.
+- **The first iOS build must be started interactively, by a human.** Attempted
+  2026-08-01 and refused *before* the build was created (no quota spent): the
+  scheme has **two** targets and the widget one has never had credentials issued.
+
+  ```
+  Setting up credentials for target Today (fit.ignia.app.widget)
+  Failed to set up credentials. You're in non-interactive mode. EAS CLI couldn't
+  find any credentials suitable for internal distribution.
+  ```
+
+  Each target needs its **own provisioning profile** (they may share the
+  distribution certificate), and minting the widget's requires an Apple login EAS
+  cannot do unattended. Run it once **without** `--non-interactive`, answer the
+  Apple prompts, and let EAS generate and store the profile; every later build can
+  go back to `--non-interactive`. `device:list` also needs
+  `--apple-team-id AE6TTXW92K` in non-interactive mode.
+- One iPhone is registered for ad-hoc distribution (UDID `00008140-0016199614C3801C`),
+  so the development build has a target device once the profile exists.
 - Budget **two** builds for the next release: one `development` for device QA, one
   `production`. Shipping never-executed Swift straight to review is how the last two
   rejections happened, and each rejection cost a build anyway.
@@ -93,7 +111,7 @@ cd apps/mobile && npx eas-cli build:list --platform ios --limit 5   # what exist
 
 | # | Work | Blocked on |
 |---|---|---|
-| — | Next iOS binary (everything in §2) | EAS quota reset **2026-08-01** (verified 07-29: iOS 15/15), then 2 builds |
+| — | Next iOS binary (everything in §2) | **Quota is no longer the blocker** (0/15 as of 08-01). Now: one **interactive** EAS run to issue the widget target's provisioning profile — see §3 |
 | #36 | Verify the shipped widget on a physical iPhone | the build above; owner's iPhone |
 | #46 | Read the watch layouts on a simulator | **a Mac with Xcode** (currently: borrow one) |
 | #47 | Compile the generated watch targets in Xcode | **a Mac with Xcode**; branch `probe/watch-compile-47` stages it |
@@ -152,6 +170,19 @@ do once.
 - **Privacy labels must match reality** — health data + email, no Photos.
 
 ## 7. Commands that answer questions faster than reading
+
+**The emulator suites (`test:ledger`, `test:rules`) need JDK 21+.** `firebase-tools`
+dropped Java <21, and this machine's PATH `java` is 17, so both suites fail with
+`firebase-tools no longer supports Java version before 21` — a toolchain error that
+reads like a broken test. JDK 21 **is** installed; just point at it first:
+
+```sh
+export PATH="/c/Program Files/Microsoft/jdk-21.0.11.10-hotspot/bin:$PATH"
+```
+
+Run the two suites **separately**, not back to back — the second one inherits the
+first's emulator port before it is released and reports a phantom failed file.
+
 
 ```sh
 npm start                  # web dev (emulators: npm run dev)
