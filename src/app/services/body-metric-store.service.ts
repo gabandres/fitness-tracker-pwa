@@ -1,4 +1,5 @@
 import { Injectable, Signal, computed, inject, signal } from '@angular/core';
+import { clampSleepHours, clampWaterFlOz } from '@macrolog/core';
 import { LEDGER_PORT } from '../ledger/ports/ledger.port';
 import { Measurement } from './firebase.service';
 import { isStorableWeight, WEIGHT_ABS_MIN_LB, WEIGHT_ABS_MAX_LB } from '../utils/weight-validation';
@@ -91,7 +92,9 @@ export class BodyMetricStore {
 
   /** Overwrite the water intake total for a specific day (US fluid ounces). */
   async setDailyWater(dateKey: string, flOz: number): Promise<void> {
-    const clamped = Math.max(0, Math.min(676, Math.round(flOz)));
+    // Clamped here as well as in the adapter, so the optimistic signal update
+    // below shows the value that actually got stored.
+    const clamped = clampWaterFlOz(flOz);
     await this.fb.setDailyWater(dateKey, clamped);
     this._dailyWater.update((prev) => ({ ...prev, [dateKey]: clamped }));
   }
@@ -109,7 +112,7 @@ export class BodyMetricStore {
    *  half-hour steps. Canonical record — the workout-finish mirror writes
    *  here too (see FitnessStore.finishWorkout). */
   async setDailySleep(dateKey: string, hours: number): Promise<void> {
-    const clamped = Math.max(0, Math.min(24, Math.round(hours * 2) / 2));
+    const clamped = clampSleepHours(hours);
     await this.fb.setDailySleep(dateKey, clamped);
     this._dailySleep.update((prev) => ({ ...prev, [dateKey]: clamped }));
   }

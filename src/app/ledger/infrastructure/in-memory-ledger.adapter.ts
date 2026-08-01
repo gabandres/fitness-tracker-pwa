@@ -1,4 +1,5 @@
 import { Injectable, computed, signal } from '@angular/core';
+import { clampSleepHours, clampWaterFlOz } from '@macrolog/core';
 import type { LedgerPort } from '../ports/ledger.port';
 import type {
   Exercise,
@@ -274,7 +275,9 @@ export class InMemoryLedgerAdapter implements LedgerPort {
   }
 
   async setDailyWater(dateKey: string, flOz: number): Promise<void> {
-    this.water[dateKey] = Math.max(0, Math.min(676, Math.round(flOz)));
+    // Same shared clamp the Firestore adapter applies — a test double that
+    // clamps differently from the thing it doubles is worse than none.
+    this.water[dateKey] = clampWaterFlOz(flOz);
   }
 
   async getDailySleep(): Promise<Record<string, number>> {
@@ -282,7 +285,7 @@ export class InMemoryLedgerAdapter implements LedgerPort {
   }
 
   async setDailySleep(dateKey: string, hours: number): Promise<void> {
-    this.sleep[dateKey] = Math.max(0, Math.min(24, Math.round(hours * 2) / 2));
+    this.sleep[dateKey] = clampSleepHours(hours);
   }
 
   async getPresets(): Promise<MealPreset[]> {

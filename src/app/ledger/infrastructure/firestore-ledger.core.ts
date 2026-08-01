@@ -46,15 +46,38 @@ import type {
 import { normalizeClusterGroups } from '../../utils/cluster-groups';
 import { pruneUndefined as pruneUndefinedCore } from '@macrolog/core/prune-undefined';
 import {
+  BATCH_CHUNK,
+  clampSleepHours,
+  clampWaterFlOz,
   oldestFirst,
   toCustomFood,
+  toCustomFoodDoc,
   toDailyLog,
+  toExerciseDoc,
+  toLogDoc,
+  toLogPatch,
   toMeasurement,
+  toMeasurementDoc,
+  toMeasurementPatch,
+  toPresetDoc,
+  toSessionDoc,
+  toSessionPatch,
+  toTemplateDoc,
+  toTemplatePatch,
   toWeeklyReport,
   toWorkoutExercise,
   toWorkoutTemplate,
   toWorkoutSession,
+  type DocCodec,
 } from '@macrolog/core';
+
+/** The two SDK values the shared writers can't construct themselves, bound to
+ *  this edge's Firestore SDK once (see `@macrolog/core/firestore-writers`).
+ *  The Expo adapter binds the identical pair against its own SDK copy. */
+const CODEC: DocCodec<Timestamp> = {
+  timestamp: (d) => Timestamp.fromDate(d),
+  remove: () => deleteField(),
+};
 
 /**
  * Framework-free Firestore I/O core for the ledger adapter (issue #6
@@ -124,18 +147,7 @@ export class FirestoreLedgerCore {
   // ─── Daily logs ────────────────────────────────────────────────
 
   async addLog(entry: LogEntry): Promise<string> {
-    const data: Record<string, unknown> = {
-      calories: entry.calories,
-      timestamp: Timestamp.fromDate(entry.timestamp ?? new Date()),
-    };
-    if (entry.weight != null) data['weight'] = entry.weight;
-    if (entry.protein != null) data['protein'] = entry.protein;
-    if (entry.carbs != null) data['carbs'] = entry.carbs;
-    if (entry.fat != null) data['fat'] = entry.fat;
-    if (entry.exerciseCompleted) data['exerciseCompleted'] = true;
-    if (entry.mealLabel) data['mealLabel'] = entry.mealLabel;
-    if (entry.mealType) data['mealType'] = entry.mealType;
-    const ref = await addDoc(this.userCollection('dailyLogs'), data);
+    const ref = await addDoc(this.userCollection('dailyLogs'), toLogDoc(entry, CODEC));
     return ref.id;
   }
 
@@ -149,21 +161,7 @@ export class FirestoreLedgerCore {
   }
 
   async updateLog(logId: string, entry: LogEntry): Promise<void> {
-    const data: Record<string, unknown> = {
-      calories: entry.calories,
-      protein: entry.protein != null ? entry.protein : deleteField(),
-      carbs: entry.carbs != null ? entry.carbs : deleteField(),
-      fat: entry.fat != null ? entry.fat : deleteField(),
-      exerciseCompleted: entry.exerciseCompleted ? true : deleteField(),
-      // Migrate away from legacy fields on every edit.
-      liftCompleted: deleteField(),
-      cardioCompleted: deleteField(),
-      mealLabel: entry.mealLabel ? entry.mealLabel : deleteField(),
-      mealType: entry.mealType ? entry.mealType : deleteField(),
-    };
-    if (entry.weight != null) data['weight'] = entry.weight;
-    if (entry.timestamp != null) data['timestamp'] = Timestamp.fromDate(entry.timestamp);
-    await updateDoc(this.userDocIn('dailyLogs', logId), data);
+    await updateDoc(this.userDocIn('dailyLogs', logId), toLogPatch(entry, CODEC));
   }
 
   async deleteLog(logId: string): Promise<void> {
@@ -171,32 +169,20 @@ export class FirestoreLedgerCore {
   }
 
   /**
-   * Bulk-create log rows (switcher import). Batched in ≤450-write chunks
-   * to stay under Firestore's 500-op limit, same pattern as
-   * mergeExercises. Field semantics mirror addLog exactly. Returns the
-   * number of rows written. NOT atomic across chunks — a mid-import
-   * failure leaves earlier chunks committed (caller surfaces the count).
+   * Bulk-create log rows (switcher import). Batched in ≤`BATCH_CHUNK`-write
+   * chunks to stay under Firestore's 500-op limit, same pattern as
+   * mergeExercises. Rows are serialized by the same `toLogDoc` addLog uses, so
+   * an imported row and a typed one cannot differ. Returns the number of rows
+   * written. NOT atomic across chunks — a mid-import failure leaves earlier
+   * chunks committed (caller surfaces the count).
    */
   async importLogs(entries: readonly LogEntry[]): Promise<number> {
     const coll = this.userCollection('dailyLogs');
     let written = 0;
-    for (let i = 0; i < entries.length; i += 450) {
+    for (let i = 0; i < entries.length; i += BATCH_CHUNK) {
       const batch = writeBatch(this.firestore);
-      const chunk = entries.slice(i, i + 450);
-      for (const entry of chunk) {
-        const data: Record<string, unknown> = {
-          calories: entry.calories,
-          timestamp: Timestamp.fromDate(entry.timestamp ?? new Date()),
-        };
-        if (entry.weight != null) data['weight'] = entry.weight;
-        if (entry.protein != null) data['protein'] = entry.protein;
-        if (entry.carbs != null) data['carbs'] = entry.carbs;
-        if (entry.fat != null) data['fat'] = entry.fat;
-        if (entry.exerciseCompleted) data['exerciseCompleted'] = true;
-        if (entry.mealLabel) data['mealLabel'] = entry.mealLabel;
-        if (entry.mealType) data['mealType'] = entry.mealType;
-        batch.set(doc(coll), data);
-      }
+      const chunk = entries.slice(i, i + BATCH_CHUNK);
+      for (const entry of chunk) batch.set(doc(coll), toLogDoc(entry, CODEC));
       await batch.commit();
       written += chunk.length;
     }
@@ -246,9 +232,7 @@ export class FirestoreLedgerCore {
   }
 
   async setDailyWater(dateKey: string, flOz: number): Promise<void> {
-    await setDoc(this.userDocIn('dailyWater', dateKey), {
-      flOz: Math.max(0, Math.min(676, Math.round(flOz))),
-    });
+    await setDoc(this.userDocIn('dailyWater', dateKey), { flOz: clampWaterFlOz(flOz) });
   }
 
   // ─── Daily sleep ──────────────────────────────────────────────
@@ -268,9 +252,7 @@ export class FirestoreLedgerCore {
   }
 
   async setDailySleep(dateKey: string, hours: number): Promise<void> {
-    await setDoc(this.userDocIn('dailySleep', dateKey), {
-      hours: Math.max(0, Math.min(24, Math.round(hours * 2) / 2)),
-    });
+    await setDoc(this.userDocIn('dailySleep', dateKey), { hours: clampSleepHours(hours) });
   }
 
   // ─── Meal presets ─────────────────────────────────────────────
@@ -281,14 +263,7 @@ export class FirestoreLedgerCore {
   }
 
   async addPreset(preset: Omit<MealPreset, 'id'>): Promise<string> {
-    const data: Record<string, unknown> = {
-      name: preset.name,
-      calories: preset.calories,
-    };
-    if (preset.protein != null) data['protein'] = preset.protein;
-    if (preset.carbs != null) data['carbs'] = preset.carbs;
-    if (preset.fat != null) data['fat'] = preset.fat;
-    const ref = await addDoc(this.userCollection('presets'), data);
+    const ref = await addDoc(this.userCollection('presets'), toPresetDoc(preset));
     return ref.id;
   }
 
@@ -307,19 +282,7 @@ export class FirestoreLedgerCore {
    *  write is a deterministic upsert at that id (de-dup + re-scan match);
    *  omit it for an auto-id. `createdAt` maps Date → Timestamp at the seam. */
   async addCustomFood(food: Omit<CustomFood, 'id'>, id?: string | null): Promise<string> {
-    const data: Record<string, unknown> = {
-      name: food.name,
-      servingSize: food.servingSize,
-      servingUnit: food.servingUnit,
-      calories: food.calories,
-      source: food.source,
-      createdAt: Timestamp.fromDate(food.createdAt),
-    };
-    if (food.brand != null) data['brand'] = food.brand;
-    if (food.barcode != null) data['barcode'] = food.barcode;
-    if (food.protein != null) data['protein'] = food.protein;
-    if (food.carbs != null) data['carbs'] = food.carbs;
-    if (food.fat != null) data['fat'] = food.fat;
+    const data = toCustomFoodDoc(food, CODEC);
     if (id) {
       await setDoc(this.userDocIn('customFoods', id), data);
       return id;
@@ -353,26 +316,13 @@ export class FirestoreLedgerCore {
   }
 
   async addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<string> {
-    const data: Record<string, unknown> = { timestamp: Timestamp.now() };
-    if (entry.waist != null) data['waist'] = entry.waist;
-    if (entry.chest != null) data['chest'] = entry.chest;
-    if (entry.bicep != null) data['bicep'] = entry.bicep;
-    if (entry.hip != null) data['hip'] = entry.hip;
-    if (entry.neck != null) data['neck'] = entry.neck;
-    const ref = await addDoc(this.userCollection('measurements'), data);
+    const ref = await addDoc(this.userCollection('measurements'), toMeasurementDoc(entry, CODEC));
     return ref.id;
   }
 
   async updateMeasurement(id: string, entry: Omit<Measurement, 'id' | 'date'>): Promise<void> {
-    // Leave `timestamp` untouched so the row keeps its original date; set
-    // provided fields and remove any the caller cleared.
-    await updateDoc(this.userDocIn('measurements', id), {
-      waist: entry.waist != null ? entry.waist : deleteField(),
-      chest: entry.chest != null ? entry.chest : deleteField(),
-      bicep: entry.bicep != null ? entry.bicep : deleteField(),
-      hip: entry.hip != null ? entry.hip : deleteField(),
-      neck: entry.neck != null ? entry.neck : deleteField(),
-    });
+    // The patch leaves `timestamp` alone so the row keeps its original date.
+    await updateDoc(this.userDocIn('measurements', id), toMeasurementPatch(entry, CODEC));
   }
 
   async deleteMeasurement(id: string): Promise<void> {
@@ -387,15 +337,10 @@ export class FirestoreLedgerCore {
   }
 
   async addExercise(exercise: ExerciseDraft): Promise<string> {
-    const data: ExerciseDoc = {
-      name: exercise.name,
-      muscles: exercise.muscles ?? [],
-      defaultCues: exercise.defaultCues ?? [],
-      logStyle: exercise.logStyle,
-      seedKey: exercise.seedKey,
-      createdAt: Timestamp.now(),
-    };
-    const ref = await addDoc(this.userCollection('exercises'), pruneUndefined(data));
+    const ref = await addDoc(
+      this.userCollection('exercises'),
+      pruneUndefined(toExerciseDoc(exercise, CODEC)),
+    );
     return ref.id;
   }
 
@@ -411,7 +356,8 @@ export class FirestoreLedgerCore {
    * Merge exercise `fromId` into `toId`: rewrite every session and template
    * that references the victim so it points at the survivor (and adopts the
    * survivor's display name), then delete the victim catalog doc. Writes are
-   * chunked into ≤450-op batches to stay under Firestore's 500-write limit.
+   * chunked into ≤`BATCH_CHUNK`-op batches to stay under Firestore's 500-write
+   * limit.
    */
   async mergeExercises(fromId: string, toId: string): Promise<void> {
     if (fromId === toId) return;
@@ -442,9 +388,9 @@ export class FirestoreLedgerCore {
       if (next) ops.push({ ref: d.ref, exercises: next });
     });
 
-    for (let i = 0; i < ops.length; i += 450) {
+    for (let i = 0; i < ops.length; i += BATCH_CHUNK) {
       const batch = writeBatch(this.firestore);
-      for (const op of ops.slice(i, i + 450)) {
+      for (const op of ops.slice(i, i + BATCH_CHUNK)) {
         batch.update(op.ref, pruneUndefined({ exercises: op.exercises, updatedAt: Timestamp.now() }));
       }
       await batch.commit();
@@ -461,33 +407,17 @@ export class FirestoreLedgerCore {
   }
 
   async addTemplate(template: TemplateDraft): Promise<string> {
-    const now = Timestamp.now();
-    const data = pruneUndefined({
-      name: template.name,
-      notes: template.notes,
-      restMiniSec: template.restMiniSec,
-      restClusterSec: template.restClusterSec,
-      exercises: template.exercises ?? [],
-      seedKey: template.seedKey,
-      createdAt: now,
-      updatedAt: now,
-    });
-    const ref = await addDoc(this.userCollection('workoutTemplates'), data);
+    const ref = await addDoc(
+      this.userCollection('workoutTemplates'),
+      pruneUndefined(toTemplateDoc(template, CODEC)),
+    );
     return ref.id;
   }
 
   async updateTemplate(id: string, template: TemplateDraft): Promise<void> {
     // Full overwrite of mutable fields + bump updatedAt; createdAt left
     // untouched by merge.
-    const data = pruneUndefined({
-      name: template.name,
-      notes: template.notes,
-      restMiniSec: template.restMiniSec,
-      restClusterSec: template.restClusterSec,
-      exercises: template.exercises ?? [],
-      seedKey: template.seedKey,
-      updatedAt: Timestamp.now(),
-    });
+    const data = pruneUndefined(toTemplatePatch(template, CODEC));
     await setDoc(this.userDocIn('workoutTemplates', id), data, { merge: true });
   }
 
@@ -530,36 +460,16 @@ export class FirestoreLedgerCore {
   }
 
   async startSession(session: SessionDraft): Promise<string> {
-    const now = Timestamp.now();
-    const data = pruneUndefined({
-      status: session.status,
-      templateId: session.templateId,
-      templateName: session.templateName,
-      timestamp: Timestamp.fromDate(session.date),
-      bodyweight: session.bodyweight,
-      sleepHours: session.sleepHours,
-      durationMin: session.durationMin,
-      exercises: session.exercises ?? [],
-      nextNotes: session.nextNotes,
-      createdAt: now,
-      updatedAt: now,
-    });
-    const ref = await addDoc(this.userCollection('workoutSessions'), data);
+    const ref = await addDoc(
+      this.userCollection('workoutSessions'),
+      pruneUndefined(toSessionDoc(session, CODEC)),
+    );
     return ref.id;
   }
 
   async updateSession(id: string, patch: Partial<SessionDraft>): Promise<void> {
-    const data: Record<string, unknown> = { updatedAt: Timestamp.now() };
-    if (patch.status !== undefined) data['status'] = patch.status;
-    if (patch.templateId !== undefined) data['templateId'] = patch.templateId;
-    if (patch.templateName !== undefined) data['templateName'] = patch.templateName;
-    if (patch.date !== undefined) data['timestamp'] = Timestamp.fromDate(patch.date);
-    if (patch.bodyweight !== undefined) data['bodyweight'] = patch.bodyweight;
-    if (patch.sleepHours !== undefined) data['sleepHours'] = patch.sleepHours;
-    if (patch.durationMin !== undefined) data['durationMin'] = patch.durationMin;
-    if (patch.exercises !== undefined) data['exercises'] = patch.exercises;
-    if (patch.nextNotes !== undefined) data['nextNotes'] = patch.nextNotes;
-    await setDoc(this.userDocIn('workoutSessions', id), pruneUndefined(data), { merge: true });
+    const data = pruneUndefined(toSessionPatch(patch, CODEC));
+    await setDoc(this.userDocIn('workoutSessions', id), data, { merge: true });
   }
 
   async deleteSession(id: string): Promise<void> {

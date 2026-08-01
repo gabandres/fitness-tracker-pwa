@@ -62,8 +62,29 @@ export const flOzToLiters = (flOz: number): number => flOz / FL_OZ_PER_LITER;
 export const fractionToPercent = (f: number): number => f * 100;
 export const percentToFraction = (p: number): number => p / 100;
 
-/** Water clamp — mirrors the ledger's `dailyWater` bound (fl oz). */
+/** Upper bound on a day's water, in fl oz (~5 gal). The canonical bound: the
+ *  ledger's `dailyWater` writes clamp to it via {@link clampWaterFlOz}, and
+ *  firestore.rules mirrors the same number. */
 export const WATER_MAX_FLOZ = 676;
+
+/** Upper bound on a day's sleep, in hours. */
+export const SLEEP_MAX_HOURS = 24;
+
+/**
+ * Clamp a day's water to the storable range and round to whole fl oz. Applied
+ * on every write path — both Firestore adapters, the in-memory adapter, and
+ * the store's own pre-write clamp — so a fat-fingered entry can't reach a
+ * chart, and no two of those sites can disagree about what "too much" is.
+ */
+export function clampWaterFlOz(flOz: number): number {
+  return Math.max(0, Math.min(WATER_MAX_FLOZ, Math.round(flOz)));
+}
+
+/** Clamp a day's sleep to `[0, 24]` hours, snapped to the half hour the UI
+ *  offers. Same four write paths as {@link clampWaterFlOz}. */
+export function clampSleepHours(hours: number): number {
+  return Math.max(0, Math.min(SLEEP_MAX_HOURS, Math.round(hours * 2) / 2));
+}
 
 /** Activity clamps. Both are generous by design — the point is to reject
  *  corrupt or duplicated data, not to referee an ultramarathon. The world
@@ -83,7 +104,7 @@ export function isStorableHealthValue(kind: HealthKind, value: number): boolean 
     case 'weight':
       return isStorableWeight(value);
     case 'sleep':
-      return value > 0 && value <= 24;
+      return value > 0 && value <= SLEEP_MAX_HOURS;
     case 'water':
       return value >= 0 && value <= WATER_MAX_FLOZ;
     case 'bodyFat':

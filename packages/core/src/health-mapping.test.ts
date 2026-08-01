@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DAILY_FOLD,
+  DAILY_FOLD, SLEEP_MAX_HOURS, WATER_MAX_FLOZ,
+  clampSleepHours, clampWaterFlOz,
   fractionToPercent, flOzToLiters, isStorableHealthValue, kgToLb, lbToKg, litersToFlOz,
   percentToFraction, reduceImportedSamples, valuesToApply,
   type HealthKind, type HealthSample,
@@ -204,5 +205,22 @@ describe('activity import (steps / active energy)', () => {
       sample({ kind: 'steps', dateKey: '2026-07-01', value: 3000, endMs: 200 }),
     ]);
     expect(out['2026-07-01']).toBe(3000);
+  });
+});
+
+describe('write-path clamps', () => {
+  // Applied by both Firestore adapters, the in-memory adapter and the store's
+  // pre-write clamp — these are the bound, not a copy of it.
+  it('clamps water to [0, WATER_MAX_FLOZ] and rounds to whole fl oz', () => {
+    expect(clampWaterFlOz(-5)).toBe(0);
+    expect(clampWaterFlOz(64.4)).toBe(64);
+    expect(clampWaterFlOz(WATER_MAX_FLOZ + 1)).toBe(WATER_MAX_FLOZ);
+  });
+
+  it('clamps sleep to [0, 24] and snaps to the half hour', () => {
+    expect(clampSleepHours(-1)).toBe(0);
+    expect(clampSleepHours(7.3)).toBe(7.5);
+    expect(clampSleepHours(7.1)).toBe(7);
+    expect(clampSleepHours(SLEEP_MAX_HOURS + 3)).toBe(SLEEP_MAX_HOURS);
   });
 });
