@@ -84,6 +84,22 @@ type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'error';
           </div>
         }
 
+        <!-- Account deletion, spelled out. This is the page Google Play's
+             "delete account URL" listing field points at, and the policy
+             requires the STEPS to be legible to a signed-OUT visitor — which
+             a reviewer always is. Everything below therefore renders
+             unconditionally; the danger-zone card further down is the control
+             itself, and it still requires a session. -->
+        <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('privacy.deleteStepsHeading') }}</h2>
+        <p>{{ t('privacy.deleteStepsIntro') }}</p>
+        <ul>
+          <li [innerHTML]="t('privacy.deleteStepsApp')"></li>
+          <li [innerHTML]="t('privacy.deleteStepsWeb')"></li>
+          <li [innerHTML]="t('privacy.deleteStepsNoAccess')"></li>
+        </ul>
+        <p [innerHTML]="t('privacy.deleteWhat')"></p>
+        <p [innerHTML]="t('privacy.deleteRetention')"></p>
+
         <h2 class="v2-h2 mt-6 mb-2" style="color: var(--v2-accent);">{{ t('privacy.gdprHeading') }}</h2>
         <p>{{ t('privacy.gdprBody') }}</p>
         <ul>
