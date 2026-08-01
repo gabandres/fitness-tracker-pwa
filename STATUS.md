@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-07-29 · **Owns:** current state only. Not history (`CHANGELOG.md`),
+**Updated:** 2026-07-31 · **Owns:** current state only. Not history (`CHANGELOG.md`),
 not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`).
 
 If a statement here conflicts with any other file in this repo, **this file wins** —
@@ -18,7 +18,7 @@ work because a plan doc was read as a status doc.
 | Web PWA `ignia.fit` | **Live**, bilingual (EN + es-PR), **105** prerendered pages (en 52 / es 53), 114-URL sitemap | `npm run build` prints both counts |
 | iOS App Store | **1.0.0, build 7** (uploaded 2026-07-20, `READY_FOR_SALE`), from commit `168e0394` | ASC command below |
 | iOS 1.1.0 | **Metadata shell only** — `PREPARE_FOR_SUBMISSION`, **no binary attached** | ASC command below |
-| Android / Play | **Not launched.** No Play account, no device, no closed-test cohort | — |
+| Android / Play | **Not launched.** Play Console account exists, **developer verification complete** and `fit.ignia.app` **package name registered** (both 2026-07-31), proven with an APK signed by `apps/mobile/credentials/dev.keystore` (alias `macrolog-dev`, SHA-256 `75:4B:03:19:…:F6:D8`) — **that keystore is now load-bearing app identity; it is git-ignored and exists in one place**. App entry created (`4975181896468259775`), no AAB, no closed-test cohort yet. **Personal developer account → production access requires closed testing with 12 testers opted in 14 CONTINUOUS days** ([policy](https://support.google.com/googleplay/android-developer/answer/14151465)); the clock cannot start until a build is in a closed track, so the AAB is the critical path, not the paperwork | Play Console → Android developer verification → Package names |
 | Cloud Functions / rules | Deployed, project `fitness-tracker-gb-1775407101` | `firebase deploy --only functions --dry-run` |
 
 **The `1.1.0` trap.** `app.json` says 1.1.0 and ASC has a 1.1.0 version page, but
@@ -98,7 +98,11 @@ cd apps/mobile && npx eas-cli build:list --platform ios --limit 5   # what exist
 | #46 | Read the watch layouts on a simulator | **a Mac with Xcode** (currently: borrow one) |
 | #47 | Compile the generated watch targets in Xcode | **a Mac with Xcode**; branch `probe/watch-compile-47` stages it |
 | — | App Store screenshots | owner, on device (`store-assets/README.md`) |
-| — | Play launch | Play account + 12 testers × 14 consecutive days |
+| — | Play launch — **first AAB** | `bundleRelease` dies on Windows `MAX_PATH`: the `react-native-keyboard-controller` C++ object path is ~355 chars. `LongPathsEnabled=1` is set but **needs a reboot** to take effect; if it still fails after that, ninja itself is the cap → build on EAS. Signing: `credentials/dev.keystore` as upload key |
+| — | Play launch — **12 testers × 14 consecutive days** | owner recruiting. Personal account, so production access is gated on it. Clock cannot start until an AAB is in a closed track — **this is the critical path** |
+| — | Play launch — **Data safety form** | steps 1–2 saved as draft; steps 3–5 unanswered. Declare: Personal info (Name, Email, User IDs) + Health and fitness (Health info, Fitness info); collected, **not shared**, required, purpose App functionality + Account management. Nothing else — no analytics/crash SDK on mobile, notifications are local-only, photo-scan is flag-off |
+| — | Play launch — **delete-account URL** | set to `ignia.fit/privacy`; Google requires that page to prominently show the deletion steps. Unverified — either confirm or add the section |
+| — | Play launch — **store listing graphics** | feature graphic 1024×500 does not exist; the iOS screenshots are 1320×2868 (2.17:1) and exceed Play's 2:1 cap, so they cannot be reused as-is |
 
 **Apple glanceable surfaces (map #31).** 13 of its 16 tickets are **closed** — the
 transport, staleness, layouts, tap targets, review surface and sign-out privacy are
