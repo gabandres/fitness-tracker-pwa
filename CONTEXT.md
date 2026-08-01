@@ -108,9 +108,25 @@ add a term when a real ambiguity exists, not preemptively.
   un-barreled `workout.ts` read-model types and do the field-copy + `toDate`
   only; the web adapter post-applies `normalizeClusterGroups` where mobile does
   not, so that one asymmetry stays at the call site, not in the shared mapper.
+- **Firestore writers** — The shared domain→doc **write-path** serializers in
+  `packages/core/src/firestore-writers.ts`, the twin of the mappers above. Every
+  stored shape both apps write is assembled there (`toLogDoc`/`toLogPatch`,
+  `toPresetDoc`, `toCustomFoodDoc`, `toMeasurementDoc`/`Patch`, `toExerciseDoc`,
+  `toTemplateDoc`/`Patch`, `toSessionDoc`/`Patch`) plus `BATCH_CHUNK`, so a new
+  field lands once and neither adapter can drift past `firestore.rules`.
+  Where a read could recognize a `Timestamp` structurally, a write must
+  **produce** SDK values, so each adapter injects a **DocCodec**
+  (`{ timestamp(d), remove() }` → `Timestamp.fromDate` / `deleteField`) — the
+  same injection `prune-undefined` uses for `isOpaque`. Two conventions: create
+  paths return a typed doc while **patch** paths return a loose record (a
+  sentinel-or-value field can't be typed honestly), and `now` is always a
+  parameter, never an SDK `now()` call, so stamps stay assertable. The adapters
+  keep all I/O, the collection paths, their `pruneUndefined` binding, and
+  `mergeExercises` (a rewrite rule over fetched docs, not a serializer).
 - **Legacy log fields** — `liftCompleted` and `cardioCompleted` exist on
   historic docs. New writes only set `exerciseCompleted`. Aggregation
-  treats any of the three as "exercised that day".
+  treats any of the three as "exercised that day". `toLogPatch` removes both on
+  every edit, so any row that gets touched migrates forward.
 
 ## Time windows over logs
 
@@ -265,8 +281,16 @@ These three windows look similar and are NOT interchangeable. See
   **Firebase Storage** at `users/{uid}/photos/{date}.jpg`. No longer written by
   either app; Storage is deny-all and account deletion still purges any legacy
   `users/{uid}/photos/` bytes (`functions/src/gdpr.ts`).
-- **Water** — Stored in ml under `users/{uid}/dailyWater/{YYYY-MM-DD}`.
-  Capped 0–20,000 ml at write time.
+- **Water** — Stored in **US fluid ounces** under
+  `users/{uid}/dailyWater/{YYYY-MM-DD}` as `{ flOz }` (the app is imperial
+  throughout). Docs written before the 2026-06 unit migration carry `{ ml }`;
+  reads fall back to converting them, so an unrewritten legacy doc still
+  renders. Every write clamps to `[0, WATER_MAX_FLOZ]` (676 fl oz, ~5 gal,
+  mirrored in `firestore.rules`) via `clampWaterFlOz` in
+  `packages/core/src/health-mapping.ts` — the canonical bound, applied by both
+  Firestore adapters, the in-memory adapter, and `BodyMetricStore`. Sleep is
+  the same pattern: `{ hours }` per date, `clampSleepHours` → `[0, 24]` snapped
+  to the half hour.
 - **FastWindow** — Active fasting window, target 16h. Owned by
   `FastingStore`; profile carries `fastStartedAt`. `isFasting()` is
   computed from the start time being non-null.

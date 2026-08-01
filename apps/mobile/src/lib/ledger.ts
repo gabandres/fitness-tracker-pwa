@@ -28,16 +28,31 @@ import {
   type RefineTargetsSubmission,
   type UnitSystem,
   type WeeklyReport,
+  type DocCodec,
+  type MeasurementInput,
   ACTIVE_ENERGY_MAX_KCAL,
+  BATCH_CHUNK,
   STEPS_MAX,
   clampCutPace,
+  clampSleepHours,
+  clampWaterFlOz,
   localDateKey,
   oldestFirst,
   pruneUndefined as pruneUndefinedCore,
   toCustomFood,
+  toCustomFoodDoc,
   toDailyLog,
   toDomainProfile,
+  toExerciseDoc,
+  toLogDoc,
+  toLogPatch,
   toMeasurement,
+  toMeasurementDoc,
+  toPresetDoc,
+  toSessionDoc,
+  toSessionPatch,
+  toTemplateDoc,
+  toTemplatePatch,
   toWeeklyReport,
   // Shared workout doc→domain mappers (arch review E). Mobile does NOT
   // normalize cluster groups (the web adapter does), so it uses these directly.
@@ -74,6 +89,15 @@ const reportsCol = (uid: string) => collection(db, 'users', uid, 'reports');
 const userDoc = (uid: string) => doc(db, 'users', uid);
 
 type Unsub = () => void;
+
+/** The two SDK values the shared writers can't construct themselves, bound to
+ *  this edge's Firestore SDK once (see `@macrolog/core/firestore-writers`).
+ *  The PWA adapter binds the identical pair against @angular/fire's SDK copy,
+ *  which is why both apps emit byte-identical docs. */
+const CODEC: DocCodec<Timestamp> = {
+  timestamp: (d) => Timestamp.fromDate(d),
+  remove: () => deleteField(),
+};
 
 /** Live-subscribe to the latest `count` log rows, delivered OLDEST-FIRST
  *  (matches the ledger seam contract). Doc → domain mapping + the oldest-first
@@ -112,57 +136,32 @@ export function subscribeLatestReport(
   );
 }
 
-function logData(entry: LogEntry): Record<string, unknown> {
-  const data: Record<string, unknown> = {
-    calories: entry.calories,
-    timestamp: Timestamp.fromDate(entry.timestamp ?? new Date()),
-  };
-  if (entry.weight != null) data['weight'] = entry.weight;
-  if (entry.protein != null) data['protein'] = entry.protein;
-  if (entry.carbs != null) data['carbs'] = entry.carbs;
-  if (entry.fat != null) data['fat'] = entry.fat;
-  if (entry.exerciseCompleted) data['exerciseCompleted'] = true;
-  if (entry.mealLabel) data['mealLabel'] = entry.mealLabel;
-  if (entry.mealType) data['mealType'] = entry.mealType;
-  return data;
-}
-
 export async function addLog(uid: string, entry: LogEntry): Promise<string> {
-  const ref = await addDoc(logsCol(uid), logData(entry));
+  const ref = await addDoc(logsCol(uid), toLogDoc(entry, CODEC));
   return ref.id;
 }
 
 export async function updateLog(uid: string, id: string, entry: LogEntry): Promise<void> {
-  const data: Record<string, unknown> = {
-    calories: entry.calories,
-    protein: entry.protein != null ? entry.protein : deleteField(),
-    carbs: entry.carbs != null ? entry.carbs : deleteField(),
-    fat: entry.fat != null ? entry.fat : deleteField(),
-    exerciseCompleted: entry.exerciseCompleted ? true : deleteField(),
-    liftCompleted: deleteField(),
-    cardioCompleted: deleteField(),
-    mealLabel: entry.mealLabel ? entry.mealLabel : deleteField(),
-    mealType: entry.mealType ? entry.mealType : deleteField(),
-  };
-  if (entry.weight != null) data['weight'] = entry.weight;
-  if (entry.timestamp != null) data['timestamp'] = Timestamp.fromDate(entry.timestamp);
-  await updateDoc(logDoc(uid, id), data);
+  await updateDoc(logDoc(uid, id), toLogPatch(entry, CODEC));
 }
 
 export async function deleteLog(uid: string, id: string): Promise<void> {
   await deleteDoc(logDoc(uid, id));
 }
 
-/** Bulk-import parsed LogEntry rows in ≤450-op batches (Firestore's 500-write
- *  cap). Returns the number written. Mirrors FirestoreLedgerCore.importLogs. */
+/** Bulk-import parsed LogEntry rows in ≤BATCH_CHUNK-op batches (Firestore's
+ *  500-write cap). Returns the number written. Mirrors
+ *  FirestoreLedgerCore.importLogs — same chunk size, same row serializer. */
 export async function importLogs(uid: string, entries: readonly LogEntry[]): Promise<number> {
   const coll = logsCol(uid);
   let written = 0;
-  for (let i = 0; i < entries.length; i += 450) {
+  for (let i = 0; i < entries.length; i += BATCH_CHUNK) {
     const batch = writeBatch(db);
-    for (const entry of entries.slice(i, i + 450)) batch.set(doc(coll), logData(entry));
+    for (const entry of entries.slice(i, i + BATCH_CHUNK)) {
+      batch.set(doc(coll), toLogDoc(entry, CODEC));
+    }
     await batch.commit();
-    written += Math.min(450, entries.length - i);
+    written += Math.min(BATCH_CHUNK, entries.length - i);
   }
   return written;
 }
@@ -238,7 +237,7 @@ export function subscribeDailyWater(
 }
 
 export async function setDailyWater(uid: string, dateKey: string, flOz: number): Promise<void> {
-  await setDoc(waterDoc(uid, dateKey), { flOz: Math.max(0, Math.min(676, Math.round(flOz))) });
+  await setDoc(waterDoc(uid, dateKey), { flOz: clampWaterFlOz(flOz) });
 }
 
 // ─── Daily sleep ────────────────────────────────────────────────
@@ -266,7 +265,7 @@ export function subscribeDailySleep(
 }
 
 export async function setDailySleep(uid: string, dateKey: string, hours: number): Promise<void> {
-  await setDoc(sleepDoc(uid, dateKey), { hours: Math.max(0, Math.min(24, Math.round(hours * 2) / 2)) });
+  await setDoc(sleepDoc(uid, dateKey), { hours: clampSleepHours(hours) });
 }
 
 // ─── Daily activity (import-only) ───────────────────────────────
@@ -547,11 +546,7 @@ export function subscribePresets(
 }
 
 export async function addPreset(uid: string, preset: Omit<MealPreset, 'id'>): Promise<string> {
-  const data: Record<string, unknown> = { name: preset.name, calories: preset.calories };
-  if (preset.protein != null) data['protein'] = preset.protein;
-  if (preset.carbs != null) data['carbs'] = preset.carbs;
-  if (preset.fat != null) data['fat'] = preset.fat;
-  const ref = await addDoc(presetsCol(uid), data);
+  const ref = await addDoc(presetsCol(uid), toPresetDoc(preset));
   return ref.id;
 }
 
@@ -585,19 +580,7 @@ export async function addCustomFood(
   food: Omit<CustomFood, 'id'>,
   id?: string | null,
 ): Promise<string> {
-  const data: Record<string, unknown> = {
-    name: food.name,
-    servingSize: food.servingSize,
-    servingUnit: food.servingUnit,
-    calories: food.calories,
-    source: food.source,
-    createdAt: Timestamp.fromDate(food.createdAt),
-  };
-  if (food.brand != null) data['brand'] = food.brand;
-  if (food.barcode != null) data['barcode'] = food.barcode;
-  if (food.protein != null) data['protein'] = food.protein;
-  if (food.carbs != null) data['carbs'] = food.carbs;
-  if (food.fat != null) data['fat'] = food.fat;
+  const data = toCustomFoodDoc(food, CODEC);
   if (id) {
     await setDoc(customFoodDoc(uid, id), data);
     return id;
@@ -624,20 +607,8 @@ export function subscribeMeasurements(
   return onSnapshot(q, (snap) => cb(snap.docs.map((d) => toMeasurement(d.id, d.data()))), onError);
 }
 
-type MeasurementInput = Omit<Measurement, 'id' | 'date'>;
-
-function measurementData(entry: MeasurementInput): Record<string, unknown> {
-  const data: Record<string, unknown> = {};
-  if (entry.waist != null) data['waist'] = entry.waist;
-  if (entry.chest != null) data['chest'] = entry.chest;
-  if (entry.bicep != null) data['bicep'] = entry.bicep;
-  if (entry.hip != null) data['hip'] = entry.hip;
-  if (entry.neck != null) data['neck'] = entry.neck;
-  return data;
-}
-
 export async function addMeasurement(uid: string, entry: MeasurementInput): Promise<string> {
-  const ref = await addDoc(measurementsCol(uid), { timestamp: Timestamp.now(), ...measurementData(entry) });
+  const ref = await addDoc(measurementsCol(uid), toMeasurementDoc(entry, CODEC));
   return ref.id;
 }
 
@@ -681,15 +652,7 @@ export function subscribeExercises(
 }
 
 export async function addExercise(uid: string, draft: ExerciseDraft): Promise<string> {
-  const data = pruneUndefined({
-    name: draft.name,
-    muscles: draft.muscles ?? [],
-    defaultCues: draft.defaultCues ?? [],
-    logStyle: draft.logStyle,
-    seedKey: draft.seedKey,
-    createdAt: Timestamp.now(),
-  });
-  const ref = await addDoc(exercisesCol(uid), data);
+  const ref = await addDoc(exercisesCol(uid), pruneUndefined(toExerciseDoc(draft, CODEC)));
   return ref.id;
 }
 
@@ -708,7 +671,7 @@ export async function deleteExercise(uid: string, id: string): Promise<void> {
 /** Merge catalog exercise `fromId` (victim) into `toId` (survivor): rewrite
  *  every session and template that references the victim to point at the
  *  survivor (snapshotting the survivor's name), then delete the victim doc.
- *  Mirrors FirestoreLedgerCore.mergeExercises — batched in chunks of 450. */
+ *  Mirrors FirestoreLedgerCore.mergeExercises — batched in BATCH_CHUNK ops. */
 export async function mergeExercises(uid: string, fromId: string, toId: string): Promise<void> {
   if (fromId === toId) return;
   const survivor = await getDoc(exerciseDoc(uid, toId));
@@ -733,9 +696,9 @@ export async function mergeExercises(uid: string, fromId: string, toId: string):
     if (exercises) ops.push({ ref: d.ref, exercises });
   }
 
-  for (let i = 0; i < ops.length; i += 450) {
+  for (let i = 0; i < ops.length; i += BATCH_CHUNK) {
     const batch = writeBatch(db);
-    for (const op of ops.slice(i, i + 450)) {
+    for (const op of ops.slice(i, i + BATCH_CHUNK)) {
       batch.update(op.ref, pruneUndefined({ exercises: op.exercises, updatedAt: Timestamp.now() }));
     }
     await batch.commit();
@@ -760,34 +723,15 @@ export function subscribeTemplates(
 }
 
 export async function addTemplate(uid: string, draft: TemplateDraft): Promise<string> {
-  const now = Timestamp.now();
-  const data = pruneUndefined({
-    name: draft.name,
-    notes: draft.notes,
-    restMiniSec: draft.restMiniSec,
-    restClusterSec: draft.restClusterSec,
-    exercises: draft.exercises ?? [],
-    seedKey: draft.seedKey,
-    createdAt: now,
-    updatedAt: now,
-  });
-  const ref = await addDoc(templatesCol(uid), data);
+  const ref = await addDoc(templatesCol(uid), pruneUndefined(toTemplateDoc(draft, CODEC)));
   return ref.id;
 }
 
 export async function updateTemplate(uid: string, id: string, draft: TemplateDraft): Promise<void> {
   // Full overwrite of mutable fields + bump updatedAt; createdAt untouched by
-  // merge. A merge-update of `exercises` would union arrays, so write the
-  // whole template doc (createAt stays, no `exercises` field omitted).
-  const data = pruneUndefined({
-    name: draft.name,
-    notes: draft.notes,
-    restMiniSec: draft.restMiniSec,
-    restClusterSec: draft.restClusterSec,
-    exercises: draft.exercises ?? [],
-    seedKey: draft.seedKey,
-    updatedAt: Timestamp.now(),
-  });
+  // merge. A merge-update of `exercises` would union arrays, so the patch
+  // carries the whole template doc.
+  const data = pruneUndefined(toTemplatePatch(draft, CODEC));
   await setDoc(templateDoc(uid, id), data, { merge: true });
 }
 
@@ -796,20 +740,8 @@ export async function deleteTemplate(uid: string, id: string): Promise<void> {
 }
 
 // ── Sessions ──
-/** Serialize a SessionDraft to the stored doc shape (date → `timestamp`). */
-function sessionData(draft: Partial<SessionDraft>): Record<string, unknown> {
-  const data: Record<string, unknown> = {};
-  if (draft.status !== undefined) data['status'] = draft.status;
-  if (draft.templateId !== undefined) data['templateId'] = draft.templateId;
-  if (draft.templateName !== undefined) data['templateName'] = draft.templateName;
-  if (draft.date !== undefined) data['timestamp'] = Timestamp.fromDate(draft.date);
-  if (draft.bodyweight !== undefined) data['bodyweight'] = draft.bodyweight;
-  if (draft.sleepHours !== undefined) data['sleepHours'] = draft.sleepHours;
-  if (draft.durationMin !== undefined) data['durationMin'] = draft.durationMin;
-  if (draft.exercises !== undefined) data['exercises'] = draft.exercises;
-  if (draft.nextNotes !== undefined) data['nextNotes'] = draft.nextNotes;
-  return data;
-}
+// The domain calls it `date`; the stored field is `timestamp`. Both the
+// create and the sparse live-update shapes come from @macrolog/core.
 
 /** One-shot read of the in-progress session, if any (status == 'active'). */
 export async function getActiveSession(uid: string): Promise<WorkoutSession | null> {
@@ -833,9 +765,7 @@ export function subscribeRecentSessions(
 }
 
 export async function startSession(uid: string, draft: SessionDraft): Promise<string> {
-  const now = Timestamp.now();
-  const data = pruneUndefined({ ...sessionData(draft), createdAt: now, updatedAt: now });
-  const ref = await addDoc(sessionsCol(uid), data);
+  const ref = await addDoc(sessionsCol(uid), pruneUndefined(toSessionDoc(draft, CODEC)));
   return ref.id;
 }
 
@@ -844,7 +774,7 @@ export async function updateSession(
   id: string,
   patch: Partial<SessionDraft>,
 ): Promise<void> {
-  const data = pruneUndefined({ ...sessionData(patch), updatedAt: Timestamp.now() });
+  const data = pruneUndefined(toSessionPatch(patch, CODEC));
   await setDoc(sessionDoc(uid, id), data, { merge: true });
 }
 

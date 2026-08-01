@@ -121,3 +121,7 @@ export * from './prune-undefined';
 // prune-undefined. Structural Timestamp → Date (no firebase import); both
 // frontends' adapters map here. Workout mappers stay per-frontend (see file).
 export * from './firestore-mappers';
+// Shared Firestore WRITE-path serializers (domain → doc), the twin of the
+// mappers above. Also pure, but a write must PRODUCE SDK values, so each edge
+// injects Timestamp/deleteField through a DocCodec. Adapters keep their I/O.
+export * from './firestore-writers';
