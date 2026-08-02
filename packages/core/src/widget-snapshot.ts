@@ -102,7 +102,12 @@ export type WidgetEmptyReason =
   | 'no-targets';
 
 export type WidgetView =
-  | { state: 'empty'; reason: WidgetEmptyReason }
+  /** `locale` is carried here too: the empty state is a *sentence*, and the
+   *  renderers previously had nothing to key it off and so hardcoded English.
+   *  It is the snapshot's locale whenever a snapshot was readable, and falls
+   *  back to `'en'` only for `no-snapshot`, where there is genuinely nothing
+   *  to read a preference from. */
+  | { state: 'empty'; reason: WidgetEmptyReason; locale: string }
   | {
       state: 'ready';
       dateKey: string;
@@ -188,9 +193,11 @@ function metric(consumed: number, target: number): WidgetMetric {
  * outlives the day it was written for.
  */
 export function widgetView(snapshot: WidgetSnapshot | null, todayKey: string): WidgetView {
-  if (!snapshot) return { state: 'empty', reason: 'no-snapshot' };
-  if (snapshot.dateKey !== todayKey) return { state: 'empty', reason: 'stale' };
-  if (snapshot.kcalTarget <= 0) return { state: 'empty', reason: 'no-targets' };
+  if (!snapshot) return { state: 'empty', reason: 'no-snapshot', locale: 'en' };
+  if (snapshot.dateKey !== todayKey)
+    return { state: 'empty', reason: 'stale', locale: snapshot.locale };
+  if (snapshot.kcalTarget <= 0)
+    return { state: 'empty', reason: 'no-targets', locale: snapshot.locale };
   return {
     state: 'ready',
     dateKey: snapshot.dateKey,

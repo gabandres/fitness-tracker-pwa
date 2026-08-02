@@ -171,11 +171,17 @@ describe('widgetView', () => {
     expect(widgetView(snap({ dateKey: '2026-07-22' }), '2026-07-23')).toEqual({
       state: 'empty',
       reason: 'stale',
+      locale: 'en',
     });
   });
 
   it('blanks when nothing has been written yet', () => {
-    expect(widgetView(null, '2026-07-23')).toEqual({ state: 'empty', reason: 'no-snapshot' });
+    // No blob means no stored preference, so English is the only fallback.
+    expect(widgetView(null, '2026-07-23')).toEqual({
+      state: 'empty',
+      reason: 'no-snapshot',
+      locale: 'en',
+    });
   });
 
   it('blanks when onboarding never set a calorie target', () => {
@@ -183,6 +189,23 @@ describe('widgetView', () => {
     expect(widgetView(snap({ kcalTarget: 0, kcalConsumed: 0 }), '2026-07-23')).toEqual({
       state: 'empty',
       reason: 'no-targets',
+      locale: 'en',
+    });
+  });
+
+  it('keeps the snapshot locale on the empty states it can read one from', () => {
+    // The regression this guards: the renderers hardcoded English for every
+    // empty state, so a Spanish user's home screen read "Open Ignia to start"
+    // both after midnight and before onboarding finished.
+    expect(widgetView(snap({ dateKey: '2026-07-22', locale: 'es-PR' }), '2026-07-23')).toEqual({
+      state: 'empty',
+      reason: 'stale',
+      locale: 'es-PR',
+    });
+    expect(widgetView(snap({ kcalTarget: 0, locale: 'es-PR' }), '2026-07-23')).toEqual({
+      state: 'empty',
+      reason: 'no-targets',
+      locale: 'es-PR',
     });
   });
 

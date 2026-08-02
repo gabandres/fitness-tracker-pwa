@@ -53,9 +53,11 @@ private struct Metric {
 
 /// Mirrors `WidgetView`. The empty reasons are collapsed into one case because
 /// iOS renders all three identically; the TS side keeps them apart only so its
-/// tests can distinguish them.
+/// tests can distinguish them. The locale rides along on BOTH cases — the empty
+/// state is a sentence, and hardcoding English here put "Open Ignia to start"
+/// on Spanish home screens.
 private enum View_ {
-  case empty
+  case empty(locale: String)
   case ready(kcal: Metric, protein: Metric, locale: String)
 }
 
@@ -70,10 +72,14 @@ private func loadView(now: Date) -> View_ {
     let data = raw.data(using: .utf8),
     let snap = try? JSONDecoder().decode(Snapshot.self, from: data),
     snap.v == snapshotVersion
-  else { return .empty }
+  else {
+    // Nothing readable, so there is no stored preference to honour — the one
+    // case where falling back to English is the only option.
+    return .empty(locale: "en")
+  }
 
-  guard snap.dateKey == localDateKey(now) else { return .empty }
-  guard snap.kcalTarget > 0 else { return .empty }
+  guard snap.dateKey == localDateKey(now) else { return .empty(locale: snap.locale) }
+  guard snap.kcalTarget > 0 else { return .empty(locale: snap.locale) }
 
   return .ready(
     kcal: Metric(consumed: snap.kcalConsumed, target: snap.kcalTarget),
@@ -175,7 +181,17 @@ private struct Provider: TimelineProvider {
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> Void) {
     let now = Date()
-    var entries = [Entry(date: now, view: loadView(now: now))]
+    let current = loadView(now: now)
+    var entries = [Entry(date: now, view: current)]
+
+    // Carry today's locale into the post-midnight blank. Rebuilding it as "en"
+    // would flip a Spanish widget to English at midnight and leave it there
+    // until the app is next opened.
+    let locale: String
+    switch current {
+    case let .ready(_, _, l): locale = l
+    case let .empty(l): locale = l
+    }
 
     // Pre-schedule the rollover. The app calls `reloadWidget` on every log, so
     // in-day freshness is push-driven; this second entry exists for the one
@@ -187,7 +203,7 @@ private struct Provider: TimelineProvider {
       after: now, matching: DateComponents(hour: 0, minute: 0, second: 5),
       matchingPolicy: .nextTime)
     {
-      entries.append(Entry(date: midnight, view: .empty))
+      entries.append(Entry(date: midnight, view: .empty(locale: locale)))
     }
 
     // `.atEnd` asks WidgetKit for a new timeline once the last entry is passed,
@@ -206,8 +222,8 @@ private struct TodayWidgetView: SwiftUI.View {
     // protein. The ring is a deliberate fast-follow, not an omission.
     VStack(alignment: .leading, spacing: 0) {
       switch entry.view {
-      case .empty:
-        Text(strings("en").empty)
+      case let .empty(locale):
+        Text(strings(locale).empty)
           .font(.system(size: 13))
           .foregroundStyle(Color.igMuted)
 
