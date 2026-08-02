@@ -66,7 +66,7 @@ review those commits fixed.
 - iOS cannot be built on this machine. Windows, no Xcode. There is no local path.
 - iOS builds come from **EAS cloud, free tier**: 15 iOS builds/month, low-priority
   queue, 1 concurrent, 45-minute timeout.
-- **The quota reset landed, and one build is spent. iOS 1/15, Android 0/15 for the
+- **The quota reset landed, and two builds are spent. iOS 2/15, Android 0/15 for the
   2026-08-01 → 2026-09-01 period — measured 2026-08-01 from the API.** The counter
   is not the constraint this period.
 
@@ -93,12 +93,27 @@ cd apps/mobile && npx eas-cli account:usage gabandres --non-interactive
   so **later builds can go back to `--non-interactive`**. `device:list` still needs
   `--apple-team-id AE6TTXW92K` when non-interactive.
 - One iPhone is registered for ad-hoc distribution (UDID `00008140-0016199614C3801C`).
-- **The first `development` build exists and succeeded** — `c539ab49`, from commit
-  `bb80759b`, 1.1.0. **This is the first time the widget Swift has ever compiled.**
-  It is a dev-client build, so the app shell needs `npx expo start --dev-client` to
-  load JS; the widget itself is native and renders without Metro once the app has
-  written data. Install page:
-  `https://expo.dev/accounts/gabandres/projects/macro-log/builds/c539ab49-7dae-44ce-bf0b-6cb5392cb096`
+- **Two `development` builds exist.** `c539ab49` (commit `bb80759b`) was the first
+  time the widget Swift ever compiled. **`de8fabd0` (commit `2a50e6e2`) is the one
+  to install** — it carries the widget fix below. Install page:
+  `https://expo.dev/accounts/gabandres/projects/macro-log/builds/de8fabd0-597c-4ebd-8f61-ccc75ec59dc5`
+
+  These are dev-client builds, so the app shell needs `npx expo start --dev-client`
+  to load JS; the widget itself is native and renders without Metro once the app has
+  written data.
+- **The widget was dead in `c539ab49`, and the cause was `ios.appleTeamId`.**
+  `ExtensionStorage`'s **native module was not in the binary**, so every `set()` and
+  `reloadWidget()` was a no-op — `@bacons/apple-targets` substitutes silent stubs
+  when its module is missing, so the JS logged a successful write on every meal
+  while nothing was stored. The plugin warns about the missing team ID on every
+  `expo start`; it was dismissed as cosmetic because the build succeeded. It did
+  succeed — it just produced a binary without the module. Fixed in `2f7d0b0e`.
+
+  **Do not dismiss that warning again.** And note the general trap: this package
+  fails *silently and completely* rather than throwing, which is why the
+  `__DEV__` probes in `src/lib/widget.ts` are kept. They report, on first launch,
+  which of "native module missing" / "not entitled to the App Group" / "wrote
+  fine" is true — three different fixes that otherwise look identical.
 - The build archive is **7.5 MB**, not 172 MB — see `.easignore`, added 2026-08-01.
   EAS keeps `.git` in the archive unless explicitly ignored, and this repo's history
   carries ~138 MB of committed-then-deleted `node_modules` binaries. **Editing that
@@ -117,15 +132,16 @@ cd apps/mobile && npx eas-cli build:list --platform ios --limit 5   # what exist
 | # | Work | Blocked on |
 |---|---|---|
 | — | Next iOS binary (everything in §2) | **Device QA of the `development` build `c539ab49`** (§3), then one `production` build. Quota and credentials are both resolved |
-| #36 | Verify the shipped widget on a physical iPhone | **Unblocked — the build exists and the widget compiled for the first time.** Owner, on device: install from the §3 link, `npx expo start --dev-client`, add the widget in each size, confirm it shows today's kcal/protein and refreshes after a log |
+| #36 | Verify the shipped widget on a physical iPhone | **One attempt done; it failed and the cause is fixed.** Install `de8fabd0` (§3) and re-run: the `__DEV__` probe prints the verdict on first launch. Expect "App Group round-trip OK". The widget is **small size only**, shows kcal *remaining*, and the gallery preview is hardcoded placeholder numbers — only the home-screen instance proves the pipeline |
 | #46 | Read the watch layouts on a simulator | **a Mac with Xcode** (currently: borrow one) |
 | #47 | Compile the generated watch targets in Xcode | **a Mac with Xcode**; branch `probe/watch-compile-47` stages it |
 | — | App Store screenshots | owner, on device (`store-assets/README.md`) |
 | — | Play launch — **first AAB** | `bundleRelease` dies on Windows `MAX_PATH`: the `react-native-keyboard-controller` C++ object path is ~355 chars. `LongPathsEnabled=1` is set but **needs a reboot** to take effect; if it still fails after that, ninja itself is the cap → build on EAS. Signing: `credentials/dev.keystore` as upload key |
 | — | Play launch — **12 testers × 14 consecutive days** | owner recruiting. Personal account, so production access is gated on it. Clock cannot start until an AAB is in a closed track — **this is the critical path** |
-| — | Play launch — **Data safety form** | **Answered and ready to import.** `data_safety_ignia_FILLED.csv` (owner's Downloads, generated 2026-08-01 from Play's sample template) carries all 39 answers; Play Console → Data safety → *Import from CSV*. Verified against the Android app's real behavior — no analytics/crash SDK, no push token, photo-scan flag-off, and RevenueCat is iOS-only so no purchase data. Declares: Personal info (Name, Email, User IDs) + Health and fitness (Health info, Fitness info); collected, **not shared**, required, purpose App functionality + Account management. Nothing else — no analytics/crash SDK on mobile, notifications are local-only, photo-scan is flag-off |
-| — | Play launch — **delete-account URL** | **Done.** Verified 2026-08-01 and it *failed* — signed out, the page said only "sign in first to delete your account". `fb7d24d1` adds an unconditional "How to delete your account" section (iOS path, web path, and an email path for users who can't sign in) plus what is erased vs. what survives in backups, both locales. **Ships to the URL on the next `firebase deploy --only hosting`** |
-| — | Play launch — **store listing graphics** | feature graphic 1024×500 does not exist; the iOS screenshots are 1320×2868 (2.17:1) and exceed Play's 2:1 cap, so they cannot be reused as-is |
+| — | Play launch — **Data safety form** | **DONE** (2026-08-01, filled directly in the console). Declares Personal info (Name, Email, User IDs) + Health and fitness (Health info, Fitness info); collected, **not shared**, required, App functionality + Account management. Nothing else. The saved draft had over-declared Photos, Crash logs, Device IDs, User-generated content and Other personal info — all cleared, each checked against the Android app (no analytics/crash SDK, no push token, photo-scan flag-off, RevenueCat is iOS-gated so it never configures on Android). CSV import was tried twice and failed with a generic "Couldn't upload"; the console UI worked |
+| — | Play launch — **Advertising ID declaration** | **DONE** — declared **No**. App content now reads "You're all caught up" |
+| — | Play launch — **delete-account URL** | **DONE and LIVE.** Verified 2026-08-01 and it *failed* — signed out, the page said only "sign in first to delete your account". `fb7d24d1` adds an unconditional "How to delete your account" section (iOS path, web path, and an email path for users who can't sign in) plus what is erased vs. what survives in backups, both locales. Deployed to `ignia.fit/privacy` and confirmed in a browser |
+| — | Play launch — **store listing graphics** | **DONE.** `scripts/play-store-assets.mjs` generates all of them from artwork already in the repo → `store-assets/play/`. Play needs 16:9 or 9:16 and the captures are 1:2.17, so each is fitted onto a 1080×1920 canvas in the brand panel colour (the art already sits on that colour, so the letterboxing is invisible). Icon 512², feature graphic 1024×500, five phone screenshots — all uploaded and saved |
 
 **Apple glanceable surfaces (map #31).** 13 of its 16 tickets are **closed** — the
 transport, staleness, layouts, tap targets, review surface and sign-out privacy are
@@ -201,8 +217,13 @@ cd android && ./gradlew.bat assembleRelease --no-daemon \
   -Pandroid.injected.signing.store.file=<abs path to credentials/dev.keystore> ...
 ```
 
-`npx expo prebuild -p ios` also runs on Windows and is free — it proves the Xcode
-project *generates*. It cannot prove anything compiles or signs.
+**`npx expo prebuild -p ios` does NOT work on Windows** — SDK 54 skips it outright
+(`Skipping generating the iOS native project files. Run npx expo prebuild again
+from macOS or Linux`, then exits non-zero). An earlier version of this file claimed
+it ran here and proved the Xcode project generates; it does not, and there is no
+local way to inspect the generated Podfile or verify iOS autolinking. That is why
+the widget's missing native module could only be caught by shipping a build and
+reading a runtime probe.
 
 ## 8. Where things live (and what gets deleted)
 
