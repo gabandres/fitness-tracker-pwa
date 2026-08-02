@@ -66,10 +66,9 @@ review those commits fixed.
 - iOS cannot be built on this machine. Windows, no Xcode. There is no local path.
 - iOS builds come from **EAS cloud, free tier**: 15 iOS builds/month, low-priority
   queue, 1 concurrent, 45-minute timeout.
-- **The quota reset landed. iOS is 0/15, Android 0/15 (0/30 total) for the
+- **The quota reset landed, and one build is spent. iOS 1/15, Android 0/15 for the
   2026-08-01 → 2026-09-01 period — measured 2026-08-01 from the API.** The counter
-  is no longer the constraint; see the credentials blocker directly below, which
-  is.
+  is not the constraint this period.
 
 ```sh
 cd apps/mobile && npx eas-cli account:usage gabandres --non-interactive
@@ -81,27 +80,33 @@ cd apps/mobile && npx eas-cli account:usage gabandres --non-interactive
   `eas-cli --help`, which lists only the `account` topic.
 - Android **does** build locally and free, via Gradle directly — *not* through
   `eas build --local`, which refuses to run on Windows. See §6.
-- **The first iOS build must be started interactively, by a human.** Attempted
-  2026-08-01 and refused *before* the build was created (no quota spent): the
-  scheme has **two** targets and the widget one has never had credentials issued.
+- **Credentials are issued now — that one-time blocker is gone.** The scheme has
+  **two** targets, and `fit.ignia.app.widget` had never had credentials (its bundle
+  ID did not exist in the Apple portal at all). EAS cannot mint them unattended: it
+  refuses in non-interactive mode, *before* creating the build, so failed attempts
+  cost no quota. Setting the ASC API key env vars does **not** help either — a
+  `development`/`preview` build is **internal distribution**, which needs an ad-hoc
+  profile, which needs a human to pick devices.
 
-  ```
-  Setting up credentials for target Today (fit.ignia.app.widget)
-  Failed to set up credentials. You're in non-interactive mode. EAS CLI couldn't
-  find any credentials suitable for internal distribution.
-  ```
-
-  Each target needs its **own provisioning profile** (they may share the
-  distribution certificate), and minting the widget's requires an Apple login EAS
-  cannot do unattended. Run it once **without** `--non-interactive`, answer the
-  Apple prompts, and let EAS generate and store the profile; every later build can
-  go back to `--non-interactive`. `device:list` also needs
-  `--apple-team-id AE6TTXW92K` in non-interactive mode.
-- One iPhone is registered for ad-hoc distribution (UDID `00008140-0016199614C3801C`),
-  so the development build has a target device once the profile exists.
-- Budget **two** builds for the next release: one `development` for device QA, one
-  `production`. Shipping never-executed Swift straight to review is how the last two
-  rejections happened, and each rejection cost a build anyway.
+  Run **once** without `--non-interactive` and answer the Apple prompts. That was
+  done 2026-08-01; the widget bundle ID is registered and the profiles are stored,
+  so **later builds can go back to `--non-interactive`**. `device:list` still needs
+  `--apple-team-id AE6TTXW92K` when non-interactive.
+- One iPhone is registered for ad-hoc distribution (UDID `00008140-0016199614C3801C`).
+- **The first `development` build exists and succeeded** — `c539ab49`, from commit
+  `bb80759b`, 1.1.0. **This is the first time the widget Swift has ever compiled.**
+  It is a dev-client build, so the app shell needs `npx expo start --dev-client` to
+  load JS; the widget itself is native and renders without Metro once the app has
+  written data. Install page:
+  `https://expo.dev/accounts/gabandres/projects/macro-log/builds/c539ab49-7dae-44ce-bf0b-6cb5392cb096`
+- The build archive is **7.5 MB**, not 172 MB — see `.easignore`, added 2026-08-01.
+  EAS keeps `.git` in the archive unless explicitly ignored, and this repo's history
+  carries ~138 MB of committed-then-deleted `node_modules` binaries. **Editing that
+  file is dangerous:** once it exists, EAS stops reading `.gitignore` entirely, so
+  every pattern must be repeated there or the directory starts uploading.
+- Budget **two** builds for the next release: one `development` for device QA (spent,
+  above), one `production`. Shipping never-executed Swift straight to review is how
+  the last two rejections happened, and each rejection cost a build anyway.
 
 ```sh
 cd apps/mobile && npx eas-cli build:list --platform ios --limit 5   # what exists
@@ -111,15 +116,15 @@ cd apps/mobile && npx eas-cli build:list --platform ios --limit 5   # what exist
 
 | # | Work | Blocked on |
 |---|---|---|
-| — | Next iOS binary (everything in §2) | **Quota is no longer the blocker** (0/15 as of 08-01). Now: one **interactive** EAS run to issue the widget target's provisioning profile — see §3 |
-| #36 | Verify the shipped widget on a physical iPhone | the build above; owner's iPhone |
+| — | Next iOS binary (everything in §2) | **Device QA of the `development` build `c539ab49`** (§3), then one `production` build. Quota and credentials are both resolved |
+| #36 | Verify the shipped widget on a physical iPhone | **Unblocked — the build exists and the widget compiled for the first time.** Owner, on device: install from the §3 link, `npx expo start --dev-client`, add the widget in each size, confirm it shows today's kcal/protein and refreshes after a log |
 | #46 | Read the watch layouts on a simulator | **a Mac with Xcode** (currently: borrow one) |
 | #47 | Compile the generated watch targets in Xcode | **a Mac with Xcode**; branch `probe/watch-compile-47` stages it |
 | — | App Store screenshots | owner, on device (`store-assets/README.md`) |
 | — | Play launch — **first AAB** | `bundleRelease` dies on Windows `MAX_PATH`: the `react-native-keyboard-controller` C++ object path is ~355 chars. `LongPathsEnabled=1` is set but **needs a reboot** to take effect; if it still fails after that, ninja itself is the cap → build on EAS. Signing: `credentials/dev.keystore` as upload key |
 | — | Play launch — **12 testers × 14 consecutive days** | owner recruiting. Personal account, so production access is gated on it. Clock cannot start until an AAB is in a closed track — **this is the critical path** |
-| — | Play launch — **Data safety form** | steps 1–2 saved as draft; steps 3–5 unanswered. Declare: Personal info (Name, Email, User IDs) + Health and fitness (Health info, Fitness info); collected, **not shared**, required, purpose App functionality + Account management. Nothing else — no analytics/crash SDK on mobile, notifications are local-only, photo-scan is flag-off |
-| — | Play launch — **delete-account URL** | set to `ignia.fit/privacy`; Google requires that page to prominently show the deletion steps. Unverified — either confirm or add the section |
+| — | Play launch — **Data safety form** | **Answered and ready to import.** `data_safety_ignia_FILLED.csv` (owner's Downloads, generated 2026-08-01 from Play's sample template) carries all 39 answers; Play Console → Data safety → *Import from CSV*. Verified against the Android app's real behavior — no analytics/crash SDK, no push token, photo-scan flag-off, and RevenueCat is iOS-only so no purchase data. Declares: Personal info (Name, Email, User IDs) + Health and fitness (Health info, Fitness info); collected, **not shared**, required, purpose App functionality + Account management. Nothing else — no analytics/crash SDK on mobile, notifications are local-only, photo-scan is flag-off |
+| — | Play launch — **delete-account URL** | **Done.** Verified 2026-08-01 and it *failed* — signed out, the page said only "sign in first to delete your account". `fb7d24d1` adds an unconditional "How to delete your account" section (iOS path, web path, and an email path for users who can't sign in) plus what is erased vs. what survives in backups, both locales. **Ships to the URL on the next `firebase deploy --only hosting`** |
 | — | Play launch — **store listing graphics** | feature graphic 1024×500 does not exist; the iOS screenshots are 1320×2868 (2.17:1) and exceed Play's 2:1 cap, so they cannot be reused as-is |
 
 **Apple glanceable surfaces (map #31).** 13 of its 16 tickets are **closed** — the
