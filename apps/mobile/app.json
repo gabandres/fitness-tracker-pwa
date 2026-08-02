@@ -10,6 +10,7 @@
     "backgroundColor": "#faf9f6",
     "ios": {
       "bundleIdentifier": "fit.ignia.app",
+      "appleTeamId": "AE6TTXW92K",
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "entitlements": {

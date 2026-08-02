@@ -68,6 +68,44 @@ async function persist(snapshot: WidgetSnapshot): Promise<void> {
     // only refresh on its own (slow, OS-chosen) cadence and a just-logged meal
     // wouldn't show up until much later.
     ExtensionStorage.reloadWidget(WIDGET_NAME);
+    if (__DEV__) {
+      // `UserDefaults(suiteName:)` returns nil when the process is not entitled
+      // to the App Group, and the write then no-ops WITHOUT throwing. Reading
+      // straight back is the only way to tell "wrote it" from "pretended to".
+      // `@bacons/apple-targets` substitutes SILENT STUBS when its native module
+      // is missing — `setString`/`reloadWidget` become no-ops and `get` returns
+      // undefined — so an absent module is indistinguishable from a successful
+      // write unless the module itself is probed. Check that FIRST; a read-back
+      // miss means nothing if nothing was ever really written.
+      const native = (globalThis as unknown as { expo?: { modules?: Record<string, unknown> } })
+        .expo?.modules?.['ExtensionStorage'];
+      const echo = storage.get(WIDGET_SNAPSHOT_KEY);
+      if (!native) {
+        const all = Object.keys(
+          (globalThis as unknown as { expo?: { modules?: Record<string, unknown> } }).expo
+            ?.modules ?? {},
+        ).sort();
+        console.warn(
+          '[widget] ExtensionStorage NATIVE MODULE MISSING — set()/reloadWidget() are ' +
+            'no-ops in this binary. Nothing was written; the widget cannot possibly update.',
+        );
+        // If the registry is well populated and only this one is absent, the
+        // fault is package-specific (autolinking skipped it). If it is tiny or
+        // empty, native modules as a whole did not link and the problem is the
+        // build, not this package.
+        console.warn('[widget] linked native modules (' + all.length + '): ' + all.join(', '));
+      } else if (echo === json) {
+        console.log('[widget] App Group round-trip OK — container is writable by the app');
+      } else {
+        console.warn(
+          '[widget] native module present but read-back failed — likely not entitled to ' +
+            APP_GROUP +
+            ' (got ' +
+            String(echo) +
+            ')',
+        );
+      }
+    }
     return;
   }
 
@@ -102,17 +140,35 @@ export async function syncWidget(
   locale: string,
   nowMs: number = Date.now(),
 ): Promise<void> {
-  if (!supported) return;
+  if (!supported) {
+    if (__DEV__) console.log('[widget] skipped: unsupported runtime (Expo Go or web)');
+    return;
+  }
 
   const next = buildWidgetSnapshot(summary, targets, todayKey, nowMs, locale);
-  if (!widgetSnapshotChanged(lastWritten, next)) return;
+
+  // A zero calorie target is the single most common reason the widget sits on
+  // its empty state while everything else looks healthy: the Swift side treats
+  // `kcalTarget <= 0` as "nothing to show". Call it out rather than letting it
+  // look like a failed write.
+  if (__DEV__ && next.kcalTarget <= 0) {
+    console.warn('[widget] kcalTarget is 0 — the widget will render EMPTY by design', next);
+  }
+
+  if (!widgetSnapshotChanged(lastWritten, next)) {
+    if (__DEV__) console.log('[widget] unchanged since last write, skipping', next);
+    return;
+  }
 
   try {
     await persist(next);
     lastWritten = next;
-  } catch {
+    if (__DEV__) console.log('[widget] wrote snapshot + requested reload', next);
+  } catch (err) {
     // Leave `lastWritten` alone so the next call retries rather than assuming
-    // the failed write landed.
+    // the failed write landed. Swallowing this silently made a broken App Group
+    // write indistinguishable from never having written at all.
+    if (__DEV__) console.warn('[widget] write FAILED', err);
   }
 }
 
