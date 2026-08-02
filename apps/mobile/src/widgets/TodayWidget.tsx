@@ -35,7 +35,9 @@ const COLORS = {
 const ADD_ENTRY_URI = 'ignia://?openAdd=1';
 
 export function TodayWidget({ view }: { view: WidgetView }) {
-  const s = widgetStrings(view.state === 'ready' ? view.locale : 'en');
+  // Both states carry a locale now. This used to force 'en' for the empty
+  // state, so a Spanish user's home screen read "Open Ignia to start".
+  const s = widgetStrings(view.locale);
 
   return (
     <FlexWidget
