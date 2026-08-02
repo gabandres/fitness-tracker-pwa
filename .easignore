@@ -1,0 +1,76 @@
+# What gets uploaded to EAS as the build archive.
+#
+# READ THIS BEFORE EDITING. Once this file exists, EAS stops reading
+# .gitignore ENTIRELY — only `.git` and `node_modules` are ignored by default,
+# and every other pattern has to be repeated here. That is why this file
+# duplicates so much of .gitignore: dropping a line here does not fall back to
+# the git rule, it starts uploading the directory.
+#
+# Why it exists: the archive was 172 MB, and 171 MB of that was `.git`. EAS
+# keeps the git directory in the archive unless it is explicitly ignored here.
+# This repo's history is heavy because node_modules was committed at some
+# point — the pack still carries ~138 MB of rolldown/sharp/esbuild binaries
+# that no longer exist in any checkout. Excluding `.git` sidesteps all of it
+# without rewriting public history.
+#
+# Only apps/mobile + packages/* + the root manifests are needed to build.
+
+# The prize: ~171 MB of history the build never reads.
+.git
+
+# Node (also EAS-default, repeated so this file stands alone).
+node_modules
+
+# Generated native projects — `expo prebuild` regenerates them on the worker,
+# and android/ alone is ~291 MB locally.
+apps/mobile/android
+apps/mobile/ios
+apps/mobile/dist
+apps/mobile/.expo
+.expo
+
+# The Angular PWA's build output and caches. Not part of a mobile build.
+/dist
+/.angular
+/out-tsc
+/coverage
+/.firebase
+
+# Cloud Functions build output (source stays — it is small and harmless).
+/functions/lib
+
+# Store + marketing assets: composited screenshots, raw captures, fonts, and
+# the web app's screenshot set. ~19 MB, none of it reachable from the app.
+store-assets/
+public/screenshots/
+
+# Local-only state and scratch.
+_attic/
+_outer-junk-git-backup/
+.playwright-mcp/
+.emulator-data/
+ux-audit/
+*-debug.log
+
+# Secrets and machine-local notes — belt and braces; these are gitignored too,
+# but this file is what EAS actually honors.
+.env
+.env.local
+.env.production
+.env*.local
+.sentryclirc
+CLAUDE.local.md
+apps/mobile/credentials/
+apps/mobile/credentials.json
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+
+# Editor/system/agent noise.
+.claude/
+.github/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
