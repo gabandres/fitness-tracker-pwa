@@ -51,6 +51,19 @@ re-scope it as new work; do not describe it to users as available.
   exercised. **The iOS widget is no longer in this list: it is verified working
   on a physical iPhone from TestFlight build 13 (2026-08-03), including refresh
   after a meal.** See §4 #36.
+- **The Apple Watch complication and its transport** — the watch app
+  (`targets/watch/`), the face complication (`targets/watch-widget/`), the
+  three iOS **Lock Screen** accessory families, one shared Swift contract
+  (`targets/_shared/Glance.swift`), and the repo's first custom Expo Module
+  (`modules/watch-link/`) carrying the snapshot over
+  `WCSession.updateApplicationContext`. **None of it has ever been
+  compiled** — Windows, no Xcode, and `expo prebuild -p ios` does not run
+  here. What *was* verified locally: `tsc` clean, both `expo-target.config.js`
+  files evaluate to the right entitlements, and
+  `expo-modules-autolinking search -p apple` resolves `watch-link` →
+  `WatchLinkModule` (the check that would have caught the `ExtensionStorage`
+  disappearance in §3). Blocked on a Mac for #46/#47, and on a `production`
+  credentials pass for two brand-new bundle ids.
 - **Health activity import** (steps / active energy → `dailyActivity`). Import +
   display only; deliberately does **not** feed measured-mode TDEE.
 - **Per-meal reminder settings** (fixes the un-silenceable 1:30pm lunch nudge).
@@ -185,8 +198,8 @@ cd apps/mobile && npx eas-cli build:list --platform ios --limit 5   # what exist
 |---|---|---|
 | — | Next iOS binary (everything in §2) | Nothing structural. Build 13 exists, is on TestFlight, and its widget is verified on device — the device-QA gate this row used to name is **cleared**. What remains is submitting the 1.1.0 version page to App Review (it is still `PREPARE_FOR_SUBMISSION`), or cutting a newer build first if more of §2 should ride along. Quota and credentials are both resolved |
 | #36 | Verify the shipped widget on a physical iPhone | **DONE — 2026-08-03, on a real iPhone home screen from TestFlight build 13.** It renders kcal left and protein left, **and the numbers moved after logging a meal**, which is the part that proves the whole chain: app write → App Group → `ExtensionStorage` → widget refresh. Not a render-only check. The iOS half of §3's `ExtensionStorage` saga is closed; the deployment-target fix worked in a production binary. **Still unverified: the Android widget** — it is in Play vc 4 (in review), and its task handler registers through the custom `index.js`, a path no device has exercised |
-| #46 | Read the watch layouts on a simulator | **a Mac with Xcode** (currently: borrow one) |
-| #47 | Compile the generated watch targets in Xcode | **a Mac with Xcode**; branch `probe/watch-compile-47` stages it |
+| #46 | Read the watch layouts on a simulator | **a Mac with Xcode** (currently: borrow one). Its stated precondition — "the build session has written the watch Swift" — is now **met**: the real layouts exist, so the sitting is the readout it was designed to be |
+| #47 | Compile the generated watch targets in Xcode | **a Mac with Xcode.** Now runs against **real code instead of stubs**: `targets/_shared/Glance.swift` is referenced from all three Apple targets, so the `_shared` membership question (#38's load-bearing one) is answered by whether the project builds, with no `ProbeShared.swift` needed. `probe/watch-compile-47` is superseded by `feat/watch-complication`; keep it only for the throwaway `ViewThatFits` probe |
 | — | App Store screenshots | owner, on device (`store-assets/README.md`) |
 | — | Play launch — **first AAB** | **DONE** (2026-08-02). Local `bundleRelease` is **permanently dead on this machine**: `LongPathsEnabled=1` and a reboot changed nothing, because the cap is **ninja**, not the registry — the SDK's `cmake/3.22.1/bin/ninja.exe` is not long-path-aware, and the `react-native-keyboard-controller` object path is 348 chars. Relocating `.cxx` cannot save it (the CMake target-dir prefix alone is 105 chars). **AABs come from EAS.** `eas.json` `production` now sets `android.credentialsSource: "local"` so EAS signs with `credentials/dev.keystore` instead of minting a new upload key — **that line is load-bearing; removing it silently changes app identity.** Artifact: EAS build `4b513a00`, vc 3, signer SHA-256 `75:4B:03:19:…:F6:D8` |
 | — | Play launch — **upload the AAB to a closed track** | **DONE** (2026-08-02). vc 4 is on Closed testing - Alpha and submitted; the app is in Google review. Play does not accept an app's *first* upload through the Developer API, so this one went through the console UI. **vc 3 was discarded, not shipped** — it declared three health READ permissions the app never requests, and Play's health declaration demands a written justification per read permission. `07ce8e99` removed them; vc 4 declares 11 health permissions (5 read, 6 write). Do not resurrect vc 3 |
@@ -200,11 +213,28 @@ cd apps/mobile && npx eas-cli build:list --platform ios --limit 5   # what exist
 | — | Play launch — **delete-account URL** | **DONE and LIVE.** Verified 2026-08-01 and it *failed* — signed out, the page said only "sign in first to delete your account". `fb7d24d1` adds an unconditional "How to delete your account" section (iOS path, web path, and an email path for users who can't sign in) plus what is erased vs. what survives in backups, both locales. Deployed to `ignia.fit/privacy` and confirmed in a browser |
 | — | Play launch — **store listing graphics** | **DONE.** `scripts/play-store-assets.mjs` generates all of them from artwork already in the repo → `store-assets/play/`. Play needs 16:9 or 9:16 and the captures are 1:2.17, so each is fitted onto a 1080×1920 canvas in the brand panel colour (the art already sits on that colour, so the letterboxing is invisible). Icon 512², feature graphic 1024×500, five phone screenshots — all uploaded and saved |
 
-**Apple glanceable surfaces (map #31).** 13 of its 16 tickets are **closed** — the
-transport, staleness, layouts, tap targets, review surface and sign-out privacy are
-all decided. What remains is #36/#46/#47 above. No watch Swift exists yet;
-`apps/mobile/targets/` contains only `widget` (the stubs were removed in `f4f03f38`
-until the work starts). "Mostly done" describes the deciding, not the building.
+**Apple glanceable surfaces (map #31).** 14 of its 16 tickets are **closed** —
+transport, staleness, layouts, tap targets, review surface and sign-out privacy
+were decided first, and #36 closed 2026-08-03 on device. What remains is
+**#46 and #47, both of which need a Mac** — the two things on the whole map that
+cannot be done on this machine.
+
+The building is done. `apps/mobile/targets/` now holds `_shared`, `widget`,
+`watch` and `watch-widget`, plus `apps/mobile/modules/watch-link` for the phone
+half of the transport. **What is unproven is narrow and specific: none of that
+Swift has ever been through a compiler.** Do not read "written" as "works" — the
+iPhone widget was written, merged, and silently broken for two builds because a
+pod never linked.
+
+**The credentials gate is real and is not the Mac.** The scheme gains **two new
+bundle ids** (`fit.ignia.app.watchkitapp` and
+`fit.ignia.app.watchkitapp.complication`), neither of which exists in the Apple
+portal. §3 already records that EAS cannot mint those unattended — it refuses in
+non-interactive mode, and the failing call is a Developer Portal write where EAS
+falls back to Apple ID session auth and asks for `EXPO_APPLE_ID` + 2FA, which no
+ASC API key covers. `production` still has not had its interactive pass; this
+adds two more ids to it. Credential failures cost **no build quota** — they
+happen before the build is created.
 
 ## 5. Decided and deliberately not happening
 

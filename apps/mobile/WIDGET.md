@@ -1,16 +1,20 @@
-# Home-screen Widget — design, seams and device QA
+# Glanceable surfaces — design, seams and device QA
 
-> **This file owns the widget's *design*: how it gets its data, what was
-> decided, and how to verify it on hardware. It does not track state.** Whether
-> the widget is built, in a binary, or verified is in **`STATUS.md`**, which has
-> the command to re-check. Do not restate build or quota status here — this doc
-> carried a "BUILT, unverified" banner and an EAS quota date, and both were the
-> kind of claim that goes stale silently.
+> **This file owns the *design* of every surface that renders the widget
+> snapshot: how it gets its data, what was decided, and how to verify it on
+> hardware. It does not track state.** Whether a surface is built, in a binary,
+> or verified is in **`STATUS.md`**, which has the command to re-check. Do not
+> restate build or quota status here — this doc carried a "BUILT, unverified"
+> banner and an EAS quota date, and both were the kind of claim that goes stale
+> silently.
 
-Scope: a home-screen widget showing **today's calories + protein remaining**
-(and optionally a small ring), refreshed from a last-known snapshot the app
-writes on each log. Runtime cost: **$0** (reads local shared storage, no
-network, no Cloud Function).
+Scope: **today's calories + protein remaining**, on every surface that can show
+them without opening the app — the iOS home-screen widget, the three iOS Lock
+Screen accessory families, the Android home-screen widget, the Apple Watch
+complication, and the watch's one read-only screen. All render the same
+last-known snapshot the app writes on each log. Runtime cost: **$0** (local
+shared storage and, on the watch, WatchConnectivity — no network, no auth, no
+Cloud Function anywhere in the chain).
 
 Expo has **no built-in widget support** — widgets are OS-native extensions, so
 this is the most native-heavy of the pipeline features (iOS needs Swift).
@@ -53,12 +57,16 @@ state (the app hasn't been opened yet today) rather than stale numbers.
   target to the managed Expo project without ejecting. The widget UI is
   **SwiftUI** (Swift, hand-written — there's no JS escape hatch on iOS).
 - **Shared storage:** an **App Group** (`group.fit.ignia.app`). The RN side
-  writes the snapshot JSON to the App Group's shared `UserDefaults` (or a file
-  in the group container); the Swift widget reads the same key. Bridge from RN
-  via a tiny native module or `react-native-shared-group-preferences`.
-- **Refresh:** WidgetKit `TimelineProvider` — reload on our write via
-  `WidgetCenter.shared.reloadAllTimelines()` (call from the native module after
-  each snapshot write) + a periodic timeline entry as a backstop.
+  writes the snapshot JSON to the App Group's shared `UserDefaults` via
+  `ExtensionStorage` (from `@bacons/apple-targets`); the Swift widget reads the
+  same key back.
+- **Refresh:** WidgetKit `TimelineProvider` — `ExtensionStorage.reloadWidget`
+  on our write, plus a pre-scheduled midnight entry as the backstop for the one
+  moment nothing pushes.
+- **Families:** `.systemSmall` on the Home Screen, and
+  `.accessoryCircular` / `.accessoryRectangular` / `.accessoryInline` on the
+  Lock Screen. `.accessoryCorner` is deliberately absent — it is the only family
+  with no Lock Screen counterpart, so it would be the only net-new layout.
 - **Owner gate:** the widget-extension target + App Group capability must be
   registered on the `fit.ignia.app` App id in the Apple Developer portal.
 
@@ -71,6 +79,47 @@ state (the app hasn't been opened yet today) rather than stale numbers.
   snapshot on log change; call the library's `requestWidgetUpdate` after writes.
 - **Refresh:** on-demand via `requestWidgetUpdate` + an `updatePeriodMillis`
   backstop (Android clamps this to ≥30 min — fine for a "remaining" display).
+
+## Apple Watch
+
+The complication is the same shape as the iPhone widget, one hop further out —
+and that hop is the whole design problem. **App Groups are per-device**, so the
+watch cannot read the container the phone writes. Decisions live on the #31 map
+(#33, #37, #38, #39, #40, #43, #44); this is the shape they landed on.
+
+- **Transport:** `WCSession.updateApplicationContext` and nothing else. Latest-
+  wins, $0, no auth. Reading Firestore on the watch is **structurally
+  unavailable** — Firebase's own platform matrix has a blank watchOS cell for
+  Cloud Firestore. WidgetKit push carries no payload. `sendMessage` does not
+  wake the counterpart.
+- **The payload is a one-key envelope** carrying the *already-serialized*
+  snapshot JSON, byte-identical to what `ExtensionStorage` writes. Sending the
+  eight fields as a native dictionary would have created a second decode path in
+  Swift and made the dictionary's key set a third thing to keep in step.
+- **The watch app is link 2 of the transport, not decoration.** WatchConnectivity
+  delivers to the app, never to a complication, so the app owns the `WCSession`
+  delegate, the `.backgroundTask(.watchConnectivity)`, the App Group write and
+  the `reloadAllTimelines`. Its one screen is additive to a job it must do
+  regardless — and a watch binary whose only screen is empty is the
+  minimum-functionality shape that has already cost this app two rejections.
+- **The delegate writes blindly; the guard runs at render.** One guard
+  implementation means the screen and the face can never disagree about what
+  "stale" means, and on a transient two-clock disagreement a validating delegate
+  would discard the only copy of data it has no way to re-request. There is no
+  pull on this transport.
+- **How fresh it honestly is:** seconds-to-minutes with the watch on the wrist
+  and the phone in pocket; 15–60 minutes once the day's reloads throttle;
+  **unbounded** while the two devices are apart. Apple promises no latency at
+  all. That ceiling is why the rectangular face carries an unconditional
+  `as of 8:04 AM` and the watch screen always does — and why there is no refresh
+  affordance anywhere on the watch.
+- **Sign-out** pushes an empty envelope, which fails the decode and collapses to
+  the same empty face as an absent blob. The honest bound is *cleared on next
+  contact, or at the watch's local midnight, whichever comes first* — the
+  day-key guard is a privacy backstop, not just a freshness one.
+- **`deploymentTarget: "10.0"`, pinned on both watch targets.** 9.4 looks free
+  and is not: it sits below the line where the **Smart Stack** exists, which is
+  where an Apple Watch widget is actually discovered today.
 
 ## Shared work (both platforms)
 - `packages/core/src/widget-snapshot.ts` + unit tests (pure; export from
@@ -128,14 +177,37 @@ screen.
 - [ ] Sign out → the widget blanks (it must not keep the old account's numbers
       on the home screen).
 
+**Apple Watch** — none of this is reachable until the watch targets compile and
+a build carries them. The layout half is a **simulator** readout (#46) and needs
+no hardware; everything below needs a real paired watch.
+
+- [ ] Complication appears in the face gallery (Smart Stack presence is the
+      whole reason for the `10.0` pin).
+- [ ] Add it with the phone having **never pushed** → `Waiting for iPhone`, not
+      zeros, and the watch screen carries the explanatory subline.
+- [ ] Log a meal with the watch on the wrist and phone in pocket → the face
+      moves. **This is the one that matters** — it proves the whole hop, not
+      just the render, the same way the iPhone check did.
+- [ ] Tap the face → the mirror screen opens and shows the denominators
+      (`1,240 / 2,000`, `protein 88/150`) plus `as of`.
+- [ ] Walk out of range, log on the phone, come back → the face catches up on
+      next contact. (Latency here is unmeasurable by design; the check is that
+      it *converges*, not how fast.)
+- [ ] Cross midnight with the two devices apart → the face blanks. This is the
+      privacy backstop, not just freshness.
+- [ ] Sign out with the watch nearby → the face blanks on next contact.
+- [ ] Sign out with the watch **in a drawer** → it stays populated until local
+      midnight. That is the documented bound, not a bug; confirm it is the
+      bound and not "forever".
+
 ## Locked decisions
 Settled 2026-07-23, before any code existed.
 
 | Decision | Locked as |
 |---|---|
-| **What it shows** | **kcal remaining + protein remaining, text-first.** No ring — it's a fast-follow once the seam is proven on device. |
+| **What it shows** | **kcal remaining + protein remaining, text-first.** The home-screen faces stay text-first and still ignore `progress`; the ring arrived later, on the accessory families, where a `Gauge` is the whole idiom. |
 | **Platforms** | **Both.** Android's TSX widget is cheap and validates the snapshot pipeline before the Swift cost is paid; nothing ships on Play until the 12-tester gate is met. |
-| **Sizes** | **iOS `.systemSmall` / Android 2×2 only.** Medium is additive later. |
+| **Sizes** | **iOS `.systemSmall` / Android 2×2** for the home screen; `systemMedium` is still additive later. The Lock Screen and watch accessory families were added afterwards and are governed by the #31 map, not by this table. |
 | **Tap target** | **Deep-link to the add-entry sheet** (`ignia://?openAdd=1` — the same param the in-app FAB route uses), so the widget drives logging. |
 | **Empty state** | **"Open Ignia to start."** Never zeros — a "0 left" reads as a fully-eaten day. |
 | **Theme** | **One fixed brand face, dark in both themes** (the `heroPanel` family, ADR-0014). A widget sits on the wallpaper and can't follow the in-app theme. |
@@ -149,14 +221,31 @@ Settled 2026-07-23, before any code existed.
 | `apps/mobile/src/lib/widget.ts` | Storage + reload adapter. iOS → App Group `UserDefaults` via `ExtensionStorage`; Android → `AsyncStorage` + `requestWidgetUpdate`. Native modules lazy-required (Expo Go / web safe). |
 | `apps/mobile/src/hooks/useWidgetSync.ts` | Mounted on Today. Writes on every summary/target change + on app foreground. No new Firestore listeners (ADR-0016). |
 | `apps/mobile/src/widgets/*` | Android widget UI (TSX), string table, task handler. |
-| `apps/mobile/targets/widget/index.swift` | iOS SwiftUI widget — the hand-written Swift **mirror** of `widget-snapshot.ts`. |
+| `apps/mobile/targets/_shared/Glance.swift` | **The one Swift mirror** of `widget-snapshot.ts` — decode, version gate, staleness guard, `Metric`, the contract constants and the string table. The apple-targets plugin globs `_shared/*` and links it into **every** target, so this single file reaches the widget, the watch app and the complication. |
+| `apps/mobile/targets/widget/index.swift` | iOS SwiftUI widget: `systemSmall` + the three accessory families. Views and `TimelineProvider` only. |
+| `apps/mobile/targets/watch/index.swift` | watchOS app — `WCSession` delegate, background task, App Group write, `reloadAllTimelines`, and the one read-only mirror screen. |
+| `apps/mobile/targets/watch-widget/index.swift` | Watch face complication: circular, rectangular, inline. |
+| `apps/mobile/modules/watch-link/` | The phone half of the transport. A custom Expo Module — the repo's first — that forwards the envelope over `WCSession`. Deliberately a dumb pipe: it never learns the contract, and it cannot see `_shared` (Expo Modules are CocoaPods targets, not apple-targets). |
 | `apps/mobile/index.js` | Custom entry; registers the Android task handler before React mounts. |
 
-**The mirroring is the thing to watch.** iOS can't run our JS, so the decode /
-staleness / over-vs-left rules exist twice. `widget-snapshot.ts` is the spec and
-its vitest suite is the reference; a change to one side is a bug until it lands
-on the other. The same applies to the widget string table (`strings.ts` ↔ the
-`strings()` func in `index.swift`) and the palette hexes.
+**The mirroring is the thing to watch, and it is held at exactly one copy.**
+iOS can't run our JS, so the decode / staleness / over-vs-left rules exist
+twice — in `widget-snapshot.ts` and in `Glance.swift` — and **not once per
+Apple surface**. `widget-snapshot.ts` is the spec and its vitest suite is the
+reference; a change to one side is a bug until it lands on the other. Android
+keeps its own table in `strings.ts` because it renders in JS. Two tables total,
+not three.
+
+**Views are deliberately NOT shared.** The `_shared` group is linked into the
+*main app* target too, so everything in it compiles against the phone app's iOS
+floor — `Gauge` is iOS 16+, `.containerBackground` is iOS 17+, and shared
+SwiftUI would need `@available` guards on code that can only be compiled by
+spending an EAS build. The dividing line, stated once: **what can silently show
+wrong _numbers_ is shared; what can only look wrong is not.** A drifted layout
+is visible to anyone who looks at it; a drifted staleness guard is not.
+
+**Prebuild must be re-run on any add/rename/remove in `targets/_shared/`** — the
+glob runs at prebuild time and is non-recursive (one level).
 
 ### Locale rides in the blob
 Our locale is `profile.preferredLocale` — behind auth and Firestore, neither of
@@ -167,6 +256,12 @@ the snapshot and each widget keeps its own small string table.
 ## Deferred / separate (NOT this plan)
 - **Fasting Live Activity** (iOS lock-screen fast countdown) — natural given the
   existing Fasting feature, but a distinct ActivityKit effort (~1 wk, iOS-only).
-- **Apple Watch complication / app** — separate target, larger.
 - **Interactive widgets** (log from the widget without opening the app) —
-  iOS 17+ AppIntents; defer until the display widget ships.
+  iOS 17+ AppIntents; defer until the display widget ships. Note this is a
+  different thing from a quick-log affordance *on the watch*, which was
+  separately rejected: it needs a watch→phone write path this design does not
+  have.
+- **`.accessoryCorner`** — the one accessory family not shipped. Absent from the
+  corner slots of the Infograph faces is the accepted cost.
+- **Wear OS** — Android glanceable surfaces beyond the home-screen widget are
+  out of scope on the #31 map.
