@@ -138,6 +138,8 @@
       [
         "@sentry/react-native/expo",
         {
+          "organization": "gabriel-bermudez",
+          "project": "ignia-mobile",
           "experimental_android": {
             "enableAndroidGradlePlugin": true,
             "autoUploadNativeSymbols": true,
@@ -148,7 +150,7 @@
     ],
     "extra": {
       "sentry": {
-        "dsn": ""
+        "dsn": "https://95322a1abe93991cf4b6c26edb253e31@o507481.ingest.us.sentry.io/4511848397996032"
       },
       "googleAuth": {
         "iosClientId": "647810616435-66v806q2ptpso47ldcgq7h3bdq6h327j.apps.googleusercontent.com",
