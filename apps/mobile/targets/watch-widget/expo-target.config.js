@@ -22,7 +22,30 @@
 module.exports = (config) => ({
   type: 'watch-widget',
   name: 'IgniaWatchComplication',
-  bundleIdentifier: '.watchkitapp.complication',
+  // NOT `.watchkitapp.complication`, and this is a measured Apple constraint,
+  // not a style choice. Apple's Developer Portal **refuses any App ID whose
+  // final segment is `complication`** — verified 2026-08-03 against the App
+  // Store Connect API, three times, under two different parents:
+  //
+  //   fit.ignia.app.watchkitapp                    → OK
+  //   fit.ignia.app.watchkitapp.watchkitextension  → OK
+  //   fit.ignia.app.watchkitapp.face               → OK
+  //   fit.ignia.app.glance                         → OK
+  //   fit.ignia.app.watchkitapp.complication       → 409 "not available"
+  //   fit.ignia.app.watch.complication             → 409 "not available"
+  //   fit.ignia.app.complication                   → 409 "not available"
+  //
+  // The error is `An App ID with Identifier '…' is not available. Please enter
+  // a different string.` — which reads exactly like "someone already took it"
+  // and is not that: nothing under `fit.ignia.*` existed beyond the app and the
+  // widget. Registering the parent first does not help either. It surfaces
+  // during `eas credentials` / a build, *after* the target list is resolved.
+  //
+  // `watchkitextension` is Apple's own canonical suffix and registers cleanly.
+  // The name is legacy-flavoured — this is a modern WidgetKit extension, not a
+  // WatchKit 1 extension — but a bundle id is an identifier, not a description,
+  // and the only hard requirement is that it is prefixed by the watch app's id.
+  bundleIdentifier: '.watchkitapp.watchkitextension',
   deploymentTarget: '10.0',
   frameworks: ['WidgetKit', 'SwiftUI'],
   entitlements: {
