@@ -106,7 +106,6 @@
       ],
       "react-native-health-connect",
       "@bacons/apple-targets",
-      "./plugins/with-extension-storage-pod",
       [
         "react-native-android-widget",
         {
@@ -130,6 +129,9 @@
         {
           "android": {
             "minSdkVersion": 26
+          },
+          "ios": {
+            "deploymentTarget": "16.4"
           }
         }
       ]

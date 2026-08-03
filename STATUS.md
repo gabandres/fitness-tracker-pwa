@@ -111,20 +111,27 @@ cd apps/mobile && npx eas-cli account:usage gabandres --non-interactive
   (54.0.36), while ~34 other Expo module pods install normally. The device probe
   agrees — 42 native modules registered, that one absent.
 
-  Ruled out, so nobody spends another build re-checking: the package ships a valid
-  podspec and Swift module (`Name("ExtensionStorage")`, matching the probe's
-  lookup); `appleTeamId` and the App Group entitlement are both set; no `pods.rb`
-  excludes anything; SDK 54 autolinking still honours the package's legacy `"ios"`
-  config key (`rawConfig.apple ?? rawConfig.ios`); the pod cache was empty;
-  `5.0.0` is the latest release. `npx expo-modules-autolinking resolve -p apple`
-  **does** resolve it on Windows, so the fault is in how the package is reached on
-  the worker, not in the repo's config.
+  **The cause is a deployment-target mismatch, found 2026-08-02.**
+  `ExtensionStorage.podspec` declares `s.platform = :ios, '16.4'`; the app was on
+  SDK 54's default **15.1**. Expo's autolinking **silently drops** modules whose
+  podspec floor is above the app's deployment target — no warning, no build
+  failure, the pod simply never exists. Forcing the pod in explicitly is what
+  finally made it speak: `CocoaPods could not find compatible versions for pod
+  "ExtensionStorage" … they required a higher minimum deployment target`
+  (build `ab70e74f`, the only one that has ever failed here).
 
-  Mitigation: `apps/mobile/plugins/with-extension-storage-pod.js` adds the pod
-  explicitly, resolving its path through Node so it is correct under either
-  hoisting layout — and logs which one, which is the evidence the build logs never
-  gave. **Unverified: no build has run with it yet.** It no-ops if autolinking ever
-  starts working, so delete it once a build proves that.
+  Fix: `ios.deploymentTarget: "16.4"` in `expo-build-properties`. **This raises the
+  App Store minimum** — iPhone 6s / 7 / SE-1 cap out at iOS 15 and will no longer
+  be offered updates. Accepted by the owner 2026-08-02 as the cost of the widget.
+  The temporary force-link plugin was **deleted** in the same commit: with the
+  target raised, autolinking adds the pod itself, and a second explicit `pod` line
+  would be a duplicate declaration.
+
+  Also settled by that build, so nobody re-investigates: the package resolves from
+  the **monorepo root** `node_modules` on the worker (the plugin logged the path),
+  so hoisting was never involved. Likewise not involved: `appleTeamId`, the App
+  Group entitlement, the legacy `"ios"` config key, the pod cache, and the expo
+  patch version — 54.0.35 and 54.0.36 fail identically.
 
   The general trap stands: this package fails *silently and completely* rather
   than throwing, which is why the `__DEV__` probes in `src/lib/widget.ts` are kept.
@@ -150,7 +157,7 @@ cd apps/mobile && npx eas-cli build:list --platform ios --limit 5   # what exist
 | # | Work | Blocked on |
 |---|---|---|
 | — | Next iOS binary (everything in §2) | **Device QA of the `development` build `c539ab49`** (§3), then one `production` build. Quota and credentials are both resolved |
-| #36 | Verify the shipped widget on a physical iPhone | **Two attempts, both dead, and the real cause is now known** (§3): the `ExtensionStorage` pod never reaches the Podfile on EAS, so the native module is absent and every write is a silent no-op. `de8fabd0` was run on device 2026-08-02 and printed `NATIVE MODULE MISSING` with 42 modules linked. A mitigation plugin is committed but **unbuilt** — iOS is 3/15 this period and the owner called a halt on speculative builds. Next build must be checked **from its log** (`ExtensionStorage` in `INSTALL_PODS`) *before* anyone installs it. The widget is **small size only**, shows kcal *remaining*, and the gallery preview is hardcoded placeholders — only a home-screen instance proves the pipeline |
+| #36 | Verify the shipped widget on a physical iPhone | **Two attempts, both dead, and the real cause is now known** (§3): the `ExtensionStorage` pod never reaches the Podfile on EAS, so the native module is absent and every write is a silent no-op. `de8fabd0` was run on device 2026-08-02 and printed `NATIVE MODULE MISSING` with 42 modules linked. The cause is now known and fixed at the root (§3): the podspec's iOS 16.4 floor vs the app's 15.1. Next build must be checked **from its log** (`ExtensionStorage` in `INSTALL_PODS`) *before* anyone installs it. The widget is **small size only**, shows kcal *remaining*, and the gallery preview is hardcoded placeholders — only a home-screen instance proves the pipeline |
 | #46 | Read the watch layouts on a simulator | **a Mac with Xcode** (currently: borrow one) |
 | #47 | Compile the generated watch targets in Xcode | **a Mac with Xcode**; branch `probe/watch-compile-47` stages it |
 | — | App Store screenshots | owner, on device (`store-assets/README.md`) |
