@@ -38,7 +38,7 @@
       "android": {
         "serviceAccountKeyPath": "./credentials/play-service-account.json",
         "track": "alpha",
-        "releaseStatus": "draft"
+        "releaseStatus": "completed"
       }
     }
   }
