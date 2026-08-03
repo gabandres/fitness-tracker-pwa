@@ -62,8 +62,8 @@ re-scope it as new work; do not describe it to users as available.
   files evaluate to the right entitlements, and
   `expo-modules-autolinking search -p apple` resolves `watch-link` →
   `WatchLinkModule` (the check that would have caught the `ExtensionStorage`
-  disappearance in §3). Blocked on a Mac for #46/#47, and on a `production`
-  credentials pass for two brand-new bundle ids.
+  disappearance in §3). Blocked on a Mac for #46/#47. The credentials half is **cleared** —
+  all four targets have App Store profiles as of 2026-08-03 (§3).
 - **Health activity import** (steps / active energy → `dailyActivity`). Import +
   display only; deliberately does **not** feed measured-mode TDEE.
 - **Per-meal reminder settings** (fixes the un-silenceable 1:30pm lunch nudge).
@@ -117,20 +117,47 @@ cd apps/mobile && npx eas-cli account:usage gabandres --non-interactive
   `eas build --local`, which refuses to run on Windows. See §7. **Android AABs do
   not build here at all** — see the `bundleRelease` note in §4; they come from EAS,
   which has its own 15/month Android allowance.
-- **Credentials are issued now — that one-time blocker is gone.** The scheme has
-  **two** targets, and `fit.ignia.app.widget` had never had credentials (its bundle
-  ID did not exist in the Apple portal at all). EAS cannot mint them unattended: it
-  refuses in non-interactive mode, *before* creating the build, so failed attempts
-  cost no quota. Setting the ASC API key env vars does **not** help either — a
-  `development`/`preview` build is **internal distribution**, which needs an ad-hoc
-  profile, which needs a human to pick devices.
+- **Credentials are issued, `production` included — that blocker is fully gone
+  as of 2026-08-03.** The scheme now has **four** targets and every one of them
+  has an active App Store provisioning profile, all sharing one distribution
+  certificate:
+
+  | Target | Bundle id | Profile |
+  |---|---|---|
+  | Ignia | `fit.ignia.app` | `4N7B4FLGN4` |
+  | Today | `fit.ignia.app.widget` | `S3KXW76C96` |
+  | IgniaWatch | `fit.ignia.app.watchkitapp` | `534KZZ4G6U` |
+  | IgniaWatchComplication | `fit.ignia.app.watchkitapp.watchkitextension` | `GTRBXF4G5D` |
+
+  Distribution certificate `D48CC6237D` (serial `164DA7AA…`), expires
+  **2027-07-07** — the same one that signed live 1.0 and TestFlight build 13.
+  Targets **share** the cert and need **separate profiles**; do not mint a
+  second cert, Apple caps them at 2 per account.
+
+  Both watch targets reported `Synced capabilities: Enabled: App Groups` and
+  `Linked: group.fit.ignia.app`. That is the explicit entitlement declaration in
+  the two `expo-target.config.js` files doing its job — the plugin's
+  `appGroupsByDefault` flag does **not** cover watch targets, and without those
+  blocks the complication would ship unable to read what the watch app writes.
+
+  **`.complication` is an unusable App ID suffix.** Apple's portal refuses any
+  identifier whose final segment is `complication` — verified three times
+  against the ASC API under two different parents, while `.watchkitextension`,
+  `.face` and `.glance` all registered fine. The error says *"is not available.
+  Please enter a different string"*, which reads like the name is taken and is
+  not. Registering the parent first does not help.
 
   Run **once per distribution type** without `--non-interactive` and answer the
-  Apple prompts. Done for **ad-hoc** on 2026-08-01, which is why `development`
-  builds now run unattended. **`production` needs its own pass** — App Store
-  distribution is a different cert and different profiles for both targets — and
-  that was still outstanding as of 2026-08-02, when a `production` build died at
-  `Failed to register bundle identifier fit.ignia.app.widget`.
+  Apple prompts. **ad-hoc** done 2026-08-01, **App Store** done 2026-08-03.
+  EAS cannot mint credentials unattended: it refuses in non-interactive mode,
+  *before* creating the build, so failed attempts cost no quota. Setting the ASC
+  API key env vars does **not** help either — a `development`/`preview` build is
+  **internal distribution**, which needs an ad-hoc profile, which needs a human
+  to pick devices.
+
+  The 2026-08-02 `production` failure at
+  `Failed to register bundle identifier fit.ignia.app.widget` is what this pass
+  cleared.
 
   That failure is **not** an ASC key problem, and the key's role is not the
   explanation (`47Z9RY8MT5` is Admin, and it answers ASC version queries fine —
