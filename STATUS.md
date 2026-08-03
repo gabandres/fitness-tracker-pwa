@@ -90,9 +90,19 @@ cd apps/mobile && npx eas-cli account:usage gabandres --non-interactive
   `development`/`preview` build is **internal distribution**, which needs an ad-hoc
   profile, which needs a human to pick devices.
 
-  Run **once** without `--non-interactive` and answer the Apple prompts. That was
-  done 2026-08-01; the widget bundle ID is registered and the profiles are stored,
-  so **later builds can go back to `--non-interactive`**. `device:list` still needs
+  Run **once per distribution type** without `--non-interactive` and answer the
+  Apple prompts. Done for **ad-hoc** on 2026-08-01, which is why `development`
+  builds now run unattended. **`production` needs its own pass** — App Store
+  distribution is a different cert and different profiles for both targets — and
+  that was still outstanding as of 2026-08-02, when a `production` build died at
+  `Failed to register bundle identifier fit.ignia.app.widget`.
+
+  That failure is **not** an ASC key problem, and the key's role is not the
+  explanation (`47Z9RY8MT5` is Admin, and it answers ASC version queries fine —
+  checked the same day). The failing call is a **Developer Portal** write, where
+  EAS falls back to Apple ID session auth and asks for `EXPO_APPLE_ID` + 2FA. No
+  API key covers that step. Credential failures cost **no build quota** — they
+  happen before the build is created. `device:list` still needs
   `--apple-team-id AE6TTXW92K` when non-interactive.
 - One iPhone is registered for ad-hoc distribution (UDID `00008140-0016199614C3801C`).
 - **Two `development` builds exist.** `c539ab49` (commit `bb80759b`) was the first
