@@ -17,7 +17,7 @@ work because a plan doc was read as a status doc.
 |---|---|---|
 | Web PWA `ignia.fit` | **Live**, bilingual (EN + es-PR), **105** prerendered pages (en 52 / es 53), 114-URL sitemap | `npm run build` prints both counts |
 | iOS App Store | **1.0.0, build 7** (uploaded 2026-07-20, `READY_FOR_SALE`), from commit `168e0394` | ASC command below |
-| iOS 1.1.0 | **Binary exists at last: build 13** (EAS `5949a3ea`, commit `458d60db`, 2026-08-03), submitted to TestFlight. Version page still `PREPARE_FOR_SUBMISSION` — **not submitted to App Review**. First production binary that actually contains the widget's `ExtensionStorage` pod (`Installing ExtensionStorage (1.0.0)` in its build log) | ASC command below |
+| iOS 1.1.0 | **Binary exists at last: build 13** (EAS `5949a3ea`, commit `458d60db`, 2026-08-03), submitted to TestFlight. Version page still `PREPARE_FOR_SUBMISSION` — **not submitted to App Review**. First production binary that actually contains the widget's `ExtensionStorage` pod (`Installing ExtensionStorage (1.0.0)` in its build log) — **and the widget is now confirmed working from it on a physical iPhone (2026-08-03): kcal left + protein left, updating after a logged meal** | ASC command below |
 | Android / Play | **Not launched.** Play Console account exists, **developer verification complete** and `fit.ignia.app` **package name registered** (both 2026-07-31), proven with an APK signed by `apps/mobile/credentials/dev.keystore` (alias `macrolog-dev`, SHA-256 `75:4B:03:19:…:F6:D8`) — **that keystore is now load-bearing app identity; it is git-ignored and exists in one place**. App entry created (`4975181896468259775`). **The first AAB is uploaded and the whole app is IN REVIEW at Google** as of 2026-08-02 — versionName 1.1.0 / **versionCode 4**, EAS build `2d36d121`, on the **Closed testing - Alpha** track (id `4699799777678836720`), 177 countries, signed by that same key (verified with `keytool -printcert -jarfile`). 14 changes went in one submission because it is the app's first: store listing, content rating, data safety, health declaration, the release itself. Reviews are quoted at up to 7 days. Tester list `Ignia Beta Testers` holds **6 emails; 12 are required** **Personal developer account → production access requires closed testing with 12 testers opted in 14 CONTINUOUS days** ([policy](https://support.google.com/googleplay/android-developer/answer/14151465)); the clock cannot start until a build is in a closed track, so the AAB is the critical path, not the paperwork | Play Console → Android developer verification → Package names |
 | Cloud Functions / rules | Deployed, project `fitness-tracker-gb-1775407101` | `firebase deploy --only functions --dry-run` |
 
@@ -47,9 +47,12 @@ re-scope it as new work; do not describe it to users as available.
   The web project was renamed `macrolog` → **`ignia-web`** in the same pass; its
   project id and DSN are unchanged, so `src/environments/environment.ts` needed
   no edit.
-- **Home-screen widget**, iOS (SwiftUI, `apps/mobile/targets/widget/index.swift`)
-  and Android (TSX). Never compiled, never rendered anywhere — no device, no
-  simulator. Highest-risk item in the next binary.
+- **Home-screen widget — Android half only** (`apps/mobile/src/widgets/`). It is
+  in Play vc 4 (in review), but nobody has put it on an Android home screen, and
+  its task handler registers through the custom `index.js` — a path no device has
+  exercised. **The iOS widget is no longer in this list: it is verified working
+  on a physical iPhone from TestFlight build 13 (2026-08-03), including refresh
+  after a meal.** See §4 #36.
 - **Health activity import** (steps / active energy → `dailyActivity`). Import +
   display only; deliberately does **not** feed measured-mode TDEE.
 - **Per-meal reminder settings** (fixes the un-silenceable 1:30pm lunch nudge).
@@ -125,7 +128,11 @@ cd apps/mobile && npx eas-cli account:usage gabandres --non-interactive
   These are dev-client builds, so the app shell needs `npx expo start --dev-client`
   to load JS; the widget itself is native and renders without Metro once the app has
   written data.
-- **The widget is dead because `ExtensionStorage`'s pod never reaches the Podfile
+- **RESOLVED 2026-08-03 — kept because the trap is subtle and will be re-hit.**
+  The widget now works on a physical iPhone from build 13; the fix below is what
+  did it. Read this if autolinking ever drops a pod again.
+
+  **The widget was dead because `ExtensionStorage`'s pod never reached the Podfile
   on EAS — and `ios.appleTeamId` was NOT the cause.** That earlier diagnosis was
   wrong; `2f7d0b0e` fixed a real warning but not this. Proven 2026-08-02 by
   grepping the build logs: `ExtensionStorage` appears **zero times** in the entire
@@ -178,8 +185,8 @@ cd apps/mobile && npx eas-cli build:list --platform ios --limit 5   # what exist
 
 | # | Work | Blocked on |
 |---|---|---|
-| — | Next iOS binary (everything in §2) | **Device QA of the `development` build `c539ab49`** (§3), then one `production` build. Quota and credentials are both resolved |
-| #36 | Verify the shipped widget on a physical iPhone | **STILL UNVERIFIED ON DEVICE — and now it is in a TestFlight binary.** The pod is proven present in build 13 by its build log, but no human has watched it write. Install from TestFlight (internal testers get it without review), log a meal, read the `[widget]` probe. Expect `App Group round-trip OK`; if it says *not entitled*, the profile lacks App Groups and needs a new provisioning profile, not a code change. Two earlier attempts printed `NATIVE MODULE MISSING`; the cause was found and fixed (§3). The cause is now known and fixed at the root (§3): the podspec's iOS 16.4 floor vs the app's 15.1. Next build must be checked **from its log** (`ExtensionStorage` in `INSTALL_PODS`) *before* anyone installs it. The widget is **small size only**, shows kcal *remaining*, and the gallery preview is hardcoded placeholders — only a home-screen instance proves the pipeline |
+| — | Next iOS binary (everything in §2) | Nothing structural. Build 13 exists, is on TestFlight, and its widget is verified on device — the device-QA gate this row used to name is **cleared**. What remains is submitting the 1.1.0 version page to App Review (it is still `PREPARE_FOR_SUBMISSION`), or cutting a newer build first if more of §2 should ride along. Quota and credentials are both resolved |
+| #36 | Verify the shipped widget on a physical iPhone | **DONE — 2026-08-03, on a real iPhone home screen from TestFlight build 13.** It renders kcal left and protein left, **and the numbers moved after logging a meal**, which is the part that proves the whole chain: app write → App Group → `ExtensionStorage` → widget refresh. Not a render-only check. The iOS half of §3's `ExtensionStorage` saga is closed; the deployment-target fix worked in a production binary. **Still unverified: the Android widget** — it is in Play vc 4 (in review), and its task handler registers through the custom `index.js`, a path no device has exercised |
 | #46 | Read the watch layouts on a simulator | **a Mac with Xcode** (currently: borrow one) |
 | #47 | Compile the generated watch targets in Xcode | **a Mac with Xcode**; branch `probe/watch-compile-47` stages it |
 | — | App Store screenshots | owner, on device (`store-assets/README.md`) |

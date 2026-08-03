@@ -107,11 +107,19 @@ Health and Google Sign-In). Build availability and quota live in `STATUS.md` §3
 2. No Play/store metadata needed for internal testing.
 
 ## Device QA checklist (first thing after the build exists)
-- [ ] Widget appears in the iOS widget gallery and the Android picker.
+
+Tick a box only for a platform you actually watched. **iOS was run on a physical
+iPhone from TestFlight build 13 on 2026-08-03**; Android has never been on a home
+screen.
+
+- [x] **iOS** — widget appears in the gallery and renders kcal left + protein left.
+- [ ] **Android** — widget appears in the picker.
 - [ ] Add it with the app **never opened on that device** → "Open Ignia to start"
       (not "0 left").
-- [ ] Log a meal → the numbers move within seconds (this proves the App Group
-      write + `reloadWidget`, the single riskiest seam).
+- [x] **iOS** — log a meal → the numbers move within seconds (this proves the App
+      Group write + `reloadWidget`, the single riskiest seam). This is the one
+      that mattered: it makes the whole chain proven, not just the render.
+- [ ] **Android** — same check, via the `index.js` task handler.
 - [ ] Tap it → the app opens **with the add-entry sheet already up**.
 - [ ] Cross midnight with the app closed → it blanks instead of showing
       yesterday's totals as today's.
