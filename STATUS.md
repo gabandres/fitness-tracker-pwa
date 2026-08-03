@@ -103,19 +103,35 @@ cd apps/mobile && npx eas-cli account:usage gabandres --non-interactive
   These are dev-client builds, so the app shell needs `npx expo start --dev-client`
   to load JS; the widget itself is native and renders without Metro once the app has
   written data.
-- **The widget was dead in `c539ab49`, and the cause was `ios.appleTeamId`.**
-  `ExtensionStorage`'s **native module was not in the binary**, so every `set()` and
-  `reloadWidget()` was a no-op — `@bacons/apple-targets` substitutes silent stubs
-  when its module is missing, so the JS logged a successful write on every meal
-  while nothing was stored. The plugin warns about the missing team ID on every
-  `expo start`; it was dismissed as cosmetic because the build succeeded. It did
-  succeed — it just produced a binary without the module. Fixed in `2f7d0b0e`.
+- **The widget is dead because `ExtensionStorage`'s pod never reaches the Podfile
+  on EAS — and `ios.appleTeamId` was NOT the cause.** That earlier diagnosis was
+  wrong; `2f7d0b0e` fixed a real warning but not this. Proven 2026-08-02 by
+  grepping the build logs: `ExtensionStorage` appears **zero times** in the entire
+  `INSTALL_PODS` phase of both `de8fabd0` (expo 54.0.35) and `f897f42f`
+  (54.0.36), while ~34 other Expo module pods install normally. The device probe
+  agrees — 42 native modules registered, that one absent.
 
-  **Do not dismiss that warning again.** And note the general trap: this package
-  fails *silently and completely* rather than throwing, which is why the
-  `__DEV__` probes in `src/lib/widget.ts` are kept. They report, on first launch,
-  which of "native module missing" / "not entitled to the App Group" / "wrote
-  fine" is true — three different fixes that otherwise look identical.
+  Ruled out, so nobody spends another build re-checking: the package ships a valid
+  podspec and Swift module (`Name("ExtensionStorage")`, matching the probe's
+  lookup); `appleTeamId` and the App Group entitlement are both set; no `pods.rb`
+  excludes anything; SDK 54 autolinking still honours the package's legacy `"ios"`
+  config key (`rawConfig.apple ?? rawConfig.ios`); the pod cache was empty;
+  `5.0.0` is the latest release. `npx expo-modules-autolinking resolve -p apple`
+  **does** resolve it on Windows, so the fault is in how the package is reached on
+  the worker, not in the repo's config.
+
+  Mitigation: `apps/mobile/plugins/with-extension-storage-pod.js` adds the pod
+  explicitly, resolving its path through Node so it is correct under either
+  hoisting layout — and logs which one, which is the evidence the build logs never
+  gave. **Unverified: no build has run with it yet.** It no-ops if autolinking ever
+  starts working, so delete it once a build proves that.
+
+  The general trap stands: this package fails *silently and completely* rather
+  than throwing, which is why the `__DEV__` probes in `src/lib/widget.ts` are kept.
+  They report, on first launch, which of "native module missing" / "not entitled to
+  the App Group" / "wrote fine" is true — three different fixes that otherwise look
+  identical. Reading them cost one build and settled what two builds of guessing
+  had not.
 - The build archive is **7.5 MB**, not 172 MB — see `.easignore`, added 2026-08-01.
   EAS keeps `.git` in the archive unless explicitly ignored, and this repo's history
   carries ~138 MB of committed-then-deleted `node_modules` binaries. **Editing that
@@ -134,7 +150,7 @@ cd apps/mobile && npx eas-cli build:list --platform ios --limit 5   # what exist
 | # | Work | Blocked on |
 |---|---|---|
 | — | Next iOS binary (everything in §2) | **Device QA of the `development` build `c539ab49`** (§3), then one `production` build. Quota and credentials are both resolved |
-| #36 | Verify the shipped widget on a physical iPhone | **One attempt done; it failed and the cause is fixed.** Install `de8fabd0` (§3) and re-run: the `__DEV__` probe prints the verdict on first launch. Expect "App Group round-trip OK". The widget is **small size only**, shows kcal *remaining*, and the gallery preview is hardcoded placeholder numbers — only the home-screen instance proves the pipeline |
+| #36 | Verify the shipped widget on a physical iPhone | **Two attempts, both dead, and the real cause is now known** (§3): the `ExtensionStorage` pod never reaches the Podfile on EAS, so the native module is absent and every write is a silent no-op. `de8fabd0` was run on device 2026-08-02 and printed `NATIVE MODULE MISSING` with 42 modules linked. A mitigation plugin is committed but **unbuilt** — iOS is 3/15 this period and the owner called a halt on speculative builds. Next build must be checked **from its log** (`ExtensionStorage` in `INSTALL_PODS`) *before* anyone installs it. The widget is **small size only**, shows kcal *remaining*, and the gallery preview is hardcoded placeholders — only a home-screen instance proves the pipeline |
 | #46 | Read the watch layouts on a simulator | **a Mac with Xcode** (currently: borrow one) |
 | #47 | Compile the generated watch targets in Xcode | **a Mac with Xcode**; branch `probe/watch-compile-47` stages it |
 | — | App Store screenshots | owner, on device (`store-assets/README.md`) |
