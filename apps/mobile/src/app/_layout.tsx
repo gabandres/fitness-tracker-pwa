@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { BrandLoader } from '@/components/BrandLoader';
 import { I18nProvider } from '@/i18n';
+import { Sentry } from '@/lib/sentry';
 import { ThemeProvider, useTheme } from '@/lib/theme-context';
 
 // Silence Expo Go's expo-notifications warnings: we use LOCAL notifications
@@ -97,7 +98,7 @@ const styles = StyleSheet.create({
   },
 });
 
-export default function RootLayout() {
+function RootLayout() {
   // Display faces only (ADR-0014); body text stays system. If loading ever
   // errors (bad asset on an OTA update), ship system fonts over a blank app.
   const [fontsLoaded, fontsError] = useFonts({ Manrope_700Bold, Manrope_800ExtraBold });
@@ -118,3 +119,7 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+// `Sentry.wrap` installs the error boundary and touch/navigation breadcrumbs
+// around the whole tree. It is a no-op when Sentry.init() never ran (no DSN).
+export default Sentry.wrap(RootLayout);

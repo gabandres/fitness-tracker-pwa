@@ -35,6 +35,18 @@ node -e "import('./scripts/asc-client.mjs').then(async({api,APP_ID})=>{const r=a
 All of this is on `main` and reaches nobody until the next iOS build. Do not
 re-scope it as new work; do not describe it to users as available.
 
+- **Sentry + Google sign-in diagnostics (mobile)** — the Expo app had no error
+  reporting of any kind; a Google sign-in failure on a tester's Galaxy S26 /
+  One UI 8.5 (`alelepr@gmail.com`, Play internal-testing install) is
+  undiagnosable on the live build because the native error code is discarded
+  before display. Sentry project **`ignia-mobile`** (org `gabriel-bermudez`,
+  id `4511848397996032`) exists and its DSN is wired into
+  `apps/mobile/app.json`; ingestion was verified end-to-end with a test event
+  on 2026-08-03. **Only a new Android build carries it to the tester** —
+  nothing here reaches any user until one is built.
+  The web project was renamed `macrolog` → **`ignia-web`** in the same pass; its
+  project id and DSN are unchanged, so `src/environments/environment.ts` needed
+  no edit.
 - **Home-screen widget**, iOS (SwiftUI, `apps/mobile/targets/widget/index.swift`)
   and Android (TSX). Never compiled, never rendered anywhere — no device, no
   simulator. Highest-risk item in the next binary.

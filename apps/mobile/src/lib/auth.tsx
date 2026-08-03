@@ -46,17 +46,36 @@ import type { Profile } from '@macrolog/core';
 import { auth, functions } from './firebase';
 import { ensureProfile, subscribeProfile } from './ledger';
 import { registerAppleRefreshToken } from './appleSignin';
+import { addBreadcrumb, captureError, setSentryUser } from './sentry';
 import { clearWidget } from './widget';
 
 // Required for the web-OAuth popup/redirect to resolve when the app
 // regains focus after the Google consent screen.
 WebBrowser.maybeCompleteAuthSession();
 
-/** A coded error so the sign-in screen can show a specific message. */
+/**
+ * A coded error so the sign-in screen can show a specific message.
+ *
+ * `detail` is set ONLY when we could not classify the failure. There is no
+ * crash reporter in this app, so an unclassified native error is otherwise
+ * invisible to us — a remote tester just sees "could not sign in". The sign-in
+ * screen appends `detail` to the message so they can read the real code back.
+ */
 export class GoogleSignInError extends Error {
-  constructor(readonly code: string) {
-    super(code);
+  constructor(
+    readonly code: string,
+    readonly detail?: string,
+  ) {
+    super(detail ? `${code}: ${detail}` : code);
   }
+}
+
+/** Squash an unknown native error into one short, readable line. */
+function describeNativeError(e: unknown): string {
+  const code = (e as { code?: string | number })?.code;
+  const name = (e as { name?: string })?.name;
+  const message = (e as { message?: string })?.message ?? String(e);
+  return `${code ?? name ?? 'no-code'} · ${message}`.replace(/\s+/g, ' ').slice(0, 180);
 }
 
 /** Coded error for the Apple flow, same contract as GoogleSignInError. */
@@ -271,6 +290,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, async (u) => {
       setUser(u);
       setEmailVerified(u?.emailVerified ?? false);
+      // uid only — never the email (PII minimization). A uid resolves to a
+      // person in the Firebase console on the rare occasion we need it.
+      setSentryUser(u?.uid ?? null);
       if (u) {
         // Create users/{uid} on first sign-in if it doesn't exist yet, so a
         // mobile-first new user has a profile doc for onboarding to update.
@@ -430,26 +452,76 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { GoogleSignin, isSuccessResponse, isErrorWithCode, statusCodes } = loadGoogleSignin();
         let idToken: string | null;
         try {
+          // Breadcrumbs pin down WHICH step failed — "play services ok" present
+          // but "picker returned" missing means the account picker itself blew
+          // up, which reads very differently from a Firebase rejection.
+          addBreadcrumb('google: start');
           // Native account picker: Play Services (Android) / Google SDK (iOS).
           // Returns the id_token in-process — no browser round-trip, so the old
           // redirect/custom-URI-scheme failures are structurally impossible.
           await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+          addBreadcrumb('google: play services ok');
           const response = await GoogleSignin.signIn();
+          addBreadcrumb('google: picker returned', { success: isSuccessResponse(response) });
           // A non-success response means the user dismissed the picker.
           if (!isSuccessResponse(response)) throw new GoogleSignInError('cancelled');
           idToken = response.data.idToken;
         } catch (e) {
           if (e instanceof GoogleSignInError) throw e;
-          if (
-            isErrorWithCode(e) &&
-            (e.code === statusCodes.SIGN_IN_CANCELLED || e.code === statusCodes.IN_PROGRESS)
-          ) {
-            throw new GoogleSignInError('cancelled');
+          if (isErrorWithCode(e)) {
+            if (e.code === statusCodes.SIGN_IN_CANCELLED || e.code === statusCodes.IN_PROGRESS) {
+              throw new GoogleSignInError('cancelled');
+            }
+            if (e.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+              throw new GoogleSignInError('play-services');
+            }
           }
-          throw new GoogleSignInError('failed');
+          // Anything else is unclassified, and the two that matter here look
+          // identical to the user: DEVELOPER_ERROR (code 10) = the build's
+          // signing cert / client ID doesn't match what Google has, and
+          // NoCredentialException = no usable Google account on the device.
+          // Carry the native code through instead of flattening both to
+          // "please try again", which is what made this undiagnosable.
+          console.warn('[google-signin] unclassified failure', e);
+          captureError(e, {
+            where: 'signInWithGoogle.picker',
+            extra: {
+              nativeCode: (e as { code?: string | number })?.code ?? null,
+              // Which client IDs this build was configured with — a mismatch
+              // between these and what Google has registered for the install's
+              // signing cert is the classic DEVELOPER_ERROR.
+              webClientId: googleAuth?.webClientId ?? null,
+              hasIosClientId: Boolean(googleAuth?.iosClientId),
+            },
+          });
+          throw new GoogleSignInError('failed', describeNativeError(e));
         }
-        if (!idToken) throw new GoogleSignInError('no-token');
-        await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+        if (!idToken) {
+          // The picker succeeded but handed back no id_token — a configuration
+          // symptom (wrong/missing webClientId), not a user action.
+          captureError(new Error('google: success response without idToken'), {
+            where: 'signInWithGoogle.noToken',
+            extra: { webClientId: googleAuth?.webClientId ?? null },
+          });
+          throw new GoogleSignInError('no-token');
+        }
+        try {
+          await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+        } catch (e) {
+          // Rethrow Firebase's own coded errors untouched — the screen maps
+          // account-exists-with-different-credential and friends by code. Only
+          // annotate, so an unmapped one (user-disabled, operation-not-allowed,
+          // internal-error) still reaches us with its code attached.
+          console.warn('[google-signin] signInWithCredential failed', e);
+          captureError(e, {
+            where: 'signInWithGoogle.firebase',
+            extra: { firebaseCode: (e as { code?: string })?.code ?? null },
+          });
+          throw new GoogleSignInError(
+            (e as { code?: string })?.code ?? 'failed',
+            describeNativeError(e),
+          );
+        }
       },
       appleAvailable: appleSignInAvailable,
       signInWithApple: async () => {

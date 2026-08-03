@@ -74,6 +74,7 @@ export const en = {
   'signIn.errExpoGo': 'This sign-in method needs the installed app build (not Expo Go).',
   'signIn.errCancelled': 'Google sign-in was cancelled.',
   'signIn.errDiffMethod': 'That email already uses a different sign-in method.',
+  'signIn.errPlayServices': 'Google Play services is missing or out of date on this device — update it, then try again.',
   'signIn.errGeneric': 'Could not sign in. Please try again.',
 
   // ── onboarding ──

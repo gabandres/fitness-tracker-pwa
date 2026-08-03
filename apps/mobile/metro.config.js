@@ -1,10 +1,14 @@
 // Learn more: https://docs.expo.dev/guides/monorepos/
-const { getDefaultConfig } = require('expo/metro-config');
+// `getSentryExpoConfig` is a drop-in for `getDefaultConfig` from
+// `expo/metro-config` — same config object, plus the Sentry serializer that
+// stamps Debug IDs into the bundle so uploaded source maps actually match it.
+// Without it, mobile stack traces arrive minified and useless.
+const { getSentryExpoConfig } = require('@sentry/react-native/metro');
 
 // getDefaultConfig already handles this npm-workspaces monorepo (workspace-root
 // watchFolders + both node_modules trees) — don't override watchFolders, or
 // expo-doctor flags dropped defaults.
-const config = getDefaultConfig(__dirname);
+const config = getSentryExpoConfig(__dirname);
 
 // @kingstinct/react-native-healthkit ships an `exports` map that trips Metro's
 // SDK 54 package-exports resolver on the package's OWN internal files (it routes
