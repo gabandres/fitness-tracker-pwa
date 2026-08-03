@@ -29,6 +29,18 @@ module.exports = (config) => ({
   name: 'IgniaWatch',
   bundleIdentifier: '.watchkitapp',
   deploymentTarget: '10.0',
+  // A watchOS APP needs its own icon — unlike a widget or a complication,
+  // which have none. It shows in the watch's app grid, in the Watch app on the
+  // phone, and on the App Store listing. Reusing the phone icon is the decided
+  // answer (#39 §8: display name "Ignia", icon from the existing iOS asset);
+  // no third piece of artwork.
+  //
+  // Source is the 1024² master. **Watch for alpha**: Apple rejects App Store
+  // icons with an alpha channel and this PNG is RGBA. Expo strips it for the
+  // main app icon during prebuild; whether the apple-targets path does the same
+  // is unverified, and an ITMS-90717 rejection is the way it would surface.
+  // Check the generated `Assets.xcassets` at the first Mac sitting.
+  icon: '../../assets/images/icon.png',
   // WidgetKit is here for `WidgetCenter.shared.reloadAllTimelines()` — the
   // watch app is what asks the complication to redraw after a delivery.
   frameworks: ['SwiftUI', 'WatchConnectivity', 'WidgetKit'],
