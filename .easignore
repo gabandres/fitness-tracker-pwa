@@ -74,3 +74,6 @@ apps/mobile/credentials.json
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local scratch — validation runs, meal photos.
+scratch/

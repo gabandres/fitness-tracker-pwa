@@ -103,3 +103,6 @@ database-debug.log
 ui-debug.log
 storage-debug.log
 pubsub-debug.log
+
+# Validation-gate output and other local scratch (never committed).
+scratch/

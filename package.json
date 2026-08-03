@@ -45,6 +45,7 @@
     "@angular/build": "^21.2.6",
     "@angular/cli": "^21.2.6",
     "@angular/compiler-cli": "^21.2.0",
+    "@anthropic-ai/sdk": "^0.115.0",
     "@firebase/rules-unit-testing": "^5.0.1",
     "@jsverse/transloco-keys-manager": "^8.1.0",
     "@tailwindcss/postcss": "^4.2.2",
