@@ -156,7 +156,11 @@ private struct MirrorView: SwiftUI.View {
             .multilineTextAlignment(.center)
             .padding(.top, 4)
 
-        case let .ready(kcal, protein, snap):
+        // The protein `Metric` is deliberately not bound: this screen shows
+        // protein as consumed/target (`protein 88/150`, #39 §2), not as a
+        // remaining-vs-over metric the way the face does, so it reads the raw
+        // snapshot fields below instead.
+        case let .ready(kcal, _, snap):
           let s = Glance.strings(snap.locale)
 
           // Hero. If `as of` is not visible without scrolling on 40mm, the

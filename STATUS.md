@@ -56,14 +56,14 @@ re-scope it as new work; do not describe it to users as available.
   three iOS **Lock Screen** accessory families, one shared Swift contract
   (`targets/_shared/Glance.swift`), and the repo's first custom Expo Module
   (`modules/watch-link/`) carrying the snapshot over
-  `WCSession.updateApplicationContext`. **None of it has ever been
-  compiled** — Windows, no Xcode, and `expo prebuild -p ios` does not run
-  here. What *was* verified locally: `tsc` clean, both `expo-target.config.js`
+  `WCSession.updateApplicationContext`. **It compiles** — proven 2026-08-03 by EAS build `f3e5daaf`, which built and signed both watch products (§4 #47). What is still unproven is everything past the compiler: layouts at 40mm/46mm, and the transport on a real paired watch. What *was* verified locally: `tsc` clean, both `expo-target.config.js`
   files evaluate to the right entitlements, and
   `expo-modules-autolinking search -p apple` resolves `watch-link` →
   `WatchLinkModule` (the check that would have caught the `ExtensionStorage`
-  disappearance in §3). Blocked on a Mac for #46/#47. The credentials half is **cleared** —
-  all four targets have App Store profiles as of 2026-08-03 (§3).
+  disappearance in §3). **Credentials and compile are both cleared** — all four
+  targets have App Store profiles, and #47 closed on the build rather than on a
+  borrowed Mac. What is left needs hardware nobody can substitute for: a
+  simulator for #46's layout readout, and a paired watch for the transport.
 - **Health activity import** (steps / active energy → `dailyActivity`). Import +
   display only; deliberately does **not** feed measured-mode TDEE.
 - **Per-meal reminder settings** (fixes the un-silenceable 1:30pm lunch nudge).
@@ -95,7 +95,7 @@ review those commits fixed.
   a **30/month account total** and a **15/month per platform** sub-cap. Read
   both; the account total is the one that runs out first if the two platforms
   are used unevenly.
-- **iOS 5/15, Android 3/15, account 8/30 for the 2026-08-01 → 2026-09-01
+- **iOS 6/15, Android 4/15, account 10/30 for the 2026-08-01 → 2026-09-01
   period — measured 2026-08-03 from the API.** The counter is not the
   constraint this period.
 - **The queue is the real cost, and it is not metered.** An Android build on
@@ -235,7 +235,7 @@ cd apps/mobile && npx eas-cli build:list --platform ios --limit 5   # what exist
 | — | Next iOS binary (everything in §2) | Nothing structural. Build 13 exists, is on TestFlight, and its widget is verified on device — the device-QA gate this row used to name is **cleared**. What remains is submitting the 1.1.0 version page to App Review (it is still `PREPARE_FOR_SUBMISSION`), or cutting a newer build first if more of §2 should ride along. Quota and credentials are both resolved |
 | — | Verify the **Android** widget on a device | Nobody has put it on an Android home screen. It is in Play vc 4, and its task handler registers through the custom `index.js` — a path no device has exercised. The iOS half is **done**: verified on a real iPhone 2026-08-03 from TestFlight build 13, kcal left + protein left, **and the numbers moved after a logged meal**, which proves the whole chain rather than the render alone |
 | #46 | Read the watch layouts on a simulator | **a Mac with Xcode** (currently: borrow one). Its stated precondition — "the build session has written the watch Swift" — is now **met**: the real layouts exist, so the sitting is the readout it was designed to be |
-| #47 | Compile the generated watch targets in Xcode | **a Mac with Xcode.** Now runs against **real code instead of stubs**: `targets/_shared/Glance.swift` is referenced from all three Apple targets, so the `_shared` cross-target membership question — the load-bearing one for holding the Swift mirror at a single copy — is answered by whether the project builds, with no `ProbeShared.swift` needed. `probe/watch-compile-47` is superseded by `feat/watch-complication`; keep it only for the throwaway `ViewThatFits` probe |
+| #47 | Compile the generated watch targets in Xcode | **DONE — 2026-08-03, and it did NOT need a Mac.** An EAS iOS build *is* macOS running Xcode. Build `f3e5daaf` (commit `cfc19a06`) compiled, signed and packaged both `IgniaWatch.app` and `IgniaWatchComplication.appex`. **The load-bearing question is answered: `targets/_shared/Glance.swift` DOES resolve from the watch target** — the compiler read `Glance.strings(snap.locale)` at `targets/watch/index.swift:160` and emitted only an unrelated unused-binding warning. Had `_shared` not been linked in, that line would have been a hard "cannot find in scope" and the build would have failed. So the one-Swift-mirror design holds and #38 needs no other vehicle. Also proven in the same build: `ViewThatFits` compiles at the watchOS `10.0` pin; the custom Expo module autolinks (`Installing WatchLink (1.0.0)` → `libWatchLink.a`); `ExtensionStorage` still installs alongside it, so no regression to the shipped iPhone widget. **One warning in the entire build** (an unused `protein` binding), since fixed |
 | — | App Store screenshots | owner, on device (`store-assets/README.md`) |
 | — | Play launch — **first AAB** | **DONE** (2026-08-02). Local `bundleRelease` is **permanently dead on this machine**: `LongPathsEnabled=1` and a reboot changed nothing, because the cap is **ninja**, not the registry — the SDK's `cmake/3.22.1/bin/ninja.exe` is not long-path-aware, and the `react-native-keyboard-controller` object path is 348 chars. Relocating `.cxx` cannot save it (the CMake target-dir prefix alone is 105 chars). **AABs come from EAS.** `eas.json` `production` now sets `android.credentialsSource: "local"` so EAS signs with `credentials/dev.keystore` instead of minting a new upload key — **that line is load-bearing; removing it silently changes app identity.** Artifact: EAS build `4b513a00`, vc 3, signer SHA-256 `75:4B:03:19:…:F6:D8` |
 | — | Play launch — **upload the AAB to a closed track** | **DONE** (2026-08-02). vc 4 is on Closed testing - Alpha and submitted; the app is in Google review. Play does not accept an app's *first* upload through the Developer API, so this one went through the console UI. **vc 3 was discarded, not shipped** — it declared three health READ permissions the app never requests, and Play's health declaration demands a written justification per read permission. `07ce8e99` removed them; vc 4 declares 11 health permissions (5 read, 6 write). Do not resurrect vc 3 |
