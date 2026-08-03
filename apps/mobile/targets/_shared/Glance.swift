@@ -94,6 +94,20 @@ public enum Glance {
     public let proteinTarget: Int
     public let updatedMs: Double
     public let locale: String
+
+    public init(
+      v: Int, dateKey: String, kcalConsumed: Int, kcalTarget: Int,
+      proteinConsumed: Int, proteinTarget: Int, updatedMs: Double, locale: String
+    ) {
+      self.v = v
+      self.dateKey = dateKey
+      self.kcalConsumed = kcalConsumed
+      self.kcalTarget = kcalTarget
+      self.proteinConsumed = proteinConsumed
+      self.proteinTarget = proteinTarget
+      self.updatedMs = updatedMs
+      self.locale = locale
+    }
   }
 
   /// Mirrors `WidgetMetric`: distance from target, which side of it, and the
@@ -172,6 +186,29 @@ public enum Glance {
       protein: Metric(consumed: snap.proteinConsumed, target: snap.proteinTarget),
       snapshot: snap
     )
+  }
+
+  /// The face WidgetKit shows in the gallery and while a real entry loads.
+  ///
+  /// Plausible numbers rather than the empty state, so the gallery preview
+  /// sells what the surface does. Shared so the phone widget and the watch
+  /// complication cannot advertise different numbers, and built as a value
+  /// rather than a JSON string so a typo in a hand-written literal cannot
+  /// silently degrade the preview to `.empty`.
+  public static func preview(now: Date = Date()) -> Face {
+    let snap = Snapshot(
+      v: version,
+      dateKey: localDateKey(now),
+      kcalConsumed: 1240,
+      kcalTarget: 2000,
+      proteinConsumed: 92,
+      proteinTarget: 160,
+      updatedMs: now.timeIntervalSince1970 * 1000,
+      locale: "en")
+    return .ready(
+      kcal: Metric(consumed: snap.kcalConsumed, target: snap.kcalTarget),
+      protein: Metric(consumed: snap.proteinConsumed, target: snap.proteinTarget),
+      snapshot: snap)
   }
 
   /// Read the blob out of the App Group and decode it. Same call on the phone

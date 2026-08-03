@@ -22,7 +22,7 @@ import WidgetKit
 //
 //  ## The chain, end to end
 //
-//    phone: widget.ts persist() → WatchLink.updateApplicationContext(json)
+//    phone: widget.ts persist() → WatchReceiver.updateApplicationContext(json)
 //      → [system daemon, latest-wins, opportunistic delivery]
 //      → watch: session(_:didReceiveApplicationContext:)
 //      → UserDefaults(suiteName: Glance.appGroup).set(json, forKey:)
@@ -45,8 +45,8 @@ import WidgetKit
 
 /// Owns the `WCSession` on the watch side. Single instance, activated at app
 /// launch and never torn down.
-final class WatchLink: NSObject, ObservableObject, WCSessionDelegate {
-  static let shared = WatchLink()
+final class WatchReceiver: NSObject, ObservableObject, WCSessionDelegate {
+  static let shared = WatchReceiver()
 
   /// What to draw right now. Republished on every receipt and re-derived from
   /// the App Group whenever the screen appears, so the day-key guard is
@@ -130,7 +130,7 @@ private let igAccent = Color(
 // MARK: - The screen
 
 private struct MirrorView: SwiftUI.View {
-  @ObservedObject var link = WatchLink.shared
+  @ObservedObject var link = WatchReceiver.shared
   @Environment(\.scenePhase) private var scenePhase
 
   var body: some SwiftUI.View {
@@ -218,7 +218,7 @@ private struct MirrorView: SwiftUI.View {
 
 @main
 struct IgniaWatchApp: App {
-  init() { WatchLink.shared.start() }
+  init() { WatchReceiver.shared.start() }
 
   var body: some Scene {
     WindowGroup {
@@ -230,7 +230,7 @@ struct IgniaWatchApp: App {
     // budget — Apple's exemption list is exhaustive and background execution is
     // not on it (#37 §5).
     .backgroundTask(.watchConnectivity) {
-      WatchLink.shared.refresh()
+      WatchReceiver.shared.refresh()
     }
   }
 }

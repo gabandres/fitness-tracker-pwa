@@ -39,15 +39,7 @@ private struct Entry: TimelineEntry {
 
 private struct Provider: TimelineProvider {
   func placeholder(in context: Context) -> Entry {
-    Entry(
-      date: Date(),
-      face: Glance.face(
-        raw: """
-          {"v":1,"dateKey":"\(Glance.localDateKey(Date()))","kcalConsumed":1240,\
-          "kcalTarget":2000,"proteinConsumed":92,"proteinTarget":160,\
-          "updatedMs":\(Date().timeIntervalSince1970 * 1000),"locale":"en"}
-          """,
-        now: Date()))
+    Entry(date: Date(), face: Glance.preview())
   }
 
   func getSnapshot(in context: Context, completion: @escaping (Entry) -> Void) {
@@ -95,8 +87,9 @@ private struct CircularView: SwiftUI.View {
       .gaugeStyle(.accessoryCircularCapacity)
 
     case let .ready(kcal, _, _):
+      // Wordless — no unit, no label, only the centred number.
       Gauge(value: kcal.progress) {
-        Text(kcal.isOver ? "+" : "")
+        EmptyView()
       } currentValueLabel: {
         // `progress` is clamped to 0...1, so at 140% of target the ring looks
         // identical to 100%. The `+` is what distinguishes them, and it needs

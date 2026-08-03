@@ -57,19 +57,8 @@ private struct Entry: TimelineEntry {
 }
 
 private struct Provider: TimelineProvider {
-  /// Shown in the widget gallery and while the real entry loads. Uses plausible
-  /// numbers rather than the empty state so the gallery preview sells what the
-  /// widget does.
   func placeholder(in context: Context) -> Entry {
-    Entry(
-      date: Date(),
-      face: Glance.face(
-        raw: """
-          {"v":1,"dateKey":"\(Glance.localDateKey(Date()))","kcalConsumed":1240,\
-          "kcalTarget":2000,"proteinConsumed":92,"proteinTarget":160,\
-          "updatedMs":\(Date().timeIntervalSince1970 * 1000),"locale":"en"}
-          """,
-        now: Date()))
+    Entry(date: Date(), face: Glance.preview())
   }
 
   func getSnapshot(in context: Context, completion: @escaping (Entry) -> Void) {
@@ -168,12 +157,12 @@ private struct CircularView: SwiftUI.View {
       .gaugeStyle(.accessoryCircularCapacity)
 
     case let .ready(kcal, _, _):
+      // Wordless — no unit, no label, only the centred number. There is no room
+      // for a word here, and with `progress` clamped to 0...1 the ring alone
+      // cannot say "past target", so the over-target state is carried by a
+      // single `+` glyph on the value itself. It needs no es-PR translation.
       Gauge(value: kcal.progress) {
-        // Wordless. There is no room for a unit here, and with `progress`
-        // clamped to 0...1 the ring alone cannot say "past target" — so the
-        // over-target state is carried by a single `+` glyph, which needs no
-        // es-PR translation.
-        Text(kcal.isOver ? "+" : "")
+        EmptyView()
       } currentValueLabel: {
         Text(kcal.isOver ? "+\(Glance.grouped(kcal.value))" : Glance.grouped(kcal.value))
           .minimumScaleFactor(0.5)
