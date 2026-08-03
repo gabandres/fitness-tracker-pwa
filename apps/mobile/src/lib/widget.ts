@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
+import { updateApplicationContext } from '../../modules/watch-link';
 import {
   WIDGET_SNAPSHOT_KEY,
   type DailyTargets,
@@ -43,6 +44,25 @@ export const APP_GROUP = 'group.fit.ignia.app';
  *  the SwiftUI widget declares. The reload calls address the widget by it. */
 export const WIDGET_NAME = 'Today';
 
+/**
+ * The only key inside the WatchConnectivity application-context envelope. Must
+ * equal `Glance.contextKey` in `targets/_shared/Glance.swift`.
+ *
+ * The value is the **already-serialized snapshot JSON**, byte-identical to what
+ * `ExtensionStorage` writes into the App Group. Sending the eight fields as a
+ * native dictionary instead would have created a second decode path in Swift
+ * (dict→Snapshot alongside JSON→Snapshot) and made the dictionary's key set a
+ * third thing to keep in step with the TS interface — the exact drift the
+ * shared contract exists to prevent. With the envelope, the watch delegate does
+ * `defaults.set(json, forKey:)` and nothing else, and the decoder count stays
+ * at one (#38 §3).
+ *
+ * It lives here rather than in `@macrolog/core` because it is transport
+ * plumbing, not domain: it never touches disk, never appears in a stored blob,
+ * and has no bearing on the wire version.
+ */
+export const WATCH_CONTEXT_KEY = 'snapshot';
+
 /** Expo Go has neither native module linked, and web has no home screen. */
 const supported =
   Constants.executionEnvironment !== ExecutionEnvironment.StoreClient &&
@@ -68,6 +88,13 @@ async function persist(snapshot: WidgetSnapshot): Promise<void> {
     // only refresh on its own (slow, OS-chosen) cadence and a just-logged meal
     // wouldn't show up until much later.
     ExtensionStorage.reloadWidget(WIDGET_NAME);
+    // Same bytes, one hop further out: the Apple Watch complication cannot read
+    // this App Group (App Groups are per-device), so the blob is asserted to
+    // the watch over WatchConnectivity. This rides the existing call site and
+    // the existing `widgetSnapshotChanged` guard on purpose — one trigger, one
+    // guard, both surfaces, no watch-specific notion of "changed" (#37 §5).
+    // Never throws; a watch-less iPhone is the ordinary case.
+    updateApplicationContext({ [WATCH_CONTEXT_KEY]: json });
     if (__DEV__) {
       // `UserDefaults(suiteName:)` returns nil when the process is not entitled
       // to the App Group, and the write then no-ops WITHOUT throwing. Reading
@@ -187,19 +214,59 @@ export async function readWidgetSnapshot(): Promise<WidgetSnapshot | null> {
 
 /**
  * Drop the blob and forget the in-process guard. Used on sign-out and account
- * deletion: the widget must not keep showing the previous account's numbers on
- * a home screen after the app no longer has a session.
+ * deletion: no glanceable surface may keep showing the previous account's
+ * numbers after the app no longer has a session.
+ *
+ * **This is the only clear path, and it does not go through `persist()`** — so
+ * the watch push here is not inherited from `syncWidget`, it has to be written
+ * out. It is also unconditional: `widgetSnapshotChanged` is consulted only by
+ * `syncWidget`, so the change guard can never swallow a clear (#44 §5).
+ *
+ * `auth.tsx` awaits this **before** `fbSignOut(auth)`, and that ordering is
+ * load-bearing rather than incidental: `runDeleteAccount` deliberately swallows
+ * `signOut()` failures ("the Auth user is already gone"), so a clear placed
+ * after the Firebase sign-out would be skipped on exactly the fragile path
+ * (#44 §4). Do not reorder it.
+ *
+ * On the watch, the honest bound is: **cleared on next contact, or at the
+ * watch's local midnight, whichever comes first.** Application context cannot
+ * be dropped in transit — it sits with the system daemon and is delivered on
+ * next contact — but it also cannot be delivered to a watch that is not there.
+ * The day-key guard in `Glance.swift` is the backstop, and it is a privacy
+ * mechanism as much as a freshness one. A watch-side self-clear was declined:
+ * it would infer "signed out" from silence, and silence has four innocent
+ * causes (#44 §3).
  */
 export async function clearWidget(): Promise<void> {
   lastWritten = null;
   if (!supported) return;
-  try {
-    if (Platform.OS === 'ios') {
+
+  if (Platform.OS === 'ios') {
+    // Two separate privacy obligations on two separate devices. They used to
+    // share one `try`; neither may be skipped because the other threw, which is
+    // the same reasoning `CLAUDE.md` already applies to the hourly dispatcher's
+    // `Promise.allSettled` (#44 §5.2).
+    try {
       const { ExtensionStorage } = require('@bacons/apple-targets');
       new ExtensionStorage(APP_GROUP).set(WIDGET_SNAPSHOT_KEY, undefined);
       ExtensionStorage.reloadWidget(WIDGET_NAME);
-      return;
+    } catch (err) {
+      if (__DEV__) console.warn('[widget] App Group clear FAILED', err);
     }
+
+    try {
+      // The empty string, inside the same one-key envelope. It fails the decode
+      // on the watch and collapses to the empty face exactly as an absent or
+      // unreadable blob does — no fourth empty reason, no new key, no second
+      // decode path. `Waiting for iPhone` is the face (#44 §2).
+      updateApplicationContext({ [WATCH_CONTEXT_KEY]: '' });
+    } catch (err) {
+      if (__DEV__) console.warn('[widget] watch clear FAILED', err);
+    }
+    return;
+  }
+
+  try {
     await AsyncStorage.removeItem(WIDGET_SNAPSHOT_KEY);
     const { requestWidgetUpdate } = require('react-native-android-widget');
     const { renderTodayWidget } = require('../widgets/render');
@@ -209,6 +276,8 @@ export async function clearWidget(): Promise<void> {
       widgetNotFound: () => {},
     });
   } catch {
-    // Best-effort; see syncWidget.
+    // Best-effort; see syncWidget. Android has no second-device half — the
+    // widget renders inside our own JS context, in the same process that owns
+    // the session, and storage is cleared before the redraw is requested (#44 §7).
   }
 }

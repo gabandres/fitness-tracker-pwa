@@ -2,137 +2,31 @@ import SwiftUI
 import WidgetKit
 
 //
-//  Ignia — "Today" home-screen widget (iOS).
+//  Ignia — "Today" widget (iOS): Home Screen `systemSmall` + the three Lock
+//  Screen accessory families.
 //
-//  This file is the Swift mirror of `packages/core/src/widget-snapshot.ts`.
-//  A WidgetKit extension is a separate process that cannot run our JS, so the
-//  decode + staleness + remaining rules are reimplemented here by hand. That
-//  TS module is the spec and its vitest suite is the reference for the
-//  behaviour below — when one side changes, change both.
+//  The decode, the staleness guard, the metrics, the string table and every
+//  contract constant now live in `targets/_shared/Glance.swift`, which the
+//  apple-targets plugin links into every target. This file is SwiftUI, a
+//  `TimelineProvider`, and `@main` — nothing else (#38 §1).
 //
-//  Data flow: the RN app writes a JSON string into the App Group's
-//  UserDefaults (`src/lib/widget.ts`) and asks WidgetKit to reload. This
-//  provider reads that string back. No network, no auth, no Firestore — a
-//  widget process has none of them.
+//  Data flow is unchanged and deliberately dumb: the RN app writes a JSON
+//  string into the App Group's UserDefaults (`src/lib/widget.ts`) and asks
+//  WidgetKit to reload. This provider reads that string back. No network, no
+//  auth, no Firestore — a widget process has none of them.
 //
-
-// MARK: - Shared contract (mirrors widget-snapshot.ts)
-
-/// Must equal `WIDGET_SNAPSHOT_KEY` in `packages/core/src/widget-snapshot.ts`.
-private let snapshotKey = "ignia.widget.snapshot.v1"
-
-/// Must equal `APP_GROUP` in `src/lib/widget.ts` and the entitlement in app.json.
-private let appGroup = "group.fit.ignia.app"
-
-/// Must equal `WIDGET_SNAPSHOT_VERSION`. A blob written by a newer app is
-/// rejected rather than partially decoded — during an app update the widget
-/// extension keeps running old code until the OS reloads it.
-private let snapshotVersion = 1
-
-private struct Snapshot: Codable {
-  let v: Int
-  let dateKey: String
-  let kcalConsumed: Int
-  let kcalTarget: Int
-  let proteinConsumed: Int
-  let proteinTarget: Int
-  let updatedMs: Double
-  let locale: String
-}
-
-/// Mirrors `WidgetMetric`: distance from target plus which side of it.
-private struct Metric {
-  let value: Int
-  let isOver: Bool
-
-  init(consumed: Int, target: Int) {
-    isOver = consumed > target
-    value = abs(target - consumed)
-  }
-}
-
-/// Mirrors `WidgetView`. The empty reasons are collapsed into one case because
-/// iOS renders all three identically; the TS side keeps them apart only so its
-/// tests can distinguish them. The locale rides along on BOTH cases — the empty
-/// state is a sentence, and hardcoding English here put "Open Ignia to start"
-/// on Spanish home screens.
-private enum View_ {
-  case empty(locale: String)
-  case ready(kcal: Metric, protein: Metric, locale: String)
-}
-
-/// Mirrors `parseWidgetSnapshot` + `widgetView`. Anything unreadable, foreign
-/// versioned, from another day, or without a calorie target collapses to
-/// `.empty` — never a thrown error, which would show the OS's "unable to load"
-/// placeholder and read as a crashed app.
-private func loadView(now: Date) -> View_ {
-  guard
-    let defaults = UserDefaults(suiteName: appGroup),
-    let raw = defaults.string(forKey: snapshotKey),
-    let data = raw.data(using: .utf8),
-    let snap = try? JSONDecoder().decode(Snapshot.self, from: data),
-    snap.v == snapshotVersion
-  else {
-    // Nothing readable, so there is no stored preference to honour — the one
-    // case where falling back to English is the only option.
-    return .empty(locale: "en")
-  }
-
-  guard snap.dateKey == localDateKey(now) else { return .empty(locale: snap.locale) }
-  guard snap.kcalTarget > 0 else { return .empty(locale: snap.locale) }
-
-  return .ready(
-    kcal: Metric(consumed: snap.kcalConsumed, target: snap.kcalTarget),
-    protein: Metric(consumed: snap.proteinConsumed, target: snap.proteinTarget),
-    locale: snap.locale
-  )
-}
-
-/// Mirrors `localDateKey` from `packages/core/src/date.ts`: `YYYY-MM-DD` in the
-/// device's *local* zone. Must not be UTC — the whole point of the date key is
-/// that it flips at the user's midnight, not at Greenwich's.
-private func localDateKey(_ date: Date) -> String {
-  let f = DateFormatter()
-  f.calendar = Calendar(identifier: .gregorian)
-  f.locale = Locale(identifier: "en_US_POSIX")
-  f.dateFormat = "yyyy-MM-dd"
-  return f.string(from: date)
-}
-
-// MARK: - Strings (mirrors src/widgets/strings.ts)
-
-private struct Strings {
-  let kcal: String
-  let left: String
-  let over: String
-  let protein: String
-  let empty: String
-}
-
-/// Keyed by the locale carried in the snapshot — our locale is a *profile*
-/// preference stored in Firestore, so the device locale would be wrong for
-/// anyone whose app language differs from their phone's.
-private func strings(_ locale: String) -> Strings {
-  switch locale {
-  case "es-PR":
-    return Strings(
-      kcal: "kcal", left: "restantes", over: "de más",
-      protein: "proteína", empty: "Abre Ignia para empezar")
-  default:
-    return Strings(
-      kcal: "kcal", left: "left", over: "over",
-      protein: "protein", empty: "Open Ignia to start")
-  }
-}
-
-private func grouped(_ n: Int) -> String {
-  let f = NumberFormatter()
-  f.numberStyle = .decimal
-  f.groupingSeparator = ","
-  return f.string(from: NSNumber(value: n)) ?? String(n)
-}
+//  Verified on a physical iPhone from TestFlight build 13 on 2026-08-03: kcal
+//  left and protein left render, and the numbers move after a logged meal.
+//
 
 // MARK: - Palette (mirrors src/theme.ts heroPanel family)
+//
+// Used by `systemSmall` ONLY. The accessory families never name a brand colour
+// — the Lock Screen renders them in the OS's tinted/vibrant mode, which
+// flattens orange and green toward the same tint, exactly where colour was
+// doing all the work of telling the two metrics apart. There hierarchy is
+// carried by weight and size (#33). Two palettes, split cleanly by family, so
+// there is no Swift copy of ADR-0014's rules to keep in step.
 
 private extension Color {
   /// `theme.ts` colours are hex strings; this is the only way to reuse the
@@ -159,51 +53,38 @@ private extension Color {
 
 private struct Entry: TimelineEntry {
   let date: Date
-  let view: View_
+  let face: Glance.Face
 }
 
 private struct Provider: TimelineProvider {
-  /// Shown in the widget gallery and while the real entry loads. Uses plausible
-  /// numbers rather than the empty state so the gallery preview sells what the
-  /// widget does.
   func placeholder(in context: Context) -> Entry {
-    Entry(
-      date: Date(),
-      view: .ready(
-        kcal: Metric(consumed: 760, target: 2000),
-        protein: Metric(consumed: 92, target: 160),
-        locale: "en"))
+    Entry(date: Date(), face: Glance.preview())
   }
 
   func getSnapshot(in context: Context, completion: @escaping (Entry) -> Void) {
-    completion(Entry(date: Date(), view: loadView(now: Date())))
+    completion(Entry(date: Date(), face: Glance.load(now: Date())))
   }
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> Void) {
     let now = Date()
-    let current = loadView(now: now)
-    var entries = [Entry(date: now, view: current)]
-
-    // Carry today's locale into the post-midnight blank. Rebuilding it as "en"
-    // would flip a Spanish widget to English at midnight and leave it there
-    // until the app is next opened.
-    let locale: String
-    switch current {
-    case let .ready(_, _, l): locale = l
-    case let .empty(l): locale = l
-    }
+    let current = Glance.load(now: now)
+    var entries = [Entry(date: now, face: current)]
 
     // Pre-schedule the rollover. The app calls `reloadWidget` on every log, so
     // in-day freshness is push-driven; this second entry exists for the one
     // moment nothing pushes — midnight, when today's numbers must blank even
     // if the app is never opened. Without it the widget would show yesterday's
     // "1,240 left" all through the next morning.
+    //
+    // The locale is carried into the blank on purpose. Rebuilding it as "en"
+    // would flip a Spanish widget to English at midnight and leave it there
+    // until the app is next opened.
     let cal = Calendar.current
     if let midnight = cal.nextDate(
       after: now, matching: DateComponents(hour: 0, minute: 0, second: 5),
       matchingPolicy: .nextTime)
     {
-      entries.append(Entry(date: midnight, view: .empty(locale: locale)))
+      entries.append(Entry(date: midnight, face: .empty(locale: current.locale)))
     }
 
     // `.atEnd` asks WidgetKit for a new timeline once the last entry is passed,
@@ -212,24 +93,26 @@ private struct Provider: TimelineProvider {
   }
 }
 
-// MARK: - UI
+// MARK: - Home Screen · systemSmall
 
-private struct TodayWidgetView: SwiftUI.View {
-  let entry: Entry
+private struct HomeView: SwiftUI.View {
+  let face: Glance.Face
 
   var body: some SwiftUI.View {
     // Locked design (WIDGET.md §"Open decisions"): text-first, kcal over
-    // protein. The ring is a deliberate fast-follow, not an omission.
+    // protein. The ring is a deliberate fast-follow, not an omission — which is
+    // why `systemSmall` still ignores `Metric.progress` even though the
+    // accessory families now consume it.
     VStack(alignment: .leading, spacing: 0) {
-      switch entry.view {
+      switch face {
       case let .empty(locale):
-        Text(strings(locale).empty)
+        Text(Glance.strings(locale ?? "en").empty)
           .font(.system(size: 13))
           .foregroundStyle(Color.igMuted)
 
-      case let .ready(kcal, protein, locale):
-        let s = strings(locale)
-        Text(grouped(kcal.value))
+      case let .ready(kcal, protein, snap):
+        let s = Glance.strings(snap.locale)
+        Text(Glance.grouped(kcal.value))
           .font(.system(size: 34, weight: .bold, design: .rounded))
           .foregroundStyle(Color.igKcal)
           .minimumScaleFactor(0.6)
@@ -237,7 +120,7 @@ private struct TodayWidgetView: SwiftUI.View {
         Text("\(s.kcal) \(kcal.isOver ? s.over : s.left)")
           .font(.system(size: 12))
           .foregroundStyle(Color.igMuted)
-        Text("\(grouped(protein.value))g \(s.protein) \(protein.isOver ? s.over : s.left)")
+        Text(Glance.proteinLine(protein, s))
           .font(.system(size: 13, weight: .semibold))
           .foregroundStyle(Color.igProtein)
           .minimumScaleFactor(0.7)
@@ -246,20 +129,132 @@ private struct TodayWidgetView: SwiftUI.View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    .containerBackground(Color.igPanel, for: .widget)
+  }
+}
+
+// MARK: - Lock Screen · accessory families
+//
+// `.primary` / `.secondary` and `.tint(.primary)` only. No brand hex, no
+// `AccessoryWidgetBackground` beyond the empty circular ring, and no
+// `containerBackground` — it does not apply to accessory families.
+//
+// Nothing here reads `@Environment(\.widgetRenderingMode)`. Its exact semantics
+// are unverified (#33) and the design deliberately does not depend on them.
+
+private struct CircularView: SwiftUI.View {
+  let face: Glance.Face
+
+  var body: some SwiftUI.View {
+    // The slot never changes shape between states — same gauge, same centre
+    // glyph position — which matters most at midnight, the one transition we
+    // would rather not draw the eye to.
+    switch face {
+    case .empty:
+      Gauge(value: 0.0) {
+        Image(systemName: "flame")
+      }
+      .gaugeStyle(.accessoryCircularCapacity)
+
+    case let .ready(kcal, _, _):
+      // Wordless — no unit, no label, only the centred number. There is no room
+      // for a word here, and with `progress` clamped to 0...1 the ring alone
+      // cannot say "past target", so the over-target state is carried by a
+      // single `+` glyph on the value itself. It needs no es-PR translation.
+      Gauge(value: kcal.progress) {
+        EmptyView()
+      } currentValueLabel: {
+        Text(kcal.isOver ? "+\(Glance.grouped(kcal.value))" : Glance.grouped(kcal.value))
+          .minimumScaleFactor(0.5)
+          .lineLimit(1)
+      }
+      .gaugeStyle(.accessoryCircularCapacity)
+    }
+  }
+}
+
+private struct RectangularView: SwiftUI.View {
+  let face: Glance.Face
+
+  var body: some SwiftUI.View {
+    // The only family carrying protein — circular and inline are kcal-only by
+    // necessity, and the kcal-over-protein ranking is locked.
+    //
+    // NOTE the one declared divergence from the watch's rectangular view: there
+    // is no `as of` row here. On the phone the widget reads the App Group on
+    // the SAME device and the containing app's foreground reload is free, so
+    // the number is authoritative to within seconds. `as of 8:04 AM` under it
+    // at 1 PM would imply a doubt that does not exist — the same words carry
+    // opposite meaning on the two devices (#40 §3). The shared *spec* is
+    // `asOf: Date?`, nil here; the source is written twice on purpose (#38 §2).
+    VStack(alignment: .leading, spacing: 1) {
+      switch face {
+      case let .empty(locale):
+        Label(Glance.strings(locale ?? "en").empty, systemImage: "flame")
+          .font(.headline)
+          .lineLimit(1)
+          .minimumScaleFactor(0.7)
+
+      case let .ready(kcal, protein, snap):
+        let s = Glance.strings(snap.locale)
+        Text(Glance.kcalLine(kcal, s))
+          .font(.headline)
+          .lineLimit(1)
+          .minimumScaleFactor(0.7)
+        Gauge(value: kcal.progress) { EmptyView() }
+          .gaugeStyle(.accessoryLinearCapacity)
+          .tint(.primary)
+        Text(Glance.proteinLine(protein, s))
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .minimumScaleFactor(0.7)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
+private struct InlineView: SwiftUI.View {
+  let face: Glance.Face
+
+  var body: some SwiftUI.View {
+    switch face {
+    case let .empty(locale):
+      Label(Glance.strings(locale ?? "en").emptyShort, systemImage: "flame")
+    case let .ready(kcal, _, snap):
+      Label(Glance.kcalLine(kcal, Glance.strings(snap.locale)), systemImage: "flame")
+    }
+  }
+}
+
+private struct TodayWidgetView: SwiftUI.View {
+  @Environment(\.widgetFamily) private var family
+  let entry: Entry
+
+  var body: some SwiftUI.View {
+    Group {
+      switch family {
+      case .accessoryCircular: CircularView(face: entry.face)
+      case .accessoryRectangular: RectangularView(face: entry.face)
+      case .accessoryInline: InlineView(face: entry.face)
+      default: HomeView(face: entry.face)
+      }
+    }
     // Tapping opens the Today screen with the add-entry sheet already up —
     // the same `?openAdd` param the in-app FAB uses. The widget is meant to
-    // drive logging, not just display it.
+    // drive logging, not just display it. On the Lock Screen this lands in an
+    // add-entry modal after Face ID (#41 owns that landing).
     .widgetURL(URL(string: "ignia://?openAdd=1"))
-    .containerBackground(Color.igPanel, for: .widget)
   }
 }
 
 @main
 struct TodayWidget: Widget {
-  // Must match `WIDGET_NAME` in `src/lib/widget.ts` — it's the `kind` passed to
-  // `ExtensionStorage.reloadWidget`, and a mismatch means our reload requests
-  // silently address a widget that doesn't exist.
-  let kind = "Today"
+  // Must match `Glance.widgetKind` / `WIDGET_NAME` in `src/lib/widget.ts` —
+  // it's the `kind` passed to `ExtensionStorage.reloadWidget`, and a mismatch
+  // means our reload requests silently address a widget that doesn't exist.
+  let kind = Glance.widgetKind
 
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: kind, provider: Provider()) { entry in
@@ -267,8 +262,13 @@ struct TodayWidget: Widget {
     }
     .configurationDisplayName("Today")
     .description("Calories and protein left today.")
-    // Small only for v1, per the locked decisions. Medium is cheap to add
-    // later once this face is verified on a device.
-    .supportedFamilies([.systemSmall])
+    // `.accessoryCorner` is deliberately absent: it is the only family with no
+    // Lock Screen counterpart, so it would be the only net-new layout, using an
+    // idiom (`widgetLabel`, curved gauge text) nothing else in the repo uses.
+    // Cost accepted: we are absent from the corner slots of the Infograph
+    // faces (#40 §0).
+    .supportedFamilies([
+      .systemSmall, .accessoryCircular, .accessoryRectangular, .accessoryInline,
+    ])
   }
 }

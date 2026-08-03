@@ -505,6 +505,29 @@ the same name under `src/app/components/`.
   flare; streak extended → flame-chip animation). Distinct from ambient
   motion (entrances, press-springs), which is not event-tied. No
   confetti/mascot layer by decision.
+- **Widget snapshot** — The ~150-byte glanceable blob defined by
+  `packages/core/src/widget-snapshot.ts`: today's kcal/protein consumed
+  and target, the `dateKey` staleness guard, and the locale. **One term
+  for the blob no matter which surface reads it.** The name says "widget"
+  because the stored key `ignia.widget.snapshot.v1` cannot change without
+  orphaning the blob the already-installed home-screen widget is reading;
+  renaming the symbol alone would leave a `Glance*` constant pointing at a
+  `"widget"` string, which is more drift, not less
+  ([#38](https://github.com/gabandres/fitness-tracker-pwa/issues/38) §6).
+- **Glanceable surface** — Any renderer of the widget snapshot: the iOS
+  home-screen widget, the three iOS Lock Screen accessory families, the
+  Android home-screen widget, the Apple Watch complication, and the watch
+  mirror screen. They differ in layout and in empty-state copy; they never
+  differ in the decode, the version gate, or the staleness rule. On Apple
+  those shared rules live in exactly one file,
+  `apps/mobile/targets/_shared/Glance.swift`.
+- **Watch mirror screen** — The Apple Watch app's single read-only screen.
+  A **reader** of the widget snapshot, not an exception to it: it adds no
+  fields and shows the denominators (`1,240 / 2,000`) the face has no room
+  for. It is also **link 2 of the watch transport** — WatchConnectivity
+  delivers to the watch *app*, never to a complication — so it exists even
+  when nobody opens it
+  ([#39](https://github.com/gabandres/fitness-tracker-pwa/issues/39)).
 
 ## Platforms (post-#12 — see [ADR-0012](docs/adr/0012-expo-native-app-shared-core.md))
 

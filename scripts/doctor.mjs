@@ -760,6 +760,77 @@ function checkEasQuota() {
 }
 
 // ═══ 4. Locale key parity ═══════════════════════════════════════════════
+/**
+ * Is the Sentry auth token actually good?
+ *
+ * On 2026-08-03 this cost an Android build. `@sentry/react-native`'s Gradle
+ * integration uploads source maps and native symbols as a **build task**, and
+ * a bad token fails that task, which fails the whole build:
+ *
+ *     sentry reported an error: Invalid token (http status: 401)
+ *     > Task :app:createBundleReleaseJsAndAssets_SentryUpload_… FAILED
+ *
+ * The build sat in the free-tier queue for **two hours** before a worker
+ * picked it up, ran Gradle for five minutes, and died on an HTTP 401. One of
+ * the 15 monthly Android builds, spent on an auth failure that is knowable in
+ * one request before anything is queued.
+ *
+ * Two properties make this worth a check rather than a habit. It is
+ * **invisible until the build runs** — nothing local reads the token — and it
+ * **breaks by sitting still**: rotating or revoking the token in Sentry
+ * changes nothing here until the next build. There are three copies (this
+ * machine's `.env.local`, both EAS environments, the GitHub Actions secret)
+ * and no mechanism keeps them in step.
+ *
+ * This checks only the copy on this machine, which is the one a human is most
+ * likely to have updated last. It cannot read the EAS or GitHub copies —
+ * secrets are write-only there by design — so a PASS means "the token you have
+ * is good", not "every copy is good". Re-set all three together; that is the
+ * only guarantee available.
+ */
+async function checkSentryToken() {
+  const name = 'SENTRY_AUTH_TOKEN authenticates';
+  const org = process.env.SENTRY_ORG || 'gabriel-bermudez';
+
+  if (!has('.env.local')) return skip(G3, name, 'no .env.local on this machine');
+  try {
+    process.loadEnvFile(resolve(root, '.env.local'));
+  } catch (e) {
+    return skip(G3, name, `could not read .env.local: ${e.message}`);
+  }
+
+  const token = process.env.SENTRY_AUTH_TOKEN;
+  if (!token) return skip(G3, name, 'SENTRY_AUTH_TOKEN is not set in .env.local');
+
+  let res;
+  try {
+    res = await fetch(`https://sentry.io/api/0/organizations/${org}/`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (e) {
+    return skip(G3, name, `could not reach sentry.io: ${e.message}`);
+  }
+
+  if (res.ok) {
+    return pass(G3, name, `token is valid for org ${org} (EAS + GitHub copies are unreadable — re-set all three together)`);
+  }
+  if (res.status === 401) {
+    return fail(
+      G3,
+      name,
+      `sentry.io rejects the token in .env.local (401). A Gradle/EAS build WILL fail on ` +
+        `SentryUpload after its full queue wait. Fix .env.local, then re-set both EAS ` +
+        `environments (eas env:create --environment production|preview --name SENTRY_AUTH_TOKEN ` +
+        `--visibility secret --force) and the GitHub secret (gh secret set SENTRY_AUTH_TOKEN).`,
+    );
+  }
+  if (res.status === 403) {
+    return fail(G3, name, `token authenticates but lacks scope for org ${org} (403) — needs org:read + project:releases`);
+  }
+  return skip(G3, name, `unexpected HTTP ${res.status} from sentry.io`);
+}
+
 const G4 = '4. i18n key parity';
 
 function diffKeys(group, name, a, b, labelA, labelB) {
@@ -949,6 +1020,7 @@ if (NO_CLOUD) {
   skip(G3, `Cloud Scheduler jobs <= ${MAX_SCHEDULER_JOBS}`, '--no-cloud');
   skip(G3, `active secret versions <= ${MAX_SECRET_VERSIONS}`, '--no-cloud');
   skip(G3, 'STATUS.md §3 matches the EAS iOS quota', '--no-cloud');
+  skip(G3, 'SENTRY_AUTH_TOKEN authenticates', '--no-cloud');
   skip(G5, 'STATUS.md §4 matches open issues', '--no-cloud');
 } else {
   await checkRulesMatchReleased().catch((e) =>
@@ -961,6 +1033,9 @@ if (NO_CLOUD) {
   guard(G3, `Cloud Scheduler jobs <= ${MAX_SCHEDULER_JOBS}`, checkSchedulerJobs);
   guard(G3, `active secret versions <= ${MAX_SECRET_VERSIONS}`, checkSecretVersions);
   guard(G3, 'STATUS.md §3 matches the EAS iOS quota', checkEasQuota);
+  await checkSentryToken().catch((e) =>
+    fail(G3, 'SENTRY_AUTH_TOKEN authenticates', `check threw: ${e.message}`),
+  );
   guard(G5, 'STATUS.md §4 matches open issues', checkStatusVsIssues);
 }
 
