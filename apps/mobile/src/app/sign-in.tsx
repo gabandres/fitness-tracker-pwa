@@ -83,7 +83,7 @@ export default function SignIn() {
       }
       // Navigation handled by the root AuthGate once auth state flips.
     } catch (e: unknown) {
-      setError(t(errorKey(e)));
+      setError(errorMessage(e, t, 'password'));
       setBusy(false);
     }
   }
@@ -99,7 +99,7 @@ export default function SignIn() {
       await resetPassword(email, locale);
       setNotice(t('signIn.resetSent'));
     } catch (e: unknown) {
-      setError(t(errorKey(e)));
+      setError(errorMessage(e, t, 'password'));
     }
   }
 
@@ -118,7 +118,7 @@ export default function SignIn() {
       await signInWithGoogle();
       // AuthGate navigates once auth state flips.
     } catch (e: unknown) {
-      setError(t(errorKey(e)));
+      setError(errorMessage(e, t, 'federated'));
     } finally {
       setGoogleBusy(false);
     }
@@ -132,7 +132,7 @@ export default function SignIn() {
       await signInWithMicrosoft();
       // AuthGate navigates once auth state flips.
     } catch (e: unknown) {
-      setError(t(errorKey(e)));
+      setError(errorMessage(e, t, 'federated'));
     } finally {
       setMsBusy(false);
     }
@@ -144,7 +144,7 @@ export default function SignIn() {
       await signInWithApple();
       // AuthGate navigates once auth state flips.
     } catch (e: unknown) {
-      setError(t(errorKey(e)));
+      setError(errorMessage(e, t, 'federated'));
     }
   }
 
@@ -253,7 +253,10 @@ export default function SignIn() {
             ) : null}
 
             {error ? (
-              <Text style={styles.error} testID="signin-error">
+              // Selectable so a tester can long-press → copy the native code
+              // tail and paste it to us; without a crash reporter that copy is
+              // the whole diagnostic channel.
+              <Text selectable style={styles.error} testID="signin-error">
                 {error}
               </Text>
             ) : null}
@@ -350,12 +353,29 @@ export default function SignIn() {
   );
 }
 
-function errorKey(e: unknown): I18nKey {
+/** Which button the failure came from — an `invalid-credential` means "wrong
+ *  password" only for a password attempt; from a federated flow it's a token
+ *  or config problem, and "check your password" sends the user nowhere. */
+type ErrSource = 'password' | 'federated';
+
+/**
+ * User-facing message for a sign-in failure, with the raw native code appended
+ * when we could not classify it. There is no crash reporter here, so that tail
+ * is the only way an unclassified failure on a tester's device ever reaches us.
+ */
+function errorMessage(e: unknown, t: TFn, source: ErrSource = 'password'): string {
+  const base = t(errorKey(e, source));
+  const detail = (e as { detail?: string })?.detail;
+  return detail ? `${base} (${detail})` : base;
+}
+
+function errorKey(e: unknown, source: ErrSource = 'password'): I18nKey {
   const code = (e as { code?: string })?.code ?? '';
   if (code === 'use-google') return 'signIn.errUseGoogle';
   if (code === 'use-apple') return 'signIn.errUseApple';
+  if (code.includes('account-exists-with-different-credential')) return 'signIn.errDiffMethod';
   if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
-    return 'signIn.errWrong';
+    return source === 'password' ? 'signIn.errWrong' : 'signIn.errGeneric';
   }
   if (code.includes('invalid-email')) return 'signIn.errInvalidEmail';
   // `sendPasswordReset` (our callable) rejects a malformed address with
@@ -371,7 +391,7 @@ function errorKey(e: unknown): I18nKey {
   if (code.includes('network')) return 'signIn.errNetwork';
   if (code === 'expo-go') return 'signIn.errExpoGo';
   if (code === 'cancelled') return 'signIn.errCancelled';
-  if (code.includes('account-exists-with-different-credential')) return 'signIn.errDiffMethod';
+  if (code === 'play-services') return 'signIn.errPlayServices';
   return 'signIn.errGeneric';
 }
 

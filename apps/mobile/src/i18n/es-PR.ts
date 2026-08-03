@@ -76,6 +76,7 @@ export const esPR: Record<I18nKey, string> = {
   'signIn.errExpoGo': 'Este método de inicio de sesión requiere la app instalada (no Expo Go).',
   'signIn.errCancelled': 'Se canceló el inicio de sesión con Google.',
   'signIn.errDiffMethod': 'Ese correo ya usa otro método de inicio de sesión.',
+  'signIn.errPlayServices': 'Google Play services falta o está desactualizado en este dispositivo — actualízalo e inténtalo de nuevo.',
   'signIn.errGeneric': 'No se pudo iniciar sesión. Inténtalo de nuevo.',
 
   // ── onboarding ──

@@ -134,9 +134,22 @@
             "deploymentTarget": "16.4"
           }
         }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "experimental_android": {
+            "enableAndroidGradlePlugin": true,
+            "autoUploadNativeSymbols": true,
+            "autoUploadProguardMapping": true
+          }
+        }
       ]
     ],
     "extra": {
+      "sentry": {
+        "dsn": ""
+      },
       "googleAuth": {
         "iosClientId": "647810616435-66v806q2ptpso47ldcgq7h3bdq6h327j.apps.googleusercontent.com",
         "androidClientId": "647810616435-pg0gel6i707c8md797jlrsnu9ojmib38.apps.googleusercontent.com",

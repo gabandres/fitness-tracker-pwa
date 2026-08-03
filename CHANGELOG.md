@@ -6,6 +6,15 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-03 — The mobile app can report its own errors
+
+An Android tester on a Galaxy S26 could not sign in with Google — "Could not sign in. Please try again." — while another tester on the same Play build signed up fine. That was as much as anyone could ever learn, because the app had **no crash or error reporting at all** and the sign-in code discarded the native error code before showing that message. The web PWA has had Sentry since launch; the mobile app, the one that's actually on a store, had nothing.
+
+- **Sentry on the Expo app.** Native crashes and unhandled JS errors, with device model, manufacturer, OS version, app version/build and install source on every event. The Firebase **uid** identifies the user — never the email. Tracing and replay are off; this is a diagnostic channel, not an APM install. No-ops without a DSN, exactly like the web app.
+- **Google sign-in failures are reported with their real cause.** The catch-all used to collapse `DEVELOPER_ERROR` (signing cert / client ID mismatch), a missing Play Services, an absent device credential and a Firebase rejection into one identical sentence. Each is now classified, reported, and breadcrumbed by step so it's clear *which* stage failed.
+- **The on-screen message names the code too**, and is selectable — a remote tester can copy it and paste it back, which is the fastest path when the reporter hasn't been reached.
+- **"Wrong email or password" stopped appearing for Google and Apple failures.** An `invalid-credential` from a federated provider is a token or config problem; telling the user to check a password they never set sent them nowhere.
+
 ## 2026-07-28 — The site is bilingual now, not just the app
 
 Spanish was one of the three stated wedges — a fully translated app in a market where almost nothing is localized — and the website shipped **60 English URLs and zero Spanish ones**. Every indexed page now exists in both languages.
