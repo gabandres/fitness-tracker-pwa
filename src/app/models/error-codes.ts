@@ -30,6 +30,12 @@ export const ErrorCode = {
   RECIPE_URL_INVALID: 'RECIPE_URL_INVALID',
   RECIPE_FETCH_FAILED: 'RECIPE_FETCH_FAILED',
   RECIPE_NOT_FOUND: 'RECIPE_NOT_FOUND',
+  // Org-wide spend guard. NOT the same as the *_QUOTA_EXCEEDED codes: those
+  // mean "you have used your allowance today", these mean "the feature is off
+  // for everybody". Never render "upgrade" or "try again tomorrow" for these —
+  // FEATURE_DISABLED is cleared by a human, and neither is about this user.
+  FEATURE_DISABLED: 'FEATURE_DISABLED',
+  SERVICE_CEILING_REACHED: 'SERVICE_CEILING_REACHED',
 } as const;
 
 export type ErrorCode = typeof ErrorCode[keyof typeof ErrorCode];

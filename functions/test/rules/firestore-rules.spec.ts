@@ -219,6 +219,40 @@ describe('firestore.rules', () => {
     );
   });
 
+  // opsBudget holds the org-wide spend ceiling and the per-feature
+  // kill-switch. Both directions matter and for different reasons: a
+  // client-writable switch is a denial-of-service primitive (turn the
+  // feature off for every user), and a client-writable counter lets anyone
+  // zero the meter and spend straight past the ceiling. Reads are denied
+  // too so the doc can't be used to probe org-wide usage.
+  it('blocks client reads + writes to opsBudget', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'opsBudget', 'photo'), {
+        date: '2026-08-03',
+        used: 7,
+        limit: 2000,
+        killed: false,
+      });
+    });
+    const db = authed('alice');
+    await assertFails(getDoc(doc(db, 'opsBudget', 'photo')));
+    await assertFails(setDoc(doc(db, 'opsBudget', 'photo'), { used: 0 }));
+    await assertFails(setDoc(doc(db, 'opsBudget', 'photo'), { killed: true }));
+  });
+
+  // Deliberately stricter than /config, which admins CAN read directly to
+  // render panel tabs. This one goes through adminGetSpendCeilings instead,
+  // so every change lands in the audit log rather than as a silent client
+  // write. If this test ever starts failing because someone opened the doc
+  // up to admins, that audit trail is what was traded away.
+  it('blocks even an admin-claim client from opsBudget', async () => {
+    const db = env
+      .authenticatedContext('owner', { email_verified: true, admin: true })
+      .firestore();
+    await assertFails(getDoc(doc(db, 'opsBudget', 'photo')));
+    await assertFails(setDoc(doc(db, 'opsBudget', 'photo'), { killed: false }));
+  });
+
   it('allows public read of status/heartbeat', async () => {
     // Seed the doc via the admin path so the read target exists.
     await env.withSecurityRulesDisabled(async (ctx) => {

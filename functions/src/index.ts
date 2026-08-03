@@ -43,6 +43,8 @@ export {
   adminSetCompedEmail,
   adminListCompedEmails,
   adminResetQuotas,
+  adminGetSpendCeilings,
+  adminSetSpendCeiling,
   adminExportData,
   adminGetUserDetails,
 } from "./admin-ops";

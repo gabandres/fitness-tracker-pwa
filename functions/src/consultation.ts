@@ -3,7 +3,7 @@ import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import type { Response } from "express";
 import { GoogleGenAI } from "@google/genai";
 import { ErrorCode } from "./error-codes";
-import { callerAccess, dailyQuota, geminiApiKey } from "./init";
+import { callerAccess, dailyQuota, geminiApiKey, spendCeiling } from "./init";
 
 // ─── AI coach (Gemini consultation) ─────────────────────────────────
 //
@@ -121,6 +121,18 @@ export const consultationStream = onRequest(
       return;
     }
 
+    // ── Org-wide spend guard, before the per-user reserve ──
+    // Checked first so a per-user rejection never burns a slot of the shared
+    // ceiling. Unlimited callers are metered but not blocked (spend-ceiling.ts).
+    if (!caller.unlimited) {
+      try {
+        await spendCeiling.check("consultation");
+      } catch (err) {
+        sendPreambleError(res, err); // FEATURE_DISABLED / SERVICE_CEILING_REACHED
+        return;
+      }
+    }
+
     // ── Reserve one slot (admins/comped bypass) ──
     const limit = dailyQuota.limitFor("consultation", caller.paidClaim);
     let remaining = -1;
@@ -135,6 +147,12 @@ export const consultationStream = onRequest(
         return;
       }
     }
+
+    // Metered once the call is authorized. Deliberately NOT refunded in the
+    // Gemini-failure path below: the per-user slot is refunded because the
+    // user did not get their consultation, but the tokens were still spent,
+    // and a ceiling that refunds real spend stops guarding the bill.
+    await spendCeiling.record("consultation");
 
     // ── Stream Gemini as SSE ──
     res.setHeader("Content-Type", "text/event-stream; charset=utf-8");

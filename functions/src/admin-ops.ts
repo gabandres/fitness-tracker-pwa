@@ -3,7 +3,8 @@ import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 import { getAuth, UserRecord } from "firebase-admin/auth";
 import { writeAuditLog, tsToIso } from "./audit-log";
 import { requireAdmin } from "./admin-guard";
-import { DailyQuota } from "./daily-quota";
+import { DailyQuota, type QuotaKind } from "./daily-quota";
+import { SpendCeiling } from "./spend-ceiling";
 import { redactProfileSecrets } from "./redact";
 
 const STATS_TTL_MS = 5 * 60 * 1000; // 5-min cache — cheap to refresh, expensive to run
@@ -621,6 +622,64 @@ export const adminResetQuotas = onCall(async (request) => {
     targetEmail: target?.email || "",
   });
   return { success: true };
+});
+
+// ─── Org-wide spend ceiling + kill-switch ──────────────────────────
+//
+// `adminResetQuotas` above hands ONE user their slots back. These two hold
+// the other lever: what everybody together may spend in a day, and a switch
+// to stop a feature outright. See spend-ceiling.ts for why the ceiling
+// self-clears at UTC midnight and the switch deliberately does not.
+
+const CEILING_KINDS = new Set<QuotaKind>(["photo", "consultation"]);
+
+function parseKind(value: unknown): QuotaKind {
+  if (typeof value !== "string" || !CEILING_KINDS.has(value as QuotaKind)) {
+    throw new HttpsError(
+      "invalid-argument",
+      `kind must be one of: ${[...CEILING_KINDS].join(", ")}`,
+    );
+  }
+  return value as QuotaKind;
+}
+
+export const adminGetSpendCeilings = onCall(async (request) => {
+  requireAdmin(request);
+  return { ceilings: await new SpendCeiling(getFirestore()).statusAll() };
+});
+
+export const adminSetSpendCeiling = onCall(async (request) => {
+  const admin = requireAdmin(request);
+  const { kind, killed, reason, limit } = (request.data || {}) as {
+    kind?: string;
+    killed?: boolean;
+    reason?: string;
+    limit?: number;
+  };
+  const target = parseKind(kind);
+  const ceiling = new SpendCeiling(getFirestore());
+
+  // Both knobs are optional and independent — an admin can raise the ceiling
+  // without touching the switch, or throw the switch without repricing.
+  if (typeof limit === "number") {
+    await ceiling.setLimit(target, limit);
+  }
+  if (typeof killed === "boolean") {
+    // A kill with no stated reason is a note-to-self that will not survive the
+    // week. Require one so the audit entry explains itself later.
+    if (killed && !reason?.trim()) {
+      throw new HttpsError("invalid-argument", "A reason is required when switching a feature off.");
+    }
+    await ceiling.setKill(target, killed, reason?.trim() ?? "", admin.email);
+  }
+
+  const after = await ceiling.status(target);
+  await writeAuditLog({
+    action: killed === true ? "spend_kill_engaged" : killed === false ? "spend_kill_cleared" : "spend_limit_set",
+    admin,
+    details: { kind: target, limit: after.limit, killed: after.killed, reason: after.killedReason },
+  });
+  return { ceiling: after };
 });
 
 // ─── Data export (CSV) ─────────────────────────────────────────────

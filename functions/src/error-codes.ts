@@ -35,4 +35,12 @@ export const enum ErrorCode {
   RECIPE_URL_INVALID = "RECIPE_URL_INVALID",
   RECIPE_FETCH_FAILED = "RECIPE_FETCH_FAILED",
   RECIPE_NOT_FOUND = "RECIPE_NOT_FOUND",
+  // Org-wide spend guard (spend-ceiling.ts). Distinct from the *_QUOTA_EXCEEDED
+  // codes above: those mean "you have used your allowance", these mean "the
+  // feature is off for everybody". Clients must not tell the user to come back
+  // tomorrow or to upgrade — neither would help.
+  /** An admin threw the kill-switch. Sticky until a human clears it. */
+  FEATURE_DISABLED = "FEATURE_DISABLED",
+  /** Today's org-wide ceiling is spent. Clears at UTC midnight. */
+  SERVICE_CEILING_REACHED = "SERVICE_CEILING_REACHED",
 }

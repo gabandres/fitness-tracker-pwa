@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { CallerAccess } from "./caller-access";
 import { DailyQuota } from "./daily-quota";
+import { SpendCeiling } from "./spend-ceiling";
 
 /**
  * Shared admin-SDK bootstrap + module singletons. Every feature module
@@ -23,3 +24,7 @@ export const geminiApiKey: ReturnType<typeof defineSecret> = defineSecret("GEMIN
 // reserve/release transactions all live behind these two modules.
 export const callerAccess = new CallerAccess(db);
 export const dailyQuota = new DailyQuota(db);
+// Org-wide spend guard. Distinct from dailyQuota, which caps ONE user:
+// this caps everyone together, because a free tier scales the AI bill with
+// users who never pay and every one of those calls is individually legal.
+export const spendCeiling = new SpendCeiling(db);

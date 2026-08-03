@@ -1,7 +1,7 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { GoogleGenAI } from "@google/genai";
 import { ErrorCode } from "./error-codes";
-import { callerAccess, dailyQuota, geminiApiKey } from "./init";
+import { callerAccess, dailyQuota, geminiApiKey, spendCeiling } from "./init";
 
 // ─── Photo-to-Macros ────────────────────────────────────────────────
 
@@ -23,6 +23,16 @@ export const analyzePhoto = onCall(
     });
     const uid = caller.uid;
 
+    // Org-wide spend guard, checked BEFORE the per-user reserve so an
+    // ordinary "you hit your own limit" rejection never consumes a slot of
+    // the shared ceiling. A read, not a write — see spend-ceiling.ts.
+    // Unlimited callers skip the check on purpose: their calls are still
+    // metered below, but the owner must not be locked out of the feature he
+    // needs in order to diagnose why the guard tripped.
+    if (!caller.unlimited) {
+      await spendCeiling.check("photo");
+    }
+
     // Daily quota (per user, resets at UTC midnight). Admins + comped
     // users skip it entirely.
     let photosRemaining = dailyQuota.limitFor("photo", true);
@@ -30,6 +40,11 @@ export const analyzePhoto = onCall(
       const reserved = await dailyQuota.reserve(uid, "photo", caller.tier === "paid");
       photosRemaining = reserved.remaining;
     }
+
+    // Metered here rather than after the model call: the spend happens the
+    // moment the request leaves, so a response that fails to parse still cost
+    // money and still has to count. Records every tier, unlimited included.
+    await spendCeiling.record("photo");
 
     const { photoBase64, locale } = request.data as { photoBase64?: string; locale?: string };
     if (!photoBase64 || typeof photoBase64 !== "string") {

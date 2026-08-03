@@ -1,5 +1,5 @@
 > **VERDICT** — Against Cal AI, MacroFactor, MyFitnessPal, Lose It! and Cronometer, Ignia's gaps resolve to twelve validated candidates: Health sync, a home-screen widget, a Watch app, restaurant data and recipe-URL import are table-stakes at $0; meal photo-scan is the category's loudest acquisition hook and its only cost-exposed one; and Ignia already gives away free the barcode, voice logging, coach and fasting timer that competitors paywall at $60-100/yr.
-> **Status:** SETTLED (candidate characterization only — prioritization was deliberately left to other tickets, and Cal AI pricing/DB/integration claims stay flagged unverified) · **Researched:** 2026-07-11
+> **Status:** SETTLED (candidate characterization only — prioritization was deliberately left to other tickets; Cal AI **pricing is now verified**, its DB/integration claims stay flagged unverified) · **Researched:** 2026-07-11 · **Prices re-verified:** 2026-08-03
 > **Read this only if:** you are weighing a new feature against the market and need competitor paywall boundaries, cost exposure, or the free-vs-paid positioning wedge.
 > **Do not** re-derive the conclusions below; cite them.
 
@@ -22,7 +22,7 @@ _Last updated: 2026-07-11._
 - **Integrations:** **No Apple Health / Health Connect mention on the App Store listing** — a review even notes other apps "aren't integrated" ([App Store](https://apps.apple.com/us/app/cal-ai-calorie-tracker/id6480417616)). Site vaguely says "integrates with your favorite fitness products" ([calai.app](https://www.calai.app/)). Treat health sync as **absent/unverified**.
 - **Widgets/Watch:** **Apple Watch app** confirmed (watchOS 10+); home-screen widgets **unverified** ([App Store](https://apps.apple.com/us/app/cal-ai-calorie-tracker/id6480417616)).
 - **Social/streaks:** **Public Groups** (community), **streaks** with a **$0.99 "Streak Restore" IAP** ([App Store](https://apps.apple.com/us/app/cal-ai-calorie-tracker/id6480417616)).
-- **Free vs paid:** **3-day free trial; price hidden until after onboarding.** IAP tiers $0.99–$29.99; widely reported ≈$29.99/yr but exact mapping **unverified** ([calai.app](https://www.calai.app/), [App Store](https://apps.apple.com/us/app/cal-ai-calorie-tracker/id6480417616)).
+- **Free vs paid:** **3-day free trial; price hidden until after onboarding.** **VERIFIED 2026-08-03 by running the onboarding to the paywall: $29.99/yr or $9.99/mo.** That is the only way to get it — the App Store lists IAP amounts ($0.99–$29.99) without billing periods, and calai.app shows none. The annual is a 75% discount off monthly, and $9.99 is the cheapest way in ([App Store](https://apps.apple.com/us/app/cal-ai-calorie-tracker/id6480417616)).
 - **Sentiment:** 4.8★ / ~339K ratings. Praise: point-and-log speed, results. Complaints: **inaccurate macros / absurd counts** ("8000 cal for popcorn"), slow load, no manual step/water logging ([App Store](https://apps.apple.com/us/app/cal-ai-calorie-tracker/id6480417616)).
 
 ### MacroFactor (Stronger By Science) — adaptive-TDEE tracker
@@ -118,6 +118,6 @@ Each candidate + one-line "why it matters." `[tag]`, cost, native-only noted.
 - Positioning line: *Ignia ships free the exact features (barcode, voice logging, coach, fasting, adaptive insights) that MyFitnessPal, MacroFactor, and Cronometer put behind $60–100/yr paywalls.*
 
 ### Caveats / unverified
-- Cal AI food-DB size, pricing tiers, and any health integration are **unverified** on primary pages (integration appears **absent** from its App Store listing).
+- Cal AI food-DB size and health integration remain **unverified** on primary pages (integration appears **absent** from its App Store listing). **Pricing is no longer on this list** — see the Cal AI section. Ratings grew 339K → 349K between 2026-07-11 and 2026-08-03 (~435/day), so treat any Cal AI figure older than a few weeks as stale.
 - Lose It! "Snap It = Premium" is secondary-sourced (loseit.com/Play blocked fetch).
 - MFP streak/reminder mechanics and exact Voice-Log-vs-Meal-Scan free/paid split not fully confirmable on non-403 support pages.

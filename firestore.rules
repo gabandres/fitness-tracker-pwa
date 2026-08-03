@@ -635,6 +635,20 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ─── Org-wide spend ceiling + kill-switch ───────────────────
+    // Written by the AI callables via the admin SDK (which bypasses
+    // these rules) and by the adminSetSpendCeiling callable. Denied
+    // to clients outright, including admins: unlike /config, which
+    // admins read directly to render panel tabs, this doc is BOTH a
+    // counter on a hot path and a switch that turns a feature off for
+    // every user. A client-writable kill-switch is a denial-of-service
+    // primitive, and a client-writable counter lets anyone zero the
+    // meter and spend past the ceiling. The admin panel reads it
+    // through adminGetSpendCeilings, so every change is audited.
+    match /opsBudget/{kind} {
+      allow read, write: if false;
+    }
+
     // ─── Password-reset rate limit ──────────────────────────────
     // Written by the sendPasswordReset Cloud Function via the admin
     // SDK (which bypasses these rules). The caller is UNAUTHENTICATED

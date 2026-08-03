@@ -4,6 +4,7 @@ import { runDailyReminders, runDayThreeCoachPush } from "./push-reminders";
 import { runWeeklyDigest } from "./weekly-digest";
 import { runPublishUserCount } from "./ops";
 import { runRetentionCohorts } from "./retention";
+import { runSpendCeilingWatch } from "./spend-ceiling";
 import { db } from "./init";
 
 // ─── Hourly dispatcher ──────────────────────────────────────────────
@@ -35,6 +36,11 @@ export const hourlyTasks = onSchedule(
       ["sendWeeklyDigest", runWeeklyDigest],
       // Self-gating: returns immediately except on its one UTC hour a day.
       ["retentionCohorts", () => runRetentionCohorts(db)],
+      // A kill-switch with no alarm is a trap: without this, the first sign
+      // that an AI feature is serving nobody is a support email — and the
+      // daily ceiling silently re-opens at UTC midnight, so the evidence
+      // rolls over before anyone looks. Two Firestore reads an hour.
+      ["spendCeilingWatch", () => runSpendCeilingWatch(db)],
     ];
 
     const results = await Promise.allSettled(tasks.map(([, fn]) => fn()));
