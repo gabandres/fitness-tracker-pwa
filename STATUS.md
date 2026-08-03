@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-08-01 · **Owns:** current state only. Not history (`CHANGELOG.md`),
+**Updated:** 2026-08-02 · **Owns:** current state only. Not history (`CHANGELOG.md`),
 not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`).
 
 If a statement here conflicts with any other file in this repo, **this file wins** —
@@ -18,7 +18,7 @@ work because a plan doc was read as a status doc.
 | Web PWA `ignia.fit` | **Live**, bilingual (EN + es-PR), **105** prerendered pages (en 52 / es 53), 114-URL sitemap | `npm run build` prints both counts |
 | iOS App Store | **1.0.0, build 7** (uploaded 2026-07-20, `READY_FOR_SALE`), from commit `168e0394` | ASC command below |
 | iOS 1.1.0 | **Metadata shell only** — `PREPARE_FOR_SUBMISSION`, **no binary attached** | ASC command below |
-| Android / Play | **Not launched.** Play Console account exists, **developer verification complete** and `fit.ignia.app` **package name registered** (both 2026-07-31), proven with an APK signed by `apps/mobile/credentials/dev.keystore` (alias `macrolog-dev`, SHA-256 `75:4B:03:19:…:F6:D8`) — **that keystore is now load-bearing app identity; it is git-ignored and exists in one place**. App entry created (`4975181896468259775`), no AAB, no closed-test cohort yet. **Personal developer account → production access requires closed testing with 12 testers opted in 14 CONTINUOUS days** ([policy](https://support.google.com/googleplay/android-developer/answer/14151465)); the clock cannot start until a build is in a closed track, so the AAB is the critical path, not the paperwork | Play Console → Android developer verification → Package names |
+| Android / Play | **Not launched.** Play Console account exists, **developer verification complete** and `fit.ignia.app` **package name registered** (both 2026-07-31), proven with an APK signed by `apps/mobile/credentials/dev.keystore` (alias `macrolog-dev`, SHA-256 `75:4B:03:19:…:F6:D8`) — **that keystore is now load-bearing app identity; it is git-ignored and exists in one place**. App entry created (`4975181896468259775`). **The first AAB exists** (2026-08-02, EAS build `4b513a00`, versionName 1.1.0 / versionCode 3, signed by that same key — verified with `keytool -printcert -jarfile`); **not uploaded to any track yet**, no closed-test cohort yet. **Personal developer account → production access requires closed testing with 12 testers opted in 14 CONTINUOUS days** ([policy](https://support.google.com/googleplay/android-developer/answer/14151465)); the clock cannot start until a build is in a closed track, so the AAB is the critical path, not the paperwork | Play Console → Android developer verification → Package names |
 | Cloud Functions / rules | Deployed, project `fitness-tracker-gb-1775407101` | `firebase deploy --only functions --dry-run` |
 
 **The `1.1.0` trap.** `app.json` says 1.1.0 and ASC has a 1.1.0 version page, but
@@ -66,9 +66,9 @@ review those commits fixed.
 - iOS cannot be built on this machine. Windows, no Xcode. There is no local path.
 - iOS builds come from **EAS cloud, free tier**: 15 iOS builds/month, low-priority
   queue, 1 concurrent, 45-minute timeout.
-- **The quota reset landed, and two builds are spent. iOS 2/15, Android 0/15 for the
-  2026-08-01 → 2026-09-01 period — measured 2026-08-01 from the API.** The counter
-  is not the constraint this period.
+- **The quota reset landed. iOS 2/15, Android 1/15 for the 2026-08-01 →
+  2026-09-01 period — measured 2026-08-02 from the API.** The counter is not the
+  constraint this period.
 
 ```sh
 cd apps/mobile && npx eas-cli account:usage gabandres --non-interactive
@@ -78,8 +78,10 @@ cd apps/mobile && npx eas-cli account:usage gabandres --non-interactive
   *started*, which over-counts (it includes errored builds) and cannot show the
   limit or the period boundary. It is easy to miss because it does not appear in
   `eas-cli --help`, which lists only the `account` topic.
-- Android **does** build locally and free, via Gradle directly — *not* through
-  `eas build --local`, which refuses to run on Windows. See §6.
+- Android **APKs** build locally and free, via Gradle directly — *not* through
+  `eas build --local`, which refuses to run on Windows. See §7. **Android AABs do
+  not build here at all** — see the `bundleRelease` note in §4; they come from EAS,
+  which has its own 15/month Android allowance.
 - **Credentials are issued now — that one-time blocker is gone.** The scheme has
   **two** targets, and `fit.ignia.app.widget` had never had credentials (its bundle
   ID did not exist in the Apple portal at all). EAS cannot mint them unattended: it
@@ -136,8 +138,9 @@ cd apps/mobile && npx eas-cli build:list --platform ios --limit 5   # what exist
 | #46 | Read the watch layouts on a simulator | **a Mac with Xcode** (currently: borrow one) |
 | #47 | Compile the generated watch targets in Xcode | **a Mac with Xcode**; branch `probe/watch-compile-47` stages it |
 | — | App Store screenshots | owner, on device (`store-assets/README.md`) |
-| — | Play launch — **first AAB** | `bundleRelease` dies on Windows `MAX_PATH`: the `react-native-keyboard-controller` C++ object path is ~355 chars. `LongPathsEnabled=1` is set but **needs a reboot** to take effect; if it still fails after that, ninja itself is the cap → build on EAS. Signing: `credentials/dev.keystore` as upload key |
-| — | Play launch — **12 testers × 14 consecutive days** | owner recruiting. Personal account, so production access is gated on it. Clock cannot start until an AAB is in a closed track — **this is the critical path** |
+| — | Play launch — **first AAB** | **DONE** (2026-08-02). Local `bundleRelease` is **permanently dead on this machine**: `LongPathsEnabled=1` and a reboot changed nothing, because the cap is **ninja**, not the registry — the SDK's `cmake/3.22.1/bin/ninja.exe` is not long-path-aware, and the `react-native-keyboard-controller` object path is 348 chars. Relocating `.cxx` cannot save it (the CMake target-dir prefix alone is 105 chars). **AABs come from EAS.** `eas.json` `production` now sets `android.credentialsSource: "local"` so EAS signs with `credentials/dev.keystore` instead of minting a new upload key — **that line is load-bearing; removing it silently changes app identity.** Artifact: EAS build `4b513a00`, vc 3, signer SHA-256 `75:4B:03:19:…:F6:D8` |
+| — | Play launch — **upload the AAB to a closed track** | **owner, in the console.** No Play service-account JSON is configured, so `eas submit` cannot do it unattended. Must be **closed** testing, not internal — closed is what starts the 14-day clock. Artifact is at `~/Downloads/ignia-1.1.0-vc3.aab` (also downloadable from the EAS build page) |
+| — | Play launch — **12 testers × 14 consecutive days** | owner recruiting. Personal account, so production access is gated on it. Clock cannot start until the AAB above is in a closed track — **this is the critical path** |
 | — | Play launch — **Data safety form** | **DONE** (2026-08-01, filled directly in the console). Declares Personal info (Name, Email, User IDs) + Health and fitness (Health info, Fitness info); collected, **not shared**, required, App functionality + Account management. Nothing else. The saved draft had over-declared Photos, Crash logs, Device IDs, User-generated content and Other personal info — all cleared, each checked against the Android app (no analytics/crash SDK, no push token, photo-scan flag-off, RevenueCat is iOS-gated so it never configures on Android). CSV import was tried twice and failed with a generic "Couldn't upload"; the console UI worked |
 | — | Play launch — **Advertising ID declaration** | **DONE** — declared **No**. App content now reads "You're all caught up" |
 | — | Play launch — **delete-account URL** | **DONE and LIVE.** Verified 2026-08-01 and it *failed* — signed out, the page said only "sign in first to delete your account". `fb7d24d1` adds an unconditional "How to delete your account" section (iOS path, web path, and an email path for users who can't sign in) plus what is erased vs. what survives in backups, both locales. Deployed to `ignia.fit/privacy` and confirmed in a browser |
@@ -211,7 +214,8 @@ npm test                   # web unit tests
 npm --prefix packages/core test
 cd apps/mobile && npx expo start
 
-# Android release APK on Windows (free, unlimited):
+# Android release APK on Windows (free, unlimited).
+# `bundleRelease` does NOT work here — ninja's 260-char cap, see §4. AABs: EAS.
 cd apps/mobile && npx expo prebuild -p android --no-install
 cd android && ./gradlew.bat assembleRelease --no-daemon \
   -Pandroid.injected.signing.store.file=<abs path to credentials/dev.keystore> ...
