@@ -58,8 +58,8 @@ What's between "deployed" and "safe to share with strangers." Grouped by severit
 - [x] **Custom domain.** Purchased **`ignia.fit`** (2026-07-05). Code URLs migrated macrolog.web.app→ignia.fit. Owner still to: connect `ignia.fit` as a custom domain on the `macrolog` hosting site (Firebase console + DNS, ~day to settle), update the Gemini client-key HTTP-referrer allow-list to include `https://ignia.fit`, and `gsutil cors set storage-cors.json` for the bucket.
 - [ ] **Open Graph meta tags in `index.html`.** When the URL is pasted in WhatsApp / Slack / iMessage there's no preview card today. Add `og:title`, `og:description`, `og:image` (a screenshot of the ledger). LinkedIn and Twitter support the same OG spec.
 - [x] **PWA icon set audit.** *(2026-04-19)* — explicit apple-touch-icon declarations for 152 (iPad) + 192 (iPhone) in `src/index.html`. Manifest covers 72/96/128/144/152/192/384/512. A dedicated 180×180 render from `icon-source.svg` is a nice follow-up but iOS scales 192 cleanly.
-- [ ] **Transactional email sender domain.** Firebase Auth ships verify + password-reset from `noreply@fitness-tracker-gb-1775407101.firebaseapp.com` — deliverability tanks and the domain looks amateur. Set up a verified sending domain (SPF + DKIM on the custom domain), customize the Firebase Auth email templates.
-- [ ] **Welcome / onboarding email sequence.** No email flow exists today. A single Day-0 "here's what you can do this week" email materially lifts Day-7 retention.
+- [x] **Transactional email sender domain.** *(2026-07-24, `6cf63df3`)* — the real fault was never the DNS records this item assumed: mail shipped from Resend's shared sandbox domain and password resets from Firebase's, so DMARC alignment was impossible whatever `ignia.fit` published. Both now send from our own domain, password reset is a first-class server-generated link rather than Firebase's default, and every message carries a real plain-text part.
+- [x] **Welcome / onboarding email sequence.** *(2026-07-24, `6cf63df3`)* — Day-0 welcome email ships, bilingual. Note it was also corrected for over-promising: it advertised photo scanning, which is deferred to a paid tier (ADR-0015), so a new user's first email broke a promise in their first session. Any future addition to this sequence inherits that trap.
 - [ ] **Support inbox + SLA.** §S11 added a GitHub issue link + in-app feedback. Fine for zero users, terrible at 100+. Provision `support@macrolog.app`, state a 30-day response SLA in the privacy policy.
 - [x] **Privacy policy disclosures match reality.** *(2026-04-19)* — `dontShare` enumerates Google Cloud/Firebase, Gemini, Stripe, Sentry. No Plausible mention (was never in the policy — confirmed clean).
 - [x] **Link `/status` publicly.** *(2026-04-19)* — added to both pre-auth and authed footer in `app.ts` alongside privacy/terms/contact.
@@ -71,15 +71,27 @@ What's between "deployed" and "safe to share with strangers." Grouped by severit
 - [ ] **Function-handler unit tests.** `firestore.rules` suite now includes 2 new `ageConfirmedAt` specs (13 total); `sendDayThreeCoachPush`, `publishUserCount`, `generateWeeklyReport`, `analyzePhoto`, `exportUserData`, `deleteAccount` still lack handler-level tests. Would require `firebase-functions-test` wiring + admin-SDK mocking.
 
 ### Recommended launch order
-If treating this as a sprint to public-launch:
-1. Stripe live-mode + Stripe Tax verification (30 min) — **owner, not shipped**
-2. Password policy + GCS bucket + monitoring alerts (1 hr) — **owner, not shipped**
-3. Custom domain + OG meta tags (half day, mostly DNS wait) — **owner, not shipped**
-4. ~~Account deletion audit + full data export endpoint~~ — shipped 2026-04-19
-5. Transactional email sender domain (2 hrs) — **blocked on custom domain**
-6. Terms/Refund policy review (1 hr, $50 for Termly subscription) — **refund text shipped 2026-04-19; legal review still outstanding**
 
-Only after all six are ticked should the app be promoted in any channel outside direct personal share.
+**Five of the original six are done** (2026-08-02 audit). The list below used to
+say "owner, not shipped" for items ticked `[x]` two sections above it — it was
+read as a to-do list months after the work landed, which is exactly how this repo
+re-scopes finished work. What actually remains:
+
+1. **Terms of Service legal review** — the only original item still open, and it
+   is *not* urgent: the auto-renewal language it turns on applies to a paid tier,
+   and Pro is flag-gated off (ADR-0015). Revisit when Pro does.
+2. **OG meta tags** — pasting `ignia.fit` into WhatsApp/iMessage still shows no
+   preview card. Small, web-only, unblocked.
+
+Shipped since this list was written: Stripe live-mode + Tax, password policy, GCS
+backup bucket, monitoring alerts (all 2026-04-19); the custom domain `ignia.fit`;
+and the transactional email sender domain, which is no longer "blocked on custom
+domain" — `6cf63df3` rebuilt the templates and moved password reset onto our own
+sender, and the welcome email ships with it.
+
+**This section no longer gates distribution.** The app is live on the iOS App
+Store and in review for Play closed testing; what gates wider promotion now is in
+`STATUS.md`, not here.
 
 ### Decided against (deliberately not shipping)
 
