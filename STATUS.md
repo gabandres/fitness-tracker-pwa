@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-08-02 · **Owns:** current state only. Not history (`CHANGELOG.md`),
+**Updated:** 2026-08-03 · **Owns:** current state only. Not history (`CHANGELOG.md`),
 not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`).
 
 If a statement here conflicts with any other file in this repo, **this file wins** —
@@ -50,7 +50,7 @@ re-scope it as new work; do not describe it to users as available.
   its task handler registers through the custom `index.js` — a path no device has
   exercised. **The iOS widget is no longer in this list: it is verified working
   on a physical iPhone from TestFlight build 13 (2026-08-03), including refresh
-  after a meal.** See §4 #36.
+  after a meal.**
 - **The Apple Watch complication and its transport** — the watch app
   (`targets/watch/`), the face complication (`targets/watch-widget/`), the
   three iOS **Lock Screen** accessory families, one shared Swift contract
@@ -91,10 +91,19 @@ review those commits fixed.
 
 - iOS cannot be built on this machine. Windows, no Xcode. There is no local path.
 - iOS builds come from **EAS cloud, free tier**: 15 iOS builds/month, low-priority
-  queue, 1 concurrent, 45-minute timeout.
-- **The quota reset landed. iOS 2/15, Android 1/15 for the 2026-08-01 →
-  2026-09-01 period — measured 2026-08-02 from the API.** The counter is not the
+  queue, 1 concurrent, 45-minute timeout. There are **two** ceilings, not one —
+  a **30/month account total** and a **15/month per platform** sub-cap. Read
+  both; the account total is the one that runs out first if the two platforms
+  are used unevenly.
+- **iOS 5/15, Android 3/15, account 8/30 for the 2026-08-01 → 2026-09-01
+  period — measured 2026-08-03 from the API.** The counter is not the
   constraint this period.
+- **The queue is the real cost, and it is not metered.** An Android build on
+  2026-08-03 waited **2h05m** for a worker, ran Gradle for five minutes, and
+  died on an HTTP 401 from Sentry's source-map upload. Both the build and the
+  afternoon were gone. **Anything knowable before submitting must be checked
+  before submitting** — `npm run doctor` now validates `SENTRY_AUTH_TOKEN`
+  against the Sentry API for exactly this reason.
 
 ```sh
 cd apps/mobile && npx eas-cli account:usage gabandres --non-interactive
@@ -197,9 +206,9 @@ cd apps/mobile && npx eas-cli build:list --platform ios --limit 5   # what exist
 | # | Work | Blocked on |
 |---|---|---|
 | — | Next iOS binary (everything in §2) | Nothing structural. Build 13 exists, is on TestFlight, and its widget is verified on device — the device-QA gate this row used to name is **cleared**. What remains is submitting the 1.1.0 version page to App Review (it is still `PREPARE_FOR_SUBMISSION`), or cutting a newer build first if more of §2 should ride along. Quota and credentials are both resolved |
-| #36 | Verify the shipped widget on a physical iPhone | **DONE — 2026-08-03, on a real iPhone home screen from TestFlight build 13.** It renders kcal left and protein left, **and the numbers moved after logging a meal**, which is the part that proves the whole chain: app write → App Group → `ExtensionStorage` → widget refresh. Not a render-only check. The iOS half of §3's `ExtensionStorage` saga is closed; the deployment-target fix worked in a production binary. **Still unverified: the Android widget** — it is in Play vc 4 (in review), and its task handler registers through the custom `index.js`, a path no device has exercised |
+| — | Verify the **Android** widget on a device | Nobody has put it on an Android home screen. It is in Play vc 4, and its task handler registers through the custom `index.js` — a path no device has exercised. The iOS half is **done**: verified on a real iPhone 2026-08-03 from TestFlight build 13, kcal left + protein left, **and the numbers moved after a logged meal**, which proves the whole chain rather than the render alone |
 | #46 | Read the watch layouts on a simulator | **a Mac with Xcode** (currently: borrow one). Its stated precondition — "the build session has written the watch Swift" — is now **met**: the real layouts exist, so the sitting is the readout it was designed to be |
-| #47 | Compile the generated watch targets in Xcode | **a Mac with Xcode.** Now runs against **real code instead of stubs**: `targets/_shared/Glance.swift` is referenced from all three Apple targets, so the `_shared` membership question (#38's load-bearing one) is answered by whether the project builds, with no `ProbeShared.swift` needed. `probe/watch-compile-47` is superseded by `feat/watch-complication`; keep it only for the throwaway `ViewThatFits` probe |
+| #47 | Compile the generated watch targets in Xcode | **a Mac with Xcode.** Now runs against **real code instead of stubs**: `targets/_shared/Glance.swift` is referenced from all three Apple targets, so the `_shared` cross-target membership question — the load-bearing one for holding the Swift mirror at a single copy — is answered by whether the project builds, with no `ProbeShared.swift` needed. `probe/watch-compile-47` is superseded by `feat/watch-complication`; keep it only for the throwaway `ViewThatFits` probe |
 | — | App Store screenshots | owner, on device (`store-assets/README.md`) |
 | — | Play launch — **first AAB** | **DONE** (2026-08-02). Local `bundleRelease` is **permanently dead on this machine**: `LongPathsEnabled=1` and a reboot changed nothing, because the cap is **ninja**, not the registry — the SDK's `cmake/3.22.1/bin/ninja.exe` is not long-path-aware, and the `react-native-keyboard-controller` object path is 348 chars. Relocating `.cxx` cannot save it (the CMake target-dir prefix alone is 105 chars). **AABs come from EAS.** `eas.json` `production` now sets `android.credentialsSource: "local"` so EAS signs with `credentials/dev.keystore` instead of minting a new upload key — **that line is load-bearing; removing it silently changes app identity.** Artifact: EAS build `4b513a00`, vc 3, signer SHA-256 `75:4B:03:19:…:F6:D8` |
 | — | Play launch — **upload the AAB to a closed track** | **DONE** (2026-08-02). vc 4 is on Closed testing - Alpha and submitted; the app is in Google review. Play does not accept an app's *first* upload through the Developer API, so this one went through the console UI. **vc 3 was discarded, not shipped** — it declared three health READ permissions the app never requests, and Play's health declaration demands a written justification per read permission. `07ce8e99` removed them; vc 4 declares 11 health permissions (5 read, 6 write). Do not resurrect vc 3 |
@@ -215,7 +224,7 @@ cd apps/mobile && npx eas-cli build:list --platform ios --limit 5   # what exist
 
 **Apple glanceable surfaces (map #31).** 14 of its 16 tickets are **closed** —
 transport, staleness, layouts, tap targets, review surface and sign-out privacy
-were decided first, and #36 closed 2026-08-03 on device. What remains is
+were decided first, and the on-device widget verification closed 2026-08-03. What remains is
 **#46 and #47, both of which need a Mac** — the two things on the whole map that
 cannot be done on this machine.
 
