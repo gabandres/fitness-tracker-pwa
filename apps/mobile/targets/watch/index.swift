@@ -77,9 +77,41 @@ final class WatchReceiver: NSObject, ObservableObject, WCSessionDelegate {
 
   /// Re-derive the face from the App Group without waiting for a delivery.
   /// Cheap, and the only thing that moves the screen across local midnight.
+  ///
+  /// **This does not ingest anything.** It re-reads what is already stored. A
+  /// background wake that only calls this writes nothing and asks WidgetKit for
+  /// nothing — see `ingest()`.
   func refresh() {
     let next = Glance.load(now: Date())
     DispatchQueue.main.async { self.face = next }
+  }
+
+  /// Handle a WatchConnectivity background wake, and do it **before returning**.
+  ///
+  /// Two things went wrong here on device (2026-08-04, build 16) and they
+  /// compound, which is why the face rendered correct numbers at install and
+  /// then never moved again:
+  ///
+  /// 1. The background handler used to call `refresh()`, which only re-reads
+  ///    the App Group. It never called `store()`, so a freshly delivered
+  ///    context was never written and `reloadAllTimelines()` was never
+  ///    requested. The complication had nothing to be woken for.
+  /// 2. It returned immediately. `receivedApplicationContext` is only
+  ///    meaningful once the session has activated, and activation is
+  ///    asynchronous — so even the delegate path could lose the race, with the
+  ///    system suspending the app before `activationDidCompleteWith` fired.
+  ///
+  /// Hence: wait (briefly, bounded) for activation, then store synchronously.
+  /// Polling rather than a continuation on purpose — this runs in a background
+  /// wake with a short, unforgiving budget, and a bounded loop that always
+  /// terminates is worth more here than an elegant one that can hang.
+  func ingest() async {
+    start()
+    for _ in 0..<20 {
+      if WCSession.default.activationState == .activated { break }
+      try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1s, so ≤2s total
+    }
+    store(WCSession.default.receivedApplicationContext)
   }
 
   /// Store whatever arrived and reload. **No validation here, by design.**
@@ -239,13 +271,17 @@ struct IgniaWatchApp: App {
     WindowGroup {
       MirrorView()
     }
-    // Keeps the app alive long enough to write the App Group and request the
-    // reload when the system wakes it for a WatchConnectivity delivery. Note a
-    // background wake's `reloadTimelines` DOES count against the 40–75/day
-    // budget — Apple's exemption list is exhaustive and background execution is
-    // not on it (#37 §5).
+    // The system wakes us here when a context is delivered, and this closure
+    // must do the work — writing the App Group and requesting the reload —
+    // rather than assume the delegate will get there first. Returning early
+    // lets the app be suspended mid-delivery, which is how the complication
+    // ended up rendering once at install and never moving again.
+    //
+    // Note a background wake's `reloadTimelines` DOES count against the
+    // 40–75/day budget — Apple's exemption list is exhaustive and background
+    // execution is not on it (#37 §5).
     .backgroundTask(.watchConnectivity) {
-      WatchReceiver.shared.refresh()
+      await WatchReceiver.shared.ingest()
     }
   }
 }
