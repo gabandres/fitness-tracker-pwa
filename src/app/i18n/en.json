@@ -1131,7 +1131,7 @@
     "dontSell": "We don't sell your data to anyone.",
     "dontAds": "We don't run ads.",
     "dontTrain": "We don't use your data to train any AI model.",
-    "dontShare": "We don't share your data with anyone outside our list of sub-processors: Google Cloud / Firebase (hosting, auth, Firestore, FCM), Google Gemini API (photo analysis + AI coach), Stripe (payments only — if you subscribe), and Sentry (crash reports, scrubbed of personal content). We don't use analytics trackers and don't run ads.",
+    "dontShare": "We don't share your data with anyone outside our list of sub-processors: Google Cloud / Firebase (hosting, auth, Firestore, FCM), Google Gemini API (photo analysis + AI coach), Resend (transactional email — your address, so we can send password resets, the welcome email, and the weekly digest), Stripe (payments only — if you subscribe), and Sentry (crash reports, scrubbed of personal content). We don't use analytics trackers and don't run ads.",
     "callHeading": "Your data, your call",
     "callExport": "<strong>Export</strong>: download all your logs as CSV from the dashboard at any time.",
     "callFullExport": "<strong>Full JSON export</strong>: every profile field, log, preset, weight, measurement, report, and quota record we hold for you — portable format for GDPR Art. 20 requests.",

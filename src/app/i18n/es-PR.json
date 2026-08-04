@@ -1131,7 +1131,7 @@
     "dontSell": "No vendemos tus datos a nadie.",
     "dontAds": "No mostramos anuncios.",
     "dontTrain": "No usamos tus datos para entrenar ningún modelo de IA.",
-    "dontShare": "No compartimos tus datos fuera de esta lista de subprocesadores: Google Cloud / Firebase (hosting, auth, Firestore, FCM), Google Gemini API (análisis de fotos + coach IA), Stripe (pagos — solo si te suscribes), y Sentry (reportes de errores, sin contenido personal). No usamos rastreadores de analytics ni mostramos anuncios.",
+    "dontShare": "No compartimos tus datos fuera de esta lista de subprocesadores: Google Cloud / Firebase (hosting, auth, Firestore, FCM), Google Gemini API (análisis de fotos + coach IA), Resend (correo transaccional — tu dirección, para enviarte el restablecimiento de contraseña, el correo de bienvenida y el resumen semanal), Stripe (pagos — solo si te suscribes), y Sentry (reportes de errores, sin contenido personal). No usamos rastreadores de analytics ni mostramos anuncios.",
     "callHeading": "Tus datos, tu decisión",
     "callExport": "<strong>Exportar</strong>: descarga toda tu bitácora como CSV desde el dashboard cuando quieras.",
     "callFullExport": "<strong>Exportación completa (JSON)</strong>: todos tus campos de perfil, registros, presets, pesos, medidas, reportes y cuotas — formato portable para solicitudes GDPR Art. 20.",
