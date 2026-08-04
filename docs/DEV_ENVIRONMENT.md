@@ -109,30 +109,40 @@ Remaining steps that genuinely can't be scripted here:
 - **Billing budget + alert** — Cloud Billing → Budgets & alerts → set a monthly
   cap + 50/90/100% email alerts. Your worst case is a runaway Gemini/functions
   bill; it's currently **uncapped**.
-- **BigQuery billing export — dataset is created, the switch is not thrown.**
-  `bq://fitness-tracker-gb-1775407101.billing_export` exists (US, created
-  2026-08-04). Enabling the export itself is **console-only** — the Cloud
-  Billing API has no method for it, which is why this is a runbook step and
-  not a script. Cloud Billing → **Billing export** → *BigQuery export* tab →
-  **Edit settings** on **Detailed usage cost**, pick this project and the
-  `billing_export` dataset, save. Do the same for *Standard usage cost* if you
-  want the cheaper coarse table too.
-  **It is not retroactive** — it captures usage from the moment you enable it
-  forward, so it will never explain an invoice you already received. Those
-  stay at Billing → **Documents**. Data starts landing within ~24h in a table
-  named `gcp_billing_export_resource_v1_<BILLING_ACCOUNT_ID_with_underscores>`
-  (account `010F4E-5E97BC-6B83D0` → `..._010F4E_5E97BC_6B83D0`).
-  Cost of the export itself is effectively zero — a few MB/month against
-  BigQuery's 10 GB free storage and 1 TB free query tier. Once rows exist,
-  cost-by-service for the last 30 days is:
+- **BigQuery billing export — ALREADY ON, and it does not live in this
+  project.** Detailed usage cost has been exporting since ~2026-04 into
+  **`citafy-6129184.billing_export`**, a *different* GCP project on the same
+  billing account (`010F4E-5E97BC-6B83D0`, "Firebase Payment"). `bq ls` inside
+  `fitness-tracker-gb-1775407101` shows nothing and reads as "no export
+  configured" — it is not. Query the billing account's data there:
 
   ```sh
-  bq query --use_legacy_sql=false \
-  'SELECT service.description AS service, ROUND(SUM(cost),2) AS usd
-   FROM `fitness-tracker-gb-1775407101.billing_export.gcp_billing_export_resource_v1_010F4E_5E97BC_6B83D0`
+  bq query --project_id=citafy-6129184 --use_legacy_sql=false \
+  'SELECT service.description AS service,
+          ROUND(SUM(cost),2) AS gross_usd,
+          ROUND(SUM(cost) + SUM(IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) c),0)),2) AS net_usd
+   FROM `citafy-6129184.billing_export.gcp_billing_export_resource_v1_010F4E_5E97BC_6B83D0`
    WHERE usage_start_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
-   GROUP BY service ORDER BY usd DESC'
+   GROUP BY service ORDER BY net_usd DESC'
   ```
+
+  **Read `net_usd`, not `cost`** — Cloud Run Functions bills $3.04 gross and
+  $0.00 net, because the free tier arrives as a credit rather than as an
+  absent charge. Ignoring credits triples the apparent bill.
+- **Secret Manager version storage is the whole bill, not Gemini.** Lifetime
+  net spend to 2026-08-04 is **~$7.85**, of which Secret Manager is **$5.91**
+  and the **Gemini API is $0.08**. The SKU is *secret version replica
+  storage*, billed per active version per unit time — so cost scales with
+  versions you forgot to destroy, not with traffic. It peaked at ~46 billable
+  version-months in June ($2.75) and fell to ~10 in July once versions were
+  cleaned up. **That is what the May/June invoices were** ($3.44 + $3.66).
+  Currently 9 active versions, 6 free → ~$0.18/mo. The standing rule in
+  `CLAUDE.md` (destroy superseded versions after rotating) is not hygiene
+  advice, it is the single biggest line on this account.
+- **Cost data is delayed** — the console has carried a banner since
+  2026-08-01 about GCP-wide cost-data delays affecting both the Billing
+  console and BigQuery exports. A near-zero current month may be lag, not
+  savings.
 - **Firestore PITR** — Firestore → enable Point-in-Time Recovery (7-day). One
   toggle, cheap insurance on top of the existing weekly backup CF.
 - **Auth** — enable email-enumeration protection; confirm the password policy.
