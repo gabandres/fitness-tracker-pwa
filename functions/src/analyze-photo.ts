@@ -13,20 +13,28 @@ import { anthropicApiKey, callerAccess, dailyQuota, geminiApiKey, spendCeiling }
 const PHOTO_MIN_INTERVAL_MS = 3_000;
 
 /**
- * Photo-scan is the one paid-tier AI feature, enforced HERE rather than on
- * the client. The client cannot express "Pro" today: `isPaid()` is forced
- * `true` for everyone while `PRO_ENABLED === false`, so a client-side check
- * would unlock this for the whole free tier. `caller.tier` comes from the
- * Stripe custom claim and is unaffected by that flag, which makes the server
- * the only honest gate.
+ * Whether photo-scan is paid-only, enforced HERE rather than on the client.
+ * **It is not** — photo-scan is freemium: the daily caps in daily-quota.ts do
+ * the tiering (3/day free, 30/day paid), which is what the freemium table
+ * always promised. This flag exists to make the *other* choice reachable in
+ * one word, and to record why the enforcement point is the server.
  *
- * While `PRO_ENABLED` is false and nothing is purchasable, "paid" in practice
- * means admins and comped friends. That is intended: the feature is also
- * hidden client-side (web `FEATURES.photoScan`, mobile
- * `EXPO_PUBLIC_FEATURE_PHOTO_SCAN=0`), so this guard is the second lock on a
- * door that is already closed. Set to `false` to make photo-scan free again.
+ * The client cannot express "Pro" at all: `isPaid()` is forced `true` for
+ * everyone while `PRO_ENABLED === false`, so a client-side paid check would
+ * unlock the feature for the whole free tier — the opposite of the intent.
+ * `caller.tier` reads the Stripe custom claim and ignores that flag, so if
+ * this is ever flipped back to `true`, the server is the only place the
+ * distinction survives.
+ *
+ * Costed before flipping (2026-08-04), on the active Gemini provider:
+ * ~$0.0015/scan, so the free tier's 3/day is ~$0.14 per user per month even
+ * if someone maxes it out every single day, and the `photo` spend ceiling
+ * bounds the worst possible day at 2,000 scans ≈ $3. Photo-scan is the
+ * strongest conversion lever the app has; that is cheap acquisition. On the
+ * Anthropic provider the same math is ~2.7x, which is a reason to re-run it
+ * before flipping PHOTO_PROVIDER, not a reason to close this gate.
  */
-const PHOTO_REQUIRES_PAID = true;
+const PHOTO_REQUIRES_PAID = false;
 
 /**
  * Which vision model estimates the macros. **This is a cost decision, not a

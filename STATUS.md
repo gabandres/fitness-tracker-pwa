@@ -130,15 +130,20 @@ available.
   **The feature is still hidden** (web `FEATURES.photoScan: false`, mobile
   `EXPO_PUBLIC_FEATURE_PHOTO_SCAN=0` in the prod build) — this is plumbing,
   not a launch.
-  **Why the paid gate is server-side:** the client cannot express "Pro" today.
-  `isPaid()` is forced `true` for everyone while `PRO_ENABLED === false`, so a
-  client-side check would unlock photo-scan for the entire free tier — the
-  opposite of the intent. `caller.tier` comes from the Stripe claim and is
-  unaffected by that flag. `PHOTO_REQUIRES_PAID` in `analyze-photo.ts` is the
-  switch; while nothing is purchasable, "paid" means admins + comped friends.
-  **Open pricing question, live the moment the provider flips:** `limitPaid`
-  is 30 photos/day, so a Pro user at the cap costs $3.60/mo against a $3.00/mo
-  subscription. Lower the cap or accept it deliberately.
+  **Photo-scan is freemium, not Pro-only** — `PHOTO_REQUIRES_PAID = false`,
+  and the tiering is the daily caps in `daily-quota.ts`: **3/day free, 30/day
+  paid**, which is what the freemium table always promised. Costed before
+  opening it: on Gemini a free user maxing 3/day *every day* is ~$0.14/month,
+  and the `photo` ceiling bounds the worst possible day at 2,000 scans ≈ $3.
+  **The earlier "30/day loses money" worry was Haiku-specific and is void on
+  Gemini** — 30/day × 30 days × $0.0015 = $1.35/mo against $3.00/mo of
+  revenue. Re-run that math before flipping `PHOTO_PROVIDER`, where the same
+  usage costs ~2.7×; do not carry the conclusion across providers.
+  **The gate, if it is ever re-closed, must stay server-side.** The client
+  cannot express "Pro": `isPaid()` is forced `true` for everyone while
+  `PRO_ENABLED === false`, so a client-side paid check unlocks the feature for
+  the entire free tier. `caller.tier` reads the Stripe claim and ignores that
+  flag.
   **Required before the Anthropic path ships to users:** it adds a new
   subprocessor, so the privacy policy's `dontShare` list (both locales), the
   Play **Data safety** form (which cleared Photos *because* photo-scan was
