@@ -15,7 +15,7 @@ import {
 } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
-import { importLogs, setCalorieFloor, setPreferredLocale, setUnitSystem, setWeeklyDigestOptIn } from '@/lib/ledger';
+import { importLogs, setCalorieFloor, setPreferredLocale, setProteinFloor, setUnitSystem, setWeeklyDigestOptIn } from '@/lib/ledger';
 import { exportDataCsv } from '@/lib/dataExport';
 import { deleteAccountForever } from '@/lib/deleteAccount';
 import { isTipIapAvailable } from '@/lib/purchases';
@@ -64,6 +64,9 @@ const MEAL_ROWS: { key: MealKey; labelKey: I18nKey }[] = [
 const CALORIE_FLOOR_MIN = 1200;
 const CALORIE_FLOOR_MAX = 3000;
 const DEFAULT_CALORIE_FLOOR = 1500;
+// Protein floor band. No default constant on purpose — unset means "off".
+const PROTEIN_FLOOR_MIN = 80;
+const PROTEIN_FLOOR_MAX = 300;
 
 const IMPORT_ERR_KEY: Record<ImportParseError, I18nKey> = {
   'empty-file': 'settings.importErrEmpty',
@@ -240,6 +243,27 @@ export default function Settings() {
     if (next === calorieFloor) return;
     haptics.tap();
     await setCalorieFloor(user.uid, next);
+  }
+
+  // Protein floor (g). OPT-IN with no default: null is a real state, so an
+  // untouched profile behaves exactly as it did before the field existed.
+  // Enabling seeds from the user's own 1.6 g/kg minimum; stepping below the
+  // band minimum clears the field. Bounds match the PWA.
+  const proteinFloor = profile?.proteinFloor ?? null;
+  async function bumpProteinFloor(delta: number) {
+    if (!user) return;
+    let next: number | null;
+    if (proteinFloor == null) {
+      if (delta < 0) return;
+      const seed = targets.proteinMinTarget || PROTEIN_FLOOR_MIN;
+      next = Math.min(PROTEIN_FLOOR_MAX, Math.max(PROTEIN_FLOOR_MIN, seed));
+    } else {
+      const stepped = proteinFloor + delta;
+      next = stepped < PROTEIN_FLOOR_MIN ? null : Math.min(PROTEIN_FLOOR_MAX, stepped);
+    }
+    if (next === proteinFloor) return;
+    haptics.tap();
+    await setProteinFloor(user.uid, next);
   }
 
   const unit: UnitSystem = profile?.unitSystem ?? 'us';
@@ -651,6 +675,40 @@ export default function Settings() {
                 disabled={calorieFloor >= CALORIE_FLOOR_MAX}
                 onPress={() => bumpCalorieFloor(50)}
                 testID="calorie-floor-plus"
+              >
+                <Text style={styles.stepText}>+</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        <Text style={styles.section}>{t('settings.proteinFloorSection')}</Text>
+        <View style={styles.card}>
+          <View style={styles.rowBetween}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>{t('settings.proteinFloor')}</Text>
+              <Text style={styles.rowValue}>{t('settings.proteinFloorSub')}</Text>
+            </View>
+            <View style={styles.stepper}>
+              <TouchableOpacity
+                style={[styles.step, proteinFloor == null && { opacity: 0.4 }]}
+                disabled={proteinFloor == null}
+                onPress={() => bumpProteinFloor(-5)}
+                testID="protein-floor-minus"
+              >
+                <Text style={styles.stepText}>−</Text>
+              </TouchableOpacity>
+              <Text style={styles.hourValue} testID="protein-floor">
+                {proteinFloor ?? t('settings.proteinFloorOff')}
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.step,
+                  (proteinFloor ?? 0) >= PROTEIN_FLOOR_MAX && { opacity: 0.4 },
+                ]}
+                disabled={(proteinFloor ?? 0) >= PROTEIN_FLOOR_MAX}
+                onPress={() => bumpProteinFloor(5)}
+                testID="protein-floor-plus"
               >
                 <Text style={styles.stepText}>+</Text>
               </TouchableOpacity>

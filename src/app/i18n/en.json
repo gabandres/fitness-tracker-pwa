@@ -316,6 +316,15 @@
       "inc": "Increase calorie floor",
       "saveError": "Couldn't save. Check your connection and try again."
     },
+    "proteinFloor": {
+      "section": "protein floor",
+      "desc": "Your protein target never drops below this. Off by default — turn it on if you want a hard minimum regardless of what your weight says.",
+      "unit": "g",
+      "off": "Off",
+      "dec": "Decrease protein floor",
+      "inc": "Increase protein floor",
+      "saveError": "Couldn't save. Check your connection and try again."
+    },
     "data": {
       "section": "data",
       "webhook": "apple shortcuts webhook",

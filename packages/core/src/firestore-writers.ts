@@ -27,7 +27,14 @@
  * `writeBatch` call, the `pruneUndefined` binding, the collection paths, and
  * `mergeExercises` (a rewrite rule over fetched docs, not a serializer).
  */
-import type { CustomFood, LogEntry, MealPreset, MealType, Measurement } from './types';
+import type {
+  CustomFood,
+  LogEntry,
+  MealPreset,
+  MealType,
+  Measurement,
+  OnboardingV2Submission,
+} from './types';
 import type {
   LogStyle,
   MuscleGroup,
@@ -118,6 +125,54 @@ export function toLogPatch<TS>(entry: LogEntry, codec: DocCodec<TS>): Record<str
   if (entry.weight != null) patch['weight'] = entry.weight;
   if (entry.timestamp != null) patch['timestamp'] = codec.timestamp(entry.timestamp);
   return patch;
+}
+
+// ─── Profile: v2 2-question onboarding ──────────────────────────
+
+/**
+ * `users/{uid}` patch for the 2-question onboarding submission.
+ *
+ * Lives here because both adapters wrote this patch by hand, and they drifted:
+ * neither cleared `targetsRefinedAt`. `saveRefinedTargets` deletes the manual
+ * heuristic targets and stamps that field to hand control to formula-mode TDEE
+ * — so re-running onboarding afterwards restored a manual target onto a profile
+ * still marked "refined". Manual outranks formula in the target chain
+ * (see `targets.ts`), so that user was pinned to a heuristic number derived
+ * from a pace they had already replaced, with no way back except refining
+ * again. Clearing the stamp restores the invariant the two writers jointly own:
+ *
+ *   `targetsRefinedAt` present  ⟺  manual targets absent
+ *
+ * Clearing it also re-shows the Refine Targets prompt card (the stamp is that
+ * card's latch), which is the correct outcome: the user is back on the
+ * heuristic and should be invited to refine into a pace matching their new
+ * goal.
+ */
+export function toOnboardingV2Patch<TS>(
+  submission: OnboardingV2Submission,
+  codec: DocCodec<TS>,
+  now: Date = new Date(),
+): Record<string, unknown> {
+  const stamp = codec.timestamp(now);
+  const hasGoalWeight = submission.targetWeightLbs != null;
+  return {
+    goalDirection: submission.goalDirection,
+    manualCaloriesTarget: submission.manualCaloriesTarget,
+    manualProteinTarget: submission.manualProteinTarget,
+    onboardingV2CompletedAt: stamp,
+    // Mark the profile complete so the v1 gate doesn't re-trigger v1
+    // onboarding for users who came in through the v2 path.
+    profileCompleted: true,
+    lastSeenAt: stamp,
+    // Goal weight lives in TWO legacy fields (targetWeightLbs from onboarding,
+    // goalWeightLbs read by the goal-progress bar). Keep them in sync, and
+    // CLEAR both on "maintain" — otherwise a stale goalWeightLbs shadows the
+    // new goal forever (the "redo onboarding didn't update it" bug).
+    targetWeightLbs: hasGoalWeight ? submission.targetWeightLbs : codec.remove(),
+    goalWeightLbs: hasGoalWeight ? submission.targetWeightLbs : codec.remove(),
+    // See the doc comment: this is the field whose absence was the bug.
+    targetsRefinedAt: codec.remove(),
+  };
 }
 
 // ─── Meal presets ───────────────────────────────────────────────

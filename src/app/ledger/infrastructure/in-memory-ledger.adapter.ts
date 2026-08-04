@@ -155,6 +155,11 @@ export class InMemoryLedgerAdapter implements LedgerPort {
     else this.patchProfile({ calorieFloor: floor });
   }
 
+  async saveProteinFloor(floor: number | null): Promise<void> {
+    if (floor == null) this.patchProfile({}, ['proteinFloor']);
+    else this.patchProfile({ proteinFloor: floor });
+  }
+
   async hideRecentLabel(label: string): Promise<void> {
     const norm = label.trim().toLowerCase();
     if (!norm) return;

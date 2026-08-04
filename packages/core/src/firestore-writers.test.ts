@@ -8,6 +8,7 @@ import {
   toLogPatch,
   toMeasurementDoc,
   toMeasurementPatch,
+  toOnboardingV2Patch,
   toPresetDoc,
   toSessionDoc,
   toSessionPatch,
@@ -316,6 +317,53 @@ describe('sessions', () => {
     expect(toSessionPatch({ date: moved }, codec, NOW)['timestamp']).toEqual({
       ts: moved.getTime(),
     });
+  });
+});
+
+describe('toOnboardingV2Patch', () => {
+  const submission = {
+    weightLbs: 160,
+    goalDirection: 'lose' as const,
+    targetWeightLbs: 150,
+    manualCaloriesTarget: 1760,
+    manualProteinTarget: 115,
+  };
+
+  it('writes the heuristic targets, the stamps, and the goal-weight pair', () => {
+    expect(toOnboardingV2Patch(submission, codec, NOW)).toEqual({
+      goalDirection: 'lose',
+      manualCaloriesTarget: 1760,
+      manualProteinTarget: 115,
+      onboardingV2CompletedAt: stamp,
+      profileCompleted: true,
+      lastSeenAt: stamp,
+      targetWeightLbs: 150,
+      goalWeightLbs: 150,
+      targetsRefinedAt: REMOVE,
+    });
+  });
+
+  it('clears BOTH goal-weight fields on maintain', () => {
+    const patch = toOnboardingV2Patch(
+      { ...submission, goalDirection: 'maintain', targetWeightLbs: undefined },
+      codec,
+      NOW,
+    );
+    expect(patch['targetWeightLbs']).toBe(REMOVE);
+    expect(patch['goalWeightLbs']).toBe(REMOVE);
+  });
+
+  /**
+   * The invariant this function exists to hold: `targetsRefinedAt` set ⟺ manual
+   * targets absent. `saveRefinedTargets` deletes the manual targets and stamps
+   * the field; re-running onboarding re-writes the manual targets, so it MUST
+   * clear the stamp. Leaving it set produced a profile that was "refined" and
+   * still carried a manual target — which outranks the formula result forever
+   * (targets.ts precedence), so a refined user who changed their goal was stuck
+   * on a heuristic number derived from a pace they had already replaced.
+   */
+  it('clears targetsRefinedAt so a re-onboard cannot shadow the formula target', () => {
+    expect(toOnboardingV2Patch(submission, codec, NOW)['targetsRefinedAt']).toBe(REMOVE);
   });
 });
 

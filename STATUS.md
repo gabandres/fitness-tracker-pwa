@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-08-03 · **Owns:** current state only. Not history (`CHANGELOG.md`),
+**Updated:** 2026-08-04 · **Owns:** current state only. Not history (`CHANGELOG.md`),
 not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`).
 
 If a statement here conflicts with any other file in this repo, **this file wins** —
@@ -19,7 +19,7 @@ work because a plan doc was read as a status doc.
 | iOS App Store | **1.0.0, build 7** (uploaded 2026-07-20, `READY_FOR_SALE`), from commit `168e0394` | ASC command below |
 | iOS 1.1.0 | **Latest on TestFlight: build 16**, `VALID` (EAS `6415fca7`, commit `cfc19a06`, 2026-08-03). Version page still `PREPARE_FOR_SUBMISSION` — **not submitted to App Review**. **Build 16 is the first binary anywhere that contains the Apple Watch app and complication** (`IgniaWatch.app` + `IgniaWatchComplication.appex`, both signed in its build log). It passing Apple's processing as `VALID` also settles the open **ITMS-90717** question: the watch app icon's alpha channel did **not** get it rejected. Build 13 (`5949a3ea`, commit `458d60db`) is the predecessor — first binary to actually carry the widget's `ExtensionStorage` pod, and the one the iPhone widget was verified from on a physical device | ASC command below |
 | Android / Play | **Not launched.** Play Console account exists, **developer verification complete** and `fit.ignia.app` **package name registered** (both 2026-07-31), proven with an APK signed by `apps/mobile/credentials/dev.keystore` (alias `macrolog-dev`, SHA-256 `75:4B:03:19:…:F6:D8`) — **that keystore is now load-bearing app identity; it is git-ignored and exists in one place**. App entry created (`4975181896468259775`). **The first AAB is uploaded and the whole app is IN REVIEW at Google** as of 2026-08-02 — versionName 1.1.0 / **versionCode 4**, EAS build `2d36d121`, on the **Closed testing - Alpha** track (id `4699799777678836720`), 177 countries, signed by that same key (verified with `keytool -printcert -jarfile`). 14 changes went in one submission because it is the app's first: store listing, content rating, data safety, health declaration, the release itself. Reviews are quoted at up to 7 days. **vc 6 superseded it on 2026-08-03** — EAS build `d238d43f`, commit `87aee43b`, submitted with `eas submit` and **verified live on the alpha track by the Play Developer API: `status=completed, versionCodes=["6"]`**. `completed` means rolled out to the tester list, not a draft awaiting a console promote — that is `eas.json`'s `releaseStatus: "completed"` (from `87aee43b`) working. **vc 6 is the first Android binary containing Sentry and the Google sign-in diagnostics**, so Alejandro's `DEVELOPER_ERROR`-vs-`no-token` question is now answerable from Sentry rather than from guesswork. Tester list `Ignia Beta Testers` holds **6 emails; 12 are required** — **personal developer account → production access requires closed testing with 12 testers opted in 14 CONTINUOUS days** ([policy](https://support.google.com/googleplay/android-developer/answer/14151465)). **Unresolved and load-bearing: Play showed Installed audience 0.** A build on the track is necessary but not sufficient — the 14-day clock counts opted-in testers, so if nobody has actually accepted the invite the clock still has not started. Establish that before counting days | Track state: the `androidpublisher` edits→tracks API with `credentials/play-service-account.json` (see `CLAUDE.local.md`) |
-| Cloud Functions / rules | Deployed, project `fitness-tracker-gb-1775407101` | `firebase deploy --only functions --dry-run` |
+| Cloud Functions / rules | Deployed, project `fitness-tracker-gb-1775407101`. **`firestore.rules` redeployed 2026-08-04** to allow + range-validate the new `proteinFloor` profile field (`> 0 && < 1000`); deployed **before** any client writes it, per the standing rule | `firebase deploy --only functions --dry-run` |
 
 **The `1.1.0` trap.** `app.json` says 1.1.0 and ASC has a 1.1.0 version page, but
 **EAS has never built a 1.1.0 iOS binary**. Anything a doc describes as "shipped in
@@ -38,6 +38,46 @@ some items are now live on Android and pending only on iOS.** Do not re-scope
 anything here as new work; do not describe an iOS-pending item to users as
 available.
 
+- **The daily-target safety floors, and the onboarding shadow bug** (2026-08-04).
+  **The web half is LIVE** (hosting deployed 2026-08-04); the mobile half is on
+  `main` and in no binary. Three defects, one seam:
+  1. **`calorieFloor` was clamped on only two of the four branches that can
+     produce a target** — `tdee.ts` measured and formula. The manual
+     onboarding heuristic and the seed fallback bypassed it, so a user with
+     `calorieFloor: 1850` was shown 1760 (their `manualCaloriesTarget`, =
+     weight × 11) and 1800 (`SEED_RESULT`) respectively. Fixed with **one exit
+     clamp in `dailyTargets`** (`packages/core/src/targets.ts`) rather than
+     three patched return sites; `calorieFloor` is now exported from `tdee.ts`
+     instead of duplicated. **`calculateTdee` arithmetic is untouched and
+     `tdee.test.ts` is byte-identical green** — `Math.max` is idempotent, so
+     measured/formula values that were already clamped upstream pass through
+     unchanged (two guard tests assert exactly that).
+  2. **Protein had no floor at all.** New **opt-in** `proteinFloor` (grams) with
+     **no numeric default** — unset behaves exactly as before. Type, rules,
+     writers on both clients, `LEDGER_PORT` + in-memory adapter, and a settings
+     stepper on web and mobile in both locales, where "off" is a real state and
+     stepping below the band minimum clears the field.
+  3. **`saveOnboardingV2` could shadow the formula target forever.**
+     `saveRefinedTargets` deletes the manual targets and stamps
+     `targetsRefinedAt`; re-running onboarding restored a manual target and left
+     the stamp, and manual outranks formula — so a refined user who changed
+     their goal was pinned to a heuristic number derived from a pace they had
+     already replaced. Both adapters hand-wrote that patch and had drifted, so
+     the patch shape moved into **`toOnboardingV2Patch`** in
+     `packages/core/src/firestore-writers.ts` (the module that exists to stop
+     exactly this) and now clears the stamp. Invariant, unit-tested:
+     **`targetsRefinedAt` present ⟺ manual targets absent.** Clearing it also
+     re-shows the Refine Targets card, which is correct — the user is back on
+     the heuristic and should be re-invited to refine.
+  **One behaviour change wider than the bug report**, called out deliberately: a
+  manual target below 1500 with no configured floor now lifts to
+  `MIN_DAILY_TARGET`. Reachable — the `lose` heuristic is weight × 11, so anyone
+  under ~136 lb onboards below 1500 (a 100 lb user goes 1100 → 1500). That is
+  the floor doing its job on a branch that had been skipping it, but it does move
+  existing users' numbers. **Not verified:** `npm run test:rules` cannot run on
+  this machine (firebase-tools requires **Java 21+**; installed JDK is older), so
+  the rules change is deployed and green in Firebase's own compiler but has no
+  emulator test behind it.
 - **Sentry + Google sign-in diagnostics (mobile)** — **Live on Android in vc 6
   (alpha track, 2026-08-03 — §1). Still in no iOS binary**: build `f3e5daaf`
   contains it but has not been submitted to TestFlight. Originally: the Expo app had no error

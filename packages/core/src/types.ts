@@ -179,6 +179,12 @@ export interface ProfileFields {
    *  water-suppressed measured TDEE can never silently push the target below
    *  a level the user has deemed too aggressive. Omitted ⇒ 1500 default. */
   calorieFloor?: number;
+  /** Personal safety floor for the daily protein target, in grams. Applied to
+   *  whichever protein target the chain produces (live g/kg, frozen manual
+   *  snapshot, or the 1.6 g/kg default). Unlike `calorieFloor` there is NO
+   *  numeric default — omitted means no floor at all, so an unset value leaves
+   *  protein behaving exactly as it did before this field existed. */
+  proteinFloor?: number;
   fastStartedAt?: Date | null; // when fasting — ISO timestamp of fast start
   webhookApiKey?: string;      // static UUID for Apple Shortcuts webhook auth
   fcmToken?: string;           // FCM push token

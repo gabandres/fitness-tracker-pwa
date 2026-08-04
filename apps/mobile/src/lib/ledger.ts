@@ -48,6 +48,7 @@ import {
   toLogPatch,
   toMeasurement,
   toMeasurementDoc,
+  toOnboardingV2Patch,
   toPresetDoc,
   toSessionDoc,
   toSessionPatch,
@@ -438,32 +439,13 @@ export async function ensureProfile(uid: string): Promise<void> {
   await setDoc(ref, { createdAt: now, lastSeenAt: now, profileCompleted: false });
 }
 
-/** Persist the 2-question onboarding. Mirrors the PWA's
- *  `FirebaseService.saveOnboardingV2` byte-for-byte: writes the manual
- *  heuristic targets, stamps completion, and flips `profileCompleted` so the
- *  TDEE chain prefers these numbers until the user has measured data. The
- *  profile doc already exists (created at sign-up), so this is an update. */
+/** Persist the 2-question onboarding. The patch shape is single-sourced in
+ *  `@macrolog/core` (`toOnboardingV2Patch`) and shared with the PWA, so the two
+ *  apps cannot drift — writes the manual heuristic targets, stamps completion,
+ *  flips `profileCompleted`, and clears `targetsRefinedAt`. The profile doc
+ *  already exists (created at sign-up), so this is an update. */
 export async function saveOnboardingV2(uid: string, s: OnboardingV2Submission): Promise<void> {
-  const patch: Record<string, unknown> = {
-    goalDirection: s.goalDirection,
-    manualCaloriesTarget: s.manualCaloriesTarget,
-    manualProteinTarget: s.manualProteinTarget,
-    onboardingV2CompletedAt: Timestamp.now(),
-    profileCompleted: true,
-    lastSeenAt: Timestamp.now(),
-  };
-  // Goal weight lives in TWO legacy fields (targetWeightLbs from onboarding,
-  // goalWeightLbs read by the goal-progress bar). Keep them in sync, and CLEAR
-  // both when the goal is "maintain" — otherwise a stale goalWeightLbs shadows
-  // the new goal forever (the "redo onboarding didn't update it" bug).
-  if (s.targetWeightLbs != null) {
-    patch['targetWeightLbs'] = s.targetWeightLbs;
-    patch['goalWeightLbs'] = s.targetWeightLbs;
-  } else {
-    patch['targetWeightLbs'] = deleteField();
-    patch['goalWeightLbs'] = deleteField();
-  }
-  await updateDoc(userDoc(uid), patch);
+  await updateDoc(userDoc(uid), toOnboardingV2Patch(s, CODEC));
 }
 
 /** Portion-display unit system (`us` | `metric`). */
@@ -476,6 +458,15 @@ export async function setUnitSystem(uid: string, unitSystem: UnitSystem): Promis
  *  to clear it (reverts the clamp to the 1500 default). */
 export async function setCalorieFloor(uid: string, floor: number | null): Promise<void> {
   await updateDoc(userDoc(uid), { calorieFloor: floor == null ? deleteField() : floor });
+}
+
+/** Personal daily-protein safety floor (grams). Whichever protein target the
+ *  chain produces — live g/kg, frozen manual snapshot, or the 1.6 g/kg default
+ *  — is lifted to at least this (see packages/core targets.ts). Pass null to
+ *  clear it; unlike the calorie floor there is no default, so cleared means no
+ *  floor at all. */
+export async function setProteinFloor(uid: string, floor: number | null): Promise<void> {
+  await updateDoc(userDoc(uid), { proteinFloor: floor == null ? deleteField() : floor });
 }
 
 /** UI language (`en` | `es-PR`). Shared with the PWA's Transloco active lang

@@ -18,7 +18,8 @@ import type {
   WorkoutTemplate,
 } from '../models/workout';
 import { toDomainProfile, toDomainProfilePatch } from '../ledger/infrastructure/profile-mapper';
-import { FirestoreLedgerCore } from '../ledger/infrastructure/firestore-ledger.core';
+import { CODEC, FirestoreLedgerCore } from '../ledger/infrastructure/firestore-ledger.core';
+import { toOnboardingV2Patch } from '@macrolog/core';
 
 // ─── Log types ──────────────────────────────────────────────────
 // Note: `liftCompleted` and `cardioCompleted` are legacy fields kept
@@ -212,6 +213,10 @@ export interface ProfileFields {
    *  water-suppressed measured TDEE can't silently push the target below a
    *  level the user has deemed too aggressive. Omitted ⇒ 1500 default. */
   calorieFloor?: number;
+  /** Personal safety floor for the daily protein target, in grams. Applied to
+   *  whichever protein target the chain produces. No numeric default —
+   *  omitted means no floor at all, leaving protein exactly as it was. */
+  proteinFloor?: number;
   fastStartedAt?: Date | null; // when fasting — ISO timestamp of fast start
   webhookApiKey?: string;      // static UUID for Apple Shortcuts webhook auth
   fcmToken?: string;           // FCM push token
@@ -466,28 +471,18 @@ export class FirebaseService implements LedgerPort {
     const current = this._profile();
     if (!current) throw new Error('No profile loaded.');
 
-    const patch: Partial<UserProfileDoc> = {
-      goalDirection: submission.goalDirection,
-      manualCaloriesTarget: submission.manualCaloriesTarget,
-      manualProteinTarget: submission.manualProteinTarget,
-      onboardingV2CompletedAt: Timestamp.now(),
-      // Mark profile complete so the v1 gate doesn't re-trigger v1
-      // onboarding for users who came in through the v2 path. Existing
-      // v1 fields stay unset; surfaces that depend on them gracefully
-      // handle missing data (TDEE chain falls back to formula).
-      profileCompleted: true,
-      lastSeenAt: Timestamp.now(),
-    };
-    // Goal weight lives in TWO legacy fields (targetWeightLbs from onboarding,
-    // goalWeightLbs read by the goal-progress bar). Keep them in sync, and
-    // CLEAR both on "maintain" — otherwise a stale goalWeightLbs shadows the
-    // new goal forever (the "redo onboarding didn't update it" bug).
-    const goalWrite: Record<string, unknown> =
-      submission.targetWeightLbs != null
-        ? { targetWeightLbs: submission.targetWeightLbs, goalWeightLbs: submission.targetWeightLbs }
-        : { targetWeightLbs: deleteField(), goalWeightLbs: deleteField() };
-    await this.core.updateProfileDoc({ ...patch, ...goalWrite });
+    // Patch shape is single-sourced in @macrolog/core and shared with the Expo
+    // app, so the two adapters cannot drift (they already had: neither cleared
+    // `targetsRefinedAt`, which let a manual target shadow the formula result
+    // forever after a re-onboard).
+    const patch = toOnboardingV2Patch(submission, CODEC);
+    await this.core.updateProfileDoc(patch as Partial<UserProfileDoc>);
+
+    // Mirror the write onto the local signal. A field the patch REMOVES has to
+    // be deleted here, not copied — otherwise the optimistic profile carries a
+    // `deleteField()` sentinel where the stored doc now has nothing.
     const updated: Profile = { ...current, ...toDomainProfilePatch(patch) };
+    delete (updated as any).targetsRefinedAt; // always cleared by the patch
     if (submission.targetWeightLbs != null) {
       updated.targetWeightLbs = submission.targetWeightLbs;
       updated.goalWeightLbs = submission.targetWeightLbs;
@@ -618,6 +613,24 @@ export class FirebaseService implements LedgerPort {
       const next = { ...current } as any;
       if (floor == null) delete next.calorieFloor;
       else next.calorieFloor = floor;
+      this._profile.set(next);
+    }
+  }
+
+  /** Save the user's personal daily-protein safety floor (grams). Pass null to
+   *  clear it — unlike the calorie floor there is no default, so cleared means
+   *  no floor at all. Range-guarded in firestore.rules; the UI should keep the
+   *  value in a sane band. */
+  async saveProteinFloor(floor: number | null): Promise<void> {
+    await this.core.updateProfileDoc({
+      proteinFloor: floor == null ? deleteField() : floor,
+      lastSeenAt: Timestamp.now(),
+    });
+    const current = this._profile();
+    if (current) {
+      const next = { ...current } as any;
+      if (floor == null) delete next.proteinFloor;
+      else next.proteinFloor = floor;
       this._profile.set(next);
     }
   }

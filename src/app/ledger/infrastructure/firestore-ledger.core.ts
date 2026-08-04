@@ -74,7 +74,7 @@ import {
 /** The two SDK values the shared writers can't construct themselves, bound to
  *  this edge's Firestore SDK once (see `@macrolog/core/firestore-writers`).
  *  The Expo adapter binds the identical pair against its own SDK copy. */
-const CODEC: DocCodec<Timestamp> = {
+export const CODEC: DocCodec<Timestamp> = {
   timestamp: (d) => Timestamp.fromDate(d),
   remove: () => deleteField(),
 };

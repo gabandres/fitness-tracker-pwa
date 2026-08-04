@@ -316,6 +316,15 @@
       "inc": "Subir el piso de calorías",
       "saveError": "No se pudo guardar. Verifica tu conexión e intenta de nuevo."
     },
+    "proteinFloor": {
+      "section": "piso de proteína",
+      "desc": "Tu meta de proteína nunca baja de este valor. Apagado por defecto — actívalo si quieres un mínimo fijo sin importar lo que diga tu peso.",
+      "unit": "g",
+      "off": "Apagado",
+      "dec": "Bajar el piso de proteína",
+      "inc": "Subir el piso de proteína",
+      "saveError": "No se pudo guardar. Verifica tu conexión e intenta de nuevo."
+    },
     "data": {
       "section": "datos",
       "webhook": "webhook de apple shortcuts",

@@ -55,6 +55,9 @@ export interface LedgerPort {
   /** Personal daily-calorie safety floor (kcal); pass null to clear (reverts
    *  the TDEE clamp to the 1500 default). */
   saveCalorieFloor(floor: number | null): Promise<void>;
+  /** Personal daily-protein safety floor (grams); pass null to clear. Unlike
+   *  the calorie floor there is NO default — cleared means no floor at all. */
+  saveProteinFloor(floor: number | null): Promise<void>;
   hideRecentLabel(label: string): Promise<void>;
   unhideRecentLabel(label: string): Promise<void>;
 

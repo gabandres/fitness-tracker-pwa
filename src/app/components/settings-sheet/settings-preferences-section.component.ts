@@ -249,6 +249,37 @@ import { UiButton } from '../ui/button.component';
           </p>
         }
       </ui-card>
+
+      <!-- Protein floor (g) — the same clamp for protein. Unlike the calorie
+           floor this is OPT-IN with no default: "off" is a real state, and
+           stepping down past the minimum returns to it. -->
+      <ui-card variant="default" class="block mb-3">
+        <h3 class="v2-h3 mb-1">{{ t('settings.proteinFloor.section') }}</h3>
+        <p class="v2-caption mb-3">{{ t('settings.proteinFloor.desc') }}</p>
+        <div class="flex items-center gap-3">
+          <ui-button variant="ghost" size="sm"
+            [disabled]="proteinFloorBusy() || proteinFloor() === null"
+            [ariaLabel]="t('settings.proteinFloor.dec')"
+            (click)="stepProteinFloor(-5)">−</ui-button>
+          <div class="text-center" style="flex: 1;">
+            @if (proteinFloor(); as pf) {
+              <span class="v2-h3 font-mono">{{ pf }}</span>
+              <span class="v2-caption"> {{ t('settings.proteinFloor.unit') }}</span>
+            } @else {
+              <span class="v2-h3">{{ t('settings.proteinFloor.off') }}</span>
+            }
+          </div>
+          <ui-button variant="ghost" size="sm"
+            [disabled]="proteinFloorBusy() || (proteinFloor() ?? 0) >= PROTEIN_FLOOR_MAX"
+            [ariaLabel]="t('settings.proteinFloor.inc')"
+            (click)="stepProteinFloor(5)">+</ui-button>
+        </div>
+        @if (proteinFloorError()) {
+          <p class="v2-caption mt-2" role="alert" style="color: var(--v2-danger)">
+            {{ t('settings.proteinFloor.saveError') }}
+          </p>
+        }
+      </ui-card>
     </ng-container>
   `,
 })
@@ -363,6 +394,16 @@ export class SettingsPreferencesSectionComponent {
   protected readonly calorieFloorBusy = signal(false);
   protected readonly calorieFloorError = signal(false);
 
+  /** Protein floor (g). `null` is a real, persisted-as-absent state — there is
+   *  deliberately no default, so an untouched profile keeps behaving exactly as
+   *  it did before the field existed. Stepping down past the minimum clears it.
+   *  Bounds are the UI band; firestore.rules allows the wider 0–1000. */
+  protected readonly PROTEIN_FLOOR_MIN = 80;
+  protected readonly PROTEIN_FLOOR_MAX = 300;
+  protected readonly proteinFloor = signal<number | null>(null);
+  protected readonly proteinFloorBusy = signal(false);
+  protected readonly proteinFloorError = signal(false);
+
   protected readonly proteinGrams = computed(() => {
     const w = this.store.currentWeight();
     return w ? computeProtein(w, this.proteinPerKg()) : null;
@@ -380,6 +421,10 @@ export class SettingsPreferencesSectionComponent {
     effect(() => {
       const stored = (this.firebase.profile() as { calorieFloor?: number } | null)?.calorieFloor;
       if (!this.calorieFloorBusy()) this.calorieFloor.set(stored ?? this.DEFAULT_CALORIE_FLOOR);
+    });
+    effect(() => {
+      const stored = (this.firebase.profile() as { proteinFloor?: number } | null)?.proteinFloor;
+      if (!this.proteinFloorBusy()) this.proteinFloor.set(stored ?? null);
     });
   }
 
@@ -436,6 +481,40 @@ export class SettingsPreferencesSectionComponent {
       this.calorieFloorError.set(true);
     } finally {
       this.calorieFloorBusy.set(false);
+    }
+  }
+
+  /**
+   * Step the protein floor, treating "off" as a value below the minimum.
+   * Enabling it seeds from the user's own 1.6 g/kg minimum rather than the
+   * band floor, so the first tap lands on a number that means something for
+   * their body weight. Stepping below the minimum clears the field entirely.
+   */
+  protected async stepProteinFloor(delta: number): Promise<void> {
+    if (this.proteinFloorBusy()) return;
+    const current = this.proteinFloor();
+    let next: number | null;
+    if (current == null) {
+      if (delta < 0) return; // already off
+      const seed = this.store.proteinMinTarget() || this.PROTEIN_FLOOR_MIN;
+      next = Math.min(this.PROTEIN_FLOOR_MAX, Math.max(this.PROTEIN_FLOOR_MIN, seed));
+    } else {
+      const stepped = current + delta;
+      next = stepped < this.PROTEIN_FLOOR_MIN
+        ? null
+        : Math.min(this.PROTEIN_FLOOR_MAX, stepped);
+    }
+    if (next === current) return;
+    this.proteinFloor.set(next);
+    this.proteinFloorBusy.set(true);
+    this.proteinFloorError.set(false);
+    try {
+      await this.firebase.saveProteinFloor(next);
+    } catch (err) {
+      console.error('saveProteinFloor failed:', err);
+      this.proteinFloorError.set(true);
+    } finally {
+      this.proteinFloorBusy.set(false);
     }
   }
 }

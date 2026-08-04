@@ -210,8 +210,15 @@ function calendarSpanDays(daily: DailyLog[]): number {
 /** The daily-target safety floor: the user's configured `calorieFloor` when
  *  set to a sane positive value, else the hardcoded MIN_DAILY_TARGET. Keeps a
  *  water-suppressed measured TDEE from silently pushing the target below a
- *  level the user has deemed too aggressive. */
-function calorieFloor(profile?: ProfileFields | null): number {
+ *  level the user has deemed too aggressive.
+ *
+ *  Exported because the floor has to hold on branches that never reach this
+ *  module's arithmetic — the manual heuristic and the seed fallback both
+ *  produce targets in `targets.ts`, and duplicating this rule there is how the
+ *  two drift. Takes a structural type, not `ProfileFields`, so the full
+ *  `Profile` can be passed on paths where onboarding is incomplete and
+ *  `toProfileFields` has already returned null. */
+export function calorieFloor(profile?: { calorieFloor?: number } | null): number {
   const f = profile?.calorieFloor;
   return f != null && f > 0 ? f : MIN_DAILY_TARGET;
 }

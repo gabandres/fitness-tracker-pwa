@@ -1,7 +1,7 @@
 import type { DailyLog, Profile, ProfileFields } from './types';
 import { localDateKey } from './date';
 import { computeProtein } from './macro-heuristic';
-import { calculateTdee, type TdeeResult } from './tdee';
+import { calculateTdee, calorieFloor, type TdeeResult } from './tdee';
 
 /**
  * Daily calorie + protein targets — pure port of the precedence chain in
@@ -105,6 +105,17 @@ export interface DailyTargets {
   tdee: TdeeResult;
 }
 
+/** The protein-target safety floor, in grams. Unlike `calorieFloor` there is
+ *  NO built-in default: an unset `proteinFloor` returns 0, so the clamp below
+ *  is a no-op and protein behaves exactly as it did before the field existed.
+ *  Opt-in only — the 1.6 g/kg muscle-retention minimum is already the default
+ *  basis, and a second implicit floor on top of it would be a silent change to
+ *  every existing user's target. */
+export function proteinFloor(profile?: { proteinFloor?: number } | null): number {
+  const f = profile?.proteinFloor;
+  return f != null && f > 0 ? f : 0;
+}
+
 export function dailyTargets(
   profile: Profile | null,
   logs: DailyLog[],
@@ -136,5 +147,26 @@ export function dailyTargets(
 
   const proteinMinTarget = w ? computeProtein(w) : 0;
 
-  return { calorieTarget, proteinTarget, proteinMinTarget, currentWeight: w, tdee };
+  // ── Safety floors, applied once, on the way out ──
+  // The floors used to live inside `calculateTdee`, which meant they only
+  // covered the two branches that module computes (measured, formula). The
+  // manual heuristic above and the seed fallback both bypassed them entirely,
+  // so a user who raised their floor still saw a target below it.
+  //
+  // Clamping here instead of at each branch covers all four paths with one
+  // expression. It cannot double-clamp: `Math.max` is idempotent, so a
+  // measured or formula target that tdee.ts already lifted to the floor is
+  // returned byte-identical. The floor is read off the RAW profile, not the
+  // derived ProfileFields — `toProfileFields` returns null when onboarding is
+  // incomplete, and a floor set by such a user still has to hold.
+  //
+  // Protein's floor is opt-in and defaults to 0 (see `proteinFloor`), so this
+  // line is inert for every profile that has not set one.
+  return {
+    calorieTarget: Math.max(calorieFloor(profile), calorieTarget),
+    proteinTarget: Math.max(proteinFloor(profile), proteinTarget),
+    proteinMinTarget,
+    currentWeight: w,
+    tdee,
+  };
 }
