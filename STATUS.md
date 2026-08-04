@@ -30,6 +30,34 @@ in prose; ask ASC:
 node -e "import('./scripts/asc-client.mjs').then(async({api,APP_ID})=>{const r=await api('GET','/v1/apps/'+APP_ID+'/appStoreVersions?limit=5&fields[appStoreVersions]=versionString,appStoreState');r.data.forEach(v=>console.log(v.attributes.versionString,v.attributes.appStoreState))})"
 ```
 
+**The last step of `npm run build` is load-bearing — do not reorder or drop it**
+(2026-08-04). `scripts/sentry-release.mjs` mutates `dist` *after* `ng build` has
+already hashed it: `sentry-cli sourcemaps inject` rewrites every minified `.js`
+to embed a debug ID, and the map-strip deletes files. `ngsw.json` pins a SHA1
+per file, so it is **regenerated as the final step**; shipping the stale one
+gives every returning user a service worker whose hashes do not match what the
+server serves. The script exits non-zero rather than leave that dist behind.
+Same reason the release stamp is injected there and not into `src/`. Verify a
+build before deploying — 133/133 matched on 2026-08-04:
+
+```sh
+node -e "const{createHash}=require('crypto'),{readFileSync,existsSync}=require('fs'),{join}=require('path');const D='dist/fitness-tracker-pwa/browser',t=JSON.parse(readFileSync(join(D,'ngsw.json'),'utf8')).hashTable;let b=0;for(const[u,h]of Object.entries(t)){const f=join(D,u.slice(1));if(!existsSync(f)||createHash('sha1').update(readFileSync(f)).digest('hex')!==h){console.log('BAD',u);b++}}console.log(b?b+' BAD':Object.keys(t).length+' ok')"
+```
+
+**Web Sentry releases are per-commit as of 2026-08-04.** Before that nothing set
+`__MACROLOG_RELEASE__` (despite a code comment claiming this script did), so the
+app reported release `dev` and every web error since 2026-04-13 grouped under a
+single `dev` release; the About screen and feedback emails showed `dev` too.
+Builds now stamp the commit SHA into all 110 emitted HTML pages and create the
+release via the API. Source maps were **not** broken by this — debug IDs match
+frames to maps without a release — so do not read the old `dev` grouping as
+"symbolication was down". `SENTRY_ORG` / `SENTRY_PROJECT` were **deleted as
+GitHub Actions secrets**; both now default in `sentry-release.mjs`
+(`gabriel-bermudez` / `ignia-web`, confirmed against the Sentry API). Re-adding
+either secret overrides the default — only do that if the project is renamed
+again. `SENTRY_AUTH_TOKEN` remains the one required credential, read from
+`.env.local` on a workstation and from the Actions secret in CI.
+
 ## 2. Written, merged, and in **no** binary
 
 All of this is on `main`. **Read the per-item notes rather than the heading —
