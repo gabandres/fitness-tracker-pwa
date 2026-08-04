@@ -109,6 +109,30 @@ Remaining steps that genuinely can't be scripted here:
 - **Billing budget + alert** — Cloud Billing → Budgets & alerts → set a monthly
   cap + 50/90/100% email alerts. Your worst case is a runaway Gemini/functions
   bill; it's currently **uncapped**.
+- **BigQuery billing export — dataset is created, the switch is not thrown.**
+  `bq://fitness-tracker-gb-1775407101.billing_export` exists (US, created
+  2026-08-04). Enabling the export itself is **console-only** — the Cloud
+  Billing API has no method for it, which is why this is a runbook step and
+  not a script. Cloud Billing → **Billing export** → *BigQuery export* tab →
+  **Edit settings** on **Detailed usage cost**, pick this project and the
+  `billing_export` dataset, save. Do the same for *Standard usage cost* if you
+  want the cheaper coarse table too.
+  **It is not retroactive** — it captures usage from the moment you enable it
+  forward, so it will never explain an invoice you already received. Those
+  stay at Billing → **Documents**. Data starts landing within ~24h in a table
+  named `gcp_billing_export_resource_v1_<BILLING_ACCOUNT_ID_with_underscores>`
+  (account `010F4E-5E97BC-6B83D0` → `..._010F4E_5E97BC_6B83D0`).
+  Cost of the export itself is effectively zero — a few MB/month against
+  BigQuery's 10 GB free storage and 1 TB free query tier. Once rows exist,
+  cost-by-service for the last 30 days is:
+
+  ```sh
+  bq query --use_legacy_sql=false \
+  'SELECT service.description AS service, ROUND(SUM(cost),2) AS usd
+   FROM `fitness-tracker-gb-1775407101.billing_export.gcp_billing_export_resource_v1_010F4E_5E97BC_6B83D0`
+   WHERE usage_start_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+   GROUP BY service ORDER BY usd DESC'
+  ```
 - **Firestore PITR** — Firestore → enable Point-in-Time Recovery (7-day). One
   toggle, cheap insurance on top of the existing weekly backup CF.
 - **Auth** — enable email-enumeration protection; confirm the password policy.
