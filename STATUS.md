@@ -18,7 +18,7 @@ work because a plan doc was read as a status doc.
 | Web PWA `ignia.fit` | **Live**, bilingual (EN + es-PR), **105** prerendered pages (en 52 / es 53), 114-URL sitemap | `npm run build` prints both counts |
 | iOS App Store | **1.0.0, build 7** (uploaded 2026-07-20, `READY_FOR_SALE`), from commit `168e0394` | ASC command below |
 | iOS 1.1.0 | **Binary exists at last: build 13** (EAS `5949a3ea`, commit `458d60db`, 2026-08-03), submitted to TestFlight. Version page still `PREPARE_FOR_SUBMISSION` — **not submitted to App Review**. First production binary that actually contains the widget's `ExtensionStorage` pod (`Installing ExtensionStorage (1.0.0)` in its build log) — **and the widget is now confirmed working from it on a physical iPhone (2026-08-03): kcal left + protein left, updating after a logged meal** | ASC command below |
-| Android / Play | **Not launched.** Play Console account exists, **developer verification complete** and `fit.ignia.app` **package name registered** (both 2026-07-31), proven with an APK signed by `apps/mobile/credentials/dev.keystore` (alias `macrolog-dev`, SHA-256 `75:4B:03:19:…:F6:D8`) — **that keystore is now load-bearing app identity; it is git-ignored and exists in one place**. App entry created (`4975181896468259775`). **The first AAB is uploaded and the whole app is IN REVIEW at Google** as of 2026-08-02 — versionName 1.1.0 / **versionCode 4**, EAS build `2d36d121`, on the **Closed testing - Alpha** track (id `4699799777678836720`), 177 countries, signed by that same key (verified with `keytool -printcert -jarfile`). 14 changes went in one submission because it is the app's first: store listing, content rating, data safety, health declaration, the release itself. Reviews are quoted at up to 7 days. Tester list `Ignia Beta Testers` holds **6 emails; 12 are required** **Personal developer account → production access requires closed testing with 12 testers opted in 14 CONTINUOUS days** ([policy](https://support.google.com/googleplay/android-developer/answer/14151465)); the clock cannot start until a build is in a closed track, so the AAB is the critical path, not the paperwork | Play Console → Android developer verification → Package names |
+| Android / Play | **Not launched.** Play Console account exists, **developer verification complete** and `fit.ignia.app` **package name registered** (both 2026-07-31), proven with an APK signed by `apps/mobile/credentials/dev.keystore` (alias `macrolog-dev`, SHA-256 `75:4B:03:19:…:F6:D8`) — **that keystore is now load-bearing app identity; it is git-ignored and exists in one place**. App entry created (`4975181896468259775`). **The first AAB is uploaded and the whole app is IN REVIEW at Google** as of 2026-08-02 — versionName 1.1.0 / **versionCode 4**, EAS build `2d36d121`, on the **Closed testing - Alpha** track (id `4699799777678836720`), 177 countries, signed by that same key (verified with `keytool -printcert -jarfile`). 14 changes went in one submission because it is the app's first: store listing, content rating, data safety, health declaration, the release itself. Reviews are quoted at up to 7 days. **vc 6 superseded it on 2026-08-03** — EAS build `d238d43f`, commit `87aee43b`, submitted with `eas submit` and **verified live on the alpha track by the Play Developer API: `status=completed, versionCodes=["6"]`**. `completed` means rolled out to the tester list, not a draft awaiting a console promote — that is `eas.json`'s `releaseStatus: "completed"` (from `87aee43b`) working. **vc 6 is the first Android binary containing Sentry and the Google sign-in diagnostics**, so Alejandro's `DEVELOPER_ERROR`-vs-`no-token` question is now answerable from Sentry rather than from guesswork. Tester list `Ignia Beta Testers` holds **6 emails; 12 are required** — **personal developer account → production access requires closed testing with 12 testers opted in 14 CONTINUOUS days** ([policy](https://support.google.com/googleplay/android-developer/answer/14151465)). **Unresolved and load-bearing: Play showed Installed audience 0.** A build on the track is necessary but not sufficient — the 14-day clock counts opted-in testers, so if nobody has actually accepted the invite the clock still has not started. Establish that before counting days | Track state: the `androidpublisher` edits→tracks API with `credentials/play-service-account.json` (see `CLAUDE.local.md`) |
 | Cloud Functions / rules | Deployed, project `fitness-tracker-gb-1775407101` | `firebase deploy --only functions --dry-run` |
 
 **The `1.1.0` trap.** `app.json` says 1.1.0 and ASC has a 1.1.0 version page, but
@@ -32,23 +32,30 @@ node -e "import('./scripts/asc-client.mjs').then(async({api,APP_ID})=>{const r=a
 
 ## 2. Written, merged, and in **no** binary
 
-All of this is on `main` and reaches nobody until the next iOS build. Do not
-re-scope it as new work; do not describe it to users as available.
+All of this is on `main`. **Read the per-item notes rather than the heading —
+since vc 6 shipped on 2026-08-03 the list is no longer uniformly "in no binary":
+some items are now live on Android and pending only on iOS.** Do not re-scope
+anything here as new work; do not describe an iOS-pending item to users as
+available.
 
-- **Sentry + Google sign-in diagnostics (mobile)** — the Expo app had no error
+- **Sentry + Google sign-in diagnostics (mobile)** — **Live on Android in vc 6
+  (alpha track, 2026-08-03 — §1). Still in no iOS binary**: build `f3e5daaf`
+  contains it but has not been submitted to TestFlight. Originally: the Expo app had no error
   reporting of any kind, which is why the Play sign-in break below took a day to
   find. Sentry project **`ignia-mobile`** (org `gabriel-bermudez`, id
   `4511848397996032`); DSN wired into `apps/mobile/app.json`, ingestion verified
   end-to-end with a test event 2026-08-03. Google sign-in failures now carry the
   native code (`DEVELOPER_ERROR`, `PLAY_SERVICES_NOT_AVAILABLE`, …) instead of
-  collapsing to one sentence. **Reaches nobody until a new Android build.**
+  collapsing to one sentence.
   The web Sentry project was renamed `macrolog` → **`ignia-web`** in the same
   pass; its project id and DSN are unchanged, so `src/environments/environment.ts`
   needed no edit.
 - **Home-screen widget — Android half only** (`apps/mobile/src/widgets/`). It is
-  in Play vc 4 (in review), but nobody has put it on an Android home screen, and
-  its task handler registers through the custom `index.js` — a path no device has
-  exercised. **The iOS widget is no longer in this list: it is verified working
+  in Play **vc 6**, rolled out to the alpha track, but nobody has put it on an
+  Android home screen, and its task handler registers through the custom
+  `index.js` — a path no device has exercised. It is now *installable* rather
+  than merely built, so this is the cheapest outstanding verification on the
+  board: add it to a home screen and log a meal. **The iOS widget is no longer in this list: it is verified working
   on a physical iPhone from TestFlight build 13 (2026-08-03), including refresh
   after a meal.**
 - **The Apple Watch complication and its transport** — the watch app
@@ -95,9 +102,17 @@ review those commits fixed.
   a **30/month account total** and a **15/month per platform** sub-cap. Read
   both; the account total is the one that runs out first if the two platforms
   are used unevenly.
-- **iOS 6/15, Android 4/15, account 10/30 for the 2026-08-01 → 2026-09-01
+- **iOS 7/15, Android 4/15, account 11/30 for the 2026-08-01 → 2026-09-01
   period — measured 2026-08-03 from the API.** The counter is not the
   constraint this period.
+- **A duplicate build is the cheapest way to lose a slot, and it is silent.**
+  On 2026-08-03 one `eas build -p ios` invocation produced TWO builds a minute
+  apart on the same commit (`f3e5daaf` vc15 and `6415fca7` vc16, both
+  `cfc19a06`, both finished). `autoIncrement` gives them different version
+  codes, so nothing looks wrong in `build:list` — only the usage counter
+  notices. After any `--no-wait` build, check `build:list --limit 2` before
+  walking away. Note this is NOT the credential failure: that one genuinely
+  cost nothing, exactly as this section claims.
 - **The queue is the real cost, and it is not metered.** An Android build on
   2026-08-03 waited **2h05m** for a worker, ran Gradle for five minutes, and
   died on an HTTP 401 from Sentry's source-map upload. Both the build and the
@@ -235,7 +250,7 @@ cd apps/mobile && npx eas-cli build:list --platform ios --limit 5   # what exist
 | — | Next iOS binary (everything in §2) | Nothing structural. Build 13 exists, is on TestFlight, and its widget is verified on device — the device-QA gate this row used to name is **cleared**. What remains is submitting the 1.1.0 version page to App Review (it is still `PREPARE_FOR_SUBMISSION`), or cutting a newer build first if more of §2 should ride along. Quota and credentials are both resolved |
 | — | Verify the **Android** widget on a device | Nobody has put it on an Android home screen. It is in Play vc 4, and its task handler registers through the custom `index.js` — a path no device has exercised. The iOS half is **done**: verified on a real iPhone 2026-08-03 from TestFlight build 13, kcal left + protein left, **and the numbers moved after a logged meal**, which proves the whole chain rather than the render alone |
 | #46 | Read the watch layouts on a simulator | **a Mac with Xcode** (currently: borrow one). Its stated precondition — "the build session has written the watch Swift" — is now **met**: the real layouts exist, so the sitting is the readout it was designed to be |
-| #47 | Compile the generated watch targets in Xcode | **DONE — 2026-08-03, and it did NOT need a Mac.** An EAS iOS build *is* macOS running Xcode. Build `f3e5daaf` (commit `cfc19a06`) compiled, signed and packaged both `IgniaWatch.app` and `IgniaWatchComplication.appex`. **The load-bearing question is answered: `targets/_shared/Glance.swift` DOES resolve from the watch target** — the compiler read `Glance.strings(snap.locale)` at `targets/watch/index.swift:160` and emitted only an unrelated unused-binding warning. Had `_shared` not been linked in, that line would have been a hard "cannot find in scope" and the build would have failed. So the one-Swift-mirror design holds and #38 needs no other vehicle. Also proven in the same build: `ViewThatFits` compiles at the watchOS `10.0` pin; the custom Expo module autolinks (`Installing WatchLink (1.0.0)` → `libWatchLink.a`); `ExtensionStorage` still installs alongside it, so no regression to the shipped iPhone widget. **One warning in the entire build** (an unused `protein` binding), since fixed |
+| — | Compile the watch targets — **the compile gate, closed 2026-08-03** | **DONE — 2026-08-03, and it did NOT need a Mac.** An EAS iOS build *is* macOS running Xcode. Build `f3e5daaf` (commit `cfc19a06`) compiled, signed and packaged both `IgniaWatch.app` and `IgniaWatchComplication.appex`. **The load-bearing question is answered: `targets/_shared/Glance.swift` DOES resolve from the watch target** — the compiler read `Glance.strings(snap.locale)` at `targets/watch/index.swift:160` and emitted only an unrelated unused-binding warning. Had `_shared` not been linked in, that line would have been a hard "cannot find in scope" and the build would have failed. So the one-Swift-mirror design holds; the shared-contract plan needs no other vehicle. Also proven in the same build: `ViewThatFits` compiles at the watchOS `10.0` pin; the custom Expo module autolinks (`Installing WatchLink (1.0.0)` → `libWatchLink.a`); `ExtensionStorage` still installs alongside it, so no regression to the shipped iPhone widget. **One warning in the entire build** (an unused `protein` binding), since fixed |
 | — | App Store screenshots | owner, on device (`store-assets/README.md`) |
 | — | Play launch — **first AAB** | **DONE** (2026-08-02). Local `bundleRelease` is **permanently dead on this machine**: `LongPathsEnabled=1` and a reboot changed nothing, because the cap is **ninja**, not the registry — the SDK's `cmake/3.22.1/bin/ninja.exe` is not long-path-aware, and the `react-native-keyboard-controller` object path is 348 chars. Relocating `.cxx` cannot save it (the CMake target-dir prefix alone is 105 chars). **AABs come from EAS.** `eas.json` `production` now sets `android.credentialsSource: "local"` so EAS signs with `credentials/dev.keystore` instead of minting a new upload key — **that line is load-bearing; removing it silently changes app identity.** Artifact: EAS build `4b513a00`, vc 3, signer SHA-256 `75:4B:03:19:…:F6:D8` |
 | — | Play launch — **upload the AAB to a closed track** | **DONE** (2026-08-02). vc 4 is on Closed testing - Alpha and submitted; the app is in Google review. Play does not accept an app's *first* upload through the Developer API, so this one went through the console UI. **vc 3 was discarded, not shipped** — it declared three health READ permissions the app never requests, and Play's health declaration demands a written justification per read permission. `07ce8e99` removed them; vc 4 declares 11 health permissions (5 read, 6 write). Do not resurrect vc 3 |
@@ -252,8 +267,9 @@ cd apps/mobile && npx eas-cli build:list --platform ios --limit 5   # what exist
 **Apple glanceable surfaces (map #31).** 14 of its 16 tickets are **closed** —
 transport, staleness, layouts, tap targets, review surface and sign-out privacy
 were decided first, and the on-device widget verification closed 2026-08-03. What remains is
-**#46 and #47, both of which need a Mac** — the two things on the whole map that
-cannot be done on this machine.
+**#46 alone — the layout readout, which needs a simulator.** The compile gate
+closed on an EAS build: an EAS iOS build IS macOS running Xcode, so the compile half never
+needed the borrowed machine and the map is down to one hardware-gated item.
 
 The building is done. `apps/mobile/targets/` now holds `_shared`, `widget`,
 `watch` and `watch-widget`, plus `apps/mobile/modules/watch-link` for the phone
