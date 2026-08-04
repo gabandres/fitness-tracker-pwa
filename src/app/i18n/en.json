@@ -1859,6 +1859,7 @@
     "removeSet": "Remove set",
     "addCluster": "Add cluster",
     "addExercise": "Add",
+    "exerciseDuplicate": "You already have \"{{name}}\" — edit that one instead, so its history stays in one place.",
     "cancel": "Cancel",
     "save": "Save",
     "untitledExercise": "Untitled exercise",

@@ -89,6 +89,12 @@ interface EditState {
                     [value]="ed.cuesText" (input)="setCues(asValue($event))"></textarea>
         </label>
 
+        @if (dupeError(); as dupe) {
+          <p class="v2-caption mb-3" role="alert" style="color: var(--v2-danger)">
+            {{ t('train.exerciseDuplicate', { name: dupe }) }}
+          </p>
+        }
+
         <div class="flex gap-3">
           <ui-button variant="ghost" (click)="editing.set(null)">{{ t('train.cancel') }}</ui-button>
           <ui-button variant="primary" [block]="true" [disabled]="!ed.name.trim() || busy()" (click)="save()">
@@ -169,6 +175,8 @@ export class ExercisesManagerComponent {
   protected readonly editing = signal<EditState | null>(null);
   protected readonly merging = signal<Exercise | null>(null);
   protected readonly busy = signal(false);
+  /** Name of the existing catalog entry that blocked the save, if any. */
+  protected readonly dupeError = signal<string | null>(null);
 
   /** Exercise ids referenced by any template — these can't be deleted. */
   private readonly referencedIds = computed(
@@ -195,10 +203,12 @@ export class ExercisesManagerComponent {
 
   // ── Form ──────────────────────────────────────────────────────
   protected startAdd(): void {
+    this.dupeError.set(null);
     this.editing.set({ id: null, name: '', muscles: [], cuesText: '', logStyle: DEFAULT_LOG_STYLE });
   }
 
   protected startEdit(ex: Exercise): void {
+    this.dupeError.set(null);
     this.editing.set({
       id: ex.id ?? null,
       name: ex.name,
@@ -211,7 +221,12 @@ export class ExercisesManagerComponent {
   private patch(p: Partial<EditState>): void {
     this.editing.update((ed) => (ed ? { ...ed, ...p } : ed));
   }
-  protected setName(v: string): void { this.patch({ name: v }); }
+  protected setName(v: string): void {
+    // Editing the name is the fix for a duplicate collision, so drop the
+    // warning as soon as they start typing rather than leaving it stale.
+    this.dupeError.set(null);
+    this.patch({ name: v });
+  }
   protected setCues(v: string): void { this.patch({ cuesText: v }); }
   protected setLogStyle(s: LogStyle): void { this.patch({ logStyle: s }); }
   protected toggleMuscle(m: MuscleGroup): void {
@@ -241,7 +256,10 @@ export class ExercisesManagerComponent {
         // exerciseId, so a duplicate splits the chart permanently.
         const dupe = findDuplicateExercise(draft.name, this.workout.exercises());
         if (dupe) {
-          this.editing.set(null);
+          // Tell the user which entry already covers this name. Closing the
+          // sheet silently would look like a successful save that produced
+          // nothing.
+          this.dupeError.set(dupe.name);
           return;
         }
         await this.workout.addExercise(draft);

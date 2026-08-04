@@ -229,17 +229,28 @@ These three windows look similar and are NOT interchangeable. See
   profile) and **measured mode** (weight trend + calorie history once
   there's enough signal). Result includes `source: 'formula' | 'measured'`
   and `newDailyTarget`.
-- **TargetCalories** — `FitnessStore.targetCalories()`. The user-facing
-  daily kcal goal. Resolution order:
-  1. Manual heuristic target from 2-question onboarding
+- **TargetCalories** — `FitnessStore.targetCalories()`, derived by
+  `dailyTargets` in `@macrolog/core`. The user-facing daily kcal goal.
+  Resolution order:
+  1. `tdee.newDailyTarget` when TDEE is **measured AND reliable**.
+  2. Manual heuristic target from 2-question onboarding
      (`profile.manualCaloriesTarget`, weight × {11|14|17} by goal).
-  2. `tdee.newDailyTarget` (Mifflin-St Jeor or measured).
+  3. `tdee.newDailyTarget` (Mifflin-St Jeor formula, or the seed fallback).
+  Whichever branch wins is then clamped up to **`profile.calorieFloor`**
+  (default `MIN_DAILY_TARGET`, 1500) on the way out of `dailyTargets` — the
+  clamp used to live inside `calculateTdee`, where it covered only branches
+  1 and 3, so a manual or seed target could sit below the user's floor.
   The Day-3 Refine Targets sheet stamps **`targetsRefinedAt`** on the
-  profile, the permanent latch that hides the prompting card and lets
-  step 2 take over.
-- **ProteinTarget** — `FitnessStore.proteinTarget()`. Resolution order:
-  manual onboarding override → `0.75g/lb × currentWeight`.
-  `proteinMinTarget()` is the lower-bound 0.70g/lb floor.
+  profile, the latch that hides the prompting card and drops the manual
+  targets. Invariant: **`targetsRefinedAt` present ⟺ manual targets
+  absent** — re-running onboarding clears the stamp.
+- **ProteinTarget** — `FitnessStore.proteinTarget()`, same projection.
+  Resolution order: `profile.proteinPerKg` live off current weight →
+  frozen `manualProteinTarget` snapshot → the **1.6 g/kg** default. Clamped
+  up to **`profile.proteinFloor`** if set; unlike the calorie floor it has
+  no default, so unset means no floor. `proteinMinTarget()` is the
+  1.6 g/kg muscle-retention reference and is deliberately NOT clamped —
+  it is a physiological minimum, not a user preference.
 - **Streak** — `FitnessStore.streak()`. Consecutive days with at least
   one log. Pro users get `STREAK_FREEZE_MAX_GAP_PRO = 7` consecutive
   missed days tolerated mid-streak; `streakFreezeUsed()` is true when

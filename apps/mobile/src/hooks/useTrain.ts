@@ -316,17 +316,33 @@ export function useTrain(): TrainState {
     async (name: string, logStyle: LogStyle, exerciseId?: string) => {
       if (!uid || !active) return;
       let id = exerciseId;
+      // Snapshot the CANONICAL catalog name, not what was typed. Sessions
+      // store a name snapshot for display, so reusing an entry while keeping
+      // the typed casing would show "bench press" in history next to
+      // "Bench Press" everywhere else — the cosmetic half of the very
+      // fragmentation this dedupe exists to prevent.
+      let canonical = name;
       if (!id) {
         // Reuse an existing catalog entry whose name differs only by case or
         // spacing. Without this, typing "bench press" when "Bench Press"
         // already exists mints a second doc id — and progression history is
         // keyed by exerciseId, so the two never join up again.
-        id = findDuplicateExercise(name, catalog)?.id;
+        const dupe = findDuplicateExercise(name, catalog);
+        if (dupe?.id) {
+          id = dupe.id;
+          canonical = dupe.name;
+        }
       }
       if (!id) {
         id = await addExerciseDoc(uid, { name, muscles: [], defaultCues: [], logStyle });
       }
-      const ex: SessionExercise = { exerciseId: id, name, cues: [], logStyle, sets: [newSet()] };
+      const ex: SessionExercise = {
+        exerciseId: id,
+        name: canonical,
+        cues: [],
+        logStyle,
+        sets: [newSet()],
+      };
       const next = { ...active, exercises: [...active.exercises, ex] };
       setActive(next);
       await persist(next);

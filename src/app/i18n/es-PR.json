@@ -1859,6 +1859,7 @@
     "removeSet": "Quitar serie",
     "addCluster": "Añadir cluster",
     "addExercise": "Añadir",
+    "exerciseDuplicate": "Ya tienes \"{{name}}\" — edita ese, para que su historial quede en un solo sitio.",
     "cancel": "Cancelar",
     "save": "Guardar",
     "untitledExercise": "Ejercicio sin título",
