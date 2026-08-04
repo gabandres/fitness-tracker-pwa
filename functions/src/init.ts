@@ -18,6 +18,11 @@ export const db = getFirestore();
 // Inferred SecretParam type is unportable under `declaration: true` —
 // annotate via ReturnType like resend-client.ts does.
 export const geminiApiKey: ReturnType<typeof defineSecret> = defineSecret("GEMINI_API_KEY");
+// Photo-scan runs on Claude Haiku 4.5 (analyze-photo.ts); everything else
+// still runs on Gemini. Two providers on purpose — see the model note in
+// analyze-photo.ts. Secret Manager's free tier is 6 ACTIVE versions across
+// the project, so destroy superseded versions after rotating this one.
+export const anthropicApiKey: ReturnType<typeof defineSecret> = defineSecret("ANTHROPIC_API_KEY");
 
 // Caller-access preamble (auth + rate limit + tier) and the daily-quota
 // ledger. Admin list, comped resolution, doc-key format, limits, and the

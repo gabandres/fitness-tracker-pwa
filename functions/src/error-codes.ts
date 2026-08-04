@@ -15,6 +15,10 @@ export const enum ErrorCode {
   PHOTO_TOO_LARGE = "PHOTO_TOO_LARGE",
   PHOTO_ESTIMATE_FAILED = "PHOTO_ESTIMATE_FAILED",
   PHOTO_ANALYZE_FAILED = "PHOTO_ANALYZE_FAILED",
+  /** Caller is on the free tier and photo-scan is paid-only. Distinct from
+      PHOTO_QUOTA_EXCEEDED: that one means "come back tomorrow", this one
+      means "this is not your tier". Mirrors REPORT_NOT_ENTITLED. */
+  PHOTO_NOT_ENTITLED = "PHOTO_NOT_ENTITLED",
   CONSULTATION_QUOTA_EXCEEDED = "CONSULTATION_QUOTA_EXCEEDED",
   ACCOUNT_DELETE_FAILED = "ACCOUNT_DELETE_FAILED",
   REPORT_NOT_ENTITLED = "REPORT_NOT_ENTITLED",

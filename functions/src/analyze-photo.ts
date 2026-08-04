@@ -1,18 +1,120 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { GoogleGenAI } from "@google/genai";
+import Anthropic from "@anthropic-ai/sdk";
 import { ErrorCode } from "./error-codes";
-import { callerAccess, dailyQuota, geminiApiKey, spendCeiling } from "./init";
+import { anthropicApiKey, callerAccess, dailyQuota, spendCeiling } from "./init";
 
 // ─── Photo-to-Macros ────────────────────────────────────────────────
 
 // Minimum interval between photo analyses per uid. Prevents a malicious
-// client from burning the daily quota (and our Gemini budget) in a few
+// client from burning the daily quota (and our model budget) in a few
 // seconds. 3s is long enough to defeat scripted spam, short enough that
 // a legitimate "accidentally tapped twice" user isn't locked out for long.
 const PHOTO_MIN_INTERVAL_MS = 3_000;
 
+/**
+ * Photo-scan is the one paid-tier AI feature, enforced HERE rather than on
+ * the client. The client cannot express "Pro" today: `isPaid()` is forced
+ * `true` for everyone while `PRO_ENABLED === false`, so a client-side check
+ * would unlock this for the whole free tier. `caller.tier` comes from the
+ * Stripe custom claim and is unaffected by that flag, which makes the server
+ * the only honest gate.
+ *
+ * While `PRO_ENABLED` is false and nothing is purchasable, "paid" in practice
+ * means admins and comped friends. That is intended: the feature is also
+ * hidden client-side (web `FEATURES.photoScan`, mobile
+ * `EXPO_PUBLIC_FEATURE_PHOTO_SCAN=0`), so this guard is the second lock on a
+ * door that is already closed. Set to `false` to make photo-scan free again.
+ */
+const PHOTO_REQUIRES_PAID = true;
+
+/**
+ * Claude Haiku 4.5 — the cheapest model that does vision AND structured
+ * outputs, which this callable needs both of. ~$0.004/scan at ~2.2k input
+ * tokens (image ≈1.6k + prompt ≈600) and ~350 output; that is the rate the
+ * `photo` spend ceiling in spend-ceiling.ts is sized against, so changing
+ * this model is a budget decision — re-derive the ceiling if you do.
+ *
+ * Deliberately NOT prompt-cached: Haiku 4.5's minimum cacheable prefix is
+ * 4096 tokens and the static prompt below is ~600, so a `cache_control`
+ * breakpoint would silently never cache (no error, just
+ * `cache_creation_input_tokens: 0`) while costing the write premium.
+ */
+const PHOTO_MODEL = "claude-haiku-4-5";
+
+/**
+ * Haiku 4.5 predates the high-resolution vision tier, so images are capped
+ * at 1568px on the long edge and ~1600 tokens regardless of what we send.
+ * The clients resize to 1920px; the API downscales the rest. Harmless, just
+ * wasted upload bytes — lowering the client resize is a free win, not a fix.
+ */
+const PHOTO_MAX_OUTPUT_TOKENS = 1_024;
+
+const ESTIMATION_PROMPT = `Analyze this meal photo and estimate total calories, protein, carbs, and fat in grams.
+
+Estimation rules:
+- Include ALL visible and implied fats: cooking oil, butter, dressings, sauces, pan drippings.
+- Fried or sautéed items: assume oil was used unless clearly baked or grilled.
+- Pressed sandwiches (cubano, Pan de Agua, medialunas): assume butter was applied.
+- When fat content is ambiguous, lean toward the higher estimate.
+- Set confidence to "low" if the image is blurry, portions are obscured, or the dish is unfamiliar.
+
+Reasoning requirement:
+- Before outputting calories and protein, populate the "reasoning" field with a concise
+  chain-of-thought that (a) identifies each item and its visual portion cues
+  (plate size, utensil scale, pile height, fill level), (b) estimates the volume or
+  mass of each item, (c) applies a density/caloric-density assumption per item, and
+  (d) sums to the final totals. The reasoning must justify the numbers — do not
+  guess the totals blindly and backfill the reasoning.
+
+Common Puerto Rican / Latin staples for reference:
+- White rice (1 cup cooked with sofrito/oil): ~290 cal, 4g protein
+- Habichuelas/beans (½ cup): ~115 cal, 6g protein
+- Pernil / lechón (3 oz): ~260 cal, 20g protein
+- Tostones (2 pieces): ~160 cal, 1g protein
+- Mofongo (1 serving): ~380 cal, 4g protein
+- Pan de Bono (1 piece): ~185 cal, 6g protein
+- Arroz con pollo (1 plate): ~550 cal, 35g protein
+- Pan Sobao (1 medium slice, ~55g): ~170 cal, 5g protein — soft, lard-enriched PR bread, denser than French bread
+- Ground Turkey (1 cup packed / 8oz cooked): ~340 cal, 44g protein — 93/7 lean, browned crumbles
+- NaturalSlim Shake (1 scoop, ~28g powder, prepared with water): ~105 cal, 15g protein`;
+
+/**
+ * `additionalProperties: false` is REQUIRED on every object by Claude's
+ * structured outputs — Gemini's JSON mode did not need it, and omitting it
+ * is a 400 rather than a silent downgrade.
+ *
+ * Property order is kept with `reasoning` FIRST for the same reason it was
+ * under Gemini: the model emits fields in schema order, so listing the
+ * chain-of-thought ahead of the integers makes it commit to volume/density
+ * logic before producing totals instead of guessing and rationalizing after.
+ */
+const MACRO_SCHEMA = {
+  type: "object",
+  properties: {
+    reasoning: {
+      type: "string",
+      description:
+        "Chain-of-thought: identify each item, estimate its volume/mass from visual cues " +
+        "(plate size, utensil scale, pile height), apply a caloric-density assumption, " +
+        "and sum. Must precede and justify the calorie/protein totals.",
+    },
+    calories: { type: "integer", description: "Total estimated calories (must follow from reasoning)" },
+    protein: { type: "integer", description: "Total protein in grams (must follow from reasoning)" },
+    carbs: { type: "integer", description: "Total carbohydrates in grams (must follow from reasoning)" },
+    fat: { type: "integer", description: "Total fat in grams, including cooking fats (must follow from reasoning)" },
+    description: { type: "string", description: "Brief 3-5 word description of the meal" },
+    confidence: {
+      type: "string",
+      enum: ["low", "medium", "high"],
+      description: "Estimation confidence based on image clarity and portion visibility",
+    },
+  },
+  required: ["reasoning", "calories", "protein", "carbs", "fat", "description", "confidence"],
+  additionalProperties: false,
+} as const;
+
 export const analyzePhoto = onCall(
-  { secrets: [geminiApiKey], maxInstances: 10 },
+  { secrets: [anthropicApiKey], maxInstances: 10 },
   async (request) => {
     // Auth + rate limit (BEFORE the quota reserve, so a throttled call
     // doesn't consume a slot) + tier, all in one preamble.
@@ -22,6 +124,17 @@ export const analyzePhoto = onCall(
       errorCode: ErrorCode.PHOTO_RATE_LIMITED,
     });
     const uid = caller.uid;
+
+    // Entitlement, checked before any spend guard: a free caller must not
+    // consume a slot of the shared ceiling on a request we were never going
+    // to serve. admin/comped are `unlimited` and outrank `paid`, so they pass.
+    if (PHOTO_REQUIRES_PAID && !caller.unlimited && caller.tier !== "paid") {
+      throw new HttpsError(
+        "permission-denied",
+        "Photo analysis is a paid feature.",
+        { code: ErrorCode.PHOTO_NOT_ENTITLED },
+      );
+    }
 
     // Org-wide spend guard, checked BEFORE the per-user reserve so an
     // ordinary "you hit your own limit" rejection never consumes a slot of
@@ -71,77 +184,63 @@ export const analyzePhoto = onCall(
       : "\n\nReturn the `description` field in English.";
 
     try {
-      const client = new GoogleGenAI({ apiKey: geminiApiKey.value() });
-      const result = await client.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [
+      const client = new Anthropic({ apiKey: anthropicApiKey.value() });
+      const response = await client.messages.create({
+        model: PHOTO_MODEL,
+        max_tokens: PHOTO_MAX_OUTPUT_TOKENS,
+        temperature: 0.2,
+        output_config: { format: { type: "json_schema", schema: MACRO_SCHEMA } },
+        messages: [
           {
             role: "user",
-            parts: [
-              { inlineData: { mimeType: "image/jpeg", data: photoBase64 } },
+            content: [
+              // Image before text: the model reads the prompt against an
+              // image it has already seen, which is the documented ordering
+              // for vision prompts.
               {
-                text: `Analyze this meal photo and estimate total calories, protein, carbs, and fat in grams.
-
-Estimation rules:
-- Include ALL visible and implied fats: cooking oil, butter, dressings, sauces, pan drippings.
-- Fried or sautéed items: assume oil was used unless clearly baked or grilled.
-- Pressed sandwiches (cubano, Pan de Agua, medialunas): assume butter was applied.
-- When fat content is ambiguous, lean toward the higher estimate.
-- Set confidence to "low" if the image is blurry, portions are obscured, or the dish is unfamiliar.
-
-Reasoning requirement:
-- Before outputting calories and protein, populate the "reasoning" field with a concise
-  chain-of-thought that (a) identifies each item and its visual portion cues
-  (plate size, utensil scale, pile height, fill level), (b) estimates the volume or
-  mass of each item, (c) applies a density/caloric-density assumption per item, and
-  (d) sums to the final totals. The reasoning must justify the numbers — do not
-  guess the totals blindly and backfill the reasoning.
-
-Common Puerto Rican / Latin staples for reference:
-- White rice (1 cup cooked with sofrito/oil): ~290 cal, 4g protein
-- Habichuelas/beans (½ cup): ~115 cal, 6g protein
-- Pernil / lechón (3 oz): ~260 cal, 20g protein
-- Tostones (2 pieces): ~160 cal, 1g protein
-- Mofongo (1 serving): ~380 cal, 4g protein
-- Pan de Bono (1 piece): ~185 cal, 6g protein
-- Arroz con pollo (1 plate): ~550 cal, 35g protein
-- Pan Sobao (1 medium slice, ~55g): ~170 cal, 5g protein — soft, lard-enriched PR bread, denser than French bread
-- Ground Turkey (1 cup packed / 8oz cooked): ~340 cal, 44g protein — 93/7 lean, browned crumbles
-- NaturalSlim Shake (1 scoop, ~28g powder, prepared with water): ~105 cal, 15g protein` + descriptionLangSuffix,
+                type: "image",
+                source: { type: "base64", media_type: "image/jpeg", data: photoBase64 },
               },
+              { type: "text", text: ESTIMATION_PROMPT + descriptionLangSuffix },
             ],
           },
         ],
-        config: {
-          temperature: 0.2,
-          responseMimeType: "application/json",
-          responseJsonSchema: {
-            type: "object",
-            // Property order matters for JSON mode: Gemini emits fields in
-            // schema order, so `reasoning` is listed FIRST to force the model
-            // to commit to its volume/density logic before producing the
-            // final integers. Swapping the order would let it guess first
-            // and rationalize after.
-            properties: {
-              reasoning:   { type: "string",  description:
-                "Chain-of-thought: identify each item, estimate its volume/mass from visual cues " +
-                "(plate size, utensil scale, pile height), apply a caloric-density assumption, " +
-                "and sum. Must precede and justify the calorie/protein totals." },
-              calories:    { type: "integer", description: "Total estimated calories (must follow from reasoning)" },
-              protein:     { type: "integer", description: "Total protein in grams (must follow from reasoning)" },
-              carbs:       { type: "integer", description: "Total carbohydrates in grams (must follow from reasoning)" },
-              fat:         { type: "integer", description: "Total fat in grams, including cooking fats (must follow from reasoning)" },
-              description: { type: "string",  description: "Brief 3-5 word description of the meal" },
-              confidence:  { type: "string",  enum: ["low", "medium", "high"],
-                             description: "Estimation confidence based on image clarity and portion visibility" },
-            },
-            required: ["reasoning", "calories", "protein", "carbs", "fat", "description", "confidence"],
-          },
-        },
       });
 
-      // response.text is guaranteed valid JSON matching the schema
-      const parsed = JSON.parse(result.text ?? "{}") as {
+      // A safety classifier can decline with HTTP 200 and an EMPTY content
+      // array — reading content[0] first would throw a TypeError that reads
+      // like a parse bug. Check the stop reason before touching content.
+      if (response.stop_reason === "refusal") {
+        console.warn(`analyzePhoto refused uid=${uid}`);
+        throw new HttpsError(
+          "internal",
+          "The model declined to analyze this image.",
+          { code: ErrorCode.PHOTO_ESTIMATE_FAILED },
+        );
+      }
+
+      // Truncation is the other way to get structurally invalid JSON out of
+      // a schema-constrained call: the constraint guarantees shape, not
+      // completion. Named separately so the logs distinguish the two.
+      if (response.stop_reason === "max_tokens") {
+        console.warn(`analyzePhoto truncated uid=${uid} — raise PHOTO_MAX_OUTPUT_TOKENS`);
+        throw new HttpsError(
+          "internal",
+          "Photo analysis response was truncated.",
+          { code: ErrorCode.PHOTO_ESTIMATE_FAILED },
+        );
+      }
+
+      const textBlock = response.content.find((block) => block.type === "text");
+      if (!textBlock || textBlock.type !== "text") {
+        throw new HttpsError(
+          "internal",
+          "Model returned no text content.",
+          { code: ErrorCode.PHOTO_ESTIMATE_FAILED },
+        );
+      }
+
+      const parsed = JSON.parse(textBlock.text) as {
         reasoning?: string;
         calories?: number;
         protein?: number;
@@ -168,7 +267,7 @@ Common Puerto Rican / Latin staples for reference:
       if (calories == null) {
         throw new HttpsError(
           "internal",
-          "Gemini could not estimate calories from this image.",
+          "Could not estimate calories from this image.",
           { code: ErrorCode.PHOTO_ESTIMATE_FAILED },
         );
       }

@@ -12,6 +12,7 @@
     "test:rules": "npm test"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "@google/genai": "^1.48.0",
     "@resvg/resvg-js": "^2.6.2",
     "firebase-admin": "^13.4.0",

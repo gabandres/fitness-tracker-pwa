@@ -108,6 +108,40 @@ available.
   a zero — and absent accepted). An earlier version of this entry claimed the
   suite could not run here because firebase-tools needs **Java 21+**; JDK 21 is
   installed, it is just not the PATH default. Export it first, per §7.
+- **Photo-scan moved to Claude Haiku 4.5, and gated paid server-side**
+  (2026-08-04). On `main`, **deployed nowhere** — and unlike the rest of this
+  section it is not merely waiting on a binary: **`analyzePhoto` will throw at
+  runtime until the `ANTHROPIC_API_KEY` secret exists**, because the callable
+  now declares it. Create the secret BEFORE `firebase deploy --only functions`,
+  the same ordering rule the rules deploy has:
+  ```sh
+  firebase functions:secrets:set ANTHROPIC_API_KEY
+  ```
+  What changed: `functions/src/analyze-photo.ts` calls `claude-haiku-4-5`
+  (vision + structured outputs) instead of `gemini-2.5-flash`. Gemini is
+  **not** removed — `consultation.ts`, `weekly-report.ts` and
+  `push-reminders.ts` still use it, so `@google/genai` and `GEMINI_API_KEY`
+  stay. Two providers on purpose.
+  **The feature is still hidden** (web `FEATURES.photoScan: false`, mobile
+  `EXPO_PUBLIC_FEATURE_PHOTO_SCAN=0` in the prod build) — this is the model
+  swap, not the launch.
+  **Why the paid gate is server-side:** the client cannot express "Pro" today.
+  `isPaid()` is forced `true` for everyone while `PRO_ENABLED === false`, so a
+  client-side check would unlock photo-scan for the entire free tier — the
+  opposite of the intent. `caller.tier` comes from the Stripe claim and is
+  unaffected by that flag. `PHOTO_REQUIRES_PAID` in `analyze-photo.ts` is the
+  switch; while nothing is purchasable, "paid" means admins + comped friends.
+  **Cost, unchanged by the swap:** ~$0.004/scan, which is what the `photo`
+  spend ceiling (2,000/day ≈ $8) was already sized against — the constant in
+  `spend-ceiling.ts` assumed Haiku before the code did. **Open pricing
+  question:** `limitPaid` is 30/day, so a Pro user at the cap costs $3.60/mo
+  against a $3.00/mo subscription. Lower the cap or accept it deliberately.
+  **Not done, and required before this ships to users:** Anthropic is a new
+  subprocessor — the privacy policy's `dontShare` list (both locales), the Play
+  **Data safety** form (which cleared Photos *because* photo-scan was off), and
+  the App Store privacy labels all need updating. `functions/test/
+  email-templates.spec.ts:132` asserts the welcome email does not advertise
+  photo scanning; that assertion is deliberate and outlives the swap.
 - **Input validation on four unguarded write paths** (2026-08-04). The web half
   is live; the mobile half is on `main` and in no binary. All four rules were
   shared in `packages/core` and mirrored in `firestore.rules` where rules can
