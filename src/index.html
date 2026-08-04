@@ -35,6 +35,11 @@
     <link rel="alternate" hreflang="x-default" href="https://ignia.fit/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Ignia" />
+    <!-- The EN homepage IS this shell (prerender-seo.mjs deliberately does not
+         rewrite index.html — that would break the SPA fallback), so og:locale
+         has to be declared here or `/` is the one URL that ships without it.
+         Every generated page gets its own value written over this one. -->
+    <meta property="og:locale" content="en_US" />
     <meta property="og:title" content="Ignia — how many calories do I have left today?" />
     <meta property="og:description" content="A quiet, private calorie + protein log with AI coaching. Measured TDEE from your own data." />
     <meta property="og:url" content="https://ignia.fit/" />
