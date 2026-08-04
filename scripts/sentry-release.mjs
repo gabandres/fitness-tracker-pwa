@@ -15,7 +15,7 @@
 // src/build-info.ts, or angular.json's `define` — not in this file.
 
 import { execSync } from 'node:child_process';
-import { existsSync, readdirSync, statSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const DIST_ROOT = 'dist/fitness-tracker-pwa/browser';
@@ -69,9 +69,48 @@ if (!existsSync(DIST_ROOT)) {
 
 const haveToken = Boolean(process.env.SENTRY_AUTH_TOKEN);
 
+/**
+ * Stamp the release id into every emitted HTML page.
+ *
+ * `main.ts` and the About screen both read `globalThis.__MACROLOG_RELEASE__`,
+ * and until now NOTHING set it — so the app reported its release as 'dev' and
+ * the About screen showed "dev" on every build. Symbolication does not depend
+ * on this (debug IDs handle that), but issue grouping, per-deploy dashboards
+ * and the build id in feedback emails all do.
+ *
+ * Safe to do post-build ONLY because ngsw.json is regenerated afterwards — a
+ * stamp without that regeneration would desync the service worker. Runs over
+ * the prerendered SEO pages too, since any of them can be a user's entry point.
+ */
+function stampRelease(dir) {
+  let count = 0;
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) {
+      count += stampRelease(full);
+      continue;
+    }
+    if (!entry.endsWith('.html')) continue;
+    const html = readFileSync(full, 'utf8');
+    if (html.includes('__MACROLOG_RELEASE__') || !html.includes('</head>')) continue;
+    const tag = `<script>globalThis.__MACROLOG_RELEASE__=${JSON.stringify(RELEASE)};</script>`;
+    writeFileSync(full, html.replace('</head>', `${tag}</head>`), 'utf8');
+    count += 1;
+  }
+  return count;
+}
+
+const stamped = stampRelease(DIST_ROOT);
+console.log(`[sentry-release] Stamped ${stamped} HTML page(s) with release ${RELEASE}.`);
+
 if (haveToken) {
   console.log(`[sentry-release] Uploading sourcemaps to Sentry (release=${RELEASE})...`);
   try {
+    // Create the release explicitly. `sourcemaps upload --release` uploads an
+    // artifact bundle keyed by debug ID but does NOT materialise a release
+    // object — verified via the API: the bundles were present, the release
+    // 404'd. Without this, every error groups under the stale 'dev' release.
+    execSync(`npx --yes @sentry/cli releases new "${RELEASE}"`, { stdio: 'inherit' });
     execSync(
       `npx --yes @sentry/cli sourcemaps inject ${DIST_ROOT}`,
       { stdio: 'inherit' },
@@ -80,6 +119,7 @@ if (haveToken) {
       `npx --yes @sentry/cli sourcemaps upload --release "${RELEASE}" ${DIST_ROOT}`,
       { stdio: 'inherit' },
     );
+    execSync(`npx --yes @sentry/cli releases finalize "${RELEASE}"`, { stdio: 'inherit' });
     console.log('[sentry-release] Upload complete.');
   } catch (err) {
     // Never block a deploy on Sentry upload flakiness — log loudly and continue.
