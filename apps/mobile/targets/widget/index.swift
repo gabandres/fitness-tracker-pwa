@@ -87,9 +87,23 @@ private struct Provider: TimelineProvider {
       entries.append(Entry(date: midnight, face: .empty(locale: current.locale)))
     }
 
-    // `.atEnd` asks WidgetKit for a new timeline once the last entry is passed,
-    // which re-arms the next midnight.
-    completion(Timeline(entries: entries, policy: .atEnd))
+    // NOT `.atEnd`. That asks for a new timeline only once the LAST entry is
+    // passed, and the last entry is midnight — so a single render against an
+    // empty container sticks for the rest of the day, no matter how many times
+    // the app pushes. The watch complication hit exactly that on device
+    // (2026-08-03, build 16): stale face, correct data one tap away.
+    //
+    // This surface has NOT failed that way — `ExtensionStorage.reloadWidget`
+    // runs on the same device with no cross-device delivery to miss, and the
+    // face is device-verified. This is a net under a working trapeze.
+    //
+    // 4 hours, not the watch's 1, and the difference is deliberate: the phone's
+    // push path is reliable, so the net only has to bound the rare miss, and
+    // ~6 baseline reloads a day leaves the 40-75/day budget almost entirely
+    // available to real pushes on a heavy logging day. Tightening this to
+    // hourly would spend headroom that logging should get.
+    let nextAsk = now.addingTimeInterval(4 * 60 * 60)
+    completion(Timeline(entries: entries, policy: .after(nextAsk)))
   }
 }
 
