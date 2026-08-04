@@ -1,7 +1,8 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 import { ErrorCode } from "./error-codes";
-import { anthropicApiKey, callerAccess, dailyQuota, spendCeiling } from "./init";
+import { anthropicApiKey, callerAccess, dailyQuota, geminiApiKey, spendCeiling } from "./init";
 
 // ─── Photo-to-Macros ────────────────────────────────────────────────
 
@@ -28,18 +29,43 @@ const PHOTO_MIN_INTERVAL_MS = 3_000;
 const PHOTO_REQUIRES_PAID = true;
 
 /**
- * Claude Haiku 4.5 — the cheapest model that does vision AND structured
- * outputs, which this callable needs both of. ~$0.004/scan at ~2.2k input
- * tokens (image ≈1.6k + prompt ≈600) and ~350 output; that is the rate the
- * `photo` spend ceiling in spend-ceiling.ts is sized against, so changing
- * this model is a budget decision — re-derive the ceiling if you do.
+ * Which vision model estimates the macros. **This is a cost decision, not a
+ * quality one, and it is the whole reason this is a constant rather than a
+ * hardcoded call.**
  *
- * Deliberately NOT prompt-cached: Haiku 4.5's minimum cacheable prefix is
- * 4096 tokens and the static prompt below is ~600, so a `cache_control`
- * breakpoint would silently never cache (no error, just
- * `cache_creation_input_tokens: 0`) while costing the write premium.
+ * - `gemini`   — `gemini-2.5-flash`. Has a genuine free tier, which is why
+ *                photo-scan has cost approximately nothing to date.
+ * - `anthropic`— `claude-haiku-4-5`. No free tier: metered from the first
+ *                request, ~$0.004/scan (~2.2k input = image ≈1.6k + prompt
+ *                ≈600, and ~350 output, at $1/$5 per MTok). Better structured
+ *                -output guarantees and explicit refusal/truncation handling.
+ *
+ * **Stays on `gemini` until Pro actually launches.** v1 is free, so every
+ * scan today is unfunded; flipping to `anthropic` is the right move once
+ * subscription revenue covers it, and at that point it is a one-word change.
+ * Both providers implement the same `MacroDraft` contract below, so the
+ * normalize/clamp path and the client response shape do not vary by provider.
+ *
+ * Whichever is active, the `photo` ceiling in spend-ceiling.ts is sized
+ * against the Haiku rate — re-derive it if the model changes again.
  */
-const PHOTO_MODEL = "claude-haiku-4-5";
+type PhotoProvider = "gemini" | "anthropic";
+// The `as` is load-bearing, not noise: without it TypeScript narrows a const
+// initialized with a literal down to that literal, and the dispatch below
+// then fails to compile as an "unintentional comparison" — the type system
+// deciding the other branch is unreachable is exactly what a switchable
+// constant must not do.
+const PHOTO_PROVIDER = "gemini" as PhotoProvider;
+
+const GEMINI_MODEL = "gemini-2.5-flash";
+
+/**
+ * Deliberately NOT prompt-cached on the Anthropic path: Haiku 4.5's minimum
+ * cacheable prefix is 4096 tokens and the static prompt below is ~600, so a
+ * `cache_control` breakpoint would silently never cache (no error, just
+ * `cache_creation_input_tokens: 0`) while still costing the write premium.
+ */
+const ANTHROPIC_MODEL = "claude-haiku-4-5";
 
 /**
  * Haiku 4.5 predates the high-resolution vision tier, so images are capped
@@ -79,14 +105,15 @@ Common Puerto Rican / Latin staples for reference:
 - NaturalSlim Shake (1 scoop, ~28g powder, prepared with water): ~105 cal, 15g protein`;
 
 /**
- * `additionalProperties: false` is REQUIRED on every object by Claude's
- * structured outputs — Gemini's JSON mode did not need it, and omitting it
- * is a 400 rather than a silent downgrade.
+ * Property order matters and is shared by both providers: each emits fields
+ * in schema order, so listing the chain-of-thought FIRST makes the model
+ * commit to volume/density logic before producing the integers instead of
+ * guessing and rationalizing after. Swapping the order would quietly degrade
+ * estimate quality on either provider.
  *
- * Property order is kept with `reasoning` FIRST for the same reason it was
- * under Gemini: the model emits fields in schema order, so listing the
- * chain-of-thought ahead of the integers makes it commit to volume/density
- * logic before producing totals instead of guessing and rationalizing after.
+ * Claude additionally requires `additionalProperties: false` on every object
+ * (a 400, not a silent downgrade). Gemini's JSON mode does not accept it, so
+ * it is added per-provider below rather than baked in here.
  */
 const MACRO_SCHEMA = {
   type: "object",
@@ -110,11 +137,112 @@ const MACRO_SCHEMA = {
     },
   },
   required: ["reasoning", "calories", "protein", "carbs", "fat", "description", "confidence"],
-  additionalProperties: false,
 } as const;
 
+/**
+ * What both providers return. Every field is optional on purpose — this is
+ * the RAW model output, before the normalize/clamp pass in the callable.
+ * Neither adapter may round, default, or reject on values; keeping all of
+ * that in one place downstream is what stops the two paths from drifting
+ * into different numbers for the same photo.
+ */
+interface MacroDraft {
+  reasoning?: string;
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  description?: string;
+  confidence?: string;
+}
+
+/** Gemini path — the free-tier default. */
+async function estimateWithGemini(photoBase64: string, prompt: string): Promise<MacroDraft> {
+  const client = new GoogleGenAI({ apiKey: geminiApiKey.value() });
+  const result = await client.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { inlineData: { mimeType: "image/jpeg", data: photoBase64 } },
+          { text: prompt },
+        ],
+      },
+    ],
+    config: {
+      temperature: 0.2,
+      responseMimeType: "application/json",
+      // No `additionalProperties` here — Gemini's JSON mode rejects it.
+      responseJsonSchema: MACRO_SCHEMA,
+    },
+  });
+  // response.text is guaranteed valid JSON matching the schema.
+  return JSON.parse(result.text ?? "{}") as MacroDraft;
+}
+
+/** Claude path — metered, better structured-output and refusal semantics. */
+async function estimateWithAnthropic(photoBase64: string, prompt: string): Promise<MacroDraft> {
+  const client = new Anthropic({ apiKey: anthropicApiKey.value() });
+  const response = await client.messages.create({
+    model: ANTHROPIC_MODEL,
+    max_tokens: PHOTO_MAX_OUTPUT_TOKENS,
+    temperature: 0.2,
+    output_config: {
+      // Claude requires this on every object; Gemini rejects it. Added here
+      // rather than in MACRO_SCHEMA so one schema serves both providers.
+      format: { type: "json_schema", schema: { ...MACRO_SCHEMA, additionalProperties: false } },
+    },
+    messages: [
+      {
+        role: "user",
+        content: [
+          // Image before text: the model reads the prompt against an image it
+          // has already seen, which is the documented ordering for vision.
+          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: photoBase64 } },
+          { type: "text", text: prompt },
+        ],
+      },
+    ],
+  });
+
+  // A safety classifier can decline with HTTP 200 and an EMPTY content array
+  // — reading content[0] first would throw a TypeError that reads like a
+  // parse bug. Check the stop reason before touching content.
+  if (response.stop_reason === "refusal") {
+    throw new HttpsError(
+      "internal",
+      "The model declined to analyze this image.",
+      { code: ErrorCode.PHOTO_ESTIMATE_FAILED },
+    );
+  }
+
+  // Truncation is the other way to get structurally invalid JSON out of a
+  // schema-constrained call: the constraint guarantees shape, not completion.
+  if (response.stop_reason === "max_tokens") {
+    throw new HttpsError(
+      "internal",
+      "Photo analysis response was truncated.",
+      { code: ErrorCode.PHOTO_ESTIMATE_FAILED },
+    );
+  }
+
+  const textBlock = response.content.find((block) => block.type === "text");
+  if (!textBlock || textBlock.type !== "text") {
+    throw new HttpsError(
+      "internal",
+      "Model returned no text content.",
+      { code: ErrorCode.PHOTO_ESTIMATE_FAILED },
+    );
+  }
+  return JSON.parse(textBlock.text) as MacroDraft;
+}
+
 export const analyzePhoto = onCall(
-  { secrets: [anthropicApiKey], maxInstances: 10 },
+  // BOTH secrets are declared regardless of which provider is active, so
+  // flipping PHOTO_PROVIDER is a one-word change and not a change to the
+  // deployment contract. Both must exist in Secret Manager to deploy.
+  { secrets: [geminiApiKey, anthropicApiKey], maxInstances: 10 },
   async (request) => {
     // Auth + rate limit (BEFORE the quota reserve, so a throttled call
     // doesn't consume a slot) + tier, all in one preamble.
@@ -183,72 +311,16 @@ export const analyzePhoto = onCall(
       ? "\n\nReturn the `description` field in Puerto Rican Spanish (e.g. 'pollo con arroz')."
       : "\n\nReturn the `description` field in English.";
 
+    const prompt = ESTIMATION_PROMPT + descriptionLangSuffix;
+
     try {
-      const client = new Anthropic({ apiKey: anthropicApiKey.value() });
-      const response = await client.messages.create({
-        model: PHOTO_MODEL,
-        max_tokens: PHOTO_MAX_OUTPUT_TOKENS,
-        temperature: 0.2,
-        output_config: { format: { type: "json_schema", schema: MACRO_SCHEMA } },
-        messages: [
-          {
-            role: "user",
-            content: [
-              // Image before text: the model reads the prompt against an
-              // image it has already seen, which is the documented ordering
-              // for vision prompts.
-              {
-                type: "image",
-                source: { type: "base64", media_type: "image/jpeg", data: photoBase64 },
-              },
-              { type: "text", text: ESTIMATION_PROMPT + descriptionLangSuffix },
-            ],
-          },
-        ],
-      });
-
-      // A safety classifier can decline with HTTP 200 and an EMPTY content
-      // array — reading content[0] first would throw a TypeError that reads
-      // like a parse bug. Check the stop reason before touching content.
-      if (response.stop_reason === "refusal") {
-        console.warn(`analyzePhoto refused uid=${uid}`);
-        throw new HttpsError(
-          "internal",
-          "The model declined to analyze this image.",
-          { code: ErrorCode.PHOTO_ESTIMATE_FAILED },
-        );
-      }
-
-      // Truncation is the other way to get structurally invalid JSON out of
-      // a schema-constrained call: the constraint guarantees shape, not
-      // completion. Named separately so the logs distinguish the two.
-      if (response.stop_reason === "max_tokens") {
-        console.warn(`analyzePhoto truncated uid=${uid} — raise PHOTO_MAX_OUTPUT_TOKENS`);
-        throw new HttpsError(
-          "internal",
-          "Photo analysis response was truncated.",
-          { code: ErrorCode.PHOTO_ESTIMATE_FAILED },
-        );
-      }
-
-      const textBlock = response.content.find((block) => block.type === "text");
-      if (!textBlock || textBlock.type !== "text") {
-        throw new HttpsError(
-          "internal",
-          "Model returned no text content.",
-          { code: ErrorCode.PHOTO_ESTIMATE_FAILED },
-        );
-      }
-
-      const parsed = JSON.parse(textBlock.text) as {
-        reasoning?: string;
-        calories?: number;
-        protein?: number;
-        carbs?: number;
-        fat?: number;
-        description?: string;
-        confidence?: string;
-      };
+      // The only place the provider choice is read. Everything below this
+      // line is provider-agnostic, which is what makes flipping the constant
+      // safe: the normalize/clamp pass and the client response shape are
+      // shared, so the two paths cannot drift into different numbers.
+      const parsed = PHOTO_PROVIDER === "anthropic"
+        ? await estimateWithAnthropic(photoBase64, prompt)
+        : await estimateWithGemini(photoBase64, prompt);
 
       // Log the chain-of-thought so we can audit estimation quality without
       // surfacing it in the client response (keeps the client contract stable).
