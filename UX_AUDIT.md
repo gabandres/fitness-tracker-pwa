@@ -56,7 +56,7 @@ What's between "deployed" and "safe to share with strangers." Grouped by severit
 
 ### 💪 Strongly advised (not strictly blocking)
 - [x] **Custom domain.** Purchased **`ignia.fit`** (2026-07-05). Code URLs migrated macrolog.web.app→ignia.fit. Owner still to: connect `ignia.fit` as a custom domain on the `macrolog` hosting site (Firebase console + DNS, ~day to settle), update the Gemini client-key HTTP-referrer allow-list to include `https://ignia.fit`, and `gsutil cors set storage-cors.json` for the bucket.
-- [ ] **Open Graph meta tags in `index.html`.** When the URL is pasted in WhatsApp / Slack / iMessage there's no preview card today. Add `og:title`, `og:description`, `og:image` (a screenshot of the ledger). LinkedIn and Twitter support the same OG spec.
+- [x] **Open Graph meta tags in `index.html`.** *(verified live 2026-08-04)* — this item described a state that had already stopped being true, and was read as open work twice. The full set (`og:type/site_name/title/description/url/image` + dimensions + alt, `twitter:card` large-image) is in the shell, `og-image.png` serves 200 as `image/png`, and `scripts/prerender-seo.mjs` rewrites title/description/url/locale/image **per route across all 105 prerendered pages** — `/es/` gets Spanish copy and `es_PR`. Cards render. The only real gap found on inspection was `og:locale` missing from the EN homepage: the homepage is the one `<head>` the prerender deliberately does not touch (rewriting `index.html` would break the SPA fallback), so it never received the tag the other 104 pages got. Declared in the shell, `fa80d0e6`.
 - [x] **PWA icon set audit.** *(2026-04-19)* — explicit apple-touch-icon declarations for 152 (iPad) + 192 (iPhone) in `src/index.html`. Manifest covers 72/96/128/144/152/192/384/512. A dedicated 180×180 render from `icon-source.svg` is a nice follow-up but iOS scales 192 cleanly.
 - [x] **Transactional email sender domain.** *(2026-07-24, `6cf63df3`)* — the real fault was never the DNS records this item assumed: mail shipped from Resend's shared sandbox domain and password resets from Firebase's, so DMARC alignment was impossible whatever `ignia.fit` published. Both now send from our own domain, password reset is a first-class server-generated link rather than Firebase's default, and every message carries a real plain-text part.
 - [x] **Welcome / onboarding email sequence.** *(2026-07-24, `6cf63df3`)* — Day-0 welcome email ships, bilingual. Note it was also corrected for over-promising: it advertised photo scanning, which is deferred to a paid tier (ADR-0015), so a new user's first email broke a promise in their first session. Any future addition to this sequence inherits that trap.
@@ -80,8 +80,11 @@ re-scopes finished work. What actually remains:
 1. **Terms of Service legal review** — the only original item still open, and it
    is *not* urgent: the auto-renewal language it turns on applies to a paid tier,
    and Pro is flag-gated off (ADR-0015). Revisit when Pro does.
-2. **OG meta tags** — pasting `ignia.fit` into WhatsApp/iMessage still shows no
-   preview card. Small, web-only, unblocked.
+2. ~~**OG meta tags**~~ — **closed 2026-08-04, and it was never actually open.**
+   The tags were live and per-route correct; the entry above records what was
+   verified and the one genuine gap it turned up. This is the third time this
+   file has listed finished work as pending — the check is one `curl`, and it
+   costs less than the re-scope.
 
 Shipped since this list was written: Stripe live-mode + Tax, password policy, GCS
 backup bucket, monitoring alerts (all 2026-04-19); the custom domain `ignia.fit`;
