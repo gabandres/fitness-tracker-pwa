@@ -92,7 +92,18 @@ final class WatchReceiver: NSObject, ObservableObject, WCSessionDelegate {
   /// (#39 §5).
   private func store(_ context: [String: Any]) {
     guard let json = context[Glance.contextKey] as? String else { return }
-    UserDefaults(suiteName: Glance.appGroup)?.set(json, forKey: Glance.snapshotKey)
+    let defaults = UserDefaults(suiteName: Glance.appGroup)
+    defaults?.set(json, forKey: Glance.snapshotKey)
+    // Force the write out before asking WidgetKit to re-read it. `synchronize()`
+    // is deprecated and Apple's position is that it is unnecessary — that
+    // position is about a process reading its OWN defaults, where the in-memory
+    // value is authoritative. Here a DIFFERENT process is about to open the
+    // same container microseconds later, and it sees only what has landed.
+    //
+    // Belt-and-braces, not the actual fix: if this is a no-op on some watchOS
+    // build, the hourly re-ask in the complication's timeline is what recovers
+    // the face. Do not remove that on the strength of this line.
+    defaults?.synchronize()
     // A sign-out sends the empty string. It fails the decode and collapses to
     // `.empty` exactly as an absent or unreadable blob does — no fourth reason,
     // no new key, no second decode path (#44 §2).

@@ -63,7 +63,25 @@ private struct Provider: TimelineProvider {
       entries.append(Entry(date: midnight, face: .empty(locale: current.locale)))
     }
 
-    completion(Timeline(entries: entries, policy: .atEnd))
+    // NOT `.atEnd`, and this is the fix for a real device failure.
+    //
+    // `.atEnd` asks for a new timeline only once the LAST entry is passed —
+    // and the last entry here is midnight. So a render that catches an empty
+    // container stays empty **for the rest of the day**: the phone can push
+    // ten more times and WidgetKit will not ask this provider again.
+    //
+    // That is not hypothetical. On 2026-08-03, build 16 on a real watch showed
+    // `Waiting for iPhone` on the face while the watch app screen — which
+    // re-reads on every appearance — showed the numbers. Same container, same
+    // decoder; the only difference was that one of them had been asked again.
+    //
+    // An hourly re-ask bounds that to an hour instead of to midnight. It costs
+    // ~24 of the 40–75/day reload budget (#37), and it is the same honest
+    // ceiling the transport already advertises: "15–60 minutes once the day's
+    // reloads throttle". The midnight entry stays — it is the privacy backstop
+    // (#44 §3), not a refresh mechanism, and it was never doing this job.
+    let nextAsk = now.addingTimeInterval(60 * 60)
+    completion(Timeline(entries: entries, policy: .after(nextAsk)))
   }
 }
 
