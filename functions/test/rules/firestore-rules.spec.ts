@@ -415,6 +415,73 @@ describe('firestore.rules', () => {
     );
   });
 
+  it('accepts an in-range proteinFloor on a completed profile', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      setDoc(doc(db, 'users', 'alice'), {
+        ...baseProfile(),
+        profileCompleted: true,
+        heightIn: 70,
+        age: 33,
+        sex: 'male',
+        activityLevel: 'moderate',
+        targetPaceLbsPerWeek: 1.0,
+        proteinFloor: 150,
+      }),
+    );
+  });
+
+  it('rejects an out-of-range proteinFloor on a completed profile', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      setDoc(doc(db, 'users', 'alice'), {
+        ...baseProfile(),
+        profileCompleted: true,
+        heightIn: 70,
+        age: 33,
+        sex: 'male',
+        activityLevel: 'moderate',
+        targetPaceLbsPerWeek: 1.0,
+        proteinFloor: 1200, // above the 1000 g rule ceiling
+      }),
+    );
+  });
+
+  it('rejects a zero proteinFloor — "off" is an absent field, not 0', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      setDoc(doc(db, 'users', 'alice'), {
+        ...baseProfile(),
+        profileCompleted: true,
+        heightIn: 70,
+        age: 33,
+        sex: 'male',
+        activityLevel: 'moderate',
+        targetPaceLbsPerWeek: 1.0,
+        proteinFloor: 0,
+      }),
+    );
+  });
+
+  it('accepts a completed profile with no proteinFloor at all', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      setDoc(doc(db, 'users', 'alice'), {
+        ...baseProfile(),
+        profileCompleted: true,
+        heightIn: 70,
+        age: 33,
+        sex: 'male',
+        activityLevel: 'moderate',
+        targetPaceLbsPerWeek: 1.0,
+      }),
+    );
+  });
+
   it('accepts a catalog exercise carrying a seedKey', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());

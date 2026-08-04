@@ -102,10 +102,12 @@ available.
   `MIN_DAILY_TARGET`. Reachable — the `lose` heuristic is weight × 11, so anyone
   under ~136 lb onboards below 1500 (a 100 lb user goes 1100 → 1500). That is
   the floor doing its job on a branch that had been skipping it, but it does move
-  existing users' numbers. **Not verified:** `npm run test:rules` cannot run on
-  this machine (firebase-tools requires **Java 21+**; installed JDK is older), so
-  the rules change is deployed and green in Firebase's own compiler but has no
-  emulator test behind it.
+  existing users' numbers. **Verified 2026-08-04: `npm run test:rules` is green,
+  161/161**, and `proteinFloor` now has four emulator specs of its own (in-range
+  accepted, over-ceiling rejected, `0` rejected — "off" is an *absent* field, not
+  a zero — and absent accepted). An earlier version of this entry claimed the
+  suite could not run here because firebase-tools needs **Java 21+**; JDK 21 is
+  installed, it is just not the PATH default. Export it first, per §7.
 - **Input validation on four unguarded write paths** (2026-08-04). The web half
   is live; the mobile half is on `main` and in no binary. All four rules were
   shared in `packages/core` and mirrored in `firestore.rules` where rules can
