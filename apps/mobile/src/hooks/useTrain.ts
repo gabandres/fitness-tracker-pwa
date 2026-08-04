@@ -22,7 +22,7 @@ import {
   updateSession,
   updateTemplate as updateTemplateDoc,
 } from '@/lib/ledger';
-import { localDateKey, normalizeClusterGroups } from '@macrolog/core';
+import { findDuplicateExercise, localDateKey, normalizeClusterGroups } from '@macrolog/core';
 import {
   type Exercise,
   type ExerciseDraft,
@@ -317,6 +317,13 @@ export function useTrain(): TrainState {
       if (!uid || !active) return;
       let id = exerciseId;
       if (!id) {
+        // Reuse an existing catalog entry whose name differs only by case or
+        // spacing. Without this, typing "bench press" when "Bench Press"
+        // already exists mints a second doc id — and progression history is
+        // keyed by exerciseId, so the two never join up again.
+        id = findDuplicateExercise(name, catalog)?.id;
+      }
+      if (!id) {
         id = await addExerciseDoc(uid, { name, muscles: [], defaultCues: [], logStyle });
       }
       const ex: SessionExercise = { exerciseId: id, name, cues: [], logStyle, sets: [newSet()] };
@@ -324,7 +331,7 @@ export function useTrain(): TrainState {
       setActive(next);
       await persist(next);
     },
-    [uid, active, persist],
+    [uid, active, persist, catalog],
   );
 
   const removeExercise = useCallback(

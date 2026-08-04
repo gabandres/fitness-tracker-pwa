@@ -19,7 +19,11 @@ import { AuthService } from '../../services/auth.service';
 import { localDateKey } from '../../utils/date';
 import { bcp47ForLang } from '../../utils/locale';
 import { projectWeight, type WeightPoint } from '../../utils/weekly-insights';
-import { latestNavyBodyFat } from '@macrolog/core';
+import {
+  MEASUREMENT_BOUNDS_IN,
+  implausibleMeasurementFields,
+  latestNavyBodyFat,
+} from '@macrolog/core';
 import { Measurement } from '../../services/firebase.service';
 import { UiCard } from '../ui/card.component';
 import { UiButton } from '../ui/button.component';
@@ -523,6 +527,26 @@ export class BodyComponent implements OnInit, OnDestroy {
       entry.hip == null && entry.neck == null
     ) {
       this.formError.set(this.translation.t('v2.body.measurementError'));
+      this.haptic(50);
+      return;
+    }
+    // Per-field plausibility (shared with mobile and mirrored in
+    // firestore.rules). Catches a value typed into the wrong field — a 15in
+    // chest is a neck reading, and it silently moves the body-fat estimate.
+    const implausible = implausibleMeasurementFields(entry);
+    if (implausible.length > 0) {
+      const bad = implausible[0];
+      const [lo, hi] = MEASUREMENT_BOUNDS_IN[bad];
+      // Label comes from M_FIELDS, not a constructed key — `neck` is
+      // `body.fieldNeck` while the rest are `v2.body.field*`.
+      const labelKey = M_FIELDS.find((f) => f.key === bad)?.labelKey ?? '';
+      this.formError.set(
+        this.translation.t('v2.body.measurementRange', {
+          field: labelKey ? this.translation.t(labelKey) : bad,
+          min: lo,
+          max: hi,
+        }),
+      );
       this.haptic(50);
       return;
     }

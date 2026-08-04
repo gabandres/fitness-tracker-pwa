@@ -26,7 +26,7 @@ import type {
   WorkoutTemplate,
 } from '@/lib/workout';
 import { DEFAULT_LOG_STYLE, isLoggedSet, sessionVolume } from '@/lib/workout';
-import { type SeedTemplate, STARTER_TEMPLATES, seedTemplateName } from '@macrolog/core';
+import { type SeedTemplate, STARTER_TEMPLATES, clampRir, seedTemplateName } from '@macrolog/core';
 import {
   type ProgressionSuggestion,
   computeExercisePRs,
@@ -1106,9 +1106,12 @@ function SetRow({
           placeholderTextColor={colors.faint}
           keyboardType="numeric"
           value={rir}
+          maxLength={1}
           onChangeText={(t) => {
             setRir(t);
-            train.editSet(exerciseIndex, setIndex, { rir: numOrUndef(t) });
+            // Shared 0–5 clamp (@macrolog/core), not numOrUndef: RIR is a
+            // bounded scale and the web logger enforces the identical rule.
+            train.editSet(exerciseIndex, setIndex, { rir: clampRir(t) });
           }}
           onEndEditing={commit}
           testID={`set-rir-${exerciseIndex}-${setIndex}`}

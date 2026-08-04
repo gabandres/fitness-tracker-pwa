@@ -270,6 +270,7 @@ export const en = {
   'body.noWeighIns': 'No weigh-ins yet.',
   'body.addMeasurement': 'Add measurement',
   'body.measureHint': 'Inches. Waist + neck (and hip for women) drive the body-fat estimate.',
+  'body.measureRange': '{field} looks off — expected {min}–{max} in. Check you used the right field.',
   'measure.waist': 'Waist',
   'measure.neck': 'Neck',
   'measure.hip': 'Hip',

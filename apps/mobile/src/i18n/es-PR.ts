@@ -272,6 +272,7 @@ export const esPR: Record<I18nKey, string> = {
   'body.noWeighIns': 'Aún no hay pesajes.',
   'body.addMeasurement': 'Añadir medida',
   'body.measureHint': 'Pulgadas. Cintura + cuello (y cadera para mujeres) calculan la grasa corporal.',
+  'body.measureRange': '{field} se ve raro — se espera {min}–{max} pulg. Verifica que usaste el campo correcto.',
   'measure.waist': 'Cintura',
   'measure.neck': 'Cuello',
   'measure.hip': 'Cadera',

@@ -39,6 +39,35 @@ export interface ProgressionRule {
   incrementLb: number;
 }
 
+/**
+ * Reps-in-reserve is a 0–5 integer scale: 0 is to failure, 5 is the practical
+ * ceiling (anything easier is logged as 5). Nothing enforced this before — the
+ * field was a bare `number` written straight from a numeric text input on both
+ * clients, and `firestore.rules` cannot help, because rules have no way to
+ * iterate a list and therefore never validate individual sets at all. A set
+ * was found stored with `rir: 8`.
+ */
+export const RIR_MIN = 0;
+export const RIR_MAX = 5;
+
+/**
+ * Coerce user input to a storable RIR, or `undefined` to leave it unset.
+ * Non-numeric, negative and non-integer input becomes `undefined` rather than
+ * a silently rounded value — a half-rep-in-reserve is not a thing the user
+ * meant, and guessing which whole number they intended is worse than asking
+ * again. Values above the ceiling clamp to it, since "very easy" is the one
+ * intent that IS unambiguous.
+ */
+export function clampRir(value: unknown): number | undefined {
+  // Guard emptiness BEFORE coercion: Number('') and Number(null) are both 0,
+  // and 0 is a legitimate RIR meaning "to failure". Without this, clearing the
+  // field would silently record the most aggressive value on the scale.
+  if (value == null || value === '') return undefined;
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < RIR_MIN) return undefined;
+  return Math.min(RIR_MAX, n);
+}
+
 export interface WorkoutSet {
   kind: SetKind;
   group?: number;
@@ -46,7 +75,7 @@ export interface WorkoutSet {
   reps?: number;
   /** Hold duration in seconds — for `time` logStyle exercises. */
   durationSec?: number;
-  /** Reps in reserve (0 = to failure). */
+  /** Reps in reserve (0 = to failure), 0–5. Write through {@link clampRir}. */
   rir?: number;
   done?: boolean;
 }
@@ -87,6 +116,38 @@ export interface WorkoutSession {
 }
 
 // ─── Exercise catalog ───────────────────────────────────────────
+
+/**
+ * Comparison key for an exercise name. Exercise identity is a per-user
+ * Firestore doc id with a free-text `name`; nothing dedupes, so "Bench Press",
+ * "bench press" and "Bench  Press" become three catalog rows and three
+ * disjoint progression histories.
+ *
+ * This collapses only what is unambiguously the same string — case, surrounding
+ * and repeated whitespace, and trailing punctuation. It deliberately does NOT
+ * try to equate "DB Incline Chest Press" with "Incline Dumbbell Press": that
+ * needs abbreviation expansion and fuzzy token matching, and a false positive
+ * merges two real exercises and destroys the progression history of both.
+ * Near-duplicates should be SUGGESTED to the user, never merged silently.
+ */
+export function exerciseNameKey(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[.,/#!$%^&*;:{}=_`~()]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+/** The existing catalog entry an incoming name would duplicate, if any. */
+export function findDuplicateExercise<T extends { id?: string; name: string }>(
+  name: string,
+  catalog: readonly T[],
+): T | undefined {
+  const key = exerciseNameKey(name);
+  if (!key) return undefined;
+  return catalog.find((e) => exerciseNameKey(e.name) === key);
+}
+
 export interface Exercise {
   id?: string;
   name: string;

@@ -6,6 +6,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { findDuplicateExercise } from '@macrolog/core';
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { WorkoutStore } from '../../services/workout-store.service';
@@ -232,8 +233,19 @@ export class ExercisesManagerComponent {
         defaultCues: ed.cuesText.split('\n').map((c) => c.trim()).filter(Boolean),
         logStyle: ed.logStyle,
       };
-      if (ed.id) await this.workout.updateExercise(ed.id, draft);
-      else await this.workout.addExercise(draft);
+      if (ed.id) {
+        await this.workout.updateExercise(ed.id, draft);
+      } else {
+        // Reuse an entry whose name differs only by case or spacing rather
+        // than minting a second doc id — progression history is keyed by
+        // exerciseId, so a duplicate splits the chart permanently.
+        const dupe = findDuplicateExercise(draft.name, this.workout.exercises());
+        if (dupe) {
+          this.editing.set(null);
+          return;
+        }
+        await this.workout.addExercise(draft);
+      }
       this.editing.set(null);
     } finally {
       this.busy.set(false);

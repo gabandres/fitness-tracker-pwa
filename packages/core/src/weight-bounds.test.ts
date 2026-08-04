@@ -5,6 +5,8 @@ import {
   WEIGHT_MIN_LB,
   WEIGHT_MAX_LB,
   WEIGHT_DELTA_WARN_LB,
+  WEIGH_IN_MIN_DATE_KEY,
+  isStorableWeighInDate,
 } from './weight-bounds';
 
 describe('checkWeightEntry', () => {
@@ -45,5 +47,36 @@ describe('isStorableWeight', () => {
 
   it('accepts a realistic weight', () => {
     expect(isStorableWeight(180)).toBe(true);
+  });
+});
+
+describe('isStorableWeighInDate', () => {
+  const TODAY = '2026-08-04';
+
+  it('rejects a future weigh-in — you cannot have weighed yourself tomorrow', () => {
+    expect(isStorableWeighInDate('2026-08-05', TODAY)).toBe(false);
+    expect(isStorableWeighInDate('2027-01-01', TODAY)).toBe(false);
+  });
+
+  it('accepts today and ordinary past dates, including real imported history', () => {
+    expect(isStorableWeighInDate(TODAY, TODAY)).toBe(true);
+    expect(isStorableWeighInDate('2026-07-12', TODAY)).toBe(true);
+    // 2017 and 2022 rows are OLD, not malformed: a genuine import can carry
+    // them, so the date gate must not be what removes them.
+    expect(isStorableWeighInDate('2017-06-22', TODAY)).toBe(true);
+    expect(isStorableWeighInDate('2022-09-13', TODAY)).toBe(true);
+  });
+
+  it('rejects a mistyped year below the floor', () => {
+    expect(isStorableWeighInDate('0217-06-22', TODAY)).toBe(false);
+    expect(isStorableWeighInDate('1017-06-22', TODAY)).toBe(false);
+    expect(isStorableWeighInDate('1999-12-31', TODAY)).toBe(false);
+    expect(isStorableWeighInDate(WEIGH_IN_MIN_DATE_KEY, TODAY)).toBe(true);
+  });
+
+  it('rejects anything that is not a YYYY-MM-DD key', () => {
+    for (const bad of ['', '2026-8-4', '2026/08/04', 'today', '2026-08-04T00:00:00Z']) {
+      expect(isStorableWeighInDate(bad, TODAY)).toBe(false);
+    }
   });
 });

@@ -40,6 +40,9 @@ export * from './tier-limits';
 // mirror, store backstop). Distinct from ./macro-heuristic's CALC_WEIGHT_*
 // input range; see the header of ./weight-bounds.
 export * from './weight-bounds';
+// Per-field tape-measurement bands, in inches. One shared 0–200 range could
+// not tell a 15in chest from a 15in neck; these can.
+export * from './measurement-bounds';
 // Health Sync Phase 1 — pure mapping layer (weight two-way). Types + lb↔kg +
 // same-day dedup + conflict policy shared by the iOS/Android health adapters
 // (apps/mobile/src/lib/health.ts). No native imports; the adapter + settings
@@ -101,6 +104,15 @@ export { normalizeClusterGroups } from './cluster-groups';
 // Finish-boundary guard: fill a logged set's missing load from its siblings
 // (both apps — ADR-0012). Function-only, so the ./workout types stay un-barreled.
 export { fillMissingClusterLoads } from './workout';
+// Set/exercise validation shared by both loggers — same function-only rule as
+// above, so the ./workout types stay un-barreled.
+export {
+  RIR_MAX,
+  RIR_MIN,
+  clampRir,
+  exerciseNameKey,
+  findDuplicateExercise,
+} from './workout';
 // Workout doc → domain read mappers (both adapters — arch review E).
 // Function-only export; the ./workout types they return stay un-barreled and
 // each frontend assigns the result to its own structurally-identical type.

@@ -57,3 +57,38 @@ export function checkWeightEntry(weight: number, prev?: number | null): WeightCh
 export function isStorableWeight(weight: number): boolean {
   return Number.isFinite(weight) && weight >= WEIGHT_ABS_MIN_LB && weight <= WEIGHT_ABS_MAX_LB;
 }
+
+// ─── Weigh-in DATES ─────────────────────────────────────────────
+// The value was bounded; the date never was. `dailyWeights/{dateKey}` accepted
+// any key, so a mistyped or mis-imported year lands a weigh-in decades away
+// from the rest of the series. That matters more than it looks: the measured
+// TDEE window is bounded by ENTRY COUNT, not by calendar date, so an ancient
+// row stays inside the window indefinitely — and in a least-squares fit the
+// most distant x carries the most leverage over the slope. The window
+// semantics are deliberately left alone (a known, separately-scoped issue);
+// this stops the bad rows being created in the first place.
+
+/** No weigh-in may predate this. Not a guess at when the user was born — a
+ *  floor low enough to permit any real imported history while catching a
+ *  mistyped year (0217, 1017, 2917). */
+export const WEIGH_IN_MIN_DATE_KEY = '2000-01-01';
+
+/** `YYYY-MM-DD`, the only shape `dailyWeights` doc ids take. Compared as
+ *  strings on purpose: that ordering is identical to date ordering for this
+ *  format, and it is the one comparison `firestore.rules` can also make. */
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * True when a weigh-in date is storable: well-formed, not before
+ * {@link WEIGH_IN_MIN_DATE_KEY}, and not in the future.
+ *
+ * Future dates are always wrong — you cannot have weighed yourself tomorrow —
+ * and they are the more damaging half, because they extend the regression's x
+ * range past today and drag the projected trend with them. `todayKey` is a
+ * parameter so the caller supplies its own local date rather than this module
+ * assuming a timezone.
+ */
+export function isStorableWeighInDate(dateKey: string, todayKey: string): boolean {
+  if (!DATE_KEY_RE.test(dateKey)) return false;
+  return dateKey >= WEIGH_IN_MIN_DATE_KEY && dateKey <= todayKey;
+}

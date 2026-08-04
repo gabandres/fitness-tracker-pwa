@@ -106,6 +106,37 @@ available.
   this machine (firebase-tools requires **Java 21+**; installed JDK is older), so
   the rules change is deployed and green in Firebase's own compiler but has no
   emulator test behind it.
+- **Input validation on four unguarded write paths** (2026-08-04). The web half
+  is live; the mobile half is on `main` and in no binary. All four rules were
+  shared in `packages/core` and mirrored in `firestore.rules` where rules can
+  express them.
+  - **RIR** was a bare `number` written straight from a numeric text input on
+    both clients (a set was stored with `rir: 8`). Now a 0–5 integer via
+    `clampRir`. **Rules cannot help here** — Firestore rules have no way to
+    iterate a list, so individual sets inside `exercises[]` are unvalidated by
+    construction and the clamp *has* to be client-side. Scale chosen 2026-08-04;
+    nothing in the repo had ever defined one.
+  - **Measurements** had ONE range for every field (`> 0 && < 200`), which is
+    why a 15in chest stored fine — 15 is absurd for a chest and ordinary for a
+    neck, and no single range can tell them apart. Per-field bands now, in
+    `packages/core/src/measurement-bounds.ts` **and mirrored in the rules —
+    keep the two in step.**
+  - **Weigh-in dates** were never bounded, only weights were. A mistyped year
+    plants a row decades from the series, and because the measured-TDEE window
+    is bounded by ENTRY COUNT it stays in the regression indefinitely with
+    maximum leverage on the slope. Rejected at the write path now. **The window
+    semantics are deliberately unchanged** — a known, separately-scoped issue;
+    do not "fix" it without deciding to move every sparse logger's target.
+  - **Exercise duplicates** differing only by case/spacing now reuse the
+    existing catalog entry instead of minting a second doc id (progression is
+    keyed by `exerciseId`, so a duplicate splits the chart permanently).
+  **The rules got STRICTER, and clients in the wild predate the client-side
+  checks.** A user on App Store 1.0.0 (or a stale web tab) who enters an
+  out-of-band measurement now gets a permission-denied instead of a friendly
+  message. That is the intended enforcement, but it lands as a generic error
+  until the next mobile binary ships. **Deliberately NOT done:** surfacing
+  `tdee.outliersDropped` — it is computed on every TDEE run and read by no UI on
+  either client, so the user still cannot see which weigh-in was discarded.
 - **Sentry + Google sign-in diagnostics (mobile)** — **Live on Android in vc 6
   (alpha track, 2026-08-03 — §1). Still in no iOS binary**: build `f3e5daaf`
   contains it but has not been submitted to TestFlight. Originally: the Expo app had no error

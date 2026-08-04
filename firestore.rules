@@ -113,17 +113,39 @@ service cloud.firestore {
                && data.hiddenRecentLabels.size() <= 200));
     }
 
+    // ─── Weigh-in date key ──────────────────────────────────────
+    // `dailyWeights` doc ids are YYYY-MM-DD. Mirrors isStorableWeighInDate in
+    // packages/core/src/weight-bounds.ts.
+    //
+    // The 2-day slack is deliberate and load-bearing: `request.time` is UTC
+    // while the key is the user's LOCAL date, so a user in UTC+13 can
+    // legitimately write a key one day ahead of UTC. Comparing against bare
+    // UTC "today" would make logging today's weight impossible for them.
+    // Two days covers UTC-12..UTC+14 with room and still rejects a mistyped
+    // year.
+    function isPlausibleWeighInDateKey(dateKey) {
+      return dateKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && dateKey >= '2000-01-01'
+          && timestamp.date(int(dateKey[0:4]), int(dateKey[5:7]), int(dateKey[8:10]))
+             <= request.time + duration.value(2, 'd');
+    }
+
     // ─── Measurement schema ─────────────────────────────────────
     function isValidMeasurement(data) {
       return data.keys().hasAll(['timestamp'])
           && data.keys().hasOnly(['timestamp', 'waist', 'chest', 'bicep', 'hip', 'neck'])
           && data.timestamp is timestamp
           && data.keys().size() >= 2
-          && (!('waist' in data.keys()) || (data.waist is number && data.waist > 0 && data.waist < 200))
-          && (!('chest' in data.keys()) || (data.chest is number && data.chest > 0 && data.chest < 200))
-          && (!('bicep' in data.keys()) || (data.bicep is number && data.bicep > 0 && data.bicep < 200))
-          && (!('hip' in data.keys()) || (data.hip is number && data.hip > 0 && data.hip < 200))
-          && (!('neck' in data.keys()) || (data.neck is number && data.neck > 0 && data.neck < 200));
+          // Per-field bands in INCHES, mirroring MEASUREMENT_BOUNDS_IN in
+          // packages/core/src/measurement-bounds.ts — keep the two in step.
+          // One shared 0–200 range let a 15in chest through (a neck value in
+          // the chest field); no single range can catch that, because 15 is
+          // absurd for a chest and ordinary for a neck.
+          && (!('waist' in data.keys()) || (data.waist is number && data.waist >= 15 && data.waist <= 80))
+          && (!('chest' in data.keys()) || (data.chest is number && data.chest >= 20 && data.chest <= 80))
+          && (!('bicep' in data.keys()) || (data.bicep is number && data.bicep >= 5 && data.bicep <= 30))
+          && (!('hip' in data.keys()) || (data.hip is number && data.hip >= 20 && data.hip <= 80))
+          && (!('neck' in data.keys()) || (data.neck is number && data.neck >= 8 && data.neck <= 30));
     }
 
     // ─── Preset schema ────────────────────────────────────────
@@ -498,9 +520,17 @@ service cloud.firestore {
       }
 
       // Daily weights — one weight per calendar day.
+      // The doc id IS the date key (YYYY-MM-DD). The VALUE was bounded here
+      // but the DATE never was, so a mistyped year could plant a weigh-in
+      // decades from the rest of the series — and the measured-TDEE window is
+      // bounded by entry count, not by calendar date, so such a row stays in
+      // the regression indefinitely with maximum leverage on the slope.
+      // String comparison is date comparison for YYYY-MM-DD. Mirrors
+      // WEIGH_IN_MIN_DATE_KEY / isStorableWeighInDate in packages/core.
       match /dailyWeights/{dateKey} {
         allow read:   if isOwner(uid) || isAdmin();
         allow write:  if isOwner(uid)
+            && isPlausibleWeighInDateKey(dateKey)
             && request.resource.data.keys().hasAll(['weight'])
             && request.resource.data.keys().hasOnly(['weight'])
             && request.resource.data.weight is number

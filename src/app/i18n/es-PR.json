@@ -1656,6 +1656,7 @@
       "fieldBicep": "Bícep",
       "fieldHip": "Cadera",
       "measurementError": "Pon por lo menos una medida.",
+      "measurementRange": "{{field}} se ve raro — se espera {{min}}–{{max}} pulg. Verifica que usaste el campo correcto.",
       "saving": "Guardando…",
       "addMeasurement": "Añadir medida",
       "editMeasurement": "Editar medida",

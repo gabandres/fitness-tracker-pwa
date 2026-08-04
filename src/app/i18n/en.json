@@ -1656,6 +1656,7 @@
       "fieldBicep": "Bicep",
       "fieldHip": "Hip",
       "measurementError": "Enter at least one measurement.",
+      "measurementRange": "{{field}} looks off — expected {{min}}–{{max}} in. Check you used the right field.",
       "saving": "Saving…",
       "addMeasurement": "Add measurement",
       "editMeasurement": "Edit measurement",

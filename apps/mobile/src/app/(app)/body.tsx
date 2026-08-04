@@ -11,7 +11,13 @@ import {
 } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { type Measurement, parseYmd, checkWeightEntry } from '@macrolog/core';
+import {
+  type Measurement,
+  MEASUREMENT_BOUNDS_IN,
+  implausibleMeasurementFields,
+  parseYmd,
+  checkWeightEntry,
+} from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { Sparkline } from '@/components/Sparkline';
@@ -309,7 +315,18 @@ function MeasurementModal({
     if (n != null) acc[f.key] = n;
     return acc;
   }, {});
-  const valid = Object.keys(entry).length > 0;
+  // Per-field plausibility, shared with the PWA and mirrored in
+  // firestore.rules. A 15in chest is a neck reading in the wrong field, and it
+  // silently moves the body-fat estimate — one shared range cannot catch it.
+  const implausible = implausibleMeasurementFields(entry);
+  const valid = Object.keys(entry).length > 0 && implausible.length === 0;
+  const rangeHint = implausible.length
+    ? t('body.measureRange', {
+        field: t(MEASURE_FIELDS.find((f) => f.key === implausible[0])!.labelKey),
+        min: MEASUREMENT_BOUNDS_IN[implausible[0]][0],
+        max: MEASUREMENT_BOUNDS_IN[implausible[0]][1],
+      })
+    : null;
 
   async function save() {
     if (!valid || busy) return;
@@ -324,7 +341,7 @@ function MeasurementModal({
   return (
     <BottomSheet visible={visible} onClose={onClose}>
           <Text style={styles.sheetTitle}>{t('body.addMeasurement')}</Text>
-          <Text style={styles.sheetHint}>{t('body.measureHint')}</Text>
+          <Text style={styles.sheetHint}>{rangeHint ?? t('body.measureHint')}</Text>
           <View style={styles.measureGrid}>
             {MEASURE_FIELDS.map((f) => (
               <View key={f.key} style={styles.measureField}>

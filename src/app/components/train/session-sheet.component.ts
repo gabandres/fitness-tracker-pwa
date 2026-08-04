@@ -8,6 +8,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { RIR_MAX, RIR_MIN, clampRir } from '@macrolog/core';
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
@@ -185,7 +186,8 @@ const SAVE_DEBOUNCE_MS = 800;
                 }
                 @if (showRir(set)) {
                   <span class="v2-caption" style="color: var(--v2-ink-muted);">@</span>
-                  <input type="number" inputmode="numeric" step="1" min="0"
+                  <input type="number" inputmode="numeric" step="1"
+                    [min]="RIR_MIN" [max]="RIR_MAX"
                     class="v2-input v2-input--num" style="width: 3rem;"
                     [attr.aria-label]="t('train.rir')" [attr.placeholder]="t('train.rirShort')"
                     [value]="set.rir ?? ''"
@@ -261,6 +263,11 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
   private readonly store = inject(FitnessStore);
   private readonly workout = inject(WorkoutStore);
   private readonly i18n = inject(TranslationService);
+
+  /** Exposed for the RIR input's min/max attrs — the scale is defined once in
+   *  @macrolog/core, not duplicated in a template. */
+  protected readonly RIR_MIN = RIR_MIN;
+  protected readonly RIR_MAX = RIR_MAX;
 
   /** When set, the sheet edits this already-completed session instead of
    *  the live active one: no "finish" lifecycle, just save-and-close. */
@@ -465,7 +472,10 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
     e: Event,
   ): void {
     const raw = (e.target as HTMLInputElement).value;
-    const num = raw === '' ? undefined : Number(raw);
+    // RIR is a bounded 0–5 scale; every other field is a free number. Routed
+    // through the shared clamp so the web and Expo loggers cannot disagree
+    // about what is storable (a set with rir: 8 was found in real data).
+    const num = field === 'rir' ? clampRir(raw) : raw === '' ? undefined : Number(raw);
     this.draft.update((exs) => {
       const next = exs.map((ex, i) => {
         if (i !== exIdx) return ex;
