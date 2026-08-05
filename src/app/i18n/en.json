@@ -1,6 +1,8 @@
 {
   "common": {
-    "appTitle": "Ignia"
+    "appTitle": "Ignia",
+    "chunkFailed": "This part of the app couldn’t load. It’s usually a new version being installed — reloading fixes it.",
+    "reload": "Reload"
   },
   "calcVariants": {
     "tdeeWomen": {

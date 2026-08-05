@@ -44,11 +44,13 @@ import { BodyComponent } from './components/body/body.component';
 import { TrainComponent } from './components/train/train.component';
 import { UiTabBar, type UiTab } from './components/ui/tab-bar.component';
 import { UiBrandLoader } from './components/ui/brand-loader.component';
+import { DeferErrorComponent } from './components/ui/defer-error.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
   imports: [
+    DeferErrorComponent,
     UiBrandLoader,
     SignInComponent,
     OnboardingComponent,
@@ -117,34 +119,34 @@ import { UiBrandLoader } from './components/ui/brand-loader.component';
 
         @if (route() === 'calculator') {
           @defer (on immediate) { <app-calculator /> }
-          @placeholder { <div class="py-20 text-center caption">…</div> }
+          @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
         } @else if (route() === 'macros') {
           @defer (on immediate) { <app-macros-page /> }
-          @placeholder { <div class="py-20 text-center caption">…</div> }
+          @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
         } @else if (route() === 'faq') {
           @defer (on immediate) { <app-faq /> }
-          @placeholder { <div class="py-20 text-center caption">…</div> }
+          @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
         } @else if (route() === 'vs') {
           @defer (on immediate) { <app-vs-page /> }
-          @placeholder { <div class="py-20 text-center caption">…</div> }
+          @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
         } @else if (route() === 'publicProfile') {
           @defer (on immediate) { <app-public-profile /> }
-          @placeholder { <div class="py-20 text-center caption">…</div> }
+          @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
         } @else if (route() === 'transformations') {
           @defer (on immediate) { <app-transformations /> }
-          @placeholder { <div class="py-20 text-center caption">…</div> }
+          @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
         } @else if (route() === 'privacy') {
           @defer { <app-privacy /> }
-          @placeholder { <div class="py-20 text-center caption">…</div> }
+          @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
         } @else if (route() === 'terms') {
           @defer { <app-terms /> }
-          @placeholder { <div class="py-20 text-center caption">…</div> }
+          @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
         } @else if (route() === 'changelog') {
           @defer { <app-changelog /> }
-          @placeholder { <div class="py-20 text-center caption">…</div> }
+          @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
         } @else if (route() === 'status') {
           @defer { <app-status /> }
-          @placeholder { <div class="py-20 text-center caption">…</div> }
+          @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
         } @else if (route() === 'admin' && isDesktop()) {
           <!-- Admin panel is desktop-only by design — the dense tables
                and multi-tab layout don't pack onto a phone screen.
@@ -162,11 +164,11 @@ import { UiBrandLoader } from './components/ui/brand-loader.component';
             </div>
           } @else {
             @defer (on immediate) { <app-admin /> }
-            @placeholder { <div class="py-20 text-center caption">…</div> }
+            @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
           }
         } @else if (route() === 'notFound') {
           @defer { <app-not-found /> }
-          @placeholder { <div class="py-20 text-center caption">…</div> }
+          @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
         } @else if (route() === 'landing' && auth.ready() && !auth.isSignedIn()) {
           <!-- Public marketing surface at root. Bypasses the masthead +
                auth gate so a non-signed-in visitor sees product pitch,
@@ -175,7 +177,7 @@ import { UiBrandLoader } from './components/ui/brand-loader.component';
                Landing ships as its own chunk so returning users who
                deep-link to /app don't download the marketing code. -->
           @defer (on immediate) { <app-landing /> }
-          @placeholder { <div class="py-20 text-center caption">…</div> }
+          @placeholder { <div class="py-20 text-center caption">…</div> } @error { <app-defer-error /> }
         } @else {
 
         <!-- Impersonation banner. Renders above the masthead whenever an
@@ -344,7 +346,7 @@ import { UiBrandLoader } from './components/ui/brand-loader.component';
                   (cancelled)="onOnboardingV2Cancelled()" />
               } @placeholder {
                 <div class="py-20 text-center caption">…</div>
-              }
+              } @error { <app-defer-error /> }
             </div>
           } @else {
             <!-- Settings sheet overlay. Deferred so the settings chunk
@@ -357,7 +359,7 @@ import { UiBrandLoader } from './components/ui/brand-loader.component';
                   (close)="showSettings.set(false)"
                   (redoOnboarding)="goToOnboardingV2()"
                   (themeSelect)="setTheme($event)" />
-              }
+              } @error { <app-defer-error /> }
             }
             <!-- v2 authed app. Entry sheet is mounted once and
                  self-gates via the entry-form-manager mode signal —
@@ -379,7 +381,7 @@ import { UiBrandLoader } from './components/ui/brand-loader.component';
                       (bodyRequested)="onBodyRequestedV2()" />
                   } @placeholder {
                     <div class="py-20 text-center caption">…</div>
-                  }
+                  } @error { <app-defer-error /> }
                 }
                 @case ('historyDay') {
                   @defer (on immediate) {
@@ -389,7 +391,7 @@ import { UiBrandLoader } from './components/ui/brand-loader.component';
                       (bodyRequested)="onBodyRequestedV2()" />
                   } @placeholder {
                     <div class="py-20 text-center caption">…</div>
-                  }
+                  } @error { <app-defer-error /> }
                 }
                 @case ('trends') {
                   @defer (on immediate) {
@@ -399,7 +401,7 @@ import { UiBrandLoader } from './components/ui/brand-loader.component';
                       (bodyRequested)="onBodyRequestedV2()" />
                   } @placeholder {
                     <div class="py-20 text-center caption">…</div>
-                  }
+                  } @error { <app-defer-error /> }
                 }
                 @case ('body') {
                   @defer (on immediate) {
@@ -409,7 +411,7 @@ import { UiBrandLoader } from './components/ui/brand-loader.component';
                       (bodyRequested)="onBodyRequestedV2()" />
                   } @placeholder {
                     <div class="py-20 text-center caption">…</div>
-                  }
+                  } @error { <app-defer-error /> }
                 }
                 @case ('train') {
                   @defer (on immediate) {
@@ -418,7 +420,7 @@ import { UiBrandLoader } from './components/ui/brand-loader.component';
                       (historyRequested)="onHistoryRequestedV2()" />
                   } @placeholder {
                     <div class="py-20 text-center caption">…</div>
-                  }
+                  } @error { <app-defer-error /> }
                 }
                 @default {
                   <app-today
