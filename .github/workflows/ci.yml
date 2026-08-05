@@ -74,6 +74,54 @@ jobs:
       - name: Unit tests
         run: npx ng test --watch=false
 
+      # `ng test` covers the ANGULAR APP ONLY — it does not pick up
+      # packages/core's specs. Before this step, 563 core tests (TDEE, targets,
+      # body-fat, date math, the Firestore mappers both apps share) passed on a
+      # workstation and gated nothing: a PR could break the Navy body-fat
+      # formula and go green.
+      - name: Core tests (packages/core)
+        run: npm --prefix packages/core test
+
+      - name: Core typecheck (packages/core)
+        run: npm --prefix packages/core run typecheck
+
+      # apps/mobile is not a build target here (EAS builds the binaries), but a
+      # typecheck is cheap and catches the cross-app breakage that matters:
+      # packages/core is imported by BOTH frontends, so a core change that
+      # compiles for the PWA can still break the Expo app.
+      - name: Mobile typecheck (apps/mobile)
+        run: npx tsc --noEmit -p apps/mobile/tsconfig.json
+
+      # The emulator-backed suites. firebase-tools refuses to boot an emulator
+      # on a JDK older than 21 (see docs/DEV_ENVIRONMENT.md §0 — the same trap
+      # exists on the owner's workstation, where `java` resolves to 17).
+      - name: Set up JDK 21 (Firestore emulator)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # firestore.rules IS the access-control layer — there is no app server —
+      # so an unverified rules change is an unverified security boundary.
+      # Needs functions deps regardless of paths-filter: the suite lives there.
+      - name: Install functions dependencies (rules tests)
+        if: steps.changes.outputs.functions != 'true'
+        run: npm ci --prefix functions
+
+      # firebase-tools is deliberately NOT a repo dependency — it is a global
+      # CLI on the owner's workstation, and vendoring it would add a very large
+      # tree to every `npm ci`. CI has no such global, so install it here,
+      # pinned to the major the workstation runs (15.x as of 2026-08-05) so the
+      # emulator that gates a PR is the emulator the owner tested against.
+      - name: Install firebase-tools (emulator runner)
+        run: npm i -g firebase-tools@^15
+
+      - name: Firestore rules tests
+        run: npm run test:rules
+
+      - name: Ledger core tests (emulator)
+        run: npm run test:ledger
+
       # Verify functions compile on PRs. On push we skip this: the firebase
       # deploy predeploy hook (`npm --prefix functions run build`) compiles
       # them, so building here too would be wasted work.

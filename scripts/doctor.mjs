@@ -39,6 +39,10 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PROJECT = 'fitness-tracker-gb-1775407101';
+/** The Firebase Android app and the Play package it maps to. Both are public
+ *  identifiers (ADR-0002); the credential that reads Play is git-ignored. */
+const ANDROID_APP_ID = '1:647810616435:android:a6f4c5f9e200b3332c2e06';
+const ANDROID_PACKAGE = 'fit.ignia.app';
 
 const argv = process.argv.slice(2);
 const NO_CLOUD = argv.includes('--no-cloud');
@@ -657,6 +661,123 @@ function checkSchedulerJobs() {
   }
 }
 
+/**
+ * The cert Google Play actually ships is registered in Firebase.
+ *
+ * This exists because on 2026-08-05 Google Sign-In was broken for 100% of Play
+ * installs for three days, twice, and no test in this repo could have caught
+ * it — the defect lived entirely in cloud config. Android authorizes a caller
+ * by *package name + signing certificate*. Play re-signs every AAB, so the cert
+ * a user's device presents is one Google holds, not the upload key. Register
+ * the wrong one and Play Services rejects the call with DEVELOPER_ERROR before
+ * Firebase Auth is ever reached.
+ *
+ * The trap that cost the second attempt: the Play Console leads with the key it
+ * will use for your NEXT upload, and says nothing about which key signed an
+ * existing release. Registering the fingerprint the console shows first was a
+ * no-op — the live build was signed by the *previous* key. So this check does
+ * NOT read the console's headline key. It asks `generatedApks/{versionCode}`
+ * which certificate Play actually generated the shipping APKs with, per live
+ * track, and asserts that exact hash is on the Firebase app.
+ *
+ * Compares SHA-256 because that is what the androidpublisher API returns;
+ * Firebase holds SHA-1 for OAuth and SHA-256 for Play Integrity, and both must
+ * be present for a cert that ships.
+ */
+async function checkPlaySigningCerts() {
+  const name = 'every cert Play ships is registered in Firebase';
+  const keyPath = 'apps/mobile/credentials/play-service-account.json';
+  if (!has(keyPath)) {
+    return skip(G3, name, `${keyPath} not found (see CLAUDE.local.md)`);
+  }
+
+  // Firebase side first: it needs no Play credentials, so a failure here is
+  // unambiguous rather than "one of two clouds said no".
+  const shaRes = sh('npx', [
+    'firebase', 'apps:android:sha:list', ANDROID_APP_ID, '--project', PROJECT, '--json',
+  ]);
+  const shaOut = useOutput(G3, name, shaRes, { skipHint: 'firebase CLI is not installed' });
+  if (shaOut === null) return;
+  const shaJson = parseJsonLoose(shaOut);
+  const registered = new Set(
+    (shaJson?.result ?? [])
+      .map((c) => String(c.shaHash ?? '').toLowerCase().replace(/:/g, ''))
+      .filter(Boolean),
+  );
+  if (!registered.size) {
+    return skip(G3, name, 'firebase returned no parseable SHA list (`firebase login`?)');
+  }
+
+  let JWT;
+  try {
+    ({ JWT } = await import('google-auth-library'));
+  } catch {
+    return skip(G3, name, 'google-auth-library not installed');
+  }
+
+  const key = JSON.parse(read(keyPath));
+  const client = new JWT({
+    email: key.client_email,
+    key: key.private_key,
+    scopes: ['https://www.googleapis.com/auth/androidpublisher'],
+  });
+  const base = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${ANDROID_PACKAGE}`;
+
+  let tracks;
+  try {
+    const edit = await client.request({ url: `${base}/edits`, method: 'POST' });
+    const editId = edit.data.id;
+    try {
+      const res = await client.request({ url: `${base}/edits/${editId}/tracks` });
+      tracks = res.data.tracks ?? [];
+    } finally {
+      await client.request({ url: `${base}/edits/${editId}`, method: 'DELETE' }).catch(() => {});
+    }
+  } catch (e) {
+    return skip(G3, name, `androidpublisher refused the request: ${e.message}`);
+  }
+
+  // Every versionCode currently rolled out on any track — production and the
+  // testing tracks alike. A tester hitting DEVELOPER_ERROR on alpha is the same
+  // outage as a user hitting it on production; only the blast radius differs.
+  const live = [];
+  for (const t of tracks) {
+    for (const r of t.releases ?? []) {
+      if (r.status === 'draft') continue;
+      for (const vc of r.versionCodes ?? []) live.push({ track: t.track, vc });
+    }
+  }
+  if (!live.length) return skip(G3, name, 'no rolled-out release on any track');
+
+  const problems = [];
+  const seen = [];
+  for (const { track, vc } of live) {
+    let groups;
+    try {
+      const res = await client.request({ url: `${base}/generatedApks/${vc}` });
+      groups = res.data.generatedApks ?? [];
+    } catch (e) {
+      problems.push(`${track} vc ${vc}: could not read generatedApks (${e.message})`);
+      continue;
+    }
+    for (const g of groups) {
+      const hash = String(g.certificateSha256Hash ?? '').toLowerCase().replace(/:/g, '');
+      if (!hash) continue;
+      seen.push(`${track} vc ${vc} → ${hash.slice(0, 12)}…`);
+      if (!registered.has(hash)) {
+        problems.push(
+          `${track} vc ${vc} ships APKs signed by ${hash} — NOT registered on the Firebase app. ` +
+            'Google Sign-In returns DEVELOPER_ERROR for every install of it. Fix: ' +
+            `npx firebase apps:android:sha:create ${ANDROID_APP_ID} <sha> --project ${PROJECT}`,
+        );
+      }
+    }
+  }
+
+  if (problems.length) fail(G3, name, problems.join(' · '));
+  else pass(G3, name, `${seen.length} shipping cert(s) all registered — ${seen.join(', ')}`);
+}
+
 function checkSecretVersions() {
   const name = `active secret versions <= ${MAX_SECRET_VERSIONS}`;
   const listRes = sh('gcloud', ['secrets', 'list', '--project', PROJECT, '--format=json']);
@@ -1033,6 +1154,9 @@ if (NO_CLOUD) {
   guard(G3, `Cloud Scheduler jobs <= ${MAX_SCHEDULER_JOBS}`, checkSchedulerJobs);
   guard(G3, `active secret versions <= ${MAX_SECRET_VERSIONS}`, checkSecretVersions);
   guard(G3, 'STATUS.md §3 matches the EAS iOS quota', checkEasQuota);
+  await checkPlaySigningCerts().catch((e) =>
+    fail(G3, 'every cert Play ships is registered in Firebase', `check threw: ${e.message}`),
+  );
   await checkSentryToken().catch((e) =>
     fail(G3, 'SENTRY_AUTH_TOKEN authenticates', `check threw: ${e.message}`),
   );
