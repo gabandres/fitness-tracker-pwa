@@ -9,11 +9,13 @@ import {
   createUserWithEmailAndPassword,
   fetchSignInMethodsForEmail,
   linkWithCredential,
+  linkWithPopup,
   signInWithEmailAndPassword,
   sendEmailVerification,
   signInWithPopup,
   onAuthStateChanged,
   signOut as fbSignOut,
+  unlink as fbUnlink,
   updateProfile,
 } from '@angular/fire/auth';
 import { AnalyticsService } from './analytics.service';
@@ -25,6 +27,28 @@ import { TranslationService } from './translation.service';
  * the email at play, and which provider ID already owns the account
  * so we can tell the user "sign in with X to link your Y".
  */
+/** Sign-in methods an account can hold. Mirrors the mobile `LinkableProvider`,
+ *  except mobile's Microsoft is a custom OIDC provider (`oidc.microsoft`)
+ *  because the JS SDK can't validate a brokered `microsoft.com` credential
+ *  outside a popup — a difference that only exists below this type. */
+export type LinkableProvider = 'password' | 'google.com' | 'microsoft.com' | 'apple.com';
+
+/** Why a link attempt failed, in terms the UI can phrase. `credential-in-use`
+ *  is the one that is NOT retryable: that identity is already its own account. */
+export type LinkFailure =
+  | 'cancelled'
+  | 'already-linked'
+  | 'credential-in-use'
+  | 'requires-recent-login'
+  | 'last-provider'
+  | 'failed';
+
+export class LinkError extends Error {
+  constructor(readonly failure: LinkFailure) {
+    super(failure);
+  }
+}
+
 export interface PendingLinkInfo {
   readonly email: string;
   /** Concretely known existing provider, if Firebase's fetchSignInMethods
@@ -365,7 +389,10 @@ export class AuthService {
     let credential: AuthCredential | null = null;
     if (attemptedProvider === 'google.com') {
       credential = GoogleAuthProvider.credentialFromError(err as any);
-    } else if (attemptedProvider === 'microsoft.com') {
+    } else if (attemptedProvider === 'microsoft.com' || attemptedProvider === 'apple.com') {
+      // Both are OAuthProvider-backed, and `signInWithApple` already passes
+      // 'apple.com' in — without this branch that call captured nothing and the
+      // link prompt never appeared for Apple.
       credential = OAuthProvider.credentialFromError(err as any);
     } else if (attemptedProvider === 'password' && passwordOverride) {
       credential = EmailAuthProvider.credential(passwordOverride.email, passwordOverride.password);
@@ -401,6 +428,89 @@ export class AuthService {
         : all.filter((p) => p !== attemptedProvider);
 
     this._pendingLink.set({ email, existingProvider, attemptedProvider, candidateProviders });
+  }
+
+  // ---- Account linking (Settings → sign-in methods) ------------------------
+
+  /**
+   * Sign-in methods currently attached to the account, read off Firebase's own
+   * `providerData` — the only source that stays honest after a link/unlink.
+   *
+   * This is the *proactive* half of linking: `pendingLink` above only fires
+   * when a provider hands back an email that already exists, which never
+   * happens for Apple's Hide My Email relay addresses. Connecting from a
+   * signed-in session is the path that covers those.
+   */
+  readonly linkedProviders = computed<readonly LinkableProvider[]>(() =>
+    (this._user()?.providerData ?? [])
+      .map((p) => p.providerId)
+      .filter(
+        (id): id is LinkableProvider =>
+          id === 'password' ||
+          id === 'google.com' ||
+          id === 'microsoft.com' ||
+          id === 'apple.com',
+      ),
+  );
+
+  /** Attaches another provider to the CURRENT account via its popup. */
+  async linkProvider(providerId: Exclude<LinkableProvider, 'password'>): Promise<void> {
+    const user = this.auth.currentUser;
+    if (!user) throw new LinkError('failed');
+    if (this.linkedProviders().includes(providerId)) throw new LinkError('already-linked');
+    const provider =
+      providerId === 'google.com' ? new GoogleAuthProvider() : new OAuthProvider(providerId);
+    provider.setCustomParameters({ prompt: 'select_account' });
+    if (providerId !== 'google.com') {
+      (provider as OAuthProvider).addScope('email');
+    }
+    try {
+      await linkWithPopup(user, provider);
+      this._user.set(this.auth.currentUser);
+    } catch (err) {
+      throw this.toLinkError(err);
+    }
+  }
+
+  /** Adds an email/password credential to a federated-only account, using the
+   *  account's own email, so the user gains a second way in. */
+  async linkPassword(password: string): Promise<void> {
+    const user = this.auth.currentUser;
+    if (!user?.email) throw new LinkError('failed');
+    try {
+      await linkWithCredential(user, EmailAuthProvider.credential(user.email, password));
+      this._user.set(this.auth.currentUser);
+    } catch (err) {
+      throw this.toLinkError(err);
+    }
+  }
+
+  /** Detaches a provider. Refuses on the last one — Firebase would happily
+   *  leave an account with no way to sign in, which is unrecoverable. */
+  async unlinkProvider(providerId: LinkableProvider): Promise<void> {
+    const user = this.auth.currentUser;
+    if (!user) throw new LinkError('failed');
+    if (this.linkedProviders().length <= 1) throw new LinkError('last-provider');
+    try {
+      await fbUnlink(user, providerId);
+      this._user.set(this.auth.currentUser);
+    } catch (err) {
+      throw this.toLinkError(err);
+    }
+  }
+
+  private toLinkError(err: unknown): LinkError {
+    if (err instanceof LinkError) return err;
+    const code = (err as { code?: string })?.code ?? '';
+    if (code.includes('popup-closed-by-user') || code.includes('cancelled-popup-request')) {
+      return new LinkError('cancelled');
+    }
+    if (code.includes('provider-already-linked')) return new LinkError('already-linked');
+    if (code.includes('credential-already-in-use') || code.includes('email-already-in-use')) {
+      return new LinkError('credential-in-use');
+    }
+    if (code.includes('requires-recent-login')) return new LinkError('requires-recent-login');
+    return new LinkError('failed');
   }
 
   private async completeLinkIfPending(user: User): Promise<void> {

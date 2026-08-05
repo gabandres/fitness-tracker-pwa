@@ -36,6 +36,7 @@ export default function SignIn() {
     appleAvailable,
     signInWithMicrosoft,
     microsoftAvailable,
+    pendingLink,
   } = useAuth();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [firstName, setFirstName] = useState('');
@@ -252,7 +253,17 @@ export default function SignIn() {
               </Animated.View>
             ) : null}
 
-            {error ? (
+            {/* Collision prompt. The provider handed back an email that is
+                already a password account, so the credential is parked in the
+                auth context — signing in below attaches it automatically. This
+                has to outrank the raw error text, which only says "that email
+                already uses a different sign-in method" and leaves the user
+                with nowhere to go. */}
+            {pendingLink ? (
+              <Text style={styles.notice} testID="signin-pending-link">
+                {t('signIn.linkPrompt', { email: pendingLink.email })}
+              </Text>
+            ) : error ? (
               // Selectable so a tester can long-press → copy the native code
               // tail and paste it to us; without a crash reporter that copy is
               // the whole diagnostic channel.

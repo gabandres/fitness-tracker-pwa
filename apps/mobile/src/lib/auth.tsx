@@ -21,16 +21,20 @@ import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 import {
+  type AuthCredential,
+  EmailAuthProvider,
   GoogleAuthProvider,
   OAuthProvider,
   type User,
   createUserWithEmailAndPassword,
   fetchSignInMethodsForEmail,
+  linkWithCredential,
   onAuthStateChanged,
   sendEmailVerification,
   signInWithCredential,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
+  unlink as fbUnlink,
   updateProfile,
 } from 'firebase/auth';
 import {
@@ -39,6 +43,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { httpsCallable } from 'firebase/functions';
@@ -90,6 +95,64 @@ export class MicrosoftSignInError extends Error {
   constructor(readonly code: string) {
     super(code);
   }
+}
+
+/** The provider IDs this app can attach to one account. `oidc.microsoft` is a
+ *  custom OIDC provider, not Firebase's built-in `microsoft.com` — see the
+ *  Microsoft credential below. */
+export type LinkableProvider = 'password' | 'google.com' | 'apple.com' | 'oidc.microsoft';
+
+/**
+ * Coded error for the "add a provider to the account I'm already signed into"
+ * flow. Distinct from the sign-in errors above because the failures are
+ * different in kind: the credential may already belong to a DIFFERENT Firebase
+ * user (`credential-in-use`), which is unrecoverable without merging data and
+ * must never be presented as "try again".
+ */
+export class LinkError extends Error {
+  constructor(
+    readonly code:
+      | 'cancelled'
+      | 'unavailable'
+      | 'no-user'
+      | 'already-linked'
+      | 'credential-in-use'
+      | 'requires-recent-login'
+      | 'last-provider'
+      | 'failed',
+    readonly detail?: string,
+  ) {
+    super(detail ? `${code}: ${detail}` : code);
+  }
+}
+
+/** Maps a Firebase error onto a LinkError. Anything unrecognised stays
+ *  `failed` WITH its native code attached, so an unmapped case is still
+ *  diagnosable from a screenshot rather than collapsing to "try again". */
+function toLinkError(e: unknown): LinkError {
+  if (e instanceof LinkError) return e;
+  const code = (e as { code?: string })?.code ?? '';
+  if (code.includes('provider-already-linked')) return new LinkError('already-linked');
+  // Both codes mean "this Google/Apple identity is already its own account".
+  if (code.includes('credential-already-in-use') || code.includes('email-already-in-use')) {
+    return new LinkError('credential-in-use');
+  }
+  if (code.includes('requires-recent-login')) return new LinkError('requires-recent-login');
+  return new LinkError('failed', describeNativeError(e));
+}
+
+/**
+ * A federated credential captured mid-collision, waiting for the user to prove
+ * they own the account by signing in with the provider that already holds the
+ * email. Mirrors the web `PendingLinkInfo` (src/app/services/auth.service.ts).
+ *
+ * Deliberately in memory only: if the app is killed the user starts over,
+ * which is the right posture — a credential that outlives the session is a
+ * credential that can be linked to the wrong account later.
+ */
+export interface PendingLink {
+  readonly email: string;
+  readonly attemptedProvider: LinkableProvider;
 }
 
 /**
@@ -166,6 +229,121 @@ const hasRealClientId = Object.values(googleAuth ?? {}).some(
 // this because the app also offers Google sign-in.
 const appleSignInAvailable = Platform.OS === 'ios' && !isExpoGo;
 
+/**
+ * Runs the native Google picker and returns a Firebase credential.
+ *
+ * Split out of `signInWithGoogle` so the SAME flow can either start a session
+ * (`signInWithCredential`) or attach Google to the session you already have
+ * (`linkWithCredential`). `where` only tags the Sentry breadcrumbs, so a
+ * failure while linking is distinguishable from one while signing in.
+ */
+async function acquireGoogleCredential(where: 'signInWithGoogle' | 'linkGoogle'): Promise<AuthCredential> {
+  if (isExpoGo || !hasRealClientId) throw new GoogleSignInError('expo-go');
+  const { GoogleSignin, isSuccessResponse, isErrorWithCode, statusCodes } = loadGoogleSignin();
+  let idToken: string | null;
+  try {
+    // Breadcrumbs pin down WHICH step failed — "play services ok" present but
+    // "picker returned" missing means the account picker itself blew up, which
+    // reads very differently from a Firebase rejection.
+    addBreadcrumb('google: start');
+    // Native account picker: Play Services (Android) / Google SDK (iOS).
+    // Returns the id_token in-process — no browser round-trip, so the old
+    // redirect/custom-URI-scheme failures are structurally impossible.
+    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    addBreadcrumb('google: play services ok');
+    const response = await GoogleSignin.signIn();
+    addBreadcrumb('google: picker returned', { success: isSuccessResponse(response) });
+    // A non-success response means the user dismissed the picker.
+    if (!isSuccessResponse(response)) throw new GoogleSignInError('cancelled');
+    idToken = response.data.idToken;
+  } catch (e) {
+    if (e instanceof GoogleSignInError) throw e;
+    if (isErrorWithCode(e)) {
+      if (e.code === statusCodes.SIGN_IN_CANCELLED || e.code === statusCodes.IN_PROGRESS) {
+        throw new GoogleSignInError('cancelled');
+      }
+      if (e.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        throw new GoogleSignInError('play-services');
+      }
+    }
+    // Anything else is unclassified, and the two that matter here look
+    // identical to the user: DEVELOPER_ERROR (code 10) = the build's signing
+    // cert / client ID doesn't match what Google has, and NoCredentialException
+    // = no usable Google account on the device. Carry the native code through
+    // instead of flattening both to "please try again", which is what made this
+    // undiagnosable.
+    console.warn('[google-signin] unclassified failure', e);
+    captureError(e, {
+      where: `${where}.picker`,
+      extra: {
+        nativeCode: (e as { code?: string | number })?.code ?? null,
+        // Which client IDs this build was configured with — a mismatch between
+        // these and what Google has registered for the install's signing cert
+        // is the classic DEVELOPER_ERROR.
+        webClientId: googleAuth?.webClientId ?? null,
+        hasIosClientId: Boolean(googleAuth?.iosClientId),
+      },
+    });
+    throw new GoogleSignInError('failed', describeNativeError(e));
+  }
+  if (!idToken) {
+    // The picker succeeded but handed back no id_token — a configuration
+    // symptom (wrong/missing webClientId), not a user action.
+    captureError(new Error('google: success response without idToken'), {
+      where: `${where}.noToken`,
+      extra: { webClientId: googleAuth?.webClientId ?? null },
+    });
+    throw new GoogleSignInError('no-token');
+  }
+  return GoogleAuthProvider.credential(idToken);
+}
+
+/**
+ * Runs Sign in with Apple and returns the Firebase credential plus Apple's
+ * one-time authorization code (needed server-side to revoke the token on
+ * account deletion — Apple guideline 5.1.1(v)).
+ *
+ * NOTE for the linking path: with **Hide My Email**, Apple returns a
+ * `@privaterelay.appleid.com` address, which will not match the email on a
+ * password account. That is exactly why linking has to be reachable from
+ * Settings — the sign-in collision this repo already handles never fires for a
+ * relay address; Firebase just makes a second, unrelated account.
+ */
+async function acquireAppleCredential(): Promise<{
+  credential: AuthCredential;
+  authorizationCode: string | null;
+}> {
+  if (!appleSignInAvailable) throw new AppleSignInError('expo-go');
+  // Apple requires a nonce; Firebase verifies the raw nonce against the
+  // SHA-256 hash we hand to Apple, so send the hash and keep the raw.
+  const rawNonce = `${Crypto.randomUUID()}${Crypto.randomUUID()}`;
+  const hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, rawNonce);
+  let appleCredential: AppleAuthentication.AppleAuthenticationCredential;
+  try {
+    appleCredential = await AppleAuthentication.signInAsync({
+      // PII minimization: only request EMAIL. We never read
+      // `credential.fullName`, so requesting FULL_NAME would collect a real
+      // name we don't use (and would populate the Firebase Auth displayName).
+      // Email alone is enough to create the account.
+      requestedScopes: [AppleAuthentication.AppleAuthenticationScope.EMAIL],
+      nonce: hashedNonce,
+    });
+  } catch (e) {
+    if ((e as { code?: string }).code === 'ERR_REQUEST_CANCELED') {
+      throw new AppleSignInError('cancelled');
+    }
+    throw new AppleSignInError('failed');
+  }
+  if (!appleCredential.identityToken) throw new AppleSignInError('no-token');
+  return {
+    credential: new OAuthProvider('apple.com').credential({
+      idToken: appleCredential.identityToken,
+      rawNonce,
+    }),
+    authorizationCode: appleCredential.authorizationCode ?? null,
+  };
+}
+
 interface AuthState {
   /** The signed-in Firebase user, or null when signed out. */
   user: User | null;
@@ -219,6 +397,28 @@ interface AuthState {
    *  Microsoft button's enabled state. */
   microsoftAvailable: boolean;
   signOut: () => Promise<void>;
+
+  // ---- Account linking (Settings → Sign-in methods) -----------------------
+  /** Provider IDs currently attached to the signed-in account, e.g.
+   *  `['password', 'google.com']`. Drives the connected/not-connected state of
+   *  each row; empty when signed out. */
+  linkedProviders: readonly LinkableProvider[];
+  /** Attaches a provider to the CURRENT account, after running that provider's
+   *  native flow. Throws LinkError; `credential-in-use` means that identity is
+   *  already a separate Ignia account and cannot be attached without merging. */
+  linkProvider: (provider: Exclude<LinkableProvider, 'password'>) => Promise<void>;
+  /** Adds an email/password credential to a federated-only account, so the user
+   *  can also sign in with a password. Uses the account's own email. */
+  linkPassword: (password: string) => Promise<void>;
+  /** Detaches a provider. Refuses to remove the last one — an account with no
+   *  sign-in method is unreachable, and Firebase would happily allow it. */
+  unlinkProvider: (provider: LinkableProvider) => Promise<void>;
+  /** Set when a federated sign-in collided with an existing account. The
+   *  sign-in screen shows "you already have an account — sign in to connect
+   *  <provider>"; the next successful sign-in with the same email links it. */
+  pendingLink: PendingLink | null;
+  /** User backed out of the link prompt — drop the captured credential. */
+  clearPendingLink: () => void;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -234,6 +434,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileEntry, setProfileEntry] = useState<{ uid: string; profile: Profile | null } | null>(
     null,
   );
+
+  // Collision state. The credential lives in a ref, not state: it is not
+  // rendered, it must survive re-renders without causing one, and keeping it
+  // out of React state keeps it out of any devtools serialization of the tree.
+  const pendingCredentialRef = useRef<AuthCredential | null>(null);
+  const [pendingLink, setPendingLink] = useState<PendingLink | null>(null);
+
+  function clearPendingLink() {
+    pendingCredentialRef.current = null;
+    setPendingLink(null);
+  }
+
+  /**
+   * If `e` is the "this email is already an account under another provider"
+   * error, keep the credential so the next successful sign-in with the SAME
+   * email can attach it. Returns nothing — the caller still rethrows, because
+   * the sign-in attempt genuinely did fail.
+   */
+  function capturePendingLink(e: unknown, attemptedProvider: LinkableProvider): void {
+    const code = (e as { code?: string })?.code ?? '';
+    if (!code.includes('account-exists-with-different-credential')) return;
+    const email = (e as { customData?: { email?: string } })?.customData?.email;
+    if (!email) return;
+    // Firebase attaches the rejected credential to the error; without it there
+    // is nothing to link later, so don't advertise a prompt we can't honour.
+    const credential =
+      attemptedProvider === 'google.com'
+        ? GoogleAuthProvider.credentialFromError(e as never)
+        : OAuthProvider.credentialFromError(e as never);
+    if (!credential) return;
+    pendingCredentialRef.current = credential;
+    setPendingLink({ email, attemptedProvider });
+  }
+
+  /**
+   * Called after any successful sign-in. Attaches a credential captured during
+   * an earlier collision — but only when the account that just signed in owns
+   * the same email, otherwise the user switched accounts mid-flow and linking
+   * would bolt a stranger's Google identity onto this account.
+   */
+  async function completeLinkIfPending(signedIn: User): Promise<void> {
+    const credential = pendingCredentialRef.current;
+    if (!credential) return;
+    const target = pendingLink;
+    if (!target || target.email.toLowerCase() !== (signedIn.email ?? '').toLowerCase()) {
+      clearPendingLink();
+      return;
+    }
+    try {
+      await linkWithCredential(signedIn, credential);
+      setUser(auth.currentUser);
+    } catch (e) {
+      // The user IS signed in at this point, so a failed link is a degraded
+      // outcome, not a failed sign-in — never rethrow into the sign-in path.
+      console.warn('completeLinkIfPending failed', e);
+      captureError(e, { where: 'auth.completeLinkIfPending' });
+    } finally {
+      clearPendingLink();
+    }
+  }
 
   // Native Google Sign-In (Play Services on Android / the Google SDK on iOS).
   // No browser, no redirect, no custom-URI-scheme — configure once, then
@@ -344,6 +604,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const profile = matchedProfile ? matchedProfile.profile : null;
   const profileLoading = !!user && !matchedProfile;
 
+  /**
+   * Runs the Microsoft OAuth dance and returns the Firebase credential.
+   * Lives inside the provider (unlike its Google/Apple siblings) because the
+   * request object and prompt come from `useAuthRequest` hooks.
+   */
+  async function acquireMicrosoftCredential(): Promise<AuthCredential> {
+    if (isExpoGo || !hasRealMsClientId) throw new MicrosoftSignInError('expo-go');
+    if (!msRequest) throw new MicrosoftSignInError('not-ready');
+    const result = await msPromptAsync();
+    if (result.type === 'cancel' || result.type === 'dismiss') {
+      throw new MicrosoftSignInError('cancelled');
+    }
+    if (result.type !== 'success') throw new MicrosoftSignInError('failed');
+    // Same code-exchange shape as Google: promptAsync resolves with the raw
+    // authorization CODE; exchange it (with the PKCE verifier) for the id_token
+    // Firebase's credential validates.
+    const code = result.params?.code;
+    if (!code) throw new MicrosoftSignInError('no-token');
+    const token = await exchangeCodeAsync(
+      {
+        clientId: msClientId ?? '',
+        code,
+        redirectUri: msRedirectUri,
+        extraParams: msRequest.codeVerifier ? { code_verifier: msRequest.codeVerifier } : {},
+      },
+      msDiscovery,
+    );
+    const idToken = token.idToken;
+    if (!idToken) throw new MicrosoftSignInError('no-token');
+    // rawNonce lets Firebase match the SHA-256 nonce baked into the id_token.
+    // Custom OIDC provider (not microsoft.com): Firebase validates this
+    // id_token against the configured issuer's JWKS, matching rawNonce.
+    return new OAuthProvider('oidc.microsoft').credential({
+      idToken,
+      rawNonce: msNonce ?? undefined,
+    });
+  }
+
+  /**
+   * Which sign-in methods the current account has. Read off `providerData`,
+   * which is Firebase's own list and therefore the only source that stays
+   * honest after a link or unlink.
+   *
+   * `password` appears in providerData as its own entry, so no special-casing
+   * is needed — but note that an account can hold `password` while its email is
+   * unverified, and the verify-email gate is a separate concern from this list.
+   */
+  const linkedProviders = useMemo<readonly LinkableProvider[]>(
+    () =>
+      (user?.providerData ?? [])
+        .map((p) => p.providerId)
+        .filter((id): id is LinkableProvider =>
+          id === 'password' || id === 'google.com' || id === 'apple.com' || id === 'oidc.microsoft',
+        ),
+    [user],
+  );
+
   const value = useMemo<AuthState>(
     () => ({
       user,
@@ -385,7 +702,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       googleAvailable,
       signIn: async (email, password) => {
         try {
-          await signInWithEmailAndPassword(auth, email.trim(), password);
+          const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+          // This is the second half of the collision flow: the user tapped
+          // Google/Apple, got bounced because the email is password-owned, and
+          // has now proved ownership. Attach the credential they came with.
+          await completeLinkIfPending(cred.user);
         } catch (e) {
           // A Google/Apple-only account has no password credential, so this
           // comes back invalid-credential/wrong-password even though the email
@@ -448,70 +769,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await call({ email: email.trim(), locale: locale ?? 'en' });
       },
       signInWithGoogle: async () => {
-        if (isExpoGo || !hasRealClientId) throw new GoogleSignInError('expo-go');
-        const { GoogleSignin, isSuccessResponse, isErrorWithCode, statusCodes } = loadGoogleSignin();
-        let idToken: string | null;
+        const credential = await acquireGoogleCredential('signInWithGoogle');
         try {
-          // Breadcrumbs pin down WHICH step failed — "play services ok" present
-          // but "picker returned" missing means the account picker itself blew
-          // up, which reads very differently from a Firebase rejection.
-          addBreadcrumb('google: start');
-          // Native account picker: Play Services (Android) / Google SDK (iOS).
-          // Returns the id_token in-process — no browser round-trip, so the old
-          // redirect/custom-URI-scheme failures are structurally impossible.
-          await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-          addBreadcrumb('google: play services ok');
-          const response = await GoogleSignin.signIn();
-          addBreadcrumb('google: picker returned', { success: isSuccessResponse(response) });
-          // A non-success response means the user dismissed the picker.
-          if (!isSuccessResponse(response)) throw new GoogleSignInError('cancelled');
-          idToken = response.data.idToken;
-        } catch (e) {
-          if (e instanceof GoogleSignInError) throw e;
-          if (isErrorWithCode(e)) {
-            if (e.code === statusCodes.SIGN_IN_CANCELLED || e.code === statusCodes.IN_PROGRESS) {
-              throw new GoogleSignInError('cancelled');
-            }
-            if (e.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-              throw new GoogleSignInError('play-services');
-            }
-          }
-          // Anything else is unclassified, and the two that matter here look
-          // identical to the user: DEVELOPER_ERROR (code 10) = the build's
-          // signing cert / client ID doesn't match what Google has, and
-          // NoCredentialException = no usable Google account on the device.
-          // Carry the native code through instead of flattening both to
-          // "please try again", which is what made this undiagnosable.
-          console.warn('[google-signin] unclassified failure', e);
-          captureError(e, {
-            where: 'signInWithGoogle.picker',
-            extra: {
-              nativeCode: (e as { code?: string | number })?.code ?? null,
-              // Which client IDs this build was configured with — a mismatch
-              // between these and what Google has registered for the install's
-              // signing cert is the classic DEVELOPER_ERROR.
-              webClientId: googleAuth?.webClientId ?? null,
-              hasIosClientId: Boolean(googleAuth?.iosClientId),
-            },
-          });
-          throw new GoogleSignInError('failed', describeNativeError(e));
-        }
-        if (!idToken) {
-          // The picker succeeded but handed back no id_token — a configuration
-          // symptom (wrong/missing webClientId), not a user action.
-          captureError(new Error('google: success response without idToken'), {
-            where: 'signInWithGoogle.noToken',
-            extra: { webClientId: googleAuth?.webClientId ?? null },
-          });
-          throw new GoogleSignInError('no-token');
-        }
-        try {
-          await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+          const result = await signInWithCredential(auth, credential);
+          await completeLinkIfPending(result.user);
         } catch (e) {
           // Rethrow Firebase's own coded errors untouched — the screen maps
           // account-exists-with-different-credential and friends by code. Only
           // annotate, so an unmapped one (user-disabled, operation-not-allowed,
           // internal-error) still reaches us with its code attached.
+          capturePendingLink(e, 'google.com');
           console.warn('[google-signin] signInWithCredential failed', e);
           captureError(e, {
             where: 'signInWithGoogle.firebase',
@@ -525,78 +792,106 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       appleAvailable: appleSignInAvailable,
       signInWithApple: async () => {
-        if (!appleSignInAvailable) throw new AppleSignInError('expo-go');
-        // Apple requires a nonce; Firebase verifies the raw nonce against the
-        // SHA-256 hash we hand to Apple, so send the hash and keep the raw.
-        const rawNonce = `${Crypto.randomUUID()}${Crypto.randomUUID()}`;
-        const hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, rawNonce);
-        let credential: AppleAuthentication.AppleAuthenticationCredential;
+        const { credential, authorizationCode } = await acquireAppleCredential();
         try {
-          credential = await AppleAuthentication.signInAsync({
-            // PII minimization: only request EMAIL. We never read
-            // `credential.fullName`, so requesting FULL_NAME would collect
-            // a real name we don't use (and would populate the Firebase Auth
-            // displayName). Email alone is enough to create the account.
-            requestedScopes: [
-              AppleAuthentication.AppleAuthenticationScope.EMAIL,
-            ],
-            nonce: hashedNonce,
-          });
+          const result = await signInWithCredential(auth, credential);
+          await completeLinkIfPending(result.user);
         } catch (e) {
-          if ((e as { code?: string }).code === 'ERR_REQUEST_CANCELED') {
-            throw new AppleSignInError('cancelled');
-          }
-          throw new AppleSignInError('failed');
+          capturePendingLink(e, 'apple.com');
+          throw e;
         }
-        if (!credential.identityToken) throw new AppleSignInError('no-token');
-        const fbCredential = new OAuthProvider('apple.com').credential({
-          idToken: credential.identityToken,
-          rawNonce,
-        });
-        await signInWithCredential(auth, fbCredential);
         // Hand Apple's auth code to the server so deletion can revoke the token
         // later (5.1.1(v)). Fire-and-forget — never block sign-in on this.
-        if (credential.authorizationCode) {
-          registerAppleRefreshToken(credential.authorizationCode).catch((e: unknown) =>
+        if (authorizationCode) {
+          registerAppleRefreshToken(authorizationCode).catch((e: unknown) =>
             console.warn('apple refresh-token register failed', e),
           );
         }
       },
+      // ---- Account linking --------------------------------------------------
+      linkedProviders,
+      linkProvider: async (provider) => {
+        const u = auth.currentUser;
+        if (!u) throw new LinkError('no-user');
+        if (linkedProviders.includes(provider)) throw new LinkError('already-linked');
+        let credential: AuthCredential;
+        let appleAuthorizationCode: string | null = null;
+        try {
+          if (provider === 'google.com') {
+            credential = await acquireGoogleCredential('linkGoogle');
+          } else if (provider === 'apple.com') {
+            const acquired = await acquireAppleCredential();
+            credential = acquired.credential;
+            appleAuthorizationCode = acquired.authorizationCode;
+          } else {
+            if (!microsoftAvailable) throw new LinkError('unavailable');
+            credential = await acquireMicrosoftCredential();
+          }
+        } catch (e) {
+          // The provider flows throw their own coded errors; a user-cancelled
+          // picker is not a failure worth an alert.
+          const code = (e as { code?: string })?.code ?? '';
+          if (code === 'cancelled') throw new LinkError('cancelled');
+          if (code === 'expo-go' || code === 'play-services') throw new LinkError('unavailable');
+          throw toLinkError(e);
+        }
+        try {
+          await linkWithCredential(u, credential);
+        } catch (e) {
+          throw toLinkError(e);
+        }
+        // Apple deletion revocation needs the code regardless of whether Apple
+        // arrived via sign-in or linking.
+        if (appleAuthorizationCode) {
+          registerAppleRefreshToken(appleAuthorizationCode).catch((e: unknown) =>
+            console.warn('apple refresh-token register failed', e),
+          );
+        }
+        // providerData is a snapshot on the User object, so re-read it or the
+        // row the user just connected keeps rendering as "not connected".
+        await u.reload();
+        setUser(auth.currentUser);
+      },
+      linkPassword: async (password) => {
+        const u = auth.currentUser;
+        if (!u) throw new LinkError('no-user');
+        const email = u.email;
+        // A federated account always has an email here; Apple relay addresses
+        // included (they are real, deliverable addresses).
+        if (!email) throw new LinkError('failed', 'no-email');
+        try {
+          await linkWithCredential(u, EmailAuthProvider.credential(email, password));
+        } catch (e) {
+          throw toLinkError(e);
+        }
+        await u.reload();
+        setUser(auth.currentUser);
+      },
+      unlinkProvider: async (provider) => {
+        const u = auth.currentUser;
+        if (!u) throw new LinkError('no-user');
+        // Firebase will cheerfully strip the only provider and leave an account
+        // nobody can sign into again. Refuse before that call, not after.
+        if (linkedProviders.length <= 1) throw new LinkError('last-provider');
+        try {
+          await fbUnlink(u, provider);
+        } catch (e) {
+          throw toLinkError(e);
+        }
+        await u.reload();
+        setUser(auth.currentUser);
+      },
+      pendingLink,
+      clearPendingLink,
+      // ---- end account linking ---------------------------------------------
       microsoftAvailable,
       signInWithMicrosoft: async () => {
-        if (isExpoGo || !hasRealMsClientId) throw new MicrosoftSignInError('expo-go');
-        if (!msRequest) throw new MicrosoftSignInError('not-ready');
-        const result = await msPromptAsync();
-        if (result.type === 'cancel' || result.type === 'dismiss') {
-          throw new MicrosoftSignInError('cancelled');
-        }
-        if (result.type !== 'success') throw new MicrosoftSignInError('failed');
-        // Same code-exchange shape as Google: promptAsync resolves with the raw
-        // authorization CODE; exchange it (with the PKCE verifier) for the
-        // id_token Firebase's microsoft.com credential validates.
-        const code = result.params?.code;
-        if (!code) throw new MicrosoftSignInError('no-token');
-        const token = await exchangeCodeAsync(
-          {
-            clientId: msClientId ?? '',
-            code,
-            redirectUri: msRedirectUri,
-            extraParams: msRequest.codeVerifier ? { code_verifier: msRequest.codeVerifier } : {},
-          },
-          msDiscovery,
-        );
-        const idToken = token.idToken;
-        if (!idToken) throw new MicrosoftSignInError('no-token');
-        // rawNonce lets Firebase match the SHA-256 nonce baked into the id_token.
-        // Custom OIDC provider (not microsoft.com): Firebase validates this
-        // id_token against the configured issuer's JWKS, matching rawNonce.
-        const fbCredential = new OAuthProvider('oidc.microsoft').credential({
-          idToken,
-          rawNonce: msNonce ?? undefined,
-        });
+        const fbCredential = await acquireMicrosoftCredential();
         try {
-          await signInWithCredential(auth, fbCredential);
+          const result = await signInWithCredential(auth, fbCredential);
+          await completeLinkIfPending(result.user);
         } catch (e) {
+          capturePendingLink(e, 'oidc.microsoft');
           // Surface the real Firebase code in Metro logs for diagnosis (the UI
           // maps it to a friendly message).
           console.warn('[microsoft] signInWithCredential failed:', (e as { code?: string })?.code, (e as Error)?.message);
@@ -624,6 +919,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       msPromptAsync,
       msRedirectUri,
       msNonce,
+      // Both are read inside the linking closures — omit them and
+      // completeLinkIfPending compares against a stale pendingLink, and the
+      // last-provider guard reads a stale provider list.
+      linkedProviders,
+      pendingLink,
     ],
   );
 

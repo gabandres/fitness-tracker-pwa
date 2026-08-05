@@ -21,6 +21,7 @@ import { deleteAccountForever } from '@/lib/deleteAccount';
 import { isTipIapAvailable } from '@/lib/purchases';
 import { APP_STORE_REVIEW_URL } from '@/lib/reviewPrompt';
 import { TipSheet } from '@/components/TipSheet';
+import { SignInMethodsCard } from '@/components/SignInMethodsCard';
 import { useHealthSync } from '@/lib/health-sync';
 import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
 import {
@@ -795,6 +796,11 @@ export default function Settings() {
             <Ionicons name="log-out-outline" size={18} color={colors.danger} />
             <Text style={styles.signOutText}>{t('settings.signOut')}</Text>
           </TouchableOpacity>
+        </View>
+
+        <SignInMethodsCard />
+
+        <View style={styles.card}>
           <View style={styles.deleteDivider} />
           {/* Deletion runs IN-APP (Apple 5.1.1(v)) — this used to open the web
               privacy page, which does not satisfy the guideline. */}

@@ -241,6 +241,25 @@
       "redoOnboarding": "Redo onboarding",
       "signOut": "sign out"
     },
+    "signInMethods": {
+      "section": "sign-in methods",
+      "explainer": "These are the ways you can get into this account. Connect more than one and any of them signs you into the same Ignia — your logs, weights and photos stay exactly where they are. Nothing is duplicated, and nothing is shared with the provider beyond your email address.",
+      "connected": "Connected",
+      "notConnected": "Not connected",
+      "connect": "Connect",
+      "disconnect": "Disconnect",
+      "passwordHint": "Choose a password for {{email}}. You can then sign in either way.",
+      "passwordPlaceholder": "New password",
+      "savePassword": "Save password",
+      "lastNote": "This is your only way in, so it cannot be disconnected. Connect another method first.",
+      "err": {
+        "already-linked": "That method is already connected to this account.",
+        "credential-in-use": "That account is already its own separate Ignia account, so it cannot be attached to this one. Sign out and sign in with it directly, or delete that account first.",
+        "requires-recent-login": "For your security, sign out and back in, then try connecting again.",
+        "last-provider": "This is your only sign-in method. Connect another one before removing this.",
+        "failed": "That didn't work. Please try again."
+      }
+    },
     "reminders": {
       "section": "reminders",
       "push": "push notifications",

@@ -9,6 +9,7 @@ import { ThemeChoice } from '../../utils/theme';
 import { UiSheet } from '../ui/sheet.component';
 import { UiCard } from '../ui/card.component';
 import { UiButton } from '../ui/button.component';
+import { SettingsSignInMethodsSectionComponent } from './settings-signin-methods-section.component';
 import { SettingsPreferencesSectionComponent } from './settings-preferences-section.component';
 import { SettingsDataSectionComponent } from './settings-data-section.component';
 import { SettingsAboutSectionComponent } from './settings-about-section.component';
@@ -36,6 +37,7 @@ import { SettingsAboutSectionComponent } from './settings-about-section.componen
     UiSheet,
     UiCard,
     UiButton,
+    SettingsSignInMethodsSectionComponent,
     SettingsPreferencesSectionComponent,
     SettingsDataSectionComponent,
     SettingsAboutSectionComponent,
@@ -66,6 +68,8 @@ import { SettingsAboutSectionComponent } from './settings-about-section.componen
           </ui-button>
         </div>
       </ui-card>
+
+      <app-settings-signin-methods-section />
 
       <app-settings-preferences-section
         [themeChoice]="themeChoice()"

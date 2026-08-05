@@ -76,6 +76,8 @@ export const esPR: Record<I18nKey, string> = {
   'signIn.errExpoGo': 'Este método de inicio de sesión requiere la app instalada (no Expo Go).',
   'signIn.errCancelled': 'Se canceló el inicio de sesión con Google.',
   'signIn.errDiffMethod': 'Ese correo ya usa otro método de inicio de sesión.',
+  'signIn.linkPrompt':
+    '{email} ya tiene una cuenta aquí. Entra con tu contraseña abajo y las conectamos — la misma cuenta, con cualquiera de las dos.',
   'signIn.errPlayServices': 'Google Play services falta o está desactualizado en este dispositivo — actualízalo e inténtalo de nuevo.',
   'signIn.errGeneric': 'No se pudo iniciar sesión. Inténtalo de nuevo.',
 
@@ -504,6 +506,36 @@ export const esPR: Record<I18nKey, string> = {
   'settings.account': 'Cuenta',
   'settings.signedInAs': 'Sesión iniciada como',
   'settings.signOut': 'Cerrar sesión',
+
+  // ── métodos de inicio de sesión (enlazar cuentas) ──
+  'signInMethods.section': 'Métodos de inicio de sesión',
+  'signInMethods.explainer':
+    'Estas son las formas de entrar a esta cuenta. Conecta más de una y cualquiera te lleva a la misma Ignia — tus registros, pesos y fotos se quedan donde están. No se duplica nada, y no se comparte nada con el proveedor más allá de tu correo.',
+  'signInMethods.connected': 'Conectado',
+  'signInMethods.notConnected': 'No conectado',
+  'signInMethods.connect': 'Conectar',
+  'signInMethods.disconnect': 'Desconectar',
+  'signInMethods.password': 'Correo y contraseña',
+  'signInMethods.passwordHint':
+    'Escoge una contraseña para {email}. Después puedes entrar de cualquiera de las dos formas.',
+  'signInMethods.passwordPlaceholder': 'Contraseña nueva',
+  'signInMethods.savePassword': 'Guardar contraseña',
+  'signInMethods.disconnectTitle': '¿Desconectar este método?',
+  'signInMethods.disconnectBody':
+    'Ya no vas a poder entrar con {provider}. Tus datos no se tocan, y tus otros métodos siguen funcionando.',
+  'signInMethods.lastNote':
+    'Esta es tu única manera de entrar, así que no se puede desconectar. Conecta otro método primero.',
+  'signInMethods.errTitle': 'No se pudo conectar',
+  'signInMethods.errInUse':
+    'Esa cuenta ya es una cuenta de Ignia aparte, así que no se puede unir a esta. Cierra sesión y entra con ella directamente, o elimina esa cuenta primero.',
+  'signInMethods.errAlready': 'Ese método ya está conectado a esta cuenta.',
+  'signInMethods.errStale':
+    'Por seguridad, cierra sesión y vuelve a entrar, y después intenta conectarlo otra vez.',
+  'signInMethods.errLast':
+    'Este es tu único método de inicio de sesión. Conecta otro antes de quitar este.',
+  'signInMethods.errUnavailable': 'Ese método no está disponible en este dispositivo.',
+  'signInMethods.errGeneric': 'Eso no funcionó. Inténtalo de nuevo.',
+
   'settings.deleteAccount': 'Eliminar cuenta',
   'settings.deleteAccountSub': 'Borra permanentemente tu cuenta y datos.',
   'settings.deleteAccountBusy': 'Eliminando tu cuenta…',

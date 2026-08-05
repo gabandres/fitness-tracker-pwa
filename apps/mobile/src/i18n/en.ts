@@ -74,6 +74,8 @@ export const en = {
   'signIn.errExpoGo': 'This sign-in method needs the installed app build (not Expo Go).',
   'signIn.errCancelled': 'Google sign-in was cancelled.',
   'signIn.errDiffMethod': 'That email already uses a different sign-in method.',
+  'signIn.linkPrompt':
+    '{email} already has an account here. Sign in with your password below and we will connect the two — same account, either way in.',
   'signIn.errPlayServices': 'Google Play services is missing or out of date on this device — update it, then try again.',
   'signIn.errGeneric': 'Could not sign in. Please try again.',
 
@@ -502,6 +504,34 @@ export const en = {
   'settings.account': 'Account',
   'settings.signedInAs': 'Signed in as',
   'settings.signOut': 'Sign out',
+
+  // ── sign-in methods (account linking) ──
+  'signInMethods.section': 'Sign-in methods',
+  'signInMethods.explainer':
+    'These are the ways you can get into this account. Connect more than one and any of them signs you into the same Ignia — your logs, weights and photos stay exactly where they are. Nothing is duplicated, and nothing is shared with the provider beyond your email address.',
+  'signInMethods.connected': 'Connected',
+  'signInMethods.notConnected': 'Not connected',
+  'signInMethods.connect': 'Connect',
+  'signInMethods.disconnect': 'Disconnect',
+  'signInMethods.password': 'Email and password',
+  'signInMethods.passwordHint': 'Choose a password for {email}. You can then sign in either way.',
+  'signInMethods.passwordPlaceholder': 'New password',
+  'signInMethods.savePassword': 'Save password',
+  'signInMethods.disconnectTitle': 'Disconnect this method?',
+  'signInMethods.disconnectBody':
+    'You will no longer be able to sign in with {provider}. Your data is untouched, and your other sign-in methods keep working.',
+  'signInMethods.lastNote':
+    'This is your only way in, so it cannot be disconnected. Connect another method first.',
+  'signInMethods.errTitle': "Couldn't connect that",
+  'signInMethods.errInUse':
+    'That account is already its own separate Ignia account, so it cannot be attached to this one. Sign out and sign in with it directly, or delete that account first.',
+  'signInMethods.errAlready': 'That method is already connected to this account.',
+  'signInMethods.errStale': 'For your security, sign out and back in, then try connecting again.',
+  'signInMethods.errLast':
+    'This is your only sign-in method. Connect another one before removing this.',
+  'signInMethods.errUnavailable': 'That sign-in method is not available on this device.',
+  'signInMethods.errGeneric': "That didn't work. Please try again.",
+
   'settings.deleteAccount': 'Delete account',
   'settings.deleteAccountSub': 'Permanently erase your account and data.',
   'settings.deleteAccountBusy': 'Deleting your account…',
