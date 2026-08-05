@@ -48,6 +48,9 @@ import {
 } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import type { Profile } from '@macrolog/core';
+import { LinkError, type LinkableProvider, type PendingLink } from './link-error';
+export { LinkError } from './link-error';
+export type { LinkableProvider, PendingLink } from './link-error';
 import { auth, functions } from './firebase';
 import { ensureProfile, subscribeProfile } from './ledger';
 import { registerAppleRefreshToken } from './appleSignin';
@@ -97,35 +100,6 @@ export class MicrosoftSignInError extends Error {
   }
 }
 
-/** The provider IDs this app can attach to one account. `oidc.microsoft` is a
- *  custom OIDC provider, not Firebase's built-in `microsoft.com` — see the
- *  Microsoft credential below. */
-export type LinkableProvider = 'password' | 'google.com' | 'apple.com' | 'oidc.microsoft';
-
-/**
- * Coded error for the "add a provider to the account I'm already signed into"
- * flow. Distinct from the sign-in errors above because the failures are
- * different in kind: the credential may already belong to a DIFFERENT Firebase
- * user (`credential-in-use`), which is unrecoverable without merging data and
- * must never be presented as "try again".
- */
-export class LinkError extends Error {
-  constructor(
-    readonly code:
-      | 'cancelled'
-      | 'unavailable'
-      | 'no-user'
-      | 'already-linked'
-      | 'credential-in-use'
-      | 'requires-recent-login'
-      | 'last-provider'
-      | 'failed',
-    readonly detail?: string,
-  ) {
-    super(detail ? `${code}: ${detail}` : code);
-  }
-}
-
 /** Maps a Firebase error onto a LinkError. Anything unrecognised stays
  *  `failed` WITH its native code attached, so an unmapped case is still
  *  diagnosable from a screenshot rather than collapsing to "try again". */
@@ -141,19 +115,6 @@ function toLinkError(e: unknown): LinkError {
   return new LinkError('failed', describeNativeError(e));
 }
 
-/**
- * A federated credential captured mid-collision, waiting for the user to prove
- * they own the account by signing in with the provider that already holds the
- * email. Mirrors the web `PendingLinkInfo` (src/app/services/auth.service.ts).
- *
- * Deliberately in memory only: if the app is killed the user starts over,
- * which is the right posture — a credential that outlives the session is a
- * credential that can be linked to the wrong account later.
- */
-export interface PendingLink {
-  readonly email: string;
-  readonly attemptedProvider: LinkableProvider;
-}
 
 /**
  * Coded hint the sign-in screen maps to "use <provider> instead". Thrown when

@@ -92,6 +92,13 @@ jobs:
       - name: Mobile typecheck (apps/mobile)
         run: npx tsc --noEmit -p apps/mobile/tsconfig.json
 
+      # The Expo app had no tests at all until 2026-08-05, which is how three
+      # user-visible defects shipped in the binary on the App Store. These
+      # cover wiring and copy; layout is NOT in scope here (RNTL runs no Yoga
+      # pass) and belongs to apps/mobile/.maestro.
+      - name: Mobile tests (apps/mobile)
+        run: npm --prefix apps/mobile test -- --ci
+
       # The emulator-backed suites. firebase-tools refuses to boot an emulator
       # on a JDK older than 21 (see docs/DEV_ENVIRONMENT.md §0 — the same trap
       # exists on the owner's workstation, where `java` resolves to 17).

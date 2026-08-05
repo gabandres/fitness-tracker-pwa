@@ -10,7 +10,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { LinkError, type LinkableProvider, useAuth } from '@/lib/auth';
+import { useAuth } from '@/lib/auth';
+import { LinkError, type LinkableProvider } from '@/lib/link-error';
 import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';

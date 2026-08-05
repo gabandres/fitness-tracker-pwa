@@ -1,0 +1,91 @@
+# Body measurements — the flow that catches what unit tests structurally cannot.
+#
+# On 2026-08-05 a tester reported that typed measurement values never appeared.
+# The cause was a style bug: `flex: 1`, written for the weight sheet's row
+# layout, was reused inside a column, so `flexBasis: 0` collapsed the input to
+# its padding and clipped the digits. The value was in state and saved
+# correctly the whole time.
+#
+# No jest test can see that. React Native Testing Library renders the element
+# tree but never runs a Yoga layout pass, so a view collapsed to zero height is
+# still "found" and every assertion passes. Only a real render on a device
+# knows how tall anything is.
+#
+# So this flow asserts on what is VISIBLE, never on what merely exists.
+#
+# Run (needs a booted emulator/simulator and a dev build installed):
+#   cd apps/mobile && maestro test .maestro/measurements.yaml
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+
+# Assumes an already-signed-in session — auth is covered by sign-in.yaml, and
+# re-authenticating here would make a measurement regression look like an auth
+# failure.
+- assertVisible: 'Body'
+- tapOn: 'Body'
+
+- assertVisible:
+    text: 'Measurements'
+
+# --- The explainer (bug #3) -------------------------------------------------
+- assertVisible:
+    text: '.*tape measure.*'    # the intro must actually be on screen
+- tapOn:
+    id: 'measure-how-toggle'
+- assertVisible:
+    text: '.*around the navel.*'
+- tapOn:
+    id: 'measure-how-toggle'
+
+# --- Typing must be VISIBLE (bug #1) ----------------------------------------
+- tapOn:
+    id: 'add-measurement'
+- assertVisible:
+    text: 'Add measurement'
+- tapOn:
+    id: 'measure-waist'
+- inputText: '34'
+# THE assertion this file exists for. `assertVisible` fails if the text is not
+# actually rendered on screen — a zero-height or clipped field cannot satisfy
+# it, which is exactly how the reported bug would be caught.
+- assertVisible:
+    text: '34'
+- tapOn:
+    id: 'measure-neck'
+- inputText: '15'
+- assertVisible:
+    text: '15'
+
+- tapOn:
+    id: 'measure-save'
+
+# --- The saved row shows the values back -------------------------------------
+- assertVisible:
+    text: '.*W 34.*'
+
+# --- Editing a saved row (bug #2) -------------------------------------------
+- tapOn:
+    text: '.*W 34.*'
+- assertVisible:
+    text: 'Edit measurement'
+# Prefill must be visible, not merely present: an edit sheet that LOOKS empty
+# is the same defect as one that IS empty — the user retypes and loses fields.
+- assertVisible:
+    text: '34'
+- tapOn:
+    id: 'measure-waist'
+- eraseText
+- inputText: '33'
+- assertVisible:
+    text: '33'
+- tapOn:
+    id: 'measure-save'
+
+# Edited in place: the new value is there and the old one is gone — proving an
+# update rather than a second row.
+- assertVisible:
+    text: '.*W 33.*'
+- assertNotVisible:
+    text: '.*W 34.*'
