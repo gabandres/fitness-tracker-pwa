@@ -8,6 +8,36 @@ memory + ADR-0015.
 
 ---
 
+## 0. The emulator needs JDK 21 — and this machine defaults to 17
+
+`firebase-tools` refuses to start any emulator on a JDK older than 21:
+
+```
+Error: firebase-tools no longer supports Java version before 21.
+```
+
+**Both JDKs are already installed** — `C:\Program Files\Microsoft\jdk-17.0.20.8-hotspot`
+and `jdk-21.0.11.10-hotspot`. `java` on `PATH` resolves to **17**, so every
+emulator-backed suite (`npm run test:rules`, `npm run test:ledger`, `npm run dev`,
+`npm run seed`) fails until 21 is put in front of it, per shell:
+
+```sh
+export JAVA_HOME="/c/Program Files/Microsoft/jdk-21.0.11.10-hotspot"
+export PATH="$JAVA_HOME/bin:$PATH"
+```
+
+Note the **msys path form** (`/c/…`, not `C:/…`) — a Windows-style path in
+`PATH` is silently ignored by Git Bash and `java -version` keeps reporting 17,
+which reads exactly like the export failing to apply.
+
+**Do not "fix" this by setting `JAVA_HOME` globally.** The Android release build
+(§7's `gradlew assembleRelease`) runs against the 17 toolchain; flipping the
+machine default to 21 to save two lines here trades a documented per-shell
+export for an undocumented break in the Android path. Set it in the shell that
+runs the emulator, and nowhere else.
+
+---
+
 ## 1. Local dev = Firebase Emulator Suite
 
 **Why:** previously `ng serve` (dev) wrote to **prod Firestore** — every local
