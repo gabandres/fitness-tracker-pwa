@@ -56,8 +56,39 @@ typecheck script — `npm run build` is the check. Do not add one without asking
 
 ## Not this skill's job
 
-- **Tests** — `npm test`, `npm run test:ledger`, `npm run test:rules`,
-  `npm --prefix packages/core test`. Building is not passing.
+- **Tests** — five suites, **956 tests**, all gated by CI as of 2026-08-05:
+
+  | Suite | Command | Needs |
+  |---|---|---|
+  | Web app (191) | `npm test` | — |
+  | `packages/core` (563) | `npm --prefix packages/core test` | — |
+  | **Expo app (12)** | `npm --prefix apps/mobile test` | — |
+  | `firestore.rules` (161) | `npm run test:rules` | **JDK 21** |
+  | Ledger core (29) | `npm run test:ledger` | **JDK 21** |
+
+  Building is not passing.
+
+  **The two emulator suites need JDK 21 and this machine defaults to 17.** Both
+  JDKs are installed; `java` on `PATH` resolves to the wrong one, and
+  firebase-tools then refuses with *"no longer supports Java version before 21"*,
+  which reads exactly like a missing install. Per shell:
+
+  ```sh
+  export JAVA_HOME="/c/Program Files/Microsoft/jdk-21.0.11.10-hotspot"
+  export PATH="$JAVA_HOME/bin:$PATH"
+  ```
+
+  Note the **msys path form** (`/c/…`, not `C:/…`) — a Windows-style path in
+  `PATH` is silently ignored by Git Bash and `java -version` keeps saying 17. Do
+  not set `JAVA_HOME` globally: the Android Gradle build runs on 17. Full note in
+  `docs/DEV_ENVIRONMENT.md` §0.
+
+  **The Expo suite covers wiring and copy, never layout.** React Native Testing
+  Library renders the element tree but runs no Yoga pass, so a view collapsed to
+  zero height still "renders" and every assertion against it passes — that is
+  exactly how a `flex: 1` bug hid measurement input from users while green. Layout
+  belongs to the Maestro flows in `apps/mobile/.maestro/`, which are **not** in CI
+  (they need a booted emulator) and should be run before an EAS build.
 - **Runtime verification** — see the `test-web-ui` skill. Compiling is not working.
 - **EAS / native builds** — `eas build` is a remote, minutes-long, quota-consuming
   job. Never queue one to "check the build"; `tsc --noEmit` is the local proxy.
