@@ -271,6 +271,23 @@ export const en = {
   'body.history': 'History',
   'body.noWeighIns': 'No weigh-ins yet.',
   'body.addMeasurement': 'Add measurement',
+  'body.editMeasurement': 'Edit measurement',
+  'body.editMeasurementAria': 'Edit measurement from {date}',
+  'body.deleteMeasurementAria': 'Delete measurement from {date}',
+  'body.deleteMeasureTitle': 'Delete this measurement?',
+  'body.deleteMeasureBody':
+    'The row is removed and your body-fat estimate recalculates from whatever is left.',
+  'body.measureIntro':
+    'A tape measure is how the app estimates body fat — the scale alone cannot tell muscle from fat. Waist and neck are the minimum (plus hip for women); the rest are just for tracking. Tap any saved row to edit it.',
+  'body.howToMeasure': 'How to measure',
+  'body.howToMeasureHide': 'Hide',
+  'body.howWaist': 'Waist — around the navel, tape level, relaxed. Do not suck in.',
+  'body.howNeck': 'Neck — just below the Adam’s apple, tape sloping slightly down at the front.',
+  'body.howHip': 'Hip — the widest point around the buttocks, feet together.',
+  'body.howChest': 'Chest — across the nipples, arms down, at the end of a normal breath out.',
+  'body.howBicep': 'Bicep — the thickest part of the upper arm, relaxed at your side.',
+  'body.howConsistency':
+    'Snug, not tight — the tape should sit on skin without denting it. Measure at the same time of day (morning, before eating, is easiest to repeat). Consistency matters more than precision: the trend is what moves your estimate.',
   'body.measureHint': 'Inches. Waist + neck (and hip for women) drive the body-fat estimate.',
   'body.measureRange': '{field} looks off — expected {min}–{max} in. Check you used the right field.',
   'measure.waist': 'Waist',

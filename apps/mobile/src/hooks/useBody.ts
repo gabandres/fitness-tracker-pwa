@@ -20,6 +20,7 @@ import { useAuth } from '@/lib/auth';
 import {
   addMeasurement as addMeasurementDoc,
   deleteMeasurement as deleteMeasurementDoc,
+  updateMeasurement as updateMeasurementDoc,
   setDailyWeight,
   subscribeDailyWeights,
   subscribeMeasurements,
@@ -50,6 +51,9 @@ export interface BodyState {
   /** Why body-fat can't be shown, for an inline hint. null when shown. */
   bodyFatGap: 'profile' | 'measurement' | null;
   addMeasurement: (entry: Omit<Measurement, 'id' | 'date'>) => Promise<void>;
+  /** Edits a saved row in place, keeping its original date. Clearing a field
+   *  removes it, so a value typed into the wrong box can be undone. */
+  updateMeasurement: (id: string, entry: Omit<Measurement, 'id' | 'date'>) => Promise<void>;
   deleteMeasurement: (id: string) => Promise<void>;
   /** Linear-fit weight trend + projected goal date, or null when there
    *  aren't enough weigh-ins to fit a line. */
@@ -183,6 +187,12 @@ export function useBody(): BodyState {
     },
     [uid],
   );
+  const updateMeasurement = useCallback(
+    async (id: string, entry: Omit<Measurement, 'id' | 'date'>) => {
+      if (uid) await updateMeasurementDoc(uid, id, entry);
+    },
+    [uid],
+  );
   const deleteMeasurement = useCallback(
     async (id: string) => {
       if (uid) await deleteMeasurementDoc(uid, id);
@@ -201,6 +211,7 @@ export function useBody(): BodyState {
     bodyFat,
     bodyFatGap,
     addMeasurement,
+    updateMeasurement,
     deleteMeasurement,
     projection,
     weightSeries,

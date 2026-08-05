@@ -273,6 +273,23 @@ export const esPR: Record<I18nKey, string> = {
   'body.history': 'Historial',
   'body.noWeighIns': 'Aún no hay pesajes.',
   'body.addMeasurement': 'Añadir medida',
+  'body.editMeasurement': 'Editar medida',
+  'body.editMeasurementAria': 'Editar medida del {date}',
+  'body.deleteMeasurementAria': 'Eliminar medida del {date}',
+  'body.deleteMeasureTitle': '¿Eliminar esta medida?',
+  'body.deleteMeasureBody':
+    'Se quita la fila y tu estimado de grasa corporal se recalcula con lo que quede.',
+  'body.measureIntro':
+    'La cinta métrica es como la app estima la grasa corporal — la pesa sola no distingue músculo de grasa. Cintura y cuello son lo mínimo (más cadera para mujeres); las demás son solo para seguimiento. Toca cualquier fila guardada para editarla.',
+  'body.howToMeasure': 'Cómo medir',
+  'body.howToMeasureHide': 'Ocultar',
+  'body.howWaist': 'Cintura — a la altura del ombligo, la cinta nivelada, relajado. No metas la barriga.',
+  'body.howNeck': 'Cuello — justo debajo de la manzana de Adán, la cinta un poco inclinada hacia abajo al frente.',
+  'body.howHip': 'Cadera — en el punto más ancho de los glúteos, con los pies juntos.',
+  'body.howChest': 'Pecho — a la altura de los pezones, brazos abajo, al terminar de exhalar normal.',
+  'body.howBicep': 'Bíceps — la parte más gruesa del brazo, relajado al lado del cuerpo.',
+  'body.howConsistency':
+    'Ajustada, no apretada — la cinta debe descansar sobre la piel sin hundirla. Mide a la misma hora del día (en la mañana, antes de comer, es lo más fácil de repetir). La constancia importa más que la precisión: lo que mueve tu estimado es la tendencia.',
   'body.measureHint': 'Pulgadas. Cintura + cuello (y cadera para mujeres) calculan la grasa corporal.',
   'body.measureRange': '{field} se ve raro — se espera {min}–{max} pulg. Verifica que usaste el campo correcto.',
   'measure.waist': 'Cintura',

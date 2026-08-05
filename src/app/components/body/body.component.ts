@@ -161,6 +161,25 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
 
         @if (expanded()) {
           <div id="measurements-panel" class="mt-4">
+            <!-- Says what a tape measurement is FOR before asking for one.
+                 Mirrors the mobile Body screen word for word (ADR-0015 parity);
+                 nothing here explained why these fields exist. -->
+            <p class="v2-caption mb-2">{{ t('v2.body.measureIntro') }}</p>
+            <button type="button" class="v2-caption mb-3"
+              style="background: none; border: none; padding: 0; cursor: pointer; color: var(--v2-accent); text-decoration: underline;"
+              [attr.aria-expanded]="howOpen()"
+              aria-controls="measure-how"
+              (click)="howOpen.set(!howOpen())">
+              {{ howOpen() ? t('v2.body.howToMeasureHide') : t('v2.body.howToMeasure') }}
+            </button>
+            @if (howOpen()) {
+              <ul id="measure-how" class="mb-3 space-y-1">
+                @for (line of HOW_LINES; track line) {
+                  <li class="v2-caption" style="color: var(--v2-ink);">{{ t(line) }}</li>
+                }
+                <li class="v2-caption pt-1">{{ t('v2.body.howConsistency') }}</li>
+              </ul>
+            }
             @if (formOpen()) {
               <form (submit)="saveMeasurement($event)" novalidate class="space-y-3">
                 <p class="v2-caption" style="text-transform: uppercase; letter-spacing: 0.06em;">
@@ -275,6 +294,17 @@ export class BodyComponent implements OnInit, OnDestroy {
 
   protected readonly FAST_HOURS = FAST_HOURS;
   protected readonly M_FIELDS = M_FIELDS;
+  /** Per-site technique, one line each. Same order and same copy as the mobile
+   *  Body screen — this is the kind of guidance that goes stale in one place
+   *  first, so keep the two lists edited together. */
+  protected readonly HOW_LINES = [
+    'v2.body.howWaist',
+    'v2.body.howNeck',
+    'v2.body.howHip',
+    'v2.body.howChest',
+    'v2.body.howBicep',
+  ] as const;
+  protected readonly howOpen = signal(false);
   protected readonly fastCircumference = 2 * Math.PI * 52;
   // Backdating beyond 48h would already be past any plausible fasting window.
   private readonly MAX_BACKDATE_HOURS = 48;

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -58,6 +60,7 @@ export default function Body() {
     bodyFat,
     bodyFatGap,
     addMeasurement,
+    updateMeasurement,
     deleteMeasurement,
     projection,
     weightSeries,
@@ -70,6 +73,28 @@ export default function Body() {
   const { colors } = useTheme();
   const [open, setOpen] = useState(false);
   const [measureOpen, setMeasureOpen] = useState(false);
+  // Which saved row the sheet is editing; null = adding a new one. The sheet
+  // reads its initial values from this, so add and edit stay one component
+  // rather than drifting into two field lists (the mistake called out on
+  // toMeasurementPatch in @macrolog/core).
+  const [editing, setEditing] = useState<Measurement | null>(null);
+  const [howOpen, setHowOpen] = useState(false);
+
+  function openMeasure(m: Measurement | null) {
+    setEditing(m);
+    setMeasureOpen(true);
+  }
+
+  function confirmDeleteMeasurement(id: string) {
+    Alert.alert(t('body.deleteMeasureTitle'), t('body.deleteMeasureBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('common.remove'),
+        style: 'destructive',
+        onPress: () => void deleteMeasurement(id),
+      },
+    ]);
+  }
   // Keep the measurements list short as history grows; the rest is one tap away.
   const [showAllMeasures, setShowAllMeasures] = useState(false);
   const MEASURE_PREVIEW = 4;
@@ -185,10 +210,30 @@ export default function Body() {
 
           <View style={styles.measureHeader}>
             <Text style={styles.sectionTitle}>{t('body.measurements')}</Text>
-            <TouchableOpacity onPress={() => setMeasureOpen(true)} testID="add-measurement" hitSlop={8}>
+            <TouchableOpacity onPress={() => openMeasure(null)} testID="add-measurement" hitSlop={8}>
               <Text style={styles.addLink}>{t('body.add')}</Text>
             </TouchableOpacity>
           </View>
+          {/* Says what a tape measurement is FOR before asking for one. The
+              body-fat estimate is the whole reason these fields exist, and
+              nothing on this screen said so — people entered a waist number and
+              could not tell what it did. */}
+          <Text style={styles.sectionHint}>{t('body.measureIntro')}</Text>
+          <TouchableOpacity onPress={() => setHowOpen((v) => !v)} hitSlop={8} testID="measure-how-toggle">
+            <Text style={styles.addLink}>
+              {howOpen ? t('body.howToMeasureHide') : t('body.howToMeasure')}
+            </Text>
+          </TouchableOpacity>
+          {howOpen ? (
+            <View style={styles.howBox} testID="measure-how">
+              <Text style={styles.howLine}>{t('body.howWaist')}</Text>
+              <Text style={styles.howLine}>{t('body.howNeck')}</Text>
+              <Text style={styles.howLine}>{t('body.howHip')}</Text>
+              <Text style={styles.howLine}>{t('body.howChest')}</Text>
+              <Text style={styles.howLine}>{t('body.howBicep')}</Text>
+              <Text style={styles.howFoot}>{t('body.howConsistency')}</Text>
+            </View>
+          ) : null}
           {measurements.length === 0 ? (
             <Text style={styles.empty}>{t('body.noMeasurements')}</Text>
           ) : (
@@ -198,10 +243,31 @@ export default function Body() {
                   key={m.id}
                   style={styles.row}
                   testID={`measurement-${m.id}`}
-                  onLongPress={() => m.id && deleteMeasurement(m.id)}
+                  onPress={() => openMeasure(m)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('body.editMeasurementAria', {
+                    date: formatDate(m.date, locale, { month: 'short', day: 'numeric' }),
+                  })}
                 >
                   <Text style={styles.rowDate}>{formatDate(m.date, locale, { month: 'short', day: 'numeric' })}</Text>
-                  <Text style={styles.rowMeasure}>{measureLine(m)}</Text>
+                  <View style={styles.rowRight}>
+                    <Text style={styles.rowMeasure}>{measureLine(m)}</Text>
+                    {/* Explicit pencil + trash, matching the PWA's row controls.
+                        Editing was unreachable and deletion was a hidden
+                        long-press, so neither was discoverable on mobile. */}
+                    <Ionicons name="pencil" size={15} color={colors.muted} />
+                    <TouchableOpacity
+                      onPress={() => m.id && confirmDeleteMeasurement(m.id)}
+                      hitSlop={8}
+                      testID={`measurement-delete-${m.id}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('body.deleteMeasurementAria', {
+                        date: formatDate(m.date, locale, { month: 'short', day: 'numeric' }),
+                      })}
+                    >
+                      <Ionicons name="trash-outline" size={15} color={colors.muted} />
+                    </TouchableOpacity>
+                  </View>
                 </Pressable>
               ))}
               {measurements.length > MEASURE_PREVIEW ? (
@@ -250,9 +316,11 @@ export default function Body() {
 
       <MeasurementModal
         visible={measureOpen}
+        initial={editing}
         onClose={() => setMeasureOpen(false)}
         onSave={async (entry) => {
-          await addMeasurement(entry);
+          if (editing?.id) await updateMeasurement(editing.id, entry);
+          else await addMeasurement(entry);
           haptics.success();
           setMeasureOpen(false);
         }}
@@ -282,10 +350,13 @@ const MEASURE_FIELDS: { key: MeasureKey; labelKey: I18nKey }[] = [
 
 function MeasurementModal({
   visible,
+  initial,
   onSave,
   onClose,
 }: {
   visible: boolean;
+  /** The row being edited, or null when adding. */
+  initial: Measurement | null;
   onSave: (entry: Omit<Measurement, 'id' | 'date'>) => Promise<void> | void;
   onClose: () => void;
 }) {
@@ -297,11 +368,21 @@ function MeasurementModal({
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (visible) {
-      setVals({});
-      setBusy(false);
-    }
-  }, [visible]);
+    if (!visible) return;
+    // Prefill from the row being edited so the sheet shows what is already
+    // stored — an edit form that opens blank reads as "start over", and
+    // saving it would wipe every field the user didn't retype.
+    setVals(
+      initial
+        ? MEASURE_FIELDS.reduce<Record<string, string>>((acc, f) => {
+            const v = initial[f.key];
+            if (v != null) acc[f.key] = String(v);
+            return acc;
+          }, {})
+        : {},
+    );
+    setBusy(false);
+  }, [visible, initial]);
 
   function parse(s: string): number | undefined {
     const trimmed = s.trim();
@@ -340,14 +421,21 @@ function MeasurementModal({
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
-          <Text style={styles.sheetTitle}>{t('body.addMeasurement')}</Text>
+          <Text style={styles.sheetTitle}>
+            {initial ? t('body.editMeasurement') : t('body.addMeasurement')}
+          </Text>
           <Text style={styles.sheetHint}>{rangeHint ?? t('body.measureHint')}</Text>
           <View style={styles.measureGrid}>
             {MEASURE_FIELDS.map((f) => (
               <View key={f.key} style={styles.measureField}>
                 <Text style={styles.fieldLabel}>{t(f.labelKey)}</Text>
                 <TextInput
-                  style={styles.input}
+                  // NOT styles.input: that carries `flex: 1` for the weight
+                  // sheet's ROW layout. Here the parent is a column with auto
+                  // height, so flex:1 resolves to flexBasis:0 on the vertical
+                  // axis and collapses the box to its padding — the digits were
+                  // typed and saved, but clipped out of view.
+                  style={styles.measureInput}
                   placeholder="0"
                   placeholderTextColor={colors.faint}
                   keyboardType="numeric"
@@ -516,6 +604,32 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   measureGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
   measureField: { width: '47%', gap: space.xs },
   fieldLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
+  // Same visual language as `input` (the weight sheet) minus its `flex: 1`,
+  // which only makes sense inside `inputRow`. Slightly tighter padding and type
+  // because two of these sit side by side at 47% width.
+  measureInput: {
+    alignSelf: 'stretch',
+    backgroundColor: colors.inputBg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    paddingHorizontal: space.md,
+    paddingVertical: space.md,
+    fontSize: font.h3,
+    color: colors.ink,
+  },
+  sectionHint: { fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.5 },
+  howBox: {
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: space.md,
+    gap: space.xs,
+  },
+  howLine: { fontSize: font.small, color: colors.ink, lineHeight: font.small * 1.5 },
+  howFoot: { fontSize: font.tiny, color: colors.muted, lineHeight: font.tiny * 1.5, marginTop: space.xs },
+  rowRight: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   list: { gap: space.sm },
   row: {
     flexDirection: 'row',

@@ -66,6 +66,32 @@ some items are now live on Android and pending only on iOS.** Do not re-scope
 anything here as new work; do not describe an iOS-pending item to users as
 available.
 
+- **Account linking — "Sign-in methods"** (2026-08-05). **The web half is LIVE**
+  (hosting deployed 2026-08-05); the mobile half is on `main` and **in no
+  binary**. A user who signed up with email + password can now connect Google,
+  Apple (mobile) or Microsoft (web) to the *same* account from Settings, and the
+  mobile sign-in screen finally completes the collision flow the PWA already had
+  (capture the credential, verify with the owning provider, `linkWithCredential`).
+  **The Settings path is not a nicety — it is the only mechanism that covers
+  Apple's Hide My Email**, whose `@privaterelay.appleid.com` address never
+  collides with the password account and so silently creates a second account.
+  Unlink refuses to remove the last provider. Note the mobile provider-hint code
+  it replaces was already dead: this project has
+  `emailPrivacyConfig.enableImprovedEmailPrivacy = true`, so
+  `fetchSignInMethodsForEmail` returns `[]` unconditionally — **do not write new
+  logic that branches on its result.**
+- **Body-measurement fixes — mobile, in no binary** (2026-08-05). Three, from
+  tester report: (1) typed digits were invisible — `styles.input` carries
+  `flex: 1` for the weight sheet's *row*, and reusing it inside the measurement
+  *column* made `flexBasis: 0` collapse the box to its padding, so values saved
+  but never appeared; (2) saved rows could not be edited at all —
+  `toMeasurementPatch` existed in `@macrolog/core` but only the PWA called it,
+  so mobile now has `updateMeasurement` and the sheet prefills and edits every
+  site, not just waist; (3) nothing explained what a tape measurement was *for*,
+  so both apps now carry the same intro plus a "How to measure" panel. Deletion
+  moved from a hidden long-press to an explicit trash icon, matching the PWA's
+  per-row pencil/trash controls.
+
 - **The daily-target safety floors, and the onboarding shadow bug** (2026-08-04).
   **The web half is LIVE** (hosting deployed 2026-08-04); the mobile half is on
   `main` and in no binary. Three defects, one seam:

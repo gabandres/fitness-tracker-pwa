@@ -1682,7 +1682,16 @@
       "editMeasurementAria": "Editar medida del {{date}}",
       "deleteMeasurementAria": "Borrar medida del {{date}}",
       "deleteMeasurementConfirm": "¿Borrar esta medida?",
-      "inch": "\""
+      "inch": "\"",
+      "measureIntro": "La cinta métrica es como la app estima la grasa corporal — la pesa sola no distingue músculo de grasa. Cintura y cuello son lo mínimo (más cadera para mujeres); las demás son solo para seguimiento. Usa el lápiz en cualquier fila guardada para editarla.",
+      "howToMeasure": "Cómo medir",
+      "howToMeasureHide": "Ocultar",
+      "howWaist": "Cintura — a la altura del ombligo, la cinta nivelada, relajado. No metas la barriga.",
+      "howNeck": "Cuello — justo debajo de la manzana de Adán, la cinta un poco inclinada hacia abajo al frente.",
+      "howHip": "Cadera — en el punto más ancho de los glúteos, con los pies juntos.",
+      "howChest": "Pecho — a la altura de los pezones, brazos abajo, al terminar de exhalar normal.",
+      "howBicep": "Bíceps — la parte más gruesa del brazo, relajado al lado del cuerpo.",
+      "howConsistency": "Ajustada, no apretada — la cinta debe descansar sobre la piel sin hundirla. Mide a la misma hora del día (en la mañana, antes de comer, es lo más fácil de repetir). La constancia importa más que la precisión: lo que mueve tu estimado es la tendencia."
     }
   },
   "calculator": {

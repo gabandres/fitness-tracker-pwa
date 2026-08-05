@@ -48,6 +48,7 @@ import {
   toLogPatch,
   toMeasurement,
   toMeasurementDoc,
+  toMeasurementPatch,
   toOnboardingV2Patch,
   toPresetDoc,
   toSessionDoc,
@@ -601,6 +602,18 @@ export function subscribeMeasurements(
 export async function addMeasurement(uid: string, entry: MeasurementInput): Promise<string> {
   const ref = await addDoc(measurementsCol(uid), toMeasurementDoc(entry, CODEC));
   return ref.id;
+}
+
+/** Edits an existing measurement in place. `toMeasurementPatch` keeps the
+ *  original `timestamp` (the row must not jump to today) and deletes fields the
+ *  user cleared, so an accidental waist entry can be removed rather than frozen
+ *  into the body-fat estimate forever. Same writer the PWA uses. */
+export async function updateMeasurement(
+  uid: string,
+  id: string,
+  entry: MeasurementInput,
+): Promise<void> {
+  await updateDoc(measurementDoc(uid, id), toMeasurementPatch(entry, CODEC));
 }
 
 export async function deleteMeasurement(uid: string, id: string): Promise<void> {

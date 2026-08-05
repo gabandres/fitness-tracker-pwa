@@ -1682,7 +1682,16 @@
       "editMeasurementAria": "Edit measurement from {{date}}",
       "deleteMeasurementAria": "Delete measurement from {{date}}",
       "deleteMeasurementConfirm": "Delete this measurement?",
-      "inch": "\""
+      "inch": "\"",
+      "measureIntro": "A tape measure is how the app estimates body fat — the scale alone cannot tell muscle from fat. Waist and neck are the minimum (plus hip for women); the rest are just for tracking. Use the pencil on any saved row to edit it.",
+      "howToMeasure": "How to measure",
+      "howToMeasureHide": "Hide",
+      "howWaist": "Waist — around the navel, tape level, relaxed. Do not suck in.",
+      "howNeck": "Neck — just below the Adam’s apple, tape sloping slightly down at the front.",
+      "howHip": "Hip — the widest point around the buttocks, feet together.",
+      "howChest": "Chest — across the nipples, arms down, at the end of a normal breath out.",
+      "howBicep": "Bicep — the thickest part of the upper arm, relaxed at your side.",
+      "howConsistency": "Snug, not tight — the tape should sit on skin without denting it. Measure at the same time of day (morning, before eating, is easiest to repeat). Consistency matters more than precision: the trend is what moves your estimate."
     }
   },
   "calculator": {
