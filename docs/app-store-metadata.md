@@ -284,8 +284,14 @@ for 1.0 users, so it is not app release news.
 
 | Locale | `APP_IPHONE_67` | `APP_WATCH_SERIES_10` |
 |---|---|---|
-| en-US | 5 | 1 |
-| es-MX | 4 | 1 |
+| en-US | 5 | 2 |
+| es-MX | 4 | 2 |
+
+Watch order is deliberate — **`watch-app-46mm` first, `watch-complication-46mm`
+second**. The lead screenshot carries the most weight and App Review wants the
+app itself, not a face. Order is not upload order: set it with
+`PATCH /v1/appScreenshotSets/{id}/relationships/appScreenshots`, passing the
+ids in the order you want.
 
 **The Apple Watch set is new in 1.1.0 and was the last hard blocker** — the app
 ships a watchOS app from build 19 on, and Apple will not take the version
@@ -299,14 +305,15 @@ in `scripts/asc-client.mjs` (reserve → PUT → commit → poll). **`COMPLETE` 
 `assetDeliveryState` is the only proof it worked** — the POST returns 200 long
 before Apple has processed the image.
 
-Two quality gaps, neither blocking:
-- The watch shot is the **complication on a face**, not the watch app's own
-  screen. App Review prefers seeing the app itself; a second capture of the
-  watch app's kcal/protein screen would make a stronger case and is worth
-  adding before the next submission.
-- **es-MX carries the English capture.** The numbers render in English ("1,235
-  kcal left"). Not a rejection risk, but a Spanish capture belongs there — the
-  raw-capture convention is `store-assets/raw/{en,es}/` (git-ignored).
+**#46 has partial evidence now.** The `watch-app-46mm` capture is the watch
+app's own screen at 46mm in English, and it renders clean — nothing clipped,
+progress bar full width, text centred. **40mm and Spanish remain unverified**,
+so #46 stays open; this closes one of its four cells, not the issue.
+
+One quality gap, not blocking: **es-MX carries the English captures** — the
+numbers render in English ("712 kcal left"). Not a rejection risk, but Spanish
+captures belong there; the raw-capture convention is
+`store-assets/raw/{en,es}/` (git-ignored).
 
 ### Review notes
 ```
