@@ -39,12 +39,14 @@ ASC API disagrees, and it is authoritative:
 | 1.1.0 | `PREPARE_FOR_SUBMISSION` | **none attached** |
 | 1.0 | `READY_FOR_SALE` | build 7, uploaded 2026-07-20 |
 
-`1.1.0` today is a metadata shell plus an `app.json` version bump
-(`2110fbb7`); EAS has never built a 1.1.0 iOS binary — the newest iOS build of
-any version is 1.0.0 build 7, from commit `168e0394`. Two consequences:
+**As of 2026-08-06 that is no longer true**: `1.1.0` has real binaries —
+TestFlight **build 19** (`4527017a`, commit `fdcd92ed`, `VALID`), preceded by
+16 and 13. The version page is still `PREPARE_FOR_SUBMISSION` and **has never
+gone to App Review**, and no build is attached to it yet.
 
-- **What's New for 1.1.0 spans `168e0394..HEAD`**, which is far more than the
-  placeholder claimed. That is the range the copy below was written from.
+- **What's New for 1.1.0 spans `168e0394..fdcd92ed`** — build 7 (live) to build
+  19. That is the range the copy below was written from. Use the build's own
+  commit, not `HEAD`: `HEAD` now runs ahead of the binary.
 - Anything described as "fixed on the shipped 1.1.0 binary" was in fact fixed
   against **1.0**. The `dailyWeights` index is the live example: it repaired
   Refine Targets for users on 1.0 without an app update, because the fix was
@@ -206,42 +208,67 @@ Ignia is not a medical device and does not provide medical advice.
 
 ### What's New — 1.1.0
 
-Drafted 2026-07-29 from `git log 168e0394..HEAD`, i.e. everything committed
-since the binary that is live today. **Every bullet is backed by a commit**;
-the three-line placeholder this replaces was not — it promised "faster, more
-accurate food search", and no food-search change has shipped since 1.0.
+**Rewritten 2026-08-06** against `168e0394..fdcd92ed` — the range that TestFlight
+**build 19** actually spans, i.e. everything since the live 1.0 build 7. The
+2026-07-29 draft this replaces predated the Apple Watch work entirely and led
+with the widget; the Watch app is the headline of this release and was missing.
+Every bullet is backed by a commit and by a verification.
 
+**en-US**
 ```
+• Ignia on your wrist — an Apple Watch app and a face complication showing the calories and protein you have left, plus Lock Screen widgets on iPhone
 • Home-screen widget — today's calories and protein at a glance
 • Apple Health now imports steps and active energy, and your activity level corrects itself from what you actually did
-• One stray weigh-in no longer drags your weight trend — outliers are ignored
-• Refine Targets reliably loads your latest weight
+• Sign in with Google or Apple and connect it to the account you already have — no more accidental second account
 • Meal reminders can each be turned off on their own
+• One stray weigh-in no longer drags your weight trend
+• Refine Targets reliably loads your latest weight
 • Dates now follow the app's language instead of the phone's
+• Editing a workout template keeps its clusters, cues and progression
+• Body measurements no longer vanish while you type, and can be edited after saving
 • Rate Ignia without leaving the app
-• Rebuilt password-reset emails
 ```
 
-| Bullet | Commit |
-|---|---|
-| Widget | `79e9fbff` |
-| Health activity import + activity-informed TDEE | `4a84dc64`, `2d1e22d6`, `dc009ae4` |
-| Weigh-in outlier rejection | `946e7250` |
-| Refine Targets / `dailyWeights` index | `4f91b1f0` |
-| Per-reminder switches | `6bae19cd` |
-| Date localization | `5028a9e8` |
-| In-app rating prompt | `84898243` |
-| Password-reset emails | `6cf63df3` |
+**es-MX**
+```
+• Ignia en tu muñeca: app para Apple Watch y complicación en la carátula con las calorías y la proteína que te quedan, más widgets en la pantalla bloqueada del iPhone
+• Widget en la pantalla de inicio: tus calorías y proteína de hoy de un vistazo
+• Apple Health ahora importa pasos y energía activa, y tu nivel de actividad se corrige solo según lo que de verdad hiciste
+• Inicia sesión con Google o Apple y conéctalo a la cuenta que ya tienes: se acabaron las segundas cuentas por accidente
+• Cada recordatorio de comida se puede apagar por separado
+• Un pesaje fuera de rango ya no arrastra tu tendencia de peso
+• Refinar objetivos carga tu peso más reciente de forma confiable
+• Las fechas siguen el idioma de la app, no el del teléfono
+• Editar una plantilla de entrenamiento conserva sus clusters, claves y progresión
+• Las medidas corporales ya no desaparecen mientras escribes y se pueden editar después de guardarlas
+• Califica Ignia sin salir de la app
+```
 
-**Two bullets are gated on device QA — cut them if it hasn't happened:**
+| Bullet | Commit(s) | Verified |
+|---|---|---|
+| Apple Watch app + complication + Lock Screen | `fa0223b6`, `8cc2ba39`, `360662eb` | **on a paired watch, 2026-08-06** — face refreshes after a meal without launching the watch app |
+| Widget | `79e9fbff`, `d166a216` | on a physical iPhone, TestFlight build 13 |
+| Health activity import + activity-informed TDEE | `4a84dc64`, `2d1e22d6`, `dc009ae4` | — |
+| Account linking | `aa8febde` | — |
+| Per-reminder switches | `6bae19cd` | — |
+| Weigh-in outlier rejection | `946e7250` | — |
+| Refine Targets / `dailyWeights` client half | `4f91b1f0` | — |
+| Date localization | `5028a9e8` | — |
+| Template editor keeps clusters/cues/progression | `e47fd366` | component test |
+| Body measurements | `62200d8c` | component test |
+| In-app rating prompt | `84898243` | — |
 
-1. **The widget has never run on a device.** It is why the Android APK
-   (`084347c2`) was built. If it fails QA, drop the bullet; release notes are
-   what App Review reads the build against, and a 2.3.1 rejection for a
-   feature that doesn't work costs a review cycle.
-2. **Health sync itself has never been device-verified either** (it shipped
-   inside 1.0 — see `eb939520`). Activity import is new here and rides on it,
-   so confirm Health connects on device before claiming either.
+**Both 2026-07-29 QA gates are now cleared** — the widget ran on a physical
+iPhone (build 13) and the Watch app on a real watch (build 19), so neither
+bullet is a promise against an unrun feature any more.
+
+**Deliberately NOT claimed:** photo scan (off — the production EAS profile sets
+`EXPO_PUBLIC_FEATURE_PHOTO_SCAN=0`), anything Pro or purchasable
+(`PRO_ENABLED=false`), the manual food-entry rework (merged **after** build 19,
+so it is not in this binary), and Apple Health *sync* itself — that shipped in
+1.0 and is already live, only the activity import is new here. The
+password-reset email rebuild (`6cf63df3`) is server-side and already in effect
+for 1.0 users, so it is not app release news.
 
 ### Review notes
 ```
