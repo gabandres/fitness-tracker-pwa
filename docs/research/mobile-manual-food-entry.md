@@ -1,5 +1,5 @@
 > **VERDICT** — On mobile, writing a food yourself is a text link at the **bottom** of the Add-food sheet's browse list, and it is reachable **only while the search box is empty**. Three compounding defects, not one: it sinks further with every custom food the user saves; typing a query — the single strongest signal that someone wants to write their own food — *removes* the affordance entirely; and the "No matches" dead end discards the name they already typed. The web PWA does not have this problem: it opens on a **Manual** segment by default. **Recommended fix, in order: (1) turn "No matches" into a create action that carries the query into the name field; (2) add a manual affordance to the header icon row so the entry point is fixed, not scroll-dependent.** (1) is a few lines and removes the dead end; (2) restores web parity.
-> **Status:** SETTLED (diagnosis + recommendation; not implemented) · **Researched:** 2026-08-06
+> **Status:** SETTLED — **A and B are IMPLEMENTED** (2026-08-06, mobile only; the web already opened on Manual). C and D were not taken; **E is still open** and worth doing on its own merits. · **Researched:** 2026-08-06
 > **Read this only if:** you are changing the mobile Add-food sheet, or deciding where manual entry belongs in it.
 > **Do not** re-derive the measurements below; cite them.
 
@@ -82,12 +82,33 @@ without a fixed, always-visible entry point.
 | **D. Full segmented control matching web** | medium — restructures the sheet header | True parity, but it replaces an icon row that already works and costs the most for the increment over A+B. |
 | **E. Cap My Foods / presets with a "see all"** | low–medium | Bounds the scroll, but treats the symptom; the link is still last and still vanishes on typing. Worth doing on its own merits — the lists are genuinely uncapped. |
 
-## 5. Recommendation
+## 5. Recommendation — and what shipped
 
 **Do A and B.** Together they cost less than D and address all three defects: a
 fixed entry point that survives typing (B), and a create path at the moment of
 failure that preserves the user's typed name (A). Then reconsider D only if the
 icon row starts feeling crowded — it would hold five.
+
+**Both were implemented on 2026-08-06:**
+
+- **B** — a `create-outline` icon is now **first** in the header icon row
+  (`EntrySheet.tsx`, `testID="open-manual"`), so manual entry is one tap from
+  the moment the sheet opens, never moves, and survives typing. The icon row
+  now holds five: manual, meal text, barcode, recipe calculator, recipe URL.
+- **A** — `FoodSearch` takes an `onCreateFromQuery` prop and renders a real
+  button under the no-results message (`testID="create-from-query"`), wired to
+  `openCustomBlank(query)`, which prefills the name field with what was typed.
+- The bottom "Create custom food" link was **kept** — people who learned it
+  should still find it there; it is simply no longer the only way in.
+- Copy fixed in both locales: `food.noMatches` no longer blames the search
+  term ("No matches. Try a simpler term." → "No matches for that."), and
+  `food.addYourself` is the new action.
+- Pinned by `apps/mobile/src/__tests__/entry-sheet-manual.test.tsx`: the header
+  route opens the manual form without searching, and a miss carries the typed
+  query into the name field.
+
+Not taken: **C** (moving the link up) is subsumed by B; **D** (full segmented
+control) buys little over A+B and would replace a working icon row.
 
 Consider **E** separately: `subscribeCustomFoods` is genuinely unbounded and
 will render every custom food a user ever saves into a sheet, which is a

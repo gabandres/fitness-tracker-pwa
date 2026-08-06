@@ -210,7 +210,10 @@ export const esPR: Record<I18nKey, string> = {
   // ── food search ──
   'food.placeholder': 'Buscar comidas…',
   'food.typeMore': 'Escribe al menos 2 caracteres.',
-  'food.noMatches': 'Sin resultados. Prueba un término más simple.',
+  // Una búsqueda sin resultados casi siempre significa que la comida no está,
+  // no que se buscó mal — decir el hecho y ofrecer la acción, sin culpar.
+  'food.noMatches': 'Sin resultados.',
+  'food.addYourself': 'Añade “{query}” tú mismo',
   'food.failed': 'Falló la búsqueda. Revisa tu conexión y reintenta.',
   'food.notConfigured': 'La búsqueda de comidas no está configurada. Ingresa los macros manualmente.',
   'food.results': '‹ Resultados',

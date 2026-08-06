@@ -382,9 +382,12 @@ export function EntrySheet({
     await onSaveCustomFood(food);
   }
 
-  function openCustomBlank() {
+  /** Open the manual form. `name` prefills the label — used when the user
+   *  arrives from a search miss, where they have already typed what the food
+   *  is called and retyping it is pure loss. */
+  function openCustomBlank(name = '') {
     haptics.tap();
-    setLabel('');
+    setLabel(name);
     setCalories('');
     setProtein('');
     setCarbs('');
@@ -509,7 +512,9 @@ export function EntrySheet({
         </View>
       ) : null}
 
-      <TouchableOpacity style={styles.customLink} testID="create-custom" onPress={openCustomBlank}>
+      {/* Kept as well as the header icon: users who already learned this link
+          should still find it where it was. It is no longer the ONLY way in. */}
+      <TouchableOpacity style={styles.customLink} testID="create-custom" onPress={() => openCustomBlank()}>
         <Ionicons name="create-outline" size={18} color={colors.accent} />
         <Text style={styles.customLinkText}>{t('entry.customFood')}</Text>
       </TouchableOpacity>
@@ -519,6 +524,14 @@ export function EntrySheet({
   const headerIcons = (
     <>
     <View style={styles.iconRow}>
+      {/* Write-it-yourself sits FIRST and always visible. It used to be a link
+          at the bottom of the browse list, which sank as My Foods grew and
+          disappeared entirely once the user typed — see
+          docs/research/mobile-manual-food-entry.md. The web sheet defaults to
+          its Manual segment; this is the mobile equivalent. */}
+      <TouchableOpacity style={styles.iconBtn} onPress={() => openCustomBlank()} testID="open-manual">
+        <Ionicons name="create-outline" size={22} color={colors.ink} />
+      </TouchableOpacity>
       <TouchableOpacity style={styles.iconBtn} onPress={() => { haptics.tap(); setMode('meal'); }} testID="open-mealtext">
         <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.ink} />
       </TouchableOpacity>
@@ -564,6 +577,7 @@ export function EntrySheet({
                 headerRight={headerIcons}
                 emptyContent={browseEmpty}
                 onPick={(est) => prefill(est)}
+                onCreateFromQuery={(q) => openCustomBlank(q)}
               />
             ) : mode === 'recipe' ? (
               <RecipeBuilder onCancel={() => setMode('browse')} onApply={(est) => prefill(est)} />

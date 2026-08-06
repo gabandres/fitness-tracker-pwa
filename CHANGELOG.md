@@ -6,6 +6,15 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-06 — Writing a food in yourself is no longer the hardest way to log one
+
+Every other way to log — barcode, meal text, recipe calculator, recipe link — had a fixed icon at the top of the Add-food sheet. Typing a food in yourself, the one method that needs no network, no camera and no parsing, was a text link at the *bottom* of the browse list, under Recent, My Foods and Quick add. My Foods is uncapped, so the link sank a little further every time you saved a food with it.
+
+- **A write-it-yourself icon now leads the header row.** One tap from the moment the sheet opens; it never moves and never disappears.
+- **A search that finds nothing now offers to add it, with what you typed already in the name.** Previously "No matches. Try a simpler term." was a dead end: the only way forward was to clear the box, scroll to the bottom, tap the link, and retype the name you'd just typed. Which mattered most for exactly the foods a database will never have — *abuela's arroz con gandules*.
+- **The message stopped blaming you.** A miss almost always means the food isn't in the database, not that you searched badly, so it says so plainly.
+- The old bottom link is still there for anyone who learned it.
+
 ## 2026-08-06 — Editing a workout template on the phone stopped destroying it
 
 The mobile template editor showed each exercise as a name, a target load and a **set count**. The web editor shows the actual planned sets, so it can express a cluster — an activation set plus two minis, numbered C1, C2, C3. Because a save rewrites the whole `exercises` array, the count was not a simplification; it was a shredder. Open a template written on the web, change nothing, tap Save, and every cluster came back as N flat working sets with the per-exercise coaching cues and auto-progression rules gone.

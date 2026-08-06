@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import type { FoodSource } from '@macrolog/core';
@@ -44,6 +45,11 @@ interface Props {
   /** Rendered below the search field when the query is empty (idle), instead
    *  of the "type 2 characters" hint — used to host recents / quick-add. */
   emptyContent?: ReactNode;
+  /** Offered when a search returns nothing, with the text the user typed.
+   *  A miss is the strongest signal someone wants to write the food
+   *  themselves — and their name for it is already in the box, so making
+   *  them clear the query and retype it is pure loss. */
+  onCreateFromQuery?: (query: string) => void;
 }
 
 type Phase = 'idle' | 'searching' | 'results' | 'detail-loading' | 'portion-pick' | 'error';
@@ -52,7 +58,14 @@ type Phase = 'idle' | 'searching' | 'results' | 'detail-loading' | 'portion-pick
  *  type ≥2 chars → debounced searchFoods → tap result → getFoodDetail →
  *  pick a serving (× multiplier) → emit a FoodEstimate the sheet bounces
  *  back into the manual form for review. */
-export function FoodSearch({ unitSystem = 'us', onPick, onCancel, headerRight, emptyContent }: Props) {
+export function FoodSearch({
+  unitSystem = 'us',
+  onPick,
+  onCancel,
+  headerRight,
+  emptyContent,
+  onCreateFromQuery,
+}: Props) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
@@ -206,7 +219,21 @@ export function FoodSearch({ unitSystem = 'us', onPick, onCancel, headerRight, e
         </View>
       ) : phase === 'results' ? (
         hits.length === 0 ? (
-          <View style={styles.center}><Text style={styles.muted}>{t('food.noMatches')}</Text></View>
+          <View style={styles.center}>
+            <Text style={styles.muted}>{t('food.noMatches')}</Text>
+            {onCreateFromQuery ? (
+              <TouchableOpacity
+                style={styles.createFromQuery}
+                onPress={() => onCreateFromQuery(query.trim())}
+                testID="create-from-query"
+              >
+                <Ionicons name="create-outline" size={18} color={colors.accent} />
+                <Text style={styles.createFromQueryText} numberOfLines={2}>
+                  {t('food.addYourself', { query: query.trim() })}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         ) : (
           <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
             {hits.map((h) => (
@@ -256,6 +283,22 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   muted: { fontSize: font.small, color: colors.muted },
   error: { fontSize: font.small, color: colors.danger, textAlign: 'center' },
   retry: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
+  // The create-it-yourself escape hatch on a search miss. Sized like a real
+  // button, not a hint: on a miss it is usually the action the user wants.
+  createFromQuery: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    backgroundColor: colors.inputBg,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+    marginTop: space.xs,
+    maxWidth: '100%',
+  },
+  createFromQueryText: { flexShrink: 1, fontSize: font.small, color: colors.accent, fontWeight: '700' },
   hit: {
     paddingVertical: space.md,
     borderBottomWidth: 1,

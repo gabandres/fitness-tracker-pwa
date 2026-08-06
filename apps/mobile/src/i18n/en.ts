@@ -208,7 +208,10 @@ export const en = {
   // ── food search ──
   'food.placeholder': 'Search foods…',
   'food.typeMore': 'Type at least 2 characters.',
-  'food.noMatches': 'No matches. Try a simpler term.',
+  // A miss usually means the food is absent, not that the user searched
+  // badly — so state the fact and offer the action, don't assign blame.
+  'food.noMatches': 'No matches for that.',
+  'food.addYourself': 'Add “{query}” yourself',
   'food.failed': 'Search failed. Check your connection and retry.',
   'food.notConfigured': "Food search isn't set up yet. Enter macros manually.",
   'food.results': '‹ Results',
