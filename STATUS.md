@@ -66,6 +66,21 @@ some items are now live on Android and pending only on iOS.** Do not re-scope
 anything here as new work; do not describe an iOS-pending item to users as
 available.
 
+- **Manual food entry is a first-class logging method on mobile** (2026-08-06,
+  `ebf60dcb`). **In no binary, and deliberately no build cut for it** — the
+  owner's call on 2026-08-06 was that this alone is too little to spend a build
+  on, so it rides along with whatever ships next. Writing a food in yourself was
+  a text link at the *bottom* of the Add-food browse list, under Recent + My
+  Foods + Quick add; My Foods is uncapped, so the link sank further with every
+  food saved through it, and typing two characters removed it entirely (the
+  browse list only renders in the search's idle phase). A search miss was a dead
+  end that discarded the typed name. Now: a `create-outline` icon leads the
+  header icon row, and a no-results search offers to add the food with the query
+  already in the name field. Diagnosis, the options not taken, and the still-open
+  item **E** (cap the uncapped My Foods / presets lists) are in
+  `docs/research/mobile-manual-food-entry.md`. The web needed no change — its
+  sheet already opens on a Manual segment.
+
 - **Mobile template editor reached parity with the web one** (2026-08-06).
   **In no binary. The first attempt — iOS 18 (`e8f0d86f`), Android vc 7
   (`e6d97826`), both from `e47fd366` — ERRORED in *Bundle JavaScript*, for a
@@ -76,7 +91,9 @@ available.
   `src/__tests__/`. **The second attempt, from `fdcd92ed`, FINISHED on both
   platforms in 32 min: iOS build 19 (`4527017a`) and Android vc 8
   (`5584f181`). NEITHER IS SUBMITTED YET** — `eas submit` is the remaining step
-  for both, and until it runs no tester has the fix.** The mobile
+  for both, and until it runs no tester has the fix. **Those two binaries carry
+  the template fix ONLY**: they were cut from `fdcd92ed`, before the food-entry
+  work above, so submitting them ships this and not that.** The mobile
   editor modelled an exercise's sets as a *count*, and `updateTemplate` writes
   `exercises` as a full overwrite, so opening a template authored on the web and
   tapping Save rewrote every cluster (activation/mini/mini) as N flat `working`
