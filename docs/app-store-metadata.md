@@ -270,6 +270,34 @@ so it is not in this binary), and Apple Health *sync* itself — that shipped in
 password-reset email rebuild (`6cf63df3`) is server-side and already in effect
 for 1.0 users, so it is not app release news.
 
+### Screenshots on file — 1.1.0 (checked 2026-08-06)
+
+| Locale | `APP_IPHONE_67` | `APP_WATCH_SERIES_10` |
+|---|---|---|
+| en-US | 5 | 1 |
+| es-MX | 4 | 1 |
+
+**The Apple Watch set is new in 1.1.0 and was the last hard blocker** — the app
+ships a watchOS app from build 19 on, and Apple will not take the version
+without watch screenshots. The enum is `APP_WATCH_SERIES_10` (46mm, **416 × 496
+exactly**); a capture of any other size is rejected by size, not resized. Other
+valid watch types are `APP_WATCH_ULTRA` (410 × 502), `APP_WATCH_SERIES_7`
+(396 × 484), `APP_WATCH_SERIES_4` (368 × 448) — one type is enough.
+
+Upload path is scripted, not manual: `uploadScreenshot(setId, buffer, fileName)`
+in `scripts/asc-client.mjs` (reserve → PUT → commit → poll). **`COMPLETE` on
+`assetDeliveryState` is the only proof it worked** — the POST returns 200 long
+before Apple has processed the image.
+
+Two quality gaps, neither blocking:
+- The watch shot is the **complication on a face**, not the watch app's own
+  screen. App Review prefers seeing the app itself; a second capture of the
+  watch app's kcal/protein screen would make a stronger case and is worth
+  adding before the next submission.
+- **es-MX carries the English capture.** The numbers render in English ("1,235
+  kcal left"). Not a rejection risk, but a Spanish capture belongs there — the
+  raw-capture convention is `store-assets/raw/{en,es}/` (git-ignored).
+
 ### Review notes
 ```
 All features in Ignia are free. There is no subscription, no paywall and no
