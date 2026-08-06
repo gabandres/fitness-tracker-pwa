@@ -270,6 +270,16 @@ so it is not in this binary), and Apple Health *sync* itself — that shipped in
 password-reset email rebuild (`6cf63df3`) is server-side and already in effect
 for 1.0 users, so it is not app release news.
 
+### Submission-gating fields — 1.1.0 (set 2026-08-06)
+
+| Field | Value | Why |
+|---|---|---|
+| Attached build | **19** (`4527017a`) | a version with no build attached cannot be submitted; this one had none for two weeks |
+| `usesIdfa` | **false** | no ads, no attribution SDK. Left `null` it stops the submission flow to ask |
+| Export compliance | declared on the build: `usesNonExemptEncryption=false` | set per-build, not per-version — a new build re-asks |
+| Demo account | `review@ignia.fit`, required | ASC carries it forward; never point Review at `demo@ignia.fit` |
+| Release type | `AFTER_APPROVAL` | ships the moment Review passes |
+
 ### Screenshots on file — 1.1.0 (checked 2026-08-06)
 
 | Locale | `APP_IPHONE_67` | `APP_WATCH_SERIES_10` |
