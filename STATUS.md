@@ -58,13 +58,30 @@ either secret overrides the default — only do that if the project is renamed
 again. `SENTRY_AUTH_TOKEN` remains the one required credential, read from
 `.env.local` on a workstation and from the Actions secret in CI.
 
-## 2. Written, merged, and in **no** binary
+## 2. Written, merged, and not yet in front of the public
 
-All of this is on `main`. **Read the per-item notes rather than the heading —
-since vc 6 shipped on 2026-08-03 the list is no longer uniformly "in no binary":
-some items are now live on Android and pending only on iOS.** Do not re-scope
-anything here as new work; do not describe an iOS-pending item to users as
-available.
+All of this is on `main`. Do not re-scope anything here as new work.
+
+**THE CUTLINE, 2026-08-06 — read this before the bullets, which are older than
+it.** iOS build 19 and Android vc 8 were cut from `fdcd92ed` and **submitted**
+(TestFlight + Play alpha, both verified at the destination). `fdcd92ed` is at
+this section's second bullet, so **every bullet below the first is now IN a
+binary and in testers' hands.** Only the first — manual food entry — is
+genuinely in no binary. The heading used to say "in **no** binary"; that was
+true this morning and is not true now.
+
+What is still pending is a different thing, and it is the one that matters:
+
+| Audience | Has | Missing |
+|---|---|---|
+| TestFlight + Play alpha testers | everything through `fdcd92ed` | manual food entry only |
+| **Public App Store** | **1.0, build 7** (`168e0394`, uploaded 2026-07-20) | **54 mobile/core commits** — i.e. all of §2 |
+| Play production | nothing — not launched | — |
+
+So the gap is not a build, it is a **submission**: `1.1.0` has sat at
+`PREPARE_FOR_SUBMISSION` since it was created and **has never gone to App
+Review**. Cutting another build does not move that; submitting does. Verify
+with the ASC command in §1.
 
 - **Manual food entry is a first-class logging method on mobile** (2026-08-06,
   `ebf60dcb`). **In no binary, and deliberately no build cut for it** — the
