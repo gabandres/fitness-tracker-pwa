@@ -1,3 +1,5 @@
+'use no memo';
+
 import { FlexWidget, TextWidget } from 'react-native-android-widget';
 import type { WidgetView } from '@macrolog/core';
 import { groupDigits, widgetStrings } from './strings';
@@ -6,6 +8,24 @@ import { groupDigits, widgetStrings } from './strings';
  * Android home-screen widget UI (`react-native-android-widget` renders these
  * primitives into a native `RemoteViews` tree — they are NOT React Native
  * components, so only the documented props exist and there is no StyleSheet).
+ *
+ * ## Why `'use no memo'` is load-bearing at the top of this file
+ * `app.json` sets `experiments.reactCompiler: true`. The React Compiler treats
+ * any PascalCase function returning JSX as a component and rewrites it to call
+ * `useMemoCache` — a hook. But this library does not mount widgets in a React
+ * renderer: `buildWidgetTree` calls the component as a **raw function** to walk
+ * it into RemoteViews, so any hook call throws
+ * `Invalid Hook Call detected in TodayWidget` and the widget renders **nothing
+ * at all** — a transparent, empty box on the home screen.
+ *
+ * That is not hypothetical: it is what shipped in vc 4/6/8, and it was
+ * invisible until someone actually placed the widget on a home screen
+ * (2026-08-06). It cannot be caught by `tsc`, by jest, or by `expo export` —
+ * the bundle builds perfectly. Sentry caught it only because the throw happens
+ * inside the widget task handler at render time.
+ *
+ * **Every widget component in this folder needs the directive**, which is what
+ * `src/__tests__/widget-no-memo.test.ts` enforces.
  *
  * Locked design (see `WIDGET.md` §"Open decisions"): **text-first**, kcal
  * remaining over protein remaining. No ring — that's the fast-follow once the

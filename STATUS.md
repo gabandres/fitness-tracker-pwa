@@ -281,12 +281,23 @@ with the ASC command in §1.
   The web Sentry project was renamed `macrolog` → **`ignia-web`** in the same
   pass; its project id and DSN are unchanged, so `src/environments/environment.ts`
   needed no edit.
-- **Home-screen widget — Android half only** (`apps/mobile/src/widgets/`). It is
-  in Play **vc 6**, rolled out to the alpha track, but nobody has put it on an
-  Android home screen, and its task handler registers through the custom
-  `index.js` — a path no device has exercised. It is now *installable* rather
-  than merely built, so this is the cheapest outstanding verification on the
-  board: add it to a home screen and log a meal. **The iOS widget is no longer in this list: it is verified working
+- **Home-screen widget — Android half was BROKEN in every shipped binary; fix
+  merged 2026-08-06, in no binary** (`apps/mobile/src/widgets/`). Placed on a
+  home screen for the first time on 2026-08-06 (vc 8) and it rendered an **empty
+  transparent box**. Cause: `app.json` sets `experiments.reactCompiler: true`,
+  and the React Compiler rewrites `TodayWidget` — PascalCase, returns JSX — to
+  call `useMemoCache`. `react-native-android-widget` never mounts widgets in a
+  React renderer; `buildWidgetTree` calls the component as a raw function, so
+  the injected hook throws `Invalid Hook Call detected in TodayWidget` and
+  nothing is drawn. Fixed with `'use no memo';` at the top of the widget file,
+  enforced by `src/__tests__/widget-no-memo.test.ts`.
+  **This was invisible to every gate we have** — tsc, jest and `expo export` all
+  pass, and the widget appears in the picker and places normally. It surfaced
+  only in **Sentry**, from the throw inside the widget task handler, which is
+  the concrete payoff of vc 6 being the first Android binary with Sentry. **The
+  Android widget has therefore never worked in vc 4, 6 or 8**; do not describe
+  it to testers as available until a build carrying the fix is installed and
+  watched. **The iOS widget is no longer in this list: it is verified working
   on a physical iPhone from TestFlight build 13 (2026-08-03), including refresh
   after a meal.**
 - **The Apple Watch complication and its transport** — the watch app

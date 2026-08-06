@@ -79,6 +79,21 @@ state (the app hasn't been opened yet today) rather than stale numbers.
   snapshot on log change; call the library's `requestWidgetUpdate` after writes.
 - **Refresh:** on-demand via `requestWidgetUpdate` + an `updatePeriodMillis`
   backstop (Android clamps this to ≥30 min — fine for a "remaining" display).
+- **Every widget component must start with `'use no memo';`.** `app.json` sets
+  `experiments.reactCompiler: true`, and the React Compiler rewrites any
+  PascalCase function returning JSX to call `useMemoCache`. This library never
+  mounts widgets in a React renderer — `buildWidgetTree` invokes the component
+  as a **raw function** — so the injected hook throws
+  `Invalid Hook Call detected in <Name>` and the widget draws **nothing**: a
+  transparent empty box, no background, no text.
+
+  **This shipped broken in Android vc 4, 6 and 8** and was invisible for a
+  month. `tsc` passes, jest passes, `expo export` bundles cleanly, and the
+  widget appears in the picker and places normally — the failure is entirely at
+  render time inside the widget task handler. It was found on 2026-08-06 the
+  first time anyone put the widget on a home screen, and diagnosed from
+  **Sentry**, which is the only place the throw surfaces. Enforced by
+  `src/__tests__/widget-no-memo.test.ts`.
 
 ## Apple Watch
 
@@ -158,8 +173,11 @@ Health and Google Sign-In). Build availability and quota live in `STATUS.md` §3
 ## Device QA checklist (first thing after the build exists)
 
 Tick a box only for a platform you actually watched. **iOS was run on a physical
-iPhone from TestFlight build 13 on 2026-08-03**; Android has never been on a home
-screen.
+iPhone from TestFlight build 13 on 2026-08-03.** **Android was placed on a home
+screen for the first time on 2026-08-06 (vc 8) and rendered an empty box** — the
+React Compiler defect above. The fix is committed but **is not in any Android
+binary yet**, so every box below stays unticked until a build carrying it is
+installed and watched.
 
 - [x] **iOS** — widget appears in the gallery and renders kcal left + protein left.
 - [ ] **Android** — widget appears in the picker.
