@@ -73,7 +73,10 @@ available.
   get swept into Expo Router's route `require.context` and bundled (see
   `apps/mobile/AGENTS.md`). That break landed 2026-08-05 with the first Expo
   tests and lay dormant because no EAS build ran in between. Tests moved to
-  `src/__tests__/`; both platforms now bundle clean locally.** The mobile
+  `src/__tests__/`. **The second attempt, from `fdcd92ed`, FINISHED on both
+  platforms in 32 min: iOS build 19 (`4527017a`) and Android vc 8
+  (`5584f181`). NEITHER IS SUBMITTED YET** — `eas submit` is the remaining step
+  for both, and until it runs no tester has the fix.** The mobile
   editor modelled an exercise's sets as a *count*, and `updateTemplate` writes
   `exercises` as a full overwrite, so opening a template authored on the web and
   tapping Save rewrote every cluster (activation/mini/mini) as N flat `working`
@@ -292,7 +295,7 @@ review those commits fixed.
   a **30/month account total** and a **15/month per platform** sub-cap. Read
   both; the account total is the one that runs out first if the two platforms
   are used unevenly.
-- **iOS 7/15, Android 4/15, account 11/30 for the 2026-08-01 → 2026-09-01
+- **iOS 8/15, Android 5/15, account 13/30 for the 2026-08-01 → 2026-09-01
   period — measured 2026-08-06 from the API.** The counter is not the
   constraint this period. **A build that ERRORS does not consume plan quota**,
   measured 2026-08-06: iOS 18 and Android vc 7 both failed in the *Bundle
