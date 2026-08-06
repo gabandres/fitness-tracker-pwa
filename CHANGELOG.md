@@ -6,6 +6,14 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-06 — Editing a workout template on the phone stopped destroying it
+
+The mobile template editor showed each exercise as a name, a target load and a **set count**. The web editor shows the actual planned sets, so it can express a cluster — an activation set plus two minis, numbered C1, C2, C3. Because a save rewrites the whole `exercises` array, the count was not a simplification; it was a shredder. Open a template written on the web, change nothing, tap Save, and every cluster came back as N flat working sets with the per-exercise coaching cues and auto-progression rules gone.
+
+- **The editor edits real sets.** Add a set or a whole cluster, change any set's kind (warm-up / activation / working / mini / drop), remove one. Cluster numbers are derived from the activation/mini ordering after every change, never typed — the same rule the web editor has always used.
+- **Cues, auto-progression and both rest timers are editable on the phone**, so nothing in a template is now web-only. A field the editor cannot see is a field the next save deletes, which is exactly how this bug worked.
+- **A failed save says so.** It used to leave the sheet sitting open with no message, which is indistinguishable from a button that does nothing — and is why the data loss went unnoticed longer than the failure itself.
+
 ## 2026-08-03 — The mobile app can report its own errors
 
 An Android tester on a Galaxy S26 could not sign in with Google — "Could not sign in. Please try again." — while another tester on the same Play build signed up fine. That was as much as anyone could ever learn, because the app had **no crash or error reporting at all** and the sign-in code discarded the native error code before showing that message. The web PWA has had Sentry since launch; the mobile app, the one that's actually on a store, had nothing.

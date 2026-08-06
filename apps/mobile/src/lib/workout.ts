@@ -2,8 +2,7 @@
 // in the PWA — both apps write the same users/{uid}/{exercises,
 // workoutSessions} docs, so these shapes MUST match (see firestore.rules
 // isValidExercise / isValidWorkoutSession). Mobile-local copy (same
-// documented dup pattern as body-fat / weight-projection); cluster-set and
-// template/progression machinery is intentionally omitted from v1.
+// documented dup pattern as body-fat / weight-projection).
 
 import { normalizeClusterGroups } from '@macrolog/core';
 
@@ -65,11 +64,12 @@ export interface SessionExercise {
 // An editable blueprint (ADR-0007). Starting a session SNAPSHOTS the
 // template's exercises into the session doc, so later template edits never
 // rewrite history. Shapes mirror src/app/models/workout.ts +
-// firestore.rules isValidWorkoutTemplate. Mobile v1 builds plain straight
-// `working` plannedSets (no cluster groups); `progression`/cluster machinery
-// is carried in the type for PWA round-trip but not yet authored here.
+// firestore.rules isValidWorkoutTemplate. The mobile template editor authors
+// every field below — clusters, cues and progression included. It writes
+// `exercises` as a full overwrite, so a field the editor cannot see is a
+// field the next mobile save deletes; keep the editor and this type in step.
 
-/** Deterministic double-progression rule (surfaced in a later slice). */
+/** Deterministic double-progression rule. */
 export interface ProgressionRule {
   targetReps: number;
   holdSessions: number;

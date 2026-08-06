@@ -625,8 +625,9 @@ export async function deleteMeasurement(uid: string, id: string): Promise<void> 
 // validators (isValidExercise / isValidWorkoutSession):
 //   users/{uid}/exercises/{id}        — { name, muscles[], defaultCues[], logStyle?, createdAt }
 //   users/{uid}/workoutSessions/{id}  — { status, timestamp, exercises[], …, createdAt, updatedAt }
-// (templates are not written by mobile v1). Firestore rejects `undefined`,
-// so every write is run through pruneUndefined first.
+//   users/{uid}/workoutTemplates/{id}  — { name, exercises[], …, createdAt, updatedAt }
+// Firestore rejects `undefined`, so every write is run through
+// pruneUndefined first.
 const exercisesCol = (uid: string) => collection(db, 'users', uid, 'exercises');
 const exerciseDoc = (uid: string, id: string) => doc(db, 'users', uid, 'exercises', id);
 const sessionsCol = (uid: string) => collection(db, 'users', uid, 'workoutSessions');

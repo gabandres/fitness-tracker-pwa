@@ -19,14 +19,23 @@ import { useRestTimer } from '@/hooks/useRestTimer';
 import type {
   Exercise,
   LogStyle,
+  PlannedSet,
   SessionExercise,
+  SetKind,
   TemplateDraft,
+  TemplateExercise,
   WorkoutSession,
   WorkoutSet,
   WorkoutTemplate,
 } from '@/lib/workout';
 import { DEFAULT_LOG_STYLE, isLoggedSet, sessionVolume } from '@/lib/workout';
-import { type SeedTemplate, STARTER_TEMPLATES, clampRir, seedTemplateName } from '@macrolog/core';
+import {
+  type SeedTemplate,
+  STARTER_TEMPLATES,
+  clampRir,
+  normalizeClusterGroups,
+  seedTemplateName,
+} from '@macrolog/core';
 import {
   type ProgressionSuggestion,
   computeExercisePRs,
@@ -1013,6 +1022,10 @@ function logStyleKey(style: LogStyle | undefined): I18nKey {
   return style === 'bodyweight' ? 'logStyle.bodyweight' : style === 'time' ? 'logStyle.time' : 'logStyle.weightReps';
 }
 
+function kindLabelKey(kind: SetKind): I18nKey {
+  return (SET_KINDS.find((k) => k.value === kind) ?? SET_KINDS[1]).labelKey;
+}
+
 function numOrUndef(s: string): number | undefined {
   const t = s.trim();
   if (t === '') return undefined;
@@ -1353,12 +1366,24 @@ function FinishModal({
 }
 
 // ─── Template editor ────────────────────────────────────────────
+// Mirrors the PWA's EditExercise (template-editor.component.ts): the row
+// carries EVERY field the stored TemplateExercise has, because the editor
+// writes `exercises` as a full overwrite. A field the editor cannot see is a
+// field the next save deletes — which is how mobile edits used to flatten
+// clusters and wipe cues/progression written on the web.
 interface DraftEx {
   exerciseId: string;
   name: string;
   logStyle: LogStyle;
   targetLoad: string; // string buffer; parsed on save
-  setCount: number;
+  cuesText: string; // newline-separated; split on save
+  hasProgression: boolean;
+  targetReps: string;
+  holdSessions: string;
+  incrementLb: string;
+  /** The real planned sets, not a count — a count cannot represent a cluster
+   *  (activation/mini/mini) and rewriting one as N working sets destroys it. */
+  sets: PlannedSet[];
 }
 
 function TemplateEditorModal({
@@ -1378,24 +1403,37 @@ function TemplateEditorModal({
   const keyboardStyle = useKeyboardSheetStyle();
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
+  const [restMini, setRestMini] = useState('');
+  const [restCluster, setRestCluster] = useState('');
   const [exercises, setExercises] = useState<DraftEx[]>([]);
   const [exName, setExName] = useState('');
   const [exStyle, setExStyle] = useState<LogStyle>('weight-reps');
+  const [kindOpen, setKindOpen] = useState<string | null>(null); // `${exIdx}:${setIdx}`
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
 
   useEffect(() => {
     if (!visible) return;
     setName(template?.name ?? '');
     setNotes(template?.notes ?? '');
+    setRestMini(template?.restMiniSec != null ? String(template.restMiniSec) : '');
+    setRestCluster(template?.restClusterSec != null ? String(template.restClusterSec) : '');
     setExercises(
       (template?.exercises ?? []).map((ex) => ({
         exerciseId: ex.exerciseId,
         name: ex.name,
         logStyle: ex.logStyle ?? 'weight-reps',
         targetLoad: ex.targetLoad != null ? String(ex.targetLoad) : '',
-        setCount: Math.max(1, ex.plannedSets.length),
+        cuesText: (ex.cues ?? []).join('\n'),
+        hasProgression: !!ex.progression,
+        targetReps: ex.progression ? String(ex.progression.targetReps) : '',
+        holdSessions: ex.progression ? String(ex.progression.holdSessions) : '',
+        incrementLb: ex.progression ? String(ex.progression.incrementLb) : '',
+        sets: ex.plannedSets.length ? ex.plannedSets.map((p) => ({ ...p })) : [{ kind: 'working' }],
       })),
     );
+    setKindOpen(null);
+    setErr('');
     setExName('');
     setExStyle('weight-reps');
     setBusy(false);
@@ -1406,14 +1444,33 @@ function TemplateEditorModal({
     ? train.catalog.filter((e) => e.name.toLowerCase().includes(trimmedEx.toLowerCase())).slice(0, 5)
     : [];
 
-  function appendEx(exercise: Pick<DraftEx, 'exerciseId' | 'name' | 'logStyle'>) {
-    setExercises((prev) => [...prev, { ...exercise, targetLoad: '', setCount: 3 }]);
+  function appendEx(
+    exercise: Pick<DraftEx, 'exerciseId' | 'name' | 'logStyle'> & { cuesText?: string },
+  ) {
+    setExercises((prev) => [
+      ...prev,
+      {
+        ...exercise,
+        targetLoad: '',
+        cuesText: exercise.cuesText ?? '',
+        hasProgression: false,
+        targetReps: '',
+        holdSessions: '',
+        incrementLb: '',
+        sets: [{ kind: 'working' }, { kind: 'working' }, { kind: 'working' }],
+      },
+    ]);
     setExName('');
   }
 
   function addFromCatalog(c: Exercise) {
     haptics.tap();
-    appendEx({ exerciseId: c.id!, name: c.name, logStyle: c.logStyle ?? 'weight-reps' });
+    appendEx({
+      exerciseId: c.id!,
+      name: c.name,
+      logStyle: c.logStyle ?? 'weight-reps',
+      cuesText: (c.defaultCues ?? []).join('\n'),
+    });
   }
 
   async function addFreeType() {
@@ -1449,25 +1506,76 @@ function TemplateEditorModal({
     haptics.tap();
   }
 
+  /** Every set mutation re-derives cluster groups, so numbering stays
+   *  sequential and contiguous after kind changes, inserts and deletes —
+   *  same invariant the PWA editor holds (`mutateSets`). */
+  function mutateSets(index: number, fn: (sets: PlannedSet[]) => PlannedSet[]) {
+    setExercises((prev) =>
+      prev.map((d, i) => (i === index ? { ...d, sets: normalizeClusterGroups(fn(d.sets)) } : d)),
+    );
+  }
+
+  function addSet(index: number) {
+    haptics.tap();
+    mutateSets(index, (sets) => [...sets, { kind: 'working' }]);
+  }
+
+  function addCluster(index: number) {
+    haptics.tap();
+    mutateSets(index, (sets) => [...sets, { kind: 'activation' }, { kind: 'mini' }, { kind: 'mini' }]);
+  }
+
+  function removeSet(index: number, setIdx: number) {
+    mutateSets(index, (sets) => sets.filter((_, i) => i !== setIdx));
+  }
+
+  function setSetKind(index: number, setIdx: number, kind: SetKind) {
+    haptics.tap();
+    mutateSets(index, (sets) => sets.map((s, i) => (i === setIdx ? { ...s, kind } : s)));
+    setKindOpen(null);
+  }
+
   const canSave = name.trim().length > 0 && !busy;
 
   async function save() {
     if (!canSave) return;
     setBusy(true);
+    setErr('');
     try {
       const draft: TemplateDraft = {
         name: name.trim(),
         notes: notes.trim() || undefined,
-        exercises: exercises.map((d) => ({
-          exerciseId: d.exerciseId,
-          name: d.name,
-          logStyle: d.logStyle,
-          targetLoad: numOrUndef(d.targetLoad),
-          plannedSets: Array.from({ length: Math.max(1, d.setCount) }, () => ({ kind: 'working' as const })),
-        })),
+        restMiniSec: numOrUndef(restMini),
+        restClusterSec: numOrUndef(restCluster),
+        // Carry the seed slug through: the starter chooser hides an already
+        // cloned starter by seedKey, and dropping it on the first edit would
+        // make the starter reappear as if it had never been added.
+        seedKey: template?.seedKey,
+        exercises: exercises.map((d): TemplateExercise => {
+          const cues = d.cuesText.split('\n').map((c) => c.trim()).filter(Boolean);
+          return {
+            exerciseId: d.exerciseId,
+            name: d.name,
+            logStyle: d.logStyle,
+            targetLoad: numOrUndef(d.targetLoad),
+            cues: cues.length ? cues : undefined,
+            progression: d.hasProgression
+              ? {
+                  targetReps: numOrUndef(d.targetReps) ?? 12,
+                  holdSessions: numOrUndef(d.holdSessions) ?? 2,
+                  incrementLb: numOrUndef(d.incrementLb) ?? 5,
+                }
+              : undefined,
+            plannedSets: normalizeClusterGroups(d.sets.length ? d.sets : [{ kind: 'working' }]),
+          };
+        }),
       };
       await train.saveTemplate(draft, template?.id);
       onClose();
+    } catch {
+      // Without this the sheet just sat there on a rejected write and the
+      // save looked like a no-op — the failure mode that hid this bug.
+      setErr(t('train.saveErr'));
     } finally {
       setBusy(false);
     }
@@ -1513,6 +1621,31 @@ function TemplateEditorModal({
               multiline
               testID="template-notes"
             />
+
+            <View style={styles.restRow}>
+              <View style={styles.restCell}>
+                <Text style={[styles.fieldLabel, { marginTop: space.sm }]}>{t('train.restMini')}</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  placeholderTextColor={colors.faint}
+                  value={restMini}
+                  onChangeText={setRestMini}
+                  testID="template-rest-mini"
+                />
+              </View>
+              <View style={styles.restCell}>
+                <Text style={[styles.fieldLabel, { marginTop: space.sm }]}>{t('train.restCluster')}</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  placeholderTextColor={colors.faint}
+                  value={restCluster}
+                  onChangeText={setRestCluster}
+                  testID="template-rest-cluster"
+                />
+              </View>
+            </View>
 
             <Text style={[styles.fieldLabel, { marginTop: space.md }]}>{t('train.templateExercises')}</Text>
 
@@ -1607,30 +1740,137 @@ function TemplateEditorModal({
                     ) : (
                       <View style={{ flex: 1 }} />
                     )}
-                    <View style={styles.tplSets}>
-                      <Text style={styles.tplSetsLabel}>{t('train.setMany')}</Text>
-                      <View style={styles.stepper}>
-                        <TouchableOpacity
-                          style={styles.stepBtn}
-                          onPress={() => patchEx(i, { setCount: Math.max(1, d.setCount - 1) })}
-                          testID={`template-set-minus-${i}`}
-                        >
-                          <Text style={styles.stepBtnText}>−</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.stepCount}>{d.setCount}</Text>
-                        <TouchableOpacity
-                          style={styles.stepBtn}
-                          onPress={() => patchEx(i, { setCount: Math.min(20, d.setCount + 1) })}
-                          testID={`template-set-plus-${i}`}
-                        >
-                          <Text style={styles.stepBtnText}>+</Text>
-                        </TouchableOpacity>
+                  </View>
+
+                  <Text style={styles.fieldLabel}>{t('train.cues')}</Text>
+                  <TextInput
+                    style={[styles.input, styles.notesInput]}
+                    placeholderTextColor={colors.faint}
+                    value={d.cuesText}
+                    onChangeText={(v) => patchEx(i, { cuesText: v })}
+                    multiline
+                    testID={`template-cues-${i}`}
+                  />
+
+                  <TouchableOpacity
+                    style={styles.progToggle}
+                    onPress={() => {
+                      haptics.tap();
+                      patchEx(i, { hasProgression: !d.hasProgression });
+                    }}
+                    testID={`template-progression-${i}`}
+                  >
+                    <Ionicons
+                      name={d.hasProgression ? 'checkbox' : 'square-outline'}
+                      size={18}
+                      color={d.hasProgression ? colors.ink : colors.faint}
+                    />
+                    <Text style={styles.progToggleText}>{t('train.progression')}</Text>
+                  </TouchableOpacity>
+                  {d.hasProgression ? (
+                    <View style={styles.progRow}>
+                      <View style={styles.progCell}>
+                        <Text style={styles.tplSetsLabel}>{t('train.targetReps')}</Text>
+                        <TextInput
+                          style={styles.tplLoadInput}
+                          keyboardType="numeric"
+                          placeholder="12"
+                          placeholderTextColor={colors.faint}
+                          value={d.targetReps}
+                          onChangeText={(v) => patchEx(i, { targetReps: v })}
+                          testID={`template-target-reps-${i}`}
+                        />
+                      </View>
+                      <View style={styles.progCell}>
+                        <Text style={styles.tplSetsLabel}>{t('train.holdSessions')}</Text>
+                        <TextInput
+                          style={styles.tplLoadInput}
+                          keyboardType="numeric"
+                          placeholder="2"
+                          placeholderTextColor={colors.faint}
+                          value={d.holdSessions}
+                          onChangeText={(v) => patchEx(i, { holdSessions: v })}
+                          testID={`template-hold-sessions-${i}`}
+                        />
+                      </View>
+                      <View style={styles.progCell}>
+                        <Text style={styles.tplSetsLabel}>{t('train.incrementLb')}</Text>
+                        <TextInput
+                          style={styles.tplLoadInput}
+                          keyboardType="numeric"
+                          placeholder="5"
+                          placeholderTextColor={colors.faint}
+                          value={d.incrementLb}
+                          onChangeText={(v) => patchEx(i, { incrementLb: v })}
+                          testID={`template-increment-${i}`}
+                        />
                       </View>
                     </View>
+                  ) : null}
+
+                  {/* Sets, edited individually. A cluster is activation +
+                      two minis; the C-number is derived, never typed. */}
+                  <Text style={styles.fieldLabel}>{t('train.sets')}</Text>
+                  {d.sets.map((ps, si) => {
+                    const openKey = `${i}:${si}`;
+                    return (
+                      <View key={si}>
+                        <View style={styles.tplSetRow}>
+                          <TouchableOpacity
+                            style={styles.tplSetKind}
+                            onPress={() => setKindOpen(kindOpen === openKey ? null : openKey)}
+                            testID={`template-set-kind-${i}-${si}`}
+                          >
+                            <Text style={styles.tplSetKindText}>{t(kindLabelKey(ps.kind))}</Text>
+                          </TouchableOpacity>
+                          <Text style={styles.tplSetGroup}>
+                            {ps.group != null ? t('train.cluster', { n: ps.group }) : ''}
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() => removeSet(i, si)}
+                            hitSlop={8}
+                            style={styles.tplDel}
+                            accessibilityLabel={t('train.removeSet')}
+                            testID={`template-set-remove-${i}-${si}`}
+                          >
+                            <Ionicons name="close" size={16} color={colors.faint} />
+                          </TouchableOpacity>
+                        </View>
+                        {kindOpen === openKey ? (
+                          <View style={styles.kindChips}>
+                            {SET_KINDS.map((k) => {
+                              const on = ps.kind === k.value;
+                              return (
+                                <TouchableOpacity
+                                  key={k.value}
+                                  style={[styles.kindChip, on && styles.kindChipOn]}
+                                  onPress={() => setSetKind(i, si, k.value)}
+                                  testID={`template-set-kind-${i}-${si}-${k.value}`}
+                                >
+                                  <Text style={[styles.kindChipText, on && styles.kindChipTextOn]}>
+                                    {t(k.labelKey)}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        ) : null}
+                      </View>
+                    );
+                  })}
+                  <View style={styles.tplSetBtns}>
+                    <TouchableOpacity onPress={() => addSet(i)} testID={`template-add-set-${i}`}>
+                      <Text style={styles.sectionAction}>{t('train.addSet')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => addCluster(i)} testID={`template-add-cluster-${i}`}>
+                      <Text style={styles.sectionAction}>{t('train.addCluster')}</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               ))
             )}
+
+            {err ? <Text style={[styles.error, { marginTop: space.sm }]}>{err}</Text> : null}
 
             <View style={styles.editorBtns}>
               {template ? (
@@ -1908,8 +2148,26 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   tplExControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
   tplLoadWrap: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   tplLoadUnit: { fontSize: font.small, color: colors.muted },
-  tplSets: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   tplSetsLabel: { fontSize: font.small, color: colors.muted },
+  // template editor — rest timers, progression, per-set rows
+  restRow: { flexDirection: 'row', gap: space.md },
+  restCell: { flex: 1 },
+  progToggle: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.xs },
+  progToggleText: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
+  progRow: { flexDirection: 'row', gap: space.sm },
+  progCell: { flex: 1, gap: space.xs },
+  tplSetRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: 2 },
+  tplSetKind: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.sm,
+    backgroundColor: colors.inputBg,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.xs,
+  },
+  tplSetKindText: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
+  tplSetGroup: { flex: 1, fontSize: font.tiny, color: colors.muted },
+  tplSetBtns: { flexDirection: 'row', gap: space.lg, marginTop: space.xs },
   tplLoadInput: {
     width: 64,
     backgroundColor: colors.inputBg,
@@ -1921,19 +2179,6 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
     fontSize: font.body,
     color: colors.ink,
   },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  stepBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.line,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.inputBg,
-  },
-  stepBtnText: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
-  stepCount: { width: 20, textAlign: 'center', fontSize: font.small, color: colors.ink, fontWeight: '700' },
   editorBtns: { flexDirection: 'row', gap: space.md, marginTop: space.lg },
   btnDisabled: { opacity: 0.4 },
   // plates & warm-up panel
