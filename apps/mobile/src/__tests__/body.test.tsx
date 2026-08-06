@@ -49,7 +49,7 @@ jest.mock('@/lib/auth', () => ({
 
 jest.mock('@/hooks/useDailyTargets', () => ({ useDailyTargets: () => ({ targets: null }) }));
 
-import BodyScreen from './body';
+import BodyScreen from '@/app/(app)/body';
 
 beforeEach(() => {
   mockAdd.mockClear();

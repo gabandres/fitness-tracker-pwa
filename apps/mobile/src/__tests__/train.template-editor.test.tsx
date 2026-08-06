@@ -75,7 +75,7 @@ jest.mock('@/hooks/useRestTimer', () => ({
   useRestTimer: () => ({ remaining: 0, running: false, start: jest.fn(), stop: jest.fn() }),
 }));
 
-import TrainScreen from './train';
+import TrainScreen from '@/app/(app)/train';
 
 beforeEach(() => {
   mockSaveTemplate.mockClear().mockResolvedValue(undefined);

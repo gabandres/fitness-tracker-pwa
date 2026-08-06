@@ -11,6 +11,36 @@ module scope, before React mounts, because Android can wake the widget when the
 UI was never started. Don't "fix" `main` back to `expo-router/entry`; it
 silently kills the widget on Android. See `WIDGET.md`.
 
+# `src/app/` holds ROUTES AND NOTHING ELSE — not even tests
+
+Expo Router builds its route tree from a Metro `require.context` over
+`src/app`, and [its regex excludes only `+api` and `+html`](https://docs.expo.dev/router/reference/testing/).
+Every other file there is treated as a route **and bundled into the app**. A
+colocated `*.test.tsx` therefore drags `@testing-library/react-native` into the
+production bundle, which requires Node's `console`, which Metro cannot resolve:
+
+```
+Unable to resolve module console from @testing-library/react-native/dist/helpers/logger.js
+```
+
+Mobile tests live in **`src/__tests__/`** (or beside a non-route module, like
+`src/components/SignInMethodsCard.test.tsx`) and import the screen through the
+alias — `@/app/(app)/train`, never `./train`.
+
+**`tsc --noEmit` and `jest` both pass while this is broken.** They do not run
+Metro. On 2026-08-06 it took two EAS builds to the *Bundle JavaScript* phase
+before anything noticed — a latent break from 2026-08-05, since no EAS build
+had run in between. The cheap local gate is a real bundle, and it costs
+nothing:
+
+```sh
+cd apps/mobile && npx expo export --platform android --output-dir <tmp>
+```
+
+**Run that before queueing any EAS build.** (Errored builds did not consume
+plan quota in that incident — measured 7/15 before and after — but they cost
+the queue wait, which on the Android free tier has run to two hours.)
+
 # This app is in production
 
 Treat every change here as a production change: this app is on the iOS App Store.

@@ -67,9 +67,13 @@ anything here as new work; do not describe an iOS-pending item to users as
 available.
 
 - **Mobile template editor reached parity with the web one** (2026-08-06).
-  **Builds queued 2026-08-06 from commit `e47fd366`: iOS build 18 (EAS
-  `e8f0d86f`) and Android versionCode 7 (EAS `e6d97826`). Until those finish and
-  are submitted, every installable build still has the destructive version.** The mobile
+  **In no binary. The first attempt — iOS 18 (`e8f0d86f`), Android vc 7
+  (`e6d97826`), both from `e47fd366` — ERRORED in *Bundle JavaScript*, for a
+  reason unrelated to this fix: colocated `*.test.tsx` files inside `src/app/`
+  get swept into Expo Router's route `require.context` and bundled (see
+  `apps/mobile/AGENTS.md`). That break landed 2026-08-05 with the first Expo
+  tests and lay dormant because no EAS build ran in between. Tests moved to
+  `src/__tests__/`; both platforms now bundle clean locally.** The mobile
   editor modelled an exercise's sets as a *count*, and `updateTemplate` writes
   `exercises` as a full overwrite, so opening a template authored on the web and
   tapping Save rewrote every cluster (activation/mini/mini) as N flat `working`
@@ -290,9 +294,12 @@ review those commits fixed.
   are used unevenly.
 - **iOS 7/15, Android 4/15, account 11/30 for the 2026-08-01 → 2026-09-01
   period — measured 2026-08-06 from the API.** The counter is not the
-  constraint this period. **A build is counted when it FINISHES, not when it is
-  queued**: the two builds queued 2026-08-06 (iOS 18, Android vc 7 — §2) were
-  still in flight at that reading and will take this to iOS 8 / Android 5.
+  constraint this period. **A build that ERRORS does not consume plan quota**,
+  measured 2026-08-06: iOS 18 and Android vc 7 both failed in the *Bundle
+  JavaScript* phase and the counter read 7/15 · 4/15 both before and after. What
+  a failed build does cost is the queue wait — up to ~2h on the Android free
+  tier. So the incentive to bundle locally first (`npx expo export`, see
+  `apps/mobile/AGENTS.md`) is time, not quota.
 - **A duplicate build is the cheapest way to lose a slot, and it is silent.**
   On 2026-08-03 one `eas build -p ios` invocation produced TWO builds a minute
   apart on the same commit (`f3e5daaf` vc15 and `6415fca7` vc16, both
