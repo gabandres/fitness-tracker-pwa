@@ -134,7 +134,7 @@ export const esPR: Record<I18nKey, string> = {
   'today.loadErr': 'No se pudieron cargar tus datos. Desliza para reintentar.',
   'today.entry': 'Registro',
   'whatsNew.title': 'Novedades',
-  'whatsNew.body': 'Ignia ahora te avisa cuando hay una actualización lista. También: pasos y energía activa desde Salud, recordatorios por comida, una forma más rápida de añadir una comida que no tengamos, y edición completa de plantillas de entrenamiento en el teléfono.',
+  'whatsNew.body': 'Un widget en la pantalla de inicio con tus calorías y proteína de hoy, y ahora Ignia te avisa cuando hay una actualización lista. También: pasos y energía activa desde Salud, recordatorios por comida, una forma más rápida de añadir una comida que no tengamos, y edición completa de plantillas de entrenamiento.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',

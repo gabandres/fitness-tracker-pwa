@@ -4,7 +4,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Mirrors the PWA's WHATS_NEW_VERSION pattern: the banner shows until the
 // user dismisses it, then the seen version is stored so it stays hidden until
 // the next bump. Device-local (AsyncStorage), like the reminder prefs.
-export const WHATS_NEW_VERSION = '2026-08-07';
+// Suffixed because the copy changed twice in one day: the first 2026-08-07
+// value shipped without the home-screen widget, which was still unverified on
+// Android at the time. Anyone who already saw and dismissed that one needs to
+// see the corrected copy, and equality against the stored value is the only
+// thing that decides it — so the string just has to differ, not parse as a date.
+export const WHATS_NEW_VERSION = '2026-08-07b';
 
 const KEY = 'whatsNew.seen';
 
