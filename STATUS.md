@@ -303,24 +303,28 @@ with the ASC command in §1.
   pass, and the widget appears in the picker and places normally. It surfaced
   only in **Sentry**, from the throw inside the widget task handler, which is
   the concrete payoff of vc 6 being the first Android binary with Sentry. **The
-  Android widget has therefore never worked in vc 4, 6 or 8**; do not describe
-  it to testers as available until a build carrying the fix is installed and
-  watched. **The fix shipped in Android vc 9** (EAS `56a1af79`, commit
-  `f3adeb83`), submitted 2026-08-06 and verified on the alpha track by the
-  `androidpublisher` API: `status=completed, versionCodes=["9"]`. **Still
-  unverified on a home screen** — and an existing widget instance may stay blank
-  because Android caches the RemoteViews from the failed render, so the check is:
-  remove the widget, re-add it, confirm it draws, then confirm the Sentry issue
-  *"Invalid Hook Call detected in TodayWidget"* stops firing. **Half of that is
-  now done: the Sentry issue (`IGNIA-MOBILE-3`, 3 events, 1 user) last fired
-  2026-08-06 22:24 from vc 8 and has NOT fired once since vc 9 shipped** (checked
-  2026-08-07). That is consistent with the fix holding, but it is not proof —
-  silence also looks like "nobody has a widget placed". The home-screen check is
-  still outstanding. If it fires from vc
-  9, the fix did not take. iOS is unaffected — its widget is SwiftUI and was
-  never touched by this. **The iOS widget is no longer in this list: it is verified working
-  on a physical iPhone from TestFlight build 13 (2026-08-03), including refresh
-  after a meal.**
+  Android widget never worked in vc 4, 6 or 8.** **The fix shipped in Android
+  vc 9** (EAS `56a1af79`, commit `f3adeb83`), submitted 2026-08-06 and verified
+  on the alpha track by the `androidpublisher` API:
+  `status=completed, versionCodes=["9"]`.
+  **VERIFIED ON A HOME SCREEN 2026-08-07 — a tester (Alejandro) confirmed the
+  widget draws on his own device from a Play install.** That closes the check
+  and, with it, the standing instruction not to describe the widget to testers:
+  it is now fair to name in release copy and What's New. Two supporting signals,
+  neither of which was sufficient alone: `IGNIA-MOBILE-3`
+  (*"Invalid Hook Call detected in TodayWidget"*, 3 events, 1 user) last fired
+  2026-08-06 22:24 from vc 8 and has not fired since vc 9 shipped — but silence
+  also looks like "nobody has a widget placed", which is exactly why a human
+  eye on a real home screen was the gate. If it ever fires from vc 9 or later,
+  the fix did not take after all.
+  **Not recorded, because nobody asked**: which versionCode that device was on
+  (vc 11 is what alpha serves) and whether the widget had to be removed and
+  re-added first. That second one matters for anyone else who updates — Android
+  caches the RemoteViews from the failed render, so an existing blank instance
+  can stay blank until it is removed and re-placed.
+  iOS is unaffected — its widget is SwiftUI and was never touched by this, and
+  it was verified working on a physical iPhone from TestFlight build 13
+  (2026-08-03), including refresh after a meal.
 - **The Apple Watch complication and its transport** — the watch app
   (`targets/watch/`), the face complication (`targets/watch-widget/`), the
   three iOS **Lock Screen** accessory families, one shared Swift contract
