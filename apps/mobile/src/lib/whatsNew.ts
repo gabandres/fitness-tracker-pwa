@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Mirrors the PWA's WHATS_NEW_VERSION pattern: the banner shows until the
 // user dismisses it, then the seen version is stored so it stays hidden until
 // the next bump. Device-local (AsyncStorage), like the reminder prefs.
-export const WHATS_NEW_VERSION = '2026-06-30';
+export const WHATS_NEW_VERSION = '2026-08-07';
 
 const KEY = 'whatsNew.seen';
 

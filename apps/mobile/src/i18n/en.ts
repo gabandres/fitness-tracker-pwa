@@ -132,7 +132,7 @@ export const en = {
   'today.loadErr': "Couldn't load your data. Pull to retry.",
   'today.entry': 'Entry',
   'whatsNew.title': "What's new",
-  'whatsNew.body': 'A fresh new look, a Train tab for workouts, search-first logging, and Refine targets to sharpen your numbers.',
+  'whatsNew.body': 'Ignia now tells you when an update is ready. Also new: steps and active energy from Health, reminders you can set per meal, a quicker way to add a food we don’t have, and full workout-template editing on your phone.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',
