@@ -106,3 +106,9 @@ pubsub-debug.log
 
 # Validation-gate output and other local scratch (never committed).
 scratch/
+
+# Downloaded USDA source archives (~13 MB) that `scripts/ingest-usda.mjs`
+# caches so a re-run is offline. The INGESTED result is committed
+# (functions/data/usda-foods.json); these inputs are reproducible from the URLs
+# in that script and have no business in the repo.
+.cache/

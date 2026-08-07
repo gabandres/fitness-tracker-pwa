@@ -170,15 +170,18 @@ What remains, in the order it was prioritized with the owner:
       toward ~2s, which is the variable retention actually turns on. Note this
       is native config: it **changes the EAS fingerprint**, so it needs real
       builds on both platforms, not an OTA.
-- [ ] **N2 · Bundle USDA FoundationFoods / SR Legacy (CC0) as an offline-first
-      food DB.** OpenFoodFacts junk entries are the quality complaint
-      MacroFactor and Cronometer market against ("verified / lab-analyzed").
-      Static JSON in the bundle → no query cost, works offline, and searches
-      never leave the device, which is the honest version of the privacy moat.
-      **This is also ADR-0015's missing half**: the split vision architecture
-      says the model does recognition + portion while *the USDA DB produces the
-      macros*. Photo-scan currently ships without it, so N2 is the accuracy
-      upgrade path for the feature that just launched, not merely a search fix.
+- [x] **N2 · Bundle USDA as the food DB.** **SHIPPED 2026-08-07** — ADR-0018.
+      13,272 foods (SR Legacy + FNDDS + Foundation, CC0) committed at
+      `functions/data/usda-foods.json` and searched in memory, replacing the
+      live FDC API: no key, no 1,000 req/hour ceiling, no upstream outage.
+      Open Food Facts still serves branded/barcode. Wire contract unchanged, so
+      it shipped functions-only with no client release. Retires
+      `USDA_FDC_API_KEY` (8 → 7 active secret versions).
+      **Still open — the half this does NOT do:** photo-scan continues to let
+      the model emit macros directly. Wiring `analyzePhoto` to resolve its
+      recognized items against this DB is what actually closes ADR-0015's split
+      vision architecture, and it is now a small change rather than a blocked
+      one. **N6 and N7 are unblocked by this.**
 
 ### Tier 2 — cheap and on-brand, unscheduled
 

@@ -6,6 +6,16 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-07 — Food search now ships with the food data inside it
+
+Searching for a food used to call the USDA's public API from our server, wait for it, and hope it was up. It needed a key, it was capped at 1,000 requests an hour across every user, and when it was slow, search was slow. The data it returned is public domain — so it is now simply *in* the app's server, and the round trip is gone.
+
+- **13,272 foods, searched instantly and offline of any third party.** Government-verified USDA data: generic and whole foods, the "as eaten" survey foods people actually type, and the lab-analyzed set on top. Branded and packaged goods still come from Open Food Facts, and barcode scanning is untouched.
+- **Search results got noticeably better, which took the most work.** The old API ranked results for us; a bundled database does not. Typing "egg" used to be able to return dried egg yolk at 654 calories. It now returns a whole raw egg. "cheddar cheese" finds *Cheese, cheddar* even though USDA files it backwards, "tuna" finds the fish and not a tuna salad sandwich, "chicken breast" finds chicken breast and not deli slices, and "onion" no longer returns onion bread.
+- **You can type the singular.** USDA stores "Carrots, raw" and "Blueberries, raw"; people type "carrot" and "blueberry". Both now work, and both give the same answer.
+- **One less key, one less thing to be down.** No API key, no rate ceiling, no upstream outage that can take food search with it.
+- **Nothing to update on your phone.** The wire format didn't change, so this is a server-side release — both apps got it without a new build.
+
 ## 2026-08-07 — Point your camera at dinner. It's free, and it was already built.
 
 The meal-photo→macros loop has been finished, deployed and guarded on the server for months. Both apps shipped with it switched off — deferred to a paid tier that does not exist, on a cost fear that turned out to be wrong by two orders of magnitude. Lifetime Gemini spend across every AI feature in the app is **$0.08**; the largest line on the bill is forgotten Secret Manager versions, at $5.91. A scan costs about a seventh of a cent.

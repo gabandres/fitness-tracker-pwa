@@ -1,42 +1,38 @@
 /**
- * Food database search + detail lookup. Wraps the USDA FoodData Central
- * (FDC) public API and caches results in Firestore so repeat queries
- * skip the upstream round-trip and stay well inside FDC's free-key
- * rate ceiling (1,000 req/hour/key).
+ * Food database search + detail lookup.
  *
  * Two callables:
  *   - searchFoods(query, pageSize?) → slim hit list for the typeahead.
- *   - getFoodDetail(fdcId)          → full nutrient + portion payload
+ *   - getFoodDetail(source, id)     → full nutrient + portion payload
  *                                     pre-processed into the shape the
  *                                     client renders directly.
  *
- * Why a Cloud Function and not a direct browser fetch:
- *   - The FDC API key is rate-limited per key; proxying lets every user
- *     share one quota with caching so a viral search burst doesn't
- *     burn the budget.
- *   - FDC has no CORS headers on its API — direct browser fetch fails
- *     with an opaque error. The proxy sidesteps that entirely.
- *   - Caching in Firestore makes the second-and-onward hit free.
+ * Two databases back them:
+ *   - USDA, from the dataset BUNDLED with this deploy (`./usda-db`). Generic
+ *     and whole foods. No network call, no API key, no rate ceiling, and
+ *     nothing upstream that can be down.
+ *   - Open Food Facts, live. Branded and international packaged items, where
+ *     OFF's crowdsourced coverage beats anything shippable in a bundle. Still
+ *     proxied through here because OFF is a network dependency worth caching
+ *     and rate-limiting.
+ *
+ * This replaced the live FDC API on both paths. That API needed a key
+ * (`USDA_FDC_API_KEY`), was capped at 1,000 req/hour, had no CORS headers, and
+ * could fail. The bundled data is the same CC0 source, so the swap costs
+ * nothing in provenance and removes all four problems — see
+ * `docs/adr/0018-bundled-usda-food-db.md`.
  */
 import { createHash } from "node:crypto";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { defineSecret } from "firebase-functions/params";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { ErrorCode } from "./error-codes";
-
-// Registered at https://api.data.gov/signup/ — operator sets this once
-// via `firebase functions:secrets:set USDA_FDC_API_KEY`. If unset the
-// callable returns a typed error so the client can render a clear
-// "ask the admin to configure food search" message instead of a generic
-// 500.
-const fdcApiKey = defineSecret("USDA_FDC_API_KEY");
+import { buildUsdaDetail, findById, loadFoods, searchUsda } from "./usda-db";
 
 const db = getFirestore();
-const FDC_BASE = "https://api.nal.usda.gov/fdc/v1";
 const SEARCH_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;       // 7 days
-// Food detail docs in FDC are versioned by `publicationDate` and never
-// mutate post-publish, so the detail cache has no TTL — once cached,
-// always fresh. If a doc is republished it gets a new fdcId.
+// A cached detail never goes stale: bundled USDA rows change only when the
+// dataset is regenerated (which mints new ids), and an OFF product is
+// re-fetched under its own barcode. So the detail cache has no TTL.
 // Per-uid spam guards. Search and detail use SEPARATE collections so
 // the common "search → tap result" handoff (which happens in 50-300 ms)
 // doesn't trip the detail call's limiter on the search's still-warm
@@ -46,65 +42,6 @@ const SEARCH_MIN_INTERVAL_MS = 500;
 const DETAIL_MIN_INTERVAL_MS = 200;
 const SEARCH_QUERY_MAX_LEN = 80;
 const SEARCH_PAGE_SIZE_MAX = 25;
-
-// Nutrient numbers we care about. FDC's foodNutrients[] uses the legacy
-// `nutrientNumber` (string) or new `nutrient.number`. Energy can appear
-// as kcal (208) or kJ (268); we prefer kcal and fall back via 4.184.
-const NUTRIENT_KCAL = "208";
-const NUTRIENT_KJ = "268";
-const NUTRIENT_PROTEIN = "203";
-const NUTRIENT_FAT = "204";
-const NUTRIENT_CARBS = "205";
-
-interface FdcSearchHit {
-  fdcId: number;
-  description: string;
-  dataType?: string;
-  brandOwner?: string;
-  brandName?: string;
-  brandedFoodCategory?: string;
-}
-
-interface FdcSearchResponse {
-  foods?: FdcSearchHit[];
-  totalHits?: number;
-}
-
-interface FdcFoodNutrient {
-  // SR / Foundation / FNDDS shape
-  nutrientNumber?: string;
-  amount?: number;
-  unitName?: string;
-  // Branded shape (nested)
-  nutrient?: { number?: string; unitName?: string };
-  value?: number;
-}
-
-interface FdcFoodPortion {
-  amount?: number;
-  gramWeight?: number;
-  portionDescription?: string;
-  modifier?: string;
-  measureUnit?: { name?: string; abbreviation?: string };
-}
-
-interface FdcFoodDetail {
-  fdcId: number;
-  description: string;
-  brandOwner?: string;
-  brandName?: string;
-  dataType?: string;
-  servingSize?: number;
-  servingSizeUnit?: string;
-  householdServingFulltext?: string;
-  foodNutrients?: FdcFoodNutrient[];
-  foodPortions?: FdcFoodPortion[];
-  // Branded foods carry per-serving labels at the top level
-  labelNutrients?: {
-    calories?: { value?: number };
-    protein?: { value?: number };
-  };
-}
 
 // ─── Wire contract (mirrors the client) ─────────────────────────
 // `FoodDbSource` + the three response shapes below are the wire contract with
@@ -204,212 +141,10 @@ async function enforceFoodRateLimit(
   });
 }
 
-// Gram conversions for `servingSizeUnit` values FDC reports on Branded
-// items. Approximate for liquids (ml ≈ 1 g) — calorie math is per-100g
-// and the user can still pick a foodPortions row for higher accuracy.
-const SERVING_UNIT_GRAMS: Record<string, number> = {
-  g: 1, gram: 1, grams: 1, gm: 1,
-  mg: 0.001,
-  oz: 28.3495,
-  lb: 453.592,
-  ml: 1, mlt: 1, "milliliter": 1,
-  l: 1000,
-};
-
-function gramsFromServingSize(size: number, unit: string): number | null {
-  const factor = SERVING_UNIT_GRAMS[unit.toLowerCase()];
-  return factor == null ? null : size * factor;
-}
-
 function normalizeQuery(q: string): string {
   return q.trim().toLowerCase().replace(/\s+/g, " ").slice(0, SEARCH_QUERY_MAX_LEN);
 }
 
-function readKcal(nutrients: FdcFoodNutrient[] | undefined): number | null {
-  if (!nutrients) return null;
-  for (const n of nutrients) {
-    const num = n.nutrientNumber ?? n.nutrient?.number;
-    const val = n.amount ?? n.value;
-    if (num === NUTRIENT_KCAL && typeof val === "number") return val;
-  }
-  // Fallback: kJ → kcal.
-  for (const n of nutrients) {
-    const num = n.nutrientNumber ?? n.nutrient?.number;
-    const val = n.amount ?? n.value;
-    if (num === NUTRIENT_KJ && typeof val === "number") return val / 4.184;
-  }
-  return null;
-}
-
-function readNutrient(
-  nutrients: FdcFoodNutrient[] | undefined,
-  nutrientNumber: string,
-): number | null {
-  if (!nutrients) return null;
-  for (const n of nutrients) {
-    const num = n.nutrientNumber ?? n.nutrient?.number;
-    const val = n.amount ?? n.value;
-    if (num === nutrientNumber && typeof val === "number") return val;
-  }
-  return null;
-}
-
-/**
- * Build the user-facing serving list for a food. Always includes a
- * per-100g row (canonical for metric users) and a per-package serving
- * row when the food carries `servingSize` + `householdServingFulltext`.
- * Adds one row per `foodPortions[]` entry so the typeahead's portion
- * picker offers "1 cup, chopped (148g)" etc. directly.
- */
-function buildServings(food: FdcFoodDetail): ServingOption[] {
-  const nutrients = food.foodNutrients ?? [];
-  // FDC FNDDS / SR / Foundation nutrients are per-100g. Branded foods
-  // are ALSO per-100g for the nutrients array (despite the labelNutrients
-  // sibling being per-serving). Treating the array as per-100g uniformly.
-  const kcalPer100g = readKcal(nutrients);
-  const proteinPer100g = readNutrient(nutrients, NUTRIENT_PROTEIN);
-  const carbsPer100g = readNutrient(nutrients, NUTRIENT_CARBS);
-  const fatPer100g = readNutrient(nutrients, NUTRIENT_FAT);
-
-  /** Scale the per-100g macros to a serving ratio, dropping the fields
-   *  FDC didn't report rather than writing fake zeros. */
-  const macrosAt = (ratio: number) => ({
-    protein: Math.round((proteinPer100g ?? 0) * ratio),
-    ...(carbsPer100g != null ? { carbs: Math.round(carbsPer100g * ratio) } : {}),
-    ...(fatPer100g != null ? { fat: Math.round(fatPer100g * ratio) } : {}),
-  });
-
-  const out: ServingOption[] = [];
-
-  if (kcalPer100g != null) {
-    out.push({
-      label: "100 g",
-      grams: 100,
-      kcal: Math.round(kcalPer100g),
-      ...macrosAt(1),
-      kind: 'per100g',
-    });
-  }
-
-  // Foundation/Branded packaged serving (e.g. "30 g" or "1 cup (240 ml)").
-  if (food.servingSize && food.servingSizeUnit && kcalPer100g != null) {
-    const sizeStr = food.householdServingFulltext
-      ?? `${food.servingSize} ${food.servingSizeUnit}`;
-    const gramsApprox = gramsFromServingSize(food.servingSize, food.servingSizeUnit);
-    if (gramsApprox != null) {
-      const ratio = gramsApprox / 100;
-      out.push({
-        label: sizeStr.slice(0, 60),
-        grams: gramsApprox,
-        kcal: Math.round(kcalPer100g * ratio),
-        ...macrosAt(ratio),
-        kind: 'portion',
-      });
-    }
-  }
-
-  // Household measures (the cup/tbsp/oz/slice rows the user typically wants).
-  for (const p of food.foodPortions ?? []) {
-    if (!p.gramWeight || p.gramWeight <= 0) continue;
-    if (kcalPer100g == null) continue;
-    const ratio = p.gramWeight / 100;
-    const unitName = p.measureUnit?.name ?? p.measureUnit?.abbreviation ?? "";
-    const amount = p.amount != null ? p.amount : 1;
-    const desc = p.portionDescription ?? p.modifier ?? "";
-    // Compose: "1 cup, chopped (148 g)" with sensible fallbacks.
-    const head = unitName && unitName !== "undetermined"
-      ? `${amount} ${unitName}${desc ? `, ${desc}` : ""}`
-      : desc || "1 serving";
-    const label = `${head} (${Math.round(p.gramWeight)} g)`.slice(0, 80);
-    out.push({
-      label,
-      grams: p.gramWeight,
-      kcal: Math.round(kcalPer100g * ratio),
-      ...macrosAt(ratio),
-      kind: 'portion',
-    });
-  }
-
-  // De-dup by label and cap. FDC sometimes returns dozens of portions
-  // (e.g. "1 cup, sliced", "1 cup, diced", "1 cup, chopped") — keep the
-  // first 12 so the picker doesn't become unwieldy.
-  const seen = new Set<string>();
-  const deduped: ServingOption[] = [];
-  for (const s of out) {
-    if (seen.has(s.label)) continue;
-    seen.add(s.label);
-    deduped.push(s);
-    if (deduped.length >= 12) break;
-  }
-
-  return deduped;
-}
-
-function fdcKeyValue(): string {
-  // `defineSecret().value()` throws when the secret isn't bound to the
-  // function. We surface a typed error so the client can show "ask admin
-  // to configure" instead of a 500.
-  try {
-    const v = fdcApiKey.value();
-    if (!v) throw new Error("empty");
-    return v;
-  } catch {
-    throw new HttpsError(
-      "failed-precondition",
-      "Food search is not configured. Set USDA_FDC_API_KEY via Firebase secrets.",
-      { code: ErrorCode.FOOD_API_NOT_CONFIGURED },
-    );
-  }
-}
-
-/** Non-throwing variant: returns the key or null when unset. Lets search
- *  degrade to Open Food Facts only (which needs no key) instead of erroring
- *  out when the USDA key isn't configured. */
-function fdcKeyOrNull(): string | null {
-  try {
-    const v = fdcApiKey.value();
-    return v || null;
-  } catch {
-    return null;
-  }
-}
-
-/** FDC typeahead search, isolated so a FDC outage degrades to OFF-only
- *  results rather than failing the whole call. Returns [] on any error. */
-async function searchFdc(query: string, size: number, key: string): Promise<FoodSearchHit[]> {
-  const url = new URL(`${FDC_BASE}/foods/search`);
-  url.searchParams.set("api_key", key);
-  url.searchParams.set("query", query);
-  url.searchParams.set("pageSize", String(size));
-  url.searchParams.append("dataType", "Foundation");
-  url.searchParams.append("dataType", "SR Legacy");
-  url.searchParams.append("dataType", "Survey (FNDDS)");
-  url.searchParams.append("dataType", "Branded");
-  try {
-    const resp = await fetch(url.toString());
-    if (!resp.ok) {
-      if (resp.status !== 429) {
-        console.warn("FDC search non-OK:", resp.status);
-      }
-      return [];
-    }
-    const body = (await resp.json()) as FdcSearchResponse;
-    return (body.foods ?? []).map((f) => {
-      const brand = f.brandName || f.brandOwner;
-      const hit: FoodSearchHit = {
-        source: "fdc",
-        id: String(f.fdcId),
-        description: (f.description ?? "").slice(0, 140),
-      };
-      if (brand) hit.brand = brand.slice(0, 80);
-      if (f.dataType) hit.dataType = f.dataType;
-      return hit;
-    });
-  } catch (err) {
-    console.warn("FDC search error (degrading to OFF):", err);
-    return [];
-  }
-}
 
 /** Open Food Facts typeahead search. Sorted by scan popularity so the
  *  household-name products surface first. Times out fast and returns []
@@ -458,7 +193,7 @@ async function searchOff(query: string, size: number): Promise<FoodSearchHit[]> 
   }
 }
 
-/** Interleave FDC and OFF results (so both databases stay visible even
+/** Interleave USDA and OFF results (so both databases stay visible even
  *  when one fills the page), de-duping by name+brand, capped to `size`. */
 function mergeHits(fdc: FoodSearchHit[], off: FoodSearchHit[], size: number): FoodSearchHit[] {
   const out: FoodSearchHit[] = [];
@@ -552,7 +287,7 @@ async function fetchOffDetail(code: string): Promise<FoodDetail> {
 }
 
 export const searchFoods = onCall(
-  { secrets: [fdcApiKey], maxInstances: 10 },
+  { maxInstances: 10 },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Must be signed in.", { code: ErrorCode.UNAUTHENTICATED });
@@ -580,7 +315,12 @@ export const searchFoods = onCall(
     // Doc id is a SHA-1 of `${size}|${normalized}` to keep the id
     // bounded-length regardless of multibyte input. Collisions on a
     // 160-bit hash are not a concern at this scale.
-    const cacheKey = createHash("sha1").update(`v2|${size}|${normalized}`).digest("hex");
+    // The version prefix is part of the key so a backend swap invalidates every
+    // cached page. Bumped to v3 when the bundled USDA DB replaced the live FDC
+    // API: a v2 entry can name a Branded fdcId that only the old API could
+    // resolve, and serving one would hand the client an id whose detail lookup
+    // is now guaranteed to 404.
+    const cacheKey = createHash("sha1").update(`v3|${size}|${normalized}`).digest("hex");
     const cacheRef = db.collection("foodSearchCache").doc(cacheKey);
     const cacheSnap = await cacheRef.get();
     if (cacheSnap.exists) {
@@ -591,17 +331,15 @@ export const searchFoods = onCall(
       }
     }
 
-    // Cache miss → enforce rate limit, then query both databases in
-    // parallel and merge. FDC needs a key (skipped if unset); OFF is
-    // key-less, so search keeps working even before the USDA key is set.
+    // Cache miss → enforce the rate limit, then merge both databases. The USDA
+    // half is a local in-memory scan, so only the OFF call can be slow or fail;
+    // `searchOff` returns [] on any error, which now degrades to a still-useful
+    // result rather than an empty one.
     await enforceFoodRateLimit("foodSearchRateLimit", uid, SEARCH_MIN_INTERVAL_MS);
 
-    const key = fdcKeyOrNull();
-    const [fdcHits, offHits] = await Promise.all([
-      key ? searchFdc(normalized, size, key) : Promise.resolve<FoodSearchHit[]>([]),
-      searchOff(normalized, size),
-    ]);
-    const hits = mergeHits(fdcHits, offHits, size);
+    const usdaHits = searchUsda(loadFoods(), normalized, size) as FoodSearchHit[];
+    const offHits = await searchOff(normalized, size);
+    const hits = mergeHits(usdaHits, offHits, size);
 
     // Best-effort cache write. Never block the response on cache failure.
     void cacheRef.set({
@@ -615,7 +353,7 @@ export const searchFoods = onCall(
 );
 
 export const getFoodDetail = onCall(
-  { secrets: [fdcApiKey], maxInstances: 10 },
+  { maxInstances: 10 },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Must be signed in.", { code: ErrorCode.UNAUTHENTICATED });
@@ -658,41 +396,16 @@ export const getFoodDetail = onCall(
     if (source === "off") {
       detail = await fetchOffDetail(id);
     } else {
-      const url = new URL(`${FDC_BASE}/food/${id}`);
-      url.searchParams.set("api_key", fdcKeyValue());
-      let resp: Response;
-      try {
-        resp = await fetch(url.toString());
-      } catch (err) {
-        console.error("FDC detail network error:", err);
-        throw new HttpsError("unavailable", "Food database unreachable.", { code: ErrorCode.FOOD_DETAIL_FAILED });
-      }
-      if (resp.status === 404) {
+      // Bundled lookup — no network, so the only failure is "not in the
+      // dataset". That can happen for an id minted by the old live-FDC backend
+      // (a Branded item, say) which a client still holds; the cache above
+      // answers those it already knows, and this is the honest answer for the
+      // rest. Nothing persisted references an fdcId, so no stored log breaks.
+      const food = findById(loadFoods(), id);
+      if (!food) {
         throw new HttpsError("not-found", "Food not found.", { code: ErrorCode.FOOD_NOT_FOUND });
       }
-      if (resp.status === 429) {
-        throw new HttpsError("resource-exhausted", "FDC rate limit hit.", { code: ErrorCode.RATE_LIMITED });
-      }
-      if (!resp.ok) {
-        console.error("FDC detail non-OK:", resp.status, await resp.text().catch(() => ""));
-        throw new HttpsError("internal", "Food detail fetch failed.", { code: ErrorCode.FOOD_DETAIL_FAILED });
-      }
-      const raw = (await resp.json()) as FdcFoodDetail;
-      detail = {
-        source: "fdc",
-        id: String(raw.fdcId),
-        description: (raw.description ?? "").slice(0, 140),
-        servings: buildServings(raw),
-      };
-      const brand = raw.brandName || raw.brandOwner;
-      if (brand) detail.brand = brand.slice(0, 80);
-      if (detail.servings.length === 0) {
-        throw new HttpsError(
-          "internal",
-          "No nutrition data available for this food.",
-          { code: ErrorCode.FOOD_NO_NUTRITION },
-        );
-      }
+      detail = buildUsdaDetail(food) as FoodDetail;
     }
 
     void cacheRef.set({ detail, cachedAt: Timestamp.now() }).catch((err) =>
