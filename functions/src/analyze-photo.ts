@@ -2,7 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenAI } from "@google/genai";
 import { ErrorCode } from "./error-codes";
-import { anthropicApiKey, callerAccess, dailyQuota, geminiApiKey, spendCeiling } from "./init";
+import { callerAccess, dailyQuota, geminiApiKey, spendCeiling } from "./init";
 
 // ─── Photo-to-Macros ────────────────────────────────────────────────
 
@@ -189,9 +189,26 @@ async function estimateWithGemini(photoBase64: string, prompt: string): Promise<
   return JSON.parse(result.text ?? "{}") as MacroDraft;
 }
 
-/** Claude path — metered, better structured-output and refusal semantics. */
+/** Claude path — metered, better structured-output and refusal semantics.
+ *
+ * NOT deployable as-is. `ANTHROPIC_API_KEY` was removed from this function's
+ * `secrets: []` on 2026-08-07 (see init.ts for why), so the key is not mounted
+ * and this reads an env var that is absent in production. Flipping
+ * `PHOTO_PROVIDER` to "anthropic" without first restoring the secret binding
+ * therefore fails HERE, loudly and on the first call — which is the point. The
+ * alternative was an empty API key producing a 401 from Anthropic that reads
+ * like a bad key rather than a missing deployment step.
+ */
 async function estimateWithAnthropic(photoBase64: string, prompt: string): Promise<MacroDraft> {
-  const client = new Anthropic({ apiKey: anthropicApiKey.value() });
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "ANTHROPIC_API_KEY is not mounted. PHOTO_PROVIDER is set to \"anthropic\" but the " +
+        "secret was removed from analyzePhoto's `secrets: []` (2026-08-07). Re-create the " +
+        "secret, restore defineSecret in init.ts, and re-add it here before flipping.",
+    );
+  }
+  const client = new Anthropic({ apiKey });
   const response = await client.messages.create({
     model: ANTHROPIC_MODEL,
     max_tokens: PHOTO_MAX_OUTPUT_TOKENS,
@@ -247,10 +264,14 @@ async function estimateWithAnthropic(photoBase64: string, prompt: string): Promi
 }
 
 export const analyzePhoto = onCall(
-  // BOTH secrets are declared regardless of which provider is active, so
-  // flipping PHOTO_PROVIDER is a one-word change and not a change to the
-  // deployment contract. Both must exist in Secret Manager to deploy.
-  { secrets: [geminiApiKey, anthropicApiKey], maxInstances: 10 },
+  // Only the ACTIVE provider's secret is declared. This used to bind both, so
+  // that flipping PHOTO_PROVIDER was a one-word change — a genuinely nice
+  // property, given up on 2026-08-07 because an unused secret costs one of the
+  // 6 free ACTIVE versions per BILLING ACCOUNT (this account was at 14) and the
+  // Anthropic key had leaked in plaintext. Flipping providers is now a
+  // three-step change; estimateWithAnthropic throws with those steps if you
+  // forget. See init.ts.
+  { secrets: [geminiApiKey], maxInstances: 10 },
   async (request) => {
     // Auth + rate limit (BEFORE the quota reserve, so a throttled call
     // doesn't consume a slot) + tier, all in one preamble.

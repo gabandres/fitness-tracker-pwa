@@ -18,11 +18,16 @@ export const db = getFirestore();
 // Inferred SecretParam type is unportable under `declaration: true` —
 // annotate via ReturnType like resend-client.ts does.
 export const geminiApiKey: ReturnType<typeof defineSecret> = defineSecret("GEMINI_API_KEY");
-// Photo-scan runs on Claude Haiku 4.5 (analyze-photo.ts); everything else
-// still runs on Gemini. Two providers on purpose — see the model note in
-// analyze-photo.ts. Secret Manager's free tier is 6 ACTIVE versions across
-// the project, so destroy superseded versions after rotating this one.
-export const anthropicApiKey: ReturnType<typeof defineSecret> = defineSecret("ANTHROPIC_API_KEY");
+// ANTHROPIC_API_KEY used to be defined here and bound to analyzePhoto. It was
+// removed 2026-08-07: `PHOTO_PROVIDER` in analyze-photo.ts is "gemini", so the
+// Claude path never executed, and a bound-but-unused secret still consumes one
+// of Secret Manager's 6 free ACTIVE versions — which are counted per BILLING
+// ACCOUNT, not per project, and this account was at 14. The key had also been
+// exposed in plaintext, so deleting beat rotating something nothing called.
+//
+// To put Claude back: re-create the secret, re-add `defineSecret` here, and
+// re-add it to `secrets: []` in analyze-photo.ts. Flipping `PHOTO_PROVIDER`
+// alone is no longer sufficient — see the guard in estimateWithAnthropic.
 
 // Caller-access preamble (auth + rate limit + tier) and the daily-quota
 // ledger. Admin list, comped resolution, doc-key format, limits, and the
