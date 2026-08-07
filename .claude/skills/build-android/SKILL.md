@@ -35,9 +35,36 @@ run the command rather than reasoning about it.
 
 ## Step 2 — OTA (no build, no queue, no review)
 
+**Before publishing: tell the user what changed.** Store release notes — App Store
+"What's New", Play release notes — attach to **binary releases only**. An OTA
+update reaches the device with no store involvement at all, so the in-app banner is
+the **only** user-facing channel. Skip it and people get silently-changed software.
+
+The banner is a one-time dismissible card on Today / the home screen, and every
+piece of it is plain JS, so bumping it ships in the same update:
+
+| What | Where |
+|---|---|
+| Version constant | `apps/mobile/src/lib/whatsNew.ts` → `WHATS_NEW_VERSION` |
+| Copy (both locales, flat keys) | `apps/mobile/src/i18n/{en,es-PR}.ts` → `whatsNew.title`, `whatsNew.body` |
+| Web equivalent (nested keys) | `src/app/components/whats-new-banner/whats-new-banner.component.ts` |
+
+It re-shows when `WHATS_NEW_VERSION` differs from the stored `whatsNew.seen`
+(AsyncStorage on mobile, localStorage on web), so **bumping the constant is what
+makes it fire** — changing only the copy shows nobody anything. It is a single
+summary sentence, not a changelog; keep it to what a user would notice.
+
+The mobile and web constants drift independently (mobile `2026-06-30`, web
+`2026-06-13` as of 2026-08-07). That is not a bug — each tracks its own seen-value
+— but bump both when a change spans platforms.
+
+Then publish:
+
 ```sh
 cd apps/mobile && npx eas update --branch production --message "<what changed>"
 ```
+
+`--message` is for **you**, in the EAS dashboard. Users never see it.
 
 Free tier is **1,000 monthly active users** (unique devices downloading ≥1 update
 per month); the tester base is single digits, so this costs nothing today.

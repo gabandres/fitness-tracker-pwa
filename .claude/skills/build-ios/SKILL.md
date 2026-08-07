@@ -1,6 +1,6 @@
 ---
 name: build-ios
-description: Build and optionally submit an iOS binary on the MacBook Air (`ignia-mac`) over SSH — a local EAS build that costs no EAS quota and no cloud queue. Use for "cut an iOS build", "build for TestFlight", "ship the iPhone app", or whenever a mobile fix needs to reach iOS testers. Android is NOT this skill (it stays on Windows/EAS cloud).
+description: Build and optionally submit an iOS binary on the MacBook Air (`ignia-mac`) over SSH, or decide that a JS-only change needs no build at all — a local EAS build that costs no EAS quota and no cloud queue. Use for "cut an iOS build", "build for TestFlight", "ship the iPhone app", or whenever a mobile fix needs to reach iOS testers. Android is the `build-android` skill (also local, also on the Mac).
 ---
 
 # Build iOS on the Mac
@@ -13,6 +13,33 @@ queue slot and up to two hours of waiting.
 The runbook lives in `docs/DEV_ENVIRONMENT.md` **§3.8** (SSH setup) and **§3.10**
 (archiving, prerequisites, power). Read §3.10 before debugging any build failure —
 every failure seen so far is already written down there.
+
+## First: do you need a build at all?
+
+**A JS/TS-only change needs no binary on either platform.** EAS Update ships it in
+seconds. Run the fingerprint gate before assuming otherwise — an update published
+against a changed fingerprint SUCCEEDS and reaches nobody:
+
+```sh
+cd apps/mobile && npx expo-updates fingerprint:generate --platform ios
+```
+
+Unchanged hash → go to **`build-android` skill, Step 2**, which owns the full OTA
+procedure for *both* platforms (`eas update` publishes for both at once). Do not
+re-derive it here; one copy, and that is where it lives.
+
+**Two things from there that are easy to miss on iOS specifically:**
+
+- **Bump the what's-new banner** (`apps/mobile/src/lib/whatsNew.ts` →
+  `WHATS_NEW_VERSION`, plus `whatsNew.body` in both locales). App Store "What's
+  New" attaches to **binary releases only**, so for an OTA it is the only thing a
+  user ever sees. Changing the copy without bumping the constant shows nobody
+  anything.
+- **A device is OTA-capable only once it is RUNNING a binary containing
+  `expo-updates`** — iOS build 24 (2026-08-07) is the first. Testers on anything
+  older must install from TestFlight once.
+
+Everything below is for changes that genuinely touch the native surface.
 
 ## Step 1 — preflight (always; it is seconds and it has caught real blockers)
 
@@ -147,6 +174,9 @@ import('file:///Z:/macro-app/scripts/asc-client.mjs').then(async ({api, APP_ID})
   on the Mac**.
 - **A mobile fix reaches nobody until a binary ships.** Merging is not shipping — say
   this out loud when reporting.
-- **iOS only.** Android stays on Windows/EAS cloud, signed with the local
-  `dev.keystore` (`CLAUDE.local.md` — that keystore is load-bearing app identity).
+- **iOS only.** Android also builds on the Mac now — `build-android` skill and
+  `DEV_ENVIRONMENT.md` §3.11 — and it is the *only* machine that can, since
+  Windows cannot compile RN's New Architecture C++ at all (`MAX_PATH`). Android
+  signs with `dev.keystore`, which now lives on **both** machines
+  (`CLAUDE.local.md` — load-bearing app identity, disposal list there too).
 - After shipping, update `STATUS.md` — it is the file that says what is true right now.
