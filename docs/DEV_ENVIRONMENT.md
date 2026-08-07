@@ -439,7 +439,7 @@ installed. `.zshenv` is sourced for every zsh invocation; it carries the Homebre
 and the UTF-8 locale CocoaPods needs. Without it every remote command needs a manual
 `export PATH=/opt/homebrew/bin:$PATH`.
 
-Verified working end to end:
+The toolchain answers:
 
 ```sh
 $ ssh ignia-mac "node -v; npm -v; pod --version; xcodebuild -version | head -1"
@@ -449,21 +449,118 @@ v22.23.2
 Xcode 26.6
 ```
 
-**Two things that are not solved and should not be assumed away:**
+**That check proves prebuilding, NOT archiving — do not read it as end-to-end.**
+It was labelled "verified working end to end" until 2026-08-07, when the first real
+`eas build --local` failed three times in a row on prerequisites none of the four
+commands above can see. Prebuild and `pod install` exercise Node, npm and CocoaPods;
+an **archive** additionally needs fastlane and two Xcode platform components, and each
+one only surfaces after the previous is fixed. See §3.10.
 
-1. **Sleep.** `caffeinate -dims` holds the Mac awake for a command's lifetime, but an
-   undocked, unplugged Air will sleep and vanish. For unattended builds set Energy
-   Saver to never sleep on power.
-2. **It is Stephanie's machine and her account.** Everything above lives under her
-   home directory, and a *shippable* build additionally needs the Sentry token and the
-   ASC `.p8` there (§3.3). That is a deliberate decision to make, not a default to
-   drift into — a separate macOS user for builds would isolate it, at the cost of
-   redoing Homebrew and Xcode paths.
+**It is Stephanie's machine and her account.** Everything above lives under her home
+directory. A shippable build needs the **Sentry token** there (`~/fitness-tracker-pwa/
+.env.local`, mode `600` — validate with a Sentry API call, not by eyeballing the file)
+and an **EAS session** (`~/.expo/state.json`). It does **not** need the ASC `.p8` —
+see §3.10. That is a deliberate decision to make, not a default to drift into; a
+separate macOS user for builds would isolate it, at the cost of redoing Homebrew and
+Xcode paths.
 
 **Do not poll a remote build by testing whether a process is gone.** An SSH failure
 and a finished process look identical to `if ! ssh … pgrep`, so a network blip reports
 success. Have the remote command print an explicit sentinel and treat anything else,
 including no output, as "still unknown".
+
+### 3.10 Archiving on the Air — first green build, 2026-08-07
+
+**First successful `eas build --local` for iOS: 15m57s, `build-<ts>.ipa` at 29 MB,
+version 1.1.0 build 23.** All four targets nested correctly, which is the thing to
+verify rather than trusting the exit code:
+
+```
+Ignia.app
+├── PlugIns/Today.appex                           ← iOS widget
+└── Watch/IgniaWatch.app
+    └── PlugIns/IgniaWatchComplication.appex      ← complication
+```
+
+Signed to team `AE6TTXW92K` with profile `*[expo] fit.ignia.app AppStore`,
+`MinimumOSVersion` 16.4.
+
+**Three prerequisites that §3.9's toolchain check cannot see.** Each surfaced only
+after the previous was fixed, so expect to fix them in this order:
+
+1. **fastlane is not installed by anything else.** `eas build --local` drives the
+   archive through fastlane gym; without it the build dies in ~35 s with
+   `Fastlane is not available` / `spawn fastlane ENOENT`. Install via Homebrew, not
+   the gem — the system Ruby 2.6.10 has the broken `ffi` from §3.9:
+   ```sh
+   brew install fastlane        # 2.237.0 → /opt/homebrew/bin/fastlane
+   ```
+2. **The iOS platform component**, ~8.5 GB:
+   ```sh
+   sudo xcodebuild -downloadPlatform iOS
+   ```
+   **`xcodebuild -showsdks` listing `iOS 26.5` does NOT mean the platform is
+   installed.** Xcode 26 tracks platforms as separately-downloaded components, and
+   the SDK directory is not what it checks — so the SDK is present, `iPhoneOS.platform`
+   is on disk, prebuild and `pod install` and compilation all succeed, and the archive
+   then fails at destination resolution:
+   ```
+   xcodebuild: error: Unable to find a destination matching the provided destination specifier:
+     { platform:iOS, name:Any iOS Device,
+       error:iOS 26.5 is not installed. Please download and install the platform
+             from Xcode > Settings > Components. }
+   ```
+   **The cheap tell is `xcrun simctl list runtimes` returning nothing** — an empty
+   runtime list means the platform component is missing, and it is *not* "irrelevant
+   because we only build for device". `sudo xcodebuild -runFirstLaunch` does **not**
+   fix this; it is a silent no-op here. Confirm the fix with
+   `xcodebuild -showdestinations -scheme Ignia`: the `Any iOS Device` line must come
+   back with **no `error:` clause attached**.
+3. **The watchOS platform component**, ~3 GB:
+   ```sh
+   sudo xcodebuild -downloadPlatform watchOS
+   ```
+   Required because the `Ignia` scheme **embeds the watch app**, so this is not
+   optional even when you only care about the phone:
+   ```
+   This scheme builds an embedded Apple Watch app.
+   watchOS 26.5 must be installed in order to archive the scheme
+   ```
+
+**Budget ~18 GB of disk for the two downloads plus an archive.** Measured: 45 GB free
+→ 27 GB after both platforms and one successful build.
+
+**`--local` does NOT hit the ASC 401.** `CLAUDE.local.md` documents
+`eas build -p ios --non-interactive` failing credential validation against EAS's own
+stored App Store Connect key, needing `EXPO_ASC_KEY_PATH` / `EXPO_ASC_KEY_ID` /
+`EXPO_ASC_ISSUER_ID` as a workaround. **That is the cloud build path only.** A local
+build printed `All credentials are ready to build` for all four bundle identifiers
+with no overrides, so **the ASC `.p8` never has to be copied to the Mac** — one fewer
+credential on someone else's laptop. `eas submit -p ios` likewise uses its own working
+EAS-held key.
+
+**`autoIncrement: true` burns a build number per ATTEMPT, including failures.** It
+runs before the archive, so the three failed runs consumed 20, 21 and 22; the first
+green build was 23, while build 19 sat in App Review. Harmless — ASC only requires
+build numbers to increase — but the gaps are real and are not a mystery to chase.
+
+**Power, and the failure mode that is not sleep.** The Air is configured to never
+sleep on AC (`sudo pmset -c sleep 0 disksleep 0 displaysleep 0`) with battery settings
+left at stock, plus a `caffeinate -s` LaunchDaemon at
+`/Library/LaunchDaemons/fit.ignia.nosleep.plist` (`RunAtLoad` + `KeepAlive`) as a
+backstop that asserts **only on AC**, so it cannot hold the machine awake unplugged.
+Do not use `pmset -a disablesleep 1` — it is global and blocks battery sleep too.
+
+The real hazard is upstream of any of that: **the dock can stop delivering power while
+still working as a dock.** On 2026-08-06 the SMC logged
+`ExternalPowerChange(0x71010100)` at 22:40 and the DisplayLink dock's USB-C PD
+contract dropped — video, keyboard and mouse all kept working, so nothing looked
+wrong, while the Air ran down from 80% to 62% overnight. Diagnose with
+`pmset -g batt` and `pmset -g ac` (`No adapter attached` is unambiguous), and read the
+history with `pmset -g log | grep -E 'Using (AC|Batt)'`, which collapses to one line
+per real transition. Because a PD drop puts the machine on battery where sleep *is*
+allowed, **keep wrapping long builds in `caffeinate -dims`** — the pmset config alone
+does not cover a build that starts on AC and continues on battery.
 
 
 ---
