@@ -125,14 +125,25 @@ keytool -printcert -jarfile <aab> | grep -i 'Owner\|SHA'
 # CN=Android Debug  →  WRONG, unsigned-for-Play
 ```
 
-## Step 4 — submit
+## Step 4 — submit FROM WINDOWS, not from the Mac
+
+**The Mac cannot submit to Play.** It has `dev.keystore` but deliberately NOT
+`credentials/play-service-account.json` — that key can publish releases to the
+live listing, and the Mac already holds the signing keystore, the Sentry token
+and an EAS session. Pull the AAB back instead of adding a fourth credential to
+someone else's laptop:
 
 ```sh
-cd apps/mobile && npx eas submit -p android --profile production
+# on Windows
+scp ignia-mac:~/fitness-tracker-pwa/apps/mobile/android/app/build/outputs/bundle/release/app-release.aab <tmp>/ignia-vcN.aab
+cd apps/mobile && npx eas submit -p android --profile production --path <tmp>/ignia-vcN.aab
 ```
 
-Goes to the **alpha** track with `releaseStatus: "completed"` (rolled out to the
-tester list, not a draft). Uses `credentials/play-service-account.json`.
+89 MB over Tailscale, a few seconds. Goes to the **alpha** track with
+`releaseStatus: "completed"` (rolled out to the tester list, not a draft).
+
+`eas submit` consumes **no build quota** — it is a separate service from
+`eas build`. Submitting freely is fine.
 
 **Verify at Play, not from the CLI** — the `androidpublisher` edits→tracks API is
 the authority on what testers actually have:
@@ -140,6 +151,16 @@ the authority on what testers actually have:
 ```
 GET androidpublisher/v3/.../tracks/alpha  →  status=completed, versionCodes=["N"]
 ```
+
+### Shipping a binary does NOT deliver an OTA update
+
+Two separate things, and conflating them wastes a release:
+
+- A device only becomes OTA-capable once it is **running a binary that contains
+  `expo-updates`**. Testers on an older versionCode receive nothing until they
+  install the new one from Play — which is their action, not yours.
+- Publishing the binary does not publish an update. `eas update` is a separate
+  command, run when you actually have a JS change to ship.
 
 ## After shipping
 
