@@ -148,6 +148,68 @@ with the pure modules preserved, so the "hard to reverse" bar fails.
 
 ---
 
+## 🧭 S15 — Competitive roadmap backlog (2026-08-07)
+
+Derived from `docs/research/competitive-feature-scan.md` by removing everything
+that has since shipped. **Most of that scan's twelve candidates are closed** —
+Health sync (both platforms, incl. Health Connect), home-screen widget, Watch
+app + complication, recipe-URL import, adaptive TDEE (`packages/core/tdee-recalibration.ts`),
+local nudges, streak + freeze, barcode, voice/NL logging, AI coach. Do not
+re-scope those; check the file that owns each before believing this list.
+
+Candidate 9 (photo-scan) **shipped 2026-08-07** — see ADR-0017 and `CHANGELOG.md`.
+What remains, in the order it was prioritized with the owner:
+
+### Approved in principle — next projects
+
+- [ ] **N1 · Siri / App Intents + Android Quick Settings tile.** No code exists
+      today (`grep` for `AppIntent`/`Siri` returns nothing in `apps/mobile`).
+      "Hey Siri, log 40 grams of protein" → straight into `apps/mobile/src/lib/ledger.ts`.
+      $0 runtime, native-only, and **nobody in the surveyed set does this well**
+      — it is the cheapest genuine differentiator left. Drives logging friction
+      toward ~2s, which is the variable retention actually turns on. Note this
+      is native config: it **changes the EAS fingerprint**, so it needs real
+      builds on both platforms, not an OTA.
+- [ ] **N2 · Bundle USDA FoundationFoods / SR Legacy (CC0) as an offline-first
+      food DB.** OpenFoodFacts junk entries are the quality complaint
+      MacroFactor and Cronometer market against ("verified / lab-analyzed").
+      Static JSON in the bundle → no query cost, works offline, and searches
+      never leave the device, which is the honest version of the privacy moat.
+      **This is also ADR-0015's missing half**: the split vision architecture
+      says the model does recognition + portion while *the USDA DB produces the
+      macros*. Photo-scan currently ships without it, so N2 is the accuracy
+      upgrade path for the feature that just launched, not merely a search fix.
+
+### Tier 2 — cheap and on-brand, unscheduled
+
+- [ ] **N3 · Fasting Live Activity / Dynamic Island.** Extends the fasting timer
+      already shipped free (Cronometer paywalls theirs at $59.99/yr). iOS-only,
+      $0, pure lock-screen retention. Native → needs a build.
+- [ ] **N4 · Interactive widget quick-add.** The widget renders today but is
+      display-only; iOS 17+ `AppIntent` buttons and Android `RemoteViews`
+      actions would let a preset be logged without opening the app. Small delta
+      on infrastructure already shipped (`apps/mobile/WIDGET.md`). Pairs
+      naturally with N1 — same App Intents work.
+- [ ] **N5 · Guest mode / log-before-signup.** Already listed under §S13
+      "Decided against" as the fix *if Day-1 retention warrants it*. Forced
+      account creation before the first log is the standard freemium leak, and
+      "no account needed" carries the privacy pitch better than any copy does.
+      Revisit against real retention data, not intuition.
+
+### Tier 3 — deliberately deferred, with the reason
+
+- [ ] **N6 · Restaurant / chain-menu data.** A real table-stakes gap (MFP ships
+      it free). Deferred because a bundled static dataset goes stale and a live
+      API costs money — **do it after N2**, reusing that bundling mechanism.
+- [ ] **N7 · Full micronutrient panel (80+).** Off the kcal+protein focus;
+      Cronometer owns this niche. Cheap only if N2 lands first.
+- [ ] **N8 · Social challenges / community.** **Not planned.** Needs a server
+      plus moderation, conflicting with the cost discipline in `CLAUDE.md`, and
+      gamified competition contradicts the "calm" positioning §S12 is built on.
+      Recorded here so it stops being re-proposed, not because it is queued.
+
+---
+
 ## 5. Notes for future additions
 
 - When adding a new surface, check it against: (a) does copy work for a first-time user; (b) is every icon-only button labelled; (c) does it announce state changes via `aria-live`.

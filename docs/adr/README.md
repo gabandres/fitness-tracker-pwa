@@ -47,5 +47,6 @@ decisions that are local to a single component.
 | 0012 | [Native iOS app via Expo (separate RN frontend, shared core)](0012-expo-native-app-shared-core.md) | accepted |
 | 0013 | [AI food-resolution pipeline + My Foods library](0013-food-resolution-my-foods-library.md) | accepted |
 | 0014 | [Mobile dark-first identity + center-log navigation](0014-mobile-dark-first-identity-center-log-nav.md) | accepted |
-| 0015 | [Macronaut photo-first freemium pivot](0015-macronaut-photo-first-freemium-pivot.md) | accepted |
+| 0015 | [Macronaut photo-first freemium pivot](0015-macronaut-photo-first-freemium-pivot.md) | accepted; paid gate amended by ADR-0017 |
 | 0016 | [Mobile per-hook Firestore subscriptions are intentional](0016-mobile-per-hook-subscriptions-intentional.md) | accepted |
+| 0017 | [Photo-scan ships ON and free for everyone in v1](0017-photo-scan-free-for-all-v1.md) | accepted (amends 0015) |

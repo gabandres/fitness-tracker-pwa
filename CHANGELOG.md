@@ -6,6 +6,16 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-07 — Point your camera at dinner. It's free, and it was already built.
+
+The meal-photo→macros loop has been finished, deployed and guarded on the server for months. Both apps shipped with it switched off — deferred to a paid tier that does not exist, on a cost fear that turned out to be wrong by two orders of magnitude. Lifetime Gemini spend across every AI feature in the app is **$0.08**; the largest line on the bill is forgotten Secret Manager versions, at $5.91. A scan costs about a seventh of a cent.
+
+- **Photo scanning is on, for everyone, at no cost.** Snap the plate, get calories and protein back, correct anything the model got wrong, log it. It joins plain-language text, presets and barcode as the fourth way to log a meal — and it's the one every competitor charges for.
+- **Ignia now gives away what the category paywalls.** Cal AI's entire pitch is photo logging at $29.99/yr. MyFitnessPal charges for photo *and* barcode *and* voice. Cronometer's coach and fasting timer are Gold-only. All of it is free here, and there is still nothing to buy.
+- **Three scans a day, and the number is enforced on the server** where a client can't argue with it. Three covers three meals; it also means a runaway client or a bad actor can't run up a bill.
+- **The estimate is a starting point you edit, not a verdict you accept.** The known failure mode of every photo tracker is a confident wrong number — the review screen exists so a bad guess is a figure you fix in two taps.
+- **Nothing was written to make this work.** No new function, no new dependency, no new key, no new scheduled job. Two flags changed. The interesting part of this release is how much of it was already paid for.
+
 ## 2026-08-07 — The app tells you it's out of date, instead of someone texting you
 
 A tester sat on an old build for days. Nothing was broken — he simply had no way to know a newer one existed, and the only mechanism that eventually told him was a person typing a message. Meanwhile `expo-updates` had been installed, configured and baked into every binary since Android vc 11 / iOS build 24, and **nothing in the app had ever read it**: updates downloaded in silence and applied on the next cold start, so anyone who keeps the app open never noticed one at all.

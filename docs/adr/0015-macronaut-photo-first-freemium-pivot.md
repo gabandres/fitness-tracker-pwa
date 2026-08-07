@@ -2,7 +2,13 @@
 
 ## Status
 
-accepted (2026-07-04)
+accepted (2026-07-04) — **§3 (Freemium) is amended by
+[ADR-0017](0017-photo-scan-free-for-all-v1.md) (2026-08-07): photo scans are
+NOT the paid gate. They ship ON and free for everyone in v1, capped server-side
+at 3/day rather than 5 lifetime.** Do not scope work off the "5 lifetime free
+scans, then Pro" line below; it never shipped and is not the plan. Everything
+else here — the split vision architecture, the Gemini-Flash default, the
+editable review screen, the surface area, the retention nudges — stands.
 
 ## Context
 

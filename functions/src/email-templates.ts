@@ -431,7 +431,7 @@ function welcomeEn(first: string | null): RenderedEmail {
       items: [
         "<strong>Log first, analyse later.</strong> The capture surface is built for speed — get the meal in, move on. The insights only start paying off once there's data behind them.",
         "<strong>Your TDEE gets real after two weeks.</strong> Until then Ignia uses a Mifflin-St Jeor estimate. Once you have 14 days of weight and log data, it switches to a measured TDEE tuned to you.",
-        "<strong>Three ways to log a meal:</strong> type it in plain language, pick a saved preset, or scan a barcode.",
+        "<strong>Four ways to log a meal:</strong> snap a photo, type it in plain language, pick a saved preset, or scan a barcode. All four are free.",
       ],
     },
     { kind: "divider" },
@@ -467,7 +467,7 @@ function welcomeEs(first: string | null): RenderedEmail {
       items: [
         "<strong>Primero registra, después analiza.</strong> La pantalla de captura está hecha para la velocidad — anota la comida y sigue. Los análisis empiezan a rendir cuando ya hay datos detrás.",
         "<strong>Tu TDEE se vuelve real después de dos semanas.</strong> Mientras tanto Ignia usa una estimación Mifflin-St Jeor. Cuando tengas 14 días de peso y bitácora, cambia a un TDEE medido y afinado a ti.",
-        "<strong>Tres formas de registrar una comida:</strong> escríbela en lenguaje natural, elige un preset guardado, o escanea un código de barras.",
+        "<strong>Cuatro formas de registrar una comida:</strong> tómale una foto, escríbela en lenguaje natural, elige un preset guardado, o escanea un código de barras. Las cuatro son gratis.",
       ],
     },
     { kind: "divider" },

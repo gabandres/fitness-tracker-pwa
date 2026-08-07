@@ -68,9 +68,14 @@ All of this is on `main`. Do not re-scope anything here as new work.
 than it.** iOS build 19 and Android vc 8 were cut from `fdcd92ed` and submitted
 (TestFlight + Play alpha, both verified at the destination). Since then **iOS
 build 23 and Android vc 9 have shipped to testers**, and between them they close
-the last gap: **every bullet in this section is now IN a binary and in testers'
-hands on both platforms.** Nothing here is "in no binary" any more — earlier
-wordings saying otherwise are stale.
+the last gap for everything merged up to that point.
+
+**Amended later on 2026-08-07 — that is no longer "everything".** Photo-scan was
+turned on the same day (first bullet below) and is **in no binary and not
+deployed**. On mobile it is a pure-JS/config change, so it ships **over the air**
+rather than by build: run the fingerprint gate, then `eas update`. The web half
+needs a `firebase deploy`. Every *other* bullet in this section remains in
+testers' hands on both platforms.
 
 What is still pending is a different thing, and it is the one that matters:
 
@@ -86,6 +91,43 @@ So the gap is not a build, it is a **submission**: `1.1.0` has sat at
 `PREPARE_FOR_SUBMISSION` since it was created and **has never gone to App
 Review**. Cutting another build does not move that; submitting does. Verify
 with the ASC command in §1.
+
+- **Photo-scan is ON and free for everyone, on both platforms** (2026-08-07,
+  ADR-0017). **NOT SHIPPED YET — web needs `firebase deploy --only hosting`,
+  mobile needs `eas update` (OTA, no build).** The meal-photo→macros loop was
+  fully built and fully guarded on the server all along; only the clients were
+  dark. What changed is two flags and nothing else: web `FEATURES.photoScan`
+  → `true`, and mobile `FEATURES.photoScan` → a **hardcoded `true`** replacing
+  its `process.env.EXPO_PUBLIC_FEATURE_PHOTO_SCAN` read. **`eas.json` was
+  deliberately NOT touched, and the OTA gate is why.** Deleting that env key was
+  tried first and reverted: `eas.json` is hashed into the EAS Update
+  fingerprint, so it moved Android from `c0b85c15…` to `30043793…` — an update
+  that publishes successfully and **reaches nobody**. With the JS-only version,
+  both fingerprints re-verify as identical to the shipped binaries (android
+  `c0b85c15e6631d99e8ccef61867d937389094ae6`, ios
+  `781be0c885005e1d02bcf41408988c6622ff222e`), so this ships **over the air, no
+  build, no App Review resubmission of build 24**. The general rule, now in
+  ADR-0017: an env-var flag is a build-gated switch (hours); a hardcoded
+  constant is an OTA-gated one (seconds) — for a kill switch, use the constant.
+  A now-inert `EXPO_PUBLIC_FEATURE_PHOTO_SCAN: "0"` remains in `eas.json`'s
+  `production` + `preview` profiles on purpose; **nothing reads it**, and it is
+  flagged for deletion alongside the next change that needs a native build
+  anyway. **No Cloud Function change was
+  needed**: `analyzePhoto` is deployed, `PHOTO_REQUIRES_PAID` was already
+  `false`, and the guards were already wired in the right order —
+  `spendCeiling.check("photo")` before the per-user reserve, `dailyQuota.reserve`
+  (**3/day free · 30/day paid**), `spendCeiling.record` immediately after the
+  request leaves. Costs ~$0.0015/scan on `gemini-2.5-flash`; worst case is
+  ~$0.14/user/month at the free cap, and the ceiling bounds the worst *day*
+  across all users at 2,000 scans ≈ $3. This **amends ADR-0015's paid gate**
+  ("5 lifetime free scans, then Pro"), which never shipped and was incoherent
+  while `PRO_ENABLED` is false — a client-side paid check unlocks the feature for
+  everyone, since `isPaid()` is forced `true`. The client flags are a **kill
+  switch, not a cost control**; the cost control is server-side and cannot be
+  bypassed. `functions/src/email-templates.ts` also changed (welcome email:
+  "three ways to log a meal" → four, stating the photo path is free, both
+  locales), so **a functions deploy is needed for that copy** even though no
+  function logic moved.
 
 - **Manual food entry is a first-class logging method on mobile** (2026-08-06,
   `ebf60dcb`). **LIVE ON ANDROID in vc 9** (2026-08-06) **and ON iOS in build 23**

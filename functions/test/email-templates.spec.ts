@@ -129,15 +129,41 @@ describe("welcome email", () => {
     expect(text).toContain("<script>");
   });
 
-  it("does not advertise photo scanning — FEATURES.photoScan is off in v1", () => {
-    // The shipped apps gate the meal-photo loop off on both platforms
-    // (ADR-0015). Promising it in the first email a user ever receives is
-    // a broken promise on their first session.
+  it("advertises photo scanning, and only because it actually ships free", () => {
+    // This assertion was INVERTED on 2026-08-07 (ADR-0017). It used to pin
+    // the opposite — "must not contain photo/foto" — because the meal-photo
+    // loop was gated off and promising it in a user's first email broke a
+    // promise in their first session. The loop is now on and free on both
+    // platforms, so the same reasoning now requires the mention: the email
+    // lists the ways to log a meal, and omitting the headline one undersells
+    // the product to every new user.
+    //
+    // The durable rule underneath both versions: this email may name a way to
+    // log a meal if and only if a free user can actually do it today. If
+    // photo-scan is ever gated again, invert this back rather than deleting
+    // it — the copy and the gate have to move together, and this test is the
+    // only thing that couples them.
+    const word = { en: "photo", "es-PR": "foto" } as const;
     for (const locale of LOCALES) {
       const { html, text } = welcomeEmail({ locale, displayName: null });
       for (const part of [html.toLowerCase(), text.toLowerCase()]) {
-        expect(part).not.toContain("photo");
-        expect(part).not.toContain("foto");
+        expect(part).toContain(word[locale]);
+      }
+    }
+  });
+
+  it("never promises a paid tier — nothing is purchasable yet", () => {
+    // PRO_ENABLED is false on both platforms and no purchase surface ships,
+    // so any upsell language here is a promise the app cannot keep.
+    for (const locale of LOCALES) {
+      const { html, text } = welcomeEmail({ locale, displayName: null });
+      for (const part of [html.toLowerCase(), text.toLowerCase()]) {
+        // Deliberately NOT "subscri" — that substring is inside
+        // "unsubscribe", which this mail is required to offer and which the
+        // test above it asserts. Ban the upsell nouns, not the stem.
+        for (const banned of ["upgrade", "premium", "paid plan", "go pro"]) {
+          expect(part).not.toContain(banned);
+        }
       }
     }
   });

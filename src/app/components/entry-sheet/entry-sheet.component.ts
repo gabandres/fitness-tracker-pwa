@@ -389,9 +389,11 @@ export class EntrySheetComponent {
 
   protected readonly mealTypes = MEAL_TYPES;
 
-  // Photo-scan is deferred to v1.1 and OFF in v1 on both platforms (mirrors
-  // mobile FEATURES.photoScan). The 'photo' segment is filtered out until the
-  // meal-photo→macros loop ships; the photo-capture panel below stays gated.
+  // Photo-scan is ON and free on both platforms (ADR-0017, 2026-08-07). The
+  // filter is retained as the kill switch: flipping FEATURES.photoScan to
+  // false removes the segment and, with it, every route to the panel above —
+  // the panel itself needs no separate gate because `segment()` can no longer
+  // become 'photo' once the tab is gone.
   protected readonly segments: { id: Segment; labelKey: string; icon: string }[] = (
     [
       { id: 'search', labelKey: 'v2.entrySheet.segSearch', icon: 'search' },
