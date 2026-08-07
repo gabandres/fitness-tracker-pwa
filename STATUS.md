@@ -346,12 +346,17 @@ review those commits fixed.
   are used unevenly.
 - **iOS 8/15, Android 5/15, account 13/30 for the 2026-08-01 → 2026-09-01
   period — measured 2026-08-06 from the API.** The counter is not the
-  constraint this period. **A build that ERRORS does not consume plan quota**,
-  measured 2026-08-06: iOS 18 and Android vc 7 both failed in the *Bundle
-  JavaScript* phase and the counter read 7/15 · 4/15 both before and after. What
-  a failed build does cost is the queue wait — up to ~2h on the Android free
-  tier. So the incentive to bundle locally first (`npx expo export`, see
-  `apps/mobile/AGENTS.md`) is time, not quota.
+  constraint this period. **Do NOT assume a failed build is free.** Measured
+  2026-08-06 by reconciling `build:list` against `account:usage`: **six** Android
+  builds were created this period and **five** were counted. The uncounted one is
+  vc 7, which died early, in *Bundle JavaScript*. But vc 5 **also** errored — at
+  the Gradle/Sentry-upload step, deep into the native build — and it **was**
+  counted. So the exemption tracks how far the build got on the worker, not
+  whether it succeeded; an earlier revision of this line claimed errors are
+  always free, which was a generalisation from one observation and is wrong.
+  Treat every queued build as a slot spent. The local bundle gate
+  (`npx expo export`, see `apps/mobile/AGENTS.md`) therefore saves quota as well
+  as the ~2h Android queue wait.
 - **A duplicate build is the cheapest way to lose a slot, and it is silent.**
   On 2026-08-03 one `eas build -p ios` invocation produced TWO builds a minute
   apart on the same commit (`f3e5daaf` vc15 and `6415fca7` vc16, both

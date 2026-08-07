@@ -31,7 +31,8 @@ Note the **msys path form** (`/c/…`, not `C:/…`) — a Windows-style path in
 which reads exactly like the export failing to apply.
 
 **Do not "fix" this by setting `JAVA_HOME` globally.** The Android release build
-(§7's `gradlew assembleRelease`) runs against the 17 toolchain; flipping the
+(`gradlew assembleRelease` — the command lives in **`STATUS.md` §7**, not in this
+file, which has no §7) runs against the 17 toolchain; flipping the
 machine default to 21 to save two lines here trades a documented per-shell
 export for an undocumented break in the Android path. Set it in the shell that
 runs the emulator, and nowhere else.
