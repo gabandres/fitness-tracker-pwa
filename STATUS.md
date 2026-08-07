@@ -84,9 +84,9 @@ Review**. Cutting another build does not move that; submitting does. Verify
 with the ASC command in §1.
 
 - **Manual food entry is a first-class logging method on mobile** (2026-08-06,
-  `ebf60dcb`). **In no binary, and deliberately no build cut for it** — the
-  owner's call on 2026-08-06 was that this alone is too little to spend a build
-  on, so it rides along with whatever ships next. Writing a food in yourself was
+  `ebf60dcb`). **LIVE ON ANDROID in vc 9** (2026-08-06); iOS still pending — the
+  newest iOS binary is build 19, which predates it. It rode along with the widget
+  fix exactly as intended when the owner declined to spend a build on it alone. Writing a food in yourself was
   a text link at the *bottom* of the Add-food browse list, under Recent + My
   Foods + Quick add; My Foods is uncapped, so the link sank further with every
   food saved through it, and typing two characters removed it entirely (the
@@ -297,7 +297,15 @@ with the ASC command in §1.
   the concrete payoff of vc 6 being the first Android binary with Sentry. **The
   Android widget has therefore never worked in vc 4, 6 or 8**; do not describe
   it to testers as available until a build carrying the fix is installed and
-  watched. **The iOS widget is no longer in this list: it is verified working
+  watched. **The fix shipped in Android vc 9** (EAS `56a1af79`, commit
+  `f3adeb83`), submitted 2026-08-06 and verified on the alpha track by the
+  `androidpublisher` API: `status=completed, versionCodes=["9"]`. **Still
+  unverified on a home screen** — and an existing widget instance may stay blank
+  because Android caches the RemoteViews from the failed render, so the check is:
+  remove the widget, re-add it, confirm it draws, then confirm the Sentry issue
+  *"Invalid Hook Call detected in TodayWidget"* stops firing. If it fires from vc
+  9, the fix did not take. iOS is unaffected — its widget is SwiftUI and was
+  never touched by this. **The iOS widget is no longer in this list: it is verified working
   on a physical iPhone from TestFlight build 13 (2026-08-03), including refresh
   after a meal.**
 - **The Apple Watch complication and its transport** — the watch app
