@@ -37,10 +37,29 @@ both frontends and `packages/core` are untouched and no client release is
 needed. Search-cache keys moved to `v3`; a stale `v2` page could name a Branded
 `fdcId` the new backend cannot resolve.
 
-**`USDA_FDC_API_KEY` is now UNBOUND but NOT yet destroyed.** Once the deploy is
-verified, `gcloud secrets delete USDA_FDC_API_KEY` takes the account from 8
-active versions to 7 (free tier is 6). Order is non-negotiable per `CLAUDE.md`:
-unbind → redeploy → verify → *then* delete.
+**`USDA_FDC_API_KEY` is dead code but STILL BOUND — do not delete it.** No
+function reads it any more, but the binding survives on the deployed revisions,
+so destroying the secret would stop `searchFoods`/`getFoodDetail` booting
+(gen2 resolves bindings at instance start). The count stays at **8 active
+versions**, not 7. Two routes were tried on 2026-08-07 and both failed:
+
+- `firebase deploy --only functions` (full, all functions) **does not prune**
+  secret bindings — the source no longer declares the secret and the revision
+  still carries it. Verified after both a targeted and a full deploy.
+- `gcloud run services update <svc> --remove-secrets=USDA_FDC_API_KEY` crashes:
+  `ValueError: Invalid secret path … in annotation` — gcloud cannot parse the
+  annotation firebase-tools writes.
+
+What is left to try: patch the Cloud Run service through the Admin REST API,
+removing the secret env var **and** the `run.googleapis.com/secrets` annotation
+together. Verify a search still returns hits, and only then
+`gcloud secrets delete USDA_FDC_API_KEY`. Worth ~$0.06/mo — do it when
+something else is already touching functions, not on its own.
+
+```sh
+gcloud functions describe searchFoods --region=us-central1 --gen2 \
+  --format="value(serviceConfig.secretEnvironmentVariables)"   # empty == unbound
+```
 
 **Still open:** photo-scan does NOT yet resolve its recognized items against this
 DB — the model still emits macros directly, so ADR-0015's split vision

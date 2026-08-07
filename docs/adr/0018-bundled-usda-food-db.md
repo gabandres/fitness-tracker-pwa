@@ -79,10 +79,17 @@ becomes a requirement; the ingest output is already the right shape for it.
 
 ## Consequences
 
-**`USDA_FDC_API_KEY` is now unbound and can be retired**, taking the account
-from 8 active secret versions to 7 against the 6 free-tier allowance. Order
-matters and is non-negotiable (`CLAUDE.md`): unbind → redeploy → verify → *then*
-`gcloud secrets delete`. Destroying it first stops the function booting.
+**`USDA_FDC_API_KEY` is dead code but could not actually be retired**, so the
+account stays at 8 active secret versions rather than dropping to 7. The
+expected win did not materialise, and the reason is worth recording because it
+will recur for any future secret removal here: **`firebase deploy` does not
+prune secret bindings.** The source stopped declaring the secret, a full
+`--only functions` deploy ran clean, and the revision still carries the binding.
+`gcloud run services update --remove-secrets` is not a workaround either — it
+crashes parsing the annotation firebase-tools writes. Since gen2 resolves
+bindings at instance start, deleting the secret while it is still bound would
+stop the function booting, so it stays. `STATUS.md` records the remaining
+route (a Cloud Run Admin REST patch removing env var and annotation together).
 
 **Search got faster and free.** A query is an in-memory scan over 13k records
 instead of an HTTPS round trip. The Firestore search cache and per-uid throttle
