@@ -6,6 +6,16 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-07 — The app tells you it's out of date, instead of someone texting you
+
+A tester sat on an old build for days. Nothing was broken — he simply had no way to know a newer one existed, and the only mechanism that eventually told him was a person typing a message. Meanwhile `expo-updates` had been installed, configured and baked into every binary since Android vc 11 / iOS build 24, and **nothing in the app had ever read it**: updates downloaded in silence and applied on the next cold start, so anyone who keeps the app open never noticed one at all.
+
+- **A banner on Today when a fix is ready, and one tap applies it.** For JavaScript-only changes the new code is already on the device; the banner just stops it from waiting for a cold start that may never come. It also re-checks whenever the app returns to the foreground, which is the case the launch-time check structurally cannot catch.
+- **A banner when a whole new version is on the store**, with a link straight to the listing. This is the case that actually stranded the tester — a native change can't ship over the air, and Play updates a closed-testing tester whenever it gets around to it.
+- **The store banner can be dismissed, and stays dismissed only until something newer ships.** Leaving for the store is the one action available and not every tester can take it; a prompt they can't satisfy and can't dismiss is just a broken app.
+- Notably **not** push notifications. Remote push would have cost a build on both platforms, an APNs key and a Play data-safety amendment — the app currently declares that it collects no push token — to say something the app can say for itself, for free, to the binaries already installed.
+- The iOS store prompt ships switched off on purpose: TestFlight runs ahead of the App Store, and pointing a store user at a build they can't install is worse than saying nothing.
+
 ## 2026-08-06 — Writing a food in yourself is no longer the hardest way to log one
 
 Every other way to log — barcode, meal text, recipe calculator, recipe link — had a fixed icon at the top of the Add-food sheet. Typing a food in yourself, the one method that needs no network, no camera and no parsing, was a text link at the *bottom* of the browse list, under Recent, My Foods and Quick add. My Foods is uncapped, so the link sank a little further every time you saved a food with it.
