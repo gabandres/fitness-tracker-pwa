@@ -16,6 +16,13 @@
 module.exports = {
   preset: 'jest-expo',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  // Jest's default is 5s, which is a generic number and not a budget anyone
+  // chose for rendering React Native trees under `jest-expo`. On a contended
+  // CI runner these suites take 27s wall-clock where they take 4s locally, and
+  // on 2026-08-07 `entry-sheet-manual` timed out at 5s in CI having passed in
+  // 391ms locally — a red main caused by runner load, not by the code under
+  // test. 20s is still far below any real hang.
+  testTimeout: 20000,
   testMatch: ['<rootDir>/src/**/*.test.ts', '<rootDir>/src/**/*.test.tsx'],
   // Mirrors tsconfig.json `paths` — jest does not read tsconfig.
   moduleNameMapper: {
