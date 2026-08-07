@@ -98,12 +98,21 @@ stale. It covers both mechanisms, and they fail in opposite ways:
 The OTA half is self-maintaining: `expo-updates` knows a bundle is pending and
 the banner clears itself when tapped.
 
-**The binary half is NOT self-maintaining, and that is its whole risk.** Nothing
-derives `latestVersionCode` from Play — it is a number a human bumps in
-`public/app-version.json` when a binary ships. Forget it and there is no error,
-no warning, and no visible difference from a working feature: every install just
-keeps believing it is current. Bumping that file is a **release step**, listed
-under *After shipping* in the `build-android` skill.
+**The binary half cannot maintain itself, and that is its whole risk.** If
+`latestVersionCode` lags what Play ships there is no error, no warning, and no
+visible difference from a working feature: every install just keeps believing it
+is current. Two things cover it, and neither is your memory:
+
+```sh
+node scripts/app-version-sync.mjs           # derive it from the live Play tracks
+node scripts/app-version-sync.mjs --check    # report drift, change nothing
+```
+
+`npm run doctor` runs the `--check` path (*app-version.json matches what Play
+ships*) and **fails** on drift, naming the fix. Never hand-edit the number —
+`androidpublisher` is the authority, the same one the signing-cert check uses.
+Deploying is still a separate act: `firebase deploy --only hosting`, or the
+corrected file reaches nobody.
 
 `ios.latestBuild` is `0`, which disables the iOS prompt on purpose. TestFlight
 builds run ahead of the App Store, so pointing a store user at a build they

@@ -778,6 +778,67 @@ async function checkPlaySigningCerts() {
   else pass(G3, name, `${seen.length} shipping cert(s) all registered — ${seen.join(', ')}`);
 }
 
+/**
+ * `public/app-version.json` is what tells an installed Android app that a newer
+ * binary exists. Nothing in the app derives it — it is a number written into a
+ * file and deployed to hosting — so the moment it lags what Play ships, every
+ * older install is told it is up to date and the update banner never fires.
+ *
+ * That failure is invisible from inside the app: no error, no warning, and a
+ * screen that looks exactly like a user who genuinely is current. This check is
+ * the only thing standing between "we shipped vc N" and "nobody was told", which
+ * is why it FAILS rather than warns.
+ *
+ * It compares against the live androidpublisher tracks, the same authority the
+ * signing-cert check above uses.
+ */
+async function checkAppVersionManifest() {
+  const name = 'app-version.json matches what Play ships';
+  const keyPath = 'apps/mobile/credentials/play-service-account.json';
+  if (!has(keyPath)) return skip(G3, name, `${keyPath} not found (see CLAUDE.local.md)`);
+  if (!has('public/app-version.json')) {
+    return fail(G3, name, 'public/app-version.json is missing — the update banner has nothing to read');
+  }
+
+  let sync;
+  try {
+    sync = await import('./app-version-sync.mjs');
+  } catch (e) {
+    return skip(G3, name, `could not load app-version-sync.mjs: ${e.message}`);
+  }
+
+  const declared = sync.readManifest().android?.latestVersionCode ?? 0;
+
+  let live;
+  try {
+    live = await sync.readLivePlayVersionCode();
+  } catch (e) {
+    return skip(G3, name, `androidpublisher refused the request: ${e.message}`);
+  }
+  if (!live.versionCode) return skip(G3, name, 'no rolled-out release on any track');
+
+  if (declared === live.versionCode) {
+    return pass(G3, name, `android.latestVersionCode = ${declared} (${live.tracks.join(', ')})`);
+  }
+  if (declared > live.versionCode) {
+    // Harmless to users (nobody is running something newer than Play has), but
+    // it means the file was bumped for a release that never rolled out.
+    return fail(
+      G3,
+      name,
+      `app-version.json claims ${declared} but Play's newest rolled-out build is ${live.versionCode}. ` +
+        'Anyone who taps the banner lands on a store page with nothing newer to install.',
+    );
+  }
+  fail(
+    G3,
+    name,
+    `app-version.json says ${declared}, Play is shipping ${live.versionCode} (${live.tracks.join(', ')}). ` +
+      `Every install below ${live.versionCode} is being told it is up to date and will never see the ` +
+      'update banner. Fix: node scripts/app-version-sync.mjs && firebase deploy --only hosting',
+  );
+}
+
 function checkSecretVersions() {
   const name = `active secret versions <= ${MAX_SECRET_VERSIONS}`;
   const listRes = sh('gcloud', ['secrets', 'list', '--project', PROJECT, '--format=json']);
@@ -1142,6 +1203,7 @@ if (NO_CLOUD) {
   skip(G3, `active secret versions <= ${MAX_SECRET_VERSIONS}`, '--no-cloud');
   skip(G3, 'STATUS.md §3 matches the EAS iOS quota', '--no-cloud');
   skip(G3, 'SENTRY_AUTH_TOKEN authenticates', '--no-cloud');
+  skip(G3, 'app-version.json matches what Play ships', '--no-cloud');
   skip(G5, 'STATUS.md §4 matches open issues', '--no-cloud');
 } else {
   await checkRulesMatchReleased().catch((e) =>
@@ -1156,6 +1218,9 @@ if (NO_CLOUD) {
   guard(G3, 'STATUS.md §3 matches the EAS iOS quota', checkEasQuota);
   await checkPlaySigningCerts().catch((e) =>
     fail(G3, 'every cert Play ships is registered in Firebase', `check threw: ${e.message}`),
+  );
+  await checkAppVersionManifest().catch((e) =>
+    fail(G3, 'app-version.json matches what Play ships', `check threw: ${e.message}`),
   );
   await checkSentryToken().catch((e) =>
     fail(G3, 'SENTRY_AUTH_TOKEN authenticates', `check threw: ${e.message}`),

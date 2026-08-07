@@ -216,14 +216,21 @@ Two separate things, and conflating them wastes a release:
 
 ## After shipping
 
-- **Bump `public/app-version.json` → `android.latestVersionCode` to the
-  versionCode you just shipped, and deploy hosting.** This is what tells every
-  older install that a new binary exists — `UpdateBanner` on Today reads it and
-  offers a link to Play. **Skip it and the banner silently never fires**, which
-  looks exactly like having no feature at all: the app goes on reporting that
-  everyone is up to date. It is a static file on the hosting site (served
-  `no-cache`), so `firebase deploy --only hosting` is the whole step, and it
-  reaches devices on their next launch.
+- **Sync `public/app-version.json` and deploy hosting** — this is what tells
+  every older install that a new binary exists (`UpdateBanner` on Today reads
+  it and offers a link to Play). Do not hand-edit the number; it is derived
+  from the live Play tracks:
+
+  ```sh
+  node scripts/app-version-sync.mjs        # reads androidpublisher, rewrites the file
+  firebase deploy --only hosting           # nothing reaches anyone until this runs
+  ```
+
+  Skip it and the banner **silently never fires** — no error, no warning, and an
+  app that goes on reporting everyone is up to date, which is indistinguishable
+  from never having built the feature. `npm run doctor` fails on that drift
+  (*app-version.json matches what Play ships*), so the safety net is the doctor
+  run, not your memory.
 - Update the fingerprint table in `apps/mobile/AGENTS.md` if a new binary shipped.
 - Update `STATUS.md` — it is the file that says what is true right now.
 - **A merged fix reaches nobody until it is in a binary or an update.** Say which,
