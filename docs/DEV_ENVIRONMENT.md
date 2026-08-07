@@ -563,4 +563,82 @@ allowed, **keep wrapping long builds in `caffeinate -dims`** — the pmset confi
 does not cover a build that starts on AC and continues on battery.
 
 
+### 3.11 Android on the Air too — 2026-08-07
+
+**The Air builds Android as well as iOS, and it is the ONLY machine here that
+can.** Measured: `expo prebuild -p android` + `./gradlew bundleRelease` →
+`app-release.aab` 89 MB in **10m36s** warm, carrying 120 native `.so` libraries
+including `arm64-v8a/libappmodules.so`. Zero EAS quota.
+
+That last file is the point. Its compilation is **impossible on the Windows
+box**: RN's New Architecture C++ codegen embeds the full source path inside the
+object path, and `react-native-keyboard-controller` pushes one object file to 350
+characters against Windows' 260-char `MAX_PATH`
+([upstream #1247](https://github.com/kirillzyusko/react-native-keyboard-controller/issues/1247),
+open and unfixed). Everything tried and failed there, so nobody repeats it:
+shortening the staging directory (the remainder is 275 chars *alone*),
+`LongPathsEnabled` (already `1`; the SDK ships ninja 1.10.2, which predates the
+opt-in), and `-DCMAKE_OBJECT_PATH_MAX=200` (reaches CMake — verified in
+`CMakeCache.txt` — and does nothing, because the sources are out-of-tree so CMake
+embeds the mangled absolute path). **WSL2 is not an escape either**: this is a
+Snapdragon X Elite **ARM64** machine, so WSL is `aarch64`, and Google publishes
+the Android SDK and NDK for `linux-x86_64` only
+([tracker 227219818](https://issuetracker.google.com/issues/227219818), open).
+Native Windows works at all only because Windows-on-ARM emulates x86-64.
+
+**Setup, userspace, no `sudo`** (~3 GB — far less than an Android Studio install,
+because only the components AGP actually resolved are pinned):
+
+```sh
+brew install openjdk@17          # the Mac shipped with 11; AGP 8.11 needs 17
+SDK=~/Library/Android/sdk && mkdir -p $SDK/cmdline-tools && cd $SDK/cmdline-tools
+curl -fsSLO https://dl.google.com/android/repository/commandlinetools-mac-11076708_latest.zip
+unzip -q commandlinetools-mac-*.zip && mv cmdline-tools latest
+export ANDROID_HOME=$SDK JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
+export PATH=$JAVA_HOME/bin:$SDK/cmdline-tools/latest/bin:$PATH
+yes | sdkmanager --licenses >/dev/null
+sdkmanager --install "platform-tools" "platforms;android-36" \
+  "build-tools;36.0.0" "ndk;27.1.12297006" "cmake;3.22.1"
+```
+
+Pin those versions to whatever the Gradle build actually resolves; taking latest
+invites a mismatch AGP then re-downloads.
+
+**Two traps, both of which cost real time:**
+
+1. **`JAVA_HOME` must be the explicit Homebrew path.** `openjdk@17` is **keg-only**,
+   so it is never linked into `/Library/Java/JavaVirtualMachines` and
+   `/usr/libexec/java_home -v 17` **cannot see it** — it silently returns nothing
+   and you get the system Java 11. `sdkmanager` then dies with
+   `UnsupportedClassVersionError … class file version 61.0 … recognizes up to 55.0`
+   (61 = Java 17, 55 = Java 11). Same species as the `~/.zshenv` note in §3.9: the
+   Mac does not surface Homebrew toolchains to Apple's own lookup helpers.
+2. **Gradle has NO default socket timeout.** A dropped connection to Google's Maven
+   left a build hung for **19 minutes** that looked exactly like slow compilation.
+   The tell: the log stops advancing, `android/app/build` gets zero writes, the
+   Java processes sit at ~0% CPU, and `lsof -i -a -p <pid>` shows a socket to
+   `*.1e100.net` in **`CLOSE_WAIT`**. Always pass:
+   ```sh
+   ./gradlew bundleRelease --no-daemon \
+     -Dorg.gradle.internal.http.socketTimeout=60000 \
+     -Dorg.gradle.internal.http.connectionTimeout=60000
+   ```
+
+**Disk:** the SDK is ~3 GB, but Gradle caches and build outputs added ~5 GB on the
+first build (26 → 18 GB free). One-time, not per-build, but this Air has 228 GB
+total and iOS archives want room too.
+
+**Signing is NOT automatic.** Expo's template points the `release` buildType at the
+**debug** keystore, so a plain `bundleRelease` produces `CN=Android Debug` — the
+wrong upload cert, which Play rejects. `apps/mobile/scripts/patch-android-release.mjs`
+wires the real one. Verify with
+`keytool -printcert -jarfile <aab>` before ever submitting.
+
+**versionCode:** `appVersionSource: "remote"` means the counter lives on EAS and a
+local Gradle build neither reads nor increments it. Pass it explicitly, then push
+the same number back with `eas build:version:set` or the next cloud build re-mints
+a colliding one.
+
+See the `build-android` skill for the OTA-vs-build decision that comes first.
+
 ---
