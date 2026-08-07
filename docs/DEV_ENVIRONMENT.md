@@ -411,22 +411,43 @@ warns and can fail without UTF-8.
 completes. Only three schemes exist; `Today` is an extension target built as a
 dependency of `Ignia`, which is normal and not a fault.
 
-**Addressing is the weak point.** `.local` is mDNS: LAN-only, and it has failed
-transiently at least twice during setup. The docked Air also holds two addresses at
-once (Wi-Fi `en0` plus the dock's), and the Wi-Fi one timed out mid-session during a
-handover. Fallbacks, in order: the `.local` name → the current IPs → ask the Mac.
-**The durable fix is Tailscale on both machines** — a stable name that survives IP
-churn, network changes and being away from the house. Install needs `sudo` on macOS
-(it is a `.pkg`), so it cannot be done over SSH:
+**Addressing is SOLVED — via Tailscale, 2026-08-06.** `~/.ssh/config` on Windows
+points `ignia-mac` at the **Tailscale MagicDNS name** `stephanies-macbook-air-3`.
+Use the name, never an address: `.local` is LAN-only and failed transiently twice
+during setup, the docked Air holds two LAN addresses at once and the Wi-Fi one timed
+out mid-session during a handover, and **the Tailscale IP itself changed** (`100.122…`
+→ `100.64…`) when the Mac re-registered. The MagicDNS name survived all three.
+
+Both machines must be on the **same tailnet**. The first attempt was not: the Mac
+signed in as an auto-generated `ghc9gdwv4g@` while Windows was `gabandres@`, so
+neither could see the other — a clean install that simply cannot reach the peer, which
+reads like a firewall problem and is not. Check with `tailscale status` on both; every
+row must show the same account.
+
+Installing Tailscale needs `sudo` on macOS (it is a `.pkg`) and admin on Windows, so
+neither half can be done over SSH:
 
 ```sh
 # on the Mac, once — asks for the login password
-brew install --cask tailscale-app
-# then open Tailscale.app and sign in; on Windows install Tailscale too
+brew install --cask tailscale-app     # then open Tailscale.app and sign in
+# on Windows: tailscale.com/download/windows, sign in with the SAME account
 ```
 
-Afterwards change **one line** — `HostName` in `~/.ssh/config` — to the Tailscale
-name. Every command above keeps working.
+**`~/.zshenv` on the Mac is load-bearing.** Non-interactive SSH does **not** source
+`~/.zprofile`, so `ssh ignia-mac "node -v"` returns *command not found* even with Node
+installed. `.zshenv` is sourced for every zsh invocation; it carries the Homebrew PATH
+and the UTF-8 locale CocoaPods needs. Without it every remote command needs a manual
+`export PATH=/opt/homebrew/bin:$PATH`.
+
+Verified working end to end:
+
+```sh
+$ ssh ignia-mac "node -v; npm -v; pod --version; xcodebuild -version | head -1"
+v22.23.2
+10.9.8
+1.17.0
+Xcode 26.6
+```
 
 **Two things that are not solved and should not be assumed away:**
 
