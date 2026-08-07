@@ -352,16 +352,27 @@ chmod 600 ~/.ssh/authorized_keys
 scutil --get LocalHostName        # the <name> in <name>.local
 ```
 
-**From Windows, to verify:**
+**On Windows, define the host once** in `~/.ssh/config` so the address lives in
+exactly one place (done 2026-08-06):
 
-```sh
-ssh -i ~/.ssh/id_ed25519_ignia_mac <user>@<name>.local "sw_vers && xcodebuild -version"
+```
+Host ignia-mac
+    HostName Stephanies-MacBook-Air.local
+    User stephaniecastillozambrana
+    IdentityFile ~/.ssh/id_ed25519_ignia_mac
+    IdentitiesOnly yes
+    ServerAliveInterval 30
+    ServerAliveCountMax 6
+    TCPKeepAlive yes
 ```
 
-Then a build is one line:
+The keepalives are not decoration: docking the Air switches it between Wi-Fi and
+Ethernet and the session drops without them. Then everything is short:
 
 ```sh
-ssh -i ~/.ssh/id_ed25519_ignia_mac <user>@<name>.local   "cd ~/fitness-tracker-pwa && git pull && cd apps/mobile &&    caffeinate -dims npx eas build -p ios --profile production --local"
+ssh ignia-mac "sw_vers && xcodebuild -version"
+
+ssh ignia-mac "cd ~/fitness-tracker-pwa && git pull && cd apps/mobile &&   caffeinate -dims npx eas build -p ios --profile production --local"
 ```
 
 **Three failure modes, in the order they will actually happen:**
@@ -385,6 +396,53 @@ ssh -i ~/.ssh/id_ed25519_ignia_mac <user>@<name>.local   "cd ~/fitness-tracker-p
 runner** on the Mac and let a push or a manual dispatch trigger the iOS build with
 nobody present. It also sidesteps failure mode 1 outright, because the runner executes
 as a logged-in GUI user with an unlocked keychain. More setup; correct destination.
+
+### 3.9 Making it permanent — measured state, 2026-08-06
+
+**What is installed and verified on the Air** (`ignia-mac`): Xcode **26.6**, Node
+**22.23.2** (deliberately downgraded from the 26.7 Homebrew defaults to, because CI
+pins 22 and Expo SDK 54 is verified against 20/22 LTS), npm 10.9.8, CocoaPods
+**1.17.0** on its own Homebrew Ruby 4.0.6 — the system Ruby is 2.6.10 with a broken
+`ffi`, so never use it. `LANG`/`LC_ALL` are set in `~/.zprofile` because CocoaPods
+warns and can fail without UTF-8.
+
+**Proven 2026-08-06:** `npx expo prebuild -p ios` generates all **four** targets —
+`Ignia`, `Today` (widget), `IgniaWatch`, `IgniaWatchComplication` — and `pod install`
+completes. Only three schemes exist; `Today` is an extension target built as a
+dependency of `Ignia`, which is normal and not a fault.
+
+**Addressing is the weak point.** `.local` is mDNS: LAN-only, and it has failed
+transiently at least twice during setup. The docked Air also holds two addresses at
+once (Wi-Fi `en0` plus the dock's), and the Wi-Fi one timed out mid-session during a
+handover. Fallbacks, in order: the `.local` name → the current IPs → ask the Mac.
+**The durable fix is Tailscale on both machines** — a stable name that survives IP
+churn, network changes and being away from the house. Install needs `sudo` on macOS
+(it is a `.pkg`), so it cannot be done over SSH:
+
+```sh
+# on the Mac, once — asks for the login password
+brew install --cask tailscale-app
+# then open Tailscale.app and sign in; on Windows install Tailscale too
+```
+
+Afterwards change **one line** — `HostName` in `~/.ssh/config` — to the Tailscale
+name. Every command above keeps working.
+
+**Two things that are not solved and should not be assumed away:**
+
+1. **Sleep.** `caffeinate -dims` holds the Mac awake for a command's lifetime, but an
+   undocked, unplugged Air will sleep and vanish. For unattended builds set Energy
+   Saver to never sleep on power.
+2. **It is Stephanie's machine and her account.** Everything above lives under her
+   home directory, and a *shippable* build additionally needs the Sentry token and the
+   ASC `.p8` there (§3.3). That is a deliberate decision to make, not a default to
+   drift into — a separate macOS user for builds would isolate it, at the cost of
+   redoing Homebrew and Xcode paths.
+
+**Do not poll a remote build by testing whether a process is gone.** An SSH failure
+and a finished process look identical to `if ! ssh … pgrep`, so a network blip reports
+success. Have the remote command print an explicit sentinel and treat anything else,
+including no output, as "still unknown".
 
 
 ---
