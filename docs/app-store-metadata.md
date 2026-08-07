@@ -40,9 +40,17 @@ ASC API disagrees, and it is authoritative:
 | 1.0 | `READY_FOR_SALE` | build 7, uploaded 2026-07-20 |
 
 **As of 2026-08-06 that is no longer true**: `1.1.0` has real binaries —
-TestFlight **build 19** (`4527017a`, commit `fdcd92ed`, `VALID`), preceded by
-16 and 13. The version page is still `PREPARE_FOR_SUBMISSION` and **has never
-gone to App Review**, and no build is attached to it yet.
+TestFlight **build 24** (`VALID`), preceded by 23, 19, 16 and 13. The version
+page is `WAITING_FOR_REVIEW` with **build 24 attached** (submission `93c329b1`,
+2026-08-07).
+
+> Superseded twice in one day, which is why the state belongs in `STATUS.md`
+> and not here: this paragraph previously said the version was
+> `PREPARE_FOR_SUBMISSION`, had **never gone to App Review**, and had no build
+> attached — all three untrue by the time anyone read it. It was submitted with
+> build 19 at 02:15Z, then cancelled and re-submitted with build 24. Check
+> `STATUS.md` §1 for what is true now; treat any state written here as a
+> snapshot that has already expired.
 
 - **What's New for 1.1.0 spans `168e0394..fdcd92ed`** — build 7 (live) to build
   19. That is the range the copy below was written from. Use the build's own
