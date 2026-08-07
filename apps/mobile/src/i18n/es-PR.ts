@@ -13,6 +13,7 @@ export const esPR: Record<I18nKey, string> = {
   'common.saving': 'Guardando…',
   'common.retry': 'Reintentar',
   'common.or': 'o',
+  'common.dismiss': 'Descartar',
 
   // ── nav / screen titles ──
   'nav.today': 'Hoy',
@@ -134,6 +135,13 @@ export const esPR: Record<I18nKey, string> = {
   'today.entry': 'Registro',
   'whatsNew.title': 'Novedades',
   'whatsNew.body': 'Un nuevo look, una pestaña Entrenar, registro con búsqueda primero, y Afinar metas para precisar tus números.',
+
+  // ── app updates ──
+  'update.ota.title': 'Actualización lista',
+  'update.ota.body': 'Reinicia Ignia para recibir las últimas mejoras.',
+  'update.ota.action': 'Reiniciar',
+  'update.store.title': 'Nueva versión disponible',
+  'update.store.body': 'Toca para actualizar Ignia en la tienda.',
 
   // ── adaptive-TDEE recalibration ──
   'recalibration.cardTitle': 'Tu meta se recalibró',

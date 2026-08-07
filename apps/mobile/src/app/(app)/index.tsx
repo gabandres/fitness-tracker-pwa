@@ -13,6 +13,7 @@ import { HeroRings } from '@/components/HeroRings';
 import { MealEntries } from '@/components/MealEntries';
 import { RecalibrationCard } from '@/components/RecalibrationCard';
 import { ShareCard } from '@/components/ShareCard';
+import { UpdateBanner } from '@/components/UpdateBanner';
 import { WhatsNewBanner } from '@/components/WhatsNewBanner';
 import { type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -185,6 +186,8 @@ export default function Today() {
       ) : (
         <ScrollView contentContainerStyle={styles.body}>
           {error ? <Text style={styles.error}>{t('today.loadErr')}</Text> : null}
+
+          <UpdateBanner />
 
           <WhatsNewBanner />
 

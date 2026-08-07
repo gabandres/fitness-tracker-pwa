@@ -11,6 +11,7 @@ export const en = {
   'common.saving': 'Saving…',
   'common.retry': 'Retry',
   'common.or': 'or',
+  'common.dismiss': 'Dismiss',
 
   // ── nav / screen titles ──
   'nav.today': 'Today',
@@ -132,6 +133,13 @@ export const en = {
   'today.entry': 'Entry',
   'whatsNew.title': "What's new",
   'whatsNew.body': 'A fresh new look, a Train tab for workouts, search-first logging, and Refine targets to sharpen your numbers.',
+
+  // ── app updates ──
+  'update.ota.title': 'Update ready',
+  'update.ota.body': 'Restart Ignia to get the latest fixes.',
+  'update.ota.action': 'Restart',
+  'update.store.title': 'New version available',
+  'update.store.body': 'Tap to update Ignia in the store.',
 
   // ── adaptive-TDEE recalibration ──
   'recalibration.cardTitle': 'Your target just recalibrated',

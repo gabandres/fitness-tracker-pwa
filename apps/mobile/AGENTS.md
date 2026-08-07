@@ -85,6 +85,31 @@ returns everyone to the JS baked into their binary.
 
 See the `build-android` skill for the full decision.
 
+# Telling users an update exists — two mechanisms, one banner
+
+`UpdateBanner` on Today is the only surface that tells a user their app is
+stale. It covers both mechanisms, and they fail in opposite ways:
+
+| Case | Source of truth | What the user does |
+|---|---|---|
+| **OTA** (JS only) | `expo-updates` — bundle already downloaded | one tap, reloads in place |
+| **Binary** (native) | `public/app-version.json` on the hosting site | leaves for the store |
+
+The OTA half is self-maintaining: `expo-updates` knows a bundle is pending and
+the banner clears itself when tapped.
+
+**The binary half is NOT self-maintaining, and that is its whole risk.** Nothing
+derives `latestVersionCode` from Play — it is a number a human bumps in
+`public/app-version.json` when a binary ships. Forget it and there is no error,
+no warning, and no visible difference from a working feature: every install just
+keeps believing it is current. Bumping that file is a **release step**, listed
+under *After shipping* in the `build-android` skill.
+
+`ios.latestBuild` is `0`, which disables the iOS prompt on purpose. TestFlight
+builds run ahead of the App Store, so pointing a store user at a build they
+cannot install is worse than saying nothing. Set it to the **live App Store
+build** — never the TestFlight one — if the iOS prompt is ever wanted.
+
 # This app is in production
 
 Treat every change here as a production change: this app is on the iOS App Store.
