@@ -198,8 +198,11 @@ why every iOS build so far cost a slot and a queue, and why the widget's missing
 `ExtensionStorage` pod could only be found by shipping a binary and reading a
 runtime probe. A Mac removes that whole class of blindness.
 
-Target machine: the MacBook Air M1. **iOS only** — Android stays on Windows/EAS
-(see §4 of `STATUS.md` for the ninja path-length wall).
+Target machine: the MacBook Air M1. **Both platforms, as of 2026-08-07** — this
+section covers iOS; Android is §3.11. The Mac is the *only* machine here that can
+build Android at all: Windows hits the `MAX_PATH` wall compiling RN's New
+Architecture C++, and WSL2 cannot help because this is an ARM64 box against an
+`x86_64`-only NDK. Both are detailed in §3.11.
 
 ### 3.1 Prerequisites
 

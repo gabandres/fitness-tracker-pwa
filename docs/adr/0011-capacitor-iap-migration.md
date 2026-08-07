@@ -1,6 +1,11 @@
 # ADR-0011 — Native app store path: Capacitor shell + IAP
 
-**Status:** Proposed (planning only — no code yet)
+**Status:** **Superseded by ADR-0012** — the framework choice here (Capacitor) was
+rejected in favour of Expo, which is what shipped to the App Store. This file said
+"Proposed (planning only — no code yet)" until 2026-08-07, which read as live
+planning for a path that was never taken; the ADR index had it right all along.
+**The IAP / guideline-4.2 / RevenueCat analysis below is still valid** and is why
+this is superseded rather than rejected outright.
 **Date:** 2026-06-19
 **Related:** `docs/go-to-market.md`, ADR-0010 (Storage), the Stripe Pro flow
 (`SubscriptionService`, `stripeRole` custom claim).
