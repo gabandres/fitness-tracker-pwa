@@ -78,25 +78,36 @@ import { FirebaseService } from './services/firebase.service';
  * This avoids the "messaging/unsupported-browser" FirebaseError in browsers
  * like older Safari, Firefox private browsing, or SSR environments.
  *
- * The checks below mirror the SDK's own `isWindowSupported()` rather than
- * approximating it. The original guard tested only `Notification` +
- * `serviceWorker`, which is a strict subset — a browser can have both and
- * still fail `getMessaging()` for want of `PushManager`, `showNotification`
- * or `getKey`. That gap was not theoretical: it kept throwing in prod
- * (Sentry IGNIA-WEB-H, 20 events) long after this guard was added.
+ * **This can never be complete, and it is worth knowing why.** `getMessaging()`
+ * runs the SDK's `isWindowSupported()` as a FIRE-AND-FORGET promise and throws
+ * from the `.then` — so the failure is an async unhandled rejection that no
+ * synchronous guard can intercept. All we can do is avoid *calling*
+ * `getMessaging()` when we can cheaply tell it would fail. And we cannot always
+ * tell: `isWindowSupported()` begins with `await validateIndexedDBOpenable()`,
+ * which actually opens a database, so Firefox private browsing (indexedDB
+ * present, `open()` rejected) is out of reach by construction.
  *
- * One case stays out of reach: Firefox private browsing exposes `indexedDB`
- * but rejects `open()`. The SDK catches that with an async
- * `validateIndexedDBOpenable()`, and a provider factory is synchronous, so
- * presence is the most this function can assert.
+ * The checks below are therefore a best-effort subset, ordered so `&&`
+ * short-circuits before touching a global the browser may lack. They cover the
+ * conditions the SDK checks synchronously, `navigator.cookieEnabled` included —
+ * that one was missing until 2026-08-07 and is why Sentry IGNIA-WEB-H kept
+ * firing after the first fix: every one of its 26 events came from bots
+ * crawling `/` and `/privacy` with cookies disabled, 0 real users affected.
+ *
+ * The complete fix is to stop providing Messaging eagerly and instead `await
+ * isSupported()` where it is consumed. That is a real refactor of
+ * `PushNotificationService`, and has not been done because the residue is
+ * crawler noise with no user impact.
  */
 function provideMessagingIfSupported(): EnvironmentProviders[] {
   if (typeof window !== 'undefined'
     && typeof navigator !== 'undefined'
     && typeof indexedDB !== 'undefined'
+    && navigator.cookieEnabled
     && 'Notification' in window
     && 'serviceWorker' in navigator
     && 'PushManager' in window
+    && 'fetch' in window
     && 'showNotification' in ServiceWorkerRegistration.prototype
     && 'getKey' in PushSubscription.prototype) {
     return [provideMessaging(() => getMessaging())];
