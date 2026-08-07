@@ -188,22 +188,22 @@ function collectFlags() {
     /export const PRO_ENABLED\s*=\s*(true|false)/,
   );
 
-  // Mobile photoScan is NOT a literal — features.ts defaults it ON and the
-  // shipped value comes from eas.json, which sets
-  // EXPO_PUBLIC_FEATURE_PHOTO_SCAN=0 on the production and preview profiles.
-  // Reading features.ts alone would report "on" and be wrong about every
-  // binary users can install, so the build config is the source of truth.
-  let mobilePhotoScan = { value: null, why: 'apps/mobile/eas.json not found' };
-  if (has('apps/mobile/eas.json')) {
-    const eas = JSON.parse(read('apps/mobile/eas.json'));
-    const env = eas?.build?.production?.env ?? {};
-    const raw = env.EXPO_PUBLIC_FEATURE_PHOTO_SCAN;
-    mobilePhotoScan =
-      raw === undefined
-        ? { value: null, why: 'production profile sets no EXPO_PUBLIC_FEATURE_PHOTO_SCAN' }
-        : { value: raw !== '0', why: '' };
-  }
-  flags.mobilePhotoScan = mobilePhotoScan;
+  // Mobile photoScan IS a literal again as of 2026-08-07 (ADR-0017). This
+  // used to read eas.json, because the flag was
+  // `process.env.EXPO_PUBLIC_FEATURE_PHOTO_SCAN !== '0'` and the build profile
+  // was the only place the shipped value existed. That read is now actively
+  // WRONG: eas.json still carries an inert `EXPO_PUBLIC_FEATURE_PHOTO_SCAN=0`
+  // that nothing reads, so trusting it would report "off" for a feature that
+  // is on for every user.
+  //
+  // The flag moved to a hardcoded constant precisely because eas.json is
+  // hashed into the EAS Update fingerprint — an env-var flag cannot be changed
+  // without a new binary, which makes it useless as a kill switch. If someone
+  // ever moves it back, this check has to move back with it.
+  flags.mobilePhotoScan = readFlag(
+    'apps/mobile/src/lib/features.ts',
+    /photoScan:\s*(true|false)/,
+  );
   return flags;
 }
 

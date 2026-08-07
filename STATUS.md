@@ -23,6 +23,53 @@ work because a plan doc was read as a status doc.
 | Android / Play | **Not launched.** Play Console account exists, **developer verification complete** and `fit.ignia.app` **package name registered** (both 2026-07-31), proven with an APK signed by `apps/mobile/credentials/dev.keystore` (alias `macrolog-dev`, SHA-256 `75:4B:03:19:…:F6:D8`) — **that keystore is load-bearing app identity; it is git-ignored and now exists in TWO places** (this machine and `ignia-mac`, both mode `600` — locations and disposal list in `CLAUDE.local.md`). **vc 11 (2026-08-07) is LIVE on the alpha track** (`status=completed, versionCodes=["11"]`, verified via the androidpublisher API) — built with `eas build --local` on the Mac at **zero EAS quota**, signed with the real upload key, and the first Android binary that can actually receive OTA updates (channel `{"expo-channel-name":"production"}` confirmed in its `AndroidManifest.xml`). **vc 10 is superseded and is an OTA dead end** — it was built with raw `./gradlew bundleRelease`, which omits the channel silently; do not point testers at it — plain `./gradlew bundleRelease` on the Mac, 1m51s incremental, **zero EAS quota**, signed with the real upload key and verified via `keytool -printcert` (`CN=Macro Log Dev`, not the debug cert Expo's template defaults to). It is also the first Android binary carrying `expo-updates`. The EAS remote versionCode was set to 10 by hand — a local Gradle build neither reads nor increments it, and skipping that step makes the next cloud build re-mint a colliding number. App entry created (`4975181896468259775`). **The first AAB is uploaded and the whole app is IN REVIEW at Google** as of 2026-08-02 — versionName 1.1.0 / **versionCode 4**, EAS build `2d36d121`, on the **Closed testing - Alpha** track (id `4699799777678836720`), 177 countries, signed by that same key (verified with `keytool -printcert -jarfile`). 14 changes went in one submission because it is the app's first: store listing, content rating, data safety, health declaration, the release itself. Reviews are quoted at up to 7 days. **vc 6 superseded it on 2026-08-03** — EAS build `d238d43f`, commit `87aee43b`, submitted with `eas submit` and **verified live on the alpha track by the Play Developer API: `status=completed, versionCodes=["6"]`**. `completed` means rolled out to the tester list, not a draft awaiting a console promote — that is `eas.json`'s `releaseStatus: "completed"` (from `87aee43b`) working. **vc 6 is the first Android binary containing Sentry and the Google sign-in diagnostics**, so Alejandro's `DEVELOPER_ERROR`-vs-`no-token` question is now answerable from Sentry rather than from guesswork — and on 2026-08-05 it was answered: `DEVELOPER_ERROR`, from a real Play split-APK install of vc 6 (see the sign-in row in §8). **The app is out of review**: the console shows the 1.1.0 release as *Available to selected testers*, released Aug 3 8:41 PM, and the opt-in link `https://play.google.com/apps/testing/fit.ignia.app` is live for the listed testers (it renders "App not available" for any account not on the list, including the developer's own — that is not a fault). Tester list `Ignia Beta Testers` holds **7 emails; 12 are required** — **personal developer account → production access requires closed testing with 12 testers opted in 14 CONTINUOUS days** ([policy](https://support.google.com/googleplay/android-developer/answer/14151465)). **Resolved 2026-08-05: Play's own production-access checklist (app Dashboard) reads "8 testers currently opted-in"** (4 → 6 → 8 over the course of that one day — it moves, so re-read it rather than trusting any number written down here). So opt-ins are real and the earlier "Installed audience 0" was a lag, not a dead track. **Updated 2026-08-07 by the owner from the Dashboard: 12 testers are now opted in — the threshold is MET.** That started the 14-day continuous clock, which runs from the **12th** person's opt-in (the policy is per-tester, not a group timer), so the earliest production-access application is ~2026-08-21 provided nobody drops out and rejoins — interrupted periods do not add up. The number climbed 4 → 6 → 8 → 12 across 2026-08-05..07, which is exactly why it must be re-read from the Dashboard rather than trusted from this file. **Play publishes no per-tester data at all** — not who opted in, not when. The Dashboard aggregate is the entire dataset: the `androidpublisher` `testers` resource covers only Google Groups, and Statistics → *Installed audience* returns "Data unavailable" at this volume. Firebase Auth can prove a *negative* (no account = that person never signed in anywhere) but cannot distinguish a web sign-in from an Android one, because the mobile app deliberately writes the same doc shapes as the PWA. To learn who is actually in, ask them for a screenshot of the opt-in URL — it states each person's own status back to them. **The 14 days are per-tester, not a group timer**: [policy](https://support.google.com/googleplay/android-developer/answer/14151465) requires that at application time ≥12 testers have each been opted in for *the last 14 days continuously*, and states that someone who opts in, tests under 14 days, opts out and rejoins does **not** get to add the periods up. So the 6 are already banking days; the earliest apply date is 14 days after the **12th** opt-in, because that person has the least time banked. Play exposes no per-tester breakdown — the aggregate on the Dashboard is the only number | Track state: the `androidpublisher` edits→tracks API with `credentials/play-service-account.json` (see `CLAUDE.local.md`) |
 | Cloud Functions / rules | Deployed, project `fitness-tracker-gb-1775407101`. **`firestore.rules` redeployed 2026-08-04** to allow + range-validate the new `proteinFloor` profile field (`> 0 && < 1000`); deployed **before** any client writes it, per the standing rule | `firebase deploy --only functions --dry-run` |
 
+**Photo-scan is LIVE and free for everyone, both platforms, since 2026-08-07**
+(ADR-0017). Web deployed at commit `01803846` (release stamp verified live on
+`ignia.fit`); mobile published as an **OTA**, update group `93132738…`
+(Android) / `bf5f9163…` (iOS). The meal-photo→macros loop was built, deployed
+and fully guarded on the server all along — **only the clients were dark**. Two
+flags changed and nothing else: web `FEATURES.photoScan` → `true`, mobile
+`FEATURES.photoScan` → a **hardcoded `true`** replacing its
+`process.env.EXPO_PUBLIC_FEATURE_PHOTO_SCAN` read.
+
+**`eas.json` was deliberately NOT touched, and the OTA gate is why.** Deleting
+that env key was tried first and reverted: `eas.json` is hashed into the EAS
+Update fingerprint, so it moved Android `c0b85c15…` → `30043793…` — an update
+that publishes successfully and **reaches nobody**, and that would have forced
+new binaries plus a resubmission of iOS build 24 mid-App-Review. JS source is
+not hashed. The published runtime versions were confirmed identical to the
+shipped binaries (`c0b85c15e6631d99e8ccef61867d937389094ae6` android,
+`781be0c885005e1d02bcf41408988c6622ff222e` ios), so it lands on vc 11 and build
+24. **The rule that generalizes: an env-var flag is a build-gated switch
+(hours); a hardcoded constant is an OTA-gated one (seconds) — for a kill
+switch, use the constant.** A now-inert `EXPO_PUBLIC_FEATURE_PHOTO_SCAN: "0"`
+still sits in `eas.json`'s `production` + `preview` profiles; **nothing reads
+it**, and it is flagged in `apps/mobile/src/lib/features.ts` for deletion
+alongside the next change that needs a native build anyway.
+
+**No Cloud Function change was needed** — `analyzePhoto` was already deployed
+with `PHOTO_REQUIRES_PAID = false` and the guards already in the right order:
+`spendCeiling.check("photo")` before the per-user reserve, `dailyQuota.reserve`
+(**3/day free · 30/day paid**), `spendCeiling.record` immediately after the
+request leaves. ~$0.0015/scan on `gemini-2.5-flash`, so ~$0.14/user/month at
+the free cap, and the ceiling bounds the worst *day* across all users at 2,000
+scans ≈ $3. Functions were redeployed only for welcome-email copy ("three ways
+to log a meal" → four, both locales). This **amends ADR-0015's paid gate**
+("5 lifetime free scans, then Pro"), which never shipped and was incoherent
+while `PRO_ENABLED` is false — `isPaid()` is forced `true`, so a client-side
+paid check unlocks the feature for everyone. **The client flags are a kill
+switch, not a cost control**; the cost control is server-side and cannot be
+bypassed.
+
+**Not yet verified end-to-end by a human**: no signed-in photo→macros round
+trip has been run against production since the flip. One scan on `review@` or a
+real account confirms it.
+
+```sh
+curl -s https://ignia.fit/index.html | grep -o '__MACROLOG_RELEASE__[^;]*'   # web build live
+cd apps/mobile && npx eas update:list --branch production --limit 3           # OTA groups
+```
+
 **The `1.1.0` trap.** `app.json` says 1.1.0 and ASC has a 1.1.0 version page, but
 **EAS has never built a 1.1.0 iOS binary**. Anything a doc describes as "shipped in
 1.1.0" shipped in **1.0** or has not shipped at all. Do not trust a version number
@@ -70,12 +117,9 @@ than it.** iOS build 19 and Android vc 8 were cut from `fdcd92ed` and submitted
 build 23 and Android vc 9 have shipped to testers**, and between them they close
 the last gap for everything merged up to that point.
 
-**Amended later on 2026-08-07 — that is no longer "everything".** Photo-scan was
-turned on the same day (first bullet below) and is **in no binary and not
-deployed**. On mobile it is a pure-JS/config change, so it ships **over the air**
-rather than by build: run the fingerprint gate, then `eas update`. The web half
-needs a `firebase deploy`. Every *other* bullet in this section remains in
-testers' hands on both platforms.
+**Amended later on 2026-08-07 — photo-scan was turned on and SHIPPED the same
+day**, web and mobile both (see §1). It never sat in this section. Every bullet
+below remains in testers' hands on both platforms.
 
 What is still pending is a different thing, and it is the one that matters:
 
@@ -91,43 +135,6 @@ So the gap is not a build, it is a **submission**: `1.1.0` has sat at
 `PREPARE_FOR_SUBMISSION` since it was created and **has never gone to App
 Review**. Cutting another build does not move that; submitting does. Verify
 with the ASC command in §1.
-
-- **Photo-scan is ON and free for everyone, on both platforms** (2026-08-07,
-  ADR-0017). **NOT SHIPPED YET — web needs `firebase deploy --only hosting`,
-  mobile needs `eas update` (OTA, no build).** The meal-photo→macros loop was
-  fully built and fully guarded on the server all along; only the clients were
-  dark. What changed is two flags and nothing else: web `FEATURES.photoScan`
-  → `true`, and mobile `FEATURES.photoScan` → a **hardcoded `true`** replacing
-  its `process.env.EXPO_PUBLIC_FEATURE_PHOTO_SCAN` read. **`eas.json` was
-  deliberately NOT touched, and the OTA gate is why.** Deleting that env key was
-  tried first and reverted: `eas.json` is hashed into the EAS Update
-  fingerprint, so it moved Android from `c0b85c15…` to `30043793…` — an update
-  that publishes successfully and **reaches nobody**. With the JS-only version,
-  both fingerprints re-verify as identical to the shipped binaries (android
-  `c0b85c15e6631d99e8ccef61867d937389094ae6`, ios
-  `781be0c885005e1d02bcf41408988c6622ff222e`), so this ships **over the air, no
-  build, no App Review resubmission of build 24**. The general rule, now in
-  ADR-0017: an env-var flag is a build-gated switch (hours); a hardcoded
-  constant is an OTA-gated one (seconds) — for a kill switch, use the constant.
-  A now-inert `EXPO_PUBLIC_FEATURE_PHOTO_SCAN: "0"` remains in `eas.json`'s
-  `production` + `preview` profiles on purpose; **nothing reads it**, and it is
-  flagged for deletion alongside the next change that needs a native build
-  anyway. **No Cloud Function change was
-  needed**: `analyzePhoto` is deployed, `PHOTO_REQUIRES_PAID` was already
-  `false`, and the guards were already wired in the right order —
-  `spendCeiling.check("photo")` before the per-user reserve, `dailyQuota.reserve`
-  (**3/day free · 30/day paid**), `spendCeiling.record` immediately after the
-  request leaves. Costs ~$0.0015/scan on `gemini-2.5-flash`; worst case is
-  ~$0.14/user/month at the free cap, and the ceiling bounds the worst *day*
-  across all users at 2,000 scans ≈ $3. This **amends ADR-0015's paid gate**
-  ("5 lifetime free scans, then Pro"), which never shipped and was incoherent
-  while `PRO_ENABLED` is false — a client-side paid check unlocks the feature for
-  everyone, since `isPaid()` is forced `true`. The client flags are a **kill
-  switch, not a cost control**; the cost control is server-side and cannot be
-  bypassed. `functions/src/email-templates.ts` also changed (welcome email:
-  "three ways to log a meal" → four, stating the photo path is free, both
-  locales), so **a functions deploy is needed for that copy** even though no
-  function logic moved.
 
 - **Manual food entry is a first-class logging method on mobile** (2026-08-06,
   `ebf60dcb`). **LIVE ON ANDROID in vc 9** (2026-08-06) **and ON iOS in build 23**
