@@ -317,11 +317,18 @@ with the ASC command in §1.
   also looks like "nobody has a widget placed", which is exactly why a human
   eye on a real home screen was the gate. If it ever fires from vc 9 or later,
   the fix did not take after all.
-  **Not recorded, because nobody asked**: which versionCode that device was on
-  (vc 11 is what alpha serves) and whether the widget had to be removed and
-  re-added first. That second one matters for anyone else who updates — Android
-  caches the RemoteViews from the failed render, so an existing blank instance
-  can stay blank until it is removed and re-placed.
+  **The device was on vc 11** (reported by the tester as "v11, I think" — the
+  alpha track serves 11, so this is consistent, but it is a recollection and not
+  a reading off the device). **It worked after simply updating the app**, with
+  no report of having to remove and re-place the widget.
+  That is one data point against the standing caveat, not a repeal of it. The
+  caveat exists because Android caches the RemoteViews from the failed render,
+  so a widget placed under vc 8 can keep drawing the blank frame after the
+  binary is fixed. This case suggests it self-heals on update — but nobody
+  confirmed that his widget pre-dated the update rather than being placed
+  fresh afterwards, and those two stories are indistinguishable from the report
+  as given. So: **if a widget is blank after updating, remove and re-add it**
+  — as a remedy that is known to work, not as a step everyone must take.
   iOS is unaffected — its widget is SwiftUI and was never touched by this, and
   it was verified working on a physical iPhone from TestFlight build 13
   (2026-08-03), including refresh after a meal.
