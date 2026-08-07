@@ -62,24 +62,33 @@ const versions = await api(
   'GET',
   `/v1/apps/${APP_ID}/appStoreVersions?limit=5&fields[appStoreVersions]=versionString,appStoreState,releaseType`,
 );
+// Submitted: the build is frozen and a cancel is required first.
+const SUBMITTED = ['WAITING_FOR_REVIEW', 'READY_FOR_REVIEW', 'PENDING_DEVELOPER_RELEASE'];
+// Editable: the build can be re-pointed directly. DEVELOPER_REJECTED lands here
+// after a cancel, which is also where a half-finished run of THIS script leaves
+// things — so these states are the resume path, not an error.
+const EDITABLE = ['PREPARE_FOR_SUBMISSION', 'DEVELOPER_REJECTED', 'REJECTED', 'METADATA_REJECTED'];
+
 const version = versions.data.find((v) =>
-  ['WAITING_FOR_REVIEW', 'IN_REVIEW', 'PENDING_DEVELOPER_RELEASE', 'READY_FOR_REVIEW'].includes(
-    v.attributes.appStoreState,
-  ),
+  [...SUBMITTED, ...EDITABLE, 'IN_REVIEW'].includes(v.attributes.appStoreState),
 );
 if (!version) {
-  console.error('No version is awaiting or in review. Nothing to swap.');
+  console.error('No version is in a submittable or editable state. Nothing to swap.');
   process.exit(1);
 }
-console.log(`      ${version.attributes.versionString} — ${version.attributes.appStoreState}`);
+const state = version.attributes.appStoreState;
+console.log(`      ${version.attributes.versionString} — ${state}`);
 
-if (version.attributes.appStoreState === 'IN_REVIEW') {
+if (state === 'IN_REVIEW') {
   // Apple is actively looking at it. Cancelling now throws away real reviewer
   // progress and is far more likely to cost days than a WAITING_FOR_REVIEW swap.
   console.error(
     '\nREFUSING: the version is IN_REVIEW — a reviewer already has it. Wait for the outcome.',
   );
   process.exit(1);
+}
+if (EDITABLE.includes(state)) {
+  console.log('      already editable — no cancel needed (resuming)');
 }
 
 // ─── 2. Current vs desired build ───────────────────────────────────────
@@ -124,6 +133,7 @@ console.log(`      ${open ? open.id + ' — ' + open.attributes.state : '(none o
 if (!commit) {
   console.log('\n─── DRY RUN — nothing was changed ───');
   if (open) plan(`cancel submission ${open.id} (FORFEITS QUEUE POSITION, IRREVERSIBLE)`);
+  else plan('skip the cancel — no open submission');
   plan(`re-point ${version.attributes.versionString} to build ${wantBuild}`);
   if (notes) plan(`set release notes for ${Object.keys(notes).join(', ')} from ${notesPath}`);
   plan('create a new submission and submit it');
@@ -141,10 +151,41 @@ if (open) {
 }
 
 // ─── 5. Re-point the build ─────────────────────────────────────────────
+//
+// Retried, because cancelling is not instantaneous on Apple's side. A PATCH
+// fired immediately after the cancel hits a version still leaving
+// WAITING_FOR_REVIEW and is refused with a 409 "relationship value is not
+// acceptable for the current resource state" — which reads like the build is
+// unusable, when in fact nothing is wrong with it and the same call succeeds
+// seconds later. Measured on 2026-08-07: first attempt 409, state settled to
+// DEVELOPER_REJECTED shortly after.
 step(5, `Attaching build ${wantBuild}`);
-await api('PATCH', `/v1/appStoreVersions/${version.id}/relationships/build`, {
-  data: { type: 'builds', id: target.id },
-});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let attached409 = null;
+for (let attempt = 1; attempt <= 6; attempt++) {
+  try {
+    await api('PATCH', `/v1/appStoreVersions/${version.id}/relationships/build`, {
+      data: { type: 'builds', id: target.id },
+    });
+    attached409 = null;
+    break;
+  } catch (e) {
+    if (!/→ 409:/.test(e.message)) throw e; // a real error, not the race
+    attached409 = e;
+    if (attempt === 6) break;
+    console.log(`      state still settling (409), retrying in 5s [${attempt}/5]`);
+    await sleep(5000);
+  }
+}
+if (attached409) {
+  console.error(
+    `\nSTOPPED after 6 attempts: ${attached409.message}\n` +
+      'The submission is cancelled and the version is editable but still on the OLD build.\n' +
+      'It will NOT ship until someone resubmits. Re-run this script (it resumes from here), ' +
+      'or attach the build and submit in App Store Connect by hand.',
+  );
+  process.exit(1);
+}
 const recheck = await api(
   'GET',
   `/v1/appStoreVersions/${version.id}/build?fields[builds]=version`,
