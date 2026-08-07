@@ -318,4 +318,73 @@ Then record the answer here and delete this subsection.
 - **`ios/` and `android/` are generated.** Never commit them; never hand-edit them
   expecting the change to survive the next `prebuild`.
 
+### 3.8 Driving the Mac from the Windows box over SSH
+
+Carrying the laptop over for every build is the actual cost, not the build. Xcode's
+whole toolchain is CLI (`xcodebuild`, `pod`, `eas build --local`), so the Mac can be
+driven headless and never has to be in the room.
+
+**A shared drive is the wrong tool and will waste your time.** A share gives file
+access, not execution — you cannot run Xcode across one — and sharing `node_modules`
+or `ios/` between the two machines breaks on platform-specific binaries, symlinks and
+xattrs. Git is already the sync mechanism: push here, `git pull` there.
+
+**The key is already generated on the Windows box** (2026-08-06), dedicated to this
+one purpose so it can be revoked without touching anything else:
+
+- private: `~/.ssh/id_ed25519_ignia_mac` — **no passphrase**, so builds can run
+  unattended. The tradeoff is real: anyone who gets that file can log into the Mac as
+  you. It is a LAN key to your own laptop, which is why it is acceptable here; do not
+  reuse it for anything that matters more.
+- public: `~/.ssh/id_ed25519_ignia_mac.pub`
+
+```
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMvWPFwbcvYTHl3rPeVI46d7pcqk7GkssktbQyzhMnBa ignia-build@windows
+```
+
+**On the Mac, once:**
+
+```sh
+# System Settings > General > Sharing > Remote Login: ON
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+echo 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMvWPFwbcvYTHl3rPeVI46d7pcqk7GkssktbQyzhMnBa ignia-build@windows' >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+scutil --get LocalHostName        # the <name> in <name>.local
+```
+
+**From Windows, to verify:**
+
+```sh
+ssh -i ~/.ssh/id_ed25519_ignia_mac <user>@<name>.local "sw_vers && xcodebuild -version"
+```
+
+Then a build is one line:
+
+```sh
+ssh -i ~/.ssh/id_ed25519_ignia_mac <user>@<name>.local   "cd ~/fitness-tracker-pwa && git pull && cd apps/mobile &&    caffeinate -dims npx eas build -p ios --profile production --local"
+```
+
+**Three failure modes, in the order they will actually happen:**
+
+1. **`User interaction is not allowed` from `codesign`.** The classic. An SSH session
+   has no GUI, and the login keychain is locked, so signing cannot reach the private
+   key. Unlock it first in the same shell:
+   ```sh
+   security unlock-keychain -p '<login password>' ~/Library/Keychains/login.keychain-db
+   ```
+   `eas build --local` is less exposed to this than raw `xcodebuild`, because it
+   provisions credentials into a temporary keychain of its own — another reason to
+   prefer it for anything headed to TestFlight.
+2. **The Air sleeps and drops off the network mid-build.** `caffeinate -dims` (above)
+   holds it awake for the command's lifetime; also set it not to sleep on power.
+3. **`<name>.local` only resolves on the same LAN** — it is mDNS. If the Mac lives in
+   another room on another network, or you are away, install **Tailscale** (free) on
+   both machines and use the Tailscale name instead. Nothing else changes.
+
+**When this becomes routine, stop using SSH.** Put a **self-hosted GitHub Actions
+runner** on the Mac and let a push or a manual dispatch trigger the iOS build with
+nobody present. It also sidesteps failure mode 1 outright, because the runner executes
+as a logged-in GUI user with an unlocked keychain. More setup; correct destination.
+
+
 ---
