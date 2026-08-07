@@ -64,10 +64,28 @@ Compare the `hash` against the fingerprint of the binary testers are running.
 Fingerprints of the binaries carrying `expo-updates` (update these when new ones
 ship):
 
-| Platform | Fingerprint |
-|---|---|
-| iOS | `781be0c885005e1d02bcf41408988c6622ff222e` |
-| Android | `c0b85c15e6631d99e8ccef61867d937389094ae6` |
+| Platform | Binary | Fingerprint | Note |
+|---|---|---|---|
+| iOS | **build 25** (2026-08-07) | `6c756c19b3e35948b85e42a3b337eec588128d3c` | current `main` |
+| iOS | build 24 | `781be0c885005e1d02bcf41408988c6622ff222e` | in App Review |
+| Android | **vc 13** (2026-08-07) | `5758fe4f232d5e6fe1ca369299512cfec0d39e13` | current `main`, alpha |
+| Android | vc 11 | `c0b85c15e6631d99e8ccef61867d937389094ae6` | superseded |
+
+**The fleet now spans TWO runtime versions per platform, and one `eas update`
+reaches only ONE of them.** This is the same silent failure as a stale
+fingerprint, just partial: publishing from current `main` lands on build 25 /
+vc 13 and every tester still on build 24 / vc 11 gets nothing, with no error
+anywhere. Either get everyone onto the new binaries (the store-update banner
+exists for exactly this — `public/app-version.json`, now at vc 13) or publish the
+update twice, once from each commit state. Do not assume "published" means
+"delivered"; check which runtime version the update went out under:
+
+```sh
+npx eas update:list --branch production --limit 3   # prints the runtime version
+```
+
+Both new binaries were built locally on `ignia-mac` at **zero EAS quota**
+(`build-ios` / `build-android` skills, `DEV_ENVIRONMENT.md` §3.10–3.11).
 
 **Changes the fingerprint** (⇒ needs a build): any dependency carrying native
 code, native config in `app.json` (permissions, icons, splash, plugins,

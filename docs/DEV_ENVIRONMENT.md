@@ -655,6 +655,24 @@ invites a mismatch AGP then re-downloads.
    ```
    (`eas build --local` drives Gradle itself, so this has to reach it via the
    environment rather than a command-line flag.)
+3. **`ANDROID_HOME` must be exported by the BUILD SCRIPT, not inherited.** The
+   setup block above exports it in the shell that runs the setup, and nothing
+   persists it. An interactive SSH session may still have it via `~/.zshrc`, but a
+   detached build wrapper (`nohup … ~/run-android-build.sh`) runs zsh
+   **non-interactively**, which reads `~/.zshenv` and *not* `~/.zshrc` — so the
+   variable is simply absent and Gradle fails at configuration time with:
+   ```
+   SDK location not found. Define a valid SDK location with an ANDROID_HOME
+   environment variable or by setting the sdk.dir path in local.properties
+   ```
+   Measured 2026-08-07: fails in **23 s**, so it is cheap — but it reads like a
+   broken SDK install rather than an unset variable, which is the expensive part.
+   Third instance of the same species as the `~/.zshenv` note in §3.9. Put this in
+   the wrapper itself:
+   ```sh
+   export ANDROID_HOME=$HOME/Library/Android/sdk
+   export ANDROID_SDK_ROOT=$ANDROID_HOME
+   ```
 
 **Disk:** the SDK is ~3 GB, but Gradle caches and build outputs added ~5 GB on the
 first build (26 → 18 GB free). One-time, not per-build, but this Air has 228 GB
