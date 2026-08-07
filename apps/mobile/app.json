@@ -15,11 +15,17 @@
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.security.application-groups": [
+          "group.fit.ignia.app",
           "group.fit.ignia.app"
         ]
       },
       "infoPlist": {
         "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "fit.ignia.app"
+            ]
+          },
           {
             "CFBundleURLSchemes": [
               "fit.ignia.app"
@@ -50,7 +56,21 @@
         "android.permission.health.WRITE_NUTRITION",
         "android.permission.health.WRITE_EXERCISE",
         "android.permission.health.READ_STEPS",
-        "android.permission.health.READ_ACTIVE_CALORIES_BURNED"
+        "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.health.READ_WEIGHT",
+        "android.permission.health.WRITE_WEIGHT",
+        "android.permission.health.READ_SLEEP",
+        "android.permission.health.WRITE_SLEEP",
+        "android.permission.health.READ_HYDRATION",
+        "android.permission.health.WRITE_HYDRATION",
+        "android.permission.health.WRITE_BODY_FAT",
+        "android.permission.health.WRITE_NUTRITION",
+        "android.permission.health.WRITE_EXERCISE",
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -162,12 +182,53 @@
       },
       "router": {},
       "eas": {
-        "projectId": "d0ccbe2d-b0f1-4333-9e2d-a02a21b23854"
+        "projectId": "d0ccbe2d-b0f1-4333-9e2d-a02a21b23854",
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "bundleIdentifier": "fit.ignia.app.widget",
+                  "targetName": "Today",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.fit.ignia.app"
+                    ]
+                  }
+                },
+                {
+                  "bundleIdentifier": "fit.ignia.app.watchkitapp.watchkitextension",
+                  "targetName": "IgniaWatchComplication",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.fit.ignia.app"
+                    ]
+                  }
+                },
+                {
+                  "bundleIdentifier": "fit.ignia.app.watchkitapp",
+                  "targetName": "IgniaWatch",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.fit.ignia.app"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
       }
     },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d0ccbe2d-b0f1-4333-9e2d-a02a21b23854"
     }
   }
 }
