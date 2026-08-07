@@ -74,15 +74,31 @@ import { LEDGER_PORT } from './ledger/ports/ledger.port';
 import { FirebaseService } from './services/firebase.service';
 
 /**
- * Only provide Firebase Messaging when the browser supports the required APIs
- * (Notification API + Service Worker). This avoids the
- * "messaging/unsupported-browser" FirebaseError in browsers like older Safari,
- * Firefox private browsing, or SSR environments.
+ * Only provide Firebase Messaging when the browser supports the required APIs.
+ * This avoids the "messaging/unsupported-browser" FirebaseError in browsers
+ * like older Safari, Firefox private browsing, or SSR environments.
+ *
+ * The checks below mirror the SDK's own `isWindowSupported()` rather than
+ * approximating it. The original guard tested only `Notification` +
+ * `serviceWorker`, which is a strict subset — a browser can have both and
+ * still fail `getMessaging()` for want of `PushManager`, `showNotification`
+ * or `getKey`. That gap was not theoretical: it kept throwing in prod
+ * (Sentry IGNIA-WEB-H, 20 events) long after this guard was added.
+ *
+ * One case stays out of reach: Firefox private browsing exposes `indexedDB`
+ * but rejects `open()`. The SDK catches that with an async
+ * `validateIndexedDBOpenable()`, and a provider factory is synchronous, so
+ * presence is the most this function can assert.
  */
 function provideMessagingIfSupported(): EnvironmentProviders[] {
   if (typeof window !== 'undefined'
+    && typeof navigator !== 'undefined'
+    && typeof indexedDB !== 'undefined'
     && 'Notification' in window
-    && 'serviceWorker' in navigator) {
+    && 'serviceWorker' in navigator
+    && 'PushManager' in window
+    && 'showNotification' in ServiceWorkerRegistration.prototype
+    && 'getKey' in PushSubscription.prototype) {
     return [provideMessaging(() => getMessaging())];
   }
   return [];
