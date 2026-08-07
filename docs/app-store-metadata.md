@@ -214,11 +214,25 @@ Ignia is not a medical device and does not provide medical advice.
 with the widget; the Watch app is the headline of this release and was missing.
 Every bullet is backed by a commit and by a verification.
 
+**Extended 2026-08-07 for BUILD 24**, which supersedes 19 as the binary under
+review. The range grows to `168e0394..ebf60dcb` and the delta is exactly one
+user-visible iOS change — `ebf60dcb`, writing a food in yourself — so exactly
+one bullet was added. Two things in that range are deliberately NOT described:
+`049e5af2` (the widget render fix) is Android-only, and `b8306f9f` (the update
+banner) landed *after* build 24 was uploaded and reaches these users over the
+air, so claiming it would promise something the binary does not contain.
+
+**The machine-readable copy is `store-assets/whats-new-1.1.0.json`**, which
+`scripts/asc-swap-review-build.mjs --notes` uploads. This document stays the
+source of truth for wording; if the two disagree, this one is right and the
+JSON needs correcting.
+
 **en-US**
 ```
 • Ignia on your wrist — an Apple Watch app and a face complication showing the calories and protein you have left, plus Lock Screen widgets on iPhone
 • Home-screen widget — today's calories and protein at a glance
 • Apple Health now imports steps and active energy, and your activity level corrects itself from what you actually did
+• Writing in a food yourself is now one tap from the top of the Add screen, and a search that finds nothing offers to add what you typed
 • Sign in with Google or Apple and connect it to the account you already have — no more accidental second account
 • Meal reminders can each be turned off on their own
 • One stray weigh-in no longer drags your weight trend
@@ -234,6 +248,7 @@ Every bullet is backed by a commit and by a verification.
 • Ignia en tu muñeca: app para Apple Watch y complicación en la carátula con las calorías y la proteína que te quedan, más widgets en la pantalla bloqueada del iPhone
 • Widget en la pantalla de inicio: tus calorías y proteína de hoy de un vistazo
 • Apple Health ahora importa pasos y energía activa, y tu nivel de actividad se corrige solo según lo que de verdad hiciste
+• Escribir una comida tú mismo ahora está a un toque desde arriba en la pantalla de añadir, y una búsqueda sin resultados te ofrece añadir lo que escribiste
 • Inicia sesión con Google o Apple y conéctalo a la cuenta que ya tienes: se acabaron las segundas cuentas por accidente
 • Cada recordatorio de comida se puede apagar por separado
 • Un pesaje fuera de rango ya no arrastra tu tendencia de peso

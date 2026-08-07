@@ -3,6 +3,12 @@
 //
 //   node scripts/asc-swap-review-build.mjs --build 24            # dry run
 //   node scripts/asc-swap-review-build.mjs --build 24 --commit   # actually do it
+//   ... --notes store-assets/whats-new-1.1.0.json                # also set release notes
+//
+// `--notes` exists because of a sequencing trap: version metadata is only
+// editable while the version is NOT submitted, and that window is the few
+// seconds between the cancel and the re-submit below. Uploading notes as a
+// separate step afterwards fails — the version is locked again by then.
 //
 // WHY THIS EXISTS
 //
@@ -23,12 +29,24 @@
 // version is left unsubmitted (recoverable by hand in App Store Connect, but it
 // will not ship until someone does).
 
+import { readFileSync } from 'node:fs';
 import { api, APP_ID } from './asc-client.mjs';
 
 const args = process.argv.slice(2);
 const commit = args.includes('--commit');
 const wantIdx = args.indexOf('--build');
 const wantBuild = wantIdx >= 0 ? args[wantIdx + 1] : null;
+const notesIdx = args.indexOf('--notes');
+const notesPath = notesIdx >= 0 ? args[notesIdx + 1] : null;
+
+/** `{ "en-US": "…", "es-MX": "…" }`; `_`-prefixed keys are commentary. */
+const notes = notesPath
+  ? Object.fromEntries(
+      Object.entries(JSON.parse(readFileSync(notesPath, 'utf8'))).filter(
+        ([k]) => !k.startsWith('_'),
+      ),
+    )
+  : null;
 
 if (!wantBuild) {
   console.error('Usage: node scripts/asc-swap-review-build.mjs --build <versionNumber> [--commit]');
@@ -107,6 +125,7 @@ if (!commit) {
   console.log('\n─── DRY RUN — nothing was changed ───');
   if (open) plan(`cancel submission ${open.id} (FORFEITS QUEUE POSITION, IRREVERSIBLE)`);
   plan(`re-point ${version.attributes.versionString} to build ${wantBuild}`);
+  if (notes) plan(`set release notes for ${Object.keys(notes).join(', ')} from ${notesPath}`);
   plan('create a new submission and submit it');
   console.log('\nRe-run with --commit to apply.');
   process.exit(0);
@@ -138,6 +157,39 @@ if (!recheck.data || recheck.data.attributes.version !== String(wantBuild)) {
   process.exit(1);
 }
 console.log(`      confirmed: build ${wantBuild} attached`);
+
+// ─── 5b. Release notes, while the version is still editable ────────────
+// This is the ONLY moment this can happen: submitted versions reject metadata
+// writes, and the window closes again at step 6.
+if (notes) {
+  step('5b', 'Setting release notes');
+  const locs = await api(
+    'GET',
+    `/v1/appStoreVersions/${version.id}/appStoreVersionLocalizations?fields[appStoreVersionLocalizations]=locale`,
+  );
+  const byLocale = new Map(locs.data.map((l) => [l.attributes.locale, l.id]));
+
+  const unknown = Object.keys(notes).filter((l) => !byLocale.has(l));
+  if (unknown.length) {
+    // Better to stop than to ship a release where one language silently kept
+    // the old copy — a locale typo looks identical to a successful run.
+    console.error(
+      `\nSTOPPED: no such locale on this version: ${unknown.join(', ')}. ` +
+        `Available: ${[...byLocale.keys()].join(', ')}. ` +
+        'The submission is cancelled and build ' + wantBuild + ' is attached — ' +
+        'fix the notes file and re-run, or submit by hand.',
+    );
+    process.exit(1);
+  }
+
+  for (const [locale, whatsNew] of Object.entries(notes)) {
+    const id = byLocale.get(locale);
+    await api('PATCH', `/v1/appStoreVersionLocalizations/${id}`, {
+      data: { type: 'appStoreVersionLocalizations', id, attributes: { whatsNew } },
+    });
+    console.log(`      ${locale}: ${whatsNew.split('\n').length} line(s)`);
+  }
+}
 
 // ─── 6. Resubmit ───────────────────────────────────────────────────────
 step(6, 'Creating and submitting a new review submission');
