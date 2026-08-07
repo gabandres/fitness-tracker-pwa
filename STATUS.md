@@ -17,7 +17,7 @@ work because a plan doc was read as a status doc.
 |---|---|---|
 | Web PWA `ignia.fit` | **Live**, bilingual (EN + es-PR), **105** prerendered pages (en 52 / es 53), 114-URL sitemap | `npm run build` prints both counts |
 | iOS App Store | **1.0.0, build 7** (uploaded 2026-07-20, `READY_FOR_SALE`), from commit `168e0394` | ASC command below |
-| iOS 1.1.0 | **SUBMITTED TO APP REVIEW 2026-08-07T02:15Z — state `WAITING_FOR_REVIEW`.** Review submission `e4d32c0e`, build **19** attached (EAS `4527017a`, commit `fdcd92ed`, `VALID`). `releaseType` is `AFTER_APPROVAL`, so it ships on approval without a second action. This is the first App Review submission since 1.0 build 7 (2026-07-20) and carries 54 mobile/core commits. **It does NOT contain the Android widget fix or manual food entry** — both were merged after `fdcd92ed`. Submitted via the ASC API (`POST /v1/reviewSubmissions` → `POST /v1/reviewSubmissionItems` → `PATCH …{submitted:true}`), not the console. Note `eas submit` printed *"Something went wrong when submitting your app to Apple App Store Connect"* for build 19 and the upload had in fact **succeeded**; a re-run then failed as a duplicate. Trust ASC, not the CLI exit — `/v1/builds?filter[app]=…&sort=-uploadedDate`. Build 16 (`6415fca7`, commit `cfc19a06`, 2026-08-03) is the predecessor. **Build 16 is the first binary anywhere that contains the Apple Watch app and complication** (`IgniaWatch.app` + `IgniaWatchComplication.appex`, both signed in its build log). It passing Apple's processing as `VALID` also settles the open **ITMS-90717** question: the watch app icon's alpha channel did **not** get it rejected. Build 13 (`5949a3ea`, commit `458d60db`) is the predecessor — first binary to actually carry the widget's `ExtensionStorage` pod, and the one the iPhone widget was verified from on a physical device | ASC command below |
+| iOS 1.1.0 | **SUBMITTED TO APP REVIEW 2026-08-07T02:15Z — state `WAITING_FOR_REVIEW`.** Review submission `e4d32c0e`, build **19** attached (EAS `4527017a`, commit `fdcd92ed`, `VALID`). `releaseType` is `AFTER_APPROVAL`, so it ships on approval without a second action. This is the first App Review submission since 1.0 build 7 (2026-07-20) and carries 54 mobile/core commits. **It does NOT contain the Android widget fix or manual food entry** — both were merged after `fdcd92ed`. **Build 23 (2026-08-07, `VALID` on TestFlight) is now the newest iOS binary and DOES contain both.** It is **not** attached to the review submission — Apple is reviewing **19**, and changing that requires a new submission, so do not describe 23 as "in review". Build 23 is also **the first iOS binary built locally on the Mac** (`ignia-mac`, `eas build --local`, **zero EAS quota**, 15m57s — see `docs/DEV_ENVIRONMENT.md` §3.10 and the `build-ios` skill) and **the first iOS binary with mobile Sentry in testers' hands** (Sentry existed only in `f3e5daaf`, which was never submitted). Its four targets were verified nested correctly in the `.ipa`, not inferred from exit 0. Submitted via the ASC API (`POST /v1/reviewSubmissions` → `POST /v1/reviewSubmissionItems` → `PATCH …{submitted:true}`), not the console. Note `eas submit` printed *"Something went wrong when submitting your app to Apple App Store Connect"* for build 19 and the upload had in fact **succeeded**; a re-run then failed as a duplicate. Trust ASC, not the CLI exit — `/v1/builds?filter[app]=…&sort=-uploadedDate`. Build 16 (`6415fca7`, commit `cfc19a06`, 2026-08-03) is the predecessor. **Build 16 is the first binary anywhere that contains the Apple Watch app and complication** (`IgniaWatch.app` + `IgniaWatchComplication.appex`, both signed in its build log). It passing Apple's processing as `VALID` also settles the open **ITMS-90717** question: the watch app icon's alpha channel did **not** get it rejected. Build 13 (`5949a3ea`, commit `458d60db`) is the predecessor — first binary to actually carry the widget's `ExtensionStorage` pod, and the one the iPhone widget was verified from on a physical device | ASC command below |
 | Android / Play | **Not launched.** Play Console account exists, **developer verification complete** and `fit.ignia.app` **package name registered** (both 2026-07-31), proven with an APK signed by `apps/mobile/credentials/dev.keystore` (alias `macrolog-dev`, SHA-256 `75:4B:03:19:…:F6:D8`) — **that keystore is now load-bearing app identity; it is git-ignored and exists in one place**. App entry created (`4975181896468259775`). **The first AAB is uploaded and the whole app is IN REVIEW at Google** as of 2026-08-02 — versionName 1.1.0 / **versionCode 4**, EAS build `2d36d121`, on the **Closed testing - Alpha** track (id `4699799777678836720`), 177 countries, signed by that same key (verified with `keytool -printcert -jarfile`). 14 changes went in one submission because it is the app's first: store listing, content rating, data safety, health declaration, the release itself. Reviews are quoted at up to 7 days. **vc 6 superseded it on 2026-08-03** — EAS build `d238d43f`, commit `87aee43b`, submitted with `eas submit` and **verified live on the alpha track by the Play Developer API: `status=completed, versionCodes=["6"]`**. `completed` means rolled out to the tester list, not a draft awaiting a console promote — that is `eas.json`'s `releaseStatus: "completed"` (from `87aee43b`) working. **vc 6 is the first Android binary containing Sentry and the Google sign-in diagnostics**, so Alejandro's `DEVELOPER_ERROR`-vs-`no-token` question is now answerable from Sentry rather than from guesswork — and on 2026-08-05 it was answered: `DEVELOPER_ERROR`, from a real Play split-APK install of vc 6 (see the sign-in row in §8). **The app is out of review**: the console shows the 1.1.0 release as *Available to selected testers*, released Aug 3 8:41 PM, and the opt-in link `https://play.google.com/apps/testing/fit.ignia.app` is live for the listed testers (it renders "App not available" for any account not on the list, including the developer's own — that is not a fault). Tester list `Ignia Beta Testers` holds **7 emails; 12 are required** — **personal developer account → production access requires closed testing with 12 testers opted in 14 CONTINUOUS days** ([policy](https://support.google.com/googleplay/android-developer/answer/14151465)). **Resolved 2026-08-05: Play's own production-access checklist (app Dashboard) reads "8 testers currently opted-in"** (4 → 6 → 8 over the course of that one day — it moves, so re-read it rather than trusting any number written down here). So opt-ins are real and the earlier "Installed audience 0" was a lag, not a dead track — but **10 are invited, 8 have opted in, and 12 are required**. **Play publishes no per-tester data at all** — not who opted in, not when. The Dashboard aggregate is the entire dataset: the `androidpublisher` `testers` resource covers only Google Groups, and Statistics → *Installed audience* returns "Data unavailable" at this volume. Firebase Auth can prove a *negative* (no account = that person never signed in anywhere) but cannot distinguish a web sign-in from an Android one, because the mobile app deliberately writes the same doc shapes as the PWA. To learn who is actually in, ask them for a screenshot of the opt-in URL — it states each person's own status back to them. **The 14 days are per-tester, not a group timer**: [policy](https://support.google.com/googleplay/android-developer/answer/14151465) requires that at application time ≥12 testers have each been opted in for *the last 14 days continuously*, and states that someone who opts in, tests under 14 days, opts out and rejoins does **not** get to add the periods up. So the 6 are already banking days; the earliest apply date is 14 days after the **12th** opt-in, because that person has the least time banked. Play exposes no per-tester breakdown — the aggregate on the Dashboard is the only number | Track state: the `androidpublisher` edits→tracks API with `credentials/play-service-account.json` (see `CLAUDE.local.md`) |
 | Cloud Functions / rules | Deployed, project `fitness-tracker-gb-1775407101`. **`firestore.rules` redeployed 2026-08-04** to allow + range-validate the new `proteinFloor` profile field (`> 0 && < 1000`); deployed **before** any client writes it, per the standing rule | `firebase deploy --only functions --dry-run` |
 
@@ -62,19 +62,21 @@ again. `SENTRY_AUTH_TOKEN` remains the one required credential, read from
 
 All of this is on `main`. Do not re-scope anything here as new work.
 
-**THE CUTLINE, 2026-08-06 — read this before the bullets, which are older than
-it.** iOS build 19 and Android vc 8 were cut from `fdcd92ed` and **submitted**
-(TestFlight + Play alpha, both verified at the destination). `fdcd92ed` is at
-this section's second bullet, so **every bullet below the first is now IN a
-binary and in testers' hands.** Only the first — manual food entry — is
-genuinely in no binary. The heading used to say "in **no** binary"; that was
-true this morning and is not true now.
+**THE CUTLINE, updated 2026-08-07 — read this before the bullets, which are older
+than it.** iOS build 19 and Android vc 8 were cut from `fdcd92ed` and submitted
+(TestFlight + Play alpha, both verified at the destination). Since then **iOS
+build 23 and Android vc 9 have shipped to testers**, and between them they close
+the last gap: **every bullet in this section is now IN a binary and in testers'
+hands on both platforms.** Nothing here is "in no binary" any more — earlier
+wordings saying otherwise are stale.
 
 What is still pending is a different thing, and it is the one that matters:
 
 | Audience | Has | Missing |
 |---|---|---|
-| TestFlight + Play alpha testers | everything through `fdcd92ed` | manual food entry only |
+| TestFlight testers | **everything in §2** (build 23) | — |
+| Play alpha testers | **everything in §2** (vc 9) | — |
+| **App Review** | build **19** — everything through `fdcd92ed` | manual food entry + widget fix (they are in 23, which is NOT the binary under review) |
 | **Public App Store** | **1.0, build 7** (`168e0394`, uploaded 2026-07-20) | **54 mobile/core commits** — i.e. all of §2 |
 | Play production | nothing — not launched | — |
 
@@ -84,9 +86,10 @@ Review**. Cutting another build does not move that; submitting does. Verify
 with the ASC command in §1.
 
 - **Manual food entry is a first-class logging method on mobile** (2026-08-06,
-  `ebf60dcb`). **LIVE ON ANDROID in vc 9** (2026-08-06); iOS still pending — the
-  newest iOS binary is build 19, which predates it. It rode along with the widget
-  fix exactly as intended when the owner declined to spend a build on it alone. Writing a food in yourself was
+  `ebf60dcb`). **LIVE ON ANDROID in vc 9** (2026-08-06) **and ON iOS in build 23**
+  (2026-08-07) — so it is now in testers' hands on both platforms. It rode along
+  with the widget fix exactly as intended when the owner declined to spend a build
+  on it alone. Writing a food in yourself was
   a text link at the *bottom* of the Add-food browse list, under Recent + My
   Foods + Quick add; My Foods is uncapped, so the link sank further with every
   food saved through it, and typing two characters removed it entirely (the
@@ -99,7 +102,8 @@ with the ASC command in §1.
   sheet already opens on a Manual segment.
 
 - **Mobile template editor reached parity with the web one** (2026-08-06).
-  **In no binary. The first attempt — iOS 18 (`e8f0d86f`), Android vc 7
+  **In testers' hands** (iOS build 19+, Android vc 8+ — see the cutline). The
+  first attempt — iOS 18 (`e8f0d86f`), Android vc 7
   (`e6d97826`), both from `e47fd366` — ERRORED in *Bundle JavaScript*, for a
   reason unrelated to this fix: colocated `*.test.tsx` files inside `src/app/`
   get swept into Expo Router's route `require.context` and bundled (see
@@ -141,7 +145,8 @@ with the ASC command in §1.
   `emailPrivacyConfig.enableImprovedEmailPrivacy = true`, so
   `fetchSignInMethodsForEmail` returns `[]` unconditionally — **do not write new
   logic that branches on its result.**
-- **Body-measurement fixes — mobile, in no binary** (2026-08-05). Three, from
+- **Body-measurement fixes — mobile, in testers' hands** (2026-08-05; iOS build
+  19+, Android vc 8+). Three, from
   tester report: (1) typed digits were invisible — `styles.input` carries
   `flex: 1` for the weight sheet's *row*, and reusing it inside the measurement
   *column* made `flexBasis: 0` collapse the box to its padding, so values saved
@@ -154,8 +159,8 @@ with the ASC command in §1.
   per-row pencil/trash controls.
 
 - **The daily-target safety floors, and the onboarding shadow bug** (2026-08-04).
-  **The web half is LIVE** (hosting deployed 2026-08-04); the mobile half is on
-  `main` and in no binary. Three defects, one seam:
+  **The web half is LIVE** (hosting deployed 2026-08-04); the mobile half is **in
+  testers' hands** (iOS build 19+, Android vc 8+). Three defects, one seam:
   1. **`calorieFloor` was clamped on only two of the four branches that can
      produce a target** — `tdee.ts` measured and formula. The manual
      onboarding heuristic and the seed fallback bypassed it, so a user with
@@ -239,7 +244,8 @@ with the ASC command in §1.
   not advertise photo scanning; that assertion is deliberate and outlives all
   of this.
 - **Input validation on four unguarded write paths** (2026-08-04). The web half
-  is live; the mobile half is on `main` and in no binary. All four rules were
+  is live; the mobile half is **in testers' hands** (iOS build 19+, Android vc
+  8+). All four rules were
   shared in `packages/core` and mirrored in `firestore.rules` where rules can
   express them.
   - **RIR** was a bare `number` written straight from a numeric text input on
@@ -282,7 +288,7 @@ with the ASC command in §1.
   pass; its project id and DSN are unchanged, so `src/environments/environment.ts`
   needed no edit.
 - **Home-screen widget — Android half was BROKEN in every shipped binary; fix
-  merged 2026-08-06, in no binary** (`apps/mobile/src/widgets/`). Placed on a
+  shipped in Android vc 9** (`apps/mobile/src/widgets/`). Placed on a
   home screen for the first time on 2026-08-06 (vc 8) and it rendered an **empty
   transparent box**. Cause: `app.json` sets `experiments.reactCompiler: true`,
   and the React Compiler rewrites `TodayWidget` — PascalCase, returns JSX — to
@@ -303,7 +309,12 @@ with the ASC command in §1.
   unverified on a home screen** — and an existing widget instance may stay blank
   because Android caches the RemoteViews from the failed render, so the check is:
   remove the widget, re-add it, confirm it draws, then confirm the Sentry issue
-  *"Invalid Hook Call detected in TodayWidget"* stops firing. If it fires from vc
+  *"Invalid Hook Call detected in TodayWidget"* stops firing. **Half of that is
+  now done: the Sentry issue (`IGNIA-MOBILE-3`, 3 events, 1 user) last fired
+  2026-08-06 22:24 from vc 8 and has NOT fired once since vc 9 shipped** (checked
+  2026-08-07). That is consistent with the fix holding, but it is not proof —
+  silence also looks like "nobody has a widget placed". The home-screen check is
+  still outstanding. If it fires from vc
   9, the fix did not take. iOS is unaffected — its widget is SwiftUI and was
   never touched by this. **The iOS widget is no longer in this list: it is verified working
   on a physical iPhone from TestFlight build 13 (2026-08-03), including refresh
