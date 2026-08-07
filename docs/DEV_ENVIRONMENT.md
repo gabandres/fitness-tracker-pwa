@@ -184,3 +184,138 @@ Remaining steps that genuinely can't be scripted here:
   a monitor-then-enforce rollout, and mobile providers that only work in a
   dev/store build. Schedule as its own effort, web first.
 - **Cloud staging project** — add only when you need a shareable hosted dev URL.
+
+---
+
+## 3. macOS runbook — iOS builds without spending EAS quota
+
+**Why this exists.** EAS Build is a *hosted* service and the plan allowance meters
+**their** workers (`account:usage` counts by `platform` × `resourceClass`). A build
+that runs on your own machine uses no worker. On Windows there is no local iOS
+path at all — `npx expo prebuild -p ios` refuses outright (SDK 54 prints
+*"Run npx expo prebuild again from macOS or Linux"* and exits non-zero) — which is
+why every iOS build so far cost a slot and a queue, and why the widget's missing
+`ExtensionStorage` pod could only be found by shipping a binary and reading a
+runtime probe. A Mac removes that whole class of blindness.
+
+Target machine: the MacBook Air M1. **iOS only** — Android stays on Windows/EAS
+(see §4 of `STATUS.md` for the ninja path-length wall).
+
+### 3.1 Prerequisites
+
+```sh
+xcode-select --install                 # Command Line Tools
+# Xcode itself from the App Store, then launch it once to accept the licence
+sudo xcodebuild -runFirstLaunch
+sudo gem install cocoapods             # or: brew install cocoapods
+```
+
+Node: this repo has no `engines` pin and no `.nvmrc`; Windows runs **v24**. Match
+the major version rather than guessing — a different major silently changes how
+npm resolves the workspaces.
+
+### 3.2 Clone and install
+
+```sh
+git clone https://github.com/gabandres/fitness-tracker-pwa.git
+cd fitness-tracker-pwa
+npm ci                                 # root = the Angular PWA + npm workspaces
+```
+
+`functions/` is **not** a workspace and installs independently (`npm --prefix functions ci`).
+You do not need it for an iOS build.
+
+### 3.3 The files git does not carry — this is the actual work
+
+Cloning gets you none of these. Copy them across (AirDrop or a USB key; do **not**
+email the `.p8` or the keystore):
+
+| File | Needed for | Notes |
+|---|---|---|
+| `.env.local` (repo root) | every ASC script, `npm run doctor` | holds `ASC_ISSUER_ID` and `SENTRY_AUTH_TOKEN` |
+| `AuthKey_47Z9RY8MT5.p8` | ASC reads/writes, `eas build` credential validation | put it anywhere stable, e.g. `~/keys/` |
+| `CLAUDE.local.md` (repo root) | knowing where everything lives | git-ignored by design; it is the index to the rest |
+| `apps/mobile/credentials.json` + `credentials/` | **Android only** | skip on an iOS-only Mac |
+
+**The trap: `scripts/asc-client.mjs` defaults `ASC_KEY_PATH` to a Windows path**
+(`C:/Users/gabri/Downloads/AuthKey_…p8`). On macOS it is not overridden by anything,
+so every ASC script fails until you add the path to `.env.local`:
+
+```
+ASC_ISSUER_ID=<the uuid — see CLAUDE.local.md>
+ASC_KEY_PATH=/Users/<you>/keys/AuthKey_47Z9RY8MT5.p8
+SENTRY_AUTH_TOKEN=<the sntryu_… token>
+```
+
+Verify before building anything:
+
+```sh
+npm run doctor          # groups 2 and 3 exercise ASC + the Sentry token
+```
+
+### 3.4 Build iOS locally
+
+`ios/` is **git-ignored** — the project is CNG, so the Xcode project is generated,
+never committed. Regenerate it whenever native config changes:
+
+```sh
+cd apps/mobile
+npx expo prebuild -p ios          # generates ios/ + runs pod install
+```
+
+That produces **four** targets — the app, the widget, the watch app and the watch
+complication (`targets/{widget,watch,watch-widget}` via `@bacons/apple-targets`,
+plus `plugins/withModularHeaders.js`). All four must appear in the scheme; if one
+is missing, autolinking or a target config is wrong, and **that is now checkable
+locally instead of by shipping**.
+
+Two ways to build, and they differ in how signing is handled:
+
+```sh
+# A. EAS pipeline, on your machine. Reuses EAS-managed credentials, so signing
+#    Just Works. Same eas.json profile and same artifact as a cloud build.
+npx eas build -p ios --profile production --local
+
+# B. Raw Xcode. Fastest iteration, but you manage signing yourself.
+open ios/Ignia.xcworkspace     # scheme name = app.json expo.name ("Ignia"), then Product > Archive
+```
+
+Prefer **A** for anything destined for TestFlight, **B** for iterating.
+
+**Submitting is unaffected and never costs build quota:**
+
+```sh
+npx eas submit -p ios --path <the .ipa>
+```
+
+### 3.5 The watchOS simulator — what the Mac unlocks beyond quota
+
+Issue **#46** (the 40mm/46mm complication layouts, in both locales) has been open
+purely because no simulator existed on Windows. Xcode ships one. This is the
+cheapest open item on the board once the Mac is set up.
+
+### 3.6 Unmeasured: does `--local` consume plan quota?
+
+Raw Xcode obviously does not — it never contacts EAS. For `eas build --local` the
+inference is strong (the counter meters worker runs by resource class) but it is
+**not confirmed from Expo's primary docs**. Settle it empirically the first time
+you run one, the same way the errored-build behaviour was settled on 2026-08-06:
+
+```sh
+cd apps/mobile && npx eas-cli account:usage gabandres --non-interactive   # before
+# ...run the local build...
+cd apps/mobile && npx eas-cli account:usage gabandres --non-interactive   # after
+```
+
+Then record the answer here and delete this subsection.
+
+### 3.7 Do not "fix" these
+
+- **`apps/mobile/index.js` is the entry point, not `expo-router/entry`.** It
+  registers the Android widget task handler at module scope. See `apps/mobile/AGENTS.md`.
+- **Nothing but routes in `apps/mobile/src/app/`** — a stray `*.test.tsx` there gets
+  bundled and breaks the build. Same file.
+- **`ios/` and `android/` are generated.** Never commit them; never hand-edit them
+  expecting the change to survive the next `prebuild`.
+
+---
