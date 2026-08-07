@@ -566,9 +566,37 @@ does not cover a build that starts on AC and continues on battery.
 ### 3.11 Android on the Air too — 2026-08-07
 
 **The Air builds Android as well as iOS, and it is the ONLY machine here that
-can.** Measured: `expo prebuild -p android` + `./gradlew bundleRelease` →
-`app-release.aab` 89 MB in **10m36s** warm, carrying 120 native `.so` libraries
-including `arm64-v8a/libappmodules.so`. Zero EAS quota.
+can.** Use `eas build --local`, exactly as for iOS:
+
+```sh
+ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && eas build -p android --profile production --local --non-interactive"
+```
+
+89 MB `.aab` in **13m03s** cold (two ABIs, C++ from scratch), 120 native `.so`
+libraries including `arm64-v8a/libappmodules.so`. **Zero EAS quota.**
+
+> **Do NOT use raw `./gradlew bundleRelease`.** It compiles and signs fine and
+> Play accepts the result — and the binary **silently cannot receive OTA
+> updates**. `expo prebuild` does not read `eas.json`, so the update *channel* is
+> never written into `AndroidManifest.xml`; the app then calls `u.expo.dev` with
+> no `expo-channel-name` header and EAS has no branch to serve it. Nothing errors,
+> at build time or at runtime. That is what shipped as **vc 10** on 2026-08-07
+> before anyone checked, and it is why **vc 11** exists.
+>
+> `eas build --local` runs the real EAS pipeline on local hardware, so it injects
+> the channel, resolves signing from `credentialsSource: "local"`, and pulls the
+> versionCode from the remote source — all the things `patch-android-release.mjs`
+> was hand-wiring. **That script is obsolete; it is kept only as the record of
+> what a raw-Gradle build has to fake.**
+>
+> Verify the channel made it into any Android binary before submitting:
+> ```sh
+> unzip -p <aab> base/manifest/AndroidManifest.xml | strings | grep expo-channel-name
+> # → {"expo-channel-name":"production"}   ← must be present
+> ```
+> If `android/` already exists from a previous hand-run, **delete it first** —
+> EAS treats a present native dir as bare-workflow and will carry the stale
+> config forward.
 
 That last file is the point. Its compilation is **impossible on the Windows
 box**: RN's New Architecture C++ codegen embeds the full source path inside the
@@ -617,27 +645,34 @@ invites a mismatch AGP then re-downloads.
    left a build hung for **19 minutes** that looked exactly like slow compilation.
    The tell: the log stops advancing, `android/app/build` gets zero writes, the
    Java processes sit at ~0% CPU, and `lsof -i -a -p <pid>` shows a socket to
-   `*.1e100.net` in **`CLOSE_WAIT`**. Always pass:
+   `*.1e100.net` in **`CLOSE_WAIT`**. Export before building:
    ```sh
-   ./gradlew bundleRelease --no-daemon \
-     -Dorg.gradle.internal.http.socketTimeout=60000 \
-     -Dorg.gradle.internal.http.connectionTimeout=60000
+   export GRADLE_OPTS="-Dorg.gradle.internal.http.socketTimeout=60000 \
+     -Dorg.gradle.internal.http.connectionTimeout=60000"
    ```
+   (`eas build --local` drives Gradle itself, so this has to reach it via the
+   environment rather than a command-line flag.)
 
 **Disk:** the SDK is ~3 GB, but Gradle caches and build outputs added ~5 GB on the
 first build (26 → 18 GB free). One-time, not per-build, but this Air has 228 GB
 total and iOS archives want room too.
 
-**Signing is NOT automatic.** Expo's template points the `release` buildType at the
+**Signing and versionCode are handled for you — by `eas build --local`, and only
+by it.** It resolves the keystore from `credentialsSource: "local"` and takes the
+versionCode from the remote source (`appVersionSource: "remote"`), incrementing it.
+Raw Gradle does neither: Expo's template points the `release` buildType at the
 **debug** keystore, so a plain `bundleRelease` produces `CN=Android Debug` — the
-wrong upload cert, which Play rejects. `apps/mobile/scripts/patch-android-release.mjs`
-wires the real one. Verify with
-`keytool -printcert -jarfile <aab>` before ever submitting.
+wrong upload cert — and it neither reads nor increments the remote counter, so the
+number must be passed by hand and pushed back with `eas build:version:set` or the
+next cloud build re-mints a colliding one. Two more reasons not to use it.
 
-**versionCode:** `appVersionSource: "remote"` means the counter lives on EAS and a
-local Gradle build neither reads nor increments it. Pass it explicitly, then push
-the same number back with `eas build:version:set` or the next cloud build re-mints
-a colliding one.
+Verify anyway before submitting — three checks, all cheap:
+
+```sh
+keytool -printcert -jarfile <aab> | grep Owner     # NOT "CN=Android Debug"
+unzip -p <aab> base/manifest/AndroidManifest.xml | strings | grep expo-channel-name
+eas build:version:get -p android                   # matches what you shipped
+```
 
 See the `build-android` skill for the OTA-vs-build decision that comes first.
 

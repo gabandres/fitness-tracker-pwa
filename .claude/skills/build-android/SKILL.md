@@ -57,17 +57,34 @@ npx expo export --platform android --output-dir <tmp>
 
 ## Step 3 — a real Android build: build it on the Mac, free
 
-**Proven 2026-08-07: `ignia-mac` builds Android.** 10m36s warm, `app-release.aab`
-at 89 MB, 120 native `.so` libraries including `arm64-v8a/libappmodules.so` — the
-exact artifact whose compilation is impossible on this Windows box. **Zero EAS
-quota.** Prefer this over the cloud; see `DEV_ENVIRONMENT.md` §3.11 for the full
-runbook.
+**Proven 2026-08-07: `ignia-mac` builds Android.** 89 MB `.aab` in 13m03s cold,
+120 native `.so` libraries including `arm64-v8a/libappmodules.so` — the exact
+artifact whose compilation is impossible on this Windows box. **Zero EAS quota.**
+See `DEV_ENVIRONMENT.md` §3.11.
 
 ```sh
-ssh ignia-mac "cd ~/fitness-tracker-pwa && git pull --ff-only && ~/run-android-build.sh"
+ssh ignia-mac "cd ~/fitness-tracker-pwa && git pull --ff-only && cd apps/mobile && \
+  export GRADLE_OPTS='-Dorg.gradle.internal.http.socketTimeout=60000 -Dorg.gradle.internal.http.connectionTimeout=60000' && \
+  eas build -p android --profile production --local --non-interactive"
 ```
 
-Three things that will bite, all measured:
+**Use `eas build --local`. NEVER raw `./gradlew bundleRelease`.** Gradle compiles
+and signs fine and Play accepts the output — and the binary **silently cannot
+receive OTA updates**, because `expo prebuild` does not read `eas.json` and so
+never writes the update channel into `AndroidManifest.xml`. The app then calls
+`u.expo.dev` with no `expo-channel-name` header and EAS has no branch to serve it.
+Nothing errors at build time or runtime. That shipped as **vc 10** before anyone
+checked, and is why **vc 11** exists. `eas build --local` runs the real EAS
+pipeline locally, so it injects the channel, resolves signing from
+`credentialsSource: "local"`, and increments the versionCode from the remote
+source. (`apps/mobile/scripts/patch-android-release.mjs` hand-wired those for the
+raw-Gradle experiment and is now obsolete.)
+
+**If `apps/mobile/android/` exists from a previous hand-run, delete it first** —
+EAS treats a present native dir as bare-workflow and carries the stale config
+forward, reproducing the bug.
+
+Three more things that will bite, all measured:
 
 - **`JAVA_HOME` must be the explicit Homebrew path.** `openjdk@17` is keg-only, so
   `/usr/libexec/java_home -v 17` cannot see it and silently yields Java 11 —
@@ -76,11 +93,18 @@ Three things that will bite, all measured:
   `/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home`.
 - **Gradle has NO default socket timeout.** A dropped connection to Google's Maven
   left a build hung for 19 minutes looking exactly like slow compilation — the
-  tell is a socket in `CLOSE_WAIT` and zero writes into `android/app/build`. Always
-  pass `-Dorg.gradle.internal.http.socketTimeout=60000
-  -Dorg.gradle.internal.http.connectionTimeout=60000`.
+  tell is a socket in `CLOSE_WAIT` and zero writes into `android/app/build`. Pass
+  it via `GRADLE_OPTS` as above, since EAS drives Gradle itself.
 - **Disk.** The SDK is only ~3 GB, but Gradle caches and outputs added ~5 GB on
   first build. Watch it if the Mac carries both platforms.
+
+**Verify before submitting — three cheap checks:**
+
+```sh
+keytool -printcert -jarfile <aab> | grep Owner   # NOT "CN=Android Debug"
+unzip -p <aab> base/manifest/AndroidManifest.xml | strings | grep expo-channel-name
+eas build:version:get -p android
+```
 
 **Do NOT try to build Android locally on Windows.** Every avenue is closed, and
 each one costs 6+ minutes to rediscover:
