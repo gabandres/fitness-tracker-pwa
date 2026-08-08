@@ -256,6 +256,30 @@ async function estimateWithGemini(photoBase64: string, prompt: string): Promise<
       responseMimeType: "application/json",
       // No `additionalProperties` here — Gemini's JSON mode rejects it.
       responseJsonSchema: SCAN_SCHEMA,
+      /**
+       * **Thinking OFF, and this is the single biggest latency win available.**
+       *
+       * Gemini 2.5 Flash reasons internally by default (adaptive budget), and we
+       * ALSO ask for an explicit `reasoning` field — so every scan was paying to
+       * deliberate twice, once invisibly. Measured on two real food photos,
+       * mean of the same prompt and images:
+       *
+       *   default (adaptive)   8,877 ms   1,100-1,285 thinking tokens
+       *   thinkingBudget: 0    3,023 ms   0
+       *
+       * A 2.9x speedup, and it removes ~1,200 billed output tokens per scan on
+       * top — thinking tokens bill as output. Item detection was IDENTICAL on
+       * both photos: 4 items and 2 items, same foods, comparable grams.
+       *
+       * The visible `reasoning` field is deliberately kept. Dropping it too gets
+       * to ~2,070 ms but the model stopped enumerating carefully and lost an
+       * item (the shrimp on the mofongo plate) — which is exactly the failure
+       * the chain-of-thought exists to prevent. Capping it at 30 words measured
+       * 2,580 ms with detection intact, if another 15% is ever worth re-testing.
+       *
+       * Note `gemini-2.5-flash-lite` is NOT an option: the API now 404s it.
+       */
+      thinkingConfig: { thinkingBudget: 0 },
     },
   });
   // response.text is guaranteed valid JSON matching the schema.
