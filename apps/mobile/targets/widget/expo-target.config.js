@@ -22,5 +22,19 @@ module.exports = (config) => ({
   entitlements: {
     'com.apple.security.application-groups':
       config.ios.entitlements['com.apple.security.application-groups'],
+    // The quick-add credential envelope (ADR-0020, amended 2026-08-08).
+    //
+    // This target NEEDS it, which was the bug. `LogQuickAddSlotIntent` lives in
+    // `targets/_shared/` and is therefore compiled into this extension as well
+    // as the app, and WidgetKit performs THIS copy, in THIS process — verified
+    // in build 32's `.ipa`, where `Today.appex` carries its own
+    // `Metadata.appintents` listing the intent. Without a shared access group
+    // the extension cannot read the app's keychain, so every widget quick-add
+    // tap silently did nothing from build 27 to build 32.
+    //
+    // Read from the app's entitlements for the same reason the App Group is:
+    // `app.json` stays the single source, and a drifted value is a silent nil,
+    // not an error.
+    'keychain-access-groups': config.ios.entitlements['keychain-access-groups'],
   },
 });

@@ -27,20 +27,53 @@ import Security
  * **If you change `SERVICE` or `ACCOUNT`, change them in `_shared/QuickAdd.swift`
  * in the same commit.**
  *
- * ## Access group: deliberately none
- * The intents' `perform()` runs in the **main app's** process — App Shortcuts
- * declared in the app target are performed by launching the app in the
- * background, and so is a widget `Button(intent:)`. Same process means the app's
- * default keychain access group already reaches it, so no
- * `keychain-access-groups` entitlement and no shared group are needed. This
- * narrows ADR-0020's "shared Keychain access group" to "the app's own keychain",
- * which is strictly less surface for the same result.
+ * ## Access group: REQUIRED, and this was wrong until 2026-08-08
+ *
+ * This header used to claim that `perform()` always runs in the main app's
+ * process — "App Shortcuts declared in the app target are performed by launching
+ * the app in the background, **and so is a widget `Button(intent:)`**" — and on
+ * that basis dropped ADR-0020's shared access group as unnecessary surface.
+ *
+ * The second half of that sentence is false. `LogQuickAddSlotIntent` lives in
+ * `targets/_shared/`, so it is compiled into `Today.appex` as well as the app,
+ * and WidgetKit performs the **extension's** copy in the **extension's**
+ * process. Verified in build 32's `.ipa`: the appex carries its own
+ * `Metadata.appintents` listing the intent, and its entitlements had
+ * `application-groups` and no `keychain-access-groups`.
+ *
+ * So the widget button could never read this envelope. `credentials()` returned
+ * `nil`, `QuickAdd.log` returned `.signedOut`, and that is the one outcome which
+ * skips the optimistic snapshot bump — so the tap did **nothing at all**, on
+ * every build since 27, with no error anywhere. Siri was fine throughout,
+ * because App Shortcuts genuinely do launch the app.
+ *
+ * The envelope is now written into a shared access group that both the app and
+ * the widget extension declare. `ACCESS_GROUP` must equal
+ * `QuickAdd.keychainAccessGroup`, and must be listed in `keychain-access-groups`
+ * on both `app.json` → `ios.entitlements` and
+ * `targets/widget/expo-target.config.js`. Four things that must agree, checked
+ * by `src/__tests__/quick-add-keychain-contract.test.ts`.
  */
 public class QuickAddCredentialsModule: Module {
   /// Keychain service. Must equal `QuickAdd.keychainService`.
   private static let SERVICE = "fit.ignia.app.quickAdd"
   /// Keychain account. Must equal `QuickAdd.keychainAccount`.
   private static let ACCOUNT = "credentials.v1"
+  /// Shared access group. Must equal `QuickAdd.keychainAccessGroup`. The team
+  /// prefix is literal: `$(AppIdentifierPrefix)` is expanded by Xcode inside
+  /// entitlement plists only, never in Swift.
+  private static let ACCESS_GROUP = "AE6TTXW92K.fit.ignia.app.quickAdd"
+
+  /// The base query, optionally scoped to the shared group.
+  private static func query(inGroup: Bool) -> [String: Any] {
+    var q: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: SERVICE,
+      kSecAttrAccount as String: ACCOUNT,
+    ]
+    if inGroup { q[kSecAttrAccessGroup as String] = ACCESS_GROUP }
+    return q
+  }
 
   public func definition() -> ModuleDefinition {
     Name("QuickAddCredentials")
@@ -51,16 +84,19 @@ public class QuickAddCredentialsModule: Module {
     /// copied into Swift.
     AsyncFunction("setCredentials") { (json: String) in
       let data = Data(json.utf8)
-      var query: [String: Any] = [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: Self.SERVICE,
-        kSecAttrAccount as String: Self.ACCOUNT,
-      ]
       // Delete-then-add rather than SecItemUpdate: an update against a missing
       // item fails, and branching on that is more code than an idempotent
       // replace.
-      SecItemDelete(query as CFDictionary)
+      //
+      // BOTH groups are deleted. An app updating in place still holds the
+      // pre-2026-08-08 envelope in the default group, and leaving it there would
+      // mean two envelopes with the same service/account diverging at the next
+      // token rotation — with `credentials()`'s fallback able to serve the stale
+      // one to Siri.
+      SecItemDelete(Self.query(inGroup: true) as CFDictionary)
+      SecItemDelete(Self.query(inGroup: false) as CFDictionary)
 
+      var query = Self.query(inGroup: true)
       query[kSecValueData as String] = data
       // `AfterFirstUnlock`, not `WhenUnlocked`: a widget button or a Siri phrase
       // can fire with the screen locked, and `WhenUnlocked` would make the
@@ -78,26 +114,31 @@ public class QuickAddCredentialsModule: Module {
     /// Drop the envelope. Called on sign-out, beside the snapshot clear — a
     /// credential outliving the session is the leak that matters most here,
     /// because it is the one thing that can still write.
+    /// Both groups, for the same reason `setCredentials` deletes both: a
+    /// sign-out that left the pre-access-group envelope behind would leave a
+    /// live write credential on the device, which is the exact leak this
+    /// function exists to prevent.
     AsyncFunction("clearCredentials") {
-      let query: [String: Any] = [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: Self.SERVICE,
-        kSecAttrAccount as String: Self.ACCOUNT,
-      ]
-      SecItemDelete(query as CFDictionary)
+      SecItemDelete(Self.query(inGroup: true) as CFDictionary)
+      SecItemDelete(Self.query(inGroup: false) as CFDictionary)
     }
 
-    /// Whether an envelope is present. For the Settings picker, so it can say
-    /// "sign in again" instead of drawing buttons that will fail.
+    /// Whether an envelope is present, in either group — mirroring
+    /// `QuickAdd.credentials()`, so this can never report "present" for
+    /// something the intents cannot read, or vice versa.
+    ///
+    /// Written for the Settings picker, to say "sign in again" instead of
+    /// drawing buttons that will fail. **Nothing called it until 2026-08-08**,
+    /// which is part of why a keychain the widget could not reach stayed
+    /// invisible for five builds.
     AsyncFunction("hasCredentials") { () -> Bool in
-      let query: [String: Any] = [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: Self.SERVICE,
-        kSecAttrAccount as String: Self.ACCOUNT,
-        kSecReturnData as String: false,
-        kSecMatchLimit as String: kSecMatchLimitOne,
-      ]
-      return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
+      for inGroup in [true, false] {
+        var q = Self.query(inGroup: inGroup)
+        q[kSecReturnData as String] = false
+        q[kSecMatchLimit as String] = kSecMatchLimitOne
+        if SecItemCopyMatching(q as CFDictionary, nil) == errSecSuccess { return true }
+      }
+      return false
     }
   }
 }

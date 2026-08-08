@@ -52,6 +52,42 @@ public enum QuickAdd {
   /// Keychain account. **Must equal `ACCOUNT` in that same module.**
   static let keychainAccount = "credentials.v1"
 
+  /// Shared Keychain access group. **Must equal `ACCESS_GROUP` in that same
+  /// module**, and must be listed in `keychain-access-groups` on BOTH the app
+  /// (`app.json` → `ios.entitlements`) and the widget extension
+  /// (`targets/widget/expo-target.config.js`).
+  ///
+  /// ## Why this exists — the bug it fixes
+  ///
+  /// ADR-0020 specified a shared access group and the implementation narrowed it
+  /// to "the app's own keychain", on the stated premise that *"App Shortcuts
+  /// declared in the app target are performed by launching the app in the
+  /// background, and so is a widget `Button(intent:)`."* **The second half of
+  /// that sentence is false.**
+  ///
+  /// `LogQuickAddSlotIntent` lives in `_shared`, so it is compiled into the
+  /// widget extension as well as the app, and WidgetKit performs the
+  /// extension's copy **in the extension's process**. Verified in build 32's
+  /// `.ipa`: `Today.appex` carries its own `Metadata.appintents` listing the
+  /// intent, and its entitlements contain `application-groups` and no
+  /// `keychain-access-groups` at all.
+  ///
+  /// A process cannot reach another's default keychain group, so
+  /// `SecItemCopyMatching` returned `errSecItemNotFound`, `credentials()`
+  /// returned `nil`, and `log` returned `.signedOut` — the one outcome that
+  /// skips the optimistic snapshot bump. The result: **tapping the widget
+  /// button did nothing at all, on every build since 27** — no row, no error,
+  /// no moved number, and nothing in Sentry, because a Swift extension has no
+  /// Sentry in it.
+  ///
+  /// Siri was unaffected and provably worked, which is what made this look like
+  /// a session problem rather than a process one: App Shortcuts really do launch
+  /// the app, so `LogPresetIntent` really does run where the credential is.
+  ///
+  /// The team prefix is written out rather than `$(AppIdentifierPrefix)`, which
+  /// Xcode expands only inside entitlement plists, never in Swift.
+  static let keychainAccessGroup = "AE6TTXW92K.fit.ignia.app.quickAdd"
+
   /// Written by JS on every auth-state change, cleared on sign-out. The API key
   /// and project id ride along rather than being hardcoded here, so `firebase.ts`
   /// stays the single source of both.
@@ -64,14 +100,27 @@ public enum QuickAdd {
 
   /// `nil` means signed out, or a keychain the process cannot reach. Both resolve
   /// the same way for the caller: do not write, and say so.
+  ///
+  /// Queried in the shared access group first, then without one. The fallback is
+  /// not defensive padding — it is the **upgrade path**. Every envelope written
+  /// before the access group existed lives in the app's default group, and an
+  /// app updating in place keeps it until JS next writes. Without the second
+  /// query, Siri would break for exactly as long as it took the user to reopen
+  /// the app, which would be trading one silent failure for another.
   public static func credentials() -> Credentials? {
-    let query: [String: Any] = [
+    if let creds = credentials(inAccessGroup: keychainAccessGroup) { return creds }
+    return credentials(inAccessGroup: nil)
+  }
+
+  private static func credentials(inAccessGroup group: String?) -> Credentials? {
+    var query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: keychainService,
       kSecAttrAccount as String: keychainAccount,
       kSecReturnData as String: true,
       kSecMatchLimit as String: kSecMatchLimitOne,
     ]
+    if let group { query[kSecAttrAccessGroup as String] = group }
     var item: CFTypeRef?
     guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
           let data = item as? Data

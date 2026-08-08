@@ -16,6 +16,9 @@
       "entitlements": {
         "com.apple.security.application-groups": [
           "group.fit.ignia.app"
+        ],
+        "keychain-access-groups": [
+          "$(AppIdentifierPrefix)fit.ignia.app.quickAdd"
         ]
       },
       "infoPlist": {
