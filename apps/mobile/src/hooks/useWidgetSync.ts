@@ -13,8 +13,8 @@ import {
   flushPendingLogs,
   getQuickAddSlots,
   subscribeQuickAddSlots,
-  syncQuickAddCredentials,
   syncQuickAddTile,
+  watchQuickAddCredentials,
 } from '@/lib/quick-add';
 import { syncWidget } from '@/lib/widget';
 
@@ -89,12 +89,16 @@ export function useWidgetSync(
   }, [quickAdd, uid, locale]);
 
   // iOS's half: the Keychain envelope an App Intent reads to write over REST
-  // (ADR-0020). Keyed on the uid so it is rewritten whenever the session changes
-  // and cleared when it goes — the envelope is the one artefact that can still
-  // write after sign-out. iOS-only, silent no-op on Android.
-  useEffect(() => {
-    void syncQuickAddCredentials();
-  }, [uid]);
+  // (ADR-0020). iOS-only, silent no-op on Android.
+  //
+  // Subscribed, NOT keyed on the uid. `onAuthStateChanged` sets the uid the
+  // moment a session is restored, and `user.refreshToken` can still be empty at
+  // that point — which makes `syncQuickAddCredentials` clear the envelope. Keyed
+  // on the uid, that clear was terminal: nothing re-ran for the rest of the
+  // session, and every widget tap silently did nothing. `onIdTokenChanged` also
+  // fires on the refresh that follows, which is the event that was missing. See
+  // `watchQuickAddCredentials`.
+  useEffect(() => watchQuickAddCredentials(), []);
 
   // Land whatever a tile or widget button parked while the device was offline.
   // On mount and on every foreground: those are the two moments the app has both

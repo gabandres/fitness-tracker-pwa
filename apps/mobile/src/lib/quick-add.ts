@@ -22,7 +22,7 @@ import {
   setQuickAddCredentials,
 } from '../../modules/quick-add-credentials';
 import { widgetStrings } from '../widgets/strings';
-import { NATIVE_REST_CONFIG, auth } from './firebase';
+import { NATIVE_REST_CONFIG, auth, onSessionTokenChanged } from './firebase';
 import { exportNutrition } from './health-sync';
 import { addLogWithId } from './ledger';
 import { APP_GROUP, readWidgetSnapshot, saveWidgetSnapshot } from './widget';
@@ -334,11 +334,17 @@ export async function flushPendingLogs(uid: string, nowMs: number = Date.now()):
  * REST API accepts. That is what lets a Siri phrase or a widget button write with
  * no Firebase SDK in the process and no Cloud Function anywhere.
  *
- * Called from the same effect that writes the widget snapshot, so there is one
- * place where "the session changed" turns into "the glanceable surfaces know".
  * Signed out clears it — and that is the most important clear in this feature,
  * because the envelope is the one artefact that can still *write* after the
  * session is gone.
+ *
+ * **Do not call this from an effect keyed on the uid alone.** It reads
+ * `user.refreshToken`, which is populated *after* `uid` on a restored session,
+ * and the empty-token branch below clears the envelope. Keyed on uid, that clear
+ * is terminal for the session: nothing changes again, nothing retries, and every
+ * Siri phrase and widget tap reports signed-out for as long as the app runs.
+ * `watchQuickAddCredentials` is the correct entry point. See it for what that
+ * cost.
  *
  * Android is a no-op: its surfaces reach the ledger through JS and never need a
  * bare credential.
@@ -359,6 +365,43 @@ export async function syncQuickAddCredentials(): Promise<void> {
     uid: user.uid,
     apiKey: NATIVE_REST_CONFIG.apiKey,
     projectId: NATIVE_REST_CONFIG.projectId,
+  });
+}
+
+/**
+ * Keep the credential envelope in step with the session, for as long as the app
+ * is running. Returns an unsubscribe.
+ *
+ * ## Why this exists — the failure it fixes
+ *
+ * The envelope used to be written from an effect keyed on the **uid**. That is
+ * one event too few. `onAuthStateChanged` — which is what sets the uid — fires
+ * as soon as a session is restored from disk, and at that moment
+ * `user.refreshToken` can still be `''`. `syncQuickAddCredentials` correctly
+ * refuses to write an empty envelope and **clears** the old one instead. Keyed
+ * on the uid, nothing then re-ran: the uid was already set and never changed
+ * again, so the envelope stayed absent for the whole session.
+ *
+ * The result is invisible. `QuickAdd.log` returns `.signedOut`, and
+ * `LogQuickAddSlotIntent` is the one intent that returns a bare `.result()` with
+ * no dialog — so a widget tap does *nothing at all*: no row, no error, no moved
+ * number, nothing in Sentry. Reported from a device on 2026-08-08 as "when I
+ * click on preset from the widget, nothing happens", on builds 30/31, with the
+ * same code that had been proven working from Siri on build 28. It is
+ * session-dependent, which is exactly why it passed device QA once and failed
+ * later.
+ *
+ * `onIdTokenChanged` is the right event and `onAuthStateChanged` is not: the
+ * former also fires when the token is refreshed, which is the transition that
+ * was being missed. It fires on sign-in, on refresh and on sign-out — the three
+ * moments the envelope's validity actually changes.
+ *
+ * iOS-only, like everything else here.
+ */
+export function watchQuickAddCredentials(): () => void {
+  if (Platform.OS !== 'ios') return () => {};
+  return onSessionTokenChanged(() => {
+    void syncQuickAddCredentials();
   });
 }
 

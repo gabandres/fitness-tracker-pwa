@@ -6,6 +6,16 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-08 — Widget quick-add: the button that did nothing (iOS)
+
+Tapping a preset on the iPhone widget could do **nothing at all** — no meal logged, no error, no change to the numbers. Reported from a phone today.
+
+- **The cause.** To log without opening the app, Ignia hands iOS a sealed credential when you sign in. On some launches the app asked for that credential a moment before it existed, wrote nothing, and never asked again for the rest of that session. Every widget tap after that was silently refused. It depended on the timing of a single launch, which is why the same feature worked when it was tested and failed later.
+- **It is not lost data.** Nothing was written anywhere, so nothing is missing or duplicated — the taps simply did not happen.
+- **The button never said so**, and that is the part worth naming: a widget tap has no way to answer back, so a refusal and a success looked identical.
+
+If a tap still does nothing after updating, say so — the fix addresses one specific cause, and it should be confirmed rather than assumed.
+
 ## 2026-08-08 — Your fast, on the Lock Screen (iOS, TestFlight build 30)
 
 Ignia has had a fasting timer since launch, free, in an app whose closest competitor charges $59.99/yr for one. But you had to open the app to see it, which is the wrong shape for something you check at 6 a.m. and again at 2 p.m.

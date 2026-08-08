@@ -11,7 +11,7 @@ import {
 import { type Firestore, connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 import { type Functions, connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import { type FirebaseStorage, connectStorageEmulator, getStorage } from 'firebase/storage';
-import { connectAuthEmulator } from 'firebase/auth';
+import { connectAuthEmulator, onIdTokenChanged } from 'firebase/auth';
 
 // Same Firebase project as the PWA (see src/environments/environment.ts).
 // This is public client config, not a secret (ADR-0002).
@@ -72,5 +72,24 @@ export const NATIVE_REST_CONFIG = {
   apiKey: firebaseConfig.apiKey,
   projectId: firebaseConfig.projectId,
 } as const;
+
+/**
+ * Re-run `fn` whenever the session's ID token changes — sign-in, refresh, and
+ * sign-out. Returns an unsubscribe.
+ *
+ * Wrapped here rather than imported from `firebase/auth` at the call site so
+ * this file stays the app's single point of contact with the Auth SDK. That is
+ * not only tidiness: every suite in `src/__tests__` mocks `@/lib/firebase`, and
+ * a bare `firebase/auth` import in a module they exercise drags untranspiled
+ * ESM into jest and fails the whole suite at parse time — which is exactly what
+ * happened when `quick-add.ts` imported it directly.
+ *
+ * `onIdTokenChanged`, not `onAuthStateChanged`: the latter does not fire on a
+ * token refresh, and that refresh is the event `watchQuickAddCredentials`
+ * exists to catch.
+ */
+export function onSessionTokenChanged(fn: () => void): () => void {
+  return onIdTokenChanged(auth, () => fn());
+}
 
 export { app, auth, db, functions, storage };
