@@ -293,6 +293,47 @@ no hardware; everything below needs a real paired watch.
       midnight. That is the documented bound, not a bug; confirm it is the
       bound and not "forever".
 
+**iOS — fasting Live Activity (N3, ADR-0021)** — iOS-only; there is no Android
+half. Unlike everything above, **most of this is checkable in the iOS
+Simulator** on `ignia-mac` at no build quota, because Live Activities render
+there and the Dynamic Island appears on any iPhone 14 Pro or newer simulator.
+Only the starred row and the ceiling row need real time on a real device.
+
+- [ ] ★ **Start a fast → a Lock Screen card appears with a counting timer.**
+      This is the row that proves the whole thing: the `NSClassFromString`
+      bridge resolved, `Activity.request` succeeded, and the extension found
+      the attributes type. If it fails, nothing else below is meaningful — and
+      it fails *silently* (the fast still starts and still writes Firestore),
+      which is the same shape that shipped build 27's Siri support dead.
+- [ ] The Dynamic Island shows the flame when collapsed, and long-press expands
+      to label + timer + `since 8:14 PM`.
+- [ ] The timer **keeps counting with the app force-quit**. This is the whole
+      $0 claim — if it freezes, `Text(timerInterval:)` is not doing what
+      ActivityKit's docs say and the design needs a push after all.
+- [ ] End the fast → the card disappears **immediately**, not after four hours.
+      (`dismissalPolicy: .immediate`; the default would leave a finished fast
+      counting on the Lock Screen.)
+- [ ] Set the app to es-PR → the card reads `Ayuno` / `desde las …`, following
+      the **profile** locale, not the phone's. Changing the language while a
+      fast runs must replace the card, because attributes are immutable.
+- [ ] Break the fast in the **web PWA** while the app is closed, then reopen the
+      app → the card ends. Same again for break-then-restart: the card must
+      re-arm to the *new* start time. Nothing but the reconciler catches this.
+- [ ] Swipe the card away, then foreground the app → it comes back.
+- [ ] Turn Live Activities **off for Ignia** in iOS Settings → starting a fast
+      still works, logs nothing to the user, and shows no card. A preference,
+      never a nag.
+- [ ] Sign out mid-fast → the card ends. (Currently implied by `fastStartedAt`
+      going null; confirm rather than assume.)
+- [ ] ★ **Leave a fast running 9+ hours without opening the app** → the card is
+      gone, and opening the app brings it back **showing ~9:xx, not 0:00**.
+      This is the documented 8-hour ceiling and its mitigation; the failure to
+      watch for is a timer that restarts from zero, which would be worse than
+      no card at all.
+- [ ] The **Today widget still renders** after this build. N3 turned
+      `index.swift`'s `@main` into a `WidgetBundle`, which is the one change
+      that could drop the existing widget while exiting 0.
+
 ## Locked decisions
 Settled 2026-07-23, before any code existed.
 

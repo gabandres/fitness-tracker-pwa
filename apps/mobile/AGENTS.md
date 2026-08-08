@@ -113,10 +113,12 @@ ship):
 
 | Platform | Binary | Fingerprint | Source | Note |
 |---|---|---|---|---|
-| iOS | **build 29** (2026-08-08) | `d0487ca7bfb2e7ac64ad12e03a88d452ed51ce9d` | **read from the `.ipa`** | current `main`, TestFlight — adds spoken preset names ("log overnight oats in Ignia"). **Its runtime is its own**: deleting the inert `EXPO_PUBLIC_FEATURE_PHOTO_SCAN` key moved it off `4734a4b6…`, because `eas.json` IS hashed even though Swift is not |
+| iOS | **build 30** (2026-08-08) | `249ba992975203bb91c23aaddd5bab9d54d034fe` | **read from the `.ipa`** | branch `n3-live-activity`, TestFlight — the fasting Live Activity (N3, ADR-0021). **The feature is UNVERIFIED**: no Lock Screen has counted. `NSSupportsLiveActivities` in `app.json` is what moved the fingerprint; the Swift that matters never would have |
+| Android | **vc 21** (2026-08-08) | `f101b1d4e942c2ad032786b27821807ee3cfb6cd` | **read from the `.aab`** | current `main`, alpha — **the binary that ends Android's OTA stranding**: vc 18's `cc3da8b9…` no longer matches source, so every Android `eas update` was publishing to nobody. Its versionCode is **21, not the 20 the plan expected** — read from Play, `autoIncrement` burned another number on the Metaspace OOM |
+| iOS | build 29 (2026-08-08) | `d0487ca7bfb2e7ac64ad12e03a88d452ed51ce9d` | **read from the `.ipa`** | superseded by 30, TestFlight — adds spoken preset names ("log overnight oats in Ignia"). **Its runtime is its own**: deleting the inert `EXPO_PUBLIC_FEATURE_PHOTO_SCAN` key moved it off `4734a4b6…`, because `eas.json` IS hashed even though Swift is not |
 | iOS | build 28 (2026-08-08) | `4734a4b6ae3cb652db2a4f920ee0b7ed8c073429` | **read from the `.ipa`** | superseded by 29. The build that made Siri work at all, and **the first iOS binary whose write path was exercised on hardware** — a Siri phrase logged a real row. Shares 27's runtime, so one `eas update` reaches both |
 | iOS | build 27 (2026-08-07) | `4734a4b6ae3cb652db2a4f920ee0b7ed8c073429` | **read from the `.ipa`** | superseded. **Its Siri half never registered** — see the required-parameter trap above. Identical fingerprint to 28 because the fix was Swift-only |
-| Android | **vc 18** (2026-08-07) | `cc3da8b9a22df7180c55e6cab5cd8decccdb98bb` | **read from the `.aab`** | current `main`, alpha — carries the Quick Settings tile |
+| Android | vc 18 (2026-08-07) | `cc3da8b9a22df7180c55e6cab5cd8decccdb98bb` | **read from the `.aab`** | superseded by vc 21; carries the Quick Settings tile |
 | iOS | build 25 (2026-08-07) | `6c756c19b3e35948b85e42a3b337eec588128d3c` | **read from the `.ipa`** | superseded by 27; still what un-updated testers run |
 | iOS | build 24 | `781be0c885005e1d02bcf41408988c6622ff222e` | Windows `fingerprint:generate` — **unverified** | in App Review |
 | Android | vc 13 (2026-08-07) | `5758fe4f232d5e6fe1ca369299512cfec0d39e13` | **read from the `.aab`** | superseded by vc 18; still what un-updated testers run |
