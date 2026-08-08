@@ -33,14 +33,12 @@ dataset and scales its per-100 g macros by the portion. Items USDA does not
 carry (mofongo, tostones, pernil, pan sobao) keep the model's own numbers and are
 marked `source: "model"`; both clients label them.
 
-**NOT DEPLOYED YET — merged on `main`, running nowhere.** Prod still returns the
-model's own macros. Deploying is a deliberate act and changes what every existing
-install gets back from a scan, so it was left for the owner:
-
-```sh
-npm --prefix functions run build && firebase deploy --only functions:analyzePhoto
-npm run build && firebase deploy --only hosting   # the web itemized review
-```
+**DEPLOYED 2026-08-07** — `analyzePhoto` revision `analyzephoto-00044`, and
+hosting at release `dc3afd16`. **`analyzePhoto` runs at 512 MiB**, raised from
+the 256 MiB default in the same deploy: the indexed dataset is 67 MB of heap
+(123 MB RSS measured) and this function also holds the base64 image, capped at
+20 MB of string which V8 stores as UTF-16 at ~40 MB. `searchFoods` keeps the
+default — it holds the same index but never an image.
 
 **The `analyzePhoto` response is ADDITIVE, and that is load-bearing.** `items[]`
 is new; the flat `calories`/`protein`/`carbs`/`fat` remain and are now the sum of

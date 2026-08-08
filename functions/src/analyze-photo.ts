@@ -360,7 +360,21 @@ export const analyzePhoto = onCall(
   // Anthropic key had leaked in plaintext. Flipping providers is now a
   // three-step change; estimateWithAnthropic throws with those steps if you
   // forget. See init.ts.
-  { secrets: [geminiApiKey], maxInstances: 10 },
+  // 512 MiB, raised from the 256 MiB default on 2026-08-07 when this function
+  // started loading the USDA index. Measured: the indexed dataset is **67 MB**
+  // of heap (123 MB RSS with Node and deps), and unlike `searchFoods` — which
+  // holds the same index at the default and is fine — this function ALSO holds
+  // the base64 image, capped at 20 MB of string, which V8 stores as UTF-16 at
+  // ~40 MB. Typical payloads are ~700 KB after the client resize, so the default
+  // survives the normal case and OOMs the large one, which is the worst shape a
+  // limit can have: it fails only under the input a user cannot predict, and an
+  // OOM kills the instance rather than returning a clean error.
+  //
+  // Not a cost concern, and it was checked rather than assumed: gen2 bills
+  // GB-seconds only while running, the free tier is 400,000/month, and a ~5 s
+  // scan at 512 MiB is 2.5 GB-s — about 160,000 scans a month before this costs
+  // anything. The daily quota caps a user at 3.
+  { secrets: [geminiApiKey], maxInstances: 10, memory: "512MiB" },
   async (request) => {
     // Auth + rate limit (BEFORE the quota reserve, so a throttled call
     // doesn't consume a slot) + tier, all in one preamble.

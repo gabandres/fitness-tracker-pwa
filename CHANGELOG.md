@@ -6,7 +6,7 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
-## 2026-08-07 — Photo scan now reads the food database, not the model's guess *(merged, not yet deployed)*
+## 2026-08-07 — Photo scan now reads the food database, not the model's guess
 
 When you photographed a plate, an AI looked at it and typed four numbers. That is the design this app decided *against* two months ago and then shipped anyway: vision models are good at recognising food and sizing a portion, and measurably bad at the nutrition numbers — off by more than 60% on protein, which is the one number Ignia is built around. The food database that would fix it landed last week. It is now wired in.
 
