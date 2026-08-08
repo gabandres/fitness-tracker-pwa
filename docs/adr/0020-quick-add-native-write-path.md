@@ -208,6 +208,51 @@ the same wall this ADR already documents for `watch-link`. The bounded cost is
 that a *renamed* preset keeps its old spoken name until the next Siri log;
 disambiguation is unaffected, reading `suggestedEntities()` live.
 
+### The widget's intent runs in the EXTENSION's process (amended 2026-08-08)
+
+This ADR specified a **shared Keychain access group**. The implementation
+narrowed it to "the app's own keychain" on a stated premise:
+
+> The intents' `perform()` runs in the **main app's** process — App Shortcuts
+> declared in the app target are performed by launching the app in the
+> background, **and so is a widget `Button(intent:)`**.
+
+**The second half of that sentence is false**, and it made the widget half of
+this ADR a no-op from build 27 to build 34. Every tap on the widget's quick-add
+button did nothing: no row, no error, no moved number.
+
+`LogQuickAddSlotIntent` lives in `targets/_shared/`, so it is compiled into
+`Today.appex` as well as into the app, and **WidgetKit performs the extension's
+copy in the extension's process.** Read out of build 32's `.ipa`: the appex
+carries its own `Metadata.appintents` listing the intent, and its entitlements
+held `application-groups` and no `keychain-access-groups` at all. A process
+cannot reach another's default keychain group, so `credentials()` returned `nil`
+and `log` returned `.signedOut`.
+
+Two things made it invisible for five binaries:
+
+- `.signedOut` is the one outcome that deliberately skips the optimistic
+  snapshot bump, because bumping would be a lie. So the receipt this ADR chose —
+  "the numbers moving" — is *absent* in exactly the case that needs reporting,
+  and a refused tap is indistinguishable from a successful one and from a button
+  that was never wired up.
+- **Siri kept working the whole time.** App Shortcuts genuinely do launch the
+  app, so `LogPresetIntent` really did run where the credential was, and the
+  hardware verification that retired this ADR's largest unknown exercised the
+  path that was fine.
+
+Two changes follow. The envelope now lives in a shared access group declared by
+both the app and the widget extension, read with a fallback to the group-less
+query so an in-place update keeps Siri working until JS next writes. And the
+"receipt is the numbers" decision gains an exception: `QuickAdd.record(outcome:)`
+parks the last result in the App Group and Settings surfaces failures, because a
+surface that cannot answer back needs somewhere to leave the answer.
+
+The general lesson is the same one the App Shortcut trap taught, in a second
+disguise: **a native surface's build artifacts prove structure, never behaviour.**
+`Metadata.appintents` was flawless on a binary that registered nothing, and the
+entitlements were valid on a binary that could not read its own credential.
+
 ## Consequences
 
 **A third mirror of a doc shape exists, and that is the real cost.**

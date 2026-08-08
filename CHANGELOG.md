@@ -6,15 +6,18 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
-## 2026-08-08 — Widget quick-add: the button that did nothing (iOS)
+## 2026-08-08 — Widget quick-add: the button that did nothing (iOS, TestFlight 1.2.0 build 37)
 
-Tapping a preset on the iPhone widget could do **nothing at all** — no meal logged, no error, no change to the numbers. Reported from a phone today.
+Tapping a preset on the iPhone widget did **nothing at all** — no meal logged, no error, no change to the numbers — on every build since the feature shipped. Reported from a phone today and fixed.
 
-- **The cause.** To log without opening the app, Ignia hands iOS a sealed credential when you sign in. On some launches the app asked for that credential a moment before it existed, wrote nothing, and never asked again for the rest of that session. Every widget tap after that was silently refused. It depended on the timing of a single launch, which is why the same feature worked when it was tested and failed later.
-- **It is not lost data.** Nothing was written anywhere, so nothing is missing or duplicated — the taps simply did not happen.
-- **The button never said so**, and that is the part worth naming: a widget tap has no way to answer back, so a refusal and a success looked identical.
+- **The cause.** To log without opening the app, Ignia hands iOS a sealed credential. The widget's button turned out to run in a different process from the app, and that process was never given permission to open the envelope. So it asked, got nothing, and stopped — silently, because a widget button has no way to show you an error.
+- **Siri was never affected**, which is exactly why this hid for so long: the spoken shortcuts run inside the app, where the credential is, and they were verified working on a real phone.
+- **A refused tap can now say so.** If a widget or tile tap cannot be logged, Settings → Quick add tells you why the next time you open it. Before, a refusal and a success looked identical.
+- **Nothing was lost.** No row was ever written, so nothing is missing or duplicated — the taps simply did not happen.
 
-If a tap still does nothing after updating, say so — the fix addresses one specific cause, and it should be confirmed rather than assumed.
+**Also in this build:** Siri now speaks Spanish. *"Registra un preset en Ignia"* works on a phone set to Spanish; the phrases had been English-only.
+
+Please try the widget button again and say whether it logs.
 
 ## 2026-08-08 — Your fast, on the Lock Screen (iOS, TestFlight build 30)
 
@@ -29,14 +32,14 @@ Ignia has had a fasting timer since launch, free, in an app whose closest compet
 
 Android has no equivalent surface and gets nothing here.
 
-## 2026-08-08 — Android testers: install the new build (alpha vc 24)
+## 2026-08-08 — Android testers: install the new build (alpha vc 25)
 
 Housekeeping with a real consequence. Ignia can ship small fixes over the air, without a store update — but only to devices running a build that matches the current code. Android's had drifted, so **every over-the-air fix published for Android since the last release reached nobody**, silently and with no way to tell from the outside.
 
-- **Install vc 24 from Play and Android is back on the fast lane** for fixes.
+- **Install vc 25 from Play and Android is back on the fast lane** for fixes.
 - No new features in it; it exists to close that gap.
 
-If you already grabbed vc 21 earlier today, take vc 24 as well — 21 closed the gap and an iOS-only change reopened it within the hour. 24 is the one that holds.
+If you grabbed vc 21 or vc 24 earlier today, take vc 25 — each closed the gap and the next change reopened it. 25 is the one that holds, and it is the first Android build anything has ever launched and tested.
 
 ## 2026-08-08 — Siri actually works now (iOS)
 
