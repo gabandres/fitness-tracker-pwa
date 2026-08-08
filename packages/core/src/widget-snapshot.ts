@@ -28,6 +28,7 @@
  */
 
 import type { DaySummary } from './day-summary';
+import { QUICK_ADD_MAX, type QuickAddTarget } from './quick-add';
 import type { DailyTargets } from './targets';
 
 /**
@@ -76,6 +77,18 @@ export interface WidgetSnapshot {
    * and maps an unrecognized value back to English.
    */
   locale: string;
+  /**
+   * The user's designated quick-add presets, flattened (ADR-0020). Present so
+   * an interactive surface can draw a labelled button and write the row without
+   * auth or Firestore — the same reason `locale` travels here.
+   *
+   * **Additive and optional, and the wire version is deliberately NOT bumped.**
+   * A bump would make already-shipped Swift reject an otherwise-valid blob, and
+   * the visible result of that is a blank widget on iOS build 25 — the same
+   * class of silent breakage as the `useMemoCache` defect in vc 4/6/8. Absent
+   * means "no buttons", which is exactly what an older writer produces.
+   */
+  quickAdd?: QuickAddTarget[];
 }
 
 /** One rendered number: how far from target, and which side of it. */
@@ -115,6 +128,13 @@ export type WidgetView =
       protein: WidgetMetric;
       updatedMs: number;
       locale: string;
+      /**
+       * Quick-add buttons to draw, in slot order; `[]` when the user has
+       * designated none (ADR-0020). Only the `ready` state carries them: an
+       * empty face is showing "Open Ignia to start", and a button on it would
+       * be logging into a day the widget is explicitly declining to describe.
+       */
+      quickAdd: QuickAddTarget[];
     };
 
 /** Round to a non-negative integer, mapping any non-finite input to 0. The
@@ -136,6 +156,7 @@ export function buildWidgetSnapshot(
   dateKey: string,
   nowMs: number,
   locale = 'en',
+  quickAdd: readonly QuickAddTarget[] = [],
 ): WidgetSnapshot {
   return {
     v: WIDGET_SNAPSHOT_VERSION,
@@ -146,6 +167,11 @@ export function buildWidgetSnapshot(
     proteinTarget: safeInt(targets.proteinTarget),
     updatedMs: Number.isFinite(nowMs) ? Math.round(nowMs) : 0,
     locale,
+    // Omitted entirely when empty, so a user with no quick-add slots produces
+    // the byte-identical blob an older binary wrote. That keeps
+    // `widgetSnapshotChanged` from reporting a change on first write after an
+    // update, which would spend a metered WidgetKit reload on nothing.
+    ...(quickAdd.length > 0 ? { quickAdd: quickAdd.slice(0, QUICK_ADD_MAX) } : {}),
   };
 }
 
@@ -157,6 +183,40 @@ function isSnapshot(x: unknown): x is WidgetSnapshot {
   if (typeof o['locale'] !== 'string') return false;
   const nums = ['kcalConsumed', 'kcalTarget', 'proteinConsumed', 'proteinTarget', 'updatedMs'];
   return nums.every((k) => typeof o[k] === 'number' && Number.isFinite(o[k] as number));
+}
+
+/**
+ * Keep only the quick-add entries a button can actually be drawn and written
+ * from. A malformed `quickAdd` **must not** invalidate the whole blob: the
+ * numbers are the primary payload and a missing button is a smaller failure
+ * than a widget that has gone blank. Returns `undefined` when nothing survives,
+ * so the field disappears rather than becoming an empty array.
+ */
+function sanitizeQuickAdd(x: unknown): QuickAddTarget[] | undefined {
+  if (!Array.isArray(x)) return undefined;
+  const out: QuickAddTarget[] = [];
+  for (const item of x) {
+    if (out.length >= QUICK_ADD_MAX) break;
+    if (typeof item !== 'object' || item === null) continue;
+    const o = item as Record<string, unknown>;
+    const cal = o['calories'];
+    if (typeof o['presetId'] !== 'string' || o['presetId'] === '') continue;
+    if (typeof o['name'] !== 'string' || o['name'] === '') continue;
+    if (typeof cal !== 'number' || !Number.isFinite(cal) || cal <= 0) continue;
+    const macro = (k: string): number | undefined => {
+      const v = o[k];
+      return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined;
+    };
+    out.push({
+      presetId: o['presetId'],
+      name: o['name'],
+      calories: cal,
+      ...(macro('protein') != null ? { protein: macro('protein') as number } : {}),
+      ...(macro('carbs') != null ? { carbs: macro('carbs') as number } : {}),
+      ...(macro('fat') != null ? { fat: macro('fat') as number } : {}),
+    });
+  }
+  return out.length > 0 ? out : undefined;
 }
 
 /**
@@ -174,7 +234,10 @@ export function parseWidgetSnapshot(raw: string | null | undefined): WidgetSnaps
   } catch {
     return null;
   }
-  return isSnapshot(parsed) ? parsed : null;
+  if (!isSnapshot(parsed)) return null;
+  const { quickAdd: rawQuickAdd, ...rest } = parsed;
+  const quickAdd = sanitizeQuickAdd(rawQuickAdd);
+  return quickAdd ? { ...rest, quickAdd } : rest;
 }
 
 function metric(consumed: number, target: number): WidgetMetric {
@@ -205,6 +268,37 @@ export function widgetView(snapshot: WidgetSnapshot | null, todayKey: string): W
     protein: metric(snapshot.proteinConsumed, snapshot.proteinTarget),
     updatedMs: snapshot.updatedMs,
     locale: snapshot.locale,
+    quickAdd: snapshot.quickAdd ?? [],
+  };
+}
+
+/**
+ * Fold a just-written quick-add into the snapshot on disk, so the surface that
+ * was tapped redraws with the new totals.
+ *
+ * This is the **receipt** the quick-add design promises in place of a
+ * confirmation step: nothing else can move those numbers, because the app that
+ * normally writes the snapshot is not running when a tile or a widget button is
+ * tapped. It is deliberately an optimistic local edit and not a recomputation —
+ * the widget process has one day's totals and no log list — so it is *close*,
+ * not authoritative. The next `syncWidget` from the app overwrites it with the
+ * real summary, and any drift dies there.
+ *
+ * Returns `null` when there is no snapshot to fold into: a tap that lands
+ * before the app has ever written one has nothing to increment, and inventing a
+ * blob here would put a fabricated `kcalTarget` on the home screen.
+ */
+export function applyQuickAddToSnapshot(
+  snapshot: WidgetSnapshot | null,
+  target: QuickAddTarget,
+  nowMs: number,
+): WidgetSnapshot | null {
+  if (!snapshot) return null;
+  return {
+    ...snapshot,
+    kcalConsumed: safeInt(snapshot.kcalConsumed + target.calories),
+    proteinConsumed: safeInt(snapshot.proteinConsumed + (target.protein ?? 0)),
+    updatedMs: Number.isFinite(nowMs) ? Math.round(nowMs) : snapshot.updatedMs,
   };
 }
 
@@ -226,6 +320,19 @@ export function widgetSnapshotChanged(
     prev.kcalTarget !== next.kcalTarget ||
     prev.proteinConsumed !== next.proteinConsumed ||
     prev.proteinTarget !== next.proteinTarget ||
-    prev.locale !== next.locale
+    prev.locale !== next.locale ||
+    // The buttons are rendered, so a slot change is a redraw — renaming a
+    // preset must not leave a stale caption on a tappable button.
+    quickAddKey(prev.quickAdd) !== quickAddKey(next.quickAdd)
   );
+}
+
+/** Every rendered *and* written field of the quick-add slots, flattened for
+ *  comparison. Includes the macros because the button writes them: a preset
+ *  edited from 180 to 200 kcal looks identical and logs differently. */
+function quickAddKey(list: QuickAddTarget[] | undefined): string {
+  if (!list || list.length === 0) return '';
+  return list
+    .map((t) => [t.presetId, t.name, t.calories, t.protein ?? '', t.carbs ?? '', t.fat ?? ''].join(''))
+    .join('');
 }

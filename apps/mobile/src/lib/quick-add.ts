@@ -1,0 +1,244 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  PENDING_LOGS_KEY,
+  QUICK_ADD_MAX,
+  type PendingLog,
+  type QuickAddTarget,
+  buildPendingLog,
+  mergePendingLog,
+  newLedgerId,
+  parsePendingLogs,
+  pendingLogEntry,
+  prunePendingLogs,
+  quickAddEntry,
+  serializePendingLogs,
+} from '@macrolog/core';
+import { auth } from './firebase';
+import { exportNutrition } from './health-sync';
+import { addLogWithId } from './ledger';
+
+/**
+ * Quick-add adapter — the impure half of ADR-0020. Every rule lives in
+ * `@macrolog/core`'s `quick-add`; this file is storage, auth and the ledger
+ * call.
+ *
+ * ## The context this has to run in
+ * Most of it executes in the **Android widget task handler** — a headless JS
+ * context the OS starts when the app's UI was never mounted. There is no React
+ * tree, no `AuthProvider`, no i18n and no `useToday`. What there *is*, and what
+ * the whole design rests on, is `AsyncStorage`: `firebase.ts` initialises auth
+ * with `getReactNativePersistence(AsyncStorage)`, so the signed-in session
+ * rehydrates in that context too — asynchronously, which is why
+ * {@link currentUid} exists.
+ *
+ * ## Slots are device-local on purpose
+ * Which presets are quick-addable is a property of *this phone's* home screen
+ * and tile, not of the account, so it lives in `AsyncStorage` next to the
+ * reminder and Health-connection preferences. It also means adding a quick-add
+ * slot needs no new Firestore field and therefore no `firestore.rules` deploy.
+ */
+
+/** Ordered preset ids the user designated, slot 1 first. Device-local. */
+const SLOTS_KEY = 'ignia.quickAdd.slots.v1';
+
+/** How long to wait for auth to rehydrate in a headless context before giving
+ *  up. Reading a value out of `AsyncStorage` is single-digit milliseconds; this
+ *  is generous by two orders of magnitude and still well inside the ~10s an
+ *  Android widget task gets. */
+const AUTH_WAIT_MS = 4000;
+
+export async function getQuickAddSlots(): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(SLOTS_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x): x is string => typeof x === 'string' && x !== '').slice(0, QUICK_ADD_MAX);
+  } catch {
+    return [];
+  }
+}
+
+export async function setQuickAddSlots(ids: readonly string[]): Promise<void> {
+  const next = ids.slice(0, QUICK_ADD_MAX);
+  await AsyncStorage.setItem(SLOTS_KEY, JSON.stringify(next));
+  for (const l of listeners) l(next);
+}
+
+/** In-process listeners on the slot list. The picker lives in Settings and the
+ *  snapshot writer lives on Today, and `AsyncStorage` has no change events — so
+ *  without this, designating a slot would not reach the home screen until the
+ *  next foreground. Deliberately not a context: nothing renders from it except
+ *  the widget sync, and the value is device state, not account state. */
+const listeners = new Set<(ids: string[]) => void>();
+
+export function subscribeQuickAddSlots(cb: (ids: string[]) => void): () => void {
+  listeners.add(cb);
+  return () => {
+    listeners.delete(cb);
+  };
+}
+
+/**
+ * Toggle a preset's membership in the slot list, preserving the order the user
+ * picked in. Returns the new list so the caller can render without re-reading.
+ *
+ * At the cap the *oldest* selection is dropped rather than the tap being
+ * refused: a picker that silently does nothing when you tap a fourth item is
+ * indistinguishable from a broken one, and the list is small enough to see.
+ */
+export async function toggleQuickAddSlot(presetId: string): Promise<string[]> {
+  const current = await getQuickAddSlots();
+  const next = current.includes(presetId)
+    ? current.filter((id) => id !== presetId)
+    : [...current, presetId].slice(-QUICK_ADD_MAX);
+  await setQuickAddSlots(next);
+  return next;
+}
+
+/**
+ * The signed-in uid, waiting for persistence to rehydrate if it has not yet.
+ *
+ * `auth.currentUser` is null for the first tick of a cold headless start, so
+ * reading it directly would make every quick-add on a freshly-woken widget look
+ * like a signed-out one. Resolves `null` on genuine sign-out and on timeout —
+ * both mean "do not write".
+ */
+export function currentUid(timeoutMs = AUTH_WAIT_MS): Promise<string | null> {
+  if (auth.currentUser) return Promise.resolve(auth.currentUser.uid);
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (uid: string | null) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      unsub?.();
+      resolve(uid);
+    };
+    const timer = setTimeout(() => finish(null), timeoutMs);
+    const unsub = auth.onAuthStateChanged(
+      (u) => finish(u?.uid ?? null),
+      () => finish(null),
+    );
+  });
+}
+
+/** Whether a quick-add landed in the ledger or was parked for later. The
+ *  difference is the entire content of the user-facing receipt, so it is a
+ *  return value and not a log line. */
+export type QuickAddResult = 'logged' | 'queued' | 'signed-out';
+
+/**
+ * Log one quick-add target. Never throws — every caller is a fire-and-forget OS
+ * callback where a rejection surfaces as nothing at all.
+ *
+ * The id is minted before the attempt, so a failed write is parked under the
+ * same id the retry will use: if the original request actually reached the
+ * server and only its ack was lost, the flush overwrites identical bytes
+ * instead of adding a second meal to the day.
+ *
+ * A `signed-out` result deliberately parks **nothing**. A pending row is
+ * addressed to a uid, and guessing the account at flush time could put this
+ * meal on someone else's ledger.
+ */
+export async function logQuickAdd(
+  target: QuickAddTarget,
+  at: Date = new Date(),
+): Promise<QuickAddResult> {
+  const uid = await currentUid();
+  if (!uid) return 'signed-out';
+
+  const id = newLedgerId(Math.random);
+  const entry = quickAddEntry(target, at);
+  try {
+    await addLogWithId(uid, id, entry);
+    // Best-effort and fully guarded inside; a quick-add is a meal like any
+    // other, so it belongs in Health for the same reason `useToday.addEntry`
+    // mirrors one. Silently absent in a headless context without permission.
+    void exportNutrition({
+      at,
+      kcal: entry.calories,
+      protein: entry.protein,
+      carbs: entry.carbs,
+      fat: entry.fat,
+    });
+    return 'logged';
+  } catch {
+    await park(buildPendingLog(id, uid, entry, at.getTime()));
+    return 'queued';
+  }
+}
+
+async function park(row: PendingLog): Promise<void> {
+  try {
+    const list = parsePendingLogs(await AsyncStorage.getItem(PENDING_LOGS_KEY));
+    await AsyncStorage.setItem(PENDING_LOGS_KEY, serializePendingLogs(mergePendingLog(list, row)));
+  } catch {
+    /* A queue we cannot write is a lost tap, not a crash. */
+  }
+}
+
+export async function readPendingLogs(): Promise<PendingLog[]> {
+  try {
+    return parsePendingLogs(await AsyncStorage.getItem(PENDING_LOGS_KEY));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Try to land every parked write for the current account, then rewrite the
+ * queue with whatever is left.
+ *
+ * Called on app foreground (see `useWidgetSync`), which is the moment a device
+ * that was offline when the tile was tapped is most likely back. Each row is
+ * attempted independently — one permanent failure must not block the rest, the
+ * same reasoning `CLAUDE.md` applies to the hourly dispatcher.
+ *
+ * Returns how many landed, so a caller can decide whether the numbers on screen
+ * are about to move.
+ */
+export async function flushPendingLogs(uid: string, nowMs: number = Date.now()): Promise<number> {
+  const all = await readPendingLogs();
+  if (all.length === 0) return 0;
+
+  // Age + account pruning happens BEFORE the attempts: a row belonging to a
+  // previous session is not "failed", it is not ours to write, and this is the
+  // path that clears it.
+  const mine = prunePendingLogs(all, nowMs, uid);
+  const stillPending: PendingLog[] = [];
+  let landed = 0;
+
+  for (const row of mine) {
+    try {
+      await addLogWithId(uid, row.id, pendingLogEntry(row));
+      landed++;
+    } catch {
+      stillPending.push(row);
+    }
+  }
+
+  try {
+    if (stillPending.length === 0) await AsyncStorage.removeItem(PENDING_LOGS_KEY);
+    else await AsyncStorage.setItem(PENDING_LOGS_KEY, serializePendingLogs(stillPending));
+  } catch {
+    /* Best-effort: worst case a landed row is retried, which is idempotent. */
+  }
+  return landed;
+}
+
+/**
+ * Drop the queue and the slot list on sign-out.
+ *
+ * The queue is the privacy-relevant half — it holds what someone ate, addressed
+ * to their uid — and it is cleared for the same reason `clearWidget` drops the
+ * snapshot. The slots go too: they name presets the next account does not have,
+ * so leaving them would draw buttons that resolve to nothing.
+ */
+export async function clearQuickAdd(): Promise<void> {
+  try {
+    await AsyncStorage.multiRemove([PENDING_LOGS_KEY, SLOTS_KEY]);
+  } catch {
+    /* best-effort, same as clearWidget */
+  }
+}

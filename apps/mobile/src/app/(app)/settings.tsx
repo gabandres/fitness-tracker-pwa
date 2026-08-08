@@ -21,6 +21,7 @@ import { deleteAccountForever } from '@/lib/deleteAccount';
 import { isTipIapAvailable } from '@/lib/purchases';
 import { APP_STORE_REVIEW_URL } from '@/lib/reviewPrompt';
 import { TipSheet } from '@/components/TipSheet';
+import { QuickAddCard } from '@/components/QuickAddCard';
 import { SignInMethodsCard } from '@/components/SignInMethodsCard';
 import { useHealthSync } from '@/lib/health-sync';
 import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
@@ -615,6 +616,13 @@ export default function Settings() {
             />
           </View>
         </View>
+
+        {/* Quick add sits with the reminders above it on purpose: both are about
+            logging without navigating to it. Native-only — the picker feeds a
+            home-screen widget and a Quick Settings tile, neither of which the
+            web PWA has an analogue for (ADR-0020). */}
+        <Text style={styles.section}>{t('settings.quickAddSection')}</Text>
+        <QuickAddCard />
 
         {healthSync.available ? (
           <>

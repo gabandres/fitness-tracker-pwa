@@ -77,9 +77,11 @@ export default function Today() {
   // focus + after every log). No-op unless the user enabled reminders.
   useReminderSync();
 
-  // Push today's totals to the home-screen widget's shared storage. No-op
-  // unless the widget's native module is present (dev/production build only).
-  useWidgetSync(summary, targets);
+  // Push today's totals to the home-screen widget's shared storage, and land
+  // anything a widget button parked while offline. No-op unless the widget's
+  // native module is present (dev/production build only). `presets` rides along
+  // so the widget can draw the user's quick-add buttons (ADR-0020).
+  useWidgetSync(summary, targets, presets);
 
   // The tab bar's Log button navigates here with a fresh `openAdd` nonce —
   // each new value opens the add sheet (see AppTabBar in the tab layout).

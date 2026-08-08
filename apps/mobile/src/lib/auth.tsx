@@ -55,6 +55,7 @@ import { auth, functions } from './firebase';
 import { ensureProfile, subscribeProfile } from './ledger';
 import { registerAppleRefreshToken } from './appleSignin';
 import { addBreadcrumb, captureError, setSentryUser } from './sentry';
+import { clearQuickAdd } from './quick-add';
 import { clearWidget } from './widget';
 
 // Required for the web-OAuth popup/redirect to resolve when the app
@@ -876,6 +877,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // otherwise keep the previous account's numbers on the home screen.
       signOut: async () => {
         await clearWidget();
+        // Same obligation, different store: the parked quick-add queue holds
+        // what this account ate, addressed to its uid, and the slot list names
+        // its presets. Both are dropped before the session is, for the reason
+        // above (ADR-0020). `clearQuickAdd` never throws, so it cannot strand
+        // the sign-out.
+        await clearQuickAdd();
         await fbSignOut(auth);
       },
     }),

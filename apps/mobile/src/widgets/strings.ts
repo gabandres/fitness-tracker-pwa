@@ -22,6 +22,10 @@ export interface WidgetStrings {
   /** Empty state — shown before the app has written anything, and after
    *  midnight until it's opened again. */
   empty: string;
+  /** Screen-reader prefix for a quick-add button; the preset name follows, so
+   *  it must read as the start of a sentence ("Log Protein shake"). The visible
+   *  caption is just `+ <name>`, which TalkBack would announce as "plus". */
+  quickAddA11y: string;
 }
 
 const en: WidgetStrings = {
@@ -30,6 +34,7 @@ const en: WidgetStrings = {
   over: 'over',
   protein: 'protein',
   empty: 'Open Ignia to start',
+  quickAddA11y: 'Log',
 };
 
 const esPR: WidgetStrings = {
@@ -38,6 +43,7 @@ const esPR: WidgetStrings = {
   over: 'de más',
   protein: 'proteína',
   empty: 'Abre Ignia para empezar',
+  quickAddA11y: 'Registrar',
 };
 
 const TABLE: Record<string, WidgetStrings> = { en, 'es-PR': esPR };

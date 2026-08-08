@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { DaySummary } from './day-summary';
 import type { DailyTargets } from './targets';
+import { QUICK_ADD_MAX, type QuickAddTarget } from './quick-add';
 import {
   WIDGET_SNAPSHOT_VERSION,
   type WidgetSnapshot,
+  applyQuickAddToSnapshot,
   buildWidgetSnapshot,
   parseWidgetSnapshot,
   widgetSnapshotChanged,
@@ -234,5 +236,156 @@ describe('widgetSnapshotChanged', () => {
     ['locale', { locale: 'es-PR' }],
   ])('is true when %s changes', (_label, over) => {
     expect(widgetSnapshotChanged(snap(), snap(over))).toBe(true);
+  });
+});
+
+// ─── quick-add slots (ADR-0020) ─────────────────────────────────
+// Additive on a v1 blob. Every test below exists because the alternative — a
+// version bump — blanks the widget on already-shipped binaries.
+
+const shakeTarget: QuickAddTarget = {
+  presetId: 'p1',
+  name: 'Protein shake',
+  calories: 180,
+  protein: 32,
+};
+
+describe('buildWidgetSnapshot with quick-add slots', () => {
+  it('does not bump the wire version — an old binary must still decode this', () => {
+    const s = buildWidgetSnapshot(summary(), targets(), '2026-07-23', 1, 'en', [shakeTarget]);
+    expect(s.v).toBe(1);
+  });
+
+  it('omits the field entirely when there are no slots, byte-for-byte as before', () => {
+    const without = buildWidgetSnapshot(summary(), targets(), '2026-07-23', 1, 'en');
+    expect('quickAdd' in without).toBe(false);
+    expect(JSON.stringify(without)).not.toContain('quickAdd');
+  });
+
+  it('caps the slots it writes', () => {
+    const many = Array.from({ length: 6 }, (_, i) => ({ ...shakeTarget, presetId: `p${i}` }));
+    expect(buildWidgetSnapshot(summary(), targets(), '2026-07-23', 1, 'en', many).quickAdd)
+      .toHaveLength(QUICK_ADD_MAX);
+  });
+});
+
+describe('parseWidgetSnapshot with quick-add slots', () => {
+  it('round-trips valid slots', () => {
+    const s = snap({ quickAdd: [shakeTarget] });
+    expect(parseWidgetSnapshot(JSON.stringify(s))?.quickAdd).toEqual([shakeTarget]);
+  });
+
+  it('reads a v1 blob written before the field existed', () => {
+    const legacy = JSON.stringify(snap());
+    const parsed = parseWidgetSnapshot(legacy);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.quickAdd).toBeUndefined();
+  });
+
+  it('drops a malformed slot list instead of rejecting the whole blob', () => {
+    // The numbers are the primary payload — a missing button beats a blank widget.
+    const raw = JSON.stringify({ ...snap(), quickAdd: 'nonsense' });
+    const parsed = parseWidgetSnapshot(raw);
+    expect(parsed?.kcalConsumed).toBe(1200);
+    expect(parsed?.quickAdd).toBeUndefined();
+  });
+
+  it('keeps the good slots around a bad one', () => {
+    const raw = JSON.stringify({
+      ...snap(),
+      quickAdd: [{ presetId: '', name: 'x', calories: 1 }, shakeTarget, { presetId: 'z', name: 'z', calories: 0 }],
+    });
+    expect(parseWidgetSnapshot(raw)?.quickAdd).toEqual([shakeTarget]);
+  });
+
+  it('strips a macro that is not a finite non-negative number', () => {
+    const raw = JSON.stringify({
+      ...snap(),
+      quickAdd: [{ presetId: 'p1', name: 'Shake', calories: 180, protein: -5, carbs: 'x' }],
+    });
+    expect(parseWidgetSnapshot(raw)?.quickAdd).toEqual([
+      { presetId: 'p1', name: 'Shake', calories: 180 },
+    ]);
+  });
+});
+
+describe('widgetView with quick-add slots', () => {
+  it('carries the slots on ready', () => {
+    const view = widgetView(snap({ quickAdd: [shakeTarget] }), '2026-07-23');
+    expect(view.state === 'ready' && view.quickAdd).toEqual([shakeTarget]);
+  });
+
+  it('is an empty array, never undefined, when no slots are designated', () => {
+    const view = widgetView(snap(), '2026-07-23');
+    expect(view.state === 'ready' && view.quickAdd).toEqual([]);
+  });
+
+  it('draws no buttons on a stale day — the face is declining to describe it', () => {
+    const view = widgetView(snap({ quickAdd: [shakeTarget] }), '2026-07-24');
+    expect(view.state).toBe('empty');
+    expect('quickAdd' in view).toBe(false);
+  });
+});
+
+describe('widgetSnapshotChanged with quick-add slots', () => {
+  it('is true when a slot is added', () => {
+    expect(widgetSnapshotChanged(snap(), snap({ quickAdd: [shakeTarget] }))).toBe(true);
+  });
+
+  it('is true when the bound preset is renamed — a stale caption is tappable', () => {
+    expect(
+      widgetSnapshotChanged(
+        snap({ quickAdd: [shakeTarget] }),
+        snap({ quickAdd: [{ ...shakeTarget, name: 'Whey shake' }] }),
+      ),
+    ).toBe(true);
+  });
+
+  it('is true when the bound preset silently changes its macros', () => {
+    expect(
+      widgetSnapshotChanged(
+        snap({ quickAdd: [shakeTarget] }),
+        snap({ quickAdd: [{ ...shakeTarget, calories: 200 }] }),
+      ),
+    ).toBe(true);
+  });
+
+  it('is false for identical slots', () => {
+    expect(
+      widgetSnapshotChanged(snap({ quickAdd: [shakeTarget] }), snap({ quickAdd: [shakeTarget] })),
+    ).toBe(false);
+  });
+});
+
+describe('applyQuickAddToSnapshot', () => {
+  it('folds the row into today’s totals — this is the receipt', () => {
+    const next = applyQuickAddToSnapshot(snap(), shakeTarget, 42);
+    expect(next?.kcalConsumed).toBe(1380);
+    expect(next?.proteinConsumed).toBe(122);
+    expect(next?.updatedMs).toBe(42);
+  });
+
+  it('leaves targets, day and locale alone', () => {
+    const next = applyQuickAddToSnapshot(snap({ quickAdd: [shakeTarget] }), shakeTarget, 42);
+    expect(next?.kcalTarget).toBe(2000);
+    expect(next?.proteinTarget).toBe(160);
+    expect(next?.dateKey).toBe('2026-07-23');
+    expect(next?.quickAdd).toEqual([shakeTarget]);
+  });
+
+  it('treats a macro-less target as zero protein', () => {
+    const next = applyQuickAddToSnapshot(snap(), { presetId: 'p', name: 'Salad', calories: 90 }, 1);
+    expect(next?.proteinConsumed).toBe(90);
+    expect(next?.kcalConsumed).toBe(1290);
+  });
+
+  it('is null with nothing on disk — it must not fabricate a target', () => {
+    expect(applyQuickAddToSnapshot(null, shakeTarget, 1)).toBeNull();
+  });
+
+  it('renders as ready through the normal view path', () => {
+    const next = applyQuickAddToSnapshot(snap(), shakeTarget, 42);
+    const view = widgetView(next, '2026-07-23');
+    expect(view.state === 'ready' && view.kcal.value).toBe(620);
   });
 });

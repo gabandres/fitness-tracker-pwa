@@ -6,6 +6,7 @@ import {
   WIDGET_SNAPSHOT_KEY,
   type DailyTargets,
   type DaySummary,
+  type QuickAddTarget,
   type WidgetSnapshot,
   buildWidgetSnapshot,
   parseWidgetSnapshot,
@@ -166,13 +167,14 @@ export async function syncWidget(
   todayKey: string,
   locale: string,
   nowMs: number = Date.now(),
+  quickAdd: readonly QuickAddTarget[] = [],
 ): Promise<void> {
   if (!supported) {
     if (__DEV__) console.log('[widget] skipped: unsupported runtime (Expo Go or web)');
     return;
   }
 
-  const next = buildWidgetSnapshot(summary, targets, todayKey, nowMs, locale);
+  const next = buildWidgetSnapshot(summary, targets, todayKey, nowMs, locale, quickAdd);
 
   // A zero calorie target is the single most common reason the widget sits on
   // its empty state while everything else looks healthy: the Swift side treats
@@ -196,6 +198,34 @@ export async function syncWidget(
     // the failed write landed. Swallowing this silently made a broken App Group
     // write indistinguishable from never having written at all.
     if (__DEV__) console.warn('[widget] write FAILED', err);
+  }
+}
+
+/**
+ * Storage-only snapshot write, for the Android task handler.
+ *
+ * The quick-add path (ADR-0020) needs to persist an optimistically-updated
+ * snapshot *from inside* the widget task, where the redraw is `props.renderWidget`
+ * rather than `requestWidgetUpdate` — asking the OS for an update from within
+ * the update it already gave us is how a redraw loop starts. So this is
+ * deliberately the plain persist with no reload request and no change guard: the
+ * caller knows something changed, because it just wrote a log.
+ *
+ * `lastWritten` is advanced so the guard keeps describing what is actually on
+ * disk. When the app is in the foreground the task handler shares its JS
+ * runtime, and leaving the guard stale there makes the next real sync compare
+ * against a snapshot that no longer exists.
+ *
+ * Android only — iOS's equivalent moment is a Swift intent writing the App
+ * Group directly, and it never runs this JS.
+ */
+export async function saveWidgetSnapshot(snapshot: WidgetSnapshot): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  try {
+    await AsyncStorage.setItem(WIDGET_SNAPSHOT_KEY, JSON.stringify(snapshot));
+    lastWritten = snapshot;
+  } catch {
+    /* The row is already in the ledger; a stale face corrects on next sync. */
   }
 }
 

@@ -60,6 +60,11 @@ export * from './reminder-plan';
 // side) both live here. Android calls these directly; the iOS SwiftUI timeline
 // mirrors them in Swift against these tests. Storage + reload are adapters.
 export * from './widget-snapshot';
+// Quick-add: logging a preset from outside the app — widget button, Quick
+// Settings tile, iOS App Intent (ADR-0020). Slot resolution, the row that gets
+// written, the offline queue and the pre-minted ledger id. Pure; the storage
+// and the platform trigger are adapters.
+export * from './quick-add';
 // My Foods library helpers (ADR-0013). Types (CustomFood, FoodSource,
 // ServingUnit) live in ./types; these are the pure scaling helpers.
 export * from './custom-food';

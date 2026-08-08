@@ -166,6 +166,23 @@ export async function addLog(uid: string, entry: LogEntry): Promise<string> {
   return createDoc(logsCol(uid), toLogDoc(entry, CODEC));
 }
 
+/**
+ * Write a log at an id the CALLER minted (`newLedgerId` in `@macrolog/core`).
+ *
+ * Only the quick-add path uses this (ADR-0020), and it needs the id before the
+ * request rather than after: a widget-button or tile tap that loses its socket
+ * mid-`Write` is parked on disk under this id and retried later, and the retry
+ * has to be the same doc or the user gets the meal twice. `createDoc` already
+ * relies on `setDoc`'s lack of a precondition for exactly that reason; here the
+ * id simply has to outlive the process.
+ *
+ * Identical bytes on the wire otherwise — same serializer, same collection — so
+ * nothing downstream can tell a quick-added row from a hand-entered one.
+ */
+export async function addLogWithId(uid: string, id: string, entry: LogEntry): Promise<void> {
+  await setDoc(logDoc(uid, id), toLogDoc(entry, CODEC));
+}
+
 export async function updateLog(uid: string, id: string, entry: LogEntry): Promise<void> {
   await updateDoc(logDoc(uid, id), toLogPatch(entry, CODEC));
 }

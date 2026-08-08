@@ -2,6 +2,7 @@
 
 import { FlexWidget, TextWidget } from 'react-native-android-widget';
 import type { WidgetView } from '@macrolog/core';
+import { QUICK_ADD_ACTION } from './actions';
 import { groupDigits, widgetStrings } from './strings';
 
 /**
@@ -47,6 +48,10 @@ const COLORS = {
   muted: '#a39c91', // heroMuted
   kcal: '#ff6a3d', // ring — the calorie coral
   protein: '#34d399', // protein green (dark-theme variant; reads on the panel)
+  // Quick-add button fill. A lifted panel tone rather than the coral: the
+  // button is a secondary affordance on a face whose point is the number, and
+  // an accent-filled pill reads as the primary thing on it.
+  button: '#2b2825',
 } as const;
 
 /** Deep link into the Today screen with the add-entry sheet already open —
@@ -54,10 +59,26 @@ const COLORS = {
  *  drive logging, not just display it. */
 const ADD_ENTRY_URI = 'ignia://?openAdd=1';
 
+/** Longest button caption drawn before it is elided. A `RemoteViews` row does
+ *  not wrap or auto-shrink, so an over-long preset name would push the "+" out
+ *  of a 2×2 cell instead of truncating. Measured against the narrowest cell a
+ *  2×2 gets on a 4-column launcher. */
+const MAX_BUTTON_LABEL = 14;
+
+function buttonLabel(name: string): string {
+  const trimmed = name.trim();
+  return trimmed.length > MAX_BUTTON_LABEL ? `${trimmed.slice(0, MAX_BUTTON_LABEL - 1)}…` : trimmed;
+}
+
 export function TodayWidget({ view }: { view: WidgetView }) {
   // Both states carry a locale now. This used to force 'en' for the empty
   // state, so a Spanish user's home screen read "Open Ignia to start".
   const s = widgetStrings(view.locale);
+  // Slot 1 only on this face. A 2×2 cell has room for one button under two
+  // numbers; the full three-button row is the `systemMedium`/4×2 face
+  // (ADR-0020). `quickAdd` is only ever populated on `ready` — an empty face is
+  // declining to describe the day, so it must not offer to log into it.
+  const slot = view.state === 'ready' ? view.quickAdd[0] : undefined;
 
   return (
     <FlexWidget
@@ -92,6 +113,32 @@ export function TodayWidget({ view }: { view: WidgetView }) {
             }`}
             style={{ fontSize: 13, color: COLORS.protein, marginTop: 8 }}
           />
+          {slot ? (
+            // Its own clickAction, so it beats the face's OPEN_URI: the inner
+            // PendingIntent wins for taps inside its bounds. That is why the
+            // button carries the tighter hit area and the face keeps the rest —
+            // a mis-hit opens the app, which is recoverable, rather than
+            // logging a meal nobody asked for.
+            <FlexWidget
+              clickAction={QUICK_ADD_ACTION}
+              clickActionData={{ slot: 0 }}
+              accessibilityLabel={`${s.quickAddA11y} ${slot.name}`}
+              style={{
+                marginTop: 10,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: 999,
+                backgroundColor: COLORS.button,
+                flexDirection: 'row',
+                alignItems: 'center',
+              }}
+            >
+              <TextWidget
+                text={`+ ${buttonLabel(slot.name)}`}
+                style={{ fontSize: 12, color: COLORS.text, fontWeight: '600' }}
+              />
+            </FlexWidget>
+          ) : null}
         </FlexWidget>
       )}
     </FlexWidget>
