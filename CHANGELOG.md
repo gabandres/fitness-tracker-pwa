@@ -6,9 +6,17 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-08 — Siri actually works now (iOS)
+
+The release below announced Siri support on 2026-08-07. **It did not work.** iOS never registered the shortcuts, so Ignia did not appear in the Shortcuts app and every phrase came back "I can't help with that" — for everyone, from the moment it shipped. The build was fine; the app was asking iOS for something iOS refuses, and iOS declines that silently, with no error anywhere. It is fixed, and the fix is confirmed on a real phone.
+
+- **"Hey Siri, log a preset in Ignia" works.** Siri asks which preset, you pick, and the row is in your day — with the app never opening.
+- **What broke it.** A Siri phrase you get for free may not demand information up front. Ours insisted on knowing *which* preset before it would register at all, and one bad shortcut invalidates every shortcut the app has. Both now ask conversationally instead, which is what the feature wanted in the first place.
+- **Nothing was lost.** Calories are still never invented — Siri asks for the number rather than guessing one, exactly as promised below.
+
 ## 2026-08-07 — "Hey Siri, log my protein shake" (iOS)
 
-The same idea as the Android release below, in the form iPhones actually use.
+The same idea as the Android release below, in the form iPhones actually use. **The Siri half of this release did not function on the build it shipped in — see the entry above.** The widget button was unaffected.
 
 - **Ask Siri.** "Log a preset in Ignia" picks from your quick-add list; "log 300 calories in Ignia" writes a one-off. Siri answers with what happened — and if you were offline it says so instead of pretending.
 - **A button on your widget.** Same one tap, straight from the home screen, without the app opening.
