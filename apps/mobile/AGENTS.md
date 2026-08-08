@@ -135,6 +135,30 @@ consumed by three Gradle failures (unset `ANDROID_HOME`, a missing
 resolved through the wrong class). iOS **build 26** does not exist either, for the
 same reason — one Swift failure, described below.
 
+**An App Shortcut may not carry a REQUIRED parameter, and breaking that rule
+registers nothing at all.** iOS validates `AppShortcutsProvider` on the device at
+registration time, reports nothing when it fails, and one invalid shortcut
+invalidates the whole provider — so the app simply never appears in the Shortcuts
+app and every phrase answers *"I can't help with that"*.
+
+**Nothing upstream catches it.** The build is clean, there is no warning, and
+`Metadata.appintents` still extracts perfectly into the binary — build 27's
+archive holds a flawless `autoShortcutProviderMangledName`, both `autoShortcuts`,
+all three intents and their phrase templates. Verifying the metadata is present
+therefore proves nothing about whether Siri will ever see it; that check passed on
+the binary that shipped broken.
+
+The rules, from [WWDC22 *Implement App Shortcuts with App
+Intents*](https://developer.apple.com/videos/play/wwdc2022/10170/): parameters
+"should be defined as optional so the app can gracefully handle cases where users
+don't specify them in the initial phrase", and they "are not meant for open-ended
+values". Build 27 broke both — `LogPresetIntent.preset` was required and named in
+no phrase, `LogMacrosIntent.calories` was required *and* an arbitrary number.
+
+Declaring them optional costs nothing: disambiguate against `suggestedEntities()`,
+or demand the value with `requestValue`, and the domain invariant is enforced in
+`perform()` where it belongs rather than in the declaration.
+
 **Swift block comments NEST, and it cost a build.** `/**` … `*/` nests, and
 backticks mean nothing to the lexer, so a literal `_shared/` + `*` written inside
 a doc comment opens a nested comment that never closes. It is reported as
@@ -170,9 +194,26 @@ Both new binaries were built locally on `ignia-mac` at **zero EAS quota**
 
 **Changes the fingerprint** (⇒ needs a build): any dependency carrying native
 code, native config in `app.json` (permissions, icons, splash, plugins,
-entitlements), an Expo SDK upgrade, the widget/watch Swift or Kotlin. A pure-JS
-dependency usually does not — but "usually" is why you run the command instead of
-reasoning about it.
+entitlements), an Expo SDK upgrade. A pure-JS dependency usually does not — but
+"usually" is why you run the command instead of reasoning about it.
+
+**Swift and Kotlin under `targets/` do NOT change it, and that inverts the gate.**
+Measured 2026-08-08: `QuickAddIntents.swift` was edited and iOS build **28** came
+out carrying the change — `isOptional` flipped in the shipped
+`Metadata.appintents` — while the fingerprint stayed `4734a4b6…`, byte-identical
+to build 27's. Confirmed three ways: both `.ipa`s and a fresh
+`fingerprint:generate`. This line previously claimed the opposite.
+
+So for a native-source change the gate gives the **wrong** answer: an unchanged
+hash normally reads as "ship it over the air", and here that publishes an update
+containing no Swift at all — landing successfully, reporting success, and fixing
+nothing. **The gate answers "will an OTA reach these binaries", never "is an OTA
+sufficient".** Only the second question matters once you have touched native
+source, and the hash cannot answer it: if the change is under `targets/` or
+`modules/`, it needs a build no matter what the gate says.
+
+The upside of the same fact: builds 27 and 28 share runtime `4734a4b6…`, so a
+single `eas update` reaches both cohorts.
 
 **Does NOT change it** (⇒ ships over the air): `.ts`/`.tsx`/`.js` source, UI,
 styles, business logic, i18n strings, Metro-bundled assets.
