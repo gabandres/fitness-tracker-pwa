@@ -547,6 +547,8 @@ export const esPR: Record<I18nKey, string> = {
   'settings.quickAddMacros': '{kcal} kcal · {protein}g proteína',
   'settings.quickAddFull': 'Ya son {n}. Toca uno para cambiarlo.',
   'settings.quickAddWidgetHint': 'La ranura 1 es la que registran el botón del widget y el botón de Ajustes rápidos.',
+  'settings.quickAddSignedOut': 'Tu último toque en el widget o la tarjeta no se pudo registrar — no pudo leer tu sesión. Abre Ignia una vez y vuelve a intentarlo.',
+  'settings.quickAddNoSlot': 'Tu último toque en el widget o la tarjeta no registró nada — el preset que tenía ya no existe. Escoge uno arriba.',
   'reminder.mealTitle': 'Ignia',
   'reminder.breakfastBody': '¿Ya registraste el desayuno?',
   'reminder.lunchBody': 'Hora de registrar el almuerzo 🍽️',

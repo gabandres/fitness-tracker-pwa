@@ -212,7 +212,10 @@ public enum QuickAdd {
    * the row is safely queued.
    */
   public static func log(_ row: Row) async -> Outcome {
-    guard let creds = credentials() else { return .signedOut }
+    guard let creds = credentials() else {
+      record(outcome: "signedOut")
+      return .signedOut
+    }
     let id = newLedgerId()
 
     do {
@@ -222,12 +225,36 @@ public enum QuickAdd {
       // the app is not running. Optimistic and local, replaced by the truth on
       // the app's next sync.
       applyOptimistically(row)
+      record(outcome: "logged")
       return .logged
     } catch {
       park(row: row, id: id, uid: creds.uid)
       applyOptimistically(row)
+      record(outcome: "queued")
       return .queued
     }
+  }
+
+  /**
+   * Leave a note in the App Group saying what the last quick-add did.
+   *
+   * A widget button has no way to answer back — see `Glance.quickAddOutcomeKey`
+   * for what that cost. This is the note the app reads on next foreground so a
+   * silently-refused tap becomes something a user can see and report.
+   *
+   * Best-effort and never throws: a tap that logged must not be reported as a
+   * failure because a diagnostic write failed. Overwrites, deliberately — the
+   * question is "did the last one work", not "how many were there".
+   *
+   * `source` is free-form; today only the widget/tile path writes it.
+   */
+  public static func record(outcome: String, at: Date = Date()) {
+    guard let defaults = UserDefaults(suiteName: Glance.appGroup) else { return }
+    let payload = ["outcome": outcome, "atMs": String(Int(at.timeIntervalSince1970 * 1000))]
+    guard let data = try? JSONSerialization.data(withJSONObject: payload),
+          let json = String(data: data, encoding: .utf8)
+    else { return }
+    defaults.set(json, forKey: Glance.quickAddOutcomeKey)
   }
 
   /// Exchange the long-lived refresh token for a one-hour ID token. Not cached:

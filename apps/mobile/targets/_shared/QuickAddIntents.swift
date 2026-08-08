@@ -247,7 +247,14 @@ struct LogQuickAddSlotIntent: AppIntent {
     let slots = QuickAdd.slots()
     // A slot whose preset vanished between the last snapshot write and the tap.
     // The redraw that follows drops the button, so it stops being tappable.
-    guard slot >= 0, slot < slots.count else { return .result() }
+    //
+    // Recorded rather than returned silently: this and `.signedOut` are the two
+    // paths that leave the widget's numbers untouched, which is exactly what a
+    // dead button looks like. See `Glance.quickAddOutcomeKey`.
+    guard slot >= 0, slot < slots.count else {
+      QuickAdd.record(outcome: "noSlot")
+      return .result()
+    }
     _ = await QuickAdd.log(QuickAdd.row(from: slots[slot]))
     return .result()
   }

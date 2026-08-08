@@ -538,6 +538,8 @@ export const en = {
   'settings.quickAddMacros': '{kcal} kcal · {protein}g protein',
   'settings.quickAddFull': 'That’s all {n}. Tap one to swap it out.',
   'settings.quickAddWidgetHint': 'Slot 1 is what your widget button and the Quick Settings tile log.',
+  'settings.quickAddSignedOut': 'Your last widget or tile tap could not be logged — it could not read your sign-in. Open Ignia once, then try again.',
+  'settings.quickAddNoSlot': 'Your last widget or tile tap logged nothing — the preset it was set to no longer exists. Pick one above.',
   'settings.calorieFloorSection': 'Calorie floor',
   'settings.calorieFloor': 'Daily minimum',
   'settings.calorieFloorSub': 'Your target never drops below this, even if a water-weight spike makes your measured burn look low.',

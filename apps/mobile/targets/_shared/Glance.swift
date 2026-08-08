@@ -79,6 +79,30 @@ public enum Glance {
   /// addresses. Must equal `WIDGET_NAME` in `src/lib/widget.ts`.
   public static let widgetKind = "Today"
 
+  /// Where a quick-add records what happened to it. Must equal
+  /// `QUICK_ADD_OUTCOME_KEY` in `src/lib/quick-add.ts`.
+  ///
+  /// ## Why a glanceable surface needs an outbox at all
+  ///
+  /// A widget button and a Quick Settings tile cannot answer back. There is no
+  /// dialog, no toast, no screen — `LogQuickAddSlotIntent` returns a bare
+  /// `.result()` by necessity. The widget's numbers moving is the entire
+  /// receipt, and the two failure paths that matter (`.signedOut`, and a slot
+  /// index that no longer exists) deliberately do **not** move them, because
+  /// moving them would be a lie.
+  ///
+  /// So a failed tap is indistinguishable from a successful one, and from a
+  /// button that was never wired up. That is not hypothetical: an unreachable
+  /// keychain made every widget quick-add a no-op from build 27 to build 32 —
+  /// five binaries, one of which announced the feature to testers — and nothing
+  /// anywhere recorded it. Not the build, not the tests, not Sentry, which does
+  /// not exist in a Swift extension.
+  ///
+  /// The App Group is the one channel both processes share, so the outcome is
+  /// parked here and the app surfaces it on next foreground. It is diagnosis,
+  /// not telemetry: nothing leaves the device.
+  public static let quickAddOutcomeKey = "ignia.quickAdd.outcome.v1"
+
   /// The watch complication's `kind`. Only the watch app reloads it, and it
   /// does so via `reloadAllTimelines`, so this is not a cross-process contract
   /// the way `widgetKind` is — it is here so the two watch targets agree.

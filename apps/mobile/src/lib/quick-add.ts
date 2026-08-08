@@ -242,6 +242,67 @@ export async function performQuickAdd(
  * Getting this wrong is invisible: every iOS quick-add would appear to queue and
  * then never flush, because the flush would be reading an empty store.
  */
+/**
+ * Where a native quick-add records what happened to it. Must equal
+ * `Glance.quickAddOutcomeKey` in `targets/_shared/Glance.swift`.
+ */
+export const QUICK_ADD_OUTCOME_KEY = 'ignia.quickAdd.outcome.v1';
+
+/**
+ * What the last **native** widget/tile tap did. `null` when none has ever run.
+ *
+ * Distinct from `QuickAddOutcome` above, which is what an in-app `logQuickAdd`
+ * returns synchronously to its caller. This one crosses a process boundary and
+ * is read back later, so it carries a timestamp and no snapshot.
+ */
+export interface NativeQuickAddOutcome {
+  /**
+   * - `logged` — written to the ledger.
+   * - `queued` — parked offline; the app lands it on next foreground.
+   * - `signedOut` — no readable credential. **Nothing was written and nothing
+   *   was parked**, and the widget's numbers deliberately did not move.
+   * - `noSlot` — the bound preset no longer exists.
+   */
+  outcome: 'logged' | 'queued' | 'signedOut' | 'noSlot';
+  atMs: number;
+}
+
+/**
+ * Read the note a native quick-add left behind (iOS only; `null` elsewhere).
+ *
+ * A widget button cannot answer back — no dialog, no toast, no screen — and the
+ * two failure paths that matter leave the widget's numbers untouched, which is
+ * precisely what a button that was never wired up looks like. An unreachable
+ * keychain made every widget quick-add a silent no-op from build 27 to build 32
+ * and nothing recorded it anywhere, including Sentry, which does not exist in a
+ * Swift extension. This is the channel that would have caught it in a day.
+ *
+ * Diagnosis, not telemetry: it is written to the shared App Group and read back
+ * by the app. Nothing leaves the device.
+ */
+export async function readQuickAddOutcome(): Promise<NativeQuickAddOutcome | null> {
+  if (Platform.OS !== 'ios') return null;
+  try {
+    const { ExtensionStorage } = require('@bacons/apple-targets');
+    const json = new ExtensionStorage(APP_GROUP).get(QUICK_ADD_OUTCOME_KEY);
+    if (!json) return null;
+    const parsed = JSON.parse(json) as { outcome?: string; atMs?: string | number };
+    const outcome = parsed.outcome;
+    if (
+      outcome !== 'logged' &&
+      outcome !== 'queued' &&
+      outcome !== 'signedOut' &&
+      outcome !== 'noSlot'
+    ) {
+      return null;
+    }
+    const atMs = Number(parsed.atMs);
+    return { outcome, atMs: Number.isFinite(atMs) ? atMs : 0 };
+  } catch {
+    return null;
+  }
+}
+
 const pendingStore = {
   async read(): Promise<string | null> {
     if (Platform.OS === 'ios') {

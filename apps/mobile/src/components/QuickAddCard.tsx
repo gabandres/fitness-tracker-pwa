@@ -3,11 +3,11 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { QUICK_ADD_MAX, type MealPreset } from '@macrolog/core';
-import { useT } from '@/i18n';
+import { type I18nKey, useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import * as haptics from '@/lib/haptics';
 import { subscribePresets } from '@/lib/ledger';
-import { getQuickAddSlots, toggleQuickAddSlot } from '@/lib/quick-add';
+import { getQuickAddSlots, readQuickAddOutcome, toggleQuickAddSlot } from '@/lib/quick-add';
 import { trackSubs } from '@/lib/sub-debug';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
@@ -55,6 +55,32 @@ export function QuickAddCard() {
       if (!uid) return;
       return trackSubs('QuickAdd', [subscribePresets(uid, setPresets)]);
     }, [uid]),
+  );
+
+  // What the last widget/tile tap actually did, re-read on every focus.
+  //
+  // This is the app's only window into a surface that cannot answer back. A
+  // widget button has no dialog and no toast, and the two failure paths that
+  // matter deliberately leave its numbers untouched — so a refused tap looks
+  // exactly like a successful one, and like a button that was never wired up. An
+  // unreachable keychain made every widget quick-add a no-op from build 27 to
+  // build 32 with nothing anywhere recording it.
+  //
+  // Only failures are shown. "It worked" is already answered by the numbers.
+  const [problem, setProblem] = useState<I18nKey | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      void readQuickAddOutcome().then((o) => {
+        if (!alive) return;
+        if (o?.outcome === 'signedOut') setProblem('settings.quickAddSignedOut');
+        else if (o?.outcome === 'noSlot') setProblem('settings.quickAddNoSlot');
+        else setProblem(null);
+      });
+      return () => {
+        alive = false;
+      };
+    }, []),
   );
 
   async function toggle(presetId: string) {
@@ -117,6 +143,9 @@ export function QuickAddCard() {
         <Text style={styles.hint}>{t('settings.quickAddFull', { n: String(QUICK_ADD_MAX) })}</Text>
       ) : null}
       {slots.length > 0 ? <Text style={styles.hint}>{t('settings.quickAddWidgetHint')}</Text> : null}
+
+      {/* The only place a refused tap can ever surface. See `readQuickAddOutcome`. */}
+      {problem ? <Text style={styles.problem}>{t(problem)}</Text> : null}
     </View>
   );
 }
@@ -153,5 +182,6 @@ const createStyles = ({ colors }: Theme) =>
       justifyContent: 'center',
     },
     badgeText: { fontSize: font.tiny, fontWeight: '700', color: colors.onInk },
+    problem: { fontSize: font.small, color: colors.warn, marginTop: space.sm },
     hint: { fontSize: font.tiny, color: colors.muted, marginTop: space.xs },
   });
