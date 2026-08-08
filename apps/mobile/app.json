@@ -139,6 +139,7 @@
         }
       ],
       "./plugins/withModularHeaders",
+      "./plugins/withGradleJvmArgs",
       [
         "expo-build-properties",
         {

@@ -1,47 +1,81 @@
 ---
 name: build-android
-description: Ship an Android change — decide between an over-the-air EAS Update (free, instant, no build) and a real EAS cloud build, run the fingerprint gate that decides which is valid, and submit to the Play alpha track. Use for "ship this to Android", "cut an Android build", "push a fix to testers", or any mobile fix headed for Play. iOS is the `build-ios` skill (local, on the Mac).
+description: Ship an Android change — decide between an over-the-air EAS Update (free, instant, no build) and a real build, run the fingerprint gate that decides whether an OTA can land, and submit to the Play alpha track. Use for "ship this to Android", "cut an Android build", "push a fix to testers", or any mobile fix headed for Play. iOS is the `build-ios` skill (also local, also on the Mac).
 ---
 
 # Ship an Android change
 
-**Start by asking whether you need a build at all.** Most fixes do not. Getting
-this fork wrong in either direction is expensive: a needless build burns quota
-and up to two hours of queue, and an OTA published against a changed fingerprint
-reaches **nobody** while reporting success.
+**Start by asking whether you need a build at all.** Most fixes do not. Both
+Android and iOS now build locally on `ignia-mac` at **zero EAS quota**, so a
+needless build costs ~11 minutes rather than a queue slot — but an OTA published
+against a changed fingerprint reaches **nobody** while reporting success, and
+that is the expensive direction.
 
-## Step 1 — the fingerprint gate (ALWAYS; it decides everything after)
+## Step 1 — the fingerprint gate
+
+**Run it on `ignia-mac`. Never on the Windows workstation.** The fingerprint is a
+property of the machine as well as the commit — a gitignored `apps/mobile/android/`
+dir that exists only on Windows, CRLF-vs-LF, and divergent `node_modules` all feed
+it. Every binary is built on the Mac, so the Mac's number is the one they carry.
+Three OTAs were published against Windows numbers on 2026-08-07 and reached
+nothing.
 
 ```sh
-cd apps/mobile && npx expo-updates fingerprint:generate --platform android
+ssh ignia-mac "cd ~/fitness-tracker-pwa && git checkout main && git pull --ff-only"
+ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform android" \
+  | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).hash))"
 ```
 
-Compare the `hash` to the fingerprint of the binary testers are running (recorded
-in `apps/mobile/AGENTS.md`).
+Compare against the fingerprint of the binary testers are running — the table in
+`apps/mobile/AGENTS.md`, whose "read from the artifact" rows are the only ones
+that count.
 
-| Result | Meaning | Go to |
-|---|---|---|
-| **Same hash** | JS-only change | Step 2 — OTA, free and instant |
-| **Different hash** | native surface changed | Step 3 — real build, costs quota |
+| Result | Meaning |
+|---|---|
+| **Same hash** | an OTA will reach that binary → Step 2 is *available* |
+| **Different hash** | an OTA reaches nobody → you need a build, Step 3 |
 
-**Never skip this because the diff "looks like JS".** `eas update` succeeds
-either way; a mismatched runtime version publishes into the void and every tester
-silently keeps the old code. There is no error to notice.
+### The gate answers one question, and it is not the one you want
 
-Changes the fingerprint: any dependency with native code, native config in
-`app.json` (permissions, icons, splash, plugins, entitlements), an Expo SDK
-upgrade, widget/watch Swift or Kotlin. A pure-JS dependency usually does not —
-run the command rather than reasoning about it.
+**It answers "will an OTA reach these binaries". It never answers "is an OTA
+sufficient".** Those come apart, and the way they come apart is silent:
+
+**Swift and Kotlin under `targets/` do NOT move the fingerprint.** Measured three
+ways on 2026-08-08 (both `.ipa`s plus a fresh generate): `QuickAddIntents.swift`
+was edited, iOS build 28 shipped the change, and the hash stayed byte-identical
+to build 27's. So for a native-source change the gate reads "same hash → ship it
+over the air", and that OTA contains **no Swift at all** — it publishes, it
+succeeds, it reports success, and it fixes nothing.
+
+> **If you touched anything under `targets/` or `modules/`, you need a build, no
+> matter what the hash says.** Ask the gate only *which binaries* an update can
+> reach.
+
+**`app.json` is hashed as a whole, so a key for one platform moves the other
+platform's fingerprint too.** Measured 2026-08-08: adding `NSSupportsLiveActivities`
+under `ios.infoPlist` moved the **Android** hash off live vc 21's, re-stranding
+Android's OTA channel about forty minutes after vc 21 was built to fix exactly
+that. Check both platforms after any `app.json` edit, not just the one you meant
+to change.
+
+**Also moves it:** any dependency carrying native code, `eas.json`, an Expo SDK
+upgrade, the `plugins` array (including `./plugins/*`). A pure-JS dependency
+usually does not — run the command rather than reasoning about it.
+
+**Does not move it:** `.ts`/`.tsx`/`.js`, UI, styles, business logic, i18n
+strings, Metro-bundled assets.
 
 ## Step 2 — OTA (no build, no queue, no review)
 
+This step owns OTA publishing for **both** platforms — `eas update` publishes for
+both at once. `build-ios` links here rather than repeating it.
+
+**Publish from `ignia-mac`**, for the same machine-dependence reason as the gate.
+
 **Before publishing: tell the user what changed.** Store release notes — App Store
 "What's New", Play release notes — attach to **binary releases only**. An OTA
-update reaches the device with no store involvement at all, so the in-app banner is
-the **only** user-facing channel. Skip it and people get silently-changed software.
-
-The banner is a one-time dismissible card on Today / the home screen, and every
-piece of it is plain JS, so bumping it ships in the same update:
+reaches the device with no store involvement, so the in-app banner is the **only**
+user-facing channel. Skip it and people get silently-changed software.
 
 | What | Where |
 |---|---|
@@ -49,189 +83,215 @@ piece of it is plain JS, so bumping it ships in the same update:
 | Copy (both locales, flat keys) | `apps/mobile/src/i18n/{en,es-PR}.ts` → `whatsNew.title`, `whatsNew.body` |
 | Web equivalent (nested keys) | `src/app/components/whats-new-banner/whats-new-banner.component.ts` |
 
-It re-shows when `WHATS_NEW_VERSION` differs from the stored `whatsNew.seen`
-(AsyncStorage on mobile, localStorage on web), so **bumping the constant is what
-makes it fire** — changing only the copy shows nobody anything. It is a single
-summary sentence, not a changelog; keep it to what a user would notice.
+It re-shows when `WHATS_NEW_VERSION` differs from the stored `whatsNew.seen`, so
+**bumping the constant is what makes it fire** — changing only the copy shows
+nobody anything. One summary sentence, not a changelog. The mobile and web
+constants track their own seen-values and drift independently; bump both when a
+change spans platforms.
 
-The mobile and web constants drift independently (mobile `2026-06-30`, web
-`2026-06-13` as of 2026-08-07). That is not a bug — each tracks its own seen-value
-— but bump both when a change spans platforms.
-
-Then publish:
+Run the Metro gate first — `tsc` and `jest` both pass while a bundling break is
+latent (`apps/mobile/AGENTS.md`; it cost two EAS builds to learn):
 
 ```sh
-cd apps/mobile && npx eas update --branch production --message "<what changed>"
+cd apps/mobile && npx expo export --platform android --output-dir <tmp>
+```
+
+Then publish, and **verify which runtime it went out under**:
+
+```sh
+ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx eas update --branch production --message '<what changed>'"
+ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx eas update:list --branch production --limit 3"
 ```
 
 `--message` is for **you**, in the EAS dashboard. Users never see it.
 
-Free tier is **1,000 monthly active users** (unique devices downloading ≥1 update
-per month); the tester base is single digits, so this costs nothing today.
-
 - Testers get it on the **next** launch, not the current one.
 - Undo with `eas update:roll-back-to-embedded` — returns everyone to the JS baked
   into their binary.
-- Branch/channel names match `eas.json` build profiles: development / preview /
-  production.
+- Branch/channel names match the `eas.json` build profiles.
+- Free tier is **1,000 monthly active users**; the tester base is single digits.
 
-Run the Metro gate first — `tsc` and `jest` both pass while a bundling break is
-latent (see this folder's `AGENTS.md`, which cost two EAS builds to learn):
+## Step 3 — a real Android build, on the Mac, free
 
-```sh
-npx expo export --platform android --output-dir <tmp>
-```
+`ignia-mac` is the **only** machine here that can build Android at all — see the
+closed-avenues table at the end. Zero EAS quota. ~11 minutes warm.
+`DEV_ENVIRONMENT.md` §3.11 has the runbook.
 
-## Step 3 — a real Android build: build it on the Mac, free
-
-**Proven 2026-08-07: `ignia-mac` builds Android.** 89 MB `.aab` in 13m03s cold,
-120 native `.so` libraries including `arm64-v8a/libappmodules.so` — the exact
-artifact whose compilation is impossible on this Windows box. **Zero EAS quota.**
-See `DEV_ENVIRONMENT.md` §3.11.
+### Preflight
 
 ```sh
-ssh ignia-mac "cd ~/fitness-tracker-pwa && git pull --ff-only && cd apps/mobile && \
-  export GRADLE_OPTS='-Dorg.gradle.internal.http.socketTimeout=60000 -Dorg.gradle.internal.http.connectionTimeout=60000' && \
-  eas build -p android --profile production --local --non-interactive"
+ssh ignia-mac "cd ~/fitness-tracker-pwa && git log --oneline -1 && git status --short | head -5
+df -h / | awk 'NR==2{print \$4\" free\"}'
+ls apps/mobile/android 2>/dev/null && echo 'STALE PREBUILD DIR — delete it'"
 ```
+
+- **Disk ≥ 20 GB.** Gradle caches and outputs add ~5 GB. `~/.gradle` is ~5.5 GB and
+  is a cache — safe to delete, at the cost of a slow next build. Clear Xcode
+  DerivedData first; it is cheaper to lose.
+- **`apps/mobile/android/` must not exist.** EAS treats a present native dir as
+  bare-workflow and carries stale config forward, reproducing the missing-channel
+  bug below.
+
+### Launch detached, with a sentinel
+
+**Never run the build in the foreground of an SSH session** — the connection
+dropping kills it, and a dead SSH is indistinguishable from a finished process.
+
+```sh
+ssh ignia-mac "cat > ~/run-android-build.sh <<'EOF'
+#!/bin/zsh
+cd ~/fitness-tracker-pwa/apps/mobile || exit 90
+set -a; . ~/fitness-tracker-pwa/.env.local; set +a
+export GRADLE_OPTS='-Dorg.gradle.internal.http.socketTimeout=60000 -Dorg.gradle.internal.http.connectionTimeout=60000'
+echo \"IGNIA_ANDROID_START \$(date -u +%FT%TZ)\"
+npx eas build -p android --profile production --local --non-interactive
+echo \"IGNIA_ANDROID_EXIT=\$?\"
+EOF
+chmod +x ~/run-android-build.sh
+rm -f ~/android-build.log
+nohup caffeinate -dims ~/run-android-build.sh > ~/android-build.log 2>&1 &
+echo launched"
+
+until ssh ignia-mac "grep -q IGNIA_ANDROID_EXIT ~/android-build.log" 2>/dev/null; do sleep 60; done
+```
+
+`caffeinate -dims` is not optional: the dock can drop power delivery while still
+working as a dock, which puts the Air on battery where sleep is allowed.
+
+**`GRADLE_OPTS` carries only the socket timeouts.** Gradle has no default socket
+timeout, and a dropped connection to Google's Maven once left a build hung for 19
+minutes looking exactly like slow compilation. **Heap and metaspace are NOT here
+any more** — they live in `apps/mobile/plugins/withGradleJvmArgs.js`, because an
+env var typed by hand works exactly as often as someone remembers it. That plugin
+exists because a release build died on `OutOfMemoryError: Metaspace` in
+`:react-native-health-connect:lintVitalAnalyzeRelease` on 2026-08-08, and
+`expo-build-properties` has no option for Gradle JVM args.
 
 **Use `eas build --local`. NEVER raw `./gradlew bundleRelease`.** Gradle compiles
 and signs fine and Play accepts the output — and the binary **silently cannot
-receive OTA updates**, because `expo prebuild` does not read `eas.json` and so
-never writes the update channel into `AndroidManifest.xml`. The app then calls
-`u.expo.dev` with no `expo-channel-name` header and EAS has no branch to serve it.
-Nothing errors at build time or runtime. That shipped as **vc 10** before anyone
-checked, and is why **vc 11** exists. `eas build --local` runs the real EAS
-pipeline locally, so it injects the channel, resolves signing from
-`credentialsSource: "local"`, and increments the versionCode from the remote
-source. (`apps/mobile/scripts/patch-android-release.mjs` hand-wired those for the
-raw-Gradle experiment and is now obsolete.)
+receive OTA updates**, because `expo prebuild` does not read `eas.json` and never
+writes the update channel into `AndroidManifest.xml`. Nothing errors at build time
+or runtime. That shipped as vc 10 before anyone checked, and is why vc 11 exists.
+`apps/mobile/scripts/patch-android-release.mjs` served that dead raw-Gradle path
+and is **obsolete** — it is referenced by no npm script; do not follow it into a
+build.
 
-**If `apps/mobile/android/` exists from a previous hand-run, delete it first** —
-EAS treats a present native dir as bare-workflow and carries the stale config
-forward, reproducing the bug.
+**`JAVA_HOME` must be the explicit Homebrew path.** `openjdk@17` is keg-only, so
+`/usr/libexec/java_home -v 17` cannot see it and silently yields Java 11; Gradle
+then dies with `UnsupportedClassVersionError` (class file 61 vs 55). Use
+`/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home`.
 
-Three more things that will bite, all measured:
+### Verify the artifact — exit 0 is not enough
 
-- **`JAVA_HOME` must be the explicit Homebrew path.** `openjdk@17` is keg-only, so
-  `/usr/libexec/java_home -v 17` cannot see it and silently yields Java 11 —
-  `sdkmanager` and Gradle then die with `UnsupportedClassVersionError` (class file
-  61 vs 55). Use
-  `/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home`.
-- **Gradle has NO default socket timeout.** A dropped connection to Google's Maven
-  left a build hung for 19 minutes looking exactly like slow compilation — the
-  tell is a socket in `CLOSE_WAIT` and zero writes into `android/app/build`. Pass
-  it via `GRADLE_OPTS` as above, since EAS drives Gradle itself.
-- **Disk.** The SDK is only ~3 GB, but Gradle caches and outputs added ~5 GB on
-  first build. Watch it if the Mac carries both platforms.
-
-**Verify before submitting — three cheap checks:**
+`eas build --local` writes **`apps/mobile/build-<timestamp>.aab`**, not the Gradle
+output path. All three checks run against that file:
 
 ```sh
-keytool -printcert -jarfile <aab> | grep Owner   # NOT "CN=Android Debug"
-unzip -p <aab> base/manifest/AndroidManifest.xml | strings | grep expo-channel-name
-eas build:version:get -p android
+ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && A=build-<ts>.aab &&
+  unzip -p \$A 'META-INF/MACROLOG.RSA' | keytool -printcert | grep -E 'Owner:|SHA1:' &&
+  unzip -p \$A base/manifest/AndroidManifest.xml | strings | grep expo-channel-name &&
+  unzip -p \$A base/assets/fingerprint"
 ```
 
-**Do NOT try to build Android locally on Windows.** Every avenue is closed, and
-each one costs 6+ minutes to rediscover:
+- Owner must be **`CN=Macro Log Dev`** — `CN=Android Debug` is the wrong upload
+  cert and Play rejects it.
+- `{"expo-channel-name":"production"}` must be present, or the binary is an OTA
+  dead end.
+- The fingerprint is the value to record in `AGENTS.md`. **Read it from the
+  artifact; never from a locally generated hash.**
+
+**Do NOT read the versionCode from the build log.** vc 18's log printed
+*"Version code: 19"* and produced 18; the vc 21 build was expected to be 20. The
+log describes the remote counter advancing for the *next* build. `autoIncrement`
+also burns a number per **attempt**, so failed builds leave permanent gaps (vc
+12, 14–17, 19, 20 and iOS build 26 do not exist). Read it from Play after
+submitting.
+
+### Signing
+
+`credentialsSource: "local"` → `credentials/dev.keystore`, alias `macrolog-dev`.
+**Never regenerate or replace it** — `fit.ignia.app` is registered with Play
+against that cert and there is no recovery. It now exists on both machines;
+locations and the disposal list are in `CLAUDE.local.md`.
+
+### Windows cannot build Android — every avenue, closed
+
+Each costs 6+ minutes to rediscover.
 
 | Attempt | Why it fails |
 |---|---|
-| `./gradlew bundleRelease` on Windows | `MAX_PATH`. RN New Architecture codegen embeds the full source path in the object path; `react-native-keyboard-controller` reaches 350 chars against a 260 limit ([upstream #1247](https://github.com/kirillzyusko/react-native-keyboard-controller/issues/1247), open, unfixed) |
+| `./gradlew bundleRelease` on Windows | `MAX_PATH`. RN New Architecture codegen embeds the full source path in the object path; `react-native-keyboard-controller` reaches 350 chars against a 260 limit ([upstream #1247](https://github.com/kirillzyusko/react-native-keyboard-controller/issues/1247), open) |
 | Shorter staging dir | Arithmetic kills it — the remainder past the prefix is 275 chars alone |
 | `LongPathsEnabled` registry | Already `1`; the SDK ships ninja 1.10.2, which predates the opt-in |
-| `-DCMAKE_OBJECT_PATH_MAX=200` | Reaches CMake (verified in `CMakeCache.txt`), no effect — sources are out-of-tree, so CMake embeds the mangled absolute path and the max does not rewrite it |
+| `-DCMAKE_OBJECT_PATH_MAX=200` | Reaches CMake (verified in `CMakeCache.txt`), no effect — sources are out-of-tree, so CMake embeds the mangled absolute path |
 | `eas build --local` in WSL2 | **ARM64** machine (Snapdragon X Elite) → WSL is `aarch64`, and Google ships the SDK/NDK for `linux-x86_64` only ([tracker 227219818](https://issuetracker.google.com/issues/227219818), open) |
 
 ### Fallback: the EAS cloud build
 
-Only when the Mac is unreachable.
+Only when the Mac is unreachable. Quota is **15/month** and the free-tier queue
+has run to **two hours**. Check `SENTRY_AUTH_TOKEN` before queueing —
+`@sentry/react-native` uploads source maps as a Gradle task, so a stale token
+**fails the build**; build `9e3df4e3` died on an HTTP 401 after a two-hour wait.
+`npm run doctor` group 3 validates the local copy.
 
-```sh
-cd apps/mobile && npx eas build -p android --profile production
-```
-
-- Quota is **15/month**; free-tier queue has run to **two hours**.
-- `autoIncrement: true` with `appVersionSource: "remote"` — the counter lives on
-  EAS, not the repo. Read it with `eas build:version:get -p android`. A local
-  Gradle build does NOT increment it; set it by hand with
-  `eas build:version:set` or the next cloud build re-mints a colliding number.
-- **Check `SENTRY_AUTH_TOKEN` before queueing.** `@sentry/react-native` uploads
-  source maps as a Gradle task, so a stale token FAILS the build — build
-  `9e3df4e3` died on an HTTP 401 after a two-hour wait. `npm run doctor` group 3
-  validates the local copy.
-
-### Signing, either path
-
-`credentialsSource: "local"` → `credentials/dev.keystore`, alias `macrolog-dev`.
-**Never regenerate or replace it**: `fit.ignia.app` is registered with Play against
-that cert and there is no recovery. `apps/mobile/scripts/patch-android-release.mjs`
-wires it into a prebuilt `android/` (real release signing config + versionCode),
-because Expo's template points `release` at the **debug** keystore — an AAB signed
-that way is the wrong upload cert and Play rejects it. Verify before submitting:
-
-```sh
-keytool -printcert -jarfile <aab> | grep -i 'Owner\|SHA'
-# CN=Android Debug  →  WRONG, unsigned-for-Play
-```
-
-## Step 4 — submit FROM WINDOWS, not from the Mac
+## Step 4 — submit FROM WINDOWS
 
 **The Mac cannot submit to Play.** It has `dev.keystore` but deliberately NOT
-`credentials/play-service-account.json` — that key can publish releases to the
-live listing, and the Mac already holds the signing keystore, the Sentry token
-and an EAS session. Pull the AAB back instead of adding a fourth credential to
-someone else's laptop:
+`credentials/play-service-account.json` — that key can publish to the live
+listing, and the Mac already holds the signing keystore, the Sentry token and an
+EAS session. Pull the AAB back rather than adding a fourth credential to someone
+else's laptop.
+
+**Windows ARM64 is not a barrier here.** The architecture limit is on *building*
+(Google ships the Android SDK/NDK for `linux-x86_64` only); `eas submit` is a
+Node CLI that uploads a file to the Play API and runs fine.
 
 ```sh
 # on Windows
-scp ignia-mac:~/fitness-tracker-pwa/apps/mobile/android/app/build/outputs/bundle/release/app-release.aab <tmp>/ignia-vcN.aab
-cd apps/mobile && npx eas submit -p android --profile production --path <tmp>/ignia-vcN.aab
+scp ignia-mac:~/fitness-tracker-pwa/apps/mobile/build-<ts>.aab "$TEMP/claude/ignia-vcN.aab"
+cd apps/mobile && npx eas submit -p android --profile production --path "$TEMP/claude/ignia-vcN.aab" --non-interactive
 ```
 
-89 MB over Tailscale, a few seconds. Goes to the **alpha** track with
+~93 MB over Tailscale, a few seconds. Goes to the **alpha** track with
 `releaseStatus: "completed"` (rolled out to the tester list, not a draft).
+`eas submit` consumes **no build quota**.
 
-`eas submit` consumes **no build quota** — it is a separate service from
-`eas build`. Submitting freely is fine.
+**Verify at Play, not from the CLI** — `androidpublisher` edits→tracks is the
+authority on what testers have, and it is also where the real versionCode comes
+from. The quickest read of both is the sync script:
 
-**Verify at Play, not from the CLI** — the `androidpublisher` edits→tracks API is
-the authority on what testers actually have:
-
-```
-GET androidpublisher/v3/.../tracks/alpha  →  status=completed, versionCodes=["N"]
+```sh
+node scripts/app-version-sync.mjs --check    # prints the live alpha versionCode
 ```
 
 ### Shipping a binary does NOT deliver an OTA update
 
-Two separate things, and conflating them wastes a release:
-
-- A device only becomes OTA-capable once it is **running a binary that contains
+- A device becomes OTA-capable only once it is **running a binary containing
   `expo-updates`**. Testers on an older versionCode receive nothing until they
-  install the new one from Play — which is their action, not yours. You can now
-  *ask* for that action (see below), but you still cannot take it for them.
-- Publishing the binary does not publish an update. `eas update` is a separate
-  command, run when you actually have a JS change to ship.
+  install the new one — their action, not yours.
+- Publishing a binary does not publish an update. `eas update` is Step 2, run
+  when you have a JS change to ship.
 
 ## After shipping
 
-- **Sync `public/app-version.json` and deploy hosting** — this is what tells
-  every older install that a new binary exists (`UpdateBanner` on Today reads
-  it and offers a link to Play). Do not hand-edit the number; it is derived
-  from the live Play tracks:
+```sh
+node scripts/app-version-sync.mjs        # derives the number from the live Play tracks
+npm run build && firebase deploy --only hosting
+curl -s https://ignia.fit/app-version.json
+```
 
-  ```sh
-  node scripts/app-version-sync.mjs        # reads androidpublisher, rewrites the file
-  firebase deploy --only hosting           # nothing reaches anyone until this runs
-  ```
+`UpdateBanner` on Today reads that file to tell older installs a new binary
+exists. **Skip the deploy and it silently never fires** — no error, no warning,
+every install quietly believing it is current, indistinguishable from never
+having built the feature. Never hand-edit the number. `npm run doctor` fails on
+the drift (*app-version.json matches what Play ships*), so the safety net is the
+doctor run, not your memory. **A prod web build is required before
+`firebase deploy`** — a dev build skips `ngsw.json`.
 
-  Skip it and the banner **silently never fires** — no error, no warning, and an
-  app that goes on reporting everyone is up to date, which is indistinguishable
-  from never having built the feature. `npm run doctor` fails on that drift
-  (*app-version.json matches what Play ships*), so the safety net is the doctor
-  run, not your memory.
-- Update the fingerprint table in `apps/mobile/AGENTS.md` if a new binary shipped.
-- Update `STATUS.md` — it is the file that says what is true right now.
+Then:
+
+- Update the fingerprint table in `apps/mobile/AGENTS.md`, with the value read
+  from the artifact.
+- Update `STATUS.md` — it says what is true right now.
 - **A merged fix reaches nobody until it is in a binary or an update.** Say which,
-  out loud, when reporting.
+  and which cohort, out loud when reporting.

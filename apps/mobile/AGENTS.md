@@ -219,6 +219,16 @@ source, and the hash cannot answer it: if the change is under `targets/` or
 The upside of the same fact: builds 27 and 28 share runtime `4734a4b6…`, so a
 single `eas update` reaches both cohorts.
 
+**`app.json` is hashed as a WHOLE, so a key for one platform moves the other
+platform's fingerprint too.** Measured 2026-08-08: adding `NSSupportsLiveActivities`
+under `ios.infoPlist` — a key Android cannot read and no Android file mentions —
+moved the **Android** hash to `5d911df8…`, off live vc 21's `f101b1d4…`. vc 21
+existed specifically to end Android's OTA stranding, and it was re-stranded about
+forty minutes later by an iOS-only line. **Generate BOTH platforms after any
+`app.json` edit**, not just the one you meant to change. The same applies to the
+`plugins` array, including `./plugins/*` — `withGradleJvmArgs.js` is an
+Android-only plugin and it moves the iOS hash.
+
 **Does NOT change it** (⇒ ships over the air): `.ts`/`.tsx`/`.js` source, UI,
 styles, business logic, i18n strings, Metro-bundled assets.
 
