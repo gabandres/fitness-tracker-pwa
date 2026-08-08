@@ -177,11 +177,16 @@ What remains, in the order it was prioritized with the owner:
       Open Food Facts still serves branded/barcode. Wire contract unchanged, so
       it shipped functions-only with no client release. Retires
       `USDA_FDC_API_KEY` (8 → 7 active secret versions).
-      **Still open — the half this does NOT do:** photo-scan continues to let
-      the model emit macros directly. Wiring `analyzePhoto` to resolve its
-      recognized items against this DB is what actually closes ADR-0015's split
-      vision architecture, and it is now a small change rather than a blocked
-      one. **N6 and N7 are unblocked by this.**
+      **N6 and N7 are unblocked by this.**
+- [x] **N2b · Photo-scan resolves its macros against that DB.** **SHIPPED
+      2026-08-07** — ADR-0019, and the half N2 deliberately left open. The vision
+      model now returns a list of `{name, grams, state}` and
+      `functions/src/photo-resolve.ts` looks each up, closing ADR-0015 §1's split
+      vision architecture. The response is additive, so every already-installed
+      binary got the grounded numbers on the functions deploy; the itemized
+      review screen went out as an OTA. Also 2.9x faster (`thinkingBudget: 0`),
+      and `scripts/smoke-photo-scan.mjs` now exists to check it end to end
+      against prod, which nothing did before.
 
 ### Tier 2 — cheap and on-brand, unscheduled
 
