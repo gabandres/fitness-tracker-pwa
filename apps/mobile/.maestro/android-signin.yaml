@@ -1,0 +1,53 @@
+# Sign in on the emulator, so every other flow can assume a session.
+#
+# ## Credentials come from the environment, never from this file
+#
+# The repo is public. Pass them in:
+#
+#   maestro test .maestro/android-signin.yaml \
+#     -e EMAIL=qa-test@ignia.fit -e PASSWORD="$(cat ~/qa-pass.txt)"
+#
+# Use the **QA account**, not `review@ignia.fit` and not `demo@ignia.fit`.
+# `review@` is what Apple App Review signs in with — ASC carries those
+# credentials forward on every version, and changing that password is a review
+# rejection waiting to happen. `demo@` owns the store screenshots.
+# `CLAUDE.local.md` has the full account table; `scripts/seed-demo-account.mjs`
+# creates and seeds a fresh QA account in one command.
+#
+# ## Why this is a separate flow
+#
+# It runs once per emulator, not once per test. Firebase persists the session to
+# AsyncStorage, so every other flow here can keep `clearState: false` and stay
+# about the thing it actually tests — a sign-in failure inside a measurement
+# flow would read as a measurement regression.
+#
+# Deliberately NOT combined with android-smoke.yaml, which asserts the
+# signed-OUT entry point and must therefore keep `clearState: true`.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+
+# Already signed in from a previous run? Nothing to do. `runFlow` with a
+# condition keeps this idempotent, so it can be re-run without thinking.
+- runFlow:
+    when:
+      visible: 'Sign in to your account'
+    commands:
+      - tapOn: 'Email'
+      - inputText: ${EMAIL}
+      - tapOn: 'Password'
+      - inputText: ${PASSWORD}
+      - hideKeyboard
+      - tapOn:
+          text: 'Sign in'
+          index: 0
+
+      # The session landed and Today rendered. Asserting on a Today-screen
+      # element rather than on the absence of the sign-in screen: "not visible"
+      # would also pass on a blank screen after a crash.
+      - extendedWaitUntil:
+          visible: 'Today'
+          timeout: 30000
+
+- assertVisible: 'Today'
