@@ -1,0 +1,50 @@
+# Android launch smoke — the first automated test that has ever run against a
+# real Android build of this app.
+#
+# ## Why this exists
+#
+# The owner has no Android device. Every Android box in `WIDGET.md`'s device-QA
+# checklist has been unticked since the feature shipped, and vc 18 and vc 21 went
+# to testers with nothing anywhere having launched them. The emulator on
+# `ignia-mac` (see this folder's README) closes that, and this is the floor: does
+# the release binary start at all, and does it draw something.
+#
+# That floor is not trivial. `index.js` registers the Android widget's task
+# handler at module scope, before React mounts, and a failure there is a launch
+# crash rather than a broken widget. Nothing else in this repo executes that path.
+#
+# ## Deliberately signed OUT
+#
+# The other flows in this directory assume an existing session (`clearState:
+# false`). This one asserts the signed-out entry point instead, because it has to
+# run on a freshly-installed emulator where no session exists and no credential
+# is available to CI or to an agent. Signed-in Android flows need the demo
+# account's password, which lives only in the owner's password manager.
+#
+# Assert on VISIBILITY, never existence — this directory's standing rule. A view
+# collapsed to zero height still "exists".
+#
+# Run (emulator booted, universal APK installed — README has both):
+#   cd apps/mobile && maestro test .maestro/android-smoke.yaml
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: true
+
+# The app got past `index.js`'s widget-task registration, past the Expo Router
+# tree, and rendered. On a release build this is also the proof that Hermes
+# loaded the bundled JS.
+- assertVisible: 'Sign in to your account'
+
+# The two fields a user must be able to see and type into. `Email` and
+# `Password` are placeholders, so this asserts the inputs actually rendered with
+# height — the exact class of bug the measurements flow exists for.
+- assertVisible: 'Email'
+- assertVisible: 'Password'
+
+# Google sign-in is the path that fails with DEVELOPER_ERROR when a Play signing
+# certificate is not registered in Firebase — the failure that was invisible
+# locally for two builds because it only reproduces on a Play install. Its
+# presence is not proof it works, but its ABSENCE would mean the button never
+# rendered at all.
+- assertVisible: 'Continue with Google'
