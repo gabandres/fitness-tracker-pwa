@@ -297,6 +297,19 @@ describe("the real dataset", () => {
     expect(resolved("grilled salmon with lemon", "cooked")).toMatch(/salmon/i);
   });
 
+  it("matches the whole query, not just its head noun", () => {
+    // From the first real production scan: "tomato sauce" returned
+    // "Sauce, steak, tomato based" (95 kcal/100 g) because steak sauce is a
+    // sauce and its name is shorter. Every sauce matches "sauce".
+    const sauce = resolved("tomato sauce", "cooked");
+    expect(sauce).toMatch(/^Tomato sauce/i);
+    expect(sauce).not.toMatch(/steak/i);
+    // Second production scan, same wrong food by a different route: the model
+    // said "tomato-based sauce", and "based" as a core token made steak sauce an
+    // EXACT three-token match that no ranking tweak could outscore.
+    expect(resolved("tomato-based sauce", "cooked")).toMatch(/^Tomato sauce/i);
+  });
+
   it("honours a named preparation over the generic cooked preference", () => {
     expect(resolved("canned tuna", "cooked")).toMatch(/canned/i);
     expect(resolved("fried plantains", "cooked")).toMatch(/plantain.*fried/i);

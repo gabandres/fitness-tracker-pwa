@@ -146,6 +146,11 @@ Include cooking fats as their own item when clearly present (oil, butter,
 dressing, sauce) — fried or sautéed items imply oil; pressed sandwiches
 (cubano, medialunas) imply butter.
 
+Sanity-check the weights before you answer. A sauce, dressing, condiment or
+cooking oil is almost never more than 60 g; a normal portion of a main dish is
+150-400 g; a whole restaurant plate rarely exceeds 900 g in total. A condiment
+weighed like a main course is the most common way this goes wrong.
+
 Fallback macros: also give kcal/protein/carbs/fat for each item, for the whole
 portion. These are used ONLY for foods a USDA database will not carry — regional
 dishes like mofongo, tostones, pernil or pan sobao. For common foods they are

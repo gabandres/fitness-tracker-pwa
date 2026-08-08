@@ -253,10 +253,21 @@ function countMatches(s: string, re: RegExp, waive?: string[]): number {
  * Scoring the earliest segment that matches, and decaying by position, covers
  * both without special-casing either. Without it, "tuna" returns "Tuna salad
  * sandwich wrap" — which leads with the literal word and is the wrong food.
+ *
+ * **Matching the WHOLE query outranks matching only its head**, and the gap has
+ * to be wide enough that brevity cannot close it. It used to be zero: a food
+ * whose leading segments spelled out the entire query and one that merely shared
+ * the query's last token both scored 150, so the shorter description won. That
+ * is how "tomato sauce" returned **"Sauce, steak, tomato based"** (95 kcal/100 g)
+ * instead of "Tomato sauce, canned" (24) — the head token was "sauce", steak
+ * sauce is a sauce, and its name is 9 characters shorter. Found on a real
+ * production photo scan, not in a test.
+ *
+ * For a single-token query the two are the same match, so nothing changes there.
  */
 function headMatchBonus(food: IndexedFood, tokens: string[], query: string): number {
   if (food.norm === query) return 1000;
-  if (leadingSegmentsCover(food, tokens)) return 150;
+  if (leadingSegmentsCover(food, tokens)) return 200;
 
   // Compared as stems so "onion" still matches the segment "onions".
   const queryStem = stems(tokens).join(" ");
@@ -264,7 +275,10 @@ function headMatchBonus(food: IndexedFood, tokens: string[], query: string): num
   const limit = Math.min(food.segments.length, 3);
   for (let i = 0; i < limit; i++) {
     const seg = food.segmentStems[i].join(" ");
-    if (seg === queryStem || seg === headStem) return 150 - 30 * i;
+    // The segment IS the whole query — as specific as a leading-segment cover.
+    if (seg === queryStem) return 200 - 30 * i;
+    // Only the head noun matched. Real, but weaker: every sauce matches "sauce".
+    if (seg === headStem) return 120 - 30 * i;
   }
 
   if (food.norm.startsWith(query)) return 60;

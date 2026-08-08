@@ -239,6 +239,9 @@ describe("the bundled dataset", () => {
     // spread across leading segments ("Chicken, breast, …"). Ranking the
     // compound higher put deli slices above actual chicken breast.
     ["chicken breast", /^Chicken, breast/],      // was "Chicken breast, …, sliced"
+    // Matching the whole query must beat matching only its head noun, by more
+    // than a shorter description can win back. Every sauce matches "sauce".
+    ["tomato sauce", /^Tomato sauce/],           // was "Sauce, steak, tomato based"
   ])("ranks the plain form first for %j", (query, expected) => {
     const [top] = searchUsda(foods, query, 5);
     expect(top, `no hit for "${query}"`).toBeDefined();

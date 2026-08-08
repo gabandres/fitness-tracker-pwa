@@ -114,6 +114,11 @@ const FILLER = new Set([
   // whole", "Egg, whole" and "whole wheat", so dropping them costs the match.
   "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
   "topped", "served", "style", "homemade", "assorted", "mixed",
+  // "tomato-based sauce" tokenizes to [tomato, based, sauce], and "based" is a
+  // real word in USDA composite names ("Pasta with tomato-based sauce"), so
+  // keeping it as core made "Sauce, steak, tomato based" an EXACT match and beat
+  // "Tomato sauce, canned" outright. It says nothing about what the food is.
+  "based", "flavored", "type", "kind",
   // Knife work. These read like preparation but USDA almost never files under
   // them, and treating them as CORE is actively harmful: "shredded lettuce"
   // relaxes to the rarer token and returns "Cheese, parmesan, shredded".
@@ -306,7 +311,7 @@ const COOKED_MARKERS =
  * a model that reports "breaded chicken" means the breaded row.
  */
 const PRODUCT_QUALIFIERS =
-  /\b(sliced|roll|luncheon|deli|coated|breaded|battered|stuffed|tenders|nuggets|reconstituted|restaurant|fast food|babyfood|baby|infant|fat-free|low-fat|nonfat|reduced fat|light|instant|mix|powder)\b/g;
+  /\b(sliced|roll|luncheon|deli|coated|breaded|battered|stuffed|tenders|nuggets|reconstituted|restaurant|fast food|babyfood|baby|infant|fat-free|low-fat|nonfat|reduced fat|light|instant|mix|powder|turnover|fritter|croquette|empanada|dumpling|wrap|pastry|spread)\b/g;
 
 /**
  * USDA's SR-legacy rows carry brand and chain names in SHOUTING CAPS
