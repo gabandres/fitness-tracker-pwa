@@ -224,6 +224,34 @@ in this feature. The two starred rows are the ones that would make it worthless.
 - [ ] Set the app to es-PR → the tile reads `Registrar <name>`, following the
       **profile**, not the phone.
 
+**Quick-add — iOS. Also entirely UNTICKED.** The write path here is different in
+kind from Android's: a Swift App Intent talking to the Firestore REST API with a
+token it minted itself (ADR-0020). Nothing in it is exercised by any test that
+runs on a machine.
+
+- [ ] ★ **"Hey Siri, log a preset in Ignia" → Siri offers the designated presets,
+      and picking one logs it.** This proves the whole REST path: keychain read,
+      token exchange, PATCH, rules acceptance.
+- [ ] Siri's reply names what it did. A queued write must say it will sync — never
+      "logged".
+- [ ] ★ **The widget button logs without the app appearing.** If the app visibly
+      launches, `openAppWhenRun` is wrong somewhere.
+- [ ] "Log 300 calories in Ignia" writes a one-off labelled *Quick add*.
+- [ ] "Log 40 grams of protein in Ignia" → Siri **asks for calories** rather than
+      inventing a number.
+- [ ] Airplane mode → a Siri log says it will sync; open the app → the row lands
+      on the day it was spoken.
+- [ ] Sign out → Siri says to sign in again, and nothing is written.
+- [ ] Change the account password on another device (revoking the refresh token)
+      → the next Siri attempt says to sign in again rather than failing silently
+      or retrying forever.
+- [ ] The shortcuts appear in the **Shortcuts app** under Ignia, and
+      `LogQuickAddSlotIntent` does **not** (it is `isDiscoverable: false` — "Log
+      quick-add slot 2" is meaningless to a human).
+- [ ] **Build 25 still renders its widget** after this build's blob format
+      reaches it. This is the additive-field claim; if it blanks, the `quickAdd`
+      field was not as optional as intended.
+
 **Apple Watch** — none of this is reachable until the watch targets compile and
 a build carries them. The layout half is a **simulator** readout (#46) and needs
 no hardware; everything below needs a real paired watch.

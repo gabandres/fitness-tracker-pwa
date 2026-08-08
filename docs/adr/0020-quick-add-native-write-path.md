@@ -174,13 +174,32 @@ once the iOS half lands — a Swift encoder for the REST payload. This is the
 drift risk to watch, and the reason the queue's wire shape is flat and
 primitive-only.
 
-**A long-lived credential moves outside the app sandbox** on iOS. The refresh
-token belongs in a shared **Keychain access group**, not App Group
-`UserDefaults`, which is a plist. It is written on auth-state change from the same
-hook that writes the snapshot, cleared on sign-out beside the snapshot clear, and
-on a 400 from `securetoken` both it and the queue are dropped — a queue held
-against a revoked credential is data that can never land, and holding it is worse
-than losing it.
+**A long-lived credential is stored on iOS.** The refresh token belongs in the
+**Keychain**, not App Group `UserDefaults`, which is a plist. It is written on
+auth-state change from the same hook that writes the snapshot, cleared on sign-out
+beside the snapshot clear, and on a 400 from `securetoken` both it and the queue
+are dropped — a queue held against a revoked credential is data that can never
+land, and holding it is worse than losing it.
+
+> **Amended during implementation (same day): the app's own Keychain, not a
+> shared access group.** This ADR originally specified a *shared* Keychain access
+> group, on the assumption that the intent runs in its own process. It does not:
+> App Shortcuts declared in the app target and widget `Button(intent:)` are both
+> performed by launching the **app** in the background, so `perform()` runs in the
+> app's process and reaches the app's default Keychain directly. That removes the
+> `keychain-access-groups` entitlement, the group id, and one more thing that has
+> to match across `app.json` and two targets — strictly less surface for the same
+> result. The envelope also carries the public API key and project id rather than
+> Swift holding copies, so `firebase.ts` stays the single source of both.
+
+**The pending queue is in a different store on each platform, and it has to be.**
+Android's only writer is JS, so `AsyncStorage`. On iOS the writer is Swift, which
+cannot reach `AsyncStorage` (a SQLite database in the app's own container), so the
+queue lives in the **App Group** — the one store both processes see — under the
+same key and in the same wire shape. This is the sharpest silent-failure risk in
+the whole feature: read the wrong store and every iOS quick-add appears to queue
+and then never lands, with nothing to see anywhere. It is covered by four tests,
+one of which feeds in the exact bytes the Swift side emits.
 
 **The Android tap has a fallback that is slower than the promise.**
 `startService` from a background app throws on Android 8+, and a tapped tile is

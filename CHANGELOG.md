@@ -6,6 +6,14 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-07 — "Hey Siri, log my protein shake" (iOS)
+
+The same idea as the Android release below, in the form iPhones actually use.
+
+- **Ask Siri.** "Log a preset in Ignia" picks from your quick-add list; "log 300 calories in Ignia" writes a one-off. Siri answers with what happened — and if you were offline it says so instead of pretending.
+- **A button on your widget.** Same one tap, straight from the home screen, without the app opening.
+- **Calories are asked for, not invented.** "Log 40 grams of protein" needs a calorie count to be a real entry, so Siri asks rather than guessing a number and quietly putting it in your day.
+
 ## 2026-08-07 — Log a meal without opening the app (Android)
 
 The fastest logging in Ignia used to be about six taps: unlock, find the app, wait, tap Log, pick the preset, confirm. For the meal you eat every single day, that is five taps too many — and logging friction is the thing that decides whether anyone is still using a tracker in March.
