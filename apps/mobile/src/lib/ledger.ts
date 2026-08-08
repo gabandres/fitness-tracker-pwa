@@ -1,6 +1,5 @@
 import {
   Timestamp,
-  addDoc,
   collection,
   deleteDoc,
   deleteField,
@@ -101,6 +100,31 @@ const CODEC: DocCodec<Timestamp> = {
   remove: () => deleteField(),
 };
 
+/**
+ * Create a doc with a client-minted id — the idempotent replacement for
+ * `addDoc`.
+ *
+ * `addDoc` looks like "setDoc with a random id", but it is not: it attaches a
+ * `Precondition.exists(false)` to the mutation. When the Write stream drops
+ * *after* the server committed but *before* the ack arrives, the SDK replays
+ * the same mutation against the same id, the precondition now fails, and the
+ * write rejects with `already-exists` — a create the user watched succeed,
+ * reported as a failure. `setDoc` carries no precondition, so the replay is a
+ * harmless overwrite of identical bytes.
+ *
+ * Not hypothetical: Sentry IGNIA-MOBILE-6 on Android vc 13, whose breadcrumb
+ * immediately before the throw is
+ * `WebChannelConnection RPC 'Write' stream … transport errored`. Flaky mobile
+ * networks make this the normal case, not the edge one, which is why every
+ * create in this file goes through here. The PWA adapter mirrors it
+ * (`createWithId` in `firestore-ledger.core.ts`).
+ */
+async function createDoc(col: ReturnType<typeof collection>, data: object): Promise<string> {
+  const ref = doc(col);
+  await setDoc(ref, data as Record<string, unknown>);
+  return ref.id;
+}
+
 /** Live-subscribe to the latest `count` log rows, delivered OLDEST-FIRST
  *  (matches the ledger seam contract). Doc → domain mapping + the oldest-first
  *  reverse are single-sourced in @macrolog/core (shared with the PWA adapter). */
@@ -139,8 +163,7 @@ export function subscribeLatestReport(
 }
 
 export async function addLog(uid: string, entry: LogEntry): Promise<string> {
-  const ref = await addDoc(logsCol(uid), toLogDoc(entry, CODEC));
-  return ref.id;
+  return createDoc(logsCol(uid), toLogDoc(entry, CODEC));
 }
 
 export async function updateLog(uid: string, id: string, entry: LogEntry): Promise<void> {
@@ -538,8 +561,7 @@ export function subscribePresets(
 }
 
 export async function addPreset(uid: string, preset: Omit<MealPreset, 'id'>): Promise<string> {
-  const ref = await addDoc(presetsCol(uid), toPresetDoc(preset));
-  return ref.id;
+  return createDoc(presetsCol(uid), toPresetDoc(preset));
 }
 
 export async function deletePreset(uid: string, id: string): Promise<void> {
@@ -577,8 +599,7 @@ export async function addCustomFood(
     await setDoc(customFoodDoc(uid, id), data);
     return id;
   }
-  const ref = await addDoc(customFoodsCol(uid), data);
-  return ref.id;
+  return createDoc(customFoodsCol(uid), data);
 }
 
 export async function deleteCustomFood(uid: string, id: string): Promise<void> {
@@ -600,8 +621,7 @@ export function subscribeMeasurements(
 }
 
 export async function addMeasurement(uid: string, entry: MeasurementInput): Promise<string> {
-  const ref = await addDoc(measurementsCol(uid), toMeasurementDoc(entry, CODEC));
-  return ref.id;
+  return createDoc(measurementsCol(uid), toMeasurementDoc(entry, CODEC));
 }
 
 /** Edits an existing measurement in place. `toMeasurementPatch` keeps the
@@ -657,8 +677,7 @@ export function subscribeExercises(
 }
 
 export async function addExercise(uid: string, draft: ExerciseDraft): Promise<string> {
-  const ref = await addDoc(exercisesCol(uid), pruneUndefined(toExerciseDoc(draft, CODEC)));
-  return ref.id;
+  return createDoc(exercisesCol(uid), pruneUndefined(toExerciseDoc(draft, CODEC)));
 }
 
 export async function editExercise(
@@ -728,8 +747,7 @@ export function subscribeTemplates(
 }
 
 export async function addTemplate(uid: string, draft: TemplateDraft): Promise<string> {
-  const ref = await addDoc(templatesCol(uid), pruneUndefined(toTemplateDoc(draft, CODEC)));
-  return ref.id;
+  return createDoc(templatesCol(uid), pruneUndefined(toTemplateDoc(draft, CODEC)));
 }
 
 export async function updateTemplate(uid: string, id: string, draft: TemplateDraft): Promise<void> {
@@ -770,8 +788,7 @@ export function subscribeRecentSessions(
 }
 
 export async function startSession(uid: string, draft: SessionDraft): Promise<string> {
-  const ref = await addDoc(sessionsCol(uid), pruneUndefined(toSessionDoc(draft, CODEC)));
-  return ref.id;
+  return createDoc(sessionsCol(uid), pruneUndefined(toSessionDoc(draft, CODEC)));
 }
 
 export async function updateSession(

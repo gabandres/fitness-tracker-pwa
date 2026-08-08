@@ -196,11 +196,20 @@ export function useTrain(): TrainState {
     [uid],
   );
 
+  // Both starters route their failure into `error` rather than letting the
+  // promise reject. An uncaught reject here is not silent — it reaches Sentry
+  // as an `onunhandledrejection` with no stack frames and no screen name, which
+  // is exactly how IGNIA-MOBILE-6 arrived: unreadable, and invisible to the
+  // user, who just saw the button do nothing.
   const startWorkout = useCallback(async () => {
     if (!uid || active) return;
     const draft = { status: 'active' as const, date: new Date(), exercises: [] };
-    const id = await startSession(uid, draft);
-    setActive({ ...draft, id, createdAt: new Date(), updatedAt: new Date() });
+    try {
+      const id = await startSession(uid, draft);
+      setActive({ ...draft, id, createdAt: new Date(), updatedAt: new Date() });
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error('Start failed'));
+    }
   }, [uid, active]);
 
   const startFromTemplate = useCallback(
@@ -213,8 +222,12 @@ export function useTrain(): TrainState {
         templateName: template.name,
         exercises: templateToSessionExercises(template),
       };
-      const id = await startSession(uid, draft);
-      setActive({ ...draft, id, createdAt: new Date(), updatedAt: new Date() });
+      try {
+        const id = await startSession(uid, draft);
+        setActive({ ...draft, id, createdAt: new Date(), updatedAt: new Date() });
+      } catch (e) {
+        setError(e instanceof Error ? e : new Error('Start failed'));
+      }
     },
     [uid, active],
   );

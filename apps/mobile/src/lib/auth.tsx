@@ -64,10 +64,10 @@ WebBrowser.maybeCompleteAuthSession();
 /**
  * A coded error so the sign-in screen can show a specific message.
  *
- * `detail` is set ONLY when we could not classify the failure. There is no
- * crash reporter in this app, so an unclassified native error is otherwise
- * invisible to us — a remote tester just sees "could not sign in". The sign-in
- * screen appends `detail` to the message so they can read the real code back.
+ * `detail` is set ONLY when we could not classify the failure. Sentry sees the
+ * unclassified ones too (`captureError` below), but `detail` is what a remote
+ * tester can read back off their own screen without anyone opening a dashboard.
+ * The sign-in screen appends it to the message.
  */
 export class GoogleSignInError extends Error {
   constructor(
@@ -226,6 +226,18 @@ async function acquireGoogleCredential(where: 'signInWithGoogle' | 'linkGoogle')
       if (e.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
         throw new GoogleSignInError('play-services');
       }
+    }
+    // iOS: GIDSignIn presents its consent screen in Safari / an
+    // ASWebAuthenticationSession, and when the OS refuses to open one it
+    // reports a bare `com.google.GIDSignIn` code -1 (kGIDSignInErrorCodeUnknown)
+    // whose only distinguishing feature is the message. There is nothing wrong
+    // with the build — Sentry IGNIA-MOBILE-5 came from iOS 26.6 with the
+    // `iosUrlScheme` plugin config correct and the same binary signing other
+    // testers in — so it is a device condition (Safari disabled by Screen Time
+    // / MDM, or no default browser). Match on the message, because the code is
+    // the SDK's catch-all and matching on it alone would swallow real failures.
+    if (/unable to open safari|cannot open|no browser/i.test(String((e as { message?: string })?.message ?? ''))) {
+      throw new GoogleSignInError('browser');
     }
     // Anything else is unclassified, and the two that matter here look
     // identical to the user: DEVELOPER_ERROR (code 10) = the build's signing

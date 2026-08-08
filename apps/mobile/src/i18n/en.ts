@@ -78,6 +78,7 @@ export const en = {
   'signIn.linkPrompt':
     '{email} already has an account here. Sign in with your password below and we will connect the two — same account, either way in.',
   'signIn.errPlayServices': 'Google Play services is missing or out of date on this device — update it, then try again.',
+  'signIn.errBrowser': "This device wouldn't open a browser for Google. Check that Safari is enabled (Screen Time can block it), or sign in with your email instead.",
   'signIn.errGeneric': 'Could not sign in. Please try again.',
 
   // ── onboarding ──

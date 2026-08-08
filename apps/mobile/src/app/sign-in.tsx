@@ -403,6 +403,7 @@ function errorKey(e: unknown, source: ErrSource = 'password'): I18nKey {
   if (code === 'expo-go') return 'signIn.errExpoGo';
   if (code === 'cancelled') return 'signIn.errCancelled';
   if (code === 'play-services') return 'signIn.errPlayServices';
+  if (code === 'browser') return 'signIn.errBrowser';
   return 'signIn.errGeneric';
 }
 

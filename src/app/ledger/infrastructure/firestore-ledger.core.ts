@@ -7,7 +7,6 @@
 // is pulled into the framework-free test process.
 import {
   Firestore,
-  addDoc,
   collection,
   deleteDoc,
   doc,
@@ -112,6 +111,31 @@ export class FirestoreLedgerCore {
     return doc(this.firestore, 'users', this.uid(), collectionName, id);
   }
 
+  /**
+   * Create a doc with a client-minted id — the idempotent replacement for
+   * `addDoc`, and the only way creates are made in this adapter.
+   *
+   * `addDoc` reads like "setDoc with a random id", but it attaches a
+   * `Precondition.exists(false)` to the mutation. If the Write stream drops
+   * *after* the server committed but *before* the ack arrives, the SDK replays
+   * the same mutation against the same id, the precondition now fails, and the
+   * write rejects with `already-exists` — a create the user watched succeed,
+   * reported as a failure. `setDoc` carries no precondition, so the replay is a
+   * harmless overwrite of identical bytes.
+   *
+   * Found on mobile (Sentry IGNIA-MOBILE-6, Android vc 13, breadcrumb
+   * `WebChannelConnection RPC 'Write' stream … transport errored` immediately
+   * before the throw). The web adapter had the identical latent race, so it is
+   * fixed here too rather than twice-diagnosed later — `createDoc` in
+   * `apps/mobile/src/lib/ledger.ts` is the mirror. `importLogs` already used
+   * this shape via `batch.set(doc(coll), …)`.
+   */
+  private async createIn(collectionName: string, data: object): Promise<string> {
+    const ref = doc(this.userCollection(collectionName));
+    await setDoc(ref, data as Record<string, unknown>);
+    return ref.id;
+  }
+
   /** Hard ceiling per Firestore call. The Firestore SDK retries 504s
    *  internally without ever rejecting → app-shell loader hangs forever.
    *  Surfacing a timeout lets the caller put up a retry UI. */
@@ -147,8 +171,7 @@ export class FirestoreLedgerCore {
   // ─── Daily logs ────────────────────────────────────────────────
 
   async addLog(entry: LogEntry): Promise<string> {
-    const ref = await addDoc(this.userCollection('dailyLogs'), toLogDoc(entry, CODEC));
-    return ref.id;
+    return this.createIn('dailyLogs', toLogDoc(entry, CODEC));
   }
 
   /** Latest `count` rows, returned OLDEST-FIRST (the underlying query is
@@ -263,8 +286,7 @@ export class FirestoreLedgerCore {
   }
 
   async addPreset(preset: Omit<MealPreset, 'id'>): Promise<string> {
-    const ref = await addDoc(this.userCollection('presets'), toPresetDoc(preset));
-    return ref.id;
+    return this.createIn('presets', toPresetDoc(preset));
   }
 
   async deletePreset(presetId: string): Promise<void> {
@@ -287,8 +309,7 @@ export class FirestoreLedgerCore {
       await setDoc(this.userDocIn('customFoods', id), data);
       return id;
     }
-    const ref = await addDoc(this.userCollection('customFoods'), data);
-    return ref.id;
+    return this.createIn('customFoods', data);
   }
 
   async deleteCustomFood(foodId: string): Promise<void> {
@@ -316,8 +337,7 @@ export class FirestoreLedgerCore {
   }
 
   async addMeasurement(entry: Omit<Measurement, 'id' | 'date'>): Promise<string> {
-    const ref = await addDoc(this.userCollection('measurements'), toMeasurementDoc(entry, CODEC));
-    return ref.id;
+    return this.createIn('measurements', toMeasurementDoc(entry, CODEC));
   }
 
   async updateMeasurement(id: string, entry: Omit<Measurement, 'id' | 'date'>): Promise<void> {
@@ -337,11 +357,7 @@ export class FirestoreLedgerCore {
   }
 
   async addExercise(exercise: ExerciseDraft): Promise<string> {
-    const ref = await addDoc(
-      this.userCollection('exercises'),
-      pruneUndefined(toExerciseDoc(exercise, CODEC)),
-    );
-    return ref.id;
+    return this.createIn('exercises', pruneUndefined(toExerciseDoc(exercise, CODEC)));
   }
 
   async updateExercise(id: string, patch: Partial<ExerciseDraft>): Promise<void> {
@@ -407,11 +423,7 @@ export class FirestoreLedgerCore {
   }
 
   async addTemplate(template: TemplateDraft): Promise<string> {
-    const ref = await addDoc(
-      this.userCollection('workoutTemplates'),
-      pruneUndefined(toTemplateDoc(template, CODEC)),
-    );
-    return ref.id;
+    return this.createIn('workoutTemplates', pruneUndefined(toTemplateDoc(template, CODEC)));
   }
 
   async updateTemplate(id: string, template: TemplateDraft): Promise<void> {
@@ -460,11 +472,7 @@ export class FirestoreLedgerCore {
   }
 
   async startSession(session: SessionDraft): Promise<string> {
-    const ref = await addDoc(
-      this.userCollection('workoutSessions'),
-      pruneUndefined(toSessionDoc(session, CODEC)),
-    );
-    return ref.id;
+    return this.createIn('workoutSessions', pruneUndefined(toSessionDoc(session, CODEC)));
   }
 
   async updateSession(id: string, patch: Partial<SessionDraft>): Promise<void> {

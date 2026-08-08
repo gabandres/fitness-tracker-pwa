@@ -80,6 +80,7 @@ export const esPR: Record<I18nKey, string> = {
   'signIn.linkPrompt':
     '{email} ya tiene una cuenta aquí. Entra con tu contraseña abajo y las conectamos — la misma cuenta, con cualquiera de las dos.',
   'signIn.errPlayServices': 'Google Play services falta o está desactualizado en este dispositivo — actualízalo e inténtalo de nuevo.',
+  'signIn.errBrowser': 'Este dispositivo no pudo abrir un navegador para Google. Verifica que Safari esté habilitado (Tiempo de Uso puede bloquearlo), o entra con tu correo.',
   'signIn.errGeneric': 'No se pudo iniciar sesión. Inténtalo de nuevo.',
 
   // ── onboarding ──
