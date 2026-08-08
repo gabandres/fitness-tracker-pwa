@@ -224,14 +224,32 @@ in this feature. The two starred rows are the ones that would make it worthless.
 - [ ] Set the app to es-PR → the tile reads `Registrar <name>`, following the
       **profile**, not the phone.
 
-**Quick-add — iOS. Also entirely UNTICKED.** The write path here is different in
-kind from Android's: a Swift App Intent talking to the Firestore REST API with a
-token it minted itself (ADR-0020). Nothing in it is exercised by any test that
-runs on a machine.
+**Quick-add — iOS. The write path is PROVEN as of 2026-08-08; the rest is not.**
+It differs in kind from Android's: a Swift App Intent talking to the Firestore
+REST API with a token it minted itself (ADR-0020), and nothing in it is exercised
+by any test that runs on a machine. The starred Siri row below has now been run on
+hardware and passed, which retires the single largest unknown — keychain, token
+exchange, `PATCH` and rules all work. Treat the remaining rows as testing
+*variations* on a working path (locked device, offline, revoked token, sign-out),
+not the path itself.
 
-- [ ] ★ **"Hey Siri, log a preset in Ignia" → Siri offers the designated presets,
+**Do not read that as the feature being verified.** Build 27 shipped this whole
+surface unusable — iOS registered no App Shortcuts at all — and every machine-side
+check passed on it, including confirming `Metadata.appintents` was present in the
+binary. The rows below are the only thing that distinguishes working from shipped.
+
+- [x] ★ **"Hey Siri, log a preset in Ignia" → Siri offers the designated presets,
       and picking one logs it.** This proves the whole REST path: keychain read,
       token exchange, PATCH, rules acceptance.
+      **PASSED on the owner's device, build 28, 2026-08-08** — Siri asked which
+      preset, and the row landed in History. So the REST write path is real: the
+      Keychain envelope is readable from the intent process, the refresh-token
+      exchange works, the `PATCH` passes `firestore.rules`, and the app sees the
+      row. Every other iOS quick-add row now tests a *variation* on a path known
+      to work, rather than the path itself.
+      **This row could not be run at all until build 28.** On build 27 iOS
+      registered no App Shortcuts, so there was no phrase to say — see the
+      required-parameter trap in `AGENTS.md`.
 - [ ] Siri's reply names what it did. A queued write must say it will sync — never
       "logged".
 - [ ] ★ **The widget button logs without the app appearing.** If the app visibly
