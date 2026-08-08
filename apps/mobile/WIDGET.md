@@ -195,6 +195,35 @@ installed and watched.
 - [ ] Sign out → the widget blanks (it must not keep the old account's numbers
       on the home screen).
 
+**Quick-add (ADR-0020) — Android, vc 18. Every box below is UNTICKED and none of
+it has been run on hardware.** The unit tests cover the decisions; what they
+cannot cover is whether Android lets any of it happen, and that is the whole risk
+in this feature. The two starred rows are the ones that would make it worthless.
+
+- [ ] Designate a preset in Settings → Quick add → the widget grows a `+ <name>`
+      button **without reopening the app**.
+- [ ] ★ **Tap the widget button → the numbers move, and the row is in History.**
+      This proves the headless write, which is the seam everything rests on.
+- [ ] Tap it twice quickly → **two** rows (two real meals), not one — the id is
+      minted per tap, so this is not a dedup case.
+- [ ] Airplane mode → tap → the numbers still move; re-enable, open the app, the
+      row appears **on the day it was tapped**.
+- [ ] ★ **The Quick Settings tile appears in the edit list, is labelled with the
+      preset's name, and one tap logs it** without opening the app.
+- [ ] Tap the tile with the app **fully swiped away** — this is the
+      `startService`-from-background case, and the honest pass condition is
+      *either* a silent log *or* the app opening and logging. A tile that does
+      nothing is the failure.
+- [ ] Tap the tile from the **lock screen** → it logs (or prompts to unlock, then
+      logs). Never nothing.
+- [ ] Delete the bound preset elsewhere → the button and the tile stop offering
+      it rather than logging a ghost.
+- [ ] Rename the bound preset → the widget button **and** the tile caption follow.
+- [ ] Sign out → the tile goes inactive and its tap opens the app; it must not
+      keep the previous account's preset name in the shade.
+- [ ] Set the app to es-PR → the tile reads `Registrar <name>`, following the
+      **profile**, not the phone.
+
 **Apple Watch** — none of this is reachable until the watch targets compile and
 a build carries them. The layout half is a **simulator** readout (#46) and needs
 no hardware; everything below needs a real paired watch.
@@ -229,7 +258,7 @@ Settled 2026-07-23, before any code existed.
 | **Tap target** | **Deep-link to the add-entry sheet** (`ignia://?openAdd=1` — the same param the in-app FAB route uses), so the widget drives logging. |
 | **Empty state** | **"Open Ignia to start."** Never zeros — a "0 left" reads as a fully-eaten day. |
 | **Theme** | **One fixed brand face, dark in both themes** (the `heroPanel` family, ADR-0014). A widget sits on the wallpaper and can't follow the in-app theme. |
-| **App Intents / Siri** | **Out of this batch.** Keeps the binary to one untested native surface; three is how the previous two rejections happened. |
+| **App Intents / Siri** | **Out of *that* batch — reopened by ADR-0020.** The reasoning below still governs the pace: the Android tile shipped alone in vc 18, and the wider 4×2 face was held back to keep that binary to one untested native surface. iOS App Intents are a separate build again. |
 
 ## Component map — where each half of the seam lives
 
@@ -274,11 +303,12 @@ the snapshot and each widget keeps its own small string table.
 ## Deferred / separate (NOT this plan)
 - **Fasting Live Activity** (iOS lock-screen fast countdown) — natural given the
   existing Fasting feature, but a distinct ActivityKit effort (~1 wk, iOS-only).
-- **Interactive widgets** (log from the widget without opening the app) —
-  iOS 17+ AppIntents; defer until the display widget ships. Note this is a
-  different thing from a quick-log affordance *on the watch*, which was
-  separately rejected: it needs a watch→phone write path this design does not
-  have.
+- **Interactive widgets** (log from the widget without opening the app) — **no
+  longer deferred; see ADR-0020.** Android's is shipped (a quick-add button on the
+  2×2 face, plus a Quick Settings tile); iOS 17+ `AppIntent` buttons are the
+  remaining half. Note this is still a different thing from a quick-log affordance
+  *on the watch*, which stays rejected: it needs a watch→phone write path this
+  design does not have, and ADR-0020 did not add one.
 - **`.accessoryCorner`** — the one accessory family not shipped. Absent from the
   corner slots of the Infograph faces is the accepted cost.
 - **Wear OS** — Android glanceable surfaces beyond the home-screen widget are

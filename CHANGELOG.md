@@ -6,6 +6,17 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-07 — Log a meal without opening the app (Android)
+
+The fastest logging in Ignia used to be about six taps: unlock, find the app, wait, tap Log, pick the preset, confirm. For the meal you eat every single day, that is five taps too many — and logging friction is the thing that decides whether anyone is still using a tracker in March.
+
+- **A button on your home-screen widget.** Pick a preset in Settings → Quick add, and the widget grows a `+ Protein shake` button. One tap writes it. The numbers on the widget move as the receipt — there is no confirmation step, because a quick-add that needs confirming is not quick.
+- **A Quick Settings tile.** Swipe down, tap once, done — without leaving whatever app you were in. The tile is *labelled with your preset's name*, so you always know what a tap is about to log, and it never fires blind.
+- **It works with no signal.** A tap in a basement is saved and lands next time the app opens, on the day you tapped it — not the day it synced. Tap the same thing twice on a flaky connection and you still get one meal, not two.
+- **Pick up to three.** Slot 1 is what the tile logs; your widget button uses it too.
+
+Android only for now — the iPhone version is Siri and App Intents, and it needs its own release. The picker is hidden on iOS rather than shown doing nothing.
+
 ## 2026-08-07 — Photo scan now reads the food database, not the model's guess
 
 When you photographed a plate, an AI looked at it and typed four numbers. That is the design this app decided *against* two months ago and then shipped anyway: vision models are good at recognising food and sizing a portion, and measurably bad at the nutrition numbers — off by more than 60% on protein, which is the one number Ignia is built around. The food database that would fix it landed last week. It is now wired in.

@@ -113,10 +113,25 @@ ship):
 
 | Platform | Binary | Fingerprint | Source | Note |
 |---|---|---|---|---|
+| Android | **vc 18** (2026-08-07) | `cc3da8b9a22df7180c55e6cab5cd8decccdb98bb` | **read from the `.aab`** | current `main`, alpha — carries the Quick Settings tile |
 | iOS | **build 25** (2026-08-07) | `6c756c19b3e35948b85e42a3b337eec588128d3c` | **read from the `.ipa`** | current `main` |
 | iOS | build 24 | `781be0c885005e1d02bcf41408988c6622ff222e` | Windows `fingerprint:generate` — **unverified** | in App Review |
-| Android | **vc 13** (2026-08-07) | `5758fe4f232d5e6fe1ca369299512cfec0d39e13` | **read from the `.aab`** | current `main`, alpha |
+| Android | vc 13 (2026-08-07) | `5758fe4f232d5e6fe1ca369299512cfec0d39e13` | **read from the `.aab`** | superseded by vc 18; still what un-updated testers run |
 | Android | vc 11 | `c0b85c15e6631d99e8ccef61867d937389094ae6` | Windows `fingerprint:generate` — **unverified** | superseded |
+
+**A build log's versionCode line is not evidence either.** vc 18's build printed
+*"Incrementing versionCode from 18 to 19"* and `[CONFIGURE_ANDROID_VERSION]
+Version code: 19`, and the artifact it produced is **versionCode 18** — proven by
+`androidpublisher`'s `bundles` list, whose `sha256` for vc 18 matches the local
+`.aab` byte for byte. The log line describes the *remote counter* being advanced
+for the next build, not what got baked in. So the same rule that applies to
+fingerprints applies here: read it from the artifact or from Play, never from the
+build output.
+
+Also note `autoIncrement` burns a number per **attempt**: vc 14–17 do not exist,
+consumed by three Gradle failures (unset `ANDROID_HOME`, a missing
+`com.facebook.react` classpath entry in the new local module, and a Kotlin static
+resolved through the wrong class).
 
 **Only the two rows marked "read from the artifact" are evidence.** The other two
 are Windows-generated hashes recorded before the machine-dependence above was

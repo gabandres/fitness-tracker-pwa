@@ -162,14 +162,20 @@ What remains, in the order it was prioritized with the owner:
 
 ### Approved in principle — next projects
 
-- [ ] **N1 · Siri / App Intents + Android Quick Settings tile.** No code exists
-      today (`grep` for `AppIntent`/`Siri` returns nothing in `apps/mobile`).
-      "Hey Siri, log 40 grams of protein" → straight into `apps/mobile/src/lib/ledger.ts`.
-      $0 runtime, native-only, and **nobody in the surveyed set does this well**
-      — it is the cheapest genuine differentiator left. Drives logging friction
-      toward ~2s, which is the variable retention actually turns on. Note this
-      is native config: it **changes the EAS fingerprint**, so it needs real
-      builds on both platforms, not an OTA.
+- [~] **N1 · Siri / App Intents + Android Quick Settings tile.** **Android half
+      SHIPPED 2026-08-07 in vc 18** (alpha) — ADR-0020. The tile logs slot 1 and
+      is labelled with the preset's name; the write goes through `ledger.ts` from
+      a headless JS context, so Android needed no native write path at all.
+      **iOS half is still open**: App Intents + `AppShortcutsProvider` for the
+      Siri phrases, writing through the Firestore REST API with a token minted
+      from a refresh token in a shared Keychain access group (the design is
+      settled and recorded in ADR-0020 — do not re-litigate it, build it).
+      Two corrections to this entry's original wording: the promised phrase
+      "log 40 grams of protein" cannot be honoured as written, because
+      `LogEntry.calories` is required and protein-only has no legal value to
+      write — the intent takes calories and prompts for it when missing. And $0
+      runtime held: no function, no secret, no Firestore field, no rules change.
+      **Device QA on the tile is unrun** — nothing has been tapped on hardware.
 - [x] **N2 · Bundle USDA as the food DB.** **SHIPPED 2026-08-07** — ADR-0018.
       13,272 foods (SR Legacy + FNDDS + Foundation, CC0) committed at
       `functions/data/usda-foods.json` and searched in memory, replacing the
@@ -193,11 +199,15 @@ What remains, in the order it was prioritized with the owner:
 - [ ] **N3 · Fasting Live Activity / Dynamic Island.** Extends the fasting timer
       already shipped free (Cronometer paywalls theirs at $59.99/yr). iOS-only,
       $0, pure lock-screen retention. Native → needs a build.
-- [ ] **N4 · Interactive widget quick-add.** The widget renders today but is
-      display-only; iOS 17+ `AppIntent` buttons and Android `RemoteViews`
-      actions would let a preset be logged without opening the app. Small delta
-      on infrastructure already shipped (`apps/mobile/WIDGET.md`). Pairs
-      naturally with N1 — same App Intents work.
+- [~] **N4 · Interactive widget quick-add.** **Android half SHIPPED 2026-08-07 in
+      vc 18** — one quick-add button on the existing 2×2 face, ADR-0020. It did
+      pair with N1 exactly as predicted: one shared `performQuickAdd`, one slot
+      list, one Settings picker.
+      **Still open:** (a) the iOS 17+ `Button(intent:)` half, which comes with
+      N1's iOS build; (b) the wider **4×2 / `systemMedium` three-button face** —
+      deliberately deferred to Tier 3 rather than shipped with the tile, because
+      a widget's declared size is native config and WIDGET.md's own locked
+      reasoning caps a binary at one untested native surface.
 - [ ] **N5 · Guest mode / log-before-signup.** Already listed under §S13
       "Decided against" as the fix *if Day-1 retention warrants it*. Forced
       account creation before the first log is the standard freemium leak, and
