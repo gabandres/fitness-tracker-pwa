@@ -143,6 +143,8 @@ ssh ignia-mac "cat > ~/run-android-build.sh <<'EOF'
 cd ~/fitness-tracker-pwa/apps/mobile || exit 90
 set -a; . ~/fitness-tracker-pwa/.env.local; set +a
 export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
+export ANDROID_HOME=\$HOME/Library/Android/sdk
+export PATH=\"\$JAVA_HOME/bin:\$ANDROID_HOME/platform-tools:\$PATH\"
 export GRADLE_OPTS='-Dorg.gradle.internal.http.socketTimeout=60000 -Dorg.gradle.internal.http.connectionTimeout=60000'
 echo \"IGNIA_ANDROID_START \$(date -u +%FT%TZ)\"
 npx eas build -p android --profile production --local --non-interactive
@@ -177,23 +179,28 @@ or runtime. That shipped as vc 10 before anyone checked, and is why vc 11 exists
 and is **obsolete** — it is referenced by no npm script; do not follow it into a
 build.
 
-**`JAVA_HOME` must be the explicit Homebrew path, and it must be exported INSIDE
-the wrapper script.** `openjdk@17` is keg-only, so `/usr/libexec/java_home -v 17`
-cannot see it, and the Mac's default JDK is Microsoft's **Java 11** at
-`/Library/Java/JavaVirtualMachines/microsoft-11.jdk`. A non-interactive
-`nohup`-ed script inherits none of an interactive shell's exports, so leaving it
-out fails in **45 seconds** with:
+### `JAVA_HOME` and `ANDROID_HOME` are NOT in the Mac's shell config
 
-```
-Failed to apply plugin 'com.android.internal.application'.
-> Android Gradle plugin requires Java 17 to run. You are currently using Java 11.
-```
+Verified 2026-08-08: neither appears in `~/.zshrc`, `~/.zprofile` or `~/.zshenv`.
+Every successful Android build so far passed them inline. A `nohup`-ed wrapper
+inherits nothing from an interactive shell, so **both must be exported inside the
+script** — that is why they are in the template above, and removing either
+reproduces a documented failure:
 
-That happened on 2026-08-08 and burned a versionCode, because this file used to
-state the rule in prose while the command you copy omitted it. It is now in the
-template above; do not remove it. **Do not "fix" it by putting
-`org.gradle.java.home` in `withGradleJvmArgs.js`** — that would hardcode a
-machine-specific path into committed config and break the EAS cloud fallback.
+| Missing | Fails in | Message |
+|---|---|---|
+| `JAVA_HOME` | ~45 s | `Android Gradle plugin requires Java 17 to run. You are currently using Java 11` — the Mac's default JDK is Microsoft's 11 at `/Library/Java/JavaVirtualMachines/microsoft-11.jdk`, and `openjdk@17` is keg-only so `/usr/libexec/java_home -v 17` cannot find it |
+| `ANDROID_HOME` | ~5 s | `SDK location not found` (this is `DEV_ENVIRONMENT.md` §3.11 trap 3 — it is what killed vc 12) |
+
+Both are cheap failures in wall-clock and **both burn a versionCode**, because
+`autoIncrement` counts attempts. Two were burned this way on 2026-08-08 alone,
+by a version of this file that stated the `JAVA_HOME` rule in prose beside a
+command that omitted it. A rule next to a command that contradicts it is worse
+than no rule: the command is what gets run.
+
+**Do not "fix" either by writing `org.gradle.java.home` or `sdk.dir` into
+`withGradleJvmArgs.js`** — that hardcodes machine-specific paths into committed
+config and breaks the EAS cloud fallback, which runs on Linux.
 
 ### Verify the artifact — exit 0 is not enough
 
