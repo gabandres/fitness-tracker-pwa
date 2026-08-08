@@ -19,12 +19,14 @@ Ignia has had a fasting timer since launch, free, in an app whose closest compet
 
 Android has no equivalent surface and gets nothing here.
 
-## 2026-08-08 — Android testers: install the new build (alpha vc 21)
+## 2026-08-08 — Android testers: install the new build (alpha vc 24)
 
 Housekeeping with a real consequence. Ignia can ship small fixes over the air, without a store update — but only to devices running a build that matches the current code. Android's had drifted, so **every over-the-air fix published for Android since the last release reached nobody**, silently and with no way to tell from the outside.
 
-- **Install vc 21 from Play and Android is back on the fast lane** for fixes.
+- **Install vc 24 from Play and Android is back on the fast lane** for fixes.
 - No new features in it; it exists to close that gap.
+
+If you already grabbed vc 21 earlier today, take vc 24 as well — 21 closed the gap and an iOS-only change reopened it within the hour. 24 is the one that holds.
 
 ## 2026-08-08 — Siri actually works now (iOS)
 
