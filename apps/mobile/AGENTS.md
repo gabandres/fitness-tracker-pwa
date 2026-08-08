@@ -52,33 +52,89 @@ no build — but delivery is gated on `runtimeVersion`, which is the
 stays on old code. Nothing errors. There is no warning. The only signal is that
 the bug you "fixed" keeps getting reported.
 
-So the gate before every publish is:
+## The fingerprint is a property of the MACHINE, not just the commit
+
+**Run the gate — and `eas update` itself — on `ignia-mac`. Never on the Windows
+workstation.** The same commit fingerprints differently on the two machines:
+
+| Machine | commit `c3a7333a`, android | ios |
+|---|---|---|
+| **`ignia-mac`** | `5758fe4f…` | `6c756c19…` |
+| Windows workstation | `c0b85c15…` | `781be0c8…` |
+
+Three commit-independent causes, found by diffing the two `sources` arrays
+(516 entries on Windows, 286 on the Mac):
+
+- a stale **`apps/mobile/android/`** prebuild dir exists on Windows only — it is
+  gitignored, so nothing syncs or removes it, and `dir:android` is hashed;
+- **CRLF vs LF** in tracked files (`.gitignore`, `targets/widget/expo-target.config.js`
+  both hash differently) — Windows checks out CRLF;
+- divergent `node_modules`, which changes which config-plugin files are walked.
+
+Since **every binary is built on the Mac**, the Mac's value is the one the
+binaries carry, and a hash generated anywhere else is a number that matches
+nothing.
+
+**Ground truth is inside the artifact — read it, don't compute it:**
 
 ```sh
-cd apps/mobile && npx expo-updates fingerprint:generate --platform android
+unzip -p build-<ts>.aab base/assets/fingerprint          # Android
+unzip -o -q build-<ts>.ipa -d /tmp/ipax && \
+  cat /tmp/ipax/Payload/*.app/EXUpdates.bundle/fingerprint   # iOS
 ```
 
-Compare the `hash` against the fingerprint of the binary testers are running.
-**Same → the update lands. Different → it reaches nobody and you need a build.**
+`Expo.plist` only says `EXUpdatesRuntimeVersion = file:fingerprint`; the value
+is in that file. Verified 2026-08-07: vc 13's `.aab` holds `5758fe4f…` and
+build 25's `.ipa` holds `6c756c19…` — the Mac's numbers, not this machine's.
+
+**This already cost three updates.** Every OTA published on 2026-08-07 before
+22:00 went out under `c0b85c15…`/`781be0c8…` (confirmed with
+`eas update:list`), which is the *Windows* fingerprint and matches neither
+verified binary. The "fleet split across two runtime versions" written up that
+day was largely this artifact: one machine's number was being compared against
+another machine's. The 22:00 update is the first one published from the Mac and
+the first that provably matches a shipped binary.
+
+So the gate before every publish is, **on the Mac**:
+
+```sh
+ssh ignia-mac "cd ~/fitness-tracker-pwa && git checkout main && git pull --ff-only"
+ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform android"
+```
+
+Compare the `hash` against the fingerprint read out of the binary testers are
+running. **Same → the update lands. Different → it reaches nobody and you need a
+build.** Note the Mac's `node_modules` is an input: an `npm install` there can
+move the fingerprint away from an already-shipped binary, so check the gate
+*before* installing, not after.
 
 Fingerprints of the binaries carrying `expo-updates` (update these when new ones
 ship):
 
-| Platform | Binary | Fingerprint | Note |
-|---|---|---|---|
-| iOS | **build 25** (2026-08-07) | `6c756c19b3e35948b85e42a3b337eec588128d3c` | current `main` |
-| iOS | build 24 | `781be0c885005e1d02bcf41408988c6622ff222e` | in App Review |
-| Android | **vc 13** (2026-08-07) | `5758fe4f232d5e6fe1ca369299512cfec0d39e13` | current `main`, alpha |
-| Android | vc 11 | `c0b85c15e6631d99e8ccef61867d937389094ae6` | superseded |
+| Platform | Binary | Fingerprint | Source | Note |
+|---|---|---|---|---|
+| iOS | **build 25** (2026-08-07) | `6c756c19b3e35948b85e42a3b337eec588128d3c` | **read from the `.ipa`** | current `main` |
+| iOS | build 24 | `781be0c885005e1d02bcf41408988c6622ff222e` | Windows `fingerprint:generate` — **unverified** | in App Review |
+| Android | **vc 13** (2026-08-07) | `5758fe4f232d5e6fe1ca369299512cfec0d39e13` | **read from the `.aab`** | current `main`, alpha |
+| Android | vc 11 | `c0b85c15e6631d99e8ccef61867d937389094ae6` | Windows `fingerprint:generate` — **unverified** | superseded |
 
-**The fleet now spans TWO runtime versions per platform, and one `eas update`
-reaches only ONE of them.** This is the same silent failure as a stale
-fingerprint, just partial: publishing from current `main` lands on build 25 /
-vc 13 and every tester still on build 24 / vc 11 gets nothing, with no error
-anywhere. Either get everyone onto the new binaries (the store-update banner
-exists for exactly this — `public/app-version.json`, now at vc 13) or publish the
-update twice, once from each commit state. Do not assume "published" means
-"delivered"; check which runtime version the update went out under:
+**Only the two rows marked "read from the artifact" are evidence.** The other two
+are Windows-generated hashes recorded before the machine-dependence above was
+known, and their artifacts have since been overwritten on the Mac, so they cannot
+be checked. Treat them as unknown, not as fact: since the Windows/Mac divergence
+is commit-independent, build 24 and vc 11 most likely carry Mac values nobody
+recorded. If it ever matters, rebuild at that commit on the Mac and read the
+artifact — do not re-derive on Windows.
+
+That also means the earlier claim that **the fleet spans two runtime versions per
+platform** is not established. It was the Windows number for one binary compared
+against the Mac number for another. A genuine split is still possible — two
+binaries built from different commits normally *do* differ — but publishing
+twice "to cover both" is only worth doing once both halves have been read out of
+their artifacts. Otherwise the second publish targets a runtime nobody runs.
+
+Do not assume "published" means "delivered"; check which runtime version the
+update went out under:
 
 ```sh
 npx eas update:list --branch production --limit 3   # prints the runtime version
