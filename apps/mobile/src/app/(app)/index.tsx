@@ -18,6 +18,7 @@ import { WhatsNewBanner } from '@/components/WhatsNewBanner';
 import { type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useReminderSync } from '@/hooks/useReminderSync';
+import { performQuickAdd } from '@/lib/quick-add';
 import { useToday } from '@/hooks/useToday';
 import { useWidgetSync } from '@/hooks/useWidgetSync';
 import { enterUp, PressScale, usePulse } from '@/lib/motion';
@@ -85,12 +86,29 @@ export default function Today() {
 
   // The tab bar's Log button navigates here with a fresh `openAdd` nonce —
   // each new value opens the add sheet (see AppTabBar in the tab layout).
-  const { openAdd: openAddParam } = useLocalSearchParams<{ openAdd?: string }>();
+  const { openAdd: openAddParam, quickAddSlot: quickAddSlotParam } = useLocalSearchParams<{
+    openAdd?: string;
+    quickAddSlot?: string;
+  }>();
   useEffect(() => {
     if (!openAddParam) return;
     setEditing(null);
     setSheetOpen(true);
   }, [openAddParam]);
+
+  // The Quick Settings tile's FALLBACK path (ADR-0020). Its tap normally logs
+  // without opening anything; when Android refuses the background service start
+  // the tile opens the app with this param instead, so the tap still lands. Not
+  // the promised experience — but a visible slower one beats a silent dead tile,
+  // which is exactly how the Android widget stayed broken for a month.
+  const quickAddDone = useRef<string | null>(null);
+  useEffect(() => {
+    if (!quickAddSlotParam || quickAddDone.current === quickAddSlotParam) return;
+    quickAddDone.current = quickAddSlotParam;
+    const slot = Number(quickAddSlotParam);
+    if (!Number.isInteger(slot) || slot < 0) return;
+    void performQuickAdd(slot);
+  }, [quickAddSlotParam]);
 
   // Celebration: the flame chip bounces when the streak extends mid-session
   // (null-first ref so it doesn't fire on mount).

@@ -9,7 +9,12 @@ import {
 } from '@macrolog/core';
 import { useLocale } from '@/i18n';
 import { useAuth } from '@/lib/auth';
-import { flushPendingLogs, getQuickAddSlots, subscribeQuickAddSlots } from '@/lib/quick-add';
+import {
+  flushPendingLogs,
+  getQuickAddSlots,
+  subscribeQuickAddSlots,
+  syncQuickAddTile,
+} from '@/lib/quick-add';
 import { syncWidget } from '@/lib/widget';
 
 /**
@@ -74,6 +79,13 @@ export function useWidgetSync(
   useEffect(() => {
     void syncWidget(summary, targets, localDateKey(new Date()), locale, Date.now(), quickAdd);
   }, [summary, targets, locale, quickAdd]);
+
+  // The Quick Settings tile's label mirror (ADR-0020). Driven from the same
+  // resolved slots as the snapshot above, so the tile and the widget can never
+  // name different presets. Android-only and a silent no-op elsewhere.
+  useEffect(() => {
+    void syncQuickAddTile(quickAdd, uid != null, locale);
+  }, [quickAdd, uid, locale]);
 
   // Land whatever a tile or widget button parked while the device was offline.
   // On mount and on every foreground: those are the two moments the app has both

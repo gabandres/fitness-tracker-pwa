@@ -621,13 +621,13 @@ export default function Settings() {
             logging without navigating to it. Native-only — the picker feeds a
             home-screen widget, which the web PWA has no analogue for (ADR-0020).
 
-            ANDROID-ONLY for now, and this gate is not cosmetic: the picker's
-            promise is "these log from your widget", and only the Android widget
-            has buttons. The iOS half is Swift + App Intents and arrives with its
-            own build — showing the picker there first would be a setting that
-            visibly does nothing, which is the same "merged reads as shipped"
-            failure the repo already pays for elsewhere. Drop the gate in the
-            build that carries the iOS buttons. */}
+            ANDROID-ONLY, and this gate is not cosmetic: the picker's promise is
+            "these log from your home screen or Quick Settings", and only Android
+            has a widget button and a tile. The iOS half is Swift + App Intents
+            and arrives with its own build — showing the picker there first would
+            be a setting that visibly does nothing, which is the same "merged
+            reads as shipped" failure the repo already pays for elsewhere. Drop
+            the gate in the build that carries the iOS buttons. */}
         {Platform.OS === 'android' ? (
           <>
             <Text style={styles.section}>{t('settings.quickAddSection')}</Text>

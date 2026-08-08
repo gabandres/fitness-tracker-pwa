@@ -24,4 +24,16 @@ if (Platform.OS === 'android') {
   const { registerWidgetTaskHandler } = require('react-native-android-widget');
   const { widgetTaskHandler } = require('./src/widgets/widget-task-handler');
   registerWidgetTaskHandler(widgetTaskHandler);
+
+  // The Quick Settings tile's headless task (ADR-0020), registered here for the
+  // same reason and at the same moment as the widget handler: Android starts it
+  // when the app's UI was never mounted, so it has to exist before React does.
+  //
+  // The task NAME must equal `QuickAddTileTaskService.TASK_NAME` in
+  // `modules/quick-add-tile`. A mismatch is silent — the service starts, finds
+  // nothing registered, and stops — so the two strings are the one thing to
+  // check if a tile tap ever does nothing at all.
+  const { AppRegistry } = require('react-native');
+  const { quickAddTileTask } = require('./src/widgets/quick-add-tile-task');
+  AppRegistry.registerHeadlessTask('IgniaQuickAddTile', () => quickAddTileTask);
 }

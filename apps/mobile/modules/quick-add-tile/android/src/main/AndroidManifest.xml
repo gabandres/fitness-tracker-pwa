@@ -1,0 +1,44 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!--
+      Quick Settings tile — logs the user's first quick-add preset (ADR-0020).
+
+      Declared in the MODULE's manifest, not through a config plugin: a library
+      manifest is merged into the app's by AGP, so the declaration travels with
+      the Kotlin that implements it. A `withAndroidManifest` plugin would put the
+      two halves in different files and let one ship without the other.
+
+      `android:label` is the brand name on purpose. It is only ever seen in the
+      Quick Settings edit list before the service has run, and it is resolved by
+      the DEVICE locale — which is not our locale (ours is
+      `profile.preferredLocale`). The label the user actually reads is set at
+      runtime from the stored state, in the app's language. Same reasoning as the
+      snapshot carrying `locale`; see WIDGET.md.
+
+      `android:exported="true"` and the BIND_QUICK_SETTINGS_TILE permission are
+      both required by the platform: the system binds this service, and it will
+      refuse to if either is missing.
+    -->
+    <service
+      android:name="expo.modules.quickaddtile.QuickAddTileService"
+      android:label="Ignia"
+      android:icon="@drawable/ic_quick_add_tile"
+      android:exported="true"
+      android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+      <intent-filter>
+        <action android:name="android.service.quicksettings.action.QS_TILE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.service.quicksettings.ACTIVE_TILE"
+        android:value="false" />
+    </service>
+
+    <!--
+      The headless JS host the tile starts. Not exported: nothing outside this
+      app may start it.
+    -->
+    <service
+      android:name="expo.modules.quickaddtile.QuickAddTileTaskService"
+      android:exported="false" />
+  </application>
+</manifest>

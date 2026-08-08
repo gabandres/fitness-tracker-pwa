@@ -4,6 +4,8 @@ import {
   QUICK_ADD_MAX,
   type PendingLog,
   type QuickAddTarget,
+  type WidgetSnapshot,
+  applyQuickAddToSnapshot,
   buildPendingLog,
   mergePendingLog,
   newLedgerId,
@@ -13,9 +15,12 @@ import {
   quickAddEntry,
   serializePendingLogs,
 } from '@macrolog/core';
+import { setTileState } from '../../modules/quick-add-tile';
+import { widgetStrings } from '../widgets/strings';
 import { auth } from './firebase';
 import { exportNutrition } from './health-sync';
 import { addLogWithId } from './ledger';
+import { readWidgetSnapshot, saveWidgetSnapshot } from './widget';
 
 /**
  * Quick-add adapter — the impure half of ADR-0020. Every rule lives in
@@ -169,6 +174,51 @@ export async function logQuickAdd(
   }
 }
 
+/** What one slot tap did, and what the glanceable surfaces should now draw.
+ *  `'no-target'` covers a slot whose preset vanished between the last snapshot
+ *  write and the tap, and a tap arriving before the app has ever written one. */
+export interface QuickAddOutcome {
+  result: QuickAddResult | 'no-target';
+  /** The snapshot to render: optimistically incremented on a write that landed
+   *  or was parked, untouched otherwise, `null` when there was none on disk. */
+  snapshot: WidgetSnapshot | null;
+  target?: QuickAddTarget;
+}
+
+/**
+ * Log the preset in a slot, from whichever surface was tapped.
+ *
+ * Both entry points funnel through here — the widget button's task handler and
+ * the Quick Settings tile's headless task — so the two can never disagree about
+ * what a slot means, whether a signed-out tap writes, or how the totals move.
+ * The only thing the callers do differently is *how* they redraw: the widget
+ * handler already holds a `renderWidget`, the tile has to ask the OS.
+ *
+ * The optimistic snapshot is the receipt. `applyQuickAddToSnapshot` is a local
+ * edit, not a recomputation — a widget process has one day's totals and no log
+ * list — so it is close, not authoritative, and the app's next `syncWidget`
+ * replaces it with the real summary.
+ */
+export async function performQuickAdd(
+  slot: number,
+  at: Date = new Date(),
+): Promise<QuickAddOutcome> {
+  const snapshot = await readWidgetSnapshot();
+  const target = snapshot?.quickAdd?.[slot];
+  if (!snapshot || !target) return { result: 'no-target', snapshot };
+
+  const result = await logQuickAdd(target, at);
+
+  // A signed-out tap wrote nothing anywhere and never will — the row is
+  // unattributable. Moving the numbers for it would leave the home screen
+  // disagreeing with the app, which is worse than the tap doing nothing.
+  if (result === 'signed-out') return { result, snapshot, target };
+
+  const next = applyQuickAddToSnapshot(snapshot, target, at.getTime());
+  if (next) await saveWidgetSnapshot(next);
+  return { result, snapshot: next ?? snapshot, target };
+}
+
 async function park(row: PendingLog): Promise<void> {
   try {
     const list = parsePendingLogs(await AsyncStorage.getItem(PENDING_LOGS_KEY));
@@ -228,6 +278,34 @@ export async function flushPendingLogs(uid: string, nowMs: number = Date.now()):
 }
 
 /**
+ * Mirror slot 1 onto the Quick Settings tile.
+ *
+ * The tile is Kotlin and runs before any JS does, so it cannot ask what the
+ * user's first preset is called — and it must be labelled, because a Quick
+ * Settings tap is blind (ADR-0020). This is the only place that mirror is
+ * written, and it is driven from the same effect that writes the widget snapshot
+ * so the two can never describe different presets.
+ *
+ * `enabled: false` with a null label is the correct state for both "no slots
+ * designated" and "signed out": the tile goes inert and its tap opens the app
+ * instead of logging something unnamed.
+ */
+export async function syncQuickAddTile(
+  targets: readonly QuickAddTarget[],
+  signedIn: boolean,
+  locale: string,
+): Promise<void> {
+  const first = signedIn ? targets[0] : undefined;
+  // Set from JS, so unlike the manifest's `android:label` this follows the APP's
+  // locale rather than the device's — the distinction WIDGET.md draws for every
+  // glanceable surface. The verb comes from the widget's own string table
+  // rather than a second one: it is the same word for the same purpose, and a
+  // duplicate table is a thing to keep in step for no benefit.
+  const verb = widgetStrings(locale).quickAddA11y;
+  await setTileState(first ? `${verb} ${first.name}` : null, first != null);
+}
+
+/**
  * Drop the queue and the slot list on sign-out.
  *
  * The queue is the privacy-relevant half — it holds what someone ate, addressed
@@ -241,4 +319,10 @@ export async function clearQuickAdd(): Promise<void> {
   } catch {
     /* best-effort, same as clearWidget */
   }
+  // And make the tile inert. It lives in the notification shade, outside the app
+  // entirely, so leaving it labelled with the previous account's preset is the
+  // same leak `clearWidget` exists to prevent — and tapping it would then write
+  // to whoever signs in next. Unconditional, and after the storage clear, so a
+  // failed `multiRemove` cannot skip it.
+  await setTileState(null, false);
 }

@@ -1,7 +1,6 @@
-import { applyQuickAddToSnapshot, type WidgetSnapshot } from '@macrolog/core';
 import type { WidgetTaskHandlerProps } from 'react-native-android-widget';
-import { logQuickAdd } from '@/lib/quick-add';
-import { readWidgetSnapshot, saveWidgetSnapshot } from '@/lib/widget';
+import { performQuickAdd } from '@/lib/quick-add';
+import { readWidgetSnapshot } from '@/lib/widget';
 import { QUICK_ADD_ACTION, quickAddSlotFrom } from './actions';
 import { renderTodayWidget } from './render';
 
@@ -54,32 +53,27 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps) {
  * on a home screen is the numbers moving, and they cannot move on their own:
  * the app that normally writes the snapshot is not running.
  *
- * Order matters. The write is awaited before the redraw, so a face that has
- * updated is a face whose row is in the ledger (or parked under an id that will
- * land). Redrawing first would show a total the user might never get.
+ * Order matters, and `performQuickAdd` is awaited first: a face that has updated
+ * is a face whose row is in the ledger, or parked under an id that will land.
+ * Redrawing first would show a total the user might never get.
+ *
+ * Every decision about *what* a tap does lives in `performQuickAdd`, shared with
+ * the Quick Settings tile. What is local to this handler is that the redraw goes
+ * through the `renderWidget` the OS handed us — asking for a widget update from
+ * inside one is how a redraw loop starts.
  */
 async function handleClick(props: WidgetTaskHandlerProps): Promise<void> {
-  const snapshot = await readWidgetSnapshot();
   const slot = props.clickAction === QUICK_ADD_ACTION ? quickAddSlotFrom(props.clickActionData) : null;
-  const target = slot != null ? snapshot?.quickAdd?.[slot] : undefined;
 
-  // An unknown action, or a slot whose preset vanished between the last snapshot
-  // write and the tap. Redraw from disk so the button disappears rather than
-  // staying tappable-and-dead.
-  if (!target || !snapshot) {
-    props.renderWidget(renderTodayWidget(snapshot));
+  // An unknown action: redraw from disk and write nothing.
+  if (slot == null) {
+    props.renderWidget(renderTodayWidget(await readWidgetSnapshot()));
     return;
   }
 
-  const result = await logQuickAdd(target);
-
-  // 'signed-out' writes nothing anywhere: the tap is dropped and the face is
-  // redrawn unchanged. Incrementing the totals for a row that was never written
-  // — and, being unattributable, never will be — is the one outcome worse than
-  // doing nothing, because the home screen would then disagree with the app.
-  const next: WidgetSnapshot | null =
-    result === 'signed-out' ? snapshot : applyQuickAddToSnapshot(snapshot, target, Date.now());
-
-  if (next && next !== snapshot) await saveWidgetSnapshot(next);
-  props.renderWidget(renderTodayWidget(next));
+  // `snapshot` comes back untouched for a dead slot or a signed-out tap, and
+  // incremented otherwise — so this one call covers both the receipt and making
+  // a stale button disappear.
+  const { snapshot } = await performQuickAdd(slot);
+  props.renderWidget(renderTodayWidget(snapshot));
 }

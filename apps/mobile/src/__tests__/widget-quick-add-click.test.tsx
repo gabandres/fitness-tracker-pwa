@@ -24,7 +24,10 @@ const mockWidget: { snapshot: WidgetSnapshot | null; saved: WidgetSnapshot[] } =
   snapshot: null,
   saved: [],
 };
-const mockLogQuickAdd = jest.fn<Promise<'logged' | 'queued' | 'signed-out'>, [unknown]>();
+const mockAddLogWithId = jest.fn<Promise<void>, [string, string, unknown]>();
+const mockAuth: { user: { uid: string } | null } = { user: { uid: 'u1' } };
+
+const mockRedraw = jest.fn<Promise<void>, [WidgetSnapshot]>();
 
 jest.mock('@/lib/widget', () => ({
   readWidgetSnapshot: () => Promise.resolve(mockWidget.snapshot),
@@ -32,10 +35,30 @@ jest.mock('@/lib/widget', () => ({
     mockWidget.saved.push(s);
     return Promise.resolve();
   },
+  requestWidgetRedraw: (s: WidgetSnapshot) => mockRedraw(s),
 }));
 
-jest.mock('@/lib/quick-add', () => ({
-  logQuickAdd: (t: unknown) => mockLogQuickAdd(t),
+// `quick-add.ts` itself is REAL here. The tap path is the handler plus the
+// shared `performQuickAdd`, and mocking the middle of it would leave the one
+// decision that matters — whether a tap writes — untested on this path.
+jest.mock('@/lib/ledger', () => ({
+  addLogWithId: (...args: [string, string, unknown]) => mockAddLogWithId(...args),
+}));
+jest.mock('@/lib/health-sync', () => ({ exportNutrition: () => Promise.resolve() }));
+jest.mock('@/lib/firebase', () => ({
+  db: {},
+  auth: {
+    get currentUser() {
+      return mockAuth.user;
+    },
+    // Fires immediately with the current value, which is what the real SDK does
+    // once persistence has resolved. The cold-start race has its own test in
+    // `quick-add.test.ts`.
+    onAuthStateChanged: (cb: (u: { uid: string } | null) => void) => {
+      cb(mockAuth.user);
+      return () => {};
+    },
+  },
 }));
 
 import { widgetTaskHandler } from '@/widgets/widget-task-handler';
@@ -88,14 +111,21 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockWidget.snapshot = snapshot();
   mockWidget.saved = [];
-  mockLogQuickAdd.mockResolvedValue('logged');
+  mockAuth.user = { uid: 'u1' };
+  mockAddLogWithId.mockResolvedValue(undefined);
+  mockRedraw.mockResolvedValue(undefined);
 });
 
 describe('quick-add button tap', () => {
   it('logs the tapped slot', async () => {
     const { props } = click();
     await widgetTaskHandler(props as never);
-    expect(mockLogQuickAdd).toHaveBeenCalledWith(shake);
+    expect(mockAddLogWithId).toHaveBeenCalledTimes(1);
+    expect(mockAddLogWithId.mock.calls[0][2]).toMatchObject({
+      calories: 180,
+      protein: 32,
+      mealLabel: 'Protein shake',
+    });
   });
 
   it('redraws with the new totals — the redraw IS the receipt', async () => {
@@ -116,9 +146,8 @@ describe('quick-add button tap', () => {
 
   it('writes before it redraws — a moved number means a row that exists', async () => {
     const order: string[] = [];
-    mockLogQuickAdd.mockImplementation(async () => {
+    mockAddLogWithId.mockImplementation(async () => {
       order.push('log');
-      return 'logged';
     });
     const { props, renderWidget } = click();
     renderWidget.mockImplementation(() => order.push('render'));
@@ -134,7 +163,7 @@ describe('quick-add button tap', () => {
   });
 
   it('moves the numbers for a QUEUED write too — it will land', async () => {
-    mockLogQuickAdd.mockResolvedValue('queued');
+    mockAddLogWithId.mockRejectedValue(new Error('offline'));
     const { props, renderWidget } = click();
     await widgetTaskHandler(props as never);
     expect(viewOf(renderWidget)).toMatchObject({ state: 'ready' });
@@ -142,7 +171,7 @@ describe('quick-add button tap', () => {
   });
 
   it('does NOT move the numbers when signed out — nothing was written', async () => {
-    mockLogQuickAdd.mockResolvedValue('signed-out');
+    mockAuth.user = null;
     const { props, renderWidget } = click();
     await widgetTaskHandler(props as never);
     const view = viewOf(renderWidget);
@@ -155,7 +184,7 @@ describe('taps that must not write', () => {
   it('ignores a slot with no preset behind it', async () => {
     const { props, renderWidget } = click({ slot: 2 });
     await widgetTaskHandler(props as never);
-    expect(mockLogQuickAdd).not.toHaveBeenCalled();
+    expect(mockAddLogWithId).not.toHaveBeenCalled();
     expect(renderWidget).toHaveBeenCalledTimes(1);
     expect(mockWidget.saved).toEqual([]);
   });
@@ -163,21 +192,21 @@ describe('taps that must not write', () => {
   it('ignores an unknown click action', async () => {
     const { props } = click({ slot: 0 }, 'SOMETHING_ELSE');
     await widgetTaskHandler(props as never);
-    expect(mockLogQuickAdd).not.toHaveBeenCalled();
+    expect(mockAddLogWithId).not.toHaveBeenCalled();
   });
 
   it('ignores a tap on a snapshot that carries no slots at all', async () => {
     mockWidget.snapshot = snapshot({ quickAdd: undefined });
     const { props } = click();
     await widgetTaskHandler(props as never);
-    expect(mockLogQuickAdd).not.toHaveBeenCalled();
+    expect(mockAddLogWithId).not.toHaveBeenCalled();
   });
 
   it('ignores a tap with nothing on disk yet', async () => {
     mockWidget.snapshot = null;
     const { props, renderWidget } = click();
     await widgetTaskHandler(props as never);
-    expect(mockLogQuickAdd).not.toHaveBeenCalled();
+    expect(mockAddLogWithId).not.toHaveBeenCalled();
     expect(viewOf(renderWidget).state).toBe('empty');
   });
 
@@ -220,7 +249,7 @@ describe('the other widget actions still work', () => {
       renderWidget,
     } as never);
     expect(viewOf(renderWidget).state).toBe('ready');
-    expect(mockLogQuickAdd).not.toHaveBeenCalled();
+    expect(mockAddLogWithId).not.toHaveBeenCalled();
   });
 
   it('WIDGET_DELETED neither draws nor writes', async () => {
@@ -232,5 +261,46 @@ describe('the other widget actions still work', () => {
     } as never);
     expect(renderWidget).not.toHaveBeenCalled();
     expect(mockWidget.saved).toEqual([]);
+  });
+});
+
+// ─── The Quick Settings tile's headless task ────────────────────
+// Same shared action, one difference: a tile is not a widget, so any placed
+// widget has to be asked to redraw rather than handed a `renderWidget`.
+
+describe('quickAddTileTask', () => {
+  it('logs slot 1 and asks the widget to redraw', async () => {
+    const { quickAddTileTask } = require('@/widgets/quick-add-tile-task');
+    await quickAddTileTask({ slot: 0 });
+    expect(mockAddLogWithId).toHaveBeenCalledTimes(1);
+    expect(mockWidget.saved[0].kcalConsumed).toBe(1380);
+    expect(mockRedraw).toHaveBeenCalledTimes(1);
+  });
+
+  it('defaults to slot 1 when the intent carried no extra', async () => {
+    const { quickAddTileTask } = require('@/widgets/quick-add-tile-task');
+    await quickAddTileTask(undefined);
+    expect(mockAddLogWithId).toHaveBeenCalledTimes(1);
+  });
+
+  it('spends no widget update when signed out', async () => {
+    mockAuth.user = null;
+    const { quickAddTileTask } = require('@/widgets/quick-add-tile-task');
+    await quickAddTileTask({ slot: 0 });
+    expect(mockAddLogWithId).not.toHaveBeenCalled();
+    expect(mockRedraw).not.toHaveBeenCalled();
+  });
+
+  it('spends no widget update on a dead slot', async () => {
+    const { quickAddTileTask } = require('@/widgets/quick-add-tile-task');
+    await quickAddTileTask({ slot: 7 });
+    expect(mockRedraw).not.toHaveBeenCalled();
+  });
+
+  it('never rejects — Android reports a thrown headless task as a crash', async () => {
+    mockWidget.snapshot = snapshot();
+    mockRedraw.mockRejectedValueOnce(new Error('no widget host'));
+    const { quickAddTileTask } = require('@/widgets/quick-add-tile-task');
+    await expect(quickAddTileTask({ slot: 0 })).resolves.toBeUndefined();
   });
 });

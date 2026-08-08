@@ -230,6 +230,32 @@ export async function saveWidgetSnapshot(snapshot: WidgetSnapshot): Promise<void
 }
 
 /**
+ * Ask the OS to redraw any placed Android widget from a snapshot already on disk.
+ *
+ * For the Quick Settings tile (ADR-0020), which changes today's totals without
+ * being a widget: nothing has redrawn the home screen, so it has to be asked.
+ * The widget task handler must NOT use this — it already holds a `renderWidget`,
+ * and requesting an update from inside the update the OS just handed us is how a
+ * redraw loop starts.
+ *
+ * No-ops when the user has no widget placed, which is the common case.
+ */
+export async function requestWidgetRedraw(snapshot: WidgetSnapshot): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  try {
+    const { requestWidgetUpdate } = require('react-native-android-widget');
+    const { renderTodayWidget } = require('../widgets/render');
+    await requestWidgetUpdate({
+      widgetName: WIDGET_NAME,
+      renderWidget: () => renderTodayWidget(snapshot),
+      widgetNotFound: () => {},
+    });
+  } catch {
+    /* The row is already in the ledger; the face corrects on next sync. */
+  }
+}
+
+/**
  * Android widget side: read the blob back inside the task handler. iOS never
  * calls this — its SwiftUI provider reads the App Group `UserDefaults`
  * directly, in Swift.
