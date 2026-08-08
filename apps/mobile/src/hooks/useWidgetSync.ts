@@ -13,6 +13,7 @@ import {
   flushPendingLogs,
   getQuickAddSlots,
   subscribeQuickAddSlots,
+  syncQuickAddCredentials,
   syncQuickAddTile,
 } from '@/lib/quick-add';
 import { syncWidget } from '@/lib/widget';
@@ -86,6 +87,14 @@ export function useWidgetSync(
   useEffect(() => {
     void syncQuickAddTile(quickAdd, uid != null, locale);
   }, [quickAdd, uid, locale]);
+
+  // iOS's half: the Keychain envelope an App Intent reads to write over REST
+  // (ADR-0020). Keyed on the uid so it is rewritten whenever the session changes
+  // and cleared when it goes — the envelope is the one artefact that can still
+  // write after sign-out. iOS-only, silent no-op on Android.
+  useEffect(() => {
+    void syncQuickAddCredentials();
+  }, [uid]);
 
   // Land whatever a tile or widget button parked while the device was offline.
   // On mount and on every foreground: those are the two moments the app has both

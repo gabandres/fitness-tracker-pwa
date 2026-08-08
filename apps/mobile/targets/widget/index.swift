@@ -47,6 +47,12 @@ private extension Color {
   static let igMuted = Color(hex: 0xa39c91)  // heroMuted
   static let igKcal = Color(hex: 0xff6a3d)  // ring
   static let igProtein = Color(hex: 0x34d399)  // protein (dark variant)
+  static let igText = Color(hex: 0xf3f1ec)  // heroText — quick-add button label
+  // Quick-add button fill: a lifted panel tone, not the coral. The button is a
+  // secondary affordance on a face whose point is the number, and an
+  // accent-filled pill reads as the primary thing on it. Matches COLORS.button
+  // in src/widgets/TodayWidget.tsx.
+  static let igButton = Color(hex: 0x2b2825)
 }
 
 // MARK: - Timeline
@@ -140,10 +146,55 @@ private struct HomeView: SwiftUI.View {
           .minimumScaleFactor(0.7)
           .lineLimit(1)
           .padding(.top, 8)
+
+        // Quick-add button — slot 1 only (ADR-0020), matching the Android 2x2
+        // face. A `systemSmall` cell has room for one button under two numbers;
+        // the three-button row is the deferred `systemMedium` face.
+        //
+        // Only on `.ready`: an empty face is declining to describe the day, and a
+        // button on it would be logging into a day it will not show.
+        if let slot = snap.quickAdd?.first {
+          QuickAddButton(slot: slot, verb: s.quickAddVerb)
+        }
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     .containerBackground(Color.igPanel, for: .widget)
+  }
+}
+
+/**
+ * The one interactive control in this widget (iOS 17+).
+ *
+ * `Button(intent:)` is the whole mechanism: WidgetKit performs the intent by
+ * launching the app in the background, which is why the write can read the app's
+ * own keychain and needs no entitlement of its own. There is no confirmation
+ * state — the numbers moving is the receipt (see `QuickAdd`).
+ *
+ * The availability guard is belt-and-braces: this target is pinned to
+ * `deploymentTarget: "17.0"` in `expo-target.config.js`, but the pin lives in a
+ * config file and the API floor should not depend on someone not lowering it.
+ */
+private struct QuickAddButton: SwiftUI.View {
+  let slot: Glance.QuickAddSlot
+  let verb: String
+
+  var body: some SwiftUI.View {
+    if #available(iOS 17.0, *) {
+      Button(intent: LogQuickAddSlotIntent(slot: 0)) {
+        Text("+ \(slot.name)")
+          .font(.system(size: 12, weight: .semibold))
+          .lineLimit(1)
+          .truncationMode(.tail)
+      }
+      .buttonStyle(.plain)
+      .foregroundStyle(Color.igText)
+      .padding(.horizontal, 10)
+      .padding(.vertical, 5)
+      .background(Color.igButton, in: Capsule())
+      .padding(.top, 10)
+      .accessibilityLabel("\(verb) \(slot.name)")
+    }
   }
 }
 

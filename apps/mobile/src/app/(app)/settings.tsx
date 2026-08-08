@@ -619,21 +619,16 @@ export default function Settings() {
 
         {/* Quick add sits with the reminders above it on purpose: both are about
             logging without navigating to it. Native-only — the picker feeds a
-            home-screen widget, which the web PWA has no analogue for (ADR-0020).
+            home-screen widget, a Quick Settings tile (Android) and Siri
+            (iOS), none of which the web PWA has an analogue for (ADR-0020).
 
-            ANDROID-ONLY, and this gate is not cosmetic: the picker's promise is
-            "these log from your home screen or Quick Settings", and only Android
-            has a widget button and a tile. The iOS half is Swift + App Intents
-            and arrives with its own build — showing the picker there first would
-            be a setting that visibly does nothing, which is the same "merged
-            reads as shipped" failure the repo already pays for elsewhere. Drop
-            the gate in the build that carries the iOS buttons. */}
-        {Platform.OS === 'android' ? (
-          <>
-            <Text style={styles.section}>{t('settings.quickAddSection')}</Text>
-            <QuickAddCard />
-          </>
-        ) : null}
+            No longer gated to Android: iOS build 26 carries the App Intents and
+            the interactive widget button, so the picker's promise is true on both
+            platforms. It was Android-only for exactly one release, while the iOS
+            half did not exist — a setting that visibly does nothing is the same
+            "merged reads as shipped" failure this repo already pays for. */}
+        <Text style={styles.section}>{t('settings.quickAddSection')}</Text>
+        <QuickAddCard />
 
         {healthSync.available ? (
           <>

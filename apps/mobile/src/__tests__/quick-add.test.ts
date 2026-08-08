@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { PENDING_LOGS_KEY, type QuickAddTarget, parsePendingLogs } from '@macrolog/core';
 
 /**
@@ -25,6 +26,24 @@ jest.mock('@/lib/ledger', () => ({
 
 jest.mock('@/lib/health-sync', () => ({
   exportNutrition: (...args: unknown[]) => mockExportNutrition(...args),
+}));
+
+// The iOS App Group container. On iOS the pending queue lives here rather than
+// in AsyncStorage, because the writer is a Swift App Intent with no JS in its
+// process — see `pendingStore` in `src/lib/quick-add.ts`.
+const mockAppGroup = new Map<string, string | undefined>();
+
+jest.mock('@bacons/apple-targets', () => ({
+  ExtensionStorage: class {
+    get(key: string) {
+      return mockAppGroup.get(key);
+    }
+    set(key: string, value: string | undefined) {
+      if (value === undefined) mockAppGroup.delete(key);
+      else mockAppGroup.set(key, value);
+    }
+    static reloadWidget() {}
+  },
 }));
 
 jest.mock('@/lib/firebase', () => ({
@@ -61,8 +80,19 @@ beforeEach(async () => {
   mockAuth.user = { uid: 'u1' };
   mockAuth.listener = null;
   await AsyncStorage.clear();
+  mockAppGroup.clear();
   mockAddLogWithId.mockResolvedValue(undefined);
+  // jest-expo runs this suite as iOS. The queue tests below are about the shared
+  // logic, so they pin Android (AsyncStorage); the App-Group path has its own
+  // block at the bottom.
+  setPlatform('android');
 });
+
+/** `Platform.OS` is read at call time inside `pendingStore`, so overriding the
+ *  property is enough and no module reset is needed. */
+function setPlatform(os: 'ios' | 'android') {
+  Object.defineProperty(Platform, 'OS', { get: () => os, configurable: true });
+}
 
 describe('slots', () => {
   it('round-trips through device storage', async () => {
@@ -224,5 +254,52 @@ describe('clearQuickAdd', () => {
 
     expect(await getQuickAddSlots()).toEqual([]);
     expect(await readPendingLogs()).toEqual([]);
+  });
+});
+
+// ─── The queue lives in a different store on iOS ────────────────
+// A Swift App Intent parks failed writes into the App Group, because it has no
+// access to AsyncStorage. If the JS flush read the wrong store, every iOS
+// quick-add would appear to queue and then never land — with nothing to see.
+
+describe('pending queue on iOS', () => {
+  beforeEach(() => setPlatform('ios'));
+
+  it('parks into the App Group, not AsyncStorage', async () => {
+    mockAddLogWithId.mockRejectedValue(new Error('offline'));
+    expect(await logQuickAdd(target)).toBe('queued');
+
+    expect(parsePendingLogs(mockAppGroup.get(PENDING_LOGS_KEY) ?? null)).toHaveLength(1);
+    expect(await AsyncStorage.getItem(PENDING_LOGS_KEY)).toBeNull();
+  });
+
+  it('reads back what Swift would have written there', async () => {
+    // Byte-for-byte the shape `QuickAdd.park` emits in Swift.
+    mockAppGroup.set(
+      PENDING_LOGS_KEY,
+      JSON.stringify([
+        { v: 1, id: 'fromSwift0000000000', uid: 'u1', calories: 210, mealLabel: 'Three eggs', atMs: 1_760_000_000_000 },
+      ]),
+    );
+    expect(await readPendingLogs()).toHaveLength(1);
+    expect(await flushPendingLogs('u1', 1_760_000_100_000)).toBe(1);
+    expect(mockAddLogWithId).toHaveBeenCalledWith('u1', 'fromSwift0000000000', expect.objectContaining({ calories: 210 }));
+  });
+
+  it('empties the App Group when everything lands', async () => {
+    mockAddLogWithId.mockRejectedValue(new Error('offline'));
+    await logQuickAdd(target);
+    mockAddLogWithId.mockReset();
+    mockAddLogWithId.mockResolvedValue(undefined);
+
+    await flushPendingLogs('u1');
+    expect(mockAppGroup.get(PENDING_LOGS_KEY)).toBeUndefined();
+  });
+
+  it('sign-out clears the App Group queue too', async () => {
+    mockAddLogWithId.mockRejectedValue(new Error('offline'));
+    await logQuickAdd(target);
+    await clearQuickAdd();
+    expect(mockAppGroup.get(PENDING_LOGS_KEY)).toBeUndefined();
   });
 });

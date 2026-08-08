@@ -58,4 +58,19 @@ if (__DEV__ && process.env.EXPO_PUBLIC_USE_EMULATORS === '1') {
   connectFunctionsEmulator(functions, host, 5001);
 }
 
+/**
+ * The two config values a native quick-add needs to reach Firestore on its own
+ * (ADR-0020): an iOS App Intent exchanges the user's refresh token at
+ * `securetoken.googleapis.com` and then writes over the Firestore REST API.
+ *
+ * Re-exported from here rather than retyped in Swift so this file stays the one
+ * place either value is written. Both are public client config, not secrets — the
+ * API key grants nothing without the refresh token, and the rules scope every
+ * write regardless.
+ */
+export const NATIVE_REST_CONFIG = {
+  apiKey: firebaseConfig.apiKey,
+  projectId: firebaseConfig.projectId,
+} as const;
+
 export { app, auth, db, functions, storage };

@@ -15,12 +15,17 @@ import {
   quickAddEntry,
   serializePendingLogs,
 } from '@macrolog/core';
+import { Platform } from 'react-native';
 import { setTileState } from '../../modules/quick-add-tile';
+import {
+  clearQuickAddCredentials,
+  setQuickAddCredentials,
+} from '../../modules/quick-add-credentials';
 import { widgetStrings } from '../widgets/strings';
-import { auth } from './firebase';
+import { NATIVE_REST_CONFIG, auth } from './firebase';
 import { exportNutrition } from './health-sync';
 import { addLogWithId } from './ledger';
-import { readWidgetSnapshot, saveWidgetSnapshot } from './widget';
+import { APP_GROUP, readWidgetSnapshot, saveWidgetSnapshot } from './widget';
 
 /**
  * Quick-add adapter — the impure half of ADR-0020. Every rule lives in
@@ -219,10 +224,54 @@ export async function performQuickAdd(
   return { result, snapshot: next ?? snapshot, target };
 }
 
+/**
+ * Where the pending queue lives, which is **not the same store on both
+ * platforms** — and it cannot be.
+ *
+ * On Android the only writer is JS (the widget task handler and the tile's
+ * headless task both run in our JS context), so `AsyncStorage` is right and is
+ * what everything else here uses.
+ *
+ * On iOS the writer is **Swift**: an App Intent parks a failed REST write with no
+ * JS anywhere in the process. `AsyncStorage` is a SQLite database in the app's own
+ * container — an intent cannot reach it, and the app could not see anything the
+ * intent wrote there. The App Group container is the one store both processes
+ * share, so on iOS the queue lives there, under the same key
+ * (`PENDING_LOGS_KEY`), in the same wire shape `PendingLog` defines.
+ *
+ * Getting this wrong is invisible: every iOS quick-add would appear to queue and
+ * then never flush, because the flush would be reading an empty store.
+ */
+const pendingStore = {
+  async read(): Promise<string | null> {
+    if (Platform.OS === 'ios') {
+      const { ExtensionStorage } = require('@bacons/apple-targets');
+      return new ExtensionStorage(APP_GROUP).get(PENDING_LOGS_KEY) ?? null;
+    }
+    return AsyncStorage.getItem(PENDING_LOGS_KEY);
+  },
+  async write(json: string): Promise<void> {
+    if (Platform.OS === 'ios') {
+      const { ExtensionStorage } = require('@bacons/apple-targets');
+      new ExtensionStorage(APP_GROUP).set(PENDING_LOGS_KEY, json);
+      return;
+    }
+    await AsyncStorage.setItem(PENDING_LOGS_KEY, json);
+  },
+  async clear(): Promise<void> {
+    if (Platform.OS === 'ios') {
+      const { ExtensionStorage } = require('@bacons/apple-targets');
+      new ExtensionStorage(APP_GROUP).set(PENDING_LOGS_KEY, undefined);
+      return;
+    }
+    await AsyncStorage.removeItem(PENDING_LOGS_KEY);
+  },
+};
+
 async function park(row: PendingLog): Promise<void> {
   try {
-    const list = parsePendingLogs(await AsyncStorage.getItem(PENDING_LOGS_KEY));
-    await AsyncStorage.setItem(PENDING_LOGS_KEY, serializePendingLogs(mergePendingLog(list, row)));
+    const list = parsePendingLogs(await pendingStore.read());
+    await pendingStore.write(serializePendingLogs(mergePendingLog(list, row)));
   } catch {
     /* A queue we cannot write is a lost tap, not a crash. */
   }
@@ -230,7 +279,7 @@ async function park(row: PendingLog): Promise<void> {
 
 export async function readPendingLogs(): Promise<PendingLog[]> {
   try {
-    return parsePendingLogs(await AsyncStorage.getItem(PENDING_LOGS_KEY));
+    return parsePendingLogs(await pendingStore.read());
   } catch {
     return [];
   }
@@ -269,12 +318,48 @@ export async function flushPendingLogs(uid: string, nowMs: number = Date.now()):
   }
 
   try {
-    if (stillPending.length === 0) await AsyncStorage.removeItem(PENDING_LOGS_KEY);
-    else await AsyncStorage.setItem(PENDING_LOGS_KEY, serializePendingLogs(stillPending));
+    if (stillPending.length === 0) await pendingStore.clear();
+    else await pendingStore.write(serializePendingLogs(stillPending));
   } catch {
     /* Best-effort: worst case a landed row is retried, which is idempotent. */
   }
   return landed;
+}
+
+/**
+ * Hand iOS the credential an App Intent needs to write on its own (ADR-0020).
+ *
+ * The refresh token is the only part JS has that Swift cannot get: it is exchanged
+ * at `securetoken.googleapis.com` for a one-hour ID token, which the Firestore
+ * REST API accepts. That is what lets a Siri phrase or a widget button write with
+ * no Firebase SDK in the process and no Cloud Function anywhere.
+ *
+ * Called from the same effect that writes the widget snapshot, so there is one
+ * place where "the session changed" turns into "the glanceable surfaces know".
+ * Signed out clears it — and that is the most important clear in this feature,
+ * because the envelope is the one artefact that can still *write* after the
+ * session is gone.
+ *
+ * Android is a no-op: its surfaces reach the ledger through JS and never need a
+ * bare credential.
+ */
+export async function syncQuickAddCredentials(): Promise<void> {
+  if (Platform.OS !== 'ios') return;
+  const user = auth.currentUser;
+  // `user.refreshToken` is exposed by the JS SDK on the User object. It can be
+  // empty on a freshly-restored session before the first token refresh, and an
+  // empty envelope is worse than none — it would make the intents report a
+  // failure rather than "sign in again".
+  if (!user?.uid || !user.refreshToken) {
+    await clearQuickAddCredentials();
+    return;
+  }
+  await setQuickAddCredentials({
+    refreshToken: user.refreshToken,
+    uid: user.uid,
+    apiKey: NATIVE_REST_CONFIG.apiKey,
+    projectId: NATIVE_REST_CONFIG.projectId,
+  });
 }
 
 /**
@@ -315,10 +400,15 @@ export async function syncQuickAddTile(
  */
 export async function clearQuickAdd(): Promise<void> {
   try {
-    await AsyncStorage.multiRemove([PENDING_LOGS_KEY, SLOTS_KEY]);
+    await AsyncStorage.removeItem(SLOTS_KEY);
+    await pendingStore.clear();
   } catch {
     /* best-effort, same as clearWidget */
   }
+  // The iOS credential envelope is the single most important thing to drop here:
+  // it is the one artefact that can still WRITE after the session is gone. Its
+  // own module swallows failures, so this cannot strand the sign-out.
+  await clearQuickAddCredentials();
   // And make the tile inert. It lives in the notification shade, outside the app
   // entirely, so leaving it labelled with the previous account's preset is the
   // same leak `clearWidget` exists to prevent — and tapping it would then write

@@ -18,16 +18,25 @@ import Foundation
 //
 //  ## Two hard rules for anything added here
 //
-//  1. **Foundation only. No SwiftUI, no WidgetKit.** The shared group is linked
-//     into the MAIN APP target unconditionally, so everything here compiles
-//     against the phone app's iOS floor (16.4, `expo-build-properties` in
-//     app.json) *and* against watchOS 10. `Gauge` is iOS 16+, `.containerBackground`
-//     is iOS 17+; shared SwiftUI would need `@available` guards on code that can
-//     only be compiled by spending an EAS build. Views are deliberately NOT
-//     shared (#38 §2).
+//  1. **No SwiftUI. No unguarded WidgetKit. Nothing whose floor is above the
+//     lowest target here.** The shared group is linked into the MAIN APP target
+//     unconditionally, so everything here compiles against the phone app's iOS
+//     floor (16.4, `expo-build-properties` in app.json) *and* against watchOS 10.
+//     `Gauge` is iOS 16+, `.containerBackground` is iOS 17+; shared SwiftUI would
+//     need `@available` guards on code that can only be compiled by spending an
+//     EAS build. Views are deliberately NOT shared (#38 §2).
 //
 //     The dividing line, stated once: **what can silently show wrong _numbers_
 //     is shared; what can only look wrong is not.**
+//
+//     This file itself stays Foundation-only. The rule was originally written as
+//     "Foundation only" and is **widened, not broken, by ADR-0020**: `QuickAdd.swift`
+//     and `QuickAddIntents.swift` also live here and import `Security` and
+//     `AppIntents`, both of which clear iOS 16.4 and watchOS 10, and `WidgetKit`
+//     behind `#if canImport`. The constraint that actually matters is the floor,
+//     not the framework list — and App Intents *must* be here, because App
+//     Shortcuts are only discovered from the main app's metadata and `_shared` is
+//     the one directory that reaches the app target.
 //
 //  2. **Namespaced under `Glance`.** These symbols land in the main app module
 //     too, so bare top-level names like `Snapshot` or `strings` would be a
@@ -94,10 +103,21 @@ public enum Glance {
     public let proteinTarget: Int
     public let updatedMs: Double
     public let locale: String
+    /// The user's quick-add slots (ADR-0020). **Optional, and the wire version
+    /// deliberately did NOT move for it.**
+    ///
+    /// `Codable` makes an optional field tolerant in both directions, which is
+    /// the whole point: this binary decodes a blob written before the field
+    /// existed, and an older binary — build 25, already on TestFlight — decodes
+    /// one written with it. Bumping `version` instead would have made build 25
+    /// reject a perfectly good blob and show a blank widget, which is the same
+    /// silent class of failure as the `useMemoCache` defect on Android.
+    public let quickAdd: [QuickAddSlot]?
 
     public init(
       v: Int, dateKey: String, kcalConsumed: Int, kcalTarget: Int,
-      proteinConsumed: Int, proteinTarget: Int, updatedMs: Double, locale: String
+      proteinConsumed: Int, proteinTarget: Int, updatedMs: Double, locale: String,
+      quickAdd: [QuickAddSlot]? = nil
     ) {
       self.v = v
       self.dateKey = dateKey
@@ -107,6 +127,39 @@ public enum Glance {
       self.proteinTarget = proteinTarget
       self.updatedMs = updatedMs
       self.locale = locale
+      self.quickAdd = quickAdd
+    }
+  }
+
+  /// Mirrors `QuickAddTarget` in `packages/core/src/quick-add.ts`: a preset
+  /// flattened into everything needed to draw a button and write a row, with no
+  /// Firestore read and no auth.
+  ///
+  /// Macros are optional here for the same reason they are optional there — an
+  /// absent macro must stay absent through the write, because a `0` would be
+  /// stored as a real zero and a missing key would not.
+  public struct QuickAddSlot: Codable, Identifiable, Hashable {
+    public let presetId: String
+    public let name: String
+    public let calories: Int
+    public let protein: Double?
+    public let carbs: Double?
+    public let fat: Double?
+
+    /// `Identifiable` off the preset id, so SwiftUI and the App Intents entity
+    /// query agree on identity without a second notion of it.
+    public var id: String { presetId }
+
+    public init(
+      presetId: String, name: String, calories: Int,
+      protein: Double? = nil, carbs: Double? = nil, fat: Double? = nil
+    ) {
+      self.presetId = presetId
+      self.name = name
+      self.calories = calories
+      self.protein = protein
+      self.carbs = carbs
+      self.fat = fat
     }
   }
 
@@ -264,6 +317,12 @@ public enum Glance {
     public let empty: String
     /// Same instruction for families with no room (`.accessoryInline`).
     public let emptyShort: String
+    /// Verb that prefixes a quick-add button's accessibility label — "Log
+    /// Protein shake" (ADR-0020). The visible caption is `+ <name>`, which
+    /// VoiceOver would otherwise read as "plus". Mirrors `quickAddA11y` in
+    /// `src/widgets/strings.ts`, which the Android face and the Quick Settings
+    /// tile share.
+    public let quickAddVerb: String
     /// Watch empty state. Deliberately NOT "Open Ignia" — a complication tap
     /// opens the read-only mirror, which has the same nothing on it, because
     /// the watch has no pull path. Telling someone to open an app that cannot
@@ -301,6 +360,7 @@ public enum Glance {
         protein: "proteína",
         empty: "Abre Ignia para empezar",
         emptyShort: "Abre Ignia",
+        quickAddVerb: "Registrar",
         emptyWatch: "Esperando al iPhone",
         watchSubline: "Tus números se actualizan cuando tu iPhone está cerca.",
         asOf: "a las %@",
@@ -315,6 +375,7 @@ public enum Glance {
         protein: "protein",
         empty: "Open Ignia to start",
         emptyShort: "Open Ignia",
+        quickAddVerb: "Log",
         emptyWatch: "Waiting for iPhone",
         watchSubline: "Your numbers update when your iPhone is nearby.",
         asOf: "as of %@",
