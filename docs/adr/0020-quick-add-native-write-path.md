@@ -2,7 +2,12 @@
 
 ## Status
 
-accepted (2026-08-07). Covers the backlog items `UX_AUDIT.md` §S15 calls **N1**
+accepted (2026-08-07), **amended 2026-08-08** — see "An App Shortcut may not carry
+a required parameter", which records why the iOS half shipped entirely
+non-functional in build 27 and what changed in builds 28 and 29. The write path
+itself is unchanged and is now **proven on hardware**.
+
+Covers the backlog items `UX_AUDIT.md` §S15 calls **N1**
 (Siri / App Intents + Android Quick Settings tile) and **N4** (interactive widget
 quick-add), which share one hard problem and are therefore one decision. Extends
 `apps/mobile/WIDGET.md`, whose Locked Decisions table put App Intents explicitly
@@ -163,6 +168,45 @@ than a blank face.
   device's, and it reuses the widget's own string table rather than adding a
   second one. The manifest's `android:label` stays the brand name, since that
   string *is* resolved by device locale.
+
+### An App Shortcut may not carry a required parameter (amended 2026-08-08)
+
+The original design gave `LogPresetIntent` a required `preset` and
+`LogMacrosIntent` a required `calories`, reasoning from the domain: a log with no
+preset is meaningless and `LogEntry.calories` is non-optional, so requiring them
+in the declaration looked like the honest encoding of an invariant.
+
+**It is not a legal App Shortcut, and the penalty is total.** iOS validates
+`AppShortcutsProvider` on the device at registration, and one invalid shortcut
+invalidates *the whole provider* — not just the offending entry. Build 27
+therefore registered nothing at all: Ignia was absent from the Shortcuts app and
+every phrase answered "I can't help with that". The rules, from [WWDC22
+*Implement App Shortcuts with App Intents*](https://developer.apple.com/videos/play/wwdc2022/10170/),
+are that parameters "should be defined as optional so the app can gracefully
+handle cases where users don't specify them in the initial phrase", and that they
+"are not meant for open-ended values" — `calories` broke both.
+
+**Nothing on a build machine can catch this.** The compile is clean, no warning is
+emitted, and `Metadata.appintents` extracts flawlessly into the binary — build
+27's archive holds a complete provider, both shortcuts, all three intents and
+their phrase templates. Verifying that metadata exists therefore proves nothing;
+that check passed on the binary that shipped broken. It is a device-only failure,
+in the same family as the Android widget shipping blank through vc 4/6/8.
+
+The correction costs nothing the invariant cared about. `preset` is optional and
+disambiguated against `suggestedEntities()`; `calories` is optional and demanded
+by `requestValue`. **The invariant moves from the declaration into `perform()`**,
+which is where it was always enforceable — a value is still never invented, and a
+zero is still never written.
+
+Build 29 then adds parameterised phrases (`"Log \(\.$preset) in
+\(.applicationName)"`), which the required-parameter form could not have
+supported anyway. Its `updateAppShortcutParameters()` call sits in `perform()`
+rather than where presets are edited, because the Settings picker is React and
+`modules/quick-add-credentials` is a CocoaPods target that cannot see `_shared` —
+the same wall this ADR already documents for `watch-link`. The bounded cost is
+that a *renamed* preset keeps its old spoken name until the next Siri log;
+disambiguation is unaffected, reading `suggestedEntities()` live.
 
 ## Consequences
 

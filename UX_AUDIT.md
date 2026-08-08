@@ -175,16 +175,32 @@ What remains, in the order it was prioritized with the owner:
       calories and **prompts** for it when missing, which is one spoken question
       instead of a fabricated number. $0 runtime held: no function, no secret, no
       Firestore field, no rules change.
-      **DEVICE QA IS UNRUN on both platforms** — nothing has been tapped on
-      hardware. 21 checkboxes in `apps/mobile/WIDGET.md`; four are starred as the
-      ones that decide whether any of it works.
+      **iOS shipped BROKEN in build 27 and was fixed in build 28** (2026-08-08).
+      iOS silently refused to register the `AppShortcutsProvider`, because an App
+      Shortcut may not carry a *required* parameter and one invalid shortcut
+      invalidates the provider — so Ignia never appeared in the Shortcuts app and
+      every phrase answered "I can't help with that". Nothing caught it: the build
+      was clean and `Metadata.appintents` extracted perfectly into the binary. See
+      the trap in `apps/mobile/AGENTS.md`.
+      **iOS device QA: the starred Siri row PASSED on build 28** — Siri offered the
+      presets and wrote a real row, so the whole REST path (Keychain, token
+      exchange, `PATCH`, rules) is proven. **Build 29** adds spoken preset names
+      ("log overnight oats in Ignia"); those phrases are unrun.
+      **ANDROID DEVICE QA IS STILL ENTIRELY UNRUN** — nothing has been tapped, and
+      the owner has no Android device, so it needs a tester or an emulator. Of the
+      21 checkboxes in `apps/mobile/WIDGET.md`, one is now ticked.
 - [x] **N2 · Bundle USDA as the food DB.** **SHIPPED 2026-08-07** — ADR-0018.
       13,272 foods (SR Legacy + FNDDS + Foundation, CC0) committed at
       `functions/data/usda-foods.json` and searched in memory, replacing the
       live FDC API: no key, no 1,000 req/hour ceiling, no upstream outage.
       Open Food Facts still serves branded/barcode. Wire contract unchanged, so
-      it shipped functions-only with no client release. Retires
-      `USDA_FDC_API_KEY` (8 → 7 active secret versions).
+      it shipped functions-only with no client release. Makes
+      `USDA_FDC_API_KEY` dead code — though **it is still BOUND to the deployed
+      revisions and cannot simply be deleted**, and unbinding it takes 8 → 7
+      active secret versions, which does **not** get under the free-tier cap of 6.
+      Measured 2026-08-08: the doctor check stays red either way, so the saving is
+      ~$0.06/mo and nothing else. `STATUS.md` §1 carries the two routes already
+      tried and the one remaining.
       **N6 and N7 are unblocked by this.**
 - [x] **N2b · Photo-scan resolves its macros against that DB.** **SHIPPED
       2026-08-07** — ADR-0019, and the half N2 deliberately left open. The vision
@@ -207,6 +223,12 @@ What remains, in the order it was prioritized with the owner:
       so it needs builds on both platforms. **Do not start it before the starred
       device-QA rows in `WIDGET.md` pass**: it widens a surface whose basic
       mechanism is still unverified.
+      **Gate status 2026-08-08 — HALF OPEN.** The iOS starred row passed on build
+      28, so the iOS half is clear. **Android's three starred rows remain unrun**,
+      and Android's write path is a different mechanism entirely (headless JS
+      through `ledger.ts` with `AsyncStorage` auth, not Swift + REST), so the iOS
+      result says nothing about it. Since N4b widens *both* platforms, the gate is
+      still shut — and build 27 is the standing argument for why it should be.
 - [ ] **N3 · Fasting Live Activity / Dynamic Island.** Extends the fasting timer
       already shipped free (Cronometer paywalls theirs at $59.99/yr). iOS-only,
       $0, pure lock-screen retention. Native → needs a build.
