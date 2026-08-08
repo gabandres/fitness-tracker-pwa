@@ -1,4 +1,4 @@
-const { IOSConfig, withDangerousMod, withInfoPlist, withXcodeProject } = require('@expo/config-plugins');
+const { withDangerousMod, withInfoPlist, withXcodeProject } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
@@ -96,28 +96,34 @@ module.exports = function withAppShortcutsLocalization(config) {
     },
   ]);
 
-  // 3. Add them to the app target's Copy Bundle Resources. Xcode preserves the
-  //    `.lproj` segment of a resource's path, which is what makes the bundle
-  //    layout iOS expects.
+  // 3. Register them as a LOCALIZATION VARIANT GROUP — the structure Xcode
+  //    itself uses for a localized resource, and the only one that survives more
+  //    than one locale.
+  //
+  //    Adding each `.lproj` file as an independent resource does NOT work, and
+  //    fails in the worst possible way: build 34 shipped with `en.lproj` present
+  //    and `es-PR.lproj` simply absent. Exit 0, no warning, and the Spanish
+  //    phrases silently did not exist. Two resources sharing the basename
+  //    `AppShortcuts.strings` collapse to one; a variant group is precisely the
+  //    Xcode object that lets one logical resource have many localized files.
   return withXcodeProject(config, (cfg) => {
     const project = cfg.modResults;
     const groupName = cfg.modRequest.projectName;
+
+    // Idempotent: prebuild runs repeatedly, and a duplicated build file makes
+    // Xcode fail with "multiple commands produce". Probing for the first
+    // locale's file is enough and uses only documented API.
+    if (project.hasFile(`${groupName}/${LOCALES[0]}.lproj/${FILENAME}`)) return cfg;
+
+    const variantGroup = project.addLocalizationVariantGroup(FILENAME);
     for (const locale of LOCALES) {
-      // Relative to `ios/`, NOT to the group's folder. Passing the bare
-      // `en.lproj/AppShortcuts.strings` makes Xcode look in `ios/` and fail the
-      // build with "Build input file cannot be found" — which is how build 33
-      // died. The group name is the same path segment the files were written
-      // under in the dangerous mod above.
-      const filepath = `${groupName}/${locale}.lproj/${FILENAME}`;
-      // Idempotent: prebuild can run repeatedly, and a duplicated build file
-      // makes Xcode fail with "multiple commands produce".
-      if (project.hasFile(filepath)) continue;
-      IOSConfig.XcodeUtils.addResourceFileToGroup({
-        filepath,
-        groupName,
-        project,
-        isBuildFile: true,
-      });
+      // Relative to `ios/`, not to the group — the same rule that killed build
+      // 33 when the prefix was omitted.
+      project.addResourceFile(
+        `${groupName}/${locale}.lproj/${FILENAME}`,
+        { variantGroup: true, target: project.getFirstTarget().uuid },
+        variantGroup.fileRef,
+      );
     }
     return cfg;
   });
