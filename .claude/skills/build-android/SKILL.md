@@ -142,6 +142,7 @@ ssh ignia-mac "cat > ~/run-android-build.sh <<'EOF'
 #!/bin/zsh
 cd ~/fitness-tracker-pwa/apps/mobile || exit 90
 set -a; . ~/fitness-tracker-pwa/.env.local; set +a
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
 export GRADLE_OPTS='-Dorg.gradle.internal.http.socketTimeout=60000 -Dorg.gradle.internal.http.connectionTimeout=60000'
 echo \"IGNIA_ANDROID_START \$(date -u +%FT%TZ)\"
 npx eas build -p android --profile production --local --non-interactive
@@ -176,10 +177,23 @@ or runtime. That shipped as vc 10 before anyone checked, and is why vc 11 exists
 and is **obsolete** — it is referenced by no npm script; do not follow it into a
 build.
 
-**`JAVA_HOME` must be the explicit Homebrew path.** `openjdk@17` is keg-only, so
-`/usr/libexec/java_home -v 17` cannot see it and silently yields Java 11; Gradle
-then dies with `UnsupportedClassVersionError` (class file 61 vs 55). Use
-`/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home`.
+**`JAVA_HOME` must be the explicit Homebrew path, and it must be exported INSIDE
+the wrapper script.** `openjdk@17` is keg-only, so `/usr/libexec/java_home -v 17`
+cannot see it, and the Mac's default JDK is Microsoft's **Java 11** at
+`/Library/Java/JavaVirtualMachines/microsoft-11.jdk`. A non-interactive
+`nohup`-ed script inherits none of an interactive shell's exports, so leaving it
+out fails in **45 seconds** with:
+
+```
+Failed to apply plugin 'com.android.internal.application'.
+> Android Gradle plugin requires Java 17 to run. You are currently using Java 11.
+```
+
+That happened on 2026-08-08 and burned a versionCode, because this file used to
+state the rule in prose while the command you copy omitted it. It is now in the
+template above; do not remove it. **Do not "fix" it by putting
+`org.gradle.java.home` in `withGradleJvmArgs.js`** — that would hardcode a
+machine-specific path into committed config and break the EAS cloud fallback.
 
 ### Verify the artifact — exit 0 is not enough
 
