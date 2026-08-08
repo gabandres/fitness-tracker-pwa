@@ -33,11 +33,20 @@ dataset and scales its per-100 g macros by the portion. Items USDA does not
 carry (mofongo, tostones, pernil, pan sobao) keep the model's own numbers and are
 marked `source: "model"`; both clients label them.
 
+**NOT DEPLOYED YET — merged on `main`, running nowhere.** Prod still returns the
+model's own macros. Deploying is a deliberate act and changes what every existing
+install gets back from a scan, so it was left for the owner:
+
+```sh
+npm --prefix functions run build && firebase deploy --only functions:analyzePhoto
+npm run build && firebase deploy --only hosting   # the web itemized review
+```
+
 **The `analyzePhoto` response is ADDITIVE, and that is load-bearing.** `items[]`
 is new; the flat `calories`/`protein`/`carbs`/`fat` remain and are now the sum of
 the resolved items. Every shipped binary (iOS 24/25, Android vc 11/13, the
-deployed web app) reads only the flat fields, so **the accuracy fix reached every
-existing install the moment the function deployed** — no app update, no OTA, no
+deployed web app) reads only the flat fields, so **the accuracy fix reaches every
+existing install the moment the function deploys** — no app update, no OTA, no
 review. The itemized review screens are what need new clients.
 
 Verify against prod with a real signed-in scan, or locally on the compiled path:
