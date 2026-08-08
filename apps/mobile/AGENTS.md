@@ -113,8 +113,9 @@ ship):
 
 | Platform | Binary | Fingerprint | Source | Note |
 |---|---|---|---|---|
+| iOS | **build 27** (2026-08-07) | `4734a4b6ae3cb652db2a4f920ee0b7ed8c073429` | **read from the `.ipa`** | current `main`, TestFlight — carries Siri + the widget button |
 | Android | **vc 18** (2026-08-07) | `cc3da8b9a22df7180c55e6cab5cd8decccdb98bb` | **read from the `.aab`** | current `main`, alpha — carries the Quick Settings tile |
-| iOS | **build 25** (2026-08-07) | `6c756c19b3e35948b85e42a3b337eec588128d3c` | **read from the `.ipa`** | current `main` |
+| iOS | build 25 (2026-08-07) | `6c756c19b3e35948b85e42a3b337eec588128d3c` | **read from the `.ipa`** | superseded by 27; still what un-updated testers run |
 | iOS | build 24 | `781be0c885005e1d02bcf41408988c6622ff222e` | Windows `fingerprint:generate` — **unverified** | in App Review |
 | Android | vc 13 (2026-08-07) | `5758fe4f232d5e6fe1ca369299512cfec0d39e13` | **read from the `.aab`** | superseded by vc 18; still what un-updated testers run |
 | Android | vc 11 | `c0b85c15e6631d99e8ccef61867d937389094ae6` | Windows `fingerprint:generate` — **unverified** | superseded |
@@ -131,14 +132,23 @@ build output.
 Also note `autoIncrement` burns a number per **attempt**: vc 14–17 do not exist,
 consumed by three Gradle failures (unset `ANDROID_HOME`, a missing
 `com.facebook.react` classpath entry in the new local module, and a Kotlin static
-resolved through the wrong class).
+resolved through the wrong class). iOS **build 26** does not exist either, for the
+same reason — one Swift failure, described below.
 
-**Only the two rows marked "read from the artifact" are evidence.** The other two
+**Swift block comments NEST, and it cost a build.** `/**` … `*/` nests, and
+backticks mean nothing to the lexer, so a literal `_shared/` + `*` written inside
+a doc comment opens a nested comment that never closes. It is reported as
+`unterminated '/*' comment` against the **last brace in the file**, hundreds of
+lines from the cause, and it cascades into `cannot find <Type> in scope` errors in
+every other target. This is exactly why `Glance.swift` explains the same glob in
+`//` line comments — those do not nest. Do not write that glob inside a block
+comment.
+
+**Only the rows marked "read from the artifact" are evidence.** Build 24 and vc 11
 are Windows-generated hashes recorded before the machine-dependence above was
 known, and their artifacts have since been overwritten on the Mac, so they cannot
 be checked. Treat them as unknown, not as fact: since the Windows/Mac divergence
-is commit-independent, build 24 and vc 11 most likely carry Mac values nobody
-recorded. If it ever matters, rebuild at that commit on the Mac and read the
+is commit-independent, they most likely carry Mac values nobody recorded. If it ever matters, rebuild at that commit on the Mac and read the
 artifact — do not re-derive on Windows.
 
 That also means the earlier claim that **the fleet spans two runtime versions per
