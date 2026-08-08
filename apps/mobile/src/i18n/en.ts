@@ -31,6 +31,10 @@ export const en = {
   'scan.review': 'Check the estimate',
   'scan.lowConf': 'Rough estimate — give it a quick look before adding.',
   'scan.mealName': 'Meal',
+  'scan.items': 'What we found',
+  'scan.sourceEstimate': 'Estimated — not in the food database',
+  'scan.estimateHint':
+    'Items marked "estimated" were not in the food database, so those numbers are the AI\'s own guess. Adjust them if you know better.',
   'scan.portion': 'Portion',
   'scan.addToday': 'Add to today',
   'scan.retake': 'Retake',

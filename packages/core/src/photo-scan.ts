@@ -7,6 +7,11 @@
  * total. Keep this pure (no I/O) like the rest of `@macrolog/core`.
  */
 
+/** Where one item's macros actually came from. Per ITEM, not per scan: one
+ *  plate routinely mixes a USDA-resolved rice with an unresolvable mofongo,
+ *  and the user is entitled to know which is which. */
+export type ScannedItemSource = 'usda' | 'custom' | 'model';
+
 /** One recognized food in a scanned meal, with server-resolved macros. */
 export interface ScannedFoodItem {
   /** Display name the vision model recognized ("grilled chicken breast"). */
@@ -19,14 +24,35 @@ export interface ScannedFoodItem {
   fat: number;
   /** 0–1 model confidence; drives a "double-check this" hint on low values. */
   confidence: number;
+  /**
+   * How THIS item's macros were produced. `'model'` means the food database had
+   * no match and the vision model's own numbers stand — the case ADR-0015 §1
+   * measured at >60% protein error, so it is worth surfacing rather than
+   * presenting with the same authority as a database row.
+   *
+   * Optional because a client may still be reading a response from before the
+   * server was itemized; absent means "not stated", not "grounded".
+   */
+  source?: ScannedItemSource;
+  /** FDC id of the matched food, when `source` is `'usda'`. */
+  fdcId?: string | null;
+  /** The database description the macros came from, so the review screen can
+   *  show the user what the app thinks it is looking at. */
+  matchedDescription?: string | null;
 }
 
 /** Full result of one scan: the items plus the source the macros came from. */
 export interface ScanResult {
   items: ScannedFoodItem[];
-  /** How the macros were grounded — 'usda' | 'custom' | 'model' (unresolved
-   *  fallback where no DB match was found and the model's numbers stand). */
-  source: 'usda' | 'custom' | 'model';
+  /** Scan-level roll-up: `'usda'` when at least one item resolved against the
+   *  database, `'model'` when none did. Per-item `source` is the finer answer. */
+  source: ScannedItemSource;
+}
+
+/** True when any item fell back to the model's own numbers — the condition the
+ *  review screen warns on. */
+export function hasUngroundedItems(items: readonly ScannedFoodItem[]): boolean {
+  return items.some((i) => i.source === 'model');
 }
 
 /** Sum a scan's items into a single macro total (for the review-screen ring). */

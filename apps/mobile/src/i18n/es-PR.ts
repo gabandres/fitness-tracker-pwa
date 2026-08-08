@@ -33,6 +33,10 @@ export const esPR: Record<I18nKey, string> = {
   'scan.review': 'Revisa el estimado',
   'scan.lowConf': 'Estimado aproximado — dale un vistazo antes de añadir.',
   'scan.mealName': 'Comida',
+  'scan.items': 'Lo que encontramos',
+  'scan.sourceEstimate': 'Estimado — no está en la base de datos',
+  'scan.estimateHint':
+    'Los alimentos marcados como "estimado" no están en la base de datos, así que esos números son un estimado de la IA. Ajústalos si sabes mejor.',
   'scan.portion': 'Porción',
   'scan.addToday': 'Añadir a hoy',
   'scan.retake': 'Repetir',

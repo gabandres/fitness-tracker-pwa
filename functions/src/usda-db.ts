@@ -28,8 +28,10 @@ export interface UsdaFood {
   portions: { label: string; grams: number }[];
 }
 
-/** A food plus the lowercased forms the matcher needs, computed once at load. */
-interface IndexedFood extends UsdaFood {
+/** A food plus the lowercased forms the matcher needs, computed once at load.
+ *  Exported because `photo-resolve.ts` ranks against the same index — it reuses
+ *  {@link scoreFood} rather than growing a second, drifting copy of the rules. */
+export interface IndexedFood extends UsdaFood {
   norm: string;
   words: string[];
   /** Singular-folded words, so "carrot" matches "Carrots, raw". */
@@ -108,8 +110,10 @@ const MAX_SERVINGS = 12;
 
 let cache: IndexedFood[] | null = null;
 
-/** Split into lowercase alphanumeric words — the unit both sides match on. */
-function words(s: string): string[] {
+/** Split into lowercase alphanumeric words — the unit both sides match on.
+ *  Exported as `wordsOf` so the photo resolver tokenizes model phrases exactly
+ *  the way descriptions were tokenized at index time. */
+export function words(s: string): string[] {
   return s.toLowerCase().split(/[^a-z0-9.]+/i).filter(Boolean);
 }
 
@@ -125,7 +129,7 @@ function words(s: string): string[] {
  * "raw"/"raws" and conflate distinct foods. Length and "ss" guards keep
  * "oats"→"oat" working while leaving "molasses" and "gas" alone.
  */
-function stem(w: string): string {
+export function stem(w: string): string {
   if (w.length > 4 && w.endsWith("ies")) return `${w.slice(0, -3)}y`;   // blueberries → blueberry
   if (w.length > 4 && w.endsWith("oes")) return w.slice(0, -2);         // tomatoes → tomato
   if (w.length > 4 && /(?:s|x|z|ch|sh)es$/.test(w)) return w.slice(0, -2); // peaches → peach
@@ -182,7 +186,26 @@ export function resetCache(): void {
  * favours short, plainly-named entries, which are the generic foods a person
  * searching a bare term almost always wants.
  */
-export function scoreFood(food: IndexedFood, tokens: string[], query: string): number | null {
+export interface ScoreOptions {
+  /**
+   * Processed/composite words the QUERY itself used, whose penalty should be
+   * waived for a food that contains them. Typeahead leaves this empty — someone
+   * typing "plantain" wants the raw one. The photo resolver passes the model's
+   * preparation words, because "fried plantains" is describing tostones and
+   * penalising "Plantains, fried" would return the food it explicitly is not.
+   */
+  waiveProcessed?: string[];
+  /** Whether the PLAIN bonus applies. Off when the query names a preparation,
+   *  so "grilled chicken" is not pulled toward "raw". Defaults to on. */
+  plainBonus?: boolean;
+}
+
+export function scoreFood(
+  food: IndexedFood,
+  tokens: string[],
+  query: string,
+  opts: ScoreOptions = {},
+): number | null {
   let score = 0;
   for (const t of tokens) {
     const s = stem(t);
@@ -199,17 +222,21 @@ export function scoreFood(food: IndexedFood, tokens: string[], query: string): n
   // Flat, NOT per match: counting them ranked "Onions, frozen, whole,
   // unprepared" (two plain words) above "Onions, red, raw" (one). Being plain
   // is a property of the food, not a quantity.
-  if (PLAIN.test(food.norm)) score += 12;
-  score -= 18 * countMatches(food.norm, PROCESSED);
-  score -= 25 * countMatches(food.norm, COMPOSITE);
+  if ((opts.plainBonus ?? true) && PLAIN.test(food.norm)) score += 12;
+  score -= 18 * countMatches(food.norm, PROCESSED, opts.waiveProcessed);
+  score -= 25 * countMatches(food.norm, COMPOSITE, opts.waiveProcessed);
   score += DATA_TYPE_BONUS[food.dataType] ?? 0;
   if (VAGUE_MARKERS.test(food.norm)) score -= 25;
 
   return score;
 }
 
-function countMatches(s: string, re: RegExp): number {
-  return (s.match(re) ?? []).length;
+/** Count regex hits, minus any the caller asked to forgive (see ScoreOptions). */
+function countMatches(s: string, re: RegExp, waive?: string[]): number {
+  const hits = s.match(re) ?? [];
+  if (!waive?.length) return hits.length;
+  const forgiven = new Set(waive.map((w) => w.toLowerCase()));
+  return hits.filter((h) => !forgiven.has(h.toLowerCase())).length;
 }
 
 /**

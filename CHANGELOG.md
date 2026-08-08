@@ -6,6 +6,16 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-07 — Photo scan now reads the food database, not the model's guess
+
+When you photographed a plate, an AI looked at it and typed four numbers. That is the design this app decided *against* two months ago and then shipped anyway: vision models are good at recognising food and sizing a portion, and measurably bad at the nutrition numbers — off by more than 60% on protein, which is the one number Ignia is built around. The food database that would fix it landed last week. It is now wired in.
+
+- **The AI names the food and weighs it. The USDA database does the math.** "Grilled chicken breast, about 150 g" is a question the model can answer well; how many grams of protein that is, is a question the database answers exactly. Your macros are now looked up, not guessed.
+- **You get the plate broken down, item by item.** Rice, beans and chicken arrive as three lines you can rename, re-weigh or delete — instead of one total you either accept or argue with. Fixing a portion recalculates that item and the total.
+- **Cooked food is counted as cooked.** Uncooked rice has nearly three times the calories of cooked rice per gram, and nutrition databases file the raw version as the default. Reading the plate as raw would have overstated a bowl of rice threefold. The model is now asked what it actually sees.
+- **When the database doesn't know a dish, it says so.** Mofongo, tostones, pernil and pan sobao aren't in the USDA set. Those keep the AI's estimate and are labelled "estimated", so you can tell at a glance which numbers are looked up and which are a guess.
+- **Nothing to update on your phone.** The improved numbers arrived with a server release — every install got them immediately. The itemized breakdown comes with the next app update.
+
 ## 2026-08-07 — Food search now ships with the food data inside it
 
 Searching for a food used to call the USDA's public API from our server, wait for it, and hope it was up. It needed a key, it was capped at 1,000 requests an hour across every user, and when it was slow, search was slow. The data it returned is public domain — so it is now simply *in* the app's server, and the round trip is gone.

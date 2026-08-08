@@ -1,6 +1,13 @@
+import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
-import { PhotoMacrosService } from '../../services/photo-macros.service';
+import {
+  hasUngroundedItems,
+  rescaleScannedItem,
+  sumScannedMacros,
+  type ScannedFoodItem,
+} from '@macrolog/core';
+import { PhotoMacrosService, toScannedItems } from '../../services/photo-macros.service';
 import { MacroEstimate } from '../../models/macro-estimate';
 import { TranslationService } from '../../services/translation.service';
 import { SubscriptionService } from '../../services/subscription.service';
@@ -9,7 +16,7 @@ import { extractErrorCode } from '../../models/error-codes';
 @Component({
   selector: 'app-photo-capture',
   standalone: true,
-  imports: [TranslocoDirective],
+  imports: [TranslocoDirective, DecimalPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -51,6 +58,56 @@ import { extractErrorCode } from '../../models/error-codes';
         {{ t('photo.lowConfidence') }}
       </p>
     }
+    <!-- Itemized review (ADR-0015 §1). The form is already filled from the
+         summed totals, so this is a correction surface, not a gate: editing an
+         item's grams rescales its macros and re-emits the new total. -->
+    @if (items().length) {
+      <div class="mt-2 flex flex-col gap-1">
+        <p class="font-mono text-[10px] tracking-[0.08em] uppercase" style="color: var(--color-graphite)">
+          {{ t('photo.items') }}
+        </p>
+        @for (item of items(); track $index) {
+          <div class="flex items-center gap-2 specimen px-2 py-1">
+            <span class="flex-1 min-w-0">
+              <span class="block font-sans text-xs truncate">{{ item.name }}</span>
+              <span class="block font-mono text-[10px]" style="color: var(--color-graphite)">
+                {{ item.calories | number: '1.0-0' }} kcal ·
+                {{ item.protein | number: '1.0-0' }}P ·
+                {{ item.carbs | number: '1.0-0' }}C ·
+                {{ item.fat | number: '1.0-0' }}F
+              </span>
+              @if (item.source === 'model') {
+                <span class="block font-mono text-[10px]" style="color: var(--color-gold)">
+                  {{ t('photo.sourceEstimate') }}
+                </span>
+              } @else if (item.matchedDescription) {
+                <span class="block font-mono text-[10px] truncate" style="color: var(--color-graphite)">
+                  {{ item.matchedDescription }}
+                </span>
+              }
+            </span>
+            <label class="flex items-center gap-1 shrink-0">
+              <input type="number" min="0" inputmode="numeric"
+                class="w-14 text-right font-mono text-xs bg-transparent border-b"
+                style="border-color: var(--color-graphite)"
+                [attr.aria-label]="t('photo.gramsAria', { name: item.name })"
+                [value]="item.grams | number: '1.0-0'"
+                (change)="onGramsChanged($index, $event)" />
+              <span class="font-mono text-[10px]" style="color: var(--color-graphite)">g</span>
+            </label>
+            <button type="button" class="shrink-0 text-base leading-none"
+              style="color: var(--color-graphite)"
+              [attr.aria-label]="t('photo.removeItemAria', { name: item.name })"
+              (click)="removeItem($index)">&times;</button>
+          </div>
+        }
+        @if (hasEstimated()) {
+          <p class="font-sans text-[11px]" style="color: var(--color-graphite)">
+            {{ t('photo.estimateHint') }}
+          </p>
+        }
+      </div>
+    }
     </ng-container>
   `,
 })
@@ -69,6 +126,16 @@ export class PhotoCaptureComponent {
       users only learn their quota after burning one. */
   protected readonly photosRemaining = computed(() => this.subs.photosRemaining());
   protected readonly lastConfidence = signal<'low' | 'medium' | 'high' | null>(null);
+
+  /**
+   * The itemized breakdown from the last scan. Empty before the first capture,
+   * and cleared on a new one — a stale list beside a fresh estimate would be
+   * worse than no list.
+   */
+  protected readonly items = signal<ScannedFoodItem[]>([]);
+  /** True when any item's macros are the model's own guess rather than a
+   *  database row — the case worth flagging, per ADR-0015 §1. */
+  protected readonly hasEstimated = computed(() => hasUngroundedItems(this.items()));
 
   /** Pre-resize rejection threshold. Mobile cameras routinely emit 10-12 MB
       HEIC/JPEGs; anything past 15 MB is almost certainly a misuse (burst
@@ -90,12 +157,18 @@ export class PhotoCaptureComponent {
 
     this.photoStatus.set('analyzing');
     this.photoError.set('');
+    this.items.set([]);
 
     try {
       const base64 = await this.resizeAndEncode(file, 1920);
       const result = await this.photoService.analyze(base64);
       this.subs.decrementPhotosRemaining(result.photosRemaining);
       this.lastConfidence.set(result.confidence);
+      this.items.set(toScannedItems(result));
+      this.mealLabel = result.description;
+      // Emit from the server's own totals rather than re-summing the items:
+      // before any edit they are the same number, and the server's is the one
+      // the user was just shown.
       this.estimated.emit({
         calories: result.calories,
         protein: result.protein,
@@ -116,6 +189,34 @@ export class PhotoCaptureComponent {
     } finally {
       input.value = '';
     }
+  }
+
+  /** Label from the last scan, so a re-emit after an edit keeps naming the meal. */
+  private mealLabel = '';
+
+  /** Editing an item's portion rescales its macros — they are linear in grams —
+   *  and re-emits the new whole-meal total into the form. */
+  protected onGramsChanged(index: number, event: Event): void {
+    const raw = Number((event.target as HTMLInputElement).value);
+    const grams = Number.isFinite(raw) ? Math.max(0, raw) : 0;
+    this.items.update((list) => list.map((it, i) => (i === index ? rescaleScannedItem(it, grams) : it)));
+    this.emitTotals();
+  }
+
+  protected removeItem(index: number): void {
+    this.items.update((list) => list.filter((_, i) => i !== index));
+    this.emitTotals();
+  }
+
+  private emitTotals(): void {
+    const total = sumScannedMacros(this.items());
+    this.estimated.emit({
+      calories: Math.round(total.calories),
+      protein: Math.round(total.protein),
+      carbs: Math.round(total.carbs),
+      fat: Math.round(total.fat),
+      label: this.mealLabel,
+    });
   }
 
   private resizeAndEncode(file: File, maxDim: number): Promise<string> {

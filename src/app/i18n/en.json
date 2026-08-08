@@ -1048,7 +1048,12 @@
     "lowConfidence": "⚠ low confidence — verify estimate",
     "errorFallback": "Photo analysis failed.",
     "errorFileTooLarge": "That image is too large. Try a photo under 15 MB.",
-    "resetHint": "daily photo quota resets at midnight UTC"
+    "resetHint": "daily photo quota resets at midnight UTC",
+    "items": "what we found",
+    "sourceEstimate": "estimated — not in the food database",
+    "estimateHint": "Items marked \"estimated\" were not in the food database, so those numbers are the AI's own guess. Adjust them if you know better.",
+    "gramsAria": "Portion in grams for {{name}}",
+    "removeItemAria": "Remove {{name}} from this scan"
   },
   "starter": {
     "stamp": "start",

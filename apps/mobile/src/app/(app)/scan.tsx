@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { rescaleScannedItem, sumScannedMacros, type ScannedFoodItem } from '@macrolog/core';
+import { hasUngroundedItems, rescaleScannedItem, sumScannedMacros, type ScannedFoodItem } from '@macrolog/core';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { useToday } from '@/hooks/useToday';
 import { useLocale, useT } from '@/i18n';
@@ -17,6 +17,28 @@ import { font, radius, space, type } from '@/theme';
 type Phase = 'intro' | 'analyzing' | 'review';
 const PORTION_STEPS = [0.5, 1, 1.5, 2] as const;
 
+/**
+ * Photo scan review (ADR-0015 §1).
+ *
+ * The server returns an ITEMIZED result — each food it recognized, with a
+ * portion in grams and macros resolved from the bundled USDA database — so this
+ * screen edits a list, not a single black-box total. Editing an item's grams
+ * rescales its macros linearly, which is the correction users actually need:
+ * the vision model is good at naming food and imperfect at sizing it, and the
+ * grams are now the only number it contributes.
+ *
+ * Items the database could not resolve (mofongo, pernil — regional dishes USDA
+ * does not carry) fall back to the model's own numbers and are marked. That
+ * distinction is worth showing: ADR-0015 measured LLM protein estimates at >60%
+ * error, so a model-sourced row deserves less trust than a database-sourced one,
+ * and presenting both identically would hide exactly the thing the architecture
+ * exists to fix.
+ *
+ * The whole plate is still logged as ONE entry, summed. Splitting it into N
+ * `DailyLog` rows would change what streaks, counts and the Today list mean for
+ * a single meal; that is a product decision, not a consequence of itemizing the
+ * review.
+ */
 export default function Scan() {
   const t = useT();
   const locale = useLocale();
@@ -27,7 +49,8 @@ export default function Scan() {
 
   const [phase, setPhase] = useState<Phase>('intro');
   const [error, setError] = useState<string | null>(null);
-  const [item, setItem] = useState<ScannedFoodItem | null>(null);
+  const [items, setItems] = useState<ScannedFoodItem[]>([]);
+  const [mealName, setMealName] = useState('');
   const [lowConf, setLowConf] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -39,9 +62,9 @@ export default function Scan() {
     setPhase('analyzing');
     try {
       const scan = await analyzeMealPhoto(base64, locale);
-      const first = scan.items[0];
-      if (!first) throw new Error('empty');
-      setItem(first);
+      if (!scan.items.length) throw new Error('empty');
+      setItems(scan.items);
+      setMealName(defaultMealName(scan.items, t('scan.mealName')));
       setLowConf(scan.confidence === 'low');
       setPhase('review');
       haptics.success();
@@ -52,29 +75,40 @@ export default function Scan() {
     }
   }
 
-  /** Portion chips rescale from the current item (macros are linear in grams;
-   *  for a whole-meal total with grams=0 we scale the macros directly). */
+  /** Portion chips scale the WHOLE plate — "that was a bigger serving than it
+   *  looks" — while per-item grams handle one food being off. */
   function applyPortion(mult: number) {
-    if (!item) return;
     haptics.tap();
-    setItem((prev) => (prev ? scalePortion(prev, mult) : prev));
+    setItems((prev) => prev.map((it) => scalePortion(it, mult)));
   }
 
-  function editMacro(key: 'calories' | 'protein' | 'carbs' | 'fat', raw: string) {
+  function editGrams(index: number, raw: string) {
     const n = Number(raw.replace(/[^0-9.]/g, ''));
-    setItem((prev) => (prev ? { ...prev, [key]: Number.isFinite(n) ? n : 0 } : prev));
+    setItems((prev) =>
+      prev.map((it, i) => (i === index ? rescaleScannedItem(it, Number.isFinite(n) ? n : 0) : it)),
+    );
+  }
+
+  function editName(index: number, value: string) {
+    setItems((prev) => prev.map((it, i) => (i === index ? { ...it, name: value } : it)));
+  }
+
+  function removeItem(index: number) {
+    haptics.tap();
+    setItems((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function onAdd() {
-    if (!item || saving) return;
+    if (!items.length || saving) return;
     setSaving(true);
     try {
+      const total = sumScannedMacros(items);
       await addEntry({
-        calories: Math.round(item.calories),
-        protein: Math.round(item.protein),
-        carbs: Math.round(item.carbs),
-        fat: Math.round(item.fat),
-        mealLabel: item.name.trim() || t('scan.mealName'),
+        calories: Math.round(total.calories),
+        protein: Math.round(total.protein),
+        carbs: Math.round(total.carbs),
+        fat: Math.round(total.fat),
+        mealLabel: mealName.trim() || t('scan.mealName'),
       });
       haptics.success();
       router.replace('/(app)'); // back to Today — rings re-sweep to the new total
@@ -83,7 +117,8 @@ export default function Scan() {
     }
   }
 
-  const total = item ? sumScannedMacros([item]) : null;
+  const total = sumScannedMacros(items);
+  const ungrounded = hasUngroundedItems(items);
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -100,7 +135,7 @@ export default function Scan() {
           <ActivityIndicator color={colors.accent} size="large" />
           <Text style={styles.analyzing}>{t('scan.analyzing')}</Text>
         </View>
-      ) : phase === 'review' && item && total ? (
+      ) : phase === 'review' && items.length ? (
         <>
           <ScrollView contentContainerStyle={styles.body}>
             {lowConf ? (
@@ -118,16 +153,49 @@ export default function Scan() {
               </View>
               <TextInput
                 style={styles.nameInput}
-                value={item.name}
-                onChangeText={(v) => setItem((prev) => (prev ? { ...prev, name: v } : prev))}
+                value={mealName}
+                onChangeText={setMealName}
                 placeholder={t('scan.mealName')}
                 placeholderTextColor={colors.heroMuted}
                 testID="scan-name"
               />
             </Animated.View>
 
-            {/* Portion */}
-            <Animated.View entering={enterUp(2)}>
+            {/* Read-only macro totals — the editable numbers are the per-item
+                grams below, since every macro is derived from them. */}
+            <Animated.View style={styles.totalRow} entering={enterUp(2)}>
+              <TotalChip label={t('history.protein')} value={total.protein} styles={styles} testID="scan-protein" />
+              <TotalChip label={t('today.carbs')} value={total.carbs} styles={styles} testID="scan-carbs" />
+              <TotalChip label={t('today.fat')} value={total.fat} styles={styles} testID="scan-fat" />
+            </Animated.View>
+
+            {/* Items */}
+            <Animated.View entering={enterUp(3)} style={styles.itemsBlock}>
+              <Text style={styles.section}>{t('scan.items')}</Text>
+              {items.map((it, i) => (
+                <ItemRow
+                  key={`${i}-${it.fdcId ?? it.name}`}
+                  item={it}
+                  index={i}
+                  styles={styles}
+                  colors={colors}
+                  t={t}
+                  onName={editName}
+                  onGrams={editGrams}
+                  onRemove={removeItem}
+                />
+              ))}
+            </Animated.View>
+
+            {ungrounded ? (
+              <Animated.View style={styles.noteRow} entering={enterUp(4)}>
+                <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
+                <Text style={styles.noteText}>{t('scan.estimateHint')}</Text>
+              </Animated.View>
+            ) : null}
+
+            {/* Whole-plate portion */}
+            <Animated.View entering={enterUp(5)}>
               <Text style={styles.section}>{t('scan.portion')}</Text>
               <View style={styles.portionRow}>
                 {PORTION_STEPS.map((p) => (
@@ -137,18 +205,10 @@ export default function Scan() {
                 ))}
               </View>
             </Animated.View>
-
-            {/* Editable macros */}
-            <Animated.View style={styles.macroGrid} entering={enterUp(3)}>
-              <MacroField label={t('history.protein')} value={item.protein} onChange={(v) => editMacro('protein', v)} testID="scan-protein" styles={styles} />
-              <MacroField label={t('today.carbs')} value={item.carbs} onChange={(v) => editMacro('carbs', v)} testID="scan-carbs" styles={styles} />
-              <MacroField label={t('today.fat')} value={item.fat} onChange={(v) => editMacro('fat', v)} testID="scan-fat" styles={styles} />
-              <MacroField label={t('today.calories')} value={item.calories} onChange={(v) => editMacro('calories', v)} testID="scan-cal" styles={styles} />
-            </Animated.View>
           </ScrollView>
 
           <View style={styles.footer}>
-            <PressScale style={styles.retake} scaleTo={0.96} onPress={() => { haptics.tap(); setPhase('intro'); setItem(null); }} testID="scan-retake">
+            <PressScale style={styles.retake} scaleTo={0.96} onPress={() => { haptics.tap(); setPhase('intro'); setItems([]); }} testID="scan-retake">
               <Text style={styles.retakeText}>{t('scan.retake')}</Text>
             </PressScale>
             <PressScale style={[styles.add, saving && styles.addDisabled]} scaleTo={0.97} onPress={onAdd} disabled={saving} testID="scan-add">
@@ -199,36 +259,95 @@ export default function Scan() {
   );
 }
 
-function MacroField({
-  label,
-  value,
-  onChange,
-  testID,
+function ItemRow({
+  item,
+  index,
   styles,
+  colors,
+  t,
+  onName,
+  onGrams,
+  onRemove,
 }: {
-  label: string;
-  value: number;
-  onChange: (v: string) => void;
-  testID: string;
+  item: ScannedFoodItem;
+  index: number;
   styles: ReturnType<typeof createStyles>;
+  colors: Theme['colors'];
+  t: (k: never) => string;
+  onName: (i: number, v: string) => void;
+  onGrams: (i: number, v: string) => void;
+  onRemove: (i: number) => void;
 }) {
+  const estimated = item.source === 'model';
   return (
-    <View style={styles.macroField}>
-      <Text style={styles.macroLabel}>{label}</Text>
-      <TextInput
-        style={styles.macroInput}
-        value={String(Math.round(value))}
-        onChangeText={onChange}
-        keyboardType="numeric"
-        selectTextOnFocus
-        testID={testID}
-      />
+    <View style={styles.itemRow} testID={`scan-item-${index}`}>
+      <View style={styles.itemMain}>
+        <TextInput
+          style={styles.itemName}
+          value={item.name}
+          onChangeText={(v) => onName(index, v)}
+          testID={`scan-item-name-${index}`}
+        />
+        <Text style={styles.itemMacros}>
+          {Math.round(item.calories)} kcal · {Math.round(item.protein)}P · {Math.round(item.carbs)}C · {Math.round(item.fat)}F
+        </Text>
+        {estimated ? (
+          <Text style={styles.itemEstimate}>{t('scan.sourceEstimate' as never)}</Text>
+        ) : item.matchedDescription ? (
+          <Text style={styles.itemMatched} numberOfLines={1}>
+            {item.matchedDescription}
+          </Text>
+        ) : null}
+      </View>
+      <View style={styles.itemGramsWrap}>
+        <TextInput
+          style={styles.itemGrams}
+          value={String(Math.round(item.grams))}
+          onChangeText={(v) => onGrams(index, v)}
+          keyboardType="numeric"
+          selectTextOnFocus
+          testID={`scan-item-grams-${index}`}
+        />
+        <Text style={styles.itemGramsUnit}>g</Text>
+      </View>
+      <PressScale style={styles.itemRemove} scaleTo={0.9} onPress={() => onRemove(index)} testID={`scan-item-remove-${index}`}>
+        <Ionicons name="close" size={18} color={colors.muted} />
+      </PressScale>
     </View>
   );
 }
 
-/** Scale a whole-meal item's macros by a portion factor from its current
- *  values (grams=0 case); rescaleScannedItem handles the grams-based path. */
+function TotalChip({
+  label,
+  value,
+  styles,
+  testID,
+}: {
+  label: string;
+  value: number;
+  styles: ReturnType<typeof createStyles>;
+  testID: string;
+}) {
+  return (
+    <View style={styles.totalChip}>
+      <Text style={styles.macroLabel}>{label}</Text>
+      <Text style={styles.totalValue} testID={testID}>
+        {Math.round(value)}
+      </Text>
+    </View>
+  );
+}
+
+/** Name the log entry after what is on the plate, not after "Meal". */
+function defaultMealName(items: ScannedFoodItem[], fallback: string): string {
+  const names = items.map((i) => i.name).filter(Boolean);
+  if (names.length === 0) return fallback;
+  if (names.length <= 2) return names.join(' + ');
+  return `${names[0]} +${names.length - 1}`;
+}
+
+/** Scale one item by a portion factor. Grams-based where we have a portion;
+ *  for a model-fallback whole-meal row (grams 0) the macros scale directly. */
 function scalePortion(item: ScannedFoodItem, mult: number): ScannedFoodItem {
   if (item.grams > 0) return rescaleScannedItem(item, item.grams * mult);
   const round = (n: number) => Math.round(n * 10) / 10;
@@ -273,10 +392,25 @@ function createStyles({ colors, shadow }: Theme) {
     portionRow: { flexDirection: 'row', gap: space.sm },
     portionChip: { flex: 1, alignItems: 'center', backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, paddingVertical: space.md },
     portionText: { fontSize: font.body, fontWeight: '700', color: colors.ink },
-    macroGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
-    macroField: { width: '47%', gap: space.xs },
     macroLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
-    macroInput: { backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.md, fontSize: font.h3, color: colors.ink },
+    // totals
+    totalRow: { flexDirection: 'row', gap: space.sm },
+    totalChip: { flex: 1, alignItems: 'center', gap: 2, backgroundColor: colors.inputBg, borderRadius: radius.md, paddingVertical: space.md },
+    totalValue: { fontSize: font.h3, fontWeight: '700', color: colors.ink },
+    // items
+    itemsBlock: { gap: space.sm },
+    itemRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm },
+    itemMain: { flex: 1, gap: 2 },
+    itemName: { fontSize: font.body, fontWeight: '700', color: colors.ink, paddingVertical: 2 },
+    itemMacros: { fontSize: font.small, color: colors.muted },
+    itemMatched: { fontSize: font.small - 1, color: colors.muted, opacity: 0.8 },
+    itemEstimate: { fontSize: font.small - 1, color: colors.accent, fontWeight: '700' },
+    itemGramsWrap: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+    itemGrams: { minWidth: 52, textAlign: 'right', backgroundColor: colors.inputBg, borderRadius: radius.sm, paddingHorizontal: space.sm, paddingVertical: space.xs, fontSize: font.body, color: colors.ink },
+    itemGramsUnit: { fontSize: font.small, color: colors.muted },
+    itemRemove: { padding: 4 },
+    noteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs },
+    noteText: { flex: 1, fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.4 },
     footer: { flexDirection: 'row', gap: space.md, paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.lg },
     retake: { paddingHorizontal: space.xl, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
     retakeText: { fontSize: font.body, fontWeight: '700', color: colors.ink },

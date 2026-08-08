@@ -1,18 +1,25 @@
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { httpsCallable } from 'firebase/functions';
-import { type ScannedFoodItem } from '@macrolog/core';
+import { type ScannedFoodItem, type ScannedItemSource } from '@macrolog/core';
 import { functions } from '@/lib/firebase';
 
 /**
- * Meal photo → macros (ADR-0015). Mirrors the PWA's photo path: capture/pick →
- * downscale to 1080px JPEG (keeps the base64 well under the CF's ~15 MB cap) →
- * base64 → the live `analyzePhoto` Cloud Function (Gemini, key server-side).
+ * Meal photo → itemized macros (ADR-0015 §1). Mirrors the PWA's photo path:
+ * capture/pick → downscale to 1080px JPEG (keeps the base64 well under the CF's
+ * ~15 MB cap) → base64 → the `analyzePhoto` Cloud Function.
  *
- * The deployed function currently returns ONE whole-meal total; we map it to a
- * single {@link ScannedFoodItem} so the review UI is already itemized-shaped —
- * when the CF grows per-item USDA resolution, the same screen renders N rows
- * with no client change.
+ * The function does **recognition + portion** with a vision model and resolves
+ * the macros from the bundled USDA database server-side, so what arrives here is
+ * already a list of foods with grounded numbers — never a black-box total.
+ *
+ * ## Why the flat-total path below still exists
+ *
+ * `analyzePhoto`'s response is additive: it returns `items[]` AND the old
+ * whole-meal `calories`/`protein`/… fields. This adapter prefers `items` and
+ * falls back to synthesising a single item from the totals. That fallback is not
+ * dead code — it is what runs if this build is ever pointed at an older
+ * deployment, and it costs four lines to keep the screen from rendering empty.
  */
 
 export type ScanSource = 'camera' | 'library';
@@ -25,7 +32,22 @@ export interface MealScan {
   photosRemaining: number;
 }
 
+interface AnalyzePhotoItem {
+  name: string;
+  grams: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  confidence: number;
+  source: ScannedItemSource;
+  fdcId: string | null;
+  matchedDescription: string | null;
+}
+
 interface AnalyzePhotoResult {
+  items?: AnalyzePhotoItem[];
+  source?: ScannedItemSource;
   calories: number;
   protein: number;
   carbs: number | null;
@@ -63,18 +85,38 @@ export async function captureMealPhoto(source: ScanSource): Promise<string | nul
   return saved.base64 ?? null;
 }
 
+const nonNeg = (n: number | null | undefined) => Math.max(0, Number(n) || 0);
+
 /** Send a base64 meal photo to `analyzePhoto` and normalize to a MealScan. */
 export async function analyzeMealPhoto(photoBase64: string, locale: string): Promise<MealScan> {
   const call = httpsCallable<{ photoBase64: string; locale: string }, AnalyzePhotoResult>(functions, 'analyzePhoto');
   const { data } = await call({ photoBase64, locale });
-  const item: ScannedFoodItem = {
-    name: data.description || 'Meal',
-    grams: 0, // whole-meal total — no single portion weight (yet)
-    calories: Math.max(0, Math.round(data.calories)),
-    protein: Math.max(0, Math.round(data.protein ?? 0)),
-    carbs: Math.max(0, Math.round(data.carbs ?? 0)),
-    fat: Math.max(0, Math.round(data.fat ?? 0)),
-    confidence: CONFIDENCE_SCORE[data.confidence] ?? 0.7,
-  };
-  return { items: [item], confidence: data.confidence, photosRemaining: data.photosRemaining };
+
+  const items: ScannedFoodItem[] = data.items?.length
+    ? data.items.map((i) => ({
+        name: i.name,
+        grams: nonNeg(i.grams),
+        calories: nonNeg(i.calories),
+        protein: nonNeg(i.protein),
+        carbs: nonNeg(i.carbs),
+        fat: nonNeg(i.fat),
+        confidence: i.confidence ?? 0.7,
+        source: i.source,
+        fdcId: i.fdcId,
+        matchedDescription: i.matchedDescription,
+      }))
+    : [
+        {
+          // Older deployment: one whole-meal total, no per-item breakdown.
+          name: data.description || 'Meal',
+          grams: 0,
+          calories: nonNeg(data.calories),
+          protein: nonNeg(data.protein),
+          carbs: nonNeg(data.carbs),
+          fat: nonNeg(data.fat),
+          confidence: CONFIDENCE_SCORE[data.confidence] ?? 0.7,
+        },
+      ];
+
+  return { items, confidence: data.confidence, photosRemaining: data.photosRemaining };
 }

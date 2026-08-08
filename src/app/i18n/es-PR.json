@@ -1048,7 +1048,12 @@
     "lowConfidence": "⚠ baja confianza — verifica la estimación",
     "errorFallback": "Falló el análisis de foto.",
     "errorFileTooLarge": "Esa imagen es muy grande. Intenta con una foto menor a 15 MB.",
-    "resetHint": "cuota diaria de fotos se reinicia a medianoche UTC"
+    "resetHint": "cuota diaria de fotos se reinicia a medianoche UTC",
+    "items": "lo que encontramos",
+    "sourceEstimate": "estimado — no está en la base de datos",
+    "estimateHint": "Los alimentos marcados como \"estimado\" no están en la base de datos, así que esos números son un estimado de la IA. Ajústalos si sabes mejor.",
+    "gramsAria": "Porción en gramos para {{name}}",
+    "removeItemAria": "Eliminar {{name}} de este escaneo"
   },
   "starter": {
     "stamp": "comienza",
