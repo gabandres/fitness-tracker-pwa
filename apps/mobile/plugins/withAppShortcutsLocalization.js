@@ -83,10 +83,10 @@ module.exports = function withAppShortcutsLocalization(config) {
   config = withDangerousMod(config, [
     'ios',
     (cfg) => {
-      const projectRoot = path.join(
-        cfg.modRequest.platformProjectRoot,
-        cfg.modRequest.projectName,
-      );
+      // `ios/`, NOT `ios/<projectName>/`. A variant group's children resolve
+      // relative to the project root, which is exactly what build 33's error
+      // said out loud: it looked for `ios/en.lproj/AppShortcuts.strings`.
+      const projectRoot = cfg.modRequest.platformProjectRoot;
       for (const locale of LOCALES) {
         const dir = path.join(projectRoot, `${locale}.lproj`);
         fs.mkdirSync(dir, { recursive: true });
@@ -108,20 +108,23 @@ module.exports = function withAppShortcutsLocalization(config) {
   //    Xcode object that lets one logical resource have many localized files.
   return withXcodeProject(config, (cfg) => {
     const project = cfg.modResults;
-    const groupName = cfg.modRequest.projectName;
 
     // Idempotent: prebuild runs repeatedly, and a duplicated build file makes
     // Xcode fail with "multiple commands produce". Probing for the first
     // locale's file is enough and uses only documented API.
-    if (project.hasFile(`${groupName}/${LOCALES[0]}.lproj/${FILENAME}`)) return cfg;
+    if (project.hasFile(`${LOCALES[0]}.lproj/${FILENAME}`)) return cfg;
 
     const variantGroup = project.addLocalizationVariantGroup(FILENAME);
     for (const locale of LOCALES) {
-      // Relative to `ios/`, not to the group — the same rule that killed build
-      // 33 when the prefix was omitted.
+      // Paths are relative to `ios/` and carry NO target option. Passing
+      // `target` here made prebuild throw
+      // `withIosXcodeprojBaseMod: Cannot read properties of null (reading
+      // 'path')` — the variant group's fileRef is already the parent, and
+      // naming a target as well sends `addResourceFile` down a branch that
+      // expects a plain group.
       project.addResourceFile(
-        `${groupName}/${locale}.lproj/${FILENAME}`,
-        { variantGroup: true, target: project.getFirstTarget().uuid },
+        `${locale}.lproj/${FILENAME}`,
+        { variantGroup: true },
         variantGroup.fileRef,
       );
     }
