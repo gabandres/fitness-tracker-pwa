@@ -103,7 +103,12 @@ module.exports = function withAppShortcutsLocalization(config) {
     const project = cfg.modResults;
     const groupName = cfg.modRequest.projectName;
     for (const locale of LOCALES) {
-      const filepath = `${locale}.lproj/${FILENAME}`;
+      // Relative to `ios/`, NOT to the group's folder. Passing the bare
+      // `en.lproj/AppShortcuts.strings` makes Xcode look in `ios/` and fail the
+      // build with "Build input file cannot be found" — which is how build 33
+      // died. The group name is the same path segment the files were written
+      // under in the dangerous mod above.
+      const filepath = `${groupName}/${locale}.lproj/${FILENAME}`;
       // Idempotent: prebuild can run repeatedly, and a duplicated build file
       // makes Xcode fail with "multiple commands produce".
       if (project.hasFile(filepath)) continue;
