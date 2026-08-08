@@ -41,3 +41,16 @@ android {
     abortOnError false
   }
 }
+
+dependencies {
+  // React Native itself, for `HeadlessJsTaskService` — the tile's whole reason
+  // for existing is to wake JS so the write can reuse `ledger.ts` (ADR-0020).
+  //
+  // `useCoreDependencies()` above supplies ExpoModulesCore and nothing else, so
+  // without this the module compiles against no `com.facebook.react` at all and
+  // fails with `Unresolved reference 'HeadlessJsTaskService'`. The version is
+  // deliberately absent: the React Native Gradle plugin, applied at the root
+  // project, substitutes the exact version the app is built against. Pinning one
+  // here would be a second RN version to keep in step with `package.json`.
+  implementation "com.facebook.react:react-android"
+}
