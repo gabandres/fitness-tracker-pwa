@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
+import com.facebook.react.HeadlessJsTaskService
 
 /**
  * The Quick Settings tile: one tap logs the user's first quick-add preset
@@ -53,9 +54,13 @@ class QuickAddTileService : TileService() {
     try {
       val intent = Intent(this, QuickAddTileTaskService::class.java)
       intent.putExtra(EXTRA_SLOT, 0)
-      // Held until the JS task completes, so the device can go back to sleep
-      // straight after a tap made through a lock screen.
-      QuickAddTileTaskService.acquireWakeLockNow(this)
+      // Covers the window between `startService` and the JS context actually
+      // running, so a tap made on a dozing or locked device is not dropped when
+      // the CPU idles. Called on `HeadlessJsTaskService` itself, NOT on our
+      // subclass: this is a Java static, and Kotlin does not inherit Java statics
+      // into a subclass's scope — `QuickAddTileTaskService.acquireWakeLockNow`
+      // compiles nowhere and fails as an unresolved reference.
+      HeadlessJsTaskService.acquireWakeLockNow(this)
       startService(intent)
     } catch (e: Exception) {
       // Background-start refused, or the JS host could not be reached. Fall back
