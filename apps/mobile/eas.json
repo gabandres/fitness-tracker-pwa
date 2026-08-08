@@ -14,9 +14,6 @@
     },
     "preview": {
       "distribution": "internal",
-      "env": {
-        "EXPO_PUBLIC_FEATURE_PHOTO_SCAN": "0"
-      },
       "android": {
         "buildType": "apk"
       },
@@ -24,9 +21,6 @@
     },
     "production": {
       "autoIncrement": true,
-      "env": {
-        "EXPO_PUBLIC_FEATURE_PHOTO_SCAN": "0"
-      },
       "android": {
         "credentialsSource": "local"
       },

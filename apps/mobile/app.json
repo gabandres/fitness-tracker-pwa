@@ -15,17 +15,11 @@
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.security.application-groups": [
-          "group.fit.ignia.app",
           "group.fit.ignia.app"
         ]
       },
       "infoPlist": {
         "CFBundleURLTypes": [
-          {
-            "CFBundleURLSchemes": [
-              "fit.ignia.app"
-            ]
-          },
           {
             "CFBundleURLSchemes": [
               "fit.ignia.app"

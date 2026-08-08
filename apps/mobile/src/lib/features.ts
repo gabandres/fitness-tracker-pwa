@@ -17,11 +17,10 @@
  * OTA-gated one that takes seconds. For a kill switch, seconds is the whole
  * point.
  *
- * **`eas.json` still carries a now-inert `EXPO_PUBLIC_FEATURE_PHOTO_SCAN: "0"`
- * in its `production` and `preview` profiles.** Nothing reads it. It is left
- * there ONLY because removing it would change the fingerprint for no benefit;
- * delete it in the same commit as the next change that legitimately requires a
- * native build, and delete this paragraph with it.
+ * The inert `EXPO_PUBLIC_FEATURE_PHOTO_SCAN: "0"` that used to sit in
+ * `eas.json`'s `production` and `preview` profiles was **deleted 2026-08-08**,
+ * riding along with the App Shortcuts fix that needed a native build anyway —
+ * exactly the moment this comment used to reserve for it.
  *
  * Turning photo-scan off is a client-side kill switch only. The per-user cap
  * (3/day free) and the org-wide `photo` spend ceiling live in

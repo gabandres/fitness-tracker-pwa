@@ -124,6 +124,22 @@ struct LogPresetIntent: AppIntent {
       return .result(dialog: "That preset isn't set up for quick add any more.")
     }
 
+    // Refresh Siri's spoken vocabulary for the parameterised phrases.
+    //
+    // **This is not where it belongs, and the placement is a known compromise.**
+    // Apple's guidance is to call it whenever the entity set changes — i.e. when
+    // the user edits the picker in Settings. JS cannot reach it: the picker lives
+    // in React, and `modules/quick-add-credentials` is a CocoaPods target that
+    // cannot see `_shared` (the same wall `watch-link` documents), so it cannot
+    // name `IgniaShortcuts` at all. Here it runs in-process for free.
+    //
+    // The cost: a preset RENAMED in Settings keeps its old spoken name until the
+    // next successful Siri log. Disambiguation is unaffected — that reads
+    // `suggestedEntities()` live — so the fallback phrase always names it
+    // correctly. Closing the gap properly needs an AppDelegate hook via a config
+    // plugin, alongside `plugins/withModularHeaders.js`.
+    IgniaShortcuts.updateAppShortcutParameters()
+
     switch await QuickAdd.log(QuickAdd.row(from: slot)) {
     case .logged:
       return .result(dialog: "Logged \(slot.name).")
@@ -255,9 +271,21 @@ struct IgniaShortcuts: AppShortcutsProvider {
     AppShortcut(
       intent: LogPresetIntent(),
       phrases: [
+        // Unparameterised: Siri asks which preset. Always works, names nothing.
         "Log a preset in \(.applicationName)",
         "Log my preset in \(.applicationName)",
         "Quick add in \(.applicationName)",
+        // Parameterised: the preset is spoken outright — "log overnight oats in
+        // Ignia" — with no follow-up question. The vocabulary comes from
+        // `QuickAddPresetQuery.suggestedEntities()`, so it is only as fresh as the
+        // last `updateAppShortcutParameters()`; see `perform()`.
+        //
+        // One parameter per phrase is the documented limit, and the value must
+        // come from a finite set — which is why only the preset appears here and
+        // never a calorie count.
+        "Log \(\.$preset) in \(.applicationName)",
+        "Log my \(\.$preset) in \(.applicationName)",
+        "Add \(\.$preset) to \(.applicationName)",
       ],
       shortTitle: "Log a preset",
       systemImageName: "plus.circle.fill")
