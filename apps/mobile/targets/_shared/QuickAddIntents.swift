@@ -7,10 +7,10 @@ import Foundation
  * ## Why this compiles into the main app
  * App Shortcuts — the phrases Siri knows without the user creating a shortcut —
  * are discovered only from the **app's** App Intents metadata. Extensions get
- * their own, and Siri does not read those. `@bacons/apple-targets` globs
- * `_shared/*` into every target including the main app, so this file lands in the
- * app binary with no config plugin and no `withXcodeProject` surgery. That is the
- * single fact that made the iOS half cheap.
+ * their own, and Siri does not read those. `@bacons/apple-targets` globs every
+ * file in `_shared` into every target including the main app, so this file lands
+ * in the app binary with no config plugin and no `withXcodeProject` surgery.
+ * That is the single fact that made the iOS half cheap.
  *
  * Everything here therefore compiles against the app's floor of 16.4 (`app.json`),
  * which App Intents clears — it is iOS 16+. The widget's `Button(intent:)` is

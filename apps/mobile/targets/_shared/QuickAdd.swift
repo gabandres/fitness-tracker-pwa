@@ -28,12 +28,12 @@ import Security
  * optional-when-absent, `mealLabel` ≤ 100 chars.
  *
  * ## Why this file lives in `_shared`
- * `@bacons/apple-targets` globs `_shared/*` into **every** target, including the
- * main app. That is what makes an `AppShortcutsProvider` possible without a
- * config plugin: App Shortcuts are only discovered from the app's own metadata,
- * and this is already compiled into the app target. Everything here must
- * therefore compile against the app's iOS floor (16.4, `app.json`), which App
- * Intents clears — it is iOS 16+.
+ * `@bacons/apple-targets` globs every file in `_shared` into **every** target,
+ * including the main app. That is what makes an `AppShortcutsProvider` possible
+ * without a config plugin: App Shortcuts are only discovered from the app's own
+ * metadata, and this is already compiled into the app target. Everything here
+ * must therefore compile against the app's iOS floor (16.4, `app.json`), which
+ * App Intents clears — it is iOS 16+.
  *
  * ## What it deliberately does NOT do
  * No UI, no confirmation, no formatting of user-facing text beyond what the
