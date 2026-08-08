@@ -77,8 +77,22 @@ struct LogPresetIntent: AppIntent {
   /// The whole point of the feature: no app, no UI, no foreground.
   static var openAppWhenRun: Bool = false
 
+  /// **Optional on purpose, and it is load-bearing.** An App Shortcut — a phrase
+  /// Siri knows with no user setup — may not carry a *required* parameter: WWDC22
+  /// "Implement App Shortcuts with App Intents" states parameters "should be
+  /// defined as optional so the app can gracefully handle cases where users don't
+  /// specify them in the initial phrase, falling back to disambiguation prompts."
+  ///
+  /// A required one makes the whole `AppShortcutsProvider` invalid, and iOS then
+  /// registers **none** of it — silently. There is no build error, no runtime log,
+  /// and `Metadata.appintents` still extracts perfectly into the binary; the app
+  /// merely never appears in the Shortcuts app and every phrase answers "I can't
+  /// help with that". That is exactly how build 27 shipped broken.
+  ///
+  /// Optional here does not weaken anything: `perform()` disambiguates below, so
+  /// a phrase that names no preset still ends at one chosen preset.
   @Parameter(title: "Preset")
-  var preset: QuickAddPresetEntity
+  var preset: QuickAddPresetEntity?
 
   static var parameterSummary: some ParameterSummary {
     Summary("Log \(\.$preset)")
@@ -86,10 +100,27 @@ struct LogPresetIntent: AppIntent {
 
   @MainActor
   func perform() async throws -> some IntentResult & ProvidesDialog {
+    // Spoken without naming a preset ("log a preset in Ignia"), so ask which one.
+    // `suggestedEntities()` supplies the list, which is why this works with the
+    // app closed and on a day it was never opened.
+    let chosen: QuickAddPresetEntity
+    if let preset {
+      chosen = preset
+    } else {
+      let available = QuickAdd.slots().map { QuickAddPresetEntity(id: $0.presetId, name: $0.name) }
+      // Nothing designated yet — a disambiguation among zero options is a dead
+      // end, so say what to do instead of leaving Siri to fail opaquely.
+      guard !available.isEmpty else {
+        return .result(dialog: "Set up a quick-add preset in Ignia's settings first.")
+      }
+      chosen = try await $preset.requestDisambiguation(
+        among: available, dialog: "Which preset?")
+    }
+
     // Re-resolved from the snapshot rather than trusted from the entity: the
     // entity carries only an id and a name, and the macros may have changed since
     // Siri cached the suggestion.
-    guard let slot = QuickAdd.slots().first(where: { $0.presetId == preset.id }) else {
+    guard let slot = QuickAdd.slots().first(where: { $0.presetId == chosen.id }) else {
       return .result(dialog: "That preset isn't set up for quick add any more.")
     }
 
@@ -111,12 +142,18 @@ struct LogPresetIntent: AppIntent {
 /**
  * "Hey Siri, log 300 calories and 40 grams of protein."
  *
- * `calories` is **required**, and that is a correction to what the backlog
- * promised. `LogEntry.calories` is non-optional in the domain, so a protein-only
- * phrase has no legal value to write: 0 would corrupt the day's headline number
- * and 4 kcal/g would be a fabrication. App Intents prompts for a missing required
- * parameter, so the shorter phrase still works — it just asks one question first,
- * which is honest rather than silently inventing a number.
+ * **Calories remain mandatory in the domain — only the declaration is optional.**
+ * `LogEntry.calories` is non-optional, so a protein-only phrase has no legal value
+ * to write: 0 would corrupt the day's headline number and 4 kcal/g would be a
+ * fabrication. The parameter is nonetheless declared optional because an App
+ * Shortcut may not carry a required one (see `LogPresetIntent.preset` for what
+ * that costs), and because calories are an **open-ended number** — WWDC22 is
+ * explicit that App Shortcut parameters "are not meant for open-ended values".
+ *
+ * The invariant is enforced one line lower instead: `requestValue` asks for the
+ * number and will not proceed without it. So the shorter phrase still works, it
+ * just asks one question first — honest rather than silently inventing a number,
+ * which is what the original required-parameter version was reaching for.
  */
 @available(iOS 16.0, *)
 struct LogMacrosIntent: AppIntent {
@@ -125,7 +162,7 @@ struct LogMacrosIntent: AppIntent {
   static var openAppWhenRun: Bool = false
 
   @Parameter(title: "Calories", inclusiveRange: (0, 19999))
-  var calories: Int
+  var calories: Int?
 
   @Parameter(title: "Protein (g)", inclusiveRange: (0, 999))
   var protein: Int?
@@ -138,8 +175,11 @@ struct LogMacrosIntent: AppIntent {
 
   @MainActor
   func perform() async throws -> some IntentResult & ProvidesDialog {
+    // The domain's one hard requirement, asked for rather than assumed.
+    let kcal = try await $calories.requestValue("How many calories?")
+
     let row = QuickAdd.Row(
-      calories: calories,
+      calories: kcal,
       protein: protein.map(Double.init),
       // Labelled so the row is identifiable in History as something Siri wrote,
       // rather than appearing as an unnamed entry the user cannot place.
@@ -147,7 +187,7 @@ struct LogMacrosIntent: AppIntent {
 
     switch await QuickAdd.log(row) {
     case .logged:
-      return .result(dialog: "Logged \(calories) calories.")
+      return .result(dialog: "Logged \(kcal) calories.")
     case .queued:
       return .result(dialog: "Saved it. It'll sync next time you open Ignia.")
     case .signedOut:
