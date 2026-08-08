@@ -1,7 +1,7 @@
 {
   "_comment": "Latest STORE BINARY available per platform. The mobile app fetches this on launch and compares it against expo-application's nativeBuildVersion; if this is higher it shows an 'update available' banner that deep-links to the store. Bump the number here on every store release — see apps/mobile/AGENTS.md. Served with Cache-Control: no-cache (firebase.json), so a bump reaches devices on their next launch. Set a platform to 0 to disable its prompt.",
   "android": {
-    "latestVersionCode": 24
+    "latestVersionCode": 25
   },
   "ios": {
     "latestBuild": 0

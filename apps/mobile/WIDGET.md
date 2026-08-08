@@ -219,8 +219,15 @@ in this feature. The two starred rows are the ones that would make it worthless.
 - [ ] Delete the bound preset elsewhere → the button and the tile stop offering
       it rather than logging a ghost.
 - [ ] Rename the bound preset → the widget button **and** the tile caption follow.
-- [ ] Sign out → the tile goes inactive and its tap opens the app; it must not
-      keep the previous account's preset name in the shade.
+- [x] **Sign out → the tile goes inactive and its tap opens the app; it must not
+      keep the previous account's preset name in the shade.** **The tap-opens-the-app
+      half is VERIFIED 2026-08-08 on the `ignia-a35` emulator** — the first
+      Android row in this file confirmed by anything at all.
+      `cmd statusbar click-tile` started `fit.ignia.app/.MainActivity` through an
+      `ignia:///` deep link and wrote no row. The shade-label half is still
+      unchecked: it needs a signed-in session first, and the demo password is not
+      available to an automated run. Method in `.maestro/README.md`; it needs no
+      phone.
 - [ ] Set the app to es-PR → the tile reads `Registrar <name>`, following the
       **profile**, not the phone.
 
