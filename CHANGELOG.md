@@ -6,6 +6,26 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-08 — Your fast, on the Lock Screen (iOS, TestFlight build 30)
+
+Ignia has had a fasting timer since launch, free, in an app whose closest competitor charges $59.99/yr for one. But you had to open the app to see it, which is the wrong shape for something you check at 6 a.m. and again at 2 p.m.
+
+**This is on TestFlight and has not been tested on a phone yet.** It is written down here because the build shipped; treat it as "please try this", not "this works".
+
+- **Start a fast and it appears on your Lock Screen**, counting up, with the start time under it. On an iPhone with a Dynamic Island it lives there too — long-press to expand.
+- **It keeps counting with Ignia closed.** Your phone draws the timer itself. Nothing is sent to it, nothing runs in the background, and it costs nothing to run — which is the only reason it could ship free.
+- **It speaks your language, not your phone's** — if Ignia is set to Spanish, the Lock Screen is Spanish.
+- **iOS removes it after 8 hours.** That is Apple's limit and there is no way around it without sending your phone updates all night. A 16-hour fast will lose the card partway through; opening Ignia brings it back **showing the real elapsed time**, not restarting at zero. If you ever see it restart from 0:00, that is a bug worth reporting.
+
+Android has no equivalent surface and gets nothing here.
+
+## 2026-08-08 — Android testers: install the new build (alpha vc 21)
+
+Housekeeping with a real consequence. Ignia can ship small fixes over the air, without a store update — but only to devices running a build that matches the current code. Android's had drifted, so **every over-the-air fix published for Android since the last release reached nobody**, silently and with no way to tell from the outside.
+
+- **Install vc 21 from Play and Android is back on the fast lane** for fixes.
+- No new features in it; it exists to close that gap.
+
 ## 2026-08-08 — Siri actually works now (iOS)
 
 The release below announced Siri support on 2026-08-07. **It did not work.** iOS never registered the shortcuts, so Ignia did not appear in the Shortcuts app and every phrase came back "I can't help with that" — for everyone, from the moment it shipped. The build was fine; the app was asking iOS for something iOS refuses, and iOS declines that silently, with no error anywhere. It is fixed, and the fix is confirmed on a real phone.

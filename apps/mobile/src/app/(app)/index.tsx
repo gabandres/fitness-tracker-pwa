@@ -17,6 +17,7 @@ import { UpdateBanner } from '@/components/UpdateBanner';
 import { WhatsNewBanner } from '@/components/WhatsNewBanner';
 import { type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
+import { useFastActivity } from '@/hooks/useFastActivity';
 import { useReminderSync } from '@/hooks/useReminderSync';
 import { performQuickAdd } from '@/lib/quick-add';
 import { useToday } from '@/hooks/useToday';
@@ -83,6 +84,11 @@ export default function Today() {
   // native module is present (dev/production build only). `presets` rides along
   // so the widget can draw the user's quick-add buttons (ADR-0020).
   useWidgetSync(summary, targets, presets);
+
+  // Keep the fasting Live Activity in step with the fast (N3). It reconciles
+  // rather than reacts, because iOS ends an Activity at 8 hours and the user can
+  // swipe it away — see the hook. iOS-only; a no-op everywhere else.
+  useFastActivity(fastStartedAt);
 
   // The tab bar's Log button navigates here with a fresh `openAdd` nonce —
   // each new value opens the add sheet (see AppTabBar in the tab layout).
