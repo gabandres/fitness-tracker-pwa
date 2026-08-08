@@ -55,6 +55,7 @@ const PHRASES = {
 
 const LOCALES = ['en', 'es-PR'];
 const FILENAME = 'AppShortcuts.strings';
+const PHASE_NAME = 'Copy AppShortcuts localizations';
 
 /** `.strings` is one `"key" = "value";` per line, UTF-8. */
 function serialize(locale) {
@@ -96,38 +97,46 @@ module.exports = function withAppShortcutsLocalization(config) {
     },
   ]);
 
-  // 3. Register them as a LOCALIZATION VARIANT GROUP — the structure Xcode
-  //    itself uses for a localized resource, and the only one that survives more
-  //    than one locale.
+  // 3. Copy them into the built bundle with a SHELL SCRIPT BUILD PHASE.
   //
-  //    Adding each `.lproj` file as an independent resource does NOT work, and
-  //    fails in the worst possible way: build 34 shipped with `en.lproj` present
-  //    and `es-PR.lproj` simply absent. Exit 0, no warning, and the Spanish
-  //    phrases silently did not exist. Two resources sharing the basename
-  //    `AppShortcuts.strings` collapse to one; a variant group is precisely the
-  //    Xcode object that lets one logical resource have many localized files.
+  //    This is deliberately not the pretty solution, and it is here because the
+  //    pretty solutions cost three builds:
+  //
+  //    - `addResourceFileToGroup` with a bare `en.lproj/...` path → build 33
+  //      died: "Build input file cannot be found: .../ios/en.lproj/...".
+  //    - Prefixed so the paths agreed, but one call per locale → build 34
+  //      shipped `en.lproj` and silently omitted `es-PR.lproj`. Exit 0, no
+  //      warning. Two resources sharing the basename `AppShortcuts.strings`
+  //      collapse to one.
+  //    - `addLocalizationVariantGroup` + `addResourceFile`, the object Xcode
+  //      itself uses → prebuild threw `withIosXcodeprojBaseMod: Cannot read
+  //      properties of null (reading 'path')`, with and without a `target`.
+  //
+  //    A script phase touches no file references, no groups and no variant
+  //    groups, so none of the above can happen. It copies both `.lproj`
+  //    directories into the app bundle verbatim, which is all that was ever
+  //    wanted. The cost is that Xcode cannot see the files in the navigator —
+  //    irrelevant, since `ios/` is generated and nobody opens it.
   return withXcodeProject(config, (cfg) => {
     const project = cfg.modResults;
 
-    // Idempotent: prebuild runs repeatedly, and a duplicated build file makes
-    // Xcode fail with "multiple commands produce". Probing for the first
-    // locale's file is enough and uses only documented API.
-    if (project.hasFile(`${LOCALES[0]}.lproj/${FILENAME}`)) return cfg;
-
-    const variantGroup = project.addLocalizationVariantGroup(FILENAME);
-    for (const locale of LOCALES) {
-      // Paths are relative to `ios/` and carry NO target option. Passing
-      // `target` here made prebuild throw
-      // `withIosXcodeprojBaseMod: Cannot read properties of null (reading
-      // 'path')` — the variant group's fileRef is already the parent, and
-      // naming a target as well sends `addResourceFile` down a branch that
-      // expects a plain group.
-      project.addResourceFile(
-        `${locale}.lproj/${FILENAME}`,
-        { variantGroup: true },
-        variantGroup.fileRef,
-      );
+    // Idempotent: prebuild runs repeatedly and duplicate phases compound.
+    const phases = project.hash.project.objects.PBXShellScriptBuildPhase ?? {};
+    if (Object.values(phases).some((p) => p && p.name && p.name.includes(PHASE_NAME))) {
+      return cfg;
     }
+
+    project.addBuildPhase([], 'PBXShellScriptBuildPhase', PHASE_NAME, null, {
+      shellPath: '/bin/sh',
+      shellScript: [
+        'set -e',
+        `for L in ${LOCALES.join(' ')}; do`,
+        '  SRC="$SRCROOT/$L.lproj/' + FILENAME + '"',
+        '  DST="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/$L.lproj"',
+        '  if [ -f "$SRC" ]; then mkdir -p "$DST" && cp "$SRC" "$DST/"; fi',
+        'done',
+      ].join('\n'),
+    });
     return cfg;
   });
 };
