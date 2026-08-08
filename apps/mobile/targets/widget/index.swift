@@ -314,7 +314,21 @@ private struct TodayWidgetView: SwiftUI.View {
   }
 }
 
+/// Everything `Today.appex` vends.
+///
+/// It became a bundle in N3, when the fasting Live Activity joined it. A Live
+/// Activity is a WidgetKit widget, so it belongs in the WidgetKit extension that
+/// already exists rather than in a second one — see `FastActivityWidget.swift`
+/// for why. Adding a widget here means adding a line here; there is no other
+/// registration step.
 @main
+struct IgniaWidgets: WidgetBundle {
+  var body: some Widget {
+    TodayWidget()
+    FastActivityWidget()
+  }
+}
+
 struct TodayWidget: Widget {
   // Must match `Glance.widgetKind` / `WIDGET_NAME` in `src/lib/widget.ts` —
   // it's the `kind` passed to `ExtensionStorage.reloadWidget`, and a mismatch

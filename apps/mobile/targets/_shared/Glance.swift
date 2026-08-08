@@ -343,6 +343,14 @@ public enum Glance {
     public let kcalLeftLabel: String
     /// Watch mirror screen only: the label under the hero number, over target.
     public let kcalOverLabel: String
+    /// Fasting Live Activity (N3): the label above the elapsed timer. A noun,
+    /// not a verb — the Lock Screen states what is happening, it does not
+    /// instruct. Mirrors `metrics.fasting` in `src/i18n/`.
+    public let fasting: String
+    /// Fasting Live Activity: the honesty row under the timer. `%@` is a
+    /// locale-formatted clock time. The timer alone cannot say *which* fast this
+    /// is after a night's sleep; the start time can.
+    public let fastSince: String
   }
 
   /// Keyed by the locale carried in the snapshot — our locale is a *profile*
@@ -365,7 +373,9 @@ public enum Glance {
         watchSubline: "Tus números se actualizan cuando tu iPhone está cerca.",
         asOf: "a las %@",
         kcalLeftLabel: "kcal restantes",
-        kcalOverLabel: "kcal de más"
+        kcalOverLabel: "kcal de más",
+        fasting: "Ayuno",
+        fastSince: "desde las %@"
       )
     default:
       return Strings(
@@ -380,7 +390,9 @@ public enum Glance {
         watchSubline: "Your numbers update when your iPhone is nearby.",
         asOf: "as of %@",
         kcalLeftLabel: "kcal left",
-        kcalOverLabel: "kcal over"
+        kcalOverLabel: "kcal over",
+        fasting: "Fasting",
+        fastSince: "since %@"
       )
     }
   }
@@ -425,5 +437,21 @@ public enum Glance {
     f.dateStyle = .none
     let time = f.string(from: Date(timeIntervalSince1970: updatedMs / 1000))
     return String(format: strings(locale).asOf, time)
+  }
+
+  /// `since 8:14 PM` / `desde las 20:14` — the fasting Live Activity's honesty
+  /// row (N3).
+  ///
+  /// Same construction as `asOfLine`, and for the same reason: the clock format
+  /// follows the *profile* locale through the OS rather than being hand-rolled.
+  /// It is a separate function only because its input is a `Date` (the fast's
+  /// start, carried in `FastActivityAttributes`) and not a snapshot's epoch
+  /// milliseconds.
+  public static func fastSinceLine(startedAt: Date, locale: String) -> String {
+    let f = DateFormatter()
+    f.locale = Locale(identifier: locale)
+    f.timeStyle = .short
+    f.dateStyle = .none
+    return String(format: strings(locale).fastSince, f.string(from: startedAt))
   }
 }
