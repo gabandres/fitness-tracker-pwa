@@ -9,7 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Android at the time. Anyone who already saw and dismissed that one needs to
 // see the corrected copy, and equality against the stored value is the only
 // thing that decides it — so the string just has to differ, not parse as a date.
-export const WHATS_NEW_VERSION = '2026-08-07b';
+export const WHATS_NEW_VERSION = '2026-08-08';
 
 const KEY = 'whatsNew.seen';
 

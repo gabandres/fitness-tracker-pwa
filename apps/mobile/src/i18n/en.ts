@@ -137,7 +137,7 @@ export const en = {
   'today.loadErr': "Couldn't load your data. Pull to retry.",
   'today.entry': 'Entry',
   'whatsNew.title': "What's new",
-  'whatsNew.body': 'A home-screen widget with today’s calories and protein, and Ignia now tells you when an update is ready. Also new: steps and active energy from Health, per-meal reminders, a quicker way to add a food we don’t have, and full workout-template editing.',
+  'whatsNew.body': 'Log without opening Ignia. Pick up to 3 presets in Settings → Quick add, then log one straight from your home-screen widget — from Quick Settings on Android, or by asking Siri on iPhone. A tap made offline lands the moment you next open the app, on the day you tapped it.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',
