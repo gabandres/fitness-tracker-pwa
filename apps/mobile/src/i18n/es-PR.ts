@@ -542,11 +542,11 @@ export const esPR: Record<I18nKey, string> = {
   // Registro rápido (ADR-0020) — los preajustes que se registran sin abrir la app.
   'settings.quickAddSection': 'Registro rápido',
   'settings.quickAdd': 'Registra sin abrir Ignia',
-  'settings.quickAddSub': 'Escoge hasta 3 preajustes para tu widget y el botón de Ajustes rápidos.',
+  'settings.quickAddSub': 'Escoge hasta 3 preajustes para registrarlos desde tu widget.',
   'settings.quickAddNoPresets': 'Primero guarda una comida como preajuste — toca Registrar y luego “Guardar como preajuste”.',
   'settings.quickAddMacros': '{kcal} kcal · {protein}g proteína',
   'settings.quickAddFull': 'Ya son {n}. Toca uno para cambiarlo.',
-  'settings.quickAddTileHint': 'La ranura 1 es la que registra el botón de Ajustes rápidos.',
+  'settings.quickAddWidgetHint': 'Tu widget muestra la ranura 1. Agrégalo desde tu pantalla de inicio si aún no lo tienes.',
   'reminder.mealTitle': 'Ignia',
   'reminder.breakfastBody': '¿Ya registraste el desayuno?',
   'reminder.lunchBody': 'Hora de registrar el almuerzo 🍽️',

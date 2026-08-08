@@ -116,7 +116,7 @@ export function QuickAddCard() {
       {slots.length >= QUICK_ADD_MAX ? (
         <Text style={styles.hint}>{t('settings.quickAddFull', { n: String(QUICK_ADD_MAX) })}</Text>
       ) : null}
-      <Text style={styles.hint}>{t('settings.quickAddTileHint')}</Text>
+      {slots.length > 0 ? <Text style={styles.hint}>{t('settings.quickAddWidgetHint')}</Text> : null}
     </View>
   );
 }

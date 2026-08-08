@@ -533,11 +533,11 @@ export const en = {
   // Quick-add (ADR-0020) — the presets reachable without opening the app.
   'settings.quickAddSection': 'Quick add',
   'settings.quickAdd': 'Log without opening Ignia',
-  'settings.quickAddSub': 'Pick up to 3 presets for your home-screen widget and Quick Settings tile.',
+  'settings.quickAddSub': 'Pick up to 3 presets to log straight from your home-screen widget.',
   'settings.quickAddNoPresets': 'Save a meal as a preset first — tap Log, then “Save as preset”.',
   'settings.quickAddMacros': '{kcal} kcal · {protein}g protein',
   'settings.quickAddFull': 'That’s all {n}. Tap one to swap it out.',
-  'settings.quickAddTileHint': 'Slot 1 is what the Quick Settings tile logs.',
+  'settings.quickAddWidgetHint': 'Your widget shows slot 1. Add it from your home screen if you haven’t.',
   'settings.calorieFloorSection': 'Calorie floor',
   'settings.calorieFloor': 'Daily minimum',
   'settings.calorieFloorSub': 'Your target never drops below this, even if a water-weight spike makes your measured burn look low.',
