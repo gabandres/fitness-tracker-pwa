@@ -152,6 +152,52 @@ The address must contain `demo`/`test`/`review`/`appstore` or the seed script
 refuses it. The session persists to AsyncStorage, so it is a once-per-emulator
 step and every other flow keeps `clearState: false`.
 
+## The iOS Simulator runs Live Activities — and proved N3 (2026-08-08)
+
+Live Activities render in the Simulator from iOS 16.2, and the Dynamic Island
+appears on any iPhone 14 Pro or newer. That makes ActivityKit the **one** native
+surface in this repo verifiable without hardware.
+
+A device `.ipa` will not install on a Simulator, and adding a `simulator` profile
+to `eas.json` would move the fingerprint and strand the published OTA. Build
+through Xcode instead:
+
+```sh
+cd ~/fitness-tracker-pwa/apps/mobile
+npx expo prebuild -p ios --clean --no-install     # REQUIRED: generates targets/*/Info.plist
+npx expo run:ios --configuration Release --device <sim-udid> --no-bundler
+```
+
+Three traps, all paid for:
+
+- **Skipping the explicit prebuild fails** with `Build input file cannot be
+  found: targets/widget/Info.plist` — `expo run:ios` will not regenerate it when
+  `ios/` already exists.
+- **`expo run:ios` ends by opening Simulator.app via AppleScript**, which cannot
+  work over SSH: `osascript ... exited with non-zero code: 1`. The build has
+  already succeeded at that point — install it yourself:
+  `xcrun simctl install <udid> <DerivedData>/Build/Products/Release-iphonesimulator/Ignia.app`.
+- **Xcode needs a lot of disk.** A build died mid-flight with
+  `The file "swbuild.tmp..." couldn't be saved` at **236 MB free** — an
+  out-of-space error that names no space. Clear DerivedData and `~/.gradle`
+  first.
+
+**Maestro auto-selects a device and will pick (and even boot) an Android AVD**
+even when the Android emulator process is dead, because a stale `adb` entry
+lingers. Pass `maestro --device <sim-udid> test …` explicitly.
+
+The evidence to look for is in the system log, not on screen:
+
+```sh
+xcrun simctl spawn <udid> log stream --predicate 'subsystem CONTAINS[c] "activitykit"' --style compact
+```
+
+A working start prints `attributesType: FastActivityAttributes, requester:
+fit.ignia.app, state: active, sceneTargets: [lockscreen: widget(containingProcess:
+fit.ignia.app)]`. Then background the app (`xcrun simctl launch <udid>
+com.apple.springboard`) and screenshot: the Dynamic Island carries the compact
+faces.
+
 ## Running
 
 Maestro is not an npm dependency — it is a standalone binary, installed once:

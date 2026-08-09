@@ -326,6 +326,19 @@ Simulator** on `ignia-mac` at no build quota, because Live Activities render
 there and the Dynamic Island appears on any iPhone 14 Pro or newer simulator.
 Only the starred row and the ceiling row need real time on a real device.
 
+- [x] ★ **Start a fast → a Lock Screen card appears with a counting timer.**
+      **VERIFIED 2026-08-08 on the iPhone 17 Pro simulator (iOS 26.5).**
+      `liveactivitiesd` logged the activity created — `attributesType:
+      FastActivityAttributes, requester: fit.ignia.app, state: active,
+      sceneTargets: [lockscreen: widget(containingProcess: fit.ignia.app)]` —
+      and the Dynamic Island rendered the flame with a counting `1:00`. So the
+      `NSClassFromString` bridge resolves, `Activity.request` succeeds, and the
+      extension is wired to the presentation. **This was the row that could
+      fail silently**, and it does not. Method in `.maestro/README.md`.
+- [x] **End the fast → the card disappears immediately.** VERIFIED in the same
+      session: the Dynamic Island was empty within seconds, so
+      `dismissalPolicy: .immediate` is doing its job rather than leaving a
+      finished fast on screen for four hours.
 - [ ] ★ **Start a fast → a Lock Screen card appears with a counting timer.**
       This is the row that proves the whole thing: the `NSClassFromString`
       bridge resolved, `Activity.request` succeeded, and the extension found

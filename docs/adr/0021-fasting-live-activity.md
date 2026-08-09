@@ -2,8 +2,22 @@
 
 ## Status
 
-proposed (2026-08-08) — **the code exists and nothing has run it.** No Live
-Activity has been started on a simulator or a device. This ADR records the
+**accepted (2026-08-08) — and PROVEN on a simulator the same day.** An
+iPhone 17 Pro simulator (iOS 26.5) running a Release build started a fast and
+`liveactivitiesd` logged the activity created: `attributesType:
+FastActivityAttributes, requester: fit.ignia.app, state: active, sceneTargets:
+[lockscreen: widget(containingProcess: fit.ignia.app)]`. The Dynamic Island
+rendered the flame and a counting `1:00`; ending the fast cleared it within
+seconds.
+
+That settles the two things this design could not argue its way to: the
+`NSClassFromString` bridge **does** resolve across the pod/app-target boundary,
+and `ActivityConfiguration` inside the existing `Today.appex` **is** found by
+the system. Both were reasoned decisions with silent failure modes, and both
+are now evidence. What remains unverified is the 8-hour ceiling and its
+re-arm, which needs nine real hours on real hardware.
+
+Originally recorded as: proposed, code exists and nothing has run it. This ADR records the
 decisions and their reasoning so they survive the first thing that goes wrong;
 it does **not** claim the feature works. `STATUS.md` owns that, and will say so
 only once a Lock Screen has actually counted.
