@@ -10,6 +10,15 @@ scans, then Pro" line below; it never shipped and is not the plan. Everything
 else here — the split vision architecture, the Gemini-Flash default, the
 editable review screen, the surface area, the retention nudges — stands.
 
+**§4's "Coach → archived, returns as a Pro feature" also did not happen.** The
+AI Coach is **live and free** on mobile, metered per user by `dailyQuota`
+("consultation", 3/day) and org-wide by `spendCeiling` — the same two guards
+photo-scan uses, and for the same reason: a free tier makes the ceiling the
+load-bearing half. As of 2026-08-09 the Coach screen also states the day's
+remaining consultations before one is spent (`firestore.rules` lets a client
+read its OWN `consultationQuota` doc). Read the quota code, not this line, for
+what a user gets.
+
 ## Context
 
 Two forcing functions arrived together:

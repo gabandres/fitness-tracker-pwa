@@ -577,6 +577,15 @@ under the same security rules (ADR-0002 unchanged).
 - **Log array order** — Always oldest-first when returned from the
   ledger port, even though the underlying Firestore query is desc-
   ordered. Adapters reverse before returning.
+- **Regression suite** — the Maestro flows in
+  `apps/mobile/.maestro/regression/`, the only layer that tests what a
+  user can SEE. jest/RNTL runs no Yoga layout pass, so a collapsed or
+  clipped view passes every unit test; the suite's **screenshots** are
+  the audit and its assertions are only the skeleton. `coverage.md`
+  there is the screen × state × platform checklist, and
+  `scripts/qa-regression-verify.mjs` is the Firestore ground truth
+  behind its end-to-end rows. Not the same thing as the smoke flows one
+  directory up in `.maestro/`.
 - **Date type at the seam** — Firestore writes use `Timestamp`; the
   ledger port surface always exposes JS `Date`. UI / derivations never
   see `Timestamp`. This holds for **every** dated field, **including

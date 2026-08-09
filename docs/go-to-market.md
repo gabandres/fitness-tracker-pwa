@@ -24,7 +24,7 @@ app went live on the App Store.
 | App Store ID | `6788589414` · bundle `fit.ignia.app` |
 | Listing URL | <https://apps.apple.com/app/id6788589414> |
 | Platforms | iPhone (iOS 16+, **not** iPad — `supportsTablet: false`) · web PWA at <https://ignia.fit> |
-| Android | not shipped — Play closed testing needs 12 testers × 14 consecutive days |
+| Android | **live on the Play ALPHA track** (vc 29, v1.2.0) — closed testing only, NOT public. Production access still needs 12 testers × 14 consecutive days; the 12th opted in 2026-08-07, so the earliest apply date is ~2026-08-21. Do not market Android as available |
 | Price | **Free. No paywall, no subscription, no trial.** Optional tip jar (iOS consumables via RevenueCat; external link on Android) that unlocks nothing |
 | Languages | English + Spanish (Puerto Rico), fully translated |
 
@@ -47,7 +47,7 @@ Cronometer) and export · in-app account deletion · offline PWA.
 | Free trial, "upgrade", pricing anchors | nothing to buy |
 | Apple Watch | not built |
 | Progress photos | uploading works, but it was cut from the v1 story — don't market it |
-| Android app | not shipped |
+| Android app | closed alpha only — do not market it as available until production access lands (~2026-08-21 at the earliest) |
 
 **Claimable only on the *next* build, and only after device QA** — both were
 in the table above as "not built", which was wrong by 2026-07-29:

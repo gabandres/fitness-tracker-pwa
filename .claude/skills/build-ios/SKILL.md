@@ -115,7 +115,7 @@ ssh ignia-mac "grep -nE '❌|error:|Exit status|must be installed' ~/ios-build.l
   | grep -viE 'npm warn|deprecated|RUN_EXPO_DOCTOR' | tail -10"
 ```
 
-`expo-doctor` reporting 17/18 on `@types/jest` is **known and non-fatal**.
+`expo-doctor` reporting 16/18 on `@types/jest` is **known and non-fatal**.
 
 ## Step 3 — verify the artifact: run the script, gate on its exit code
 

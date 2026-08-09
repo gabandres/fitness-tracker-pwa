@@ -5,6 +5,13 @@
 
 # Competitive Feature Scan
 
+> **Addendum 2026-08-09 — two "gaps" below have since shipped.** Read the
+> verdict as the 2026-07 snapshot it is, not as today's feature list.
+> **Meal photo-scan** shipped ON and free in v1 (ADR-0017/0019, 2026-08-07),
+> resolving macros from the bundled USDA DB rather than the model. The **AI
+> coach** is live and free, metered by `dailyQuota` + `spendCeiling`. The
+> competitor analysis and the positioning conclusions are unchanged.
+
 Primary-source survey of leading nutrition apps vs. **Ignia** (free, private kcal + protein tracker; web PWA + soon-to-ship Expo iOS/Android). Purpose: surface feature **gaps** and characterize each as **table-stakes**, **acquisition-hook**, or **retention-loop** — plus a rough runtime-cost note and a native-only flag. **No prioritization decisions here** — candidates only.
 
 Surveyed: Cal AI, MacroFactor, MyFitnessPal, Lose It!, Cronometer. All facts cite the source that owns the claim; "unverified" = not confirmable from a primary page (some store/help pages 403 or render via JS).

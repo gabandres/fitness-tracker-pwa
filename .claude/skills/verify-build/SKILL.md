@@ -56,22 +56,29 @@ typecheck script — `npm run build` is the check. Do not add one without asking
 
 ## Not this skill's job
 
-- **Tests** — five suites, **956 tests**, all gated by CI as of 2026-08-05:
+- **Tests** — five suites, **1,262 tests**, all gated by CI as of 2026-08-09:
 
   | Suite | Command | Needs |
   |---|---|---|
-  | Web app (191) | `npm test` | — |
-  | `packages/core` (563) | `npm --prefix packages/core test` | — |
-  | **Expo app (12)** | `npm --prefix apps/mobile test` | — |
-  | `firestore.rules` (161) | `npm run test:rules` | **JDK 21** |
+  | Web app (196) | `npm test` | — |
+  | `packages/core` (648) | `npm --prefix packages/core test` | — |
+  | **Expo app (129)** | `npm --prefix apps/mobile test` | — |
+  | Functions + `firestore.rules` (260) | `npm run test:rules` | **JDK 21** |
   | Ledger core (29) | `npm run test:ledger` | **JDK 21** |
+
+  `test:rules` runs **every** functions spec, not only `firestore-rules.spec.ts`
+  (which is 47 of the 260) — a distinction that produced a wrong baseline once.
 
   Building is not passing.
 
   **The two emulator suites need JDK 21 and this machine defaults to 17.** Both
   JDKs are installed; `java` on `PATH` resolves to the wrong one, and
   firebase-tools then refuses with *"no longer supports Java version before 21"*,
-  which reads exactly like a missing install. Per shell:
+  which reads exactly like a missing install. `scripts/require-java21.mjs` now
+  runs ahead of both suites and prints this fix — heed it rather than
+  concluding the suite is broken, which has happened. Run the two suites
+  **separately**: back to back, the second inherits the first's emulator port
+  and reports a phantom failure. Per shell:
 
   ```sh
   export JAVA_HOME="/c/Program Files/Microsoft/jdk-21.0.11.10-hotspot"

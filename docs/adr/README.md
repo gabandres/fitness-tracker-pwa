@@ -45,8 +45,12 @@ decisions that are local to a single component.
 | 0010 | [Progress photos in Firebase Storage, fetched via getBlob](0010-progress-photos-firebase-storage.md) | reverted 2026-07-05 (feature removed pre-launch) |
 | 0011 | [Native app store path: Capacitor shell + IAP](0011-capacitor-iap-migration.md) | superseded by ADR-0012 (framework) |
 | 0012 | [Native iOS app via Expo (separate RN frontend, shared core)](0012-expo-native-app-shared-core.md) | accepted |
-| 0013 | [AI food-resolution pipeline + My Foods library](0013-food-resolution-my-foods-library.md) | accepted |
+| 0013 | [AI food-resolution pipeline + My Foods library](0013-food-resolution-my-foods-library.md) | superseded by ADR-0015 (its text/label/barcode paths + My Foods library remain live) |
 | 0014 | [Mobile dark-first identity + center-log navigation](0014-mobile-dark-first-identity-center-log-nav.md) | accepted |
 | 0015 | [Macronaut photo-first freemium pivot](0015-macronaut-photo-first-freemium-pivot.md) | accepted; paid gate amended by ADR-0017 |
 | 0016 | [Mobile per-hook Firestore subscriptions are intentional](0016-mobile-per-hook-subscriptions-intentional.md) | accepted |
 | 0017 | [Photo-scan ships ON and free for everyone in v1](0017-photo-scan-free-for-all-v1.md) | accepted (amends 0015) |
+| 0018 | [The USDA food DB ships bundled, replacing the live FDC API](0018-bundled-usda-food-db.md) | accepted |
+| 0019 | [Photo-scan gets its macros from the bundled USDA database, not from the model](0019-photo-scan-resolves-macros-from-usda.md) | accepted |
+| 0020 | [Logging from outside the app: Android reuses our JS write path, iOS gets a REST one](0020-quick-add-native-write-path.md) | accepted |
+| 0021 | [The fasting Live Activity draws its own timer, and reconciles instead of reacting](0021-fasting-live-activity.md) | accepted |

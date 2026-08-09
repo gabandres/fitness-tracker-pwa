@@ -9,8 +9,13 @@ capped until the August 2026 quota reset, but this is the biggest ASO lever
 available today and none of it is blocked.
 
 **Before pasting, re-read the not-claimable list** (`go-to-market.md` §0). If
-a build flag flips, this file is stale. Nothing here mentions Pro, trials, AI
-photo scanning, Health sync, widgets or Android — all are off or unbuilt.
+a build flag flips, this file is stale. Nothing here mentions Pro or trials —
+those stay off. **The rest of that old list has since SHIPPED and this copy
+still omits them deliberately**: photo-scan is on and free (ADR-0017), Health
+sync, the widget and the Watch app are in the binary, and Android is live on a
+closed alpha. Omission is a choice about App Store copy, not a statement that
+the features are unbuilt — check `STATUS.md` before repeating "unbuilt"
+anywhere.
 
 ---
 
@@ -39,10 +44,12 @@ ASC API disagrees, and it is authoritative:
 | 1.1.0 | `PREPARE_FOR_SUBMISSION` | **none attached** |
 | 1.0 | `READY_FOR_SALE` | build 7, uploaded 2026-07-20 |
 
-**As of 2026-08-06 that is no longer true**: `1.1.0` has real binaries —
-TestFlight **build 24** (`VALID`), preceded by 23, 19, 16 and 13. The version
-page is `WAITING_FOR_REVIEW` with **build 24 attached** (submission `93c329b1`,
-2026-08-07).
+**That table is history twice over.** `1.1.0` went `WAITING_FOR_REVIEW` with
+build 24 (submission `93c329b1`, 2026-08-07) and was **APPROVED — it is
+`READY_FOR_SALE` with build 24 as of 2026-08-08**, the first App Store release
+since 1.0/build 7. TestFlight has since moved on to **build 41 (v1.2.0)**;
+every other TestFlight build except 41 and 24 was expired on 2026-08-09.
+`STATUS.md` §1 is the authority — re-read it rather than this snapshot.
 
 > Superseded twice in one day, which is why the state belongs in `STATUS.md`
 > and not here: this paragraph previously said the version was

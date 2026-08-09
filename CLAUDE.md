@@ -21,8 +21,8 @@ Run from repo root unless noted. This is a **PowerShell-primary Windows** enviro
 npm start            # ng serve → http://localhost:4200 (dev config, auto-uses environment.development.ts)
 npm run build        # prod build → dist/, then prerender-seo.mjs + sentry-release.mjs (build = more than ng build)
 npm test             # app unit tests (vitest via @angular/build:unit-test)
-npm run test:ledger  # FirestoreLedgerCore emulator tests (boots Firestore emulator, needs Java)
-npm run test:rules   # firestore.rules unit tests (delegates to functions/, boots emulator)
+npm run test:ledger  # FirestoreLedgerCore emulator tests (boots Firestore emulator, needs JDK 21+)
+npm run test:rules   # ALL functions specs incl. firestore.rules (delegates to functions/, boots emulator)
 ```
 
 Per-workspace:
@@ -32,6 +32,12 @@ npm --prefix packages/core run typecheck
 npm --prefix functions run build         # tsc → functions/lib
 cd apps/mobile && npx expo start         # Expo dev server + Expo Go
 ```
+
+**Both emulator suites need JDK 21+** and PATH `java` here is 17, so they fail
+with `firebase-tools no longer supports Java version before 21` — a PATH
+problem that reads like a broken suite. `scripts/require-java21.mjs` preflights
+both and prints the fix (`STATUS.md` §7 has it); run the two **separately**, or
+the second inherits the first's emulator port.
 
 Single test: `npx vitest run path/to/file.spec.ts` (or `-t "test name"`). Emulator-backed suites must run via the `firebase emulators:exec` wrappers above — they won't pass standalone.
 

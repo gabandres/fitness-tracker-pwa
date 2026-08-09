@@ -26,6 +26,16 @@ export JAVA_HOME="/c/Program Files/Microsoft/jdk-21.0.11.10-hotspot"
 export PATH="$JAVA_HOME/bin:$PATH"
 ```
 
+**`scripts/require-java21.mjs` now runs ahead of `test:rules` and `test:ledger`
+and prints exactly that**, because this section was still missed on 2026-08-09
+and the miss produced a written claim that the rules suite "cannot run on this
+machine" plus a wrong test count. It only warns — it never picks a JDK or edits
+`PATH`, since a hardcoded install path in committed config works on one machine
+and lies on every other. **On `ignia-mac` the JDK to use is Homebrew
+`openjdk@26`** (`/opt/homebrew/opt/openjdk@26/libexec/openjdk.jdk/Contents/Home`);
+its default `java` is 11, and `firebase` is not on that machine's PATH, so
+invoke the emulator through `npx --yes firebase-tools`.
+
 Note the **msys path form** (`/c/…`, not `C:/…`) — a Windows-style path in
 `PATH` is silently ignored by Git Bash and `java -version` keeps reporting 17,
 which reads exactly like the export failing to apply.

@@ -186,9 +186,13 @@ What remains, in the order it was prioritized with the owner:
       presets and wrote a real row, so the whole REST path (Keychain, token
       exchange, `PATCH`, rules) is proven. **Build 29** adds spoken preset names
       ("log overnight oats in Ignia"); those phrases are unrun.
-      **ANDROID DEVICE QA IS STILL ENTIRELY UNRUN** — nothing has been tapped, and
-      the owner has no Android device, so it needs a tester or an emulator. Of the
-      21 checkboxes in `apps/mobile/WIDGET.md`, one is now ticked.
+      **Android APP-UI QA is now automated** (2026-08-09): the Maestro regression
+      suite walks 15 flows on an emulator, 15/15 green, and its e2e rows are
+      verified against Firestore. **That does NOT close the widget rows** — the
+      suite drives the app, and no `adb` command can place a home-screen widget,
+      so the widget's own quick-add button stays unverified on Android. The
+      Quick Settings tile IS drivable (`adb shell cmd statusbar click-tile`).
+      Of the 21 checkboxes in `apps/mobile/WIDGET.md`, one is ticked.
 - [x] **N2 · Bundle USDA as the food DB.** **SHIPPED 2026-08-07** — ADR-0018.
       13,272 foods (SR Legacy + FNDDS + Foundation, CC0) committed at
       `functions/data/usda-foods.json` and searched in memory, replacing the
