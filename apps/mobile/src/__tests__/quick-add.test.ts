@@ -94,6 +94,29 @@ function setPlatform(os: 'ios' | 'android') {
   Object.defineProperty(Platform, 'OS', { get: () => os, configurable: true });
 }
 
+describe('a write that hangs is parked, not lost', () => {
+  // Firestore's setDoc does NOT reject when it cannot reach the backend — it
+  // waits. So `logQuickAdd`'s catch, which is the entire offline story
+  // (WIDGET.md: "airplane mode → tap → re-enable → the row lands"), was
+  // unreachable: no throw, no park, and on the tile's headless task Android
+  // kills the process at 15s taking the un-parked row with it. Observed on the
+  // emulator 2026-08-08, with a Write RPC logging `transport errored` and no
+  // pending-logs key ever created.
+  it('queues the row when the write never settles', async () => {
+    setPlatform('android');
+    // Never resolves, never rejects — exactly what an offline setDoc does.
+    mockAddLogWithId.mockImplementation(() => new Promise<void>(() => {}));
+
+    const result = await logQuickAdd(target);
+
+    expect(result).toBe('queued');
+    const parked = parsePendingLogs(await AsyncStorage.getItem(PENDING_LOGS_KEY));
+    expect(parked).toHaveLength(1);
+    expect(parked[0].calories).toBe(target.calories);
+    expect(parked[0].uid).toBe('u1');
+  }, 15000);
+});
+
 describe('slots', () => {
   it('round-trips through device storage', async () => {
     await setQuickAddSlots(['a', 'b']);

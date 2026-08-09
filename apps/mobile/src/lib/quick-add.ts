@@ -133,6 +133,60 @@ export function currentUid(timeoutMs = AUTH_WAIT_MS): Promise<string | null> {
   });
 }
 
+/**
+ * How long a quick-add write may run before it is treated as offline.
+ *
+ * Comfortably inside `QuickAddTileTaskService`'s 15s headless budget, and
+ * outside it only after the 4s auth wait has already been spent — see
+ * `withWriteDeadline` for why a deadline is needed at all.
+ */
+const WRITE_DEADLINE_MS = 6000;
+
+/**
+ * Resolve, or reject once the deadline passes.
+ *
+ * ## Why this exists — a tap that vanished
+ *
+ * `logQuickAdd` parks a row when the write **throws**, which is the entire
+ * offline story: `WIDGET.md` promises "airplane mode → tap → re-enable, open
+ * the app, the row lands". That promise rested on an assumption nobody had
+ * tested, and it is wrong.
+ *
+ * **Firestore's `setDoc` does not reject when it cannot reach the backend.** It
+ * waits, indefinitely, and resolves whenever connectivity returns. So on a
+ * flaky or absent connection `addLogWithId` neither resolves nor throws — the
+ * `catch` never runs, `park()` is unreachable, and the optimistic snapshot
+ * (applied only after the write returns) never moves either. The tap is
+ * silently lost.
+ *
+ * On a glanceable surface that is worse than anywhere else, because the caller
+ * is a headless task with a hard ceiling: `QuickAddTileTaskService` allows 15s
+ * and Android then kills the process mid-await, taking the un-parked row with
+ * it. Observed 2026-08-08 on the `ignia-a35` emulator — a `Write` RPC logged
+ * `transport errored`, no pending-logs key was ever created, and
+ * `ActivityManager` reported the service overran.
+ *
+ * A deadline converts that hang into the throw the design already handles.
+ * Double-writing is not a risk: the id is minted **before** the attempt
+ * precisely so a retry is an idempotent upsert of identical bytes (ADR-0020),
+ * so a slow write that lands after we have parked the same id is a no-op.
+ */
+function withWriteDeadline<T>(p: Promise<T>, ms = WRITE_DEADLINE_MS): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('quick-add write deadline')), ms);
+    p.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
 /** Whether a quick-add landed in the ledger or was parked for later. The
  *  difference is the entire content of the user-facing receipt, so it is a
  *  return value and not a log line. */
@@ -161,7 +215,7 @@ export async function logQuickAdd(
   const id = newLedgerId(Math.random);
   const entry = quickAddEntry(target, at);
   try {
-    await addLogWithId(uid, id, entry);
+    await withWriteDeadline(addLogWithId(uid, id, entry));
     // Best-effort and fully guarded inside; a quick-add is a meal like any
     // other, so it belongs in Health for the same reason `useToday.addEntry`
     // mirrors one. Silently absent in a headless context without permission.
