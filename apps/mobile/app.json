@@ -30,7 +30,7 @@
           }
         ],
         "ITSAppUsesNonExemptEncryption": false,
-      "NSSupportsLiveActivities": true
+        "NSSupportsLiveActivities": true
       }
     },
     "android": {
@@ -165,6 +165,13 @@
             "autoUploadNativeSymbols": true,
             "autoUploadProguardMapping": true
           }
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Ignia uses the microphone only while you are dictating a meal, and only after you tap the mic.",
+          "speechRecognitionPermission": "Ignia turns what you say into a meal entry. On-device where your phone supports it, so what you ate stays on the phone."
         }
       ]
     ],

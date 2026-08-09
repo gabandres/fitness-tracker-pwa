@@ -28,6 +28,7 @@ import {
   scaleCustomFood,
 } from '@macrolog/core';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
+import { MicButton } from './MicButton';
 import { FoodSearch } from '@/components/FoodSearch';
 import { MealText } from '@/components/MealText';
 import { RecipeBuilder } from '@/components/RecipeBuilder';
@@ -146,6 +147,9 @@ export function EntrySheet({
   const [mode, setMode] = useState<'browse' | 'custom' | 'recipe' | 'recipeImport' | 'meal'>('browse');
   /** The collapsed "more ways to log" list. Closed by default — that is the point. */
   const [moreOpen, setMoreOpen] = useState(false);
+  /** Dictated text, routed by `routeTranscript` to whichever surface fits. */
+  const [searchSeed, setSearchSeed] = useState<string | undefined>(undefined);
+  const [voiceSeed, setVoiceSeed] = useState<string | undefined>(undefined);
   const [scannerOpen, setScannerOpen] = useState(false);
   // Camera permanently denied: the scanner can't prompt again, so we say so
   // here — in the app's own UI, not as a gate in front of an OS prompt
@@ -606,6 +610,13 @@ export function EntrySheet({
             {mode === 'browse' ? (
               <FoodSearch
                 unitSystem={unitSystem}
+                seedQuery={searchSeed}
+                micSlot={
+                  <MicButton
+                    onSearch={(text) => setSearchSeed(text)}
+                    onMeal={(text) => { setVoiceSeed(text); setMode('meal'); }}
+                  />
+                }
                 headerRight={headerIcons}
                 emptyContent={browseEmpty}
                 onPick={(est) => prefill(est)}
@@ -618,7 +629,8 @@ export function EntrySheet({
             ) : mode === 'meal' ? (
               <MealText
                 forDate={forDate}
-                onCancel={() => setMode('browse')}
+                seedText={voiceSeed}
+                onCancel={() => { setVoiceSeed(undefined); setMode('browse'); }}
                 onAddMany={async (entries) => {
                   for (const entry of entries) await onSave(entry);
                   onClose();

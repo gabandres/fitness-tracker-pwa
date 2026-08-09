@@ -89,6 +89,7 @@ export * from './recipe-import';
 // macro-free {qty,unit,food}[] + a resolver that scales database servings. The
 // voice/text input adapter is per-frontend; the decomposition + scaling is pure.
 export * from './meal-utterance';
+export * from './speech-locale';
 // Shared AI-coach system-instruction builder (ADR-0012/0013): both frontends
 // assemble the identical grounded prompt, then POST it to consultationStream.
 export * from './coach-prompt';

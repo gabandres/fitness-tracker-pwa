@@ -30,6 +30,12 @@ interface Props {
   /** Commit every draft row as its own diary entry. */
   onAddMany: (entries: LogEntry[]) => Promise<void> | void;
   onCancel: () => void;
+  /**
+   * An utterance dictated into the mic that the parser found quantities in.
+   * Seeds the field so the user sees exactly what was heard and can correct it
+   * before anything is resolved — never auto-submitted.
+   */
+  seedText?: string;
 }
 
 type Phase = 'input' | 'resolving' | 'review' | 'error';
@@ -54,11 +60,11 @@ function numOrUndef(s: string): number | undefined {
  * by `resolveMealItem`, then presented as an EDITABLE draft the user confirms
  * with one "Add all" — never a fake-precise silent auto-commit.
  */
-export function MealText({ forDate, onAddMany, onCancel }: Props) {
+export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(seedText ?? '');
   const [phase, setPhase] = useState<Phase>('input');
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [busy, setBusy] = useState(false);

@@ -42,6 +42,11 @@ interface Props {
   onCancel?: () => void;
   /** Rendered to the right of the search field — e.g. scan / recipe icons. */
   headerRight?: ReactNode;
+  /** Rendered INSIDE the search row, beside the keyboard-driven input — the
+   *  mic is a peer of typing, not a sixth way to log. */
+  micSlot?: ReactNode;
+  /** Text dictated into the mic that resolved to a plain food search. */
+  seedQuery?: string;
   /** Rendered below the search field when the query is empty (idle), instead
    *  of the "type 2 characters" hint — used to host recents / quick-add. */
   emptyContent?: ReactNode;
@@ -63,6 +68,8 @@ export function FoodSearch({
   onPick,
   onCancel,
   headerRight,
+  micSlot,
+  seedQuery,
   emptyContent,
   onCreateFromQuery,
 }: Props) {
@@ -70,6 +77,13 @@ export function FoodSearch({
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const [query, setQuery] = useState('');
+  // A dictated bare food name arrives here rather than in the meal draft — see
+  // `routeTranscript`. Keyed on the seed VALUE so saying the same thing twice
+  // still re-applies, and so typing afterwards is never fought with.
+  useEffect(() => {
+    if (seedQuery) onChange(seedQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedQuery]);
   const [phase, setPhase] = useState<Phase>('idle');
   const [hits, setHits] = useState<FoodSearchHit[]>([]);
   const [detail, setDetail] = useState<FoodDetail | null>(null);
@@ -200,13 +214,20 @@ export function FoodSearch({
           autoCorrect={false}
           testID="food-search-input"
         />
-        {headerRight}
+        {micSlot}
         {onCancel ? (
           <TouchableOpacity onPress={onCancel} hitSlop={8}>
             <Text style={styles.cancel}>{t('common.cancel')}</Text>
           </TouchableOpacity>
         ) : null}
       </View>
+      {/* Below the row, full width, and ALWAYS rendered — including while the
+          user is typing. `docs/research/mobile-manual-food-entry.md` is settled
+          that a query removing the write-it-yourself affordance is a defect:
+          typing is the strongest signal someone wants to write their own food.
+          Only the mic goes inside the row, where it reads as a peer of the
+          keyboard. */}
+      {headerRight}
 
       {phase === 'searching' || phase === 'detail-loading' ? (
         <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
