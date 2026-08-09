@@ -2,8 +2,10 @@
 # both platforms, no coordinates.
 appId: fit.ignia.app
 ---
-- launchApp:
-    clearState: false
+# stopApp first: `openAdd` is a NONCE — Today opens the sheet when the value
+# CHANGES, so firing the same `openAdd=1` into a warm app that has already seen
+# it does nothing. A cold open always processes the initial URL.
+- stopApp
 - openLink: 'ignia://?openAdd=1'
 - extendedWaitUntil:
     visible: 'More ways'
