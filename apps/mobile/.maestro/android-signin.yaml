@@ -39,9 +39,15 @@ appId: fit.ignia.app
       - tapOn: 'Password'
       - inputText: ${PASSWORD}
       - hideKeyboard
+      # `index: 1`, NOT 0. The screen carries the string "Sign in" TWICE — the
+      # Sign in / Sign up segmented toggle at the top, and the submit button
+      # below the password field. Index 0 is the toggle, and tapping it when it
+      # is already selected does nothing at all: the credentials stay typed, no
+      # error appears, and the flow fails on the next assertion having done
+      # precisely nothing. Confirmed from a screenshot, not guessed.
       - tapOn:
           text: 'Sign in'
-          index: 0
+          index: 1
 
       # The session landed and Today rendered. Asserting on a Today-screen
       # element rather than on the absence of the sign-in screen: "not visible"
