@@ -6,6 +6,17 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-09 — Say what you ate, and a much calmer Add screen (1.2.0 — build 40 / vc 27)
+
+Adding a log was the most-used flow in the app and the most cluttered screen in it: five unlabelled icons, four competing lists, and a meal field that quietly filed things under "Other" if you didn't touch it. All of that changed, in two layers.
+
+- **Tap the mic and talk.** "A cup of oats and 100 grams of chicken" becomes an editable draft — every number from the food database, nothing invented, nothing sent to an AI. Your phone's own recognizer does the listening, on-device where it supports it, so what you ate stays on the phone. Spanish works: "una taza de arroz y 100 gramos de pollo".
+- **One list, ranked by what you actually eat.** The add screen now opens on your recent foods and saved foods together, newest first, with search on top. Quick add keeps its own strip — those are one-tap. Everything else — describe a meal, barcode, recipe builder, recipe import — lives under one labelled "More ways" button, with words instead of mystery icons.
+- **Meals file themselves.** Log at 12:54 and it's Lunch; at 3 PM it's a snack; at 8 PM it's Dinner. You can always override — but "Other" stops being where entries land by accident.
+- **Long-press any entry to make it a preset.** The food you log four times a week becomes a one-tap chip — and your widget button and Quick Settings tile can fire it.
+
+One honest note: the first over-the-air version of the new screen shipped with the search field squeezed to nothing. It was caught on a real phone within minutes, fixed, and the corrected layout was verified on an emulator before re-publishing — and the app now has a screen-by-screen visual regression suite so a layout break like that gets caught before it ships, not after.
+
 ## 2026-08-08 — Widget quick-add: the button that did nothing (iOS, TestFlight 1.2.0 build 37)
 
 Tapping a preset on the iPhone widget did **nothing at all** — no meal logged, no error, no change to the numbers — on every build since the feature shipped. Reported from a phone today and fixed.
