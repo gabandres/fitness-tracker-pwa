@@ -202,24 +202,25 @@ than no rule: the command is what gets run.
 `withGradleJvmArgs.js`** — that hardcodes machine-specific paths into committed
 config and breaks the EAS cloud fallback, which runs on Linux.
 
-### Verify the artifact — exit 0 is not enough
+### Verify the artifact — run the script, gate on its exit code
 
 `eas build --local` writes **`apps/mobile/build-<timestamp>.aab`**, not the Gradle
-output path. All three checks run against that file:
+output path. The checks are **code, not prose** (see the build-ios skill for what
+prose cost on 2026-08-08):
 
 ```sh
-ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && A=build-<ts>.aab &&
-  unzip -p \$A 'META-INF/MACROLOG.RSA' | keytool -printcert | grep -E 'Owner:|SHA1:' &&
-  unzip -p \$A base/manifest/AndroidManifest.xml | strings | grep expo-channel-name &&
-  unzip -p \$A base/assets/fingerprint"
+scp scripts/verify-mobile-artifact.mjs scripts/native-expectations.json ignia-mac:/tmp/
+ssh ignia-mac "node /tmp/verify-mobile-artifact.mjs ~/fitness-tracker-pwa/apps/mobile/build-<ts>.aab"
 ```
 
-- Owner must be **`CN=Macro Log Dev`** — `CN=Android Debug` is the wrong upload
-  cert and Play rejects it.
-- `{"expo-channel-name":"production"}` must be present, or the binary is an OTA
-  dead end.
-- The fingerprint is the value to record in `AGENTS.md`. **Read it from the
-  artifact; never from a locally generated hash.**
+It asserts the signer is `CN=Macro Log Dev` (debug-signed is rejected by Play),
+the `expo-channel-name` is present (absent = an OTA dead end, which shipped once
+as vc 10), the quick-add services survived the manifest merge, and prints the
+fingerprint **from the artifact** — the only value `AGENTS.md` may record.
+
+**Non-zero exit → do not submit.** Step 4 is conditional on this exit code, and
+never runs in the same command. New native service? Add it to
+`scripts/native-expectations.json` in the same commit.
 
 **Do NOT read the versionCode from the build log.** vc 18's log printed
 *"Version code: 19"* and produced 18; the vc 21 build was expected to be 20. The

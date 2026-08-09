@@ -1,0 +1,35 @@
+{
+  "_comment": "What every shipped mobile artifact MUST structurally contain. Read by scripts/verify-mobile-artifact.mjs, which gates submission on it. Adding a required key here is how a new native capability becomes un-forgettable — builds 34, 38 and 39 each shipped missing something on this list before it existed.",
+  "ios": {
+    "targets": [
+      "Ignia.app",
+      "Ignia.app/PlugIns/Today.appex",
+      "Ignia.app/Watch/IgniaWatch.app",
+      "Ignia.app/Watch/IgniaWatch.app/PlugIns/IgniaWatchComplication.appex"
+    ],
+    "requiredInfoPlistKeys": [
+      "NSSupportsLiveActivities",
+      "NSMicrophoneUsageDescription",
+      "NSSpeechRecognitionUsageDescription",
+      "NSCameraUsageDescription",
+      "NSHealthShareUsageDescription",
+      "NSHealthUpdateUsageDescription",
+      "CFBundleLocalizations"
+    ],
+    "requiredLproj": ["en.lproj", "es-PR.lproj"],
+    "requiredEntitlements": {
+      "PlugIns/Today.appex": [
+        "com.apple.security.application-groups",
+        "keychain-access-groups"
+      ]
+    }
+  },
+  "android": {
+    "signerCN": "CN=Macro Log Dev",
+    "channel": "production",
+    "requiredServices": [
+      "expo.modules.quickaddtile.QuickAddTileService",
+      "expo.modules.quickaddtile.QuickAddTileTaskService"
+    ]
+  }
+}
