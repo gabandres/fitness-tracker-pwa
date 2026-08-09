@@ -1,0 +1,38 @@
+# Designate a quick-add preset, so the Quick Settings tile has something to log.
+#
+# This is the setup half of the tile's starred row in `WIDGET.md`. The tap
+# itself is NOT here: Maestro cannot open the Quick Settings shade reliably, and
+# it does not need to —
+#
+#   adb shell cmd statusbar add-tile   fit.ignia.app/expo.modules.quickaddtile.QuickAddTileService
+#   adb shell cmd statusbar click-tile fit.ignia.app/expo.modules.quickaddtile.QuickAddTileService
+#
+# drives `QuickAddTileService` directly with no UI in the loop at all. See
+# `.maestro/README.md`.
+#
+# Assumes a signed-in session — run `android-signin.yaml` first.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+
+- assertVisible: 'Today'
+
+# The header avatar is the only way into Settings. It renders the account's
+# INITIALS, so it can never be matched by a fixed string — `testID` is the
+# stable handle (`HeaderAvatar.tsx`).
+- tapOn:
+    id: 'settings-open'
+
+- assertVisible: 'Quick add'
+
+# Designate the first preset. `quick-add-<presetId>` is the row's testID, and
+# the id is a Firestore doc id, so the index selector is the only stable way in.
+- tapOn:
+    id: 'quick-add-.*'
+    index: 0
+
+# Slot 1 is what the tile logs (`settings.quickAddWidgetHint`), so the badge
+# showing `1` is the proof the designation actually took — not merely that a row
+# was tapped.
+- assertVisible: '1'
