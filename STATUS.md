@@ -808,7 +808,16 @@ do once.
 **The emulator suites (`test:ledger`, `test:rules`) need JDK 21+.** `firebase-tools`
 dropped Java <21, and this machine's PATH `java` is 17, so both suites fail with
 `firebase-tools no longer supports Java version before 21` — a toolchain error that
-reads like a broken test. JDK 21 **is** installed; just point at it first:
+reads like a broken test. JDK 21 **is** installed; just point at it first.
+
+**`scripts/require-java21.mjs` now runs ahead of both suites and prints this fix
+when PATH java is too old** — added 2026-08-09 because this note was still
+missed, and the miss produced a written claim that the rules suite "cannot run
+on this machine" plus a wrong test count. It only warns; it never picks a JDK,
+because a hardcoded install path in committed config works on one machine and
+lies on every other. The suites are **260 tests across 10 files** (`test:rules`
+runs every functions spec, not only `firestore-rules.spec.ts`, which is 47 of
+them):
 
 ```sh
 export PATH="/c/Program Files/Microsoft/jdk-21.0.11.10-hotspot/bin:$PATH"
