@@ -42,3 +42,46 @@ describe('rescaleScannedItem', () => {
     expect(fixed.calories).toBe(0);
   });
 });
+
+/**
+ * The scan screen's portion chips used to multiply whatever was already on
+ * screen, so 1.5× twice meant 2.25× and **1× was a no-op rather than a reset**.
+ * Nothing on screen showed which chip was active, so the drift was invisible —
+ * reported from a device 2026-08-08. The screen now scales by `next / current`;
+ * these pin the properties that make that correct.
+ */
+describe('portion chips are absolute, not compounding', () => {
+  const coffee = item({
+    name: 'Turkish Coffee',
+    grams: 375,
+    calories: 102,
+    protein: 1,
+    carbs: 25,
+    fat: 0,
+  });
+
+  /** Exactly what `applyPortion` does: rescale from the active chip to the next. */
+  const chip = (it: ScannedFoodItem, from: number, to: number) =>
+    rescaleScannedItem(it, it.grams * (to / from));
+
+  it('lands on the same plate however you get there', () => {
+    const direct = chip(coffee, 1, 1.5);
+    const viaTwo = chip(chip(coffee, 1, 2), 2, 1.5);
+    expect(viaTwo.grams).toBeCloseTo(direct.grams, 5);
+    expect(viaTwo.calories).toBe(direct.calories);
+  });
+
+  it('1x returns the plate to the scan, from anywhere', () => {
+    const back = chip(chip(coffee, 1, 0.5), 0.5, 1);
+    expect(back.grams).toBeCloseTo(coffee.grams, 5);
+    expect(back.calories).toBe(coffee.calories);
+    expect(back.protein).toBeCloseTo(coffee.protein, 5);
+  });
+
+  it('scales macros with the grams — 1.5x of 102 kcal is 153', () => {
+    const bigger = chip(coffee, 1, 1.5);
+    expect(bigger.grams).toBeCloseTo(562.5, 5);
+    expect(bigger.calories).toBe(153);
+    expect(bigger.carbs).toBeCloseTo(37.5, 5);
+  });
+});

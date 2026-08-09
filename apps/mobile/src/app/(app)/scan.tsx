@@ -53,6 +53,8 @@ export default function Scan() {
   const [mealName, setMealName] = useState('');
   const [lowConf, setLowConf] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** Which portion chip is active. 1× is the scan as returned. */
+  const [portion, setPortion] = useState(1);
 
   async function onCapture(source: ScanSource) {
     haptics.tap();
@@ -64,6 +66,7 @@ export default function Scan() {
       const scan = await analyzeMealPhoto(base64, locale);
       if (!scan.items.length) throw new Error('empty');
       setItems(scan.items);
+      setPortion(1);
       setMealName(defaultMealName(scan.items, t('scan.mealName')));
       setLowConf(scan.confidence === 'low');
       setPhase('review');
@@ -75,11 +78,29 @@ export default function Scan() {
     }
   }
 
-  /** Portion chips scale the WHOLE plate — "that was a bigger serving than it
-   *  looks" — while per-item grams handle one food being off. */
-  function applyPortion(mult: number) {
+  /**
+   * Portion chips scale the WHOLE plate — "that was a bigger serving than it
+   * looks" — while per-item grams handle one food being off.
+   *
+   * ## The chips are ABSOLUTE, not multipliers on what is already there
+   *
+   * This used to be `scalePortion(it, mult)` applied to the current items,
+   * which compounded: 1.5× twice was 2.25×, **1× was a no-op rather than a
+   * reset**, and 0.5× then 1× left the plate permanently at half. Nothing on
+   * screen said which portion was active, so the drift was invisible — reported
+   * from a device 2026-08-08.
+   *
+   * Scaling by `next / portion` makes each chip mean what it says, makes them
+   * idempotent, and keeps any per-item gram edits the user has already made
+   * (they ride along proportionally, which is the intent — the chip is about
+   * the serving, not about correcting one food).
+   */
+  function applyPortion(next: number) {
+    if (next === portion) return;
     haptics.tap();
-    setItems((prev) => prev.map((it) => scalePortion(it, mult)));
+    const relative = next / portion;
+    setItems((prev) => prev.map((it) => scalePortion(it, relative)));
+    setPortion(next);
   }
 
   function editGrams(index: number, raw: string) {
@@ -199,8 +220,18 @@ export default function Scan() {
               <Text style={styles.section}>{t('scan.portion')}</Text>
               <View style={styles.portionRow}>
                 {PORTION_STEPS.map((p) => (
-                  <PressScale key={p} style={styles.portionChip} scaleTo={0.92} onPress={() => applyPortion(p)} testID={`portion-${p}`}>
-                    <Text style={styles.portionText}>{p === 1 ? '1×' : `${p}×`}</Text>
+                  <PressScale
+                    key={p}
+                    style={[styles.portionChip, p === portion && styles.portionChipOn]}
+                    scaleTo={0.92}
+                    onPress={() => applyPortion(p)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: p === portion }}
+                    testID={`portion-${p}`}
+                  >
+                    <Text style={[styles.portionText, p === portion && styles.portionTextOn]}>
+                      {p === 1 ? '1×' : `${p}×`}
+                    </Text>
                   </PressScale>
                 ))}
               </View>
@@ -208,7 +239,7 @@ export default function Scan() {
           </ScrollView>
 
           <View style={styles.footer}>
-            <PressScale style={styles.retake} scaleTo={0.96} onPress={() => { haptics.tap(); setPhase('intro'); setItems([]); }} testID="scan-retake">
+            <PressScale style={styles.retake} scaleTo={0.96} onPress={() => { haptics.tap(); setPhase('intro'); setItems([]); setPortion(1); }} testID="scan-retake">
               <Text style={styles.retakeText}>{t('scan.retake')}</Text>
             </PressScale>
             <PressScale style={[styles.add, saving && styles.addDisabled]} scaleTo={0.97} onPress={onAdd} disabled={saving} testID="scan-add">
@@ -391,7 +422,9 @@ function createStyles({ colors, shadow }: Theme) {
     section: { fontSize: font.small, color: colors.muted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: space.xs },
     portionRow: { flexDirection: 'row', gap: space.sm },
     portionChip: { flex: 1, alignItems: 'center', backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, paddingVertical: space.md },
+    portionChipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
     portionText: { fontSize: font.body, fontWeight: '700', color: colors.ink },
+    portionTextOn: { color: colors.onInk },
     macroLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
     // totals
     totalRow: { flexDirection: 'row', gap: space.sm },
