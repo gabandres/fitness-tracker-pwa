@@ -23,11 +23,17 @@ env:
     clearState: false
 - assertVisible: 'Today'
 # ── water ──
+# centerElement: true — scrollUntilVisible stops as soon as the element enters
+# the viewport, which on iOS routinely leaves it UNDER the tab bar; Maestro then
+# taps its layout bounds and the touch goes to whatever is on top. Measured
+# 2026-08-09: this exact line put the run on the Trends tab instead of toggling
+# the theme. Centering moves the target clear of both bars.
 - scrollUntilVisible:
     element:
       text: 'Water'
     direction: DOWN
     timeout: 15000
+    centerElement: true
 - tapOn:
     id: 'water-plus-8'
 - assertVisible:
@@ -43,12 +49,19 @@ env:
     id: 'sleep-input'
 - eraseText
 - inputText: '7.5'
-# hideKeyboard BEFORE tapping Save. The sheet lifts above the keyboard with a
-# Reanimated transform, and Maestro taps an element's LAYOUT bounds, not its
-# transformed pixels — with the keyboard up the tap lands on the keyboard and
-# the modal just sits there with the value typed (measured 2026-08-09; the
-# screenshot of that failure is what identified it).
-- hideKeyboard
+# Dismiss the keyboard BEFORE tapping Save, by tapping the modal's own title.
+#
+# Two separate failures make this line what it is. On Android the keyboard was
+# still up and Maestro taps an element's LAYOUT bounds, not its transformed
+# pixels — the sheet lifts via a Reanimated transform, so the Save tap landed
+# on the keyboard and the modal just sat there with 7.5 typed in it. On iOS
+# `hideKeyboard` itself throws: iOS exposes no native dismiss API, so Maestro
+# fakes it by scrolling and fails when the keyboard stays (its own known-issues
+# page documents this, and the numeric keypad has no return key to press).
+#
+# Tapping a non-interactive element is Maestro's documented workaround and
+# fixes both at once.
+- tapOn: 'Hours slept'
 - takeScreenshot: .maestro/regression/shots/14-sleep-modal
 - tapOn:
     id: 'sleep-save'
@@ -64,7 +77,8 @@ env:
     text: 'Open'
     optional: true
 - extendedWaitUntil:
-    visible: 'More ways'
+    visible:
+      id: 'open-more'
     timeout: 15000
 - runFlow:
     when:

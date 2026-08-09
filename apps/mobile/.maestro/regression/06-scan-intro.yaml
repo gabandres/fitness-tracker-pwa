@@ -33,8 +33,13 @@ appId: fit.ignia.app
 - extendedWaitUntil:
     visible: 'Scan a meal'
     timeout: 10000
-- assertVisible: 'Take photo'
-- assertVisible: 'Choose from library'
+# testIDs, not labels: on iOS the Ionicons glyph merges into each button's
+# accessibility label, so a full-match text selector never matches (see
+# 02-add-sheet's header for the measurement).
+- assertVisible:
+    id: 'scan-take'
+- assertVisible:
+    id: 'scan-choose'
 - assertVisible:
     id: 'scan-manual'
 - takeScreenshot: .maestro/regression/shots/06-scan-intro

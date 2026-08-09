@@ -16,33 +16,60 @@ appId: fit.ignia.app
 - tapOn:
     text: 'Open'
     optional: true
+# Anchor on testIDs, never on these buttons' TEXT.
+#
+# On iOS the Ionicons glyph is merged INTO the button's single accessibility
+# label, so the node is {text: "", accessibilityText: "<glyph>, More ways"} --
+# and Maestro's text selector is a full match, so 'More ways' can never match
+# there. Android exposes icon and label as separate nodes, which is why the
+# identical line passed on Android for weeks. Measured from a `maestro
+# hierarchy` dump on 2026-08-09; this is the real mechanism behind what the
+# README used to call unexplained "iOS driver blindness" -- and it is NOT an
+# accessibility defect: the label IS in the tree, so VoiceOver reads it fine.
+#
+# IDs also make every one of these lines locale-independent.
 - extendedWaitUntil:
-    visible: 'More ways'
+    visible:
+      id: 'open-more'
     timeout: 15000
-# The browse surface: search + two labelled buttons + pinned Quick add + Recent.
-- assertVisible: 'Write it in'
+- assertVisible:
+    id: 'open-manual'
 - takeScreenshot: .maestro/regression/shots/02-sheet-browse
 # The collapsed modes, expanded.
-- tapOn: 'More ways'
-- assertVisible: 'Describe a meal'
-- assertVisible: 'Build a recipe'
+- tapOn:
+    id: 'open-more'
+- assertVisible:
+    id: 'open-mealtext'
+- assertVisible:
+    id: 'open-recipe'
 - takeScreenshot: .maestro/regression/shots/02-sheet-moreways
 # Describe a meal (MealText).
-- tapOn: 'Describe a meal'
+- tapOn:
+    id: 'open-mealtext'
 - takeScreenshot: .maestro/regression/shots/02-sheet-mealtext
 - tapOn: 'Cancel'
 # Recipe builder.
-- tapOn: 'More ways'
-- tapOn: 'Build a recipe'
+- tapOn:
+    id: 'open-more'
+- tapOn:
+    id: 'open-recipe'
 - takeScreenshot: .maestro/regression/shots/02-sheet-recipe
 - tapOn: 'Cancel'
 # Recipe import.
-- tapOn: 'More ways'
-- tapOn: 'Import from a link'
+- tapOn:
+    id: 'open-more'
+- tapOn:
+    id: 'open-recipe-import'
 - takeScreenshot: .maestro/regression/shots/02-sheet-recipeimport
 - tapOn: 'Cancel'
 # Manual entry, through the always-visible button the research demands.
-- tapOn: 'Write it in'
-- assertVisible: 'Add'
+- tapOn:
+    id: 'open-manual'
+- assertVisible:
+    id: 'entry-save'
 - takeScreenshot: .maestro/regression/shots/02-sheet-manual
-- back
+# Relaunch rather than `back` — `back` is Android-only and this flow runs on
+# both platforms.
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'

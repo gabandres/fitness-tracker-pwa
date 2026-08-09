@@ -9,6 +9,11 @@
 # state, which no other flow can reach (the main QA account has history by
 # design). Ends SIGNED OUT so the sandbox is in a known state for re-signin.
 appId: fit.ignia.app
+# `manual` keeps this OUT of a directory run — config.yaml excludes the tag.
+# Without it Maestro walked into empty/ anyway (measured: a 15-flow suite ran
+# 16 flows), and this one signs the sandbox OUT mid-suite.
+tags:
+  - manual
 ---
 - launchApp:
     clearState: false

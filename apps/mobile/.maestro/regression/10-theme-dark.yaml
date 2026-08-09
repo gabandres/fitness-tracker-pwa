@@ -19,18 +19,34 @@ env:
 # ── flip to dark ──
 - tapOn:
     id: 'settings-open'
+# centerElement: true — scrollUntilVisible stops as soon as the element enters
+# the viewport, which on iOS routinely leaves it UNDER the tab bar; Maestro then
+# taps its layout bounds and the touch goes to whatever is on top. Measured
+# 2026-08-09: this exact line put the run on the Trends tab instead of toggling
+# the theme. Centering moves the target clear of both bars.
 - scrollUntilVisible:
     element:
       id: 'settings-theme-dark'
     direction: DOWN
     timeout: 20000
+    centerElement: true
 - tapOn:
     id: 'settings-theme-dark'
 - takeScreenshot: .maestro/regression/shots/10-dark-settings
+# Wait for the header to come back before reaching for it. Switching the theme
+# re-renders the whole screen, and on iOS the tap raced that re-render — flow
+# 09 taps this very ID successfully, so the button is addressable; it is the
+# repaint that is not instant.
+- extendedWaitUntil:
+    visible:
+      id: 'settings-back'
+    timeout: 15000
 - tapOn:
     id: 'settings-back'
 # ── Today, all three scroll positions ──
-- assertVisible: 'Today'
+- extendedWaitUntil:
+    visible: 'Today'
+    timeout: 15000
 - takeScreenshot: .maestro/regression/shots/10-dark-today-top
 - scrollUntilVisible:
     element:
@@ -59,10 +75,12 @@ env:
     text: 'Open'
     optional: true
 - extendedWaitUntil:
-    visible: 'More ways'
+    visible:
+      id: 'open-more'
     timeout: 15000
 - takeScreenshot: .maestro/regression/shots/10-dark-sheet
-- tapOn: 'More ways'
+- tapOn:
+    id: 'open-more'
 - takeScreenshot: .maestro/regression/shots/10-dark-sheet-moreways
 - tapOn:
     id: 'entry-backdrop'
@@ -73,11 +91,17 @@ env:
 - assertVisible: 'Today'
 - tapOn:
     id: 'settings-open'
+# centerElement: true — scrollUntilVisible stops as soon as the element enters
+# the viewport, which on iOS routinely leaves it UNDER the tab bar; Maestro then
+# taps its layout bounds and the touch goes to whatever is on top. Measured
+# 2026-08-09: this exact line put the run on the Trends tab instead of toggling
+# the theme. Centering moves the target clear of both bars.
 - scrollUntilVisible:
     element:
       id: 'settings-theme-system'
     direction: DOWN
     timeout: 20000
+    centerElement: true
 - tapOn:
     id: 'settings-theme-system'
 - tapOn:

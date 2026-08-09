@@ -10,6 +10,14 @@ Update this file in the same commit as any flow change. If a surface ships
 that has no row here, the suite's "100%" claim is false until the row exists —
 add it as ✗ first, cover it second.
 
+**A green run is not automatically evidence.** Two ways a pass can lie, both
+measured on 2026-08-09: a flow that dies before its restore tail leaves the
+account in es-PR or the device in dark, so every LATER flow is asserting
+against a state you did not intend (that is what turned one iOS run into
+9 "failures", only two of which were real); and screenshots do not reach
+`shots/` at all unless the collector ran. Before ticking rows: confirm the
+locale/theme are back to baseline, and look at the captures.
+
 ## Route screens (13)
 
 | Screen | Flow | Android | iOS |

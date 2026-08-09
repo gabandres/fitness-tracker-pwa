@@ -4,6 +4,11 @@
 # with the admin interleave in empty/01's header.
 flows:
   - '*.yaml'
+# The `flows` glob alone did NOT keep Maestro out of empty/ — a 15-flow suite
+# ran 16 flows, the extra one being the fresh-account arc, which signs the
+# sandbox out. The tag is what actually excludes it.
+excludeTags:
+  - manual
 # EXPLICIT order — without it Maestro shuffles the suite, and this suite is
 # order-dependent twice over: 11→12→13 share one diary row, and 09/10 flip
 # account/device state they restore in their own tails. Measured 2026-08-09:

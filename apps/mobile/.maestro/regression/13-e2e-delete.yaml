@@ -7,15 +7,45 @@ appId: fit.ignia.app
 - launchApp:
     clearState: false
 - assertVisible: 'Today'
+# visibilityPercentage: 60 — the default is 100, and on iOS the newest diary
+# row lands partly under the FAB/tab bar, so it is never 100% visible and the
+# scroll fails even though the row is on screen and IN FIRESTORE (verified with
+# qa-regression-verify.mjs when this first failed). Android's taller list
+# happened to clear the FAB, which is why the same line passed there.
+# centerElement: true — scrollUntilVisible stops as soon as the element enters
+# the viewport, which on iOS routinely leaves it UNDER the tab bar; Maestro then
+# taps its layout bounds and the touch goes to whatever is on top. Measured
+# 2026-08-09: this exact line put the run on the Trends tab instead of toggling
+# the theme. Centering moves the target clear of both bars.
+# '.*QA E2E Sandwich.*', not the bare string: iOS merges a diary ROW into a
+# single accessibility element whose label is the whole row
+# ("QA E2E Sandwich, 11:45 AM · P 9g, 123"), so the label is not its own node
+# and Maestro's full-match text selector cannot match it. Android keeps the
+# Texts separate, which is why the bare string worked there. Same mechanism as
+# the icon-button merge documented in 02-add-sheet. Measured 2026-08-09 from a
+# capture showing the row plainly on screen while the assert failed.
+#
+# NO centerElement here, deliberately: the newest row is the LAST item, the
+# list cannot scroll further to centre it, and Maestro then keeps swiping
+# until it times out — again with the row plainly on screen. Centering is for
+# targets mid-list (the Settings toggles); visibilityPercentage is what makes
+# an end-of-list row reachable.
 - scrollUntilVisible:
     element:
-      text: 'QA E2E Sandwich'
+      text: '.*QA E2E Sandwich.*'
     direction: DOWN
     timeout: 15000
-- tapOn: 'QA E2E Sandwich'
-- assertVisible:
-    id: 'entry-delete'
+    visibilityPercentage: 60
+- tapOn:
+    text: '.*QA E2E Sandwich.*'
+# Wait, don't assert: the sheet animates in, and on iOS the pinned actions row
+# lands a beat after the fields do. Flow 12 proves the same tap opens edit mode
+# (it asserts entry-calories there and passes), so this is timing, not absence.
+- extendedWaitUntil:
+    visible:
+      id: 'entry-delete'
+    timeout: 15000
 - tapOn:
     id: 'entry-delete'
-- assertNotVisible: 'QA E2E Sandwich'
+- assertNotVisible: '.*QA E2E Sandwich.*'
 - takeScreenshot: .maestro/regression/shots/13-e2e-deleted

@@ -14,6 +14,11 @@
 #
 # The email address must contain demo|test|review|appstore (script guard).
 appId: fit.ignia.app
+# `manual` keeps this OUT of a directory run — config.yaml excludes the tag.
+# Without it Maestro walked into empty/ anyway (measured: a 15-flow suite ran
+# 16 flows), and this one signs the sandbox OUT mid-suite.
+tags:
+  - manual
 ---
 - launchApp:
     clearState: true
@@ -24,7 +29,8 @@ appId: fit.ignia.app
 - inputText: ${EMAIL}
 - tapOn: 'Password'
 - inputText: ${PASSWORD}
-- hideKeyboard
+# Not `hideKeyboard` — iOS throws on it (see android-signin.yaml).
+- tapOn: 'Sign in to your account'
 # Index 1: the screen carries "Sign in" twice (toggle + submit) — same trap as
 # android-signin.yaml.
 - tapOn:

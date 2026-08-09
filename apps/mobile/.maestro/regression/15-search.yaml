@@ -19,7 +19,8 @@ env:
     text: 'Open'
     optional: true
 - extendedWaitUntil:
-    visible: 'More ways'
+    visible:
+      id: 'open-more'
     timeout: 15000
 - tapOn:
     id: 'food-search-input'
@@ -30,13 +31,22 @@ env:
 - extendedWaitUntil:
     visible: '.*[Bb]anana.*raw.*'
     timeout: 20000
-- hideKeyboard
+# The keyboard is deliberately left UP. `hideKeyboard` throws on iOS, and the
+# usual workaround — tapping a non-interactive label — has no target here:
+# once results render they REPLACE the Recent/Quick-add sections whose
+# headings would have served (measured 2026-08-09: '.*RECENT.*' not found,
+# because by then it genuinely is not on screen). The results list sits above
+# the keyboard, so the tap below lands fine, and the capture showing the
+# keyboard is honest about the state.
 - takeScreenshot: .maestro/regression/shots/15-search-results
 # Serving detail: tap the USDA-named row (the input can't match this regex).
 - tapOn:
     text: '.*[Bb]anana.*raw.*'
+# '.*Add.*': each serving row merges its label, macros and the Add affordance
+# into ONE accessibility element on iOS, so the bare word is not its own node
+# (same merge as the diary rows — see 11-e2e-log).
 - extendedWaitUntil:
-    visible: 'Add'
+    visible: '.*Add.*'
     timeout: 20000
 - takeScreenshot: .maestro/regression/shots/15-search-detail
 # The serving-detail view fills the sheet, so the backdrop is unreachable and

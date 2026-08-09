@@ -125,10 +125,65 @@ Platform quirks learned, so nobody re-pays them:
 - **iOS shows "Open in Ignia?"** for a scheme fired from outside the app — the
   flow's optional `Open` tap handles it; a stale copy of that dialog also
   blocks later flows, so dismiss before starting.
-- **Maestro's iOS driver sometimes cannot see the EntrySheet's texts even
-  while they are plainly rendered** (Android sees them fine). Open question
-  whether VoiceOver shares the blindness — worth a manual check someday.
-  Restarting the run usually recovers the driver.
+- ~~**Maestro's iOS driver sometimes cannot see the EntrySheet's texts even
+  while they are plainly rendered.** Restarting the run usually recovers.~~
+  **SOLVED 2026-08-09 — it was never blindness, and never intermittent.**
+  See "Anchor on IDs, not on icon-button labels" below: the match fails
+  deterministically, and the answer to the VoiceOver question is **no, it does
+  not share it** — the label is in the accessibility tree, so VoiceOver reads
+  it fine. "Restarting recovers it" was superstition; a restart that appeared
+  to help was a flow that had already been changed.
 - **Never tap by coordinates on a signed-in account.** A missed percentage tap
   during this run hit a Quick-add chip and logged a spurious ~300 kcal entry to
   the QA account. Text/testID or nothing.
+
+## Anchor on IDs, not on icon-button labels — 2026-08-09
+
+**Any button that pairs an icon with a label must be addressed by `testID` on
+both platforms.** iOS merges the Ionicons glyph INTO the button's single
+accessibility label, so the node is:
+
+```
+{ text: "", accessibilityText: ", More ways", resource-id: "open-more" }
+```
+
+Maestro's text selector is a **full match**, so `More ways` cannot match that —
+while Android, which exposes the icon and the label as separate nodes with
+real `text`, matches it fine. One line, passing on one platform and failing
+deterministically on the other, for a reason neither the assertion message nor
+the screenshot reveals: the button is right there in the capture.
+
+Read it yourself rather than guessing, whenever iOS "cannot see" something
+that is plainly on screen:
+
+```sh
+maestro --device <sim-udid> hierarchy > /tmp/h.json     # then grep the label
+```
+
+That command is what closed this out, and it also settles the old VoiceOver
+question: the label **is** in the tree, so this was never an accessibility
+defect — only a selector mismatch.
+
+`resource-id` is present on both platforms, so an ID anchor is simply
+better everywhere. It is immune to this, and to locale — which is why the
+es-PR flow now asserts IDs instead of Spanish strings.
+
+## Writing a flow that passes on BOTH platforms — the four rules
+
+The suite ran green on Android and 6/15 on iOS the first time it met one, and
+**not one of those failures was an app defect** — the Firestore snapshot showed
+the e2e row landing at 123 kcal in the very run whose flow reported failure.
+All four are Maestro/platform mechanics, all measured on 2026-08-09:
+
+| Rule | Because |
+|---|---|
+| **Anchor on `testID`, never on an icon-button's label** | iOS merges the glyph into the label; a full-match text selector cannot match. See above. |
+| **Never `hideKeyboard`** — tap a non-interactive element instead (a title, a section heading) | iOS has no native dismiss API, so Maestro fakes it by scrolling and then throws. [Its own known-issues page says so.](https://docs.maestro.dev/extra-materials/troubleshooting/known-issues) Numeric keypads have no return key to fall back on. On the sleep modal the same change fixes Android too, where the keyboard was swallowing the Save tap. |
+| **`centerElement: true` on any `scrollUntilVisible` whose target you will then TAP** | The scroll stops the moment the element enters the viewport, which routinely parks it under the FAB or tab bar. Maestro taps layout bounds, so the touch goes to whatever is on top — this put one run on the Trends tab instead of toggling the theme, and made a diary row open the FAB's speed dial. |
+| **`visibilityPercentage: 60` when scrolling to a diary row** | The default is 100, and the newest row is partly under the FAB on iOS, so a row that is plainly on screen is "not visible". |
+
+The general shape: **Maestro reasons about layout bounds, the device draws
+pixels, and the two disagree wherever something floats on top or a transform
+has moved it.** When a flow fails on an element you can see in the capture,
+suspect that gap before suspecting the app — then prove which it is with
+`maestro hierarchy` and a Firestore read.

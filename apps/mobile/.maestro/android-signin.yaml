@@ -38,7 +38,13 @@ appId: fit.ignia.app
       - inputText: ${EMAIL}
       - tapOn: 'Password'
       - inputText: ${PASSWORD}
-      - hideKeyboard
+      # Tap the tagline (a plain, non-interactive Text) rather than
+      # `hideKeyboard`: iOS has no native dismiss API, so Maestro fakes it by
+      # scrolling and throws when the keyboard stays up — its own known-issues
+      # page prescribes exactly this workaround. It survives here today only
+      # because the alphabetic keyboard happens to scroll away; the numeric
+      # keypads elsewhere in the suite did not.
+      - tapOn: 'Sign in to your account'
       # `index: 1`, NOT 0. The screen carries the string "Sign in" TWICE — the
       # Sign in / Sign up segmented toggle at the top, and the submit button
       # below the password field. Index 0 is the toggle, and tapping it when it
@@ -48,6 +54,15 @@ appId: fit.ignia.app
       - tapOn:
           text: 'Sign in'
           index: 1
+
+      # Dismiss iOS's "Save Password?" system dialog HERE, before asserting
+      # Today — it appears the instant credentials are submitted and it COVERS
+      # Today, so an assert placed after this block fails on a sign-in that
+      # actually succeeded (measured 2026-08-09: the capture showed Today
+      # rendered behind the dialog). Android never shows it, hence optional.
+      - tapOn:
+          text: 'Not Now'
+          optional: true
 
       # The session landed and Today rendered. Asserting on a Today-screen
       # element rather than on the absence of the sign-in screen: "not visible"
