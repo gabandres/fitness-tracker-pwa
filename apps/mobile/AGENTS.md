@@ -195,6 +195,16 @@ binaries built from different commits normally *do* differ — but publishing
 twice "to cover both" is only worth doing once both halves have been read out of
 their artifacts. Otherwise the second publish targets a runtime nobody runs.
 
+**2026-08-09: the gate was run at commit `43f15149` and both platforms matched
+their live artifacts exactly** — android `ca2dc124…` (vc 29), ios `1d89fedf…`
+(build 41) — so the OTA published that day lands on the current cohort. One
+precondition is worth repeating because it was nearly missed: the Mac had an
+`apps/mobile/android/` prebuild dir at the time (created to build a QA APK for
+the Maestro emulator), and **`dir:android` is hashed**. It was deleted before
+generating. A gate run with that directory present reports a hash no binary
+carries — the Windows-vs-Mac divergence at the top of this section, reproduced
+on the Mac itself.
+
 Do not assume "published" means "delivered"; check which runtime version the
 update went out under:
 
