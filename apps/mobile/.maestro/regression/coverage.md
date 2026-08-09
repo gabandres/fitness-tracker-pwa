@@ -24,15 +24,15 @@ locale/theme are back to baseline, and look at the captures.
 |---|---|---|---|
 | sign-in | `../android-signin.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
 | (app)/index — Today | `01-today.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| (app)/train | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✗ (top-only ✓ 2026-08-09) |
-| (app)/trends | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✗ (top-only ✓ 2026-08-09) |
-| (app)/body | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✗ (top-only ✓ 2026-08-09) |
+| (app)/train | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-09 |
+| (app)/trends | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-09 |
+| (app)/body | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-09 |
 | (app)/settings | `04-settings.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| history/index | `05-history.yaml` | ✓ 2026-08-09 | ✗ |
-| history/[date] | `05-history.yaml` (deep link, `-e DATE`) | ✓ 2026-08-09 | ✗ |
-| scan (intro only) | `06-scan-intro.yaml` | ✓ 2026-08-09 | ✗ |
-| coach (idle only) | `07-coach.yaml` | ✓ 2026-08-09 | ✗ |
-| refine-targets (render only) | `08-refine-targets.yaml` | ✓ 2026-08-09 | ✗ |
+| history/index | `05-history.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
+| history/[date] | `05-history.yaml` (deep link, `-e DATE`) | ✓ 2026-08-09 | ✓ 2026-08-09 |
+| scan (intro only) | `06-scan-intro.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
+| coach (idle only) | `07-coach.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
+| refine-targets (render only) | `08-refine-targets.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
 | verify-email | `empty/01-verify-email.yaml` | ✗ authored, unrun | ✗ |
 | onboarding | `empty/02-onboarding-empty.yaml` | ✗ authored, unrun | ✗ |
 
@@ -41,33 +41,33 @@ locale/theme are back to baseline, and look at the captures.
 | Mode | Flow | Android | iOS |
 |---|---|---|---|
 | Browse (recency list + Quick add strip) | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| Manual (Write it in) | `02` render · `11` real write | ✓ 2026-08-09 (both) | ✓ 02 only |
+| Manual (Write it in) | `02` render · `11` real write | ✓ 2026-08-09 (both) | ✓ 2026-08-09 (both) |
 | Describe a meal | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
 | Build a recipe | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
 | Import from a link | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| Search → results → serving detail | `15-search.yaml` | ✓ 2026-08-09 | ✗ |
+| Search → results → serving detail | `15-search.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
 | Barcode | — camera; asserted present in `02`, never opened | ✗ camera | ✗ camera |
 
 ## Interactions
 
 | Interaction | Flow | Android | iOS |
 |---|---|---|---|
-| Log → appears in Entries (Firestore-verified) | `11-e2e-log.yaml` + `qa-regression-verify.mjs snapshot` | ✓ 2026-08-09 | ✗ |
-| Edit entry (Firestore-verified) | `12-e2e-edit.yaml` + snapshot | ✓ 2026-08-09 | ✗ |
-| Delete entry (Firestore-verified) | `13-e2e-delete.yaml` + snapshot | ✓ 2026-08-09 | ✗ |
-| Row long-press → save preset | `12-e2e-edit.yaml` + snapshot | ✓ 2026-08-09 (preset doc read back) | ✗ |
-| Water +8 / −8 | `14-metrics.yaml` | ✓ 2026-08-09 | ✗ |
-| Sleep log 7.5 h | `14-metrics.yaml` + snapshot | ✓ 2026-08-09 (`sleepHours: 7.5`) | ✗ |
+| Log → appears in Entries (Firestore-verified) | `11-e2e-log.yaml` + `qa-regression-verify.mjs snapshot` | ✓ 2026-08-09 | ✓ 2026-08-09 |
+| Edit entry (Firestore-verified) | `12-e2e-edit.yaml` + snapshot | ✓ 2026-08-09 | ✓ 2026-08-09 |
+| Delete entry (Firestore-verified) | `13-e2e-delete.yaml` + snapshot | ✓ 2026-08-09 | ✗ **the one open iOS gap** — the row tap does not open the editor there, so `entry-delete` never renders; the capture shows Today with no sheet. Not an app defect on the evidence available (the same tap opens the editor in flow 12, which passes on iOS), but unexplained. Next session: dump `maestro hierarchy` with the row on screen |
+| Row long-press → save preset | `12-e2e-edit.yaml` + snapshot | ✓ 2026-08-09 (preset doc read back) | ✓ 2026-08-09 (preset doc read back) |
+| Water +8 / −8 | `14-metrics.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
+| Sleep log 7.5 h | `14-metrics.yaml` + snapshot | ✓ 2026-08-09 (`sleepHours: 7.5`) | ✓ 2026-08-09 |
 | Mic tap → listening state | `14-metrics.yaml` (conditional) | ✗ — button renders and the tap lands, but the emulator has no recognizer, so the state never appears. Closes on hardware only | ✗ same |
-| Month prev/next in History | `05-history.yaml` | ✓ 2026-08-09 | ✗ |
+| Month prev/next in History | `05-history.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
 
 ## State multipliers
 
 | State | Flow | Android | iOS |
 |---|---|---|---|
-| es-PR locale (Today, tabs, sheet, Settings) | `09-locale-es.yaml` | ✓ 2026-08-09 — **caught the `lb/wk` bug** | ✗ |
-| Dark theme (same surfaces) | `10-theme-dark.yaml` | ✓ 2026-08-09 | ✗ |
-| Boot / loading (BrandLoader splash) | `01-today.yaml`'s launch capture | ✓ 2026-08-09 — **caught the "Igni" wordmark** | ✗ |
+| es-PR locale (Today, tabs, sheet, Settings) | `09-locale-es.yaml` | ✓ 2026-08-09 — **caught the `lb/wk` bug** | ✓ 2026-08-09 |
+| Dark theme (same surfaces) | `10-theme-dark.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
+| Boot / loading (BrandLoader splash) | `01-today.yaml`'s launch capture | ✓ 2026-08-09 — **caught the "Igni" wordmark** | ✓ 2026-08-09 (renders correctly there — the clipping was Android-only) |
 | Fresh account (onboarding funnel + every empty state) | `empty/02-onboarding-empty.yaml` | ✗ authored, unrun | ✗ |
 
 ## Known NOT covered — each with its reason, so nobody "discovers" these

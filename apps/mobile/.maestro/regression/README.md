@@ -78,7 +78,7 @@ that run's "light" evidence was nothing of the kind. Before trusting a set of
 captures, confirm 01's shot is in the theme you expect.
 
 
-## Second run — 2026-08-09, Android, 15/15 · two real bugs
+## Second run — 2026-08-09 · Android 15/15, iOS 14/15 · two real bugs
 
 The suite grew from 4 flows to 15 plus a fresh-account arc, and its first pass
 over the new states **found two shipped bugs on surfaces nothing had ever
@@ -103,6 +103,16 @@ Save tap landing on the keyboard, a diary row's long-press hitting the FAB
 that overlays it, a full-height sheet with no reachable backdrop, and an idle
 assert on a chip that cannot exist before its first request. The fixes are in
 the flows, with the measurement written into each comment.
+
+**iOS then went 6/15 → 14/15** across the same kind of work — four platform
+mechanics, none of them app defects, all four written up in the rules below.
+The single remaining red is `13-e2e-delete`: the diary-row tap does not open
+the editor on iOS, so `entry-delete` never renders and the capture shows Today
+with no sheet at all. It is **not** explained by the preset chip sharing the
+row's name (scoping the tap `below: Entries` did not fix it), and flow 12's
+identical tap DOES open the editor on iOS. Left honestly red rather than
+papered over — start the next session with `maestro hierarchy` while that row
+is on screen.
 
 ## First full run — 2026-08-09, both platforms
 

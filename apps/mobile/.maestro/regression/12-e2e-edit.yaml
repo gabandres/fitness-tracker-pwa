@@ -58,8 +58,12 @@ appId: fit.ignia.app
 - takeScreenshot: .maestro/regression/shots/12-e2e-preset-alert
 - tapOn: 'Save preset'
 # ── edit via row tap ──
+# Scoped below "Entries": the preset just created above shares this name, and a
+# Quick-add chip tap would log a row rather than open the editor.
 - tapOn:
     text: '.*QA E2E Sandwich.*'
+    below:
+      text: 'Entries'
 - assertVisible:
     id: 'entry-calories'
 - tapOn:
