@@ -176,6 +176,8 @@ export const en = {
   // ── daily metrics ──
   'metrics.fasting': 'Fasting',
   'metrics.notFasting': 'Not fasting',
+  'metrics.fastJustStarted': 'Just started',
+  'metrics.fastMinutes': '{m}m',
   'metrics.startFast': 'Start fast',
   'metrics.end': 'End',
   'metrics.water': 'Water',

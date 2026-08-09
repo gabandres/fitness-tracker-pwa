@@ -178,6 +178,8 @@ export const esPR: Record<I18nKey, string> = {
   // ── daily metrics ──
   'metrics.fasting': 'Ayuno',
   'metrics.notFasting': 'Sin ayuno',
+  'metrics.fastJustStarted': 'Recién comenzado',
+  'metrics.fastMinutes': '{m}m',
   'metrics.startFast': 'Iniciar ayuno',
   'metrics.end': 'Terminar',
   'metrics.water': 'Agua',

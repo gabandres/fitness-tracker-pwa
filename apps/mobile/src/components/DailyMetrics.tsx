@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useT } from '@/i18n';
+import { type TFn, useT } from '@/i18n';
 import type { DailyActivity } from '@/lib/ledger';
 import * as haptics from '@/lib/haptics';
 import Reanimated from 'react-native-reanimated';
@@ -30,12 +30,29 @@ interface Props {
   onBreakFast: () => void;
 }
 
-/** Formats elapsed ms as "14h 03m" (or "0h 42m"). */
-function elapsedLabel(since: Date, now: number): string {
+/**
+ * Formats elapsed time as `14h 03m`, `42m`, or "just started".
+ *
+ * ## Why it is not simply `Xh YYm`
+ *
+ * It used to be, and it read as broken. Flooring to whole minutes means a fast
+ * in its first 60 seconds renders a literal **`0h 00m`**, and the row only
+ * re-renders every 30s — so someone who has just tapped Start sees a zero that
+ * sits there. Reported from a device 2026-08-08, next to a Dynamic Island
+ * counting `0:05`, which is what made the mismatch obvious: the system timer
+ * ticks seconds while this one floors to minutes.
+ *
+ * The fix is presentational on purpose. Matching the island's granularity would
+ * mean a one-second interval on the Today screen for a number nobody watches
+ * that closely, and this app should not spend battery to look busy.
+ *
+ * `0h 42m` is also just noise — under an hour the hours field carries nothing.
+ */
+function elapsedLabel(since: Date, now: number, t: TFn): string {
   const mins = Math.max(0, Math.floor((now - since.getTime()) / 60000));
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return `${h}h ${String(m).padStart(2, '0')}m`;
+  if (mins < 1) return t('metrics.fastJustStarted');
+  if (mins < 60) return t('metrics.fastMinutes', { m: String(mins) });
+  return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m`;
 }
 
 /** Today's daily-metric strip: fasting timer, water quick-add, sleep. The
@@ -60,7 +77,7 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
         <View style={styles.left}>
           <Text style={styles.label}>{t('metrics.fasting')}</Text>
           <Text style={styles.value}>
-            {fastStartedAt ? elapsedLabel(fastStartedAt, Date.now()) : t('metrics.notFasting')}
+            {fastStartedAt ? elapsedLabel(fastStartedAt, Date.now(), t) : t('metrics.notFasting')}
           </Text>
         </View>
         <PressScale

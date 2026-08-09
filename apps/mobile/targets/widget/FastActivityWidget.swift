@@ -153,11 +153,28 @@ struct FastActivityWidget: Widget {
           .foregroundStyle(Color.fastMuted)
         }
       } compactLeading: {
+        // Sized and padded deliberately. The compact regions sit hard against
+        // the pill's rounded ends, so a glyph with no padding reads as falling
+        // off the left edge — which is exactly how the first build looked on a
+        // real iPhone.
         Image(systemName: "flame.fill")
+          .font(.system(size: 14))
           .foregroundStyle(Color.fastAccent)
+          .padding(.leading, 3)
       } compactTrailing: {
-        FastTimer(startedAt: context.attributes.startedAt, font: .caption2)
-          .frame(width: 52, alignment: .trailing)
+        // **No fixed width.** A 52pt frame with `.trailing` alignment was worse
+        // than useless here: it reserved far more room than `0:05` needs, so the
+        // system widened the whole pill and the timer floated in the middle of
+        // an empty box instead of sitting near the right edge.
+        //
+        // Letting it size to its content is the correct behaviour — the island
+        // is *supposed* to grow when the digit count does (9:59 → 10:00), and
+        // `monospacedDigit` already stops the number jittering as seconds tick.
+        FastTimer(
+          startedAt: context.attributes.startedAt,
+          font: .system(size: 14, weight: .semibold)
+        )
+        .padding(.trailing, 3)
       } minimal: {
         // The minimal face is a circle barely wider than a glyph — a timer will
         // not fit legibly, so it shows only that a fast is running and defers
