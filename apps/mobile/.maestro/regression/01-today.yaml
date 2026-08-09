@@ -1,0 +1,21 @@
+# Today — the home screen: hero rings, daily metrics, entries list.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- takeScreenshot: .maestro/regression/shots/01-today-top
+# The metrics card. FASTING/WATER labels are uppercase in the UI but Maestro
+# matches case-insensitively on text.
+- scrollUntilVisible:
+    element:
+      text: 'Water'
+    direction: DOWN
+    timeout: 15000
+- takeScreenshot: .maestro/regression/shots/01-today-metrics
+- scrollUntilVisible:
+    element:
+      text: 'Entries'
+    direction: DOWN
+    timeout: 15000
+- takeScreenshot: .maestro/regression/shots/01-today-entries

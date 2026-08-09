@@ -1,0 +1,14 @@
+# The other three tabs. Anchor on each tab's own content, then screenshot.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- tapOn: 'Train'
+- takeScreenshot: .maestro/regression/shots/03-train
+- tapOn: 'Trends'
+- takeScreenshot: .maestro/regression/shots/03-trends
+- tapOn: 'Body'
+- takeScreenshot: .maestro/regression/shots/03-body
+- tapOn: 'Today'
+- assertVisible: 'Today'

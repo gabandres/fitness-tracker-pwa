@@ -1,0 +1,18 @@
+# Settings, entered through the avatar (testID, since it renders initials).
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- tapOn:
+    id: 'settings-open'
+- takeScreenshot: .maestro/regression/shots/04-settings-top
+- scrollUntilVisible:
+    element:
+      text: 'Quick add'
+    direction: DOWN
+    timeout: 20000
+- takeScreenshot: .maestro/regression/shots/04-settings-quickadd
+- scroll
+- takeScreenshot: .maestro/regression/shots/04-settings-lower
+- back

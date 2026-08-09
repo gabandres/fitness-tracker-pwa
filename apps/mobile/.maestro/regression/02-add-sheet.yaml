@@ -1,0 +1,37 @@
+# The add-entry sheet, every mode. Opened via the widget deep link — stable on
+# both platforms, no coordinates.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- openLink: 'ignia://?openAdd=1'
+- extendedWaitUntil:
+    visible: 'More ways'
+    timeout: 15000
+# The browse surface: search + two labelled buttons + pinned Quick add + Recent.
+- assertVisible: 'Write it in'
+- takeScreenshot: .maestro/regression/shots/02-sheet-browse
+# The collapsed modes, expanded.
+- tapOn: 'More ways'
+- assertVisible: 'Describe a meal'
+- assertVisible: 'Build a recipe'
+- takeScreenshot: .maestro/regression/shots/02-sheet-moreways
+# Describe a meal (MealText).
+- tapOn: 'Describe a meal'
+- takeScreenshot: .maestro/regression/shots/02-sheet-mealtext
+- tapOn: 'Cancel'
+# Recipe builder.
+- tapOn: 'More ways'
+- tapOn: 'Build a recipe'
+- takeScreenshot: .maestro/regression/shots/02-sheet-recipe
+- tapOn: 'Cancel'
+# Recipe import.
+- tapOn: 'More ways'
+- tapOn: 'Import from a link'
+- takeScreenshot: .maestro/regression/shots/02-sheet-recipeimport
+- tapOn: 'Cancel'
+# Manual entry, through the always-visible button the research demands.
+- tapOn: 'Write it in'
+- assertVisible: 'Add'
+- takeScreenshot: .maestro/regression/shots/02-sheet-manual
+- back
