@@ -187,6 +187,16 @@ installed and watched.
       Group write + `reloadWidget`, the single riskiest seam). This is the one
       that mattered: it makes the whole chain proven, not just the render.
 - [ ] **Android** — same check, via the `index.js` task handler.
+- [!] **Tap it → the app opens with the add-entry sheet already up.** **BROKEN
+      from build 29 through build 40 and fixed 2026-08-09**: the face tap is
+      `ignia://?openAdd=1`, and build 29's "de-duplication" of the explicit
+      `CFBundleURLTypes` deleted the `ignia` scheme — an explicit
+      `ios.infoPlist` array REPLACES what Expo generates from `scheme`, it does
+      not merge. Found by the Maestro regression suite failing to open the
+      link on the simulator; confirmed against build 40's shipped Info.plist.
+      The verifier now requires both schemes with whole-line matching (its
+      first version used `includes()` and passed, because `ignia` is a
+      substring of `fit.ignia.app`). Re-verify this row on hardware on 41+.
 - [ ] Tap it → the app opens **with the add-entry sheet already up**.
 - [ ] Cross midnight with the app closed → it blanks instead of showing
       yesterday's totals as today's.
