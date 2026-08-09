@@ -117,31 +117,30 @@ ssh ignia-mac "grep -nE '❌|error:|Exit status|must be installed' ~/ios-build.l
 
 `expo-doctor` reporting 17/18 on `@types/jest` is **known and non-fatal**.
 
-## Step 3 — verify the artifact, not just the exit code
+## Step 3 — verify the artifact: run the script, gate on its exit code
 
-Exit 0 is necessary, not sufficient. A silently-dropped watch app or widget still
-exits 0.
+Exit 0 from the build is necessary, not sufficient. **The checks are code, not
+prose** — this section used to be a list of instructions, and in one evening
+(2026-08-08) three binaries shipped missing things those instructions covered:
+build 34 dropped `es-PR.lproj` silently, and builds 38/39 lacked
+`NSMicrophoneUsageDescription`, which crashes the app on its first mic tap.
+One was submitted before being checked at all.
 
 ```sh
-ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && rm -rf /tmp/ipacheck &&
-  mkdir -p /tmp/ipacheck && unzip -q build-<ts>.ipa -d /tmp/ipacheck &&
-  find /tmp/ipacheck/Payload -name '*.app' -o -name '*.appex' | sed 's|/tmp/ipacheck/Payload/||' &&
-  /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' -c 'Print :CFBundleVersion' \
-    /tmp/ipacheck/Payload/Ignia.app/Info.plist &&
-  cat /tmp/ipacheck/Payload/*.app/EXUpdates.bundle/fingerprint"
+scp scripts/verify-mobile-artifact.mjs scripts/native-expectations.json ignia-mac:/tmp/
+ssh ignia-mac "node /tmp/verify-mobile-artifact.mjs ~/fitness-tracker-pwa/apps/mobile/build-<ts>.ipa"
 ```
 
-Expected shape:
+It asserts all four nested targets, every required Info.plist key (a missing
+usage string is a crash, not a warning), both `.lproj` bundles, the appex's
+entitlements, and prints the runtime fingerprint **from the artifact** — the
+only value `AGENTS.md` may record.
 
-```
-Ignia.app
-Ignia.app/PlugIns/Today.appex                           ← iOS widget
-Ignia.app/Watch/IgniaWatch.app                          ← watch app
-Ignia.app/Watch/IgniaWatch.app/PlugIns/IgniaWatchComplication.appex
-```
-
-The fingerprint printed here is **the** value to record in `AGENTS.md`. Never a
-locally generated hash.
+**Non-zero exit → do not submit. No exceptions.** Step 4 runs as a separate
+command, conditional on this one's exit code — combining them is exactly how
+build 39 reached TestFlight without its microphone key. A new native capability
+adds its plist key / entitlement to `scripts/native-expectations.json` in the
+same commit that introduces it.
 
 **To check that a specific symbol made it in, use `strings`, not `nm`.** The
 release binary is stripped enough that `nm -gU` and `otool -o` return nothing for
