@@ -206,19 +206,28 @@ in this feature. The two starred rows are the ones that would make it worthless.
       This proves the headless write, which is the seam everything rests on.
 - [ ] Tap it twice quickly → **two** rows (two real meals), not one — the id is
       minted per tap, so this is not a dedup case.
+- [!] **Airplane mode → tap → the numbers still move; re-enable, open the app,
+      the row lands.** **THIS WAS BROKEN from the day the feature shipped and is
+      fixed 2026-08-08.** Firestore's `setDoc` does not reject when it cannot
+      reach the backend — it waits — so `logQuickAdd`'s catch never ran, nothing
+      was parked, the numbers never moved, and the headless task was killed at
+      its 15s ceiling with the row inside it. A tap on a bad connection was
+      silently lost. Found on the emulator; see `.maestro/README.md`. Re-run
+      this row on hardware to confirm the fix.
 - [ ] Airplane mode → tap → the numbers still move; re-enable, open the app, the
       row appears **on the day it was tapped**.
-- [~] ★ **PARTLY VERIFIED 2026-08-08 on the emulator — and the logging half
-      FAILED.** The tile is in the Quick Settings panel and **is labelled with
+- [~] ★ **PARTLY VERIFIED 2026-08-08 on the emulator, and the logging half
+      found a REAL bug** (now fixed — see the airplane-mode row above). The tile is in the Quick Settings panel and **is labelled with
       the preset's name** (`Log Chicken + rice`), which proves `setTileState`
       and the JS→Kotlin mirror. But signed in with slot 1 designated, **no tap
       wrote a row** — four `cmd statusbar click-tile` attempts and one real
       `input tap` through the open shade all left today's `dailyLogs` empty, and
       one click took `onClick`'s `openApp()` fallback, the branch for a tile
-      that is not ready. **Suspected product bug, NOT proven**: a synthetic tap
-      may not reach a tile the way a finger does, and only a human tap settles
-      it. Five minutes from any alpha tester would. Detail in
-      `.maestro/README.md`.
+      that is not ready — which was itself a wrong suspect. The real cause was
+      a Firestore write that hangs instead of throwing, killing the headless
+      task with the row un-parked. **Still unconfirmed**: whether a tap logs on
+      a healthy connection, since the emulator's Firestore transport errors.
+      Detail in `.maestro/README.md`.
 - [ ] ★ **The Quick Settings tile appears in the edit list, is labelled with the
       preset's name, and one tap logs it** without opening the app.
 - [ ] Tap the tile with the app **fully swiped away** — this is the

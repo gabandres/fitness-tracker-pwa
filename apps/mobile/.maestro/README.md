@@ -95,33 +95,43 @@ result out of `adb logcat` and `dumpsys activity activities`, never by eye.
 — which is exactly the documented signed-out behaviour, and the first Android QA
 row in this repo to be confirmed by anything.
 
-### Open finding — the tile does not log on the emulator (2026-08-08)
+### The emulator found a real bug on its first day (2026-08-08)
 
-Established, signed in as a seeded QA account with a preset in slot 1:
+The tile is in the Quick Settings panel, **is labelled with the preset's name**
+(`Log Chicken + rice (meal prep)`), and tapping it wrote nothing. Chasing that
+to the bottom is what this harness is for, and it took five wrong suspects
+before the right one — each ruled out from an artifact, not from reasoning:
 
-- The tile **is** in the Quick Settings panel after `add-tile`.
-- It **is labelled with the preset's name** (`Log Chicken + rice`), which is half
-  of the starred row in `WIDGET.md` and the part that proves `setTileState` and
-  the JS→Kotlin mirror work.
-- **No tap produced a row.** Four `cmd statusbar click-tile` attempts and one
-  real `input tap` through the open shade all left
-  `users/<uid>/dailyLogs/<today>` at zero entries.
-- One of those clicks visibly started the app process, which is
-  `QuickAddTileService.onClick`'s `openApp()` fallback — the branch taken when
-  `TileState.enabled` is false or the label is blank. The label is demonstrably
-  not blank.
+| Suspect | Ruled out by |
+|---|---|
+| The task-name mismatch `index.js` warns about | `TASK_NAME` and `registerHeadlessTask` both read `IgniaQuickAddTile` |
+| The tile never being ready (`openApp()` fallback) | `adb root` + `shared_prefs/ignia.quickAddTile.xml`: `enabled=true`, label set |
+| No quick-add target in the snapshot (`no-target`) | AsyncStorage `ignia.widget.snapshot.v1` carried the target |
+| Auth not rehydrated in a headless context | `currentUid` already waits 4s for `onAuthStateChanged` |
+| The emulator simply being slow | A `Write` RPC was logged — the write was *attempted* |
 
-**That is a suspected product bug, not a proven one.** What cannot be ruled out
-from here is that `cmd statusbar click-tile` and a synthetic `input tap` do not
-deliver a tile click the way a finger does. The distinction matters and only a
-human tap settles it — so this row stays **unticked**, and it is worth five
-minutes from any alpha tester with the app installed.
+The actual cause: **Firestore's `setDoc` does not reject when it cannot reach
+the backend — it waits.** So `logQuickAdd`'s `catch`, which is the entire
+offline story, was unreachable. No throw, no `park()`, no optimistic snapshot
+bump, and `ActivityManager` killing the headless service at its 15s ceiling
+with the un-parked row inside it. The clinching evidence was a **negative**: no
+pending-logs key had ever been created, which proves the write neither landed
+nor threw.
 
-Worth noting the shape is identical to the iOS widget bug found the same day: a
-glanceable surface that silently does nothing, on a path where the receipt is
-"the numbers moved" and nothing reports a refusal. `QuickAdd.record(outcome:)`
-now covers iOS; **Android has no equivalent outbox**, so a failed tile tap still
-leaves no trace anywhere.
+Fixed in `logQuickAdd` with a 6s write deadline that converts the hang into the
+throw the design already handles. Safe to double-write because the id is minted
+before the attempt (ADR-0020).
+
+**Read this as the argument for the harness.** The bug is in the *shared* JS
+path, so it applied to the Android widget button too, and `WIDGET.md` had
+promised the opposite behaviour — "airplane mode → tap → re-enable, open the
+app, the row lands" — since the feature shipped. No unit test caught it because
+every test mocks the ledger, and mocks reject on demand where Firestore does
+not.
+
+**Still unresolved**: whether a tile tap logs on a *healthy* connection. The
+emulator's Firestore WebChannel errors, so the fixed path parks rather than
+lands here. That last step needs a tester on a real network.
 
 **Still out of reach**: placing the 2×2 widget on the launcher. There is no `adb`
 command for it, and the AOSP launcher's widget picker is a long-press flow that
