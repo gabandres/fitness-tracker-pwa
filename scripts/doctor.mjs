@@ -637,6 +637,27 @@ async function checkStatusVsAsc() {
 const G3 = '3. free-tier ceilings';
 const MAX_SCHEDULER_JOBS = 3;
 const MAX_SECRET_VERSIONS = 6;
+/**
+ * Active versions this project has DECIDED to carry over the free tier.
+ *
+ * The free tier is 6 and the honest floor is 8, audited 2026-08-09: every
+ * secret holds exactly one live version and each is bound to something real —
+ * the Apple trio is required for Sign in with Apple account deletion, Gemini
+ * backs photo-scan + coach, Resend sends mail, and the two
+ * `ext-firestore-stripe-payments-*` secrets belong to an ACTIVE extension the
+ * project keeps dormant on purpose for when Pro turns on. Going under 6 means
+ * retiring that extension, which is a product decision, not a cleanup.
+ *
+ * So the check no longer fails on a state that has been reviewed and accepted
+ * — a permanently-red check is one people learn to ignore, and this one was
+ * red for weeks. It now fails on GROWTH past the accepted floor, which is the
+ * actual risk the free tier poses here (forgotten versions, not traffic), and
+ * the cost of the overage stays printed on every run so it never goes quiet.
+ *
+ * Lower this the day a secret is genuinely retired. Raising it should take an
+ * argument, not a keystroke.
+ */
+const ACCEPTED_SECRET_VERSIONS = 8;
 
 function checkSchedulerJobs() {
   const name = `Cloud Scheduler jobs <= ${MAX_SCHEDULER_JOBS}`;
@@ -840,7 +861,7 @@ async function checkAppVersionManifest() {
 }
 
 function checkSecretVersions() {
-  const name = `active secret versions <= ${MAX_SECRET_VERSIONS}`;
+  const name = `active secret versions <= ${ACCEPTED_SECRET_VERSIONS} (free tier ${MAX_SECRET_VERSIONS})`;
   const listRes = sh('gcloud', ['secrets', 'list', '--project', PROJECT, '--format=json']);
   const listOut = useOutput(G3, name, listRes, { skipHint: 'gcloud is not installed' });
   if (listOut === null) return;
@@ -870,6 +891,18 @@ function checkSecretVersions() {
   }
   if (total <= MAX_SECRET_VERSIONS) {
     pass(G3, name, `${total}/${MAX_SECRET_VERSIONS} active — ${per.join(', ') || 'none'}`);
+  } else if (total <= ACCEPTED_SECRET_VERSIONS) {
+    // Over the free tier, but at or under the reviewed floor. Say what it
+    // costs every single run — an accepted overage that stops being visible
+    // is just an unnoticed bill.
+    const over = total - MAX_SECRET_VERSIONS;
+    pass(
+      G3,
+      name,
+      `${total} active — ${over} over the ${MAX_SECRET_VERSIONS} free tier, accepted ` +
+        `(~$${(over * 0.06).toFixed(2)}/mo). Floor is ${ACCEPTED_SECRET_VERSIONS}: ${per.join(', ')}. ` +
+        'Under it only by retiring the dormant Stripe extension — a product call.',
+    );
   } else {
     // Two very different causes, and the wrong advice is worse than none:
     // rotation residue is free to clean up, whereas N distinct secrets each
@@ -879,7 +912,7 @@ function checkSecretVersions() {
     fail(
       G3,
       name,
-      `${total} active versions, free tier is ${MAX_SECRET_VERSIONS}: ${per.join(', ')}. ` +
+      `${total} active versions — ABOVE the accepted floor of ${ACCEPTED_SECRET_VERSIONS} (free tier ${MAX_SECRET_VERSIONS}): ${per.join(', ')}. ` +
         (residue.length
           ? `Rotation residue — destroy the superseded ones: ${residue.join(', ')} ` +
             '(gcloud secrets versions destroy <n> --secret=<name>). ' +
@@ -1200,7 +1233,7 @@ if (NO_CLOUD) {
   skip(G2, 'deployed functions match functions/src exports', '--no-cloud');
   skip(G2, 'STATUS.md §1 matches App Store Connect', '--no-cloud');
   skip(G3, `Cloud Scheduler jobs <= ${MAX_SCHEDULER_JOBS}`, '--no-cloud');
-  skip(G3, `active secret versions <= ${MAX_SECRET_VERSIONS}`, '--no-cloud');
+  skip(G3, `active secret versions <= ${ACCEPTED_SECRET_VERSIONS} (free tier ${MAX_SECRET_VERSIONS})`, '--no-cloud');
   skip(G3, 'STATUS.md §3 matches the EAS iOS quota', '--no-cloud');
   skip(G3, 'SENTRY_AUTH_TOKEN authenticates', '--no-cloud');
   skip(G3, 'app-version.json matches what Play ships', '--no-cloud');
@@ -1214,7 +1247,7 @@ if (NO_CLOUD) {
     fail(G2, 'STATUS.md §1 matches App Store Connect', `check threw: ${e.message}`),
   );
   guard(G3, `Cloud Scheduler jobs <= ${MAX_SCHEDULER_JOBS}`, checkSchedulerJobs);
-  guard(G3, `active secret versions <= ${MAX_SECRET_VERSIONS}`, checkSecretVersions);
+  guard(G3, `active secret versions <= ${ACCEPTED_SECRET_VERSIONS} (free tier ${MAX_SECRET_VERSIONS})`, checkSecretVersions);
   guard(G3, 'STATUS.md §3 matches the EAS iOS quota', checkEasQuota);
   await checkPlaySigningCerts().catch((e) =>
     fail(G3, 'every cert Play ships is registered in Firebase', `check threw: ${e.message}`),
