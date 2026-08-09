@@ -82,6 +82,31 @@ regression: authorization is by package name + signing certificate, and the
 emulator's build is signed by the upload key rather than by a Play app signing
 key. Do not chase it here (`CLAUDE.local.md` has the four-key story).
 
+### When no `.aab` survives on disk — the QA-only build
+
+Artifacts get deleted for disk, and the two obvious re-supply routes are traps:
+**`eas build --local` burns a real versionCode per attempt** (remote counter —
+a QA install would mint vc N+1), and **Play's `generatedApks` download API
+404s** on every URL variant tried 2026-08-09 (list works, media download does
+not — don't re-spend that hour). For *suite* runs — where the question is
+"does current main's UI regress", not "what exact bytes do testers run" — a
+prebuild + `assembleRelease` of the same commit is the honest sandbox:
+
+```sh
+export SENTRY_DISABLE_AUTO_UPLOAD=true   # or the Sentry Gradle task 401s the build
+cd ~/fitness-tracker-pwa/apps/mobile
+rm -rf android && npx expo prebuild -p android --no-install
+cd android && ./gradlew assembleRelease   # → app/build/outputs/apk/release/app-release.apk
+```
+
+Debug-keystore signing is fine here (email sign-in only). Two obligations
+travel with this: it is NOT evidence about a shipped binary — artifact-level
+verification stays with `verify-mobile-artifact.mjs` on real `.aab`s — and
+**the `android/` prebuild dir must be deleted before any fingerprint work on
+the Mac** (`rm -rf apps/mobile/android`): a resident prebuild dir is hashed
+into the fingerprint and would strand every future OTA published from here
+(`AGENTS.md`, the machine-dependence section).
+
 ### What Maestro can and cannot reach
 
 Maestro drives the **app's** UI. It cannot place a home-screen widget, and it

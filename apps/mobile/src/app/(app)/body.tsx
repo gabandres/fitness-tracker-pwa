@@ -36,11 +36,14 @@ function dayLabel(dateKey: string, locale: Locale): string {
   return formatDate(parseYmd(dateKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-/** "−0.8 lb/wk" / "+0.3 lb/wk" / "Holding steady" near zero. */
+/** "−0.8 lb/wk" / "+0.3 lb/sem" / "Holding steady" near zero. The rate unit is
+ *  translated (`refine.paceUnit` — the same key Refine targets uses, so all
+ *  three surfaces agree); it was hardcoded English until the Maestro suite's
+ *  first es-PR pass rendered "lb/wk" beside Spanish copy. */
 function trendLabel(slopeLbPerWeek: number, t: TFn): string {
   if (Math.abs(slopeLbPerWeek) < 0.1) return t('body.holdingSteady');
   const sign = slopeLbPerWeek < 0 ? '−' : '+';
-  return `${sign}${Math.abs(slopeLbPerWeek).toFixed(1)} lb/wk`;
+  return `${sign}${Math.abs(slopeLbPerWeek).toFixed(1)} ${t('refine.paceUnit')}`;
 }
 
 /** "Goal ~Jul 6" from a projected date key. */

@@ -1,0 +1,52 @@
+# E2E part 2 of 3: LONG-PRESS → PRESET, then EDIT. Requires 11 to have run.
+#
+# The preset half: a diary row's long-press offers "save as preset" — the alert
+# is the assert; the preset doc itself is verified (and DELETED, so runs don't
+# stack presets toward the cap) by the admin script between flows:
+#   node scripts/qa-regression-verify.mjs snapshot   → presets: ["QA E2E Sandwich"]
+#   node scripts/qa-regression-verify.mjs cleanup    → removes it
+#
+# The edit half rewrites calories 123 → 321. After this flow the snapshot must
+# read calories: 321 — that, not the on-screen "321", is the proof the PATCH
+# landed.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- scrollUntilVisible:
+    element:
+      text: 'QA E2E Sandwich'
+    direction: DOWN
+    timeout: 15000
+# Scroll to the END before touching the row. scrollUntilVisible stops the
+# moment the row enters the viewport, which is often UNDER the FAB — and
+# Maestro taps layout bounds, so the touch goes to the FAB on top and opens the
+# speed dial instead (measured 2026-08-09). Same species as the README's
+# "Repeat yesterday" false alarm; here it broke the flow rather than a shot.
+- scroll
+# ── preset via long-press ──
+- longPressOn: 'QA E2E Sandwich'
+# Trailing .* because Maestro text is a full-match regex and the title ends
+# with a literal '?' — a bare '?' would quantify the 't' and never match.
+- assertVisible: 'Save as a quick-add preset.*'
+- takeScreenshot: .maestro/regression/shots/12-e2e-preset-alert
+- tapOn: 'Save preset'
+# ── edit via row tap ──
+- tapOn: 'QA E2E Sandwich'
+- assertVisible:
+    id: 'entry-calories'
+- tapOn:
+    id: 'entry-calories'
+- eraseText
+- inputText: '321'
+- hideKeyboard
+- takeScreenshot: .maestro/regression/shots/12-e2e-edit
+- tapOn:
+    id: 'entry-save'
+- scrollUntilVisible:
+    element:
+      text: 'QA E2E Sandwich'
+    direction: DOWN
+    timeout: 15000
+- takeScreenshot: .maestro/regression/shots/12-e2e-edited

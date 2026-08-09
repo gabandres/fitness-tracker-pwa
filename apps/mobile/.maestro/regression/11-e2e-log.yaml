@@ -1,0 +1,49 @@
+# E2E part 1 of 3: WRITE. Logs a food through the manual sheet and asserts it
+# renders in Entries. Parts 11→12→13 are a sequence (log → edit+preset →
+# delete) and run in that order in a directory run; 12 and 13 fail standalone
+# because their row does not exist yet.
+#
+# The label is deliberately unmistakable: if "QA E2E Sandwich" ever shows up in
+# a screenshot outside these three flows, a run died between 11 and 13 — clean
+# it with: node scripts/qa-regression-verify.mjs cleanup --email <qa email>
+#
+# The on-screen assert is HALF the evidence. The other half is a ground-truth
+# admin read between flows: node scripts/qa-regression-verify.mjs snapshot
+# must show {label: "QA E2E Sandwich", calories: 123, protein: 9} after this
+# flow. The UI can lie (optimistic render); Firestore cannot.
+appId: fit.ignia.app
+env:
+  NONCE: '0'
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- openLink: 'ignia://?openAdd=${NONCE}-11'
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible: 'More ways'
+    timeout: 15000
+- tapOn:
+    id: 'open-manual'
+- tapOn:
+    id: 'entry-label'
+- inputText: 'QA E2E Sandwich'
+- tapOn:
+    id: 'entry-calories'
+- inputText: '123'
+- tapOn:
+    id: 'entry-protein'
+- inputText: '9'
+- hideKeyboard
+- takeScreenshot: .maestro/regression/shots/11-e2e-filled
+- tapOn:
+    id: 'entry-save'
+# Sheet closes; the row lands in Entries (scroll — Entries sits below metrics).
+- scrollUntilVisible:
+    element:
+      text: 'QA E2E Sandwich'
+    direction: DOWN
+    timeout: 15000
+- takeScreenshot: .maestro/regression/shots/11-e2e-logged

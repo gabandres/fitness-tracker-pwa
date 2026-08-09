@@ -1,0 +1,93 @@
+# es-PR pass — half the market runs the app in Spanish, and until this flow
+# NOTHING had ever rendered it. Flips the profile's preferredLocale through the
+# real Settings toggle, re-walks the core surfaces asserting the es-PR strings
+# (a translated anchor going missing IS the regression this catches — overflow
+# and truncation are what the screenshots are for, since Spanish runs longer
+# than English), then flips back to EN so every other flow keeps its anchors.
+#
+# If this flow DIES midway the account is left in Spanish and later EN flows
+# fail on their first assert. Recovery: node scripts/qa-regression-verify.mjs
+# set-locale --email <qa email> --locale en   (admin write, takes effect on
+# next snapshot), or re-run this flow's tail by hand.
+appId: fit.ignia.app
+env:
+  NONCE: '0'
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+# ── flip to es-PR ──
+- tapOn:
+    id: 'settings-open'
+- scrollUntilVisible:
+    element:
+      id: 'settings-lang-es-PR'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'settings-lang-es-PR'
+# The whole screen re-renders in Spanish (title becomes Ajustes).
+- assertVisible: 'Ajustes'
+- takeScreenshot: .maestro/regression/shots/09-es-settings
+- tapOn:
+    id: 'settings-back'
+# ── Today ──
+- assertVisible: 'Hoy'
+- takeScreenshot: .maestro/regression/shots/09-es-today-top
+- scrollUntilVisible:
+    element:
+      text: 'Agua'
+    direction: DOWN
+    timeout: 15000
+- takeScreenshot: .maestro/regression/shots/09-es-today-metrics
+- scrollUntilVisible:
+    element:
+      text: 'Registros'
+    direction: DOWN
+    timeout: 15000
+- scroll
+- takeScreenshot: .maestro/regression/shots/09-es-today-entries
+# ── tabs ──
+- tapOn: 'Entrenar'
+- takeScreenshot: .maestro/regression/shots/09-es-train
+- tapOn: 'Tendencias'
+- takeScreenshot: .maestro/regression/shots/09-es-trends
+- tapOn: 'Cuerpo'
+- takeScreenshot: .maestro/regression/shots/09-es-body
+- tapOn: 'Hoy'
+# ── add sheet ──
+- openLink: 'ignia://?openAdd=${NONCE}-09'
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Más opciones'
+    timeout: 15000
+- assertVisible: 'Escríbelo'
+- takeScreenshot: .maestro/regression/shots/09-es-sheet
+- tapOn: 'Más opciones'
+- assertVisible: 'Describe una comida'
+- assertVisible: 'Crea una receta'
+- takeScreenshot: .maestro/regression/shots/09-es-sheet-moreways
+- tapOn:
+    id: 'entry-backdrop'
+# ── flip back to EN — later flows depend on English anchors ──
+# Relaunch first: Today is scrolled to its bottom here and the header avatar
+# (settings-open) is OFF-SCREEN — this exact tap is where run 1 died, stranding
+# the account in Spanish.
+- launchApp:
+    clearState: false
+- assertVisible: 'Hoy'
+- tapOn:
+    id: 'settings-open'
+- scrollUntilVisible:
+    element:
+      id: 'settings-lang-en'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'settings-lang-en'
+- assertVisible: 'Settings'
+- tapOn:
+    id: 'settings-back'
+- assertVisible: 'Today'

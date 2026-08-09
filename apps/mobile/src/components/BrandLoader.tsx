@@ -79,16 +79,23 @@ export function BrandLoader() {
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', gap: space.lg },
   ember: { position: 'absolute', bottom: SIZE * 0.34, width: 5, height: 5, borderRadius: 3 },
-  // paddingHorizontal + textAlign guard against iOS clipping the final glyph:
-  // letterSpacing on a custom display font makes RN under-measure the text
-  // width, chopping the trailing "a". The padding gives it room. lineHeight +
-  // paddingVertical give the descender room too, else the "g" tail is clipped
-  // (the display font's descent exceeds the default line box at this size).
+  // The wordmark must NOT depend on RN measuring it correctly. letterSpacing on
+  // a custom display font makes RN under-measure the text width and the view
+  // clips whatever overflows — on Android that swallowed the trailing "a"
+  // ENTIRELY, so every cold start read "Igni" (caught by the Maestro suite's
+  // first collected Android capture, 2026-08-09; an earlier iOS-only fix added
+  // paddingHorizontal, which was not enough here).
+  //
+  // minWidth is the fix that cannot regress: the box is wider than the word can
+  // ever be, so centered text has room on both sides no matter what measurement
+  // returns. lineHeight + paddingVertical do the same job vertically, for the
+  // "g" descender.
   word: {
     fontFamily: type.display,
     fontSize: font.h1,
     lineHeight: Math.round(font.h1 * 1.4),
     letterSpacing: 1.5,
+    minWidth: 240,
     paddingHorizontal: 8,
     paddingVertical: 4,
     textAlign: 'center',

@@ -1,0 +1,35 @@
+# Coach — entry point and idle state ONLY. Never taps "Ask": every question is
+# a metered Gemini call (dailyQuota + spendCeiling), and a suite that spends
+# real AI money per run would get turned off. The reply state stays uncovered
+# by design; the quota chip in the screenshot is the evidence the meter wired
+# up.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- tapOn: 'Trends'
+- scrollUntilVisible:
+    element:
+      id: 'coach-entry'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'coach-entry'
+- assertVisible: 'Coach'
+- assertVisible:
+    id: 'coach-input'
+# `coach-remaining` is deliberately NOT asserted. `remaining`/`limit` are set
+# only from the stream's onMeta callback inside ask(), so the quota chip cannot
+# exist until a question has been asked — and this flow never asks (metered
+# Gemini). An idle-state assert on it fails 100% of the time; measured twice
+# on 2026-08-09 before reading the source. A user likewise cannot see their
+# remaining consultations until they spend one: a UX gap, logged in
+# UX_AUDIT.md, not something this flow can cover.
+- assertVisible:
+    id: 'coach-ask'
+- takeScreenshot: .maestro/regression/shots/07-coach
+- tapOn:
+    id: 'coach-back'
+- tapOn: 'Today'
+- assertVisible: 'Today'

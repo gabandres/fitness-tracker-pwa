@@ -27,7 +27,7 @@ function weekdayNarrow(dateKey: string, locale: Locale): string {
 
 function slopeLabel(slope: number, t: TFn): string {
   if (Math.abs(slope) < 0.1) return t('body.holdingSteady');
-  return `${slope < 0 ? '−' : '+'}${Math.abs(slope).toFixed(1)} lb/wk`;
+  return `${slope < 0 ? '−' : '+'}${Math.abs(slope).toFixed(1)} ${t('refine.paceUnit')}`;
 }
 
 // seed/formula both read as "Estimate" to the user; measured is "Adaptive".

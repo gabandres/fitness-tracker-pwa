@@ -247,6 +247,27 @@ What remains, in the order it was prioritized with the owner:
       "no account needed" carries the privacy pitch better than any copy does.
       Revisit against real retention data, not intuition.
 
+### Found by the Maestro regression suite, 2026-08-09 — small, unscheduled
+
+Both surfaced from the suite's first-ever walk of these states. Neither is a
+crash; both are "the app says nothing when it should say something", which is
+the class of defect this project keeps paying for.
+
+- [ ] **The Coach quota is invisible until you spend one.** `remaining`/`limit`
+      are set only from the stream's `onMeta` inside `ask()`, so the
+      `coach-remaining` chip cannot render on a freshly-opened Coach screen —
+      a user cannot see how many consultations they have left until they use
+      one. Fix is a cheap read of the same quota before the first ask, or copy
+      that states the daily allowance up front. (The regression flow
+      deliberately does not assert the chip; see `07-coach.yaml`.)
+- [ ] **A failed dictation start is indistinguishable from a dead mic.**
+      `MicButton`'s `error` listener flips `listening` back to false and
+      surfaces nothing, so when the OS recognizer is missing or fails, the icon
+      blinks and the user is told nothing. Reproduced on the Android emulator
+      (no recognizer present); on hardware the recognizer normally exists,
+      which is exactly why this path has never been seen. A one-line inline
+      message on `error` would close it.
+
 ### Tier 3 — deliberately deferred, with the reason
 
 - [ ] **N6 · Restaurant / chain-menu data.** A real table-stakes gap (MFP ships

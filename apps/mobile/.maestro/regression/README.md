@@ -7,6 +7,31 @@ are the skeleton that stops the walk when a screen fails to render at all, but
 only a human (or agent) LOOKING at the captures catches a collapsed field, an
 off-screen button, or a mis-styled row.
 
+**What is and is not covered lives in `coverage.md` — one row per
+screen × state × platform, with the run date that earned each ✓.** Update it in
+the same commit as any flow change; a surface with no row makes the suite's
+coverage claim false. Flows 11–13 (log→edit→delete) and `empty/` (fresh
+account) additionally verify against **Firestore itself** via
+`scripts/qa-regression-verify.mjs` — the interleave is at the bottom of
+coverage.md.
+
+Suite-wide conventions the newer flows depend on:
+
+- **Nonce suffixes.** Every flow that deep-links the add sheet appends its own
+  flow number to the nonce (`${NONCE}-09`, `-10`, `-11`, `-14`, `-15`), so one
+  directory run never repeats a value into the warm app. Flow 02 uses the bare
+  `${NONCE}`. New sheet-opening flows take the next `-NN` suffix.
+- **Multiplier flows restore their state in their own tail** — 09 flips the
+  locale back to EN (a Firestore profile field: a midway death leaves the
+  ACCOUNT Spanish — recover with `qa-regression-verify.mjs set-locale`), 10
+  flips the theme back to System (device-local AsyncStorage: a midway death
+  leaves the SANDBOX dark and every later shot dark with it — re-run 10 or fix
+  by hand in Settings).
+- **The suite never spends AI money and never mutates QA state it does not
+  restore**: coach is walked idle, refine-targets is never saved, water is +8
+  then −8, the e2e row is deleted by its own part 3 and its preset by the
+  admin script's `cleanup`.
+
 ## Why this exists
 
 On 2026-08-08 a Release 1 OTA shipped with the add sheet's search field
@@ -30,11 +55,54 @@ maestro test .maestro/regression/           # Android emulator (auto-selected)
 maestro --device <sim-udid> test .maestro/regression/   # iOS simulator
 ```
 
-Screenshots land beside the flows; review every one. The entry sheet is opened
-through the widget deep link (`ignia://?openAdd=1`) rather than the FAB's
-mini-menu, whose chips do not expose accessible text and would make the suite
-coordinate-dependent.
+**Screenshots do NOT land beside the flows — collect them, or the audit has no
+evidence.** Maestro 2.x ignores the path in `takeScreenshot:` as a repo
+location and writes under
+`~/.maestro/tests/<timestamp>/<flow>/takeScreenshot/<path>`, **a directory it
+purges after 14 days**. Measured 2026-08-09: `shots/` had never been created by
+any run, so every "review every screenshot" instruction pointed at nothing.
+Run the collector after every suite run:
 
+```sh
+~/qa-collect-shots.sh     # copies the latest run's shots into shots/
+```
+
+The entry sheet is opened through the widget deep link (`ignia://?openAdd=1`)
+rather than the FAB's mini-menu, whose chips do not expose accessible text and
+would make the suite coordinate-dependent.
+
+**A crashed multiplier flow silently re-themes every LATER flow's shots.**
+Also measured 2026-08-09: flow 10 died mid-run, leaving the sandbox dark, and
+the next run's flows 01–09 all captured in dark — including the es-PR pass, so
+that run's "light" evidence was nothing of the kind. Before trusting a set of
+captures, confirm 01's shot is in the theme you expect.
+
+
+## Second run — 2026-08-09, Android, 15/15 · two real bugs
+
+The suite grew from 4 flows to 15 plus a fresh-account arc, and its first pass
+over the new states **found two shipped bugs on surfaces nothing had ever
+looked at**:
+
+- **The Android splash rendered the brand as "Igni".** `BrandLoader`'s
+  wordmark was clipped of its trailing "a" on every cold start, on every build
+  to date. The file already carried a comment describing this exact
+  letterSpacing under-measurement and an iOS-era `paddingHorizontal` fix that
+  did not cover Android. Now guarded by a `minWidth` wider than the word can
+  be, plus `brand-loader-wordmark.test.ts` — **jest/RNTL cannot catch it**
+  (no layout pass, no glyphs), which is why it survived every prior build.
+- **`lb/wk` was hardcoded in Trends and Body**, so es-PR users read an English
+  rate unit beside Spanish copy while Refine targets — and the whole web PWA —
+  correctly said `lb/sem`. Both now use the translated key.
+
+Both were verified fixed on the emulator by re-capture, not by reasoning.
+
+Every other failure that run was the suite's own aim, each diagnosed from its
+screenshot and confirmed against Firestore rather than assumed: the sleep
+Save tap landing on the keyboard, a diary row's long-press hitting the FAB
+that overlays it, a full-height sheet with no reachable backdrop, and an idle
+assert on a chip that cannot exist before its first request. The fixes are in
+the flows, with the measurement written into each comment.
 
 ## First full run — 2026-08-09, both platforms
 

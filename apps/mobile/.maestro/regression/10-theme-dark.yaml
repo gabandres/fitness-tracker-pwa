@@ -1,0 +1,85 @@
+# Dark-theme pass — the app is dual-theme with dark leading (ADR-0014) and no
+# capture had ever run dark. Text assertions are theme-blind, so THE SCREENSHOTS
+# ARE THIS FLOW'S ENTIRE VALUE: an invisible-on-dark element still "asserts
+# visible". Look at every shot — ink-on-ink text, a light-pinned card, a
+# vanished border are what this pass exists to catch.
+#
+# Theme is per-DEVICE AsyncStorage (not the profile), so a midway failure
+# leaves this sandbox dark and every later screenshot dark with it. Recovery:
+# re-run this flow, or Settings → Appearance → System by hand. If a later
+# flow's shots come out dark, this flow's tail did not run — do not read that
+# as "the app went dark on its own".
+appId: fit.ignia.app
+env:
+  NONCE: '0'
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+# ── flip to dark ──
+- tapOn:
+    id: 'settings-open'
+- scrollUntilVisible:
+    element:
+      id: 'settings-theme-dark'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'settings-theme-dark'
+- takeScreenshot: .maestro/regression/shots/10-dark-settings
+- tapOn:
+    id: 'settings-back'
+# ── Today, all three scroll positions ──
+- assertVisible: 'Today'
+- takeScreenshot: .maestro/regression/shots/10-dark-today-top
+- scrollUntilVisible:
+    element:
+      text: 'Water'
+    direction: DOWN
+    timeout: 15000
+- takeScreenshot: .maestro/regression/shots/10-dark-today-metrics
+- scrollUntilVisible:
+    element:
+      text: 'Entries'
+    direction: DOWN
+    timeout: 15000
+- scroll
+- takeScreenshot: .maestro/regression/shots/10-dark-today-entries
+# ── tabs ──
+- tapOn: 'Train'
+- takeScreenshot: .maestro/regression/shots/10-dark-train
+- tapOn: 'Trends'
+- takeScreenshot: .maestro/regression/shots/10-dark-trends
+- tapOn: 'Body'
+- takeScreenshot: .maestro/regression/shots/10-dark-body
+- tapOn: 'Today'
+# ── add sheet ──
+- openLink: 'ignia://?openAdd=${NONCE}-10'
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible: 'More ways'
+    timeout: 15000
+- takeScreenshot: .maestro/regression/shots/10-dark-sheet
+- tapOn: 'More ways'
+- takeScreenshot: .maestro/regression/shots/10-dark-sheet-moreways
+- tapOn:
+    id: 'entry-backdrop'
+# ── back to System — the suite's baseline ──
+# Relaunch first: same off-screen-avatar trap as 09's tail.
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- tapOn:
+    id: 'settings-open'
+- scrollUntilVisible:
+    element:
+      id: 'settings-theme-system'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'settings-theme-system'
+- tapOn:
+    id: 'settings-back'
+- assertVisible: 'Today'

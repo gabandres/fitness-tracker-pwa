@@ -1,0 +1,38 @@
+# Fresh-account arc, part 1: the VERIFY-EMAIL wall.
+#
+# This subdirectory is NOT part of the main directory run — `maestro test
+# .maestro/regression/` does not recurse — because these flows THROW AWAY the
+# signed-in session (clearState: true) and end signed out or as the wrong
+# account. Run them deliberately, in order, with the admin script between:
+#
+#   node scripts/qa-regression-verify.mjs create-empty --email <e> --password <p> --unverified
+#   maestro test .maestro/regression/empty/01-verify-email.yaml -e EMAIL=<e> -e PASSWORD=<p>
+#   node scripts/qa-regression-verify.mjs set-verified --email <e>
+#   maestro test .maestro/regression/empty/02-onboarding-empty.yaml -e EMAIL=<e> -e PASSWORD=<p>
+#   node scripts/qa-regression-verify.mjs reset-empty --email <e>   # fresh again for next time
+#   maestro test .maestro/android-signin.yaml -e EMAIL=<qa email> -e PASSWORD=<qa pass>
+#
+# The email address must contain demo|test|review|appstore (script guard).
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: 'Sign in to your account'
+    timeout: 30000
+- tapOn: 'Email'
+- inputText: ${EMAIL}
+- tapOn: 'Password'
+- inputText: ${PASSWORD}
+- hideKeyboard
+# Index 1: the screen carries "Sign in" twice (toggle + submit) — same trap as
+# android-signin.yaml.
+- tapOn:
+    text: 'Sign in'
+    index: 1
+# Unverified account → the verify-email wall, not Today, not onboarding.
+- extendedWaitUntil:
+    visible: 'Verify your email to continue.'
+    timeout: 30000
+- assertVisible: 'I verified — refresh'
+- takeScreenshot: .maestro/regression/shots/empty-01-verify-email

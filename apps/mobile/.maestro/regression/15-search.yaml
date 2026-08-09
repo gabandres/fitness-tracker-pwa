@@ -1,0 +1,47 @@
+# Food search — results list + serving detail, RENDER ONLY. Nothing is added:
+# a USDA hit's macros are not deterministic across dataset updates, and the QA
+# ledger stays clean. (The write path is already proven end-to-end by 11–13.)
+#
+# This talks to the real searchFoods callable (no AI, no quota) — a dead
+# network fails here first; that is a feature, not flake: nothing else in the
+# suite proves the callable path at all.
+#
+# Maestro text params are full-match regexes, hence the '.*banana.*' shape.
+appId: fit.ignia.app
+env:
+  NONCE: '0'
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- openLink: 'ignia://?openAdd=${NONCE}-15'
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible: 'More ways'
+    timeout: 15000
+- tapOn:
+    id: 'food-search-input'
+- inputText: 'banana'
+# Results must contain a HIT, not just the query echoed back: '.*banana.*'
+# would match the search input's own text, so anchor on the raw-food naming
+# only a USDA row carries.
+- extendedWaitUntil:
+    visible: '.*[Bb]anana.*raw.*'
+    timeout: 20000
+- hideKeyboard
+- takeScreenshot: .maestro/regression/shots/15-search-results
+# Serving detail: tap the USDA-named row (the input can't match this regex).
+- tapOn:
+    text: '.*[Bb]anana.*raw.*'
+- extendedWaitUntil:
+    visible: 'Add'
+    timeout: 20000
+- takeScreenshot: .maestro/regression/shots/15-search-detail
+# The serving-detail view fills the sheet, so the backdrop is unreachable and
+# there is no cross-platform dismiss from here (`back` is Android-only).
+# Relaunch to hand the next flow a clean Today.
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'

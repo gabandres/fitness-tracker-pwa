@@ -1,0 +1,89 @@
+# Fresh-account arc, part 2: ONBOARDING → the empty states.
+#
+# Prereq: part 1 ran and the account was then admin-verified (see 01's header).
+# The relaunch makes the app re-read the token; a verified account with no
+# profile routes to onboarding.
+#
+# Walks the real first-run funnel — welcome → goal → weight → goal weight →
+# plan preview → save — then captures every tab in its never-logged-anything
+# state, which no other flow can reach (the main QA account has history by
+# design). Ends SIGNED OUT so the sandbox is in a known state for re-signin.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+    stopApp: true
+# The client may still hold the pre-verification token; the wall's own refresh
+# button is the supported way through it.
+- runFlow:
+    when:
+      visible: 'Verify your email to continue.'
+    commands:
+      - tapOn: 'I verified — refresh'
+- extendedWaitUntil:
+    visible: 'Welcome to Ignia'
+    timeout: 30000
+- takeScreenshot: .maestro/regression/shots/empty-02-welcome
+- tapOn:
+    id: 'onboarding-next'
+# Trailing .* on these three: Maestro text is a full-match regex and the
+# question mark would otherwise quantify, not match.
+- assertVisible: "What's your goal.*"
+- tapOn:
+    id: 'onboarding-goal-lose'
+- takeScreenshot: .maestro/regression/shots/empty-02-goal
+- tapOn:
+    id: 'onboarding-next'
+- assertVisible: 'What do you weigh now.*'
+- tapOn:
+    id: 'onboarding-weight'
+- inputText: '180'
+- tapOn:
+    id: 'onboarding-next'
+- assertVisible: "What's your goal weight.*"
+- tapOn:
+    id: 'onboarding-target-weight'
+- inputText: '165'
+- takeScreenshot: .maestro/regression/shots/empty-02-weights
+- tapOn:
+    id: 'onboarding-next'
+- assertVisible:
+    id: 'onboarding-preview'
+- takeScreenshot: .maestro/regression/shots/empty-02-plan
+- tapOn:
+    id: 'onboarding-save'
+# ── the empty states ──
+- extendedWaitUntil:
+    visible: 'Today'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: 'No entries yet.'
+    direction: DOWN
+    timeout: 15000
+- takeScreenshot: .maestro/regression/shots/empty-02-today
+- tapOn:
+    id: 'open-history'
+- assertVisible: 'No history yet.'
+- takeScreenshot: .maestro/regression/shots/empty-02-history
+- back
+- tapOn: 'Train'
+- takeScreenshot: .maestro/regression/shots/empty-02-train
+- tapOn: 'Trends'
+- takeScreenshot: .maestro/regression/shots/empty-02-trends
+- tapOn: 'Body'
+- takeScreenshot: .maestro/regression/shots/empty-02-body
+- tapOn: 'Today'
+# ── leave the sandbox signed out ──
+- tapOn:
+    id: 'settings-open'
+- scrollUntilVisible:
+    element:
+      id: 'settings-signout'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'settings-signout'
+- extendedWaitUntil:
+    visible: 'Sign in to your account'
+    timeout: 30000

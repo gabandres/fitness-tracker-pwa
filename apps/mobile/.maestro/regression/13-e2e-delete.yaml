@@ -1,0 +1,21 @@
+# E2E part 3 of 3: DELETE. Requires 11 (and normally 12) to have run.
+# EntrySheet's delete has NO confirm dialog — one tap and the row is gone.
+# After this flow the admin snapshot must show no "QA E2E Sandwich" entry;
+# assertNotVisible alone would also pass on a screen that failed to render.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- scrollUntilVisible:
+    element:
+      text: 'QA E2E Sandwich'
+    direction: DOWN
+    timeout: 15000
+- tapOn: 'QA E2E Sandwich'
+- assertVisible:
+    id: 'entry-delete'
+- tapOn:
+    id: 'entry-delete'
+- assertNotVisible: 'QA E2E Sandwich'
+- takeScreenshot: .maestro/regression/shots/13-e2e-deleted

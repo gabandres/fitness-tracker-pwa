@@ -1,4 +1,7 @@
-# The other three tabs. Anchor on each tab's own content, then screenshot.
+# The other three tabs — full depth: top shot, then scrolled to the end, so a
+# clipped card or dead lower half can't hide below the fold (the suite's one
+# false alarm AND its layout-bug origin story were both about what a partial
+# scroll conceals).
 appId: fit.ignia.app
 ---
 - launchApp:
@@ -6,9 +9,18 @@ appId: fit.ignia.app
 - assertVisible: 'Today'
 - tapOn: 'Train'
 - takeScreenshot: .maestro/regression/shots/03-train
+- scroll
+- scroll
+- takeScreenshot: .maestro/regression/shots/03-train-bottom
 - tapOn: 'Trends'
 - takeScreenshot: .maestro/regression/shots/03-trends
+- scroll
+- scroll
+- takeScreenshot: .maestro/regression/shots/03-trends-bottom
 - tapOn: 'Body'
 - takeScreenshot: .maestro/regression/shots/03-body
+- scroll
+- scroll
+- takeScreenshot: .maestro/regression/shots/03-body-bottom
 - tapOn: 'Today'
 - assertVisible: 'Today'

@@ -1,0 +1,30 @@
+# Workspace config for `maestro test .maestro/regression/`.
+# Top-level flows only — empty/ is EXCLUDED on purpose: its flows throw away
+# the signed-in session and end as the wrong account. Run them deliberately,
+# with the admin interleave in empty/01's header.
+flows:
+  - '*.yaml'
+# EXPLICIT order — without it Maestro shuffles the suite, and this suite is
+# order-dependent twice over: 11→12→13 share one diary row, and 09/10 flip
+# account/device state they restore in their own tails. Measured 2026-08-09:
+# the unordered run started at flow 12 and a mid-flow death left the account
+# es-PR, which cascaded "missing anchor" failures through every later EN flow.
+# A new flow file MUST be added here as well as to the directory.
+executionOrder:
+  continueOnFailure: true
+  flowsOrder:
+    - 01-today
+    - 02-add-sheet
+    - 03-tabs
+    - 04-settings
+    - 05-history
+    - 06-scan-intro
+    - 07-coach
+    - 08-refine-targets
+    - 09-locale-es
+    - 10-theme-dark
+    - 11-e2e-log
+    - 12-e2e-edit
+    - 13-e2e-delete
+    - 14-metrics
+    - 15-search

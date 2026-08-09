@@ -1,0 +1,105 @@
+# Daily-metrics interactions: water, sleep, and the dictation mic's LISTENING
+# state.
+#
+# Water: +8 then −8, net zero — the QA account's water must not creep up a run
+# at a time. The assert is water-minus APPEARING, which only renders when
+# water > 0: that is the state change, not a screenshot of a number.
+#
+# Sleep: writes a fixed 7.5 h — idempotent across runs by construction.
+#
+# Mic: TAP AND STOP ONLY, no speech — simulators/emulators have no reliable
+# speech service, and expo-speech-recognition hides the button entirely when
+# the OS reports no recognizer (isSpeechAvailable). Hence the conditional: a
+# missing mic on an emulator is expected, NOT a failure — but it also means
+# NOT COVERED there; the listening-state row in coverage.md only closes on a
+# run where the mic actually rendered. Pre-grant the permission so the flow
+# never depends on a system dialog:
+#   adb shell pm grant fit.ignia.app android.permission.RECORD_AUDIO
+appId: fit.ignia.app
+env:
+  NONCE: '0'
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+# ── water ──
+- scrollUntilVisible:
+    element:
+      text: 'Water'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'water-plus-8'
+- assertVisible:
+    id: 'water-minus'
+- takeScreenshot: .maestro/regression/shots/14-water-bumped
+- tapOn:
+    id: 'water-minus'
+# ── sleep ──
+- tapOn:
+    id: 'sleep-open'
+- assertVisible: 'Hours slept'
+- tapOn:
+    id: 'sleep-input'
+- eraseText
+- inputText: '7.5'
+# hideKeyboard BEFORE tapping Save. The sheet lifts above the keyboard with a
+# Reanimated transform, and Maestro taps an element's LAYOUT bounds, not its
+# transformed pixels — with the keyboard up the tap lands on the keyboard and
+# the modal just sits there with the value typed (measured 2026-08-09; the
+# screenshot of that failure is what identified it).
+- hideKeyboard
+- takeScreenshot: .maestro/regression/shots/14-sleep-modal
+- tapOn:
+    id: 'sleep-save'
+# The row's value arrives via the Firestore subscription round-trip, not the
+# tap — give it time.
+- extendedWaitUntil:
+    visible: '7.5h'
+    timeout: 15000
+- takeScreenshot: .maestro/regression/shots/14-sleep-saved
+# ── mic (conditional — see header) ──
+- openLink: 'ignia://?openAdd=${NONCE}-14'
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible: 'More ways'
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'mic-toggle'
+    commands:
+      - tapOn:
+          id: 'mic-toggle'
+      # First-ever tap may raise the OS mic prompt if the pre-grant was skipped.
+      - tapOn:
+          text: 'While using the app'
+          optional: true
+      - tapOn:
+          text: 'Allow'
+          optional: true
+      # The listening state is NOT asserted. `startListening` needs an OS
+      # recognizer; the emulator has none, so the module's `error` event fires
+      # and MicButton flips `listening` back to false faster than Maestro can
+      # look (measured 2026-08-09 — the tap and the permission taps all land,
+      # only the state assert fails). Capture what the tap produced and move
+      # on; the listening row in coverage.md closes on hardware, not here.
+      #
+      # Worth an owner's eye: that error path reverts the icon and says
+      # NOTHING, so a recognizer failure on a real phone is indistinguishable
+      # from a dead button (logged in UX_AUDIT.md).
+      - takeScreenshot: .maestro/regression/shots/14-mic-after-tap
+      - tapOn:
+          id: 'mic-toggle'
+          optional: true
+# Whether or not the mic branch ran, record what the sheet's search row looks
+# like on this platform — the mic's absence is itself a finding worth a shot.
+- takeScreenshot: .maestro/regression/shots/14-search-row
+# The mic tap focuses the search field and raises the keyboard, which covers
+# the backdrop and swallows the dismiss (measured 2026-08-09). Relaunch is the
+# reliable teardown, as in flow 15.
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'

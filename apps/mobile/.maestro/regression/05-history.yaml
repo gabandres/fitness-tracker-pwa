@@ -1,0 +1,39 @@
+# History — the month calendar + the day-detail screen.
+#
+# The day detail is reached by DEEP LINK, not by tapping a calendar cell: the
+# cells' labels are bare day numbers, so a text tap would be ambiguous and a
+# coordinate tap is banned on a signed-in account (README quirk #4). Pass a
+# date that has entries for a richer capture: -e DATE=$(date +%F). The default
+# below keeps a bare directory run working; an empty date still proves the
+# screen renders (header, macro grid, add-food-day button).
+appId: fit.ignia.app
+env:
+  DATE: '2026-08-09'
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- tapOn:
+    id: 'open-history'
+- assertVisible: 'History'
+- takeScreenshot: .maestro/regression/shots/05-history-month
+# Month navigation both ways, ending back on the current month.
+- tapOn:
+    id: 'month-prev'
+- takeScreenshot: .maestro/regression/shots/05-history-prevmonth
+- tapOn:
+    id: 'month-next'
+- assertVisible: 'History'
+# Day detail via deep link. iOS asks "Open in Ignia?" for an outside scheme.
+- openLink: 'ignia:///history/${DATE}'
+- tapOn:
+    text: 'Open'
+    optional: true
+- assertVisible: 'Entries'
+- assertVisible:
+    id: 'add-food-day'
+- takeScreenshot: .maestro/regression/shots/05-history-day
+# Two levels back — flows hand each other the app ON Today.
+- back
+- back
+- assertVisible: 'Today'

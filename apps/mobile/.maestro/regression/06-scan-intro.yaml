@@ -1,0 +1,43 @@
+# Photo-scan INTRO only — the screen with the three choices. Deliberately taps
+# none of them: "Take photo" opens the camera and "Choose from library" opens
+# the system picker, and both park the run inside system UI Maestro cannot
+# reliably drive. The scan review state stays uncovered here on purpose; it
+# needs a photo, which needs hardware or an injected image.
+#
+# Route: the FAB is a speed dial when photoScan is on — first tap opens the
+# dial, log-scan is the camera satellite.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- tapOn:
+    id: 'log-button'
+# The dial's satellite buttons do NOT expose their testIDs to the accessibility
+# tree (measured: hierarchy carries log-button only) — same species as the
+# README's original FAB-chip complaint. The label text is the one addressable
+# handle; capture the open dial first, it is the render evidence.
+- takeScreenshot: .maestro/regression/shots/06-fab-dial
+- tapOn: 'Scan meal'
+# If that tap hit the label pill (not the button) the dial just closed —
+# reach the same screen by route instead; the screen, not the button, is what
+# the rest of this flow covers.
+- runFlow:
+    when:
+      notVisible: 'Scan a meal'
+    commands:
+      - openLink: 'ignia:///scan'
+      - tapOn:
+          text: 'Open'
+          optional: true
+- extendedWaitUntil:
+    visible: 'Scan a meal'
+    timeout: 10000
+- assertVisible: 'Take photo'
+- assertVisible: 'Choose from library'
+- assertVisible:
+    id: 'scan-manual'
+- takeScreenshot: .maestro/regression/shots/06-scan-intro
+- tapOn:
+    id: 'scan-back'
+- assertVisible: 'Today'

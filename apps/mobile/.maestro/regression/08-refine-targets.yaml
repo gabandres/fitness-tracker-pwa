@@ -1,0 +1,39 @@
+# Refine targets — render-only walkthrough. Asserts the form's top and bottom
+# both exist, saves NOTHING: refine-save would recompute the QA account's
+# targets and every later flow's ring numbers would move.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- tapOn:
+    id: 'settings-open'
+- tapOn:
+    id: 'settings-refine'
+- assertVisible: 'Refine targets'
+- takeScreenshot: .maestro/regression/shots/08-refine-top
+- scrollUntilVisible:
+    element:
+      id: 'refine-save'
+    direction: DOWN
+    timeout: 15000
+- assertVisible: 'Save targets'
+- takeScreenshot: .maestro/regression/shots/08-refine-bottom
+# refine-back can pop ONE screen or TWO: Maestro re-taps when the hierarchy is
+# slow to confirm, and refine's chevron sits at the same coordinates as
+# Settings' — the retry lands on the next screen's back button (measured: the
+# first run ended on Today with the flow still expecting Settings). Tolerate
+# both landings. And never assert bare 'Settings' as proof of the Settings
+# SCREEN — the What's-new banner on Today contains the word.
+- tapOn:
+    id: 'refine-back'
+- runFlow:
+    when:
+      visible:
+        id: 'settings-back'
+    commands:
+      - tapOn:
+          id: 'settings-back'
+- extendedWaitUntil:
+    visible: 'kcal left'
+    timeout: 10000
