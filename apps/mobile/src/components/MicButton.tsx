@@ -133,7 +133,7 @@ export function MicButton({
   }
 
   return (
-    <View>
+    <View style={styles.row}>
       <TouchableOpacity
         onPress={toggle}
         hitSlop={8}
@@ -150,9 +150,16 @@ export function MicButton({
       </TouchableOpacity>
       {/* Say so when the recognizer refuses. Silence here reads as a broken
           button, and it points at typing rather than at Settings, because
-          this failure is not a permission problem — that path is `denied`. */}
+          this failure is not a permission problem — that path is `denied`.
+
+          INLINE, not absolutely positioned: Android does not draw a child
+          that falls outside its parent's bounds, so an overlay hung below
+          this button rendered on nothing (measured on the emulator — the
+          state was set and the text never appeared). Width is capped so a
+          transient message cannot squeeze the search field, which is the
+          exact regression this suite was built to catch. */}
       {failed ? (
-        <Text style={styles.failedText} testID="mic-failed">
+        <Text style={styles.failedText} numberOfLines={2} testID="mic-failed">
           {t('voice.failed')}
         </Text>
       ) : null}
@@ -170,14 +177,12 @@ const createStyles = ({ colors }: Theme) =>
       paddingHorizontal: space.sm,
       borderRadius: radius.sm,
     },
+    row: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
     failedText: {
-      position: 'absolute',
-      top: '100%',
-      right: 0,
-      width: 150,
+      // Capped: this sits beside the search field, and an unbounded string
+      // here would collapse it — the 2026-08-08 bug this suite exists for.
+      maxWidth: 104,
       fontSize: font.tiny,
       color: colors.muted,
-      paddingTop: space.xs,
-      textAlign: 'right',
     },
   });

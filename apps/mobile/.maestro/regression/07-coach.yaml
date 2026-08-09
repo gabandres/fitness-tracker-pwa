@@ -19,15 +19,19 @@ appId: fit.ignia.app
 - assertVisible: 'Coach'
 - assertVisible:
     id: 'coach-input'
-# `coach-remaining` is deliberately NOT asserted. `remaining`/`limit` are set
-# only from the stream's onMeta callback inside ask(), so the quota chip cannot
-# exist until a question has been asked — and this flow never asks (metered
-# Gemini). An idle-state assert on it fails 100% of the time; measured twice
-# on 2026-08-09 before reading the source. A user likewise cannot see their
-# remaining consultations until they spend one: a UX gap, logged in
-# UX_AUDIT.md, not something this flow can cover.
 - assertVisible:
     id: 'coach-ask'
+# The quota chip. It could NOT be asserted here until 2026-08-09 — remaining/
+# limit were set only from a consultation's response, so the chip did not exist
+# until one was spent, and this flow never asks (metered Gemini). Coach now
+# reads the day's quota doc on mount, so the idle screen states the allowance
+# and this assert is the regression guard for that read.
+#
+# extendedWaitUntil, not assertVisible: the count arrives from Firestore.
+- extendedWaitUntil:
+    visible:
+      id: 'coach-remaining'
+    timeout: 20000
 - takeScreenshot: .maestro/regression/shots/07-coach
 - tapOn:
     id: 'coach-back'
