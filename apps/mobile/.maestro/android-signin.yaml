@@ -56,4 +56,9 @@ appId: fit.ignia.app
           visible: 'Today'
           timeout: 30000
 
+# iOS offers to save the password in a system dialog that covers Today and
+# fails a bare visibility assert. Optional: Android never shows it.
+- tapOn:
+    text: 'Not Now'
+    optional: true
 - assertVisible: 'Today'
