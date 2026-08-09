@@ -253,20 +253,22 @@ Both surfaced from the suite's first-ever walk of these states. Neither is a
 crash; both are "the app says nothing when it should say something", which is
 the class of defect this project keeps paying for.
 
-- [ ] **The Coach quota is invisible until you spend one.** `remaining`/`limit`
-      are set only from the stream's `onMeta` inside `ask()`, so the
-      `coach-remaining` chip cannot render on a freshly-opened Coach screen —
-      a user cannot see how many consultations they have left until they use
-      one. Fix is a cheap read of the same quota before the first ask, or copy
-      that states the daily allowance up front. (The regression flow
-      deliberately does not assert the chip; see `07-coach.yaml`.)
-- [ ] **A failed dictation start is indistinguishable from a dead mic.**
-      `MicButton`'s `error` listener flips `listening` back to false and
-      surfaces nothing, so when the OS recognizer is missing or fails, the icon
-      blinks and the user is told nothing. Reproduced on the Android emulator
-      (no recognizer present); on hardware the recognizer normally exists,
-      which is exactly why this path has never been seen. A one-line inline
-      message on `error` would close it.
+- [x] **The Coach quota is invisible until you spend one.** **FIXED
+      2026-08-09.** `remaining`/`limit` were set only from the stream's
+      `onMeta` inside `ask()`, so the chip could not render on a freshly-opened
+      screen. Coach now reads the day's `consultationQuota` doc on mount:
+      `firestore.rules` allows a client to read its OWN doc (ids are
+      `<uid>_<day>`, so the uid prefix is the tenant key; writes stay denied),
+      which costs one document read and **no new Cloud Function**. Rules
+      deployed before the client shipped, with two tests covering the
+      uid-scoping — including that a prefixing uid cannot slip through.
+- [x] **A failed dictation start is indistinguishable from a dead mic.**
+      **FIXED 2026-08-09.** `MicButton`'s `error` listener flipped `listening`
+      back to false and surfaced nothing. It now shows `voice.failed` and
+      points at typing — not at Settings, since that is the permission path,
+      which already has its own message. Found on the emulator, which has no
+      recognizer at all; on hardware one normally exists, which is why this
+      path had never been seen.
 
 ### Tier 3 — deliberately deferred, with the reason
 
