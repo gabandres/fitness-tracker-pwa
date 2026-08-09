@@ -26,12 +26,20 @@ unticked from the day the feature shipped, and vc 18 and vc 21 both reached
 testers with nothing anywhere having launched them. The emulator is what closes
 that, and it is already installed:
 
-| Piece | Where |
-|---|---|
-| AVD `ignia-a35` | API 35, `google_apis`, `arm64-v8a`, Pixel 6 profile |
-| Emulator + system image | `~/Library/Android/sdk` |
-| Maestro | `~/.maestro/bin/maestro` |
-| bundletool | `/opt/homebrew/bin/bundletool` |
+| Piece | Where | State |
+|---|---|---|
+| Emulator + API 35 `google_apis` `arm64-v8a` image | `~/Library/Android/sdk` | installed |
+| Maestro | `~/.maestro/bin/maestro` | installed |
+| bundletool | `/opt/homebrew/bin/bundletool` | installed |
+| AVD `ignia-a35` | `~/.android/avd` | **deleted to reclaim 2 GB — recreate it below** |
+
+The AVD is the only disposable piece; the 2 GB it costs is not worth leaving
+parked on someone else's laptop between sessions. Recreating it takes about a
+minute and needs no download, because the system image stays:
+
+```sh
+echo no | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd   -n ignia-a35 -k 'system-images;android-35;google_apis;arm64-v8a' -d pixel_6 --force
+```
 
 **Every one of these needs `JAVA_HOME` and `ANDROID_HOME` exported explicitly** —
 neither is in the Mac's shell config, and Maestro 2.x fails with a bare
@@ -179,8 +187,18 @@ Three traps, all paid for:
   `xcrun simctl install <udid> <DerivedData>/Build/Products/Release-iphonesimulator/Ignia.app`.
 - **Xcode needs a lot of disk.** A build died mid-flight with
   `The file "swbuild.tmp..." couldn't be saved` at **236 MB free** — an
-  out-of-space error that names no space. Clear DerivedData and `~/.gradle`
-  first.
+  out-of-space error that names no space. **A single iOS build grows
+  DerivedData to ~9 GB**, so clear it before starting, not after:
+
+  ```sh
+  rm -rf ~/Library/Developer/Xcode/DerivedData ~/.gradle
+  rm -rf ~/fitness-tracker-pwa/apps/mobile/ios      # prebuild output, regenerated
+  ```
+
+  `~/.gradle` (~6 GB) and `apps/mobile/ios` (~0.5 GB) are the other two worth
+  knowing. All three regenerate; the only cost is a slower next build. Nothing
+  else on that machine is ours — the remaining bulk is the owner's personal
+  data and Xcode itself.
 
 **Maestro auto-selects a device and will pick (and even boot) an Android AVD**
 even when the Android emulator process is dead, because a stale `adb` entry
