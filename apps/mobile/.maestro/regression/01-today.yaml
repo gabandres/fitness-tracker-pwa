@@ -18,4 +18,7 @@ appId: fit.ignia.app
       text: 'Entries'
     direction: DOWN
     timeout: 15000
+# Scroll to the END before the final shot — a mid-scroll capture put "Repeat
+# yesterday" visually under the FAB and read as an occlusion bug when it is not.
+- scroll
 - takeScreenshot: .maestro/regression/shots/01-today-entries

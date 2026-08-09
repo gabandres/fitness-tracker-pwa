@@ -34,3 +34,33 @@ Screenshots land beside the flows; review every one. The entry sheet is opened
 through the widget deep link (`ignia://?openAdd=1`) rather than the FAB's
 mini-menu, whose chips do not expose accessible text and would make the suite
 coordinate-dependent.
+
+
+## First full run — 2026-08-09, both platforms
+
+**Android (emulator, R2 build): 15/15 screens clean.** One false alarm — a
+mid-scroll capture made "Repeat yesterday" look FAB-occluded; at max scroll it
+clears. The suite should scroll to the end before its final Today shot.
+
+**iOS (simulator, Release build from main): flows 01/03/04 clean; flow 02
+found a shipped bug.** `openLink ignia://` failed with
+LSApplicationWorkspaceErrorDomain 115 — and that was not a suite problem: the
+`ignia` URL scheme had been unregistered since build 29's CFBundleURLTypes
+"de-duplication", so the iPhone widget's face tap opened nothing on builds
+29–40. Confirmed against build 40's shipped Info.plist, fixed in build 41.
+**This is the suite's first real catch, on its first iOS run.**
+
+Platform quirks learned, so nobody re-pays them:
+
+- **iOS cannot `stopApp` + `openLink` a custom scheme** (LS error 115). Keep
+  the app warm and vary the `openAdd` nonce: `-e NONCE=$RANDOM`.
+- **iOS shows "Open in Ignia?"** for a scheme fired from outside the app — the
+  flow's optional `Open` tap handles it; a stale copy of that dialog also
+  blocks later flows, so dismiss before starting.
+- **Maestro's iOS driver sometimes cannot see the EntrySheet's texts even
+  while they are plainly rendered** (Android sees them fine). Open question
+  whether VoiceOver shares the blindness — worth a manual check someday.
+  Restarting the run usually recovers the driver.
+- **Never tap by coordinates on a signed-in account.** A missed percentage tap
+  during this run hit a Quick-add chip and logged a spurious ~300 kcal entry to
+  the QA account. Text/testID or nothing.
