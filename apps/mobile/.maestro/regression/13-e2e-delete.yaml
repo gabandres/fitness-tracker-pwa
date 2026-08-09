@@ -38,9 +38,24 @@ appId: fit.ignia.app
     visibilityPercentage: 60
 - tapOn:
     text: '.*QA E2E Sandwich.*'
-# Wait, don't assert: the sheet animates in, and on iOS the pinned actions row
-# lands a beat after the fields do. Flow 12 proves the same tap opens edit mode
-# (it asserts entry-calories there and passes), so this is timing, not absence.
+# KNOWN RED ON iOS — deliberately not papered over.
+#
+# On Android this passes and the deletion is confirmed in Firestore. On the
+# iOS simulator the tap above lands on the right element (a `maestro
+# hierarchy` dump on 2026-08-09 shows exactly ONE matching node, the row
+# itself, id `entry-<docId>`) and yet no sheet opens at all — the failure
+# capture shows Today with no modal and no alert.
+#
+# Ruled OUT by measurement, so nobody re-pays for them:
+#   - a preset chip of the same name stealing the tap (only one node matches,
+#     and the preset does not exist when this runs standalone);
+#   - the row being unreachable (flow 11's scroll finds it with the same
+#     regex, and flow 12's identical tap DOES open the editor on iOS).
+#
+# Still open: the row is a `PressScale` carrying BOTH onPress and onLongPress
+# inside an entering-animated view, so the next thing to try is whether
+# Maestro's iOS tap is being consumed as a long press — dump the hierarchy
+# immediately after the tap and look for the preset alert.
 - extendedWaitUntil:
     visible:
       id: 'entry-delete'

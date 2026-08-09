@@ -61,6 +61,12 @@ export function MicButton({
   const { colors } = useTheme();
   const [listening, setListening] = useState(false);
   const [denied, setDenied] = useState(false);
+  // A recognizer that refuses to start used to revert the icon and say
+  // NOTHING, which is indistinguishable from a dead button — found by the
+  // Maestro suite on an emulator, where no recognizer exists at all. On
+  // hardware the same path is reached when the language model is missing or
+  // the service is busy.
+  const [failed, setFailed] = useState(false);
 
   // Subscribed lazily so the module's absence cannot throw at import time.
   useEffect(() => {
@@ -84,7 +90,10 @@ export function MicButton({
         else onSearch(routed.text);
       });
       end = mod.ExpoSpeechRecognitionModule.addListener?.('end', () => setListening(false));
-      err = mod.ExpoSpeechRecognitionModule.addListener?.('error', () => setListening(false));
+      err = mod.ExpoSpeechRecognitionModule.addListener?.('error', () => {
+        setListening(false);
+        setFailed(true);
+      });
     } catch {
       /* no module in this binary — the button is not rendered anyway */
     }
@@ -97,6 +106,7 @@ export function MicButton({
 
   const toggle = useCallback(async () => {
     haptics.tap();
+    setFailed(false);
     if (listening) {
       stopListening();
       setListening(false);
@@ -138,6 +148,14 @@ export function MicButton({
           color={listening ? colors.accent : colors.ink}
         />
       </TouchableOpacity>
+      {/* Say so when the recognizer refuses. Silence here reads as a broken
+          button, and it points at typing rather than at Settings, because
+          this failure is not a permission problem — that path is `denied`. */}
+      {failed ? (
+        <Text style={styles.failedText} testID="mic-failed">
+          {t('voice.failed')}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -151,5 +169,15 @@ const createStyles = ({ colors }: Theme) =>
       paddingVertical: space.xs,
       paddingHorizontal: space.sm,
       borderRadius: radius.sm,
+    },
+    failedText: {
+      position: 'absolute',
+      top: '100%',
+      right: 0,
+      width: 150,
+      fontSize: font.tiny,
+      color: colors.muted,
+      paddingTop: space.xs,
+      textAlign: 'right',
     },
   });

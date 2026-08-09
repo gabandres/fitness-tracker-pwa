@@ -200,6 +200,7 @@ export const esPR: Record<I18nKey, string> = {
   'voice.start': 'Di lo que comiste',
   'voice.stop': 'Deja de escuchar',
   'voice.enable': 'Activa el micrófono en Ajustes',
+  'voice.failed': 'No se pudo escuchar — escríbelo.',
   'today.savePresetTitle': '¿Guardar como preset?',
   'today.savePresetBody': '“{name}” se convierte en un preset de un toque. El espacio 1 es lo que registran tu widget y la tarjeta de Ajustes rápidos.',
   'entry.savePresetShort': 'Guardar preset',

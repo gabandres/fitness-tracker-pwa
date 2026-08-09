@@ -198,6 +198,7 @@ export const en = {
   'voice.start': 'Say what you ate',
   'voice.stop': 'Stop listening',
   'voice.enable': 'Enable mic in Settings',
+  'voice.failed': "Couldn't start listening — type it instead.",
   'today.savePresetTitle': 'Save as a quick-add preset?',
   'today.savePresetBody': '“{name}” becomes a one-tap preset. Slot 1 is what your widget button and Quick Settings tile log.',
   'entry.savePresetShort': 'Save preset',

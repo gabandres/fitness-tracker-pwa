@@ -662,13 +662,23 @@ service cloud.firestore {
     }
 
     // ─── Consultation quota (AI coach rate limit) ───────────────
-    // Written by the reserveConsultation Cloud Function via the
-    // admin SDK (which bypasses these rules). Clients never need
-    // direct access — the callable returns remaining count in its
-    // response, so we default-deny to match photoQuota. Prevents
-    // any tenant-leak via doc-id guessing.
+    // Written by the consultationStream Cloud Function via the admin SDK
+    // (which bypasses these rules), so writes stay denied outright — a
+    // client-writable counter is a free-consultations primitive.
+    //
+    // READS are scoped to the caller's OWN doc, added 2026-08-09. Doc ids are
+    // `<uid>_<YYYY-MM-DD>`, so the uid prefix is the tenant key and this
+    // leaks nothing across users — the previous blanket deny existed to stop
+    // doc-id guessing, which a uid check stops just as well.
+    //
+    // It exists because the count reached the client ONLY in a consultation's
+    // response, so a user could not see how many they had left until they
+    // spent one — an allowance you cannot check until you use it. Reading a
+    // number the server already maintains costs one document read on opening
+    // Coach, and no new Cloud Function.
     match /consultationQuota/{quotaId} {
-      allow read, write: if false;
+      allow read:  if isOwner(quotaId.split('_')[0]);
+      allow write: if false;
     }
 
     // ─── Org-wide spend ceiling + kill-switch ───────────────────

@@ -58,12 +58,12 @@ appId: fit.ignia.app
 - takeScreenshot: .maestro/regression/shots/12-e2e-preset-alert
 - tapOn: 'Save preset'
 # ── edit via row tap ──
-# Scoped below "Entries": the preset just created above shares this name, and a
-# Quick-add chip tap would log a row rather than open the editor.
+# Tapping the row by its accessibility text. The row is ONE element on iOS —
+# `{text: "", accessibilityText: "QA E2E Sandwich, 1:05 PM · P 9g, 123",
+# resource-id: "entry-<docId>"}` — which is why the substring regex is needed
+# and why a bare 'QA E2E Sandwich' cannot match.
 - tapOn:
     text: '.*QA E2E Sandwich.*'
-    below:
-      text: 'Entries'
 - assertVisible:
     id: 'entry-calories'
 - tapOn:

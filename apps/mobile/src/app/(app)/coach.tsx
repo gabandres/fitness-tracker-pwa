@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -18,6 +18,7 @@ import { CoachMarkdown } from '@/components/CoachMarkdown';
 import { useCoach } from '@/hooks/useCoach';
 import { useAuth } from '@/lib/auth';
 import { CoachErrorCode, type CoachError, streamCoach } from '@/lib/coach';
+import { getConsultationQuota } from '@/lib/ledger';
 import { type I18nKey, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -57,6 +58,29 @@ export default function Coach() {
   const [remaining, setRemaining] = useState<number | null>(null);
   const [limit, setLimit] = useState<number | null>(null);
   const [overLimit, setOverLimit] = useState(false);
+
+  // Show the day's allowance BEFORE one is spent. Until this, `remaining` was
+  // set only from a consultation's own response metadata, so the chip could
+  // not exist on a freshly-opened screen and a user had no way to see how
+  // many they had left without using one. One document read, server-owned
+  // counter, no new Cloud Function. A failure here is silent on purpose: the
+  // count is a courtesy, and the server remains the authority that refuses
+  // the ask.
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    getConsultationQuota(user.uid)
+      .then((q) => {
+        if (!alive) return;
+        // Never overwrite a live count that a consultation just returned.
+        setRemaining((prev) => (prev == null ? q.remaining : prev));
+        setLimit((prev) => (prev == null ? q.limit : prev));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [user]);
 
   const streaming = status === 'streaming';
 

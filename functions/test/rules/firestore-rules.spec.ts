@@ -219,6 +219,34 @@ describe('firestore.rules', () => {
     );
   });
 
+  // Reads are uid-scoped so Coach can show the day's remaining consultations
+  // before one is spent. The doc id is `<uid>_<day>`, so the prefix is the
+  // tenant key — these two cases are the whole contract.
+  it('allows a client to read its OWN consultationQuota doc', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'consultationQuota', 'alice_2026-04-17'), {
+        count: 2,
+        uid: 'alice',
+        date: '2026-04-17',
+      });
+    });
+    await assertSucceeds(getDoc(doc(authed('alice'), 'consultationQuota', 'alice_2026-04-17')));
+  });
+
+  it("blocks a client from reading ANOTHER user's consultationQuota doc", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'consultationQuota', 'bob_2026-04-17'), {
+        count: 2,
+        uid: 'bob',
+        date: '2026-04-17',
+      });
+    });
+    await assertFails(getDoc(doc(authed('alice'), 'consultationQuota', 'bob_2026-04-17')));
+    // A uid that merely PREFIXES another's must not slip through a
+    // startsWith-style check — this is why the rule splits on '_'.
+    await assertFails(getDoc(doc(authed('ali'), 'consultationQuota', 'alice_2026-04-17')));
+  });
+
   // opsBudget holds the org-wide spend ceiling and the per-feature
   // kill-switch. Both directions matter and for different reasons: a
   // client-writable switch is a denial-of-service primitive (turn the

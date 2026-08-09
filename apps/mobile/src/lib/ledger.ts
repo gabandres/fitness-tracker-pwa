@@ -888,3 +888,31 @@ export async function markExercised(uid: string, date: Date): Promise<void> {
   if (already) return;
   await addLog(uid, { calories: 0, exerciseCompleted: true, timestamp: date });
 }
+
+// ─── Consultation quota (read-only) ─────────────────────────────
+// `consultationQuota/{uid}_{utcDay}` = { count }. The server owns the
+// counter (admin SDK); `firestore.rules` allows a client to read only its
+// OWN doc, keyed by the uid prefix.
+//
+// It exists so Coach can state the day's remaining consultations BEFORE one
+// is spent — the count used to arrive only in a consultation's own response,
+// which meant the allowance was unknowable until it was used. A missing doc
+// means none used today, which is why absence reads as a full allowance
+// rather than an error.
+const CONSULTATION_LIMIT_FREE = 3;
+
+/** UTC day key — must match `utcDayKey()` in `functions/src/daily-quota.ts`,
+ *  which mints the doc id. UTC, not local: the quota resets at UTC midnight
+ *  and a local-date key would look up the wrong doc for half the world. */
+function utcDayKey(now: Date = new Date()): string {
+  return now.toISOString().slice(0, 10);
+}
+
+export async function getConsultationQuota(
+  uid: string,
+): Promise<{ used: number; remaining: number; limit: number }> {
+  const limit = CONSULTATION_LIMIT_FREE;
+  const snap = await getDoc(doc(db, 'consultationQuota', `${uid}_${utcDayKey()}`));
+  const used = snap.exists() ? ((snap.data() as { count?: number }).count ?? 0) : 0;
+  return { used, remaining: Math.max(0, limit - used), limit };
+}
