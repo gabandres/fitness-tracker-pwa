@@ -85,7 +85,7 @@
         "expo-camera",
         {
           "cameraPermission": "Ignia uses the camera to scan food barcodes.",
-          "microphonePermission": false,
+          "microphonePermission": "Ignia uses the microphone only while you are dictating a meal, and only after you tap the mic.",
           "recordAudioAndroid": false
         }
       ],
