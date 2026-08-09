@@ -200,13 +200,25 @@ export function FoodSearch({
           autoCorrect={false}
           testID="food-search-input"
         />
-        {headerRight}
         {onCancel ? (
           <TouchableOpacity onPress={onCancel} hitSlop={8}>
             <Text style={styles.cancel}>{t('common.cancel')}</Text>
           </TouchableOpacity>
         ) : null}
       </View>
+      {/* BELOW the row, full width — not inside it.
+          Rendered in the search row, the two `flex: 1` buttons this now holds
+          squeeze the TextInput to zero width: the field collapses to a bare
+          pill and the buttons overflow off-screen. Shipped that way in the
+          first Release 1 OTA and caught on a device, not by the 125 tests that
+          passed over it — RNTL renders the element tree but never runs a Yoga
+          layout pass, so a view collapsed to nothing is still "found" and every
+          assertion holds. That is the whole reason `.maestro/` exists.
+
+          It stays ALWAYS rendered, including while typing:
+          docs/research/mobile-manual-food-entry.md is settled that a query
+          removing the write-it-yourself affordance is a defect. */}
+      {headerRight}
 
       {phase === 'searching' || phase === 'detail-loading' ? (
         <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
