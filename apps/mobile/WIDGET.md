@@ -208,6 +208,17 @@ in this feature. The two starred rows are the ones that would make it worthless.
       minted per tap, so this is not a dedup case.
 - [ ] Airplane mode → tap → the numbers still move; re-enable, open the app, the
       row appears **on the day it was tapped**.
+- [~] ★ **PARTLY VERIFIED 2026-08-08 on the emulator — and the logging half
+      FAILED.** The tile is in the Quick Settings panel and **is labelled with
+      the preset's name** (`Log Chicken + rice`), which proves `setTileState`
+      and the JS→Kotlin mirror. But signed in with slot 1 designated, **no tap
+      wrote a row** — four `cmd statusbar click-tile` attempts and one real
+      `input tap` through the open shade all left today's `dailyLogs` empty, and
+      one click took `onClick`'s `openApp()` fallback, the branch for a tile
+      that is not ready. **Suspected product bug, NOT proven**: a synthetic tap
+      may not reach a tile the way a finger does, and only a human tap settles
+      it. Five minutes from any alpha tester would. Detail in
+      `.maestro/README.md`.
 - [ ] ★ **The Quick Settings tile appears in the edit list, is labelled with the
       preset's name, and one tap logs it** without opening the app.
 - [ ] Tap the tile with the app **fully swiped away** — this is the

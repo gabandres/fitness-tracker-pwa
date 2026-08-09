@@ -95,15 +95,52 @@ result out of `adb logcat` and `dumpsys activity activities`, never by eye.
 — which is exactly the documented signed-out behaviour, and the first Android QA
 row in this repo to be confirmed by anything.
 
+### Open finding — the tile does not log on the emulator (2026-08-08)
+
+Established, signed in as a seeded QA account with a preset in slot 1:
+
+- The tile **is** in the Quick Settings panel after `add-tile`.
+- It **is labelled with the preset's name** (`Log Chicken + rice`), which is half
+  of the starred row in `WIDGET.md` and the part that proves `setTileState` and
+  the JS→Kotlin mirror work.
+- **No tap produced a row.** Four `cmd statusbar click-tile` attempts and one
+  real `input tap` through the open shade all left
+  `users/<uid>/dailyLogs/<today>` at zero entries.
+- One of those clicks visibly started the app process, which is
+  `QuickAddTileService.onClick`'s `openApp()` fallback — the branch taken when
+  `TileState.enabled` is false or the label is blank. The label is demonstrably
+  not blank.
+
+**That is a suspected product bug, not a proven one.** What cannot be ruled out
+from here is that `cmd statusbar click-tile` and a synthetic `input tap` do not
+deliver a tile click the way a finger does. The distinction matters and only a
+human tap settles it — so this row stays **unticked**, and it is worth five
+minutes from any alpha tester with the app installed.
+
+Worth noting the shape is identical to the iOS widget bug found the same day: a
+glanceable surface that silently does nothing, on a path where the receipt is
+"the numbers moved" and nothing reports a refusal. `QuickAdd.record(outcome:)`
+now covers iOS; **Android has no equivalent outbox**, so a failed tile tap still
+leaves no trace anywhere.
+
 **Still out of reach**: placing the 2×2 widget on the launcher. There is no `adb`
 command for it, and the AOSP launcher's widget picker is a long-press flow that
 Maestro can only drive by coordinates. The widget's own quick-add button
 therefore stays unverified on Android.
 
-**Signed-in flows need a credential nobody automated has.** The demo account's
-password lives only in the owner's password manager, so `android-smoke.yaml`
-asserts the signed-OUT entry point. Anything past sign-in needs the owner to
-either type it once on the emulator or hand over the password.
+**Signed-in flows use a throwaway QA account**, not `review@` (Apple App
+Review's login — ASC carries it forward on every version, so changing that
+password is a review rejection waiting to happen) and not `demo@` (the store
+screenshots). Create one in a single command and sign in with it:
+
+```sh
+node scripts/seed-demo-account.mjs --email qa-test@ignia.fit --password '<generated>'
+maestro test .maestro/android-signin.yaml -e EMAIL=qa-test@ignia.fit -e PASSWORD='<generated>'
+```
+
+The address must contain `demo`/`test`/`review`/`appstore` or the seed script
+refuses it. The session persists to AsyncStorage, so it is a once-per-emulator
+step and every other flow keeps `clearState: false`.
 
 ## Running
 
