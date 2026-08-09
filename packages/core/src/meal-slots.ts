@@ -36,3 +36,40 @@ export function groupByMealSlot(logs: DailyLog[]): MealGroup[] {
   }
   return groups;
 }
+
+/**
+ * Which meal slot an entry logged at `at` most likely belongs to.
+ *
+ * ## Why this exists
+ *
+ * `mealType` is optional and every add surface left it `undefined`, so anything
+ * logged without explicitly tapping the meal field fell into `other`. On a real
+ * day that produced two entries two minutes apart — 12:52 PM and 12:54 PM — in
+ * *different* buckets, and an `other` group larger than dinner. The user was not
+ * being inconsistent; one entry had the field tapped and the other did not.
+ *
+ * Making the clock supply a default removes a required decision from every add,
+ * which is the cheapest simplification available to that flow.
+ *
+ * ## Why a snack band, and why the edges are wide
+ *
+ * A confidently wrong slot is worse than no slot: `other` reads as "untagged",
+ * while "Dinner" on a 3 PM cookie reads as a bug. So the bands that people eat
+ * *meals* in are narrow and everything between them is `snack` — the slot whose
+ * meaning is closest to "not really a meal", and the one it is least costly to
+ * be wrong about.
+ *
+ * Local time on purpose: this is about the user's day, not UTC.
+ *
+ * The result is a **default, never a decision** — every caller must let the user
+ * override it, and the diary keeps `other` for entries that genuinely have no
+ * slot.
+ */
+export function slotForTime(at: Date): MealType {
+  const minutes = at.getHours() * 60 + at.getMinutes();
+  if (minutes < 10 * 60 + 30) return 'breakfast'; // until 10:30
+  if (minutes < 14 * 60 + 30) return 'lunch'; //     10:30 – 14:30
+  if (minutes < 17 * 60 + 30) return 'snack'; //     14:30 – 17:30
+  if (minutes < 21 * 60 + 30) return 'dinner'; //    17:30 – 21:30
+  return 'snack'; //                                 late night
+}

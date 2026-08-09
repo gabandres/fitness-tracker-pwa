@@ -33,7 +33,26 @@ function macroLine(log: DailyLog): string {
  * When every entry is untagged (single `other` group) the slot header is
  * suppressed so it reads as a plain list. Tapping a row calls `onPress`.
  */
-export function MealEntries({ logs, onPress }: { logs: DailyLog[]; onPress: (log: DailyLog) => void }) {
+export function MealEntries({
+  logs,
+  onPress,
+  onSavePreset,
+}: {
+  logs: DailyLog[];
+  onPress: (log: DailyLog) => void;
+  /**
+   * Long-press a logged row to promote it to a quick-add preset.
+   *
+   * The loop this closes: a food logged four times in a week never became a
+   * preset, because "Save as preset" existed only inside the custom-food form —
+   * so the widget button and the Quick Settings tile, which both draw from the
+   * preset list, stayed empty for exactly the foods the user repeats. The diary
+   * is where you notice the repetition, so it should be where you can act on it.
+   *
+   * Optional: read-only surfaces (history) omit it and get no long-press.
+   */
+  onSavePreset?: (log: DailyLog) => void;
+}) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
@@ -58,7 +77,13 @@ export function MealEntries({ logs, onPress }: { logs: DailyLog[]; onPress: (log
             const sub = [timeOf(log.date, locale), macroLine(log)].filter(Boolean).join('  ·  ');
             return (
               <Animated.View key={log.id} entering={enterUp(row++)} exiting={FadeOut} layout={springLayout}>
-                <PressScale scaleTo={0.98} style={styles.entry} onPress={() => onPress(log)} testID={`entry-${log.id}`}>
+                <PressScale
+                  scaleTo={0.98}
+                  style={styles.entry}
+                  onPress={() => onPress(log)}
+                  onLongPress={onSavePreset ? () => onSavePreset(log) : undefined}
+                  testID={`entry-${log.id}`}
+                >
                   <View style={styles.entryMain}>
                     <Text style={styles.entryLabel}>{log.mealLabel || t('today.entry')}</Text>
                     <Text style={styles.entryMacros}>{sub || '—'}</Text>

@@ -102,6 +102,10 @@ const SHEET_OFFSCREEN = Dimensions.get('window').height;
  *  scan/recipe icons); the manual macro form is a secondary CUSTOM mode
  *  (also used when editing). Search portion / recipe / barcode prefill CUSTOM
  *  for review. Recents/presets are one-tap relog. */
+/** How many rows the merged browse list shows. Recents used to cap at 5 and
+ *  sat beside three other sections; one ranked list can afford more. */
+const BROWSE_ROW_CAP = 12;
+
 export function EntrySheet({
   visible,
   editing,
@@ -140,6 +144,8 @@ export function EntrySheet({
   const [busy, setBusy] = useState(false);
   const [manage, setManage] = useState(false);
   const [mode, setMode] = useState<'browse' | 'custom' | 'recipe' | 'recipeImport' | 'meal'>('browse');
+  /** The collapsed "more ways to log" list. Closed by default — that is the point. */
+  const [moreOpen, setMoreOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   // Camera permanently denied: the scanner can't prompt again, so we say so
   // here — in the app's own UI, not as a gate in front of an OS prompt
@@ -397,72 +403,62 @@ export function EntrySheet({
     setMode('custom');
   }
 
-  // ── Browse empty-state: recents + presets + custom-food link ──
+  /**
+   * One ranked list, not four labelled sections.
+   *
+   * Browse used to stack Recent / My foods / Quick add / Suggested as four
+   * peers, each with its own header, so nothing was ranked and the screen read
+   * as a wall. The pattern every leading tracker converged on is a single
+   * recency-ordered list with search pinned above it — and recency is the most
+   * predictive signal for what someone is about to log.
+   *
+   * Recent and My foods are the same *intent* ("a food I have had before") and
+   * differ only in provenance, so they merge, tagged. **Quick add stays a
+   * separate pinned strip**: it is a genuinely different action — one tap, no
+   * confirmation — and it is the same slot list the home-screen widget and the
+   * Quick Settings tile fire, so demoting it would contradict surfaces already
+   * shipped.
+   *
+   * `Suggested` starters still appear, but only when there is nothing else —
+   * they are onboarding, not a competing section.
+   */
+  const browseRows = useMemo(() => {
+    const rows: {
+      key: string;
+      name: string;
+      kcal: number;
+      tag?: string;
+      onLog: () => void;
+      onRemove?: () => void;
+    }[] = [];
+    for (const r of recentEntries) {
+      rows.push({
+        key: `recent-${r.id}`,
+        name: r.mealLabel ?? '',
+        kcal: r.calories,
+        onLog: () =>
+          quickLog({ calories: r.calories, protein: r.protein ?? undefined, mealLabel: r.mealLabel ?? undefined }),
+        onRemove: r.mealLabel && onHideRecent ? () => onHideRecent(r.mealLabel as string) : undefined,
+      });
+    }
+    for (const f of customFoods) {
+      const m = scaleCustomFood(f, 1);
+      rows.push({
+        key: `customfood-${f.id}`,
+        name: f.name,
+        kcal: m.calories,
+        tag: t('entry.myFoods'),
+        onLog: () =>
+          quickLog({ calories: m.calories, protein: m.protein, carbs: m.carbs, fat: m.fat, mealLabel: f.name }),
+        onRemove: f.id && onDeleteCustomFood ? () => onDeleteCustomFood(f.id as string) : undefined,
+      });
+    }
+    return rows.slice(0, BROWSE_ROW_CAP);
+  }, [recentEntries, customFoods, quickLog, onHideRecent, onDeleteCustomFood, t]);
+
   const browseEmpty = (
     <View style={styles.browse}>
-      {recentEntries.length > 0 ? (
-        <View style={styles.group}>
-          <View style={styles.groupHead}>
-            <Text style={styles.groupLabel}>{t('entry.recent')}</Text>
-            {onHideRecent ? (
-              <TouchableOpacity onPress={() => setManage((m) => !m)} hitSlop={8}>
-                <Text style={[styles.manageText, manage && styles.manageOn]}>
-                  {manage ? t('common.done') : t('common.manage')}
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-          {recentEntries.map((r) => (
-            <TouchableOpacity
-              key={r.id}
-              style={styles.row}
-              testID={`recent-${r.id}`}
-              onPress={() =>
-                manage
-                  ? r.mealLabel && onHideRecent?.(r.mealLabel)
-                  : quickLog({ calories: r.calories, protein: r.protein ?? undefined, mealLabel: r.mealLabel ?? undefined })
-              }
-            >
-              <Text style={styles.rowName} numberOfLines={1}>{r.mealLabel}</Text>
-              {manage ? <Text style={styles.rowRemove}>✕</Text> : <Text style={styles.rowKcal}>{r.calories}</Text>}
-            </TouchableOpacity>
-          ))}
-        </View>
-      ) : null}
-
-      {customFoods.length > 0 ? (
-        <View style={styles.group}>
-          <View style={styles.groupHead}>
-            <Text style={styles.groupLabel}>{t('entry.myFoods')}</Text>
-            {onDeleteCustomFood ? (
-              <TouchableOpacity onPress={() => setManage((m) => !m)} hitSlop={8}>
-                <Text style={[styles.manageText, manage && styles.manageOn]}>
-                  {manage ? t('common.done') : t('common.manage')}
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-          {customFoods.map((f) => {
-            const m = scaleCustomFood(f, 1);
-            return (
-              <TouchableOpacity
-                key={f.id}
-                style={styles.row}
-                testID={`customfood-${f.id}`}
-                onPress={() =>
-                  manage
-                    ? f.id && onDeleteCustomFood?.(f.id)
-                    : quickLog({ calories: m.calories, protein: m.protein, carbs: m.carbs, fat: m.fat, mealLabel: f.name })
-                }
-              >
-                <Text style={styles.rowName} numberOfLines={1}>{f.name}</Text>
-                {manage ? <Text style={styles.rowRemove}>✕</Text> : <Text style={styles.rowKcal}>{m.calories}</Text>}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      ) : null}
-
+      {/* Quick add — pinned, one tap, no confirmation. */}
       {presets.length > 0 ? (
         <View style={styles.group}>
           <View style={styles.groupHead}>
@@ -475,25 +471,55 @@ export function EntrySheet({
               </TouchableOpacity>
             ) : null}
           </View>
-          {presets.map((p) => (
+          <View style={styles.presetStrip}>
+            {presets.map((p) => (
+              <TouchableOpacity
+                key={p.id}
+                style={styles.presetChip}
+                testID={`preset-${p.id}`}
+                onPress={() =>
+                  manage
+                    ? p.id && onDeletePreset?.(p.id)
+                    : quickLog({ calories: p.calories, protein: p.protein, carbs: p.carbs, fat: p.fat, mealLabel: p.name })
+                }
+              >
+                <Text style={styles.presetName} numberOfLines={1}>{p.name}</Text>
+                <Text style={styles.presetKcal}>{manage ? '✕' : p.calories}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      ) : null}
+
+      {/* Everything you have logged or saved, most recent first. */}
+      {browseRows.length > 0 ? (
+        <View style={styles.group}>
+          <View style={styles.groupHead}>
+            <Text style={styles.groupLabel}>{t('entry.recent')}</Text>
+            {onHideRecent || onDeleteCustomFood ? (
+              <TouchableOpacity onPress={() => setManage((m) => !m)} hitSlop={8}>
+                <Text style={[styles.manageText, manage && styles.manageOn]}>
+                  {manage ? t('common.done') : t('common.manage')}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          {browseRows.map((row) => (
             <TouchableOpacity
-              key={p.id}
+              key={row.key}
               style={styles.row}
-              testID={`preset-${p.id}`}
-              onPress={() =>
-                manage
-                  ? p.id && onDeletePreset?.(p.id)
-                  : quickLog({ calories: p.calories, protein: p.protein, carbs: p.carbs, fat: p.fat, mealLabel: p.name })
-              }
+              testID={row.key}
+              onPress={() => (manage ? row.onRemove?.() : row.onLog())}
             >
-              <Text style={styles.rowName} numberOfLines={1}>{p.name}</Text>
-              {manage ? <Text style={styles.rowRemove}>✕</Text> : <Text style={styles.rowKcal}>{p.calories}</Text>}
+              <Text style={styles.rowName} numberOfLines={1}>{row.name}</Text>
+              {row.tag ? <Text style={styles.rowTag}>{row.tag}</Text> : null}
+              {manage && row.onRemove ? <Text style={styles.rowRemove}>✕</Text> : <Text style={styles.rowKcal}>{row.kcal}</Text>}
             </TouchableOpacity>
           ))}
         </View>
       ) : null}
 
-      {recentEntries.length === 0 && presets.length === 0 && customFoods.length === 0 ? (
+      {browseRows.length === 0 && presets.length === 0 ? (
         <View style={styles.group}>
           <Text style={styles.groupLabel}>{t('entry.suggested')}</Text>
           <View style={styles.starterWrap}>
@@ -511,44 +537,50 @@ export function EntrySheet({
           </View>
         </View>
       ) : null}
-
-      {/* Kept as well as the header icon: users who already learned this link
-          should still find it where it was. It is no longer the ONLY way in. */}
-      <TouchableOpacity style={styles.customLink} testID="create-custom" onPress={() => openCustomBlank()}>
-        <Ionicons name="create-outline" size={18} color={colors.accent} />
-        <Text style={styles.customLinkText}>{t('entry.customFood')}</Text>
-      </TouchableOpacity>
     </View>
   );
 
   const headerIcons = (
     <>
     <View style={styles.iconRow}>
-      {/* Write-it-yourself sits FIRST and always visible. It used to be a link
-          at the bottom of the browse list, which sank as My Foods grew and
-          disappeared entirely once the user typed — see
-          docs/research/mobile-manual-food-entry.md. The web sheet defaults to
-          its Manual segment; this is the mobile equivalent. */}
-      <TouchableOpacity style={styles.iconBtn} onPress={() => openCustomBlank()} testID="open-manual">
-        <Ionicons name="create-outline" size={22} color={colors.ink} />
+      <TouchableOpacity style={styles.primaryBtn} onPress={() => openCustomBlank()} testID="open-manual">
+        <Ionicons name="create-outline" size={18} color={colors.ink} />
+        <Text style={styles.primaryBtnText}>{t('entry.writeItYourself')}</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.iconBtn} onPress={() => { haptics.tap(); setMode('meal'); }} testID="open-mealtext">
-        <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.ink} />
+      <TouchableOpacity
+        style={styles.primaryBtn}
+        onPress={() => { haptics.tap(); setMoreOpen((v) => !v); }}
+        accessibilityState={{ expanded: moreOpen }}
+        testID="open-more"
+      >
+        <Ionicons name={moreOpen ? 'chevron-up' : 'ellipsis-horizontal'} size={18} color={colors.ink} />
+        <Text style={styles.primaryBtnText}>{t('entry.moreWays')}</Text>
       </TouchableOpacity>
-      {Platform.OS !== 'web' ? (
-        <TouchableOpacity style={styles.iconBtn} onPress={() => { haptics.tap(); if (!cameraDenied) setScannerOpen(true); }} testID="open-barcode">
-          <Ionicons name="barcode-outline" size={22} color={colors.ink} />
-        </TouchableOpacity>
-      ) : null}
-      <TouchableOpacity style={styles.iconBtn} onPress={() => { haptics.tap(); setMode('recipe'); }} testID="open-recipe">
-        <Ionicons name="calculator-outline" size={22} color={colors.ink} />
-      </TouchableOpacity>
-      {Platform.OS !== 'web' ? (
-        <TouchableOpacity style={styles.iconBtn} onPress={() => { haptics.tap(); setMode('recipeImport'); }} testID="open-recipe-import">
-          <Ionicons name="link-outline" size={22} color={colors.ink} />
-        </TouchableOpacity>
-      ) : null}
     </View>
+    {moreOpen ? (
+      <View style={styles.moreList}>
+        <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('meal'); }} testID="open-mealtext">
+          <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.ink} />
+          <Text style={styles.moreRowText}>{t('entry.describeMeal')}</Text>
+        </TouchableOpacity>
+        {Platform.OS !== 'web' ? (
+          <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); if (!cameraDenied) setScannerOpen(true); }} testID="open-barcode">
+            <Ionicons name="barcode-outline" size={20} color={colors.ink} />
+            <Text style={styles.moreRowText}>{t('entry.scanBarcode')}</Text>
+          </TouchableOpacity>
+        ) : null}
+        <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('recipe'); }} testID="open-recipe">
+          <Ionicons name="calculator-outline" size={20} color={colors.ink} />
+          <Text style={styles.moreRowText}>{t('entry.recipeBuilder')}</Text>
+        </TouchableOpacity>
+        {Platform.OS !== 'web' ? (
+          <TouchableOpacity style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('recipeImport'); }} testID="open-recipe-import">
+            <Ionicons name="link-outline" size={20} color={colors.ink} />
+            <Text style={styles.moreRowText}>{t('entry.importRecipe')}</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    ) : null}
     {cameraDenied ? (
       <View style={styles.camDenied}>
         <Text style={styles.camDeniedText}>{t('barcode.permNeeded')}</Text>
@@ -769,6 +801,16 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
   },
+  primaryBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, paddingVertical: space.sm, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card },
+  primaryBtnText: { fontSize: font.small, fontWeight: '600', color: colors.ink },
+  moreList: { marginTop: space.xs, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, overflow: 'hidden' },
+  moreRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.md, paddingHorizontal: space.md },
+  moreRowText: { fontSize: font.body, color: colors.ink },
+  presetStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  presetChip: { flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingVertical: space.sm, paddingHorizontal: space.md, borderRadius: radius.pill, backgroundColor: colors.ink },
+  presetName: { fontSize: font.small, fontWeight: '600', color: colors.onInk, maxWidth: 150 },
+  presetKcal: { fontSize: font.tiny, color: colors.onInk, opacity: 0.7 },
+  rowTag: { fontSize: font.tiny, color: colors.muted, marginRight: space.sm },
   rowName: { fontSize: font.body, color: colors.ink, fontWeight: '600', flex: 1, marginRight: space.md },
   rowKcal: { fontSize: font.body, color: colors.muted, fontWeight: '700' },
   rowRemove: { fontSize: font.body, color: colors.danger, fontWeight: '700' },

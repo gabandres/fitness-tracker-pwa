@@ -17,6 +17,7 @@ import {
   customFoodDocId,
   dailyTargets,
   localDateKey,
+  slotForTime,
   summarizeDay,
 } from '@macrolog/core';
 import { useSubscription } from '@/lib/subscription';
@@ -154,12 +155,16 @@ export function useToday(): TodayState {
   // Distinct recent meals for one-tap re-logging. Mirrors the PWA's
   // FitnessStore.recentEntries: walk newest-first, dedupe case-insensitively
   // by label, skip empty (weight-only / training-marker) rows and any the
-  // user suppressed via `hiddenRecentLabels`, cap at 5. `logs` is oldest-first.
+  // user suppressed via `hiddenRecentLabels`. `logs` is oldest-first.
+  //
+  // Cap raised 5 -> 12 (2026-08-08): recents used to be one of four competing
+  // sections in the add sheet, so a short list was mercy. It is now the single
+  // ranked list that sheet opens on, and 5 was leaving the surface empty-looking.
   const recentEntries = useMemo(() => {
     const hidden = new Set((profile?.hiddenRecentLabels ?? []).map((l) => l.toLowerCase()));
     const seen = new Set<string>();
     const out: DailyLog[] = [];
-    for (let i = logs.length - 1; i >= 0 && out.length < 5; i--) {
+    for (let i = logs.length - 1; i >= 0 && out.length < 12; i--) {
       const label = logs[i].mealLabel?.trim();
       if (!label) continue;
       const key = label.toLowerCase();
@@ -217,9 +222,26 @@ export function useToday(): TodayState {
     return yLogs.length;
   }, [uid, logs]);
 
+  /**
+   * Add one entry, defaulting its meal slot from the clock.
+   *
+   * The default lives HERE rather than in each form because every add surface
+   * left `mealType` undefined and every one of them therefore filed into
+   * `other` — the manual sheet, photo scan, meal-text and in-app quick add
+   * alike. One place means they cannot drift, and an explicit choice from any
+   * of them still wins (`entry.mealType` is only filled when absent).
+   *
+   * `other` stays reachable in the diary for rows that genuinely have no slot;
+   * it just stops being where entries land by accident. See
+   * `slotForTime` for why the bands are shaped the way they are.
+   */
   const addEntry = useCallback(
-    async (entry: LogEntry) => {
+    async (raw: LogEntry) => {
       if (!uid) return;
+      const entry: LogEntry =
+        raw.mealType == null
+          ? { ...raw, mealType: slotForTime(raw.timestamp ?? new Date()) }
+          : raw;
       await addLogDoc(uid, entry);
       // Mirror the meal's macros to Health (skip weight-only / marker rows).
       if (entry.calories > 0) {

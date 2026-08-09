@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureAndShare } from '@/lib/shareCapture';
@@ -89,6 +89,38 @@ export default function Today() {
   // rather than reacts, because iOS ends an Activity at 8 hours and the user can
   // swipe it away — see the hook. iOS-only; a no-op everywhere else.
   useFastActivity(fastStartedAt);
+
+  /**
+   * Long-press a logged entry to promote it to a quick-add preset.
+   *
+   * Confirms first, because a preset is not a private note: slot 1 is what the
+   * home-screen widget button and the Quick Settings tile fire, so creating one
+   * silently would change what a blind tap on another surface logs.
+   */
+  const savePresetFromLog = useCallback(
+    (log: DailyLog) => {
+      const name = log.mealLabel?.trim();
+      if (!name) return;
+      haptics.tap();
+      Alert.alert(t('today.savePresetTitle'), t('today.savePresetBody', { name }), [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('entry.savePresetShort'),
+          onPress: () => {
+            void addPreset({
+              name,
+              calories: log.calories,
+              protein: log.protein ?? 0,
+              carbs: log.carbs ?? 0,
+              fat: log.fat ?? 0,
+            });
+            haptics.success();
+          },
+        },
+      ]);
+    },
+    [addPreset, t],
+  );
 
   // The tab bar's Log button navigates here with a fresh `openAdd` nonce —
   // each new value opens the add sheet (see AppTabBar in the tab layout).
@@ -263,7 +295,7 @@ export default function Today() {
               </PressScale>
             </Animated.View>
           ) : (
-            <MealEntries logs={todayLogs} onPress={openEdit} />
+            <MealEntries logs={todayLogs} onPress={openEdit} onSavePreset={savePresetFromLog} />
           )}
           <View style={{ height: 96 }} />
         </ScrollView>
