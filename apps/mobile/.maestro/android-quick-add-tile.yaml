@@ -24,7 +24,13 @@ appId: fit.ignia.app
 - tapOn:
     id: 'settings-open'
 
-- assertVisible: 'Quick add'
+# Settings is a long scroll and Quick add sits well below the fold, so it must
+# be scrolled to rather than asserted on directly.
+- scrollUntilVisible:
+    element:
+      text: 'Quick add'
+    direction: DOWN
+    timeout: 20000
 
 # Designate the first preset. `quick-add-<presetId>` is the row's testID, and
 # the id is a Firestore doc id, so the index selector is the only stable way in.
