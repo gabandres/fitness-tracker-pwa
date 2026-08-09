@@ -91,6 +91,26 @@ function verifyIpa(path) {
       }
     }
 
+    // 2b. URL schemes. The iPhone widget's face tap is `ignia://?openAdd=1`,
+    //     and build 29's "de-duplication" of the explicit CFBundleURLTypes
+    //     deleted the `ignia` entry — the explicit infoPlist array REPLACES the
+    //     one Expo generates from `scheme`, so every build from 29 to 40
+    //     shipped with a widget face that opens nothing. Found by the Maestro
+    //     regression suite failing to openLink on the simulator.
+    let urlTypes = '';
+    try {
+      urlTypes = sh('/usr/libexec/PlistBuddy', ['-c', 'Print :CFBundleURLTypes', plist]);
+    } catch {
+      /* handled below as missing schemes */
+    }
+    const schemeLines = urlTypes.split(String.fromCharCode(10)).map((l) => l.trim());
+    for (const scheme of EXPECT.ios.requiredUrlSchemes ?? []) {
+      // Whole-line equality, NOT includes(): "ignia" is a substring of
+      // "fit.ignia.app", and the first version of this check passed a binary
+      // that provably could not open ignia:// because of exactly that.
+      if (schemeLines.includes(scheme)) ok(`URL scheme ${scheme}`);
+      else bad(`URL scheme ${scheme}`, 'NOT REGISTERED — widget/tile deep links open nothing');
+    }
     // 3. Localised resources. Build 34 shipped one .lproj and dropped the other,
     //    exit 0, no warning, Spanish phrases simply absent.
     for (const lproj of EXPECT.ios.requiredLproj) {

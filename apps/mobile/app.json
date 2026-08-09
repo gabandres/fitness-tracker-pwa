@@ -25,7 +25,8 @@
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
-              "fit.ignia.app"
+              "fit.ignia.app",
+              "ignia"
             ]
           }
         ],

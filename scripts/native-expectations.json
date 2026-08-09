@@ -16,13 +16,20 @@
       "NSHealthUpdateUsageDescription",
       "CFBundleLocalizations"
     ],
-    "requiredLproj": ["en.lproj", "es-PR.lproj"],
+    "requiredLproj": [
+      "en.lproj",
+      "es-PR.lproj"
+    ],
     "requiredEntitlements": {
       "PlugIns/Today.appex": [
         "com.apple.security.application-groups",
         "keychain-access-groups"
       ]
-    }
+    },
+    "requiredUrlSchemes": [
+      "ignia",
+      "fit.ignia.app"
+    ]
   },
   "android": {
     "signerCN": "CN=Macro Log Dev",

@@ -12,6 +12,10 @@ appId: fit.ignia.app
     clearState: false
 - assertVisible: 'Today'
 - openLink: 'ignia://?openAdd=${NONCE}'
+# iOS asks "Open in Ignia?" for a custom scheme fired from outside the app.
+- tapOn:
+    text: 'Open'
+    optional: true
 - extendedWaitUntil:
     visible: 'More ways'
     timeout: 15000
