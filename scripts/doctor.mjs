@@ -640,8 +640,11 @@ const MAX_SECRET_VERSIONS = 6;
 /**
  * Active versions this project has DECIDED to carry over the free tier.
  *
- * The free tier is 6 and the honest floor is 8, audited 2026-08-09: every
- * secret holds exactly one live version and each is bound to something real —
+ * The free tier is 6 and the honest floor is 7, re-audited 2026-08-09 after
+ * `USDA_FDC_API_KEY` was retired (nothing had read it since ADR-0018 bundled
+ * the database; the binding was stale config on `searchFoods` and
+ * `getFoodDetail`, and both booted fine without it). Every remaining secret
+ * holds exactly one live version and each is bound to something real —
  * the Apple trio is required for Sign in with Apple account deletion, Gemini
  * backs photo-scan + coach, Resend sends mail, and the two
  * `ext-firestore-stripe-payments-*` secrets belong to an ACTIVE extension the
@@ -657,7 +660,7 @@ const MAX_SECRET_VERSIONS = 6;
  * Lower this the day a secret is genuinely retired. Raising it should take an
  * argument, not a keystroke.
  */
-const ACCEPTED_SECRET_VERSIONS = 8;
+const ACCEPTED_SECRET_VERSIONS = 7;
 
 function checkSchedulerJobs() {
   const name = `Cloud Scheduler jobs <= ${MAX_SCHEDULER_JOBS}`;
