@@ -105,13 +105,35 @@ final class WatchReceiver: NSObject, ObservableObject, WCSessionDelegate {
   /// Polling rather than a continuation on purpose — this runs in a background
   /// wake with a short, unforgiving budget, and a bounded loop that always
   /// terminates is worth more here than an elegant one that can hang.
+  /// Set by `store()` on every successful ingest, so `ingest()` can tell a
+  /// delegate delivery that landed during its wait from one that never came.
+  private var storedDuringWake = false
+
   func ingest() async {
+    storedDuringWake = false
     start()
     for _ in 0..<20 {
       if WCSession.default.activationState == .activated { break }
       try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1s, so ≤2s total
     }
+    // The application-context queue exposes its latest value as a property, so
+    // it can be read outright.
     store(WCSession.default.receivedApplicationContext)
+
+    // The complication queue does NOT: `transferCurrentComplicationUserInfo`
+    // arrives only through `didReceiveUserInfo`, and this wake may have been
+    // caused by exactly that. The delegate is registered by `start()` above, so
+    // give it a bounded moment to fire before letting the system suspend us —
+    // returning immediately here is the same mistake that made the original
+    // background handler useless (see the note above), one queue over.
+    //
+    // Only waits when the read found nothing, so the common case costs nothing.
+    if !storedDuringWake {
+      for _ in 0..<20 {
+        if storedDuringWake { break }
+        try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1s, so ≤2s total
+      }
+    }
   }
 
   /// Store whatever arrived and reload. **No validation here, by design.**
@@ -124,6 +146,7 @@ final class WatchReceiver: NSObject, ObservableObject, WCSessionDelegate {
   /// (#39 §5).
   private func store(_ context: [String: Any]) {
     guard let json = context[Glance.contextKey] as? String else { return }
+    storedDuringWake = true
     let defaults = UserDefaults(suiteName: Glance.appGroup)
     defaults?.set(json, forKey: Glance.snapshotKey)
     // Force the write out before asking WidgetKit to re-read it. `synchronize()`
@@ -156,6 +179,21 @@ final class WatchReceiver: NSObject, ObservableObject, WCSessionDelegate {
 
   func session(_ session: WCSession, didReceiveApplicationContext context: [String: Any]) {
     store(context)
+  }
+
+  /// The complication queue's arrival point (2026-08-10).
+  ///
+  /// `transferCurrentComplicationUserInfo` on the phone lands **here**, not in
+  /// `didReceiveApplicationContext` — they are different queues. Without this
+  /// callback the phone's waking send is delivered and then dropped on the
+  /// floor, which is worse than not sending it: it spends one of the day's 50
+  /// transfers and a watch wake to achieve nothing.
+  ///
+  /// Same envelope, same `store()`, so there is still exactly one decode path
+  /// and one staleness guard. Whichever queue arrives first wins; the payload
+  /// is latest-wins, so a double delivery writes identical bytes twice.
+  func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
+    store(userInfo)
   }
 }
 

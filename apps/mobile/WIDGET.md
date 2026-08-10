@@ -102,11 +102,31 @@ and that hop is the whole design problem. **App Groups are per-device**, so the
 watch cannot read the container the phone writes. Decisions live on the #31 map
 (#33, #37, #38, #39, #40, #43, #44); this is the shape they landed on.
 
-- **Transport:** `WCSession.updateApplicationContext` and nothing else. Latest-
-  wins, $0, no auth. Reading Firestore on the watch is **structurally
-  unavailable** — Firebase's own platform matrix has a blank watchOS cell for
-  Cloud Firestore. WidgetKit push carries no payload. `sendMessage` does not
-  wake the counterpart.
+- **Transport: BOTH WatchConnectivity queues, since 2026-08-10.** $0, no auth.
+  Reading Firestore on the watch is **structurally unavailable** — Firebase's
+  own platform matrix has a blank watchOS cell for Cloud Firestore.
+  `sendMessage` does not wake the counterpart.
+  - `transferCurrentComplicationUserInfo` — the **waking** path, and the only
+    one Apple documents as reaching a watch app that is backgrounded or has
+    never been opened. Requires `isComplicationEnabled` (**false in the Smart
+    Stack**, true on a face) and is capped at **50/watch/day**
+    (`remainingComplicationUserInfoTransfers`). Arrives at
+    `session(_:didReceiveUserInfo:)`.
+  - `updateApplicationContext` — the **durable** path. Latest-wins, never
+    queues, and readable later as `receivedApplicationContext` by a watch app
+    that starts after delivery. Arrives at
+    `session(_:didReceiveApplicationContext:)`.
+  - Both carry the identical envelope into the same `store()`, so there is one
+    decode path and one staleness guard; a double delivery writes identical
+    bytes twice. The phone's `sameContext` dedupe gates both, which is what
+    protects the hard 50/day.
+  - **Why it is not `updateApplicationContext` alone any more.** That was the
+    whole transport until 2026-08-10 and it is why the face went stale: Apple
+    delivers it opportunistically and it does not reliably wake a sleeping
+    watch app. No wake → no App Group write → the complication has nothing new,
+    and the hourly re-ask in its timeline cannot help because it re-reads the
+    same container. WidgetKit push carries no payload, so it is not a
+    substitute either.
 - **The payload is a one-key envelope** carrying the *already-serialized*
   snapshot JSON, byte-identical to what `ExtensionStorage` writes. Sending the
   eight fields as a native dictionary would have created a second decode path in
