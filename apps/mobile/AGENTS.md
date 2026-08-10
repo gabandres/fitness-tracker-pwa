@@ -148,6 +148,14 @@ consumed by three Gradle failures (unset `ANDROID_HOME`, a missing
 resolved through the wrong class). iOS **build 26** does not exist either, for the
 same reason — one Swift failure, described below.
 
+**iOS build 43 does not exist** (2026-08-10). A **local** build on `ignia-mac`,
+killed at *Run fastlane* by `watchOS 26.5 must be installed in order to archive
+the scheme` — the watchOS simulator runtime had been deleted hours earlier during
+a disk sweep, on the wrong reasoning that the SDK surviving in Xcode.app was
+enough. The scheme embeds `IgniaWatch.app` and archiving needs the platform.
+`DEV_ENVIRONMENT.md` §3.10 now carries the corrected rule and the two checks that
+falsely look authoritative.
+
 **iOS build 42 does not exist** (2026-08-10). An EAS **cloud** build, queued only
 because `ignia-mac` was offline, errored ~2 minutes in at *Configure expo-updates*
 — before any Swift compiled, so it is evidence about the cloud worker and not

@@ -574,19 +574,39 @@ What was reclaimed, 4.0 GB → **20 GB**, none of it personal data:
 
 | Freed | What | Reversible by |
 |---|---|---|
-| ~8 GB | the **watchOS** simulator runtime (`simctl runtime delete`) | `xcodebuild -downloadPlatform watchOS` |
 | 5.6 GB | `/Library/Developer/CoreSimulator/Caches/dyld` | regenerates |
 | ~5 GB | all simulator **devices** (`simctl delete all`) | `simctl create`, or Xcode on next launch |
 | 1.0 GB | `~/Library/Developer/Xcode/Archives/*` | the `.ipa`/`.aab` are the artifacts, not these |
 | ~0.9 GB | CocoaPods / node-gyp / Homebrew / npm caches | re-download |
 
-**Deleting the watchOS simulator runtime does NOT break the archive**, despite the
-`watchOS 26.5 must be installed in order to archive the scheme` failure documented
-above: that error is about the **platform**, and the platform SDK lives in
-Xcode.app. Verified after the deletion — `xcodebuild -showsdks` still lists both
-watchOS SDKs and `xcodebuild -showdestinations -scheme Ignia` still resolves
-`Any iOS Device` with no `not installed` line. Re-check those two before concluding
-a build failure is disk-related.
+**DO NOT delete the watchOS simulator runtime. It is REQUIRED to archive.**
+`simctl runtime delete` on watchOS frees ~8 GB and then the next iOS build dies
+at *Run fastlane* with the exact error §3.10 already documents:
+
+```
+xcodebuild: error: Failed to build workspace Ignia with scheme Ignia.:
+  This scheme builds an embedded Apple Watch app.
+  watchOS 26.5 must be installed in order to archive the scheme
+```
+
+The scheme embeds `IgniaWatch.app`, so archiving needs the **watchOS platform**,
+and the runtime image is part of it. Recover with
+`sudo xcodebuild -downloadPlatform watchOS` (~4 GB download, ~8 GB installed).
+
+**Two checks that look authoritative here and are NOT.** This was deleted on
+2026-08-10 on the strength of both, and it cost build 43:
+
+- `xcodebuild -showsdks` still lists **both** watchOS SDKs afterwards. The SDK
+  headers live in Xcode.app and survive; the archive needs the platform, which
+  does not.
+- `xcodebuild -showdestinations -scheme Ignia` still resolves `Any iOS Device`
+  with no `not installed` line. It reports the *iOS* destination and says
+  nothing about the embedded watch target.
+
+**The check that IS authoritative is the one §3.10 already gave**, one platform
+over: `xcrun simctl list runtimes` must list **watchOS as well as iOS**. Two
+runtimes, not one. If watchOS is missing, the iOS archive will fail no matter
+what the SDK list says.
 
 **Do NOT delete `apps/mobile/ios/`** to save its ~480 MB. `ios` is a **fingerprint
 source** (it appears in `sources` as a `dir`), so removing it moves the runtime
