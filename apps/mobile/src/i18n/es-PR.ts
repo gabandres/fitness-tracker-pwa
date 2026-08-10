@@ -139,7 +139,7 @@ export const esPR: Record<I18nKey, string> = {
   'today.loadErr': 'No se pudieron cargar tus datos. Desliza para reintentar.',
   'today.entry': 'Registro',
   'whatsNew.title': 'Novedades',
-  'whatsNew.body': 'Registra sin abrir Ignia. Escoge hasta 3 preajustes en Ajustes → Registro rápido y regístralos desde tu widget — desde Ajustes rápidos en Android, o pidiéndoselo a Siri en iPhone. Lo que toques sin conexión se guarda y entra cuando abras la app, en el día que lo tocaste.',
+  'whatsNew.body': 'Añadir una comida a un día anterior ahora la archiva en la comida correcta — desayuno, almuerzo, cena o merienda, según la hora para la que la registraste — en vez de caer en Otro. Esas entradas también llegan a Apple Health, en el día que les toca.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',

@@ -137,7 +137,7 @@ export const en = {
   'today.loadErr': "Couldn't load your data. Pull to retry.",
   'today.entry': 'Entry',
   'whatsNew.title': "What's new",
-  'whatsNew.body': 'Log without opening Ignia. Pick up to 3 presets in Settings → Quick add, then log one straight from your home-screen widget — from Quick Settings on Android, or by asking Siri on iPhone. A tap made offline lands the moment you next open the app, on the day you tapped it.',
+  'whatsNew.body': 'Adding a meal to an earlier day now files it under the right meal — breakfast, lunch, dinner or snack, by the time you logged it for — instead of landing in Other. Those entries reach Apple Health too, on the day they belong to.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',
