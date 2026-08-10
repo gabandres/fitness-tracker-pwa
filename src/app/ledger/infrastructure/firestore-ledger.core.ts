@@ -70,7 +70,6 @@ import {
   toWorkoutExercise,
   toWorkoutTemplate,
   toWorkoutSession,
-  withDefaultMealSlot,
   type DocCodec,
 } from '@macrolog/core';
 
@@ -177,14 +176,23 @@ export class FirestoreLedgerCore {
   /**
    * Add one log row.
    *
-   * The meal-slot default is applied HERE, at the one call every add surface
-   * passes through, rather than in each form — see `withDefaultMealSlot`. An
-   * explicit `mealType` always wins and marker rows (exercise, weight) are
-   * left untagged. The Expo ledger's `addLog` does the same, so a meal logged
-   * on either app files into the same slot.
+   * **No meal-slot default here, and that asymmetry with the Expo ledger is
+   * deliberate.** The web already defaults the slot one layer up, in the entry
+   * form (`EntryFormManager` → `defaultMealTypeForHour`), which pre-selects a
+   * chip the user can then *deselect* to mean "this meal has no slot". That
+   * intent is erased before it reaches here — `parseMealDraft` drops a null
+   * `mealType` rather than forwarding it — so a write-path default cannot tell
+   * "the caller forgot" from "the user said no", and applying one silently
+   * overrode every deliberate deselection. Measured in a browser against the
+   * emulator on 2026-08-10: deselecting the chip at 11:36 still wrote
+   * `mealType: 'lunch'`.
+   *
+   * Mobile has no such affordance — its chips start unset and it has defaulted
+   * at the write since the slot feature shipped — so `withDefaultMealSlot`
+   * stays in the Expo ledger, where it is what makes History match Today.
    */
   async addLog(entry: LogEntry): Promise<string> {
-    return this.createIn('dailyLogs', toLogDoc(withDefaultMealSlot(entry, new Date()), CODEC));
+    return this.createIn('dailyLogs', toLogDoc(entry, CODEC));
   }
 
   /** Latest `count` rows, returned OLDEST-FIRST (the underlying query is

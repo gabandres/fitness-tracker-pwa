@@ -1,5 +1,5 @@
 import { Injectable, computed, signal } from '@angular/core';
-import { clampSleepHours, clampWaterFlOz, withDefaultMealSlot } from '@macrolog/core';
+import { clampSleepHours, clampWaterFlOz } from '@macrolog/core';
 import type { LedgerPort } from '../ports/ledger.port';
 import type {
   Exercise,
@@ -214,10 +214,10 @@ export class InMemoryLedgerAdapter implements LedgerPort {
     };
   }
 
-  async addLog(raw: LogEntry): Promise<string> {
-    // Same slot default the Firestore adapter applies, or this adapter would
-    // disagree with prod on the one field the diary groups by.
-    const entry = withDefaultMealSlot(raw, new Date());
+  async addLog(entry: LogEntry): Promise<string> {
+    // Stores `mealType` exactly as given — no slot default, mirroring
+    // FirestoreLedgerCore.addLog, whose header explains why the web must not
+    // invent one.
     const id = `log-${++this.logSeq}`;
     this.logs.set(id, {
       id,

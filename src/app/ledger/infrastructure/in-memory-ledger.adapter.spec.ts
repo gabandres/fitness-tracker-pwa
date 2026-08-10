@@ -146,6 +146,28 @@ describe.each(ADAPTERS)('LedgerPort contract — %s', (_label, configure) => {
       expect(await port.getRecentLogs()).toEqual([]);
     });
 
+    it('never invents a mealType — an absent slot stays absent', async () => {
+      // The web models "this meal has no slot" as an ABSENT mealType: the entry
+      // form pre-selects a chip from the clock (`defaultMealTypeForHour`) and
+      // deselecting it is how a user asks for the diary's "Other" bucket. By
+      // the time a draft reaches the port that intent looks identical to a
+      // caller that simply never set the field, so the write path must not
+      // default it — doing so shipped on 2026-08-10 and silently overrode
+      // every deliberate deselection until a browser check caught it.
+      await port.addLog({ calories: 400, timestamp: new Date('2026-08-10T15:36:00Z') });
+      const [entry] = await port.getRecentLogs();
+      expect(entry.mealType).toBeUndefined();
+    });
+
+    it('preserves an explicitly chosen mealType', async () => {
+      await port.addLog({
+        calories: 400,
+        mealType: 'dinner',
+        timestamp: new Date('2026-08-10T15:36:00Z'),
+      });
+      expect((await port.getRecentLogs())[0].mealType).toBe('dinner');
+    });
+
     it('updateLog rejects on unknown id, matching Firestore updateDoc', async () => {
       await expect(port.updateLog('nope', { calories: 10 })).rejects.toThrow();
     });

@@ -20,16 +20,23 @@ than one place, and the copies drifted.
 - **Those back-dated meals reach Apple Health too.** Same copy, same gap: the
   History add path never mirrored its macros across. It does now, on the day the
   meal belongs to.
-- **The website files meals into slots at all.** The web app never had the rule
-  in any form; every meal logged at ignia.fit went to **Other**. It now behaves
-  exactly like the phone app, because both read the same rule instead of each
-  keeping a copy.
 - **"Top set" on the web now means a real top set.** It was counting your
   heaviest warm-up. The phone app was already right; the two numbers no longer
   disagree.
 
 Nothing already logged changed. Existing **Other** entries stay where they are —
 they are not silently reassigned.
+
+**Correction, same day.** An earlier version of this entry claimed the website
+had no meal-slot rule at all. That was wrong — the web has defaulted the slot in
+the entry form since long before this change, and the claim came from grepping
+for the phone app's function name and finding nothing. Worse, the fix built on
+that wrong reading briefly **broke** the web: deselecting the meal chip is how
+you ask for **Other**, and for a few hours the app overrode that and filed the
+entry by the clock anyway. Caught in a browser, fixed, and re-deployed the same
+day; the web now leaves a deselected slot alone, exactly as it did before. No
+entry needs correcting — a wrongly-slotted row can be re-tapped to any slot,
+including Other.
 
 ## 2026-08-09 — Say what you ate, and a much calmer Add screen (1.2.0 — build 40 / vc 27)
 
