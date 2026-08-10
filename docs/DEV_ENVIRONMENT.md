@@ -543,6 +543,63 @@ after the previous was fixed, so expect to fix them in this order:
 **Budget ~18 GB of disk for the two downloads plus an archive.** Measured: 45 GB free
 → 27 GB after both platforms and one successful build.
 
+#### When the Air runs out of disk — where it actually goes (2026-08-10)
+
+The Air reached **4.0 GB free**, which blocks both platforms (Android's §3.11 wants
+20 GB, iOS wants ~17). It cost `vc 28`, which died mid-CMake on
+`No space left on device`. Measure before deleting anything; three of the four
+obvious answers are wrong here.
+
+**`df -h /` is not the number you want.** `/` is the sealed System snapshot
+(`disk3s1s1`) and reports ~12 GB used against a 228 GB size, which reads like the
+disk is nearly empty. The real volume is the Data one, and both draw on the same
+APFS container:
+
+```sh
+df -h /System/Volumes/Data          # the number that matters
+diskutil apfs list | grep -A2 'Capacity'
+```
+
+**The most-recommended fix on the internet does not apply.** Purgeable space held
+by Time Machine local snapshots is the usual culprit, and there are none here —
+`tmutil listlocalsnapshots /` and `… /System/Volumes/Data` both return empty, so
+`tmutil thinlocalsnapshots` has nothing to thin. The space is genuinely used.
+
+**Where it actually is** — `/Library/Developer/CoreSimulator` was **30 GB** against
+11.6 GB of live runtime images. `Volumes/` are **mounted read-only APFS volumes**
+(`mount | grep -i coresim`), so `rm -rf` on them frees nothing; the supported
+removal is `xcrun simctl runtime delete <id>`.
+
+What was reclaimed, 4.0 GB → **20 GB**, none of it personal data:
+
+| Freed | What | Reversible by |
+|---|---|---|
+| ~8 GB | the **watchOS** simulator runtime (`simctl runtime delete`) | `xcodebuild -downloadPlatform watchOS` |
+| 5.6 GB | `/Library/Developer/CoreSimulator/Caches/dyld` | regenerates |
+| ~5 GB | all simulator **devices** (`simctl delete all`) | `simctl create`, or Xcode on next launch |
+| 1.0 GB | `~/Library/Developer/Xcode/Archives/*` | the `.ipa`/`.aab` are the artifacts, not these |
+| ~0.9 GB | CocoaPods / node-gyp / Homebrew / npm caches | re-download |
+
+**Deleting the watchOS simulator runtime does NOT break the archive**, despite the
+`watchOS 26.5 must be installed in order to archive the scheme` failure documented
+above: that error is about the **platform**, and the platform SDK lives in
+Xcode.app. Verified after the deletion — `xcodebuild -showsdks` still lists both
+watchOS SDKs and `xcodebuild -showdestinations -scheme Ignia` still resolves
+`Any iOS Device` with no `not installed` line. Re-check those two before concluding
+a build failure is disk-related.
+
+**Do NOT delete `apps/mobile/ios/`** to save its ~480 MB. `ios` is a **fingerprint
+source** (it appears in `sources` as a `dir`), so removing it moves the runtime
+version and strands every OTA. Verified after this cleanup that both fingerprints
+were byte-identical to the shipped artifacts (`1d89fedf…` / `ca2dc124…`).
+
+**What is left and what it costs.** Below the caches, the remaining large items are
+`~/Library/Android` (8.2 GB) and `~/.gradle` (5.5 GB) — both needed by §3.11, both
+re-downloadable at the price of a much slower next Android build — and then the
+machine owner's own data (Pictures 12 GB, Messages 6.4 GB, Movies 5.4 GB). **That
+last group is not ours to touch**; if 20 GB stops being enough, the honest options
+are to sacrifice the Gradle caches or to ask the owner.
+
 **`--local` does NOT hit the ASC 401.** `CLAUDE.local.md` documents
 `eas build -p ios --non-interactive` failing credential validation against EAS's own
 stored App Store Connect key, needing `EXPO_ASC_KEY_PATH` / `EXPO_ASC_KEY_ID` /
