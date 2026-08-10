@@ -148,6 +148,17 @@ consumed by three Gradle failures (unset `ANDROID_HOME`, a missing
 resolved through the wrong class). iOS **build 26** does not exist either, for the
 same reason — one Swift failure, described below.
 
+**iOS build 42 does not exist** (2026-08-10). An EAS **cloud** build, queued only
+because `ignia-mac` was offline, errored ~2 minutes in at *Configure expo-updates*
+— before any Swift compiled, so it is evidence about the cloud worker and not
+about the commit. Two things worth keeping from it: the `EXPO_ASC_*` override in
+`CLAUDE.local.md` **works** (all four targets printed *All credentials are ready
+to build*, no 401), and the build reported runtime version `721f39e507ba…`, which
+is neither the Mac's `1d89fedf…` nor the Windows workstation's — **the EAS worker
+is a third machine with a third fingerprint**, so a cloud artifact would have
+shipped under a runtime no installed binary matches even had it succeeded. Build
+locally.
+
 **An App Shortcut may not carry a REQUIRED parameter, and breaking that rule
 registers nothing at all.** iOS validates `AppShortcutsProvider` on the device at
 registration time, reports nothing when it fails, and one invalid shortcut
