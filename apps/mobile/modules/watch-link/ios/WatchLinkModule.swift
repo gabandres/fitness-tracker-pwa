@@ -133,7 +133,10 @@ private final class WatchLinkSession: NSObject, WCSessionDelegate {
     // 1. The waking path. Skipped when the complication is not on a face, or
     //    when the day's 50 are spent — in both cases (2) still runs.
     if session.isComplicationEnabled, session.remainingComplicationUserInfoTransfers > 0 {
-      session.transferCurrentComplicationUserInfo(record)
+      // Returns a `WCSessionUserInfoTransfer` handle for cancellation. Nothing
+      // here cancels — the payload is latest-wins and the next assert supersedes
+      // it — so the result is explicitly discarded rather than left to warn.
+      _ = session.transferCurrentComplicationUserInfo(record)
       handedOff = true
     }
 
