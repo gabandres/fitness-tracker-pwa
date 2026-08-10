@@ -1,35 +1,28 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { trackSubs } from '@/lib/sub-debug';
-import { exportDaily, exportNutrition } from '@/lib/health-sync';
+import { exportDaily } from '@/lib/health-sync';
 import {
   type CustomFood,
   type DailyLog,
   type DailyTargets,
   type DaySummary,
-  type LogEntry,
   type MealPreset,
   type Profile,
   type ShareStats,
   STREAK_FREEZE_MAX_GAP_PRO,
   computeStreak,
   currentWeight as coreCurrentWeight,
-  customFoodDocId,
   dailyTargets,
   localDateKey,
-  slotForTime,
   summarizeDay,
 } from '@macrolog/core';
 import { useSubscription } from '@/lib/subscription';
 import { useAuth } from '@/lib/auth';
+import { type LogWrites, useLogWrites } from '@/hooks/useLogWrites';
 import {
-  addCustomFood as addCustomFoodDoc,
   addLog as addLogDoc,
-  addPreset as addPresetDoc,
   breakFast as breakFastDoc,
-  deleteCustomFood as deleteCustomFoodDoc,
-  deleteLog as deleteLogDoc,
-  deletePreset as deletePresetDoc,
   setDailySleep,
   setDailyWater,
   setHiddenRecentLabels,
@@ -42,14 +35,15 @@ import {
   subscribePresets,
   subscribeProfile,
   subscribeRecentLogs,
-  updateLog as updateLogDoc,
   type DailyActivity,
 } from '@/lib/ledger';
 
 // Generous window so measured-mode TDEE (≥14 distinct days) can engage.
 const LOG_WINDOW = 400;
 
-export interface TodayState {
+/** Reads are this hook's own (ADR-0016); the writes are the shared set every
+ *  logging surface uses — see `useLogWrites`. */
+export interface TodayState extends LogWrites {
   loading: boolean;
   error: Error | null;
   summary: DaySummary;
@@ -61,17 +55,8 @@ export interface TodayState {
   /** Distinct recent meals (deduped by label, newest first, capped at 5,
    *  minus the user's hidden labels) for one-tap re-logging. */
   recentEntries: DailyLog[];
-  addEntry: (entry: LogEntry) => Promise<void>;
-  updateEntry: (id: string, entry: LogEntry) => Promise<void>;
-  deleteEntry: (id: string) => Promise<void>;
-  addPreset: (preset: Omit<MealPreset, 'id'>) => Promise<void>;
-  deletePreset: (id: string) => Promise<void>;
   /** User's saved food library (My Foods, ADR-0013). */
   customFoods: CustomFood[];
-  /** Save a food to the library. Barcode-sourced foods de-dup at their
-   *  barcode doc id via `customFoodDocId`; others auto-id. */
-  addCustomFood: (food: Omit<CustomFood, 'id'>) => Promise<void>;
-  deleteCustomFood: (id: string) => Promise<void>;
   /** Suppress a label from the recents row (does NOT delete log rows). */
   hideRecent: (label: string) => Promise<void>;
   /** Portion-display preference for the food-search serving sort. */
@@ -222,76 +207,11 @@ export function useToday(): TodayState {
     return yLogs.length;
   }, [uid, logs]);
 
-  /**
-   * Add one entry, defaulting its meal slot from the clock.
-   *
-   * The default lives HERE rather than in each form because every add surface
-   * left `mealType` undefined and every one of them therefore filed into
-   * `other` — the manual sheet, photo scan, meal-text and in-app quick add
-   * alike. One place means they cannot drift, and an explicit choice from any
-   * of them still wins (`entry.mealType` is only filled when absent).
-   *
-   * `other` stays reachable in the diary for rows that genuinely have no slot;
-   * it just stops being where entries land by accident. See
-   * `slotForTime` for why the bands are shaped the way they are.
-   */
-  const addEntry = useCallback(
-    async (raw: LogEntry) => {
-      if (!uid) return;
-      const entry: LogEntry =
-        raw.mealType == null
-          ? { ...raw, mealType: slotForTime(raw.timestamp ?? new Date()) }
-          : raw;
-      await addLogDoc(uid, entry);
-      // Mirror the meal's macros to Health (skip weight-only / marker rows).
-      if (entry.calories > 0) {
-        void exportNutrition({
-          at: entry.timestamp ?? new Date(),
-          kcal: entry.calories,
-          protein: entry.protein,
-          carbs: entry.carbs,
-          fat: entry.fat,
-        });
-      }
-    },
-    [uid],
-  );
-  const updateEntry = useCallback(
-    async (id: string, entry: LogEntry) => {
-      if (uid) await updateLogDoc(uid, id, entry);
-    },
-    [uid],
-  );
-  const deleteEntry = useCallback(
-    async (id: string) => {
-      if (uid) await deleteLogDoc(uid, id);
-    },
-    [uid],
-  );
-  const addPreset = useCallback(
-    async (preset: Omit<MealPreset, 'id'>) => {
-      if (uid) await addPresetDoc(uid, preset);
-    },
-    [uid],
-  );
-  const deletePreset = useCallback(
-    async (id: string) => {
-      if (uid) await deletePresetDoc(uid, id);
-    },
-    [uid],
-  );
-  const addCustomFood = useCallback(
-    async (food: Omit<CustomFood, 'id'>) => {
-      if (uid) await addCustomFoodDoc(uid, food, customFoodDocId(food));
-    },
-    [uid],
-  );
-  const deleteCustomFood = useCallback(
-    async (id: string) => {
-      if (uid) await deleteCustomFoodDoc(uid, id);
-    },
-    [uid],
-  );
+  // Every logging surface's writes, shared with History so the two cannot
+  // drift again (`useLogWrites`). The meal-slot default sits below even that,
+  // at the ledger write.
+  const writes = useLogWrites();
+
   const hideRecent = useCallback(
     async (label: string) => {
       const norm = label.trim().toLowerCase();
@@ -333,14 +253,8 @@ export function useToday(): TodayState {
     todayLogs,
     presets,
     recentEntries,
-    addEntry,
-    updateEntry,
-    deleteEntry,
-    addPreset,
-    deletePreset,
     customFoods,
-    addCustomFood,
-    deleteCustomFood,
+    ...writes,
     hideRecent,
     unitSystem: profile?.unitSystem === 'metric' ? 'metric' : 'us',
     water: water[todayKey] ?? 0,

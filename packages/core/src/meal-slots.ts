@@ -1,4 +1,4 @@
-import type { DailyLog, MealType } from './types';
+import type { DailyLog, LogEntry, MealType } from './types';
 
 /** A diary slot: the four meal types plus `other` for untagged entries. */
 export type MealSlot = MealType | 'other';
@@ -72,4 +72,44 @@ export function slotForTime(at: Date): MealType {
   if (minutes < 17 * 60 + 30) return 'snack'; //     14:30 – 17:30
   if (minutes < 21 * 60 + 30) return 'dinner'; //    17:30 – 21:30
   return 'snack'; //                                 late night
+}
+
+/**
+ * Whether a row represents food the user ate — the only kind of row a diary
+ * slot means anything for.
+ *
+ * `dailyLogs` also carries two marker shapes: the 0-kcal `exerciseCompleted`
+ * row that makes a training day count toward the streak, and weight-bearing
+ * rows. Neither is a meal, and tagging them would file a workout under Lunch.
+ */
+export function isMealRow(entry: Pick<LogEntry, 'exerciseCompleted' | 'weight'>): boolean {
+  return entry.exerciseCompleted !== true && entry.weight == null;
+}
+
+/**
+ * Fill in `mealType` from the clock when the caller left it absent.
+ *
+ * ## Why the write path owns this
+ *
+ * The default used to sit in `useToday`'s add wrapper, one level above the
+ * ledger. `useHistory` has an add wrapper too — the day-detail sheet — and it
+ * never got the same line, so the identical meal filed into its slot when
+ * logged from Today and into `other` when logged from a past day. A default
+ * that every caller has to remember is not a default.
+ *
+ * It belongs at the write, which is the one point every in-app add surface
+ * passes through, and which no new surface can be written without touching.
+ *
+ * An explicit choice always wins: this only fills an ABSENT `mealType`. The
+ * widget/tile quick-add path deliberately does not come through here (see
+ * `quickAddEntry` — a preset tapped from a home screen carries no meal, and
+ * `addLogWithId` is its write).
+ *
+ * `at` is the fallback clock for an entry with no timestamp of its own; an
+ * entry that carries one is slotted by *its* time, which is what makes a
+ * back-dated add from History land correctly.
+ */
+export function withDefaultMealSlot(entry: LogEntry, at: Date): LogEntry {
+  if (entry.mealType != null || !isMealRow(entry)) return entry;
+  return { ...entry, mealType: slotForTime(entry.timestamp ?? at) };
 }

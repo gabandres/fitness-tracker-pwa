@@ -28,7 +28,7 @@ import type {
   WorkoutSet,
   WorkoutTemplate,
 } from '@/lib/workout';
-import { DEFAULT_LOG_STYLE, isLoggedSet, sessionVolume } from '@/lib/workout';
+import { DEFAULT_LOG_STYLE, isLoggedSet } from '@/lib/workout';
 import {
   type SeedTemplate,
   STARTER_TEMPLATES,
@@ -42,8 +42,22 @@ import {
   computePlateLoad,
   generateWarmup,
   isWorkingSet,
-  metricForSet,
   suggestProgression,
+} from '@macrolog/core';
+// Train derivations — shared with the Angular Train tab so the two cannot
+// disagree about the same numbers (`@macrolog/core/train-view`).
+import {
+  bestE1RMByExercise,
+  exerciseHistory,
+  exerciseIsFullyDone,
+  exerciseSeries,
+  improvedExercises,
+  lastPerformed,
+  sessionCounts,
+  sessionVolume,
+  templateCounts,
+  trainHeroStats,
+  workingSetCells,
 } from '@macrolog/core';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { Sparkline } from '@/components/Sparkline';
@@ -56,44 +70,6 @@ import { useKeyboardSheetStyle } from '@/lib/use-keyboard-sheet-style';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
 import { formatDate } from '@/lib/date-format';
-
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-
-/** Idle-hero numbers: workouts + total volume logged in the last 7 days,
- *  plus the heaviest working set ever (the "top set" chip). */
-function trainHeroStats(sessions: WorkoutSession[]) {
-  const weekAgo = Date.now() - WEEK_MS;
-  let count = 0;
-  let volume = 0;
-  let topSet = 0;
-  for (const s of sessions) {
-    if (s.date.getTime() >= weekAgo) {
-      count += 1;
-      volume += sessionVolume(s);
-    }
-    for (const ex of s.exercises) {
-      const pr = computeExercisePRs([ex]);
-      if (pr.maxWeight > topSet) topSet = pr.maxWeight;
-    }
-  }
-  return { count, volume, topSet };
-}
-
-/** Best estimated-1RM per exercise across all sessions — the signature the PR
- *  celebration diffs against to detect a fresh personal record. */
-function bestE1RMByExercise(sessions: WorkoutSession[]): Record<string, number> {
-  const rows = new Map<string, SessionExercise[]>();
-  for (const s of sessions) {
-    for (const ex of s.exercises) {
-      const arr = rows.get(ex.exerciseId) ?? [];
-      arr.push(ex);
-      rows.set(ex.exerciseId, arr);
-    }
-  }
-  const out: Record<string, number> = {};
-  for (const [id, exRows] of rows) out[id] = computeExercisePRs(exRows).bestE1RM;
-  return out;
-}
 
 const LOG_STYLES: { value: LogStyle; labelKey: I18nKey }[] = [
   { value: 'weight-reps', labelKey: 'logStyle.weightReps' },
@@ -125,12 +101,9 @@ export default function Train() {
   useEffect(() => {
     if (train.loading) return;
     const prev = prevBest.current;
-    if (prev) {
-      const improved = Object.entries(bestByEx).some(([id, e1rm]) => e1rm > (prev[id] ?? 0));
-      if (improved) {
-        haptics.success();
-        triggerPrPulse();
-      }
+    if (prev && improvedExercises(prev, bestByEx).length > 0) {
+      haptics.success();
+      triggerPrPulse();
     }
     prevBest.current = bestByEx;
   }, [bestByEx, train.loading, triggerPrPulse]);
@@ -169,7 +142,10 @@ function StartView({
   const [editing, setEditing] = useState<WorkoutTemplate | Record<string, never> | null>(null);
   const [detailEx, setDetailEx] = useState<Exercise | null>(null);
   const [startersOpen, setStartersOpen] = useState(false);
-  const stats = useMemo(() => trainHeroStats(train.recentSessions), [train.recentSessions]);
+  const stats = useMemo(
+    () => trainHeroStats(train.recentSessions, Date.now()),
+    [train.recentSessions],
+  );
 
   return (
     <ScrollView contentContainerStyle={styles.body}>
@@ -403,33 +379,10 @@ function StarterTemplatesModal({
 }
 
 // ─── Per-exercise history + e1RM ────────────────────────────────
-/** One metric point per completed session for an exercise, oldest-first
- *  (for the sparkline). Metric by logStyle: e1RM (weight-reps), max reps
- *  (bodyweight), max hold (time). Sessions with no qualifying set drop out. */
-function exerciseSeries(history: SessionExercise[], style: LogStyle): number[] {
-  const pts: number[] = [];
-  for (const ex of history) {
-    let metric = 0;
-    for (const s of ex.sets) {
-      if (!isWorkingSet(s)) continue;
-      metric = Math.max(metric, metricForSet(s, style));
-    }
-    if (metric > 0) pts.push(Math.round(metric));
-  }
-  return pts.reverse(); // history is newest-first → oldest-first for the chart
-}
-
-/** Working-set summary line for one logged exercise, by logStyle. */
+/** Working-set summary line for one logged exercise, by logStyle. The cells
+ *  come from core; the separator is this app's spacing. */
 function setLine(ex: SessionExercise, style: LogStyle): string {
-  const parts = ex.sets
-    .filter(isWorkingSet)
-    .map((s) => {
-      if (style === 'time') return s.durationSec != null ? `${s.durationSec}s` : null;
-      if (style === 'bodyweight') return s.reps != null ? `${s.reps}` : null;
-      return s.weight != null && s.reps != null ? `${s.weight}×${s.reps}` : null;
-    })
-    .filter((p): p is string => p != null);
-  return parts.join('   ');
+  return workingSetCells(ex, style).join('   ');
 }
 
 function ExerciseDetailModal({
@@ -659,30 +612,20 @@ function PrCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Every set in the exercise is logged — drives the collapsed check badge and
- *  the "N of M done" session progress. */
-function exFullyDone(ex: SessionExercise): boolean {
-  const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
-  return ex.sets.length > 0 && ex.sets.every((s) => isLoggedSet(s, style));
+/** "3 exercises · 12 sets" from the counts core derived. Pluralization is
+ *  per-locale, which is why the counting and the wording are separate. */
+function countsLine({ exercises, sets }: { exercises: number; sets: number }, t: TFn): string {
+  const ex = `${exercises} ${exercises === 1 ? t('train.exerciseOne') : t('train.exerciseMany')}`;
+  const st = `${sets} ${sets === 1 ? t('train.setOne') : t('train.setMany')}`;
+  return `${ex} · ${st}`;
 }
 
 function sessionSummary(s: WorkoutSession, t: TFn): string {
-  const exCount = s.exercises.length;
-  const setCount = s.exercises.reduce(
-    (n, ex) => n + ex.sets.filter((set) => isLoggedSet(set, ex.logStyle ?? DEFAULT_LOG_STYLE)).length,
-    0,
-  );
-  const ex = `${exCount} ${exCount === 1 ? t('train.exerciseOne') : t('train.exerciseMany')}`;
-  const sets = `${setCount} ${setCount === 1 ? t('train.setOne') : t('train.setMany')}`;
-  return `${ex} · ${sets}`;
+  return countsLine(sessionCounts(s), t);
 }
 
 function templateSummary(tpl: WorkoutTemplate, t: TFn): string {
-  const exCount = tpl.exercises.length;
-  const setCount = tpl.exercises.reduce((n, ex) => n + ex.plannedSets.length, 0);
-  const ex = `${exCount} ${exCount === 1 ? t('train.exerciseOne') : t('train.exerciseMany')}`;
-  const sets = `${setCount} ${setCount === 1 ? t('train.setOne') : t('train.setMany')}`;
-  return `${ex} · ${sets}`;
+  return countsLine(templateCounts(tpl), t);
 }
 
 // ─── Active session logger ──────────────────────────────────────
@@ -696,10 +639,10 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
   // Accordion: one exercise expanded at a time so a 9-exercise session stays
   // scannable. Start on the first unfinished exercise.
   const [expanded, setExpanded] = useState<number | null>(() => {
-    const i = session.exercises.findIndex((ex) => !exFullyDone(ex));
+    const i = session.exercises.findIndex((ex) => !exerciseIsFullyDone(ex));
     return i >= 0 ? i : 0;
   });
-  const doneCount = session.exercises.filter(exFullyDone).length;
+  const doneCount = session.exercises.filter(exerciseIsFullyDone).length;
 
   // Rest duration comes from the source template (mini sets get the shorter
   // rest); ad-hoc sessions fall back to sensible defaults.
@@ -823,22 +766,15 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
   );
 }
 
-/** History rows for one exercise across recent completed sessions, newest
- *  first (recentSessions is already newest-first). */
-function exerciseHistory(recent: WorkoutSession[], exerciseId: string): SessionExercise[] {
-  const out: SessionExercise[] = [];
-  for (const s of recent) {
-    const match = s.exercises.find((e) => e.exerciseId === exerciseId);
-    if (match) out.push(match);
-  }
-  return out;
-}
-
+/** "Last: 135 × 8" — the ghost hint. Core picks which numbers matter for the
+ *  log style; this renders them in the user's language. */
 function lastHint(sug: ProgressionSuggestion, style: LogStyle, t: TFn): string | null {
-  if (style === 'time') return sug.lastDurationSec != null ? `${t('train.last')}: ${sug.lastDurationSec}s` : null;
-  if (style === 'bodyweight') return sug.lastReps != null ? `${t('train.last')}: ${sug.lastReps} ${t('train.reps')}` : null;
-  if (sug.lastWeight != null && sug.lastReps != null) return `${t('train.last')}: ${sug.lastWeight} × ${sug.lastReps}`;
-  return null;
+  const last = lastPerformed(sug, style);
+  if (!last) return null;
+  const prefix = `${t('train.last')}: `;
+  if (last.style === 'time') return `${prefix}${last.durationSec}s`;
+  if (last.style === 'bodyweight') return `${prefix}${last.reps} ${t('train.reps')}`;
+  return `${prefix}${last.weight} × ${last.reps}`;
 }
 
 function ExerciseCard({

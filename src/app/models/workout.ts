@@ -17,6 +17,7 @@
 // the other stored shapes.
 
 import { normalizeClusterGroups } from '../utils/cluster-groups';
+import { isLoggedSet as isLoggedSetCore } from '@macrolog/core/workout';
 
 export type MuscleGroup =
   | 'chest'
@@ -141,9 +142,10 @@ export interface WorkoutSet {
  *  Cluster scaffolding (activation + mini rows pre-created from the
  *  template's `plannedSets`) likewise has no count. `rir`/`done`/`weight`
  *  alone don't count as data. */
-export function isLoggedSet(s: WorkoutSet, logStyle: LogStyle = DEFAULT_LOG_STYLE): boolean {
-  return logStyle === 'time' ? s.durationSec != null : s.reps != null;
-}
+// One implementation, in core — the Expo model re-exports the same one. The
+// TYPES above stay local (core deliberately does not barrel its workout types,
+// or the `export *` shims in utils/ would clash with the ones declared here).
+export { isLoggedSet } from '@macrolog/core/workout';
 
 /** Drop unfilled scaffold sets from every exercise and re-derive cluster
  *  `group` numbers on what remains, so the persisted/exported sets are both
@@ -152,7 +154,7 @@ export function isLoggedSet(s: WorkoutSet, logStyle: LogStyle = DEFAULT_LOG_STYL
 export function dropEmptySets(exercises: SessionExercise[]): SessionExercise[] {
   return exercises.map((ex) => {
     const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
-    return { ...ex, sets: normalizeClusterGroups(ex.sets.filter((s) => isLoggedSet(s, style))) };
+    return { ...ex, sets: normalizeClusterGroups(ex.sets.filter((s) => isLoggedSetCore(s, style))) };
   });
 }
 

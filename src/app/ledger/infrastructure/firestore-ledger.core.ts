@@ -49,6 +49,9 @@ import {
   clampSleepHours,
   clampWaterFlOz,
   oldestFirst,
+  readSleepHours,
+  readWaterFlOz,
+  readWeightLb,
   toCustomFood,
   toCustomFoodDoc,
   toDailyLog,
@@ -67,6 +70,7 @@ import {
   toWorkoutExercise,
   toWorkoutTemplate,
   toWorkoutSession,
+  withDefaultMealSlot,
   type DocCodec,
 } from '@macrolog/core';
 
@@ -170,8 +174,17 @@ export class FirestoreLedgerCore {
 
   // ─── Daily logs ────────────────────────────────────────────────
 
+  /**
+   * Add one log row.
+   *
+   * The meal-slot default is applied HERE, at the one call every add surface
+   * passes through, rather than in each form — see `withDefaultMealSlot`. An
+   * explicit `mealType` always wins and marker rows (exercise, weight) are
+   * left untagged. The Expo ledger's `addLog` does the same, so a meal logged
+   * on either app files into the same slot.
+   */
   async addLog(entry: LogEntry): Promise<string> {
-    return this.createIn('dailyLogs', toLogDoc(entry, CODEC));
+    return this.createIn('dailyLogs', toLogDoc(withDefaultMealSlot(entry, new Date()), CODEC));
   }
 
   /** Latest `count` rows, returned OLDEST-FIRST (the underlying query is
@@ -219,8 +232,8 @@ export class FirestoreLedgerCore {
     const snap = await getDocs(this.userCollection('dailyWeights'));
     const weights: Record<string, number> = {};
     for (const d of snap.docs) {
-      const data = d.data() as { weight: number };
-      weights[d.id] = data.weight;
+      const w = readWeightLb(d.data());
+      if (w != null) weights[d.id] = w;
     }
     return weights;
   }
@@ -236,21 +249,15 @@ export class FirestoreLedgerCore {
   // { flOz }. Clamped at 676 fl oz (~5 gal, mirrored in rules) to catch
   // fat-finger entries that would otherwise pollute charts.
   //
-  // Legacy docs stored { ml } before the 2026-06 unit migration; reads
-  // fall back to converting ml→fl oz (1 fl oz = 29.5735 ml) so any doc
-  // the migration hasn't rewritten yet still renders correctly.
+  // Legacy docs stored { ml } before the 2026-06 unit migration; the shared
+  // reader falls back to converting ml→fl oz so any doc the migration hasn't
+  // rewritten yet still renders correctly (`@macrolog/core/daily-scalars` —
+  // the Expo ledger reads the same docs through the same function).
 
   async getDailyWater(): Promise<Record<string, number>> {
     const snap = await getDocs(this.userCollection('dailyWater'));
     const water: Record<string, number> = {};
-    for (const d of snap.docs) {
-      const data = d.data() as { flOz?: number; ml?: number };
-      water[d.id] = typeof data.flOz === 'number'
-        ? data.flOz
-        : typeof data.ml === 'number'
-          ? Math.round(data.ml / 29.5735)
-          : 0;
-    }
+    for (const d of snap.docs) water[d.id] = readWaterFlOz(d.data()) ?? 0;
     return water;
   }
 
@@ -268,8 +275,8 @@ export class FirestoreLedgerCore {
     const snap = await getDocs(this.userCollection('dailySleep'));
     const sleep: Record<string, number> = {};
     for (const d of snap.docs) {
-      const data = d.data() as { hours?: number };
-      if (typeof data.hours === 'number') sleep[d.id] = data.hours;
+      const h = readSleepHours(d.data());
+      if (h != null) sleep[d.id] = h;
     }
     return sleep;
   }

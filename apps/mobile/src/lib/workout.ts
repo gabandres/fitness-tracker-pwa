@@ -5,6 +5,7 @@
 // documented dup pattern as body-fat / weight-projection).
 
 import { normalizeClusterGroups } from '@macrolog/core';
+import { isLoggedSet as isLoggedSetCore } from '@macrolog/core/workout';
 
 export type MuscleGroup =
   | 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps' | 'quads'
@@ -153,11 +154,18 @@ export interface WorkoutSession {
 export type ExerciseDraft = Omit<Exercise, 'id' | 'createdAt'>;
 export type SessionDraft = Omit<WorkoutSession, 'id' | 'createdAt' | 'updatedAt'>;
 
+// The types above stay local (the PWA's `models/workout.ts` holds a
+// structurally identical copy — `@macrolog/core/workout` deliberately does not
+// barrel its types, or the PWA's `export *` shims would clash). The FUNCTIONS
+// are shared: they were duplicated here, in the PWA model, and in core, which
+// is three places for one rule.
+
 /** A set counts as logged only if it carries the count its log style needs:
  *  a duration for `time`, otherwise reps. Weight alone is scaffold. */
-export function isLoggedSet(s: WorkoutSet, logStyle: LogStyle = DEFAULT_LOG_STYLE): boolean {
-  return logStyle === 'time' ? s.durationSec != null : s.reps != null;
-}
+export { isLoggedSet } from '@macrolog/core/workout';
+
+/** Total working volume (Σ weight×reps) of a session — for history rows. */
+export { sessionVolume } from '@macrolog/core';
 
 /** Drop unfilled scaffold sets from every exercise before a session is
  *  frozen as `completed`, then re-derive cluster `group` numbers on what
@@ -165,17 +173,6 @@ export function isLoggedSet(s: WorkoutSet, logStyle: LogStyle = DEFAULT_LOG_STYL
 export function dropEmptySets(exercises: SessionExercise[]): SessionExercise[] {
   return exercises.map((ex) => ({
     ...ex,
-    sets: normalizeClusterGroups(ex.sets.filter((s) => isLoggedSet(s, ex.logStyle ?? DEFAULT_LOG_STYLE))),
+    sets: normalizeClusterGroups(ex.sets.filter((s) => isLoggedSetCore(s, ex.logStyle ?? DEFAULT_LOG_STYLE))),
   }));
-}
-
-/** Total working volume (Σ weight×reps) of a session — for history rows. */
-export function sessionVolume(session: WorkoutSession): number {
-  let vol = 0;
-  for (const ex of session.exercises) {
-    for (const s of ex.sets) {
-      if (s.weight != null && s.reps != null) vol += s.weight * s.reps;
-    }
-  }
-  return Math.round(vol);
 }

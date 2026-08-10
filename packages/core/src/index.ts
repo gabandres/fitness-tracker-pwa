@@ -143,3 +143,13 @@ export * from './firestore-mappers';
 // mappers above. Also pure, but a write must PRODUCE SDK values, so each edge
 // injects Timestamp/deleteField through a DocCodec. Adapters keep their I/O.
 export * from './firestore-writers';
+// Readers for the four per-day scalar collections (weights, water, sleep,
+// activity). The shaped collections go through firestore-mappers above; these
+// four are one number per day and used to be re-read inline at every call
+// site, legacy `ml` branch and all.
+export * from './daily-scalars';
+// Session- and screen-level Train derivations (idle hero, sparkline series,
+// summary counts, PR crossing). The layer above ./workout-progression; both
+// Train tabs read these instead of hand-mirroring them, which is how the two
+// apps came to disagree about the user's heaviest lift.
+export * from './train-view';

@@ -1,23 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { type CustomFood, type DailyLog, type DaySummary, type LogEntry, type MealPreset, customFoodDocId, localDateKey, summarizeDays } from '@macrolog/core';
+import { useEffect, useMemo, useState } from 'react';
+import { type CustomFood, type DailyLog, type DaySummary, type MealPreset, localDateKey, summarizeDays } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
+import { type LogWrites, useLogWrites } from '@/hooks/useLogWrites';
 import {
-  addCustomFood as addCustomFoodDoc,
-  addLog as addLogDoc,
-  addPreset as addPresetDoc,
-  deleteCustomFood as deleteCustomFoodDoc,
-  deleteLog as deleteLogDoc,
-  deletePreset as deletePresetDoc,
   subscribeCustomFoods,
   subscribeDailyWeights,
   subscribePresets,
   subscribeRecentLogs,
-  updateLog as updateLogDoc,
 } from '@/lib/ledger';
 
 const LOG_WINDOW = 400;
 
-export interface HistoryState {
+/** Reads are this hook's own (ADR-0016); the writes are the shared set every
+ *  logging surface uses — `addEntry`'s timestamp still determines which day
+ *  the row lands on, and now also which slot. */
+export interface HistoryState extends LogWrites {
   loading: boolean;
   error: Error | null;
   /** One summary per day that has any food log or weigh-in, newest first. */
@@ -28,14 +25,6 @@ export interface HistoryState {
   presets: MealPreset[];
   /** User's saved food library (My Foods, ADR-0013) for the day-detail sheet. */
   customFoods: CustomFood[];
-  /** Add a food entry (its timestamp determines which day it lands on). */
-  addEntry: (entry: LogEntry) => Promise<void>;
-  updateEntry: (id: string, entry: LogEntry) => Promise<void>;
-  deleteEntry: (id: string) => Promise<void>;
-  addPreset: (preset: Omit<MealPreset, 'id'>) => Promise<void>;
-  deletePreset: (id: string) => Promise<void>;
-  addCustomFood: (food: Omit<CustomFood, 'id'>) => Promise<void>;
-  deleteCustomFood: (id: string) => Promise<void>;
 }
 
 export function useHistory(): HistoryState {
@@ -76,13 +65,7 @@ export function useHistory(): HistoryState {
     return summarizeDays(sorted, logs, weights);
   }, [logs, weights]);
 
-  const addEntry = useCallback(async (entry: LogEntry) => { if (uid) await addLogDoc(uid, entry); }, [uid]);
-  const updateEntry = useCallback(async (id: string, entry: LogEntry) => { if (uid) await updateLogDoc(uid, id, entry); }, [uid]);
-  const deleteEntry = useCallback(async (id: string) => { if (uid) await deleteLogDoc(uid, id); }, [uid]);
-  const addPreset = useCallback(async (preset: Omit<MealPreset, 'id'>) => { if (uid) await addPresetDoc(uid, preset); }, [uid]);
-  const deletePreset = useCallback(async (id: string) => { if (uid) await deletePresetDoc(uid, id); }, [uid]);
-  const addCustomFood = useCallback(async (food: Omit<CustomFood, 'id'>) => { if (uid) await addCustomFoodDoc(uid, food, customFoodDocId(food)); }, [uid]);
-  const deleteCustomFood = useCallback(async (id: string) => { if (uid) await deleteCustomFoodDoc(uid, id); }, [uid]);
+  const writes = useLogWrites();
 
-  return { loading, error, days, logs, weights, presets, customFoods, addEntry, updateEntry, deleteEntry, addPreset, deletePreset, addCustomFood, deleteCustomFood };
+  return { loading, error, days, logs, weights, presets, customFoods, ...writes };
 }

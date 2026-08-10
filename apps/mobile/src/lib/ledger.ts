@@ -27,6 +27,7 @@ import {
   type RefineTargetsSubmission,
   type UnitSystem,
   type WeeklyReport,
+  type DailyActivity,
   type DocCodec,
   type MeasurementInput,
   ACTIVE_ENERGY_MAX_KCAL,
@@ -38,6 +39,10 @@ import {
   localDateKey,
   oldestFirst,
   pruneUndefined as pruneUndefinedCore,
+  readActivity,
+  readSleepHours,
+  readWaterFlOz,
+  readWeightLb,
   toCustomFood,
   toCustomFoodDoc,
   toDailyLog,
@@ -55,6 +60,7 @@ import {
   toTemplateDoc,
   toTemplatePatch,
   toWeeklyReport,
+  withDefaultMealSlot,
   // Shared workout doc→domain mappers (arch review E). Mobile does NOT
   // normalize cluster groups (the web adapter does), so it uses these directly.
   toWorkoutExercise as toExercise,
@@ -162,8 +168,18 @@ export function subscribeLatestReport(
   );
 }
 
+/**
+ * Add one log row.
+ *
+ * The meal-slot default is applied HERE rather than by each add surface: this
+ * is the one call every in-app add passes through, and a default that each
+ * caller has to remember is how the History sheet spent its life filing meals
+ * into `other` while the identical meal from Today filed into its slot. See
+ * `withDefaultMealSlot`; an explicit `mealType` always wins, and marker rows
+ * (exercise, weight) are left untagged.
+ */
 export async function addLog(uid: string, entry: LogEntry): Promise<string> {
-  return createDoc(logsCol(uid), toLogDoc(entry, CODEC));
+  return createDoc(logsCol(uid), toLogDoc(withDefaultMealSlot(entry, new Date()), CODEC));
 }
 
 /**
@@ -218,7 +234,10 @@ export function subscribeDailyWeights(
     weightsCol(uid),
     (snap) => {
       const weights: Record<string, number> = {};
-      for (const d of snap.docs) weights[d.id] = (d.data() as { weight: number }).weight;
+      for (const d of snap.docs) {
+        const w = readWeightLb(d.data());
+        if (w != null) weights[d.id] = w;
+      }
       cb(weights);
     },
     onError,
@@ -240,8 +259,7 @@ export async function getLatestDailyWeight(uid: string): Promise<number | null> 
   const snap = await getDocs(query(weightsCol(uid), orderBy(documentId(), 'desc'), limit(1)));
   const d = snap.docs[0];
   if (!d) return null;
-  const w = (d.data() as { weight?: number }).weight;
-  return typeof w === 'number' ? w : null;
+  return readWeightLb(d.data());
 }
 
 export async function setDailyWeight(uid: string, dateKey: string, weight: number): Promise<void> {
@@ -263,15 +281,7 @@ export function subscribeDailyWater(
     waterCol(uid),
     (snap) => {
       const water: Record<string, number> = {};
-      for (const d of snap.docs) {
-        const data = d.data() as { flOz?: number; ml?: number };
-        water[d.id] =
-          typeof data.flOz === 'number'
-            ? data.flOz
-            : typeof data.ml === 'number'
-              ? Math.round(data.ml / 29.5735)
-              : 0;
-      }
+      for (const d of snap.docs) water[d.id] = readWaterFlOz(d.data()) ?? 0;
       cb(water);
     },
     onError,
@@ -297,8 +307,8 @@ export function subscribeDailySleep(
     (snap) => {
       const sleep: Record<string, number> = {};
       for (const d of snap.docs) {
-        const data = d.data() as { hours?: number };
-        if (typeof data.hours === 'number') sleep[d.id] = data.hours;
+        const h = readSleepHours(d.data());
+        if (h != null) sleep[d.id] = h;
       }
       cb(sleep);
     },
@@ -323,10 +333,10 @@ export async function setDailySleep(uid: string, dateKey: string, hours: number)
 const activityCol = (uid: string) => collection(db, 'users', uid, 'dailyActivity');
 const activityDoc = (uid: string, dateKey: string) => doc(db, 'users', uid, 'dailyActivity', dateKey);
 
-export interface DailyActivity {
-  steps?: number;
-  activeKcal?: number;
-}
+// `DailyActivity` and the four scalar readers below are shared math, so they
+// live in `@macrolog/core/daily-scalars`. Re-exported here because every
+// mobile consumer already imports the type from the ledger.
+export type { DailyActivity };
 
 export function subscribeDailyActivity(
   uid: string,
@@ -337,13 +347,7 @@ export function subscribeDailyActivity(
     activityCol(uid),
     (snap) => {
       const activity: Record<string, DailyActivity> = {};
-      for (const d of snap.docs) {
-        const data = d.data() as DailyActivity;
-        activity[d.id] = {
-          steps: typeof data.steps === 'number' ? data.steps : undefined,
-          activeKcal: typeof data.activeKcal === 'number' ? data.activeKcal : undefined,
-        };
-      }
+      for (const d of snap.docs) activity[d.id] = readActivity(d.data());
       cb(activity);
     },
     onError,
@@ -369,13 +373,7 @@ export async function getActivityWindow(
     query(activityCol(uid), where(documentId(), '>=', from), where(documentId(), '<=', to)),
   );
   const activity: Record<string, DailyActivity> = {};
-  for (const d of snap.docs) {
-    const data = d.data() as DailyActivity;
-    activity[d.id] = {
-      steps: typeof data.steps === 'number' ? data.steps : undefined,
-      activeKcal: typeof data.activeKcal === 'number' ? data.activeKcal : undefined,
-    };
-  }
+  for (const d of snap.docs) activity[d.id] = readActivity(d.data());
   return activity;
 }
 
@@ -409,16 +407,21 @@ export async function getHealthScalarsOnce(uid: string): Promise<{
     getDocs(activityCol(uid)),
   ]);
   const weight: Record<string, number> = {};
-  for (const d of wSnap.docs) weight[d.id] = (d.data() as { weight: number }).weight;
+  for (const d of wSnap.docs) {
+    const w = readWeightLb(d.data());
+    if (w != null) weight[d.id] = w;
+  }
   const sleep: Record<string, number> = {};
   for (const d of sSnap.docs) {
-    const h = (d.data() as { hours?: number }).hours;
-    if (typeof h === 'number') sleep[d.id] = h;
+    const h = readSleepHours(d.data());
+    if (h != null) sleep[d.id] = h;
   }
+  // `exact` here, not the display rounding the tabs use: the importer diffs
+  // this against the platform's own samples, and a rounded fl oz reads as a
+  // changed measurement that gets re-written on every import.
   const water: Record<string, number> = {};
   for (const d of waSnap.docs) {
-    const data = d.data() as { flOz?: number; ml?: number };
-    const flOz = typeof data.flOz === 'number' ? data.flOz : typeof data.ml === 'number' ? data.ml / 29.5735 : null;
+    const flOz = readWaterFlOz(d.data(), { exact: true });
     if (flOz != null) water[d.id] = flOz;
   }
   // Both activity metrics share one doc, so a day may carry either, both, or
@@ -426,9 +429,9 @@ export async function getHealthScalarsOnce(uid: string): Promise<{
   const steps: Record<string, number> = {};
   const activeEnergy: Record<string, number> = {};
   for (const d of actSnap.docs) {
-    const data = d.data() as DailyActivity;
-    if (typeof data.steps === 'number') steps[d.id] = data.steps;
-    if (typeof data.activeKcal === 'number') activeEnergy[d.id] = data.activeKcal;
+    const { steps: s, activeKcal: k } = readActivity(d.data());
+    if (s != null) steps[d.id] = s;
+    if (k != null) activeEnergy[d.id] = k;
   }
   return { weight, sleep, water, steps, activeEnergy };
 }
@@ -838,22 +841,17 @@ export async function getAllMeasurements(uid: string): Promise<Measurement[]> {
 export async function getAllDailyWeights(uid: string): Promise<Record<string, number>> {
   const snap = await getDocs(weightsCol(uid));
   const out: Record<string, number> = {};
-  for (const d of snap.docs) out[d.id] = (d.data() as { weight: number }).weight;
+  for (const d of snap.docs) {
+    const w = readWeightLb(d.data());
+    if (w != null) out[d.id] = w;
+  }
   return out;
 }
 
 export async function getAllDailyWater(uid: string): Promise<Record<string, number>> {
   const snap = await getDocs(waterCol(uid));
   const out: Record<string, number> = {};
-  for (const d of snap.docs) {
-    const data = d.data() as { flOz?: number; ml?: number };
-    out[d.id] =
-      typeof data.flOz === 'number'
-        ? data.flOz
-        : typeof data.ml === 'number'
-          ? Math.round(data.ml / 29.5735)
-          : 0;
-  }
+  for (const d of snap.docs) out[d.id] = readWaterFlOz(d.data()) ?? 0;
   return out;
 }
 
@@ -861,8 +859,8 @@ export async function getAllDailySleep(uid: string): Promise<Record<string, numb
   const snap = await getDocs(sleepCol(uid));
   const out: Record<string, number> = {};
   for (const d of snap.docs) {
-    const data = d.data() as { hours?: number };
-    if (typeof data.hours === 'number') out[d.id] = data.hours;
+    const h = readSleepHours(d.data());
+    if (h != null) out[d.id] = h;
   }
   return out;
 }

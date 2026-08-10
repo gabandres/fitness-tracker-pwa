@@ -22,7 +22,13 @@ import { TemplateEditorComponent } from './template-editor.component';
 import { ExerciseDetailComponent } from './exercise-detail.component';
 import { ExercisesManagerComponent } from './exercises-manager.component';
 import type { Exercise } from '../../models/workout';
-import { STARTER_TEMPLATES, seedTemplateName, type SeedTemplate } from '@macrolog/core';
+import {
+  STARTER_TEMPLATES,
+  seedTemplateName,
+  sessionVolume,
+  trainHeroStats,
+  type SeedTemplate,
+} from '@macrolog/core';
 import {
   CUSTOM_TEMPLATE_LIMIT_FREE,
   DEFAULT_LOG_STYLE,
@@ -269,37 +275,23 @@ export class TrainComponent {
     this.workout.recentSessions().filter((s) => s.status === 'completed'),
   );
 
-  /** Idle-hero numbers (mirrors mobile trainHeroStats): workouts + total
-   *  volume in the last 7 days, plus the heaviest set weight ever logged. */
-  protected readonly heroStats = computed(() => {
-    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    let count = 0;
-    let volume = 0;
-    let topSet = 0;
-    for (const s of this.completedRecent()) {
-      if (s.date.getTime() >= weekAgo) {
-        count += 1;
-        volume += this.volumeOf(s);
-      }
-      for (const ex of s.exercises) {
-        for (const set of ex.sets) {
-          if (set.weight != null && set.weight > topSet) topSet = set.weight;
-        }
-      }
-    }
-    return { count, volume, topSet };
-  });
+  /**
+   * Idle-hero numbers: workouts + total volume in the last 7 days, plus the
+   * heaviest set ever logged.
+   *
+   * This used to be a hand-written mirror of the Expo Train tab's version, and
+   * the two had drifted: the copy here counted the heaviest set of ANY kind,
+   * so a heavy warm-up single could stand as the user's top set on web while
+   * mobile — which counts working sets only — showed the real one. Both now
+   * read `trainHeroStats` from core, so the number cannot differ by app again.
+   */
+  protected readonly heroStats = computed(() =>
+    trainHeroStats(this.completedRecent(), Date.now()),
+  );
 
-  /** Session tonnage = Σ weight×reps over logged sets (mirrors mobile
-   *  sessionVolume). */
+  /** Session tonnage = Σ weight×reps over logged sets. */
   protected volumeOf(ses: WorkoutSession): number {
-    let vol = 0;
-    for (const ex of ses.exercises) {
-      for (const s of ex.sets) {
-        if (s.weight != null && s.reps != null) vol += s.weight * s.reps;
-      }
-    }
-    return Math.round(vol);
+    return sessionVolume(ses);
   }
 
   /** Full-width "Start workout": begin an empty active session. */

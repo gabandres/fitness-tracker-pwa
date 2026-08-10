@@ -6,6 +6,31 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-09 — Meals file themselves everywhere, not just on Today
+
+"Meals file themselves" shipped four days ago, and it was only ever true on one
+screen. Three fixes, all from the same cause: the same rule was written in more
+than one place, and the copies drifted.
+
+- **Add a meal to a past day and it lands in the right meal.** The day-detail
+  screen in History had its own copy of "save this entry" that never learned the
+  slot rule, so anything logged there fell into **Other** — the exact behaviour
+  the Today screen stopped doing. It now files by the time you logged it *for*,
+  not the time you typed it.
+- **Those back-dated meals reach Apple Health too.** Same copy, same gap: the
+  History add path never mirrored its macros across. It does now, on the day the
+  meal belongs to.
+- **The website files meals into slots at all.** The web app never had the rule
+  in any form; every meal logged at ignia.fit went to **Other**. It now behaves
+  exactly like the phone app, because both read the same rule instead of each
+  keeping a copy.
+- **"Top set" on the web now means a real top set.** It was counting your
+  heaviest warm-up. The phone app was already right; the two numbers no longer
+  disagree.
+
+Nothing already logged changed. Existing **Other** entries stay where they are —
+they are not silently reassigned.
+
 ## 2026-08-09 — Say what you ate, and a much calmer Add screen (1.2.0 — build 40 / vc 27)
 
 Adding a log was the most-used flow in the app and the most cluttered screen in it: five unlabelled icons, four competing lists, and a meal field that quietly filed things under "Other" if you didn't touch it. All of that changed, in two layers.

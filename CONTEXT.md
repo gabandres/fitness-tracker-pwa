@@ -123,6 +123,21 @@ add a term when a real ambiguity exists, not preemptively.
   parameter, never an SDK `now()` call, so stamps stay assertable. The adapters
   keep all I/O, the collection paths, their `pruneUndefined` binding, and
   `mergeExercises` (a rewrite rule over fetched docs, not a serializer).
+- **Daily scalars** — The four per-day, one-number-per-doc collections keyed by
+  `dateKey`: `dailyWeights` (lb), `dailyWater` (fl oz, legacy `ml` branch),
+  `dailySleep` (hours), `dailyActivity` (`{steps?, activeKcal?}` — both metrics
+  in one doc, so a day may carry either, both or neither). Distinct from the
+  *shaped* collections the Firestore mappers handle; their readers live in
+  `packages/core/src/daily-scalars.ts` (`readWeightLb` / `readWaterFlOz` /
+  `readSleepHours` / `readActivity`) and both adapters call them, so the `ml`
+  fallback and the "absent ≠ zero" rule exist once. `readWaterFlOz` rounds the
+  legacy branch for display and takes `{ exact: true }` for the Health importer,
+  which must not diff against a rounded value.
+- **Meal slot default** — `withDefaultMealSlot` (core `meal-slots.ts`), applied
+  at the **write** (`addLog`, both adapters), never by a form. Fills an absent
+  `mealType` from the entry's own timestamp; an explicit choice always wins and
+  marker rows (`exerciseCompleted`, weight-bearing) stay untagged. Widget/tile
+  quick-add deliberately bypasses it — it writes through `addLogWithId`.
 - **Legacy log fields** — `liftCompleted` and `cardioCompleted` exist on
   historic docs. New writes only set `exerciseCompleted`. Aggregation
   treats any of the three as "exercised that day". `toLogPatch` removes both on
@@ -337,6 +352,15 @@ collections + a `WorkoutStore` facet back the Train tab.
   `suggestProgression` (deterministic double-progression — hit
   `targetReps` for `holdSessions` → `+incrementLb`), `computeExercisePRs`
   + `estimateOneRepMax` (Epley). No AI in v1.
+- **Train view derivations** — The session/screen layer over the module above,
+  in `packages/core/src/train-view.ts`: `trainHeroStats` (7-day count +
+  volume + all-time top WORKING set), `sessionVolume`, `bestE1RMByExercise` +
+  `improvedExercises` (the PR-celebration crossing), `exerciseHistory` +
+  `exerciseSeries` (sparkline, oldest-first), `workingSetCells`,
+  `lastPerformed`, `exerciseIsFullyDone`, `sessionCounts` / `templateCounts`.
+  Both Train tabs read these; each renders its own wording, so nothing here
+  takes a translator. They were per-frontend copies until 2026-08-09 and had
+  diverged on what counts as a top set.
 - **RestTimer** — `components/train/rest-timer.ts`. The between-set rest
   countdown, one instance per session sheet (plain class, not
   injectable). Interface: `start(s)` / `stop()` / `remaining` / `label`;

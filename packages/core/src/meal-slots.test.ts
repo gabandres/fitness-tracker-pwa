@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { groupByMealSlot, slotForTime } from './meal-slots';
+import { groupByMealSlot, isMealRow, slotForTime, withDefaultMealSlot } from './meal-slots';
 import type { DailyLog, MealType } from './types';
 
 function log(calories: number, mealType?: MealType): DailyLog {
@@ -67,5 +67,60 @@ describe('slotForTime', () => {
         expect(['breakfast', 'lunch', 'dinner', 'snack']).toContain(slotForTime(at(h, m)));
       }
     }
+  });
+});
+
+describe('withDefaultMealSlot', () => {
+  const noon = new Date(2026, 7, 9, 12, 0);
+
+  it('slots an untagged meal from its own timestamp', () => {
+    const out = withDefaultMealSlot(
+      { calories: 500, timestamp: new Date(2026, 7, 1, 8, 15) },
+      noon,
+    );
+    expect(out.mealType).toBe('breakfast');
+  });
+
+  it('slots a back-dated add by the entry time, not the clock', () => {
+    // The History day-detail sheet: added at noon today, for 8pm three days ago.
+    const out = withDefaultMealSlot(
+      { calories: 700, timestamp: new Date(2026, 7, 6, 20, 0) },
+      noon,
+    );
+    expect(out.mealType).toBe('dinner');
+  });
+
+  it('falls back to the given clock when the entry carries no timestamp', () => {
+    expect(withDefaultMealSlot({ calories: 400 }, noon).mealType).toBe('lunch');
+  });
+
+  it('never overrides an explicit choice', () => {
+    const out = withDefaultMealSlot(
+      { calories: 400, mealType: 'snack', timestamp: new Date(2026, 7, 9, 8, 0) },
+      noon,
+    );
+    expect(out.mealType).toBe('snack');
+  });
+
+  it('leaves the exercise marker row untagged', () => {
+    const out = withDefaultMealSlot({ calories: 0, exerciseCompleted: true }, noon);
+    expect(out.mealType).toBeUndefined();
+    expect(isMealRow(out)).toBe(false);
+  });
+
+  it('leaves a weight-bearing row untagged', () => {
+    expect(withDefaultMealSlot({ calories: 0, weight: 181.2 }, noon).mealType).toBeUndefined();
+  });
+
+  it('does not mutate the entry it was given', () => {
+    const entry = { calories: 500, timestamp: new Date(2026, 7, 9, 8, 15) };
+    withDefaultMealSlot(entry, noon);
+    expect('mealType' in entry).toBe(false);
+  });
+
+  it('lands a same-minute pair in the same slot however it was added', () => {
+    const a = withDefaultMealSlot({ calories: 300, timestamp: new Date(2026, 7, 9, 12, 52) }, noon);
+    const b = withDefaultMealSlot({ calories: 300, timestamp: new Date(2026, 7, 9, 12, 54) }, noon);
+    expect(a.mealType).toBe(b.mealType);
   });
 });
