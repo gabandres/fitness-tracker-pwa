@@ -6,6 +6,29 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-11 — Your goal pace now tells you when it can't be delivered
+
+Ignia lets you set a weekly pace and a calorie floor, and the floor quietly
+wins. If your floor sits near what you burn, the pace you picked is not the pace
+you get — and until today nothing said so. On a real account: 0.9 lb/wk against
+a 1,850 floor and a measured 1,870 burn leaves a 20 kcal deficit, which is
+**0.04 lb/wk**. The number on the slider was off by a factor of twenty.
+
+- **Refine targets now names the pace your floor actually leaves**, on the
+  phone and on the web, in English and Spanish — and points at the setting that
+  is doing it. It only appears when the floor is genuinely costing you
+  something; if it takes 0.9 to 0.89, you will never see it.
+- **A floor at or above your burn gets said out loud.** That is not a slow cut,
+  it is not a cut, and rounding it to "0.00 lb/wk" would have hidden the more
+  useful half of the problem.
+- **The website's "new daily kcal" preview was wrong and is now right.** It was
+  estimating from a formula and ignoring your calorie floor, so it could promise
+  a target hundreds of calories below the one you would actually be held to.
+
+**Nothing about your targets changed.** No maintenance estimate, no target, no
+floor moved — this reports the arithmetic the app was already doing. If the
+sentence tells you your pace is capped, it was capped yesterday too.
+
 ## 2026-08-09 — Meals file themselves everywhere, not just on Today
 
 "Meals file themselves" shipped four days ago, and it was only ever true on one
