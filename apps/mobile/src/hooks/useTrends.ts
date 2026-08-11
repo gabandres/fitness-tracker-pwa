@@ -17,11 +17,18 @@ import {
   dailyTargets,
   localDateKey,
   summarizeDays,
+  LOG_WINDOW_ROWS,
+  isoWeek,
+  trailingDateKeys,
+  weightPointsForDays,
+  weightSeriesForDays,
 } from '@macrolog/core';
+
+/** Sparkline length — a chart-width choice, not a domain window. */
+const SPARK_DAYS = 14;
 import { useAuth } from '@/lib/auth';
 import { subscribeDailyWeights, subscribeProfile, subscribeRecentLogs } from '@/lib/ledger';
 
-const LOG_WINDOW = 400;
 const INSIGHT_DAYS = 7;
 const SLOPE_WINDOW_DAYS = 28;
 
@@ -51,7 +58,6 @@ export interface TrendsState {
   activityLevel: ActivityLevel | null;
 }
 
-const SPARK_DAYS = 14;
 
 export function useTrends(): TrendsState {
   const { user } = useAuth();
@@ -70,7 +76,7 @@ export function useTrends(): TrendsState {
       const unsubs = [
         subscribeRecentLogs(
           uid,
-          LOG_WINDOW,
+          LOG_WINDOW_ROWS,
           (l) => {
             setLogs(l);
             setLoading(false);
@@ -91,47 +97,29 @@ export function useTrends(): TrendsState {
 
   const insights = useMemo(() => {
     const today = new Date();
-    const dayKeys = Array.from({ length: INSIGHT_DAYS }, (_, i) =>
-      localDateKey(addDays(today, -(INSIGHT_DAYS - 1 - i))),
-    );
-    const summaries = summarizeDays(dayKeys, logs, weights);
-    const points: WeightPoint[] = [];
-    for (let i = SLOPE_WINDOW_DAYS - 1; i >= 0; i--) {
-      const key = localDateKey(addDays(today, -i));
-      const v = weights[key];
-      if (typeof v === 'number') points.push({ dateKey: key, weightLb: v });
-    }
+    const summaries = summarizeDays(trailingDateKeys(INSIGHT_DAYS, today), logs, weights);
+    const points = weightPointsForDays(weights, SLOPE_WINDOW_DAYS, today);
     return computeWeeklyInsights(summaries, targets.calorieTarget, points, targets.proteinTarget);
   }, [logs, weights, targets]);
 
   const loggedThisWeek = useMemo(() => {
     const today = new Date();
-    const dayKeys = Array.from({ length: INSIGHT_DAYS }, (_, i) =>
-      localDateKey(addDays(today, -(INSIGHT_DAYS - 1 - i))),
-    );
-    return summarizeDays(dayKeys, logs, weights).filter((d) => d.mealCount > 0 && d.totalCalories > 0).length;
+    return summarizeDays(trailingDateKeys(INSIGHT_DAYS, today), logs, weights)
+      .filter((d) => d.mealCount > 0 && d.totalCalories > 0).length;
   }, [logs, weights]);
 
-  const weightSeries = useMemo<number[]>(() => {
-    const today = new Date();
-    const out: number[] = [];
-    for (let i = SPARK_DAYS - 1; i >= 0; i--) {
-      const v = weights[localDateKey(addDays(today, -i))];
-      if (typeof v === 'number') out.push(v);
-    }
-    return out;
-  }, [weights]);
+  const weightSeries = useMemo<number[]>(
+    () => weightSeriesForDays(weights, SPARK_DAYS, new Date()),
+    [weights],
+  );
 
   const budget = useMemo<WeeklyBudget | null>(() => {
     // ISO-local week (Monday-start): the seven Mon→Sun date keys and today's
     // 1-based position. Monday is at most 6 days back, so the log window covers
     // the elapsed week.
-    const today = new Date();
-    const daysSinceMonday = (today.getDay() + 6) % 7; // Sun=0 → 6, Mon=1 → 0
-    const monday = addDays(today, -daysSinceMonday);
-    const keys = Array.from({ length: 7 }, (_, i) => localDateKey(addDays(monday, i)));
-    const days = summarizeDays(keys, logs, weights);
-    return computeWeeklyBudget(days, daysSinceMonday + 1, targets.calorieTarget);
+    const week = isoWeek(new Date());
+    const days = summarizeDays(week.keys, logs, weights);
+    return computeWeeklyBudget(days, week.daysElapsed, targets.calorieTarget);
   }, [logs, weights, targets]);
 
   const basalKcal = useMemo(() => {

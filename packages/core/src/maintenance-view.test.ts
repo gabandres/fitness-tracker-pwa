@@ -8,6 +8,8 @@ const measured = (over: Partial<TdeeResult> = {}): TdeeResult => ({
   weightChangeTrend: -0.1,
   source: 'measured',
   loggingCompletenessPct: 82,
+  windowDays: 23,
+  spanDays: 28,
   reliable: true,
   ...over,
 });
@@ -19,6 +21,8 @@ describe('maintenanceView', () => {
       consumed: 1810,
       delta: -60,
       reliable: true,
+      loggedDays: 23,
+      spanDays: 28,
     });
   });
 
@@ -36,10 +40,17 @@ describe('maintenanceView', () => {
     // The real case that prompted this: 57% completeness. Withholding the
     // number would leave Today saying nothing at all, which is worse than
     // saying it softly.
-    const v = maintenanceView(measured({ reliable: false, loggingCompletenessPct: 57 }), 1810);
+    const v = maintenanceView(
+      measured({ reliable: false, loggingCompletenessPct: 57, windowDays: 28, spanDays: 49 }),
+      1810,
+    );
     expect(v).not.toBeNull();
     expect(v?.reliable).toBe(false);
     expect(v?.maintenance).toBe(1870);
+    // The counts are what let the UI say WHY it is rough: 21 unlogged days,
+    // every one of them dragging the estimate down.
+    expect(v?.loggedDays).toBe(28);
+    expect(v?.spanDays).toBe(49);
   });
 
   it('is null for a formula estimate — that is a population average, not a measurement', () => {

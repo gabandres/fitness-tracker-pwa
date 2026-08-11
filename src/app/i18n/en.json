@@ -1862,7 +1862,7 @@
     "maintenance": "maintenance",
     "underMaintenance": "{{n}} under your burn",
     "overMaintenance": "{{n}} over your burn",
-    "maintenanceRough": "rough — log more days to sharpen it"
+    "maintenanceRough": "{{logged}} of {{span}} days logged — unlogged days pull this down"
   },
   "train": {
     "thisWeek": "This week",

@@ -15,6 +15,7 @@ import {
   currentWeight as coreCurrentWeight,
   dailyTargets,
   localDateKey,
+  LOG_WINDOW_ROWS,
   summarizeDay,
 } from '@macrolog/core';
 import { useSubscription } from '@/lib/subscription';
@@ -38,8 +39,7 @@ import {
   type DailyActivity,
 } from '@/lib/ledger';
 
-// Generous window so measured-mode TDEE (≥14 distinct days) can engage.
-const LOG_WINDOW = 400;
+
 
 /** Reads are this hook's own (ADR-0016); the writes are the shared set every
  *  logging surface uses — see `useLogWrites`. */
@@ -105,7 +105,7 @@ export function useToday(): TodayState {
       const unsubs = [
         subscribeRecentLogs(
           uid,
-          LOG_WINDOW,
+          LOG_WINDOW_ROWS,
           (l) => {
             setLogs(l);
             setLoading(false);

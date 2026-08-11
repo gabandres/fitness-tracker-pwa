@@ -9,6 +9,7 @@ import {
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { marked } from 'marked';
+import { isoWeek as coreIsoWeek, trailingDateKeys } from '@macrolog/core';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { WeeklyReportStore } from '../../services/weekly-report-store.service';
@@ -405,8 +406,7 @@ export class TrendsComponent {
   private static readonly SLOPE_DAYS = 28;
 
   private lastNDateKeys(n: number): string[] {
-    const today = new Date();
-    return Array.from({ length: n }, (_, i) => localDateKey(addDays(today, i - (n - 1))));
+    return trailingDateKeys(n, new Date());
   }
 
   /** Hide the card entirely until lifetime history hydrates (ADR-0004:
@@ -440,11 +440,7 @@ export class TrendsComponent {
    *  today's 1-based position. Monday is at most 6 days back, so the
    *  shared 7-day history window always covers the elapsed week. */
   private isoWeek(): { keys: string[]; daysElapsed: number } {
-    const today = new Date();
-    const daysSinceMonday = (today.getDay() + 6) % 7; // Sun=0 → 6, Mon=1 → 0
-    const monday = addDays(today, -daysSinceMonday);
-    const keys = Array.from({ length: 7 }, (_, i) => localDateKey(addDays(monday, i)));
-    return { keys, daysElapsed: daysSinceMonday + 1 };
+    return coreIsoWeek(new Date());
   }
 
   protected readonly budget = computed<WeeklyBudget | null>(() => {

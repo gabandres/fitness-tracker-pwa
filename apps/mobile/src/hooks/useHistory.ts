@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { type CustomFood, type DailyLog, type DaySummary, type MealPreset, localDateKey, summarizeDays } from '@macrolog/core';
+import { type CustomFood, type DailyLog, type DaySummary, type MealPreset, localDateKey, LOG_WINDOW_ROWS, summarizeDays } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { type LogWrites, useLogWrites } from '@/hooks/useLogWrites';
 import {
@@ -9,7 +9,6 @@ import {
   subscribeRecentLogs,
 } from '@/lib/ledger';
 
-const LOG_WINDOW = 400;
 
 /** Reads are this hook's own (ADR-0016); the writes are the shared set every
  *  logging surface uses — `addEntry`'s timestamp still determines which day
@@ -43,7 +42,7 @@ export function useHistory(): HistoryState {
     const unsubs = [
       subscribeRecentLogs(
         uid,
-        LOG_WINDOW,
+        LOG_WINDOW_ROWS,
         (l) => {
           setLogs(l);
           setLoading(false);

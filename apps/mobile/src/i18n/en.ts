@@ -128,7 +128,7 @@ export const en = {
   'today.maintenance': 'maintenance',
   'today.underMaintenance': '{n} under your burn',
   'today.overMaintenance': '{n} over your burn',
-  'today.maintenanceRough': 'rough — log more days to sharpen it',
+  'today.maintenanceRough': '{logged} of {span} days logged — unlogged days pull this down',
   'today.emptyTitle': 'No entries yet.',
   'today.emptyHint': 'Tap + to log your first meal.',
   'today.repeatYesterday': 'Repeat yesterday',

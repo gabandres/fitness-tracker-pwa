@@ -11,7 +11,6 @@ import { DailyMetrics } from '@/components/DailyMetrics';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { EntrySheet } from '@/components/EntrySheet';
 import { HeroRings } from '@/components/HeroRings';
-import { MaintenanceLine } from '@/components/MaintenanceLine';
 import { MealEntries } from '@/components/MealEntries';
 import { RecalibrationCard } from '@/components/RecalibrationCard';
 import { ShareCard } from '@/components/ShareCard';
@@ -259,15 +258,8 @@ export default function Today() {
               protTarget={targets.proteinTarget || 0}
               carbs={summary.totalCarbs}
               fat={summary.totalFat}
+              maintenance={maintenanceView(targets.tdee, summary.totalCalories)}
             />
-          </Animated.View>
-
-          {/* Intake against measured BURN, which the rings cannot show: they
-              count down from a target that a calorie floor may hold above
-              maintenance. Renders nothing until the TDEE is genuinely
-              measured. Trends owns the detail. */}
-          <Animated.View entering={enterUp(0)}>
-            <MaintenanceLine view={maintenanceView(targets.tdee, summary.totalCalories)} />
           </Animated.View>
 
           <RecalibrationCard />

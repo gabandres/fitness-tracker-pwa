@@ -48,6 +48,12 @@ export interface MaintenanceView {
    * user's own data; it is just built on a patchier record.
    */
   reliable: boolean;
+  /** Logged days the estimate was built from, and the calendar span they are
+   *  spread across. Present so an unreliable reading can say WHY it is rough
+   *  instead of just that it is: "28 of 49 days". Null when the TDEE result
+   *  did not carry a completeness figure. */
+  loggedDays: number | null;
+  spanDays: number | null;
 }
 
 /**
@@ -72,5 +78,10 @@ export function maintenanceView(tdee: TdeeResult, consumedKcal: number): Mainten
     consumed,
     delta: consumed > 0 ? consumed - tdee.trueTdee : null,
     reliable: tdee.reliable === true,
+    // The counts, not the percentage: "28 of 49 days" tells a user that three
+    // weeks of eating are missing from the number and that every missing day
+    // drags it DOWN. "57%" tells them nothing they can act on.
+    loggedDays: tdee.windowDays ?? null,
+    spanDays: tdee.spanDays ?? null,
   };
 }

@@ -104,8 +104,8 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
            MaintenanceLine. -->
       @if (maintenance(); as m) {
         <div
-          class="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-xl px-4 py-3"
-          style="border: 1px solid var(--v2-rule); background: var(--v2-paper);"
+          class="-mt-2 flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 px-4 pt-3 pb-1"
+          style="border-top: 1px solid var(--v2-rule);"
           data-testid="maintenance-line">
           <span class="v2-caption" style="color: var(--v2-ink-muted);">
             {{ t('today.maintenance') }}
@@ -128,9 +128,9 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
               }}
             </span>
           }
-          @if (!m.reliable) {
+          @if (!m.reliable && m.loggedDays !== null && m.spanDays !== null) {
             <span class="v2-caption" style="color: var(--v2-ink-faint);">
-              {{ t('today.maintenanceRough') }}
+              {{ t('today.maintenanceRough', { logged: m.loggedDays, span: m.spanDays }) }}
             </span>
           }
         </div>

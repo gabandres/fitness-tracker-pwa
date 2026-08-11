@@ -15,7 +15,12 @@ import {
   localDateKey,
   latestNavyBodyFat,
   projectWeight,
+  weightPointsForDays,
+  weightSeriesForDays,
 } from '@macrolog/core';
+
+/** Sparkline length — a chart-width choice, not a domain window. */
+const SPARK_DAYS = 14;
 import { useAuth } from '@/lib/auth';
 import {
   addMeasurement as addMeasurementDoc,
@@ -69,7 +74,6 @@ export interface BodyState {
 }
 
 const PROJECTION_WINDOW_DAYS = 28;
-const SPARK_DAYS = 14;
 const FORECAST_DAYS = 7;
 
 export function useBody(): BodyState {
@@ -127,26 +131,15 @@ export function useBody(): BodyState {
   // Fit the trend over a 28-day window of daily weights (longer than the
   // history list so this week's water-weight noise doesn't dominate).
   const projection = useMemo<WeightProjection | null>(() => {
-    const today = new Date();
-    const points: WeightPoint[] = [];
-    for (let i = PROJECTION_WINDOW_DAYS - 1; i >= 0; i--) {
-      const key = localDateKey(addDays(today, -i));
-      const v = weights[key];
-      if (typeof v === 'number') points.push({ dateKey: key, weightLb: v });
-    }
+    const points = weightPointsForDays(weights, PROJECTION_WINDOW_DAYS, new Date());
     return projectWeight(points, profile?.targetWeightLbs ?? profile?.goalWeightLbs ?? null);
   }, [weights, profile]);
 
   // 14-day weight line (oldest → newest), missed days dropped.
-  const weightSeries = useMemo<number[]>(() => {
-    const today = new Date();
-    const out: number[] = [];
-    for (let i = SPARK_DAYS - 1; i >= 0; i--) {
-      const v = weights[localDateKey(addDays(today, -i))];
-      if (typeof v === 'number') out.push(v);
-    }
-    return out;
-  }, [weights]);
+  const weightSeries = useMemo<number[]>(
+    () => weightSeriesForDays(weights, SPARK_DAYS, new Date()),
+    [weights],
+  );
 
   // Dashed forecast: step from the last plotted weight along the fitted slope.
   const projectedSeries = useMemo<number[]>(() => {

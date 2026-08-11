@@ -130,7 +130,7 @@ export const esPR: Record<I18nKey, string> = {
   'today.maintenance': 'mantenimiento',
   'today.underMaintenance': '{n} bajo lo que quemas',
   'today.overMaintenance': '{n} sobre lo que quemas',
-  'today.maintenanceRough': 'aproximado — registra más días para afinarlo',
+  'today.maintenanceRough': '{logged} de {span} días registrados — los días sin registrar lo bajan',
   'today.emptyTitle': 'Aún no hay registros.',
   'today.emptyHint': 'Toca + para registrar tu primera comida.',
   'today.repeatYesterday': 'Repetir ayer',

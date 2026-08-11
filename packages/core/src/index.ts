@@ -158,3 +158,8 @@ export * from './train-view';
 // TDEE is genuinely measured, so a formula/seed guess never appears on Today
 // dressed as an observation.
 export * from './maintenance-view';
+// The windows every screen takes over logs and weights, named once. ADR-0004
+// gave the Angular app typed windows; the Expo app was built afterwards and
+// inherited none of it, so `400` was declared in three hooks and had already
+// drifted into a bare literal in a fourth. Builders take `now` explicitly.
+export * from './log-window';

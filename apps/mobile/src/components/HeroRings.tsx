@@ -10,6 +10,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
+import type { MaintenanceView } from '@macrolog/core';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { CountUpText } from '@/lib/motion';
@@ -73,6 +74,9 @@ interface Props {
   protTarget: number;
   carbs: number;
   fat: number;
+  /** Today's intake against MEASURED burn, or null when there is nothing
+   *  honest to show. Rendered as a footer inside this panel. */
+  maintenance: MaintenanceView | null;
 }
 
 /**
@@ -82,7 +86,7 @@ interface Props {
  * icon's sweep: outer first, inner ~180ms behind. Carbs/fat have no targets
  * in the domain, so they render as value chips, never progress.
  */
-export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, carbs, fat }: Props) {
+export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, carbs, fat, maintenance }: Props) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
@@ -172,12 +176,60 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
           <Text style={{ color: colors.fat }}>●</Text> {t('today.fat')} {fat}g
         </Text>
       </View>
+
+      {/* Maintenance sits INSIDE the panel, under a hairline — it is a second
+          reading of the same day, not a separate concern. As its own pale card
+          below the hero it read as something bolted on. */}
+      {maintenance ? (
+        <View style={styles.maintenanceFooter} testID="maintenance-line">
+          <Text style={styles.maintenanceLabel}>
+            {t('today.maintenance')}{' '}
+            <Text style={styles.maintenanceValue}>
+              {maintenance.maintenance.toLocaleString()}
+            </Text>
+            {maintenance.delta == null ? null : (
+              <Text style={styles.maintenanceDelta}>
+                {'   ·   '}
+                {maintenance.delta < 0
+                  ? t('today.underMaintenance', {
+                      n: Math.abs(maintenance.delta).toLocaleString(),
+                    })
+                  : t('today.overMaintenance', { n: maintenance.delta.toLocaleString() })}
+              </Text>
+            )}
+          </Text>
+          {/* Only when we can name the cause. A caveat that just says "rough"
+              tells the user nothing they can act on. */}
+          {maintenance.reliable ||
+          maintenance.loggedDays == null ||
+          maintenance.spanDays == null ? null : (
+            <Text style={styles.maintenanceCaveat}>
+              {t('today.maintenanceRough', {
+                logged: maintenance.loggedDays,
+                span: maintenance.spanDays,
+              })}
+            </Text>
+          )}
+        </View>
+      ) : null}
     </View>
   );
 }
 
 function createStyles({ colors, shadow }: Theme) {
   return StyleSheet.create({
+    maintenanceFooter: {
+      alignSelf: 'stretch',
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.heroTrack,
+      paddingTop: space.md,
+      alignItems: 'center',
+      gap: 2,
+    },
+    maintenanceLabel: { fontSize: font.small, color: colors.heroMuted, textAlign: 'center' },
+    maintenanceValue: { color: colors.heroText, fontWeight: '800' },
+    maintenanceDelta: { color: colors.heroText, fontWeight: '700' },
+    maintenanceCaveat: { fontSize: font.tiny, color: colors.heroMuted, textAlign: 'center' },
     panel: {
       backgroundColor: colors.heroPanel,
       borderRadius: radius.xl,

@@ -24,6 +24,12 @@ export interface TdeeResult {
   weightChangeTrend: number;
   source: 'measured' | 'formula' | 'seed';
   loggingCompletenessPct?: number;
+  /** Logged days the measured estimate was built from (≤ 28), and the calendar
+   *  span they were spread across. Reported so a UI can say "28 of 49 days"
+   *  rather than "57%" — the counts are what tell a user that three weeks of
+   *  eating are missing from the number. Measured mode only. */
+  windowDays?: number;
+  spanDays?: number;
   reliable?: boolean;
   /** Weigh-ins discarded as implausible before fitting the trend. Non-zero
    *  means the user has a bad entry worth surfacing to them. */
@@ -277,6 +283,8 @@ export function calculateTdee(logs: DailyLog[], profile?: ProfileFields | null):
       weightChangeTrend: round(-slope * (spanDays - 1), 2),
       source: 'measured',
       loggingCompletenessPct,
+      windowDays: window.length,
+      spanDays,
       reliable,
       outliersDropped,
     };
