@@ -113,16 +113,21 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
               {{ m.maintenance.toLocaleString() }}
             </span>
           </span>
-          <span
-            class="v2-caption"
-            style="font-weight: 700;"
-            [style.color]="m.delta < 0 ? 'var(--v2-ink)' : 'var(--v2-ink-muted)'">
-            {{
-              m.delta < 0
-                ? t('today.underMaintenance', { n: (-m.delta).toLocaleString() })
-                : t('today.overMaintenance', { n: m.delta.toLocaleString() })
-            }}
-          </span>
+          <!-- Withheld until something is logged - see the delta field in core.
+               (No backticks in here: this template is a TS template literal,
+               and one would end the string mid-component.) -->
+          @if (m.delta !== null) {
+            <span
+              class="v2-caption"
+              style="font-weight: 700;"
+              [style.color]="m.delta < 0 ? 'var(--v2-ink)' : 'var(--v2-ink-muted)'">
+              {{
+                m.delta < 0
+                  ? t('today.underMaintenance', { n: (-m.delta).toLocaleString() })
+                  : t('today.overMaintenance', { n: m.delta.toLocaleString() })
+              }}
+            </span>
+          }
           @if (!m.reliable) {
             <span class="v2-caption" style="color: var(--v2-ink-faint);">
               {{ t('today.maintenanceRough') }}

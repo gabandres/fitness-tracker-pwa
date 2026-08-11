@@ -31,8 +31,17 @@ export interface MaintenanceView {
   maintenance: number;
   /** Today's consumed kcal. */
   consumed: number;
-  /** `consumed - maintenance`. Negative is a deficit, positive a surplus. */
-  delta: number;
+  /**
+   * `consumed - maintenance` — negative is a deficit, positive a surplus — or
+   * **null before anything has been logged today**.
+   *
+   * Null rather than the arithmetic answer because the arithmetic answer is
+   * useless: at 8am it reads "2,143 under your burn", which is true, says
+   * nothing, and would greet the user every single morning. Caught by looking
+   * at the rendered screen rather than at the function. The maintenance figure
+   * still shows — that part is worth seeing on an empty day.
+   */
+  delta: number | null;
   /**
    * Whether the estimate met the logging-completeness bar. False does NOT mean
    * hide it — it means present it softly. The number is still derived from this
@@ -61,7 +70,7 @@ export function maintenanceView(tdee: TdeeResult, consumedKcal: number): Mainten
   return {
     maintenance: tdee.trueTdee,
     consumed,
-    delta: consumed - tdee.trueTdee,
+    delta: consumed > 0 ? consumed - tdee.trueTdee : null,
     reliable: tdee.reliable === true,
   };
 }

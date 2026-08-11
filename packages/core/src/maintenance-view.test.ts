@@ -26,8 +26,10 @@ describe('maintenanceView', () => {
     expect(maintenanceView(measured(), 2100)?.delta).toBe(230);
   });
 
-  it('still returns a view on an empty day', () => {
-    expect(maintenanceView(measured(), 0)).toMatchObject({ consumed: 0, delta: -1870 });
+  it('shows maintenance on an empty day but withholds the delta', () => {
+    // "1,870 under your burn" before breakfast is true, useless, and would
+    // greet the user every morning. The figure itself is still worth seeing.
+    expect(maintenanceView(measured(), 0)).toMatchObject({ consumed: 0, delta: null });
   });
 
   it('shows an unreliable estimate, but marks it', () => {

@@ -28,8 +28,7 @@ export function MaintenanceLine({ view }: { view: MaintenanceView | null }) {
   const styles = useThemedStyles(createStyles);
   if (!view) return null;
 
-  const under = view.delta < 0;
-  const magnitude = Math.abs(view.delta);
+  const under = view.delta != null && view.delta < 0;
 
   return (
     <View style={styles.row} testID="maintenance-line">
@@ -37,11 +36,14 @@ export function MaintenanceLine({ view }: { view: MaintenanceView | null }) {
         {t('today.maintenance')}
         <Text style={styles.value}> {view.maintenance.toLocaleString()}</Text>
       </Text>
-      <Text style={[styles.delta, under ? styles.under : styles.over]} numberOfLines={1}>
-        {under
-          ? t('today.underMaintenance', { n: magnitude.toLocaleString() })
-          : t('today.overMaintenance', { n: magnitude.toLocaleString() })}
-      </Text>
+      {/* Withheld until something is logged — see `delta` in core. */}
+      {view.delta == null ? null : (
+        <Text style={[styles.delta, under ? styles.under : styles.over]} numberOfLines={1}>
+          {under
+            ? t('today.underMaintenance', { n: Math.abs(view.delta).toLocaleString() })
+            : t('today.overMaintenance', { n: view.delta.toLocaleString() })}
+        </Text>
+      )}
       {/* An unreliable reading is shown, not withheld — it is still built from
           this user's own data. The caveat rides here so the number itself does
           not have to be hedged. */}
