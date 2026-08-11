@@ -147,7 +147,8 @@ export const esPR: Record<I18nKey, string> = {
   'today.loadErr': 'No se pudieron cargar tus datos. Desliza para reintentar.',
   'today.entry': 'Registro',
   'whatsNew.title': 'Novedades',
-  'whatsNew.body': 'Hoy ahora muestra lo que de verdad quemas, no solo lo que te queda. Cuando Ignia ya midió tu mantenimiento con tus propios registros, aparece bajo los anillos con cuánto estás por encima o por debajo — porque cumplir la meta y estar en déficit no siempre es lo mismo.',
+  'whatsNew.body':
+    'Si dejas de registrar una semana, tu estimado de mantenimiento ahora arranca desde que volviste, en vez de trazar una sola línea sobre el hueco — antes eso botaba todos los pesajes después de un viaje y movía el número sin avisar. El agua del viaje tiene una semana para irse antes de contar. Hoy también te dice cuándo se ignoró un pesaje, para que un estimado raro venga con su razón.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',

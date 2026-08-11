@@ -144,7 +144,8 @@ export const en = {
   'today.loadErr': "Couldn't load your data. Pull to retry.",
   'today.entry': 'Entry',
   'whatsNew.title': "What's new",
-  'whatsNew.body': 'Today now shows what you actually burn, not just what you have left. Once Ignia has measured your maintenance from your own logging, it sits under the rings with how far above or below it you are — because being on target and being in a deficit are not always the same thing.',
+  'whatsNew.body':
+    'Take a week off and your maintenance estimate now picks up where you came back, instead of trying to draw one line across the gap — which used to throw away every weigh-in after a trip and quietly move the number. Travel water gets a week to leave before it counts. Today also says when a weigh-in was ignored, so a surprising estimate has a reason attached.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',

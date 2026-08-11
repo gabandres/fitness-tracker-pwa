@@ -1636,7 +1636,9 @@
         "mealSlots": "Your diary now groups by meal — breakfast, lunch, dinner, snack.",
         "trendsFree": "Trends: free weekly insights, a weekly calorie budget, and a weight projection — no AI.",
         "bodyTrain": "Body adds progress photos (Pro) and a body-fat estimate; Train adds a plate calculator and warm-up sets.",
-        "shareStreak": "Share your streak as an image from Today."
+        "shareStreak": "Share your streak as an image from Today.",
+        "trendBreaks": "Take a week off and your maintenance estimate picks up where you came back, instead of drawing one line across the gap. Travel water gets a week to leave before it counts.",
+        "weighInsIgnored": "Today now says when a weigh-in was ignored, so a surprising estimate comes with a reason."
       }
     },
     "body": {

@@ -11,7 +11,7 @@ import { LucideAngularModule } from 'lucide-angular';
  * so each release writes copy in en + es-PR before flipping the
  * version. The component renders nothing if there are no items.
  */
-export const WHATS_NEW_VERSION = '2026-06-13';
+export const WHATS_NEW_VERSION = '2026-08-11';
 const STORAGE_KEY = 'macrolog.lastSeenWhatsNew';
 
 /**
@@ -25,11 +25,12 @@ export function whatsNewVisible(): boolean {
   catch { return false; }
 }
 
+// Replaced wholesale rather than appended: the four items above these were
+// June's, long since shipped and read, and bumping the version with them
+// still in the list would re-announce two-month-old news to everyone.
 const ITEMS: ReadonlyArray<{ id: string; iconKey: string }> = [
-  { id: 'mealSlots', iconKey: 'sparkles' },
-  { id: 'trendsFree', iconKey: 'trending-up' },
-  { id: 'bodyTrain', iconKey: 'dumbbell' },
-  { id: 'shareStreak', iconKey: 'share-2' },
+  { id: 'trendBreaks', iconKey: 'trending-up' },
+  { id: 'weighInsIgnored', iconKey: 'sparkles' },
 ];
 
 @Component({
