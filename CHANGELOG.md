@@ -6,6 +6,32 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-11 — A week off no longer rewrites what Ignia thinks you burn
+
+Ignia works out your maintenance calories from your own weight trend and your
+own logging. Take a fortnight off and come back four pounds up, and it used to
+try to draw a single line through the hole — which made every reading after the
+break look like a mistake. It threw all seven of them away, told you the
+estimate was reliable, and gave you a number that had no idea you had been
+anywhere.
+
+- **The estimate now picks up where you came back**, instead of fitting across
+  the gap. In testing against a known answer of 2,500 kcal, that scenario read
+  2,038 before and reads 2,500 now.
+- **Travel weight gets a week to leave before it counts.** Most of what you gain
+  on a trip is water, and when it drops off over the following week it is not fat
+  loss — reading it as fat loss would have pushed the estimate the other way just
+  as hard.
+- **Today tells you when a weigh-in was ignored.** The app has always discarded
+  readings it judged implausible; it has never said so. A surprising maintenance
+  number now comes with the reason attached.
+
+**Still true, and worth knowing:** logging *some* of a heavy day is worse than
+logging none of it. A day recorded at 1,500 that was really 3,000 drags the
+estimate down for as long as it stays in the window, and Ignia cannot yet tell
+that from a genuinely light day. If you cannot reconstruct a day, deleting it
+beats guessing low.
+
 ## 2026-08-11 — Your goal pace now tells you when it can't be delivered
 
 Ignia lets you set a weekly pace and a calorie floor, and the floor quietly
