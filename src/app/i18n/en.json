@@ -284,12 +284,6 @@
     },
     "modes": {
       "section": "modes",
-      "travel": "travel mode",
-      "travelDesc": "suspends your cut while traveling — target becomes maintenance. toggle off when you're home.",
-      "travelOn": "on",
-      "travelOff": "off",
-      "travelAriaOn": "Turn travel mode on",
-      "travelAriaOff": "Turn travel mode off",
       "theme": "appearance",
       "themeDesc": "auto follows your system preference. sepia, graphite, and oxblood dark are pro palettes.",
       "themeLight": "☀ light",

@@ -125,6 +125,8 @@ export function recalibrationDigest(
 ): RecalibrationDigest {
   const merged = mergeDailyWeights(logs ?? [], dailyWeights ?? {});
   const fields = toProfileFields(profile);
+  // Read-only back-compat, and it has to mirror `dailyTargets` exactly — see
+  // the note there. No client writes this field any more.
   const adjusted = fields?.travelMode ? { ...fields, targetPaceLbsPerWeek: 0 } : fields;
   const tdee = calculateTdee(merged, adjusted);
 

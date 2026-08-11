@@ -123,6 +123,15 @@ export function dailyTargets(
 ): DailyTargets {
   const merged = mergeDailyWeights(logs, dailyWeights);
   const fields = toProfileFields(profile);
+  // `travelMode` is READ-ONLY BACK-COMPAT as of 2026-08-11 — no client can set
+  // it any more. It only ever meant "pace = 0", which the pace control already
+  // expresses (0 = Maintain), and the v1 toggle that wrote it was retired long
+  // before its plumbing was; the setter and its strings sat unreachable for
+  // months. Honouring it here is deliberate and must stay: accounts that
+  // switched it on under the old UI still carry `travelMode: true` in
+  // Firestore, and dropping this line would un-zero their pace and silently
+  // cut their daily target. The category treats a break as a temporary goal
+  // change rather than a mode — see docs/research/tdee-logging-gaps.md §2.
   const adjusted = fields?.travelMode ? { ...fields, targetPaceLbsPerWeek: 0 } : fields;
   const tdee = calculateTdee(merged, adjusted);
 

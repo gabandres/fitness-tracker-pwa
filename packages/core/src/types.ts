@@ -173,7 +173,7 @@ export interface ProfileFields {
   activityLevel: ActivityLevel;
   targetPaceLbsPerWeek: CutPace;
   goalWeightLbs?: number;      // optional
-  travelMode?: boolean;        // when true, target = maintenance (pace=0)
+  travelMode?: boolean;        // LEGACY, read-only: pace=0. No writer since 2026-08-11 — see ./targets.ts
   /** Personal safety floor for the daily calorie target, in kcal. When set,
    *  overrides the hardcoded MIN_DAILY_TARGET (1500) in the TDEE clamp so a
    *  water-suppressed measured TDEE can never silently push the target below

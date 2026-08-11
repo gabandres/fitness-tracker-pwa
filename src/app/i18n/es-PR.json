@@ -284,12 +284,6 @@
     },
     "modes": {
       "section": "modos",
-      "travel": "modo viaje",
-      "travelDesc": "suspende tu déficit mientras viajas — la meta pasa a mantenimiento. desactívalo al regresar a casa.",
-      "travelOn": "activo",
-      "travelOff": "inactivo",
-      "travelAriaOn": "Activar modo viaje",
-      "travelAriaOff": "Desactivar modo viaje",
       "theme": "apariencia",
       "themeDesc": "auto sigue las preferencias de tu sistema. sepia, grafito y oxblood oscuro son paletas pro.",
       "themeLight": "☀ claro",

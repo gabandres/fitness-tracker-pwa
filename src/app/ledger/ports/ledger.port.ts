@@ -82,7 +82,6 @@ export interface LedgerPort {
   saveReminderHour(hour: number): Promise<void>;
   startFast(startedAt?: Date): Promise<void>;
   breakFast(): Promise<void>;
-  setTravelMode(on: boolean): Promise<void>;
   setWeeklyDigestOptIn(on: boolean): Promise<void>;
   setUnitSystem(system: UnitSystem): Promise<void>;
   setProteinPerKg(gPerKg: number): Promise<void>;

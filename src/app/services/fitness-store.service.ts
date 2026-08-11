@@ -246,6 +246,11 @@ export class FitnessStore {
   }
 
   /** True when the user has travel mode enabled (target = maintenance). */
+  /** Legacy travel-mode flag — READ ONLY. Nothing can set it any more (the
+   *  toggle was retired long ago and its unreachable setter went with it on
+   *  2026-08-11); it survives because accounts that switched it on under the
+   *  v1 UI still carry it, and `dailyTargets` still honours it as pace = 0.
+   *  Read by starter-foods to stop ranking the list for a cut. */
   readonly travelMode: Signal<boolean> = computed(() =>
     this.fb.profile()?.travelMode === true,
   );
@@ -666,13 +671,6 @@ export class FitnessStore {
 
   async revokeWebhookApiKey(): Promise<void> {
     await this.fb.revokeWebhookApiKey();
-  }
-
-  async toggleTravelMode(): Promise<void> {
-    const next = !this.travelMode();
-    await this.fb.setTravelMode(next);
-    // Profile signal updates inside setTravelMode, which triggers
-    // the computed _profileFields → tdee → targetCalories chain.
   }
 
   async addLog(entry: LogEntry): Promise<void> {

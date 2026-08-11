@@ -79,7 +79,6 @@ describe('App', () => {
             undoDelete: async () => {},
             generateWebhookApiKey: async () => 'test',
             revokeWebhookApiKey: async () => {},
-            toggleTravelMode: async () => {},
             travelMode: signal(false),
             measurements: signal([]),
             latestMeasurement: signal(null),

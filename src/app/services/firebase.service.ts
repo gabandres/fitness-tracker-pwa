@@ -207,7 +207,7 @@ export interface ProfileFields {
   activityLevel: ActivityLevel;
   targetPaceLbsPerWeek: CutPace;
   goalWeightLbs?: number;      // optional
-  travelMode?: boolean;        // when true, target = maintenance (pace=0)
+  travelMode?: boolean;        // LEGACY, read-only: pace=0. No writer since 2026-08-11 — see packages/core/src/targets.ts
   /** Personal safety floor for the daily calorie target, in kcal. Overrides
    *  the hardcoded MIN_DAILY_TARGET (1500) in the TDEE clamp so a
    *  water-suppressed measured TDEE can't silently push the target below a
@@ -651,13 +651,6 @@ export class FirebaseService implements LedgerPort {
     await this.core.updateProfileDoc({ fastStartedAt: null, lastSeenAt: Timestamp.now() });
     const current = this._profile();
     if (current) this._profile.set({ ...current, fastStartedAt: null } as any);
-  }
-
-  /** Toggle travel mode on the profile. */
-  async setTravelMode(on: boolean): Promise<void> {
-    await this.core.updateProfileDoc({ travelMode: on, lastSeenAt: Timestamp.now() });
-    const current = this._profile();
-    if (current) this._profile.set({ ...current, travelMode: on } as Profile);
   }
 
   /** Add a meal label to the user's recent-quick-add hide list. The
