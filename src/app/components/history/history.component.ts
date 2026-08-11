@@ -15,7 +15,7 @@ import {
   localDateKey,
   monthGrid,
   startOfMonth,
-} from '../../utils/date';
+} from '@macrolog/core';
 import { bcp47ForLang } from '../../utils/locale';
 import { UiIconButton } from '../ui/icon-button.component';
 

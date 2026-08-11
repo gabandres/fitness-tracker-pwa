@@ -20,7 +20,7 @@ import {
   DEFAULT_PROTEIN_G_PER_KG,
   PROTEIN_G_PER_KG_MIN,
   PROTEIN_G_PER_KG_MAX,
-} from '../../utils/macro-heuristic';
+} from '@macrolog/core';
 import { TranslationService } from '../../services/translation.service';
 import { UiSheet } from '../ui/sheet.component';
 import { UiButton } from '../ui/button.component';

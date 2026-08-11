@@ -21,7 +21,7 @@ import {
   type TemplateDraft,
   type TemplateExercise,
 } from '../../models/workout';
-import { normalizeClusterGroups } from '../../utils/cluster-groups';
+import { normalizeClusterGroups } from '@macrolog/core';
 
 const SET_KINDS: SetKind[] = ['warmup', 'activation', 'working', 'mini', 'drop'];
 

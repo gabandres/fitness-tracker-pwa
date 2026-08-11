@@ -9,7 +9,7 @@ import { FoodSearchService } from '../../services/food-search.service';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { TranslationService } from '../../services/translation.service';
-import { parseMealDraft } from '../../utils/meal-draft';
+import { parseMealDraft } from '@macrolog/core';
 
 type Phase = 'input' | 'resolving' | 'review' | 'error';
 

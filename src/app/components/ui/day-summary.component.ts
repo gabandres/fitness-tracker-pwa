@@ -15,7 +15,7 @@ import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { TranslationService } from '../../services/translation.service';
 import type { DailyLog } from '../../services/firebase.service';
-import { localDateKey } from '../../utils/date';
+import { localDateKey } from '@macrolog/core';
 import { bcp47ForLang } from '../../utils/locale';
 import { FastingStore } from '../../services/fasting-store.service';
 import { UiButton } from './button.component';

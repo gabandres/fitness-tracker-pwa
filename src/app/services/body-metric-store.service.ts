@@ -2,9 +2,9 @@ import { Injectable, Signal, computed, inject, signal } from '@angular/core';
 import { clampSleepHours, clampWaterFlOz } from '@macrolog/core';
 import { LEDGER_PORT } from '../ledger/ports/ledger.port';
 import { Measurement } from './firebase.service';
-import { isStorableWeight, WEIGHT_ABS_MIN_LB, WEIGHT_ABS_MAX_LB } from '../utils/weight-validation';
-import { addDays, localDateKey } from '../utils/date';
-import type { WeightPoint } from '../utils/weekly-insights';
+import { isStorableWeight, WEIGHT_ABS_MIN_LB, WEIGHT_ABS_MAX_LB } from '@macrolog/core';
+import { addDays, localDateKey } from '@macrolog/core';
+import type { WeightPoint } from '@macrolog/core';
 
 /**
  * Owns body-metric state: daily weights map, daily water map, and the

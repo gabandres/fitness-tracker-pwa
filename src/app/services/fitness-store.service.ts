@@ -26,10 +26,10 @@ import {
   toProfileFields,
   type DailyTargets,
 } from '@macrolog/core/targets';
-import { addDays, localDateKey } from '../utils/date';
+import { addDays, localDateKey } from '@macrolog/core';
 import { bcp47ForLang } from '../utils/locale';
 import { TranslationService } from './translation.service';
-import { summarizeDay } from '../utils/day-summary';
+import { summarizeDay } from '@macrolog/core';
 import { computeStreak } from '@macrolog/core/streak';
 import {
   WeeklySummary,

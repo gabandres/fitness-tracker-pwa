@@ -3,7 +3,7 @@ import {
   keySet,
   computeExercisePRs,
   suggestProgression,
-} from './workout-progression';
+} from '@macrolog/core';
 import type { LogStyle, ProgressionRule, SessionExercise, WorkoutSet } from '../models/workout';
 
 /** Build a one-exercise history row for a given logStyle. */

@@ -16,7 +16,7 @@ import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { TranslationService } from '../../services/translation.service';
 import { PushNotificationService } from '../../services/push-notification.service';
 import { AnalyticsService } from '../../services/analytics.service';
-import { localDateKey } from '../../utils/date';
+import { localDateKey } from '@macrolog/core';
 import {
   shareStatItems,
   renderShareCardCanvas,

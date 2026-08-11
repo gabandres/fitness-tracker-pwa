@@ -1,5 +1,5 @@
-import { computeWeeklyInsights, projectWeight, weightSlopeLbPerWeek } from './weekly-insights';
-import type { DaySummary } from './day-summary';
+import { computeWeeklyInsights, projectWeight, weightSlopeLbPerWeek } from '@macrolog/core';
+import type { DaySummary } from '@macrolog/core';
 
 function day(dateKey: string, totalCalories: number, mealCount = 1): DaySummary {
   return {

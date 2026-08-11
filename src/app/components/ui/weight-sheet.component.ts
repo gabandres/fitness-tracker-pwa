@@ -12,9 +12,9 @@ import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { TranslationService } from '../../services/translation.service';
-import { localDateKey } from '../../utils/date';
+import { localDateKey } from '@macrolog/core';
 import { bcp47ForLang } from '../../utils/locale';
-import { checkWeightEntry, WEIGHT_MIN_LB, WEIGHT_MAX_LB } from '../../utils/weight-validation';
+import { checkWeightEntry, WEIGHT_MIN_LB, WEIGHT_MAX_LB } from '@macrolog/core';
 import { UiSheet } from './sheet.component';
 import { UiButton } from './button.component';
 

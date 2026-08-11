@@ -4,7 +4,7 @@ import { Firestore, Timestamp, deleteField } from '@angular/fire/firestore';
 import { Auth } from '@angular/fire/auth';
 import { CallableGateway } from './callable.gateway';
 import { readReferrer, clearReferrer } from '../utils/referral';
-import type { UnitSystem } from '../models/unit-system';
+import type { UnitSystem } from '@macrolog/core';
 import type { CustomFood, ServingUnit } from '@macrolog/core';
 import type {
   Exercise,
@@ -164,9 +164,9 @@ export function clampCutPace(lbPerWeek: number): CutPace {
 // Re-export so existing imports of GoalDirection from this module keep
 // working; the canonical definition lives in utils/macro-heuristic.ts
 // alongside the kcal/protein multipliers it parameterizes.
-export type { GoalDirection } from '../utils/macro-heuristic';
-import type { GoalDirection } from '../utils/macro-heuristic';
-import { clampProteinPerKg } from '../utils/macro-heuristic';
+export type { GoalDirection } from '@macrolog/core';
+import type { GoalDirection } from '@macrolog/core';
+import { clampProteinPerKg } from '@macrolog/core';
 
 /** v2 2-question onboarding submission. Heuristic targets are computed
  *  by the caller (component) and persisted as manualCaloriesTarget /

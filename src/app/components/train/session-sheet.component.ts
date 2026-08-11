@@ -26,9 +26,9 @@ import {
   suggestProgression,
   type ExercisePRs,
   type ProgressionSuggestion,
-} from '../../utils/workout-progression';
-import { computePlateLoad, type PlateLoad } from '../../utils/plate-math';
-import { generateWarmup, type WarmupSet } from '../../utils/warmup';
+} from '@macrolog/core';
+import { computePlateLoad, type PlateLoad } from '@macrolog/core';
+import { generateWarmup, type WarmupSet } from '@macrolog/core';
 
 const SAVE_DEBOUNCE_MS = 800;
 

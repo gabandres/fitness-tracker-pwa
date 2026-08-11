@@ -1,4 +1,4 @@
-import { GoalDirection, CALC_WEIGHT_MIN_LB, CALC_WEIGHT_MAX_LB } from './macro-heuristic';
+import { GoalDirection, CALC_WEIGHT_MIN_LB, CALC_WEIGHT_MAX_LB } from '@macrolog/core';
 
 /**
  * Funnel handoff between unauthed surfaces (`/calculator`, `/macros/...`)

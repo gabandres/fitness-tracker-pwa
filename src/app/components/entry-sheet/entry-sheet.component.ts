@@ -10,7 +10,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { FitnessStore } from '../../services/fitness-store.service';
-import { parseNumericInput } from '../../utils/meal-draft';
+import { parseNumericInput } from '@macrolog/core';
 import type { MacroEstimate } from '../../models/macro-estimate';
 import { MEAL_TYPES, type MealType } from '../../services/firebase.service';
 import { UiSheet } from '../ui/sheet.component';

@@ -3,7 +3,7 @@ import {
   defaultMealTypeForHour,
   parseMealDraft,
   parseNumericInput,
-} from './meal-draft';
+} from '@macrolog/core';
 
 describe('parseNumericInput', () => {
   it('coerces blank / whitespace / non-numeric to null', () => {

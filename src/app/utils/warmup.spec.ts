@@ -1,4 +1,4 @@
-import { generateWarmup } from './warmup';
+import { generateWarmup } from '@macrolog/core';
 
 describe('generateWarmup', () => {
   it('returns nothing at or below the bar', () => {

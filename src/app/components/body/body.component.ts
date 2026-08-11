@@ -16,9 +16,9 @@ import { FastingStore } from '../../services/fasting-store.service';
 import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { TranslationService } from '../../services/translation.service';
 import { AuthService } from '../../services/auth.service';
-import { localDateKey } from '../../utils/date';
+import { localDateKey } from '@macrolog/core';
 import { bcp47ForLang } from '../../utils/locale';
-import { projectWeight, type WeightPoint } from '../../utils/weekly-insights';
+import { projectWeight, type WeightPoint } from '@macrolog/core';
 import {
   MEASUREMENT_BOUNDS_IN,
   implausibleMeasurementFields,

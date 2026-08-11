@@ -39,7 +39,7 @@ import {
   type WorkoutSet,
   type WorkoutTemplate,
 } from '../../models/workout';
-import { suggestProgression } from '../../utils/workout-progression';
+import { suggestProgression } from '@macrolog/core';
 
 /**
  * Train tab — the workout home. Surfaces an in-progress session to resume,

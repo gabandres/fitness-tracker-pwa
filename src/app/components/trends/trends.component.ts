@@ -23,13 +23,13 @@ import { UiIconButton } from '../ui/icon-button.component';
 import { UiAvatar } from '../ui/avatar.component';
 import { UiFastingPill } from '../ui/fasting-pill.component';
 import { AuthService } from '../../services/auth.service';
-import { summarizeDays } from '../../utils/day-summary';
+import { summarizeDays } from '@macrolog/core';
 import {
   computeWeeklyInsights,
   type WeightPoint,
-} from '../../utils/weekly-insights';
-import { computeWeeklyBudget, type WeeklyBudget } from '../../utils/weekly-budget';
-import { addDays, localDateKey } from '../../utils/date';
+} from '@macrolog/core';
+import { computeWeeklyBudget, type WeeklyBudget } from '@macrolog/core';
+import { addDays, localDateKey } from '@macrolog/core';
 import { bcp47ForLang } from '../../utils/locale';
 
 /**

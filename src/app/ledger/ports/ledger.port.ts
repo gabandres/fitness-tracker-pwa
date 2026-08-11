@@ -1,5 +1,5 @@
 import { InjectionToken, Signal } from '@angular/core';
-import type { UnitSystem } from '../../models/unit-system';
+import type { UnitSystem } from '@macrolog/core';
 import type {
   Exercise,
   ExerciseDraft,

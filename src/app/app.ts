@@ -26,7 +26,7 @@ import { FitnessStore } from './services/fitness-store.service';
 import { WeeklyReportStore } from './services/weekly-report-store.service';
 import { SubscriptionService } from './services/subscription.service';
 import { ThemeChoice, PRO_THEMES, isProTheme, readStoredTheme, writeStoredTheme } from './utils/theme';
-import { localDateKey } from './utils/date';
+import { localDateKey } from '@macrolog/core';
 import { captureReferrerFromUrl } from './utils/referral';
 import { bcp47ForLang } from './utils/locale';
 import { mediaSignal } from './utils/media';

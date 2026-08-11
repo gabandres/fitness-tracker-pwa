@@ -1,4 +1,4 @@
-import { computePlateLoad, DEFAULT_BAR_LB } from './plate-math';
+import { computePlateLoad, DEFAULT_BAR_LB } from '@macrolog/core';
 
 describe('computePlateLoad', () => {
   it('returns null for a non-positive target', () => {

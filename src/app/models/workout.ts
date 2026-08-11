@@ -16,7 +16,7 @@
 // `Timestamp`. The `*Doc` shapes live in firebase.service.ts alongside
 // the other stored shapes.
 
-import { normalizeClusterGroups } from '../utils/cluster-groups';
+import { normalizeClusterGroups } from '@macrolog/core';
 import { isLoggedSet as isLoggedSetCore } from '@macrolog/core/workout';
 
 export type MuscleGroup =

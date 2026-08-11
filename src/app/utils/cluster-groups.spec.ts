@@ -1,4 +1,4 @@
-import { normalizeClusterGroups } from './cluster-groups';
+import { normalizeClusterGroups } from '@macrolog/core';
 import type { SetKind } from '../models/workout';
 
 const s = (kind: SetKind, group?: number) => ({ kind, group });

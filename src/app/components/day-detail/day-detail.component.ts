@@ -11,7 +11,7 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { TranslationService } from '../../services/translation.service';
-import { localDateKey, parseYmd } from '../../utils/date';
+import { localDateKey, parseYmd } from '@macrolog/core';
 import { bcp47ForLang } from '../../utils/locale';
 import { UiDaySummary } from '../ui/day-summary.component';
 import { UiFab } from '../ui/fab.component';

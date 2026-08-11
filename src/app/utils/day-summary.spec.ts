@@ -1,5 +1,5 @@
-import { summarizeDay, summarizeDays } from './day-summary';
-import { localDateKey } from './date';
+import { summarizeDay, summarizeDays } from '@macrolog/core';
+import { localDateKey } from '@macrolog/core';
 import type { DailyLog } from '../services/firebase.service';
 
 /**

@@ -1,4 +1,4 @@
-import { navyBodyFat } from './body-fat';
+import { navyBodyFat } from '@macrolog/core';
 
 describe('navyBodyFat', () => {
   it('estimates for a male from waist/neck/height', () => {

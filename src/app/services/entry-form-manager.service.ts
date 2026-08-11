@@ -5,13 +5,13 @@ import { MacroEstimate } from '../models/macro-estimate';
 import { buildCustomFood, customFoodDocId } from '@macrolog/core';
 import { TranslationService } from './translation.service';
 import { AuthService } from './auth.service';
-import { localDateKey } from '../utils/date';
+import { localDateKey } from '@macrolog/core';
 import {
   MEAL_DRAFT_ERROR_MESSAGE_KEYS,
   MealDraftResult,
   defaultMealTypeForHour,
   parseMealDraft,
-} from '../utils/meal-draft';
+} from '@macrolog/core';
 
 // Hoisted to root so non-ledger surfaces (dashboard empty-state hero,
 // future FAB / quick-add buttons) can call `startAdd()` + `requestLogFocus()`

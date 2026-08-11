@@ -18,7 +18,7 @@ import {
   CALC_WEIGHT_MAX_LB as WEIGHT_MAX_LB,
   computeKcal,
   computeProtein,
-} from '../../utils/macro-heuristic';
+} from '@macrolog/core';
 import { setCalcPrefill } from '../../utils/calc-prefill';
 import { share } from '../../utils/share';
 import { LucideAngularModule } from 'lucide-angular';

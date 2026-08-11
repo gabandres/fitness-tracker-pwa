@@ -4,7 +4,7 @@ import {
 } from '@angular/core';
 import {
   computeProtein, clampProteinPerKg, DEFAULT_PROTEIN_G_PER_KG,
-} from '../../utils/macro-heuristic';
+} from '@macrolog/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { FitnessStore } from '../../services/fitness-store.service';

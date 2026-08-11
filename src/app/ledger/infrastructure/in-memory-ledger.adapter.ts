@@ -197,7 +197,7 @@ export class InMemoryLedgerAdapter implements LedgerPort {
     this.patchProfile({ travelMode: on });
   }
 
-  async setUnitSystem(system: import('../../models/unit-system').UnitSystem): Promise<void> {
+  async setUnitSystem(system: import('@macrolog/core').UnitSystem): Promise<void> {
     this.patchProfile({ unitSystem: system });
   }
 

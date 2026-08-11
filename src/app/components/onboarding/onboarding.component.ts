@@ -20,7 +20,7 @@ import {
   CALC_WEIGHT_MAX_LB as WEIGHT_MAX_LB,
   computeKcal,
   computeProtein,
-} from '../../utils/macro-heuristic';
+} from '@macrolog/core';
 import { consumeCalcPrefill } from '../../utils/calc-prefill';
 
 type Step = 'weight' | 'goal' | 'targetWeight' | 'confirm';

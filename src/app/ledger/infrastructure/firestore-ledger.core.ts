@@ -42,7 +42,7 @@ import type {
   WorkoutSession,
   WorkoutTemplate,
 } from '../../models/workout';
-import { normalizeClusterGroups } from '../../utils/cluster-groups';
+import { normalizeClusterGroups } from '@macrolog/core';
 import { pruneUndefined as pruneUndefinedCore } from '@macrolog/core/prune-undefined';
 import {
   BATCH_CHUNK,

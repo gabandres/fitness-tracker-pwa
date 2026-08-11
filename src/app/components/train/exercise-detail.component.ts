@@ -13,7 +13,7 @@ import { WorkoutStore } from '../../services/workout-store.service';
 import { SubscriptionService } from '../../services/subscription.service';
 import { TranslationService } from '../../services/translation.service';
 import { bcp47ForLang } from '../../utils/locale';
-import { localDateKey } from '../../utils/date';
+import { localDateKey } from '@macrolog/core';
 import { UiSheet } from '../ui/sheet.component';
 import { UiSparkline } from '../ui/sparkline.component';
 import {
@@ -27,7 +27,7 @@ import {
   computeExercisePRs,
   isWorkingSet,
   metricForSet,
-} from '../../utils/workout-progression';
+} from '@macrolog/core';
 
 interface SessionPoint {
   date: Date;
