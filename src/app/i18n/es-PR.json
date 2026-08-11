@@ -1858,7 +1858,11 @@
     "shareLabelStreak": "Días seguidos",
     "shareLabelDays": "Días registrados",
     "shareLabelLost": "Bajaste",
-    "shareLabelGained": "Subiste"
+    "shareLabelGained": "Subiste",
+    "maintenance": "mantenimiento",
+    "underMaintenance": "{{n}} bajo lo que quemas",
+    "overMaintenance": "{{n}} sobre lo que quemas",
+    "maintenanceRough": "aproximado — registra más días para afinarlo"
   },
   "train": {
     "thisWeek": "Esta semana",

@@ -153,3 +153,8 @@ export * from './daily-scalars';
 // Train tabs read these instead of hand-mirroring them, which is how the two
 // apps came to disagree about the user's heaviest lift.
 export * from './train-view';
+// The Today "maintenance" line — intake read against measured burn rather than
+// against the target. Presentation gate only; invents no math. Null unless the
+// TDEE is genuinely measured, so a formula/seed guess never appears on Today
+// dressed as an observation.
+export * from './maintenance-view';

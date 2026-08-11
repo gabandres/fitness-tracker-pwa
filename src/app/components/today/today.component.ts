@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
+import { maintenanceView } from '@macrolog/core';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
@@ -96,6 +97,40 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
       <app-whats-new-banner [suppressed]="activeNudge() !== 'whatsNew'" />
 
       <ui-day-summary [dateKey]="todayKey()" (bodyRequested)="bodyRequested.emit()" />
+
+      <!-- Intake against measured BURN — the thing the rings cannot show,
+           because the target they count down from can be held above
+           maintenance by a calorie floor. Renders only for a genuinely
+           measured TDEE; Trends owns the detail. Mirrors mobile's
+           MaintenanceLine. -->
+      @if (maintenance(); as m) {
+        <div
+          class="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-xl px-4 py-3"
+          style="border: 1px solid var(--v2-rule); background: var(--v2-paper);"
+          data-testid="maintenance-line">
+          <span class="v2-caption" style="color: var(--v2-ink-muted);">
+            {{ t('today.maintenance') }}
+            <span class="v2-num" style="color: var(--v2-ink); font-weight: 800;">
+              {{ m.maintenance.toLocaleString() }}
+            </span>
+          </span>
+          <span
+            class="v2-caption"
+            style="font-weight: 700;"
+            [style.color]="m.delta < 0 ? 'var(--v2-ink)' : 'var(--v2-ink-muted)'">
+            {{
+              m.delta < 0
+                ? t('today.underMaintenance', { n: (-m.delta).toLocaleString() })
+                : t('today.overMaintenance', { n: m.delta.toLocaleString() })
+            }}
+          </span>
+          @if (!m.reliable) {
+            <span class="v2-caption" style="color: var(--v2-ink-faint);">
+              {{ t('today.maintenanceRough') }}
+            </span>
+          }
+        </div>
+      }
 
       <!-- Day-3 "Refine targets" coach card — surfaces once the user has
            ≥3 unique logged days and is still on the 2-Q heuristic. Tapping
@@ -369,6 +404,13 @@ export class TodayComponent {
   // ─── Adaptive-TDEE recalibration digest ────────────────────────
   /** The live recalibration digest (measured TDEE shift the app already
    *  applies). Read directly by the template for the number + trend copy. */
+  /** Today's intake against measured maintenance. Null unless the TDEE is
+   *  genuinely measured — the gate lives in core so both apps agree on when it
+   *  is honest to show this. */
+  protected readonly maintenance = computed(() =>
+    maintenanceView(this.store.tdee(), this.store.todaySummary()?.totalCalories ?? 0),
+  );
+
   protected readonly recalibration = computed(() => this.store.recalibration());
   /** Show only when there's a fresh, meaningful recalibration. Sits below the
    *  refine card in the One-Nudge gate — get the real profile first, then the

@@ -1858,7 +1858,11 @@
     "shareLabelStreak": "Day streak",
     "shareLabelDays": "Days logged",
     "shareLabelLost": "Lost",
-    "shareLabelGained": "Gained"
+    "shareLabelGained": "Gained",
+    "maintenance": "maintenance",
+    "underMaintenance": "{{n}} under your burn",
+    "overMaintenance": "{{n}} over your burn",
+    "maintenanceRough": "rough — log more days to sharpen it"
   },
   "train": {
     "thisWeek": "This week",
