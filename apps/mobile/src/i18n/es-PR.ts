@@ -693,6 +693,10 @@ export const esPR: Record<I18nKey, string> = {
   'refine.activityConnectCta': 'Conectar Health',
   'refine.pace': 'Ritmo semanal',
   'refine.paceUnit': 'lb/sem',
+  'refine.paceFloorCapped':
+    'Tu piso de {floor} kcal lo limita a {pace} lb/sem. Bájalo en Ajustes para ir más rápido de verdad.',
+  'refine.paceFloorNoDeficit':
+    'Tu piso de {floor} kcal está en o por encima de tu gasto estimado de {maintenance} kcal, así que este ritmo no puede crear déficit.',
   'refine.maintain': 'Mantener',
   'refine.save': 'Guardar metas',
   'refine.saveErr': 'No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.',

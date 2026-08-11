@@ -158,6 +158,12 @@ export * from './train-view';
 // TDEE is genuinely measured, so a formula/seed guess never appears on Today
 // dressed as an observation.
 export * from './maintenance-view';
+// What a chosen pace actually delivers once calorieFloor clamps the target.
+// Same shape as maintenance-view: a reading over calculateTdee's own
+// arithmetic, no target math changed. Exists because the pace control is a
+// promise the app is free to break silently — 0.9 lb/wk against a floor 20
+// kcal under maintenance really ships 0.04.
+export * from './pace-reality';
 // The windows every screen takes over logs and weights, named once. ADR-0004
 // gave the Angular app typed windows; the Expo app was built afterwards and
 // inherited none of it, so `400` was declared in three hooks and had already

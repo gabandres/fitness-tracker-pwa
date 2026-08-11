@@ -13,8 +13,9 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import type { ActivityLevel, CutPace, Sex } from '../../services/firebase.service';
 import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { FitnessStore } from '../../services/fitness-store.service';
-import { calculateTdee } from '@macrolog/core/tdee';
+import { calculateTdee, type TdeeResult } from '@macrolog/core/tdee';
 import {
+  paceReality,
   computeProtein,
   clampProteinPerKg,
   DEFAULT_PROTEIN_G_PER_KG,
@@ -150,6 +151,26 @@ import { UiButton } from '../ui/button.component';
               <span>{{ t('v2.refineTargets.paceMaintain') }}</span>
               <span>2.0</span>
             </div>
+            <!-- The pace above is a promise the target math is free to break:
+                 calorieFloor clamps the target, and the slider says nothing.
+                 Shown ONLY when the floor actually changes the displayed
+                 number. Reports existing arithmetic; changes none of it. -->
+            @if (paceLimit(); as p) {
+              <p class="v2-caption" style="margin-top: 6px; color: var(--v2-ink);"
+                 data-testid="pace-floor-note">
+                {{
+                  p.effectivePace > 0
+                    ? t('v2.refineTargets.paceFloorCapped', {
+                        floor: p.floor.toLocaleString(),
+                        pace: p.effectivePace.toFixed(2),
+                      })
+                    : t('v2.refineTargets.paceFloorNoDeficit', {
+                        floor: p.floor.toLocaleString(),
+                        maintenance: p.maintenance.toLocaleString(),
+                      })
+                }}
+              </p>
+            }
           </div>
 
           <!-- Protein basis (g/kg) -->
@@ -292,20 +313,52 @@ export class UiRefineTargetsSheet {
       && this.pace() != null;
   });
 
-  protected readonly previewKcal = computed(() => {
+  /**
+   * The TDEE reading the saved targets will actually be derived from.
+   *
+   * Measured mode ignores every field on this form except pace — it backs
+   * maintenance out of the observed weight trend and intake — so previewing a
+   * formula number to a user who is already measured shows them a target they
+   * will never be held to. `dailyTargets` uses `tdee.newDailyTarget` for the
+   * whole measured branch once saving clears the manual override, which is
+   * exactly what this sheet does on save.
+   *
+   * The formula fallback now carries the user's `calorieFloor`. It always
+   * should have: `calculateTdee` clamps at the floor, and the synthetic
+   * profile built here omitted it, so the preview quietly used the 1,500
+   * default for anyone who had raised or lowered theirs.
+   */
+  private readonly paceBasis = computed<TdeeResult | null>(() => {
     if (!this.isValid()) return null;
+    const measured = this.store.tdee();
+    if (measured.source === 'measured') return measured;
     const w = this.store.currentWeight() ?? this.fb.profile()?.targetWeightLbs ?? null;
     if (w == null) return null;
-    const result = calculateTdee([], {
+    return calculateTdee([], {
       heightIn: this.heightIn()!,
       age: this.ageInput()!,
       sex: this.sex()!,
       activityLevel: this.activity()!,
       targetPaceLbsPerWeek: this.pace()!,
       goalWeightLbs: w,
+      calorieFloor: this.fb.profile()?.calorieFloor,
     } as any);
-    return result.newDailyTarget;
   });
+
+  /** Pace vs floor for the pace currently under the user's thumb. */
+  private readonly reality = computed(() => {
+    const basis = this.paceBasis();
+    return basis == null ? null : paceReality(basis, this.pace() ?? 1.0, this.fb.profile());
+  });
+
+  /** The conflict note, or null when the floor is not costing the user
+   *  anything they could see. */
+  protected readonly paceLimit = computed(() => {
+    const r = this.reality();
+    return r?.floorBinding ? r : null;
+  });
+
+  protected readonly previewKcal = computed(() => this.reality()?.target ?? null);
 
   constructor() {
     // Reset form to current profile state every time the sheet opens

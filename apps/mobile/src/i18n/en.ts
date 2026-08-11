@@ -689,6 +689,10 @@ export const en = {
   'refine.activityConnectCta': 'Connect Health',
   'refine.pace': 'Weekly pace',
   'refine.paceUnit': 'lb/wk',
+  'refine.paceFloorCapped':
+    'Your {floor} kcal floor holds this to {pace} lb/wk. Lower the floor in Settings to actually go faster.',
+  'refine.paceFloorNoDeficit':
+    "Your {floor} kcal floor is at or above your {maintenance} kcal estimated burn, so this pace can't create a deficit.",
   'refine.maintain': 'Maintain',
   'refine.save': 'Save targets',
   'refine.saveErr': 'Could not save. Check your connection and try again.',

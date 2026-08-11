@@ -1493,6 +1493,8 @@
       "pace": "Ritmo",
       "lbWeek": "lb/sem",
       "paceMaintain": "Mantener",
+      "paceFloorCapped": "Tu piso de {{floor}} kcal lo limita a {{pace}} lb/sem. Bájalo en Ajustes para ir más rápido de verdad.",
+      "paceFloorNoDeficit": "Tu piso de {{floor}} kcal está en o por encima de tu gasto estimado de {{maintenance}} kcal, así que este ritmo no puede crear déficit.",
       "protein": "Proteína (g/kg)",
       "proteinHint": "1.6 es el mínimo para retener músculo en un déficit; los que entrenan duro suelen usar 1.8–2.2.",
       "proteinDec": "Bajar proteína por kg",

@@ -13,9 +13,10 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { type ActivityLevel, type Sex, basalMifflinStJeor } from '@macrolog/core';
+import { type ActivityLevel, type Sex, basalMifflinStJeor, paceReality } from '@macrolog/core';
 import { useActivitySuggestion } from '@/lib/activity-suggestion';
 import { useAuth } from '@/lib/auth';
+import { useDailyTargets } from '@/hooks/useDailyTargets';
 import { getLatestDailyWeight, saveRefinedTargets } from '@/lib/ledger';
 import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -122,6 +123,17 @@ export default function RefineTargets() {
   }
 
   const canSave = sex != null && heightValid && ageValid && selected != null && !busy;
+
+  // ── What the chosen pace actually delivers ───────────────────────────
+  // The stepper above is a promise the target math is free to break:
+  // `calculateTdee` clamps the target at `calorieFloor`, so a floor near
+  // maintenance can turn 0.9 lb/wk into 0.04 and nothing on this screen says
+  // so. Reports existing arithmetic — no target math changes here — and only
+  // when the floor changes a number the user can see. Live against the
+  // stepper, not the saved profile, so it answers "what would this do?".
+  const { tdee } = useDailyTargets();
+  const reality = paceReality(tdee, pace, profile);
+  const paceLimit = reality?.floorBinding ? reality : null;
 
   async function onSave() {
     if (!canSave || !user || sex == null || heightIn == null || ageNum == null || selected == null) return;
@@ -273,6 +285,19 @@ export default function RefineTargets() {
                 <Text style={styles.stepText}>+</Text>
               </TouchableOpacity>
             </View>
+            {paceLimit ? (
+              <Text style={styles.paceNote} testID="refine-pace-floor">
+                {paceLimit.effectivePace > 0
+                  ? t('refine.paceFloorCapped', {
+                      floor: paceLimit.floor.toLocaleString(),
+                      pace: paceLimit.effectivePace.toFixed(2),
+                    })
+                  : t('refine.paceFloorNoDeficit', {
+                      floor: paceLimit.floor.toLocaleString(),
+                      maintenance: paceLimit.maintenance.toLocaleString(),
+                    })}
+              </Text>
+            ) : null}
           </View>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -340,6 +365,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   step: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.inputBg },
   stepText: { fontSize: font.h2, color: colors.ink, fontWeight: '700' },
   paceValue: { fontSize: font.h3, color: colors.ink, fontWeight: '700' },
+  paceNote: { fontSize: font.small, color: colors.ink, marginTop: space.sm },
   error: { color: colors.danger, fontSize: font.small },
   footer: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.lg, borderTopWidth: 1, borderTopColor: colors.line },
   save: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },

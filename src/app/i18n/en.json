@@ -1493,6 +1493,8 @@
       "pace": "Pace",
       "lbWeek": "lb/wk",
       "paceMaintain": "Maintain",
+      "paceFloorCapped": "Your {{floor}} kcal floor holds this to {{pace}} lb/wk. Lower the floor in Settings to actually go faster.",
+      "paceFloorNoDeficit": "Your {{floor}} kcal floor is at or above your {{maintenance}} kcal estimated burn, so this pace can't create a deficit.",
       "protein": "Protein (g/kg)",
       "proteinHint": "1.6 is the muscle-retention floor on a cut; lean lifters often run 1.8–2.2.",
       "proteinDec": "Decrease protein per kg",
