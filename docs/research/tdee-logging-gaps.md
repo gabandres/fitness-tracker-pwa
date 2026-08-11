@@ -8,7 +8,19 @@
 > MacroFactor flips `updating → holding` below ~4 logged days/week and tells the
 > user which days it excluded. Ignia has no pause state, never imputes an
 > unlogged day, and its reliability flag does not gate the failure it exists for.
-> **Status:** RESEARCHED, not decided — no fix chosen, four candidates priced ·
+> **Status:** DECIDED AND PARTLY SHIPPED, 2026-08-11. **Candidates 2 and 3 are
+> in** (gap segmentation + the discarded-weigh-in count on Today); **candidate 1
+> (the hold state) is deferred** and still the right next move; **candidate 4
+> (imputation) is not happening** without its own research pass. §4 is kept as
+> written, with what shipped recorded under it.
+>
+> **One claim in §4 was wrong and the correction matters**: candidate 2 does
+> **not** kill §1b on its own — measured, segmenting *without* a settle window
+> moves the rebound scenario from 2,392 to **3,469** against a true 2,500, five
+> times the original error and in the direction that raises the target. The
+> rebound does not belong to the old segment; it belongs to the *new* one, where
+> nothing damps it. What shipped therefore also ignores the first 7 days after a
+> break. See §6. ·
 > **Researched:** 2026-08-11
 > **Read this only if:** you are changing `calculateTdee`, the reliability gate,
 > or anything that presents maintenance to a user.
@@ -208,3 +220,54 @@ candidate, and the user confirms.
 - **Do not change the target math to compensate.** The target already falls back
   correctly when `reliable` is false. The defect is in the estimate and in what
   the UI claims about it, and that is where it should be fixed.
+
+---
+
+## 6. What shipped, 2026-08-11 — and the measurement that changed the design
+
+Candidates **3** then **2**, in that order, after an explicit owner decision to
+lift *"do not change the TDEE math"* for candidate 2 only. Candidate 1 is
+deferred; candidate 4 is not on the table.
+
+### Candidate 3 — the discarded weigh-ins are visible now
+
+`MaintenanceView.weighInsDropped` carries `outliersDropped` through to the
+Today maintenance line on both platforms. **Deliberately not gated on
+`reliable`**: the two-week-break case discards seven weigh-ins while reporting
+`reliable: true`, so gating it there would have hidden it in exactly the case it
+exists for. Copy names the cause rather than the statistic — "a real jump in
+weight can look like a bad reading".
+
+### Candidate 2 — segment on the break, then let the water settle
+
+`weightTrendLbsPerDay` now fits only the run of weigh-ins since the last break
+of **≥7 days**, and ignores the first **7 days** of that run.
+
+The settle window is not decoration; it is the difference between a fix and a
+regression. Every scenario below holds the truth at 2,500 kcal:
+
+| Scenario | Before | Segmented only | Segmented + settle |
+|---|---|---|---|
+| §1a step: +4 lb over a break, then flat | 2,038 (−462, 7 weigh-ins discarded) | **2,500** | **2,500** |
+| §1b rebound: +4 lb, water off over the next week | 2,392 (−108) | **3,469 (+969)** | **2,500** |
+| Fewer than 4 weigh-ins since the break | 2,500 | 2,500 | 2,500 |
+
+Segmenting alone fixes the step and **makes the rebound five times worse**, in
+the direction that raises the target — travel water leaving is a real fall
+inside a fresh 14-day segment, and the old whole-window fit at least had the
+pre-break plateau damping it. §4's claim that candidate 2 "directly kills 1a and
+1b" holds only with the settle window.
+
+Two guards on over-reach, both pinned by tests: a break shorter than 7 days
+changes nothing (a long weekend is a skipped morning, not a changed regime), and
+a post-break run with fewer than 4 surviving weigh-ins falls back to the old
+whole-window fit rather than to `null` — null would send `calculateTdee` to the
+hardcoded 2,450 seed, replacing a biased estimate built from this user's data
+with one built from nobody's.
+
+### What this does NOT fix
+
+**§1c, partial logging — the biggest measured error (−635) — is untouched**, and
+it is the one behind the owner's own 1,870. Segmentation is a weight-trend fix;
+partial logging poisons the *intake* side. That, and the hold state, are what
+candidate 1 and partial-day detection are for.

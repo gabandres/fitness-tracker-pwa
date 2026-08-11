@@ -216,3 +216,76 @@ describe('weight-trend outlier rejection', () => {
     expect(calculateTdee(sparse, baseProfile).outliersDropped).toBe(0);
   });
 });
+
+/**
+ * A break in weighing is a boundary, not data.
+ *
+ * Every scenario below holds the ground truth identical — the person burns
+ * 2,500, eats 2,500 — so any deviation from 2,500 is error the break
+ * introduced. Numbers in the comments are measured, before and after, on this
+ * function. Research: docs/research/tdee-logging-gaps.md §1a/§1b.
+ */
+describe('weight-trend gap segmentation', () => {
+  /** 14 clean days, a two-week break, then 14 days back at a new weight. */
+  const acrossBreak = (before: number, after: (dayIndex: number) => number) => {
+    const logs: DailyLog[] = [];
+    for (let i = 41; i >= 28; i--) logs.push(log(i, 2500, before));
+    for (let i = 13; i >= 0; i--) logs.push(log(i, 2500, after(13 - i)));
+    return logs;
+  };
+
+  it('reads the weight you came back at, instead of discarding every reading of it', () => {
+    // The step case. Fitted across the break, the new plateau looks like 7 bad
+    // readings and maintenance came out at 2,038 — a 462 kcal error built by
+    // throwing away every observation of a real 4 lb change.
+    const r = calculateTdee(acrossBreak(180, () => 184), baseProfile);
+    expect(r.trueTdee).toBe(2500);
+    expect(r.outliersDropped).toBe(0);
+  });
+
+  it('does not read travel water leaving as fat loss', () => {
+    // The rebound case, and the reason segmenting alone is not enough:
+    // whole-window 2,392 · segmented without a settle window 3,469 · with it,
+    // 2,500. The +969 version is the dangerous one — it raises the target.
+    const r = calculateTdee(
+      acrossBreak(180, (d) => (d < 7 ? 184 - d * 0.5 : 180.5)),
+      baseProfile,
+    );
+    expect(r.trueTdee).toBe(2500);
+  });
+
+  it('ignores a break shorter than a week', () => {
+    // A long weekend is a skipped morning, not a changed regime. Six days off
+    // must leave the fit exactly as it was.
+    const logs: DailyLog[] = [];
+    for (let i = 20; i >= 0; i--) if (i > 13 || i < 8) logs.push(log(i, 2000, 185 - 0.2 * (20 - i)));
+    const r = calculateTdee(logs, baseProfile);
+    expect(r.source).toBe('measured');
+    // Still the whole-window slope: 0.2 lb/day ⇒ 2000 + 700.
+    expect(r.trueTdee).toBeGreaterThan(2650);
+    expect(r.trueTdee).toBeLessThan(2750);
+  });
+
+  it('keeps the old fit until enough weigh-ins survive the settle window', () => {
+    // Three weigh-ins since coming back is a line through water. Falling back
+    // to the whole window is biased; returning null would be worse — that
+    // sends calculateTdee to the hardcoded 2,450 seed, replacing this user's
+    // own data with nobody's.
+    const logs: DailyLog[] = [];
+    for (let i = 41; i >= 28; i--) logs.push(log(i, 2500, 180));
+    for (let i = 2; i >= 0; i--) logs.push(log(i, 2500, 184));
+    const r = calculateTdee(logs, baseProfile);
+    expect(r.source).toBe('measured');
+    expect(r.trueTdee).toBeGreaterThan(2000);
+  });
+
+  it('changes nothing for someone who never stopped weighing', () => {
+    // The guard against over-reach: no break, no segmentation, byte-identical
+    // to the behaviour every existing user has today.
+    const daily = Array.from({ length: 21 }, (_, i) => log(20 - i, 2000, 185 - 0.2 * i));
+    const r = calculateTdee(daily, baseProfile);
+    expect(r.outliersDropped).toBe(0);
+    expect(r.trueTdee).toBeGreaterThan(2650);
+    expect(r.trueTdee).toBeLessThan(2750);
+  });
+});

@@ -146,6 +146,81 @@ const OUTLIER_SIGMAS = 4;
  *  dropped — with 3 points a "majority" is meaningless. */
 const OUTLIER_MIN_POINTS = 5;
 
+/** A break in weigh-ins at least this long ends the current trend segment.
+ *  Seven days because that is the shortest absence that reliably means a
+ *  changed regime rather than a skipped morning — a long weekend fits inside
+ *  it, a trip does not. */
+const TREND_GAP_DAYS = 7;
+/**
+ * Days at the start of a post-break segment that do not count toward the
+ * trend.
+ *
+ * Segmenting alone is not enough, and the measurement is unambiguous. Against
+ * the research's rebound scenario — flat 180, a break, back at 184, the water
+ * off over the following week, true burn 2,500 the whole time — the estimate
+ * moves like this:
+ *
+ *   whole-window fit (before):  2,392   (−108)
+ *   segmented, no settle:       3,469   (+969)   ← worse, and in the direction
+ *   segmented + settle:         2,500   (exact)     that raises the target
+ *
+ * The step case is fixed by segmenting alone (2,038 → 2,500). The rebound is
+ * not: travel weight is glycogen and sodium, it leaves over about a week, and
+ * inside a fresh 14-day segment that fall is the loudest thing in the data —
+ * where the old fit at least had the pre-break plateau damping it. Reading it
+ * as fat loss inflates maintenance by ~950 kcal/day, which raises the target
+ * rather than lowering it.
+ *
+ * Seven days because that is how long the shift takes to clear, and because
+ * the alternative — trusting it — is the more expensive mistake.
+ */
+const POST_BREAK_SETTLE_DAYS = 7;
+/** A post-break segment is only trusted to carry the trend on its own once it
+ *  has this many weigh-ins LEFT after the settle window. Below it, the fit
+ *  would be a line through two or three points dominated by water, which is a
+ *  worse answer than the biased one — so the old whole-window behaviour stands
+ *  until the user has weighed in enough times since coming back. */
+const MIN_SEGMENT_POINTS = 4;
+
+/**
+ * Split weigh-in points wherever the user stopped weighing for a week or more,
+ * and return the most recent run.
+ *
+ * ## Why a break has to be a boundary rather than data
+ *
+ * A two-week gap does not produce noise, it produces a STEP: flat at 180,
+ * absent, then flat at 184. Fitted as one series against a 28-day window that
+ * is mostly the old plateau, every post-break reading sits far from the line —
+ * so the robust guard classifies all seven of them as outliers and throws away
+ * every observation of a real 4 lb change, while the result still reports
+ * itself reliable. Measured on this function; see
+ * `docs/research/tdee-logging-gaps.md` §1a.
+ *
+ * The same fit also punishes the user for travel water leaving: a rebound over
+ * the following week reads as a fall, a fall reads as a deficit, and
+ * maintenance drops 155 kcal (§1b).
+ *
+ * Widening the outlier guard would fix both and break the thing it exists for
+ * — one stray 158 lb entry moving a real account's maintenance from 2,741 to
+ * 1,619. Segmenting keeps the guard narrow and simply stops asking it to
+ * explain a discontinuity it cannot see.
+ */
+function lastTrendSegment<T extends { x: number }>(points: T[]): T[] {
+  let start = 0;
+  let broke = false;
+  for (let i = 1; i < points.length; i++) {
+    if (points[i].x - points[i - 1].x >= TREND_GAP_DAYS) {
+      start = i;
+      broke = true;
+    }
+  }
+  const segment = points.slice(start);
+  if (!broke || segment.length === 0) return segment;
+  // Let the water settle before believing anything the scale says.
+  const settledFrom = segment[0].x + POST_BREAK_SETTLE_DAYS;
+  return segment.filter((p) => p.x >= settledFrom);
+}
+
 /**
  * Weight trend in lbs/day, robust to a bad weigh-in.
  *
@@ -170,10 +245,18 @@ function weightTrendLbsPerDay(daily: DailyLog[]): { slope: number; dropped: numb
   const weighed = daily.filter((l): l is DailyLog & { weight: number } => l.weight != null);
   if (weighed.length < 2) return null;
   const t0 = weighed[0].date.getTime();
-  const points = weighed.map((l) => ({
+  const allPoints = weighed.map((l) => ({
     x: (l.date.getTime() - t0) / 86_400_000,
     y: l.weight,
   }));
+
+  // Fit only what has happened since the last break in weighing — but only
+  // once that run can carry a fit on its own. The fallback is deliberately the
+  // old behaviour rather than `null`: returning null here would send
+  // `calculateTdee` to the hardcoded 2,450 seed, replacing a biased estimate
+  // built from the user's own data with one built from nobody's.
+  const segment = lastTrendSegment(allPoints);
+  const points = segment.length >= MIN_SEGMENT_POINTS ? segment : allPoints;
 
   if (points.length < OUTLIER_MIN_POINTS) {
     const slope = regressionSlope(points);
