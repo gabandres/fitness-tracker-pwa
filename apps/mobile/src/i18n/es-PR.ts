@@ -143,7 +143,7 @@ export const esPR: Record<I18nKey, string> = {
   'today.loadErr': 'No se pudieron cargar tus datos. Desliza para reintentar.',
   'today.entry': 'Registro',
   'whatsNew.title': 'Novedades',
-  'whatsNew.body': 'Añadir una comida a un día anterior ahora la archiva en la comida correcta — desayuno, almuerzo, cena o merienda, según la hora para la que la registraste — en vez de caer en Otro. Esas entradas también llegan a Apple Health, en el día que les toca.',
+  'whatsNew.body': 'Hoy ahora muestra lo que de verdad quemas, no solo lo que te queda. Cuando Ignia ya midió tu mantenimiento con tus propios registros, aparece bajo los anillos con cuánto estás por encima o por debajo — porque cumplir la meta y estar en déficit no siempre es lo mismo.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',

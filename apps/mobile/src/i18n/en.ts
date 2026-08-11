@@ -141,7 +141,7 @@ export const en = {
   'today.loadErr': "Couldn't load your data. Pull to retry.",
   'today.entry': 'Entry',
   'whatsNew.title': "What's new",
-  'whatsNew.body': 'Adding a meal to an earlier day now files it under the right meal — breakfast, lunch, dinner or snack, by the time you logged it for — instead of landing in Other. Those entries reach Apple Health too, on the day they belong to.',
+  'whatsNew.body': 'Today now shows what you actually burn, not just what you have left. Once Ignia has measured your maintenance from your own logging, it sits under the rings with how far above or below it you are — because being on target and being in a deficit are not always the same thing.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',
