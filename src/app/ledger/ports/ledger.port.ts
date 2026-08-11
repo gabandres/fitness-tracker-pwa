@@ -14,8 +14,10 @@ import type {
   LogEntry,
   MealPreset,
   Measurement,
+  OnboardingV2Submission,
   Profile,
   ProfileFields,
+  RefineTargetsSubmission,
   WeeklyReport,
 } from '../../services/firebase.service';
 
@@ -31,6 +33,23 @@ import type {
  *
  * Add-verbs return the server-assigned doc id so stores can reconcile
  * caches locally instead of refetching after every mutation.
+ *
+ * ## What is deliberately NOT behind this seam
+ *
+ * `public-profile`, `transformations` and `status` read `publicProfiles/*` and
+ * `status/heartbeat` with `@angular/fire/firestore` directly, and that is
+ * correct, not a leak. Those documents are **not user-owned** — they are other
+ * people's public pages and a global heartbeat — so a seam whose entire
+ * contract is "scoped to the signed-in user, callers never pass a uid" cannot
+ * express them without growing a second, unscoped half.
+ *
+ * They also do not violate the single-SDK-copy rule: that rule forbids plain
+ * `firebase/firestore` in app-bundle code, and these import from
+ * `@angular/fire/firestore`, which IS the injected instance.
+ *
+ * A `PublicDataPort` was considered and rejected: three read-only calls with
+ * exactly one implementation is a hypothetical seam, not a real one. Reviewed
+ * 2026-08-10 — please don't re-flag them.
  */
 export interface LedgerPort {
   readonly profile: Signal<Profile | null>;
@@ -39,6 +58,22 @@ export interface LedgerPort {
   ensureUserProfile(): Promise<void>;
   clearProfile(): void;
   saveProfile(fields: ProfileFields): Promise<void>;
+  /**
+   * Persist the 2-question onboarding submission — heuristic kcal/protein
+   * targets, goal direction, and today's weight.
+   *
+   * On the port since 2026-08-10. It and `saveRefinedTargets` were the only
+   * two profile writes that lived on `FirebaseService` alone, which forced
+   * `onboarding` and `refine-targets-sheet` to inject the concrete adapter and
+   * left them the two components that could not be exercised without Firebase.
+   */
+  saveOnboardingV2(submission: OnboardingV2Submission): Promise<void>;
+  /**
+   * Persist the Day-3 "Refine targets" sheet — the full Mifflin-St Jeor
+   * inputs — and clear the heuristic manual targets so the TDEE chain takes
+   * over from the next read.
+   */
+  saveRefinedTargets(submission: RefineTargetsSubmission): Promise<void>;
 
   generateWebhookApiKey(): Promise<string>;
   revokeWebhookApiKey(): Promise<void>;

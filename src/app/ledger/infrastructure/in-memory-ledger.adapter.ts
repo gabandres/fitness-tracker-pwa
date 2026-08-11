@@ -1,5 +1,6 @@
 import { Injectable, computed, signal } from '@angular/core';
-import { clampSleepHours, clampWaterFlOz } from '@macrolog/core';
+import { clampSleepHours, clampWaterFlOz, localDateKey } from '@macrolog/core';
+import type { OnboardingV2Submission, RefineTargetsSubmission } from '@macrolog/core';
 import type { LedgerPort } from '../ports/ledger.port';
 import type {
   Exercise,
@@ -96,6 +97,66 @@ export class InMemoryLedgerAdapter implements LedgerPort {
     }
     if (fields.preferredLocale) patch.preferredLocale = fields.preferredLocale;
     this._profile.set({ ...current, ...patch } as Profile);
+  }
+
+  /**
+   * The 2-question onboarding write. Mirrors the Firestore adapter's
+   * observable effects — heuristic targets, goal direction, today's weight —
+   * and, critically, the two DELETIONS: `targetsRefinedAt` is always cleared,
+   * and the target weight is removed when the submission omits it. Those are
+   * the parts a naive `{...current, ...patch}` gets wrong, and getting them
+   * wrong here would make this adapter agree with prod right up until the
+   * case that matters (a re-onboard after a refine).
+   */
+  async saveOnboardingV2(submission: OnboardingV2Submission): Promise<void> {
+    const current = this._profile();
+    if (!current) throw new Error('No profile loaded.');
+    const next: Profile = {
+      ...current,
+      goalDirection: submission.goalDirection,
+      manualCaloriesTarget: submission.manualCaloriesTarget,
+      manualProteinTarget: submission.manualProteinTarget,
+      onboardingV2CompletedAt: new Date(),
+      profileCompleted: true,
+      lastSeenAt: new Date(),
+    };
+    delete (next as Partial<Profile>).targetsRefinedAt;
+    if (submission.targetWeightLbs != null) {
+      next.targetWeightLbs = submission.targetWeightLbs;
+      next.goalWeightLbs = submission.targetWeightLbs;
+    } else {
+      delete (next as Partial<Profile>).targetWeightLbs;
+      delete (next as Partial<Profile>).goalWeightLbs;
+    }
+    this._profile.set(next);
+    // The submission's weight is mirrored to today's daily weight, exactly as
+    // the Firestore adapter does — the dashboard reads it immediately.
+    this.weights[localDateKey(new Date())] = submission.weightLbs;
+  }
+
+  /**
+   * The Day-3 refine write. The deletions are the point here too: the
+   * heuristic manual targets must GO, or a manual number keeps shadowing the
+   * formula result forever after.
+   */
+  async saveRefinedTargets(submission: RefineTargetsSubmission): Promise<void> {
+    const current = this._profile();
+    if (!current) throw new Error('No profile loaded.');
+    const next: Profile = {
+      ...current,
+      heightIn: submission.heightIn,
+      age: submission.age,
+      sex: submission.sex,
+      activityLevel: submission.activityLevel,
+      targetPaceLbsPerWeek: submission.targetPaceLbsPerWeek,
+      targetsRefinedAt: new Date(),
+      profileCompleted: true,
+      lastSeenAt: new Date(),
+    };
+    if (submission.proteinPerKg != null) next.proteinPerKg = submission.proteinPerKg;
+    delete (next as Partial<Profile>).manualCaloriesTarget;
+    delete (next as Partial<Profile>).manualProteinTarget;
+    this._profile.set(next);
   }
 
   async generateWebhookApiKey(): Promise<string> {

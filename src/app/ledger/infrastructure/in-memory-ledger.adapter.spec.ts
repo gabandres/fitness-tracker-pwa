@@ -113,6 +113,68 @@ describe.each(ADAPTERS)('LedgerPort contract — %s', (_label, configure) => {
     });
   });
 
+  describe('profile writes that used to bypass the port', () => {
+    // Every case needs a profile in the signal first — both verbs refuse to
+    // patch a profile that was never loaded, exactly as the Firestore adapter does.
+    beforeEach(async () => { await port.ensureUserProfile(); });
+
+    // saveOnboardingV2 / saveRefinedTargets lived on FirebaseService alone
+    // until 2026-08-10, which is why onboarding and refine-targets were the
+    // two components that could not be exercised without Firebase. The
+    // DELETIONS are what these cases are really for: a naive spread merge
+    // passes every other assertion and still leaves a stale field behind.
+
+    it('saveOnboardingV2 clears targetsRefinedAt, so a re-onboard is not shadowed', async () => {
+      await port.saveRefinedTargets({
+        heightIn: 68, age: 33, sex: 'male', activityLevel: 'moderate', targetPaceLbsPerWeek: 1,
+      });
+      expect(port.profile()?.targetsRefinedAt).toBeInstanceOf(Date);
+
+      await port.saveOnboardingV2({
+        weightLbs: 180, goalDirection: 'lose', manualCaloriesTarget: 1980, manualProteinTarget: 150,
+      });
+      expect(port.profile()?.targetsRefinedAt).toBeUndefined();
+      expect(port.profile()?.manualCaloriesTarget).toBe(1980);
+    });
+
+    it('saveOnboardingV2 drops the target weight when the submission omits it', async () => {
+      await port.saveOnboardingV2({
+        weightLbs: 180, goalDirection: 'lose', targetWeightLbs: 165,
+        manualCaloriesTarget: 1980, manualProteinTarget: 150,
+      });
+      expect(port.profile()?.goalWeightLbs).toBe(165);
+
+      await port.saveOnboardingV2({
+        weightLbs: 180, goalDirection: 'maintain',
+        manualCaloriesTarget: 2200, manualProteinTarget: 150,
+      });
+      expect(port.profile()?.targetWeightLbs).toBeUndefined();
+      expect(port.profile()?.goalWeightLbs).toBeUndefined();
+    });
+
+    it('saveOnboardingV2 mirrors the weight onto today, as prod does', async () => {
+      await port.saveOnboardingV2({
+        weightLbs: 181.2, goalDirection: 'lose', manualCaloriesTarget: 1980, manualProteinTarget: 150,
+      });
+      const weights = await port.getDailyWeights();
+      expect(Object.values(weights)).toContain(181.2);
+    });
+
+    it('saveRefinedTargets DELETES the heuristic targets, or they shadow the formula forever', async () => {
+      await port.saveOnboardingV2({
+        weightLbs: 180, goalDirection: 'lose', manualCaloriesTarget: 1980, manualProteinTarget: 150,
+      });
+      await port.saveRefinedTargets({
+        heightIn: 68, age: 33, sex: 'male', activityLevel: 'moderate',
+        targetPaceLbsPerWeek: 1, proteinPerKg: 1.9,
+      });
+      expect(port.profile()?.manualCaloriesTarget).toBeUndefined();
+      expect(port.profile()?.manualProteinTarget).toBeUndefined();
+      expect(port.profile()?.proteinPerKg).toBe(1.9);
+      expect(port.profile()?.targetsRefinedAt).toBeInstanceOf(Date);
+    });
+  });
+
   describe('daily logs', () => {
     it('returns logs oldest-first from getRecentLogs', async () => {
       const t1 = new Date('2026-04-20T08:00:00Z');

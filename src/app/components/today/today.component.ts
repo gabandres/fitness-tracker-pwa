@@ -15,7 +15,6 @@ import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { TranslationService } from '../../services/translation.service';
 import { PushNotificationService } from '../../services/push-notification.service';
-import { FirebaseService } from '../../services/firebase.service';
 import { AnalyticsService } from '../../services/analytics.service';
 import { localDateKey } from '../../utils/date';
 import {
@@ -272,7 +271,9 @@ export class TodayComponent {
   private readonly entryForm = inject(EntryFormManager);
   private readonly translation = inject(TranslationService);
   private readonly push = inject(PushNotificationService);
-  private readonly fb = inject(FirebaseService);
+  /** Both calls below are on the port; this used to inject the concrete
+   *  adapter for no reason. */
+  private readonly fb = inject(LEDGER_PORT);
   private readonly analytics = inject(AnalyticsService);
   private readonly auth = inject(AuthService);
 

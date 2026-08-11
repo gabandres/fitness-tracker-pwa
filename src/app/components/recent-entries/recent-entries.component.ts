@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, inject, output, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
-import { FirebaseService, DailyLog } from '../../services/firebase.service';
+import type { DailyLog } from '../../services/firebase.service';
+import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { MacroEstimate } from '../../models/macro-estimate';
 import { AnalyticsService } from '../../services/analytics.service';
 
@@ -68,7 +69,7 @@ import { AnalyticsService } from '../../services/analytics.service';
 })
 export class RecentEntriesComponent {
   protected readonly store = inject(FitnessStore);
-  private readonly firebase = inject(FirebaseService);
+  private readonly firebase = inject(LEDGER_PORT);
   private readonly analytics = inject(AnalyticsService);
 
   readonly estimated = output<MacroEstimate>();

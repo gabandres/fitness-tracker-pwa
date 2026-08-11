@@ -10,7 +10,8 @@ import {
 } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
-import { FirebaseService, ActivityLevel, CutPace, Sex } from '../../services/firebase.service';
+import type { ActivityLevel, CutPace, Sex } from '../../services/firebase.service';
+import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { calculateTdee } from '@macrolog/core/tdee';
 import {
@@ -214,7 +215,7 @@ import { UiButton } from '../ui/button.component';
   `,
 })
 export class UiRefineTargetsSheet {
-  private readonly fb = inject(FirebaseService);
+  private readonly fb = inject(LEDGER_PORT);
   private readonly store = inject(FitnessStore);
   private readonly translation = inject(TranslationService);
 

@@ -6,7 +6,7 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { sortServings } from '@macrolog/core';
 import { UiButton } from '../ui/button.component';
 import { FoodSearchService, FoodSearchHit, FoodDetail, ServingOption } from '../../services/food-search.service';
-import { FirebaseService } from '../../services/firebase.service';
+import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { TranslationService } from '../../services/translation.service';
 import { extractErrorCode, ErrorCode } from '../../models/error-codes';
 import { MacroEstimate } from '../../models/macro-estimate';
@@ -248,7 +248,7 @@ type Phase = 'idle' | 'searching' | 'results' | 'detail-loading' | 'portion-pick
 })
 export class FoodSearchComponent {
   private readonly foodSearch = inject(FoodSearchService);
-  private readonly firebase = inject(FirebaseService);
+  private readonly firebase = inject(LEDGER_PORT);
   private readonly translation = inject(TranslationService);
 
   readonly estimated = output<MacroEstimate>();

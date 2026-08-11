@@ -9,7 +9,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
-import { FirebaseService } from '../../services/firebase.service';
+import { LEDGER_PORT } from '../../ledger/ports/ledger.port';
 import { TranslationService } from '../../services/translation.service';
 import { AnalyticsService } from '../../services/analytics.service';
 import { UiButton } from '../ui/button.component';
@@ -221,7 +221,7 @@ const DEFAULT_SKIP_PROTEIN = 120;
   `,
 })
 export class OnboardingComponent {
-  private readonly fb = inject(FirebaseService);
+  private readonly fb = inject(LEDGER_PORT);
   private readonly translation = inject(TranslationService);
   private readonly analytics = inject(AnalyticsService);
 
