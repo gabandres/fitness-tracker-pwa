@@ -113,6 +113,7 @@ ship):
 
 | Platform | Binary | Fingerprint | Source | Note |
 |---|---|---|---|---|
+| iOS | **build 44** (2026-08-10) | `3752c757fc2882fa432c09d36715d9cd1bb61911` | **read from the `.ipa`** | current `main`, TestFlight, 1.2.0 — **the watch complication fix**: the phone now asserts over both WatchConnectivity queues and the watch app finally implements `didReceiveUserInfo`, which is where `transferCurrentComplicationUserInfo` lands. Built locally, verifier green on all four targets. **Its runtime is its OWN** — see the `modules/` rule below; an OTA aimed at build 41 does not reach it and vice versa. Builds 42 and 43 do not exist (a cloud attempt that died in *Configure expo-updates*, and a local one killed by the deleted watchOS runtime). **Behaviour is UNVERIFIED**: no complication has been watched to refresh on a wrist |
 | Android | **vc 29** (2026-08-09) | `ca2dc124281f48e63c17111214f0ee8dfdc34784` | **read from the `.aab`** | current `main`, alpha, 1.2.0 — same commit as iOS build 41 (the `ignia://` scheme restore moved BOTH fingerprints, since `app.json` is hashed whole). vc 28 does not exist: that attempt died on `No space left on device` mid-CMake — the disk was carrying iOS build 41's DerivedData at the time; clear it before an Android build |
 | iOS | **build 41** (2026-08-09) | `1d89fedf59c7975b06c43762cc6414547845c9fe` | **read from the `.ipa`** | current `main`, TestFlight, 1.2.0 — **restores the `ignia://` URL scheme**, unregistered since build 29's CFBundleURLTypes "de-duplication", which left the widget's face tap opening nothing on builds 29–40. Verified by `verify-mobile-artifact.mjs`, which now requires both schemes with whole-line matching |
 | iOS | build 40 (2026-08-09) | `c9abb3165ad1c381a0607f98e1886b267aab1ba3` | **read from the `.ipa`** | current `main`, TestFlight, 1.2.0 — the dictation mic + the R1 sheet redesign. **Builds 38 and 39 are on TestFlight but MUST NOT be tested**: both lack `NSMicrophoneUsageDescription` (expo-camera's `microphonePermission: false` DELETES the key another plugin wrote), so the first mic tap crashes them. 39 was submitted before being verified — the mistake `scripts/verify-mobile-artifact.mjs` now makes structurally impossible |
@@ -238,6 +239,20 @@ Both new binaries were built locally on `ignia-mac` at **zero EAS quota**
 code, native config in `app.json` (permissions, icons, splash, plugins,
 entitlements), an Expo SDK upgrade. A pure-JS dependency usually does not — but
 "usually" is why you run the command instead of reasoning about it.
+
+**`modules/*/ios` IS hashed, even though `targets/` is not — measured 2026-08-10.**
+The two look interchangeable and are not. An Expo Module is a **directory source**
+in the fingerprint (`modules/watch-link/ios`, `modules/quick-add-credentials/ios`
+and `modules/fasting-live-activity/ios` all appear in `sources` as `dir:` entries),
+so editing one line of Swift there moves the runtime version. An apple-target under
+`targets/` does not. Build 44 changed Swift in **both** places and came out on
+`3752c757…`, off build 41's `1d89fedf…` — so the OTA published earlier that day
+against `1d89fedf…` does not reach it. Read the sources when in doubt:
+
+```sh
+npx expo-updates fingerprint:generate --platform ios \
+  | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).sources.filter(x=>x.type==='dir').map(x=>x.filePath).join('\n')))"
+```
 
 **Swift and Kotlin under `targets/` do NOT change it, and that inverts the gate.**
 Measured 2026-08-08: `QuickAddIntents.swift` was edited and iOS build **28** came
