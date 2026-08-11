@@ -9,6 +9,9 @@ import Security
 #if canImport(WidgetKit)
   import WidgetKit
 #endif
+#if canImport(WatchConnectivity) && os(iOS)
+  import WatchConnectivity
+#endif
 
 /**
  * Quick-add, iOS side (ADR-0020): how a Siri phrase or a widget button writes to
@@ -436,6 +439,52 @@ public enum QuickAdd {
 
     #if canImport(WidgetKit)
       WidgetCenter.shared.reloadTimelines(ofKind: Glance.widgetKind)
+    #endif
+
+    assertToWatch(encoded)
+  }
+
+  /**
+   * Push the freshly-bumped snapshot to the Apple Watch, when this process is
+   * allowed to.
+   *
+   * ## Why this is guarded rather than just done
+   *
+   * **`WCSession` is unavailable in iOS app extensions** — Apple's limitation,
+   * documented and not negotiable. `LogQuickAddSlotIntent` lives in
+   * `_shared/`, so it compiles into `Today.appex` and a widget-button tap runs
+   * THERE. That tap can never reach the watch from its own process; the wrist
+   * learns about it when the app is next foregrounded and `useWidgetSync`
+   * fires. Bailing out is the honest behaviour — pretending would burn a
+   * complication transfer that cannot be delivered.
+   *
+   * A **Siri** phrase is the case this exists for: App Shortcuts launch the
+   * containing app (proven on hardware for build 28), so `perform()` runs in
+   * the app process where the session is real.
+   *
+   * ## It never activates, and never sets a delegate
+   *
+   * `WatchLinkModule` owns `WCSession.default` in the app process — it sets the
+   * delegate and activates at launch. A second delegate here would silently
+   * displace it and break the re-assert that keeps a newly-paired watch in
+   * step. So this sends only when the session is ALREADY activated; on a cold
+   * intent launch where React Native has not started yet, it skips, and the
+   * app's next foreground carries the numbers over.
+   */
+  private static func assertToWatch(_ json: String) {
+    #if canImport(WatchConnectivity) && os(iOS)
+      guard Bundle.main.bundleURL.pathExtension != "appex" else { return }
+      guard WCSession.isSupported() else { return }
+      let session = WCSession.default
+      guard session.activationState == .activated else { return }
+
+      let envelope: [String: Any] = [Glance.contextKey: json]
+      // The waking queue first, budget permitting — same pair, same order and
+      // same reasoning as `WatchLinkModule.assert`.
+      if session.isComplicationEnabled, session.remainingComplicationUserInfoTransfers > 0 {
+        _ = session.transferCurrentComplicationUserInfo(envelope)
+      }
+      try? session.updateApplicationContext(envelope)
     #endif
   }
 }
