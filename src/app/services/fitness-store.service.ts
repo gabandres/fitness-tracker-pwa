@@ -26,7 +26,7 @@ import {
   toProfileFields,
   type DailyTargets,
 } from '@macrolog/core/targets';
-import { addDays, localDateKey } from '@macrolog/core';
+import { addDays, localDateKey, trailingDateKeys } from '@macrolog/core';
 import { bcp47ForLang } from '../utils/locale';
 import { TranslationService } from './translation.service';
 import { summarizeDay } from '@macrolog/core';
@@ -452,6 +452,24 @@ export class FitnessStore {
    * Plain method (not signal) — callers wrap in `computed()` and the
    * signal graph re-runs them when `_logs` / `_allTimeLogs` change.
    */
+  // ── Why the derivation below is NOT extracted to packages/core ──
+  //
+  // An architecture review flagged this zone as "~360 lines of pure math behind
+  // the DI graph". On inspection it is not pure, and moving it would make the
+  // interface worse rather than concentrating anything.
+  //
+  // `summaryFor`, `logsForDay` and `last7Days` all implement the same
+  // two-source fallback — try the hot 14-ROW window, fall back to the
+  // tier-gated all-time list — and `last7Days` additionally reads the language
+  // signal so the axis re-labels on a locale switch. Extracting them would mean
+  // passing both log sources and the locale into every call: the complexity
+  // moves to the call sites instead of concentrating here, which is the
+  // deletion test failing.
+  //
+  // What WAS genuinely shared has already gone: the aggregation itself is
+  // `summarizeDay` in core, and the trailing-day key window is
+  // `trailingDateKeys`. Reviewed 2026-08-11.
+
   summaryFor(dateKey: string): {
     totalCalories: number;
     totalProtein: number;
@@ -1110,12 +1128,7 @@ export class FitnessStore {
    * (which drifts across DST transitions).
    */
   private windowCalendarKeys(n: number): string[] {
-    const out: string[] = [];
-    const today = new Date();
-    for (let i = n - 1; i >= 0; i--) {
-      out.push(localDateKey(addDays(today, -i)));
-    }
-    return out;
+    return trailingDateKeys(n, new Date());
   }
 
   /**
