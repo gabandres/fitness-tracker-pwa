@@ -269,6 +269,39 @@ export async function readWidgetSnapshot(): Promise<WidgetSnapshot | null> {
 }
 
 /**
+ * Assert a snapshot to the WATCH only, without touching local storage or
+ * asking WidgetKit for anything.
+ *
+ * Quick-add needs exactly this and had nothing to call (2026-08-11). A
+ * quick-add does not go through `syncWidget`, so it never inherited the watch
+ * push that lives inside `persist()`:
+ *
+ *   - `performQuickAdd` writes the optimistic snapshot with
+ *     `saveWidgetSnapshot`, which is **Android-only** and pushes nowhere; and
+ *   - on iOS the equivalent write is a Swift App Intent touching the App Group
+ *     with no JS in the process at all.
+ *
+ * Either way the phone's own widget moved and the watch was never told, so the
+ * complication kept yesterday's numbers until the app next opened Today and
+ * `useWidgetSync` fired. Reported from a wrist: three green diagnostics, 44
+ * wake-ups still in budget, and a quick-added meal that never reached the face.
+ *
+ * Deliberately does NOT advance `lastWritten`: that guard describes what is on
+ * local storage, and this function writes none. Letting it move here would make
+ * the next real `syncWidget` compare against a snapshot that was never stored
+ * and skip a write that was needed.
+ */
+export function assertWatchSnapshot(snapshot: WidgetSnapshot): void {
+  if (!supported || Platform.OS !== 'ios') return;
+  try {
+    updateApplicationContext({ [WATCH_CONTEXT_KEY]: JSON.stringify(snapshot) });
+  } catch (err) {
+    // A watch-less iPhone is the ordinary case, not a fault.
+    if (__DEV__) console.warn('[widget] watch assert FAILED', err);
+  }
+}
+
+/**
  * Drop the blob and forget the in-process guard. Used on sign-out and account
  * deletion: no glanceable surface may keep showing the previous account's
  * numbers after the app no longer has a session.

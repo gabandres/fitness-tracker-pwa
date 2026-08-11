@@ -28,6 +28,7 @@ const mockAddLogWithId = jest.fn<Promise<void>, [string, string, unknown]>();
 const mockAuth: { user: { uid: string } | null } = { user: { uid: 'u1' } };
 
 const mockRedraw = jest.fn<Promise<void>, [WidgetSnapshot]>();
+const mockWatchPush = jest.fn<void, [WidgetSnapshot]>();
 
 jest.mock('@/lib/widget', () => ({
   readWidgetSnapshot: () => Promise.resolve(mockWidget.snapshot),
@@ -36,6 +37,10 @@ jest.mock('@/lib/widget', () => ({
     return Promise.resolve();
   },
   requestWidgetRedraw: (s: WidgetSnapshot) => mockRedraw(s),
+  // The watch half of the same tap. Android never reaches it (the real
+  // implementation is iOS-gated), but the module has to export it or the
+  // shared `performQuickAdd` throws on the way past.
+  assertWatchSnapshot: (s: WidgetSnapshot) => mockWatchPush(s),
 }));
 
 // `quick-add.ts` itself is REAL here. The tap path is the handler plus the

@@ -25,7 +25,7 @@ import { widgetStrings } from '../widgets/strings';
 import { NATIVE_REST_CONFIG, auth, onSessionTokenChanged } from './firebase';
 import { exportNutrition } from './health-sync';
 import { addLogWithId } from './ledger';
-import { APP_GROUP, readWidgetSnapshot, saveWidgetSnapshot } from './widget';
+import { APP_GROUP, assertWatchSnapshot, readWidgetSnapshot, saveWidgetSnapshot } from './widget';
 
 /**
  * Quick-add adapter — the impure half of ADR-0020. Every rule lives in
@@ -274,7 +274,15 @@ export async function performQuickAdd(
   if (result === 'signed-out') return { result, snapshot, target };
 
   const next = applyQuickAddToSnapshot(snapshot, target, at.getTime());
-  if (next) await saveWidgetSnapshot(next);
+  if (next) {
+    await saveWidgetSnapshot(next);
+    // ...and tell the WATCH, which `saveWidgetSnapshot` does not: it is
+    // Android-only, and this is the one write path that never passes through
+    // `syncWidget`. Without this a quick-added meal reached the phone's widget
+    // and left the complication showing stale numbers until the app was next
+    // opened on Today.
+    assertWatchSnapshot(next);
+  }
   return { result, snapshot: next ?? snapshot, target };
 }
 
