@@ -54,6 +54,22 @@ export interface MaintenanceView {
    *  did not carry a completeness figure. */
   loggedDays: number | null;
   spanDays: number | null;
+  /**
+   * Weigh-ins the estimate threw away as implausible, or null when the TDEE
+   * result did not report a count.
+   *
+   * Surfaced because a non-zero count is the one warning that fires while
+   * everything else looks fine. Measured: a two-week break with a real 4 lb
+   * gain makes the robust guard discard **all seven** post-break weigh-ins —
+   * the step looks exactly like seven bad readings against a window that is
+   * mostly the old plateau — and the result still reports `reliable: true`.
+   * The number was already computed and displayed nowhere.
+   *
+   * It does NOT mean the estimate is wrong. It means the estimate is not
+   * describing the last three weeks, which is a different and more useful
+   * thing to be able to say.
+   */
+  weighInsDropped: number | null;
 }
 
 /**
@@ -83,5 +99,6 @@ export function maintenanceView(tdee: TdeeResult, consumedKcal: number): Mainten
     // drags it DOWN. "57%" tells them nothing they can act on.
     loggedDays: tdee.windowDays ?? null,
     spanDays: tdee.spanDays ?? null,
+    weighInsDropped: tdee.outliersDropped ?? null,
   };
 }

@@ -1864,7 +1864,9 @@
     "maintenance": "mantenimiento",
     "underMaintenance": "{{n}} bajo lo que quemas",
     "overMaintenance": "{{n}} sobre lo que quemas",
-    "maintenanceRough": "{{logged}} de {{span}} días registrados — los días sin registrar lo bajan"
+    "maintenanceRough": "{{logged}} de {{span}} días registrados — los días sin registrar lo bajan",
+    "maintenanceOutlier": "1 pesaje ignorado — un cambio real de peso puede parecer una lectura mala",
+    "maintenanceOutliers": "{{n}} pesajes ignorados — un cambio real de peso puede parecer lecturas malas"
   },
   "train": {
     "thisWeek": "Esta semana",

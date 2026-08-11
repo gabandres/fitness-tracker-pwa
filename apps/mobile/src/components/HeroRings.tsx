@@ -210,6 +210,17 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
               })}
             </Text>
           )}
+          {/* NOT gated on `reliable`: a two-week break with a real weight
+              change makes the guard drop every post-break weigh-in while the
+              estimate still calls itself reliable, so this is the only
+              warning that fires for that case. */}
+          {maintenance.weighInsDropped ? (
+            <Text style={styles.maintenanceCaveat} testID="maintenance-outliers">
+              {maintenance.weighInsDropped === 1
+                ? t('today.maintenanceOutlier')
+                : t('today.maintenanceOutliers', { n: String(maintenance.weighInsDropped) })}
+            </Text>
+          ) : null}
         </View>
       ) : null}
     </View>

@@ -11,6 +11,7 @@ const measured = (over: Partial<TdeeResult> = {}): TdeeResult => ({
   windowDays: 23,
   spanDays: 28,
   reliable: true,
+  outliersDropped: 0,
   ...over,
 });
 
@@ -23,7 +24,25 @@ describe('maintenanceView', () => {
       reliable: true,
       loggedDays: 23,
       spanDays: 28,
+      weighInsDropped: 0,
     });
+  });
+
+  it('reports discarded weigh-ins — the warning that fires while reliable is true', () => {
+    // The measured two-week-break case: a real 4 lb step makes the robust
+    // guard drop every post-break reading, and nothing else in the result
+    // changes. Without this the user is told the estimate is reliable and
+    // never told it ignored seven observations.
+    const v = maintenanceView(measured({ outliersDropped: 7 }), 1810);
+    expect(v?.weighInsDropped).toBe(7);
+    expect(v?.reliable).toBe(true);
+  });
+
+  it('is null, not 0, when the estimate reported no count at all', () => {
+    // Distinguishes "nothing was dropped" from "this result predates the
+    // field", so a UI can stay quiet rather than claim a clean window.
+    expect(maintenanceView(measured({ outliersDropped: undefined }), 1810)?.weighInsDropped)
+      .toBeNull();
   });
 
   it('reports a surplus as a positive delta', () => {

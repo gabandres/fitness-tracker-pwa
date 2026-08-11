@@ -1864,7 +1864,9 @@
     "maintenance": "maintenance",
     "underMaintenance": "{{n}} under your burn",
     "overMaintenance": "{{n}} over your burn",
-    "maintenanceRough": "{{logged}} of {{span}} days logged — unlogged days pull this down"
+    "maintenanceRough": "{{logged}} of {{span}} days logged — unlogged days pull this down",
+    "maintenanceOutlier": "1 weigh-in ignored — a real jump in weight can look like a bad reading",
+    "maintenanceOutliers": "{{n}} weigh-ins ignored — a real jump in weight can look like bad readings"
   },
   "train": {
     "thisWeek": "This week",

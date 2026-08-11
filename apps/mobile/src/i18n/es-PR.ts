@@ -131,6 +131,10 @@ export const esPR: Record<I18nKey, string> = {
   'today.underMaintenance': '{n} bajo lo que quemas',
   'today.overMaintenance': '{n} sobre lo que quemas',
   'today.maintenanceRough': '{logged} de {span} días registrados — los días sin registrar lo bajan',
+  'today.maintenanceOutlier':
+    '1 pesaje ignorado — un cambio real de peso puede parecer una lectura mala',
+  'today.maintenanceOutliers':
+    '{n} pesajes ignorados — un cambio real de peso puede parecer lecturas malas',
   'today.emptyTitle': 'Aún no hay registros.',
   'today.emptyHint': 'Toca + para registrar tu primera comida.',
   'today.repeatYesterday': 'Repetir ayer',

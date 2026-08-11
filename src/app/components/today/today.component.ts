@@ -133,6 +133,18 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
               {{ t('today.maintenanceRough', { logged: m.loggedDays, span: m.spanDays }) }}
             </span>
           }
+          <!-- NOT gated on reliable: the measured two-week-break case drops
+               every post-break weigh-in while still reporting reliable=true,
+               so this is the only warning that fires for it. -->
+          @if (m.weighInsDropped) {
+            <span class="v2-caption" style="color: var(--v2-ink-faint);">
+              {{
+                m.weighInsDropped === 1
+                  ? t('today.maintenanceOutlier')
+                  : t('today.maintenanceOutliers', { n: m.weighInsDropped })
+              }}
+            </span>
+          }
         </div>
       }
 
