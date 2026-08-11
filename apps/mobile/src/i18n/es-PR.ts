@@ -559,6 +559,13 @@ export const esPR: Record<I18nKey, string> = {
   'settings.reminderLunch': 'Almuerzo',
   'settings.reminderDinner': 'Cena',
   // Registro rápido (ADR-0020) — los preajustes que se registran sin abrir la app.
+  'settings.watchSection': 'Apple Watch',
+  'settings.watchPaired': 'Reloj emparejado',
+  'settings.watchAppInstalled': 'Ignia instalada en el reloj',
+  'settings.watchComplication': 'Complicación en la esfera activa',
+  'settings.watchComplicationHint': 'Ignia solo puede despertar tu reloj cuando la complicación está en la esfera que llevas puesta. En el Smart Stack se actualiza mucho menos.',
+  'settings.watchTransfers': 'Despertares restantes hoy',
+  'settings.watchBuild': 'build {n}',
   'settings.quickAddSection': 'Registro rápido',
   'settings.quickAdd': 'Registra sin abrir Ignia',
   'settings.quickAddSub': 'Escoge hasta 3 preajustes para registrarlos desde tu pantalla de inicio o Ajustes rápidos.',

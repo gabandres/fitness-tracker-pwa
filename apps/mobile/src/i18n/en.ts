@@ -550,6 +550,13 @@ export const en = {
   'settings.reminderLunch': 'Lunch',
   'settings.reminderDinner': 'Dinner',
   // Quick-add (ADR-0020) — the presets reachable without opening the app.
+  'settings.watchSection': 'Apple Watch',
+  'settings.watchPaired': 'Watch paired',
+  'settings.watchAppInstalled': 'Ignia installed on watch',
+  'settings.watchComplication': 'Complication on the active face',
+  'settings.watchComplicationHint': 'Ignia can only wake your watch when the complication is on the face you are wearing. In the Smart Stack it updates far less often.',
+  'settings.watchTransfers': 'Wake-ups left today',
+  'settings.watchBuild': 'app build {n}',
   'settings.quickAddSection': 'Quick add',
   'settings.quickAdd': 'Log without opening Ignia',
   'settings.quickAddSub': 'Pick up to 3 presets to log straight from your home screen or Quick Settings.',

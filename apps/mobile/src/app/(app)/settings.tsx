@@ -22,6 +22,7 @@ import { isTipIapAvailable } from '@/lib/purchases';
 import { APP_STORE_REVIEW_URL } from '@/lib/reviewPrompt';
 import { TipSheet } from '@/components/TipSheet';
 import { QuickAddCard } from '@/components/QuickAddCard';
+import { WatchDiagnosticsCard } from '@/components/WatchDiagnosticsCard';
 import { SignInMethodsCard } from '@/components/SignInMethodsCard';
 import { useHealthSync } from '@/lib/health-sync';
 import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
@@ -629,6 +630,13 @@ export default function Settings() {
             "merged reads as shipped" failure this repo already pays for. */}
         <Text style={styles.section}>{t('settings.quickAddSection')}</Text>
         <QuickAddCard />
+
+        {/* Why the watch face is or is not current. Read straight off the live
+            WCSession — the transport has four ways to fail and all four look
+            identical from the wrist, so this is the only thing that turns a
+            "my complication is stale" report into a diagnosis. */}
+        <Text style={styles.section}>{t('settings.watchSection')}</Text>
+        <WatchDiagnosticsCard />
 
         {healthSync.available ? (
           <>
