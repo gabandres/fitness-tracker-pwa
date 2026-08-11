@@ -725,10 +725,10 @@ export class App {
 
   /** v2 tab-bar definition. Order = visual order. */
   protected readonly v2Tabs: UiTab[] = [
-    { id: 'today', label: 'Today', icon: 'home' },
-    { id: 'trends', label: 'Trends', icon: 'trending-up' },
-    { id: 'body', label: 'Body', icon: 'user' },
-    { id: 'train', label: 'Train', icon: 'dumbbell' },
+    { id: 'today', labelKey: 'v2.tabs.today', icon: 'home' },
+    { id: 'trends', labelKey: 'v2.tabs.trends', icon: 'trending-up' },
+    { id: 'body', labelKey: 'v2.tabs.body', icon: 'user' },
+    { id: 'train', labelKey: 'v2.tabs.train', icon: 'dumbbell' },
   ];
 
   /** Maps the current `route()` value back onto a tab id so the tab bar

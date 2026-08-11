@@ -217,9 +217,9 @@ export class UiDevGallery {
   );
   protected readonly activeTab = signal<string>('today');
   protected readonly tabs: UiTab[] = [
-    { id: 'today', label: 'Today', icon: 'circle-dot' },
-    { id: 'trends', label: 'Trends', icon: 'trending-up' },
-    { id: 'body', label: 'Body', icon: 'activity' },
+    { id: 'today', labelKey: 'v2.tabs.today', icon: 'circle-dot' },
+    { id: 'trends', labelKey: 'v2.tabs.trends', icon: 'trending-up' },
+    { id: 'body', labelKey: 'v2.tabs.body', icon: 'activity' },
   ];
 
   protected readonly today = (): string =>

@@ -1703,6 +1703,13 @@
       "howChest": "Chest — across the nipples, arms down, at the end of a normal breath out.",
       "howBicep": "Bicep — the thickest part of the upper arm, relaxed at your side.",
       "howConsistency": "Snug, not tight — the tape should sit on skin without denting it. Measure at the same time of day (morning, before eating, is easiest to repeat). Consistency matters more than precision: the trend is what moves your estimate."
+    },
+    "tabs": {
+      "today": "Today",
+      "trends": "Trends",
+      "body": "Body",
+      "train": "Train",
+      "ariaLabel": "Primary"
     }
   },
   "calculator": {
