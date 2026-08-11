@@ -50,8 +50,21 @@ async function main() {
   }
 
   // Onboarded profile so dev boots straight into the app (skips onboarding).
+  //
+  // `createdAt` is NOT optional here, however unused it looks: `hasProfileBase`
+  // in firestore.rules requires it, so a profile seeded without it can never be
+  // UPDATED by its owner — every settings write in local dev fails. Worse, it
+  // fails as `PERMISSION_DENIED: Unable to evaluate the expression as the
+  // maximum of 1000 expressions to evaluate has been reached`, which reads like
+  // the ruleset has outgrown a platform limit rather than like a missing field,
+  // and sends you auditing rules that are fine. Measured 2026-08-11: adding
+  // `createdAt` alone fixes it; `email` is irrelevant (it is deliberately not
+  // stored — PII minimization, 2026-07-07). Both real create paths
+  // (FirebaseService, apps/mobile ledger) already write it; this script was the
+  // only writer that did not, so the bug was dev-only.
   await db.doc(`users/${uid}`).set(
     {
+      createdAt: Timestamp.now(),
       goalDirection: 'lose',
       manualCaloriesTarget: 1990,
       manualProteinTarget: 130,

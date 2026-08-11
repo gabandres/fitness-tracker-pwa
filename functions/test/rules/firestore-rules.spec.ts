@@ -14,6 +14,7 @@ import {
   getDoc,
   setDoc,
   Timestamp,
+  updateDoc,
 } from 'firebase/firestore';
 
 // Exercises the highest-risk invariants in firestore.rules. Each spec covers a
@@ -365,6 +366,120 @@ describe('firestore.rules', () => {
         ...completedProfile(),
         syntheticAccount: true,
         manualCaloriesTarget: 2200,
+      }),
+    );
+  });
+
+  // ─── A profile with no `createdAt` can never be updated ─────────────────
+  // Raising the calorie floor from Settings against a local emulator failed
+  // with:
+  //   PERMISSION_DENIED: Unable to evaluate the expression as the maximum of
+  //   1000 expressions to evaluate has been reached. for 'update' @ L444
+  // That message names a platform limit and reads like the ruleset has simply
+  // grown too big — it is not. Bisected 2026-08-11: a 31-field profile updates
+  // fine, and the trigger is the **absence of `createdAt`**, which
+  // `hasProfileBase` requires. Adding it alone fixes the write; `email` is
+  // irrelevant (deliberately not stored since 2026-07-07).
+  //
+  // Nothing in production creates such a doc — both client create paths write
+  // `createdAt` — but `scripts/seed-emulators.mjs` did, so every settings write
+  // in local dev failed against the seeded account. The specs below pin both
+  // halves so the next person reads "missing field", not "we hit a Firestore
+  // ceiling".
+  const fullProfile = () => ({
+    ...completedProfile(),
+    goalDirection: 'lose',
+    goalWeightLbs: 175,
+    targetWeightLbs: 175,
+    manualCaloriesTarget: 1990,
+    manualProteinTarget: 130,
+    proteinPerKg: 1.8,
+    calorieFloor: 1850,
+    proteinFloor: 120,
+    onboardingV2CompletedAt: Timestamp.now(),
+    targetsRefinedAt: Timestamp.now(),
+    firstEntryAt: Timestamp.now(),
+    ageConfirmedAt: Timestamp.now(),
+    welcomeEmailSentAt: Timestamp.now(),
+    reminderHour: 19,
+    timezoneOffsetMin: 240,
+    fcmToken: 'f'.repeat(160),
+    preferredLocale: 'es-PR',
+    unitSystem: 'us',
+    travelMode: false,
+    weeklyDigestOptIn: true,
+    hiddenRecentLabels: ['oatmeal', 'protein shake'],
+    webhookApiKey: '0'.repeat(36),
+  });
+
+  it('lets a real-shaped profile change its calorie floor', async () => {
+    // The write behind Settings → calorie floor, and the one the Refine-targets
+    // note now tells users to go make. `updateDoc`, not `setDoc`, because that
+    // is what the app issues — and because rebuilding the whole doc would move
+    // the server-pinned `welcomeEmailSentAt` / `firstEntryAt` and fail for a
+    // completely different (correct) reason.
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'alice'), fullProfile());
+    });
+    const db = authed('alice');
+    await assertSucceeds(
+      updateDoc(doc(db, 'users', 'alice'), {
+        calorieFloor: 1950,
+        lastSeenAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it('lets a real-shaped profile save the Refine-targets sheet', async () => {
+    // The heaviest legitimate profile write in the app: the Mifflin inputs,
+    // the pace and the protein basis at once, on a fully populated account.
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'alice'), fullProfile());
+    });
+    const db = authed('alice');
+    await assertSucceeds(
+      updateDoc(doc(db, 'users', 'alice'), {
+        heightIn: 71,
+        age: 34,
+        activityLevel: 'active',
+        targetPaceLbsPerWeek: 0.9,
+        proteinPerKg: 2.0,
+        targetsRefinedAt: Timestamp.now(),
+        lastSeenAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it('cannot update a profile that has no createdAt — this is the 1000-expression error', async () => {
+    // The exact doc `scripts/seed-emulators.mjs` used to write. The denial is
+    // correct (hasProfileBase requires createdAt); only its wording is not.
+    const { createdAt: _dropped, ...noCreatedAt } = fullProfile();
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'alice'), noCreatedAt);
+    });
+    const db = authed('alice');
+    await assertFails(
+      updateDoc(doc(db, 'users', 'alice'), {
+        calorieFloor: 1950,
+        lastSeenAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it('and updates fine the moment createdAt is present', async () => {
+    // Same doc, one field added — the whole difference between a dev loop that
+    // silently rejects every setting and one that works.
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'alice'), {
+        ...fullProfile(),
+        createdAt: Timestamp.now(),
+      });
+    });
+    const db = authed('alice');
+    await assertSucceeds(
+      updateDoc(doc(db, 'users', 'alice'), {
+        calorieFloor: 1950,
+        lastSeenAt: Timestamp.now(),
       }),
     );
   });
