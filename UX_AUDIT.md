@@ -282,9 +282,22 @@ the class of defect this project keeps paying for.
 
 ### Tier 3 — deliberately deferred, with the reason
 
-- [ ] **N6 · Restaurant / chain-menu data.** A real table-stakes gap (MFP ships
-      it free). Deferred because a bundled static dataset goes stale and a live
-      API costs money — **do it after N2**, reusing that bundling mechanism.
+- [x] **N6 · Restaurant / chain-menu data — MOSTLY ALREADY SHIPPED, measured
+      2026-08-12.** The premise was wrong, and it was wrong because N2 fixed it
+      as a side effect. FNDDS carries chain menu items and N2 bundled FNDDS, so
+      the committed dataset already holds **61 McDonald's rows, 28 Burger King,
+      24 KFC, 19 Wendy's, 19 Pizza Hut, 13 Taco Bell, 12 Subway, 10 Domino's**.
+      Searching works today: "big mac", "whopper" and "taco bell burrito" each
+      return the right item as the top hit. Six regression locks now pin that in
+      `functions/test/usda-db.spec.ts`, because the coverage is **incidental** —
+      nothing in the ingest asks for restaurant data, so a `--no-survey` run or
+      a size trim would silently delete all of it.
+      **What genuinely remains is narrow: Starbucks (0 rows) and Chipotle (3).**
+      Both are drink- and build-your-own-heavy, which the FNDDS survey does not
+      model. Closing that half needs a **licensed menu source**, not a guess:
+      inventing macros for a latte would be fabricating health data, which is
+      worse than returning nothing. A test asserts those two queries return
+      empty, so the day a source is added, it fails and says so.
 - [ ] **N7 · Full micronutrient panel (80+).** Off the kcal+protein focus;
       Cronometer owns this niche. Cheap only if N2 lands first.
 - [ ] **N8 · Social challenges / community.** **Not planned.** Needs a server
