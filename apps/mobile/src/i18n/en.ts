@@ -145,7 +145,7 @@ export const en = {
   'today.entry': 'Entry',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    'Take a week off and your maintenance estimate now picks up where you came back, instead of trying to draw one line across the gap — which used to throw away every weigh-in after a trip and quietly move the number. Travel water gets a week to leave before it counts. Today also says when a weigh-in was ignored, so a surprising estimate has a reason attached.',
+    'Train now explains itself: RIR is a scale you read in words instead of a 0–5 box, each set type says what it is, and a “?” opens a glossary for every term on the tab. The Coach also sees a real 14 days of your log now — it was being handed a fraction of that while being told it was a fortnight.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',
