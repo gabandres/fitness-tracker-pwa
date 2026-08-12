@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking, Platform, type AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Application from 'expo-application';
@@ -233,4 +233,136 @@ export function useStoreUpdate(): StoreUpdateState {
   const available = ready && shouldPromptStoreUpdate(installedBuild(), latest, dismissed);
 
   return { available, open, dismiss };
+}
+
+// ─── Applying an OTA without asking ────────────────────────────────
+//
+// The banner works, but it costs the user a tap for something they did not
+// choose and cannot evaluate — and without it the cost is worse: a downloaded
+// bundle applies on the NEXT cold start, so "restart the app" reliably means
+// "restart it twice". That is precisely how this was reported.
+//
+// Two safe moments to reload, neither of which interrupts anything:
+//
+//   1. COLD START. `isUpdatePending` on the FIRST render means the bundle was
+//      downloaded during a previous run. No in-session state exists yet, so
+//      the cost is a beat of splash instead of a stale app.
+//   2. THE NEXT FOREGROUND. A bundle that arrives mid-session is left alone —
+//      the user opened the app to do something. It is applied when they next
+//      come back, in the gap where they were not looking.
+//
+// Deliberately NOT the moment the download finishes: reloading discards
+// unsaved local state (a half-typed entry sheet) and yanks whatever is on
+// screen. The distinction between 1 and 2 is why `pendingAtMount` exists —
+// without it, `isUpdatePending` flipping true mid-session is indistinguishable
+// from a cold start and the reload lands in the middle of the user's session.
+
+/** An update that was auto-applied and did not survive its own launch, so it
+ *  is never auto-applied again. `expo-updates` falls back to the previous
+ *  bundle when a launch fails; without this latch the fallback and the
+ *  auto-apply fight in a loop and the app is effectively bricked. The banner
+ *  still offers it manually — retrying deliberately is a different decision. */
+const FAILED_KEY = 'ota.failedUpdateId';
+/** Written immediately before a reload, cleared once a bundle renders. */
+const ATTEMPT_KEY = 'ota.attemptedUpdateId';
+
+/**
+ * Whether a downloaded bundle may be applied right now. Pure, so the two
+ * decisions that can hurt a user are testable without a device:
+ *
+ *  - applying at the wrong MOMENT (mid-session, discarding what they typed);
+ *  - applying a bundle that already failed to launch, which loops against
+ *    expo-updates' own fallback and leaves the app unusable.
+ */
+export function shouldAutoApplyOta(args: {
+  isUpdatePending: boolean;
+  /** The downloaded bundle a reload would launch. */
+  targetUpdateId?: string;
+  /** A bundle previously auto-applied that did not survive its launch. */
+  failedUpdateId: string | null;
+  /** `mount` = first render of the session; `foreground` = a background→
+   *  active transition. */
+  moment: 'mount' | 'foreground';
+  /** Whether a bundle was already waiting when the session started. */
+  pendingAtMount: boolean;
+}): boolean {
+  const { isUpdatePending, targetUpdateId, failedUpdateId, moment, pendingAtMount } = args;
+  if (!isUpdatePending) return false;
+  // Never re-apply a bundle that bricked its own launch.
+  if (targetUpdateId && failedUpdateId === targetUpdateId) return false;
+  // At mount, only a bundle downloaded by an EARLIER run is safe: one that
+  // arrives during this session waits for the user to leave.
+  return moment === 'foreground' ? true : pendingAtMount;
+}
+
+/**
+ * Apply OTA updates without asking. Mount ONCE, high in the tree.
+ *
+ * Returns nothing — it is a side effect, and everything it does is invisible
+ * by design. `UpdateBanner` remains the manual path for anyone who lands
+ * between the two moments above, and the only route for an update this
+ * refuses.
+ */
+export function useAutoApplyOta(): void {
+  const { isUpdatePending, downloadedUpdate, currentlyRunning } = Updates.useUpdates();
+
+  // True only when a bundle was already waiting as this component first
+  // rendered — i.e. it was downloaded by a previous run.
+  const pendingAtMount = useRef<boolean | null>(null);
+  if (pendingAtMount.current === null) pendingAtMount.current = isUpdatePending;
+
+  // Boot-success latch. An attempt marker surviving into a run of a DIFFERENT
+  // update than the one attempted means that bundle failed to launch and
+  // expo-updates fell back. Record it so we stop trying.
+  useEffect(() => {
+    if (!canUpdate) return;
+    void (async () => {
+      const attempted = await AsyncStorage.getItem(ATTEMPT_KEY);
+      if (!attempted) return;
+      await AsyncStorage.removeItem(ATTEMPT_KEY);
+      if (currentlyRunning?.updateId !== attempted) {
+        await AsyncStorage.setItem(FAILED_KEY, attempted);
+      }
+    })();
+  }, [currentlyRunning?.updateId]);
+
+  useEffect(() => {
+    if (!canUpdate || !isUpdatePending) return;
+    let alive = true;
+
+    // `Updates.updateId` is the RUNNING bundle; the one a reload would launch
+    // is the downloaded one.
+    const target = downloadedUpdate?.updateId;
+
+    const apply = async (moment: 'mount' | 'foreground') => {
+      const failed = await AsyncStorage.getItem(FAILED_KEY);
+      if (!alive) return;
+      if (!shouldAutoApplyOta({
+        isUpdatePending,
+        targetUpdateId: target,
+        failedUpdateId: failed,
+        moment,
+        pendingAtMount: pendingAtMount.current === true,
+      })) return;
+      if (target) await AsyncStorage.setItem(ATTEMPT_KEY, target);
+      try {
+        await Updates.reloadAsync();
+      } catch {
+        // Reload refused (dev client / updates disabled). The banner remains.
+      }
+    };
+
+    // 1. Downloaded before this session started — apply now, pre-engagement.
+    if (AppState.currentState === 'active') void apply('mount');
+
+    // 2. Downloaded during this session — wait for them to leave and return.
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (next === 'active') void apply('foreground');
+    });
+
+    return () => {
+      alive = false;
+      sub.remove();
+    };
+  }, [isUpdatePending, downloadedUpdate?.updateId]);
 }

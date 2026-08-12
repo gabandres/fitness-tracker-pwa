@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LogSpeedDial } from '@/components/LogSpeedDial';
 import { useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
+import { useAutoApplyOta } from '@/lib/app-update';
 import { useHealthAutoImport } from '@/lib/health-sync';
 import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
@@ -78,6 +79,10 @@ export default function AppTabsLayout() {
   // Pull weight/sleep/water from Apple Health / Health Connect on app-open and
   // every foreground (no-op unless the user connected Health in Settings).
   useHealthAutoImport(user?.uid);
+  // Apply a downloaded OTA bundle on its own — at cold start, or on the next
+  // foreground for one that arrived mid-session. Mounted here rather than in
+  // UpdateBanner so it does not depend on Today being the visible tab.
+  useAutoApplyOta();
   return (
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <AppTabBar {...props} />}>
       <Tabs.Screen name="index" options={{ title: t('nav.today') }} />
