@@ -387,6 +387,7 @@ export const esPR: Record<I18nKey, string> = {
   'coach.entry': 'Pregúntale al Coach',
   'coach.intro': 'Pregunta sobre tu progreso — basado en tus últimos 14 días de datos.',
   'coach.remaining': '{n}/{limit} disponibles hoy',
+  'coach.unlimited': 'Sin límite hoy',
   'coach.notMedical': 'Orientación general, no consejo médico.',
   'coach.placeholder': 'ej. ¿Voy bien para llegar a mi meta esta semana?',
   'coach.ask': 'Preguntar',

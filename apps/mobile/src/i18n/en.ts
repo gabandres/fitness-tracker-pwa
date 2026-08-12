@@ -384,6 +384,7 @@ export const en = {
   'coach.entry': 'Ask the Coach',
   'coach.intro': 'Ask about your progress — grounded in your last 14 days of data.',
   'coach.remaining': '{n}/{limit} left today',
+  'coach.unlimited': 'Unlimited today',
   'coach.notMedical': 'General guidance, not medical advice.',
   'coach.placeholder': 'e.g. Am I on track to hit my goal this week?',
   'coach.ask': 'Ask',

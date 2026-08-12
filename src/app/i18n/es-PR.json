@@ -752,6 +752,7 @@
     "resetHint": "cuota diaria de consultas se reinicia a medianoche UTC",
     "suggestionsLabel": "ejemplos · toca para rellenar, o escribe tu propia pregunta abajo",
     "remaining": "({{n}} de {{limit}} restantes hoy)",
+    "unlimited": "Sin límite hoy",
     "questionLabel": "tu pregunta",
     "questionPlaceholder": "ej. ¿estoy bajando demasiado rápido? ¿debería mantener mi meta?",
     "asking": "preguntando…",

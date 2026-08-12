@@ -133,11 +133,11 @@ export const consultationStream = onRequest(
       }
     }
 
-    // ── Reserve one slot (admins/comped bypass) ──
+    // ── Reserve one slot (comped bypasses; admin does NOT) ──
     const limit = dailyQuota.limitFor("consultation", caller.paidClaim);
     let remaining = -1;
     let reserved = false;
-    if (!caller.unlimited) {
+    if (!caller.quotaExempt) {
       try {
         const r = await dailyQuota.reserve(caller.uid, "consultation", caller.tier === "paid");
         remaining = r.remaining;
@@ -222,9 +222,10 @@ export const checkAccessStatus = onCall(async (request) => {
   const photoLimit = dailyQuota.limitFor("photo", paid);
   const consultationLimit = dailyQuota.limitFor("consultation", paid);
 
-  // Admin/comped users hide the "N left" caption entirely (null signal).
+  // Comped users hide the "N left" caption entirely (null signal). Admin is
+  // counted like everyone else, so it reports a real number.
   // Paid users DO see a remaining count against the 30/day cap.
-  if (caller.unlimited) {
+  if (caller.quotaExempt) {
     return {
       admin, comped,
       photosRemaining: null, consultationsRemaining: null,

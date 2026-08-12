@@ -36,7 +36,11 @@ interface SuggestedPrompt {
         </p>
         <p class="caption mt-2 text-[11px]">
           {{ t('consultation.intro') }}
-          @if (remaining() !== null) {
+          @if (unlimited()) {
+            <span class="ml-1 font-mono not-italic" style="color: var(--color-graphite);">
+              {{ t('consultation.unlimited') }}
+            </span>
+          } @else if (remaining() !== null) {
             <span class="ml-1 font-mono not-italic"
               [style.color]="remaining()! <= 1 ? 'var(--color-gold)' : 'var(--color-graphite)'"
               [attr.title]="t('consultation.resetHint')">
@@ -149,6 +153,11 @@ export class ConsultationComponent {
       `meta` event on each ask(). `null` means "unknown / unlimited"
       (admin/comped, or pre-first-ask in this session). */
   protected readonly remaining = signal<number | null>(null);
+  /** Admin + comped callers bypass the daily quota entirely
+   *  (`caller.unlimited`, functions/src/caller-access.ts), so the server keeps
+   *  no counter for them and reports `remaining: -1`. Rendering that as "no
+   *  information" left the one account that asks most with nothing to read. */
+  protected readonly unlimited = signal(false);
   /** Daily cap, populated from the server `meta` event. The seed value
       is just a placeholder for the brief moment before the first
       reservation lands; the real free/paid limits are 3 and 30. */
@@ -216,6 +225,8 @@ export class ConsultationComponent {
         q, logs, tdee, profileFields, this.body.dailyWeights(),
         (meta) => {
           this.limit.set(meta.limit);
+          // < 0 means "not counted", not "unknown".
+          this.unlimited.set(meta.remaining < 0);
           this.remaining.set(meta.remaining < 0 ? null : meta.remaining);
         },
       )) {

@@ -58,6 +58,12 @@ export default function Coach() {
   const [remaining, setRemaining] = useState<number | null>(null);
   const [limit, setLimit] = useState<number | null>(null);
   const [overLimit, setOverLimit] = useState(false);
+  // Admin and comped callers bypass the daily quota entirely (`caller.unlimited`
+  // in functions/src/caller-access.ts), so the server never reserves a slot and
+  // reports `remaining: -1`. Without this flag the screen had no way to say so:
+  // it blanked the chip, and the doc read below then restored a full "3 / 3"
+  // that could never move, no matter how many consultations were spent.
+  const [unlimited, setUnlimited] = useState(false);
 
   // Show the day's allowance BEFORE one is spent. Until this, `remaining` was
   // set only from a consultation's own response metadata, so the chip could
@@ -67,7 +73,7 @@ export default function Coach() {
   // count is a courtesy, and the server remains the authority that refuses
   // the ask.
   useEffect(() => {
-    if (!user) return;
+    if (!user || unlimited) return;
     let alive = true;
     getConsultationQuota(user.uid)
       .then((q) => {
@@ -80,7 +86,7 @@ export default function Coach() {
     return () => {
       alive = false;
     };
-  }, [user]);
+  }, [user, unlimited]);
 
   const streaming = status === 'streaming';
 
@@ -106,7 +112,14 @@ export default function Coach() {
         idToken,
         onMeta: (m) => {
           setLimit(m.limit);
-          setRemaining(m.remaining < 0 ? null : m.remaining);
+          // < 0 means "not counted", not "unknown" — say so rather than
+          // falling back to a number the server is not keeping.
+          if (m.remaining < 0) {
+            setUnlimited(true);
+            setRemaining(null);
+          } else {
+            setRemaining(m.remaining);
+          }
         },
         onChunk: (chunk) => {
           buffer += chunk;
@@ -139,7 +152,11 @@ export default function Coach() {
       >
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <Text style={styles.intro}>{t('coach.intro')}</Text>
-          {remaining !== null && limit !== null ? (
+          {unlimited ? (
+            <Text style={styles.counter} testID="coach-remaining">
+              {t('coach.unlimited')}
+            </Text>
+          ) : remaining !== null && limit !== null ? (
             <Text style={styles.counter} testID="coach-remaining">
               {t('coach.remaining', { n: remaining, limit })}
             </Text>

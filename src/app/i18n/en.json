@@ -752,6 +752,7 @@
     "resetHint": "daily consultation quota resets at midnight UTC",
     "suggestionsLabel": "examples · tap to prefill, or type your own below",
     "remaining": "({{n}} of {{limit}} left today)",
+    "unlimited": "Unlimited today",
     "questionLabel": "your question",
     "questionPlaceholder": "e.g. am i losing too quickly? should i hold my target?",
     "asking": "asking…",

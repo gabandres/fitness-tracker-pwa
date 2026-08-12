@@ -435,10 +435,10 @@ export const analyzePhoto = onCall(
       await spendCeiling.check("photo");
     }
 
-    // Daily quota (per user, resets at UTC midnight). Admins + comped
-    // users skip it entirely.
+    // Daily quota (per user, resets at UTC midnight). Comped users skip it;
+    // admin counts like everyone else (see Caller.quotaExempt).
     let photosRemaining = dailyQuota.limitFor("photo", true);
-    if (!caller.unlimited) {
+    if (!caller.quotaExempt) {
       const reserved = await dailyQuota.reserve(uid, "photo", caller.tier === "paid");
       photosRemaining = reserved.remaining;
     }
@@ -534,9 +534,9 @@ export const analyzePhoto = onCall(
         fat: totals.fat,
         description,
         confidence,
-        // Admins + comped users report "unlimited" by returning the
-        // paid cap. The client treats this as decorative since nothing
-        // blocks them.
+        // Comped users report "unlimited" by returning the paid cap; the
+        // client treats that as decorative since nothing blocks them. Admin
+        // reports a real count — it is subject to the daily quota.
         photosRemaining,
       };
     } catch (err) {

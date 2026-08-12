@@ -11,16 +11,29 @@ const ADMIN_EMAILS = new Set([
   "gabrielandresbermudez@gmail.com",
 ]);
 
-/** Resolved access tier, most privileged first. `admin` and `comped`
-    are the "unlimited" tiers — they bypass daily quotas entirely. */
+/** Resolved access tier, most privileged first. `admin` and `comped` are the
+    "unlimited" tiers — they bypass entitlement gates. Only `comped` also skips
+    the daily counter; see `quotaExempt`. */
 export type CallerTier = "admin" | "comped" | "paid" | "free";
 
 export interface Caller {
   uid: string;
   email: string | undefined;
   tier: CallerTier;
-  /** true for admin + comped — the quota-bypass tiers. */
+  /** true for admin + comped — the entitlement-bypass tiers. Gates that ask
+      "is this caller allowed the feature at all" read this. */
   unlimited: boolean;
+  /**
+   * true when the caller is exempt from the per-user DAILY COUNTER — comped
+   * only. Admin was exempt until 2026-08-12, and the cost of that was not the
+   * free consultations: it was that **the owner's own account could never see
+   * the quota UI work.** No slot was reserved, so no counter existed, so the
+   * chip sat at "3 / 3" through every ask and the one person able to fix it
+   * was the one person who could not observe it. Admin now counts like anyone
+   * else. It keeps every other privilege, and the org-wide spend ceiling still
+   * meters admins without blocking them.
+   */
+  quotaExempt: boolean;
   /** Raw `stripeRole === "paid"` claim. Tiers are mutually exclusive
       (admin/comped outrank paid), so an unlimited caller who ALSO pays
       needs this to keep seeing paid-cap numbers in decorative UI. */
@@ -103,6 +116,7 @@ export class CallerAccess {
       email,
       tier,
       unlimited: tier === "admin" || tier === "comped",
+      quotaExempt: tier === "comped",
       paidClaim: stripeRole === "paid",
     };
   }
