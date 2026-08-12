@@ -148,7 +148,7 @@ export const esPR: Record<I18nKey, string> = {
   'today.entry': 'Registro',
   'whatsNew.title': 'Novedades',
   'whatsNew.body':
-    'Si dejas de registrar una semana, tu estimado de mantenimiento ahora arranca desde que volviste, en vez de trazar una sola línea sobre el hueco — antes eso botaba todos los pesajes después de un viaje y movía el número sin avisar. El agua del viaje tiene una semana para irse antes de contar. Hoy también te dice cuándo se ignoró un pesaje, para que un estimado raro venga con su razón.',
+    'Train ahora se explica solo: el RIR es una escala que lees en palabras en vez de una cajita de 0–5, cada tipo de serie dice lo que es, y un “?” abre un glosario con todos los términos de la pestaña. El Coach también ve de verdad tus últimos 14 días — antes recibía una fracción de eso mientras le decían que era una quincena.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',

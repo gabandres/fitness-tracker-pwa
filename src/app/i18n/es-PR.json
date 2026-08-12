@@ -1632,7 +1632,9 @@
         "bodyTrain": "Body añade fotos de progreso (Pro) y estimación de grasa corporal; Train añade calculadora de discos y series de calentamiento.",
         "shareStreak": "Comparte tu racha como imagen desde Today.",
         "trendBreaks": "Si dejas de registrar una semana, tu estimado de mantenimiento arranca desde que volviste, en vez de trazar una sola línea sobre el hueco. El agua del viaje tiene una semana para irse antes de contar.",
-        "weighInsIgnored": "Hoy ahora te dice cuándo se ignoró un pesaje, para que un estimado raro venga con su razón."
+        "weighInsIgnored": "Hoy ahora te dice cuándo se ignoró un pesaje, para que un estimado raro venga con su razón.",
+        "trainTerms": "Train ahora se explica solo: el RIR se lee en palabras, cada tipo de serie dice lo que es, y un “?” abre un glosario de toda la pestaña.",
+        "coachWindow": "Pregúntale al Coach ahora ve de verdad tus últimos 14 días — antes recibía una fracción mientras le decían que era una quincena."
       }
     },
     "body": {
