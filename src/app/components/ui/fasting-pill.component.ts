@@ -17,6 +17,11 @@ import { TranslationService } from '../../services/translation.service';
  * progress. Self-gates on `store.isFasting()` — renders nothing when
  * idle, so callers can mount it unconditionally.
  *
+ * Tapping it goes to **Today**, which is where fasting is controlled on both
+ * platforms (mobile's `DailyMetrics` row, mirrored by `ui-day-summary`). It
+ * used to go to Body, whose fasting card is long gone — so the chip landed
+ * the user on a screen with nothing about fasting on it.
+ *
  * The minute-resolution ticker uses a 30s interval (cheaper than 1s
  * and the elapsed display only shows hours+minutes anyway). Cleared
  * in `ngOnDestroy` so route swaps don't leak handles.
@@ -32,7 +37,7 @@ import { TranslationService } from '../../services/translation.service';
         type="button"
         class="v2-fasting-pill"
         [attr.aria-label]="ariaLabel(label)"
-        (click)="bodyRequested.emit()">
+        (click)="fastingRequested.emit()">
         <lucide-icon name="timer" [size]="14" />
         <span>{{ label }}</span>
       </button>
@@ -43,7 +48,7 @@ export class UiFastingPill implements OnInit, OnDestroy {
   protected readonly store = inject(FastingStore);
   private readonly translation = inject(TranslationService);
 
-  readonly bodyRequested = output<void>();
+  readonly fastingRequested = output<void>();
 
   private readonly tick = signal(0);
   private intervalId: ReturnType<typeof setInterval> | null = null;

@@ -64,7 +64,7 @@ import { bcp47ForLang } from '../../utils/locale';
           <p class="v2-caption mt-0.5">{{ t('v2.trends.subtitle') }}</p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <ui-fasting-pill (bodyRequested)="bodyRequested.emit()" />
+          <ui-fasting-pill (fastingRequested)="todayRequested.emit()" />
           <ui-icon-button
             icon="calendar"
             [ariaLabel]="t('v2.trends.historyAria')"
@@ -355,8 +355,9 @@ export class TrendsComponent {
   protected readonly proEnabled = PRO_ENABLED;
 
   readonly historyRequested = output<void>();
+  /** Fasting chip tap — fasting is controlled on Today. */
+  readonly todayRequested = output<void>();
   readonly settingsRequested = output<void>();
-  readonly bodyRequested = output<void>();
 
   protected readonly chartData = computed(() => this.store.last7Days());
 

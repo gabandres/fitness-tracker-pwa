@@ -377,8 +377,7 @@ import { DeferErrorComponent } from './components/ui/defer-error.component';
                   @defer (on immediate) {
                     <app-history
                       (dayTapped)="pushHistoryDay($event)"
-                      (closeRequested)="popHistory()"
-                      (bodyRequested)="onBodyRequestedV2()" />
+                      (closeRequested)="popHistory()" />
                   } @placeholder {
                     <div class="py-20 text-center caption">…</div>
                   } @error { <app-defer-error /> }
@@ -387,8 +386,7 @@ import { DeferErrorComponent } from './components/ui/defer-error.component';
                   @defer (on immediate) {
                     <app-day-detail
                       [dateKey]="historyDay()!"
-                      (closeRequested)="popHistory()"
-                      (bodyRequested)="onBodyRequestedV2()" />
+                      (closeRequested)="popHistory()" />
                   } @placeholder {
                     <div class="py-20 text-center caption">…</div>
                   } @error { <app-defer-error /> }
@@ -398,7 +396,7 @@ import { DeferErrorComponent } from './components/ui/defer-error.component';
                     <app-trends
                       (settingsRequested)="showSettings.set(true)"
                       (historyRequested)="onHistoryRequestedV2()"
-                      (bodyRequested)="onBodyRequestedV2()" />
+                      (todayRequested)="onFastingPillTapped()" />
                   } @placeholder {
                     <div class="py-20 text-center caption">…</div>
                   } @error { <app-defer-error /> }
@@ -407,8 +405,7 @@ import { DeferErrorComponent } from './components/ui/defer-error.component';
                   @defer (on immediate) {
                     <app-body
                       (settingsRequested)="showSettings.set(true)"
-                      (historyRequested)="onHistoryRequestedV2()"
-                      (bodyRequested)="onBodyRequestedV2()" />
+                      (historyRequested)="onHistoryRequestedV2()" />
                   } @placeholder {
                     <div class="py-20 text-center caption">…</div>
                   } @error { <app-defer-error /> }
@@ -425,8 +422,7 @@ import { DeferErrorComponent } from './components/ui/defer-error.component';
                 @default {
                   <app-today
                     (settingsRequested)="showSettings.set(true)"
-                    (historyRequested)="onHistoryRequestedV2()"
-                    (bodyRequested)="onBodyRequestedV2()" />
+                    (historyRequested)="onHistoryRequestedV2()" />
                 }
               }
               <app-entry-sheet />
@@ -677,13 +673,16 @@ export class App {
     this.applyLocation();
   }
 
-  /** Fasting pill tap from any v2 surface → /body. No-op when already
-   *  on /body (the pill is still rendered there as a state indicator
-   *  but tapping it from the same route would just push a duplicate
-   *  history entry). */
-  protected onBodyRequestedV2(): void {
-    if (this.route() === 'body') return;
-    history.pushState({}, '', '/body');
+  /** Fasting pill tap → Today, where the fast is started and ended (the
+   *  `ui-day-summary` metrics row, mirroring mobile's `DailyMetrics`). It
+   *  pointed at /body until 2026-08-12, years after Body's fasting card was
+   *  removed — so the one chip that exists to get you back to your running
+   *  fast landed on a screen that never mentions it. No-op when already on
+   *  Today, which would only push a duplicate history entry. */
+  protected onFastingPillTapped(): void {
+    // Today is `route() === null` at `/app` — see `detectRoute`.
+    if (this.route() === null) return;
+    history.pushState({}, '', '/app');
     this.historyPushDepth++;
     this.applyLocation();
   }
