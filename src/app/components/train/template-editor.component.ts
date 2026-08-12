@@ -14,6 +14,7 @@ import { TranslationService } from '../../services/translation.service';
 import { UiSheet } from '../ui/sheet.component';
 import { UiButton } from '../ui/button.component';
 import { UiIconButton } from '../ui/icon-button.component';
+import { TrainGlossaryComponent } from './train-glossary.component';
 import {
   TemplateLimitError,
   type PlannedSet,
@@ -48,15 +49,28 @@ interface EditExercise {
 @Component({
   selector: 'app-template-editor',
   standalone: true,
-  imports: [LucideAngularModule, TranslocoDirective, UiSheet, UiButton, UiIconButton],
+  imports: [
+    LucideAngularModule,
+    TranslocoDirective,
+    UiSheet,
+    UiButton,
+    UiIconButton,
+    TrainGlossaryComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     <ui-sheet [labelledBy]="'template-editor-title'" (close)="closed.emit()">
-      <header class="mb-3">
+      <header class="mb-3 flex items-center justify-between gap-2">
         <h2 id="template-editor-title" class="v2-h2">
           {{ templateId() ? t('train.editTemplate') : t('train.newTemplate') }}
         </h2>
+        <button type="button" class="v2-icon-btn shrink-0"
+                [attr.aria-label]="t('train.glossaryOpen')"
+                [title]="t('train.glossaryOpen')"
+                (click)="glossaryOpen.set(true)">
+          <lucide-icon name="help-circle" [size]="18" />
+        </button>
       </header>
 
       <label class="block mb-2">
@@ -132,6 +146,15 @@ interface EditExercise {
                        [value]="ex.incrementLb ?? ''" (input)="setEx(exIdx, 'incrementLb', asNum($event))" />
               </label>
             </div>
+            <!-- The three numbers ARE the rule, but nobody reads them as one.
+                 Echoing them back as a sentence is the explanation. -->
+            <p class="v2-caption mb-2" style="font-size: 0.7rem; color: var(--v2-ink-muted);">
+              {{ t('train.progressionRule', {
+                reps: ex.targetReps ?? 12,
+                sessions: ex.holdSessions ?? 2,
+                lb: ex.incrementLb ?? 5
+              }) }}
+            </p>
           }
 
           <!-- Sets -->
@@ -184,6 +207,9 @@ interface EditExercise {
         </ui-button>
       </div>
     </ui-sheet>
+    @if (glossaryOpen()) {
+      <app-train-glossary (closed)="glossaryOpen.set(false)" />
+    }
     </ng-container>
   `,
 })
@@ -196,6 +222,10 @@ export class TemplateEditorComponent {
 
   protected readonly kinds = SET_KINDS;
   protected readonly catalog = this.workout.exercises;
+
+  /** The training-terms sheet — the progression fields and set kinds are set
+   *  up here, so this is where the vocabulary is first met. */
+  protected readonly glossaryOpen = signal(false);
 
   protected readonly name = signal('');
   protected readonly notes = signal('');

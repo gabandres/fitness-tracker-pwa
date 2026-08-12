@@ -21,6 +21,7 @@ import { WorkoutSessionSheetComponent } from './session-sheet.component';
 import { TemplateEditorComponent } from './template-editor.component';
 import { ExerciseDetailComponent } from './exercise-detail.component';
 import { ExercisesManagerComponent } from './exercises-manager.component';
+import { TrainGlossaryComponent } from './train-glossary.component';
 import type { Exercise } from '../../models/workout';
 import {
   STARTER_TEMPLATES,
@@ -62,6 +63,7 @@ import { suggestProgression } from '@macrolog/core';
     TemplateEditorComponent,
     ExerciseDetailComponent,
     ExercisesManagerComponent,
+    TrainGlossaryComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -70,6 +72,12 @@ import { suggestProgression } from '@macrolog/core';
       <!-- Header: title + avatar only (mirrors mobile Train) -->
       <header class="flex items-center justify-between gap-4 pt-2 pb-2">
         <h1 class="page-title" style="font-family: var(--v2-font-display);">{{ t('train.title') }}</h1>
+        <button type="button" class="v2-icon-btn ml-auto"
+                [attr.aria-label]="t('train.glossaryOpen')"
+                [title]="t('train.glossaryOpen')"
+                (click)="glossaryOpen.set(true)">
+          <lucide-icon name="help-circle" [size]="20" />
+        </button>
         <ui-avatar
           [photoUrl]="authUser()?.photoURL ?? null"
           [name]="authUser()?.displayName || authUser()?.email || null"
@@ -240,6 +248,9 @@ import { suggestProgression } from '@macrolog/core';
     @if (managerOpen()) {
       <app-exercises-manager (closed)="managerOpen.set(false)" />
     }
+    @if (glossaryOpen()) {
+      <app-train-glossary (closed)="glossaryOpen.set(false)" />
+    }
     </ng-container>
   `,
 })
@@ -262,6 +273,9 @@ export class TrainComponent {
   protected readonly editorOpen = signal(false);
   protected readonly chooserOpen = signal(false);
   protected readonly managerOpen = signal(false);
+  /** Training-terms sheet — reachable from the tab header, so the vocabulary
+   *  can be looked up without first starting a workout. */
+  protected readonly glossaryOpen = signal(false);
   protected readonly editorTemplateId = signal<string | null>(null);
   protected readonly detail = signal<Exercise | null>(null);
   protected readonly editingSession = signal<WorkoutSession | null>(null);

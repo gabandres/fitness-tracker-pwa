@@ -8,6 +8,7 @@ import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { SubscriptionService } from '../../services/subscription.service';
 import { TranslationService } from '../../services/translation.service';
 import { ErrorCode, extractErrorCode } from '../../models/error-codes';
+import { COACH_WINDOW_DAYS } from '@macrolog/core';
 
 type Status = 'idle' | 'streaming' | 'done' | 'error';
 
@@ -187,8 +188,13 @@ export class ConsultationComponent {
     this.overLimit.set(false);
 
     try {
-      // All data is already cached in the store — no Firestore call needed.
-      const logs = this.store.logs();
+      // A CALENDAR window, not the RecentLogs cache (ADR-0004). This read
+      // `store.logs()`, which is `getRecentLogs(14)` — 14 ROWS, so a user
+      // eating 7 logged meals a day handed the coach two days of history
+      // while the prompt announced a fortnight. `logsForLastDays` awaits
+      // all-time hydration, which is why `ask()` is async; core trims to its
+      // own window on top, so passing a wider one is safe.
+      const logs = await this.store.logsForLastDays(COACH_WINDOW_DAYS);
       const tdee = this.store.tdee();
       const profile = this.store.profile();
       const profileFields = profile?.profileCompleted

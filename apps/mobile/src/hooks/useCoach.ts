@@ -9,9 +9,11 @@ import {
 import { useAuth } from '@/lib/auth';
 import { subscribeDailyWeights, subscribeProfile, subscribeRecentLogs } from '@/lib/ledger';
 
-// The coach grounds on the same rolling window the web app uses. A wide log
-// subscription is cheap (already cached by other tabs) and lets the prompt
-// builder trim to its own 14-day view.
+// Deliberately wider than the coach's own window: the adaptive-TDEE math below
+// needs a long series, and `buildCoachSystemInstruction` trims to
+// COACH_WINDOW_DAYS itself. Until 2026-08-12 it did NOT trim, so all 400 rows
+// (~100 days) went into the prompt and were announced to the model as "400
+// days" — the mirror image of the web app shipping a 14-ROW cache as "14 days".
 const LOG_WINDOW = 400;
 
 export interface CoachData {

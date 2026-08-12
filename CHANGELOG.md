@@ -6,6 +6,39 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-12 — The coach can finally see the two weeks it says it can
+
+The Coach screen has always promised answers "grounded in your last 14 days of
+data". On the web app that sentence was not true: it was handed the *last 14
+rows* of your diary, which for anyone logging four or five meals a day is about
+two or three days. It was then told that pile was a fortnight, so it answered
+confidently about trends it could not see.
+
+- **Both apps now send a real 14-day window**, counted in calendar days.
+- **The coach is told how much history it actually has** — "9 of the last 14
+  days (37 logged entries)" — instead of a count of meals labelled as days.
+- **If you stopped logging for a while**, the window follows your most recent
+  fortnight of entries rather than handing the coach an empty table.
+
+The mobile app had the opposite problem: it was sending roughly three months of
+entries and calling them 400 days. Both apps now build the identical prompt.
+
+## 2026-08-12 — Train says what it means
+
+Someone asked what RIR was. It was one of ten pieces of lifting jargon on the
+same screen with nothing anywhere explaining any of them.
+
+- **The RIR box is now a scale that reads in words** — "0 · to failure",
+  "2 left", "5+ · easy" — so you never have to know the acronym, or guess which
+  end of 0–5 is the hard one.
+- **Set types explain themselves.** Warm-up, Working, Activation, Mini and Drop
+  each carry a one-line description where you pick them.
+- **Auto-progression reads as a sentence**, in your own numbers: "Hit 12 reps
+  for 2 workouts in a row → Ignia suggests adding 5 lb." The three boxes that
+  encode that rule are relabelled to match.
+- **A "?" on Train opens a glossary** defining every term the tab uses —
+  clusters, est. 1RM, volume, top set, plate math, warm-up percentages.
+
 ## 2026-08-11 — A week off no longer rewrites what Ignia thinks you burn
 
 Ignia works out your maintenance calories from your own weight trend and your
