@@ -316,4 +316,46 @@ describe("the bundled dataset", () => {
       expect(searchUsda(foods, q, 3).length, `no hit for "${q}"`).toBeGreaterThan(0);
     }
   });
+
+  // ── Restaurant / chain menu coverage (N6) ─────────────────────
+  //
+  // `UX_AUDIT.md` §S15 files N6 as "a real table-stakes gap (MFP ships it
+  // free)", to be done after N2 by reusing its bundling mechanism. Measured on
+  // 2026-08-12, that premise is mostly already false: FNDDS carries chain menu
+  // items, and N2 bundled FNDDS, so the gap closed as a side effect of a
+  // different ticket. The dataset holds 61 McDonald's rows, 28 Burger King, 24
+  // KFC, 19 Wendy's, 19 Pizza Hut, 13 Taco Bell, 12 Subway, 10 Domino's.
+  //
+  // These are locks, not decoration. The coverage is INCIDENTAL — nothing in
+  // the ingest asks for restaurant data, it arrives inside FNDDS — so a future
+  // `--no-survey` run, or a decision to trim the dataset for size, would delete
+  // every chain item with no other signal. That is exactly the kind of silent
+  // regression this repo keeps paying for.
+  it.each([
+    ["big mac", /big mac/i],
+    ["whopper", /whopper/i],
+    ["taco bell burrito", /taco bell/i],
+    ["mcdonalds fries", /mcdonald/i],
+    ["kfc chicken", /kfc/i],
+    ["pizza hut pizza", /pizza hut/i],
+  ])("still finds the chain menu item for %j", (query, expected) => {
+    const [top] = searchUsda(foods, query, 5);
+    expect(top, `no hit for "${query}"`).toBeDefined();
+    expect(top.description).toMatch(expected);
+  });
+
+  it("documents which chains are NOT covered, so the gap is a fact and not a guess", () => {
+    // The residual half of N6. FNDDS's survey cycle predates or under-samples
+    // these, and they are drink- and build-your-own-heavy, which the survey
+    // does not model well. Filling them needs a licensed menu source — the
+    // chains' own published data — and NOT a guess: inventing macros for a
+    // Starbucks latte would be fabricating health data, which is worse than
+    // returning nothing.
+    //
+    // If this test starts FAILING, a source was added and N6's remaining half
+    // can be closed. That is the only reason it asserts on absence.
+    for (const q of ["starbucks latte", "chipotle burrito bowl"]) {
+      expect(searchUsda(foods, q, 3).length, `now covered: "${q}"`).toBe(0);
+    }
+  });
 });

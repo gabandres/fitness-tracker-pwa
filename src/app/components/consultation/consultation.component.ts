@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { marked } from 'marked';
 import { GeminiService } from '../../services/gemini.service';
+import { AnalyticsService } from '../../services/analytics.service';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { SubscriptionService } from '../../services/subscription.service';
@@ -143,6 +144,7 @@ interface SuggestedPrompt {
   // prose-field styles moved to global styles.css
 })
 export class ConsultationComponent {
+  private readonly analytics = inject(AnalyticsService);
   private readonly store = inject(FitnessStore);
   private readonly body = inject(BodyMetricStore);
   private readonly gemini = inject(GeminiService);
@@ -190,6 +192,7 @@ export class ConsultationComponent {
     const q = this.question().trim();
     if (!q) return;
 
+    this.analytics.count('coach_ask');
     this.status.set('streaming');
     this.rawResponse.set('');
     this.renderedHtml.set('');

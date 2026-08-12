@@ -18,6 +18,7 @@ import { CoachMarkdown } from '@/components/CoachMarkdown';
 import { useCoach } from '@/hooks/useCoach';
 import { useAuth } from '@/lib/auth';
 import { CoachErrorCode, type CoachError, streamCoach } from '@/lib/coach';
+import { track } from '@/lib/analytics';
 import { getConsultationQuota } from '@/lib/ledger';
 import { type I18nKey, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -106,6 +107,7 @@ export default function Coach() {
       const systemInstruction = buildCoachSystemInstruction({ logs, tdee, profile, dailyWeights, locale });
 
       let buffer = '';
+      track('coach_ask');
       await streamCoach({
         systemInstruction,
         prompt: q,

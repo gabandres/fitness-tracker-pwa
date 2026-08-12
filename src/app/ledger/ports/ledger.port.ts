@@ -1,5 +1,5 @@
 import { InjectionToken, Signal } from '@angular/core';
-import type { UnitSystem } from '@macrolog/core';
+import type { UnitSystem, UsageCounts } from '@macrolog/core';
 import type {
   Exercise,
   ExerciseDraft,
@@ -177,6 +177,22 @@ export interface LedgerPort {
   /** Partial merge — the debounced live-write path while logging. */
   updateSession(id: string, patch: Partial<SessionDraft>): Promise<void>;
   deleteSession(id: string): Promise<void>;
+
+  // ─── Product analytics ────────────────────────────────────────
+  /**
+   * Merge a batch of usage counts into `usageEvents/{uid}_{dayKey}`.
+   *
+   * The only verb here that writes OUTSIDE `users/{uid}` — the collection is
+   * top-level so an aggregate query can answer "how many people came back on
+   * day 3" without a collection-group scan of every account. Counts only; the
+   * catalogue and the clamping are in `@macrolog/core/usage-events`, and the
+   * shape is enforced field by field in `firestore.rules`.
+   *
+   * Implementations must use `increment()`, not read-modify-write: the same
+   * account can be open in the PWA and on a phone at once, and the two must
+   * not clobber each other's totals.
+   */
+  recordUsage(dayKey: string, counts: UsageCounts): Promise<void>;
 }
 
 export const LEDGER_PORT = new InjectionToken<LedgerPort>('LedgerPort');

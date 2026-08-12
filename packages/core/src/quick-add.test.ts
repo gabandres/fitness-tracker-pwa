@@ -161,6 +161,17 @@ describe('buildPendingLog / pendingLogEntry', () => {
     const p = buildPendingLog('abc', 'u1', { calories: 100, timestamp: tapped }, 0);
     expect(pendingLogEntry(p).timestamp).toEqual(tapped);
   });
+
+  it('omits mealType entirely when the caller had no slot — the native case', () => {
+    const p = buildPendingLog('abc', 'u1', { calories: 100 }, 0);
+    expect('mealType' in p).toBe(false);
+  });
+
+  it('carries the slot the user picked, so a flush hours later still files it right', () => {
+    const p = buildPendingLog('abc', 'u1', { calories: 100, mealType: 'breakfast' }, 0);
+    expect(p.mealType).toBe('breakfast');
+    expect(pendingLogEntry(p).mealType).toBe('breakfast');
+  });
 });
 
 describe('parsePendingLogs', () => {
@@ -188,6 +199,14 @@ describe('parsePendingLogs', () => {
 
   it('rejects a row with no uid — it cannot be attributed to an account', () => {
     expect(parsePendingLogs(JSON.stringify([{ ...good, uid: '' }]))).toEqual([]);
+  });
+
+  it('rejects an unknown mealType — the rules would refuse it on every flush', () => {
+    expect(parsePendingLogs(JSON.stringify([{ ...good, mealType: 'brunch' }]))).toEqual([]);
+  });
+
+  it('accepts a row with no mealType at all — Swift omits the key', () => {
+    expect(parsePendingLogs(JSON.stringify([good]))).toEqual([good]);
   });
 });
 

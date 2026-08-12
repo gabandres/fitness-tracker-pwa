@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { trackSubs } from '@/lib/sub-debug';
+import { track } from '@/lib/analytics';
 import { exportDaily, exportWorkout } from '@/lib/health-sync';
 import { useAuth } from '@/lib/auth';
 import {
@@ -496,6 +497,7 @@ export function useTrain(): TrainState {
         }
         await markExercised(uid, date);
         // Mirror the finished session to Health (ends now; strength training).
+        track('workout_finished');
         void exportWorkout({ start: date, end: new Date() });
         setActive(null);
       } catch (e) {

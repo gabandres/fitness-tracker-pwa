@@ -142,7 +142,8 @@ export function LogSpeedDial() {
       <Pressable
         style={styles.fab}
         accessibilityRole="button"
-        accessibilityLabel={t('log.scan')}
+        accessibilityLabel={t('log.openA11y')}
+        accessibilityHint={t('log.openHint')}
         accessibilityState={{ expanded: open }}
         testID="log-button"
         onPress={toggle}

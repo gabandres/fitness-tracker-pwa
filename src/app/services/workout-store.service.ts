@@ -1,5 +1,6 @@
 import { Injectable, Signal, computed, inject, signal } from '@angular/core';
 import { LEDGER_PORT } from '../ledger/ports/ledger.port';
+import { AnalyticsService } from './analytics.service';
 import { SubscriptionService } from './subscription.service';
 import {
   CUSTOM_TEMPLATE_LIMIT_FREE,
@@ -41,6 +42,7 @@ import { TranslationService } from './translation.service';
 @Injectable({ providedIn: 'root' })
 export class WorkoutStore {
   private readonly fb = inject(LEDGER_PORT);
+  private readonly analytics = inject(AnalyticsService);
   private readonly subs = inject(SubscriptionService);
   private readonly i18n = inject(TranslationService);
 
@@ -257,6 +259,7 @@ export class WorkoutStore {
    * and refreshes the recent list.
    */
   async completeSession(id: string, patch: Partial<SessionDraft> = {}): Promise<void> {
+    this.analytics.count('workout_finished');
     // Strip unfilled cluster-scaffold sets before the session is frozen as
     // `completed`: the template's `plannedSets` pre-create the full cluster
     // structure (activation + mini rows) up front, and any cluster the user

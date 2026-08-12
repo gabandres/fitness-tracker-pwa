@@ -1,5 +1,14 @@
 import { Injectable, computed, signal } from '@angular/core';
-import { clampSleepHours, clampWaterFlOz, localDateKey } from '@macrolog/core';
+import {
+  type UsageCounts,
+  type UsageEvent,
+  addUsageCount,
+  clampSleepHours,
+  clampUsageCounts,
+  clampWaterFlOz,
+  hasUsageCounts,
+  localDateKey,
+} from '@macrolog/core';
 import type { OnboardingV2Submission, RefineTargetsSubmission } from '@macrolog/core';
 import type { LedgerPort } from '../ports/ledger.port';
 import type {
@@ -503,6 +512,26 @@ export class InMemoryLedgerAdapter implements LedgerPort {
 
   async deleteSession(id: string): Promise<void> {
     if (!this.sessions.delete(id)) throw new Error(`Session not found: ${id}`);
+  }
+
+  /** Usage counts, accumulated per day key. Exposed via {@link usage} so a
+   *  test can assert what a flow recorded without a Firestore anywhere. */
+  private readonly usageByDay = new Map<string, UsageCounts>();
+
+  async recordUsage(dayKey: string, counts: UsageCounts): Promise<void> {
+    const clamped = clampUsageCounts(counts);
+    if (!hasUsageCounts(clamped)) return;
+    const current = this.usageByDay.get(dayKey) ?? {};
+    let next = current;
+    for (const [event, n] of Object.entries(clamped)) {
+      next = addUsageCount(next, event as UsageEvent, n as number);
+    }
+    this.usageByDay.set(dayKey, next);
+  }
+
+  /** Test seam: what has been recorded for one day. */
+  usage(dayKey: string): UsageCounts {
+    return this.usageByDay.get(dayKey) ?? {};
   }
 
   private patchProfile(

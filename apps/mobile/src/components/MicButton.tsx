@@ -11,6 +11,7 @@ import {
   startListening,
   stopListening,
 } from '@/lib/speech';
+import { track } from '@/lib/analytics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
@@ -119,6 +120,7 @@ export function MicButton({
     }
     const { lang, onDevice } = await speechConfigFor(locale);
     setListening(true);
+    track('voice_log');
     startListening(lang, onDevice);
   }, [listening, locale]);
 

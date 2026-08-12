@@ -6,6 +6,7 @@ import { OffLookupError, type FoodSource } from '@macrolog/core';
 import { lookupProduct } from '@/lib/barcode';
 import { useT, type I18nKey } from '@/i18n';
 import * as haptics from '@/lib/haptics';
+import { track } from '@/lib/analytics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
@@ -95,6 +96,7 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied }: Props) {
     setError('');
     haptics.tap();
     try {
+      track('barcode_scan');
       const { calories, protein, carbs, fat, productName, serving } = await lookupProduct(barcode);
       haptics.success();
       onPick({

@@ -1,6 +1,9 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { trackSubs } from '@/lib/sub-debug';
+import { useCachedState } from '@/hooks/useCachedState';
+import { addLogDurably, onPendingLogsChanged, pendingLogsAsRows } from '@/lib/pending-logs';
+import { track } from '@/lib/analytics';
 import { exportDaily } from '@/lib/health-sync';
 import {
   type CustomFood,
@@ -22,7 +25,6 @@ import { useSubscription } from '@/lib/subscription';
 import { useAuth } from '@/lib/auth';
 import { type LogWrites, useLogWrites } from '@/hooks/useLogWrites';
 import {
-  addLog as addLogDoc,
   breakFast as breakFastDoc,
   setDailySleep,
   setDailyWater,
@@ -84,16 +86,72 @@ export interface TodayState extends LogWrites {
 export function useToday(): TodayState {
   const { user } = useAuth();
   const uid = user?.uid;
-  const [logs, setLogs] = useState<DailyLog[]>([]);
-  const [weights, setWeights] = useState<Record<string, number>>({});
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [presets, setPresets] = useState<MealPreset[]>([]);
-  const [customFoods, setCustomFoods] = useState<CustomFood[]>([]);
-  const [water, setWaterMap] = useState<Record<string, number>>({});
-  const [sleep, setSleepMap] = useState<Record<string, number>>({});
-  const [activity, setActivityMap] = useState<Record<string, DailyActivity>>({});
-  const [loading, setLoading] = useState(true);
+  // Every read slice is cached to disk on the way in, so a cold start with no
+  // signal paints the last online session instead of an empty day
+  // (`offline-cache.ts`). The setters are the same ones `onSnapshot` already
+  // called — the write-through is invisible from here.
+  const [liveLogs, setLogs, logsFromCache] = useCachedState<DailyLog[]>(uid, 'logs', []);
+  const [weights, setWeights] = useCachedState<Record<string, number>>(uid, 'weights', {});
+  const [profile, setProfile] = useCachedState<Profile | null>(uid, 'profile', null);
+  const [presets, setPresets] = useCachedState<MealPreset[]>(uid, 'presets', []);
+  const [customFoods, setCustomFoods] = useCachedState<CustomFood[]>(uid, 'customFoods', []);
+  const [water, setWaterMap] = useCachedState<Record<string, number>>(uid, 'water', {});
+  const [sleep, setSleepMap] = useCachedState<Record<string, number>>(uid, 'sleep', {});
+  const [activity, setActivityMap] = useCachedState<Record<string, DailyActivity>>(
+    uid,
+    'activity',
+    {},
+  );
+  const [snapshotArrived, setSnapshotArrived] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  /** Rows parked on disk by an offline add, not yet in Firestore. */
+  const [pending, setPending] = useState<DailyLog[]>([]);
+
+  // The spinner ends at whichever comes first: a real snapshot, or a cache hit.
+  // Without the second clause a cold start offline would spin forever — the
+  // listener never answers, and the whole point of the cache is that it does
+  // not have to.
+  const loading = !snapshotArrived && !logsFromCache;
+
+  // Re-read the parked queue when it changes (a park, or a flush that emptied
+  // it) and whenever the account does. Cheap: one AsyncStorage read of a list
+  // capped at PENDING_LOGS_MAX.
+  useEffect(() => {
+    if (!uid) {
+      setPending([]);
+      return;
+    }
+    let cancelled = false;
+    const reload = () => {
+      void pendingLogsAsRows(uid).then((rows) => {
+        if (!cancelled) setPending(rows);
+      });
+    };
+    reload();
+    const off = onPendingLogsChanged(reload);
+    return () => {
+      cancelled = true;
+      off();
+    };
+  }, [uid]);
+
+  /**
+   * Live rows, with anything still parked laid over the top.
+   *
+   * Deduped by id, live wins. A parked row carries the id its flush will write
+   * to, so the moment the real document arrives the two collapse into one with
+   * no flicker and no double-counted calories — which is the entire reason the
+   * id is minted before the attempt (ADR-0020).
+   */
+  const logs = useMemo(() => {
+    if (pending.length === 0) return liveLogs;
+    const live = new Set(liveLogs.map((l) => l.id).filter(Boolean));
+    const extra = pending.filter((p) => !live.has(p.id));
+    if (extra.length === 0) return liveLogs;
+    // `logs` is oldest-first by contract (the ledger seam) and every consumer
+    // below relies on it, so the merge re-sorts rather than appending.
+    return [...liveLogs, ...extra].sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [liveLogs, pending]);
 
   // Focus-gated (not mount-gated): the tab detaches its Firestore listeners
   // when it blurs, so background tabs stop holding live onSnapshot channels
@@ -108,7 +166,7 @@ export function useToday(): TodayState {
           LOG_WINDOW_ROWS,
           (l) => {
             setLogs(l);
-            setLoading(false);
+            setSnapshotArrived(true);
           },
           setError,
         ),
@@ -194,7 +252,10 @@ export function useToday(): TodayState {
     for (const l of yLogs) {
       const ts = new Date();
       ts.setHours(l.date.getHours(), l.date.getMinutes(), 0, 0);
-      await addLogDoc(uid, {
+      // Durable like every other add — a repeat is the one-tap path a user
+      // reaches for precisely when they cannot be bothered to retype a day,
+      // and losing it offline would be losing a whole day of meals at once.
+      await addLogDurably(uid, {
         calories: l.calories,
         protein: l.protein,
         carbs: l.carbs,
@@ -204,6 +265,9 @@ export function useToday(): TodayState {
         timestamp: ts,
       });
     }
+    // Counted once per use, not once per row copied — the question it answers
+    // is whether the shortcut earns its place on an empty Today.
+    if (yLogs.length > 0) track('repeat_yesterday');
     return yLogs.length;
   }, [uid, logs]);
 

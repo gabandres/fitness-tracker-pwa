@@ -12,6 +12,7 @@ import {
   collection,
   doc,
   getDoc,
+  serverTimestamp,
   setDoc,
   Timestamp,
   updateDoc,
@@ -246,6 +247,83 @@ describe('firestore.rules', () => {
     // A uid that merely PREFIXES another's must not slip through a
     // startsWith-style check — this is why the rule splits on '_'.
     await assertFails(getDoc(doc(authed('ali'), 'consultationQuota', 'alice_2026-04-17')));
+  });
+
+  // ── usageEvents ────────────────────────────────────────────────
+  // The one client-WRITABLE counter in the file, so its guards carry more
+  // weight than the deny-write ones around it. Each case below is a way the
+  // collection could stop being "counts, scoped to me, for the day named in the
+  // id" — which is the entire claim the privacy copy makes about it.
+  const usageDoc = (day = '2026-08-12') => ({
+    uid: 'alice',
+    day,
+    platform: 'ios',
+    updatedAt: serverTimestamp(),
+    log_added: 3,
+  });
+
+  it('allows a client to write its OWN usageEvents doc', async () => {
+    await assertSucceeds(
+      setDoc(doc(authed('alice'), 'usageEvents', 'alice_2026-08-12'), usageDoc()),
+    );
+  });
+
+  it("blocks writing another user's usageEvents doc", async () => {
+    await assertFails(
+      setDoc(doc(authed('alice'), 'usageEvents', 'bob_2026-08-12'), {
+        ...usageDoc(),
+        uid: 'bob',
+      }),
+    );
+    // A prefixing uid must not slip through, same as consultationQuota.
+    await assertFails(
+      setDoc(doc(authed('ali'), 'usageEvents', 'alice_2026-08-12'), usageDoc()),
+    );
+  });
+
+  it('blocks a doc id that disagrees with the day inside it', async () => {
+    // Otherwise one day's activity could be spread across arbitrary documents,
+    // or a streak backfilled after the fact.
+    await assertFails(
+      setDoc(doc(authed('alice'), 'usageEvents', 'alice_2026-08-12'), usageDoc('2026-01-01')),
+    );
+  });
+
+  it('blocks an event name outside the catalogue', async () => {
+    await assertFails(
+      setDoc(doc(authed('alice'), 'usageEvents', 'alice_2026-08-12'), {
+        ...usageDoc(),
+        meal_label: 'Chicken and rice',
+      }),
+    );
+  });
+
+  it('blocks counts that are negative, fractional, or past the cap', async () => {
+    const at = doc(authed('alice'), 'usageEvents', 'alice_2026-08-12');
+    await assertFails(setDoc(at, { ...usageDoc(), log_added: -1 }));
+    await assertFails(setDoc(at, { ...usageDoc(), log_added: 2.5 }));
+    await assertFails(setDoc(at, { ...usageDoc(), log_added: 2001 }));
+  });
+
+  it('blocks re-pointing an existing doc at another uid or day', async () => {
+    const at = doc(authed('alice'), 'usageEvents', 'alice_2026-08-12');
+    await assertSucceeds(setDoc(at, usageDoc()));
+    // The id still matches `uid_day`, so only the immutability clause can
+    // reject this one.
+    await assertFails(updateDoc(at, { day: '2026-08-13' }));
+  });
+
+  it("blocks reading another user's usageEvents doc", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'usageEvents', 'bob_2026-08-12'), {
+        uid: 'bob',
+        day: '2026-08-12',
+        platform: 'web',
+        log_added: 1,
+      });
+    });
+    await assertFails(getDoc(doc(authed('alice'), 'usageEvents', 'bob_2026-08-12')));
+    await assertSucceeds(getDoc(doc(authed('alice'), 'usageEvents', 'alice_2026-08-12')));
   });
 
   // opsBudget holds the org-wide spend ceiling and the per-feature

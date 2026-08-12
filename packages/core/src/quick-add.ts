@@ -34,7 +34,7 @@
  * The caller injects `nowMs`, `at` and `rand`.
  */
 
-import type { LogEntry, MealPreset } from './types';
+import { MEAL_TYPES, type LogEntry, type MealPreset, type MealType } from './types';
 
 /** How many quick-add slots a user can designate. Slot 1 is the one a blind
  *  single-tap surface (the Quick Settings tile) uses; the interactive widget
@@ -167,6 +167,17 @@ export interface PendingLog {
   carbs?: number;
   fat?: number;
   mealLabel?: string;
+  /**
+   * Which meal slot the row files into, when the caller already decided.
+   *
+   * Optional, and absent on every write the **native** surfaces park: a widget
+   * button and a Quick Settings tile are blind taps with no slot picker, and
+   * Swift's `JSONEncoder` simply omits the key. It is carried for the in-app
+   * offline path, where the user did pick a slot in the add sheet — dropping it
+   * there would file a parked breakfast into whatever `withDefaultMealSlot`
+   * infers from the flush time, which can be hours later and a different meal.
+   */
+  mealType?: MealType;
   /** Tap time, epoch ms. Becomes the log's timestamp on flush. */
   atMs: number;
 }
@@ -184,6 +195,7 @@ export function buildPendingLog(id: string, uid: string, entry: LogEntry, atMs: 
     ...(num(entry.carbs) != null ? { carbs: num(entry.carbs) as number } : {}),
     ...(num(entry.fat) != null ? { fat: num(entry.fat) as number } : {}),
     ...(entry.mealLabel ? { mealLabel: entry.mealLabel } : {}),
+    ...(entry.mealType ? { mealType: entry.mealType } : {}),
     atMs: Number.isFinite(at) ? Math.round(at) : atMs,
   };
 }
@@ -196,6 +208,7 @@ export function pendingLogEntry(p: PendingLog): LogEntry {
     ...(p.carbs != null ? { carbs: p.carbs } : {}),
     ...(p.fat != null ? { fat: p.fat } : {}),
     ...(p.mealLabel ? { mealLabel: p.mealLabel } : {}),
+    ...(p.mealType ? { mealType: p.mealType } : {}),
     timestamp: new Date(p.atMs),
   };
 }
@@ -208,6 +221,12 @@ function isPendingLog(x: unknown): x is PendingLog {
   if (typeof o['uid'] !== 'string' || o['uid'] === '') return false;
   if (typeof o['calories'] !== 'number' || !Number.isFinite(o['calories'])) return false;
   if (typeof o['atMs'] !== 'number' || !Number.isFinite(o['atMs'])) return false;
+  // Absent is the normal case (every native tap). Present-but-unknown is a
+  // corrupted row: `firestore.rules` validates the slot, so flushing it would
+  // fail permanently and the row would sit in the queue retrying until the TTL
+  // dropped it. Reject it here instead, where one bad row does not take the
+  // good ones with it.
+  if (o['mealType'] !== undefined && !MEAL_TYPES.includes(o['mealType'] as MealType)) return false;
   return true;
 }
 

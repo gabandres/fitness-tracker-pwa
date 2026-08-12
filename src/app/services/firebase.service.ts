@@ -4,7 +4,7 @@ import { Firestore, Timestamp, deleteField } from '@angular/fire/firestore';
 import { Auth } from '@angular/fire/auth';
 import { CallableGateway } from './callable.gateway';
 import { readReferrer, clearReferrer } from '../utils/referral';
-import type { UnitSystem } from '@macrolog/core';
+import type { UnitSystem, UsageCounts } from '@macrolog/core';
 import type { CustomFood, ServingUnit } from '@macrolog/core';
 import type {
   Exercise,
@@ -896,5 +896,9 @@ export class FirebaseService implements LedgerPort {
 
   async deleteSession(id: string): Promise<void> {
     await this.core.deleteSession(id);
+  }
+
+  async recordUsage(dayKey: string, counts: UsageCounts): Promise<void> {
+    await this.core.recordUsage(dayKey, counts);
   }
 }

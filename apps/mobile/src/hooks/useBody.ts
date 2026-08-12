@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { trackSubs } from '@/lib/sub-debug';
 import { exportDaily } from '@/lib/health-sync';
+import { track } from '@/lib/analytics';
 import {
   type BodyFatInput,
   type DailyLog,
@@ -173,6 +174,7 @@ export function useBody(): BodyState {
       if (!uid) return;
       const key = dateKey ?? todayKey;
       await setDailyWeight(uid, key, weight);
+      track('weight_logged');
       void exportDaily('weight', key, weight); // mirror to Health if connected
     },
     [uid, todayKey],

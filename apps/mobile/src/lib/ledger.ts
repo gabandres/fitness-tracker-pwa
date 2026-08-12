@@ -7,7 +7,9 @@ import {
   documentId,
   getDoc,
   getDocs,
+  increment as fsIncrement,
   limit,
+  serverTimestamp,
   onSnapshot,
   orderBy,
   query,
@@ -18,6 +20,7 @@ import {
 } from 'firebase/firestore';
 import type { DocumentReference, SetOptions, WriteBatch } from 'firebase/firestore';
 import { addBreadcrumb } from './sentry';
+import { reportSnapshotMeta } from './connectivity';
 import {
   type CustomFood,
   type DailyLog,
@@ -32,6 +35,11 @@ import {
   type DailyActivity,
   type DocCodec,
   type MeasurementInput,
+  type UsageCounts,
+  type UsagePlatform,
+  clampUsageCounts,
+  hasUsageCounts,
+  usageDocId,
   ACTIVE_ENERGY_MAX_KCAL,
   BATCH_CHUNK,
   STEPS_MAX,
@@ -210,7 +218,13 @@ async function createDoc(col: ReturnType<typeof collection>, data: object): Prom
 
 /** Live-subscribe to the latest `count` log rows, delivered OLDEST-FIRST
  *  (matches the ledger seam contract). Doc → domain mapping + the oldest-first
- *  reverse are single-sourced in @macrolog/core (shared with the PWA adapter). */
+ *  reverse are single-sourced in @macrolog/core (shared with the PWA adapter).
+ *
+ *  This is also the app's **connectivity probe**. `includeMetadataChanges` costs
+ *  no reads — metadata-only events are generated locally — and it is what makes
+ *  going offline observable at all: without it, a device that loses signal while
+ *  no document changes simply stops hearing anything, which is indistinguishable
+ *  from a quiet day. See `connectivity.ts` for what is done with the answer. */
 export function subscribeRecentLogs(
   uid: string,
   count: number,
@@ -220,8 +234,14 @@ export function subscribeRecentLogs(
   const q = query(logsCol(uid), orderBy('timestamp', 'desc'), limit(count));
   return onSnapshot(
     q,
-    (snap) => cb(oldestFirst(snap.docs.map((d) => toDailyLog(d.id, d.data())))),
-    onError,
+    { includeMetadataChanges: true },
+    {
+      next: (snap) => {
+        reportSnapshotMeta(snap.metadata.fromCache);
+        cb(oldestFirst(snap.docs.map((d) => toDailyLog(d.id, d.data()))));
+      },
+      error: (e) => onError?.(e),
+    },
   );
 }
 
@@ -990,4 +1010,40 @@ export async function getConsultationQuota(
   const snap = await getDoc(doc(db, 'consultationQuota', `${uid}_${utcDayKey()}`));
   const used = snap.exists() ? ((snap.data() as { count?: number }).count ?? 0) : 0;
   return { used, remaining: Math.max(0, limit - used), limit };
+}
+
+// ─── Product analytics ────────────────────────────────────────────
+// One doc per user per day of integer counts (`usage-events.ts` in
+// @macrolog/core owns the catalogue; `firestore.rules` enforces it). The
+// buffering, the flush cadence and every call site live in `analytics.ts` —
+// this is only the write, kept here so the app has exactly one file that
+// talks to Firestore.
+
+/**
+ * Merge a batch of counts into today's usage doc.
+ *
+ * `increment` rather than a read-modify-write: two devices on the same account
+ * — a phone and the PWA — would otherwise clobber each other's totals, and the
+ * increment is resolved server-side so neither has to know about the other. The
+ * doc is created by the same call when it does not exist, which is why `merge`
+ * carries the identity fields too.
+ *
+ * Fire-and-forget by contract. A failed analytics write must never surface to a
+ * user or fail the action that produced it.
+ */
+export async function recordUsage(
+  uid: string,
+  dayKey: string,
+  platform: UsagePlatform,
+  counts: UsageCounts,
+): Promise<void> {
+  const clamped = clampUsageCounts(counts);
+  if (!hasUsageCounts(clamped)) return;
+  const increments: Record<string, unknown> = {};
+  for (const [event, n] of Object.entries(clamped)) increments[event] = fsIncrement(n as number);
+  await setDoc(
+    doc(db, 'usageEvents', usageDocId(uid, dayKey)),
+    { uid, day: dayKey, platform, updatedAt: serverTimestamp(), ...increments },
+    { merge: true },
+  );
 }

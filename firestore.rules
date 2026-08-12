@@ -767,6 +767,85 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ─── Product analytics: per-user, per-day counters ──────────
+    //
+    // One doc per user per day, `usageEvents/<uid>_<YYYY-MM-DD>`, holding
+    // integer counts and nothing else. The catalogue is closed and enumerated
+    // below deliberately: `@macrolog/core/usage-events` is the other copy, and
+    // adding an event has to happen in both places. That friction is the point
+    // — it is what keeps this a counter and stops it becoming a behavioural log.
+    //
+    // Client-WRITABLE, unlike every other counter in this file, and the reason
+    // is worth stating because the precedent above points the other way.
+    // `consultationQuota` and `opsBudget` are deny-write because they are
+    // *enforcement* — a client that can zero the meter spends past the ceiling,
+    // which costs money. These counters enforce nothing and gate nothing. The
+    // only thing a user can do by forging them is misreport their own usage,
+    // which the uid scoping already confines to their own row. The alternative
+    // — a Cloud Function per event — would spend real money to protect a number
+    // whose worst-case abuse is a skewed chart, and CLAUDE.md's cost discipline
+    // says not to.
+    //
+    // What the rules still hold: the tenant key (uid prefix), the doc id
+    // matching the day, a closed field set, non-negative ints under a hard cap,
+    // and immutability of the identity fields once written.
+    function usageEventFields() {
+      return [
+        'app_open', 'signup', 'onboarding_complete', 'log_added',
+        'log_queued_offline', 'repeat_yesterday', 'quick_add', 'photo_scan',
+        'barcode_scan', 'voice_log', 'coach_ask', 'weight_logged',
+        'workout_finished',
+      ];
+    }
+
+    // A counter is absent, or an int in [0, 2000]. Absent is the normal case:
+    // the client flushes a merge carrying only the events that happened.
+    function validUsageCount(d, field) {
+      return !(field in d) || (d[field] is int && d[field] >= 0 && d[field] <= 2000);
+    }
+
+    function validUsageDoc(d, docId) {
+      return d.keys().hasOnly(usageEventFields().concat(['uid', 'day', 'platform', 'updatedAt']))
+        && d.uid is string
+        && d.uid == request.auth.uid
+        // The day is in the doc id, so a client cannot spread one day's
+        // activity across a month of documents or backfill a streak.
+        && d.day is string
+        && docId == d.uid + '_' + d.day
+        && d.platform in ['web', 'ios', 'android']
+        && d.updatedAt == request.time
+        && validUsageCount(d, 'app_open')
+        && validUsageCount(d, 'signup')
+        && validUsageCount(d, 'onboarding_complete')
+        && validUsageCount(d, 'log_added')
+        && validUsageCount(d, 'log_queued_offline')
+        && validUsageCount(d, 'repeat_yesterday')
+        && validUsageCount(d, 'quick_add')
+        && validUsageCount(d, 'photo_scan')
+        && validUsageCount(d, 'barcode_scan')
+        && validUsageCount(d, 'voice_log')
+        && validUsageCount(d, 'coach_ask')
+        && validUsageCount(d, 'weight_logged')
+        && validUsageCount(d, 'workout_finished');
+    }
+
+    match /usageEvents/{eventId} {
+      // Own row only — same uid-prefix tenancy as consultationQuota.
+      allow read: if isOwner(eventId.split('_')[0]);
+      allow create: if isOwner(eventId.split('_')[0])
+        && validUsageDoc(request.resource.data, eventId);
+      // `uid` and `day` are identity, not data: letting an update move them
+      // would let one day's doc be re-pointed at another day after the fact.
+      allow update: if isOwner(eventId.split('_')[0])
+        && validUsageDoc(request.resource.data, eventId)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.day == resource.data.day;
+      // Deletion is the account-deletion path, which runs in the admin SDK and
+      // bypasses these rules. A client deleting its own counters is harmless
+      // but pointless, and denying it keeps the surface minimal.
+      allow delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

@@ -806,6 +806,11 @@ export class App {
     // gives the dashboard a traffic denominator for the conversion-rate
     // ratio against custom events like paywall_click / trial_started.
     this.analytics.pageview();
+    // The retention denominator. One per app boot, matching the Expo app's
+    // `app_open` — the two write the same counter in the same document, so a
+    // user on both platforms counts once per day per platform and the day
+    // itself is what retention is measured on.
+    this.analytics.count('app_open');
 
     // Capture ?ref=<uid> if the user landed via a friend's share link.
     // Held in localStorage; the next profile-create writes it onto the

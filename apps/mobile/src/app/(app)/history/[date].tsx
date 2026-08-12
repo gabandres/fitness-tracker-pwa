@@ -96,7 +96,14 @@ export default function DayDetail() {
       )}
 
       {!loading ? (
-        <TouchableOpacity style={styles.fab} onPress={openAdd} testID="add-food-day" activeOpacity={0.85}>
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={openAdd}
+          testID="add-food-day"
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={t('log.manual')}
+        >
           <Ionicons name="add" size={28} color={colors.onInk} />
         </TouchableOpacity>
       ) : null}

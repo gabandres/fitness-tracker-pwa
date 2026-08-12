@@ -1,6 +1,7 @@
 import { Injectable, Signal, computed, effect, inject, signal } from '@angular/core';
 import { AuthService } from './auth.service';
 import { LEDGER_PORT } from '../ledger/ports/ledger.port';
+import { AnalyticsService } from './analytics.service';
 import {
   CustomFood,
   DailyLog,
@@ -128,6 +129,7 @@ export class FitnessStore {
   private readonly auth = inject(AuthService);
   private readonly translation = inject(TranslationService);
   private readonly fb = inject(LEDGER_PORT);
+  private readonly analytics = inject(AnalyticsService);
   private readonly subs = inject(SubscriptionService);
   private readonly body = inject(BodyMetricStore);
   private readonly workout = inject(WorkoutStore);
@@ -709,6 +711,7 @@ export class FitnessStore {
     const allTimeLogsEmpty = this._allTimeLogs().length === 0;
     const id = await this.fb.addLog(entry);
     this._applyLocalAdd(id, entry);
+    this.analytics.count('log_added');
     this.milestones.checkFirstMeal({ recentLogsEmpty, allTimeLogsEmpty });
   }
 

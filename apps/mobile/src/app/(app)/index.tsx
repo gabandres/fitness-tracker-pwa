@@ -12,6 +12,8 @@ import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { EntrySheet } from '@/components/EntrySheet';
 import { HeroRings } from '@/components/HeroRings';
 import { MealEntries } from '@/components/MealEntries';
+import { OfflineBanner } from '@/components/OfflineBanner';
+import { track } from '@/lib/analytics';
 import { RecalibrationCard } from '@/components/RecalibrationCard';
 import { ShareCard } from '@/components/ShareCard';
 import { UpdateBanner } from '@/components/UpdateBanner';
@@ -22,6 +24,7 @@ import { useFastActivity } from '@/hooks/useFastActivity';
 import { useReminderSync } from '@/hooks/useReminderSync';
 import { performQuickAdd } from '@/lib/quick-add';
 import { useToday } from '@/hooks/useToday';
+import { useTodayNudge } from '@/hooks/useTodayNudge';
 import { useWidgetSync } from '@/hooks/useWidgetSync';
 import { enterUp, PressScale, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
@@ -72,6 +75,8 @@ export default function Today() {
     repeatYesterday,
     shareStats,
   } = useToday();
+  // The single Nudge slot this screen is allowed to fill.
+  const nudge = useTodayNudge();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [repeating, setRepeating] = useState(false);
   const shareRef = useRef<View>(null);
@@ -146,6 +151,13 @@ export default function Today() {
     quickAddDone.current = quickAddSlotParam;
     const slot = Number(quickAddSlotParam);
     if (!Number.isInteger(slot) || slot < 0) return;
+    // Counted here and not in `performQuickAdd`, because that function's normal
+    // home is a headless task with no session bound to analytics — a count
+    // recorded there would be dropped. So this measures the FALLBACK path only
+    // and under-counts real widget/tile use. It is still the honest number for
+    // the question it answers: how often the tile has to open the app instead
+    // of logging silently.
+    track('quick_add');
     void performQuickAdd(slot);
   }, [quickAddSlotParam]);
 
@@ -211,7 +223,12 @@ export default function Today() {
         </View>
         <View style={styles.headerRight}>
           {streak > 0 ? (
-            <Animated.View style={[styles.streakChip, streakPulse]} testID="streak-chip">
+            <Animated.View
+              style={[styles.streakChip, streakPulse]}
+              testID="streak-chip"
+              accessibilityRole="text"
+              accessibilityLabel={t('today.streakA11y', { n: streak })}
+            >
               <Text style={styles.streakFlame}>🔥</Text>
               <Text style={styles.streakNum}>{streak}</Text>
             </Animated.View>
@@ -220,11 +237,18 @@ export default function Today() {
             onPress={() => { haptics.tap(); router.push('/history'); }}
             testID="open-history"
             hitSlop={10}
+            accessibilityRole="button"
             accessibilityLabel={t('nav.history')}
           >
             <Ionicons name="calendar-outline" size={22} color={colors.muted} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={onShare} testID="share-progress" hitSlop={10}>
+          <TouchableOpacity
+            onPress={onShare}
+            testID="share-progress"
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={t('today.shareA11y')}
+          >
             <Ionicons name="share-outline" size={22} color={colors.muted} />
           </TouchableOpacity>
           <HeaderAvatar />
@@ -246,9 +270,16 @@ export default function Today() {
         <ScrollView contentContainerStyle={styles.body}>
           {error ? <Text style={styles.error}>{t('today.loadErr')}</Text> : null}
 
-          <UpdateBanner />
+          {/* A state readout, not a Nudge — above the banners that are, and
+              never competing with them for the one-at-a-time slot. */}
+          <OfflineBanner />
 
-          <WhatsNewBanner />
+          {/* At most ONE Nudge, ever (UX_AUDIT §S14 TD1). `useTodayNudge` owns
+              the priority; each card still owns whether it has anything to say,
+              so a suppressed one renders nothing rather than an empty frame. */}
+          <UpdateBanner suppressed={nudge !== 'update'} />
+
+          <WhatsNewBanner suppressed={nudge !== 'whatsNew'} />
 
           <Animated.View entering={enterUp(0)}>
             <HeroRings
@@ -262,7 +293,7 @@ export default function Today() {
             />
           </Animated.View>
 
-          <RecalibrationCard />
+          <RecalibrationCard suppressed={nudge !== 'recalibration'} />
 
           <Animated.View entering={enterUp(1)}>
             <DailyMetrics
