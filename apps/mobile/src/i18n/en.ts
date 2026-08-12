@@ -208,6 +208,13 @@ export const en = {
   'voice.stop': 'Stop listening',
   'voice.enable': 'Enable mic in Settings',
   'voice.failed': "Couldn't start listening — type it instead.",
+
+  // ── offline ──
+  // Reassurance, not an alarm: the queue means logging still works, and a user
+  // who reads "offline" and stops logging has lost more than the connection.
+  'offline.banner': "You're offline. Meals you log are saved and will sync.",
+  'offline.queued': 'Saved offline — syncs when you reconnect.',
+  'offline.queuedCount': '{n} saved offline, waiting to sync.',
   'today.savePresetTitle': 'Save as a quick-add preset?',
   'today.savePresetBody': '“{name}” becomes a one-tap preset. Slot 1 is what your widget button and Quick Settings tile log.',
   'entry.savePresetShort': 'Save preset',

@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import type { DocumentReference, SetOptions, WriteBatch } from 'firebase/firestore';
 import { addBreadcrumb } from './sentry';
+import { reportSnapshotMeta } from './connectivity';
 import {
   type CustomFood,
   type DailyLog,
@@ -210,7 +211,13 @@ async function createDoc(col: ReturnType<typeof collection>, data: object): Prom
 
 /** Live-subscribe to the latest `count` log rows, delivered OLDEST-FIRST
  *  (matches the ledger seam contract). Doc → domain mapping + the oldest-first
- *  reverse are single-sourced in @macrolog/core (shared with the PWA adapter). */
+ *  reverse are single-sourced in @macrolog/core (shared with the PWA adapter).
+ *
+ *  This is also the app's **connectivity probe**. `includeMetadataChanges` costs
+ *  no reads — metadata-only events are generated locally — and it is what makes
+ *  going offline observable at all: without it, a device that loses signal while
+ *  no document changes simply stops hearing anything, which is indistinguishable
+ *  from a quiet day. See `connectivity.ts` for what is done with the answer. */
 export function subscribeRecentLogs(
   uid: string,
   count: number,
@@ -220,8 +227,14 @@ export function subscribeRecentLogs(
   const q = query(logsCol(uid), orderBy('timestamp', 'desc'), limit(count));
   return onSnapshot(
     q,
-    (snap) => cb(oldestFirst(snap.docs.map((d) => toDailyLog(d.id, d.data())))),
-    onError,
+    { includeMetadataChanges: true },
+    {
+      next: (snap) => {
+        reportSnapshotMeta(snap.metadata.fromCache);
+        cb(oldestFirst(snap.docs.map((d) => toDailyLog(d.id, d.data()))));
+      },
+      error: (e) => onError?.(e),
+    },
   );
 }
 

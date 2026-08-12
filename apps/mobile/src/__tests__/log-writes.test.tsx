@@ -12,7 +12,7 @@
  */
 import { renderHook, act } from '@testing-library/react-native';
 
-const mockAddLog = jest.fn(async () => 'new-id');
+const mockAddLogDurably = jest.fn(async () => 'logged' as const);
 const mockUpdateLog = jest.fn(async () => undefined);
 const mockDeleteLog = jest.fn(async () => undefined);
 const mockAddPreset = jest.fn(async () => 'p1');
@@ -24,8 +24,15 @@ const mockUid = { current: undefined as string | undefined };
 
 // The factories run at require time, before the consts above are initialized,
 // so each property has to forward lazily rather than capture the mock itself.
+// Adds go through the durable path now (`pending-logs.ts`), which parks the row
+// on disk when Firestore is unreachable. Mocked at that seam rather than at the
+// ledger: the real module reaches `quick-add.ts` and therefore `firebase.ts`,
+// whose untranspiled ESM cannot load here.
+jest.mock('@/lib/pending-logs', () => ({
+  addLogDurably: (...a: unknown[]) => mockAddLogDurably(...(a as [])),
+}));
+
 jest.mock('@/lib/ledger', () => ({
-  addLog: (...a: unknown[]) => mockAddLog(...(a as [])),
   updateLog: (...a: unknown[]) => mockUpdateLog(...(a as [])),
   deleteLog: (...a: unknown[]) => mockDeleteLog(...(a as [])),
   addPreset: (...a: unknown[]) => mockAddPreset(...(a as [])),
@@ -65,7 +72,7 @@ describe('useLogWrites', () => {
       });
     });
 
-    expect(mockAddLog).toHaveBeenCalledWith('u1', expect.objectContaining({ calories: 700 }));
+    expect(mockAddLogDurably).toHaveBeenCalledWith('u1', expect.objectContaining({ calories: 700 }));
     expect(mockExportNutrition).toHaveBeenCalledWith({
       at,
       kcal: 700,
@@ -82,7 +89,7 @@ describe('useLogWrites', () => {
       await result.current.addEntry({ calories: 0, weight: 181.2 });
     });
 
-    expect(mockAddLog).toHaveBeenCalledTimes(1);
+    expect(mockAddLogDurably).toHaveBeenCalledTimes(1);
     expect(mockExportNutrition).not.toHaveBeenCalled();
   });
 
@@ -100,7 +107,7 @@ describe('useLogWrites', () => {
     });
 
     for (const fn of [
-      mockAddLog,
+      mockAddLogDurably,
       mockUpdateLog,
       mockDeleteLog,
       mockAddPreset,

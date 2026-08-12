@@ -56,6 +56,8 @@ import { ensureProfile, subscribeProfile } from './ledger';
 import { registerAppleRefreshToken } from './appleSignin';
 import { addBreadcrumb, captureError, setSentryUser } from './sentry';
 import { clearQuickAdd } from './quick-add';
+import { clearOfflineCache } from './offline-cache';
+import { resetConnectivity } from './connectivity';
 import { clearWidget } from './widget';
 
 // Required for the web-OAuth popup/redirect to resolve when the app
@@ -883,6 +885,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // above (ADR-0020). `clearQuickAdd` never throws, so it cannot strand
         // the sign-out.
         await clearQuickAdd();
+        // And the read cache — the third store holding this account's food off
+        // the network. Namespaced by uid, so the risk it removes is not the next
+        // account seeing it but this one's day surviving on a shared or sold
+        // phone after the session is gone.
+        await clearOfflineCache(user?.uid);
+        resetConnectivity();
         await fbSignOut(auth);
       },
     }),

@@ -1,10 +1,15 @@
 import { useCallback } from 'react';
-import { type CustomFood, type LogEntry, type MealPreset, customFoodDocId } from '@macrolog/core';
+import {
+  type CustomFood,
+  type LogEntry,
+  type MealPreset,
+  customFoodDocId,
+} from '@macrolog/core';
 import { exportNutrition } from '@/lib/health-sync';
 import { useAuth } from '@/lib/auth';
+import { addLogDurably } from '@/lib/pending-logs';
 import {
   addCustomFood as addCustomFoodDoc,
-  addLog as addLogDoc,
   addPreset as addPresetDoc,
   deleteCustomFood as deleteCustomFoodDoc,
   deleteLog as deleteLogDoc,
@@ -48,10 +53,16 @@ export function useLogWrites(): LogWrites {
   const addEntry = useCallback(
     async (entry: LogEntry) => {
       if (!uid) return;
-      await addLogDoc(uid, entry);
+      // Durable: parked on disk if it cannot reach Firestore, because this app
+      // has no SDK persistence and an in-memory write dies with the process.
+      // See `pending-logs.ts` — edits and deletes below are deliberately not
+      // covered, and that file says why.
+      await addLogDurably(uid, entry);
       // Mirror the meal's macros to Health at the entry's own time (skip
       // weight-only / marker rows). A back-dated add therefore lands on the
-      // day it is for, in Health as well as in the ledger.
+      // day it is for, in Health as well as in the ledger. Runs for a queued
+      // write too: Health is a local store, so it is reachable when Firestore
+      // is not, and the meal was genuinely eaten either way.
       if (entry.calories > 0) {
         void exportNutrition({
           at: entry.timestamp ?? new Date(),

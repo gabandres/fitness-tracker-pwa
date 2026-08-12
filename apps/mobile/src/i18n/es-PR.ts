@@ -211,6 +211,11 @@ export const esPR: Record<I18nKey, string> = {
   'voice.stop': 'Deja de escuchar',
   'voice.enable': 'Activa el micrófono en Ajustes',
   'voice.failed': 'No se pudo escuchar — escríbelo.',
+
+  // ── offline ──
+  'offline.banner': 'Estás sin conexión. Lo que registres se guarda y se sincroniza.',
+  'offline.queued': 'Guardado sin conexión — se sincroniza al reconectar.',
+  'offline.queuedCount': '{n} guardado(s) sin conexión, esperando sincronizar.',
   'today.savePresetTitle': '¿Guardar como preset?',
   'today.savePresetBody': '“{name}” se convierte en un preset de un toque. El espacio 1 es lo que registran tu widget y la tarjeta de Ajustes rápidos.',
   'entry.savePresetShort': 'Guardar preset',

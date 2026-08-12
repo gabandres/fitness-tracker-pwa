@@ -22,6 +22,7 @@ import {
   setQuickAddCredentials,
 } from '../../modules/quick-add-credentials';
 import { widgetStrings } from '../widgets/strings';
+import { notifyPendingLogsChanged } from './pending-logs-events';
 import { NATIVE_REST_CONFIG, auth, onSessionTokenChanged } from './firebase';
 import { exportNutrition } from './health-sync';
 import { addLogWithId } from './ledger';
@@ -171,7 +172,7 @@ const WRITE_DEADLINE_MS = 6000;
  * precisely so a retry is an idempotent upsert of identical bytes (ADR-0020),
  * so a slow write that lands after we have parked the same id is a no-op.
  */
-function withWriteDeadline<T>(p: Promise<T>, ms = WRITE_DEADLINE_MS): Promise<T> {
+export function withWriteDeadline<T>(p: Promise<T>, ms = WRITE_DEADLINE_MS): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('quick-add write deadline')), ms);
     p.then(
@@ -228,7 +229,7 @@ export async function logQuickAdd(
     });
     return 'logged';
   } catch {
-    await park(buildPendingLog(id, uid, entry, at.getTime()));
+    await parkPendingLog(buildPendingLog(id, uid, entry, at.getTime()));
     return 'queued';
   }
 }
@@ -391,13 +392,25 @@ const pendingStore = {
   },
 };
 
-async function park(row: PendingLog): Promise<void> {
+/**
+ * Park one write for a later flush.
+ *
+ * Exported because the in-app add path parks too (`pending-logs.ts`) — an
+ * `EntrySheet` save in a basement has exactly the widget's problem and must not
+ * grow a second queue to solve it. One store, one flush, one TTL: two would
+ * double-write the same meal the first time both landed.
+ */
+export async function parkPendingLog(row: PendingLog): Promise<void> {
   try {
     const list = parsePendingLogs(await pendingStore.read());
     await pendingStore.write(serializePendingLogs(mergePendingLog(list, row)));
   } catch {
     /* A queue we cannot write is a lost tap, not a crash. */
   }
+  // Inside the park rather than at each call site: a row nobody redraws for is
+  // a row the user believes they lost. In a headless widget context there are
+  // no listeners and this is a no-op.
+  notifyPendingLogsChanged();
 }
 
 export async function readPendingLogs(): Promise<PendingLog[]> {
@@ -446,6 +459,10 @@ export async function flushPendingLogs(uid: string, nowMs: number = Date.now()):
   } catch {
     /* Best-effort: worst case a landed row is retried, which is idempotent. */
   }
+  // Tell the day view the overlay is stale. Unconditional rather than gated on
+  // `landed`, because pruning alone changes what is queued — a row belonging to
+  // a signed-out account is dropped here and must stop being drawn.
+  notifyPendingLogsChanged();
   return landed;
 }
 

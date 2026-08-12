@@ -12,6 +12,7 @@ import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { EntrySheet } from '@/components/EntrySheet';
 import { HeroRings } from '@/components/HeroRings';
 import { MealEntries } from '@/components/MealEntries';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { RecalibrationCard } from '@/components/RecalibrationCard';
 import { ShareCard } from '@/components/ShareCard';
 import { UpdateBanner } from '@/components/UpdateBanner';
@@ -245,6 +246,10 @@ export default function Today() {
       ) : (
         <ScrollView contentContainerStyle={styles.body}>
           {error ? <Text style={styles.error}>{t('today.loadErr')}</Text> : null}
+
+          {/* A state readout, not a Nudge — above the two banners that are, and
+              never competing with them for the one-at-a-time slot. */}
+          <OfflineBanner />
 
           <UpdateBanner />
 
