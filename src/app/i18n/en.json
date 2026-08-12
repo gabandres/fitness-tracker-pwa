@@ -1615,7 +1615,9 @@
         "trendBreaks": "Take a week off and your maintenance estimate picks up where you came back, instead of drawing one line across the gap. Travel water gets a week to leave before it counts.",
         "weighInsIgnored": "Today now says when a weigh-in was ignored, so a surprising estimate comes with a reason.",
         "trainTerms": "Train explains itself now: RIR reads in words, every set type says what it is, and a “?” opens a glossary for the whole tab.",
-        "coachWindow": "Ask the Coach now sees a real 14 days of your log — it was being handed a fraction of that while being told it was a fortnight."
+        "coachWindow": "Ask the Coach now sees a real 14 days of your log — it was being handed a fraction of that while being told it was a fortnight.",
+        "weekWindows": "Your streak and your weekly averages now cover the days they claim. Both were reading a rolling cache of recent entries — barely two days for anyone logging several meals a day — so expect the numbers to change.",
+        "chartWindows": "The weight chart says what the dashed line is: a 4-week trend, drawn past a 14-day line."
       }
     },
     "body": {

@@ -6,6 +6,34 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-12 — Your streak and your weekly averages now count the days they claim
+
+Three numbers on the web app were computed from the same rolling cache of the
+last **14 rows** of your diary — not 14 days. For anyone logging four or five
+meals a day that cache spans about two days, and everything derived from it
+quietly shrank to fit.
+
+- **Your streak** counted only the days inside that cache. A twelve-day streak
+  could show as three, and the same account on the phone showed the real
+  number — the two apps disagreed about a number in your face.
+- **Trends' weekly averages and adherence** averaged whatever days fit, on a
+  card labelled "this week", next to a deficit figure computed over the correct
+  seven days. Two windows, one card.
+- **Day totals in the 7-day chart and every History day card** could be short by
+  a meal or two. The cache boundary lands mid-day, and a half-cached day looked
+  complete to the code that read it.
+
+Expect these numbers to change — upward, mostly. Nothing about your data
+changed; only what the app was looking at when it did the arithmetic.
+
+Also: the weight chart on Body now says what its dashed line is — a 4-week
+trend, drawn past a 14-day line — so a flat-looking fortnight that sprouts a
+falling dash explains itself. The fasting chip now goes to Today, where fasting
+is actually controlled, instead of to Body, where it has not lived for months.
+And the Coach's daily allowance now counts every account, including the owner's;
+it was the one account that could never watch the counter move.
+
+
 ## 2026-08-12 — The coach can finally see the two weeks it says it can
 
 The Coach screen has always promised answers "grounded in your last 14 days of

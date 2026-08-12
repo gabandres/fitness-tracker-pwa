@@ -146,7 +146,7 @@ export const en = {
   'today.entry': 'Entry',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    'Train now explains itself: RIR is a scale you read in words instead of a 0–5 box, each set type says what it is, and a “?” opens a glossary for every term on the tab. The Coach also sees a real 14 days of your log now — it was being handed a fraction of that while being told it was a fortnight.',
+    'Your streak and weekly averages now cover the days they claim — both were reading a rolling cache of recent entries, barely two days for anyone logging several meals a day, so expect the numbers to change. The weight chart also says what the dashed line is: a 4-week trend, drawn past a 14-day line.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',

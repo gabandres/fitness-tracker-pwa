@@ -149,7 +149,7 @@ export const esPR: Record<I18nKey, string> = {
   'today.entry': 'Registro',
   'whatsNew.title': 'Novedades',
   'whatsNew.body':
-    'Train ahora se explica solo: el RIR es una escala que lees en palabras en vez de una cajita de 0–5, cada tipo de serie dice lo que es, y un “?” abre un glosario con todos los términos de la pestaña. El Coach también ve de verdad tus últimos 14 días — antes recibía una fracción de eso mientras le decían que era una quincena.',
+    'Tu racha y tus promedios semanales ahora cubren los días que dicen cubrir — los dos leían un caché de registros recientes, apenas dos días para quien registra varias comidas al día, así que los números pueden cambiar. La gráfica de peso también dice qué es la línea punteada: una tendencia de 4 semanas, dibujada más allá de una línea de 14 días.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',

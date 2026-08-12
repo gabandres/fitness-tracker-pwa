@@ -1615,7 +1615,9 @@
         "trendBreaks": "Si dejas de registrar una semana, tu estimado de mantenimiento arranca desde que volviste, en vez de trazar una sola línea sobre el hueco. El agua del viaje tiene una semana para irse antes de contar.",
         "weighInsIgnored": "Hoy ahora te dice cuándo se ignoró un pesaje, para que un estimado raro venga con su razón.",
         "trainTerms": "Train ahora se explica solo: el RIR se lee en palabras, cada tipo de serie dice lo que es, y un “?” abre un glosario de toda la pestaña.",
-        "coachWindow": "Pregúntale al Coach ahora ve de verdad tus últimos 14 días — antes recibía una fracción mientras le decían que era una quincena."
+        "coachWindow": "Pregúntale al Coach ahora ve de verdad tus últimos 14 días — antes recibía una fracción mientras le decían que era una quincena.",
+        "weekWindows": "Tu racha y tus promedios semanales ahora cubren los días que dicen cubrir. Los dos leían un caché de registros recientes — apenas dos días para quien registra varias comidas al día — así que los números pueden cambiar.",
+        "chartWindows": "La gráfica de peso ahora dice qué es la línea punteada: una tendencia de 4 semanas, dibujada más allá de una línea de 14 días."
       }
     },
     "body": {
