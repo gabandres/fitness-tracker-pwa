@@ -297,6 +297,7 @@ export const esPR: Record<I18nKey, string> = {
   'body.logWeight': 'Registrar peso',
   'body.updateWeight': 'Actualizar el peso de hoy',
   'body.loadErr': 'No se pudo cargar tu historial de peso.',
+  'body.chartWindows': 'Últimos 14 días · la línea punteada proyecta tu tendencia de 4 semanas',
   'body.trend': 'Tendencia',
   'body.goalPace': 'A este ritmo',
   'body.goalRemaining': '{n} lb para la meta',

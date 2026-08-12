@@ -632,6 +632,7 @@
     "done": "done"
   },
   "body": {
+    "chartWindows": "Last 14 days · the dashed line projects your 4-week trend",
     "projectionGoalDate": "At this pace: {{weight}} lb by {{date}}",
     "projectionRate": "Trending {{n}} lb/wk",
     "projectionSteady": "Holding steady",

@@ -294,6 +294,7 @@ export const en = {
   'body.logWeight': 'Log weight',
   'body.updateWeight': "Update today's weight",
   'body.loadErr': "Couldn't load your weight history.",
+  'body.chartWindows': 'Last 14 days · the dashed line projects your 4-week trend',
   'body.trend': 'Trend',
   'body.goalPace': 'At this pace',
   'body.goalRemaining': '{n} lb to goal',

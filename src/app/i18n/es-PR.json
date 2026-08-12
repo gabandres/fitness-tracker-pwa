@@ -632,6 +632,7 @@
     "done": "listo"
   },
   "body": {
+    "chartWindows": "Últimos 14 días · la línea punteada proyecta tu tendencia de 4 semanas",
     "projectionGoalDate": "A este ritmo: {{weight}} lb para {{date}}",
     "projectionRate": "Tendencia {{n}} lb/sem",
     "projectionSteady": "Estable",

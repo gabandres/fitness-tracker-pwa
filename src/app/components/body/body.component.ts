@@ -104,6 +104,13 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
               tone="ring"
               [ariaLabel]="t('v2.body.weightTrendAria')" />
           </div>
+          <!-- The solid line is 14 days; the dash is fitted over 28 (see
+               PROJECTION_WINDOW_DAYS — a 14-day fit is dominated by water
+               weight). Without this line a flat-looking fortnight sprouts a
+               steeply falling dash and nothing on screen accounts for it. -->
+          @if (projectedSeries().length) {
+            <span style="font-size: 12px; color: var(--v2-hero-muted); margin-top: 2px;">{{ t('body.chartWindows') }}</span>
+          }
         }
 
         @if (projectionLabel(); as pl) {
