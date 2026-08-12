@@ -65,6 +65,10 @@ export * from './widget-snapshot';
 // written, the offline queue and the pre-minted ledger id. Pure; the storage
 // and the platform trigger are adapters.
 export * from './quick-add';
+// Product analytics: the closed event catalogue, the per-user-per-day doc id
+// and the pure buffering/clamping both frontends flush through. No transport
+// here — each app writes it with its own SDK, like every other document.
+export * from './usage-events';
 // My Foods library helpers (ADR-0013). Types (CustomFood, FoodSource,
 // ServingUnit) live in ./types; these are the pure scaling helpers.
 export * from './custom-food';

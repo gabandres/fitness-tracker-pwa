@@ -393,6 +393,7 @@ export class OnboardingComponent {
         manualCaloriesTarget: this.computedKcal(),
         manualProteinTarget: this.computedProtein(),
       });
+      this.analytics.count('onboarding_complete');
       this.completed.emit();
     } catch (err) {
       this.saveError.set(this.translation.t('v2.onboarding.saveError'));
@@ -410,6 +411,10 @@ export class OnboardingComponent {
         manualCaloriesTarget: DEFAULT_SKIP_KCAL,
         manualProteinTarget: DEFAULT_SKIP_PROTEIN,
       });
+      // Skipping still completes onboarding: the user leaves with targets and
+      // lands on Today. Counting only the long path would report a funnel drop
+      // that did not happen.
+      this.analytics.count('onboarding_complete');
       this.completed.emit();
     } catch (err) {
       this.saveError.set(this.translation.t('v2.onboarding.saveError'));

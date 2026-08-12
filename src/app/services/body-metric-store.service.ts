@@ -1,6 +1,7 @@
 import { Injectable, Signal, computed, inject, signal } from '@angular/core';
 import { clampSleepHours, clampWaterFlOz } from '@macrolog/core';
 import { LEDGER_PORT } from '../ledger/ports/ledger.port';
+import { AnalyticsService } from './analytics.service';
 import { Measurement } from './firebase.service';
 import { isStorableWeight, WEIGHT_ABS_MIN_LB, WEIGHT_ABS_MAX_LB } from '@macrolog/core';
 import { addDays, localDateKey } from '@macrolog/core';
@@ -18,6 +19,7 @@ import type { WeightPoint } from '@macrolog/core';
 @Injectable({ providedIn: 'root' })
 export class BodyMetricStore {
   private readonly fb = inject(LEDGER_PORT);
+  private readonly analytics = inject(AnalyticsService);
 
   private readonly _measurements = signal<Measurement[]>([]);
   private readonly _dailyWeights = signal<Record<string, number>>({});
@@ -81,6 +83,7 @@ export class BodyMetricStore {
    *  would skew the measured-TDEE regression, so it's rejected here rather
    *  than persisted. The UI enforces a tighter range + delta confirm. */
   async setDailyWeight(dateKey: string, weight: number): Promise<void> {
+    this.analytics.count('weight_logged');
     if (!isStorableWeight(weight)) {
       throw new RangeError(
         `Weight ${weight} lb is outside the storable range ${WEIGHT_ABS_MIN_LB}-${WEIGHT_ABS_MAX_LB} lb.`,

@@ -57,6 +57,7 @@ import { registerAppleRefreshToken } from './appleSignin';
 import { addBreadcrumb, captureError, setSentryUser } from './sentry';
 import { clearQuickAdd } from './quick-add';
 import { clearOfflineCache } from './offline-cache';
+import { flush as flushAnalytics, setAnalyticsUser, track } from './analytics';
 import { resetConnectivity } from './connectivity';
 import { clearWidget } from './widget';
 
@@ -529,6 +530,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // uid only — never the email (PII minimization). A uid resolves to a
       // person in the Firebase console on the rare occasion we need it.
       setSentryUser(u?.uid ?? null);
+      // Same event, same reason: counts have to be addressed to an account, so
+      // nothing is recorded until one exists. `setAnalyticsUser` starts the
+      // flush timer and the background listener on the way in.
+      setAnalyticsUser(u?.uid ?? null);
       if (u) {
         // Create users/{uid} on first sign-in if it doesn't exist yet, so a
         // mobile-first new user has a profile doc for onboarding to update.
@@ -714,6 +719,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           throw e;
         }
+        // Recorded here rather than at form submit: an account has to exist
+        // before a count can be addressed to it, and a failed attempt is not a
+        // signup. `onAuthStateChanged` has already bound the uid by this point.
+        //
+        // Email/password only. A first-time Google/Apple sign-in is
+        // indistinguishable from a returning one without `getAdditionalUserInfo`
+        // on every federated path, and `onboarding_complete` — which every new
+        // account passes through exactly once — answers the funnel question
+        // without that. So `signup` under-counts federated arrivals ON PURPOSE;
+        // read it against `onboarding_complete`, never as a total.
+        track('signup');
         // Set displayName before the profile subscription resolves so greetings
         // have a name on first render. Best-effort — never fail the sign-up.
         const name = displayName?.trim();
@@ -889,6 +905,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // the network. Namespaced by uid, so the risk it removes is not the next
         // account seeing it but this one's day surviving on a shared or sold
         // phone after the session is gone.
+        // Counts belong to whoever was signed in when they happened, so the
+        // buffer is written out before the uid it is addressed to disappears.
+        await flushAnalytics();
+        setAnalyticsUser(null);
         await clearOfflineCache(user?.uid);
         resetConnectivity();
         await fbSignOut(auth);

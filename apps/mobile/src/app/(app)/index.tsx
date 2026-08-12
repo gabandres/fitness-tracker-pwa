@@ -13,6 +13,7 @@ import { EntrySheet } from '@/components/EntrySheet';
 import { HeroRings } from '@/components/HeroRings';
 import { MealEntries } from '@/components/MealEntries';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { track } from '@/lib/analytics';
 import { RecalibrationCard } from '@/components/RecalibrationCard';
 import { ShareCard } from '@/components/ShareCard';
 import { UpdateBanner } from '@/components/UpdateBanner';
@@ -147,6 +148,13 @@ export default function Today() {
     quickAddDone.current = quickAddSlotParam;
     const slot = Number(quickAddSlotParam);
     if (!Number.isInteger(slot) || slot < 0) return;
+    // Counted here and not in `performQuickAdd`, because that function's normal
+    // home is a headless task with no session bound to analytics — a count
+    // recorded there would be dropped. So this measures the FALLBACK path only
+    // and under-counts real widget/tile use. It is still the honest number for
+    // the question it answers: how often the tile has to open the app instead
+    // of logging silently.
+    track('quick_add');
     void performQuickAdd(slot);
   }, [quickAddSlotParam]);
 

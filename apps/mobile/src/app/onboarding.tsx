@@ -8,6 +8,7 @@ import { type GoalDirection, computeKcal, computeProtein } from '@macrolog/core'
 import { BrandMark } from '@/components/BrandMark';
 import { useAuth } from '@/lib/auth';
 import { saveOnboardingV2 } from '@/lib/ledger';
+import { track } from '@/lib/analytics';
 import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { CountUpText, PressScale } from '@/lib/motion';
@@ -91,6 +92,9 @@ export default function Onboarding() {
         manualCaloriesTarget: kcal,
         manualProteinTarget: protein,
       });
+      // Only on a first run: a redo is a target change by an existing user,
+      // and counting it would inflate the one funnel step this exists to answer.
+      if (!isRedo) track('onboarding_complete');
       haptics.success();
       router.replace(isRedo ? '/settings' : '/(app)');
     } catch (e) {

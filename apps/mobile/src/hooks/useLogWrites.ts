@@ -8,6 +8,7 @@ import {
 import { exportNutrition } from '@/lib/health-sync';
 import { useAuth } from '@/lib/auth';
 import { addLogDurably } from '@/lib/pending-logs';
+import { track } from '@/lib/analytics';
 import {
   addCustomFood as addCustomFoodDoc,
   addPreset as addPresetDoc,
@@ -57,7 +58,12 @@ export function useLogWrites(): LogWrites {
       // has no SDK persistence and an in-memory write dies with the process.
       // See `pending-logs.ts` — edits and deletes below are deliberately not
       // covered, and that file says why.
-      await addLogDurably(uid, entry);
+      const outcome = await addLogDurably(uid, entry);
+      // Two counters, not one: `log_queued_offline` is the health signal that
+      // says how often the durable path is actually load-bearing. If it is near
+      // zero the queue is insurance; if it is not, connectivity is a product
+      // problem and the numbers say so.
+      track(outcome === 'queued' ? 'log_queued_offline' : 'log_added');
       // Mirror the meal's macros to Health at the entry's own time (skip
       // weight-only / marker rows). A back-dated add therefore lands on the
       // day it is for, in Health as well as in the ledger. Runs for a queued

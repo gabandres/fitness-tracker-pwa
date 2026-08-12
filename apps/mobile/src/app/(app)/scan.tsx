@@ -10,6 +10,7 @@ import { useToday } from '@/hooks/useToday';
 import { useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { analyzeMealPhoto, captureMealPhoto, type ScanSource } from '@/lib/mealScan';
+import { track } from '@/lib/analytics';
 import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
@@ -63,6 +64,7 @@ export default function Scan() {
     if (!base64) return; // cancelled or permission denied (no error banner on cancel)
     setPhase('analyzing');
     try {
+      track('photo_scan');
       const scan = await analyzeMealPhoto(base64, locale);
       if (!scan.items.length) throw new Error('empty');
       setItems(scan.items);

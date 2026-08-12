@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Tabs } from 'expo-router';
@@ -8,6 +9,7 @@ import { useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import { useAutoApplyOta } from '@/lib/app-update';
 import { useHealthAutoImport } from '@/lib/health-sync';
+import { track } from '@/lib/analytics';
 import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -83,6 +85,16 @@ export default function AppTabsLayout() {
   // foreground for one that arrived mid-session. Mounted here rather than in
   // UpdateBanner so it does not depend on Today being the visible tab.
   useAutoApplyOta();
+  // One `app_open` per mount of the authed shell, which is once per cold start
+  // — not per foreground. Counting foregrounds would make a user who checks
+  // their rings at every red light look like ten users, and the question this
+  // answers is retention: how many DAYS did someone come back on.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (opened.current || !user?.uid) return;
+    opened.current = true;
+    track('app_open');
+  }, [user?.uid]);
   return (
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <AppTabBar {...props} />}>
       <Tabs.Screen name="index" options={{ title: t('nav.today') }} />

@@ -3,6 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import { trackSubs } from '@/lib/sub-debug';
 import { useCachedState } from '@/hooks/useCachedState';
 import { addLogDurably, onPendingLogsChanged, pendingLogsAsRows } from '@/lib/pending-logs';
+import { track } from '@/lib/analytics';
 import { exportDaily } from '@/lib/health-sync';
 import {
   type CustomFood,
@@ -264,6 +265,9 @@ export function useToday(): TodayState {
         timestamp: ts,
       });
     }
+    // Counted once per use, not once per row copied — the question it answers
+    // is whether the shortcut earns its place on an empty Today.
+    if (yLogs.length > 0) track('repeat_yesterday');
     return yLogs.length;
   }, [uid, logs]);
 

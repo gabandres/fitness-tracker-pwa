@@ -15,7 +15,9 @@ import {
   limit,
   orderBy,
   query,
+  increment,
   setDoc,
+  serverTimestamp,
   Timestamp,
   updateDoc,
   deleteField,
@@ -42,7 +44,13 @@ import type {
   WorkoutSession,
   WorkoutTemplate,
 } from '../../models/workout';
-import { normalizeClusterGroups } from '@macrolog/core';
+import {
+  type UsageCounts,
+  clampUsageCounts,
+  hasUsageCounts,
+  normalizeClusterGroups,
+  usageDocId,
+} from '@macrolog/core';
 import { pruneUndefined as pruneUndefinedCore } from '@macrolog/core/prune-undefined';
 import {
   BATCH_CHUNK,
@@ -497,6 +505,32 @@ export class FirestoreLedgerCore {
 
   async deleteSession(id: string): Promise<void> {
     await deleteDoc(this.userDocIn('workoutSessions', id));
+  }
+
+  // ─── Product analytics ──────────────────────────────────────
+  /**
+   * Merge usage counts into `usageEvents/{uid}_{dayKey}`.
+   *
+   * The one write in this class that is not under `users/{uid}`: the
+   * collection is top-level so retention can be answered with a single query
+   * instead of a collection-group scan. `increment` rather than
+   * read-modify-write — the same account can be open in this tab and on a
+   * phone, and a lost update there is a silently wrong number nobody would
+   * ever notice.
+   *
+   * Mirrors `recordUsage` in the Expo adapter byte for byte, same as every
+   * other doc both apps write.
+   */
+  async recordUsage(dayKey: string, counts: UsageCounts): Promise<void> {
+    const clamped = clampUsageCounts(counts);
+    if (!hasUsageCounts(clamped)) return;
+    const increments: Record<string, unknown> = {};
+    for (const [event, n] of Object.entries(clamped)) increments[event] = increment(n as number);
+    await setDoc(
+      doc(this.firestore, 'usageEvents', usageDocId(this.uid(), dayKey)),
+      { uid: this.uid(), day: dayKey, platform: 'web', updatedAt: serverTimestamp(), ...increments },
+      { merge: true },
+    );
   }
 }
 
