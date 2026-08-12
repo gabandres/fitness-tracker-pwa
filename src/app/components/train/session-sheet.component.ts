@@ -17,6 +17,7 @@ import { TranslationService } from '../../services/translation.service';
 import { UiSheet } from '../ui/sheet.component';
 import { UiButton } from '../ui/button.component';
 import { RestTimer } from './rest-timer';
+import { TrainGlossaryComponent } from './train-glossary.component';
 import type { LogStyle, SessionExercise, WorkoutSession, WorkoutSet } from '../../models/workout';
 import { DEFAULT_LOG_STYLE } from '../../models/workout';
 import {
@@ -44,14 +45,22 @@ const SAVE_DEBOUNCE_MS = 800;
 @Component({
   selector: 'app-workout-session-sheet',
   standalone: true,
-  imports: [LucideAngularModule, TranslocoDirective, UiSheet, UiButton],
+  imports: [LucideAngularModule, TranslocoDirective, UiSheet, UiButton, TrainGlossaryComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
     <ui-sheet [labelledBy]="'workout-session-title'" (close)="requestClose()">
       @if (session(); as s) {
         <header class="mb-4">
-          <h2 id="workout-session-title" class="v2-h2">{{ headerName() }}</h2>
+          <div class="flex items-center justify-between gap-2">
+            <h2 id="workout-session-title" class="v2-h2">{{ headerName() }}</h2>
+            <button type="button" class="v2-icon-btn shrink-0"
+                    [attr.aria-label]="t('train.glossaryOpen')"
+                    [title]="t('train.glossaryOpen')"
+                    (click)="glossaryOpen.set(true)">
+              <lucide-icon name="help-circle" [size]="18" />
+            </button>
+          </div>
           @if (prevNotes()) {
             <p class="v2-caption mt-1" style="color: var(--v2-ink-muted);">
               <lucide-icon name="sticky-note" [size]="13" /> {{ prevNotes() }}
@@ -185,13 +194,17 @@ const SAVE_DEBOUNCE_MS = 800;
                   }
                 }
                 @if (showRir(set)) {
-                  <span class="v2-caption" style="color: var(--v2-ink-muted);">@</span>
-                  <input type="number" inputmode="numeric" step="1"
-                    [min]="RIR_MIN" [max]="RIR_MAX"
-                    class="v2-input v2-input--num" style="width: 3rem;"
-                    [attr.aria-label]="t('train.rir')" [attr.placeholder]="t('train.rirShort')"
-                    [value]="set.rir ?? ''"
-                    (input)="onSetField(exIdx, setIdx, 'rir', $event)" />
+                  <!-- A bare 0–5 number box asked users to know both the
+                       acronym and that 0 is the hard end. The select spells
+                       out every value, so the scale explains itself. -->
+                  <select class="v2-input" style="width: 7.5rem; font-size: 0.75rem;"
+                    [attr.aria-label]="t('train.rir')" [attr.title]="t('train.rirPrompt')"
+                    (change)="onSetField(exIdx, setIdx, 'rir', $event)">
+                    <option value="" [selected]="set.rir == null">{{ t('train.rirScale.none') }}</option>
+                    @for (v of RIR_VALUES; track v) {
+                      <option [value]="v" [selected]="set.rir === v">{{ t('train.rirScale.' + v) }}</option>
+                    }
+                  </select>
                 }
                 @if (isPr(ex, set)) {
                   <span class="v2-caption" style="color: var(--v2-accent); font-size: 0.7rem; background: var(--v2-paper-3); padding: 2px 8px; border-radius: var(--v2-radius-full);">🏆 {{ t('train.pr') }}</span>
@@ -256,6 +269,9 @@ const SAVE_DEBOUNCE_MS = 800;
         </div>
       }
     </ui-sheet>
+    @if (glossaryOpen()) {
+      <app-train-glossary (closed)="glossaryOpen.set(false)" />
+    }
     </ng-container>
   `,
 })
@@ -264,10 +280,15 @@ export class WorkoutSessionSheetComponent implements OnDestroy {
   private readonly workout = inject(WorkoutStore);
   private readonly i18n = inject(TranslationService);
 
-  /** Exposed for the RIR input's min/max attrs — the scale is defined once in
-   *  @macrolog/core, not duplicated in a template. */
-  protected readonly RIR_MIN = RIR_MIN;
-  protected readonly RIR_MAX = RIR_MAX;
+  /** Every legal RIR value, derived from the bounds @macrolog/core owns so the
+   *  select's options can't drift from the clamp that validates them. */
+  protected readonly RIR_VALUES = Array.from(
+    { length: RIR_MAX - RIR_MIN + 1 },
+    (_, i) => RIR_MIN + i,
+  );
+
+  /** The training-terms sheet, opened from the header's "?". */
+  protected readonly glossaryOpen = signal(false);
 
   /** When set, the sheet edits this already-completed session instead of
    *  the live active one: no "finish" lifecycle, just save-and-close. */

@@ -31,6 +31,8 @@ import type {
 import { DEFAULT_LOG_STYLE, isLoggedSet } from '@/lib/workout';
 import {
   type SeedTemplate,
+  RIR_MAX,
+  RIR_MIN,
   STARTER_TEMPLATES,
   clampRir,
   normalizeClusterGroups,
@@ -61,6 +63,7 @@ import {
 } from '@macrolog/core';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { Sparkline } from '@/components/Sparkline';
+import { TrainGlossary } from '@/components/TrainGlossary';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { CountUpText, enterUp, smoothLayout, usePulse } from '@/lib/motion';
@@ -77,19 +80,27 @@ const LOG_STYLES: { value: LogStyle; labelKey: I18nKey }[] = [
   { value: 'time', labelKey: 'logStyle.time' },
 ];
 
-const SET_KINDS: { value: WorkoutSet['kind']; labelKey: I18nKey }[] = [
-  { value: 'warmup', labelKey: 'train.kind.warmup' },
-  { value: 'working', labelKey: 'train.kind.working' },
-  { value: 'activation', labelKey: 'train.kind.activation' },
-  { value: 'mini', labelKey: 'train.kind.mini' },
-  { value: 'drop', labelKey: 'train.kind.drop' },
+const SET_KINDS: { value: WorkoutSet['kind']; labelKey: I18nKey; descKey: I18nKey }[] = [
+  { value: 'warmup', labelKey: 'train.kind.warmup', descKey: 'train.kindDesc.warmup' },
+  { value: 'working', labelKey: 'train.kind.working', descKey: 'train.kindDesc.working' },
+  { value: 'activation', labelKey: 'train.kind.activation', descKey: 'train.kindDesc.activation' },
+  { value: 'mini', labelKey: 'train.kind.mini', descKey: 'train.kindDesc.mini' },
+  { value: 'drop', labelKey: 'train.kind.drop', descKey: 'train.kindDesc.drop' },
 ];
+
+/** The 0–5 RIR scale, spelled out one option per value. Derived from the
+ *  bounds @macrolog/core owns so the picker can't drift from the clamp. */
+const RIR_CHOICES: number[] = Array.from(
+  { length: RIR_MAX - RIR_MIN + 1 },
+  (_, i) => RIR_MIN + i,
+);
 
 export default function Train() {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const train = useTrain();
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
 
   // Celebration (ADR-0014 §7): finishing a workout that beats a prior best
   // estimated-1RM bounces the idle hero once with a success haptic.
@@ -112,8 +123,21 @@ export default function Train() {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>{t('nav.train')}</Text>
+        {/* The tab is full of lifting vocabulary (RIR, cluster, e1RM); this is
+            the always-available way to look any of it up. */}
+        <TouchableOpacity
+          onPress={() => setGlossaryOpen(true)}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={t('train.glossaryOpen')}
+          style={styles.headerHelp}
+          testID="train-glossary-open"
+        >
+          <Ionicons name="help-circle-outline" size={24} color={colors.muted} />
+        </TouchableOpacity>
         <HeaderAvatar />
       </View>
+      <TrainGlossary visible={glossaryOpen} onClose={() => setGlossaryOpen(false)} />
       {train.loading ? (
         <View style={styles.fill}>
           <ActivityIndicator color={colors.accent} />
@@ -540,7 +564,7 @@ function ExerciseDetailModal({
                       {style === 'weight-reps' ? (
                         <>
                           <PrCard label={t('train.prWeight')} value={`${prs.maxWeight} lb`} />
-                          <PrCard label={t('train.prE1rm')} value={`${Math.round(prs.bestE1RM)} lb`} />
+                          <PrCard label={t('train.prE1rm')} value={`${Math.round(prs.bestE1RM)} lb`} hint={t('train.e1rmHint')} />
                         </>
                       ) : null}
                       {style === 'bodyweight' ? <PrCard label={t('train.prReps')} value={`${prs.maxReps}`} /> : null}
@@ -602,12 +626,15 @@ function ExerciseDetailModal({
   );
 }
 
-function PrCard({ label, value }: { label: string; value: string }) {
+function PrCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
   const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.prCard}>
       <Text style={styles.prValue}>{value}</Text>
       <Text style={styles.prLabel}>{label}</Text>
+      {/* "e1RM" is an abbreviation of an abbreviation; the number means
+          nothing without a line saying what it is. */}
+      {hint ? <Text style={styles.prHint}>{hint}</Text> : null}
     </View>
   );
 }
@@ -994,11 +1021,11 @@ function SetRow({
       ? set.durationSec != null ? String(set.durationSec) : ''
       : set.reps != null ? String(set.reps) : '',
   );
-  const [rir, setRir] = useState(set.rir != null ? String(set.rir) : '');
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const [kindOpen, setKindOpen] = useState(false);
+  const [rirOpen, setRirOpen] = useState(false);
 
   const commit = () => train.commitActive();
   // RIR is meaningful on real working effort, not warmups/back-offs.
@@ -1049,22 +1076,20 @@ function SetRow({
       />
 
       {showRir ? (
-        <TextInput
-          style={[styles.setInput, styles.setRirCell]}
-          placeholder="–"
-          placeholderTextColor={colors.faint}
-          keyboardType="numeric"
-          value={rir}
-          maxLength={1}
-          onChangeText={(t) => {
-            setRir(t);
-            // Shared 0–5 clamp (@macrolog/core), not numOrUndef: RIR is a
-            // bounded scale and the web logger enforces the identical rule.
-            train.editSet(exerciseIndex, setIndex, { rir: clampRir(t) });
-          }}
-          onEndEditing={commit}
+        // A bare numeric box asked the user to know both the acronym and that
+        // 0 is the hard end of the scale. Tapping opens the same labelled
+        // chip picker the set-kind cell uses, so the scale explains itself.
+        <TouchableOpacity
+          style={[styles.setInput, styles.setRirCell, styles.setRirBtn]}
+          onPress={() => setRirOpen((o) => !o)}
+          accessibilityRole="button"
+          accessibilityLabel={t('train.rirPrompt')}
           testID={`set-rir-${exerciseIndex}-${setIndex}`}
-        />
+        >
+          <Text style={[styles.setRirValue, set.rir == null && styles.setRirEmpty]}>
+            {set.rir == null ? '–' : String(set.rir)}
+          </Text>
+        </TouchableOpacity>
       ) : (
         <View style={styles.setRirCell} />
       )}
@@ -1090,21 +1115,66 @@ function SetRow({
     {kindOpen ? (
       <View style={styles.kindPicker}>
         <Text style={styles.kindPickerLabel}>{t('train.setType')}</Text>
+        {/* Rows, not a chip wrap: "Activation" and "Mini" are cluster-training
+            vocabulary, and a bare chip label teaches nobody what they are. */}
+        {SET_KINDS.map((k) => {
+          const on = set.kind === k.value;
+          return (
+            <TouchableOpacity
+              key={k.value}
+              style={[styles.kindRow, on && styles.kindRowOn]}
+              onPress={() => {
+                haptics.tap();
+                train.setSetKind(exerciseIndex, setIndex, k.value);
+                setKindOpen(false);
+              }}
+              testID={`set-kind-${exerciseIndex}-${setIndex}-${k.value}`}
+            >
+              <Text style={[styles.kindRowName, on && styles.kindRowNameOn]}>{t(k.labelKey)}</Text>
+              <Text style={styles.kindRowDesc}>{t(k.descKey)}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    ) : null}
+
+    {rirOpen ? (
+      <View style={styles.kindPicker}>
+        <Text style={styles.kindPickerLabel}>{t('train.rirPrompt')}</Text>
         <View style={styles.kindChips}>
-          {SET_KINDS.map((k) => {
-            const on = set.kind === k.value;
+          <TouchableOpacity
+            style={[styles.kindChip, set.rir == null && styles.kindChipOn]}
+            onPress={() => {
+              haptics.tap();
+              train.editSet(exerciseIndex, setIndex, { rir: undefined });
+              commit();
+              setRirOpen(false);
+            }}
+            testID={`set-rir-${exerciseIndex}-${setIndex}-none`}
+          >
+            <Text style={[styles.kindChipText, set.rir == null && styles.kindChipTextOn]}>
+              {t('train.rirClear')}
+            </Text>
+          </TouchableOpacity>
+          {RIR_CHOICES.map((v) => {
+            const on = set.rir === v;
             return (
               <TouchableOpacity
-                key={k.value}
+                key={v}
                 style={[styles.kindChip, on && styles.kindChipOn]}
                 onPress={() => {
                   haptics.tap();
-                  train.setSetKind(exerciseIndex, setIndex, k.value);
-                  setKindOpen(false);
+                  // Still through the shared 0–5 clamp (@macrolog/core) so the
+                  // two loggers cannot disagree about what is storable.
+                  train.editSet(exerciseIndex, setIndex, { rir: clampRir(v) });
+                  commit();
+                  setRirOpen(false);
                 }}
-                testID={`set-kind-${exerciseIndex}-${setIndex}-${k.value}`}
+                testID={`set-rir-${exerciseIndex}-${setIndex}-${v}`}
               >
-                <Text style={[styles.kindChipText, on && styles.kindChipTextOn]}>{t(k.labelKey)}</Text>
+                <Text style={[styles.kindChipText, on && styles.kindChipTextOn]}>
+                  {t(`train.rirScale.${v}` as I18nKey)}
+                </Text>
               </TouchableOpacity>
             );
           })}
@@ -1743,6 +1813,17 @@ function TemplateEditorModal({
                       </View>
                     </View>
                   ) : null}
+                  {d.hasProgression ? (
+                    /* The three numbers ARE the rule, but nobody reads them as
+                       one. Echoing them back as a sentence is the explanation. */
+                    <Text style={styles.progRule}>
+                      {t('train.progressionRule', {
+                        reps: d.targetReps || 12,
+                        sessions: d.holdSessions || 2,
+                        lb: d.incrementLb || 5,
+                      })}
+                    </Text>
+                  ) : null}
 
                   {/* Sets, edited individually. A cluster is activation +
                       two minis; the C-number is derived, never typed. */}
@@ -1773,19 +1854,20 @@ function TemplateEditorModal({
                           </TouchableOpacity>
                         </View>
                         {kindOpen === openKey ? (
-                          <View style={styles.kindChips}>
+                          <View>
                             {SET_KINDS.map((k) => {
                               const on = ps.kind === k.value;
                               return (
                                 <TouchableOpacity
                                   key={k.value}
-                                  style={[styles.kindChip, on && styles.kindChipOn]}
+                                  style={[styles.kindRow, on && styles.kindRowOn]}
                                   onPress={() => setSetKind(i, si, k.value)}
                                   testID={`template-set-kind-${i}-${si}-${k.value}`}
                                 >
-                                  <Text style={[styles.kindChipText, on && styles.kindChipTextOn]}>
+                                  <Text style={[styles.kindRowName, on && styles.kindRowNameOn]}>
                                     {t(k.labelKey)}
                                   </Text>
+                                  <Text style={styles.kindRowDesc}>{t(k.descKey)}</Text>
                                 </TouchableOpacity>
                               );
                             })}
@@ -1835,6 +1917,8 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   title: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
+  // Pushed right so the title keeps the left edge and the help sits beside the avatar.
+  headerHelp: { marginLeft: 'auto', marginRight: space.md },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   body: { padding: space.xl, gap: space.md },
   error: { color: colors.danger, fontSize: font.small },
@@ -1927,6 +2011,20 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   kindChipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   kindChipText: { fontSize: font.tiny, color: colors.muted, fontWeight: '600' },
   kindChipTextOn: { color: colors.onInk },
+  // Set-type rows carry a description under each name, so they are stacked
+  // rows rather than the compact chips the RIR scale uses.
+  prHint: { fontSize: font.tiny, color: colors.faint, marginTop: 1, textAlign: 'center' },
+  progRule: { fontSize: font.tiny, color: colors.muted, marginTop: space.xs, lineHeight: 16 },
+  kindRow: { paddingVertical: space.sm, paddingHorizontal: space.md, borderRadius: radius.sm },
+  kindRowOn: { backgroundColor: colors.inputBg },
+  kindRowName: { fontSize: font.small, fontWeight: '700', color: colors.ink },
+  kindRowNameOn: { color: colors.accent },
+  kindRowDesc: { fontSize: font.tiny, color: colors.muted, marginTop: 1 },
+  // The RIR cell is a picker trigger, not a text field — same box, centred
+  // value, so the row's geometry is unchanged.
+  setRirBtn: { alignItems: 'center', justifyContent: 'center' },
+  setRirValue: { fontSize: font.body, color: colors.ink },
+  setRirEmpty: { color: colors.faint },
   setInputCell: { width: 62, textAlign: 'center' },
   setRirCell: { width: 40, textAlign: 'center' },
   setInput: {

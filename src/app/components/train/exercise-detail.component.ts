@@ -92,6 +92,9 @@ interface SessionPoint {
               <div class="v2-card v2-card--flat px-3 py-2">
                 <p class="v2-caption" style="font-size: 0.7rem;">{{ t('train.prE1rm') }}</p>
                 <p class="v2-num" style="font-size: 1.5rem; font-weight: 600;">{{ prs().bestE1RM }} <span class="v2-caption">lb</span></p>
+                <!-- "est. 1RM" is an abbreviation of an abbreviation; the
+                     number means nothing without this line. -->
+                <p class="v2-caption" style="font-size: 0.65rem; color: var(--v2-ink-muted);">{{ t('train.e1rmHint') }}</p>
               </div>
             }
           }

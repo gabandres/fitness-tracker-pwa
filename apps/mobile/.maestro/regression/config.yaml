@@ -33,3 +33,4 @@ executionOrder:
     - 13-e2e-delete
     - 14-metrics
     - 15-search
+    - 16-train-terms

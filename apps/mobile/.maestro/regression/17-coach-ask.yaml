@@ -1,0 +1,84 @@
+# Coach — a REAL ask, end to end. Run by hand, never in a suite.
+#
+# ## Why this is tagged `manual`
+#
+# Every completed ask is a metered Gemini call (dailyQuota + spendCeiling), and
+# `config.yaml` carries `excludeTags: [manual]` precisely so a flow like this
+# cannot be dragged into a directory run — a suite that spends real AI money
+# per run gets turned off, which is the reasoning already written into
+# `07-coach.yaml`. That flow stays the suite's coverage (entry point + idle +
+# quota chip); this one is the deliberate, occasional proof that the answer
+# path actually works.
+#
+# Cost per run: one flash-model consultation, and one of the QA account's daily
+# free slots. Do not loop it.
+#
+#   maestro test .maestro/regression/17-coach-ask.yaml --include-tags manual
+#
+# ## What it can and cannot assert
+#
+# It can prove an answer STREAMS and is not an error. It cannot judge whether
+# the answer is any good — that is what the screenshots are for, and reading
+# them is part of running this. The specific thing worth reading them for:
+# until 2026-08-12 the prompt builder never trimmed to a window, so the web app
+# sent a 14-ROW cache (~2 days for a heavy logger) while announcing "your last
+# 14 days" in `coach.intro`, and mobile sent ~100 days announced as "400 days".
+# A good answer here cites dates spread across a fortnight, not two.
+appId: fit.ignia.app
+tags:
+  - manual
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- tapOn: 'Trends'
+- scrollUntilVisible:
+    element:
+      id: 'coach-entry'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'coach-entry'
+- assertVisible: 'Coach'
+# The allowance must be on screen BEFORE spending one, so the screenshots
+# bracket the spend and the decrement is visible by eye.
+- extendedWaitUntil:
+    visible:
+      id: 'coach-remaining'
+    timeout: 20000
+- takeScreenshot: .maestro/regression/shots/17-coach-before
+
+# ── The ask ───────────────────────────────────────────────────────
+# A suggestion chip, not free text: it is one tap, it is the same question
+# every run, and it is the question most likely to expose a too-narrow
+# grounding window ("on track" is a trend claim).
+- tapOn:
+    id: 'coach-suggest-coach.suggestOnTrack'
+# The reply container appears as soon as status leaves `idle` — that is the
+# request having been made, not an answer having arrived.
+- extendedWaitUntil:
+    visible:
+      id: 'coach-reply'
+    timeout: 20000
+- takeScreenshot: .maestro/regression/shots/17-coach-streaming
+# Streaming is over when the Ask button swaps its spinner back for its label.
+# 90s: a grounded answer over a fortnight of rows is several hundred tokens,
+# and the emulator's network is slower than a phone's.
+- extendedWaitUntil:
+    visible: 'Ask'
+    timeout: 90000
+# The four error strings, by their user-visible copy. assertNotVisible is the
+# assertion that matters here: a failed ask still renders `coach-reply`, so
+# asserting the container alone would pass on a broken coach.
+- assertNotVisible: 'Something went wrong. Please try again.'
+- assertNotVisible: 'Please sign in again to use the coach.'
+- assertNotVisible: 'Too many requests — give it a moment and try again.'
+- assertNotVisible: "You've used today's free coaching. Resets at midnight UTC."
+- takeScreenshot: .maestro/regression/shots/17-coach-answer
+
+# ── Teardown ──────────────────────────────────────────────────────
+# Leave the app where the suite expects to find it.
+- tapOn:
+    id: 'coach-back'
+- tapOn: 'Today'
+- assertVisible: 'Today'

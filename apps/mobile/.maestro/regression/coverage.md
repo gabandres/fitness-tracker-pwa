@@ -25,6 +25,7 @@ locale/theme are back to baseline, and look at the captures.
 | sign-in | `../android-signin.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
 | (app)/index — Today | `01-today.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
 | (app)/train | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-09 |
+| (app)/train — logging interactions | `16-train-terms.yaml` (glossary, RIR scale, set-type rows; starts + discards a workout) | ✓ 2026-08-12 | ✗ unrun |
 | (app)/trends | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-09 |
 | (app)/body | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-09 |
 | (app)/settings | `04-settings.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
@@ -75,9 +76,9 @@ locale/theme are back to baseline, and look at the captures.
 | Surface | Why not |
 |---|---|
 | Barcode camera, scan photo flow past intro | Needs a camera/injected image; system UI is outside Maestro's reach |
-| Coach ask→reply | Every ask is metered Gemini spend; a paying suite gets turned off |
+| Coach ask→reply | Still out of the SUITE for the same reason (metered Gemini spend). Now covered by `17-coach-ask.yaml`, tagged `manual` so `excludeTags` keeps it out of directory runs — run it by hand with `--include-tags manual` |
 | refine-targets save | Rewrites the QA account's targets; every later ring number moves |
-| Workout logging (Train interactions) | Not yet authored — largest remaining interaction gap |
+| Template editor (progression rule sentence, set-type rows there) | Not yet authored — `16-train-terms.yaml` covers the SESSION logger only |
 | Weight log (Body interactions) | Not yet authored |
 | ShareCard / TipSheet / WeeklyReportCard / RecalibrationCard | Trigger conditions are data-dependent; not yet authored |
 | Offline / error states | Emulator network shaping not wired into the suite yet |

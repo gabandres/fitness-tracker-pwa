@@ -77,4 +77,62 @@ describe('buildCoachSystemInstruction', () => {
     expect(out).toContain('Respond in Puerto Rican Spanish');
     expect(out).toContain('tú');
   });
+  // ── 14-day window (2026-08-12) ────────────────────────────────
+  // Both frontends passed unfiltered windows and the builder trimmed
+  // nothing: web sent a 14-ROW cache (~2 days for a heavy logger), mobile
+  // sent 400 rows (~100 days). Everything below pins the trim so neither
+  // caller can reintroduce that.
+
+  it('keeps only the last 14 calendar days of rows', () => {
+    const logs = [
+      log({ date: new Date('2026-06-01T12:00:00'), calories: 111 }), // 20 days before newest
+      log({ date: new Date('2026-06-07T12:00:00'), calories: 222 }), // 14 days before → out
+      log({ date: new Date('2026-06-08T12:00:00'), calories: 333 }), // 13 days before → in
+      log({ date: new Date('2026-06-21T12:00:00'), calories: 444 }), // newest
+    ];
+    const out = buildCoachSystemInstruction({ logs, tdee, profile });
+    expect(out).not.toContain('| 111 |');
+    expect(out).not.toContain('| 222 |');
+    expect(out).toContain('| 333 |');
+    expect(out).toContain('| 444 |');
+  });
+
+  it('anchors the window on the newest row, not on today', () => {
+    // A user who stopped logging months ago still gets their last fortnight
+    // to ask about instead of an empty table.
+    const logs = [
+      log({ date: new Date('2025-01-10T12:00:00'), calories: 555 }),
+      log({ date: new Date('2025-01-12T12:00:00'), calories: 666 }),
+    ];
+    const out = buildCoachSystemInstruction({ logs, tdee, profile });
+    expect(out).toContain('| 555 |');
+    expect(out).toContain('| 666 |');
+  });
+
+  it('counts DAYS as days and rows as entries', () => {
+    // Four meal rows across two calendar days. The old line said
+    // "Logs available: 4 days".
+    const logs = [
+      log({ date: new Date('2026-06-10T08:00:00') }),
+      log({ date: new Date('2026-06-10T13:00:00') }),
+      log({ date: new Date('2026-06-10T19:00:00') }),
+      log({ date: new Date('2026-06-11T08:00:00') }),
+    ];
+    const out = buildCoachSystemInstruction({ logs, tdee, profile });
+    expect(out).toContain('- Logs available: 2 of the last 14 days (4 logged entries)');
+  });
+
+  it('is identical for a wide and a pre-trimmed window (web/mobile parity)', () => {
+    // The two frontends hand in different-sized arrays by design; after the
+    // trim the model must see the same prompt from both.
+    const inWindow = [
+      log({ date: new Date('2026-06-20T12:00:00'), calories: 700 }),
+      log({ date: new Date('2026-06-21T12:00:00'), calories: 800 }),
+    ];
+    const older = Array.from({ length: 300 }, (_, i) =>
+      log({ date: new Date(2026, 0, 1 + i % 120), calories: 100 }));
+    const wide = buildCoachSystemInstruction({ logs: [...older, ...inWindow], tdee, profile });
+    const narrow = buildCoachSystemInstruction({ logs: inWindow, tdee, profile });
+    expect(wide).toBe(narrow);
+  });
 });

@@ -1,0 +1,166 @@
+# Train vocabulary: the glossary sheet, the labelled RIR scale, and the
+# described set-type rows.
+#
+# Closes the "Workout logging (Train interactions)" gap coverage.md has carried
+# as the largest remaining one. It is also the only flow that can prove this
+# particular change, because the whole point of it is TEXT A USER CAN READ:
+# a jest test asserting `getByText('0 · to failure')` passes whether or not the
+# picker ever opens on screen, and the picker is a panel that unfolds under a
+# set row — exactly the layout that this directory exists to catch.
+#
+# STATE: this flow starts a workout and adds a catalog exercise. Both are
+# cleaned up in its own tail (discard, then delete the exercise), so it leaves
+# the account as it found it. If a run dies mid-flow, "QA Term Check" is the
+# marker to look for — delete it from Train → Exercises, and discard any
+# workout left in progress from the Train tab.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- tapOn: 'Train'
+
+# ── 1. The glossary, straight off the tab header ──────────────────
+- tapOn:
+    id: 'train-glossary-open'
+- assertVisible: 'Training terms'
+# The term a user actually asked about, spelled out rather than abbreviated.
+- assertVisible: 'RIR — reps in reserve'
+- assertVisible: 'Cluster (C1, C2)'
+- takeScreenshot: .maestro/regression/shots/16-glossary-top
+# The sheet's own ScrollView is capped (maxHeight) so the later sections are
+# BELOW the fold by design — scrolling to them is the assertion that the cap
+# scrolls rather than clips.
+#
+# Both checks are scrollUntilVisible, which fails on its own if the term never
+# appears — NOT a scroll followed by assertVisible on a neighbouring term.
+# scrollUntilVisible stops the instant its target enters the viewport, so
+# whether the NEXT term down is also on screen is luck: `assertVisible: Volume`
+# after scrolling to e1RM passed on one run and failed on the next with the
+# glossary rendering perfectly both times.
+- scrollUntilVisible:
+    element:
+      text: 'e1RM'
+    direction: DOWN
+    timeout: 10000
+    visibilityPercentage: 60
+# The last term of the last section — reaching it proves the whole sheet
+# scrolls rather than clipping at its maxHeight.
+- scrollUntilVisible:
+    element:
+      text: 'Warm-up %'
+    direction: DOWN
+    timeout: 10000
+    visibilityPercentage: 60
+- takeScreenshot: .maestro/regression/shots/16-glossary-bottom
+# BottomSheet dismisses on backdrop press or hardware back; back is the only
+# one Maestro can aim at reliably, since the backdrop's tappable area is
+# whatever the sheet does not cover.
+- back
+- assertVisible: 'Train'
+
+# ── 2. A set row, and the two pickers on it ───────────────────────
+# A previous run that died mid-flow leaves a session in progress, and then
+# `start-workout` is not on screen at all — the whole rest of the flow fails
+# for a reason that has nothing to do with what it tests. Clear it first.
+- runFlow:
+    when:
+      visible:
+        id: 'discard-workout'
+    commands:
+      - tapOn:
+          id: 'discard-workout'
+      - extendedWaitUntil:
+          visible:
+            id: 'start-workout'
+          timeout: 15000
+- tapOn:
+    id: 'start-workout'
+- extendedWaitUntil:
+    visible:
+      id: 'add-exercise'
+    timeout: 15000
+- tapOn:
+    id: 'add-exercise'
+- tapOn:
+    id: 'exercise-name'
+- inputText: 'QA Term Check'
+# Tap the sheet's own title first — the keyboard is up, and Maestro taps an
+# element's LAYOUT bounds, so a create-row tap would otherwise land on the
+# keyboard (the same failure documented in 14-metrics).
+- tapOn: 'Add exercise'
+- tapOn:
+    id: 'create-exercise'
+# A new exercise arrives with exactly one set, kind `working`, so the RIR cell
+# is on screen without adding anything.
+- extendedWaitUntil:
+    visible:
+      id: 'set-rir-0-0'
+    timeout: 15000
+- takeScreenshot: .maestro/regression/shots/16-set-row
+
+# RIR: the cell used to be a bare 0–5 number box. Tapping it must now open a
+# scale that says what each number MEANS — including that 0 is the hard end,
+# which is the half users get backwards.
+- tapOn:
+    id: 'set-rir-0-0'
+- assertVisible: 'How many more reps could you have done?'
+- assertVisible: '0 · to failure'
+- assertVisible: '5+ · easy'
+- assertVisible: 'Not tracking'
+- takeScreenshot: .maestro/regression/shots/16-rir-scale
+- tapOn:
+    id: 'set-rir-0-0-2'
+# The picker closes and the cell carries the chosen value.
+#
+# `containsChild`, not `id` + `text` on one node: the testID is on the
+# TouchableOpacity and the value lives in its Text CHILD, so a combined
+# id+text selector matches nothing and reads as a regression. Measured
+# 2026-08-12 from the hierarchy dump — `set-rir-0-0` has empty text and a
+# child node holding '2'. A bare `text: '2'` would be the other wrong answer:
+# the set row is full of small integers, so it would pass against the set
+# number while the RIR cell stayed empty.
+- assertVisible:
+    id: 'set-rir-0-0'
+    containsChild:
+      text: '2'
+- takeScreenshot: .maestro/regression/shots/16-rir-picked
+
+# Set types: "Activation" and "Mini" are cluster-training words. The picker is
+# now rows-with-descriptions, so the description text is the assertion.
+- tapOn:
+    id: 'set-kind-0-0'
+- assertVisible: 'Set type'
+- assertVisible: 'A real, hard set — the default.'
+- assertVisible: 'First hard set of a cluster, taken close to failure.'
+- takeScreenshot: .maestro/regression/shots/16-set-types
+- tapOn:
+    id: 'set-kind-0-0-working'
+
+# ── 3. Teardown: leave the account as we found it ─────────────────
+- scrollUntilVisible:
+    element:
+      id: 'discard-workout'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'discard-workout'
+- extendedWaitUntil:
+    visible:
+      id: 'start-workout'
+    timeout: 15000
+# The catalog entry outlives the session — remove it from the Exercises list so
+# the next run starts clean and no QA name leaks into a screenshot.
+- scrollUntilVisible:
+    element:
+      text: 'QA Term Check'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn: 'QA Term Check'
+- tapOn:
+    id: 'exercise-delete'
+- tapOn:
+    id: 'exercise-delete-confirm'
+- takeScreenshot: .maestro/regression/shots/16-teardown
