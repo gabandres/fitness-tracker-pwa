@@ -729,10 +729,20 @@ cd apps/mobile && npx eas-cli build:list --platform ios --limit 5   # what exist
 
 ## 4. Open work, and what each is actually blocked on
 
+> **Audited 2026-08-12.** Two rows named a state that had stopped being true —
+> "Build 13" when TestFlight is on **45**, and "Play vc 4" when the alpha is on
+> **29**. Both are corrected inline below. This matters more here than anywhere
+> else in the repo: §1 of this file opens by saying that if any other file
+> disagrees with it, this one wins. A stale row in §4 therefore does not read as
+> stale — it reads as authoritative, and it outranks the file that was right.
+> **When a build ships, this section is part of the ship.** The build numbers
+> themselves belong to `apps/mobile/AGENTS.md`, which reads them out of the
+> artifact; do not copy them here, cite it.
+
 | # | Work | Blocked on |
 |---|---|---|
-| — | Next iOS binary (everything in §2) | Nothing structural. Build 13 exists, is on TestFlight, and its widget is verified on device — the device-QA gate this row used to name is **cleared**. What remains is submitting the 1.1.0 version page to App Review (it is still `PREPARE_FOR_SUBMISSION`), or cutting a newer build first if more of §2 should ride along. Quota and credentials are both resolved |
-| — | Verify the **Android** widget on a device | Nobody has put it on an Android home screen. It is in Play vc 4, and its task handler registers through the custom `index.js` — a path no device has exercised. The iOS half is **done**: verified on a real iPhone 2026-08-03 from TestFlight build 13, kcal left + protein left, **and the numbers moved after a logged meal**, which proves the whole chain rather than the render alone |
+| — | Next iOS binary (everything in §2) | **Row corrected 2026-08-12 — it had gone stale by 32 builds.** It named "Build 13" and a 1.1.0 version page as the current state; `apps/mobile/AGENTS.md` has the artifact-read fingerprint table, and the current TestFlight binary is **build 45 (1.2.0)**. Nothing structural blocks the next one: quota and credentials are resolved and builds are local on `ignia-mac` at zero EAS quota (§3). What remains is a product decision about what rides along, plus the two UNVERIFIED behaviours build 44/45 carry — the watch complication refresh and the Siri quick-add watch push, neither of which has been watched to work on a wrist |
+| — | Verify the **Android** widget on a device | Still open, but the version in this row was stale: the alpha is on **vc 29**, not vc 4. Nobody has put the widget on an Android home screen, and its task handler registers through the custom `index.js` — a path no device has exercised. **The Maestro suite cannot close this**: it drives the app, and no `adb` command can place a home-screen widget (the Quick Settings tile IS drivable — `adb shell cmd statusbar click-tile`). 1 of the 21 checkboxes in `apps/mobile/WIDGET.md` is ticked. The iOS half is **done**: verified on a real iPhone 2026-08-03, kcal left + protein left, **and the numbers moved after a logged meal**, which proves the whole chain rather than the render alone |
 | #46 | Read the watch layouts on a simulator | **a Mac with Xcode** (currently: borrow one). Its stated precondition — "the build session has written the watch Swift" — is now **met**: the real layouts exist, so the sitting is the readout it was designed to be |
 | — | Compile the watch targets — **the compile gate, closed 2026-08-03** | **DONE — 2026-08-03, and it did NOT need a Mac.** An EAS iOS build *is* macOS running Xcode. Build `f3e5daaf` (commit `cfc19a06`) compiled, signed and packaged both `IgniaWatch.app` and `IgniaWatchComplication.appex`. **The load-bearing question is answered: `targets/_shared/Glance.swift` DOES resolve from the watch target** — the compiler read `Glance.strings(snap.locale)` at `targets/watch/index.swift:160` and emitted only an unrelated unused-binding warning. Had `_shared` not been linked in, that line would have been a hard "cannot find in scope" and the build would have failed. So the one-Swift-mirror design holds; the shared-contract plan needs no other vehicle. Also proven in the same build: `ViewThatFits` compiles at the watchOS `10.0` pin; the custom Expo module autolinks (`Installing WatchLink (1.0.0)` → `libWatchLink.a`); `ExtensionStorage` still installs alongside it, so no regression to the shipped iPhone widget. **One warning in the entire build** (an unused `protein` binding), since fixed |
 | — | App Store screenshots | owner, on device (`store-assets/README.md`) |
