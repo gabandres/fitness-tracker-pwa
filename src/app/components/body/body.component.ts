@@ -18,7 +18,7 @@ import { TranslationService } from '../../services/translation.service';
 import { AuthService } from '../../services/auth.service';
 import { localDateKey } from '@macrolog/core';
 import { bcp47ForLang } from '../../utils/locale';
-import { projectWeight, type WeightPoint } from '@macrolog/core';
+import { missingBodyFatInputs, projectWeight, type WeightPoint } from '@macrolog/core';
 import {
   MEASUREMENT_BOUNDS_IN,
   implausibleMeasurementFields,
@@ -85,7 +85,14 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
             <span style="font-family: var(--v2-font-display); font-weight: 800; font-size: 56px; line-height: 1; color: var(--v2-hero-muted);">—</span>
           }
         </div>
-        <span style="color: var(--v2-hero-muted); font-size: 14px;">{{ currentWeight() ? t('v2.body.weight') : t('v2.body.noWeight') }}</span>
+        <!-- Which day this number is from, not just "Weight". The tab's whole
+             job is change over time, and a nine-day-old reading rendered
+             identically to this morning's. Mobile has said this since launch. -->
+        <span style="color: var(--v2-hero-muted); font-size: 14px;">{{
+          currentWeight()
+            ? (hasTodayWeight() ? t('v2.body.todayWeighIn') : t('v2.body.recentWeight'))
+            : t('v2.body.noWeight')
+        }}</span>
 
         @if (weightSeries().length >= 2) {
           <div class="mt-2">
@@ -127,17 +134,25 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
       </button>
 
       <!-- ── Body fat (standalone card) ───────────────────────── -->
-      @if (bodyFatPct(); as bf) {
-        <ui-card variant="default" class="mt-4 block">
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <h2 class="section-title">{{ t('v2.body.bodyFatTitle') }}</h2>
+      <!-- Rendered even with nothing to show. Hiding the card until it could
+           compute meant a user never learned the feature existed, let alone
+           what it wanted — and the one message that did exist told everyone
+           "waist + neck", which a woman can satisfy in full and still get
+           nothing, because the Navy formula also needs hip. -->
+      <ui-card variant="default" class="mt-4 block">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h2 class="section-title">{{ t('v2.body.bodyFatTitle') }}</h2>
+            @if (bodyFatPct()) {
               <p class="v2-caption mt-0.5">{{ t('v2.body.bodyFatEstimate') }}</p>
-            </div>
-            <span class="v2-num" style="font-size: 2rem; font-weight: 700; color: var(--v2-ink);">{{ bf }}%</span>
+              <p class="v2-caption mt-0.5" style="font-size: 0.7rem;">{{ t('v2.body.navyAccuracy') }}</p>
+            } @else {
+              <p class="v2-caption mt-0.5">{{ bodyFatHint() }}</p>
+            }
           </div>
-        </ui-card>
-      }
+          <span class="v2-num" style="font-size: 2rem; font-weight: 700; color: var(--v2-ink);">{{ bodyFatPct() ? bodyFatPct() + '%' : '—' }}</span>
+        </div>
+      </ui-card>
 
       <!-- ── Measurements ────────────────────────────────────── -->
       <ui-card variant="default" class="mt-4 block">
@@ -382,6 +397,28 @@ export class BodyComponent implements OnInit, OnDestroy {
     // Most recent measurement that actually carries the tape inputs — not just
     // the single newest, which may be a partial (bicep-only) entry.
     return latestNavyBodyFat(this.body.measurements(), p.sex, p.heightIn);
+  });
+
+  /** True when the headline weight is today's reading rather than an older
+   *  one carried forward. */
+  protected readonly hasTodayWeight = computed(
+    () => this.body.dailyWeights()[localDateKey(new Date())] != null,
+  );
+
+  /** What the body-fat card asks for when it cannot compute: the profile
+   *  fields, or the exact tape inputs still missing — named, so a user can
+   *  act on it. */
+  protected readonly bodyFatHint = computed(() => {
+    const p = this.store.profile();
+    if (!p?.sex || !p?.heightIn) return this.translation.t('v2.body.bfNeedProfile');
+    const missing = missingBodyFatInputs(this.body.measurements(), p.sex);
+    const names = missing.map((k) =>
+      this.translation.t('v2.body.field' + k[0].toUpperCase() + k.slice(1)).toLowerCase(),
+    );
+    const fields = names.length <= 1
+      ? names[0] ?? ''
+      : `${names.slice(0, -1).join(', ')} ${this.translation.t('v2.body.listAnd')} ${names[names.length - 1]}`;
+    return this.translation.t('v2.body.bfNeedFields', { fields });
   });
 
   // ─── Weight projection (linear fit, no AI) ─────────────────

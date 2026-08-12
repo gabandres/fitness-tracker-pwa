@@ -1,4 +1,4 @@
-import { shouldPromptStoreUpdate } from '@/lib/app-update';
+import { shouldAutoApplyOta, shouldPromptStoreUpdate } from '@/lib/app-update';
 
 // The store-update banner is the half that cannot resolve itself: it sends the
 // user out of the app, so a wrong answer in either direction is expensive. A
@@ -43,5 +43,59 @@ describe('shouldPromptStoreUpdate', () => {
 
   it('ignores a stale dismissal older than the current build', () => {
     expect(shouldPromptStoreUpdate(11, 12, 9)).toBe(true);
+  });
+});
+
+// Auto-applying an OTA is the one update path with no user in the loop, so
+// both ways it can hurt are pinned here: reloading at the wrong moment throws
+// away what they were typing, and re-applying a bundle that failed to launch
+// fights expo-updates' own fallback in a loop that leaves the app unusable.
+
+describe('shouldAutoApplyOta', () => {
+  const base = {
+    isUpdatePending: true,
+    targetUpdateId: 'abc',
+    failedUpdateId: null as string | null,
+    moment: 'mount' as 'mount' | 'foreground',
+    pendingAtMount: true,
+  };
+
+  it('applies at cold start when the bundle came from an earlier run', () => {
+    // The case that removes "restart it twice": no session state exists yet.
+    expect(shouldAutoApplyOta(base)).toBe(true);
+  });
+
+  it('does NOT apply at mount for a bundle that arrived mid-session', () => {
+    // The regression that protects a half-typed entry sheet: isUpdatePending
+    // flipping true during a session must not read as a cold start.
+    expect(shouldAutoApplyOta({ ...base, pendingAtMount: false })).toBe(false);
+  });
+
+  it('applies that same mid-session bundle on the next foreground', () => {
+    expect(shouldAutoApplyOta({ ...base, pendingAtMount: false, moment: 'foreground' }))
+      .toBe(true);
+  });
+
+  it('never re-applies a bundle that failed its own launch', () => {
+    // Without this the app is bricked: expo-updates falls back to the previous
+    // bundle, we auto-apply the broken one again, and round it goes.
+    expect(shouldAutoApplyOta({ ...base, failedUpdateId: 'abc' })).toBe(false);
+    expect(shouldAutoApplyOta({ ...base, failedUpdateId: 'abc', moment: 'foreground' }))
+      .toBe(false);
+  });
+
+  it('still applies a DIFFERENT bundle after an earlier one failed', () => {
+    // One bad update must not disable updates forever.
+    expect(shouldAutoApplyOta({ ...base, targetUpdateId: 'def', failedUpdateId: 'abc' }))
+      .toBe(true);
+  });
+
+  it('does nothing when no bundle is waiting', () => {
+    expect(shouldAutoApplyOta({ ...base, isUpdatePending: false })).toBe(false);
+  });
+
+  it('applies when the target id is unknown but nothing has failed', () => {
+    // A rollback UpdateInfo carries no updateId; it is still safe to apply.
+    expect(shouldAutoApplyOta({ ...base, targetUpdateId: undefined })).toBe(true);
   });
 });

@@ -25,6 +25,7 @@ import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { Sparkline } from '@/components/Sparkline';
 import { useBody } from '@/hooks/useBody';
 import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
+import type { BodyFatInput } from '@macrolog/core';
 import * as haptics from '@/lib/haptics';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { CountUpText, enterUp, usePulse } from '@/lib/motion';
@@ -46,6 +47,17 @@ function trendLabel(slopeLbPerWeek: number, t: TFn): string {
   return `${sign}${Math.abs(slopeLbPerWeek).toFixed(1)} ${t('refine.paceUnit')}`;
 }
 
+/** "waist and hip" / "cintura y cadera" — the missing tape inputs, named.
+ *  The old copy said "waist + neck" to everyone, which a woman can satisfy in
+ *  full and still get no estimate: the Navy formula also needs hip. */
+function fieldList(missing: BodyFatInput[], t: TFn): string {
+  const names = missing.map((k) =>
+    t(`measure.${k}` as I18nKey).toLowerCase(),
+  );
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} ${t('common.listAnd')} ${names[names.length - 1]}`;
+}
+
 /** "Goal ~Jul 6" from a projected date key. */
 function goalEtaLabel(dateKey: string, locale: Locale): string {
   return `~${formatDate(parseYmd(dateKey), locale, { month: 'short', day: 'numeric' })}`;
@@ -62,6 +74,7 @@ export default function Body() {
     measurements,
     bodyFat,
     bodyFatGap,
+    bodyFatMissing,
     addMeasurement,
     updateMeasurement,
     deleteMeasurement,
@@ -205,8 +218,11 @@ export default function Body() {
                   ? t('body.navyEstimate')
                   : bodyFatGap === 'profile'
                     ? t('body.bfNeedProfile')
-                    : t('body.bfNeedMeasurement')}
+                    : t('body.bfNeedFields', { fields: fieldList(bodyFatMissing, t) })}
               </Text>
+              {bodyFat != null ? (
+                <Text style={styles.bfHint}>{t('body.navyAccuracy')}</Text>
+              ) : null}
             </View>
             <Text style={styles.bfValue} testID="bodyfat-value">{bodyFat != null ? `${bodyFat}%` : '—'}</Text>
           </View>
