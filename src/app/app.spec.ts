@@ -69,7 +69,6 @@ describe('App', () => {
             streak: signal(0),
             weekly: signal(null),
             ema: signal([]),
-            trendLabel: signal('—'),
             goalProgress: signal(null),
             todaySummary: signal(null),
             hasLoggedToday: signal(false),

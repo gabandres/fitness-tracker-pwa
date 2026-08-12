@@ -241,11 +241,6 @@ describe('FitnessStore', () => {
       expect(s!.totalProtein).toBe(80);
     });
 
-    it('should format trendLabel for weight loss', async () => {
-      await loadWith(makeLogs(14, 185));
-      expect(store.trendLabel()).toMatch(/↓\s[\d.]+\slbs/);
-    });
-
     it('should return null goalProgress when no goal', async () => {
       const noGoal = { ...completedProfile, goalWeightLbs: undefined };
       await loadWith(makeLogs(3), noGoal);
@@ -298,6 +293,63 @@ describe('FitnessStore', () => {
       expect(w).not.toBeNull();
       expect(w!.days).toBe(7);
       expect(w!.avgWeight).toBeGreaterThan(0);
+    });
+
+    // ── ADR-0004: 14 ROWS is not 14 days ────────────────────────
+    // A heavy logger's `getRecentLogs(14)` cache spans two and a bit days, so
+    // every day-spanning derivation has to read the hydrated all-time history
+    // instead. `loadHeavy` makes the port behave like the real one — newest
+    // `n` rows, oldest-first — which the flat mock above does not.
+    function makeHeavyLogs(days: number, perDay: number): DailyLog[] {
+      const out: DailyLog[] = [];
+      for (let day = days - 1; day >= 0; day--) {
+        for (let meal = 0; meal < perDay; meal++) {
+          const d = new Date();
+          d.setDate(d.getDate() - day);
+          d.setHours(7 + meal * 2, 0, 0, 0);
+          out.push({ id: `h-${day}-${meal}`, calories: 400, protein: 30, date: d });
+        }
+      }
+      return out;
+    }
+
+    async function loadHeavy(days: number, perDay: number) {
+      const all = makeHeavyLogs(days, perDay);
+      mockFb.getRecentLogs.mockImplementation((n: number) =>
+        Promise.resolve(all.slice(-n)),
+      );
+      mockProfile.set(completedProfile);
+      mockIsSignedIn.set(true);
+      TestBed.flushEffects();
+      await store.refresh();
+      return all;
+    }
+
+    function dayKeyAgo(n: number): string {
+      const d = new Date();
+      d.setDate(d.getDate() - n);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    it('weekly averages span 7 days, not the 14-row cache', async () => {
+      await loadHeavy(7, 5); // 35 rows; the 14-row cache holds under 3 days
+      const w = store.weekly();
+      expect(w).not.toBeNull();
+      expect(w!.days).toBe(7);
+      expect(w!.avgCalories).toBe(2000); // 5 × 400 every day
+    });
+
+    it('streak counts days the 14-row cache cannot reach', async () => {
+      await loadHeavy(7, 5);
+      expect(store.streak()).toBe(7);
+    });
+
+    it('summaryFor returns a whole day the row cache holds only in part', async () => {
+      await loadHeavy(7, 5); // 14 rows = today (5) + yesterday (5) + 4 of day-2
+      const s = store.summaryFor(dayKeyAgo(2));
+      expect(s).not.toBeNull();
+      expect(s!.count).toBe(5);
+      expect(s!.totalCalories).toBe(2000);
     });
 
     it('should compute EMA weights', async () => {
