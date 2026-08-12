@@ -215,6 +215,15 @@ export const en = {
   'offline.banner': "You're offline. Meals you log are saved and will sync.",
   'offline.queued': 'Saved offline — syncs when you reconnect.',
   'offline.queuedCount': '{n} saved offline, waiting to sync.',
+
+  // ── accessibility labels (icon-only controls) ──
+  'today.shareA11y': 'Share your progress',
+  'today.streakA11y': '{n}-day streak',
+  'log.openA11y': 'Log food',
+  'log.openHint': 'Opens scan and manual entry',
+  'history.prevMonthA11y': 'Previous month',
+  'history.nextMonthA11y': 'Next month',
+  'common.back': 'Back',
   'today.savePresetTitle': 'Save as a quick-add preset?',
   'today.savePresetBody': '“{name}” becomes a one-tap preset. Slot 1 is what your widget button and Quick Settings tile log.',
   'entry.savePresetShort': 'Save preset',

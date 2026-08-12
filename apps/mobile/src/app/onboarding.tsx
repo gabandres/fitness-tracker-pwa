@@ -119,7 +119,14 @@ export default function Onboarding() {
         {/* Top bar: back + progress dots (hidden on the welcome greeting). */}
         <View style={styles.topBar}>
           {showBack ? (
-            <PressScale style={styles.back} scaleTo={0.9} onPress={() => go(-1)} testID="onboarding-back">
+            <PressScale
+              style={styles.back}
+              scaleTo={0.9}
+              onPress={() => go(-1)}
+              testID="onboarding-back"
+              accessibilityRole="button"
+              accessibilityLabel={t('common.back')}
+            >
               <Ionicons name="chevron-back" size={26} color={colors.ink} />
             </PressScale>
           ) : (

@@ -216,6 +216,15 @@ export const esPR: Record<I18nKey, string> = {
   'offline.banner': 'Estás sin conexión. Lo que registres se guarda y se sincroniza.',
   'offline.queued': 'Guardado sin conexión — se sincroniza al reconectar.',
   'offline.queuedCount': '{n} guardado(s) sin conexión, esperando sincronizar.',
+
+  // ── accessibility labels (icon-only controls) ──
+  'today.shareA11y': 'Comparte tu progreso',
+  'today.streakA11y': 'Racha de {n} días',
+  'log.openA11y': 'Registrar comida',
+  'log.openHint': 'Abre escanear y entrada manual',
+  'history.prevMonthA11y': 'Mes anterior',
+  'history.nextMonthA11y': 'Mes siguiente',
+  'common.back': 'Atrás',
   'today.savePresetTitle': '¿Guardar como preset?',
   'today.savePresetBody': '“{name}” se convierte en un preset de un toque. El espacio 1 es lo que registran tu widget y la tarjeta de Ajustes rápidos.',
   'entry.savePresetShort': 'Guardar preset',

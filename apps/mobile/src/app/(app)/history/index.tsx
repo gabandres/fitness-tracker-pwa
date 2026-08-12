@@ -60,11 +60,23 @@ export default function HistoryCalendar() {
           {error ? <Text style={styles.error}>{t('history.loadErr')}</Text> : null}
 
           <View style={styles.monthNav}>
-            <Pressable onPress={() => shiftMonth(-1)} hitSlop={12} testID="month-prev">
+            <Pressable
+              onPress={() => shiftMonth(-1)}
+              hitSlop={12}
+              testID="month-prev"
+              accessibilityRole="button"
+              accessibilityLabel={t('history.prevMonthA11y')}
+            >
               <Ionicons name="chevron-back" size={22} color={colors.ink} />
             </Pressable>
             <Text style={styles.monthLabel}>{monthLabel}</Text>
-            <Pressable onPress={() => shiftMonth(1)} hitSlop={12} testID="month-next">
+            <Pressable
+              onPress={() => shiftMonth(1)}
+              hitSlop={12}
+              testID="month-next"
+              accessibilityRole="button"
+              accessibilityLabel={t('history.nextMonthA11y')}
+            >
               <Ionicons name="chevron-forward" size={22} color={colors.ink} />
             </Pressable>
           </View>

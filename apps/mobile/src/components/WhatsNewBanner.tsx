@@ -45,6 +45,8 @@ export function WhatsNewBanner() {
         }}
         hitSlop={10}
         testID="whats-new-dismiss"
+        accessibilityRole="button"
+        accessibilityLabel={t('common.dismiss')}
       >
         <Ionicons name="close" size={20} color={colors.muted} />
       </TouchableOpacity>

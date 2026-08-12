@@ -640,7 +640,13 @@ export function EntrySheet({
               <View style={styles.customWrap}>
                 <View style={styles.customHead}>
                   {!editing ? (
-                    <TouchableOpacity onPress={() => setMode('browse')} hitSlop={8} testID="custom-back">
+                    <TouchableOpacity
+                      onPress={() => setMode('browse')}
+                      hitSlop={8}
+                      testID="custom-back"
+                      accessibilityRole="button"
+                      accessibilityLabel={t('common.back')}
+                    >
                       <Ionicons name="chevron-back" size={22} color={colors.ink} />
                     </TouchableOpacity>
                   ) : (
@@ -763,11 +769,25 @@ export function EntrySheet({
 function TextInputBase(props: React.ComponentProps<typeof TextInput>) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  // allowFontScaling off: a large iOS Dynamic-Type setting was scaling the
-  // placeholder past the padded field height, clipping the "0"/text at the
-  // bottom. Fixed field text keeps the sheet's number grid aligned.
+  // Dynamic Type is honoured here, up to a cap.
+  //
+  // This used to be `allowFontScaling={false}`, which fixed a real bug the
+  // wrong way: a large iOS text setting scaled the placeholder past the field's
+  // fixed 52pt height and clipped it. Turning scaling off cured the clipping by
+  // ignoring the accessibility setting entirely — in the app's most-used input,
+  // for exactly the users who need it most.
+  //
+  // The field now grows instead (`minHeight`, see `input` below), and the
+  // multiplier is capped at 1.4: past that the number pad and the macro grid
+  // stop fitting side by side on a small phone, and a form that cannot be
+  // completed is worse for the same user than one with slightly small text.
   return (
-    <TextInput style={styles.input} placeholderTextColor={colors.faint} allowFontScaling={false} {...props} />
+    <TextInput
+      style={styles.input}
+      placeholderTextColor={colors.faint}
+      maxFontSizeMultiplier={1.4}
+      {...props}
+    />
   );
 }
 
@@ -873,9 +893,11 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
     borderColor: colors.line,
     borderRadius: radius.md,
     paddingHorizontal: space.md,
-    // Fixed height so iOS centers the text deterministically (padding-only
-    // auto-height mis-places the placeholder until a reload — RN iOS quirk).
-    height: 52,
+    // `minHeight`, not `height`: the field has to be able to grow when Dynamic
+    // Type scales its text (see TextInputBase). The floor keeps iOS centring the
+    // placeholder deterministically at the default size, which is the RN quirk
+    // the fixed height was originally working around.
+    minHeight: 52,
     fontSize: font.body,
     color: colors.ink,
     textAlignVertical: 'center',

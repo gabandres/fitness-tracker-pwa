@@ -220,7 +220,12 @@ export default function Today() {
         </View>
         <View style={styles.headerRight}>
           {streak > 0 ? (
-            <Animated.View style={[styles.streakChip, streakPulse]} testID="streak-chip">
+            <Animated.View
+              style={[styles.streakChip, streakPulse]}
+              testID="streak-chip"
+              accessibilityRole="text"
+              accessibilityLabel={t('today.streakA11y', { n: streak })}
+            >
               <Text style={styles.streakFlame}>🔥</Text>
               <Text style={styles.streakNum}>{streak}</Text>
             </Animated.View>
@@ -229,11 +234,18 @@ export default function Today() {
             onPress={() => { haptics.tap(); router.push('/history'); }}
             testID="open-history"
             hitSlop={10}
+            accessibilityRole="button"
             accessibilityLabel={t('nav.history')}
           >
             <Ionicons name="calendar-outline" size={22} color={colors.muted} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={onShare} testID="share-progress" hitSlop={10}>
+          <TouchableOpacity
+            onPress={onShare}
+            testID="share-progress"
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={t('today.shareA11y')}
+          >
             <Ionicons name="share-outline" size={22} color={colors.muted} />
           </TouchableOpacity>
           <HeaderAvatar />

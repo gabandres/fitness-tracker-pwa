@@ -1725,7 +1725,14 @@ function TemplateEditorModal({
                       <Text style={styles.tplExName}>{d.name}</Text>
                       <Text style={styles.tplExMeta}>{t(logStyleKey(d.logStyle))}</Text>
                     </View>
-                    <TouchableOpacity onPress={() => removeEx(i)} hitSlop={8} style={styles.tplDel} testID={`template-remove-${i}`}>
+                    <TouchableOpacity
+                      onPress={() => removeEx(i)}
+                      hitSlop={8}
+                      style={styles.tplDel}
+                      testID={`template-remove-${i}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('common.remove')}
+                    >
                       <Ionicons name="close" size={18} color={colors.faint} />
                     </TouchableOpacity>
                   </View>

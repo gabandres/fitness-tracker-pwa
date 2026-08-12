@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { hasUngroundedItems, rescaleScannedItem, sumScannedMacros, type ScannedFoodItem } from '@macrolog/core';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { useToday } from '@/hooks/useToday';
-import { useLocale, useT } from '@/i18n';
+import { type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { analyzeMealPhoto, captureMealPhoto, type ScanSource } from '@/lib/mealScan';
 import { track } from '@/lib/analytics';
@@ -306,7 +306,10 @@ function ItemRow({
   index: number;
   styles: ReturnType<typeof createStyles>;
   colors: Theme['colors'];
-  t: (k: never) => string;
+  // Was `(k: never) => string` — a deliberate 'this row renders no copy'
+  // marker. It now does: the remove button needs a label for VoiceOver, and a
+  // label is copy.
+  t: TFn;
   onName: (i: number, v: string) => void;
   onGrams: (i: number, v: string) => void;
   onRemove: (i: number) => void;
@@ -343,7 +346,14 @@ function ItemRow({
         />
         <Text style={styles.itemGramsUnit}>g</Text>
       </View>
-      <PressScale style={styles.itemRemove} scaleTo={0.9} onPress={() => onRemove(index)} testID={`scan-item-remove-${index}`}>
+      <PressScale
+        style={styles.itemRemove}
+        scaleTo={0.9}
+        onPress={() => onRemove(index)}
+        testID={`scan-item-remove-${index}`}
+        accessibilityRole="button"
+        accessibilityLabel={t('common.remove')}
+      >
         <Ionicons name="close" size={18} color={colors.muted} />
       </PressScale>
     </View>
