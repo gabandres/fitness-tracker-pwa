@@ -2,7 +2,14 @@
 
 ## Status
 
-accepted (2026-07-04) — **§3 (Freemium) is amended by
+accepted (2026-07-04) — **the PWA's lifespan, left open here, is settled by
+[ADR-0022](0022-web-pwa-frozen-not-retired.md) (2026-08-12): the web logging app
+is FROZEN (no new features), the web marketing/legal/SEO shell keeps shipping,
+and retirement is deferred to a measurement rather than a hunch. Do not read
+"mobile is the long-term product" as licence to delete the website — two app
+stores depend on its privacy and delete-account URLs.**
+
+Also: **§3 (Freemium) is amended by
 [ADR-0017](0017-photo-scan-free-for-all-v1.md) (2026-08-07): photo scans are
 NOT the paid gate. They ship ON and free for everyone in v1, capped server-side
 at 3/day rather than 5 lifetime.** Do not scope work off the "5 lifetime free

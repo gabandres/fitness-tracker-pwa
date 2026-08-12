@@ -54,3 +54,4 @@ decisions that are local to a single component.
 | 0019 | [Photo-scan gets its macros from the bundled USDA database, not from the model](0019-photo-scan-resolves-macros-from-usda.md) | accepted |
 | 0020 | [Logging from outside the app: Android reuses our JS write path, iOS gets a REST one](0020-quick-add-native-write-path.md) | accepted |
 | 0021 | [The fasting Live Activity draws its own timer, and reconciles instead of reacting](0021-fasting-live-activity.md) | accepted |
+| 0022 | [The web PWA is frozen, not retired (amends 0015)](0022-web-pwa-frozen-not-retired.md) | accepted |
