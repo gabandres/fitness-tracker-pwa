@@ -79,3 +79,35 @@ export function latestNavyBodyFat(
   }
   return null;
 }
+
+/** A tape input the Navy formula needs. */
+export type BodyFatInput = 'waist' | 'neck' | 'hip';
+
+/**
+ * Which tape inputs are still missing before a body-fat estimate is possible.
+ * Empty array = the formula can run.
+ *
+ * This exists because the UI could not tell a user what to do. Both apps
+ * collapsed every failure into one message — "Add a waist + neck measurement"
+ * — which is *wrong for women*: {@link navyBodyFat} additionally requires
+ * `hip`, so a female user could add exactly what she was told, get no
+ * estimate, and be shown the same instruction again with nothing to act on.
+ * The requirement was documented in the intro copy and absent from the one
+ * message shown at the moment it fails.
+ *
+ * Checked against the newest measurement that carries ANY tape input, matching
+ * {@link latestNavyBodyFat}'s tolerance for a later partial (bicep-only) row.
+ */
+export function missingBodyFatInputs(
+  measurements: readonly BodyFatMeasurement[],
+  sex: Sex | null | undefined,
+): BodyFatInput[] {
+  const needed: BodyFatInput[] = sex === 'female'
+    ? ['waist', 'neck', 'hip']
+    : ['waist', 'neck'];
+  const withTape = measurements.find(
+    (m) => m.waist != null || m.neck != null || m.hip != null,
+  );
+  if (!withTape) return needed;
+  return needed.filter((k) => withTape[k] == null);
+}

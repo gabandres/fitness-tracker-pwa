@@ -3,6 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import { trackSubs } from '@/lib/sub-debug';
 import { exportDaily } from '@/lib/health-sync';
 import {
+  type BodyFatInput,
   type DailyLog,
   type Measurement,
   type Profile,
@@ -14,6 +15,7 @@ import {
   currentWeight as coreCurrentWeight,
   localDateKey,
   latestNavyBodyFat,
+  missingBodyFatInputs,
   projectWeight,
   weightPointsForDays,
   weightSeriesForDays,
@@ -55,6 +57,9 @@ export interface BodyState {
   bodyFat: number | null;
   /** Why body-fat can't be shown, for an inline hint. null when shown. */
   bodyFatGap: 'profile' | 'measurement' | null;
+  /** Exactly which tape inputs are still missing, so the nudge can name them.
+   *  Empty when the estimate is available or the gap is the profile. */
+  bodyFatMissing: BodyFatInput[];
   addMeasurement: (entry: Omit<Measurement, 'id' | 'date'>) => Promise<void>;
   /** Edits a saved row in place, keeping its original date. Clearing a field
    *  removes it, so a value typed into the wrong box can be undone. */
@@ -120,12 +125,26 @@ export function useBody(): BodyState {
   // Body-fat from the latest measurement that carries the inputs the Navy
   // formula needs. `bodyFatGap` explains a null so the UI can nudge the user
   // toward the missing piece (profile sex/height vs. a tape measurement).
-  const { bodyFat, bodyFatGap } = useMemo<{ bodyFat: number | null; bodyFatGap: BodyState['bodyFatGap'] }>(() => {
-    if (!profile?.sex || !profile?.heightIn) return { bodyFat: null, bodyFatGap: 'profile' };
+  const { bodyFat, bodyFatGap, bodyFatMissing } = useMemo<{
+    bodyFat: number | null;
+    bodyFatGap: BodyState['bodyFatGap'];
+    bodyFatMissing: BodyFatInput[];
+  }>(() => {
+    if (!profile?.sex || !profile?.heightIn) {
+      return { bodyFat: null, bodyFatGap: 'profile', bodyFatMissing: [] };
+    }
     // Most recent measurement that actually has the tape inputs — not just the
     // single newest, which may be a partial (e.g. bicep-only) entry.
     const bf = latestNavyBodyFat(measurements, profile.sex, profile.heightIn);
-    return bf == null ? { bodyFat: null, bodyFatGap: 'measurement' } : { bodyFat: bf, bodyFatGap: null };
+    if (bf != null) return { bodyFat: bf, bodyFatGap: null, bodyFatMissing: [] };
+    // Name the missing fields rather than repeating a generic ask. The old
+    // message said "waist + neck" to everyone, which a woman can satisfy in
+    // full and still get nothing — the formula also needs hip.
+    return {
+      bodyFat: null,
+      bodyFatGap: 'measurement',
+      bodyFatMissing: missingBodyFatInputs(measurements, profile.sex),
+    };
   }, [profile, measurements]);
 
   // Fit the trend over a 28-day window of daily weights (longer than the
@@ -203,6 +222,7 @@ export function useBody(): BodyState {
     measurements,
     bodyFat,
     bodyFatGap,
+    bodyFatMissing,
     addMeasurement,
     updateMeasurement,
     deleteMeasurement,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { navyBodyFat, latestNavyBodyFat } from './body-fat';
+import { missingBodyFatInputs, navyBodyFat, latestNavyBodyFat } from './body-fat';
 
 describe('navyBodyFat', () => {
   it('estimates for a male from waist/neck/height', () => {
@@ -73,5 +73,36 @@ describe('latestNavyBodyFat', () => {
   it('skips a waist+neck entry that yields no valid result (neck ≥ waist)', () => {
     const measurements = [{ waist: 16, neck: 20 }, { waist: 34, neck: 16 }];
     expect(latestNavyBodyFat(measurements, 'male', 70)).toBe(expected);
+  });
+});
+
+// ── missingBodyFatInputs (2026-08-12) ─────────────────────────────
+// The UI could not tell a user what to do: both apps showed
+// "Add a waist + neck measurement" for every failure, which is wrong for
+// women — the formula also needs hip, so she could do exactly as instructed
+// and be shown the same instruction again.
+
+describe('missingBodyFatInputs', () => {
+  it('asks a woman for hip as well, and keeps asking until it is there', () => {
+    expect(missingBodyFatInputs([], 'female')).toEqual(['waist', 'neck', 'hip']);
+    // She adds precisely what the old message told her to.
+    expect(missingBodyFatInputs([{ waist: 30, neck: 13 }], 'female')).toEqual(['hip']);
+    expect(missingBodyFatInputs([{ waist: 30, neck: 13, hip: 38 }], 'female')).toEqual([]);
+  });
+
+  it('does not ask a man for hip', () => {
+    expect(missingBodyFatInputs([], 'male')).toEqual(['waist', 'neck']);
+    expect(missingBodyFatInputs([{ waist: 34, neck: 15 }], 'male')).toEqual([]);
+  });
+
+  it('reads the newest row carrying any tape input, ignoring later partials', () => {
+    // A bicep-only row logged afterwards must not reset the ask, matching
+    // latestNavyBodyFat's tolerance.
+    const rows = [{ bicep: 14 } as never, { waist: 34, neck: 15 }];
+    expect(missingBodyFatInputs(rows, 'male')).toEqual([]);
+  });
+
+  it('reports every field when the sex is unknown, rather than guessing', () => {
+    expect(missingBodyFatInputs([], null)).toEqual(['waist', 'neck']);
   });
 });
