@@ -1,7 +1,7 @@
 import {
   Timestamp,
   collection,
-  deleteDoc,
+  deleteDoc as fsDeleteDoc,
   deleteField,
   doc,
   documentId,
@@ -11,11 +11,13 @@ import {
   onSnapshot,
   orderBy,
   query,
-  setDoc,
-  updateDoc,
+  setDoc as fsSetDoc,
+  updateDoc as fsUpdateDoc,
   where,
-  writeBatch,
+  writeBatch as fsWriteBatch,
 } from 'firebase/firestore';
+import type { DocumentReference, SetOptions, WriteBatch } from 'firebase/firestore';
+import { addBreadcrumb } from './sentry';
 import {
   type CustomFood,
   type DailyLog,
@@ -96,6 +98,81 @@ const reportsCol = (uid: string) => collection(db, 'users', uid, 'reports');
 const userDoc = (uid: string) => doc(db, 'users', uid);
 
 type Unsub = () => void;
+
+// ─── Naming the write that failed ───────────────────────────────
+//
+// A Firestore rejection that crosses an async boundary under Hermes arrives
+// with **no stack at all**. Sentry IGNIA-MOBILE-4 is three events of
+// "FirebaseError: Missing or insufficient permissions." with `stacktrace: null`
+// — no collection, no document, no code path — and the account that produced
+// them has not been opened since, so there is nothing left to reproduce. The
+// error was unidentifiable from telemetry, and would be again.
+//
+// The document path is the one identifier that survives, and Firestore already
+// carries it on the ref. Every write here goes through the three wrappers
+// below, which put the path in the message (what Sentry groups on) and leave a
+// breadcrumb carrying the error code. Reads are deliberately not wrapped: a
+// failed `onSnapshot` reports through its own `onError` callback with the query
+// in hand, which is a channel that already works.
+//
+// The wrappers keep the SDK names, so the ~30 call sites are untouched and a
+// new write cannot forget to opt in — the plain names are these.
+
+/** Attach the failing path, once, and record the code. */
+function annotateWrite(err: unknown, path: string): void {
+  const code = (err as { code?: string } | null)?.code;
+  addBreadcrumb(`firestore write failed: ${path}`, code ? { code } : undefined);
+  if (err instanceof Error && !err.message.startsWith(`${path}: `)) {
+    // Message only — `code` is what callers branch on and must not move.
+    err.message = `${path}: ${err.message}`;
+  }
+}
+
+// `object`, not `Record<string, unknown>`: the shared writers in
+// `@macrolog/core/firestore-writers` return typed doc shapes with no index
+// signature, and `createDoc` below already takes `object` for that reason.
+async function setDoc(ref: DocumentReference, data: object, options?: SetOptions): Promise<void> {
+  const payload = data as Record<string, unknown>;
+  try {
+    await (options ? fsSetDoc(ref, payload, options) : fsSetDoc(ref, payload));
+  } catch (err) {
+    annotateWrite(err, ref.path);
+    throw err;
+  }
+}
+
+async function updateDoc(ref: DocumentReference, data: object): Promise<void> {
+  try {
+    await fsUpdateDoc(ref, data as Record<string, unknown>);
+  } catch (err) {
+    annotateWrite(err, ref.path);
+    throw err;
+  }
+}
+
+async function deleteDoc(ref: DocumentReference): Promise<void> {
+  try {
+    await fsDeleteDoc(ref);
+  } catch (err) {
+    annotateWrite(err, ref.path);
+    throw err;
+  }
+}
+
+/** Batches carry many refs, so the annotation names the batch, not a path. */
+function writeBatch(database: Parameters<typeof fsWriteBatch>[0]): WriteBatch {
+  const batch = fsWriteBatch(database);
+  const commit = batch.commit.bind(batch);
+  batch.commit = async () => {
+    try {
+      await commit();
+    } catch (err) {
+      annotateWrite(err, 'writeBatch');
+      throw err;
+    }
+  };
+  return batch;
+}
 
 /** The two SDK values the shared writers can't construct themselves, bound to
  *  this edge's Firestore SDK once (see `@macrolog/core/firestore-writers`).
