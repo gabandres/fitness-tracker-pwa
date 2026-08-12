@@ -17,12 +17,22 @@ import { font, radius, space } from '@/theme';
  *  reflects a live condition. The OTA half needs no dismiss (tapping resolves
  *  it by construction); the store half is dismissible because leaving for the
  *  store is the only action available and it may not be one the user can take. */
-export function UpdateBanner() {
+/** Whether either update mechanism has something to announce. Exported for
+ *  `useTodayNudge`, which ranks the Nudges without rendering them. */
+export function useUpdateVisible(): boolean {
+  const ota = useOtaUpdate();
+  const store = useStoreUpdate();
+  return ota.pending || store.available;
+}
+
+export function UpdateBanner({ suppressed = false }: { suppressed?: boolean }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const ota = useOtaUpdate();
   const store = useStoreUpdate();
+
+  if (suppressed) return null;
 
   if (ota.pending) {
     return (

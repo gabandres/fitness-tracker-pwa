@@ -24,6 +24,7 @@ import { useFastActivity } from '@/hooks/useFastActivity';
 import { useReminderSync } from '@/hooks/useReminderSync';
 import { performQuickAdd } from '@/lib/quick-add';
 import { useToday } from '@/hooks/useToday';
+import { useTodayNudge } from '@/hooks/useTodayNudge';
 import { useWidgetSync } from '@/hooks/useWidgetSync';
 import { enterUp, PressScale, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
@@ -74,6 +75,8 @@ export default function Today() {
     repeatYesterday,
     shareStats,
   } = useToday();
+  // The single Nudge slot this screen is allowed to fill.
+  const nudge = useTodayNudge();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [repeating, setRepeating] = useState(false);
   const shareRef = useRef<View>(null);
@@ -267,13 +270,16 @@ export default function Today() {
         <ScrollView contentContainerStyle={styles.body}>
           {error ? <Text style={styles.error}>{t('today.loadErr')}</Text> : null}
 
-          {/* A state readout, not a Nudge — above the two banners that are, and
+          {/* A state readout, not a Nudge — above the banners that are, and
               never competing with them for the one-at-a-time slot. */}
           <OfflineBanner />
 
-          <UpdateBanner />
+          {/* At most ONE Nudge, ever (UX_AUDIT §S14 TD1). `useTodayNudge` owns
+              the priority; each card still owns whether it has anything to say,
+              so a suppressed one renders nothing rather than an empty frame. */}
+          <UpdateBanner suppressed={nudge !== 'update'} />
 
-          <WhatsNewBanner />
+          <WhatsNewBanner suppressed={nudge !== 'whatsNew'} />
 
           <Animated.View entering={enterUp(0)}>
             <HeroRings
@@ -287,7 +293,7 @@ export default function Today() {
             />
           </Animated.View>
 
-          <RecalibrationCard />
+          <RecalibrationCard suppressed={nudge !== 'recalibration'} />
 
           <Animated.View entering={enterUp(1)}>
             <DailyMetrics

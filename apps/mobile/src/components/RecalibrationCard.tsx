@@ -21,12 +21,18 @@ const TREND_KEY: Record<RecalibrationTrend, I18nKey> = {
  * reading drifts meaningfully again. Renders nothing when there's nothing
  * fresh to show.
  */
-export function RecalibrationCard() {
+/** Whether the digest has a fresh shift worth surfacing. Exported for
+ *  `useTodayNudge`. */
+export function useRecalibrationVisible(): boolean {
+  return useRecalibration().digest.shouldSurface;
+}
+
+export function RecalibrationCard({ suppressed = false }: { suppressed?: boolean }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { digest, acknowledge } = useRecalibration();
 
-  if (!digest.shouldSurface) return null;
+  if (!digest.shouldSurface || suppressed) return null;
 
   return (
     <View style={styles.card} testID="recalibration-card">

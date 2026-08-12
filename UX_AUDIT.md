@@ -131,17 +131,16 @@ removed; only UI placement changes** (cheap to re-expose). Grilled with
 | **T1** | Trends: merge "Averages" into Insights. Drop raw weight Δ (keep least-squares slope); collapse avgKcal + avg-vs-target into one cell. Result: a 6-cell insights grid (best/worst day · avgKcal+vs-target · avgProtein · adherence % · weight trend). | [x] `c824b99d` 2026-06-14 — verified on screen 2026-08-12: the grid renders exactly those six cells |
 | **T2** | Trends: fold WeeklyBudget into the insights card as a toggle → the **Weekly panel** (default view = insights). `weekly-budget.ts` untouched. | [x] `c824b99d` 2026-06-14 — the `panelView` toggle, default `insights` |
 | **T3** | Trends: merge WeeklyReport + AI coach into one **Coach panel** — free "Ask the coach" (quota'd) shown first, Pro WeeklyReport below with an inline lock badge → existing upsell. | [x] `c824b99d` 2026-06-14 — Ask first, collapsible report below |
-| **B1** | Body: move the Body-fat estimate caption out of the weight card into the Measurements card (its inputs — waist/neck — are entered there). | [ ] |
-| **B2** | Body: pull the Progress Photos block out of the weight card into its own card, **collapsed by default, placed last** (matches Measurements pattern). | [ ] |
-| **TD1** | Today: one-**Nudge**-at-a-time gate (priority refine → push → install → what's-new). Repeat-yesterday reclassified as a **utility**, ungated. Worst-case Today: rings + repeat-yesterday + one Nudge. | [ ] |
-| **TR1** | Train: collapse the per-set "Plates" buttons into the per-exercise warm-up toggle → one **"Plates & warm-up"** tools panel per exercise (plate breakdown per distinct set weight + warm-up ramp). Accepts loss of per-set inline plate glance. `plate-math.ts` / `warmup.ts` untouched. | [ ] |
+| **B1** | Body: move the Body-fat estimate caption out of the weight card into the Measurements card (its inputs — waist/neck — are entered there). | [x] **not open — verified 2026-08-12.** Body fat is its own standalone card between the weight hero and Measurements (`body.component.ts:137`). Solved differently from the wording, but the stated problem — it living in the weight card — has not been true for some time |
+| **B2** | Body: pull the Progress Photos block out of the weight card into its own card, **collapsed by default, placed last** (matches Measurements pattern). | [-] **moot — verified 2026-08-12.** There is no Progress Photos block on the web Body page at all; the only match is marketing copy describing it as a Pro feature. Nothing to move |
+| **TD1** | Today: one-**Nudge**-at-a-time gate (priority refine → push → install → what's-new). Repeat-yesterday reclassified as a **utility**, ungated. Worst-case Today: rings + repeat-yesterday + one Nudge. | [x] **web was already done; MOBILE shipped 2026-08-12.** Web has had `activeNudge()` since `c824b99d` (`today.component.ts:560`). Mobile could stack three — update banner, what's-new banner, recalibration card — above the rings. `useTodayNudge` is the mobile twin, priority update → recalibration → whatsNew, pinned by tests |
+| **TR1** | Train: collapse the per-set "Plates" buttons into the per-exercise warm-up toggle → one **"Plates & warm-up"** tools panel per exercise (plate breakdown per distinct set weight + warm-up ramp). Accepts loss of per-set inline plate glance. `plate-math.ts` / `warmup.ts` untouched. | [x] **not open — verified 2026-08-12.** `session-sheet.component.ts:98` is literally "Plates & warm-up tools (barbell only) — one affordance per exercise", with the plate breakdown per distinct weight and the warm-up ramp inside it |
 
-> **The four unticked rows below are not evidence they are open.** T1–T3 were
-> shipped by `c824b99d` — *the same commit that added this table with every box
-> empty* — and nobody ticked them for two months, so the Trends audit of
-> 2026-08-12 re-derived three decisions that were already on screen. Verify
-> B1/B2/TD1/TR1 against the code before scoping any of them; ticking one costs
-> a minute, and reading a shipped row as open has now cost this project four.
+> **The four rows above were checked against the code on 2026-08-12, and three
+> of them were already done.** That is the fifth time this table's empty boxes
+> have been read as open work. The check took twenty minutes; the box is now
+> ticked with the file and line that proves it, which is the only form of this
+> row worth keeping. Only TD1 had anything left, and only on mobile.
 
 **Net:** Trends 6 cards → 3 (chart · Weekly panel · Coach panel); Body
 weight card returns to weight; Today caps at one Nudge; Train logger
