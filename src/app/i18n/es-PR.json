@@ -632,6 +632,7 @@
     "done": "listo"
   },
   "body": {
+    "chartWindows": "Últimos 14 días · la línea punteada proyecta tu tendencia de 4 semanas",
     "projectionGoalDate": "A este ritmo: {{weight}} lb para {{date}}",
     "projectionRate": "Tendencia {{n}} lb/sem",
     "projectionSteady": "Estable",
@@ -725,27 +726,6 @@
     "edit": "Editar",
     "hoursSlept": "Horas dormidas"
   },
-  "fasting": {
-    "stamp": "ayunando",
-    "sinceShort": "desde las {{time}}",
-    "fastingSince": "ayunando desde las {{time}}",
-    "endFast": "terminar ayuno",
-    "endFastAria": "Terminar ayuno actual",
-    "endFastConfirm": "¿Terminar el ayuno ahora? Esto no se puede deshacer.",
-    "startFast": "empezar ayuno",
-    "startFastAria": "Empezar un ayuno de 16 horas",
-    "chronometer": "cronómetro",
-    "elapsed": "transcurrido",
-    "idle": "inactivo",
-    "editStart": "editar",
-    "editStartAria": "Editar la hora de inicio del ayuno",
-    "editStartPrompt": "¿A qué hora empezaste a ayunar en realidad?",
-    "editStartInvalid": "Ingresa una hora dentro de las últimas 48 horas.",
-    "startedEarlier": "¿empezaste antes?",
-    "startedEarlierPrompt": "¿A qué hora dejaste de comer?",
-    "save": "guardar",
-    "cancel": "cancelar"
-  },
   "measurements": {
     "section": "medidas",
     "latest": "última medida",
@@ -772,6 +752,7 @@
     "resetHint": "cuota diaria de consultas se reinicia a medianoche UTC",
     "suggestionsLabel": "ejemplos · toca para rellenar, o escribe tu propia pregunta abajo",
     "remaining": "({{n}} de {{limit}} restantes hoy)",
+    "unlimited": "Sin límite hoy",
     "questionLabel": "tu pregunta",
     "questionPlaceholder": "ej. ¿estoy bajando demasiado rápido? ¿debería mantener mi meta?",
     "asking": "preguntando…",
@@ -1634,7 +1615,9 @@
         "trendBreaks": "Si dejas de registrar una semana, tu estimado de mantenimiento arranca desde que volviste, en vez de trazar una sola línea sobre el hueco. El agua del viaje tiene una semana para irse antes de contar.",
         "weighInsIgnored": "Hoy ahora te dice cuándo se ignoró un pesaje, para que un estimado raro venga con su razón.",
         "trainTerms": "Train ahora se explica solo: el RIR se lee en palabras, cada tipo de serie dice lo que es, y un “?” abre un glosario de toda la pestaña.",
-        "coachWindow": "Pregúntale al Coach ahora ve de verdad tus últimos 14 días — antes recibía una fracción mientras le decían que era una quincena."
+        "coachWindow": "Pregúntale al Coach ahora ve de verdad tus últimos 14 días — antes recibía una fracción mientras le decían que era una quincena.",
+        "weekWindows": "Tu racha y tus promedios semanales ahora cubren los días que dicen cubrir. Los dos leían un caché de registros recientes — apenas dos días para quien registra varias comidas al día — así que los números pueden cambiar.",
+        "chartWindows": "La gráfica de peso ahora dice qué es la línea punteada: una tendencia de 4 semanas, dibujada más allá de una línea de 14 días."
       }
     },
     "body": {
@@ -1654,23 +1637,15 @@
       "takePhoto": "Tomar foto",
       "takePhotoSoon": "Pronto",
       "takePhotoComingAria": "Tomar foto (próximamente)",
-      "fasting": "Ayuno",
       "active": "Activo",
       "idle": "Inactivo",
       "ofHours": "de {{n}}h",
       "hourTarget": "meta de {{n}}h",
       "startedAt": "Empezó a las {{time}}",
-      "editStartAria": "Editar hora de inicio del ayuno",
       "edit": "Editar",
-      "editStartActivePrompt": "¿A qué hora realmente empezó este ayuno?",
-      "editStartIdlePrompt": "¿A qué hora realmente empezó tu ayuno?",
-      "fastStartTimeAria": "Hora de inicio del ayuno",
-      "endFast": "Terminar ayuno",
-      "startFast": "Empezar ayuno",
       "startedEarlier": "¿Empezaste antes?",
       "cancel": "Cancelar",
       "save": "Guardar",
-      "editStartInvalid": "Pon una hora válida dentro de las últimas 48 horas.",
       "measurements": "Medidas",
       "measurementsNone": "Ninguna todavía",
       "showAllMeasurements": "Ver todas ({{ n }})",

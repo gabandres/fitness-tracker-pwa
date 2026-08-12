@@ -168,6 +168,13 @@ export default function Body() {
             {weightSeries.length >= 2 ? (
               <View style={styles.chartWrap} testID="weight-chart">
                 <Sparkline values={weightSeries} projection={projectedSeries} width={300} height={64} color={colors.ring} />
+                {/* The solid line is 14 days; the dash is fitted over 28
+                    (PROJECTION_WINDOW_DAYS in useBody — a 14-day fit is
+                    dominated by water weight). Say so, or a flat-looking
+                    fortnight sprouts a falling dash with nothing to explain it. */}
+                {projectedSeries.length ? (
+                  <Text style={styles.chartCaption}>{t('body.chartWindows')}</Text>
+                ) : null}
               </View>
             ) : null}
 
@@ -572,6 +579,13 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   heroUnit: { fontSize: font.h2, color: colors.heroMuted, marginBottom: space.sm },
   heroCaption: { textAlign: 'center', color: colors.heroMuted, fontSize: font.small },
   chartWrap: { alignItems: 'center', marginTop: space.xs },
+  chartCaption: {
+    textAlign: 'center',
+    color: colors.heroMuted,
+    fontSize: font.tiny,
+    marginTop: space.xs,
+    paddingHorizontal: space.md,
+  },
   trendChips: { flexDirection: 'row', gap: space.sm, flexWrap: 'wrap', justifyContent: 'center' },
   trendChip: {
     fontSize: font.small,

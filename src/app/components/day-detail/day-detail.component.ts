@@ -66,7 +66,6 @@ export class DayDetailComponent {
 
   readonly dateKey = input.required<string>();
   readonly closeRequested = output<void>();
-  readonly bodyRequested = output<void>();
 
   protected readonly streak = computed(() => this.store.streak());
 

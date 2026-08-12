@@ -244,7 +244,6 @@ export class UiDaySummary {
   /** 'full' = Today (hero rings + metrics card); 'compact' = day-detail
    *  (mobile [date]: 4-stat totals card + weight line, no hero/metrics). */
   readonly variant = input<'full' | 'compact'>('full');
-  readonly bodyRequested = output<void>();
 
   /** The day's logged weight, for the compact totals view's weight line. */
   protected readonly dayWeight = computed<number | null>(() => {

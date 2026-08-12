@@ -1,10 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  OnDestroy,
-  OnInit,
   computed,
-  effect,
   inject,
   output,
   signal,
@@ -12,7 +9,6 @@ import {
 import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
-import { FastingStore } from '../../services/fasting-store.service';
 import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { TranslationService } from '../../services/translation.service';
 import { AuthService } from '../../services/auth.service';
@@ -31,7 +27,6 @@ import { UiAvatar } from '../ui/avatar.component';
 import { UiSparkline } from '../ui/sparkline.component';
 import { UiWeightSheet } from '../ui/weight-sheet.component';
 
-const FAST_HOURS = 16;
 type MField = 'waist' | 'chest' | 'bicep' | 'hip' | 'neck';
 const M_FIELDS: { key: MField; labelKey: string }[] = [
   { key: 'waist', labelKey: 'v2.body.fieldWaist' },
@@ -44,8 +39,7 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
 /**
  * v2 Body — stacked single-page surface. Three sections:
  *  1. Weight: current value, 14d sparkline, goal-progress bar, log button.
- *  2. Fasting: compact ring + start/end action.
- *  3. Measurements: collapsed by default, inline form when expanded.
+ *  2. Measurements: collapsed by default, inline form when expanded.
  *
  * Replaces the Week-4 placeholder that wrapped v1 components.
  */
@@ -104,6 +98,13 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
               tone="ring"
               [ariaLabel]="t('v2.body.weightTrendAria')" />
           </div>
+          <!-- The solid line is 14 days; the dash is fitted over 28 (see
+               PROJECTION_WINDOW_DAYS — a 14-day fit is dominated by water
+               weight). Without this line a flat-looking fortnight sprouts a
+               steeply falling dash and nothing on screen accounts for it. -->
+          @if (projectedSeries().length) {
+            <span style="font-size: 12px; color: var(--v2-hero-muted); margin-top: 2px;">{{ t('body.chartWindows') }}</span>
+          }
         }
 
         @if (projectionLabel(); as pl) {
@@ -295,9 +296,8 @@ const M_FIELDS: { key: MField; labelKey: string }[] = [
     </ng-container>
   `,
 })
-export class BodyComponent implements OnInit, OnDestroy {
+export class BodyComponent {
   protected readonly store = inject(FitnessStore);
-  protected readonly fasting = inject(FastingStore);
   protected readonly body = inject(BodyMetricStore);
   private readonly auth = inject(AuthService);
   protected readonly authUser = this.auth.user;
@@ -305,9 +305,7 @@ export class BodyComponent implements OnInit, OnDestroy {
 
   readonly historyRequested = output<void>();
   readonly settingsRequested = output<void>();
-  readonly bodyRequested = output<void>();
 
-  protected readonly FAST_HOURS = FAST_HOURS;
   protected readonly M_FIELDS = M_FIELDS;
   /** Per-site technique, one line each. Same order and same copy as the mobile
    *  Body screen — this is the kind of guidance that goes stale in one place
@@ -320,28 +318,13 @@ export class BodyComponent implements OnInit, OnDestroy {
     'v2.body.howBicep',
   ] as const;
   protected readonly howOpen = signal(false);
-  protected readonly fastCircumference = 2 * Math.PI * 52;
-  // Backdating beyond 48h would already be past any plausible fasting window.
-  private readonly MAX_BACKDATE_HOURS = 48;
-
   protected readonly todayKey = signal(localDateKey(new Date()));
   protected readonly weightSheetOpen = signal(false);
   // Measurements + photos open by default to mirror mobile (which shows them
   // expanded with an inline "Add" link rather than behind a collapse).
   protected readonly expanded = signal(true);
-  protected readonly fastingExpanded = signal(false);
-  /** Auto-open the (otherwise collapsed) Fasting card whenever a fast is
-   *  active, so the running timer is never hidden behind the chevron. */
-  private readonly _autoExpandFast = effect(() => {
-    if (this.fasting.isFasting()) this.fastingExpanded.set(true);
-  });
   protected readonly formOpen = signal(false);
 
-  // Inline fasting start-time editor — used both to backdate a new fast
-  // ("started earlier") and to correct the start of an active one.
-  protected readonly editing = signal(false);
-  protected readonly editValue = signal('');
-  protected readonly editError = signal('');
   protected readonly formValues = signal<Record<MField, number | null>>({
     waist: null, chest: null, bicep: null, hip: null, neck: null,
   });
@@ -373,10 +356,6 @@ export class BodyComponent implements OnInit, OnDestroy {
     const all = this.measurementHistory();
     return this.showAllMeasurements() ? all : all.slice(0, this.MEASURE_PREVIEW);
   });
-
-  // ─── Live ticker for fasting progress ──────────────────────
-  private readonly tick = signal(0);
-  private intervalId: ReturnType<typeof setInterval> | null = null;
 
   protected readonly currentWeight = computed(() => this.store.currentWeight());
 
@@ -480,35 +459,6 @@ export class BodyComponent implements OnInit, OnDestroy {
     );
   }
 
-  protected readonly elapsedHours = computed<number>(() => {
-    this.tick();
-    const start = this.fasting.fastStartedAt();
-    if (!start) return 0;
-    return Math.max(0, (Date.now() - start.getTime()) / 3_600_000);
-  });
-
-  protected readonly elapsedDisplay = computed(() => {
-    const h = this.elapsedHours();
-    const totalMin = Math.floor(h * 60);
-    const hh = Math.floor(totalMin / 60);
-    const mm = totalMin % 60;
-    return `${hh}:${mm.toString().padStart(2, '0')}`;
-  });
-
-  protected readonly fastDashOffset = computed(() => {
-    const fraction = Math.min(1, this.elapsedHours() / FAST_HOURS);
-    return this.fastCircumference * (1 - fraction);
-  });
-
-  protected readonly startTimeLabel = computed(() => {
-    const start = this.fasting.fastStartedAt();
-    if (!start) return '';
-    const locale = bcp47ForLang(this.translation.language());
-    return start
-      .toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
-      .toLowerCase();
-  });
-
   protected readonly summaryLabel = computed(() => {
     const m = this.body.latestMeasurement();
     if (!m) return this.translation.t('v2.body.measurementsNone');
@@ -517,15 +467,6 @@ export class BodyComponent implements OnInit, OnDestroy {
     const date = d.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
     return this.translation.t('v2.body.measurementsLastLogged', { date });
   });
-
-  ngOnInit(): void {
-    // 30s ticker is enough — display is hh:mm.
-    this.intervalId = setInterval(() => this.tick.update((n) => n + 1), 30_000);
-  }
-
-  ngOnDestroy(): void {
-    if (this.intervalId !== null) clearInterval(this.intervalId);
-  }
 
   protected openWeightSheet(): void {
     this.haptic(10);
@@ -646,69 +587,6 @@ export class BodyComponent implements OnInit, OnDestroy {
     return Math.abs(d) < 0.05 ? '0' : d.toFixed(1);
   }
 
-  protected async startFast(): Promise<void> {
-    this.haptic(30);
-    await this.fasting.startFast();
-  }
-
-  protected async endFast(): Promise<void> {
-    this.haptic(50);
-    await this.fasting.breakFast();
-  }
-
-  protected beginEdit(): void {
-    this.haptic(10);
-    const start = this.fasting.fastStartedAt() ?? new Date();
-    this.editValue.set(this.toTimeInputValue(start));
-    this.editError.set('');
-    this.editing.set(true);
-  }
-
-  protected cancelEdit(): void {
-    this.editing.set(false);
-    this.editError.set('');
-  }
-
-  protected async commitEdit(): Promise<void> {
-    const parsed = this.parseEditValue(this.editValue());
-    if (!parsed) {
-      this.editError.set(this.translation.t('v2.body.editStartInvalid'));
-      this.haptic(50);
-      return;
-    }
-    this.haptic(30);
-    await this.fasting.startFast(parsed);
-    this.editing.set(false);
-    this.editError.set('');
-  }
-
-  private toTimeInputValue(d: Date): string {
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  }
-
-  /**
-   * Parse "HH:MM" as "today at that local time". If that's later than now,
-   * roll back to yesterday (handles late-night entries like 5:15pm at 1am).
-   * Reject anything older than MAX_BACKDATE_HOURS.
-   */
-  private parseEditValue(v: string): Date | null {
-    const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim());
-    if (!m) return null;
-    const hh = Number(m[1]);
-    const mm = Number(m[2]);
-    if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
-    const now = new Date();
-    const candidate = new Date(now);
-    candidate.setHours(hh, mm, 0, 0);
-    if (candidate.getTime() > now.getTime()) {
-      candidate.setDate(candidate.getDate() - 1);
-      // Re-apply wall-clock so a DST boundary doesn't shift the hour by ±1.
-      candidate.setHours(hh, mm, 0, 0);
-    }
-    const ageMs = now.getTime() - candidate.getTime();
-    if (ageMs > this.MAX_BACKDATE_HOURS * 60 * 60 * 1000) return null;
-    return candidate;
-  }
 
   private haptic(ms: number): void {
     try {

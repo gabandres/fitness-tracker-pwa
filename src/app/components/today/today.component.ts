@@ -29,7 +29,6 @@ import { UiIconButton } from '../ui/icon-button.component';
 import { UiCard } from '../ui/card.component';
 import { UiFab } from '../ui/fab.component';
 import { UiDaySummary } from '../ui/day-summary.component';
-import { UiFastingPill } from '../ui/fasting-pill.component';
 import { UiAvatar } from '../ui/avatar.component';
 import { AuthService } from '../../services/auth.service';
 import { UiRefineTargetsSheet } from '../refine-targets-sheet/refine-targets-sheet.component';
@@ -95,7 +94,7 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
 
       <app-whats-new-banner [suppressed]="activeNudge() !== 'whatsNew'" />
 
-      <ui-day-summary [dateKey]="todayKey()" (bodyRequested)="bodyRequested.emit()" />
+      <ui-day-summary [dateKey]="todayKey()" />
 
       <!-- Intake against measured BURN — the thing the rings cannot show,
            because the target they count down from can be held above
@@ -299,7 +298,6 @@ export class TodayComponent {
 
   readonly historyRequested = output<void>();
   readonly settingsRequested = output<void>();
-  readonly bodyRequested = output<void>();
 
   protected readonly todayKey = signal(localDateKey(new Date()));
 

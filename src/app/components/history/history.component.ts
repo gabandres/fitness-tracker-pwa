@@ -145,7 +145,6 @@ export class HistoryComponent {
 
   readonly dayTapped = output<string>();
   readonly closeRequested = output<void>();
-  readonly bodyRequested = output<void>();
 
   /** 6 rows × 7 cells of loading placeholders, mirroring the month grid so
    *  the ARIA grid keeps a valid row → gridcell hierarchy while loading. */

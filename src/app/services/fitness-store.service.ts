@@ -275,17 +275,22 @@ export class FitnessStore {
   // source-log window because it alone knows the load state; the merge,
   // TDEE, precedence, and latest-weight math all live behind the seam.
 
-  /** Logs feeding the targets projection. Measured mode needs ≥14 *distinct
-   *  logged days*; the `_logs` cache is capped at 14 *rows* (getRecentLogs),
-   *  which for a multi-entry-per-day user aggregates to far fewer days — so
-   *  use the full-history cache once it has settled and fall back to the
-   *  rolling cache only during the initial load. */
-  private readonly _targetsSource = computed<DailyLog[]>(() =>
+  /** The source for any derivation that counts **days**: full history once it
+   *  has settled, the rolling cache only during the initial load.
+   *
+   *  `_logs` is capped at 14 *rows* (`getRecentLogs`), so for a
+   *  multi-entry-per-day user it aggregates to far fewer days — measured-mode
+   *  TDEE needs ≥14 *distinct logged days*, a streak needs as many days as it
+   *  is long, and a weekly average needs seven. Reading `_logs` for any of
+   *  those silently shortens the window (ADR-0004; `RECENT_LOGS_ROWS` in
+   *  `@macrolog/core` names it "today's totals, the recents row, the
+   *  budget-crossed signal" — nothing day-spanning). */
+  private readonly _dayWindowSource = computed<DailyLog[]>(() =>
     this._historyLoaded() ? this._allTimeLogs() : this._logs(),
   );
 
   private readonly _targets = computed<DailyTargets>(() =>
-    dailyTargets(this.fb.profile(), this._targetsSource(), this.body.dailyWeights()),
+    dailyTargets(this.fb.profile(), this._dayWindowSource(), this.body.dailyWeights()),
   );
 
   readonly tdee: Signal<TdeeResult> = computed(() => this._targets().tdee);
@@ -336,7 +341,7 @@ export class FitnessStore {
   }
 
   readonly recalibration: Signal<RecalibrationDigest> = computed(() =>
-    recalibrationDigest(this.fb.profile(), this._targetsSource(), this.body.dailyWeights(), {
+    recalibrationDigest(this.fb.profile(), this._dayWindowSource(), this.body.dailyWeights(), {
       now: Date.now(),
       ack: this._recalAck(),
     }),
@@ -381,16 +386,33 @@ export class FitnessStore {
       any miss. `freezeUsed` is true when the active streak only spans
       because a gap was forgiven — surface this in UI as a Pro indicator. */
   private readonly streakResult = computed(() =>
-    computeStreak(this._logs(), {
+    // Day-spanning by definition, so it reads `_dayWindowSource`, not `_logs`:
+    // over the 14-ROW cache a 5-meals-a-day user could never show a streak
+    // longer than three, while the same account on mobile (400 rows) showed
+    // the real number.
+    computeStreak(this._dayWindowSource(), {
       freezeMaxGap: this.subs.isPaid() ? STREAK_FREEZE_MAX_GAP_PRO : 0,
     }),
   );
   readonly streak: Signal<number> = computed(() => this.streakResult().streak);
   readonly streakFreezeUsed: Signal<boolean> = computed(() => this.streakResult().freezeUsed);
 
-  readonly weekly: Signal<WeeklySummary | null> = computed(() =>
-    weeklySummary(this.mergeWeights(this._logs()), this.targetCalories()),
-  );
+  /** Trends' "Avg kcal / Avg protein / Adherence" tiles.
+   *
+   *  Windowed over the last **7 calendar days**, which is what the tiles beside
+   *  them (`computeWeeklyInsights`, `computeWeeklyBudget`) already use. It read
+   *  the 14-ROW `_logs` cache until 2026-08-12: on one card, one labelled
+   *  "this week", the averages covered however many days happened to fit in
+   *  fourteen rows — two, for someone logging seven meals a day — while the
+   *  deficit printed on the same line covered seven. Null until history
+   *  hydrates, so "not loaded" cannot render as an average. */
+  readonly weekly: Signal<WeeklySummary | null> = computed(() => {
+    const win = this.logsForLastDaysState(FitnessStore.WEEKLY_AVERAGE_DAYS);
+    if (!win.loaded) return null;
+    return weeklySummary(this.mergeWeights(win.logs), this.targetCalories());
+  });
+
+  private static readonly WEEKLY_AVERAGE_DAYS = 7;
 
   readonly envelope: Signal<WeeklyEnvelope | null> = computed(() =>
     weeklyEnvelope(this._logs(), this.targetCalories()),
@@ -401,12 +423,6 @@ export class FitnessStore {
       .map((l) => l.weight)
       .filter((w): w is number => w != null);
     return ema(weights, 7);
-  });
-
-  readonly trendLabel: Signal<string> = computed(() => {
-    const change = this.tdee().weightChangeTrend;
-    if (change === 0) return '—';
-    return `${change > 0 ? '↓' : '↑'} ${Math.abs(change).toFixed(1)} lbs`;
   });
 
   readonly goalProgress: Signal<GoalProgress | null> = computed(() => {
@@ -483,15 +499,23 @@ export class FitnessStore {
     exercised: boolean;
     count: number;
   } | null {
-    // Try the rolling 14-day window first (hot signal); fall back to
-    // the tier-gated all-time list. Both passes delegate aggregation to
-    // the shared `summarizeDay` utility so this method and the weekly-
-    // report prompt builder agree on totals byte-for-byte.
+    // Prefer the tier-gated all-time list once history has hydrated; the
+    // rolling 14-ROW cache is only the source during the initial load.
+    //
+    // It used to be the other way round — hot window first, fall back only
+    // when that returned NOTHING for the day. The fallback therefore never
+    // fired for a *partial* day, and a partial day is the normal case: the
+    // cache boundary falls wherever the 14th row lands, so the oldest day it
+    // covers is usually half a day. `mealCount > 0` looked like a hit and the
+    // day came back missing its earliest meals — in the Trends bar chart and
+    // on every History day card.
+    //
+    // Both passes delegate aggregation to the shared `summarizeDay` utility so
+    // this method and the weekly-report prompt builder agree byte-for-byte.
     const weights = this.body.dailyWeights();
-    let s = summarizeDay(dateKey, this._logs(), weights);
-    if (s.mealCount === 0) {
-      s = summarizeDay(dateKey, this.allTimeLogs(), weights);
-    }
+    const s = this.isHistoryHydrated()
+      ? summarizeDay(dateKey, this.allTimeLogs(), weights)
+      : summarizeDay(dateKey, this._logs(), weights);
     if (s.mealCount === 0) return null;
     // `count` is the established public field name on this store method;
     // expose `mealCount` under that alias to keep existing consumers

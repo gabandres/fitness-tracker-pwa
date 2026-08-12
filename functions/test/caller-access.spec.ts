@@ -32,6 +32,7 @@ describe("resolveCaller — tier", () => {
     const caller = await access.resolveCaller(req(freshUid(), { email: "nobody@example.com" }));
     expect(caller.tier).toBe("free");
     expect(caller.unlimited).toBe(false);
+    expect(caller.quotaExempt).toBe(false);
   });
 
   it("maps stripeRole=paid to the paid tier", async () => {
@@ -45,6 +46,15 @@ describe("resolveCaller — tier", () => {
     expect(caller.tier).toBe("admin");
     expect(caller.unlimited).toBe(true);
     expect(caller.paidClaim).toBe(false);
+  });
+
+  it("counts admin against the daily quota — privileged, not exempt", async () => {
+    // Admin bypassed the counter until 2026-08-12. The visible cost was that
+    // the owner's account could never see the quota UI move: no slot was
+    // reserved, so the chip read a full allowance through every consultation.
+    const caller = await access.resolveCaller(req(freshUid(), { email: "gabrielandresbermudez@gmail.com" }));
+    expect(caller.quotaExempt).toBe(false);
+    expect(caller.unlimited).toBe(true); // entitlement gates still pass
   });
 
   it("keeps the raw paid claim visible on unlimited tiers", async () => {
@@ -63,6 +73,8 @@ describe("resolveCaller — tier", () => {
     const caller = await access.resolveCaller(req(freshUid(), { email: "friend@example.com" }));
     expect(caller.tier).toBe("comped");
     expect(caller.unlimited).toBe(true);
+    // Comped keeps the counter bypass admin just lost.
+    expect(caller.quotaExempt).toBe(true);
   });
 
   it("comps a future referral compedUntil — quota bypass, not just a UI badge", async () => {

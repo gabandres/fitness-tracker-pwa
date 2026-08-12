@@ -128,13 +128,20 @@ removed; only UI placement changes** (cheap to re-expose). Grilled with
 
 | ID | Change | Status |
 |----|--------|--------|
-| **T1** | Trends: merge "Averages" into Insights. Drop raw weight Δ (keep least-squares slope); collapse avgKcal + avg-vs-target into one cell. Result: a 6-cell insights grid (best/worst day · avgKcal+vs-target · avgProtein · adherence % · weight trend). | [ ] |
-| **T2** | Trends: fold WeeklyBudget into the insights card as a toggle → the **Weekly panel** (default view = insights). `weekly-budget.ts` untouched. | [ ] |
-| **T3** | Trends: merge WeeklyReport + AI coach into one **Coach panel** — free "Ask the coach" (quota'd) shown first, Pro WeeklyReport below with an inline lock badge → existing upsell. | [ ] |
+| **T1** | Trends: merge "Averages" into Insights. Drop raw weight Δ (keep least-squares slope); collapse avgKcal + avg-vs-target into one cell. Result: a 6-cell insights grid (best/worst day · avgKcal+vs-target · avgProtein · adherence % · weight trend). | [x] `c824b99d` 2026-06-14 — verified on screen 2026-08-12: the grid renders exactly those six cells |
+| **T2** | Trends: fold WeeklyBudget into the insights card as a toggle → the **Weekly panel** (default view = insights). `weekly-budget.ts` untouched. | [x] `c824b99d` 2026-06-14 — the `panelView` toggle, default `insights` |
+| **T3** | Trends: merge WeeklyReport + AI coach into one **Coach panel** — free "Ask the coach" (quota'd) shown first, Pro WeeklyReport below with an inline lock badge → existing upsell. | [x] `c824b99d` 2026-06-14 — Ask first, collapsible report below |
 | **B1** | Body: move the Body-fat estimate caption out of the weight card into the Measurements card (its inputs — waist/neck — are entered there). | [ ] |
 | **B2** | Body: pull the Progress Photos block out of the weight card into its own card, **collapsed by default, placed last** (matches Measurements pattern). | [ ] |
 | **TD1** | Today: one-**Nudge**-at-a-time gate (priority refine → push → install → what's-new). Repeat-yesterday reclassified as a **utility**, ungated. Worst-case Today: rings + repeat-yesterday + one Nudge. | [ ] |
 | **TR1** | Train: collapse the per-set "Plates" buttons into the per-exercise warm-up toggle → one **"Plates & warm-up"** tools panel per exercise (plate breakdown per distinct set weight + warm-up ramp). Accepts loss of per-set inline plate glance. `plate-math.ts` / `warmup.ts` untouched. | [ ] |
+
+> **The four unticked rows below are not evidence they are open.** T1–T3 were
+> shipped by `c824b99d` — *the same commit that added this table with every box
+> empty* — and nobody ticked them for two months, so the Trends audit of
+> 2026-08-12 re-derived three decisions that were already on screen. Verify
+> B1/B2/TD1/TR1 against the code before scoping any of them; ticking one costs
+> a minute, and reading a shipped row as open has now cost this project four.
 
 **Net:** Trends 6 cards → 3 (chart · Weekly panel · Coach panel); Body
 weight card returns to weight; Today caps at one Nudge; Train logger
