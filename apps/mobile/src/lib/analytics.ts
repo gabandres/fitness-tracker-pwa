@@ -60,6 +60,40 @@ function ledgerRecordUsage(): RecordUsage {
  *  enough that a crash mid-session does not lose the whole thing. */
 const FLUSH_INTERVAL_MS = 5 * 60 * 1000;
 
+/**
+ * How long a flush may run before it is treated as failed.
+ *
+ * ## Why this is not optional
+ *
+ * **Firestore's `setDoc` does not reject when it cannot reach the backend — it
+ * waits, indefinitely.** `quick-add.ts` documents this at length for meals; the
+ * same fact applies here and was missed. Without a deadline the flush's `catch`
+ * is unreachable, so the buffer — already swapped out and cleared — is held by a
+ * promise that never settles, and a process death takes the counts with it.
+ *
+ * Confirmed in production 2026-08-13, not theorised: an airplane-mode test
+ * logged a meal, backgrounded, and force-quit. The meal itself survived (it had
+ * a deadline and a durable queue). Its `log_queued_offline` count did not, and
+ * the day's document came back carrying `app_open` alone.
+ *
+ * Shorter than the log path's deadline because nothing waits on this: analytics
+ * is fire-and-forget, and a fast give-up simply means the counts ride along on
+ * the next flush instead.
+ */
+const FLUSH_DEADLINE_MS = 4000;
+
+/** Reject once the deadline passes, converting a hang into the failure the
+ *  restore path below already handles. */
+function withDeadline<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('analytics flush deadline')), ms);
+    p.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
 const platform: UsagePlatform = Platform.OS === 'ios' ? 'ios' : 'android';
 
 let buffer: UsageCounts = {};
@@ -104,7 +138,7 @@ export async function flush(): Promise<void> {
   const account = uid;
   buffer = {};
   try {
-    await ledgerRecordUsage()(account, day, platform, sending);
+    await withDeadline(ledgerRecordUsage()(account, day, platform, sending), FLUSH_DEADLINE_MS);
   } catch {
     // Put them back, unless the day has since rolled — a stale day's counts are
     // not worth carrying into a document they do not belong to.
