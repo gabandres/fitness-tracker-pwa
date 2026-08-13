@@ -179,6 +179,39 @@ private struct HomeView: SwiftUI.View {
  * row fits at this width without truncating names to initials. Fewer is fine —
  * a user with one preset gets one button, not three with two empty.
  */
+/**
+ * A macro's progress as a bar, not a number.
+ *
+ * `Metric.progress` is computed for every face and clamped to `0...1`, and the
+ * home faces have never drawn it — `systemSmall` skips it for want of room, so
+ * it reached only the Lock Screen gauges. It is the one piece of information
+ * the wide face can add that costs no reading: Apple's guidance is that a
+ * widget must be understood "in a fraction of a second", which rules out more
+ * text and argues for exactly this.
+ *
+ * The clamp is load-bearing: at 140% of target the fill looks identical to
+ * 100%, which is why being over is carried by the *text* colour and wording
+ * rather than by an overflowing bar.
+ */
+private struct MacroBar: SwiftUI.View {
+  let progress: Double
+  let tint: Color
+
+  var body: some SwiftUI.View {
+    GeometryReader { geo in
+      ZStack(alignment: .leading) {
+        Capsule().fill(tint.opacity(0.20))
+        Capsule()
+          .fill(tint)
+          // A floor of 3pt so "barely started" still reads as a bar rather than
+          // as an empty track someone might mistake for broken.
+          .frame(width: max(3, geo.size.width * progress))
+      }
+    }
+    .frame(height: 5)
+  }
+}
+
 private struct HomeWideView: SwiftUI.View {
   let face: Glance.Face
 
@@ -214,20 +247,27 @@ private struct HomeWideView: SwiftUI.View {
 
         case let .ready(kcal, protein, snap):
           let s = Glance.strings(snap.locale)
+          // One element draws the eye. The kcal figure is it; everything below
+          // is support, which is why only this line gets display weight.
           Text(Glance.grouped(kcal.value))
-            .font(.system(size: 38, weight: .bold, design: .rounded))
+            .font(.system(size: 40, weight: .bold, design: .rounded))
             .foregroundStyle(Color.igKcal)
             .minimumScaleFactor(0.6)
             .lineLimit(1)
           Text("\(s.kcal) \(kcal.isOver ? s.over : s.left)")
             .font(.system(size: 12))
             .foregroundStyle(Color.igMuted)
+          MacroBar(progress: kcal.progress, tint: Color.igKcal)
+            .padding(.top, 7)
+
           Text(Glance.proteinLine(protein, s))
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(Color.igProtein)
             .minimumScaleFactor(0.7)
             .lineLimit(1)
-            .padding(.top, 8)
+            .padding(.top, 12)
+          MacroBar(progress: protein.progress, tint: Color.igProtein)
+            .padding(.top, 5)
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -243,6 +283,12 @@ private struct HomeWideView: SwiftUI.View {
       // so a dynamic list buys nothing and costs the one hazard the small face
       // never had.
       if !slots.isEmpty {
+        // No `maxWidth: .infinity` here. That forced a 50/50 split, so the
+        // chips were squeezed into half the widget regardless of how long a
+        // preset name was — which is why "Overnight Oats + …" truncated while
+        // the two shorter names had room to spare. Sized to content now, with a
+        // ceiling so one very long name cannot crowd out the number that is the
+        // whole point of the widget.
         VStack(alignment: .trailing, spacing: 6) {
           if slots.count > 0 {
             QuickAddButton(slot: slots[0], index: 0, verb: strings.quickAddVerb)
@@ -254,7 +300,7 @@ private struct HomeWideView: SwiftUI.View {
             QuickAddButton(slot: slots[2], index: 2, verb: strings.quickAddVerb)
           }
         }
-        .frame(maxWidth: .infinity, alignment: .trailing)
+        .frame(maxWidth: 175, alignment: .trailing)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
