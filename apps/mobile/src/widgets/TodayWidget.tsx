@@ -70,15 +70,29 @@ function buttonLabel(name: string): string {
   return trimmed.length > MAX_BUTTON_LABEL ? `${trimmed.slice(0, MAX_BUTTON_LABEL - 1)}…` : trimmed;
 }
 
-export function TodayWidget({ view }: { view: WidgetView }) {
+/**
+ * Width in dp at or above which the wide face is drawn.
+ *
+ * A 2×2 cell lands around 110–160dp on common launchers, and a 4×2 around
+ * 250–330dp. 220 sits in the gap: comfortably above any square cell, below any
+ * genuinely wide one, so a user dragging the handle gets a clean switch rather
+ * than a layout that flickers between faces mid-drag.
+ */
+const WIDE_MIN_DP = 220;
+
+export function TodayWidget({ view, width }: { view: WidgetView; width?: number }) {
+  const wide = (width ?? 0) >= WIDE_MIN_DP;
   // Both states carry a locale now. This used to force 'en' for the empty
   // state, so a Spanish user's home screen read "Open Ignia to start".
   const s = widgetStrings(view.locale);
-  // Slot 1 only on this face. A 2×2 cell has room for one button under two
-  // numbers; the full three-button row is the `systemMedium`/4×2 face
-  // (ADR-0020). `quickAdd` is only ever populated on `ready` — an empty face is
-  // declining to describe the day, so it must not offer to log into it.
-  const slot = view.state === 'ready' ? view.quickAdd[0] : undefined;
+  // `quickAdd` is only ever populated on `ready` — an empty face is declining to
+  // describe the day, so it must not offer to log into it.
+  //
+  // A 2×2 cell has room for one button under two numbers, which is why the
+  // narrow face has always shown slot 1 alone. The wide face is the three-button
+  // row ADR-0020 deferred; it is the same set of slots, just enough room to draw
+  // them.
+  const slots = view.state === 'ready' ? view.quickAdd.slice(0, wide ? 3 : 1) : [];
 
   return (
     <FlexWidget
@@ -98,45 +112,72 @@ export function TodayWidget({ view }: { view: WidgetView }) {
       {view.state === 'empty' ? (
         <TextWidget text={s.empty} style={{ fontSize: 13, color: COLORS.muted }} />
       ) : (
-        <FlexWidget style={{ flexDirection: 'column' }}>
-          <TextWidget
-            text={groupDigits(view.kcal.value)}
-            style={{ fontSize: 34, color: COLORS.kcal, fontWeight: '700' }}
-          />
-          <TextWidget
-            text={`${s.kcal} ${view.kcal.over ? s.over : s.left}`}
-            style={{ fontSize: 12, color: COLORS.muted }}
-          />
-          <TextWidget
-            text={`${groupDigits(view.protein.value)}g ${s.protein} ${
-              view.protein.over ? s.over : s.left
-            }`}
-            style={{ fontSize: 13, color: COLORS.protein, marginTop: 8 }}
-          />
-          {slot ? (
-            // Its own clickAction, so it beats the face's OPEN_URI: the inner
-            // PendingIntent wins for taps inside its bounds. That is why the
-            // button carries the tighter hit area and the face keeps the rest —
-            // a mis-hit opens the app, which is recoverable, rather than
-            // logging a meal nobody asked for.
+        // Wide splits numbers from actions along the long axis. Letting the
+        // narrow column layout simply stretch would leave a band of empty panel
+        // exactly where the extra width is, which is the whole thing the user
+        // widened the widget to fill.
+        <FlexWidget
+          style={{
+            flexDirection: wide ? 'row' : 'column',
+            width: 'match_parent',
+            alignItems: wide ? 'center' : 'flex-start',
+          }}
+        >
+          <FlexWidget style={{ flexDirection: 'column', flex: 1 }}>
+            <TextWidget
+              text={groupDigits(view.kcal.value)}
+              style={{ fontSize: wide ? 38 : 34, color: COLORS.kcal, fontWeight: '700' }}
+            />
+            <TextWidget
+              text={`${s.kcal} ${view.kcal.over ? s.over : s.left}`}
+              style={{ fontSize: 12, color: COLORS.muted }}
+            />
+            <TextWidget
+              text={`${groupDigits(view.protein.value)}g ${s.protein} ${
+                view.protein.over ? s.over : s.left
+              }`}
+              style={{ fontSize: 13, color: COLORS.protein, marginTop: 8 }}
+            />
+          </FlexWidget>
+
+          {slots.length > 0 ? (
             <FlexWidget
-              clickAction={QUICK_ADD_ACTION}
-              clickActionData={{ slot: 0 }}
-              accessibilityLabel={`${s.quickAddA11y} ${slot.name}`}
               style={{
-                marginTop: 10,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                borderRadius: 999,
-                backgroundColor: COLORS.button,
-                flexDirection: 'row',
-                alignItems: 'center',
+                flexDirection: 'column',
+                alignItems: wide ? 'flex-end' : 'flex-start',
               }}
             >
-              <TextWidget
-                text={`+ ${buttonLabel(slot.name)}`}
-                style={{ fontSize: 12, color: COLORS.text, fontWeight: '600' }}
-              />
+              {slots.map((slot, i) => (
+                // Each chip carries its own clickAction, so it beats the face's
+                // OPEN_URI: the inner PendingIntent wins for taps inside its
+                // bounds. That is why the chip keeps the tighter hit area and the
+                // face keeps the rest — a mis-hit opens the app, which is
+                // recoverable, rather than logging a meal nobody asked for.
+                //
+                // `slot: i` and not a hardcoded 0. The narrow face only ever drew
+                // index 0, so a constant was indistinguishable from correct; on
+                // the wide face it would log the first preset three times.
+                <FlexWidget
+                  key={slot.presetId}
+                  clickAction={QUICK_ADD_ACTION}
+                  clickActionData={{ slot: i }}
+                  accessibilityLabel={`${s.quickAddA11y} ${slot.name}`}
+                  style={{
+                    marginTop: i === 0 && !wide ? 10 : i === 0 ? 0 : 6,
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 999,
+                    backgroundColor: COLORS.button,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                  }}
+                >
+                  <TextWidget
+                    text={`+ ${buttonLabel(slot.name)}`}
+                    style={{ fontSize: 12, color: COLORS.text, fontWeight: '600' }}
+                  />
+                </FlexWidget>
+              ))}
             </FlexWidget>
           ) : null}
         </FlexWidget>

@@ -13,6 +13,15 @@ import { TodayWidget } from './TodayWidget';
  * which is exactly what makes yesterday's blob fall through to the empty state
  * instead of being drawn as today's.
  */
-export function renderTodayWidget(snapshot: WidgetSnapshot | null) {
-  return <TodayWidget view={widgetView(snapshot, localDateKey(new Date()))} />;
+/**
+ * `width` is the widget's current width in dp, from `widgetInfo.width`. It
+ * decides which face is drawn — see `WIDE_MIN_DP` in `TodayWidget`.
+ *
+ * Optional because the live-update path in `src/lib/widget.ts` writes a snapshot
+ * without knowing any instance's size; omitting it draws the narrow face, which
+ * is the safe default and what every instance rendered before the widget became
+ * resizable. The OS re-renders with a real width on `WIDGET_RESIZED`.
+ */
+export function renderTodayWidget(snapshot: WidgetSnapshot | null, width?: number) {
+  return <TodayWidget view={widgetView(snapshot, localDateKey(new Date()))} width={width} />;
 }

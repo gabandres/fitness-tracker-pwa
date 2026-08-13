@@ -1200,7 +1200,7 @@
     "lawHeading": "Ley aplicable + quién opera Ignia",
     "lawBody": "Ignia es operada por un desarrollador individual, no una empresa. Estos términos se rigen por las leyes del Estado Libre Asociado de Puerto Rico y la ley federal de EE. UU. aplicable, sin considerar reglas de conflicto de leyes. Ignia se ofrece solo en Estados Unidos y Puerto Rico y no está dirigida a usuarios en la UE, el Reino Unido o el EEE.",
     "subsHeading": "Suscripciones + renovación automática",
-    "subsBody": "Pro se ofrece mensual ($3/mes) o anual ($24/año) vía Stripe. Toda primera suscripción incluye una prueba gratuita de 7 días. Los planes se <strong>renuevan automáticamente</strong> al final de cada ciclo al precio mostrado en la tarjeta de suscripción. Puedes cancelar en cualquier momento desde Ajustes → Suscripción; la cancelación surte efecto al final del período ya pagado y conservas Pro hasta entonces. Te enviamos un recibo por cada renovación. Si cambiamos precios, lo anunciaremos en la app y respetaremos tu precio actual hasta el fin del término vigente.",
+    "subsBody": "<strong>Ignia no tiene planes pagos hoy.</strong> Todo es gratis, no hay nada que comprar, y no recogemos datos de pago. Esta sección describe cómo funcionarían las suscripciones si algún día se ofrecen, y aplica solo a partir de ese momento. Pro se ofrecería mensual o anual vía Stripe, con el precio mostrado en la tarjeta de suscripción antes de cobrarte. Los planes se <strong>renovarían automáticamente</strong> al final de cada ciclo, y podrías cancelar en cualquier momento desde Ajustes; la cancelación surtiría efecto al final del período ya pagado. Te enviaríamos un recibo por cada renovación. Cualquier cambio de precio se anunciaría en la app, respetando tu precio actual hasta el fin del término vigente.",
     "refundsHeading": "Reembolsos",
     "refundsBody": "<strong>UE / Reino Unido / Suiza:</strong> Si eres consumidor en la UE, el Reino Unido o Suiza, tienes un derecho legal de desistimiento de 14 días desde tu primer cobro de suscripción. Para ejercerlo, escribe a <a href='mailto:gabrielandresbermudez@gmail.com?subject=Refund%20request' class='underline'>gabrielandresbermudez&#64;gmail.com</a> dentro de esos 14 días indicando el correo de tu cuenta — emitimos reembolso completo, sin preguntas.<br/><br/><strong>Resto del mundo:</strong> No ofrecemos reembolsos automáticos por períodos parciales, pero si algo se sintió mal — una renovación que no querías, una función que no funcionó, un problema del lado nuestro — escríbenos y lo resolvemos. La prueba gratuita de 7 días te da una ventana sin cobro para confirmar que Ignia es para ti antes de mover dinero.<br/><br/><strong>Contracargos:</strong> por favor escríbenos antes de abrir un contracargo; casi siempre podemos resolverlo más rápido que Stripe.",
     "contactHeading": "Contacto",
@@ -1936,13 +1936,13 @@
     "rirShort": "RIR",
     "rirPrompt": "¿Cuántas reps más podías hacer?",
     "rirScale": {
-      "none": "RIR —",
       "0": "0 · al fallo",
       "1": "quedaba 1",
       "2": "quedaban 2",
       "3": "quedaban 3",
       "4": "quedaban 4",
-      "5": "5+ · fácil"
+      "5": "5+ · fácil",
+      "none": "RIR —"
     },
     "prMaxReps": "Mejor reps",
     "prMaxTime": "Mejor aguante",

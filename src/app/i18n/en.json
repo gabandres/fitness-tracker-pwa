@@ -1200,7 +1200,7 @@
     "lawHeading": "Governing law + who runs Ignia",
     "lawBody": "Ignia is operated by an individual developer, not a company. These terms are governed by the laws of the Commonwealth of Puerto Rico and applicable U.S. federal law, without regard to conflict-of-laws rules. Ignia is offered only in the United States and Puerto Rico and is not directed to users in the EU, UK, or EEA.",
     "subsHeading": "Subscriptions + auto-renewal",
-    "subsBody": "Pro is offered monthly ($3/mo) or annual ($24/yr) via Stripe. A 7-day free trial comes with every first subscription. Plans <strong>auto-renew</strong> at the end of each billing cycle at the price shown on the subscribe card. You can cancel anytime from Settings → Subscription; cancellation takes effect at the end of the current paid period, and you keep Pro access until then. We email you a receipt for every renewal. If we change prices, we'll announce it in-app and honour your existing price through the current term.",
+    "subsBody": "<strong>Ignia has no paid plans today.</strong> Every feature is free, there is nothing to purchase, and no payment details are collected. This section describes how subscriptions would work if and when they are ever offered, and takes effect only from that point onward. Pro would be offered monthly or annually via Stripe, with the price shown on the subscribe card before you are charged. Plans would <strong>auto-renew</strong> at the end of each billing cycle, and could be cancelled at any time from Settings, with cancellation taking effect at the end of the current paid period. A receipt would be emailed for every renewal. Any price change would be announced in-app, and an existing price honoured through the current term.",
     "refundsHeading": "Refunds",
     "refundsBody": "<strong>EU / UK / Switzerland:</strong> If you're a consumer in the EU, UK, or Switzerland, you have a 14-day statutory right of withdrawal from the date of your first subscription charge. To exercise it, email <a href='mailto:gabrielandresbermudez@gmail.com?subject=Refund%20request' class='underline'>gabrielandresbermudez&#64;gmail.com</a> within 14 days with the email address on your account — we'll issue a full refund, no questions asked.<br/><br/><strong>Everywhere else:</strong> We don't offer automatic refunds for partial billing periods, but if something feels wrong — a forgotten renewal you didn't intend, a feature that didn't work for you, a platform issue on our end — email us and we'll make it right. The 7-day free trial gives you a no-charge window to confirm Ignia is for you before any money moves.<br/><br/><strong>Chargebacks:</strong> please email us before filing a chargeback; we can almost always resolve it faster than Stripe can.",
     "contactHeading": "Contact",
@@ -1936,13 +1936,13 @@
     "rirShort": "RIR",
     "rirPrompt": "How many more reps could you have done?",
     "rirScale": {
-      "none": "RIR —",
       "0": "0 · to failure",
       "1": "1 left",
       "2": "2 left",
       "3": "3 left",
       "4": "4 left",
-      "5": "5+ · easy"
+      "5": "5+ · easy",
+      "none": "RIR —"
     },
     "prMaxReps": "Best reps",
     "prMaxTime": "Best hold",

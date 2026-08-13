@@ -20,13 +20,17 @@ import { renderTodayWidget } from './render';
  */
 export async function widgetTaskHandler(props: WidgetTaskHandlerProps) {
   switch (props.widgetAction) {
-    // All three mean the same thing to us: draw the latest snapshot. There is
-    // no per-widget-instance state to restore on add, and no layout branch on
-    // resize (the widget is one fixed 2x2 face).
+    // All three mean the same thing to us: draw the latest snapshot at this
+    // instance's current width. There is no per-widget-instance state to
+    // restore on add. `WIDGET_RESIZED` matters now — the widget became
+    // resizable, and the width decides which face is drawn — where it used to
+    // be a redraw of one fixed 2x2 layout.
     case 'WIDGET_ADDED':
     case 'WIDGET_UPDATE':
     case 'WIDGET_RESIZED':
-      props.renderWidget(renderTodayWidget(await readWidgetSnapshot()));
+      props.renderWidget(
+        renderTodayWidget(await readWidgetSnapshot(), props.widgetInfo.width),
+      );
       break;
 
     // Nothing to clean up — the snapshot is app state, not widget state, and

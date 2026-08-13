@@ -154,8 +154,75 @@ private struct HomeView: SwiftUI.View {
         // Only on `.ready`: an empty face is declining to describe the day, and a
         // button on it would be logging into a day it will not show.
         if let slot = snap.quickAdd?.first {
-          QuickAddButton(slot: slot, verb: s.quickAddVerb)
+          QuickAddButton(slot: slot, index: 0, verb: s.quickAddVerb)
         }
+      }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    .containerBackground(Color.igPanel, for: .widget)
+  }
+}
+
+// MARK: - Home Screen · systemMedium
+
+/**
+ * The wide face. Same numbers as `systemSmall`, plus the quick-add row that a
+ * small cell has never had room for — the one `HomeView` calls "the deferred
+ * `systemMedium` face".
+ *
+ * Layout is a deliberate split rather than a stretched `HomeView`: numbers left,
+ * actions right, so the widget reads as "here is your day, here is how to add to
+ * it" at a glance. A `systemMedium` cell is roughly 2:1, and simply letting the
+ * small layout expand would leave a column of whitespace where the value is.
+ *
+ * Up to three slots, because that is what `snap.quickAdd` carries and what the
+ * row fits at this width without truncating names to initials. Fewer is fine —
+ * a user with one preset gets one button, not three with two empty.
+ */
+private struct HomeWideView: SwiftUI.View {
+  let face: Glance.Face
+
+  var body: some SwiftUI.View {
+    HStack(alignment: .top, spacing: 14) {
+      VStack(alignment: .leading, spacing: 0) {
+        switch face {
+        case let .empty(locale):
+          Text(Glance.strings(locale ?? "en").empty)
+            .font(.system(size: 13))
+            .foregroundStyle(Color.igMuted)
+
+        case let .ready(kcal, protein, snap):
+          let s = Glance.strings(snap.locale)
+          Text(Glance.grouped(kcal.value))
+            .font(.system(size: 38, weight: .bold, design: .rounded))
+            .foregroundStyle(Color.igKcal)
+            .minimumScaleFactor(0.6)
+            .lineLimit(1)
+          Text("\(s.kcal) \(kcal.isOver ? s.over : s.left)")
+            .font(.system(size: 12))
+            .foregroundStyle(Color.igMuted)
+          Text(Glance.proteinLine(protein, s))
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(Color.igProtein)
+            .minimumScaleFactor(0.7)
+            .lineLimit(1)
+            .padding(.top, 8)
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+
+      // Actions only on `.ready`, for the same reason `HomeView` does it: an
+      // empty face is declining to describe the day, and a button on it would
+      // log into a day the widget will not show.
+      if case let .ready(_, _, snap) = face,
+         let slots = snap.quickAdd, !slots.isEmpty {
+        let s = Glance.strings(snap.locale)
+        VStack(alignment: .trailing, spacing: 6) {
+          ForEach(Array(slots.prefix(3).enumerated()), id: \.element.id) { pair in
+            QuickAddButton(slot: pair.element, index: pair.offset, verb: s.quickAddVerb)
+          }
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -177,11 +244,20 @@ private struct HomeView: SwiftUI.View {
  */
 private struct QuickAddButton: SwiftUI.View {
   let slot: Glance.QuickAddSlot
+  /// Index into `snap.quickAdd`, and the value the intent writes.
+  ///
+  /// This used to be a hardcoded `0` in the intent below while the view took a
+  /// `slot` it only ever read the *name* from. That was invisible while
+  /// `systemSmall` rendered exactly one button — index 0 was the only correct
+  /// answer — and it would have silently logged slot 1's food for every button
+  /// in the `systemMedium` row. The bug and the feature that exposes it arrive
+  /// in the same commit; it was never wrong on a shipped face.
+  let index: Int
   let verb: String
 
   var body: some SwiftUI.View {
     if #available(iOS 17.0, *) {
-      Button(intent: LogQuickAddSlotIntent(slot: 0)) {
+      Button(intent: LogQuickAddSlotIntent(slot: index)) {
         Text("+ \(slot.name)")
           .font(.system(size: 12, weight: .semibold))
           .lineLimit(1)
@@ -303,6 +379,7 @@ private struct TodayWidgetView: SwiftUI.View {
       case .accessoryCircular: CircularView(face: entry.face)
       case .accessoryRectangular: RectangularView(face: entry.face)
       case .accessoryInline: InlineView(face: entry.face)
+      case .systemMedium: HomeWideView(face: entry.face)
       default: HomeView(face: entry.face)
       }
     }
@@ -346,8 +423,13 @@ struct TodayWidget: Widget {
     // idiom (`widgetLabel`, curved gauge text) nothing else in the repo uses.
     // Cost accepted: we are absent from the corner slots of the Infograph
     // faces (#40 §0).
+    // `.systemMedium` added 2026-08-13 — the wide face WIDGET.md §Sizes called
+    // "still additive later". Adding a family is additive for existing users:
+    // installed `systemSmall` instances keep their layout, and the medium size
+    // simply becomes offerable in the gallery.
     .supportedFamilies([
-      .systemSmall, .accessoryCircular, .accessoryRectangular, .accessoryInline,
+      .systemSmall, .systemMedium,
+      .accessoryCircular, .accessoryRectangular, .accessoryInline,
     ])
   }
 }
