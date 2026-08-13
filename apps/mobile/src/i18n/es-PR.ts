@@ -206,7 +206,6 @@ export const esPR: Record<I18nKey, string> = {
   'entry.editTitle': 'Editar registro',
   'entry.recent': 'Reciente',
   'entry.suggested': 'Sugeridos',
-  'entry.customFood': 'Crear comida personalizada',
   'voice.start': 'Di lo que comiste',
   'voice.stop': 'Deja de escuchar',
   'voice.enable': 'Activa el micrófono en Ajustes',

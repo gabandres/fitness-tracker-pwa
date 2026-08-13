@@ -203,7 +203,6 @@ export const en = {
   'entry.editTitle': 'Edit entry',
   'entry.recent': 'Recent',
   'entry.suggested': 'Suggested',
-  'entry.customFood': 'Create custom food',
   'voice.start': 'Say what you ate',
   'voice.stop': 'Stop listening',
   'voice.enable': 'Enable mic in Settings',

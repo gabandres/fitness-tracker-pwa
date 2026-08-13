@@ -547,8 +547,15 @@ export function EntrySheet({
   const headerIcons = (
     <>
     <View style={styles.iconRow}>
+      {/* A plus, not a pencil. `create-outline` is Ionicons' pencil-on-a-square,
+          and testers read it as "edit something that exists" — but this button
+          opens a blank entry, which is the most common way into the sheet. A
+          bare plus is the affordance people already expect for "jot one down".
+          The label stays "Write it in": the icon carries the action, the words
+          carry which of the four ways in this is. `testID` is unchanged on
+          purpose — four Maestro flows and a unit test drive this button by it. */}
       <TouchableOpacity style={styles.primaryBtn} onPress={() => openCustomBlank()} testID="open-manual">
-        <Ionicons name="create-outline" size={18} color={colors.ink} />
+        <Ionicons name="add" size={20} color={colors.ink} />
         <Text style={styles.primaryBtnText}>{t('entry.writeItYourself')}</Text>
       </TouchableOpacity>
       <TouchableOpacity
