@@ -306,6 +306,28 @@ function copySources() {
       src.push({ file: 'docs/app-store-metadata.md', n, line });
     }
   }
+  // The /vs comparison pages. Highest-intent copy the product has — the file's
+  // own header notes comparison traffic converts several times better than
+  // top-of-funnel — and it was the one marketing surface this check could not
+  // see. It sat advertising "Pro at $3/mo or $24/yr" against a `PRO_ENABLED`
+  // that is false on both platforms, and this check passed the whole time,
+  // because a scan that misses the file is indistinguishable from a clean one.
+  //
+  // Only the `us:` fields. A comparison page's whole job is to describe what
+  // the competitor charges, so `them: 'Premium is about $80/yr'` and the
+  // honest summaries must stay sayable — scanning them would make the check
+  // unusable here and it would be turned off, which is worse than not having
+  // it. `us:` is where a claim about Ignia lives.
+  if (has('src/app/components/vs-page/vs-data.ts')) {
+    const vsFile = 'src/app/components/vs-page/vs-data.ts';
+    read(vsFile)
+      .split('\n')
+      .forEach((line, i) => {
+        for (const m of line.matchAll(/\bus:\s*'((?:[^'\\]|\\.)*)'/g)) {
+          src.push({ file: vsFile, n: i + 1, line: m[1] });
+        }
+      });
+  }
   for (const f of ['src/app/i18n/en.json', 'src/app/i18n/es-PR.json']) {
     if (!has(f)) continue;
     const flat = flattenJson(JSON.parse(read(f)));
@@ -346,6 +368,12 @@ const CLAIMS = {
     /\bsuscripci[oó]n\b/i,
     /\bprueba\s+gratis\b/i,
     /\bversi[oó]n\s+de\s+pago\b/i,
+    // A recurring price is a paid tier no matter what it is called, and this
+    // is the exact shape that got through: the /vs pages read "Pro at $3/mo
+    // or $24/yr" for months and matched not one pattern above, because none
+    // of them look for money. Every word-based rule here can be sidestepped
+    // by just naming the price.
+    /\$\s?\d+(?:\.\d{2})?\s*(?:\/|\s+per\s+)\s*(?:mo|month|yr|year)\b/i,
   ],
 };
 
