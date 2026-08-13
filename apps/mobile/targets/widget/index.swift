@@ -182,6 +182,27 @@ private struct HomeView: SwiftUI.View {
 private struct HomeWideView: SwiftUI.View {
   let face: Glance.Face
 
+  /// Resolved outside the view hierarchy on purpose.
+  ///
+  /// This was a multi-clause `if case let … , let … , !isEmpty` evaluated inside
+  /// a `ViewBuilder`. That compiles, but it puts pattern matching, optional
+  /// binding and a predicate into the one place whose failures surface as "the
+  /// widget did not render" with no diagnosable error — an extension has no
+  /// crash reporting (Sentry does not support widgets: getsentry/sentry-cocoa
+  /// #3695, and #3513 has Sentry itself crashing them). Plain Swift here, views
+  /// below.
+  private var slots: [Glance.QuickAddSlot] {
+    guard case let .ready(_, _, snap) = face else { return [] }
+    return Array((snap.quickAdd ?? []).prefix(3))
+  }
+
+  private var strings: Glance.Strings {
+    switch face {
+    case let .empty(locale): return Glance.strings(locale ?? "en")
+    case let .ready(_, _, snap): return Glance.strings(snap.locale)
+    }
+  }
+
   var body: some SwiftUI.View {
     HStack(alignment: .top, spacing: 14) {
       VStack(alignment: .leading, spacing: 0) {
@@ -214,12 +235,23 @@ private struct HomeWideView: SwiftUI.View {
       // Actions only on `.ready`, for the same reason `HomeView` does it: an
       // empty face is declining to describe the day, and a button on it would
       // log into a day the widget will not show.
-      if case let .ready(_, _, snap) = face,
-         let slots = snap.quickAdd, !slots.isEmpty {
-        let s = Glance.strings(snap.locale)
+      // Explicit, not `ForEach`. `QuickAddSlot.id` is `presetId`, so two slots
+      // bound to the same preset produce duplicate identities, and a `ForEach`
+      // over duplicate ids is undefined behaviour in SwiftUI — which in an
+      // extension presents as the whole widget failing to render rather than as
+      // a diagnosable error. There are at most three slots (`QUICK_ADD_MAX`),
+      // so a dynamic list buys nothing and costs the one hazard the small face
+      // never had.
+      if !slots.isEmpty {
         VStack(alignment: .trailing, spacing: 6) {
-          ForEach(Array(slots.prefix(3).enumerated()), id: \.element.id) { pair in
-            QuickAddButton(slot: pair.element, index: pair.offset, verb: s.quickAddVerb)
+          if slots.count > 0 {
+            QuickAddButton(slot: slots[0], index: 0, verb: strings.quickAddVerb)
+          }
+          if slots.count > 1 {
+            QuickAddButton(slot: slots[1], index: 1, verb: strings.quickAddVerb)
+          }
+          if slots.count > 2 {
+            QuickAddButton(slot: slots[2], index: 2, verb: strings.quickAddVerb)
           }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
