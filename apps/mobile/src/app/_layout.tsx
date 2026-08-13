@@ -7,6 +7,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { useIsOffline } from '@/lib/connectivity';
+import { assessRoute } from '@/lib/onboarding-gate';
 import { BrandLoader } from '@/components/BrandLoader';
 import { I18nProvider } from '@/i18n';
 import { Sentry } from '@/lib/sentry';
@@ -34,7 +36,8 @@ function Splash() {
 /** Redirects between the authed tab group and the sign-in screen as auth
  *  state settles. The `(app)` group holds every signed-in surface. */
 function AuthGate({ fontsReady }: { fontsReady: boolean }) {
-  const { user, initializing, profile, profileLoading, emailVerified } = useAuth();
+  const { user, initializing, profile, profileLoading, profileConfirmed, emailVerified } = useAuth();
+  const offline = useIsOffline();
   const segments = useSegments();
   const router = useRouter();
 
@@ -60,19 +63,28 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
     }
     // Signed in and verified — wait for the profile before choosing onboarding.
     if (profileLoading) return;
-    const needsOnboarding = !profile?.profileCompleted;
-    if (needsOnboarding && !onOnboarding) {
-      router.replace('/onboarding');
-    } else if (!needsOnboarding && !inApp && !onOnboarding) {
-      // Completed users live in (app); leave them on /onboarding when they
-      // open it deliberately (Settings → Edit goals / redo).
-      router.replace('/(app)');
+
+    // Where to go is decided by `assessRoute`, which carries the reasoning and
+    // is tested on its own — this effect only performs the navigation.
+    const decision = assessRoute({ profile, profileConfirmed, offline });
+    if (decision === 'wait') return;
+    if (decision === 'onboarding') {
+      if (!onOnboarding) router.replace('/onboarding');
+      return;
     }
-  }, [user, initializing, emailVerified, profile, profileLoading, segments, router]);
+    // Completed users live in (app); leave them on /onboarding when they open
+    // it deliberately (Settings → Edit goals / redo).
+    if (!inApp && !onOnboarding) router.replace('/(app)');
+  }, [user, initializing, emailVerified, profile, profileLoading, profileConfirmed, offline, segments, router]);
 
   // Always mount <Slot/> so the navigator exists when the redirect effect
   // fires; cover it with the splash while auth/profile/fonts settle.
-  const showSplash = initializing || (!!user && profileLoading) || !fontsReady;
+  // Also covers the moment added below: signed in, online, and still waiting
+  // for the server to say whether this account has onboarded. Without it the
+  // gate's deliberate `return` would leave a blank screen instead of the splash.
+  const waitingOnProfile =
+    !!user && !profileLoading && assessRoute({ profile, profileConfirmed, offline }) === 'wait';
+  const showSplash = initializing || (!!user && profileLoading) || waitingOnProfile || !fontsReady;
   return (
     <>
       <Slot />

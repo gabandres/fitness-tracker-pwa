@@ -56,7 +56,7 @@ import { ensureProfile, subscribeProfile } from './ledger';
 import { registerAppleRefreshToken } from './appleSignin';
 import { addBreadcrumb, captureError, setSentryUser } from './sentry';
 import { clearQuickAdd } from './quick-add';
-import { clearOfflineCache } from './offline-cache';
+import { clearOfflineCache, readCache, writeCache } from './offline-cache';
 import { flush as flushAnalytics, setAnalyticsUser, track } from './analytics';
 import { resetConnectivity } from './connectivity';
 import { clearWidget } from './widget';
@@ -334,6 +334,9 @@ interface AuthState {
   /** True until the first profile snapshot arrives — gates the onboarding
    *  redirect so we don't flash it before the doc loads. */
   profileLoading: boolean;
+  /** True only once the SERVER has answered about this user's profile. The
+   *  onboarding gate must not fire without it — see the field's definition. */
+  profileConfirmed: boolean;
   /** Whether the signed-in user's email is verified. Email/password signups
    *  start false; federated providers (Google/Apple) return verified emails.
    *  Firestore rules block all writes until this is true, so the gate routes
@@ -408,7 +411,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Profile is keyed by uid so "loaded for the current user" is derivable
   // synchronously — no effect-set flag that lags a render behind `user` and
   // briefly makes a signed-in user look un-onboarded.
-  const [profileEntry, setProfileEntry] = useState<{ uid: string; profile: Profile | null } | null>(
+  const [profileEntry, setProfileEntry] = useState<{ uid: string; profile: Profile | null; confirmed: boolean } | null>(
     null,
   );
 
@@ -566,16 +569,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Live profile subscription, shared app-wide so the gate can route to
   // onboarding and Settings can read goals/units off one listener.
+  //
+  // `confirmed` records whether the SERVER has answered, and it is the field
+  // the onboarding gate turns on — see `profileConfirmed` below.
   useEffect(() => {
     const uid = user?.uid;
     if (!uid) {
       setProfileEntry(null);
       return;
     }
+    let live = false;
+    // Paint from the last online session while the listener reconnects. Same
+    // store `useToday` writes (`offline-cache.ts`), so on a cold start with no
+    // network the app still knows who this user is and what their targets are.
+    void readCache<Profile>(uid, 'profile').then((cached) => {
+      if (live || !cached) return;
+      setProfileEntry({ uid, profile: cached, confirmed: false });
+    });
     return subscribeProfile(
       uid,
-      (p) => setProfileEntry({ uid, profile: p }),
-      () => setProfileEntry({ uid, profile: null }),
+      (p, meta) => {
+        // A cache-only snapshot reporting NO profile is not evidence of
+        // anything — this app has no Firestore persistence, so that is simply
+        // what an offline cold start looks like. Ignore it and keep whatever
+        // the disk cache gave us; the gate below refuses to act on it either.
+        if (!p && meta.fromCache) return;
+        live = true;
+        if (p) writeCache(uid, 'profile', p);
+        setProfileEntry({ uid, profile: p, confirmed: !meta.fromCache });
+      },
+      () => {
+        live = true;
+        setProfileEntry({ uid, profile: null, confirmed: false });
+      },
     );
   }, [user?.uid]);
 
@@ -584,6 +610,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const matchedProfile = profileEntry && user && profileEntry.uid === user.uid ? profileEntry : null;
   const profile = matchedProfile ? matchedProfile.profile : null;
   const profileLoading = !!user && !matchedProfile;
+  /**
+   * Whether the profile came from the SERVER, rather than from disk or from an
+   * empty offline cache.
+   *
+   * The routing gate may only send an existing account to onboarding on the
+   * strength of this. Without it, opening the app with no signal looked
+   * identical to having never onboarded, and finishing the form would overwrite
+   * the user's real targets, goal and weight — data loss caused by a network
+   * condition.
+   */
+  const profileConfirmed = !!matchedProfile && matchedProfile.confirmed;
 
   /**
    * Runs the Microsoft OAuth dance and returns the Firebase credential.
@@ -649,6 +686,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isPro,
       profile,
       profileLoading,
+      profileConfirmed,
       emailVerified,
       reloadUser: async () => {
         const u = auth.currentUser;
@@ -920,6 +958,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isPro,
       profile,
       profileLoading,
+      profileConfirmed,
       emailVerified,
       googleAvailable,
       microsoftAvailable,

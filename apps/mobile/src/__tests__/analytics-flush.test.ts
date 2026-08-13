@@ -1,5 +1,8 @@
 const mockRecordUsage = jest.fn<Promise<void>, [string, string, string, object]>();
-jest.mock('@/lib/ledger', () => ({ recordUsage: (...a: never[]) => mockRecordUsage(...(a as never)) }));
+jest.mock('@/lib/ledger', () => ({
+  recordUsage: (...a: unknown[]) =>
+    mockRecordUsage(...(a as [string, string, string, object])),
+}));
 
 import { flush, resetAnalytics, setAnalyticsUser, track } from '@/lib/analytics';
 

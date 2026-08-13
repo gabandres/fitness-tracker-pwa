@@ -550,7 +550,7 @@ export async function breakFast(uid: string): Promise<void> {
 // ─── Profile ────────────────────────────────────────────────────
 export function subscribeProfile(
   uid: string,
-  cb: (profile: Profile | null) => void,
+  cb: (profile: Profile | null, meta: { fromCache: boolean }) => void,
   onError?: (e: Error) => void,
 ): Unsub {
   // Timestamp → Date mapping is single-sourced in @macrolog/core
@@ -558,8 +558,30 @@ export function subscribeProfile(
   // profile date field — not just the four this app formerly handled.
   return onSnapshot(
     userDoc(uid),
-    (snap) => cb(snap.exists() ? toDomainProfile(snap.data()) : null),
-    onError,
+    { includeMetadataChanges: true },
+    {
+      // `fromCache` is passed through because the ABSENCE of a profile means
+      // two completely different things depending on it. A server snapshot
+      // saying the doc does not exist means "this user has not onboarded". A
+      // cache-only snapshot saying the same thing means "I have not been able
+      // to look" — and this app has no Firestore persistence, so on a cold
+      // start with no network that is exactly what arrives.
+      //
+      // Collapsing the two sent existing users to onboarding whenever they
+      // opened the app offline, where finishing the form would overwrite their
+      // real targets. See `auth.tsx`.
+      next: (snap) => {
+        // Also the EARLIEST connectivity signal the app gets: this listener is
+        // mounted by the auth provider at startup, well before Today's. The
+        // routing gate needs to know whether it is offline before it decides
+        // where to send someone.
+        reportSnapshotMeta(snap.metadata.fromCache);
+        cb(snap.exists() ? toDomainProfile(snap.data()) : null, {
+          fromCache: snap.metadata.fromCache,
+        });
+      },
+      error: (e) => onError?.(e),
+    },
   );
 }
 
