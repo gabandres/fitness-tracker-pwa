@@ -34,8 +34,8 @@
   <text x="60" y="358" class="h1"><tspan class="accent-em">calmly</tspan> <tspan class="ink">tracked.</tspan></text>
 
   <!-- Sub -->
-  <text x="60" y="430" class="body ink-soft">A quiet, private daily log. AI coach reads your data —</text>
-  <text x="60" y="466" class="body ink-soft">no ads, no data selling. Free to start. Pro $3/mo.</text>
+  <text x="60" y="430" class="body ink-soft">A quiet, private daily log that works offline —</text>
+  <text x="60" y="466" class="body ink-soft">no ads, no data selling, no paid tier. Free.</text>
 
   <!-- Bottom feature row -->
   <g transform="translate(60, 540)">

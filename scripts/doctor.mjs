@@ -225,8 +225,14 @@ const MARKETING_I18N_PREFIXES = [
 function flattenJson(obj, prefix = '', out = {}) {
   for (const [k, v] of Object.entries(obj)) {
     const key = prefix ? `${prefix}.${k}` : k;
-    if (v && typeof v === 'object' && !Array.isArray(v)) flattenJson(v, key, out);
-    else out[key] = Array.isArray(v) ? v.join(' ') : String(v);
+    // Recurse into arrays too. Joining them was silently destroying copy:
+    // `faq.items` is 12 {q, a} objects, and `[...].join(' ')` turned all of
+    // it into "[object Object] [object Object] …" — so every answer on the
+    // FAQ page was invisible to the scan, including one promising a Pro tier
+    // at a price. An array of strings still flattens fine; it just gets one
+    // entry per index instead of one joined line, which reports better anyway.
+    if (v && typeof v === 'object') flattenJson(v, key, out);
+    else out[key] = String(v);
   }
   return out;
 }
@@ -295,6 +301,15 @@ function copySources() {
   const src = [];
   for (const f of gitFiles('public/*.html')) {
     src.push(...htmlSentences(f));
+  }
+  // …and the SVGs, which carry copy that reaches more people than the pages
+  // do. `og-image.svg` is the card rendered on every social share of the site,
+  // and it read "Free to start. Pro $3/mo." while nothing was purchasable.
+  // Only .html was ever scanned, so it was never looked at.
+  for (const f of gitFiles('public/*.svg')) {
+    read(f)
+      .split('\n')
+      .forEach((line, i) => src.push({ file: f, n: i + 1, line }));
   }
   if (has('functions/src/email-templates.ts')) {
     read('functions/src/email-templates.ts')
@@ -373,7 +388,10 @@ const CLAIMS = {
     // or $24/yr" for months and matched not one pattern above, because none
     // of them look for money. Every word-based rule here can be sidestepped
     // by just naming the price.
-    /\$\s?\d+(?:\.\d{2})?\s*(?:\/|\s+per\s+)\s*(?:mo|month|yr|year)\b/i,
+    // Spanish periods included, or half the copy walks straight past: es-PR
+    // writes "$3/mes o $24/año", which an English-only period list misses in
+    // exactly the locale nobody re-reads.
+    /\$\s?\d+(?:\.\d{2})?\s*(?:\/|\s+per\s+)\s*(?:mo|month|yr|year|mes|a[ñn]o)\b/i,
   ],
 };
 

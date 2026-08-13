@@ -1826,8 +1826,8 @@
         "a": "En general no. Los trackers fitness sobreestiman el quemado por 20-50%, y comer ese número inflado borra tu déficit. Pon una meta diaria sostenible y trata el ejercicio aparte — combustible para rendir, construir hábito, no como tarjeta de débito calórica."
       },
       {
-        "q": "¿Por qué Ignia no trackea carbos y grasas?",
-        "a": "Porque para nuestra audiencia — levantadores, gente en cut, recomp — kcal y proteína son los dos números que mueven la aguja. Añadir dos macros más duplica la fricción al registrar y no cambia los resultados para el 95%. Si los necesitas, MyFitnessPal los tiene; nosotros elegimos foco sobre features."
+        "q": "¿Ignia trackea carbos y grasas?",
+        "a": "Sí — cada entrada tiene campos de carbos y grasas, y se ven en tu día. Lo que Ignia no hace es ponerles metas. Para nuestra audiencia — levantadores, gente en cut, recomp — kcal y proteína son los dos números que mueven la aguja, así que esos son los que llevan anillo y meta diaria. Carbos y grasas están ahí cuando los quieras, sin convertir cada comida en cuatro decisiones."
       },
       {
         "q": "¿Esto reemplaza a un nutricionista?",
@@ -1835,7 +1835,7 @@
       },
       {
         "q": "¿Qué pasa después de crear cuenta?",
-        "a": "Onboarding de dos preguntas (peso actual, meta), y estás registrando comidas contra tus metas en menos de 30 segundos. La app es gratis para siempre en su flujo central. Pro ($3/mes) desbloquea historial completo, AI coach semanal, y análisis ilimitado de fotos de comida."
+        "a": "Onboarding de dos preguntas (peso actual, meta), y estás registrando comidas contra tus metas en menos de 30 segundos. Todo es gratis — historial completo, escáner de código de barras, registro por foto, el temporizador de ayuno y metas que se ajustan a tu propia tendencia de peso. No hay plan pago ni nada que comprar."
       }
     ]
   },

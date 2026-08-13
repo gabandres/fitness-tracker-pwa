@@ -1826,8 +1826,8 @@
         "a": "Mostly no. Fitness trackers over-estimate burn by 20-50%, and eating back the inflated number erases your deficit. Pick a sustainable daily calorie target and treat exercise as separate — fuel performance, build the habit, but don't use it as a calorie debit card."
       },
       {
-        "q": "Why does Ignia not track carbs and fat?",
-        "a": "Because for the audience we built it for — lifters, cutters, people doing recomp — kcal and protein are the two numbers that move the needle. Adding two more macros doubles the friction at log time and doesn't change outcomes for 95% of users. If you really want them, MyFitnessPal has them; we picked focus over features."
+        "q": "Does Ignia track carbs and fat?",
+        "a": "Yes — every entry has carb and fat fields, and they show on your day. What Ignia does not do is set targets for them. For the audience we built this for — lifters, people in a cut, anyone doing a recomp — calories and protein are the two numbers that move the needle, so those are the two that get rings and a daily goal. Carbs and fat are there when you want them, without turning every meal into four decisions."
       },
       {
         "q": "Is this a replacement for a dietitian?",
@@ -1835,7 +1835,7 @@
       },
       {
         "q": "What happens after I sign up?",
-        "a": "Two-question onboarding (current weight, goal), then you're logging meals against your targets in under 30 seconds. The app stays free forever for the core flow. Pro ($3/mo) unlocks full historical charts, the AI weekly coach, and unlimited photo macro analysis."
+        "a": "Two-question onboarding (current weight, goal), then you're logging meals against your targets in under 30 seconds. Everything is free — full history, barcode scanning, photo logging, the fasting timer and targets that adapt to your own weight trend. There is no paid tier and nothing to upgrade to."
       }
     ]
   },
