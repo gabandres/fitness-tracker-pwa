@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import type { FoodSource } from '@macrolog/core';
+import { trustForDataType } from '@macrolog/core';
 import {
   type FoodDetail,
   type FoodSearchHit,
@@ -258,9 +259,25 @@ export function FoodSearch({
         ) : (
           <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
             {hits.map((h) => (
-              <Pressable key={`${h.source}-${h.id}`} style={styles.hit} onPress={() => openDetail(h)}>
+              <Pressable
+                key={`${h.source}-${h.id}`}
+                style={styles.hit}
+                onPress={() => openDetail(h)}
+                accessibilityRole="button"
+                accessibilityLabel={`${h.description}${h.brand ? `, ${h.brand}` : ''}, ${t(trustLabelKey(h))}`}
+              >
                 <Text style={styles.hitDesc} numberOfLines={2}>{h.description}</Text>
-                {h.brand ? <Text style={styles.hitBrand}>{h.brand}</Text> : null}
+                <View style={styles.hitMeta}>
+                  {h.brand ? <Text style={styles.hitBrand}>{h.brand}</Text> : null}
+                  {/* Where the number came from. Two databases feed this list —
+                      lab-analyzed USDA rows and crowd-entered Open Food Facts
+                      products — and until now they were indistinguishable, so a
+                      measured value and a stranger's typo looked equally
+                      authoritative. Cronometer sells "verified, not
+                      crowdsourced" as its whole pitch; saying it plainly is
+                      free, and it lets a user who cares choose. */}
+                  <Text style={[styles.hitTrust, trustStyle(h, styles)]}>{t(trustLabelKey(h))}</Text>
+                </View>
               </Pressable>
             ))}
           </ScrollView>
@@ -274,6 +291,28 @@ export function FoodSearch({
       )}
     </View>
   );
+}
+
+/** Badge copy for a hit's provenance. `suspect` wins over the source: a flagged
+ *  number deserves a caveat even when USDA supplied it. */
+function trustLabelKey(h: { dataType?: string; suspect?: boolean }): I18nKey {
+  if (h.suspect) return 'food.trustCheck';
+  switch (trustForDataType(h.dataType)) {
+    case 'lab':
+      return 'food.trustLab';
+    case 'reference':
+      return 'food.trustUsda';
+    default:
+      return 'food.trustCommunity';
+  }
+}
+
+function trustStyle(
+  h: { dataType?: string; suspect?: boolean },
+  styles: ReturnType<typeof createStyles>,
+) {
+  if (h.suspect) return styles.hitTrustSuspect;
+  return trustForDataType(h.dataType) === 'community' ? styles.hitTrustCommunity : styles.hitTrustGood;
 }
 
 /** Map a callable error to a user message. The functions attach an
@@ -327,6 +366,14 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   },
   hitDesc: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
   hitBrand: { fontSize: font.tiny, color: colors.muted, marginTop: 2 },
+  hitMeta: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
+  hitTrust: { fontSize: font.tiny, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 2 },
+  hitTrustGood: { color: colors.muted },
+  hitTrustCommunity: { color: colors.faint },
+  // Not `danger`: a flagged number is worth a second look, not an alarm, and the
+  // calm positioning (UX_AUDIT §S12) rules out red for anything the user did
+  // not do wrong.
+  hitTrustSuspect: { color: colors.accent },
   back: { paddingVertical: space.xs },
   backText: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
   detailTitle: { fontSize: font.h3, color: colors.ink, fontWeight: '800' },

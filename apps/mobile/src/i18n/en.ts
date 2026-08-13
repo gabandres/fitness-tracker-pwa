@@ -216,6 +216,15 @@ export const en = {
   'offline.queued': 'Saved offline — syncs when you reconnect.',
   'offline.queuedCount': '{n} saved offline, waiting to sync.',
 
+  // ── food-search provenance badges ──
+  // Two databases feed one list: lab-analyzed USDA rows and crowd-entered Open
+  // Food Facts products. Saying which is which is the honest answer to
+  // Cronometer's "verified, not crowdsourced" pitch, and it costs nothing.
+  'food.trustLab': 'Lab tested',
+  'food.trustUsda': 'USDA',
+  'food.trustCommunity': 'Community',
+  'food.trustCheck': 'Check numbers',
+
   // ── accessibility labels (icon-only controls) ──
   'today.shareA11y': 'Share your progress',
   'today.streakA11y': '{n}-day streak',

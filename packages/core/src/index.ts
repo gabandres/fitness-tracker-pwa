@@ -69,6 +69,10 @@ export * from './quick-add';
 // and the pure buffering/clamping both frontends flush through. No transport
 // here — each app writes it with its own SDK, like every other document.
 export * from './usage-events';
+// Is a food's nutrition data believable? Atwater reconciliation + range sanity,
+// plus the source-trust buckets both the ranking and the UI badge read. Pure —
+// the Cloud Functions filter with it and the clients label with it.
+export * from './food-plausibility';
 // My Foods library helpers (ADR-0013). Types (CustomFood, FoodSource,
 // ServingUnit) live in ./types; these are the pure scaling helpers.
 export * from './custom-food';

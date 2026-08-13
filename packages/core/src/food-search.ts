@@ -31,6 +31,11 @@ export interface FoodSearchHit {
   description: string;
   brand?: string;
   dataType?: string;
+  /** Set when the plausibility check flagged the numbers but did not reject
+   *  them (`@macrolog/core/food-plausibility`) — fibre and sugar-alcohol
+   *  products land here legitimately, as do sparse crowd entries. Ranked below
+   *  clean results and surfaced to the user rather than hidden. */
+  suspect?: boolean;
 }
 
 /**

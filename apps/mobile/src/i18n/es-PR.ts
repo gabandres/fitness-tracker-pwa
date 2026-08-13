@@ -217,6 +217,12 @@ export const esPR: Record<I18nKey, string> = {
   'offline.queued': 'Guardado sin conexión — se sincroniza al reconectar.',
   'offline.queuedCount': '{n} guardado(s) sin conexión, esperando sincronizar.',
 
+  // ── food-search provenance badges ──
+  'food.trustLab': 'De laboratorio',
+  'food.trustUsda': 'USDA',
+  'food.trustCommunity': 'Comunidad',
+  'food.trustCheck': 'Verifica',
+
   // ── accessibility labels (icon-only controls) ──
   'today.shareA11y': 'Comparte tu progreso',
   'today.streakA11y': 'Racha de {n} días',

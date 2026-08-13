@@ -26,7 +26,9 @@ import { createHash } from "node:crypto";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { ErrorCode } from "./error-codes";
+import { assessMacros, isLoggableFood } from "./food-plausibility";
 import { buildUsdaDetail, findById, loadFoods, searchUsda } from "./usda-db";
+import { mergeHits } from "./food-ranking";
 
 const db = getFirestore();
 const SEARCH_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;       // 7 days
@@ -53,7 +55,7 @@ const SEARCH_PAGE_SIZE_MAX = 25;
 // rename can't silently drift them apart, which it already had.
 type FoodDbSource = 'fdc' | 'off';
 
-interface FoodSearchHit {
+export interface FoodSearchHit {
   /** Which database the hit came from — drives getFoodDetail dispatch. */
   source: FoodDbSource;
   /** Stable id within the source: FDC's numeric fdcId (stringified) or an
@@ -62,6 +64,11 @@ interface FoodSearchHit {
   description: string;
   brand?: string;
   dataType?: string;
+  /** Set when the plausibility check flagged the numbers but did not reject
+   *  them (`@macrolog/core/food-plausibility`) — fibre and sugar-alcohol
+   *  products land here legitimately, as do sparse crowd entries. Ranked below
+   *  clean results and surfaced to the user rather than hidden. */
+  suspect?: boolean;
 }
 
 interface ServingOption {
@@ -141,6 +148,22 @@ async function enforceFoodRateLimit(
   });
 }
 
+/** kcal per 100 g from an OFF nutriments block, converting from kilojoules when
+ *  that is all the product carries. `null` when it carries neither.
+ *
+ *  Note this is the LEGITIMATE kJ path — `energy_100g` is documented as
+ *  kilojoules. The defect `assessMacros` catches is different: a kJ figure
+ *  entered into `energy-kcal_100g`, which no amount of unit handling can
+ *  detect, only arithmetic against the macros. */
+function offKcalPer100g(n: OffNutriments): number | null {
+  const KJ_TO_KCAL = 4.184;
+  const kcal = n["energy-kcal_100g"];
+  if (kcal != null && Number.isFinite(kcal)) return kcal;
+  const kj = n["energy_100g"];
+  if (kj != null && Number.isFinite(kj)) return kj / KJ_TO_KCAL;
+  return null;
+}
+
 function normalizeQuery(q: string): string {
   return q.trim().toLowerCase().replace(/\s+/g, " ").slice(0, SEARCH_QUERY_MAX_LEN);
 }
@@ -149,14 +172,23 @@ function normalizeQuery(q: string): string {
 /** Open Food Facts typeahead search. Sorted by scan popularity so the
  *  household-name products surface first. Times out fast and returns []
  *  on any failure so it never stalls or breaks the merged search. */
-async function searchOff(query: string, size: number): Promise<FoodSearchHit[]> {
+/** Hits, plus whether the upstream call actually completed. The distinction is
+ *  load-bearing at the cache write below — see {@link OffResult}. */
+interface OffResult {
+  hits: FoodSearchHit[];
+  /** True when OFF could not be reached or refused the request. NOT the same
+   *  as "no products matched", which is a legitimate empty result. */
+  failed: boolean;
+}
+
+async function searchOff(query: string, size: number): Promise<OffResult> {
   const url = new URL(OFF_SEARCH_URL);
   url.searchParams.set("search_terms", query);
   url.searchParams.set("search_simple", "1");
   url.searchParams.set("action", "process");
   url.searchParams.set("json", "1");
   url.searchParams.set("page_size", String(Math.min(size, SEARCH_PAGE_SIZE_MAX)));
-  url.searchParams.set("fields", "code,product_name,brands,nutriments");
+  url.searchParams.set("fields", "code,product_name,generic_name,brands,nutriments");
   url.searchParams.set("sort_by", "unique_scans_n");
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), OFF_TIMEOUT_MS);
@@ -165,7 +197,7 @@ async function searchOff(query: string, size: number): Promise<FoodSearchHit[]> 
       headers: { "User-Agent": OFF_USER_AGENT },
       signal: ctrl.signal,
     });
-    if (!resp.ok) return [];
+    if (!resp.ok) return { hits: [], failed: true };
     const body = (await resp.json()) as { products?: OffProduct[] };
     const out: FoodSearchHit[] = [];
     for (const p of body.products ?? []) {
@@ -174,57 +206,64 @@ async function searchOff(query: string, size: number): Promise<FoodSearchHit[]> 
       const n = p.nutriments ?? {};
       // Skip products with no name or no usable energy — they can't be logged.
       if (!code || !name) continue;
-      if (n["energy-kcal_100g"] == null && n["energy_100g"] == null) continue;
+      const kcal100 = offKcalPer100g(n);
+      if (kcal100 == null) continue;
+
+      // Judge the numbers before showing them. This is crowd data: anyone can
+      // type a value, and the dominant defect is a unit error rather than a
+      // subtle inaccuracy — kilojoules in the kcal field arrive as 4.184x the
+      // truth. Until now the only check was that SOME energy value existed, so
+      // a 418 kcal yogurt was indistinguishable from a 100 kcal one.
+      const verdict = assessMacros({
+        kcal: kcal100,
+        protein: n.proteins_100g,
+        carb: n.carbohydrates_100g,
+        fat: n.fat_100g,
+      });
+      if (verdict.verdict === "reject") continue;
+
       const hit: FoodSearchHit = {
         source: "off",
         id: String(code),
         description: name.slice(0, 140),
         dataType: "OFF",
       };
+      // Carried to the client so the list can say where a number came from, and
+      // used below to rank a questionable entry under a clean one.
+      if (verdict.verdict === "suspect") hit.suspect = true;
       if (p.brands) hit.brand = String(p.brands).split(",")[0].trim().slice(0, 80);
       out.push(hit);
       if (out.length >= size) break;
     }
-    return out;
+    return { hits: out, failed: false };
   } catch {
-    return []; // timeout / network — degrade silently to FDC-only
+    // Timeout / network — degrade to USDA-only for THIS response, but say so,
+    // so the degraded page is not written to a 7-day cache.
+    return { hits: [], failed: true };
   } finally {
     clearTimeout(timer);
   }
 }
 
-/** Interleave USDA and OFF results (so both databases stay visible even
- *  when one fills the page), de-duping by name+brand, capped to `size`. */
-function mergeHits(fdc: FoodSearchHit[], off: FoodSearchHit[], size: number): FoodSearchHit[] {
-  const out: FoodSearchHit[] = [];
-  const seen = new Set<string>();
-  const push = (h: FoodSearchHit | undefined) => {
-    if (!h || out.length >= size) return;
-    const key = `${h.description.toLowerCase()}|${(h.brand ?? "").toLowerCase()}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    out.push(h);
-  };
-  const max = Math.max(fdc.length, off.length);
-  for (let i = 0; i < max && out.length < size; i++) {
-    push(fdc[i]);
-    push(off[i]);
-  }
-  return out;
-}
 
 /** Build the serving list for an Open Food Facts product. OFF nutriments
  *  are per-100g; we add a per-serving row when `serving_quantity` (grams)
  *  is present. Mirrors buildServings()'s "drop unknown macros" rule. */
 function buildOffServings(p: OffProduct): ServingOption[] {
   const n = p.nutriments ?? {};
-  const KJ_TO_KCAL = 4.184;
-  const kcal100 = n["energy-kcal_100g"]
-    ?? (n["energy_100g"] != null ? n["energy_100g"] / KJ_TO_KCAL : null);
+  const kcal100 = offKcalPer100g(n);
   if (kcal100 == null) return [];
   const protein100 = n.proteins_100g;
   const carbs100 = n.carbohydrates_100g;
   const fat100 = n.fat_100g;
+  // The same gate as search, applied again here — a detail can be opened by id
+  // (a barcode scan, a stale client, a saved food) without ever passing through
+  // the search filter, and this is the last point before the number becomes a
+  // logged meal. Returning no servings surfaces as FOOD_NO_NUTRITION, which is
+  // an honest failure; showing a 418 kcal yogurt is not.
+  if (!isLoggableFood({ kcal: kcal100, protein: protein100, carb: carbs100, fat: fat100 })) {
+    return [];
+  }
   const macrosAt = (ratio: number) => ({
     protein: Math.round((protein100 ?? 0) * ratio),
     ...(carbs100 != null ? { carbs: Math.round(carbs100 * ratio) } : {}),
@@ -338,15 +377,27 @@ export const searchFoods = onCall(
     await enforceFoodRateLimit("foodSearchRateLimit", uid, SEARCH_MIN_INTERVAL_MS);
 
     const usdaHits = searchUsda(loadFoods(), normalized, size) as FoodSearchHit[];
-    const offHits = await searchOff(normalized, size);
-    const hits = mergeHits(usdaHits, offHits, size);
+    const off = await searchOff(normalized, size);
+    const hits = mergeHits(usdaHits, off.hits, size);
 
-    // Best-effort cache write. Never block the response on cache failure.
-    void cacheRef.set({
-      cachedAt: Timestamp.now(),
-      query: normalized,
-      hits,
-    }).catch((err) => console.warn("food search cache write failed:", err));
+    // Best-effort cache write — but NOT when the OFF leg failed.
+    //
+    // The cache has a 7-day TTL, so caching a degraded page makes a brief
+    // upstream outage last a week per query: the branded results silently
+    // vanish and keep being served as though they were the real answer. Open
+    // Food Facts returned 502/503 on every endpoint while this was being
+    // written, which is exactly the window that would have poisoned the cache
+    // for every new query a user typed.
+    //
+    // Skipping the write costs one repeated USDA scan (in-memory, free) and
+    // makes the outage last exactly as long as the outage.
+    if (!off.failed) {
+      void cacheRef.set({
+        cachedAt: Timestamp.now(),
+        query: normalized,
+        hits,
+      }).catch((err) => console.warn("food search cache write failed:", err));
+    }
 
     return { hits, cached: false };
   },
