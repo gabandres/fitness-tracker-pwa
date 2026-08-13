@@ -62,7 +62,23 @@ export function initSentry(): void {
     dsn,
     // __DEV__ builds report as 'dev' so a debugging session never pollutes the
     // production issue stream (and never burns quota).
-    environment: __DEV__ ? 'dev' : 'prod',
+    //
+    // A **Release-config build on a simulator or emulator** is the case this
+    // used to miss, and it is not hypothetical. On 2026-08-09 a Release
+    // simulator build reported a *fatal* SIGABRT into `prod`:
+    // `ExpoSpeechRecognizer.prepareMicrophoneRecognition` →
+    // `AVAudioEngine.inputNode` → `AURemoteIO::Initialize` → `_ReportRPCTimeout`
+    // → `abort`. The iOS Simulator has no audio input unit, so that RPC always
+    // times out; it cannot happen on real hardware. `__DEV__` is false in such a
+    // build, so the old expression called it production, and the next triage
+    // sweep spent four API round-trips proving a crash that never touched a
+    // user.
+    //
+    // Given its own environment rather than dropped: these events are real and
+    // worth reading, they simply are not production. `Device.isDevice` is the
+    // same signal already published as the `device.isDevice` tag below — the
+    // data was there, nothing acted on it.
+    environment: __DEV__ ? 'dev' : Device.isDevice ? 'prod' : 'simulator',
     // Group by the user-facing version + build number, which is what a tester
     // can actually read off the Settings screen / store listing.
     //
@@ -123,10 +139,20 @@ export function captureError(
   });
 }
 
-/** Trail of what the user did before the error, shown on every event. */
-export function addBreadcrumb(message: string, data?: Record<string, unknown>): void {
+/**
+ * Trail of what the user did before the error, shown on every event.
+ *
+ * `category` mirrors the web app's convention (`analytics.service.ts`) so the
+ * two platforms' issue views filter the same way: `analytics` for product
+ * events, `app` for everything else.
+ */
+export function addBreadcrumb(
+  message: string,
+  data?: Record<string, unknown>,
+  category = 'app',
+): void {
   if (!enabled) return;
-  Sentry.addBreadcrumb({ category: 'app', level: 'info', message, data });
+  Sentry.addBreadcrumb({ category, level: 'info', message, data });
 }
 
 export { Sentry };

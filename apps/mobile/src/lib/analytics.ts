@@ -7,6 +7,7 @@ import {
   hasUsageCounts,
   localDateKey,
 } from '@macrolog/core';
+import { addBreadcrumb } from './sentry';
 /**
  * The ledger is required lazily, inside {@link flush}, and that is not
  * cosmetic.
@@ -114,6 +115,18 @@ let appStateSub: { remove: () => void } | null = null;
  * account exists, not at form submission.
  */
 export function track(event: UsageEvent, n = 1): void {
+  // Mirror every product event into a Sentry breadcrumb, the way the web app
+  // has since it got analytics (`analytics.service.ts`). That trail *is* the
+  // repro steps on a crash report, and mobile not having it is why a real
+  // `permission-denied` on 2026-08-09 could not be diagnosed at all: the event
+  // carried forty Firestore transport XHRs and not one line about what the user
+  // was doing. Costs an object in an in-memory ring buffer.
+  //
+  // Deliberately *above* the signed-out guard. A count is addressed to an
+  // account and is rightly dropped without one, but the breadcrumb is a record
+  // of what happened — and the signed-out paths (onboarding, sign-in) are
+  // exactly where we have the least visibility today.
+  addBreadcrumb(event, n === 1 ? undefined : { n }, 'analytics');
   if (!uid) return;
   const today = localDateKey(new Date());
   if (today !== bufferDay) {
