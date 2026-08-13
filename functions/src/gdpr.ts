@@ -13,6 +13,48 @@ const DELETE_ACCOUNT_MIN_INTERVAL_MS = 5_000;
 const EXPORT_DATA_MIN_INTERVAL_MS = 30_000;
 
 /**
+ * Every subcollection under `users/{uid}` — the single list that Art. 17
+ * (erasure) and Art. 20 (portability) both derive from.
+ *
+ * **It is one list because keeping two in step by hand already failed.** The
+ * erasure list used to be missing `workoutSessions`, `workoutTemplates` and
+ * `exercises`; that was found and fixed. The export list was missing the same
+ * three, and *stayed* missing them — the fix was applied to one obligation and
+ * not the other, which is invisible from either function on its own. Firestore
+ * does not cascade, and nothing enumerates subcollections for us, so a name
+ * that is absent here is data we keep forever (Art. 17) or refuse to hand over
+ * (Art. 20), silently in both directions.
+ *
+ * Adding a subcollection? Add it here and it is covered by both. That is the
+ * whole point of the shape.
+ */
+export const USER_SUBCOLLECTIONS = [
+  "dailyLogs",
+  "presets",
+  "customFoods",
+  "reports",
+  "dailyWeights",
+  "dailyWater",
+  "dailySleep",
+  "measurements",
+  "photos",
+  "workoutSessions",
+  "workoutTemplates",
+  "exercises",
+  "private",
+] as const;
+
+/**
+ * Subcollections deliberately withheld from the Art. 20 export, and why.
+ *
+ * Art. 20 covers *personal data*, not bearer tokens. `private` holds the Apple
+ * refresh token — handing it back in a downloadable JSON widens its blast
+ * radius for no portability benefit, the same reasoning `redactProfileSecrets`
+ * applies to the profile doc. Erasure still covers it; only export skips it.
+ */
+export const EXPORT_EXCLUDED: ReadonlySet<string> = new Set(["private"]);
+
+/**
  * Recursively delete all documents in a subcollection in batches of 500
  * (Firestore's max batch size). Firestore doesn't cascade on user or doc
  * deletion, so we have to walk each subcollection manually.
@@ -93,20 +135,18 @@ export const exportUserData = onCall({ maxInstances: 5 }, async (request) => {
     return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   };
 
-  const [profileSnap, dailyLogs, presets, customFoods, reports, dailyWeights, dailyWater, dailySleep, measurements, photoQuota, consultationQuota] =
-    await Promise.all([
-      userRef.get(),
-      dumpCollection("dailyLogs"),
-      dumpCollection("presets"),
-      dumpCollection("customFoods"),
-      dumpCollection("reports"),
-      dumpCollection("dailyWeights"),
-      dumpCollection("dailyWater"),
-      dumpCollection("dailySleep"),
-      dumpCollection("measurements"),
-      dailyQuota.dump(uid, "photo"),
-      dailyQuota.dump(uid, "consultation"),
-    ]);
+  // Driven off USER_SUBCOLLECTIONS so a new collection is exported the day it
+  // is erasable, rather than the day someone notices. `workoutSessions`,
+  // `workoutTemplates` and `exercises` join the payload here for the first
+  // time — they were erasable but not portable.
+  const exported = USER_SUBCOLLECTIONS.filter((name) => !EXPORT_EXCLUDED.has(name));
+  const [profileSnap, collections, photoQuota, consultationQuota] = await Promise.all([
+    userRef.get(),
+    Promise.all(exported.map((name) => dumpCollection(name))),
+    dailyQuota.dump(uid, "photo"),
+    dailyQuota.dump(uid, "consultation"),
+  ]);
+  const byName = Object.fromEntries(exported.map((name, i) => [name, collections[i]]));
 
   // Redact credentials — GDPR Art. 20 scope is personal data, not bearer
   // tokens. `webhookApiKey` (Apple Shortcuts) and `fcmToken` (push channel)
@@ -116,18 +156,13 @@ export const exportUserData = onCall({ maxInstances: 5 }, async (request) => {
     profileSnap.exists ? (profileSnap.data() as Record<string, unknown>) : null,
   );
 
+  // Key order and names are unchanged for the eight collections that were
+  // already here, so an existing consumer of the JSON sees only additions.
   const payload = {
     exportedAt: Timestamp.now().toDate().toISOString(),
     uid,
     profile,
-    dailyLogs,
-    presets,
-    customFoods,
-    reports,
-    dailyWeights,
-    dailyWater,
-    dailySleep,
-    measurements,
+    ...byName,
     photoQuota,
     consultationQuota,
   };
@@ -176,25 +211,13 @@ export const deleteAccount = onCall({ secrets: APPLE_SECRETS }, async (request) 
       console.warn(`Apple token revoke failed for uid=${uid} (non-fatal):`, e);
     }
 
-    // 1. Delete all subcollections under users/{uid}. Add new ones here when
-    //    introduced — Firestore does NOT cascade, so a missing name orphans that
-    //    data forever (GDPR Art. 17 gap). `private` holds the Apple refresh
-    //    token; the workout* + exercises trio was previously missing.
-    await Promise.all([
-      deleteSubcollection(userPath, "dailyLogs"),
-      deleteSubcollection(userPath, "presets"),
-      deleteSubcollection(userPath, "customFoods"),
-      deleteSubcollection(userPath, "reports"),
-      deleteSubcollection(userPath, "dailyWeights"),
-      deleteSubcollection(userPath, "dailyWater"),
-      deleteSubcollection(userPath, "dailySleep"),
-      deleteSubcollection(userPath, "measurements"),
-      deleteSubcollection(userPath, "photos"),
-      deleteSubcollection(userPath, "workoutSessions"),
-      deleteSubcollection(userPath, "workoutTemplates"),
-      deleteSubcollection(userPath, "exercises"),
-      deleteSubcollection(userPath, "private"),
-    ]);
+    // 1. Delete every subcollection under users/{uid}. The list lives in
+    //    USER_SUBCOLLECTIONS above — Firestore does NOT cascade, so a name
+    //    missing from it orphans that data forever (GDPR Art. 17 gap), which
+    //    is exactly what happened to the workout* + exercises trio once.
+    await Promise.all(
+      USER_SUBCOLLECTIONS.map((name) => deleteSubcollection(userPath, name)),
+    );
 
     // 1b. Purge progress-photo BYTES from Storage (ADR-0010). The Firestore
     //     index docs above don't cascade to the Storage objects, so without
