@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-08-12 · **Owns:** current state only. Not history (`CHANGELOG.md`),
+**Updated:** 2026-08-13 · **Owns:** current state only. Not history (`CHANGELOG.md`),
 not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`).
 
 If a statement here conflicts with any other file in this repo, **this file wins** —
@@ -16,6 +16,10 @@ work because a plan doc was read as a status doc.
 | Surface | State | Verify |
 |---|---|---|
 | Web PWA `ignia.fit` | **Live**, bilingual (EN + es-PR), **105** prerendered pages (en 52 / es 53), 114-URL sitemap | `npm run build` prints both counts |
+| **Marketing copy stopped selling a tier that does not exist** | **LIVE 2026-08-13** (two hosting deploys, prod builds, off `169a5a37` + `82199dd4`). Every `/vs` profile ended in "Pro at $3/mo or $24/yr" against `PRO_ENABLED=false`, and also claimed Ignia had **no barcode scanner** and did **not track carbs/fat** — both false — while billing photo scan as Pro after ADR-0017 made it free. Rewritten against primary sources: MFP acquired Cal AI (Dec 2025), Cronometer has **no offline mode because its database licences forbid on-device storage** (the strongest row on any of these pages, and one a competitor cannot fix by shipping a feature). Three more live claims fell out of the same sweep: the `/calculator` fine print, the sign-up FAQ answer, and `og-image.svg` — **the card rendered on every social share of the site**. The one deliberately left is `legal.subsBody` on `/terms`, which still describes Stripe auto-renewal; that is a product decision, not a cleanup | `curl -s https://ignia.fit/og-image.svg \| grep -c "Pro \$3/mo"` → 0 |
+| **`doctor`'s copy guard could not see four whole surfaces** | **Fixed 2026-08-13** (`169a5a37`, `82199dd4`). It passed every run while the claims above were live, which is the failure mode that matters: a scan that misses the file is indistinguishable from a clean one. It did not scan the `/vs` pages, did not scan **any** `.svg`, had an English-only price pattern so `$3/mes` walked past, and — worst — `flattenJson` did `Array.isArray(v) ? v.join(' ')`, collapsing `faq.items` (12 Q&A objects) to `"[object Object] …"`, so **the entire FAQ page was invisible**. All four closed. Coverage 1534 → 1814 lines. A recurring-price pattern was added because every rule was word-based ("pro tier", "premium", "free trial") and naming the price sidesteps all of them | `npm run doctor` group 1 |
+| **GDPR: workout history is portable again** | **LIVE 2026-08-13** (`03598a87`, `firebase deploy --only functions:exportUserData,functions:deleteAccount`). `deleteAccount` erased 13 subcollections; `exportUserData` exported 8. The five skipped were `photos`, `workoutSessions`, `workoutTemplates`, `exercises`, `private` — and only `private` was deliberate. The workout trio is the **same trio** the erasure path was once missing: someone fixed Art. 17 and never mirrored it to Art. 20, so a user exercising right of access got everything except their training history. Fixed structurally, not by editing a list — `USER_SUBCOLLECTIONS` is now the single declaration both obligations derive from | `functions/test/gdpr-collection-parity.spec.ts` (6 tests, no emulator) |
+| **Mobile Sentry is usable now** | **LIVE 2026-08-13** as an EAS Update to **both** runtimes off `03598a87`. A Release build on a **simulator** reported as `prod` (`__DEV__` is false there), so a simulator-only `SIGABRT` in `ExpoSpeechRecognizer` — the iOS Simulator has no audio input unit — landed in the production stream as a fatal crash and cost four API round-trips to dismiss. Now `__DEV__ ? 'dev' : Device.isDevice ? 'prod' : 'simulator'`. Mobile also had **no product breadcrumbs** while web has mirrored every analytics event into one for years, which is why a real `permission-denied` on the App Review account is still undiagnosable — it carries 40+ Firestore transport XHRs and nothing about what the user did. `track()` now writes one | `npx eas update:list --branch production --limit 2` shows runtimes `ca2dc124…` (android) + `3752c757…` (ios) |
 | **Train terminology + coach 14-day window** | **LIVE 2026-08-12** on web (`firebase deploy --only hosting`, prod build) and published as an EAS Update to **both** mobile runtimes off commit `59a327f5`. Train: RIR is a labelled 0–5 scale, set types carry descriptions, auto-progression renders its rule as a sentence, and a `?` opens a 14-term glossary. Coach: `COACH_WINDOW_DAYS` is enforced in `packages/core`, and the web app now asks `logsForLastDays(14)` instead of the 14-**ROW** `RecentLogs` cache — it had been sending ~2 days of meals while the prompt announced a fortnight (ADR-0004 footgun). | `npx eas update:list --branch production --limit 2` shows runtimes `ca2dc124…` (android) + `3752c757…` (ios), both matching the live artifacts |
 | **Week-window fixes (streak, weekly averages, day totals) + Body chart caption + the coach quota counts admin** | **LIVE 2026-08-12**, the third ship of the day, from merge `aeaa2580`. Web: prod build + `firebase deploy --only hosting,functions:consultationStream,functions:analyzePhoto,functions:checkAccessStatus`; the new strings were then **read back out of the served bundle** (`chunk-TVA5ZVJQ.js`), and the deleted v1 `fasting.*` namespace confirmed absent. Mobile: gate-checked on `ignia-mac` first — ios `3752c757…` (builds 44/45), android `ca2dc124…` (vc 29), both exact matches — then published, groups `161bb074` ios / `a67c0b15` android. **Three web numbers were derived from `_logs`, the 14-ROW `RecentLogs` cache, and reported as weeks** (ADR-0004, the same footgun as this morning's coach fix). Proven against the old code, with the values it produced: weekly averages + adherence covered **3 days** on a card labelled *this week* beside a 7-day deficit figure; the streak read **3** where the same account on mobile read 7 (mobile subscribes to `LOG_WINDOW_ROWS` = 400); and `summaryFor` returned **4 of 5** meals for a day the cache held only in part — it fell back to history only when a day came back EMPTY, so a *partial* day, which is the normal case at the cache boundary, looked like a hit. That one fed the Trends bar chart and every History day card. `_targetsSource` is now `_dayWindowSource` and the streak reads it too. **Mobile needed no change** — parity moved toward mobile. Three regression tests pin the numbers. **Also**: the Body weight chart names its windows (14-day line, 28-day fit) — a caption, deliberately not a narrower fit; ~90 lines of fasting code and a 30s `setInterval` came out of Body, which has not rendered a fasting card in months, and the fasting chip now goes to Today instead of to Body; 27 orphaned i18n strings deleted. **And the coach quota now counts the admin account.** `caller.unlimited` was doing two jobs; it now does one (entitlement), with `quotaExempt` (comped only) owning the daily counter. Measured first: 3 consultations ran that day and exactly ONE quota doc existed. The cost of the old behaviour was not free consultations — it was that the only account that could fix the counter was the only one that could never watch it move. **What's New bumped to `2026-08-12b`** (the bare date was already spent by the morning ship). **A fourth OTA followed** (groups `7f428b45` ios / `6e8b9e31` android, gate re-checked, no What's New bump — it is invisible to users): every Firestore write in `apps/mobile/src/lib/ledger.ts` now names the document it was writing when it fails. IGNIA-MOBILE-4 is unresolved on purpose — it could not be diagnosed at all (three events, `stacktrace: null`, Hermes drops the stack across an async boundary, and the seeded `review@` account that produced them has not been opened since 08-09, so its silence is disuse, not a fix). The wrappers keep the SDK names, so all ~33 call sites are untouched and a later write cannot forget to opt in. | `npx eas update:list --branch production --limit 2` shows groups `161bb074`/`a67c0b15`; `npm run test:rules` 265 pass |
 | **Body nudges that name the gap + self-applying OTAs** | **LIVE 2026-08-12**, web deployed and OTA'd to both runtimes off `4c98b78a`. Body: `missingBodyFatInputs` (core) names the tape fields still missing — the old copy told everyone "waist + neck", which a **woman can satisfy in full and still get nothing**, because the Navy formula also needs hip; the web card no longer hides itself when it cannot compute; the headline weight says whether it is today's; "Goal pace" (which labelled a *date*) is now "At this pace". OTA: `useAutoApplyOta` in `(app)/_layout` applies a downloaded bundle at cold start, or on the next foreground for one that arrived mid-session — so "restart the app" stops meaning "restart it twice". A boot-failure latch stops a bundle that crashes on launch from looping against expo-updates' own fallback. | Emulator-verified 2026-08-12: all four tabs render with the hook mounted in the root layout (`03-tabs`), and the Body chips read "At this pace" + the DEXA accuracy line |
@@ -741,6 +745,7 @@ cd apps/mobile && npx eas-cli build:list --platform ios --limit 5   # what exist
 
 | # | Work | Blocked on |
 |---|---|---|
+| — | **iOS external testers had NO installable build for 4 days** | **CAUSE FOUND AND FIXED 2026-08-13 — it needed no binary. Now waiting on Apple.** Builds 41, 44 and 45 were all `externalBuildState = READY_FOR_BETA_SUBMISSION`: **never submitted for Beta App Review**, so only the internal group (1 member — the owner) could install them. The four external testers in *Public Beta Testers* were stranded, because the builds they *could* install (30/31/32/37/40) all expired **2026-08-09**, the same day build 41 was uploaded, while 41/44/45 carry normal 90-day expiries running to November. **This is why builds 44 and 45 are marked UNVERIFIED**: the watch complication and Siri quick-add were not neglected, they were *undeliverable* — no tester could install the binaries carrying them. Build 45 is now submitted (`WAITING_FOR_BETA_REVIEW`) and pre-assigned to the group, so approval distributes automatically. Beta App Review Info was also empty — `demoAccountRequired: false` with no credentials, on an app behind a sign-in wall — now set to `review@ignia.fit`, verified to authenticate before submitting. **Standing rule this establishes: a TestFlight build reaches external testers only after Beta App Review; uploading is not shipping.** | `node -e` on `/v1/builds/{id}/buildBetaDetail` → `externalBuildState` |
 | — | Next iOS binary (everything in §2) | **Row corrected 2026-08-12 — it had gone stale by 32 builds.** It named "Build 13" and a 1.1.0 version page as the current state; `apps/mobile/AGENTS.md` has the artifact-read fingerprint table, and the current TestFlight binary is **build 45 (1.2.0)**. Nothing structural blocks the next one: quota and credentials are resolved and builds are local on `ignia-mac` at zero EAS quota (§3). What remains is a product decision about what rides along, plus the two UNVERIFIED behaviours build 44/45 carry — the watch complication refresh and the Siri quick-add watch push, neither of which has been watched to work on a wrist |
 | — | Verify the **Android** widget on a device | Still open, but the version in this row was stale: the alpha is on **vc 29**, not vc 4. Nobody has put the widget on an Android home screen, and its task handler registers through the custom `index.js` — a path no device has exercised. **The Maestro suite cannot close this**: it drives the app, and no `adb` command can place a home-screen widget (the Quick Settings tile IS drivable — `adb shell cmd statusbar click-tile`). 1 of the 21 checkboxes in `apps/mobile/WIDGET.md` is ticked. The iOS half is **done**: verified on a real iPhone 2026-08-03, kcal left + protein left, **and the numbers moved after a logged meal**, which proves the whole chain rather than the render alone |
 | #46 | Read the watch layouts on a simulator | **a Mac with Xcode** (currently: borrow one). Its stated precondition — "the build session has written the watch Swift" — is now **met**: the real layouts exist, so the sitting is the readout it was designed to be |
@@ -826,23 +831,33 @@ do once.
 
 ## 7. Commands that answer questions faster than reading
 
-**The emulator suites (`test:ledger`, `test:rules`) need JDK 21+.** `firebase-tools`
-dropped Java <21, and this machine's PATH `java` is 17, so both suites fail with
-`firebase-tools no longer supports Java version before 21` — a toolchain error that
-reads like a broken test. JDK 21 **is** installed; just point at it first.
+**The emulator suites need JDK 21+, and as of 2026-08-13 they find it themselves.**
+`firebase-tools` dropped Java <21. This machine's `JAVA_HOME` points at 17 while
+JDK 21.0.11 sits installed beside it, so both suites used to fail with
+`firebase-tools no longer supports Java version before 21` — a toolchain error
+that reads like a broken test, and was twice written down as one.
 
-**`scripts/require-java21.mjs` now runs ahead of both suites and prints this fix
-when PATH java is too old** — added 2026-08-09 because this note was still
-missed, and the miss produced a written claim that the rules suite "cannot run
-on this machine" plus a wrong test count. It only warns; it never picks a JDK,
-because a hardcoded install path in committed config works on one machine and
-lies on every other. The suites are **260 tests across 10 files** (`test:rules`
-runs every functions spec, not only `firestore-rules.spec.ts`, which is 47 of
-them):
+`scripts/require-java21.mjs` is now a **launcher**, not a warning:
+`require-java21.mjs <command> …` locates a JDK 21+, puts it first on PATH with a
+matching `JAVA_HOME`, and runs the command. `npm run test:rules` and
+`npm run test:ledger` go through it, so **no PATH export is needed any more** —
+run them and they work. It prints which JDK it picked.
 
-```sh
-export PATH="/c/Program Files/Microsoft/jdk-21.0.11.10-hotspot/bin:$PATH"
-```
+Nothing in its candidate list is trusted: each path is a place to *look*, and a
+JDK is used only after `<candidate>/bin/java -version` has been executed and
+reported 21+. That is what makes it safe on a machine that is not this one — the
+reason the script previously refused to pick a JDK at all. macOS asks
+`/usr/libexec/java_home -v 21+` first.
+
+As a preflight it never could have worked: a child process cannot change its
+parent's PATH, so printing advice was the only thing it was capable of. It
+printed the correct fix for four days while the suites kept not running.
+
+**Both suites are green and always were** — verified 2026-08-13 from a shell with
+JDK 17 first on PATH: `test:rules` **320 passed across 13 files** (it runs every
+functions spec, not only `firestore-rules.spec.ts`), `test:ledger` **29 passed**.
+Run them **separately** — back to back, the second inherits the first's emulator
+port.
 
 Run the two suites **separately**, not back to back — the second one inherits the
 first's emulator port before it is released and reports a phantom failed file.
