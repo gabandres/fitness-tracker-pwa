@@ -12,8 +12,8 @@
     "emulators": "firebase emulators:start --only auth,firestore,storage --import=./.emulator-data --export-on-exit=./.emulator-data",
     "seed": "firebase emulators:exec --only auth,firestore,storage --export-on-exit=./.emulator-data \"node scripts/seed-emulators.mjs\"",
     "seed:emulators": "node scripts/seed-emulators.mjs",
-    "test:ledger": "node scripts/require-java21.mjs && firebase emulators:exec --only firestore \"vitest run --config vitest.ledger.config.ts\"",
-    "test:rules": "node scripts/require-java21.mjs && npm --prefix functions run test:rules",
+    "test:ledger": "node scripts/require-java21.mjs firebase emulators:exec --only firestore \"vitest run --config vitest.ledger.config.ts\"",
+    "test:rules": "node scripts/require-java21.mjs npm --prefix functions run test:rules",
     "doctor": "node scripts/doctor.mjs"
   },
   "private": true,
