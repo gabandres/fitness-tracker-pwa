@@ -137,6 +137,30 @@ public enum Glance {
   /// Diagnosis, not telemetry: nothing leaves the device.
   public static let watchAssertKey = "ignia.watch.assert.v1"
 
+  /// **On the WATCH's own container**: what last wrote the snapshot, and how
+  /// many times the complication has been asked to reload today.
+  ///
+  /// The phone's `watchAssertKey` proved the phone did its job (`sent · app`,
+  /// complication on the active face, 32 transfers left — so the waking queue
+  /// really was used). That moved the question one device out, to a device with
+  /// **no instrumentation at all**, where two causes are indistinguishable: the
+  /// wake never happened, or it happened and the reload was throttled.
+  ///
+  /// `label` names the callback that stored — `userInfo` is the waking queue
+  /// and seeing it is the proof that `transferCurrentComplicationUserInfo`
+  /// woke this app.
+  public static let watchIngestKey = "ignia.watch.ingest.v1"
+
+  /// **On the WATCH's own container**: when the complication last built a
+  /// timeline, and how many it has built today.
+  ///
+  /// The other half of the same question, and the half that separates the two
+  /// causes outright. If ingest fired at 10:01 and the last timeline build is
+  /// 09:14, WidgetKit is throttling us and the reload budget is the problem. If
+  /// the timeline built at 10:01 and the face still shows old numbers, the
+  /// container read is the problem. Neither is guessable from the wrist.
+  public static let watchTimelineKey = "ignia.watch.timeline.v1"
+
   /// The watch complication's `kind`. Only the watch app reloads it, and it
   /// does so via `reloadAllTimelines`, so this is not a cross-process contract
   /// the way `widgetKind` is — it is here so the two watch targets agree.
@@ -453,6 +477,71 @@ public enum Glance {
         fastSince: "since %@"
       )
     }
+  }
+
+  // MARK: - Marks
+  //
+  // A dated label + counter, written by whichever process did the thing and
+  // read by whichever process can show it. Two callers today — the watch app's
+  // ingest and the complication's timeline build — and they share this rather
+  // than each hand-rolling the same JSON, because the whole value of a mark is
+  // that two of them can be compared, and two encodings that drift cannot be.
+
+  /// One recorded event: what happened, when, and how many times today.
+  public struct Mark {
+    public let label: String
+    public let at: Date
+    /// Resets at local midnight, because the budget it measures does.
+    public let countToday: Int
+  }
+
+  /// Record that `label` just happened, incrementing today's counter.
+  ///
+  /// Best-effort and never throws: a diagnostic write must not be able to break
+  /// the delivery it is describing. Same rule as `QuickAdd.record`.
+  public static func bumpMark(_ key: String, label: String, now: Date = Date()) {
+    guard let defaults = UserDefaults(suiteName: appGroup) else { return }
+    let day = localDateKey(now)
+    var count = 0
+    if let existing = readMark(key), localDateKey(existing.at) == day {
+      count = existing.countToday
+    }
+    let payload: [String: String] = [
+      "label": label,
+      "atMs": String(Int(now.timeIntervalSince1970 * 1000)),
+      "count": String(count + 1),
+    ]
+    guard let data = try? JSONSerialization.data(withJSONObject: payload),
+          let json = String(data: data, encoding: .utf8)
+    else { return }
+    defaults.set(json, forKey: key)
+  }
+
+  public static func readMark(_ key: String) -> Mark? {
+    guard let defaults = UserDefaults(suiteName: appGroup),
+          let json = defaults.string(forKey: key),
+          let parsed = try? JSONSerialization.jsonObject(with: Data(json.utf8))
+            as? [String: String],
+          let label = parsed["label"],
+          let ms = Double(parsed["atMs"] ?? "")
+    else { return nil }
+    return Mark(
+      label: label,
+      at: Date(timeIntervalSince1970: ms / 1000),
+      countToday: Int(parsed["count"] ?? "0") ?? 0)
+  }
+
+  /// `userInfo 10:01 ·7` — deliberately terse and deliberately untranslated.
+  /// It is a reading, not copy: the labels are the Swift callback names a
+  /// diagnosis is made from, and translating them would break the only thing
+  /// they are for.
+  public static func markLine(_ prefix: String, _ mark: Mark?, locale: String) -> String {
+    guard let mark else { return "\(prefix) —" }
+    let f = DateFormatter()
+    f.locale = Locale(identifier: locale)
+    f.timeStyle = .short
+    f.dateStyle = .none
+    return "\(prefix) \(mark.label) \(f.string(from: mark.at)) ·\(mark.countToday)"
   }
 
   // MARK: - Formatting

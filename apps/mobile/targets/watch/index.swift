@@ -53,9 +53,18 @@ final class WatchReceiver: NSObject, ObservableObject, WCSessionDelegate {
   /// re-evaluated against the *current* clock rather than the one at receipt.
   @Published var face: Glance.Face = .empty(locale: nil)
 
+  /// The two marks, rendered. Shown at the bottom of the mirror screen — the
+  /// only place on this device that can answer "was I woken, and was I drawn".
+  ///
+  /// It is on the user-visible screen rather than behind a debug flag for the
+  /// same reason the phone's card is: this has to be readable on a TestFlight
+  /// build, on a wrist, by whoever is standing there. It is one dim line below
+  /// everything else and costs a scroll on 40mm.
+  @Published var diagnostics: String = ""
+
   private override init() { super.init() }
 
-  func start() {
+  func start(source: String = "launch") {
     guard WCSession.isSupported() else {
       // A watch app always has a counterpart, so this should be unreachable —
       // but activating an unsupported session traps, so it is guarded anyway.
@@ -71,7 +80,7 @@ final class WatchReceiver: NSObject, ObservableObject, WCSessionDelegate {
     // is sitting in `receivedApplicationContext` right now and the delegate
     // callback may not fire again. One line, covers delivery that happened
     // before the view appeared (#39 §4).
-    store(session.receivedApplicationContext)
+    store(session.receivedApplicationContext, from: source)
     refresh()
   }
 
@@ -83,7 +92,16 @@ final class WatchReceiver: NSObject, ObservableObject, WCSessionDelegate {
   /// nothing — see `ingest()`.
   func refresh() {
     let next = Glance.load(now: Date())
-    DispatchQueue.main.async { self.face = next }
+    let locale = next.locale
+    // Read both marks here rather than in the view: the view re-renders for
+    // many reasons and these are two App Group reads, while `refresh()` is
+    // already the one place that re-derives everything from disk.
+    let ingest = Glance.markLine("in", Glance.readMark(Glance.watchIngestKey), locale: locale)
+    let drawn = Glance.markLine("draw", Glance.readMark(Glance.watchTimelineKey), locale: locale)
+    DispatchQueue.main.async {
+      self.face = next
+      self.diagnostics = "\(ingest)   \(drawn)"
+    }
   }
 
   /// Handle a WatchConnectivity background wake, and do it **before returning**.
@@ -111,14 +129,14 @@ final class WatchReceiver: NSObject, ObservableObject, WCSessionDelegate {
 
   func ingest() async {
     storedDuringWake = false
-    start()
+    start(source: "wake")
     for _ in 0..<20 {
       if WCSession.default.activationState == .activated { break }
       try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1s, so ≤2s total
     }
     // The application-context queue exposes its latest value as a property, so
     // it can be read outright.
-    store(WCSession.default.receivedApplicationContext)
+    store(WCSession.default.receivedApplicationContext, from: "wake")
 
     // The complication queue does NOT: `transferCurrentComplicationUserInfo`
     // arrives only through `didReceiveUserInfo`, and this wake may have been
@@ -144,10 +162,46 @@ final class WatchReceiver: NSObject, ObservableObject, WCSessionDelegate {
   /// disagreement a validating delegate would discard the only copy of data it
   /// has **no way to re-request** — there is no pull on this transport
   /// (#39 §5).
-  private func store(_ context: [String: Any]) {
+  private func store(_ context: [String: Any], from source: String) {
     guard let json = context[Glance.contextKey] as? String else { return }
-    storedDuringWake = true
     let defaults = UserDefaults(suiteName: Glance.appGroup)
+
+    // ## The dedupe, added 2026-08-14 — and it is a BUG FIX, not a saving
+    //
+    // This used to write and call `reloadAllTimelines()` unconditionally, on
+    // every path, every time. That is not free and it is not idempotent:
+    //
+    //   - `reloadAllTimelines()` counts against the watch's **40–75 reloads
+    //     per day** budget (#37 §5, and the same figure the phone side already
+    //     dedupes against in `WatchLinkSession.assert`);
+    //   - `start()` calls this on **every** app launch, with whatever
+    //     `receivedApplicationContext` happens to hold — usually the same bytes
+    //     as last time;
+    //   - `ingest()` calls it **twice per background wake**, once through
+    //     `start()` and once after the activation wait.
+    //
+    // So opening the watch app ten times spent ten reloads on identical bytes,
+    // and every background wake spent two. Once that budget is gone WidgetKit
+    // throttles the reload and the face stops moving — which is
+    // indistinguishable, from the wrist, from the delivery never arriving.
+    //
+    // **The phone has deduped since 2026-08-10 for exactly this reason and the
+    // watch never did.** That asymmetry is the defect: the transport's cheap
+    // end was careful and its expensive end was not.
+    //
+    // The comparison is the stored JSON, not a decoded value: the payload is
+    // latest-wins bytes and byte equality is precisely the question.
+    guard defaults?.string(forKey: Glance.snapshotKey) != json else {
+      Glance.bumpMark(Glance.watchIngestKey, label: "\(source):same")
+      return
+    }
+
+    // Set only for a delivery that actually carried something NEW. `ingest()`
+    // reads this to decide whether to keep waiting for the complication queue,
+    // and "the app-context read handed me the same bytes I already had" must
+    // not be mistaken for "new data landed" — that would cut the wait short on
+    // exactly the wake that still had a real payload in flight.
+    storedDuringWake = true
     defaults?.set(json, forKey: Glance.snapshotKey)
     // Force the write out before asking WidgetKit to re-read it. `synchronize()`
     // is deprecated and Apple's position is that it is unnecessary — that
@@ -162,8 +216,11 @@ final class WatchReceiver: NSObject, ObservableObject, WCSessionDelegate {
     // A sign-out sends the empty string. It fails the decode and collapses to
     // `.empty` exactly as an absent or unreadable blob does — no fourth reason,
     // no new key, no second decode path (#44 §2).
-    refresh()
     WidgetCenter.shared.reloadAllTimelines()
+    // After the reload request, so the mark the screen shows is the one this
+    // ingest just made rather than the previous one.
+    Glance.bumpMark(Glance.watchIngestKey, label: source)
+    refresh()
   }
 
   // MARK: WCSessionDelegate
@@ -174,11 +231,11 @@ final class WatchReceiver: NSObject, ObservableObject, WCSessionDelegate {
     error: Error?
   ) {
     guard error == nil else { return }
-    store(session.receivedApplicationContext)
+    store(session.receivedApplicationContext, from: "activation")
   }
 
   func session(_ session: WCSession, didReceiveApplicationContext context: [String: Any]) {
-    store(context)
+    store(context, from: "context")
   }
 
   /// The complication queue's arrival point (2026-08-10).
@@ -192,8 +249,13 @@ final class WatchReceiver: NSObject, ObservableObject, WCSessionDelegate {
   /// Same envelope, same `store()`, so there is still exactly one decode path
   /// and one staleness guard. Whichever queue arrives first wins; the payload
   /// is latest-wins, so a double delivery writes identical bytes twice.
+  /// `userInfo` in the diagnostics line is **the single most valuable reading
+  /// on this device**: it is the only label that can only have come from
+  /// `transferCurrentComplicationUserInfo`, so seeing it proves the waking
+  /// queue both arrived and woke this app. Its absence, against a phone that
+  /// recorded `sent`, is the proof that the wake is what fails.
   func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
-    store(userInfo)
+    store(userInfo, from: "userInfo")
   }
 }
 
@@ -288,6 +350,16 @@ private struct MirrorView: SwiftUI.View {
             .lineLimit(1)
             .minimumScaleFactor(0.7)
         }
+
+        // The two marks, below everything, in both face states — the empty
+        // state is exactly when you most want to know whether anything ever
+        // arrived. Dim and terse; it costs a scroll on 40mm and answers the
+        // only question this device cannot otherwise be asked.
+        Text(link.diagnostics)
+          .font(.system(size: 9))
+          .foregroundStyle(.tertiary)
+          .multilineTextAlignment(.center)
+          .padding(.top, 10)
       }
       .frame(maxWidth: .infinity)
     }

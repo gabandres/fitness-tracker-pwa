@@ -49,6 +49,20 @@ private struct Provider: TimelineProvider {
   func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> Void) {
     let now = Date()
     let current = Glance.load(now: now)
+
+    // Record that WidgetKit actually asked, and how many times today.
+    //
+    // This is the half of the diagnosis the watch app cannot provide. A stale
+    // face has two causes that look identical from the wrist: the snapshot
+    // never arrived, or it arrived and this provider was never asked to draw
+    // it. The watch app's ingest mark answers the first; only this answers the
+    // second, because a throttled reload produces no signal anywhere else —
+    // `reloadAllTimelines()` returns nothing and fails silently by design.
+    //
+    // Written from the extension process into the same App Group it already
+    // reads, and read back by the watch app for display. One `UserDefaults`
+    // write per timeline build, which is metered at 40–75/day anyway.
+    Glance.bumpMark(Glance.watchTimelineKey, label: "t", now: now)
     var entries = [Entry(date: now, face: current)]
 
     // The midnight backstop, same as the phone widget's. On the wrist it does
