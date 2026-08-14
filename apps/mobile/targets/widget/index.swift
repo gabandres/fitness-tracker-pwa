@@ -321,6 +321,25 @@ private struct HomeWideView: SwiftUI.View {
  * config file and the API floor should not depend on someone not lowering it.
  */
 private struct QuickAddButton: SwiftUI.View {
+  /// Home Screen tint/clear modes render the widget `.accented`: the system
+  /// flattens every colour into one tint. A filled capsule and its label then
+  /// resolve to the *same* colour, so the text disappears into its own
+  /// background — verified on device 2026-08-13, where all three chips drew as
+  /// solid blobs with no readable name in both Tinted and Clear.
+  ///
+  /// `index.swift` used to say these semantics were unverified and that the
+  /// design deliberately did not depend on them. That was the right call while
+  /// nothing needed them; a filled control with a label inside is the case that
+  /// needs them.
+  ///
+  /// Fix is an outline instead of a fill whenever rendering is not full colour.
+  /// Opacity survives the flattening even though hue does not, so a stroked
+  /// capsule stays visible as a shape while the label keeps full contrast
+  /// against the widget background rather than against a capsule. Branching on
+  /// `!= .fullColor` rather than `== .accented` covers `.vibrant` too, without
+  /// depending on which mode each surface picks.
+  @Environment(\.widgetRenderingMode) private var renderingMode
+
   let slot: Glance.QuickAddSlot
   /// Index into `snap.quickAdd`, and the value the intent writes.
   ///
@@ -345,7 +364,13 @@ private struct QuickAddButton: SwiftUI.View {
       .foregroundStyle(Color.igText)
       .padding(.horizontal, 10)
       .padding(.vertical, 5)
-      .background(Color.igButton, in: Capsule())
+      .background {
+        if renderingMode == .fullColor {
+          Capsule().fill(Color.igButton)
+        } else {
+          Capsule().strokeBorder(Color.igText.opacity(0.55), lineWidth: 1)
+        }
+      }
       .padding(.top, 10)
       .accessibilityLabel("\(verb) \(slot.name)")
     }
