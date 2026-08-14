@@ -103,6 +103,40 @@ public enum Glance {
   /// not telemetry: nothing leaves the device.
   public static let quickAddOutcomeKey = "ignia.quickAdd.outcome.v1"
 
+  /// Where a process that wanted to reach the watch and could not parks the
+  /// envelope, for whichever process next holds an activated `WCSession`.
+  /// Must equal `WATCH_PENDING_KEY` in `src/lib/widget.ts` and `pendingKey` in
+  /// `modules/watch-link/ios/WatchLinkModule.swift`.
+  ///
+  /// ## Why a park and not just a send
+  ///
+  /// `WCSession` exists only in the app process, and even there it is
+  /// **activated asynchronously**: `WatchLinkModule` calls `activate()` at
+  /// launch and the state flips a moment later, on a delegate callback. An
+  /// intent performed on a cold launch runs inside that window, so the honest
+  /// answer to "can I send right now" is *not yet* rather than *no* — and the
+  /// old code treated the two identically and dropped the push, which is the
+  /// whole reason a Siri-logged meal never reached the wrist.
+  ///
+  /// The value is the same one-key envelope the transport carries
+  /// (`[contextKey: snapshotJSON]`), serialized. Latest-wins, exactly like the
+  /// application context itself: a second park overwrites the first, because
+  /// the question is only ever "what should the wrist show now".
+  public static let watchPendingKey = "ignia.watch.pending.v1"
+
+  /// Where an attempt to reach the watch records which of its guards fired.
+  /// Must equal `WATCH_ASSERT_KEY` in `src/lib/widget.ts`.
+  ///
+  /// Same reasoning as `quickAddOutcomeKey`, one device further out: a watch
+  /// that does not move looks identical whether the send was skipped in the
+  /// widget extension, skipped because the session had not activated, or made
+  /// and lost in transit. Two speculative fixes were shipped to this surface on
+  /// 2026-08-13 without either being distinguishable from the other. This names
+  /// the guard, on the device, in the App Group both processes share.
+  ///
+  /// Diagnosis, not telemetry: nothing leaves the device.
+  public static let watchAssertKey = "ignia.watch.assert.v1"
+
   /// The watch complication's `kind`. Only the watch app reloads it, and it
   /// does so via `reloadAllTimelines`, so this is not a cross-process contract
   /// the way `widgetKind` is — it is here so the two watch targets agree.

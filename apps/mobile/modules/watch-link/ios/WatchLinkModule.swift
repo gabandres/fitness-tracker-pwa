@@ -174,6 +174,55 @@ private final class WatchLinkSession: NSObject, WCSessionDelegate {
     _ = assert(desired)
   }
 
+  // MARK: - The parked envelope
+
+  /// **Must equal `Glance.appGroup`** in `targets/_shared/Glance.swift`.
+  /// Duplicated by convention for the same reason the keychain service and
+  /// account are duplicated in `QuickAddCredentialsModule`: an Expo Module is a
+  /// CocoaPods target and cannot see an apple-target. Disagreeing is a silent
+  /// nil, not a build error.
+  private static let appGroup = "group.fit.ignia.app"
+
+  /// **Must equal `Glance.watchPendingKey`.**
+  private static let pendingKey = "ignia.watch.pending.v1"
+
+  /// Deliver anything a process parked because it had no activated session.
+  ///
+  /// ## Why this is here and not in JS
+  ///
+  /// This is the far end of the one hole in the transport. A quick-add
+  /// performed on a cold launch — a Siri phrase with the app closed, a widget
+  /// chip that woke the app — runs *before* `activate()` has completed, so it
+  /// parks the envelope and gives up. The moment that closes the hole is
+  /// `activationDidCompleteWith`, milliseconds later and in this class. Waiting
+  /// for React Native to boot and for a screen to mount would turn a
+  /// millisecond gap into a multi-second one, which is the eventual consistency
+  /// this was supposed to end.
+  ///
+  /// ## It does not learn the contract
+  ///
+  /// The parked value is the same opaque one-key envelope this module already
+  /// forwards without inspecting. It is read as a `[String: String]` and handed
+  /// straight to `assert`; nothing here decodes a snapshot, and the wire shape
+  /// still lives entirely in `Glance.swift`. What this module gains is two
+  /// storage constants, which is transport plumbing, not domain (#38).
+  ///
+  /// Cleared once an activated session has seen it — delivered, or deduped
+  /// because the counterpart already holds exactly it. Both mean the envelope
+  /// has done its job, and keeping it would let a stale day's numbers be
+  /// re-asserted at the next pairing change.
+  private func drainPending() {
+    guard activatedSession != nil,
+          let defaults = UserDefaults(suiteName: Self.appGroup),
+          let json = defaults.string(forKey: Self.pendingKey),
+          let record = try? JSONSerialization.jsonObject(with: Data(json.utf8))
+            as? [String: String]
+    else { return }
+
+    _ = assert(record)
+    defaults.removeObject(forKey: Self.pendingKey)
+  }
+
   // MARK: WCSessionDelegate
   //
   // No phone-side events reach JS. The phone never listens; the watch does
@@ -185,12 +234,20 @@ private final class WatchLinkSession: NSObject, WCSessionDelegate {
     error: Error?
   ) {
     guard error == nil, activationState == .activated else { return }
+    // Order matters. The parked envelope is the *newer* fact — an intent wrote
+    // it moments ago, in this launch — while `desired` is whatever JS last
+    // asked for, which on a cold launch is nothing at all. Draining first means
+    // a Siri-logged meal reaches the wrist before React Native has finished
+    // booting; `reassert` then either no-ops on the dedupe or supersedes it
+    // with the same numbers.
+    drainPending()
     reassert()
   }
 
   /// Fires on exactly the pairing and installation transitions that strand a
   /// context in the daemon.
   func sessionWatchStateDidChange(_ session: WCSession) {
+    drainPending()
     reassert()
   }
 

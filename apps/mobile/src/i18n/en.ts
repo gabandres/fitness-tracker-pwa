@@ -639,6 +639,7 @@ export const en = {
   'settings.watchComplication': 'Complication on the active face',
   'settings.watchComplicationHint': 'Ignia can only wake your watch when the complication is on the face you are wearing. In the Smart Stack it updates far less often.',
   'settings.watchTransfers': 'Wake-ups left today',
+  'settings.watchLastPush': 'Last watch push',
   'settings.watchBuild': 'app build {n}',
   'settings.quickAddSection': 'Quick add',
   'settings.quickAdd': 'Log without opening Ignia',

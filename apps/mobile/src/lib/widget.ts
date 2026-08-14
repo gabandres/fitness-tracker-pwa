@@ -64,6 +64,26 @@ export const WIDGET_NAME = 'Today';
  */
 export const WATCH_CONTEXT_KEY = 'snapshot';
 
+/**
+ * Where a Swift process parks an envelope it could not send. Must equal
+ * `Glance.watchPendingKey` in `targets/_shared/Glance.swift` and `pendingKey`
+ * in `modules/watch-link/ios/WatchLinkModule.swift`.
+ *
+ * JS never reads it — `WatchLinkSession` drains it natively on activation,
+ * which is milliseconds after the park and long before any JS runs. JS only
+ * ever **clears** it, on the one thing it knows that Swift does not: that a
+ * fresher context has just been asserted, so the parked one is now a stale
+ * duplicate. Without that, a park made while no watch was paired would be
+ * delivered verbatim at the next pairing change, days later.
+ */
+export const WATCH_PENDING_KEY = 'ignia.watch.pending.v1';
+
+/**
+ * Where a Swift watch push records which guard it hit. Must equal
+ * `Glance.watchAssertKey` in `targets/_shared/Glance.swift`.
+ */
+export const WATCH_ASSERT_KEY = 'ignia.watch.assert.v1';
+
 /** Expo Go has neither native module linked, and web has no home screen. */
 const supported =
   Constants.executionEnvironment !== ExecutionEnvironment.StoreClient &&
@@ -77,6 +97,31 @@ const supported =
  * free. Process-local by design: a cold start writes once and re-primes it.
  */
 let lastWritten: WidgetSnapshot | null = null;
+
+/**
+ * Forget an envelope a Swift process parked, now that a fresher one has been
+ * asserted from JS.
+ *
+ * The park exists so a quick-add performed before `WCSession` finished
+ * activating is not lost (see {@link WATCH_PENDING_KEY}); `WatchLinkSession`
+ * drains it natively on activation. But it is also drained on every
+ * pairing/installation change, and *that* is the case JS has to bound: a park
+ * made on a phone with no watch would otherwise sit there until a watch is
+ * paired and then assert numbers from whichever day it was written. Anything JS
+ * asserts is strictly newer, so the park is spent the moment this runs.
+ *
+ * Takes the storage handle rather than making its own: the caller already has
+ * one, and a second `ExtensionStorage` for a one-line delete is noise.
+ */
+function dropParkedWatchEnvelope(storage: { set: (key: string, value?: string) => void }): void {
+  try {
+    storage.set(WATCH_PENDING_KEY, undefined);
+  } catch {
+    /* Best-effort. A park left behind is a stale push at worst, and the
+       day-key guard in `Glance.swift` collapses a stale day to the empty face
+       rather than showing yesterday's numbers as today's. */
+  }
+}
 
 async function persist(snapshot: WidgetSnapshot): Promise<void> {
   const json = JSON.stringify(snapshot);
@@ -96,6 +141,7 @@ async function persist(snapshot: WidgetSnapshot): Promise<void> {
     // guard, both surfaces, no watch-specific notion of "changed" (#37 §5).
     // Never throws; a watch-less iPhone is the ordinary case.
     updateApplicationContext({ [WATCH_CONTEXT_KEY]: json });
+    dropParkedWatchEnvelope(storage);
     if (__DEV__) {
       // `UserDefaults(suiteName:)` returns nil when the process is not entitled
       // to the App Group, and the write then no-ops WITHOUT throwing. Reading
@@ -295,9 +341,62 @@ export function assertWatchSnapshot(snapshot: WidgetSnapshot): void {
   if (!supported || Platform.OS !== 'ios') return;
   try {
     updateApplicationContext({ [WATCH_CONTEXT_KEY]: JSON.stringify(snapshot) });
+    const { ExtensionStorage } = require('@bacons/apple-targets');
+    dropParkedWatchEnvelope(new ExtensionStorage(APP_GROUP));
   } catch (err) {
     // A watch-less iPhone is the ordinary case, not a fault.
     if (__DEV__) console.warn('[widget] watch assert FAILED', err);
+  }
+}
+
+/**
+ * What the last native watch push did, and which process made it.
+ *
+ * - `sent` — handed to WatchConnectivity from an already-activated session.
+ * - `sent:after-wait` — the session activated during the intent's bounded wait,
+ *   then sent. This is the cold-launch Siri case working.
+ * - `parked:appex` — performed in the widget extension, where `WCSession` does
+ *   not exist. Delivered when the app next activates a session. Seeing this
+ *   from a chip tap means the `LiveActivityIntent` routing did **not** take.
+ * - `parked:not-activated` — in the app's process, but no session activated
+ *   inside the budget. Delivered on the next activation.
+ * - `skipped:unsupported` — no WatchConnectivity on this device (iPad).
+ *
+ * `process` is the load-bearing half. Where a quick-add ran decides what it can
+ * reach — the keychain, the watch — and it is not otherwise knowable: an
+ * extension has no Sentry (sentry-cocoa does not support iOS widgets at all),
+ * no log destination, and no way to answer back. This is the channel.
+ */
+export interface WatchAssertOutcome {
+  outcome: string;
+  atMs: number;
+  process: 'app' | 'appex';
+}
+
+/**
+ * Read the note the last native watch push left behind (iOS only).
+ *
+ * Diagnosis, not telemetry — written to and read from the shared App Group,
+ * nothing leaves the device. The sibling of `readQuickAddOutcome`, one device
+ * further out, and it exists because two speculative fixes were shipped to this
+ * surface on 2026-08-13 with no way to tell which guard was firing.
+ */
+export function readWatchAssertOutcome(): WatchAssertOutcome | null {
+  if (!supported || Platform.OS !== 'ios') return null;
+  try {
+    const { ExtensionStorage } = require('@bacons/apple-targets');
+    const json = new ExtensionStorage(APP_GROUP).get(WATCH_ASSERT_KEY);
+    if (!json) return null;
+    const parsed = JSON.parse(json) as { outcome?: string; atMs?: string; process?: string };
+    if (!parsed.outcome) return null;
+    const atMs = Number(parsed.atMs);
+    return {
+      outcome: parsed.outcome,
+      atMs: Number.isFinite(atMs) ? atMs : 0,
+      process: parsed.process === 'appex' ? 'appex' : 'app',
+    };
+  } catch {
+    return null;
   }
 }
 

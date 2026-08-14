@@ -644,6 +644,7 @@ export const esPR: Record<I18nKey, string> = {
   'settings.watchComplication': 'Complicación en la esfera activa',
   'settings.watchComplicationHint': 'Ignia solo puede despertar tu reloj cuando la complicación está en la esfera que llevas puesta. En el Smart Stack se actualiza mucho menos.',
   'settings.watchTransfers': 'Despertares restantes hoy',
+  'settings.watchLastPush': 'Último envío al reloj',
   'settings.watchBuild': 'build {n}',
   'settings.quickAddSection': 'Registro rápido',
   'settings.quickAdd': 'Registra sin abrir Ignia',

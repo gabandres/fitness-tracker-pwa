@@ -227,12 +227,12 @@ public enum QuickAdd {
       // The widget's numbers are the receipt, and nothing else will move them —
       // the app is not running. Optimistic and local, replaced by the truth on
       // the app's next sync.
-      applyOptimistically(row)
+      await applyOptimistically(row)
       record(outcome: "logged")
       return .logged
     } catch {
       park(row: row, id: id, uid: creds.uid)
-      applyOptimistically(row)
+      await applyOptimistically(row)
       record(outcome: "queued")
       return .queued
     }
@@ -415,7 +415,7 @@ public enum QuickAdd {
    * written one has nothing to increment, and inventing a blob would put a
    * fabricated calorie target on the user's home screen.
    */
-  private static func applyOptimistically(_ row: Row) {
+  private static func applyOptimistically(_ row: Row) async {
     guard let defaults = UserDefaults(suiteName: Glance.appGroup),
           let json = defaults.string(forKey: Glance.snapshotKey),
           let snap = try? JSONDecoder().decode(Glance.Snapshot.self, from: Data(json.utf8))
@@ -441,50 +441,182 @@ public enum QuickAdd {
       WidgetCenter.shared.reloadTimelines(ofKind: Glance.widgetKind)
     #endif
 
-    assertToWatch(encoded)
+    await assertToWatch(encoded)
   }
 
   /**
-   * Push the freshly-bumped snapshot to the Apple Watch, when this process is
-   * allowed to.
+   * Push the freshly-bumped snapshot to the Apple Watch — from any process, and
+   * without ever dropping it on the floor.
    *
-   * ## Why this is guarded rather than just done
+   * ## The rule this replaces, and why it was wrong
    *
-   * **`WCSession` is unavailable in iOS app extensions** — Apple's limitation,
-   * documented and not negotiable. `LogQuickAddSlotIntent` lives in
-   * `_shared/`, so it compiles into `Today.appex` and a widget-button tap runs
-   * THERE. That tap can never reach the watch from its own process; the wrist
-   * learns about it when the app is next foregrounded and `useWidgetSync`
-   * fires. Bailing out is the honest behaviour — pretending would burn a
-   * complication transfer that cannot be delivered.
+   * Until 2026-08-14 this bailed on `activationState != .activated` and that
+   * was the bug: **it conflated "cannot" with "not yet".**
    *
-   * A **Siri** phrase is the case this exists for: App Shortcuts launch the
-   * containing app (proven on hardware for build 28), so `perform()` runs in
-   * the app process where the session is real.
+   * `WCSession` genuinely does not exist in an app extension — Apple's
+   * limitation, documented, not negotiable — so a widget-button tap performed
+   * inside `Today.appex` really cannot reach the wrist from its own process.
+   * That is a *cannot*.
    *
-   * ## It never activates, and never sets a delegate
+   * But `WatchLinkModule` activates `WCSession.default` **asynchronously** at
+   * app launch, and activation completes on a delegate callback a moment later.
+   * An intent performed on a cold or background launch runs inside that window.
+   * That is a *not yet*, and it is by far the more common case: it is every
+   * Siri phrase spoken while the app is closed, which is precisely what Siri
+   * quick-add is for. The old guard returned silently, skipping the complication
+   * transfer **and** the application context, so nothing at all reached the
+   * watch and the numbers only caught up on the app's next foreground.
    *
-   * `WatchLinkModule` owns `WCSession.default` in the app process — it sets the
-   * delegate and activates at launch. A second delegate here would silently
-   * displace it and break the re-assert that keeps a newly-paired watch in
-   * step. So this sends only when the session is ALREADY activated; on a cold
-   * intent launch where React Native has not started yet, it skips, and the
-   * app's next foreground carries the numbers over.
+   * ## What it does now — park, wait, send, clear
+   *
+   * 1. **Park first.** The envelope goes into the App Group under
+   *    `Glance.watchPendingKey` before anything is attempted, so a session that
+   *    activates at any point during the wait finds it — `WatchLinkModule`
+   *    drains that key on `activationDidCompleteWith`. Parking first rather than
+   *    on failure closes the race between "we gave up" and "it activated".
+   * 2. **Wait, bounded.** Up to `activationBudget` for the state to flip. No
+   *    cost at all in the warm case, where it is already `.activated`.
+   * 3. **Send** over both queues, exactly as `WatchLinkModule.assert` does.
+   * 4. **Clear** the park, because it landed.
+   *
+   * A duplicate delivery is harmless by construction: the payload is
+   * latest-wins and `WatchLinkModule` dedupes against the live application
+   * context, so the park draining after a successful send is a no-op, not a
+   * second meal.
+   *
+   * ## It still never activates, and still never sets a delegate
+   *
+   * `WatchLinkModule` owns `WCSession.default` in the app process. A second
+   * delegate here would silently displace it and break the re-assert that keeps
+   * a newly-paired watch in step, so this only ever *waits* for the owner to
+   * finish — it never calls `activate()` and never assigns `delegate`. That is
+   * also why the wait gives up early when there is no delegate at all: nobody
+   * is going to activate the session, so waiting the full budget would just
+   * stall the intent's spoken reply for nothing.
    */
-  private static func assertToWatch(_ json: String) {
+  private static func assertToWatch(_ json: String) async {
     #if canImport(WatchConnectivity) && os(iOS)
-      guard Bundle.main.bundleURL.pathExtension != "appex" else { return }
-      guard WCSession.isSupported() else { return }
-      let session = WCSession.default
-      guard session.activationState == .activated else { return }
-
       let envelope: [String: Any] = [Glance.contextKey: json]
-      // The waking queue first, budget permitting — same pair, same order and
-      // same reasoning as `WatchLinkModule.assert`.
+
+      // A widget-button tap performed in the extension. `WCSession` does not
+      // exist here at all — park it and let the app deliver it the moment it
+      // next activates a session. `LogQuickAddSlotIntent` now conforms to
+      // `LiveActivityIntent` specifically so this branch stops being the normal
+      // path (see `QuickAddIntents.swift`); it remains because a fallback that
+      // silently loses the push is what the last three builds shipped.
+      guard Bundle.main.bundleURL.pathExtension != "appex" else {
+        parkForWatch(envelope)
+        record(watchAssert: "parked:appex")
+        return
+      }
+
+      // iPad and anything else with no WatchConnectivity. Nothing to park for —
+      // no process on this device will ever drain it.
+      guard WCSession.isSupported() else {
+        record(watchAssert: "skipped:unsupported")
+        return
+      }
+
+      let session = WCSession.default
+      let wasActivated = session.activationState == .activated
+
+      // (1) Park before waiting, so an activation that lands mid-wait still
+      //     finds the envelope.
+      if !wasActivated { parkForWatch(envelope) }
+
+      // (2) Wait for the owner to finish activating.
+      if !wasActivated, !(await waitForActivation(session)) {
+        record(watchAssert: "parked:not-activated")
+        return
+      }
+
+      // (3) The waking queue first, budget permitting — same pair, same order
+      //     and same reasoning as `WatchLinkModule.assert`.
       if session.isComplicationEnabled, session.remainingComplicationUserInfoTransfers > 0 {
         _ = session.transferCurrentComplicationUserInfo(envelope)
       }
       try? session.updateApplicationContext(envelope)
+
+      // (4) It landed; the park would only be a stale duplicate now.
+      if !wasActivated { clearWatchPark() }
+      record(watchAssert: wasActivated ? "sent" : "sent:after-wait")
+    #else
+      _ = json
     #endif
+  }
+
+  #if canImport(WatchConnectivity) && os(iOS)
+    /// How long an intent will hold its reply waiting for `WCSession` to finish
+    /// activating.
+    ///
+    /// Generous against the measurement it is bounding — activation normally
+    /// completes in well under a second — and small against the budget it is
+    /// spending, which is a Siri intent's several seconds before the reply
+    /// looks slow. Only a cold launch ever pays any of it.
+    private static let activationBudget: TimeInterval = 3.0
+
+    /// Poll `activationState` until it flips, the budget runs out, or it becomes
+    /// clear nobody is going to activate it.
+    ///
+    /// Polling rather than a delegate callback is not a shortcut, it is the
+    /// constraint: this file may not take the delegate slot (see above), and a
+    /// 50ms poll on an already-launching process is cheaper than the session
+    /// handshake it is waiting for.
+    private static func waitForActivation(_ session: WCSession) async -> Bool {
+      let step = UInt64(50_000_000)  // 50ms
+      let deadline = Date().addingTimeInterval(activationBudget)
+      // If `WatchLinkModule` has not even claimed the delegate after this long,
+      // React Native is not starting in this process and the wait is pointless.
+      let delegateGrace = Date().addingTimeInterval(0.5)
+
+      while Date() < deadline {
+        if session.activationState == .activated { return true }
+        if session.delegate == nil, Date() > delegateGrace { return false }
+        try? await Task.sleep(nanoseconds: step)
+      }
+      return session.activationState == .activated
+    }
+
+    /// Leave the envelope where an activated session will find it. Overwrites:
+    /// latest-wins, exactly like the application context it mirrors.
+    private static func parkForWatch(_ envelope: [String: Any]) {
+      guard let defaults = UserDefaults(suiteName: Glance.appGroup),
+            let data = try? JSONSerialization.data(withJSONObject: envelope),
+            let json = String(data: data, encoding: .utf8)
+      else { return }
+      defaults.set(json, forKey: Glance.watchPendingKey)
+    }
+
+    private static func clearWatchPark() {
+      UserDefaults(suiteName: Glance.appGroup)?.removeObject(forKey: Glance.watchPendingKey)
+    }
+  #endif
+
+  /**
+   * Name which guard the last watch push hit.
+   *
+   * The sibling of `record(outcome:)` one device further out, and it exists for
+   * the same reason: from the wrist, "skipped in the extension", "skipped
+   * because the session had not activated yet" and "sent and lost in transit"
+   * are one symptom — a number that did not move. Two speculative fixes were
+   * shipped to this surface on 2026-08-13 with no way to tell which guard was
+   * firing. `WatchDiagnosticsCard` surfaces this.
+   *
+   * The process is recorded alongside because the single most consequential
+   * fact about a quick-add is *where it ran*, and that is not otherwise
+   * knowable from the app: an extension has no Sentry, no log destination and
+   * no way to answer back.
+   */
+  static func record(watchAssert outcome: String, at: Date = Date()) {
+    guard let defaults = UserDefaults(suiteName: Glance.appGroup) else { return }
+    let payload: [String: String] = [
+      "outcome": outcome,
+      "atMs": String(Int(at.timeIntervalSince1970 * 1000)),
+      "process": Bundle.main.bundleURL.pathExtension == "appex" ? "appex" : "app",
+    ]
+    guard let data = try? JSONSerialization.data(withJSONObject: payload),
+          let json = String(data: data, encoding: .utf8)
+    else { return }
+    defaults.set(json, forKey: Glance.watchAssertKey)
   }
 }

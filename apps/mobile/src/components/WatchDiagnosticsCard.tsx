@@ -9,6 +9,7 @@ import {
   remainingComplicationTransfers,
 } from '../../modules/watch-link';
 import { useT } from '@/i18n';
+import { readWatchAssertOutcome } from '@/lib/widget';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
@@ -54,6 +55,9 @@ export function WatchDiagnosticsCard() {
   const installed = isWatchAppInstalled();
   const complication = isComplicationEnabled();
   const remaining = remainingComplicationTransfers();
+  // Read every tick, not once at mount: the whole point of this row is that
+  // someone taps a widget chip or speaks to Siri and then looks here.
+  const lastPush = readWatchAssertOutcome();
 
   return (
     <View style={styles.card} testID="watch-diagnostics">
@@ -70,6 +74,23 @@ export function WatchDiagnosticsCard() {
             <Text style={styles.rowValue}>{remaining}</Text>
           </View>
         </>
+      ) : null}
+      {/* Raw tokens on purpose. This row exists to name which guard fired and
+          which process ran, and a friendlier rendering would blur exactly the
+          distinctions it is here to make. See `readWatchAssertOutcome`. */}
+      {lastPush ? (
+        <View style={styles.rowBetween}>
+          <Text style={styles.rowLabel}>{t('settings.watchLastPush')}</Text>
+          <Text style={styles.rowValue} testID="watch-last-push">
+            {lastPush.outcome} · {lastPush.process}
+            {lastPush.atMs > 0
+              ? ` · ${new Date(lastPush.atMs).toLocaleTimeString(undefined, {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })}`
+              : ''}
+          </Text>
+        </View>
       ) : null}
       <Text style={styles.build}>
         {t('settings.watchBuild', { n: Application.nativeBuildVersion ?? '—' })}

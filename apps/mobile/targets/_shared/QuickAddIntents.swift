@@ -17,9 +17,23 @@ import Foundation
  * iOS 17+, but that lives in the widget target, which is pinned to 17.0.
  *
  * ## Where `perform()` runs
- * In the **app's** process, launched in the background — for both a Siri phrase
- * and a widget button. That is why `QuickAdd` can read the app's own keychain
- * with no access group, and why none of this needs an entitlement change.
+ * A **Siri phrase** launches the containing app and performs there — proven on
+ * hardware in build 28.
+ *
+ * A **widget button** does not, by default. `@bacons/apple-targets` globs this
+ * file into every target, so `Today.appex` carries its own copy of
+ * `LogQuickAddSlotIntent` and WidgetKit performs *that* one, in the extension's
+ * process. This comment claimed the opposite until 2026-08-14 and the claim cost
+ * two bugs: an unreachable keychain that made every widget tap a silent no-op
+ * for six builds (ADR-0020 amendment, fixed with a shared access group), and a
+ * watch push that could not be made at all because `WCSession` does not exist in
+ * an extension.
+ *
+ * `LogQuickAddSlotIntent` now conforms to **`LiveActivityIntent`**, which is
+ * Apple's documented lever for exactly this: adopting it makes the system run
+ * the intent in the **app's** process, launching the app in the background when
+ * it is not running. `NSSupportsLiveActivities` is already set (N3, ADR-0021),
+ * which that routing requires. See ADR-0023.
  *
  * ## No confirmation, by design
  * `requestConfirmation()` is deliberately not called. The feature exists to make
@@ -259,6 +273,57 @@ struct LogQuickAddSlotIntent: AppIntent {
     return .result()
   }
 }
+
+/**
+ * Run the widget button's intent in the APP's process, not the widget's.
+ *
+ * ## What this buys
+ *
+ * `WCSession` does not exist in an app extension, so a chip tap performed in
+ * `Today.appex` can never reach the Apple Watch from its own process — no
+ * amount of care inside `QuickAdd.assertToWatch` changes that, because the
+ * framework is simply absent. Routing the intent into the app is the only
+ * mechanism that makes a chip tap reach the wrist at all, and it is what turns
+ * "the watch catches up when you next open Ignia" into a real-time push.
+ *
+ * It also retires the keychain access group as the *load-bearing* half of
+ * ADR-0020's amendment: in the app's process the credential is simply there.
+ * The shared group stays — an extension-performed fallback must keep working,
+ * and every envelope written before it existed still lives in the app's default
+ * group.
+ *
+ * ## Why `LiveActivityIntent` specifically
+ *
+ * Apple gives three protocols that force app-process execution:
+ * `LiveActivityIntent`, `AudioPlaybackIntent` and `ForegroundContinuableIntent`.
+ * The third is unavailable in extensions (it needs `@available(iOSApplicationExtension,
+ * unavailable)`) and continues in the *foreground*, which would defeat the point
+ * of a one-tap chip. The second is a lie about what this app does. The first is
+ * accurate enough — this app ships a Live Activity (N3) and declares
+ * `NSSupportsLiveActivities`, which the routing requires — and is documented as
+ * background execution in the app's process.
+ *
+ * ## Why an extension, and why `#if os(iOS)`
+ *
+ * Declared as a retroactive conformance rather than on the struct because this
+ * file is globbed into the **watch** targets too, and `LiveActivityIntent`'s
+ * watchOS availability is not something to discover by spending a build. The
+ * struct stays a plain `AppIntent` everywhere; only iOS gains the routing.
+ * Extension-declared conformance is what Apple's own metadata extractor reads,
+ * so it routes identically to declaring it inline.
+ *
+ * ## The risk, stated
+ *
+ * This changes where a **shipped** button runs. If the system declines to
+ * launch the app, the tap does nothing rather than logging from the extension.
+ * That is why `QuickAdd.record(watchAssert:)` now writes the process name into
+ * the App Group on every quick-add and `WatchDiagnosticsCard` shows it: one
+ * device test names which process ran, instead of another speculative build.
+ */
+#if os(iOS)
+  @available(iOS 17.0, *)
+  extension LogQuickAddSlotIntent: LiveActivityIntent {}
+#endif
 
 // MARK: - The phrases
 
