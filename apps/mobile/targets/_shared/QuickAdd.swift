@@ -94,7 +94,7 @@ public enum QuickAdd {
   /// Written by JS on every auth-state change, cleared on sign-out. The API key
   /// and project id ride along rather than being hardcoded here, so `firebase.ts`
   /// stays the single source of both.
-  public struct Credentials: Decodable {
+  public struct Credentials: Decodable, Sendable {
     public let refreshToken: String
     public let apiKey: String
     public let projectId: String
@@ -180,7 +180,7 @@ public enum QuickAdd {
   }
 
   /// One row to write. Mirrors `LogEntry`'s quick-add subset.
-  public struct Row {
+  public struct Row: Sendable {
     public let calories: Int
     public let protein: Double?
     public let carbs: Double?
@@ -207,35 +207,137 @@ public enum QuickAdd {
       mealLabel: slot.name, at: at)
   }
 
+  /// Everything a staged row needs to be committed later.
+  public struct Staged: Sendable {
+    let id: String
+    let creds: Credentials
+    /// The bumped snapshot JSON, for the watch push. `nil` when there was no
+    /// snapshot on disk to bump.
+    let encoded: String?
+  }
+
   /**
-   * Write one row, parking it on any failure.
+   * The LOCAL half of a quick-add: move the numbers, and make the row durable.
+   *
+   * Synchronous, and touches nothing that can block — no network, no
+   * `WCSession`, no waiting. Two App Group writes and a `reloadTimelines`.
+   *
+   * ## Why this is split out, and why the ordering is the whole point
+   *
+   * Until 2026-08-14 the snapshot bump ran **after** both network round trips,
+   * inside a function called `applyOptimistically` and documented as "an
+   * optimistic local edit". It was not optimistic; it was applied post-hoc. So
+   * the widget's numbers could not move until a token exchange and a Firestore
+   * `PATCH` had both come back — and, after build 50, until `assertToWatch` had
+   * finished waiting up to 3 seconds for `WCSession` to activate. **That last
+   * one was a regression this file introduced**, and on a cold launch it was
+   * probably the largest single term in the delay the owner reported.
+   *
+   * It matters more than "the numbers appear sooner", because of how WidgetKit
+   * actually reloads an interactive widget: a `reloadTimelines` call made from
+   * inside `perform()` is **deferred** and documented by developers as
+   * sometimes taking minutes (FB11522170), while the reload the system performs
+   * when `perform()` **returns** is the reliable one. So the widget could not
+   * redraw until `perform()` returned, and `perform()` was waiting on the
+   * network. Returning fast is the mechanism; this function is what makes
+   * returning fast safe.
+   *
+   * ## The park is a write-ahead log, not a failure path
+   *
+   * Parking BEFORE the attempt — rather than in the `catch` — is what lets the
+   * widget path return without awaiting the write at all. If the process is
+   * suspended mid-`PATCH` the row is already on disk and `flushPendingLogs`
+   * replays it on the app's next foreground. Replay is an idempotent overwrite
+   * because the id is minted here and reused, which is exactly what
+   * `newLedgerId` was built for.
+   *
+   * Returns `nil` for a signed-out caller: nothing is written and nothing is
+   * parked, because a row with no uid could land on whoever signs in next.
+   */
+  static func stage(_ row: Row) -> Staged? {
+    guard let creds = credentials() else {
+      record(outcome: "signedOut")
+      return nil
+    }
+    let id = newLedgerId()
+    let encoded = applyLocally(row)
+    park(row: row, id: id, uid: creds.uid)
+    return Staged(id: id, creds: creds, encoded: encoded)
+  }
+
+  /**
+   * The REMOTE half: land the row, drop the parked copy, push to the watch.
+   *
+   * Safe to run after `perform()` has returned. Nothing here is required for
+   * the user to see the right numbers — that already happened in `stage` — and
+   * nothing here can lose the row, because the parked copy is only removed
+   * once the write is confirmed.
+   */
+  static func commit(_ staged: Staged, row: Row) async -> Outcome {
+    var outcome: Outcome
+    do {
+      let token = try await idToken(staged.creds)
+      try await patch(row: row, id: staged.id, token: token, creds: staged.creds)
+      unpark(id: staged.id)
+      outcome = .logged
+    } catch {
+      // The row stays parked. `flushPendingLogs` replays it, as the same id, so
+      // a request that landed and lost its ack becomes an overwrite of
+      // identical bytes rather than a second meal.
+      outcome = .queued
+    }
+    record(outcome: outcome == .logged ? "logged" : "queued")
+
+    // Last, deliberately. The wrist is a seconds-to-minutes surface by
+    // construction and this can wait up to 3s for session activation; putting
+    // it ahead of anything here would spend that budget where it is visible.
+    if let encoded = staged.encoded { await assertToWatch(encoded) }
+    return outcome
+  }
+
+  /**
+   * Write one row and wait for the answer.
+   *
+   * For the **spoken** intents, which must tell the truth in their dialog:
+   * "Logged X" and "Saved it, it'll sync" are different sentences and the
+   * difference is only knowable once the write has been attempted. A widget
+   * button has no dialog and should not pay for one — see `logDeferred`.
    *
    * Never throws. Every caller is an App Intent whose thrown error becomes a
    * user-facing Siri failure, and "couldn't log that" is the wrong answer when
    * the row is safely queued.
    */
   public static func log(_ row: Row) async -> Outcome {
-    guard let creds = credentials() else {
-      record(outcome: "signedOut")
-      return .signedOut
-    }
-    let id = newLedgerId()
+    guard let staged = stage(row) else { return .signedOut }
+    return await commit(staged, row: row)
+  }
 
-    do {
-      let token = try await idToken(creds)
-      try await patch(row: row, id: id, token: token, creds: creds)
-      // The widget's numbers are the receipt, and nothing else will move them —
-      // the app is not running. Optimistic and local, replaced by the truth on
-      // the app's next sync.
-      await applyOptimistically(row)
-      record(outcome: "logged")
-      return .logged
-    } catch {
-      park(row: row, id: id, uid: creds.uid)
-      await applyOptimistically(row)
-      record(outcome: "queued")
-      return .queued
-    }
+  /**
+   * Move the numbers now; land the row in the background.
+   *
+   * For the **widget button**, whose entire receipt is the face redrawing. It
+   * returns as soon as the snapshot is bumped and the row is durable, so
+   * `perform()` returns in milliseconds and the reload WidgetKit performs on
+   * return finds the new numbers already on disk.
+   *
+   * The commit is an unawaited `Task` on purpose, and it is safe because of the
+   * write-ahead park, not because the task is guaranteed to finish. If iOS
+   * suspends this process first, the row is on disk and the app lands it on
+   * next foreground. The failure mode is *later*, never *lost*.
+   *
+   * A background-task assertion would make the task likelier to complete and is
+   * deliberately NOT used: `UIApplication.shared` is unavailable in app
+   * extensions, this file compiles into `Today.appex`, and reaching it through
+   * `NSClassFromString` + KVC is a pattern App Review has flagged. The park
+   * already gives the guarantee the assertion would only make faster.
+   */
+  public static func logDeferred(_ row: Row) -> Outcome {
+    guard let staged = stage(row) else { return .signedOut }
+    Task { _ = await commit(staged, row: row) }
+    // Honest as far as it goes: the row is durable and the numbers have moved.
+    // Whether it reached the ledger is not yet knowable, and no caller of this
+    // says anything to the user about it.
+    return .queued
   }
 
   /**
@@ -390,6 +492,30 @@ public enum QuickAdd {
     }
   }
 
+  /**
+   * Drop a parked row once its write is confirmed.
+   *
+   * The other half of the write-ahead park in `stage`. Parking first is what
+   * makes it safe for the widget path to return before the network finishes;
+   * this is what stops the parked copy from being replayed afterwards.
+   *
+   * A replay would not corrupt anything — `flushPendingLogs` re-`PATCH`es the
+   * same id, which overwrites identical bytes — so a missed unpark costs one
+   * redundant request, not a duplicate meal. That is the whole reason the id is
+   * minted before the attempt.
+   */
+  private static func unpark(id: String) {
+    guard let defaults = UserDefaults(suiteName: Glance.appGroup),
+          let json = defaults.string(forKey: pendingKey),
+          var list = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [[String: Any]]
+    else { return }
+    list.removeAll { ($0["id"] as? String) == id }
+    if let data = try? JSONSerialization.data(withJSONObject: list),
+       let out = String(data: data, encoding: .utf8) {
+      defaults.set(out, forKey: pendingKey)
+    }
+  }
+
   /// A revoked credential invalidates the envelope and everything parked against
   /// it. See `idToken`.
   private static func clearAllOnRevocation() {
@@ -415,11 +541,12 @@ public enum QuickAdd {
    * written one has nothing to increment, and inventing a blob would put a
    * fabricated calorie target on the user's home screen.
    */
-  private static func applyOptimistically(_ row: Row) async {
+  @discardableResult
+  private static func applyLocally(_ row: Row) -> String? {
     guard let defaults = UserDefaults(suiteName: Glance.appGroup),
           let json = defaults.string(forKey: Glance.snapshotKey),
           let snap = try? JSONDecoder().decode(Glance.Snapshot.self, from: Data(json.utf8))
-    else { return }
+    else { return nil }
 
     let next = Glance.Snapshot(
       v: snap.v,
@@ -434,14 +561,20 @@ public enum QuickAdd {
 
     guard let data = try? JSONEncoder().encode(next),
           let encoded = String(data: data, encoding: .utf8)
-    else { return }
+    else { return nil }
     defaults.set(encoded, forKey: Glance.snapshotKey)
 
+    // Requested here as well as relied on at return. This call is the
+    // DEFERRED one — a reload asked for from inside `perform()` is documented
+    // to land late, sometimes minutes late (FB11522170) — while the reload the
+    // system performs when `perform()` returns is the reliable one. It is kept
+    // because it costs nothing, sometimes wins, and is the only reload at all
+    // on the paths that are not a widget button (Siri, the Quick Settings tile).
     #if canImport(WidgetKit)
       WidgetCenter.shared.reloadTimelines(ofKind: Glance.widgetKind)
     #endif
 
-    await assertToWatch(encoded)
+    return encoded
   }
 
   /**

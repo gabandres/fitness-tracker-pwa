@@ -269,7 +269,19 @@ struct LogQuickAddSlotIntent: AppIntent {
       QuickAdd.record(outcome: "noSlot")
       return .result()
     }
-    _ = await QuickAdd.log(QuickAdd.row(from: slots[slot]))
+    // `logDeferred`, not `log`: this intent has no dialog, so the face redrawing
+    // IS the receipt, and the fastest redraw comes from returning fast.
+    //
+    // A `reloadTimelines` requested from inside `perform()` is deferred and can
+    // land minutes later (FB11522170); the reload the system performs when
+    // `perform()` RETURNS is the reliable one. So every millisecond spent here
+    // is a millisecond the user watches a stale number — and before 2026-08-14
+    // that included two network round trips and up to 3s of `WCSession`
+    // activation wait. Now it is two App Group writes.
+    //
+    // The row is durable before this returns; the ledger write finishes in the
+    // background, or on the app's next foreground if iOS suspends us first.
+    _ = QuickAdd.logDeferred(QuickAdd.row(from: slots[slot]))
     return .result()
   }
 }
