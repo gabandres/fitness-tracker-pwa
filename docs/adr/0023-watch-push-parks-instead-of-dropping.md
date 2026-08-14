@@ -1,5 +1,42 @@
 # A watch push parks instead of dropping, and the widget's intent runs in the app
 
+## AMENDED 2026-08-14, later the same day — the mechanism this ADR optimises cannot wake a WidgetKit complication
+
+Everything below about the **phone** is correct and was confirmed on a device:
+the assert reaches `sent`, with the complication on the active face and
+transfers remaining, so both queues genuinely fire. **It does not help, and the
+reason is not in this repo.**
+
+`transferCurrentComplicationUserInfo` wakes a sleeping watch app **under
+ClockKit**. This app's complication is **WidgetKit** — a `StaticConfiguration`
+over `.accessoryCircular/Rectangular/Inline` — and has never been a ClockKit
+complication. For a WidgetKit complication the transfer does **not** wake the
+app; `didReceiveUserInfo` fires only once the app is already running. Apple's
+FB12926788, filed 2023-08, acknowledged, still open, with duplicate reports and
+a public sample project.
+
+That accounts for every observation with nothing left over, including why
+opening the watch app has always "fixed" the face and why build 51's reload
+dedupe changed nothing.
+
+**Consequence: real-time delivery to the wrist is not achievable on this
+surface.** Decisions 1–3 below are still right — they are what makes the phone's
+half correct and prompt, and they are the precondition for the pull that
+replaces the push — but they buy *promptness into the WatchConnectivity daemon*,
+not promptness onto the face. The replacement is a watch-side
+`scheduleBackgroundRefresh` (build 53), which bounds staleness at roughly an
+hour rather than at "whenever the user next opens the watch app".
+
+**Decision 4 is now under review rather than settled.** `LiveActivityIntent`
+forces a React Native app launch on every widget chip tap, and its payoff was
+real-time watch delivery, which does not exist. With the wrist on an hourly pull
+either way, the trade is a slower chip against fresher data for that pull. Build
+53 measures `perform()` so the choice can be made on a number.
+
+**The lesson worth keeping: three builds treated symptoms before anyone checked
+the premise, and the premise was checkable on day one.** The phone-side
+instrumentation was what finally made it checkable, by ruling the phone out.
+
 ## Status
 
 **accepted (2026-08-14) — code exists, BEHAVIOUR UNVERIFIED.** This ADR records

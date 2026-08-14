@@ -55,4 +55,4 @@ decisions that are local to a single component.
 | 0020 | [Logging from outside the app: Android reuses our JS write path, iOS gets a REST one](0020-quick-add-native-write-path.md) | accepted |
 | 0021 | [The fasting Live Activity draws its own timer, and reconciles instead of reacting](0021-fasting-live-activity.md) | accepted |
 | 0022 | [The web PWA is frozen, not retired (amends 0015)](0022-web-pwa-frozen-not-retired.md) | accepted |
-| 0023 | [A watch push parks instead of dropping, and the widget's intent runs in the app](0023-watch-push-parks-instead-of-dropping.md) | accepted (amends 0020); **behaviour unverified** |
+| 0023 | [A watch push parks instead of dropping, and the widget's intent runs in the app](0023-watch-push-parks-instead-of-dropping.md) | accepted (amends 0020), **amended 2026-08-14** — the push cannot wake a WidgetKit complication (Apple FB12926788), so decisions 1–3 stand and decision 4 is under review |
