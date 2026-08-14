@@ -52,7 +52,15 @@ const COLORS = {
   // button is a secondary affordance on a face whose point is the number, and
   // an accent-filled pill reads as the primary thing on it.
   button: '#2b2825',
+  // Progress-bar tracks: the macro's own colour at low alpha, so the bar reads
+  // as "this much of that" rather than as two unrelated colours. Written as
+  // rgba because `RemoteViews` styles take no separate opacity.
+  kcalTrack: 'rgba(255, 106, 61, 0.20)',
+  proteinTrack: 'rgba(52, 211, 153, 0.20)',
 } as const;
+
+/** The library's accepted colour shape — hex or rgba, nothing else. */
+type WidgetColor = `#${string}` | `rgba(${number}, ${number}, ${number}, ${number})`;
 
 /** Deep link into the Today screen with the add-entry sheet already open —
  *  the same `?openAdd` param the in-app FAB route uses. The widget is meant to
@@ -79,6 +87,50 @@ function buttonLabel(name: string): string {
  * than a layout that flickers between faces mid-drag.
  */
 const WIDE_MIN_DP = 220;
+
+/**
+ * A macro's progress as a bar, mirroring the iOS wide face.
+ *
+ * `WidgetMetric.progress` is computed for every view and clamped to `0..1`, and
+ * core's own comment says "the text-first widget ignores it" — it has only ever
+ * reached the Lock Screen gauges on iOS. It is the one thing the wide face can
+ * add that costs no reading, which is what widget guidance asks for.
+ *
+ * `RemoteViews` has no percentage widths, so the proportion is two flex
+ * children rather than a width. `flex: 0` collapses to nothing, which is
+ * exactly right at 0% and at 100%.
+ *
+ * The clamp is load-bearing and matches iOS: at 140% of target the fill is
+ * identical to 100%, so being over is carried by the text colour and the word
+ * "over", never by a bar spilling past its track. The 0.02 floor keeps "barely
+ * started" reading as a bar rather than an empty track that looks broken.
+ */
+function MacroBar({
+  progress,
+  fill,
+  track,
+}: {
+  progress: number;
+  fill: WidgetColor;
+  track: WidgetColor;
+}) {
+  const filled = Math.max(0.02, Math.min(1, progress));
+  return (
+    <FlexWidget
+      style={{
+        flexDirection: 'row',
+        width: 'match_parent',
+        height: 5,
+        borderRadius: 999,
+        backgroundColor: track,
+        overflow: 'hidden',
+      }}
+    >
+      <FlexWidget style={{ flex: filled, height: 5, backgroundColor: fill, borderRadius: 999 }} />
+      <FlexWidget style={{ flex: Math.max(0.0001, 1 - filled), height: 5 }} />
+    </FlexWidget>
+  );
+}
 
 export function TodayWidget({ view, width }: { view: WidgetView; width?: number }) {
   const wide = (width ?? 0) >= WIDE_MIN_DP;
@@ -132,12 +184,28 @@ export function TodayWidget({ view, width }: { view: WidgetView; width?: number 
               text={`${s.kcal} ${view.kcal.over ? s.over : s.left}`}
               style={{ fontSize: 12, color: COLORS.muted }}
             />
+            {/* Bars only on the wide face. A 2×2 cell has no room for them —
+                the same reason iOS `systemSmall` skips them. */}
+            {wide ? (
+              <FlexWidget style={{ width: 'match_parent', marginTop: 7 }}>
+                <MacroBar progress={view.kcal.progress} fill={COLORS.kcal} track={COLORS.kcalTrack} />
+              </FlexWidget>
+            ) : null}
             <TextWidget
               text={`${groupDigits(view.protein.value)}g ${s.protein} ${
                 view.protein.over ? s.over : s.left
               }`}
-              style={{ fontSize: 13, color: COLORS.protein, marginTop: 8 }}
+              style={{ fontSize: 13, color: COLORS.protein, marginTop: wide ? 12 : 8 }}
             />
+            {wide ? (
+              <FlexWidget style={{ width: 'match_parent', marginTop: 5 }}>
+                <MacroBar
+                  progress={view.protein.progress}
+                  fill={COLORS.protein}
+                  track={COLORS.proteinTrack}
+                />
+              </FlexWidget>
+            ) : null}
           </FlexWidget>
 
           {slots.length > 0 ? (

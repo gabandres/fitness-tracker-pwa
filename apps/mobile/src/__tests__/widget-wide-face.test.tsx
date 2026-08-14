@@ -53,11 +53,23 @@ function chips(view: WidgetView, width?: number) {
   );
 }
 
+/**
+ * The `MacroBar` elements, one per macro.
+ *
+ * Matched on props, not on rendered output. `buildWidgetTree` calls components
+ * as plain functions rather than rendering them (the reason `'use no memo'` is
+ * load-bearing in `TodayWidget.tsx`), so a nested `<MacroBar/>` stays an
+ * uninvoked element here and its inner rails do not exist to find.
+ */
+function bars(view: WidgetView, width?: number) {
+  return flatten(TodayWidget({ view, width })).filter((p) => 'track' in p && 'progress' in p);
+}
+
 const SLOTS = {
   state: 'ready' as const,
   locale: 'en',
-  kcal: { value: 1200, over: false },
-  protein: { value: 90, over: false },
+  kcal: { value: 1200, over: false, progress: 0.84 },
+  protein: { value: 90, over: false, progress: 1.07 },
   quickAdd: [
     { presetId: 'p1', name: 'Oats', calories: 300, protein: 10 },
     { presetId: 'p2', name: 'Chicken', calories: 400, protein: 40 },
@@ -90,6 +102,24 @@ describe('Android widget — wide face', () => {
   it('never offers more chips than the user has slots', () => {
     const one = { ...SLOTS, quickAdd: SLOTS.quickAdd.slice(0, 1) } as unknown as WidgetView;
     expect(chips(one, 320)).toHaveLength(1);
+  });
+
+  it('draws a progress bar per macro only when wide', () => {
+    // `WidgetMetric.progress` has been computed for every view since the
+    // snapshot shipped and drawn by nothing. A 2x2 cell has no room, so the
+    // narrow face must stay bar-free — the same call iOS `systemSmall` makes.
+    expect(bars(READY, 320)).toHaveLength(2);
+    expect(bars(READY, 160)).toHaveLength(0);
+  });
+
+  it('gives each bar its own macro, not the same one twice', () => {
+    // Both bars take a `progress` and a colour pair; crossing them would draw
+    // calories twice and look entirely plausible on a home screen.
+    const [kcalBar, proteinBar] = bars(READY, 320);
+    expect(kcalBar.progress).toBe(0.84);
+    expect(proteinBar.progress).toBe(1.07);
+    expect(kcalBar.fill).not.toBe(proteinBar.fill);
+    expect(kcalBar.track).not.toBe(proteinBar.track);
   });
 
   it('offers no chips on the empty face, at any width', () => {
