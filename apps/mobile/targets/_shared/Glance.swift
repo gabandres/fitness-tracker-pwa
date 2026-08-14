@@ -137,6 +137,16 @@ public enum Glance {
   /// Diagnosis, not telemetry: nothing leaves the device.
   public static let watchAssertKey = "ignia.watch.assert.v1"
 
+  /// How long the widget button's `perform()` took, and whether the app was
+  /// already running. Must equal `QUICK_ADD_TIMING_KEY` in `src/lib/widget.ts`.
+  ///
+  /// The face cannot redraw until `perform()` returns — a `reloadTimelines`
+  /// requested from inside it is deferred (FB11522170) while the reload the
+  /// system performs on return is the reliable one — so this number is the
+  /// user's wait, minus WidgetKit's own latency. It exists because two latency
+  /// fixes have shipped to this path on feel alone.
+  public static let quickAddTimingKey = "ignia.quickAdd.timing.v1"
+
   /// **On the WATCH's own container**: what last wrote the snapshot, and how
   /// many times the complication has been asked to reload today.
   ///

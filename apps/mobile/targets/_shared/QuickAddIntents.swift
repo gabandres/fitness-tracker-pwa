@@ -256,8 +256,20 @@ struct LogQuickAddSlotIntent: AppIntent {
     self.slot = slot
   }
 
-  @MainActor
+  /// **Deliberately NOT `@MainActor`**, unlike the two spoken intents.
+  ///
+  /// Those two call `requestDisambiguation` / `requestValue`, which drive UI and
+  /// belong on the main actor. This one draws nothing — every line below is
+  /// `UserDefaults`, Keychain and `URLSession`, none of which wants the main
+  /// thread.
+  ///
+  /// It matters because of what `LiveActivityIntent` does: the system launches
+  /// the **app** to perform this, and this app is React Native, whose startup
+  /// saturates the main thread for a second or more. A `@MainActor perform()`
+  /// queues behind that startup, so the widget's numbers waited on the JS
+  /// bridge booting — for a code path that never touches JS.
   func perform() async throws -> some IntentResult {
+    let started = Date()
     let slots = QuickAdd.slots()
     // A slot whose preset vanished between the last snapshot write and the tap.
     // The redraw that follows drops the button, so it stops being tappable.
@@ -282,6 +294,11 @@ struct LogQuickAddSlotIntent: AppIntent {
     // The row is durable before this returns; the ledger write finishes in the
     // background, or on the app's next foreground if iOS suspends us first.
     _ = QuickAdd.logDeferred(QuickAdd.row(from: slots[slot]))
+    // How long the user actually waited for OUR half. The face cannot redraw
+    // until this returns, so this number and the perceived delay differ only by
+    // WidgetKit's own reload — which makes it the one measurement that says
+    // whether to keep optimising here or stop.
+    QuickAdd.record(performMs: Date().timeIntervalSince(started) * 1000)
     return .result()
   }
 }

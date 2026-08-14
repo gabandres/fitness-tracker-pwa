@@ -740,6 +740,44 @@ public enum QuickAdd {
    * knowable from the app: an extension has no Sentry, no log destination and
    * no way to answer back.
    */
+  /**
+   * How long the widget button's `perform()` took, and whether the app was
+   * already alive.
+   *
+   * Two speculative latency fixes have now shipped to this path and the owner
+   * still reports "a few seconds". The remaining candidates cost different
+   * things to fix and cannot be told apart by feel:
+   *
+   *   - **our work is slow** — `ms` is large. Keep optimising here.
+   *   - **the app launch is slow** — `ms` is small and `cold`. The cost is
+   *     `LiveActivityIntent` forcing a React Native cold start, and the fix is
+   *     a product decision, not an optimisation.
+   *   - **WidgetKit is slow** — `ms` is small and `warm`. Nothing in this
+   *     process is responsible and further work here is wasted.
+   *
+   * `warm` is read off the `WCSession` activation state, which is the same
+   * proxy `assertToWatch` already branches on: activated means the app process
+   * was up before the tap.
+   */
+  static func record(performMs: Double, at: Date = Date()) {
+    guard let defaults = UserDefaults(suiteName: Glance.appGroup) else { return }
+    var warm = false
+    #if canImport(WatchConnectivity) && os(iOS)
+      if Bundle.main.bundleURL.pathExtension != "appex", WCSession.isSupported() {
+        warm = WCSession.default.activationState == .activated
+      }
+    #endif
+    let payload: [String: String] = [
+      "ms": String(Int(performMs.rounded())),
+      "warm": warm ? "warm" : "cold",
+      "atMs": String(Int(at.timeIntervalSince1970 * 1000)),
+    ]
+    guard let data = try? JSONSerialization.data(withJSONObject: payload),
+          let json = String(data: data, encoding: .utf8)
+    else { return }
+    defaults.set(json, forKey: Glance.quickAddTimingKey)
+  }
+
   static func record(watchAssert outcome: String, at: Date = Date()) {
     guard let defaults = UserDefaults(suiteName: Glance.appGroup) else { return }
     let payload: [String: String] = [

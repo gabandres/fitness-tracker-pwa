@@ -1,5 +1,6 @@
 import SwiftUI
 import WatchConnectivity
+import WatchKit
 import WidgetKit
 
 //
@@ -127,16 +128,16 @@ final class WatchReceiver: NSObject, ObservableObject, WCSessionDelegate {
   /// delegate delivery that landed during its wait from one that never came.
   private var storedDuringWake = false
 
-  func ingest() async {
+  func ingest(source: String = "wake") async {
     storedDuringWake = false
-    start(source: "wake")
+    start(source: source)
     for _ in 0..<20 {
       if WCSession.default.activationState == .activated { break }
       try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1s, so ≤2s total
     }
     // The application-context queue exposes its latest value as a property, so
     // it can be read outright.
-    store(WCSession.default.receivedApplicationContext, from: "wake")
+    store(WCSession.default.receivedApplicationContext, from: source)
 
     // The complication queue does NOT: `transferCurrentComplicationUserInfo`
     // arrives only through `didReceiveUserInfo`, and this wake may have been
@@ -373,25 +374,122 @@ private struct MirrorView: SwiftUI.View {
   }
 }
 
+/**
+ * Wakes this app on a schedule so the face can heal without being opened.
+ *
+ * ## Why this has to exist — the premise build 44 was designed on is false
+ *
+ * `WatchLinkModule` says `transferCurrentComplicationUserInfo` is "the API
+ * documented to **wake the watch app** even when it is backgrounded or has
+ * never been opened". That was true **under ClockKit**. Our complication is
+ * **WidgetKit** — `StaticConfiguration`, `.accessoryCircular/Rectangular/Inline`
+ * — and it has never been a ClockKit complication.
+ *
+ * For a WidgetKit complication the transfer **does not wake the app**.
+ * `didReceiveUserInfo` fires only once the app is running, which is why opening
+ * the watch app has always "fixed" the stale face and why nothing else ever
+ * did. Apple has had this as FB12926788 since August 2023, acknowledged and
+ * unfixed, with multiple duplicate reports and a public sample project.
+ *
+ * So there is **no push that reaches a sleeping WidgetKit complication**, and
+ * no amount of care on the phone changes that. The phone's own diagnostics
+ * proved the phone side was already correct: complication on the active face,
+ * transfers remaining, `sent`.
+ *
+ * ## What this buys, stated honestly
+ *
+ * A **pull**, on the only schedule watchOS offers. The system grants roughly
+ * **one background refresh per hour** for an app in the dock, shared across
+ * apps, with 4s of CPU and 15s wall-clock. So this bounds staleness to about an
+ * hour instead of "until you next open the watch app" — a real improvement, and
+ * emphatically **not** the real-time sync that was originally asked for. That
+ * is not achievable on this surface.
+ *
+ * It needs no delivery to have happened: `receivedApplicationContext` holds the
+ * latest value the phone sent whether or not this app ever woke for it, which
+ * is exactly what `start()` already reads at launch. This just reads it on a
+ * timer rather than waiting for a person.
+ *
+ * The `WKApplicationDelegateAdaptor` route is deliberate over SwiftUI's
+ * `.backgroundTask(.appRefresh)`: `scheduleBackgroundRefresh` is documented
+ * against `handle(_:)`, and the SwiftUI pairing has open reports of never
+ * firing in watch apps.
+ */
+final class WatchRefreshScheduler: NSObject, WKApplicationDelegate {
+  /// Re-armed after every wake, because only ONE refresh may be scheduled at a
+  /// time — scheduling a second silently cancels the first.
+  static func schedule(after seconds: TimeInterval = 30 * 60) {
+    WKApplication.shared().scheduleBackgroundRefresh(
+      withPreferredDate: Date().addingTimeInterval(seconds),
+      userInfo: nil
+    ) { _ in
+      // Failure here is not actionable and must not be fatal: the complication's
+      // own hourly timeline re-ask and the next app launch both still recover
+      // the face. A scheduler that crashes the app is worse than a stale number.
+    }
+  }
+
+  func applicationDidFinishLaunching() {
+    Self.schedule()
+  }
+
+  func handle(_ backgroundTasks: Set<WKRefreshBackgroundTask>) {
+    for task in backgroundTasks {
+      switch task {
+      case let refresh as WKApplicationRefreshBackgroundTask:
+        // Re-arm FIRST. If the ingest below overruns its budget and the system
+        // kills us, an already-scheduled refresh is what keeps the chain alive;
+        // re-arming last would end it silently on the first slow wake.
+        Self.schedule()
+        // `ingest`, not `start`: activation is asynchronous and
+        // `receivedApplicationContext` is only meaningful once it completes, so
+        // a synchronous read here would find nothing on exactly the cold wake
+        // this exists for. Completion is deferred until the await returns —
+        // finishing the task early is what made the original background handler
+        // useless (see `ingest`).
+        Task {
+          await WatchReceiver.shared.ingest(source: "refresh")
+          refresh.setTaskCompletedWithSnapshot(false)
+        }
+      case let connectivity as WKWatchConnectivityRefreshBackgroundTask:
+        // The delivery path, when it does wake us. `store()` dedupes, so this
+        // and the scheduled refresh cannot both spend a reload on the same bytes.
+        Task {
+          await WatchReceiver.shared.ingest(source: "wcWake")
+          connectivity.setTaskCompletedWithSnapshot(false)
+        }
+      default:
+        task.setTaskCompletedWithSnapshot(false)
+      }
+    }
+  }
+}
+
 @main
 struct IgniaWatchApp: App {
+  @WKApplicationDelegateAdaptor private var delegate: WatchRefreshScheduler
+
   init() { WatchReceiver.shared.start() }
 
   var body: some Scene {
     WindowGroup {
       MirrorView()
     }
-    // The system wakes us here when a context is delivered, and this closure
-    // must do the work — writing the App Group and requesting the reload —
-    // rather than assume the delegate will get there first. Returning early
-    // lets the app be suspended mid-delivery, which is how the complication
-    // ended up rendering once at install and never moving again.
+    // NO `.backgroundTask(.watchConnectivity)` here any more, and its removal is
+    // deliberate rather than a tidy-up. `WatchRefreshScheduler.handle(_:)` now
+    // receives every background task, including
+    // `WKWatchConnectivityRefreshBackgroundTask`. Running both would give one
+    // task two owners, and `setTaskCompletedWithSnapshot` called twice on the
+    // same task is a runtime error — a crash on a background wake, which is the
+    // one context where nobody would ever see the report.
+    //
+    // The work itself is unchanged and still `ingest()`: write the App Group and
+    // request the reload BEFORE completing, because returning early lets the app
+    // be suspended mid-delivery, which is how the complication once rendered at
+    // install and never moved again.
     //
     // Note a background wake's `reloadTimelines` DOES count against the
     // 40–75/day budget — Apple's exemption list is exhaustive and background
-    // execution is not on it (#37 §5).
-    .backgroundTask(.watchConnectivity) {
-      await WatchReceiver.shared.ingest()
-    }
+    // execution is not on it (#37 §5) — which is why `store()` dedupes.
   }
 }
