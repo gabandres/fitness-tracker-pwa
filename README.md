@@ -13,31 +13,41 @@ Two numbers move the needle for fat loss and lean recomp: **calories** and **pro
 - FAQ on macros / cuts / TDEE: <https://ignia.fit/faq>
 - Daily kcal + protein rings, 14-day rolling history
 - Adaptive TDEE — switches from formula to a measured TDEE after 14 days of logged data, based on your actual weight trend
-- Photo → macros via Gemini (Pro)
-- AI weekly coach that reads your real history (Pro)
+- Photo → macros via Gemini — **free to everyone** (ADR-0017), limited by a server-side daily quota
+- AI coach that reads your real history
 - Fasting timer + body-weight log + measurements
 - Full Spanish (es-PR) localization
 - PWA — installs to home screen, works offline once cached
 
-**Pricing:** Free forever for the core flow. Pro is $3/mo or $24/yr.
+**Pricing: free. All of it.** There is no Pro tier, no subscription, no trial
+and nothing to buy — `PRO_ENABLED` is `false` on both platforms. An optional tip
+jar unlocks nothing.
+
+*(Until 2026-08-15 this line advertised "Pro is $3/mo or $24/yr". A sweep on
+2026-08-13 removed that claim from the live site — `/vs`, the calculator, the
+FAQ and the social share image — and missed this file, which is the repo's front
+page on GitHub.)*
 
 ## Tech
 
-Angular 21 PWA backed by Firebase (Firestore, Auth, Cloud Functions, Hosting). Stripe for subscriptions via the `firestore-stripe-payments` extension. Gemini for photo→macros and the AI consultation.
+An **npm-workspaces monorepo**, not a single app: the root is the Angular 21 PWA, `apps/mobile/` is the Expo app that is live on the iOS App Store and is the long-term product (ADR-0015; the web logging surfaces are frozen per ADR-0022), and `packages/core` is the framework-free brain both share. Backed by Firebase (Firestore, Auth, Cloud Functions gen2, Hosting). Gemini for photo→macros and the AI coach. The `firestore-stripe-payments` extension is installed but **dormant** — nothing is purchasable.
 
 ## Positioning
 
 Built for the audience that knows they want fat loss or lean gain and just wants a tool that respects their time — not another gamified shame-tracker. Calm visual design (warm-minimal palette, no red/green progress bars), private (no ads, no selling data, no training on logs), focused (kcal + protein only — carbs/fat skipped on purpose).
 
-Uniquely, ships both photo-AI logging (like Cal AI) *and* adaptive TDEE coaching (like MacroFactor) — no other free app does both. See `UX_AUDIT.md` §S12 for the competitive analysis and live roadmap.
+Uniquely, ships both photo-AI logging (like Cal AI) *and* adaptive TDEE coaching (like MacroFactor) — and both are free. See `UX_AUDIT.md` §S12 for the competitive analysis and live roadmap.
 
 ## Project map
 
-- `src/` — Angular app. `services/fitness-store.service.ts` is the single reactive data layer; components inject it and read signals.
-- `functions/` — Cloud Functions (gen2, Node 22). `analyzePhoto`, `consultationStream` (SSE AI coach, server-held Gemini key), `checkAccessStatus`, `logWebhook`, `deleteAccount`, `generateWeeklyReport`, `sendDailyReminders`, `sendDayThreeCoachPush`, `statusPulse`, `publishUserCount`, `weeklyFirestoreBackup`.
+- `src/` — the Angular PWA (the repo root *is* the default `ng` project). `services/fitness-store.service.ts` is the single reactive data layer; components inject it and read signals.
+- `apps/mobile/` — the Expo SDK 54 React Native app, live on the iOS App Store, Android in closed alpha. Has its own `AGENTS.md`; read it before working there.
+- `packages/core/` (`@macrolog/core`) — pure shared domain types + math (TDEE, targets, dates, units), imported by both apps. Keep it dependency-free.
+- `functions/` — Cloud Functions (gen2, Node 22), read from `functions/src/index.ts` on 2026-08-15: `logWebhook`, `analyzePhoto`, `consultationStream` (SSE AI coach, server-held Gemini key), `checkAccessStatus`, `exportUserData`, `deleteAccount`, `registerAppleRefreshToken`, `generateWeeklyReport`, `statusPulse`, `weeklyFirestoreBackup`, `hourlyTasks`, `sendWelcomeEmail`, `onDailyLogCreated`, `onSubscriptionWritten`, `sendPasswordReset`, `sendVerificationEmail`, `searchFoods`, `getFoodDetail`, `importRecipe`, `ogImagePublicProfile`, `servePublicProfilePage`, `bootstrapAdmin`, `setAdminClaims`, `startImpersonation`, `stopImpersonation`.
+  *(The old list named `sendDailyReminders`, `sendDayThreeCoachPush` and `publishUserCount` as separate functions. They are not: Cloud Scheduler's free tier is 3 jobs and all 3 are spent, so recurring work folds into the `hourlyTasks` dispatcher — see `CLAUDE.md`. Regenerate this list from `index.ts` rather than editing it by hand.)*
 - `functions/test/rules/` — `@firebase/rules-unit-testing` suite for `firestore.rules`. Run with `npm run test:rules` (boots the Firestore emulator).
 - `src/app/i18n/` — Transloco locales (`en`, `es-PR`).
-- `.github/workflows/` — CI (`ci.yml`: install, typecheck, test, build on PR + main) and manual deploy (`deploy.yml`).
+- `.github/workflows/` — CI only (`ci.yml`: install, typecheck, test, build on PR + main). **There is no deploy workflow**; releases are pushed by hand from a workstation.
 - `scripts/sentry-release.mjs` — post-build sourcemap upload + strip (no-op if Sentry secrets absent).
 - `scripts/monitoring/` — one-time Cloud Monitoring alert-policy setup (`setup-alerts.sh`).
 

@@ -75,7 +75,10 @@ One flag gating **both** surfaces (Steps 5 & 6). Default on; when flipped, both 
 
 ## 5. Time-sensitive pre-August code touch (do this even before the surfaces)
 
-The importer ships in the August EAS build and has never run on a device. #29 calls for an **Android adapter guard** (`apps/mobile/src/lib/health.ts`, ~1 line): skip writing a day whose `Math.round(value) === 0`, matching iOS's existing empty-drop, so the ~400-day backfill doesn't write hundreds of `0` docs. The reducer (Step 2) is authoritative regardless (`> 0`), but this spares the writes. **Cheaper to land before the build ships than to re-import poisoned history.**
+The importer ships in the August EAS build and has never run on a device.
+
+> **Premise corrected 2026-08-15.** The line above is preserved as written, but the importer **has shipped and has been running on devices since 1.1.0** (App Store, 2026-08-08) — the release notes for it say so: "Apple Health now imports steps and active energy, and your activity level corrects itself from what you actually did." So "nothing here can be run until then" no longer applies; production activity data plausibly exists now. **What is still true is that this protocol has never been RUN** — nothing in `STATUS.md` tracks it either way. Treat it as pending work with its blocker removed, not as a plan waiting on a build.
+ #29 calls for an **Android adapter guard** (`apps/mobile/src/lib/health.ts`, ~1 line): skip writing a day whose `Math.round(value) === 0`, matching iOS's existing empty-drop, so the ~400-day backfill doesn't write hundreds of `0` docs. The reducer (Step 2) is authoritative regardless (`> 0`), but this spares the writes. **Cheaper to land before the build ships than to re-import poisoned history.**
 
 ## 6. Web, rules, i18n
 

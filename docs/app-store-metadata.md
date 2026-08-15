@@ -4,9 +4,13 @@
 **Written:** 2026-07-23. Source of truth for the claims: `docs/go-to-market.md` §0.
 
 Everything on this page is **metadata-only** — it changes in App Store Connect
-with **no new binary and no EAS build**. That matters right now: builds are
-capped until the August 2026 quota reset, but this is the biggest ASO lever
-available today and none of it is blocked.
+with **no new binary and no EAS build**. It is still the biggest ASO lever
+available, and none of it is blocked.
+
+*(This used to add "builds are capped until the August 2026 quota reset". That
+stopped being true on 2026-08-03: builds run locally on `ignia-mac` at zero EAS
+quota — `STATUS.md` §3, "Builds: no longer the binding constraint". Metadata is
+valuable on its own merits, not because binaries are rationed.)*
 
 **Before pasting, re-read the not-claimable list** (`go-to-market.md` §0). If
 a build flag flips, this file is stale. Nothing here mentions Pro or trials —
@@ -19,58 +23,29 @@ anywhere.
 
 ---
 
-## Applied status — 2026-07-23
+## Applied status
 
-Driven directly in ASC. What the live console actually allowed corrected two
-assumptions in the original draft; both are reflected below.
+**State does not live in this file — `STATUS.md` §1 owns it.** This section has
+been rewritten four times because each snapshot expired before anyone read it;
+the version that stood here until 2026-08-15 still said 1.1.0 was in
+*Prepare for Submission* and had never gone to App Review, a week after it was
+approved and released. What follows is a pointer and a re-check command, not a
+record.
 
-| Item | State |
-|---|---|
-| 1.0 promotional text | **LIVE** on the released listing |
-| Version **1.1.0** | **Created**, in *Prepare for Submission* |
-| 1.1.0 EN description, keywords, what's new, promo text, marketing URL | **Saved** |
-| EN subtitle → `Adaptive macros + workouts` | **Saved** |
-| App name | **Unchanged on purpose** — see below |
-| es-MX name, subtitle, description, keywords, promo, what's new | **Saved** |
-| es-MX Support URL | **Fixed** — was `ignia.fit`, missing `/support` |
-| Screenshots | Not started — owner, on device (§3) |
+Re-read the live truth:
 
-**Correction 4 (2026-07-29) — what is live is 1.0, not 1.1.0.** Several docs
-(including the repo `CLAUDE.md`) describe the App Store app as "v1.1.0". The
-ASC API disagrees, and it is authoritative:
-
-| Version | State | Build |
-|---|---|---|
-| 1.1.0 | `PREPARE_FOR_SUBMISSION` | **none attached** |
-| 1.0 | `READY_FOR_SALE` | build 7, uploaded 2026-07-20 |
-
-**That table is history twice over.** `1.1.0` went `WAITING_FOR_REVIEW` with
-build 24 (submission `93c329b1`, 2026-08-07) and was **APPROVED — it is
-`READY_FOR_SALE` with build 24 as of 2026-08-08**, the first App Store release
-since 1.0/build 7. TestFlight has since moved on to **build 41 (v1.2.0)**;
-every other TestFlight build except 41 and 24 was expired on 2026-08-09.
-`STATUS.md` §1 is the authority — re-read it rather than this snapshot.
-
-> Superseded twice in one day, which is why the state belongs in `STATUS.md`
-> and not here: this paragraph previously said the version was
-> `PREPARE_FOR_SUBMISSION`, had **never gone to App Review**, and had no build
-> attached — all three untrue by the time anyone read it. It was submitted with
-> build 19 at 02:15Z, then cancelled and re-submitted with build 24. Check
-> `STATUS.md` §1 for what is true now; treat any state written here as a
-> snapshot that has already expired.
-
-- **What's New for 1.1.0 spans `168e0394..fdcd92ed`** — build 7 (live) to build
-  19. That is the range the copy below was written from. Use the build's own
-  commit, not `HEAD`: `HEAD` now runs ahead of the binary.
-- Anything described as "fixed on the shipped 1.1.0 binary" was in fact fixed
-  against **1.0**. The `dailyWeights` index is the live example: it repaired
-  Refine Targets for users on 1.0 without an app update, because the fix was
-  server-side.
-
-Re-check with:
 ```sh
-node -e "import('./scripts/asc-client.mjs').then(async({api,APP_ID})=>{const r=await api('GET','/v1/apps/'+APP_ID+'/appStoreVersions?limit=5&fields[appStoreVersions]=versionString,appStoreState');r.data.forEach(v=>console.log(v.attributes.versionString,v.attributes.appStoreState))})"
+node -e "import('./scripts/asc-client.mjs').then(async({api,APP_ID})=>{const r=await api('GET','/v1/apps/'+APP_ID+'/appStoreVersions?limit=5');r.data.forEach(v=>console.log(v.attributes.versionString,v.attributes.appStoreState))})"
 ```
+
+As of 2026-08-15 that prints `1.2.0 WAITING_FOR_REVIEW` over `1.1.0
+READY_FOR_SALE` — and if this paragraph disagrees with the command, the command
+is right.
+
+**What is applied as listing metadata** (the thing this file *does* own): the
+English and es-MX name, subtitle, description, keywords, promotional text and
+URLs are saved and unchanged since 1.1.0. Only the What's New text moves per
+release — see the 1.2.0 block below.
 
 **This file is the source of truth for listing field values.** `go-to-market.md`
 owns positioning and strategy; The pre-launch listing draft was deleted
@@ -221,7 +196,54 @@ Ignia is not a medical device and does not provide medical advice.
 > page written to convert a store visitor, and it carries the browser fallback
 > for anyone who bounces off the install.
 
-### What's New — 1.1.0
+### What's New — 1.2.0 · SUBMITTED 2026-08-15 with build 54
+
+**This is the live release copy.** Written against App Store 1.1.0 / build 24
+(uploaded 2026-08-07) → build 54, i.e. everything the public has not seen.
+Pushed straight to ASC through the API, **not** through a
+`store-assets/whats-new-*.json` file — `whats-new-1.1.0.json` is the last of
+those and was not extended, so do not treat that directory as current.
+
+**Two things are deliberately not claimed.** The Apple Watch complication
+refresh and the Siri quick-add are both `BEHAVIOUR UNVERIFIED` in `STATUS.md` —
+nobody has watched either work on a wrist — so they appear as "fixes" and are
+promised to no reviewer. Guideline 2.3.1 is about accuracy, and a reviewer can
+test a claim.
+
+**en-US**
+```
+• Say what you ate. There's a microphone on the Add screen now — it turns your words into a logged meal, on-device when your language's model is installed.
+• A calmer Add screen: one ranked list of the foods you actually eat, a pinned quick-add strip, and meals that file themselves into breakfast, lunch or dinner by the time of day.
+• Your fast, on the Lock Screen — and in the Dynamic Island, counting while it runs.
+• A wider home-screen widget, plus fixes to its quick-add button and to logging by Siri.
+• Today now shows the maintenance calories Ignia has measured for you, and how far above or below them you are.
+• A break in weigh-ins no longer rewrites what Ignia thinks you burn — and coming back to the scale can't send that estimate swinging.
+• Goal pace tells you when your calorie floor won't allow the pace you picked, instead of quietly changing it.
+• Streaks and weekly averages now count the days they claim to.
+• The coach reads the full two weeks of meals it says it reads.
+• Train speaks plainly: a labelled RIR scale, described set types, and a glossary.
+• Apple Watch complication refresh fixes.
+• Spanish fixes, including rate units that were still showing in English.
+```
+
+**es-MX**
+```
+• Di lo que comiste. Ahora hay un micrófono en la pantalla de agregar: convierte tus palabras en una comida registrada, en el dispositivo cuando el modelo de tu idioma está instalado.
+• Una pantalla de agregar más tranquila: una sola lista ordenada de los alimentos que de verdad comes, una tira fija de registro rápido y comidas que se archivan solas en desayuno, almuerzo o cena según la hora.
+• Tu ayuno, en la pantalla bloqueada — y en la Dynamic Island, contando mientras corre.
+• Un widget más ancho en la pantalla de inicio, además de correcciones a su botón de registro rápido y al registro por Siri.
+• Hoy ahora muestra las calorías de mantenimiento que Ignia midió para ti, y qué tan por encima o por debajo estás.
+• Una pausa en los pesajes ya no reescribe lo que Ignia cree que quemas, y volver a la báscula no hace que esa estimación se dispare.
+• El ritmo de tu meta te dice cuándo tu piso de calorías no permite el ritmo que elegiste, en vez de cambiarlo en silencio.
+• Las rachas y los promedios semanales ahora cuentan los días que dicen contar.
+• El coach lee las dos semanas completas de comidas que dice leer.
+• Train habla claro: escala de RIR etiquetada, tipos de series descritos y un glosario.
+• Correcciones en la actualización de la complicación del Apple Watch.
+• Correcciones en español, incluidas unidades de ritmo que seguían en inglés.
+```
+
+### What's New — 1.1.0 · SHIPPED, kept for reference
+
 
 **Rewritten 2026-08-06** against `168e0394..fdcd92ed` — the range that TestFlight
 **build 19** actually spans, i.e. everything since the live 1.0 build 7. The
@@ -300,17 +322,26 @@ so it is not in this binary), and Apple Health *sync* itself — that shipped in
 password-reset email rebuild (`6cf63df3`) is server-side and already in effect
 for 1.0 users, so it is not app release news.
 
-### Submission-gating fields — 1.1.0 (set 2026-08-06)
+### Submission-gating fields — 1.2.0 (read from ASC 2026-08-15)
 
 | Field | Value | Why |
 |---|---|---|
-| Attached build | **19** (`4527017a`) | a version with no build attached cannot be submitted; this one had none for two weeks |
-| `usesIdfa` | **false** | no ads, no attribution SDK. Left `null` it stops the submission flow to ask |
+| Attached build | **54** | a version with no build attached cannot be submitted; 1.1.0 had none for two weeks |
+| `usesIdfa` | **`null`** — see the note below | no ads and no attribution SDK, so the honest answer is false |
 | Export compliance | declared on the build: `usesNonExemptEncryption=false` | set per-build, not per-version — a new build re-asks |
-| Demo account | `review@ignia.fit`, required | ASC carries it forward; never point Review at `demo@ignia.fit` |
-| Release type | `AFTER_APPROVAL` | ships the moment Review passes |
+| Demo account | `review@ignia.fit`, required | ASC carries it forward; never point Review at `demo@ignia.fit`. Re-confirmed verified, enabled and seeded before submitting 1.2.0 |
+| Release type | **`MANUAL`** | changed for 1.2.0. 1.1.0 used `AFTER_APPROVAL`, which publishes the instant Review passes; manual keeps the public moment a human decision, which matters when a promotion is being timed around it |
 
-### Screenshots on file — 1.1.0 (checked 2026-08-06)
+⚠️ **The `usesIdfa` claim in this file was wrong.** It said a `null` value stops
+the submission flow to ask. 1.2.0 was submitted on 2026-08-15 with `usesIdfa`
+still `null` and ASC accepted it — `WAITING_FOR_REVIEW`, no prompt, no error.
+So either the field is answered at app level now or ASC stopped gating on it.
+**It was deliberately not "corrected" after the fact**: the version was already
+waiting for review, and editing a waiting submission risks more than a cosmetic
+field is worth. Set it to `false` explicitly on the *next* version, before
+submitting, and delete this note once that is confirmed to work.
+
+### Screenshots on file — carried forward to 1.2.0 (re-read from ASC 2026-08-15: en-US 5 + 2, es-MX 4 + 2 — unchanged since 1.1.0)
 
 | Locale | `APP_IPHONE_67` | `APP_WATCH_SERIES_10` |
 |---|---|---|
@@ -472,7 +503,7 @@ Sin anuncios. Sin venta de datos. Exporta o borra tu cuenta desde la app.
 Ignia no es un dispositivo médico y no da consejo médico.
 ```
 
-### Novedades — 1.1.0
+### Novedades — 1.1.0 · SHIPPED, kept for reference (the live 1.2.0 es-MX copy is in the What's New — 1.2.0 block above)
 
 Same gating as the English block above: if the widget or Health bullets are
 cut there, cut them here too, or the two localizations claim different builds.

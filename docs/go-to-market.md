@@ -6,8 +6,10 @@ app went live on the App Store.
 > **Why this was rewritten.** The previous draft sold a product that doesn't
 > exist: "Snap a photo — AI estimates the macros", "Start free. Upgrade to
 > Pro", a 7-day trial, and gated history. In the shipped build `PRO_ENABLED`
-> is `false` on both platforms, `FEATURES.photoScan` is `false` on both
-> platforms, and nothing is behind a paywall. Shipping that copy would have
+> is `false` on both platforms and nothing is behind a paywall. (`photoScan`
+> was `false` too when this was written; **ADR-0017 turned it on and free on
+> 2026-08-07**, so the photo claim is now fair game — the paywall claims are
+> not.) Shipping that copy would have
 > meant one-star reviews from users installing for a feature that isn't there,
 > plus a 2.3.1 ("accurate metadata") review risk.
 >
@@ -24,7 +26,7 @@ app went live on the App Store.
 | App Store ID | `6788589414` · bundle `fit.ignia.app` |
 | Listing URL | <https://apps.apple.com/app/id6788589414> |
 | Platforms | iPhone (iOS 16+, **not** iPad — `supportsTablet: false`) · web PWA at <https://ignia.fit> |
-| Android | **live on the Play ALPHA track** (vc 29, v1.2.0) — closed testing only, NOT public. Production access still needs 12 testers × 14 consecutive days; the 12th opted in 2026-08-07, so the earliest apply date is ~2026-08-21. Do not market Android as available |
+| Android | **live on the Play ALPHA track** (vc 30, v1.2.0) — closed testing only, NOT public. Production access needs 12 testers × 14 consecutive days. **Do not compute or quote a date**: Google owns the clock and ticks the third box on the app Dashboard's *Apply for access to production* checklist itself; the 12-tester requirement is already met (2026-08-06). Do not market Android as available |
 | Price | **Free. No paywall, no subscription, no trial.** Optional tip jar (iOS consumables via RevenueCat; external link on Android) that unlocks nothing |
 | Languages | English + Spanish (Puerto Rico), fully translated |
 
@@ -36,32 +38,48 @@ generator, cluster sets) · barcode scanning (Open Food Facts) · food search
 presets, custom foods and recipes · AI coach grounded in the user's own logs ·
 weekly insights, calorie budget, weight-trend projection · fasting timer ·
 weight, measurements, Navy body-fat · CSV import (MyFitnessPal / Lose It! /
-Cronometer) and export · in-app account deletion · offline PWA.
+Cronometer) and export · in-app account deletion · offline PWA · **AI meal
+photo → macros, free to everyone** (ADR-0017) · **Apple Watch app and
+complication** · **home-screen and Lock Screen widgets**, device-verified.
+
+**The question this section answers is "what can the public install", not "what
+is built".** Those diverged on 2026-08-08 and are still apart: the App Store
+serves **1.1.0 / build 24**, while TestFlight runs 1.2.0 / build 54, which is
+`WAITING_FOR_REVIEW` with a manual release. Anything that landed after build 24
+is real, shipped, and **still unclaimable to the public** until 1.2.0 is
+released. Re-read `STATUS.md` §2 for the current cutline.
 
 **NOT claimable — do not put these in any listing:**
 
 | Feature | Why not |
 |---|---|
-| AI meal photo → macros | `photoScan: false` on both platforms (ADR-0015, deferred) |
 | Pro / premium / unlimited-anything | `PRO_ENABLED = false`; there is no paid tier to upsell |
 | Free trial, "upgrade", pricing anchors | nothing to buy |
-| Apple Watch | not built |
 | Progress photos | uploading works, but it was cut from the v1 story — don't market it |
-| Android app | closed alpha only — do not market it as available until production access lands (~2026-08-21 at the earliest) |
+| Android app | closed alpha only (vc 30). Production access needs 12 testers × 14 consecutive days; **Google owns that clock and ticks the box itself** — read the *Apply for access to production* checklist on the app Dashboard rather than computing a date. Do not market Android as available |
+| Voice dictation · the redesigned Add screen · the fasting Live Activity · the wide home-screen widget | all shipped and all **only on TestFlight** — they reach the public when 1.2.0 releases, not before |
 
-**Claimable only on the *next* build, and only after device QA** — both were
-in the table above as "not built", which was wrong by 2026-07-29:
+**Corrected 2026-08-15 — two rows in this table were badly wrong**, and both
+would have suppressed a real headline feature during a launch push:
 
-| Feature | Status |
-|---|---|
-| Apple Health / Health Connect sync | **shipped inside 1.0** (`0a355deb`, corrected in `eb939520`) — import of weight, sleep, water; export of weight, water, body fat, nutrition, workouts. Still never device-verified, so confirm it connects before marketing it |
-| Health **activity** import (steps, active energy) + activity-informed activity level | built (`4a84dc64`, `dc009ae4`), not in a binary yet |
-| Home-screen widget | built (`79e9fbff`), **never run on a device**, not in a binary yet |
+- *"AI meal photo → macros — `photoScan: false` on both platforms (ADR-0015,
+  deferred)"*. **False since 2026-08-07.** ADR-0017 amended 0015: photo scan is
+  **ON and free to everyone** on both platforms (`src/app/utils/features.ts`
+  and `apps/mobile/src/lib/features.ts` both read `photoScan: true`, verified in
+  code). Its tiering is server-side only. It is in the live 1.1.0 binary and is
+  claimable today.
+- *"Apple Watch — not built"*. **False since 1.1.0.** The watch app and its
+  complication ship from build 19 on, `apps/mobile/targets/` holds `watch` and
+  `watch-widget`, and Apple would not have taken 1.1.0 without the watch
+  screenshots that are on file. Claim the **app and the glanceable numbers**;
+  do not claim real-time refresh, which is `BEHAVIOUR UNVERIFIED` and, per
+  ADR-0023, cannot be pushed to a WidgetKit complication at all — what ships is
+  an approximately hourly pull.
 
-Nothing in this group belongs in the *live* 1.0 listing — only in 1.1.0
-release notes, and only once the binary carrying them exists.
-
----
+**Shipped, in the live binary, and previously mis-filed as "not in a binary
+yet":** Apple Health sync including the activity import (steps, active energy)
+that corrects the activity level, and the home-screen widget — which was device-
+verified on a real iPhone on 2026-08-03, numbers moving after a logged meal.
 
 ## 1. Positioning
 

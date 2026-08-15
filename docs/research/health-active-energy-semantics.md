@@ -9,7 +9,7 @@ Primary-source research for the wayfinder question: **is imported `activeEnergy`
 
 Every claim below cites the source that owns it. Where a primary source does not settle a question it is marked **Apple/Google does not document this** rather than inferred. A separate **Inference** label marks conclusions this note draws from documented facts.
 
-_Last updated: 2026-07-23. No production activity data exists yet — the importer has never run on a device._
+_Last updated: 2026-07-23. No production activity data exists yet — the importer has never run on a device. **[Corrected 2026-08-15: the importer shipped with 1.1.0 on 2026-08-08 and has been running on devices since; this preamble is history.]**_
 
 ---
 

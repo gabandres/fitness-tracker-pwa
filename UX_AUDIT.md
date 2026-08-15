@@ -224,7 +224,18 @@ What remains, in the order it was prioritized with the owner:
 
 ### Tier 2 — cheap and on-brand, unscheduled
 
-- [ ] **N4b · The wide quick-add face: 4×2 Android / `systemMedium` iOS**, with up
+- [x] **N4b · The wide quick-add face: 4×2 Android / `systemMedium` iOS.**
+      **SHIPPED 2026-08-13** — iOS build 46 (`.systemMedium` + a purpose-built
+      `HomeWideView`) and Android vc 30, off `ab19dd97`. Android's provider XML
+      had `resizeMode` absent, which defaults to `none` — that alone was the
+      "square only" limitation. **Device-verified**, and it took four builds:
+      picking the rectangle crashed on a `ForEach` over colliding ids, the face
+      rendered empty because no home face had ever drawn `Metric.progress`, and
+      the chips were invisible on tinted Home Screens. Details in `STATUS.md` §1.
+      Original entry follows.
+      *(Was still unticked on 2026-08-15, three days after shipping and after
+      being device-verified — the fourth time this file has listed finished work
+      as pending.)* With up
       to 3 buttons instead of 1. Split out of N4 (above) so vc 18 and build 27
       each carried exactly one new native surface. Everything it needs already
       exists — `QUICK_ADD_MAX` is 3, the snapshot already carries up to 3 slots,
@@ -239,9 +250,16 @@ What remains, in the order it was prioritized with the owner:
       through `ledger.ts` with `AsyncStorage` auth, not Swift + REST), so the iOS
       result says nothing about it. Since N4b widens *both* platforms, the gate is
       still shut — and build 27 is the standing argument for why it should be.
-- [ ] **N3 · Fasting Live Activity / Dynamic Island.** Extends the fasting timer
-      already shipped free (Cronometer paywalls theirs at $59.99/yr). iOS-only,
-      $0, pure lock-screen retention. Native → needs a build.
+- [x] **N3 · Fasting Live Activity / Dynamic Island.** **SHIPPED 2026-08-08**
+      in iOS build 30 (ADR-0021), and **verified on an iPhone 17 Pro simulator**
+      the same day: `liveactivitiesd` logged the activity against
+      `FastActivityAttributes`, the Dynamic Island rendered the flame with a
+      counting timer, and ending the fast cleared it within seconds. Drawn
+      on-device by `Text(timerInterval:)` — no APNs, no Cloud Function, no
+      secret. **Still unverified: the 8-hour ceiling and its re-arm**, which
+      needs nine real hours on hardware. Extends the fasting timer already
+      shipped free (Cronometer paywalls theirs at $59.99/yr). iOS-only, $0,
+      pure lock-screen retention.
 - [x] **N4 · Interactive widget quick-add.** **SHIPPED 2026-08-07** — one
       quick-add button on the existing 2×2 Android face (vc 18) and on iOS
       `systemSmall` via `Button(intent:)` (build 27), ADR-0020. It paired with N1

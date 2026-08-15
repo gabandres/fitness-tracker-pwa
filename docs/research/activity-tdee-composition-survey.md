@@ -11,7 +11,7 @@ Every claim cites the source that owns it. Where a product publishes nothing on 
 
 Companion note: `docs/research/health-active-energy-semantics.md` (what HealthKit / Health Connect actually hand us). This note assumes its conclusions — most importantly that active energy excludes basal on both platforms, and that Ignia's current raw-sample read double-counts across sources.
 
-_Last updated: 2026-07-23. No production activity data exists yet — the importer has never run on a device._
+_Last updated: 2026-07-23. No production activity data exists yet — the importer has never run on a device. **[Corrected 2026-08-15: the importer shipped with 1.1.0 on 2026-08-08 and has been running on devices since; this preamble is history.]**_
 
 ---
 

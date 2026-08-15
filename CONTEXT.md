@@ -451,9 +451,15 @@ collections + a `WorkoutStore` facet back the Train tab.
   `generateWeeklyReport` (Pro-gated), `exportUserData` / `deleteAccount`
   (GDPR), `consultationStream` (SSE AI coach — onRequest, server-held
   Gemini key, verifies ID token + reserves the consultation quota),
-  `checkAccessStatus`. Schedules: `sendDailyReminders`,
-  `sendDayThreeCoachPush`, `weekly-digest`, `weeklyFirestoreBackup`,
-  `statusPulse`, `publishUserCount`. Triggers: `onDailyLogCreated`,
+  `checkAccessStatus`, `sendPasswordReset`, `sendVerificationEmail`.
+  **Schedules: exactly three, and that is a hard ceiling** —
+  `hourlyTasks`, `statusPulse`, `weeklyFirestoreBackup`. Cloud Scheduler's
+  free tier is 3 jobs and all 3 are spent, so recurring work folds into
+  the `hourlyTasks` dispatcher rather than getting its own `onSchedule`
+  (see `CLAUDE.md`). Daily reminders, the day-three coach push, the weekly
+  digest and the user-count publish are **tasks inside that dispatcher**,
+  not functions — this list previously named them as schedules, which
+  reads as headroom that does not exist. Triggers: `onDailyLogCreated`,
   `onSubscriptionWritten`, `sendWelcomeEmail`.
 - **CallerAccess** (`functions/src/caller-access.ts`) — the Cloud
   Functions caller-resolution module: auth check, per-uid rate limit,

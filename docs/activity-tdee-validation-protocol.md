@@ -6,6 +6,9 @@ This is a plan-only artifact. It assumes the composition model from [#22](https:
 
 _Last updated: 2026-07-24. **No production activity data exists yet** — the importer has never run on a device; it ships with the August EAS build. Nothing here can be run until then. The protocol is designed to be **falsifiable later**, not validated now._
 
+> **Premise corrected 2026-08-15.** The line above is preserved as written, but the importer **has shipped and has been running on devices since 1.1.0** (App Store, 2026-08-08) — the release notes for it say so: "Apple Health now imports steps and active energy, and your activity level corrects itself from what you actually did." So "nothing here can be run until then" no longer applies; production activity data plausibly exists now. **What is still true is that this protocol has never been RUN** — nothing in `STATUS.md` tracks it either way. Treat it as pending work with its blocker removed, not as a plan waiting on a build.
+
+
 ---
 
 ## Bottom line

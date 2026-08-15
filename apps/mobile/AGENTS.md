@@ -139,7 +139,7 @@ ship):
 | iOS | build 27 (2026-08-07) | `4734a4b6ae3cb652db2a4f920ee0b7ed8c073429` | **read from the `.ipa`** | superseded. **Its Siri half never registered** — see the required-parameter trap above. Identical fingerprint to 28 because the fix was Swift-only |
 | Android | vc 18 (2026-08-07) | `cc3da8b9a22df7180c55e6cab5cd8decccdb98bb` | **read from the `.aab`** | superseded by vc 21; carries the Quick Settings tile |
 | iOS | build 25 (2026-08-07) | `6c756c19b3e35948b85e42a3b337eec588128d3c` | **read from the `.ipa`** | superseded by 27; still what un-updated testers run |
-| iOS | build 24 | `781be0c885005e1d02bcf41408988c6622ff222e` | Windows `fingerprint:generate` — **unverified** | in App Review |
+| iOS | build 24 | `781be0c885005e1d02bcf41408988c6622ff222e` | Windows `fingerprint:generate` — **unverified** | **THE LIVE APP STORE BINARY** (1.1.0, `READY_FOR_SALE` since 2026-08-08) until 1.2.0/build 54 is approved and released. Every member of the public runs this. Its runtime is a Windows-generated hash nobody has confirmed, so **no OTA should be assumed to reach it** — the public has been reachable only by a store release since 08-08 |
 | Android | vc 13 (2026-08-07) | `5758fe4f232d5e6fe1ca369299512cfec0d39e13` | **read from the `.aab`** | superseded by vc 18; still what un-updated testers run |
 | Android | vc 11 | `c0b85c15e6631d99e8ccef61867d937389094ae6` | Windows `fingerprint:generate` — **unverified** | superseded |
 

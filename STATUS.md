@@ -419,9 +419,10 @@ from the old cutline still worth carrying.
   **`ANTHROPIC_API_KEY` exists** in Secret Manager as of 2026-08-04 (v1,
   enabled) and was verified live against `/v1/models`. Both it and
   `GEMINI_API_KEY` must exist to deploy, whichever provider is active.
-  **The feature is still hidden** (web `FEATURES.photoScan: false`, mobile
-  `EXPO_PUBLIC_FEATURE_PHOTO_SCAN=0` in the prod build) — this is plumbing,
-  not a launch.
+  **That was true when written and is not now** (ADR-0017, 2026-08-07): both
+  flags are ON — `src/app/utils/features.ts` reads `photoScan: true` and the
+  mobile flag is on by the *absence* of `EXPO_PUBLIC_FEATURE_PHOTO_SCAN=0`.
+  This entry describes the plumbing step that preceded the launch.
   **Photo-scan is freemium, not Pro-only** — `PHOTO_REQUIRES_PAID = false`,
   and the tiering is the daily caps in `daily-quota.ts`: **3/day free, 30/day
   paid**, which is what the freemium table always promised. Costed before
@@ -821,7 +822,14 @@ Do not re-propose these without new information; the reasoning is in the linked 
 or research note.
 
 - **Pro tier / IAP / Stripe** — dormant, flag-gated off. v1 is free. (ADR-0015)
-- **AI photo-scan** — deferred to a paid tier; runtime cost gate. (ADR-0015)
+- ~~**AI photo-scan** — deferred to a paid tier; runtime cost gate. (ADR-0015)~~
+  **NO LONGER TRUE — struck 2026-08-15.** ADR-**0017** (2026-08-07) amended 0015:
+  photo scan is **ON and free to everyone** on both platforms, and has been in
+  the live App Store binary since 1.1.0. It was left in this list for a week,
+  where its whole purpose is to stop people re-proposing it — so it was telling
+  readers a shipped headline feature did not exist. The cost gate is real but
+  lives **server-side** (`dailyQuota` 3/day free, plus the `photo` `spendCeiling`),
+  because a client cannot express "paid" while `PRO_ENABLED` is false.
 - **App Intents / Siri Shortcuts** — decided **no** for this batch, 2026-07-23.
 - **Watch app reading Firestore directly** — structurally unavailable; no watchOS
   Firestore client. (`docs/research/watch-complication-transport.md`)

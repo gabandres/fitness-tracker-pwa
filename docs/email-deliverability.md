@@ -24,9 +24,12 @@ remaining steps — which cannot be completed from a shell alone.
 
 ---
 
-## 1. Diagnosis — why mail lands in junk today
+## 1. Diagnosis — why mail landed in junk (2026-07-24, ALL RESOLVED)
 
-Measured against the live Resend account and the repo, not inferred:
+Kept because the reasoning is still what makes the fix legible; **every row
+below is history**, closed by §4.4 (the sender flip) and §6 (the verification
+callable). Measured against the live Resend account and the repo at the time,
+not inferred:
 
 | Finding | Evidence |
 |---|---|
@@ -104,9 +107,13 @@ POST   /domains  {"name":"mail.ignia.fit", ...}        → id 426e86ae-6518-4f5f
   `sendPasswordResetEmail` (`src/app/services/auth.service.ts`,
   `apps/mobile/src/lib/auth.tsx`).
 - **`firestore.rules`** — `emailRateLimits` explicitly denied to all clients.
-- Content fixes: the welcome email no longer advertises photo scanning
-  (`FEATURES.photoScan` is `false` in shipped v1 on both platforms) and no
-  longer carries the pre-pivot "macro log · personal calibration" eyebrow.
+- Content fixes: the welcome email dropped its photo-scanning mention and the
+  pre-pivot "macro log · personal calibration" eyebrow. **The photo-scan half of
+  that is now backwards**: `FEATURES.photoScan` was `false` on both platforms
+  when the copy was cut, and ADR-0017 turned photo scan **on and free** on
+  2026-08-07. The welcome email may legitimately advertise it again; nobody has
+  rewritten it. `functions/test/email-templates.spec.ts:132` asserts the
+  *absence* of that copy, so restoring it means updating that test on purpose.
 
 ---
 
