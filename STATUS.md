@@ -38,16 +38,18 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB, 13,272 foods, no network call (ADR-0018). Open Food Facts still serves branded + barcode |
 | **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU |
-| **`app-version.json`** | android `30` (derived from Play by `scripts/app-version-sync.mjs`; `npm run doctor` fails on drift), ios `0`… see below |
+| **`app-version.json`** | android `30`, ios `24`. **Both derived** by `scripts/app-version-sync.mjs`; `npm run doctor` fails on drift in either direction |
 
 **Two live facts that are easy to get wrong:**
 
-- **`app-version.json` holds `ios.latestBuild: 24`, and the iOS prompt is
-  effectively pinned to the store build on purpose.** It must name the live *App
-  Store* build, never a TestFlight one — TestFlight runs ahead, and pointing a
-  store user at a build they cannot install is worse than saying nothing. It
-  needs a bump to 55 when 1.2.0 goes live, plus a `firebase deploy --only
-  hosting`, or the corrected file reaches nobody.
+- **`app-version.json` is now derived on BOTH platforms** (2026-08-15) — android
+  from the androidpublisher tracks API, ios from the App Store Connect version in
+  `READY_FOR_SALE`. iOS used to be hand-held with a note asking a human to
+  remember it must name the live *App Store* build and never a TestFlight one;
+  deriving it from `READY_FOR_SALE` enforces that structurally, since a
+  TestFlight build is by definition not in that state. **When 1.2.0 is approved,
+  `ios.latestBuild` becomes 55** — run the script, then `npm run build &&
+  firebase deploy --only hosting`, or the corrected file reaches nobody.
 - **The EAS Update fingerprint is machine-dependent — publish from `ignia-mac`,
   never from Windows.** The same commit fingerprints differently on the two
   machines (a Windows-only prebuild dir, CRLF-vs-LF, divergent `node_modules`).

@@ -909,6 +909,64 @@ async function checkAppVersionManifest() {
   );
 }
 
+/**
+ * The same guard for iOS, which was hand-held until 2026-08-15.
+ *
+ * The iOS half has a failure mode Android's does not: the number must name the
+ * live APP STORE build, and TestFlight always runs ahead, so the most visible
+ * build number is almost always the wrong one to write. Pointing a store user
+ * at a build they cannot install is worse than saying nothing.
+ *
+ * `READY_FOR_SALE` is the authority because it is definitionally what the public
+ * can download. A value of 0 disables the prompt on purpose and is not drift.
+ */
+async function checkAppVersionManifestIos() {
+  const name = 'app-version.json matches what the App Store ships';
+  if (!has('public/app-version.json')) {
+    return fail(G3, name, 'public/app-version.json is missing');
+  }
+
+  let sync;
+  try {
+    sync = await import('./app-version-sync.mjs');
+  } catch (e) {
+    return skip(G3, name, `could not load app-version-sync.mjs: ${e.message}`);
+  }
+
+  const declared = sync.readManifest().ios?.latestBuild ?? 0;
+
+  let live;
+  try {
+    live = await sync.readLiveAppStoreBuild();
+  } catch (e) {
+    return skip(G3, name, `App Store Connect refused the request: ${e.message}`);
+  }
+  if (!live) return skip(G3, name, 'no READY_FOR_SALE version on the App Store');
+
+  if (declared === 0) {
+    return pass(G3, name, `ios prompt is disabled on purpose (live is ${live.version} build ${live.build})`);
+  }
+  if (declared === live.build) {
+    return pass(G3, name, `ios.latestBuild = ${declared} (${live.version} build ${live.build})`);
+  }
+  if (declared > live.build) {
+    return fail(
+      G3,
+      name,
+      `app-version.json claims build ${declared} but the App Store is serving ${live.version} build ${live.build}. ` +
+        'That is almost certainly a TestFlight build number — anyone who taps the banner lands on a store ' +
+        'page with nothing newer to install.',
+    );
+  }
+  fail(
+    G3,
+    name,
+    `app-version.json says build ${declared}, the App Store is serving ${live.version} build ${live.build}. ` +
+      'Every install below that is being told it is up to date. ' +
+      'Fix: node scripts/app-version-sync.mjs && npm run build && firebase deploy --only hosting',
+  );
+}
+
 function checkSecretVersions() {
   const name = `active secret versions <= ${ACCEPTED_SECRET_VERSIONS} (free tier ${MAX_SECRET_VERSIONS})`;
   const listRes = sh('gcloud', ['secrets', 'list', '--project', PROJECT, '--format=json']);
@@ -1306,6 +1364,9 @@ if (NO_CLOUD) {
   );
   await checkAppVersionManifest().catch((e) =>
     fail(G3, 'app-version.json matches what Play ships', `check threw: ${e.message}`),
+  );
+  await checkAppVersionManifestIos().catch((e) =>
+    fail(G3, 'app-version.json matches what the App Store ships', `check threw: ${e.message}`),
   );
   await checkSentryToken().catch((e) =>
     fail(G3, 'SENTRY_AUTH_TOKEN authenticates', `check threw: ${e.message}`),

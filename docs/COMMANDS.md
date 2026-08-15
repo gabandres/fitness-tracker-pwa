@@ -79,8 +79,14 @@ Read the versionCode from **Play**, never from the build log — the log describ
 the remote counter advancing for the *next* build.
 
 ```sh
-node scripts/app-version-sync.mjs --check     # public/app-version.json vs what Play ships
+node scripts/app-version-sync.mjs --check     # report drift, write nothing (what doctor runs)
+node scripts/app-version-sync.mjs             # rewrite both numbers from the APIs
 ```
+
+**Both platforms are derived** (since 2026-08-15) — android from the
+androidpublisher tracks API, ios from the ASC version in `READY_FOR_SALE`. Never
+hand-edit either number. A change reaches nobody until
+`npm run build && firebase deploy --only hosting`.
 
 **Which cert signs a given release** — never read this off the App signing page,
 which shows the key that will sign the *next* release:
