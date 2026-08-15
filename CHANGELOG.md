@@ -6,6 +6,29 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-15 — The email that lets you into your account stops landing in spam
+
+If you signed up and never got the confirmation email, it was probably sitting
+in your junk folder. Two separate reasons, both fixed.
+
+Every email Ignia sends — the welcome note, password resets, the weekly digest
+— was going out from a shared address belonging to the company that delivers
+our mail, not from `ignia.fit`. Mail filters weigh who actually sent a message,
+and a shared address carries whatever reputation every other sender on it has
+earned. Ignia's own sending domain had been set up and verified three weeks
+earlier; the switch to it was simply never thrown. It is thrown now.
+
+The confirmation email itself was worse, because it was not going through that
+system at all — it came from an address ending in `firebaseapp.com`, which no
+amount of configuration on our side could vouch for. It is now sent the same
+way as everything else, from `ignia.fit`, with the same design as the rest of
+our mail and a plain-text version for clients that want one. The link inside it
+is on `ignia.fit` too, instead of a domain you have never heard of — which is
+also just less alarming to click.
+
+Live on the web now. The phone app has the same change, and it ships with the
+next release.
+
 ## 2026-08-14 — Your maintenance estimate no longer jumps after a break in weigh-ins
 
 Come back to the scale after a week or two away and Ignia would start a fresh

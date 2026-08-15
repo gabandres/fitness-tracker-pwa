@@ -30,7 +30,6 @@ import {
   fetchSignInMethodsForEmail,
   linkWithCredential,
   onAuthStateChanged,
-  sendEmailVerification,
   signInWithCredential,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
@@ -153,6 +152,32 @@ async function providerHintForEmail(email: string): Promise<'use-google' | 'use-
     // Enumeration protection / offline — fall back to generic guidance.
   }
   return null;
+}
+
+/**
+ * Sends the email-verification link through our own `sendVerificationEmail`
+ * callable instead of the SDK's `sendEmailVerification`.
+ *
+ * Same reasoning as `resetPassword` below — Firebase's built-in sender ships
+ * from `noreply@<project>.firebaseapp.com`, which cannot be DMARC-aligned with
+ * ignia.fit — and it matters more here, because verification is the signup
+ * wall: mail that lands in junk is a user who never reaches the app at all.
+ * That was reported on 2026-08-14.
+ *
+ * The usual fix, pointing Firebase Auth at a custom SMTP relay, is NOT
+ * available on this project: every write to the Auth email config is refused
+ * with `EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED` while email-enumeration protection
+ * is enabled, and that protection is worth more than the setting.
+ *
+ * The callable reads the address from the auth token, so there is nothing to
+ * pass and nothing a caller can spoof.
+ */
+async function sendOwnedVerificationEmail(locale?: 'en' | 'es-PR'): Promise<void> {
+  const call = httpsCallable<{ locale: string }, { ok: true; alreadyVerified?: boolean }>(
+    functions,
+    'sendVerificationEmail',
+  );
+  await call({ locale: locale ?? 'en' });
 }
 
 // Microsoft (Azure AD v2.0) endpoints. `common` = the app registration is
@@ -346,13 +371,20 @@ interface AuthState {
    *  the new `email_verified` claim, bootstraps the profile doc that the
    *  unverified create was rejected for, and returns whether it's now verified. */
   reloadUser: () => Promise<boolean>;
-  /** Re-sends the verification email to the current user. */
-  resendVerification: () => Promise<void>;
+  /** Re-sends the verification email to the current user. `locale` picks the
+   *  language, and is supplied by the caller for the same reason
+   *  `resetPassword` needs it — see the note there. */
+  resendVerification: (locale?: 'en' | 'es-PR') => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   /** Creates a new email/password account and signs in. Sets the Firebase Auth
    *  displayName when provided, and sends a (best-effort) verification email.
    *  Firebase enforces the project password policy. */
-  signUp: (email: string, password: string, displayName?: string) => Promise<void>;
+  signUp: (
+    email: string,
+    password: string,
+    displayName?: string,
+    locale?: 'en' | 'es-PR',
+  ) => Promise<void>;
   /** Sends a password-reset email to `email`. */
   /** `locale` picks the language of the reset email. The caller supplies it
    *  because `I18nProvider` mounts inside this provider (it reads the signed-in
@@ -713,10 +745,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setEmailVerified(verified);
         return verified;
       },
-      resendVerification: async () => {
+      resendVerification: async (locale) => {
         const u = auth.currentUser;
         if (!u) throw new Error('no-user');
-        await sendEmailVerification(u);
+        await sendOwnedVerificationEmail(locale);
       },
       googleAvailable,
       signIn: async (email, password) => {
@@ -743,7 +775,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw e;
         }
       },
-      signUp: async (email, password, displayName) => {
+      signUp: async (email, password, displayName, locale) => {
         let cred;
         try {
           cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
@@ -779,9 +811,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
         try {
-          await sendEmailVerification(cred.user);
+          await sendOwnedVerificationEmail(locale);
         } catch (e) {
-          console.warn('sendEmailVerification failed', e);
+          console.warn('sendVerificationEmail failed', e);
         }
       },
       // Routed through our own callable instead of Firebase's client SDK:

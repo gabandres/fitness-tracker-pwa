@@ -1,11 +1,13 @@
 # Email deliverability — DKIM / SPF / DMARC for `ignia.fit`
 
-**Status:** `mail.ignia.fit` is **verified** and the Resend sender is **flipped
-and deployed** (2026-08-14). One thing remains, and it is the one this document
-was originally blind to: **Firebase Auth's own mail — including the email
-verification every new signup depends on — does not go through Resend at all**
-and still ships from `noreply@<project>.firebaseapp.com`. See §6.
-**Last verified:** 2026-08-14
+**Status:** **Done.** `mail.ignia.fit` is verified, the Resend sender is flipped
+and deployed (2026-08-14), and Firebase Auth's own verification mail — the half
+this document was originally blind to, and the one a user actually reported in
+junk — now goes through our `sendVerificationEmail` callable instead of
+Firebase's sender (2026-08-15, §6). Every message Ignia sends is now
+DMARC-aligned on `mail.ignia.fit`. What remains is measurement, not work: §4.6
+(read the headers of a real send) and the DMARC ramp in §4.5.
+**Last verified:** 2026-08-15
 
 > **The three-week gap this document caused.** The domain verified on
 > 2026-07-24, hours after these records were published — and §4.4 was never
@@ -336,43 +338,57 @@ This matters more than the Resend half: **email verification is the signup
 wall** (`STATUS.md` §6 — a fresh account is walled out until it verifies), so a
 junked verification mail is a failed activation, not a missed newsletter.
 
-### The fix — route Auth mail through the same verified domain
+### The obvious fix does not work on this project
 
-Firebase Auth supports a custom SMTP relay, and Resend exposes one, so the
-existing verified domain covers Auth mail with no new infrastructure:
+Firebase Auth supports a custom SMTP relay and Resend exposes one, so the
+expected fix was `smtp.resend.com:587` in **Authentication → Templates → SMTP
+settings**. **Every write to that config is refused**, tried 2026-08-15:
 
-| Setting | Value |
-|---|---|
-| Host / port | `smtp.resend.com` : `587` (STARTTLS; 465 is implicit TLS if preferred) |
-| Username | `resend` |
-| Password | the `RESEND_API_KEY` secret |
-| Sender | `hello@mail.ignia.fit` |
-| Action URL | `https://ignia.fit/__/auth/action` |
+```
+PATCH .../config?updateMask=notification.sendEmail.method,…smtp,…callbackUri
+→ 400 INVALID_ARGUMENT  EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED
+```
 
-`ignia.fit` is already an authorized domain and already serves that handler
-(200, verified 2026-08-14) — Firebase Hosting serves `/__/auth/` for the linked
-site, so no code or hosting change is needed.
+It is not a malformed payload. A single-field write of nothing but
+`notification.sendEmail.callbackUri` is refused identically. The cause is
+`emailPrivacyConfig.enableImprovedEmailPrivacy: true` — **email-enumeration
+protection standardizes Auth's mail and locks the template and sender config
+against edits.**
 
-Console path: **Authentication → Templates → SMTP settings**, plus the pencil
-on any template for the action URL. The equivalent API write is
-`PATCH .../config?updateMask=notification.sendEmail.method,notification.sendEmail.callbackUri,notification.sendEmail.smtp`
-with `method: "CUSTOM_SMTP"`.
+**Do not "fix" this by turning that flag off.** It is a real security property
+this app depends on (it is why `fetchSignInMethodsForEmail` returns `[]` — see
+`STATUS.md`), and the callable below delivers the same result without trading
+anything for it.
 
-⚠️ **Resend's free plan is 100 emails/day, 3,000/month, and this change puts
-Auth mail on the same budget as the Resend callables.** Fine at current volume;
-worth remembering the day a promotion lands.
+### What shipped instead — `sendVerificationEmail`
 
-**Verify after switching** (§4.6 applies to Auth mail too): trigger a
-verification email, open *Show original* in Gmail, and confirm `spf=pass`,
-`dkim=pass`, `dmarc=pass` with `header.from=mail.ignia.fit` — not
-`firebaseapp.com`.
+A callable mirroring `sendPasswordReset` exactly:
+`generateEmailVerificationLink()` server-side, delivered through Resend from
+`hello@mail.ignia.fit`, using the `Block`-rendered HTML + `text/plain` pair in
+`email-templates.ts` (`verifyEmailEmail`, `en` + `es-PR`).
 
-### If branded templates matter later
+- `functions/src/verify-email.ts` — the callable. **Authenticated**, unlike the
+  reset path: the address is read from the auth token, never the request body,
+  which makes enumeration structurally impossible. Rate limited per uid
+  (`MAX_PER_USER = 5`/hour) via the same `withinBudget` helper. An
+  already-verified caller is a no-op. Failures **surface** rather than
+  resolving to a cheerful `ok:true` — a user at the verification wall needs to
+  know the mail did not go out.
+- `functions/src/auth-links.ts` — `brandActionLink()`. Firebase mints links on
+  `<project>.firebaseapp.com`; `ignia.fit` serves the *same* OOB handler
+  (response bodies compared 2026-08-15: byte-identical, both booting
+  `fireauth.oob.OobHandler`), so the origin is swapped and the `oobCode`
+  preserved. Unknown hosts pass through untouched. **Applied to password-reset
+  links too** — they had the same mismatched host.
+- Clients call it instead of the SDK: `src/app/services/auth.service.ts`
+  (`sendVerificationEmail()`, used by sign-up and the resend banner) and
+  `apps/mobile/src/lib/auth.tsx` (`sendOwnedVerificationEmail`). Both pass a
+  locale, because `I18nProvider` mounts inside the auth provider on mobile.
 
-Custom SMTP fixes the envelope, not the design: the body is still Firebase's
-plain template, not the `Block`-rendered HTML + `text/plain` pair in
-`functions/src/email-templates.ts`. The path to branded verification mail is a
-`sendVerificationEmail` callable mirroring `sendPasswordReset` exactly —
-`generateEmailVerificationLink()` + Resend, same rate limiting, same
-enumeration-safety. That is a code change, and it is **not** required to get
-out of the junk folder.
+⚠️ **Resend's free plan is 100 emails/day, 3,000/month, and verification mail
+now shares that budget with the welcome, reset and digest mail.** Fine at
+current volume; worth remembering the day a promotion lands.
+
+**Verify** (§4.6 applies here too): sign up a fresh account, open *Show
+original* in Gmail, and confirm `spf=pass`, `dkim=pass`, `dmarc=pass` with
+`header.from=mail.ignia.fit` — not `firebaseapp.com`.

@@ -584,6 +584,102 @@ function resetEs(link: string, hours: number, first: string | null): RenderedEma
   );
 }
 
+// ─── Email verification ─────────────────────────────────────────────
+//
+// This is the highest-stakes mail Ignia sends: email verification is the
+// signup wall, so a message that lands in junk is a user who never reaches
+// the product at all. It exists here — rather than being left to Firebase
+// Auth's built-in sender — because that sender ships from
+// `noreply@<project>.firebaseapp.com`, which cannot be DMARC-aligned with
+// ignia.fit, and because this project has email-enumeration protection on,
+// which locks Firebase's own template and SMTP settings against any edit.
+
+export interface VerifyEmailParams {
+  locale: "en" | "es-PR";
+  verifyLink: string;
+  displayName?: string | null;
+  /** Firebase action codes are valid for one hour. */
+  expiresInHours?: number;
+}
+
+export function verifyEmailEmail(params: VerifyEmailParams): RenderedEmail {
+  const hours = params.expiresInHours ?? 1;
+  const first = firstNameOf(params.displayName);
+  return params.locale === "es-PR"
+    ? verifyEs(params.verifyLink, hours, first)
+    : verifyEn(params.verifyLink, hours, first);
+}
+
+function verifyEn(link: string, hours: number, first: string | null): RenderedEmail {
+  const hi = first ? `Hi <strong>${escapeHtml(first)}</strong>,` : "Hi there,";
+  const validFor = hours === 1 ? "one hour" : `${hours} hours`;
+  const blocks: Block[] = [
+    { kind: "lead", text: hi },
+    {
+      kind: "para",
+      text: "Confirm this address and your Ignia account is ready — it's the last step before you can log anything.",
+    },
+    { kind: "button", label: "Confirm my email", href: link },
+    {
+      kind: "linkFallback",
+      href: link,
+      note: "Button not working? Paste this into your browser:",
+    },
+    { kind: "divider" },
+    {
+      kind: "para",
+      text: `<strong>This link expires in ${validFor}</strong> and can only be used once. You can ask for a new one from the app any time.`,
+    },
+    {
+      kind: "para",
+      text: "<strong>Didn't sign up?</strong> Ignore this email and nothing happens — the account stays unverified and unusable.",
+    },
+    { kind: "note", text: "Ignia will never email you asking for your password." },
+  ];
+  return build(
+    "Confirm your email for Ignia",
+    `One link to confirm your address — it expires in ${validFor}.`,
+    "Confirm your email.",
+    blocks,
+    footerTransactional(false),
+  );
+}
+
+function verifyEs(link: string, hours: number, first: string | null): RenderedEmail {
+  const hi = first ? `Hola <strong>${escapeHtml(first)}</strong>,` : "Hola,";
+  const validFor = hours === 1 ? "una hora" : `${hours} horas`;
+  const blocks: Block[] = [
+    { kind: "lead", text: hi },
+    {
+      kind: "para",
+      text: "Confirma esta dirección y tu cuenta de Ignia queda lista — es el último paso antes de poder registrar nada.",
+    },
+    { kind: "button", label: "Confirmar mi correo", href: link },
+    {
+      kind: "linkFallback",
+      href: link,
+      note: "¿El botón no funciona? Pega esto en tu navegador:",
+    },
+    { kind: "divider" },
+    {
+      kind: "para",
+      text: `<strong>Este enlace vence en ${validFor}</strong> y solo se puede usar una vez. Puedes pedir otro desde la app cuando quieras.`,
+    },
+    {
+      kind: "para",
+      text: "<strong>¿No creaste esta cuenta?</strong> Ignora este correo y no pasa nada — la cuenta queda sin verificar y no se puede usar.",
+    },
+    { kind: "note", text: "Ignia nunca te va a pedir tu contraseña por correo." },
+  ];
+  return build(
+    "Confirma tu correo para Ignia",
+    `Un enlace para confirmar tu dirección — vence en ${validFor}.`,
+    "Confirma tu correo.",
+    blocks,
+    footerTransactional(true),
+  );
+}
+
 // ─── Weekly digest ──────────────────────────────────────────────────
 //
 // Retention email — sent to opted-in users. Same metrics as the in-app

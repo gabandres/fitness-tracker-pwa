@@ -78,7 +78,7 @@ export default function SignIn() {
     setBusy(true);
     try {
       if (mode === 'signup') {
-        await signUp(email, password, `${firstName.trim()} ${lastName.trim()}`.trim());
+        await signUp(email, password, `${firstName.trim()} ${lastName.trim()}`.trim(), locale);
       } else {
         await signIn(email, password);
       }

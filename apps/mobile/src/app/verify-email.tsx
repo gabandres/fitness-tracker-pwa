@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 import { BrandMark } from '@/components/BrandMark';
 import { useAuth } from '@/lib/auth';
-import { useT } from '@/i18n';
+import { useLocale, useT } from '@/i18n';
 import { enterUp } from '@/lib/motion';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -18,6 +18,7 @@ import { font, radius, space, type } from '@/theme';
  *  reloadUser() reports success. */
 export default function VerifyEmail() {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const { user, reloadUser, resendVerification, signOut } = useAuth();
@@ -50,7 +51,7 @@ export default function VerifyEmail() {
     setError(null);
     setResending(true);
     try {
-      await resendVerification();
+      await resendVerification(locale);
       setResent(true);
     } catch {
       setError(t('verify.resendFailed'));

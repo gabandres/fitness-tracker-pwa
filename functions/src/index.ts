@@ -18,6 +18,7 @@ export { statusPulse, weeklyFirestoreBackup } from "./ops";
 export { hourlyTasks } from "./hourly-tasks";
 export { sendWelcomeEmail, onDailyLogCreated, onSubscriptionWritten } from "./user-lifecycle";
 export { sendPasswordReset } from "./password-reset";
+export { sendVerificationEmail } from "./verify-email";
 
 // ─── Satellite modules ──────────────────────────────────────────────
 export {

@@ -11,7 +11,6 @@ import {
   linkWithCredential,
   linkWithPopup,
   signInWithEmailAndPassword,
-  sendEmailVerification,
   signInWithPopup,
   onAuthStateChanged,
   signOut as fbSignOut,
@@ -253,7 +252,7 @@ export class AuthService {
       // Best-effort: a missing/blocked verification email is recoverable
       // via resendVerificationEmail() from the verify-banner.
       try {
-        await sendEmailVerification(result.user);
+        await this.sendVerificationEmail();
       } catch (err) {
         console.warn('Failed to send verification email on sign-up:', err);
       }
@@ -330,11 +329,32 @@ export class AuthService {
     );
   }
 
+  /**
+   * Sends the email-verification link through our own `sendVerificationEmail`
+   * callable rather than the client SDK's `sendEmailVerification`.
+   *
+   * Same reasoning as `sendPasswordReset` above, and it matters more here:
+   * verification is the signup wall, so mail that lands in junk is a user who
+   * never reaches the product. Firebase's own sender cannot be moved to our
+   * domain on this project — every write to the Auth email config is refused
+   * with `EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED` while email-enumeration
+   * protection is enabled, and that protection is worth more than the setting.
+   *
+   * The callable reads the address from the auth token, so there is nothing
+   * to pass and nothing a caller can spoof.
+   */
+  async sendVerificationEmail(): Promise<void> {
+    await this.callables.call<{ locale: string }, { ok: true; alreadyVerified?: boolean }>(
+      'sendVerificationEmail',
+      { locale: this.translation.language() },
+    );
+  }
+
   /** Re-sends the email-verification link to the current user. */
   async resendVerificationEmail(): Promise<void> {
     const user = this.auth.currentUser;
     if (!user) throw new Error('No user signed in.');
-    await sendEmailVerification(user);
+    await this.sendVerificationEmail();
   }
 
   /** Forces a refresh of the current user's auth state. Call this

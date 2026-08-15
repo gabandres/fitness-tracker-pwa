@@ -4,6 +4,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { onCall, HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 import { db } from "./init";
 import { ErrorCode } from "./error-codes";
+import { brandActionLink } from "./auth-links";
 import {
   getResend,
   baseSendOptions,
@@ -178,10 +179,15 @@ export const sendPasswordReset = onCall<SendPasswordResetRequest, Promise<SendPa
         return { ok: true };
       }
 
-      const link = await auth.generatePasswordResetLink(email, {
-        url: CONTINUE_URL,
-        handleCodeInApp: false,
-      });
+      // Branded host — same Firebase OOB handler, served from ignia.fit, so
+      // the link a user is asked to trust matches the sender and the product.
+      // See auth-links.ts for why that swap is safe.
+      const link = brandActionLink(
+        await auth.generatePasswordResetLink(email, {
+          url: CONTINUE_URL,
+          handleCodeInApp: false,
+        }),
+      );
 
       const { subject, html, text } = passwordResetEmail({
         locale,

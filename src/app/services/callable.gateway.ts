@@ -26,6 +26,7 @@ export type CallableName =
   | 'consultationStream'
   // account / GDPR
   | 'sendPasswordReset'
+  | 'sendVerificationEmail'
   | 'deleteAccount'
   | 'exportUserData'
   | 'checkAccessStatus'
