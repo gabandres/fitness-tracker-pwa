@@ -82,13 +82,22 @@ write logic that branches on its result.
 
 Everything else that was in this section has shipped and is in `CHANGELOG.md`.
 
-- **The verification-email fix on mobile** (`86183368`, 2026-08-15). On `main`,
-  in **no binary**, **not** OTA'd. Held on purpose: it is JS-only, so an
-  `eas update` would land on runtime `886bf0b3…` — the binary Apple is reviewing
-  — and perturbing a build under review buys nothing, because the only people it
-  reaches are testers who already have accounts. **Publish it once 1.2.0 is
-  approved**, from `ignia-mac`, gate first. Until then a new signup on the phone
-  still gets its confirmation mail from `firebaseapp.com`.
+- **The verification-email fix, iOS OTA only** (`86183368`, 2026-08-15).
+  Everything else about this fix has shipped — the **server half is deployed**
+  (it is a Cloud Function, so it needs no client release), **web is live**, and
+  **Android alpha has it** as an OTA published 2026-08-15 onto runtime
+  `6519916642…` (= vc 30). **iOS build 55 carries it embedded** and is the
+  binary in review.
+
+  What is held is the **iOS OTA**, and it is held for one narrow reason: it
+  would land on runtime `886bf0b3…`, which is the binary Apple is reviewing.
+  Its only beneficiaries are TestFlight testers on build 53, who already have
+  accounts, so it buys nothing and perturbs a live submission. **Publish it once
+  1.2.0 is approved**, from `ignia-mac`, gate first.
+
+  **It is NOT the reason public iOS users lack the fix.** They are on build 24,
+  a different runtime that has never been an OTA target, so no OTA can reach
+  them — only the 1.2.0 release can.
 
 ## 3. Open work, and what each is blocked on
 
