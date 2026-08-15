@@ -1,0 +1,16 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "fit.ignia.app",
+      "sha256_cert_fingerprints": [
+        "37:5D:D3:E6:1E:97:F4:DC:E2:AF:42:8C:9C:B9:7A:62:AE:2D:5A:1F:82:1B:F4:DD:60:AF:31:9D:32:DE:70:FE",
+        "72:E8:39:C9:B3:4D:7D:92:9C:CB:7D:C9:67:34:45:93:5E:E3:4F:1B:D6:96:F0:8F:B6:B7:E9:AE:68:AF:B5:D9",
+        "3C:C5:39:9A:FA:FF:55:3F:2B:15:E4:13:0A:AB:27:A0:80:FB:A1:82:60:47:55:66:4D:A5:10:51:4A:F6:A5:11"
+      ]
+    }
+  }
+]
