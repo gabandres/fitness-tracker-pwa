@@ -6,6 +6,38 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-14 — Your maintenance estimate no longer jumps after a break in weigh-ins
+
+Come back to the scale after a week or two away and Ignia would start a fresh
+trend from your first readings back. Once that fresh run reached four weigh-ins,
+it took over the estimate outright — and four *consecutive daily* readings cover
+only three days, which is long enough to see water move and nowhere near long
+enough to see fat move.
+
+On a real account it worked out like this. Maintenance sat at **1,889**. One
+more logged meal pulled one more weigh-in into the run, it reached exactly four,
+and a single 1.4 lb overnight drop was read as **half a pound of fat per day** —
+maintenance **3,596**, and a recommended target of **3,146** for someone whose
+floor is 1,850. Nothing caught it, because the safety floor only stops a target
+going too low.
+
+Two changes:
+
+- **A run has to cover a full week** before it carries your trend on its own.
+  Until then the longer history stays in charge, which is the conservative
+  answer rather than the exciting one.
+- **No weight change faster than 2 lb a week is treated as evidence about your
+  burn.** That is far above what anyone sustains as fat, so it never touches a
+  real trend — it just means no reading of the scale, however odd, can produce a
+  deficit a person cannot actually run.
+
+**If your target looked wrong this week, check it again.** Nothing about your
+data changed; only what the estimate was willing to conclude from it.
+
+Live on the web and shipped over the air to both mobile apps.
+
+---
+
 ## 2026-08-12 — Your streak and your weekly averages now count the days they claim
 
 Three numbers on the web app were computed from the same rolling cache of the
