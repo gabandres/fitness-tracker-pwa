@@ -250,30 +250,40 @@ again. `SENTRY_AUTH_TOKEN` remains the one required credential, read from
 
 All of this is on `main`. Do not re-scope anything here as new work.
 
-**THE CUTLINE, updated 2026-08-07 — read this before the bullets, which are older
-than it.** iOS build 19 and Android vc 8 were cut from `fdcd92ed` and submitted
-(TestFlight + Play alpha, both verified at the destination). Since then **iOS
-build 23 and Android vc 9 have shipped to testers**, and between them they close
-the last gap for everything merged up to that point.
-
-**Amended later on 2026-08-07 — photo-scan was turned on and SHIPPED the same
-day**, web and mobile both (see §1). It never sat in this section. Every bullet
-below remains in testers' hands on both platforms.
-
-What is still pending is a different thing, and it is the one that matters:
+**THE CUTLINE, re-read from the ASC and Play APIs on 2026-08-15.** The version
+of this table dated 2026-08-07 had gone stale by a full release — it said the
+public App Store was on *1.0, build 7* and that App Review held build 24, both
+wrong since 1.1.0 shipped on 2026-08-08. Numbers below are read from the APIs,
+never edited from memory; re-read them the same way before trusting them.
 
 | Audience | Has | Missing |
 |---|---|---|
-| TestFlight testers | **everything in §2** (build 23) | — |
-| Play alpha testers | **everything in §2** (vc 9) | — |
-| **App Review** | build **24** — everything through `ebf60dcb` | the update banner (`b8306f9f`), which landed after 24 was uploaded and reaches these users over the air instead |
-| **Public App Store** | **1.0, build 7** (`168e0394`, uploaded 2026-07-20) | **54 mobile/core commits** — i.e. all of §2 |
-| Play production | nothing — not launched | — |
+| TestFlight testers | build **53** externally (1.2.0), plus the 08-14 OTA | build 54, deliberately — internal group only, since it is code-identical to 53 under OTA |
+| Play alpha testers | **vc 30** (1.2.0), plus the 08-14 OTA | the verification-email fix (held, below) |
+| **App Review** | build **54** (1.2.0), `WAITING_FOR_REVIEW` since 2026-08-15, **manual release** | nothing — this is the submission |
+| **Public App Store** | **1.1.0 / build 24** (uploaded 2026-08-07) | everything since: dictation, the redesigned Add screen, the fasting Live Activity, the wide widget, and every TDEE correction |
+| Play production | nothing — not launched | production access, gated on Google's own 14-day checklist (§4) |
 
-So the gap is not a build, it is a **submission**: `1.1.0` has sat at
-`PREPARE_FOR_SUBMISSION` since it was created and **has never gone to App
-Review**. Cutting another build does not move that; submitting does. Verify
-with the ASC command in §1.
+**The one thing merged and deliberately NOT delivered anywhere:**
+
+- **The verification-email fix on mobile** (`86183368`, 2026-08-15). It is on
+  `main`, in **no binary**, and has **not** been published as an OTA. Held on
+  purpose: it is JS-only, so an `eas update` would land on runtime
+  `886bf0b3…` — which is the binary Apple is reviewing right now — and
+  perturbing a build under review buys nothing here, because the only people it
+  would reach are testers who already have accounts. **Publish it once 1.2.0 is
+  approved**, from `ignia-mac`, gate first:
+  `ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform ios"`.
+  The web half of the same fix is already live. Until this ships, a new signup
+  on the phone still gets its confirmation mail from `firebaseapp.com`.
+
+**Superseded history, kept only so the bullets below have context** (they are
+older than the table above and describe a cutline that has moved several times
+since): iOS build 19 / Android vc 8 were cut from `fdcd92ed`; builds 23 and vc 9
+then closed the gap for everything merged to that point; photo-scan was turned
+on and shipped the same day, 2026-08-07, and never sat in this section. **Every
+bullet below is in testers' hands on both platforms** — that is the only claim
+from the old cutline still worth carrying.
 
 - **Manual food entry is a first-class logging method on mobile** (2026-08-06,
   `ebf60dcb`). **LIVE ON ANDROID in vc 9** (2026-08-06) **and ON iOS in build 23**
