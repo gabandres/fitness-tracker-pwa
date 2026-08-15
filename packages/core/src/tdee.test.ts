@@ -289,3 +289,68 @@ describe('weight-trend gap segmentation', () => {
     expect(r.trueTdee).toBeLessThan(2750);
   });
 });
+
+/**
+ * One logged meal must not move maintenance by 1,700 kcal.
+ *
+ * Reproduced from a real account on 2026-08-14. The user stopped weighing
+ * 07-11 → 08-04, so `lastTrendSegment` cut there and the settle window left a
+ * run starting 08-11. With THREE points that run was below
+ * `MIN_SEGMENT_POINTS` and the whole 25-point window carried the fit:
+ * −0.0044 lb/day, maintenance 1,889.
+ *
+ * Logging that day's food made it a logged day, which pulled its weigh-in into
+ * the window, the run hit exactly four points, and the fit switched to a line
+ * through four CONSECUTIVE DAILY readings — a three-day span, dominated by one
+ * 1.4 lb overnight drop. Result: −0.50 lb/day, an implied deficit of 1,750
+ * kcal/day, maintenance 3,596 and a recommended target of 3,146 against a
+ * calorie floor of 1,850.
+ *
+ * The defect is the discontinuity, not the number: the answer depended on which
+ * side of a point-count threshold the data landed, and the two sides disagreed
+ * by more than the quantity being estimated. Counting points cannot see it —
+ * four daily weigh-ins clear the count and still span three days.
+ */
+describe('a short post-break segment cannot flip maintenance (2026-08-14)', () => {
+  const WEIGHTS: Record<string, number> = {
+    '2026-06-26': 161, '2026-06-27': 160, '2026-06-28': 160, '2026-06-29': 159.4,
+    '2026-06-30': 161, '2026-07-01': 160.2, '2026-07-02': 159.6, '2026-07-03': 159.2,
+    '2026-07-04': 160, '2026-07-05': 159.6, '2026-07-06': 158.8, '2026-07-07': 158.2,
+    '2026-07-08': 158.18, '2026-07-09': 158.6, '2026-07-10': 159, '2026-07-11': 159.4,
+    // the break: no weigh-ins 07-12 → 08-03
+    '2026-08-04': 161.2, '2026-08-05': 160.2, '2026-08-06': 160.4, '2026-08-07': 159.6,
+    '2026-08-09': 159.6, '2026-08-10': 160.2, '2026-08-11': 159.6, '2026-08-12': 158.2,
+    '2026-08-13': 158, '2026-08-14': 158,
+  };
+  const day = (k: string, calories: number): DailyLog => ({
+    date: new Date(`${k}T12:00:00`),
+    calories,
+    weight: WEIGHTS[k],
+  });
+  const upTo13 = Object.keys(WEIGHTS).filter((k) => k < '2026-08-14').map((k) => day(k, 1880));
+  const withToday = [...upTo13, day('2026-08-14', 1445)];
+  const profile = { calorieFloor: 1850, targetPaceLbsPerWeek: 1 } as never;
+
+  it('does not move maintenance by more than 250 kcal for one more logged day', () => {
+    const before = calculateTdee(upTo13, profile);
+    const after = calculateTdee(withToday, profile);
+    expect(before.source).toBe('measured');
+    expect(after.source).toBe('measured');
+    // Was 1,889 → 3,596 before the span rule.
+    expect(Math.abs(after.trueTdee - before.trueTdee)).toBeLessThan(250);
+  });
+
+  it('never infers a deficit a human cannot run', () => {
+    for (const logs of [upTo13, withToday]) {
+      const r = calculateTdee(logs, profile);
+      // trueTdee = avgIntake + deficit; avg intake here is ~1,880.
+      expect(r.trueTdee).toBeLessThan(1880 + 1000 + 1);
+    }
+  });
+
+  it('keeps the recommended target off an impossible number', () => {
+    const r = calculateTdee(withToday, profile);
+    expect(r.newDailyTarget).toBeLessThan(2600); // was 3,146
+    expect(r.newDailyTarget).toBeGreaterThanOrEqual(1850); // the floor still binds
+  });
+});

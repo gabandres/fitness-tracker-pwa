@@ -183,6 +183,77 @@ const POST_BREAK_SETTLE_DAYS = 7;
 const MIN_SEGMENT_POINTS = 4;
 
 /**
+ * A post-break segment must also SPAN this many days before it is trusted on
+ * its own.
+ *
+ * ## The bug this fixes, measured on a real account 2026-08-14
+ *
+ * Counting points was not enough, because four *consecutive daily* weigh-ins
+ * span three days, and a three-day span cannot express a weekly rate — it can
+ * only express what the scale did overnight.
+ *
+ * A real account stopped weighing 07-11 → 08-04. Segmenting plus the settle
+ * window left a run starting 08-11. With three points it fell back to the
+ * 25-point whole-window fit: **−0.0044 lb/day, maintenance 1,889**. Logging one
+ * more day pulled in a fourth weigh-in, `MIN_SEGMENT_POINTS` was met exactly,
+ * and the fit switched to a line through 159.6 / 158.2 / 158 / 158 —
+ * **−0.50 lb/day, an implied deficit of 1,750 kcal/day, maintenance 3,596, and
+ * a recommended target of 3,146.**
+ *
+ * One logged meal moved maintenance by 1,700 kcal. That is not an estimate
+ * updating, it is a **discontinuity**: the answer depended on which side of a
+ * threshold the point count landed, and the two sides disagreed by more than
+ * the quantity being estimated.
+ *
+ * The 4-point fit was dominated by a single 1.4 lb overnight drop — water, by
+ * every argument this file already makes about water. `MIN_SEGMENT_POINTS`'
+ * own comment warns that "a line through two or three points dominated by
+ * water is a worse answer than the biased one"; four points three days apart is
+ * the same object with one more point on it.
+ *
+ * ## The unit is a full calendar week, so the value is 6
+ *
+ * `x` is a day offset, so a run covering seven distinct days — Monday through
+ * Sunday — has a span of 6. That is the threshold: **the post-settle run must
+ * cover at least a full week.** The account above covered 08-11 → 08-14, four
+ * days, span 3.
+ *
+ * Fourteen was tried first and it **broke the design that shipped on
+ * 2026-08-11**. The step and rebound scenarios segmentation exists for run 14
+ * days past the break, and `POST_BREAK_SETTLE_DAYS` eats the first seven, so
+ * what remains spans exactly 6 — one week. A 14-day floor silently reverted
+ * both to the whole-window fit they were built to replace (2,500 → 2,392),
+ * which is precisely the regression their tests pin. Those tests are the reason
+ * this number is 6 and not a rounder-looking one.
+ *
+ * A week is already this file's unit for "long enough that water is no longer
+ * the loudest thing in the data" — it is `TREND_GAP_DAYS` and
+ * `POST_BREAK_SETTLE_DAYS` both. This is the same judgement applied to the run
+ * that survives them.
+ *
+ * It is not a generous margin, which is why `MAX_TREND_LBS_PER_DAY` is a second
+ * and independent guard rather than belt-and-braces.
+ */
+const MIN_SEGMENT_SPAN_DAYS = 6;
+
+/**
+ * The largest weight change this function will attribute to energy balance.
+ *
+ * A second, independent guard, and deliberately not a tight one: 2 lb/week is
+ * far above what anyone sustains as fat, so this never touches a real trend —
+ * it exists so that **no** fit, segmented or whole-window, robust or fallback,
+ * can hand `calculateTdee` a deficit that is not physically possible. The
+ * account above implied 1,750 kcal/day off a three-day span; a 158 lb person
+ * does not run that.
+ *
+ * Clamping the slope is honest about what is being claimed. It does not assert
+ * the scale did not move — it asserts that a move that fast is not evidence
+ * about maintenance, which is exactly the distinction water/glycogen forces
+ * everywhere else in this file.
+ */
+const MAX_TREND_LBS_PER_DAY = 2 / 7;
+
+/**
  * Split weigh-in points wherever the user stopped weighing for a week or more,
  * and return the most recent run.
  *
@@ -256,17 +327,33 @@ function weightTrendLbsPerDay(daily: DailyLog[]): { slope: number; dropped: numb
   // `calculateTdee` to the hardcoded 2,450 seed, replacing a biased estimate
   // built from the user's own data with one built from nobody's.
   const segment = lastTrendSegment(allPoints);
-  const points = segment.length >= MIN_SEGMENT_POINTS ? segment : allPoints;
+  // Points AND span. Four consecutive daily weigh-ins clear the count and span
+  // three days, which is an overnight reading, not a rate — see
+  // `MIN_SEGMENT_SPAN_DAYS` for the account that cost 1,700 kcal.
+  const segmentSpan =
+    segment.length >= 2 ? segment[segment.length - 1].x - segment[0].x : 0;
+  const trustSegment =
+    segment.length >= MIN_SEGMENT_POINTS && segmentSpan >= MIN_SEGMENT_SPAN_DAYS;
+  const points = trustSegment ? segment : allPoints;
+
+  /** Every return goes through here, so the clamp cannot be forgotten on one of
+   *  the four fallback paths below — which is exactly how a guard like this
+   *  normally rots. */
+  const finish = (slope: number | null, dropped: number) =>
+    slope == null
+      ? null
+      : {
+          slope: Math.max(-MAX_TREND_LBS_PER_DAY, Math.min(MAX_TREND_LBS_PER_DAY, slope)),
+          dropped,
+        };
 
   if (points.length < OUTLIER_MIN_POINTS) {
-    const slope = regressionSlope(points);
-    return slope == null ? null : { slope, dropped: 0 };
+    return finish(regressionSlope(points), 0);
   }
 
   const robustSlope = theilSenSlope(points);
   if (robustSlope == null) {
-    const slope = regressionSlope(points);
-    return slope == null ? null : { slope, dropped: 0 };
+    return finish(regressionSlope(points), 0);
   }
   // Intercept that puts the robust line through the middle of the data.
   const robustIntercept = median(points.map((p) => p.y - robustSlope * p.x));
@@ -281,12 +368,10 @@ function weightTrendLbsPerDay(daily: DailyLog[]): { slope: number; dropped: numb
   // Refuse to discard most of the data: if that many points are "outliers",
   // the trend is the anomaly, not the points.
   if (kept.length < 2 || dropped > points.length / 3) {
-    const slope = regressionSlope(points);
-    return slope == null ? null : { slope, dropped: 0 };
+    return finish(regressionSlope(points), 0);
   }
 
-  const slope = regressionSlope(kept);
-  return slope == null ? null : { slope, dropped };
+  return finish(regressionSlope(kept), dropped);
 }
 
 function calendarSpanDays(daily: DailyLog[]): number {
