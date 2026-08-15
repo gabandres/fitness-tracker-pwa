@@ -78,7 +78,9 @@ The Expo app does **not** use `LEDGER_PORT`. It talks to Firestore through the F
 There is no app server. `firestore.rules` (~670 lines, dense — per-collection field/shape/range validation) + Firebase Auth enforce all access; the public web Firebase keys in `src/environments/*` are public by design. **Deploy `firestore:rules` BEFORE clients write any new top-level field** — the dev app talks to PROD Firestore, so an un-deployed rule rejects new writes. Cover rule changes with `npm run test:rules`.
 
 ## Where to look (one file per question)
-- **`STATUS.md` — what is true right now.** Live version, what is merged but in no binary, what is blocked and on what. **Read it before scoping anything.** If another file disagrees with it, the other file is stale — fix or delete it.
+- **`STATUS.md` — what is true right now.** Live version, what is merged but in no binary, what is blocked and on what. **Read it before scoping anything.** If another file disagrees with it, the other file is stale — fix or delete it. **It has a ~200-line budget**: when something ships its entry is *deleted*, not updated, and the outcome goes to `CHANGELOG.md`. It reached 941 lines once and carried four self-contradictions; a status file nobody can hold in their head stops being read.
+- **`docs/COMMANDS.md`** — how to *check* a claim in `STATUS.md` rather than trust it: ASC/Play/EAS/Sentry queries, the OTA fingerprint gate, the ngsw verifier. Prefer running one of these over believing a number in prose.
+- **`docs/build-infrastructure.md`** — EAS ceilings, iOS credentials/profiles, Android signing, and the resolved build traps that will be re-hit (silent pod drops, `.easignore`, `autoIncrement` gaps).
 - **`CONTEXT.md`** — canonical domain glossary. One concept = one term, with legacy synonyms called out (e.g. Log/Entry/Meal all map to `DailyLog`). Read it before naming things or grepping.
 - **`docs/adr/`** — architecture decisions 0001-0016: the "why" behind the seams above. 0013 (food resolution), 0014 (mobile theming), 0015 (Ignia pivot) and 0016 (per-hook subscriptions) are load-bearing and cited throughout this file.
 - **`CHANGELOG.md`** — significant ships, newest first. Entries before 2026-06-13 live in `CHANGELOG-archive.md`.
@@ -91,6 +93,25 @@ There is no app server. `firestore.rules` (~670 lines, dense — per-collection 
 - **`README.md`** — product positioning, full Cloud Functions list, secrets policy. **`STRIPE_SETUP.md`** — dormant Stripe wiring, for whenever Pro turns on.
 
 **Housekeeping rule: a plan document is deleted the day its work ships.** Its outcome goes to `CHANGELOG.md`, its reasoning to an ADR, its current state to `STATUS.md`. Git keeps the original. A shipped plan left in the tree with a "CORRECTION" block on top is how a wish list becomes indistinguishable from a status report — that failure has already cost this project three re-scopes of work that was already built.
+
+## Guardrails that run automatically
+
+`.claude/settings.json` wires three `PreToolUse` hooks (`.claude/hooks/`). Each
+one corresponds to a failure that has really happened here and that is
+**invisible to tsc, the unit tests, and the tool's own exit code** — which is why
+prose alone did not prevent them:
+
+| Hook | Blocks | Because |
+|---|---|---|
+| `guard_firestore_import.py` | `from 'firebase/firestore'` in `src/**` (not specs, not `apps/mobile/**`, not `functions/**`) | a second SDK copy breaks `doc()`/instance identity; it broke prod sign-in once |
+| `guard_firebase_deploy.py` | a hosting deploy whose `dist` fails its own `ngsw.json` SHA1 sweep or predates `src/` | a dev/stale build leaves the update banner firing for every returning user |
+| `guard_eas_update.py` | `eas update` run from Windows rather than via `ssh ignia-mac` | the fingerprint is machine-dependent; a Windows publish exits 0 and reaches **nobody** |
+
+They match **invocations, not mentions** — echoing, grepping or heredoc'ing one
+of these commands is allowed, and `npm run build && firebase deploy` (the
+documented one-liner) passes because the chain rebuilds first. `python
+.claude/hooks/test_guards.py` is the 21-case matrix; run it after touching a
+guard. A guard that fires on the happy path is a guard that gets deleted.
 
 ## Conventions
 - **Latest versions, not LTS pins** — this repo intentionally tracks bleeding-edge (Angular 21, Firebase 12, Expo 54). Don't silently downgrade to dodge peer conflicts.

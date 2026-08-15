@@ -23,7 +23,7 @@
  *      versions. Both are already at or near the cap; exceeding either starts
  *      billing quietly.
  *   4. A locale drifted a key and the UI fell back to the raw key string.
- *   5. `STATUS.md` §4 listed work that was already closed.
+ *   5. `STATUS.md` §3 listed work that was already closed.
  *   6. Plan docs outlived their work and grew "CORRECTION" blocks on top,
  *      which is how a status doc and a wish list became indistinguishable —
  *      three separate times, features already shipped were re-scoped as new.
@@ -985,15 +985,18 @@ function checkSecretVersions() {
  * and a sentence written by a human, and neither is a contract. A doctor that
  * cries wolf when Expo renames a field gets muted.
  */
-function checkEasQuota() {
-  const name = 'STATUS.md §3 matches the EAS iOS quota';
-  if (!has('STATUS.md')) return fail(G3, name, 'STATUS.md not found');
-  const section = statusSection(3);
-  if (section === null) return skip(G3, name, 'no "## 3." section in STATUS.md');
+const QUOTA_DOC = 'docs/build-infrastructure.md';
 
-  // e.g. "iOS is 15/15" — the claim being audited.
-  const claim = section.match(/iOS[^.\n]*?\b(\d+)\s*\/\s*(\d+)\b/i);
-  if (!claim) return skip(G3, name, '§3 states no parseable "iOS <used>/<limit>" figure');
+function checkEasQuota() {
+  const name = `${QUOTA_DOC} matches the EAS iOS quota`;
+  if (!has(QUOTA_DOC)) return fail(G3, name, `${QUOTA_DOC} not found`);
+
+  // e.g. "iOS 8/15" — the claim being audited. The figure moved out of
+  // STATUS.md on 2026-08-15 with the rest of the build tooling; this is
+  // repointed rather than deleted, because a guard that silently stops finding
+  // its input is worse than no guard — it reports SKIP and reads as healthy.
+  const claim = read(QUOTA_DOC).match(/iOS[^.\n]*?\b(\d+)\s*\/\s*(\d+)\b/i);
+  if (!claim) return skip(G3, name, `${QUOTA_DOC} states no parseable "iOS <used>/<limit>" figure`);
 
   const res = sh('npx', ['eas-cli', 'account:usage', 'gabandres', '--non-interactive'], {
     timeout: 240_000,
@@ -1010,12 +1013,12 @@ function checkEasQuota() {
   const [, used, limit] = claim;
   if (Number(used) === ios.used && Number(limit) === ios.limit) {
     const period = usage?.account?.billingPeriod?.end;
-    pass(G3, name, `§3 and EAS agree: iOS ${ios.used}/${ios.limit}` + (period ? ` · resets ${String(period).slice(0, 10)}` : ''));
+    pass(G3, name, `doc and EAS agree: iOS ${ios.used}/${ios.limit}` + (period ? ` · resets ${String(period).slice(0, 10)}` : ''));
   } else {
     fail(
       G3,
       name,
-      `§3 says iOS ${used}/${limit}, EAS reports ${ios.used}/${ios.limit}` +
+      `${QUOTA_DOC} says iOS ${used}/${limit}, EAS reports ${ios.used}/${ios.limit}` +
         (usage?.account?.billingPeriod?.end
           ? ` (period ends ${String(usage.account.billingPeriod.end).slice(0, 10)})`
           : ''),
@@ -1148,14 +1151,14 @@ function checkMobileI18n() {
   diffKeys(G4, name, mobileKeys(en), mobileKeys(es), 'en', 'es-PR');
 }
 
-// ═══ 5. STATUS.md §4 vs open issues ═════════════════════════════════════
+// ═══ 5. STATUS.md §3 vs open issues ═════════════════════════════════════
 const G5 = '5. STATUS.md vs issue tracker';
 
 function checkStatusVsIssues() {
-  const name = 'STATUS.md §4 matches open issues';
+  const name = 'STATUS.md §3 matches open issues';
   if (!has('STATUS.md')) return fail(G5, name, 'STATUS.md not found');
-  const section = statusSection(4);
-  if (section === null) return fail(G5, name, 'no "## 4." section in STATUS.md');
+  const section = statusSection(3);
+  if (section === null) return fail(G5, name, 'no "## 3." section in STATUS.md');
 
   const res = sh('gh', [
     'issue', 'list', '--state', 'open', '--limit', '200',
@@ -1172,7 +1175,7 @@ function checkStatusVsIssues() {
 
   const stale = cited.filter((n) => !openNums.has(n));
 
-  // Maps (`wayfinder:map`) are containers for tasks, not work items — §4 is a
+  // Maps (`wayfinder:map`) are containers for tasks, not work items — §3 is a
   // table of what is blocked on what, so requiring every open map to appear
   // there would report noise forever. Tasks must appear.
   const uncited = open
@@ -1187,7 +1190,7 @@ function checkStatusVsIssues() {
       G5,
       name,
       [
-        stale.length ? `cited in §4 but NOT open (closed or missing): ${stale.map((n) => `#${n}`).join(', ')}` : '',
+        stale.length ? `cited in §3 but NOT open (closed or missing): ${stale.map((n) => `#${n}`).join(', ')}` : '',
         uncited.length ? `open task(s) absent from STATUS.md: ${uncited.join('; ')}` : '',
       ]
         .filter(Boolean)
@@ -1283,10 +1286,10 @@ if (NO_CLOUD) {
   skip(G2, 'STATUS.md §1 matches App Store Connect', '--no-cloud');
   skip(G3, `Cloud Scheduler jobs <= ${MAX_SCHEDULER_JOBS}`, '--no-cloud');
   skip(G3, `active secret versions <= ${ACCEPTED_SECRET_VERSIONS} (free tier ${MAX_SECRET_VERSIONS})`, '--no-cloud');
-  skip(G3, 'STATUS.md §3 matches the EAS iOS quota', '--no-cloud');
+  skip(G3, `${QUOTA_DOC} matches the EAS iOS quota`, '--no-cloud');
   skip(G3, 'SENTRY_AUTH_TOKEN authenticates', '--no-cloud');
   skip(G3, 'app-version.json matches what Play ships', '--no-cloud');
-  skip(G5, 'STATUS.md §4 matches open issues', '--no-cloud');
+  skip(G5, 'STATUS.md §3 matches open issues', '--no-cloud');
 } else {
   await checkRulesMatchReleased().catch((e) =>
     fail(G2, 'firestore.rules matches the released ruleset', `check threw: ${e.message}`),
@@ -1297,7 +1300,7 @@ if (NO_CLOUD) {
   );
   guard(G3, `Cloud Scheduler jobs <= ${MAX_SCHEDULER_JOBS}`, checkSchedulerJobs);
   guard(G3, `active secret versions <= ${ACCEPTED_SECRET_VERSIONS} (free tier ${MAX_SECRET_VERSIONS})`, checkSecretVersions);
-  guard(G3, 'STATUS.md §3 matches the EAS iOS quota', checkEasQuota);
+  guard(G3, `${QUOTA_DOC} matches the EAS iOS quota`, checkEasQuota);
   await checkPlaySigningCerts().catch((e) =>
     fail(G3, 'every cert Play ships is registered in Firebase', `check threw: ${e.message}`),
   );
@@ -1307,7 +1310,7 @@ if (NO_CLOUD) {
   await checkSentryToken().catch((e) =>
     fail(G3, 'SENTRY_AUTH_TOKEN authenticates', `check threw: ${e.message}`),
   );
-  guard(G5, 'STATUS.md §4 matches open issues', checkStatusVsIssues);
+  guard(G5, 'STATUS.md §3 matches open issues', checkStatusVsIssues);
 }
 
 guard(G4, 'web i18n', checkWebI18n);

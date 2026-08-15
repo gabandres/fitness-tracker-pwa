@@ -66,10 +66,16 @@ Thumbs.db
 .aider*
 # Claude Code local state stays out (settings.local.json, worktrees, task
 # locks) but the skills are project documentation — they encode the repo's
-# own workflows, so they are tracked. Keep credential VALUES and locations
-# out of them; this repo is public (see CLAUDE.local.md).
+# own workflows, so they are tracked. The hooks and the settings.json that
+# wires them are tracked for the same reason, and more so: they are
+# ENFORCEMENT of rules CLAUDE.md only states, and a guard that exists on one
+# machine is not a guard. settings.local.json (the per-machine permission
+# allowlist) stays ignored. Keep credential VALUES and locations out of all
+# of them; this repo is public (see CLAUDE.local.md).
 /.claude/*
 !/.claude/skills/
+!/.claude/hooks/
+!/.claude/settings.json
 # Nested workspace-level .claude dirs stay ignored entirely. (The root rules
 # above must be anchored with a leading slash, and the ignore must be on the
 # dir CONTENTS — git will not descend into an ignored directory, so a bare
