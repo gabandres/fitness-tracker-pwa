@@ -1,9 +1,20 @@
 # Email deliverability — DKIM / SPF / DMARC for `ignia.fit`
 
-**Status:** code complete; `mail.ignia.fit` created in Resend and its three DNS
-records published in Cloudflare (confirmed resolving at `1.1.1.1`). Awaiting
-Resend's verification poll, then §4.4 (flip the sender) and §4.5 (DMARC).
-**Last verified:** 2026-07-24
+**Status:** `mail.ignia.fit` is **verified** and the Resend sender is **flipped
+and deployed** (2026-08-14). One thing remains, and it is the one this document
+was originally blind to: **Firebase Auth's own mail — including the email
+verification every new signup depends on — does not go through Resend at all**
+and still ships from `noreply@<project>.firebaseapp.com`. See §6.
+**Last verified:** 2026-08-14
+
+> **The three-week gap this document caused.** The domain verified on
+> 2026-07-24, hours after these records were published — and §4.4 was never
+> done, so every welcome, password-reset and weekly-digest mail kept going out
+> from `onboarding@resend.dev` until 2026-08-14. The doc read "awaiting
+> verification" the whole time, which is indistinguishable from "blocked" at a
+> glance. **A runbook whose status line describes a poll you have to re-run is
+> a runbook that will rot.** Re-read the live state before believing this file:
+> `node scripts/resend-domain-setup.mjs --verify`.
 
 This is the runbook for getting Ignia's transactional mail out of the junk
 folder. It records what was measured, what was changed in code, and the exact
@@ -198,22 +209,34 @@ Resolve-DnsName bounces.mail.ignia.fit          -Type MX  -Server 1.1.1.1
 
 If those resolve, the DNS is done — wait out the window and re-verify once.
 
-### 4.4 Flip the sender
+### 4.4 Flip the sender — ✅ done 2026-08-14
 
-Set on the functions runtime, then redeploy:
+**Not** via an env var in the end. `functions/.env` would be a fourth place to
+forget, and the sandbox default had already been forgotten once for three
+weeks, so the **tracked default moved instead**: `FROM_FALLBACK` in
+`functions/src/resend-client.ts` is now `Ignia <hello@mail.ignia.fit>`.
+`MACROLOG_EMAIL_FROM` still overrides for staging or a domain change, and
+`IS_SANDBOX_SENDER` now compares against a separate `SANDBOX_SENDER` constant
+so it keeps meaning what its name says.
 
-```
-MACROLOG_EMAIL_FROM=Ignia <hello@mail.ignia.fit>
-MACROLOG_EMAIL_REPLY_TO=hello@ignia.fit
-```
+Deployed to the three functions that send mail:
 
 ```sh
-npm --prefix functions run build && firebase deploy --only functions
+npm --prefix functions run build
+firebase deploy --only functions:sendWelcomeEmail,functions:sendPasswordReset,functions:hourlyTasks
 ```
 
-Flipping this **before** the domain verifies fails loudly — Resend rejects
-sends from an unverified domain — rather than silently junking everything.
-That is the intended failure mode; do not add a fallback.
+(`hourlyTasks` is the one that carries the weekly digest — there is no separate
+digest function, per the 3-job Cloud Scheduler ceiling in `CLAUDE.md`.)
+
+**`MACROLOG_EMAIL_REPLY_TO` was deliberately NOT changed to `hello@ignia.fit`.**
+The apex publishes no MX record, so that address black-holes every reply — a
+reply-to that bounces is worse for reputation than the personal Gmail that
+works. Moving it needs inbound mail to exist first.
+
+Sending from an unverified domain fails loudly — Resend rejects it — rather
+than silently junking everything. That is the intended failure mode; do not add
+a sandbox fallback back in.
 
 ### 4.5 DMARC — published at `p=none` 2026-07-24
 
@@ -280,4 +303,76 @@ without ever having read a report — is the same mistake with extra steps.
 - **Logs must never contain email addresses.** `password-reset.ts` logs a
   truncated SHA-256 tag instead; preserve that in anything new.
 - **`REPLY_TO` is currently a personal Gmail** committed to the repo. Moving it
-  to a domain address is a natural part of §4.4, but it is the owner's call.
+  to a domain address is **not** a tidy-up — see §4.4 for why `hello@ignia.fit`
+  would black-hole every reply.
+
+---
+
+## 6. Firebase Auth's own mail — the half this document missed
+
+**Everything above concerns mail Ignia sends through Resend. The email
+verification a new signup depends on is not one of those.** Both clients call
+Firebase's `sendEmailVerification` directly:
+
+- `src/app/services/auth.service.ts:256,337`
+- `apps/mobile/src/lib/auth.tsx:719,782`
+
+That is sent by Google, not by us. Live config, read 2026-08-14 from
+`identitytoolkit.googleapis.com/admin/v2/projects/<project>/config`:
+
+```
+notification.sendEmail.method  = DEFAULT
+                → From: noreply@fitness-tracker-gb-1775407101.firebaseapp.com
+dnsInfo.customDomainState      = NOT_STARTED
+callbackUri                    = https://fitness-tracker-gb-1775407101.firebaseapp.com/__/auth/action
+```
+
+**No DNS record on `ignia.fit` can help this.** DMARC alignment compares the
+`From:` domain against the DKIM `d=` — the same argument §1 makes about
+`resend.dev`, applying identically to `firebaseapp.com`. The action link in the
+body pointing at a `firebaseapp.com` URL is a second, independent signal.
+
+This matters more than the Resend half: **email verification is the signup
+wall** (`STATUS.md` §6 — a fresh account is walled out until it verifies), so a
+junked verification mail is a failed activation, not a missed newsletter.
+
+### The fix — route Auth mail through the same verified domain
+
+Firebase Auth supports a custom SMTP relay, and Resend exposes one, so the
+existing verified domain covers Auth mail with no new infrastructure:
+
+| Setting | Value |
+|---|---|
+| Host / port | `smtp.resend.com` : `587` (STARTTLS; 465 is implicit TLS if preferred) |
+| Username | `resend` |
+| Password | the `RESEND_API_KEY` secret |
+| Sender | `hello@mail.ignia.fit` |
+| Action URL | `https://ignia.fit/__/auth/action` |
+
+`ignia.fit` is already an authorized domain and already serves that handler
+(200, verified 2026-08-14) — Firebase Hosting serves `/__/auth/` for the linked
+site, so no code or hosting change is needed.
+
+Console path: **Authentication → Templates → SMTP settings**, plus the pencil
+on any template for the action URL. The equivalent API write is
+`PATCH .../config?updateMask=notification.sendEmail.method,notification.sendEmail.callbackUri,notification.sendEmail.smtp`
+with `method: "CUSTOM_SMTP"`.
+
+⚠️ **Resend's free plan is 100 emails/day, 3,000/month, and this change puts
+Auth mail on the same budget as the Resend callables.** Fine at current volume;
+worth remembering the day a promotion lands.
+
+**Verify after switching** (§4.6 applies to Auth mail too): trigger a
+verification email, open *Show original* in Gmail, and confirm `spf=pass`,
+`dkim=pass`, `dmarc=pass` with `header.from=mail.ignia.fit` — not
+`firebaseapp.com`.
+
+### If branded templates matter later
+
+Custom SMTP fixes the envelope, not the design: the body is still Firebase's
+plain template, not the `Block`-rendered HTML + `text/plain` pair in
+`functions/src/email-templates.ts`. The path to branded verification mail is a
+`sendVerificationEmail` callable mirroring `sendPasswordReset` exactly —
+`generateEmailVerificationLink()` + Resend, same rate limiting, same
+enumeration-safety. That is a code change, and it is **not** required to get
+out of the junk folder.

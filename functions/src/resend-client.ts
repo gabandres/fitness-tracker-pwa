@@ -11,37 +11,37 @@ export const resendApiKey: ReturnType<typeof defineSecret> = defineSecret("RESEN
 // ─── Sending identity ───────────────────────────────────────────────
 //
 // DELIVERABILITY: the From-domain is the single biggest lever we have.
-// While this falls back to `onboarding@resend.dev` — Resend's shared
-// sandbox domain — every message we send is unaligned with ignia.fit,
-// fails DMARC alignment, and inherits the reputation of every other
-// developer testing on that sandbox. No amount of DNS work on ignia.fit
-// helps until the From-domain is ours.
+// `mail.ignia.fit` is a VERIFIED Resend sending domain (created 2026-07-24,
+// `status: "verified"`, `sending: "enabled"`), its DKIM + SPF records are
+// published in Cloudflare and DMARC `p=none` is on the apex — so mail from
+// this address is DMARC-aligned. See `docs/email-deliverability.md`.
 //
-// The fix is a verified `mail.ignia.fit` sending domain in Resend, then:
-//   firebase functions:config unset  # (not used here — env, not config)
-//   Set MACROLOG_EMAIL_FROM="Ignia <hello@mail.ignia.fit>" on the
-//   functions runtime and redeploy.
+// This used to default to `onboarding@resend.dev`, Resend's SHARED SANDBOX
+// domain, on the reasoning that the real domain was not verified yet. It
+// verified on 2026-07-24 and the default was never moved, so for three weeks
+// every welcome, password-reset and weekly-digest mail went out unaligned
+// with ignia.fit and carrying the reputation of every other developer
+// testing on that sandbox. Do not reintroduce a sandbox fallback: an
+// unverified sender fails LOUD at Resend (a rejected send), which is a far
+// better failure than silently landing every message in spam.
 //
-// Blocked at time of writing: the Resend account is on the free plan,
-// which allows exactly ONE domain, and it is already spent on an
-// unrelated project. See `docs/email-deliverability.md` for the full
-// runbook and the DNS records to publish.
-//
-// Flipping this env before the domain verifies fails LOUD — Resend
-// rejects sends from an unverified domain — rather than silently
-// landing everything in spam. That is the desired failure mode.
-const FROM_FALLBACK = "Ignia <onboarding@resend.dev>";
+// `MACROLOG_EMAIL_FROM` still overrides, for staging or a domain change.
+const FROM_FALLBACK = "Ignia <hello@mail.ignia.fit>";
+const SANDBOX_SENDER = "Ignia <onboarding@resend.dev>";
 const FROM_ENV = process.env.MACROLOG_EMAIL_FROM;
 export const FROM_EMAIL = FROM_ENV && FROM_ENV.length > 0 ? FROM_ENV : FROM_FALLBACK;
 
-/** True when we are still sending from Resend's shared sandbox domain. */
-export const IS_SANDBOX_SENDER = FROM_EMAIL === FROM_FALLBACK;
+/** True when we are sending from Resend's shared sandbox domain. */
+export const IS_SANDBOX_SENDER = FROM_EMAIL === SANDBOX_SENDER;
 
 // Reply-To is a real human mailbox on purpose: a monitored reply address is
 // a positive reputation signal, and the welcome mail invites replies.
 // TODO(owner): this defaults to a personal Gmail that is committed to the
-// repo. Once mail.ignia.fit verifies, set MACROLOG_EMAIL_REPLY_TO to a
-// domain address (e.g. hello@ignia.fit) and forward it wherever you like.
+// repo. The obvious tidy-up — `hello@ignia.fit` — would BLACK-HOLE every
+// reply: the apex publishes no MX record, so there is nowhere for inbound
+// mail to land, and a reply-to that bounces is worse for reputation than a
+// Gmail that works. Moving it needs inbound mail to exist first (an MX, or
+// a forwarder), not just a better-looking address.
 const REPLY_TO_FALLBACK = "gabrielandresbermudez@gmail.com";
 const REPLY_TO_ENV = process.env.MACROLOG_EMAIL_REPLY_TO;
 export const REPLY_TO =
