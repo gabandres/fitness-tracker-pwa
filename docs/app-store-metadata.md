@@ -200,9 +200,10 @@ Ignia is not a medical device and does not provide medical advice.
 
 **This is the live release copy.** Written against App Store 1.1.0 / build 24
 (uploaded 2026-08-07) → build 54, i.e. everything the public has not seen.
-Pushed straight to ASC through the API, **not** through a
-`store-assets/whats-new-*.json` file — `whats-new-1.1.0.json` is the last of
-those and was not extended, so do not treat that directory as current.
+The machine-readable copy is **`store-assets/whats-new-1.2.0.json`**, which
+`scripts/asc-swap-review-build.mjs --notes` uploads. This document stays the
+source of truth for wording; if the two disagree, this one is right and the
+JSON needs correcting.
 
 **Two things are deliberately not claimed.** The Apple Watch complication
 refresh and the Siri quick-add are both `BEHAVIOUR UNVERIFIED` in `STATUS.md` —
@@ -224,6 +225,7 @@ test a claim.
 • Train speaks plainly: a labelled RIR scale, described set types, and a glossary.
 • Apple Watch complication refresh fixes.
 • Spanish fixes, including rate units that were still showing in English.
+• Fixed: the email that confirms your account could land in spam. It now comes from ignia.fit.
 ```
 
 **es-MX**
@@ -240,6 +242,7 @@ test a claim.
 • Train habla claro: escala de RIR etiquetada, tipos de series descritos y un glosario.
 • Correcciones en la actualización de la complicación del Apple Watch.
 • Correcciones en español, incluidas unidades de ritmo que seguían en inglés.
+• Arreglado: el correo que confirma tu cuenta podía caer en spam. Ahora llega desde ignia.fit.
 ```
 
 ### What's New — 1.1.0 · SHIPPED, kept for reference
