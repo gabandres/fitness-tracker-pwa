@@ -60,14 +60,22 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
   `6519916642c291db8255d433bf651e26c66a28b4` (vc 30). Three OTAs once published
   under Windows numbers and reached **nobody** — indistinguishable from a working
   update.
-  **The rule holds today, but its reason is now conditional.** Windows *can*
-  build a signed, OTA-capable AAB (2026-08-17, vc 31, verifier-green, fingerprint
-  `3d3bc410…`) — see `docs/build-infrastructure.md`. Nothing in the field carries
-  that runtime, so publishing from Windows still reaches nobody. If a
-  Windows-built binary is ever shipped to Play, this rule **inverts for Android
-  only** and `.claude/hooks/guard_eas_update.py` must be made platform-aware in
-  the same change — and note that bare `eas update` publishes BOTH platforms, so
-  under a split build host every publish must be `--platform`-scoped.
+  **DECIDED 2026-08-17: Android's build host is Windows, permanently.** Windows
+  builds a signed, verifier-green, OTA-capable AAB (vc 31, fingerprint
+  `3d3bc410…`) in ~10m; the Mac becomes iOS-only by choice.
+  **The switch is NOT live yet, and the order matters:**
+
+  | | Android OTA | iOS OTA |
+  |---|---|---|
+  | **Now** (vc 30 live, Mac-built) | **from the Mac** | from the Mac |
+  | **After vc 31 ships to Play** | **from Windows** | from the Mac |
+
+  Publishing Android from Windows *before* vc 31 is in testers' hands reaches
+  **nobody** — the same failure this rule exists to prevent. Flip
+  `.claude/hooks/guard_eas_update.py` in the same change that ships vc 31, not
+  before. **And bare `eas update` publishes BOTH platforms, so under a split
+  build host it is correct on neither machine — every publish must be
+  `--platform`-scoped.**
 
 ### The measurement that should shape the next decision
 

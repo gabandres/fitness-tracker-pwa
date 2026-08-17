@@ -46,9 +46,20 @@ in the number, or a faster laptop reads as a regression.
   NDK for `linux-x86_64` only — and no `windows-arm64` host exists in any NDK
   release, r29 included, because Google cross-compiles the Windows toolchain
   from Linux with MinGW rather than building it on Windows. The x86_64 NDK runs
-  here under emulation, which is where the 12m58s goes. Treat Windows as a
-  compile-check, never a release host — and do not strip the Android toolchain
-  off the Mac on the strength of this measurement.
+  here under emulation, which is where the build time goes.
+- **Android's build host is the Windows workstation, permanently** (decided
+  2026-08-17). `scripts/patch-android-release.mjs` supplies the channel, the
+  release signing and the versionCode that `eas build --local` would have, and
+  `verify-mobile-artifact.mjs` is the gate. A second build of the same tree with
+  the channel injected came out **10m12s**, verifier-green, at vc 31.
+  Consequences that are easy to miss:
+  - **Android OTAs must be published from Windows, iOS OTAs from the Mac.** The
+    runtime fingerprint follows the build host, per platform.
+  - **Bare `eas update` publishes BOTH platforms and is therefore correct on
+    neither machine.** Every publish must be `--platform`-scoped. This is new:
+    it was safe while one machine built everything.
+  - The Mac becomes an **iOS-only** host by choice rather than by disk pressure,
+    so `~/Library/Android` (3.3 GB) is now genuinely disposable there.
 - **Most fixes need no build.** EAS Update ships JS/TS over the air in seconds.
   Run the fingerprint gate first (`docs/COMMANDS.md`).
 - The Mac holds `dev.keystore`, `credentials.json`, the Sentry token and an EAS
