@@ -120,6 +120,31 @@ Ground truth is the fingerprint file **inside the artifact**
 in an `.ipa`), never a locally generated hash. The current table lives in
 `apps/mobile/AGENTS.md`.
 
+## How long a local build takes — on THIS machine
+
+Build times in `build-infrastructure.md` were all measured on the **M1 Air**, so
+on any other Mac they are not a baseline. Re-measure rather than assume, and
+paste the emitted line back into that file with the machine named.
+
+```sh
+ssh ignia-mac "cd ~/fitness-tracker-pwa && git pull && node scripts/time-mobile-builds.mjs --dry-run"
+ssh ignia-mac "cd ~/fitness-tracker-pwa && node scripts/time-mobile-builds.mjs"   # ~40min on an M1
+```
+
+`--dry-run` first: it prints the chip/cores/RAM, checks the **Data** volume has
+the ~20 GB §3.11 needs, and reports which caches are present — before spending
+the wall-clock. A run below that threshold dies mid-CMake on `No space left on
+device`, which is how `vc 28` was lost.
+
+**A genuinely cold number is measurable once per machine.** `eas build --local`
+stages its prebuild outside `apps/mobile/{ios,android}` (neither directory exists
+on `ignia-mac`, and both platforms ship from it), so warmth lives in `~/.gradle`
+and `~/Library/Caches/CocoaPods`, not in the working tree — deleting native dirs
+does not manufacture cold. On a new laptop, run this before anything else warms
+those caches. The script never runs the two platforms concurrently: they share
+one working tree, `node_modules` and Metro cache, so parallel means corrupted
+output, not a faster build.
+
 ## Web build + deploy
 
 **The last step of `npm run build` is load-bearing — do not reorder or drop it.**

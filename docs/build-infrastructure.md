@@ -11,6 +11,11 @@ artifact readings: `apps/mobile/AGENTS.md`.
 
 ## The default path: local, free
 
+**Every duration below was measured on the M1 Air** (`Apple M1`, 8 cores, 16 GB,
+`MacBookAir10,1`). They are not a baseline for any other Mac — re-measure with
+`node scripts/time-mobile-builds.mjs` (`docs/COMMANDS.md`) and name the machine
+in the number, or a faster laptop reads as a regression.
+
 - **iOS — `eas build --local` on the Mac.** 15m57s cold, ~11m warm. Four targets
   verified nested in the `.ipa`. It also sidesteps the ASC 401 that breaks
   non-interactive *cloud* builds, so the ASC `.p8` never leaves the workstation.
