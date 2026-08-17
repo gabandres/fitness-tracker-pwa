@@ -39,10 +39,12 @@ There are **two** ceilings, not one: a **30/month account total** and a
 **15/month per-platform** sub-cap. The account total runs out first if the two
 platforms are used unevenly.
 
-**iOS 8/15, Android 6/15 for the 2026-08-01 → 2026-09-01 period**, read from the
-API on 2026-08-15. `npm run doctor` audits this line against
-`eas account:usage` and fails on drift — so it is a claim, not a note. The
-counter is not the constraint this period.
+**iOS 10/15, Android 6/15 for the 2026-08-01 → 2026-09-01 period** (16/30 on the
+account total), read from the API on 2026-08-17. `npm run doctor` audits this
+line against `eas account:usage` and fails on drift — so it is a claim, not a
+note. The counter is not the constraint this period, but iOS is two-thirds
+spent with two weeks to run, and iOS is the platform that cannot fall back to a
+local build when `ignia-mac` is short of disk.
 
 ```sh
 cd apps/mobile && npx eas-cli account:usage gabandres --non-interactive
