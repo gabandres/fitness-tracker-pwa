@@ -31,14 +31,14 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 | **Public App Store (iOS)** | **1.1.0 / build 24**, `READY_FOR_SALE`. Missing everything since 2026-08-08: dictation, the redesigned Add screen, the fasting Live Activity, the wide widget, every TDEE correction, and the verification-email fix |
 | **App Review (iOS)** | **1.2.0 / build 55**, `WAITING_FOR_REVIEW` since 2026-08-15, **`releaseType: AFTER_APPROVAL` — it self-publishes on approval, with no human step** |
 | **TestFlight** | build **53** external (1.2.0) + the 08-14 OTA. Builds 54/55 are internal-only and code-identical to 53 under OTA |
-| **Play alpha** | **vc 31** (1.2.0), built on Windows, rolled out at 100% `status=completed` |
+| **Play alpha** | **vc 32** (1.2.0) — the first **Expo SDK 57** binary, built on Windows, `status=completed`. **No device QA.** Built from `chore/expo-sdk-57`, which is not on `main` |
 | **Play production** | not launched — gated on Google's 14-day checklist (§3) |
 | **Web PWA `ignia.fit`** | Live, bilingual (EN + es-PR), 105 prerendered pages (en 52 / es 53), 114-URL sitemap. **Frozen for logging features** (ADR-0022); the shell keeps shipping |
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101` |
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB, 13,272 foods, no network call (ADR-0018). Open Food Facts still serves branded + barcode |
 | **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU |
-| **`app-version.json`** | android `31`, ios `24`. **Both derived** by `scripts/app-version-sync.mjs`; `npm run doctor` fails on drift in either direction |
+| **`app-version.json`** | android `32`, ios `24` — synced and **deployed** 2026-08-17. **Both derived** by `scripts/app-version-sync.mjs`; `npm run doctor` fails on drift in either direction |
 
 **Two live facts that are easy to get wrong:**
 
@@ -72,19 +72,27 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
   platform is gated on the machine that builds it. Do not spend another session
   aligning Node or re-running `npm ci` to chase it.
 
-  **The Android fleet is split until testers update**, and this is the only
-  loose end: vc 30 carries the Mac runtime `6519916…`, vc 31 carries the Windows
-  runtime `3d3bc410…`. Android OTAs published from Windows reach **vc 31 only**.
-  The banner (`app-version.json` = 31) is what drains it. Do not publish Android
-  OTAs from the Mac to "cover" vc 30 — that strands vc 31 instead and the guard
-  blocks it.
+  **The Android fleet now spans THREE runtimes**, and this is the loose end:
+  vc 30 `6519916…` (Mac), vc 31 `3d3bc410…` (Windows), vc 32 `d8741525…`
+  (Windows, SDK 57). An Android OTA reaches **vc 32 only** — the SDK bump moved
+  the hash, and no update crosses it in either direction. The banner
+  (`app-version.json` = 32, deployed) is what drains the older two. Do not
+  publish from the Mac to "cover" an older cohort; the guard blocks it and it
+  would strand vc 32 instead.
 
-  **vc 31 has had no device QA.** It is functionally identical to vc 30 + the
-  08-14 OTA, but it is the first binary from a toolchain where CMake declined to
-  guarantee object placement (`CMAKE_OBJECT_PATH_MAX`). The check that matters
-  most is **Google Sign-In on a Play install** — it has broken twice here and is
-  structurally invisible on a local build. Its cert `375dd3e6…` is registered
-  (`npm run doctor`), so this is expected to pass; nobody has watched it.
+  **vc 32 has had NO device QA, and it is the riskiest binary yet shipped here** —
+  a three-SDK jump (54 → 57, RN 0.81.5 → 0.86.2), built from a branch that is not
+  on `main`, on a toolchain where CMake declines to guarantee object placement
+  (`CMAKE_OBJECT_PATH_MAX`). vc 31 was never device-QA'd either. **The check that
+  matters most is Google Sign-In on a Play install** — broken twice here,
+  structurally invisible on a local build. The cert `375dd3e6…` is registered
+  (`npm run doctor`), so it is *expected* to pass; nobody has watched it.
+
+  **This lands during the Play production 14-day window** (§3), whose only
+  unticked box is 12 testers for 14 days, naively ~2026-08-20. A crash-on-launch
+  here costs testers, and testers dropping below 12 slips that date. If anything
+  is wrong, the fastest remedy is a new alpha release of vc 31's tree, **not** an
+  OTA — no OTA reaches vc 32's predecessors.
 
 ### The measurement that should shape the next decision
 
@@ -139,7 +147,7 @@ Everything else that was in this section has shipped and is in `CHANGELOG.md`.
 
 | Work | Blocked on |
 |---|---|
-| **Expo SDK 57 — built and verified, NOT merged** | **iOS 1.2.0 clearing review.** Branch `chore/expo-sdk-57` takes the app 54 → 57 (RN 0.86.2, React 19.2). Green: `tsc`, 26/26 jest suites, the Metro gate, all four buildable units, `expo-doctor` 20/21. It is off `main` on purpose — 1.2.0 is `WAITING_FOR_REVIEW` with `AFTER_APPROVAL`, so `main` must stay a tree a hotfix can ship from. **An SDK bump moves BOTH fingerprints** (Android `3d3bc410…` → `5621a4fa…`), so merging it obliges a new binary on each platform before anything reaches a user; there is no OTA across it. Details in the branch's commit messages, not here |
+| **Expo SDK 57 — shipped to Android alpha, NOT merged, NOT device-tested** | **Device QA, then iOS 1.2.0 clearing review.** Branch `chore/expo-sdk-57` takes the app 54 → 57 (RN 0.86.2, React 19.2) and is **live as vc 32 on the alpha track**. Green: `tsc`, 26/26 jest suites, the Metro gate, all four buildable units, `expo-doctor` 20/21, verifier 0. It stays off `main` until 1.2.0 publishes — that release is `WAITING_FOR_REVIEW` with `AFTER_APPROVAL`, so `main` must remain a tree a hotfix can ship from. **iOS has never been built on 57**; that is the outstanding validation, and it needs the branch on `ignia-mac`. Details in the branch's commit messages, not here |
 | **Watch complication + Siri quick-add behaviour** | **UNVERIFIED on hardware.** ADR-0023 established that `transferCurrentComplicationUserInfo` cannot wake a **WidgetKit** complication (Apple FB12926788, open since 2023) — real-time delivery to the wrist is not achievable on this surface, and that is a requirement change, not a bug. What ships instead is an hourly pull. Nobody has watched a face move after a meal logged outside the app. Read *Settings → Apple Watch* on a device before writing any more code here |
 | **Android widget on a real home screen** | Nobody has placed one. The task handler registers through the custom `index.js`, a path no device has exercised. **Maestro cannot close this** — no `adb` command places a home-screen widget (the Quick Settings tile *is* drivable via `adb shell cmd statusbar click-tile`). 1 of 21 checkboxes in `apps/mobile/WIDGET.md` is ticked. The iOS half is done and verified on a physical iPhone |
 | **#46 — watch layouts at 40mm/46mm, both locales** | A Mac with Xcode running a simulator. Its precondition (the real layouts exist) is met; this is the readout it was designed to be. It is the **last open item** of the 16-ticket Apple glanceable-surfaces map |
