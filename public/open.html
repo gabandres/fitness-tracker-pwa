@@ -78,8 +78,8 @@
 <body>
 <main>
   <p class="eyebrow">Ignia</p>
-  <h1>Opening the app…</h1>
-  <p>
+  <h1 id="headline">Opening the app…</h1>
+  <p id="lede">
     If nothing happens, pick one below.
     <span lang="es">Si no pasa nada, elige una opción.</span>
   </p>
@@ -118,9 +118,16 @@
       // The reliable Android hand-off: Chrome resolves the intent, and if the
       // package is not installed it navigates to browser_fallback_url itself
       // — no timers, no error page.
+      // The host is EMPTY on purpose, and it is load-bearing. Chrome resolves
+      // `intent:<data>#Intent;...;scheme=X` to `X:<data>`, so `intent://open#…`
+      // would hand the app `ignia://open` — and there is no `/open` route in
+      // `apps/mobile/src/app`, nor a `+not-found` to catch it, so the app
+      // would open on Expo Router's "Unmatched Route" screen. Empty host
+      // yields `ignia://`, the same shape the widget's proven face-tap URI
+      // uses (`ignia://?openAdd=1`), which lands on Today.
       return {
         platform: 'android',
-        url: 'intent://open#Intent;scheme=ignia;package=fit.ignia.app;' +
+        url: 'intent://#Intent;scheme=ignia;package=fit.ignia.app;' +
              'S.browser_fallback_url=' + encodeURIComponent(ANDROID_FALLBACK) + ';end',
         fallback: ANDROID_FALLBACK
       };
@@ -138,7 +145,20 @@
   var plan = decide(navigator.userAgent, navigator.maxTouchPoints);
 
   var storeLink = document.getElementById('store');
+  var appLink = document.getElementById('app');
+  appLink.href = plan.url;
+
+  if (plan.platform === 'other') {
+    // Desktop: there is no app to open, so "Open Ignia" and the store button
+    // are both noise — and pointed at the same place, they read as a bug.
+    appLink.parentNode.removeChild(appLink);
+  }
+
   if (plan.platform === 'android') {
+    // Android is tap-only (see below), so the page is an offer, not a wait.
+    document.getElementById('headline').textContent = 'Open Ignia';
+    document.getElementById('lede').innerHTML =
+      'Tap below to open the app. <span lang="es">Toca para abrir la app.</span>';
     storeLink.textContent = 'Get Ignia for Android';
     storeLink.href = plan.fallback;
   } else if (plan.platform === 'other') {
@@ -151,26 +171,44 @@
   // `__igniaOpenTarget` above. It changes nothing for a real recipient.
   if (/[?&]stay=1/.test(location.search)) return;
 
-  if (plan.platform === 'ios') {
-    // No equivalent of browser_fallback_url without universal links, so this
-    // is a race: fire the scheme, and if we are still visible ~1.2s later the
-    // app did not take over, so go to the App Store. `visibilitychange`
-    // cancels the fallback when the app DOES open — without it, returning to
-    // Safari later lands on the store page for no reason.
-    var cancelled = false;
-    document.addEventListener('visibilitychange', function () {
-      if (document.hidden) cancelled = true;
-    });
-    window.addEventListener('pagehide', function () { cancelled = true; });
-
-    setTimeout(function () { location.href = plan.url; }, 0);
-    setTimeout(function () {
-      if (!cancelled && !document.hidden) location.replace(plan.fallback);
-    }, 1200);
+  if (plan.platform === 'other') {
+    location.replace(plan.url); // No app to open. Nothing to race.
     return;
   }
 
-  location.replace(plan.url);
+  // ─── Android is deliberately TAP-ONLY ─────────────────────────────
+  //
+  // Auto-firing the intent here would be actively WRONG, not merely
+  // unreliable. Chrome sends the user to `S.browser_fallback_url` when "the
+  // app cannot be found, the link is triggered by JavaScript WITHOUT USER
+  // GESTURE, or other cases where we don't launch an external application"
+  // (developer.chrome.com/docs/android/intents). User activation does not
+  // survive a navigation, so a redirect fired at page load has no gesture —
+  // which means every Android recipient WITH the app installed would have
+  // been bounced to the PWA, the exact outcome this page exists to prevent.
+  //
+  // A tap on the button carries the gesture, and the intent's own
+  // `browser_fallback_url` still covers the not-installed case on that same
+  // tap. One tap, correct destination either way.
+  if (plan.platform === 'android') return;
+
+  // iOS: fire the scheme, then fall back if we are still here. There is no
+  // equivalent of browser_fallback_url without universal links, so this is a
+  // genuine race. `visibilitychange` / `pagehide` cancel it when the app DOES
+  // take over — without that, coming back to Safari later lands on the store
+  // page for no reason. If Safari declines the navigation outright the user
+  // reaches the App Store listing, which shows OPEN when the app is already
+  // installed — a detour, not a dead end.
+  var cancelled = false;
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) cancelled = true;
+  });
+  window.addEventListener('pagehide', function () { cancelled = true; });
+
+  setTimeout(function () { location.href = plan.url; }, 0);
+  setTimeout(function () {
+    if (!cancelled && !document.hidden) location.replace(plan.fallback);
+  }, 1200);
 })();
 </script>
 </body>
