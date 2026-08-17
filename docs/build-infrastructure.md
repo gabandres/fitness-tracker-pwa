@@ -67,11 +67,17 @@ in the number, or a faster laptop reads as a regression.
 
 **The two hosts run different Node, on purpose: resolve on Windows, `npm ci` on
 the Mac.** Windows is Node **24.12.0** / npm **11.6.2**; `ignia-mac` is Node
-**22.23.2** / npm **10.9.8**. The repo pins the intended version in `.nvmrc` and
-root `engines` (`^24.12.0`), and the Mac is deliberately left off it — it is
-someone else's laptop, and Homebrew there has an unlinked `node` 26.7.0 that
-something may depend on. RN 0.86 accepts `^20.19.4 || ^22.13.0 || ^24.3.0`, so
-both hosts satisfy Expo SDK 57 as they stand.
+**22.23.2** / npm **10.9.8**. `.nvmrc` names **24.12.0** — the preferred version,
+and what a fresh machine should install — while root `engines` deliberately
+accepts **both** majors (`^22.13.0 || ^24.12.0`), because two supported hosts is
+the actual state of this project and `engines` should describe it.
+
+Pinning `engines` to 24 alone was tried first and is wrong: `eas build --local`
+runs its own `INSTALL_DEPENDENCIES` step, so **every iOS build on the Mac printed
+`npm warn EBADENGINE`** against a machine that is doing exactly what it is
+supposed to. Harmless (nothing sets `engine-strict`), but a warning that fires on
+the happy path is one people learn to ignore. RN 0.86 accepts `^20.19.4 ||
+^22.13.0 || ^24.3.0`, so both hosts satisfy Expo SDK 57 as they stand.
 
 What the split *does* forbid is resolving dependencies twice. **Only the Windows
 workstation may run `npm install` / `expo install` / anything that rewrites
