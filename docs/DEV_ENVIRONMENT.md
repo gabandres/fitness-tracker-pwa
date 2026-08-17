@@ -620,6 +620,45 @@ machine owner's own data (Pictures 12 GB, Messages 6.4 GB, Movies 5.4 GB). **Tha
 last group is not ours to touch**; if 20 GB stops being enough, the honest options
 are to sacrifice the Gradle caches or to ask the owner.
 
+#### It happened again, and the answer is now "this disk is done" — 2026-08-17
+
+Back to **9.5 GB free**, below both thresholds, so neither platform could build.
+A second reclaim recovered **9.5 → 23 GB**, all reversible, no personal data:
+simulator *devices* (`simctl delete all`), Xcode `Archives` + `DerivedData`, the
+`CoreSimulator/Caches/dyld` cache (3 GB, needs `sudo`), the npm / Homebrew /
+CocoaPods / ReactNative / node-gyp caches, two stray `build-*.ipa` in
+`apps/mobile`, and **6.3 GB of regenerable `ios/` in `~/tracker-app`** — a
+*different* project (`gabandres/agenda-app`), gitignored there with zero tracked
+files, so `expo prebuild` restores it.
+
+Two measurement traps cost time and are worth not repeating. `du -sh` on
+`/Library/Developer/CoreSimulator/Volumes` reported **16 GB against one 7.9 GB
+runtime** — it is a read-only APFS mount and `du` overcounts it, so "orphaned
+runtimes" was a phantom; trust `simctl runtime list`, not `du`, and note this is
+the same class of error as `df /`. And `~/.gradle` was **already gone**, which
+means the next Android build re-downloads it — conveniently making it a genuine
+cold measurement for `scripts/time-mobile-builds.mjs`.
+
+**The watchOS runtime was missing too**, so iOS could not have archived at any
+disk size (§3.10). `sudo xcodebuild -downloadPlatform watchOS` restored it —
+verified `watchOS 26.5 (23T570) … (Ready)` in `simctl runtime list` and
+`-sdk watchos26.5` in `xcodebuild -showsdks`. It cost ~7 GB, taking the volume
+from 23 GB free back to **16 GB**, so budget the platform as part of the disk
+requirement and not on top of a number that already looked sufficient.
+
+**Net after everything: 16 GB free.** That clears iOS (~17 GB is the archive
+figure, and the watchOS platform is now already installed rather than pending)
+but stays under Android's 20 GB. So as of this date the Air is an **iOS-only**
+build host in practice.
+
+**The conclusion is structural, not a cleanup to repeat.** After every
+dev-owned byte was reclaimed, the remaining ~183 GB is essentially all the machine
+owner's: `Pictures` 14 GB, `Application Support/Google` 8.4 GB, `Messages` 6.4 GB,
+`mediaanalysisd` 6.2 GB, WhatsApp 5.2 GB, `Movies` 5.4 GB, `/private/var` 16 GB.
+A 228 GB disk shared with someone's real life cannot host two mobile toolchains;
+the third reclaim will find nothing left that is ours. Move the build host to a
+machine with its own storage rather than running this pass again.
+
 **`--local` does NOT hit the ASC 401.** `CLAUDE.local.md` documents
 `eas build -p ios --non-interactive` failing credential validation against EAS's own
 stored App Store Connect key, needing `EXPO_ASC_KEY_PATH` / `EXPO_ASC_KEY_ID` /
@@ -703,6 +742,26 @@ Snapdragon X Elite **ARM64** machine, so WSL is `aarch64`, and Google publishes
 the Android SDK and NDK for `linux-x86_64` only
 ([tracker 227219818](https://issuetracker.google.com/issues/227219818), open).
 Native Windows works at all only because Windows-on-ARM emulates x86-64.
+
+**Both halves re-verified upstream 2026-08-17**, and the framing above needs one
+correction: `MAX_PATH` is not an ARM problem and would break an x86 Windows box
+identically ([Rocket.Chat hit it too](https://github.com/RocketChat/Rocket.Chat.ReactNative/issues/6923)).
+What ARM64 removes is the *workaround* — an x86 Windows machine escapes into WSL2,
+and Google's own answer on the `linux-arm64` NDK is
+"[no current plans](https://github.com/android/ndk/discussions/1692)". So this is a
+common RN bug plus the one architecture that closes its standard fix, not a
+Windows-on-ARM capability gap. Say it that way; "Windows cannot build an AAB" is
+wrong and invites someone to re-litigate it.
+
+**One escape is diagnosed but NOT tried: upgrading ninja.** The note above
+correctly identifies the SDK's ninja 1.10.2 as predating the `LongPathsEnabled`
+opt-in, and then never replaces it — while
+[upstream's troubleshooting page](https://kirillzyusko.github.io/react-native-keyboard-controller/docs/troubleshooting)
+lists exactly that as a fix. `LongPathsEnabled` is already `1` here, so a modern
+`ninja.exe` dropped into the SDK is a single-experiment test. Odds are moderate,
+not good — `CMAKE_OBJECT_PATH_MAX` failing points at absolute-path mangling a new
+ninja may still choke on — but it is untested, so do not cite this section as
+proof the Windows box is exhausted.
 
 **Setup, userspace, no `sudo`** (~3 GB — far less than an Android Studio install,
 because only the components AGP actually resolved are pinned):
