@@ -170,14 +170,20 @@ exists because a release build died on `OutOfMemoryError: Metaspace` in
 `:react-native-health-connect:lintVitalAnalyzeRelease` on 2026-08-08, and
 `expo-build-properties` has no option for Gradle JVM args.
 
-**Use `eas build --local`. NEVER raw `./gradlew bundleRelease`.** Gradle compiles
-and signs fine and Play accepts the output — and the binary **silently cannot
-receive OTA updates**, because `expo prebuild` does not read `eas.json` and never
-writes the update channel into `AndroidManifest.xml`. Nothing errors at build time
-or runtime. That shipped as vc 10 before anyone checked, and is why vc 11 exists.
-`apps/mobile/scripts/patch-android-release.mjs` served that dead raw-Gradle path
-and is **obsolete** — it is referenced by no npm script; do not follow it into a
-build.
+**On the Mac, use `eas build --local` — never raw `./gradlew bundleRelease`.**
+Gradle compiles and signs fine and Play accepts the output — and the binary
+**silently cannot receive OTA updates**, because `expo prebuild` does not read
+`eas.json` and never writes the update channel into `AndroidManifest.xml`.
+Nothing errors at build time or runtime. That shipped as vc 10 before anyone
+checked, and is why vc 11 exists.
+
+**On Windows the rule inverts, because `eas build --local` refuses to run there
+at all.** Raw Gradle is the only path, and
+`apps/mobile/scripts/patch-android-release.mjs` — **no longer obsolete as of
+2026-08-17** — injects the channel, the release signing and the versionCode that
+EAS Build would have. See "Windows CAN build Android" below for the full
+procedure, and **gate on `verify-mobile-artifact.mjs` exiting 0**, which is the
+check that catches exactly this defect.
 
 ### `JAVA_HOME` and `ANDROID_HOME` are NOT in the Mac's shell config
 
@@ -236,17 +242,62 @@ submitting.
 against that cert and there is no recovery. It now exists on both machines;
 locations and the disposal list are in `CLAUDE.local.md`.
 
-### Windows cannot build Android — every avenue, closed
+### Windows CAN build Android — corrected 2026-08-17
 
-Each costs 6+ minutes to rediscover.
+This section used to read *"every avenue, closed"* and led with `MAX_PATH`. That
+was **wrong**. `./gradlew bundleRelease` on the Snapdragon X Elite workstation
+completed in **10m12s** and produced a verifier-green, signed, OTA-capable AAB
+(vc 31, fingerprint `3d3bc410…`, all four ABIs).
+
+CMake does still emit its `CMAKE_OBJECT_PATH_MAX` warning against
+`react-native-keyboard-controller`'s shadow node — that is almost certainly where
+the old conclusion came from. It is a **warning, not a fatal error**. What CMake
+actually says is that it cannot *guarantee* correct object placement, so treat it
+as a reason to insist on device QA, not as a reason not to build.
+
+**`eas build --local` on the Mac is still the preferred path whenever the Mac can
+build.** This one exists only because `eas build --local` refuses Android off
+Linux/macOS (`eas-cli`'s `checkRuntime.ts`), so Windows cannot use it at all.
+
+Raw Gradle omits two things EAS Build does for free, and **both fail silently**:
+
+| Missing | Consequence |
+|---|---|
+| EAS Update **channel** in `AndroidManifest.xml` | binary calls `u.expo.dev` with no `expo-channel-name` and can never update. This shipped as vc 10 |
+| release **signing** + **versionCode** | the template points `release` at the *debug* keystore, and `appVersionSource: "remote"` leaves versionCode at `1` |
+
+`scripts/patch-android-release.mjs` handles all of it (it is no longer obsolete —
+injecting the channel was the one thing it could not do). The procedure:
+
+```sh
+cd apps/mobile/android && ./gradlew --stop || true   # BEFORE the clean; see below
+cd .. && npx expo prebuild -p android --clean
+node scripts/patch-android-release.mjs <versionCode> production
+cd android && ./gradlew bundleRelease
+node ../../../scripts/verify-mobile-artifact.mjs <path-to.aab>   # MUST exit 0
+```
+
+**`./gradlew --stop` is not optional.** A daemon left from an earlier build holds
+handles on `node_modules/*/android/build`, and the failure is `Unable to delete
+file '…classes.jar'` at an arbitrary task — an error that looks nothing like its
+cause. `--no-daemon` does **not** help: it avoids *creating* a daemon, not the
+ones already running.
+
+To cut the build roughly fourfold, set `reactNativeArchitectures=arm64-v8a` in
+the generated `android/gradle.properties` — `x86`/`x86_64` serve only emulators
+and a few ChromeOS devices. Do it after prebuild; prebuild regenerates that file.
+
+**A Windows-built binary carries a Windows runtime version.** Shipping one splits
+the OTA cohort and inverts the publish rule for Android — see `STATUS.md`, and
+flip `.claude/hooks/guard_eas_update.py` in the same change.
+
+Genuinely closed, still:
 
 | Attempt | Why it fails |
 |---|---|
-| `./gradlew bundleRelease` on Windows | `MAX_PATH`. RN New Architecture codegen embeds the full source path in the object path; `react-native-keyboard-controller` reaches 350 chars against a 260 limit ([upstream #1247](https://github.com/kirillzyusko/react-native-keyboard-controller/issues/1247), open) |
-| Shorter staging dir | Arithmetic kills it — the remainder past the prefix is 275 chars alone |
-| `LongPathsEnabled` registry | Already `1`; the SDK ships ninja 1.10.2, which predates the opt-in |
-| `-DCMAKE_OBJECT_PATH_MAX=200` | Reaches CMake (verified in `CMakeCache.txt`), no effect — sources are out-of-tree, so CMake embeds the mangled absolute path |
+| `eas build --local` on Windows | refuses outright: *"Android builds are supported only on Linux and macOS"* |
 | `eas build --local` in WSL2 | **ARM64** machine (Snapdragon X Elite) → WSL is `aarch64`, and Google ships the SDK/NDK for `linux-x86_64` only ([tracker 227219818](https://issuetracker.google.com/issues/227219818), open) |
+| `-DCMAKE_OBJECT_PATH_MAX=200` | Reaches CMake (verified in `CMakeCache.txt`), no effect — sources are out-of-tree, so CMake embeds the mangled absolute path. Moot now that the warning is known non-fatal |
 
 ### Fallback: the EAS cloud build
 
