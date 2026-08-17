@@ -88,14 +88,49 @@ Three commit-independent causes, found by diffing the two `sources` arrays
   contents (a stale vc-10 prebuild and a fresh vc-31 one, differing in
   versionCode, AndroidManifest.xml and gradle.properties) also embedded the
   identical fingerprint. So this is not a cause of Windows/Mac divergence, and
-  deleting `android/` before a gate run is a no-op;
-- **CRLF vs LF** in tracked files (`.gitignore`, `targets/widget/expo-target.config.js`
-  both hash differently) — Windows checks out CRLF;
-- divergent `node_modules`, which changes which config-plugin files are walked.
+  deleting `android/` before a gate run is a no-op. **The general rule, measured
+  2026-08-17: a `dir:` source hashes only git-TRACKED content.** Confirmed a
+  second way on `dir:modules/quick-add-tile/android`, which unlike `android/` is
+  a tracked directory: its 299-file untracked Gradle `build/` output was moved
+  aside and the hash stayed `3d3bc410…` at 521 sources. So Gradle output sitting
+  inside a hashed directory cannot strand an OTA, and neither can any other
+  untracked file — "is it gitignored" was the narrower version of this;
+- **CRLF vs LF** in tracked files — measured 2026-08-17 and it is **exactly two
+  files**, `.gitignore` and `targets/widget/expo-target.config.js`, which are
+  CRLF in the Windows worktree and LF on the Mac. `.gitattributes` already says
+  `* text=auto eol=lf`, and the index is LF throughout; these two simply predate
+  that file and git does not re-checkout on an attribute change. **Fixing them is
+  a worktree-only act — no commit — but it MOVES the Windows fingerprint**, so do
+  it in the same change as an SDK bump or another native change that moves it
+  anyway, never on its own;
+- ~~divergent `node_modules`, which changes which config-plugin files are walked.~~
+  **DISPROVEN 2026-08-17.** The two trees are not divergent. The Windows iOS
+  `sources` array carries **228 entries the Mac's does not** — every one of them a
+  transitive dependency of a config plugin under a *nested* `node_modules`
+  (`@bacons/apple-targets/node_modules/@expo/plist/…`, `@bacons/xcode/node_modules/xmlbuilder/…`).
+  **All 228 files were then confirmed present on the Mac** (`present=228
+  missing=0`), with identical `@expo/fingerprint` 0.15.5, identical
+  `@bacons/apple-targets` 5.0.0 and a byte-identical `package-lock.json` that
+  itself prescribes those nested paths. The Mac's array contains **zero** sources
+  Windows lacks. So this is not an install difference: `@expo/fingerprint` walks
+  the config-plugin require graph *across* nested package boundaries on Windows
+  and stops at them on macOS. Aligning Node/npm cannot converge the two hashes,
+  and `npm ci` is not a fix for a mismatch.
 
-Since **every binary is built on the Mac**, the Mac's value is the one the
-binaries carry, and a hash generated anywhere else is a number that matches
-nothing.
+**Consequence: cross-host fingerprint parity is not achievable and is no longer a
+goal.** It also does not need to be. Since 2026-08-17 each platform is built,
+gated and published on one host — Android on Windows, iOS on the Mac — so each
+hash only ever has to match binaries produced by the same machine, which it does:
+measured that day, Windows/Android returns `3d3bc410…` (= live vc 31, read from
+the `.aab`) and Mac/iOS returns `886bf0b3…` (= build 55, read from the `.ipa`).
+**A hash is valid only against artifacts from the machine that produced it**;
+comparing across hosts is meaningless, not merely inconvenient.
+
+The corollary is a live hazard: because the 228-entry gap is `@expo/fingerprint`
+behaviour rather than repo state, **an upgrade of that package can move the
+Windows hash with no change to this repo at all** — silently stranding every
+Android OTA. Re-read the gate against the shipped `.aab` after any bump of
+`expo-updates`/`@expo/fingerprint`, not just after a code change.
 
 **Ground truth is inside the artifact — read it, don't compute it:**
 
@@ -117,16 +152,21 @@ day was largely this artifact: one machine's number was being compared against
 another machine's. The 22:00 update is the first one published from the Mac and
 the first that provably matches a shipped binary.
 
-So the gate before every publish is, **on the Mac**:
+So the gate before every publish runs **on that platform's build host** — iOS on
+the Mac, Android on Windows:
 
 ```sh
+# iOS — on ignia-mac
 ssh ignia-mac "cd ~/fitness-tracker-pwa && git checkout main && git pull --ff-only"
-ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform android"
+ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform ios"
+
+# Android — on the Windows workstation
+cd apps/mobile && npx expo-updates fingerprint:generate --platform android
 ```
 
 Compare the `hash` against the fingerprint read out of the binary testers are
 running. **Same → the update lands. Different → it reaches nobody and you need a
-build.** Note the Mac's `node_modules` is an input: an `npm install` there can
+build.** Note `node_modules` is an input: an `npm install` on the build host can
 move the fingerprint away from an already-shipped binary, so check the gate
 *before* installing, not after.
 
@@ -257,7 +297,9 @@ belief that `dir:android` is hashed. It is not — see the struck-through bullet
 above, measured 2026-08-17. Deleting it changed nothing; the gate would have
 returned the same hash either way. Harmless as a habit, but do not reach for it
 as an explanation when a fingerprint fails to match, and do not spend a step on
-it: the real divergence causes are CRLF-vs-LF and divergent `node_modules`.
+it. Nor on `node_modules`, disproven the same day: the only surviving repo-state
+cause is CRLF-vs-LF in two files, and the rest is `@expo/fingerprint` behaving
+differently per OS — see the bullets above.
 
 Do not assume "published" means "delivered"; check which runtime version the
 update went out under:

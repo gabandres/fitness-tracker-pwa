@@ -65,6 +65,27 @@ in the number, or a faster laptop reads as a regression.
 - The Mac holds `dev.keystore`, `credentials.json`, the Sentry token and an EAS
   session — locations and disposal list in `CLAUDE.local.md`.
 
+**The two hosts run different Node, on purpose: resolve on Windows, `npm ci` on
+the Mac.** Windows is Node **24.12.0** / npm **11.6.2**; `ignia-mac` is Node
+**22.23.2** / npm **10.9.8**. The repo pins the intended version in `.nvmrc` and
+root `engines` (`^24.12.0`), and the Mac is deliberately left off it — it is
+someone else's laptop, and Homebrew there has an unlinked `node` 26.7.0 that
+something may depend on. RN 0.86 accepts `^20.19.4 || ^22.13.0 || ^24.3.0`, so
+both hosts satisfy Expo SDK 57 as they stand.
+
+What the split *does* forbid is resolving dependencies twice. **Only the Windows
+workstation may run `npm install` / `expo install` / anything that rewrites
+`package-lock.json`.** The Mac runs `npm ci` and nothing else, so npm 10 never
+gets to re-resolve a tree npm 11 wrote. Two npm majors both writing the lockfile
+is how the two clones drift for real.
+
+This is *not* justified by fingerprint parity, which was the old reason and is
+**disproven** — see `apps/mobile/AGENTS.md`. Aligning Node would not converge the
+two hashes and does not need to: each platform is fingerprinted on its own build
+host. Note also that `npm ci` on the Mac rebuilds `node_modules`, which is a
+fingerprint input, so it is not a free act while an iOS binary is awaiting
+review — run the gate before it, not after.
+
 `npx expo prebuild -p ios` does **not** work on Windows: SDK 54 skips it outright
 and exits non-zero. There is no local way to inspect the generated Podfile or
 verify iOS autolinking here, which is why the widget's missing native module
