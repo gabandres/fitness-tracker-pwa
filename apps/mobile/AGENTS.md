@@ -170,6 +170,23 @@ build.** Note `node_modules` is an input: an `npm install` on the build host can
 move the fingerprint away from an already-shipped binary, so check the gate
 *before* installing, not after.
 
+**Generate it AFTER `expo prebuild`, or it does not match the artifact.**
+Measured 2026-08-17 on the SDK 57 build. With a stale `android/` on disk the CLI
+returned `5621a4fa…`; the AAB built minutes later from the same commit embedded
+**`d8741525…`**, and re-running the CLI *after* prebuild returned `d8741525…` —
+a match. No tracked file changed in between (`git status` clean), so the mover is
+generated state the fingerprinter reads, `contents:expoAutolinkingConfig:android`
+being the candidate: `dir:android` contributes nothing, but the autolinking
+*config* is recomputed against whatever Gradle projects the regenerated
+`android/` exposes.
+
+Two consequences. A gate reading taken before prebuild is **worthless** — it
+describes a tree the build will overwrite. And this is a further reason the
+Windows and Mac numbers historically disagreed: `eas build --local` prebuilds
+inside its own pipeline, so the Mac's artifacts were always post-prebuild while
+Windows CLI readings were usually pre-. As ever, the artifact wins: read
+`base/assets/fingerprint`, do not compute it.
+
 Fingerprints of the binaries carrying `expo-updates` (update these when new ones
 ship):
 

@@ -25,6 +25,13 @@ cd apps/mobile && npx expo-updates fingerprint:generate --platform android \
   | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).hash))"
 ```
 
+**Run it AFTER `expo prebuild`, or the number is wrong.** Measured 2026-08-17:
+with a stale `android/` on disk the CLI said `5621a4fa…`, the AAB built from the
+same commit embedded **`d8741525…`**, and re-running post-prebuild matched the
+artifact. `git status` was clean throughout, so nothing tracked moved — it is
+generated autolinking state. A gate reading taken before prebuild describes a
+tree the build is about to overwrite.
+
 **Why the two hosts disagree** — measured 2026-08-17, and two of the three causes
 this file used to list are false:
 
