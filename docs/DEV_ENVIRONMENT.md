@@ -710,10 +710,22 @@ are now void:
   *guarantee* object placement, which is an argument for device QA, not against
   building.
 - **The Air no longer can.** Its Android toolchain was deleted the same day —
-  `~/Library/Android` (3.3 GB), `~/.gradle`, `~/.android` (2.9 GB) and both
-  `android/` directories — to get the disk back over the ~17 GB iOS floor. The
-  Air is an **iOS-only** host by choice now, so the runbook is not deprecated,
-  it is unrunnable.
+  `~/Library/Android` (3.3 GB), `~/.gradle`, `~/.android` (2.9 GB), both
+  `android/` directories, and Homebrew's `openjdk@17` (319 MB, the JDK AGP
+  needed) — to get the disk back over the ~17 GB iOS floor. The Air is an
+  **iOS-only** host by choice now, so the runbook is not deprecated, it is
+  unrunnable. **iOS builds need no Java at all**, which is why removing it costs
+  nothing here.
+
+  What deliberately stayed: Homebrew `openjdk` 26 (`bundletool` depends on it)
+  and the two system JDKs in `/Library/Java/JavaVirtualMachines` —
+  `microsoft-11` is the machine's **default** JDK and `temurin-8` is legacy.
+  Both need `sudo` and neither is ours; this is someone else's laptop.
+
+  **`credentials/dev.keystore` and `credentials.json` must survive every
+  cleanup** — verified `mode 600` after this one. That keystore is
+  `fit.ignia.app`'s only Play identity, it has no recovery path, and the Mac
+  copy is the sole off-site backup of the Windows original.
 
 **The current Android procedure lives in the `build-android` skill**, not here:
 `./gradlew --stop` → `expo prebuild` → `scripts/patch-android-release.mjs` →
