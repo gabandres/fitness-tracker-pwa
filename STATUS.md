@@ -129,8 +129,13 @@ Everything else that was in this section has shipped and is in `CHANGELOG.md`.
   What is held is the **iOS OTA**, and it is held for one narrow reason: it
   would land on runtime `886bf0b3…`, which is the binary Apple is reviewing.
   Its only beneficiaries are TestFlight testers on build 53, who already have
-  accounts, so it buys nothing and perturbs a live submission. **Publish it once
-  1.2.0 is approved**, from `ignia-mac`, gate first.
+  accounts, so it buys nothing and perturbs a live submission.
+
+  **It can no longer be published from `main`.** SDK 57 merged on 2026-08-17 and
+  moved the iOS fingerprint off `886bf0b3…`, so an OTA cut from `main` reaches
+  none of builds 50–55. If it is still wanted after 1.2.0 approves, publish it
+  from the **pre-SDK-57 commit `9c8a4b6`**, on `ignia-mac`, gating first — or
+  skip it, since the next iOS binary carries the fix embedded anyway.
 
   **It is NOT the reason public iOS users lack the fix.** They are on build 24,
   a different runtime that has never been an OTA target, so no OTA can reach
