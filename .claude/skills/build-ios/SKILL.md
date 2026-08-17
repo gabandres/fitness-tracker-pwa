@@ -6,16 +6,16 @@ description: Build and optionally submit an iOS binary on the MacBook Air (`igni
 # Build iOS on the Mac
 
 `eas build -p ios --profile production --local` on `ignia-mac`, driven headlessly
-over SSH. **Costs zero EAS build quota and skips the free-tier queue.** ~13–16
-minutes green. `docs/DEV_ENVIRONMENT.md` **§3.8** (SSH setup) and **§3.10**
-(archiving, prerequisites, power) hold the runbook — read §3.10 before debugging
-any failure; every failure seen so far is already written down there.
+over SSH. **Zero EAS quota, no cloud queue.** ~13–16 minutes green.
+
+`REFERENCE.md` in this directory holds the evidence behind every rule below.
+`docs/DEV_ENVIRONMENT.md` §3.8 and §3.10 hold the machine runbook — **read §3.10
+before debugging any build failure**; every one seen so far is already there.
 
 ## Step 0 — do you need a build at all?
 
-**A JS/TS-only change needs no binary.** EAS Update ships it in seconds. Run the
-fingerprint gate — **on `ignia-mac`, never on Windows**, because the fingerprint
-is machine-dependent and a Windows number matches no binary:
+**A JS/TS-only change needs no binary.** Gate first, **on the Mac** (the hash is
+machine-dependent) and **after prebuild**:
 
 ```sh
 ssh ignia-mac "cd ~/fitness-tracker-pwa && git checkout main && git pull --ff-only"
@@ -23,49 +23,43 @@ ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerpr
   | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).hash))"
 ```
 
-**Unchanged hash → the `build-android` skill, Step 1 and Step 2**, which own the
-gate's semantics and the full OTA procedure for *both* platforms (`eas update`
-publishes for both at once). Do not re-derive them here.
+**Unchanged hash → `build-android` Steps 1–2**, which own the gate semantics and
+the OTA procedure for both platforms. Do not re-derive them here. Note the OTA is
+now **per-platform**: `--platform ios` from the Mac, and `--environment` is
+required from SDK 55 on.
 
-**Two things from there that are easy to miss on iOS specifically:**
+Two that bite on iOS specifically:
 
-- **The gate answers "will an OTA reach these binaries", never "is an OTA
-  sufficient".** Swift under `targets/` does **not** move the fingerprint
-  (measured 2026-08-08 across two `.ipa`s), so a Swift-only fix reads as
-  "shippable over the air" and the resulting update contains no Swift at all. If
-  you touched `targets/` or `modules/`, you need a build regardless of the hash.
+- **Swift under `targets/` does not move the fingerprint, but `modules/*/ios`
+  does.** So a Swift-only fix can read as "shippable over the air" while the OTA
+  would carry no Swift at all. **Touched `targets/` or `modules/`? Build,
+  whatever the hash says.**
 - **Bump the what's-new banner** (`apps/mobile/src/lib/whatsNew.ts` →
   `WHATS_NEW_VERSION`, plus `whatsNew.body` in both locales). App Store "What's
-  New" attaches to **binary releases only**, so for an OTA the banner is the only
-  thing a user ever sees, and changing the copy without bumping the constant shows
-  nobody anything.
+  New" attaches to binary releases only, so for an OTA the banner is all a user
+  sees — and changing the copy without bumping the constant shows nobody anything.
 
-Everything below is for changes that genuinely touch the native surface.
-
-## Step 1 — preflight (always; seconds, and it has caught real blockers)
+## Step 1 — preflight (seconds, and it has caught real blockers)
 
 ```sh
 ssh ignia-mac "cd ~/fitness-tracker-pwa && git log --oneline -1 && git status --short | head -5
 node -v; which fastlane
 xcrun simctl list runtimes | grep -ci ios
-df -h / | awk 'NR==2{print \$4\" free\"}'"
-
+df -h /System/Volumes/Data | awk 'NR==2{print \$4\" free\"}'"
 ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx eas whoami"
 ```
 
-| Check | Required | If it fails |
-|---|---|---|
-| `git status` clean | yes | `git stash push -u` — prebuild leaves generated artifacts; safe to stash |
-| on the intended ref | yes | a branch is fine; record **which** in `STATUS.md` |
-| `which fastlane` | yes | `brew install fastlane` — **never** the gem (§3.9: system Ruby has a broken `ffi`) |
-| iOS runtimes count > 0 | yes | `sudo xcodebuild -downloadPlatform iOS`; an empty list means the platform component is missing even though `-showsdks` lists the SDK |
-| disk | **~17 GB is enough** | 25 GB is the comfortable figure; a build has completed at 17 GB with ~1 GB of headroom left. Clear `~/Library/Developer/Xcode/DerivedData/*` first. The old advice to weigh this against `~/.gradle` is void — the Air's Android toolchain was deleted on 2026-08-17, so the whole disk is iOS's now |
-| `eas whoami` | yes | copy `~/.expo/state.json` from the workstation (owner must run the `scp`) |
-| `.env.local` on the Mac | for shippable builds | carries `SENTRY_AUTH_TOKEN` |
+| Check | If it fails |
+|---|---|
+| `git status` clean | `git stash push -u` — prebuild leaves generated artifacts |
+| on the intended ref | a branch is fine; record **which** in `STATUS.md` |
+| `which fastlane` | `brew install fastlane` — **never** the gem (system Ruby has a broken `ffi`) |
+| iOS runtimes > 0 | `sudo xcodebuild -downloadPlatform iOS`. **watchOS runtime is also required** — the scheme embeds `IgniaWatch.app` and archiving needs the platform |
+| disk ≥ ~17 GB | clear `~/Library/Developer/Xcode/DerivedData/*`. The Air is iOS-only now, so the whole disk is iOS's |
+| `eas whoami` | copy `~/.expo/state.json` from the workstation (owner runs the `scp`) |
 
-**Validate the Sentry token rather than checking the file exists** — a
-present-but-stale token fails the build, which is how Android build `9e3df4e3`
-died after a two-hour queue:
+**Validate the Sentry token, don't just check the file exists** — a present-but-
+stale token fails the build at a late task:
 
 ```sh
 ssh ignia-mac "cd ~/fitness-tracker-pwa && set -a && . ./.env.local && set +a &&
@@ -78,9 +72,8 @@ Anything but `200` is a stop.
 
 ## Step 2 — launch detached, with a sentinel
 
-**Never run the build in the foreground of an SSH session** — the connection
-dropping kills it, and §3.9 is explicit that a dead SSH and a finished process are
-indistinguishable to a `pgrep` check.
+**Never run the build in an SSH foreground** — the connection dropping kills it,
+and a dead SSH is indistinguishable from a finished process.
 
 ```sh
 ssh ignia-mac "cat > ~/run-ios-build.sh <<'EOF'
@@ -99,14 +92,8 @@ echo launched"
 until ssh ignia-mac "grep -q IGNIA_BUILD_EXIT ~/ios-build.log" 2>/dev/null; do sleep 60; done
 ```
 
-`caffeinate -dims` is **not optional**: the dock can drop power delivery while
-still working as a dock (§3.10), which puts the Air on battery where sleep is
-allowed.
-
-A green build takes **~13–16 minutes**. A prerequisite failure takes under three,
-so a fast exit means "read the log", not "something went badly wrong".
-`› Linking Ignia/Today » Today` in the log is the useful early signal that the
-widget extension's Swift compiled.
+`caffeinate -dims` is **not optional** — the dock can drop power while still
+working as a dock, putting the Air on battery where sleep is allowed.
 
 On failure, filter the log — it is ~1200 lines and will blow up context:
 
@@ -115,63 +102,39 @@ ssh ignia-mac "grep -nE '❌|error:|Exit status|must be installed' ~/ios-build.l
   | grep -viE 'npm warn|deprecated|RUN_EXPO_DOCTOR' | tail -10"
 ```
 
-`expo-doctor` reporting 17/18 on `@types/jest` is **known and non-fatal**.
+## Step 3 — verify the artifact, gate on the exit code
 
-## Step 3 — verify the artifact: run the script, gate on its exit code
-
-Exit 0 from the build is necessary, not sufficient. **The checks are code, not
-prose** — this section used to be a list of instructions, and in one evening
-(2026-08-08) three binaries shipped missing things those instructions covered:
-build 34 dropped `es-PR.lproj` silently, and builds 38/39 lacked
-`NSMicrophoneUsageDescription`, which crashes the app on its first mic tap.
-One was submitted before being checked at all.
+Exit 0 from the build is necessary, not sufficient.
 
 ```sh
 scp scripts/verify-mobile-artifact.mjs scripts/native-expectations.json ignia-mac:/tmp/
 ssh ignia-mac "node /tmp/verify-mobile-artifact.mjs ~/fitness-tracker-pwa/apps/mobile/build-<ts>.ipa"
 ```
 
-It asserts all four nested targets, every required Info.plist key (a missing
-usage string is a crash, not a warning), both `.lproj` bundles, the appex's
-entitlements, and prints the runtime fingerprint **from the artifact** — the
-only value `AGENTS.md` may record.
+It asserts all four nested targets, every required Info.plist key (a missing usage
+string is a **crash**, not a warning), both `.lproj` bundles, the appex's
+entitlements, and prints the runtime fingerprint **from the artifact** — the only
+value `AGENTS.md` may record.
 
-**Non-zero exit → do not submit. No exceptions.** Step 4 runs as a separate
-command, conditional on this one's exit code — combining them is exactly how
-build 39 reached TestFlight without its microphone key. A new native capability
-adds its plist key / entitlement to `scripts/native-expectations.json` in the
-same commit that introduces it.
+**Non-zero exit → do not submit. No exceptions**, and Step 4 runs as a *separate*
+command conditional on this exit code. A new native capability adds its plist key
+or entitlement to `scripts/native-expectations.json` in the same commit.
 
-**To check that a specific symbol made it in, use `strings`, not `nm`.** The
-release binary is stripped enough that `nm -gU` and `otool -o` return nothing for
-ObjC classes. Note also that Swift inlines string literals of ≤15 UTF-8 bytes, so
-a short constant legitimately appears **once** where a longer one appears twice —
-a count of 1 is not evidence of a missing copy.
+**Green metadata proves nothing about behaviour.** Every native surface needs
+device QA — except Live Activities, which render in the Simulator.
 
-**Verifying that metadata exists proves nothing about behaviour.** Build 27's
-archive held a flawless `Metadata.appintents` — provider, both shortcuts, all
-three intents, every phrase — on the binary that registered none of it on device.
-Every native surface needs device or simulator QA; the archive cannot substitute.
-
-**Live Activities are the exception worth knowing**: they render in the iOS
-Simulator, so an ActivityKit surface can be exercised on the Mac at no quota
-before or instead of trusting a binary. Every other native surface here has
-needed real hardware.
-
-## Step 4 — submit (only when asked; this is outward-facing)
+## Step 4 — submit (only when asked; outward-facing)
 
 ```sh
 ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile &&
   npx eas submit -p ios --profile production --path build-<ts>.ipa --non-interactive"
 ```
 
-Needs **no** credential overrides — submit uses its own working EAS-held key
-(`R34S5HG5GX`), unlike the cloud *build* path. Takes ~3 minutes.
+No credential overrides needed. ~3 minutes.
 
-**Then verify in ASC, because the CLI exit code has lied in both directions** — it
-reported failure for build 19 when the upload had succeeded. Apple takes 5–15 min
-to process, and the build is absent from `/v1/builds` until ingestion starts, so
-poll rather than reading once:
+**Then verify in ASC — the CLI exit code has lied in both directions.** Apple
+takes 5–15 min to process and the build is absent from `/v1/builds` until
+ingestion starts, so poll:
 
 ```sh
 node -e "
@@ -183,26 +146,14 @@ import('file:///Z:/macro-app/scripts/asc-client.mjs').then(async ({api, APP_ID})
 
 `PROCESSING` is **not** terminal — wait for `VALID`.
 
-## Things that will bite
+**Do not touch an `IN_REVIEW` submission.** Swapping its build is cancel →
+re-point → resubmit, the cancel is irreversible, and it cost ~19 h of queue
+position once.
 
-- **`autoIncrement: true` burns a build number per ATTEMPT, including failures.**
-  Builds 20/21/22 and 26 do not exist. Harmless — ASC only needs increasing
-  numbers — but the gaps are real, and the same applies to Android versionCodes.
-- **Swift block comments NEST.** `/**` … `*/` nests and backticks mean nothing to
-  the lexer, so a literal `_shared/` + `*` inside a doc comment opens a nested
-  comment that never closes. It is reported as `unterminated '/*' comment` against
-  the **last brace in the file**, hundreds of lines from the cause, and cascades
-  into `cannot find <Type> in scope` across every other target.
-- **`--local` does NOT hit the ASC 401** documented in `CLAUDE.local.md`. That is
-  the *cloud* build path. No `EXPO_ASC_*` env vars, and the ASC `.p8` never needs
-  to go on the Mac.
-- **Do not touch an `IN_REVIEW` submission.** Swapping its build is cancel →
-  re-point → resubmit; the cancel is irreversible and it already cost ~19 h of
-  queue position once. A build sitting on TestFlight cannot change what Apple is
-  reviewing, so never describe it as "in review".
-- **A mobile fix reaches nobody until a binary ships.** Merging is not shipping —
-  say which cohort, out loud, when reporting.
-- After shipping: update the fingerprint table in `apps/mobile/AGENTS.md` and then
-  `STATUS.md`, which is the file that says what is true right now. `ios.latestBuild`
-  in `public/app-version.json` stays `0` on purpose — it must name the live **App
-  Store** build, never a TestFlight one.
+## After shipping
+
+Update the fingerprint table in `apps/mobile/AGENTS.md` (value read from the
+artifact), then `STATUS.md`. `ios.latestBuild` in `public/app-version.json` is
+derived from the **App Store** version in `READY_FOR_SALE`, never a TestFlight
+build. **A mobile fix reaches nobody until a binary ships** — name the cohort out
+loud when reporting.
