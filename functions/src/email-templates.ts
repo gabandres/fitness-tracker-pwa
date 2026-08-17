@@ -58,6 +58,23 @@ const MONO = "ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace";
 
 const SITE = "https://ignia.fit";
 
+// ─── Where "open the app" points ────────────────────────────────────
+//
+// NOT `${SITE}/app` (the PWA). Mobile is the product (ADR-0015) and the web
+// logging surfaces are frozen (ADR-0022), so a recap that lands a phone user
+// in the browser drops them into the surface that is no longer being built.
+//
+// `/open` is a static redirector (`public/open.html`), not a page anyone is
+// meant to read: it hands the request to the installed app via the `ignia://`
+// scheme, and falls back to the App Store / Play / the PWA per platform. It
+// exists because Ignia has **no universal links yet** — `app.json` declares no
+// `associatedDomains` and no `autoVerify` intent filter, so `https://ignia.fit/...`
+// cannot be captured by the app on either platform. Adding those is a native
+// change: it moves the EAS fingerprint, which would strand the iOS OTA that
+// `STATUS.md` §2 is holding for 1.2.0's approval. Until a build carries them,
+// a redirector is the only thing that can open the app from an inbox.
+const APP_LINK = `${SITE}/open`;
+
 // ─── Block model ────────────────────────────────────────────────────
 //
 // `text` fields carry a tiny inline-HTML subset (<strong>, <em>, <a href>).
@@ -376,16 +393,32 @@ function build(
 // invitation — you cannot opt out of account-security mail, and offering it
 // confuses the consent model. Lifecycle mail (welcome, digest) does.
 
-function footerLifecycle(isEs: boolean): string[] {
-  return isEs
+function footerLifecycle(isEs: boolean, unsubscribeUrl?: string): string[] {
+  const link = (label: string, href: string): string =>
+    `<a href="${href}" style="color:${LIGHT.accent};" class="i-accent">${label}</a>`;
+
+  const lines = isEs
     ? [
       "Recibiste este correo porque creaste una cuenta en Ignia.",
-      `Bitácora privada · sin anuncios · nunca vendemos tus datos · <a href="${SITE}/privacy" style="color:${LIGHT.accent};" class="i-accent">Política de privacidad</a>`,
+      `Bitácora privada · sin anuncios · nunca vendemos tus datos · ${link("Política de privacidad", `${SITE}/privacy`)}`,
     ]
     : [
       "You're receiving this because you created an Ignia account.",
-      `Private log · no ads · we never sell your data · <a href="${SITE}/privacy" style="color:${LIGHT.accent};" class="i-accent">Privacy policy</a>`,
+      `Private log · no ads · we never sell your data · ${link("Privacy policy", `${SITE}/privacy`)}`,
     ];
+
+  // A visible opt-out, not just a header. Gmail hides its own unsubscribe
+  // affordance behind a sender-reputation check, so a recipient who wants out
+  // and cannot find the button marks the mail as spam instead — the single
+  // most expensive signal a sender can collect.
+  if (unsubscribeUrl) {
+    lines.push(
+      isEs
+        ? `${link("Darte de baja del resumen semanal", unsubscribeUrl)} · un clic, sin preguntas.`
+        : `${link("Unsubscribe from the weekly recap", unsubscribeUrl)} · one click, no questions.`,
+    );
+  }
+  return lines;
 }
 
 function footerTransactional(isEs: boolean): string[] {
@@ -409,14 +442,19 @@ function firstNameOf(displayName?: string | null): string | null {
 export interface WelcomeEmailParams {
   locale: "en" | "es-PR";
   displayName?: string | null;
+  /** Per-recipient one-click opt-out (`unsubscribe.ts`). Omitting it degrades
+   *  the mail to a mailto-only opt-out — correct, but worse. */
+  unsubscribeUrl?: string;
 }
 
 export function welcomeEmail(params: WelcomeEmailParams): RenderedEmail {
   const first = firstNameOf(params.displayName);
-  return params.locale === "es-PR" ? welcomeEs(first) : welcomeEn(first);
+  return params.locale === "es-PR"
+    ? welcomeEs(first, params.unsubscribeUrl)
+    : welcomeEn(first, params.unsubscribeUrl);
 }
 
-function welcomeEn(first: string | null): RenderedEmail {
+function welcomeEn(first: string | null, unsubscribeUrl?: string): RenderedEmail {
   const hi = first ? `Hi <strong>${escapeHtml(first)}</strong>,` : "Hi there,";
   const blocks: Block[] = [
     { kind: "lead", text: hi },
@@ -440,7 +478,7 @@ function welcomeEn(first: string | null): RenderedEmail {
       text:
         "The one question this app exists to answer is: <em>how many calories do I have left today?</em> Everything else is in service of that.",
     },
-    { kind: "button", label: "Open your log", href: `${SITE}/app` },
+    { kind: "button", label: "Open your log", href: APP_LINK },
     { kind: "note", text: "Questions? Just reply — it reaches a human." },
   ];
   return build(
@@ -448,11 +486,11 @@ function welcomeEn(first: string | null): RenderedEmail {
     "Your private calorie and protein log is ready — here's how to get the most out of week one.",
     "You're in.",
     blocks,
-    footerLifecycle(false),
+    footerLifecycle(false, unsubscribeUrl),
   );
 }
 
-function welcomeEs(first: string | null): RenderedEmail {
+function welcomeEs(first: string | null, unsubscribeUrl?: string): RenderedEmail {
   const hi = first ? `Hola <strong>${escapeHtml(first)}</strong>,` : "Hola,";
   const blocks: Block[] = [
     { kind: "lead", text: hi },
@@ -476,7 +514,7 @@ function welcomeEs(first: string | null): RenderedEmail {
       text:
         "La única pregunta que esta app existe para contestar es: <em>¿cuántas calorías me quedan hoy?</em> Todo lo demás está al servicio de eso.",
     },
-    { kind: "button", label: "Abrir tu bitácora", href: `${SITE}/app` },
+    { kind: "button", label: "Abrir tu bitácora", href: APP_LINK },
     { kind: "note", text: "¿Preguntas? Responde a este correo — llega a una persona." },
   ];
   return build(
@@ -484,7 +522,7 @@ function welcomeEs(first: string | null): RenderedEmail {
     "Tu bitácora privada de calorías y proteína está lista — así aprovechas la primera semana.",
     "Listo.",
     blocks,
-    footerLifecycle(true),
+    footerLifecycle(true, unsubscribeUrl),
   );
 }
 
@@ -691,8 +729,12 @@ export interface WeeklyDigestParams {
   avgCalories: number | null;
   avgProtein: number | null;
   weightDeltaLbs: number | null;
+  /** Distinct days logged inside the 7-day window — never more than 7.
+   *  `weekly-digest.ts` guarantees that; this template only renders it. */
   daysLogged: number;
   streak: number;
+  /** Per-recipient one-click opt-out (`unsubscribe.ts`). */
+  unsubscribeUrl?: string;
 }
 
 export function weeklyDigestEmail(params: WeeklyDigestParams): RenderedEmail {
@@ -749,10 +791,15 @@ export function weeklyDigestEmail(params: WeeklyDigestParams): RenderedEmail {
     {
       kind: "button",
       label: isEs ? "Abrir tu bitácora" : "Open your log",
-      href: `${SITE}/app`,
+      href: APP_LINK,
     },
     {
       kind: "note",
+      // Names the in-app route only; the one-click link lives in the footer,
+      // where a reader looks for it and where it does not read as a second
+      // ask five lines under the first. The quoted labels are the real
+      // toggles — web `settings.reminders.weeklyDigest*`, mobile
+      // Settings → Weekly digest.
       text: isEs
         ? '¿No quieres este correo? Apaga "Resumen semanal" en Ajustes.'
         : 'Don\'t want this email? Turn off "Weekly digest" in Settings.',
@@ -766,6 +813,6 @@ export function weeklyDigestEmail(params: WeeklyDigestParams): RenderedEmail {
       : `${params.daysLogged} of 7 days logged this week.`,
     isEs ? "Tu semana." : "Your week.",
     blocks,
-    footerLifecycle(isEs),
+    footerLifecycle(isEs, params.unsubscribeUrl),
   );
 }

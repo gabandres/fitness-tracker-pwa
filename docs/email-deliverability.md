@@ -103,6 +103,24 @@ POST   /domains  {"name":"mail.ignia.fit", ...}        → id 426e86ae-6518-4f5f
 - **`functions/src/resend-client.ts`** — split header sets: lifecycle mail
   keeps RFC 8058 one-click unsubscribe; transactional mail drops it and adds
   `Auto-Submitted`. `FROM_EMAIL` and `REPLY_TO` are both env-driven.
+- **`functions/src/unsubscribe.ts`** (2026-08-16) — the one-click unsubscribe
+  the header had been *claiming* since it was written. `List-Unsubscribe` held
+  a `mailto:` alone while `List-Unsubscribe-Post: One-Click` was set alongside
+  it, which is malformed — RFC 8058 §1 defines one-click against an **https**
+  URI and nothing else — and nothing was automated either: a click mailed a
+  human, and the recipient stayed subscribed until someone flipped the flag by
+  hand. `unsubscribeWeeklyDigest` (hosting rewrite `/unsubscribe`) now flips
+  `weeklyDigestOptIn` itself, and `emailHeaders()` only advertises the Post
+  header when an https URI is actually present.
+  Two design constraints worth not re-litigating: the token is **derived, not
+  stored**, because `firestore.rules` validates the user doc with
+  `keys().hasOnly([...])` so a new profile field would reject every client
+  write until a rules deploy landed first; and its HMAC key is derived from
+  `RESEND_API_KEY` (`SHA-256("ignia-unsub-v1:" + key)`, never the raw key)
+  rather than a new secret, because Secret Manager's free tier is 6 versions
+  and this project is at its audited floor of 7. The consequence: **rotating
+  the Resend key invalidates unsubscribe links already sitting in inboxes** —
+  they fall back to a page pointing at in-app Settings.
 - **Both clients** now call the callable instead of Firebase's
   `sendPasswordResetEmail` (`src/app/services/auth.service.ts`,
   `apps/mobile/src/lib/auth.tsx`).

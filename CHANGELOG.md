@@ -6,6 +6,42 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-16 — The weekly recap opens the app, counts the week correctly, and can be unsubscribed in one click
+
+Three things about the Sunday recap email, all visible in the one that went out
+this morning.
+
+**"Days logged: 8 / 7."** The week was measured as the last 168 hours rather
+than the last seven days, and since the mail goes out mid-morning, those hours
+straddle eight dates. The same window silently capped the streak: every date
+the email knew about came from that one query, so a streak of any length was
+reported as at most 8. Both now count the seven *local* days ending today —
+your days, in your timezone, not UTC's — and the streak walks back past the
+window until it finds a real gap. If you have logged for forty-one days, the
+email says forty-one.
+
+Weight change used to read "—" for anyone who weighs in once a week, because it
+needed two readings inside the window. It now uses your last weigh-in before the
+week started as the baseline, provided it is recent enough to still mean
+something.
+
+**The button opened the website.** Ignia's phone app is the product, so "Open
+your log" now opens the app on your phone if you have it, and offers the App
+Store, Google Play, or the browser if you don't.
+
+**Unsubscribing now works by itself.** The recap advertised one-click
+unsubscribe, but the only address behind it was a human's inbox — someone had
+to read the request and switch the setting by hand. There is a real one-click
+link in the footer now, and the in-app toggle (*Settings → Weekly digest*) still
+does the same job.
+
+One more, for anyone who only uses the phone app: the recap was scheduled for
+10am — but the app never told the server which timezone you are in, so it
+arrived at 10am UTC, which is 6am in Puerto Rico. Opting in now records your
+timezone, so it lands on your Sunday morning.
+
+---
+
 ## 2026-08-15 — The email that lets you into your account stops landing in spam
 
 If you signed up and never got the confirmation email, it was probably sitting

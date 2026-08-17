@@ -640,9 +640,20 @@ export async function setPreferredLocale(uid: string, preferredLocale: string): 
 
 /** Opt in/out of the Sunday weekly recap email (sent server-side by a CF).
  *  Off by default; `lastWeeklyDigestSentAt` is server-stamped, never written
- *  by the client. */
+ *  by the client.
+ *
+ *  Writes `timezoneOffsetMin` alongside — mirrors the PWA's
+ *  `FirebaseService.setWeeklyDigestOptIn`. Without it the digest CF falls back
+ *  to offset 0, so it fired at **10:00 UTC** for every mobile-only user (06:00
+ *  in Puerto Rico, 03:00 on the US west coast) instead of their local Sunday
+ *  morning. Nothing else in this app wrote the field, so mobile opt-ins had
+ *  never carried a timezone at all. Refreshed on each toggle so travel and DST
+ *  correct themselves. */
 export async function setWeeklyDigestOptIn(uid: string, on: boolean): Promise<void> {
-  await updateDoc(userDoc(uid), { weeklyDigestOptIn: on });
+  await updateDoc(userDoc(uid), {
+    weeklyDigestOptIn: on,
+    timezoneOffsetMin: new Date().getTimezoneOffset(),
+  });
 }
 
 /** Promote the 2-question onboarding to a full Mifflin–St Jeor TDEE. Mirrors

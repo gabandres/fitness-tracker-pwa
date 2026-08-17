@@ -74,6 +74,13 @@
           }
         },
         {
+          "source": "/unsubscribe",
+          "function": {
+            "functionId": "unsubscribeWeeklyDigest",
+            "region": "us-central1"
+          }
+        },
+        {
           "source": "**",
           "destination": "/index.html"
         }

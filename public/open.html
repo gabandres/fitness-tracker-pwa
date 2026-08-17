@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Opening Ignia…</title>
+<link rel="icon" href="/favicon.png">
+
+<!--
+  /open — the "open the app" target for email and anywhere else outside the app.
+
+  WHY THIS FILE EXISTS. Ignia has no universal links yet: `apps/mobile/app.json`
+  declares no `associatedDomains` (iOS) and no `autoVerify` intent filter
+  (Android), so an `https://ignia.fit/...` link cannot be captured by the
+  installed app on either platform. Adding those is a NATIVE change — it moves
+  the EAS fingerprint, which would strand the iOS OTA that STATUS.md §2 is
+  holding for 1.2.0's approval. Until a build carries them, this redirector is
+  the only thing that can get an inbox to the app.
+
+  It hands off through the `ignia://` custom scheme, which is registered on
+  every shipped binary (build 24 and builds 41+; the unregistered window was
+  29–40, TestFlight-only — see apps/mobile/AGENTS.md).
+
+  WHEN UNIVERSAL LINKS LAND, this page should stay: include `/open` in the AASA
+  `paths` and the Android intent filter, and the app will intercept the URL
+  before the browser ever loads it. The page then only serves people without
+  the app — which is exactly what the visible half below is for.
+
+  Deliberately: no analytics, no external assets, no cookies. It must render
+  and act inside an email client's in-app browser.
+-->
+
+<style>
+  :root {
+    color-scheme: light dark;
+    --paper: #faf9f6; --ink: #1c1917; --muted: #57534e;
+    --line: #e7e5e2; --accent: #c62f27; --btn-fg: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #131210; --ink: #f3f1ec; --muted: #b3ada3;
+      --line: #2b2822; --accent: #ff8a5c; --btn-fg: #131210;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 460px; margin: 0 auto; padding: 72px 24px 48px; text-align: center; }
+  .eyebrow {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin: 0 0 12px;
+  }
+  h1 {
+    font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    font-style: italic; font-weight: 400; font-size: 30px; line-height: 1.15;
+    margin: 0 0 10px;
+  }
+  p { color: var(--muted); margin: 0 0 22px; }
+  .btn {
+    display: block; padding: 15px 22px; margin: 0 0 12px;
+    background: var(--ink); color: var(--btn-fg);
+    border-radius: 8px; text-decoration: none; font-weight: 700;
+  }
+  .btn.secondary {
+    background: transparent; color: var(--ink);
+    border: 1px solid var(--line); font-weight: 600;
+  }
+  footer { margin-top: 28px; font-size: 13px; color: var(--muted); }
+  footer a { color: var(--accent); }
+  [lang="es"] { display: block; margin-top: 6px; opacity: 0.75; font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Ignia</p>
+  <h1>Opening the app…</h1>
+  <p>
+    If nothing happens, pick one below.
+    <span lang="es">Si no pasa nada, elige una opción.</span>
+  </p>
+
+  <a class="btn" id="app" href="ignia://">Open Ignia</a>
+  <a class="btn secondary" id="store" href="https://apps.apple.com/app/id6788589414">Get Ignia for iPhone</a>
+  <a class="btn secondary" href="https://ignia.fit/app">Continue in the browser</a>
+
+  <footer>
+    <a href="https://ignia.fit">ignia.fit</a> ·
+    <a href="https://ignia.fit/support">Support</a> ·
+    <a href="https://ignia.fit/privacy">Privacy</a>
+  </footer>
+</main>
+
+<script>
+(function () {
+  var APP_STORE = 'https://apps.apple.com/app/id6788589414';
+  // Android is not on Play yet (STATUS.md §3 — production access is gated on
+  // Google's 14-day closed-test clock). Until it launches, an Android device
+  // without the app is sent to the PWA, which is the only thing it can
+  // actually run. SWAP THIS for the Play listing on launch day; it is both
+  // the button href and the `S.browser_fallback_url` below.
+  var ANDROID_FALLBACK = 'https://ignia.fit/app';
+  var WEB_APP = 'https://ignia.fit/app';
+  var SCHEME = 'ignia://';
+
+  /**
+   * Platform → what to do. Split out as a pure function of the two inputs it
+   * reads so all three branches can be exercised without three devices:
+   * load `/open?stay=1` and call `window.__igniaOpenTarget(ua, touchPoints)`.
+   */
+  function decide(ua, touchPoints) {
+    ua = ua || '';
+    if (/Android/.test(ua)) {
+      // The reliable Android hand-off: Chrome resolves the intent, and if the
+      // package is not installed it navigates to browser_fallback_url itself
+      // — no timers, no error page.
+      return {
+        platform: 'android',
+        url: 'intent://open#Intent;scheme=ignia;package=fit.ignia.app;' +
+             'S.browser_fallback_url=' + encodeURIComponent(ANDROID_FALLBACK) + ';end',
+        fallback: ANDROID_FALLBACK
+      };
+    }
+    // iPadOS 13+ reports as a Mac; the touch-point count is what separates it
+    // from a real desktop Safari.
+    if (/iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && touchPoints > 1)) {
+      return { platform: 'ios', url: SCHEME, fallback: APP_STORE };
+    }
+    return { platform: 'other', url: WEB_APP, fallback: WEB_APP };
+  }
+
+  window.__igniaOpenTarget = decide;
+
+  var plan = decide(navigator.userAgent, navigator.maxTouchPoints);
+
+  var storeLink = document.getElementById('store');
+  if (plan.platform === 'android') {
+    storeLink.textContent = 'Get Ignia for Android';
+    storeLink.href = plan.fallback;
+  } else if (plan.platform === 'other') {
+    // Desktop: the store button is noise. The browser is the honest answer.
+    storeLink.parentNode.removeChild(storeLink);
+  }
+
+  // `?stay=1` suppresses the hand-off so the page can be inspected — by a
+  // human eyeballing the fallback UI, or by a browser test calling
+  // `__igniaOpenTarget` above. It changes nothing for a real recipient.
+  if (/[?&]stay=1/.test(location.search)) return;
+
+  if (plan.platform === 'ios') {
+    // No equivalent of browser_fallback_url without universal links, so this
+    // is a race: fire the scheme, and if we are still visible ~1.2s later the
+    // app did not take over, so go to the App Store. `visibilitychange`
+    // cancels the fallback when the app DOES open — without it, returning to
+    // Safari later lands on the store page for no reason.
+    var cancelled = false;
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) cancelled = true;
+    });
+    window.addEventListener('pagehide', function () { cancelled = true; });
+
+    setTimeout(function () { location.href = plan.url; }, 0);
+    setTimeout(function () {
+      if (!cancelled && !document.hidden) location.replace(plan.fallback);
+    }, 1200);
+    return;
+  }
+
+  location.replace(plan.url);
+})();
+</script>
+</body>
+</html>

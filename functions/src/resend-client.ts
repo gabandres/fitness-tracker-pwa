@@ -71,23 +71,39 @@ export function getResend(): Resend {
 //   would either do nothing or lock someone out of account recovery.
 //   Filters do not penalise its absence on genuinely transactional mail.
 
-/** One-click unsubscribe (RFC 8058) — lifecycle mail only. */
-export function emailHeaders(): Record<string, string> {
+/**
+ * One-click unsubscribe (RFC 8058) — lifecycle mail only.
+ *
+ * `List-Unsubscribe-Post` is advertised **only** alongside an https URI,
+ * because RFC 8058 §1 defines one-click against an https target and nothing
+ * else. This pair used to ship with a `mailto:` alone, which is malformed: the
+ * provider's Unsubscribe button mailed a human, the recipient stayed
+ * subscribed, and the header claimed an automation that did not exist.
+ *
+ * The mailto is kept as the second URI — a real monitored mailbox is a
+ * legitimate fallback for clients that prefer it — but it is no longer the
+ * only one. `unsubscribe.ts` mints the https token per recipient.
+ */
+export function emailHeaders(unsubscribeUrl?: string): Record<string, string> {
+  const mailto = `<mailto:${REPLY_TO}?subject=unsubscribe>`;
+  if (!unsubscribeUrl) return { "List-Unsubscribe": mailto };
   return {
-    "List-Unsubscribe": `<mailto:${REPLY_TO}?subject=unsubscribe>`,
+    // https first: clients pick the first URI they can action.
+    "List-Unsubscribe": `<${unsubscribeUrl}>, ${mailto}`,
     "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
   };
 }
 
 /**
  * Default send options for lifecycle mail. Spread first, so a caller can
- * override any single field.
+ * override any single field. Pass the recipient's unsubscribe URL — omitting
+ * it silently downgrades the mail to a mailto-only opt-out.
  */
-export function baseSendOptions() {
+export function baseSendOptions(unsubscribeUrl?: string) {
   return {
     from: FROM_EMAIL,
     replyTo: REPLY_TO,
-    headers: emailHeaders(),
+    headers: emailHeaders(unsubscribeUrl),
   };
 }
 

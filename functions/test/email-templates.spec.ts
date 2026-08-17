@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   passwordResetEmail,
+  verifyEmailEmail,
   welcomeEmail,
   weeklyDigestEmail,
   type RenderedEmail,
@@ -27,12 +28,25 @@ function flat(s: string): string {
   return s.replace(/\s+/g, " ");
 }
 
+/** A representative one-click opt-out link, shaped like `unsubscribe.ts`
+ *  mints them. */
+const UNSUB = "https://ignia.fit/unsubscribe?u=abc123.DEADBEEFDEADBEEFDEADBE";
+
 const ALL: Array<[string, RenderedEmail]> = [
   ...LOCALES.flatMap((locale): Array<[string, RenderedEmail]> => [
-    [`welcome/${locale}`, welcomeEmail({ locale, displayName: "Ada Lovelace" })],
+    [
+      `welcome/${locale}`,
+      welcomeEmail({ locale, displayName: "Ada Lovelace", unsubscribeUrl: UNSUB }),
+    ],
     [
       `reset/${locale}`,
       passwordResetEmail({ locale, resetLink: "https://example.com/r?oob=abc", displayName: null }),
+    ],
+    // Was absent from this list entirely, which left the highest-stakes mail
+    // Ignia sends — the signup wall — with no structural coverage at all.
+    [
+      `verify/${locale}`,
+      verifyEmailEmail({ locale, verifyLink: "https://example.com/v?oob=abc", displayName: null }),
     ],
     [
       `digest/${locale}`,
@@ -44,10 +58,14 @@ const ALL: Array<[string, RenderedEmail]> = [
         weightDeltaLbs: -1.4,
         daysLogged: 6,
         streak: 12,
+        unsubscribeUrl: UNSUB,
       }),
     ],
   ]),
 ];
+
+/** Every template that a recipient can opt out of. */
+const LIFECYCLE = ["welcome", "digest"] as const;
 
 describe("every template", () => {
   for (const [name, email] of ALL) {
@@ -175,6 +193,125 @@ describe("welcome email", () => {
   });
 });
 
+describe("the 'open the app' call to action", () => {
+  // Mobile is the product (ADR-0015) and the web logging surfaces are frozen
+  // (ADR-0022). A recap that lands a phone user on `/app` drops them into the
+  // surface that is no longer being built — which is exactly what shipped.
+  // `/open` hands off to the installed app and falls back per platform.
+  it("points at /open, never at the PWA", () => {
+    for (const kind of LIFECYCLE) {
+      for (const locale of LOCALES) {
+        const { html, text } = ALL.find(([n]) => n === `${kind}/${locale}`)![1];
+        expect(html).toContain('href="https://ignia.fit/open"');
+        expect(text).toContain("https://ignia.fit/open");
+        // The old target. `/open` must not merely be added alongside it.
+        expect(html).not.toContain('href="https://ignia.fit/app"');
+        expect(text).not.toContain("https://ignia.fit/app");
+      }
+    }
+  });
+
+  it("keeps the CTA an absolute https URL", () => {
+    // A relative href or a bare `ignia://` in the button would be dead in an
+    // inbox: mail clients resolve nothing and block unknown schemes.
+    for (const kind of LIFECYCLE) {
+      const { html } = ALL.find(([n]) => n === `${kind}/en`)![1];
+      const hrefs = [...html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+      expect(hrefs.length).toBeGreaterThan(0);
+      for (const href of hrefs) expect(href.startsWith("https://")).toBe(true);
+    }
+  });
+});
+
+describe("one-click unsubscribe", () => {
+  it("puts the link in the body of every lifecycle mail", () => {
+    // The RFC 8058 header alone is not enough: Gmail hides its own
+    // unsubscribe affordance behind a reputation check, so a recipient who
+    // cannot find one reports spam instead.
+    for (const kind of LIFECYCLE) {
+      for (const locale of LOCALES) {
+        const { html, text } = ALL.find(([n]) => n === `${kind}/${locale}`)![1];
+        expect(html).toContain(`href="${UNSUB}"`);
+        expect(text).toContain(UNSUB);
+      }
+    }
+  });
+
+  it("degrades to plain copy when no URL is supplied", () => {
+    // The parameter is optional, and a missing one must not render a dead
+    // link or the literal word "undefined".
+    for (const locale of LOCALES) {
+      const digest = weeklyDigestEmail({
+        locale,
+        displayName: null,
+        avgCalories: 2000,
+        avgProtein: 150,
+        weightDeltaLbs: null,
+        daysLogged: 4,
+        streak: 4,
+      });
+      const welcome = welcomeEmail({ locale, displayName: null });
+      for (const { html } of [digest, welcome]) {
+        expect(html).not.toMatch(/href="[^"]*undefined/);
+        expect(html).not.toMatch(/href="[^"]*unsubscribe\?u="/);
+      }
+    }
+  });
+
+  it("stays off transactional mail", () => {
+    // Security mail is not opt-out. Advertising one here would either no-op
+    // or lock someone out of account recovery.
+    for (const locale of LOCALES) {
+      for (const mail of [
+        passwordResetEmail({ locale, resetLink: "https://example.com/r" }),
+        verifyEmailEmail({ locale, verifyLink: "https://example.com/v" }),
+      ]) {
+        expect(mail.html).not.toMatch(/href="[^"]*\/unsubscribe/i);
+      }
+    }
+  });
+});
+
+describe("verification email", () => {
+  const LINK = "https://ignia.fit/__/auth/action?mode=verifyEmail&oobCode=XYZ123";
+
+  it("puts the link in the button AND as selectable text", () => {
+    // Same reasoning as the reset mail, and higher stakes: this one is the
+    // signup wall. `firestore.rules` blocks every write until the address is
+    // verified, so a recipient who cannot action it has a walled account.
+    const { html, text } = verifyEmailEmail({ locale: "en", verifyLink: LINK });
+    expect(html).toContain(`href="${LINK}"`);
+    expect(html.split(LINK).length - 1).toBeGreaterThanOrEqual(2);
+    expect(text).toContain(LINK);
+  });
+
+  it("states the expiry window in both locales", () => {
+    expect(verifyEmailEmail({ locale: "en", verifyLink: LINK }).text).toContain("one hour");
+    expect(verifyEmailEmail({ locale: "es-PR", verifyLink: LINK }).text).toContain("una hora");
+  });
+
+  it("pluralises a non-default expiry", () => {
+    expect(verifyEmailEmail({ locale: "en", verifyLink: LINK, expiresInHours: 6 }).text)
+      .toContain("6 hours");
+    expect(verifyEmailEmail({ locale: "es-PR", verifyLink: LINK, expiresInHours: 6 }).text)
+      .toContain("6 horas");
+  });
+
+  it("escapes a hostile display name", () => {
+    const { html } = verifyEmailEmail({
+      locale: "en",
+      verifyLink: LINK,
+      displayName: '<script>alert("x")</script>',
+    });
+    expect(html).not.toContain("<script>");
+  });
+
+  it("warns that Ignia never asks for a password", () => {
+    expect(flat(verifyEmailEmail({ locale: "en", verifyLink: LINK }).text))
+      .toContain("never email you asking for your password");
+  });
+});
+
 describe("password reset email", () => {
   const LINK = "https://ignia.fit/__/auth/action?mode=resetPassword&oobCode=XYZ123";
 
@@ -283,7 +420,7 @@ describe("weekly digest email", () => {
 describe("locale parity", () => {
   it("produces a different subject per locale for every template", () => {
     // Catches a template that silently forgot its es-PR branch.
-    for (const kind of ["welcome", "reset", "digest"] as const) {
+    for (const kind of ["welcome", "reset", "verify", "digest"] as const) {
       const en = ALL.find(([n]) => n === `${kind}/en`)![1];
       const es = ALL.find(([n]) => n === `${kind}/es-PR`)![1];
       expect(es.subject).not.toBe(en.subject);

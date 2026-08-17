@@ -3,6 +3,7 @@ import { getAuth } from "firebase-admin/auth";
 import { onDocumentUpdated, onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { getResend, baseSendOptions, resendApiKey } from "./resend-client";
 import { welcomeEmail } from "./email-templates";
+import { unsubscribeUrl } from "./unsubscribe";
 import { db } from "./init";
 
 // ─── Welcome email on profile completion ────────────────────────────
@@ -59,7 +60,14 @@ export const sendWelcomeEmail = onDocumentUpdated(
       (after.displayName as string | undefined) ??
       (await getAuth().getUser(uid).then((u) => u.displayName).catch(() => null));
 
-    const { subject, html, text } = welcomeEmail({ locale, displayName });
+    // Lifecycle mail carries a working one-click opt-out. The only recurring
+    // mail Ignia sends is the weekly digest, so that is what it turns off.
+    const unsubUrl = unsubscribeUrl(uid, resendApiKey.value());
+    const { subject, html, text } = welcomeEmail({
+      locale,
+      displayName,
+      unsubscribeUrl: unsubUrl,
+    });
 
     // Never log email addresses — Cloud Logging is 30d-retained and
     // visible to any project collaborator. Stick to uid; an operator
@@ -67,7 +75,7 @@ export const sendWelcomeEmail = onDocumentUpdated(
     try {
       const resend = getResend();
       const { error } = await resend.emails.send({
-        ...baseSendOptions(),
+        ...baseSendOptions(unsubUrl),
         to: email,
         subject,
         html,
