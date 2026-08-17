@@ -52,10 +52,22 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
   firebase deploy --only hosting`, or the corrected file reaches nobody.
 - **The EAS Update fingerprint is machine-dependent — publish from `ignia-mac`,
   never from Windows.** The same commit fingerprints differently on the two
-  machines (a Windows-only prebuild dir, CRLF-vs-LF, divergent `node_modules`).
-  Every binary is built on the Mac, so the Mac's value is the one they carry.
-  Three OTAs once published under Windows numbers and reached **nobody** — a
-  failure indistinguishable from a working update.
+  machines (CRLF-vs-LF and divergent `node_modules`; a Windows-only prebuild dir
+  was also blamed until 2026-08-17, when it was measured to contribute nothing —
+  `dir:android` is listed as a fingerprint source but does not change the hash).
+  Every *shipped* binary is built on the Mac, so the Mac's value is the one they
+  carry: the `production` channel's Android branch points at
+  `6519916642c291db8255d433bf651e26c66a28b4` (vc 30). Three OTAs once published
+  under Windows numbers and reached **nobody** — indistinguishable from a working
+  update.
+  **The rule holds today, but its reason is now conditional.** Windows *can*
+  build a signed, OTA-capable AAB (2026-08-17, vc 31, verifier-green, fingerprint
+  `3d3bc410…`) — see `docs/build-infrastructure.md`. Nothing in the field carries
+  that runtime, so publishing from Windows still reaches nobody. If a
+  Windows-built binary is ever shipped to Play, this rule **inverts for Android
+  only** and `.claude/hooks/guard_eas_update.py` must be made platform-aware in
+  the same change — and note that bare `eas update` publishes BOTH platforms, so
+  under a split build host every publish must be `--platform`-scoped.
 
 ### The measurement that should shape the next decision
 
