@@ -173,9 +173,14 @@ function verifyAab(path) {
   // 2. The OTA channel. Without it the binary is an update dead end, silently —
   //    that shipped once as vc 10 and is why vc 11 exists.
   try {
+    // No `| strings`: it is absent from Git Bash on Windows, which silently made
+    // this gate unrunnable on a machine that can build an AAB — and this is the
+    // check that catches the missing-channel defect. The protobuf manifest
+    // decodes with replacement chars around the binary framing, but ASCII runs
+    // survive intact, which is all these substring tests need.
     const manifest = sh('sh', [
       '-c',
-      `unzip -p '${path}' base/manifest/AndroidManifest.xml | strings`,
+      `unzip -p '${path}' base/manifest/AndroidManifest.xml`,
     ]);
     if (manifest.includes(`"expo-channel-name":"${EXPECT.android.channel}"`)) {
       ok('expo-channel-name', EXPECT.android.channel);

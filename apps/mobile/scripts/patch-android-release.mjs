@@ -1,17 +1,38 @@
 /**
- * OBSOLETE as of 2026-08-07 — do not use for anything shippable.
+ * Prepare a prebuilt `android/` for a signed release build **off** EAS Build.
  *
- * Android is built with `eas build -p android --local` on the Mac, which does
- * everything below AND the one thing this script cannot: inject the EAS Update
- * **channel** into `AndroidManifest.xml`. `expo prebuild` never reads `eas.json`,
- * so a raw-Gradle build omits the channel and the resulting binary silently
- * cannot receive OTA updates — it compiles, signs, and ships, and then calls
- * `u.expo.dev` with no `expo-channel-name` header. That is exactly what shipped
- * as vc 10 before anyone checked.
+ * ## Why this stopped being obsolete — 2026-08-17
  *
- * Kept as the record of what a raw-Gradle build has to fake by hand, and because
- * the signing and versionCode logic documents traps in Expo's template that are
- * still true. See `DEV_ENVIRONMENT.md` §3.11 and the `build-android` skill.
+ * This script was marked OBSOLETE on 2026-08-07 for one specific reason: it
+ * could not inject the EAS Update **channel** into `AndroidManifest.xml`.
+ * `expo prebuild` never reads `eas.json`, so a raw-Gradle build omitted the
+ * channel and the binary silently could not receive OTA updates — it compiled,
+ * signed, and shipped, then called `u.expo.dev` with no `expo-channel-name`
+ * header. That shipped as vc 10, which is why vc 11 exists.
+ *
+ * Step 4 below closes exactly that gap, so the reason for the obsolescence is
+ * gone. Expo documents this as a first-class path ("Using EAS Update without
+ * EAS Build"): the channel is a request header, and the Android manifest key
+ * that carries it is
+ * `expo.modules.updates.UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY` — read out
+ * of `expo-updates`' own `UpdatesConfiguration.kt:253`, not out of a doc.
+ *
+ * **`eas build --local` on a Mac is still the preferred path** when a Mac is
+ * available: it does all of this without a hand-rolled patch. This exists
+ * because `eas build --local` refuses to run Android off Linux/macOS
+ * (`eas-cli`'s `checkRuntime.ts`), so a Windows workstation cannot use it at
+ * all. Verify the result rather than trusting it — the failure mode here is
+ * silent by construction:
+ *
+ *     unzip -p app-release.aab base/manifest/AndroidManifest.xml \
+ *       | grep -a -c expo-channel-name        # must be >= 1
+ *
+ * **The channel is deliberately NOT put in `app.json`.** `updates.requestHeaders`
+ * would work and is the documented CNG option, but `app.json` is hashed *whole*
+ * for the fingerprint runtime policy, so adding a key there moves BOTH
+ * platforms' runtime versions — including iOS, whose build 55 is the pending
+ * App Store binary. Patching the gitignored `android/` keeps the blast radius
+ * on the platform and machine actually doing the build.
  *
  * ---
  *
@@ -33,7 +54,9 @@
  *    then push the same number back to EAS (`eas build:version:set`) or the next
  *    cloud build will re-mint it and collide at Play.
  *
- * Usage: node scripts/patch-android-release.mjs <versionCode>
+ * Usage: node scripts/patch-android-release.mjs <versionCode> [channel]
+ *   channel defaults to "production" — it must match a channel that exists on
+ *   EAS (`eas channel:list`), or the build calls a channel nothing publishes to.
  */
 import { readFileSync, writeFileSync, existsSync, appendFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -44,9 +67,10 @@ const mobileRoot = resolve(here, '..');
 
 const versionCode = process.argv[2];
 if (!/^\d+$/.test(versionCode ?? '')) {
-  console.error('usage: node scripts/patch-android-release.mjs <versionCode>');
+  console.error('usage: node scripts/patch-android-release.mjs <versionCode> [channel]');
   process.exit(1);
 }
+const channel = process.argv[3] ?? 'production';
 
 const credsPath = resolve(mobileRoot, 'credentials.json');
 if (!existsSync(credsPath)) {
@@ -143,3 +167,36 @@ if (sentryApply.test(gradle)) {
 }
 
 writeFileSync(buildGradlePath, gradle);
+
+// --- 4. AndroidManifest.xml: the EAS Update channel ---
+// The whole reason a raw-Gradle build was forbidden. `expo prebuild` does not read
+// `eas.json`, so nothing writes the channel; expo-updates then sends no
+// `expo-channel-name` header and the binary can never receive an update. Nothing
+// errors at build time or at runtime — it just never updates, which is what vc 10
+// did. Key name is from `expo-updates/android/.../UpdatesConfiguration.kt:253`.
+const manifestPath = resolve(mobileRoot, 'android/app/src/main/AndroidManifest.xml');
+let manifest = readFileSync(manifestPath, 'utf8');
+
+const HEADERS_KEY = 'expo.modules.updates.UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY';
+if (manifest.includes(HEADERS_KEY)) {
+  console.log('AndroidManifest.xml: update request headers already present');
+} else {
+  // Anchored on EXPO_UPDATE_URL. If expo-updates is not configured at all, a
+  // channel is meaningless — fail loudly rather than ship a binary that silently
+  // cannot update, which is the exact failure this step exists to prevent.
+  const anchor = /( *)<meta-data android:name="expo\.modules\.updates\.EXPO_UPDATE_URL".*?\/>/;
+  if (!anchor.test(manifest)) {
+    console.error(
+      'EXPO_UPDATE_URL absent from AndroidManifest.xml — expo-updates is not configured.\n' +
+        'Refusing to inject a channel into a build that could not update anyway.',
+    );
+    process.exit(1);
+  }
+  const value = JSON.stringify({ 'expo-channel-name': channel }).replace(/"/g, '&quot;');
+  manifest = manifest.replace(
+    anchor,
+    (line, indent) => `${line}\n${indent}<meta-data android:name="${HEADERS_KEY}" android:value="${value}"/>`,
+  );
+  writeFileSync(manifestPath, manifest);
+  console.log(`AndroidManifest.xml: EAS Update channel "${channel}" injected`);
+}
