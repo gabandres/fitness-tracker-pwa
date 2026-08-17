@@ -31,7 +31,15 @@ try:
 except Exception:
     pass
 
-DIST = os.path.join("dist", "fitness-tracker-pwa", "browser")
+# GUARD_DIST_ROOT is a TEST SEAM, not a configuration knob. The check reads the
+# real filesystem, so without it the matrix in test_guards.py asserts whatever
+# dist happens to be on disk: the freshness cases passed only when dist was
+# stale or absent, and went red the moment anyone ran a build. A guard whose
+# test suite is red for a legitimate reason stops being read at all, which is
+# the failure this file exists to prevent one level down.
+DIST = os.environ.get(
+    "GUARD_DIST_ROOT", os.path.join("dist", "fitness-tracker-pwa", "browser")
+)
 NGSW = os.path.join(DIST, "ngsw.json")
 
 

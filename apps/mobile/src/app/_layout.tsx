@@ -100,7 +100,7 @@ function ThemedStatusBar() {
 
 const styles = StyleSheet.create({
   splash: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     // Sit above the tab bar's raised Log FAB (zIndex 30 / elevation) so the

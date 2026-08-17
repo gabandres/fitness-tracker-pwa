@@ -33,7 +33,13 @@ module.exports = {
     // `firebase`/`@firebase` ship untranspiled ESM and are imported by
     // src/lib/auth.tsx, so any test that requireActual's the auth module hits
     // "Unexpected token 'export'" from inside node_modules without them here.
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|@react-native-google-signin/.*|firebase|@firebase/.*))',
+    //
+    // `standard-navigation` joined the list in Expo SDK 57: expo-router 57
+    // vendored react-navigation and now depends on that package instead, and it
+    // ships untranspiled ESM. Every suite that `requireActual('expo-router')`
+    // fails with "Cannot use import statement outside a module" without it —
+    // four of them did on the SDK 57 bump.
+    'node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|standard-navigation|@sentry/react-native|native-base|react-native-svg|@react-native-google-signin/.*|firebase|@firebase/.*))',
   ],
   collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.d.ts'],
 };

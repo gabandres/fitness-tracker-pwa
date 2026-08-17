@@ -26,6 +26,12 @@ until now.
 
 Read-only subcommands (`update:list`, `update:view`, `--help`) are allowed.
 
+`--environment` is also required, and this guard enforces it. eas-cli's own help
+says *"Required for projects using Expo SDK 55 or greater"*, and this app is on
+57 -- so every suggestion printed below carries it. That failure is loud rather
+than silent, unlike the host routing above; it is checked here so that anything
+this guard lets through is a command that actually runs.
+
 Gate before publishing: compare `npx expo-updates fingerprint:generate
 --platform <p>` against the fingerprint read out of the shipped artifact
 (`apps/mobile/AGENTS.md`), on the machine that owns that platform.
@@ -49,6 +55,9 @@ PUBLISH = re.compile(r"^eas(?:-cli)?\s+update(?!:)(?:\s|$)")
 PLATFORM = re.compile(r"(?:--platform|(?<![\w-])-p)[=\s]+([a-zA-Z]+)")
 
 MAC = re.compile(r"\bssh\s+ignia-mac\b")
+
+# `--environment production`, `--environment=production`. Required from SDK 55.
+ENVIRONMENT = re.compile(r"--environment[=\s]+\S+")
 
 # Which host owns which platform. Update this table when a build host moves --
 # it is the single place the routing lives.
@@ -153,9 +162,11 @@ if platform not in OWNER:
         "half would land on a runtime nobody runs -- exit 0, a group id "
         "printed, zero devices reached.",
         "Publish them separately, each from its own host:\n"
-        "  npx eas update --platform android --branch production ...\n"
+        "  npx eas update --platform android --branch production "
+        "--environment production ...\n"
         '  ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && '
-        'npx eas update --platform ios --branch production ..."',
+        "npx eas update --platform ios --branch production "
+        '--environment production ..."',
     )
 
 owner = OWNER[platform]
@@ -163,13 +174,14 @@ if owner != here:
     if owner == "mac":
         fix = (
             'ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && '
-            f'npx eas update --platform {platform} --branch production ..."'
+            f"npx eas update --platform {platform} --branch production "
+            '--environment production ..."'
         )
     else:
         fix = (
             "Run it directly on this Windows workstation (no ssh wrapper):\n"
             f"  cd apps/mobile && npx eas update --platform {platform} "
-            "--branch production ..."
+            "--branch production --environment production ..."
         )
     block(
         f"{platform} binaries are built on the "
@@ -179,6 +191,15 @@ if owner != here:
         "land on a runtime no shipped binary carries and reach NOBODY -- "
         "indistinguishable from success.",
         f"Gate first, then publish from the owning host:\n  {fix}",
+    )
+
+if not ENVIRONMENT.search(cmd):
+    block(
+        "`eas update` is missing --environment, which eas-cli requires for "
+        "projects on Expo SDK 55 or greater. This app is on 57.",
+        "Add the environment the update is published against:\n"
+        f"  npx eas update --platform {platform} --branch production "
+        "--environment production ...",
     )
 
 sys.exit(0)

@@ -21,6 +21,18 @@ jest.mock('react-native-keyboard-controller', () => ({
   KeyboardAwareScrollView: ({ children }) => children,
 }));
 
+// Reanimated 4 (SDK 57) split its worklets runtime into `react-native-worklets`,
+// and `react-native-reanimated/mock` is no longer self-contained: it loads the
+// real index, which loads `NativeWorklets.native.ts`, which calls
+// `loadUnpackers()` against a native module that does not exist under jest. The
+// symptom is a throw from inside node_modules on any suite that touches an
+// animated screen — three of them on the SDK 57 bump.
+//
+// Worklets ships its own complete jest mock; point at it directly. The package
+// also ships `jest/resolver.js` for this, but jest-expo already sets a
+// `resolver` to emulate Expo's Metro aliases, and a config may only have one.
+jest.mock('react-native-worklets', () => require('react-native-worklets/lib/module/mock'));
+
 // Reanimated ships its own complete jest mock. Use it wholesale — a
 // hand-written partial silently drops hooks (useSharedValue, useReducedMotion)
 // that this app's motion helpers depend on.

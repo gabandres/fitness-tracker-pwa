@@ -42,6 +42,13 @@ example
 /ios
 /android
 
+# Gradle output inside the LOCAL Expo modules. Unlike /android above, these
+# module directories are tracked, so their build/ output was untracked but not
+# ignored — and `git add` on it dies with "Filename too long" on Windows, since
+# the generated .dex names run past MAX_PATH. It never affected the fingerprint
+# (a dir: source hashes only git-tracked content), just every add and status.
+/modules/*/android/build/
+
 # local signing credentials — never commit the keystore or its passwords
 /credentials.json
 /credentials/

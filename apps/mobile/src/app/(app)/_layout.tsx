@@ -1,6 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ComponentProps } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Tabs } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,13 +26,22 @@ const LEFT_TABS = ['index', 'train'];
 const RIGHT_TABS = ['trends', 'body'];
 
 /**
+ * expo-router 57 vendored react-navigation and dropped its `@react-navigation/*`
+ * dependencies, so `BottomTabBarProps` is no longer importable from there. Derive
+ * the props from what `<Tabs>` actually hands its `tabBar` — that stays correct
+ * across expo-router patches, where a deep import into `expo-router/build/…`
+ * would not.
+ */
+type AppTabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
+
+/**
  * Custom tab bar: 4 destinations split around the raised coral **Log
  * button** — the one-thumb log action from anywhere. It navigates to Today
  * with an `openAdd` nonce; Today opens the EntrySheet, so every log ends
  * with the hero ring re-sweeping to the new total (the built-in
  * celebration).
  */
-function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();

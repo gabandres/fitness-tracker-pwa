@@ -23,7 +23,7 @@ F = "guard_firestore_import.py"
 failures = []
 
 
-def run(hook, tool_input):
+def run(hook, tool_input, env=None):
     r = subprocess.run(
         [sys.executable, os.path.join(HOOKS, hook)],
         input=json.dumps({"tool_input": tool_input}),
@@ -31,12 +31,13 @@ def run(hook, tool_input):
         text=True,
         encoding="utf-8",
         cwd=ROOT,
+        env={**os.environ, **(env or {})},
     )
     return "BLOCK" if r.returncode == 2 else "allow"
 
 
-def case(hook, tool_input, label, expect):
-    got = run(hook, tool_input)
+def case(hook, tool_input, label, expect, env=None):
+    got = run(hook, tool_input, env)
     ok = got == expect
     if not ok:
         failures.append(label)
@@ -64,7 +65,16 @@ case(D, cmd("firebase deploy --only hosting --dry-run"), "dry-run", "allow")
 print("\n-- firebase deploy: build freshness --")
 case(D, cmd("npm run build && firebase deploy"), "documented build && deploy", "allow")
 case(D, cmd("npm run build && firebase deploy --only hosting"), "build && deploy hosting", "allow")
-case(D, cmd("firebase deploy && npm run build"), "deploy BEFORE build (wrong order)", "BLOCK")
+# The guard's contract is "does this dist verify", NOT "did you build" -- so a
+# deploy with a verifying dist on disk is allowed whatever the command order.
+# These two cases used to assert the opposite and therefore passed only when
+# dist was stale or absent; they went red after any build, which is a red matrix
+# that means nothing. GUARD_DIST_ROOT points the guard at a directory that
+# provably has no ngsw.json, so the outcome no longer depends on the machine.
+MISSING_DIST = {"GUARD_DIST_ROOT": os.path.join(ROOT, ".claude", "hooks", "no-such-dist")}
+case(D, cmd("firebase deploy && npm run build"), "deploy with NO dist (unbuilt)", "BLOCK", MISSING_DIST)
+case(D, cmd("firebase deploy --only hosting"), "deploy hosting with NO dist", "BLOCK", MISSING_DIST)
+case(D, cmd("firebase deploy --only functions"), "functions-only ignores dist", "allow", MISSING_DIST)
 
 print("\n-- eas update --")
 case(E, cmd("echo 'npx eas update --branch production'"), "echo mentioning eas update", "allow")
@@ -76,12 +86,16 @@ case(E, cmd("npx eas build -p ios --local"), "eas build", "allow")
 case(E, cmd("cd apps/mobile && npx eas update --branch production"), "bare update on Windows (no --platform)", "BLOCK")
 case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --branch production"'), "bare update via ignia-mac (no --platform)", "BLOCK")
 case(E, cmd("cd apps/mobile && npx eas update --platform all --branch production"), "--platform all", "BLOCK")
-# Android belongs to Windows now.
-case(E, cmd("cd apps/mobile && npx eas update --platform android --branch production"), "android from Windows (owner)", "allow")
-case(E, cmd("cd apps/mobile && npx eas update -p android --branch production"), "android from Windows, short -p", "allow")
-case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform android --branch production"'), "android via ignia-mac (wrong host)", "BLOCK")
+# Android belongs to Windows now. Every allowed publish must also carry
+# --environment, which eas-cli requires from Expo SDK 55 (this app is on 57).
+case(E, cmd("cd apps/mobile && npx eas update --platform android --branch production --environment production"), "android from Windows (owner)", "allow")
+case(E, cmd("cd apps/mobile && npx eas update -p android --branch production --environment production"), "android from Windows, short -p", "allow")
+case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform android --branch production --environment production"'), "android via ignia-mac (wrong host)", "BLOCK")
 # iOS still belongs to the Mac.
-case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform ios --branch production"'), "ios via ignia-mac (owner)", "allow")
+case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform ios --branch production --environment production"'), "ios via ignia-mac (owner)", "allow")
+# Correctly routed, but missing the SDK 55+ required flag.
+case(E, cmd("cd apps/mobile && npx eas update --platform android --branch production"), "android from Windows, no --environment", "BLOCK")
+case(E, cmd("cd apps/mobile && npx eas update --platform android --branch production --environment=production"), "--environment= form", "allow")
 case(E, cmd("cd apps/mobile && npx eas update --platform ios --branch production"), "ios from Windows (wrong host)", "BLOCK")
 # Mentions, not invocations. The `|` inside a quoted regex used to split into a
 # phantom segment starting with `eas update` and block a plain grep (2026-08-17).
