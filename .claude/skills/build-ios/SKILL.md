@@ -72,8 +72,12 @@ Anything but `200` is a stop.
 
 ## Step 2 — launch detached, with a sentinel
 
-**Never run the build in an SSH foreground** — the connection dropping kills it,
-and a dead SSH is indistinguishable from a finished process.
+**Never run the build in an SSH foreground, and `caffeinate` is not a substitute
+for `nohup`.** Caffeinate stops the Mac sleeping; it does not stop a closing SSH
+session from killing the process group. An SSH-attached build dies with
+`** BUILD INTERRUPTED ** / Process crashed` and **no `error:` line anywhere** —
+a signature that reads like a linker crash and costs an hour of hunting a
+compiler bug that is not there (measured 2026-08-17, SDK 57).
 
 ```sh
 ssh ignia-mac "cat > ~/run-ios-build.sh <<'EOF'
