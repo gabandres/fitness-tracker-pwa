@@ -155,6 +155,52 @@ rewrite answers 200 for everything else. Both were inspected: unknown to
 Google. If it is a URL that should not exist, a 404 is the correct answer and
 there is nothing to fix; the GSC UI drill-down names it in one click.
 
+## The floor, shipped 2026-08-17
+
+Chosen against two alternatives — do nothing, or real prerendering
+(`@angular/ssr`) — on the grounds that it is the most that can be done without
+putting SSR into an auth-gated, Firestore-backed app. It does **not** make the
+pages render server-side. It stops them being empty and unlinked.
+
+- **The four self-canonicalizing URLs are gone.** `/privacy`, `/terms`,
+  `/changelog` and `/status` were in `SITEMAP_ONLY` — the block whose own
+  comment warns that anything with per-URL copy left there "ships the shell's
+  canonical and self-declares as a homepage duplicate". They now have
+  prerendered files with their own title, description and canonical, in **both**
+  locales; the Spanish halves were not in the sitemap at all before. Sitemap:
+  114 → **118** URLs. `/privacy` is the URL Apple requires and `/terms` the one
+  the store listing points at, so these were the worst four to have duplicated.
+- **Every prerendered page carries a crawlable link graph.** A static
+  `<footer>` outside `<app-root>` — so Angular never touches it and it survives
+  hydration — with calculators, comparisons, macro brackets, product and legal
+  links, localised. **1 internal link per page → 32** (39 on a bracket page).
+  Bracket pages link their siblings, so all 36 are reachable in two hops from
+  any one of them.
+- **A `<noscript>` heading + description on every page.** Without JS these
+  pages said nothing but "Please enable JavaScript"; now they state what the
+  page is. First-pass crawlers read it too.
+- **Landing pages take the same links inside `<noscript>`** — they already
+  render their own footer, and a second visible one would read as a mistake.
+
+**The English homepage is still linkless, and that is deliberate.** `/` is the
+shell (`index.html`), which the hosting catch-all also serves for `/app` and
+every SPA route, so injecting a footer there would put a site map inside the
+logged-in app. Entry into the link graph is via `/download` (hand-written,
+already indexed, already links out) and any prerendered page reached from the
+sitemap.
+
+**What this does not fix.** The body is still `<app-root></app-root>` plus a
+footer — the page's actual content still requires JS. If the pages get crawled
+and dropped as thin, that is the remaining half, and the fix is real
+prerendering, not more of this.
+
+**When testing this by hand, kill the service worker first.** `navigationUrls`
+in `ngsw-config.json` excludes only `/support`, `/download` and `/tip`, so a
+returning visitor is served the **cached shell** for every other route and sees
+no footer and the homepage's `<head>`. That cost an hour of confusion here.
+Left as-is on purpose: excluding those routes would trade offline support for
+something no crawler can see, since a crawler never has a warm cache.
+
 ## How to check
 
 ```sh

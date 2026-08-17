@@ -90,6 +90,25 @@ const COPY = {
     crumbComparisons: 'Comparisons',
     crumbFaq: 'FAQ',
     macrosAbout: (weight, goal) => `Daily macro targets for ${weight} lb (${goal})`,
+    privacy:
+      'What Ignia stores, what it never collects, and how to delete your account and data. No ads, no data selling, no cross-site tracking.',
+    terms: 'The terms you agree to when you use Ignia. Plain language, no dark patterns.',
+    changelog: 'Every significant change to Ignia, newest first — what shipped and when.',
+    status: "Live health of the services behind Ignia, refreshed automatically.",
+    // Footer link graph.
+    navCalculators: 'Calculators',
+    navComparisons: 'Compare',
+    navTargets: 'Macro targets',
+    navProduct: 'Ignia',
+    navLegal: 'Legal',
+    navSiteMap: 'Site map',
+    navHome: 'Home',
+    navApp: 'Open the app',
+    navDownload: 'Get the iPhone app',
+    navSupport: 'Support',
+    navAllWeights: 'All weights',
+    goalLabel: { lose: 'Lose', maintain: 'Maintain', gain: 'Gain' },
+    otherLang: 'English',
   },
   es: {
     home: 'Un registro de calorías y proteína privado y sin ruido, con entrenador de IA y registro de pesas de verdad. TDEE medido con tus propios datos. Gratis en iPhone y en cualquier navegador.',
@@ -104,6 +123,25 @@ const COPY = {
     crumbComparisons: 'Comparaciones',
     crumbFaq: 'Preguntas frecuentes',
     macrosAbout: (weight, goal) => `Metas diarias de macros para ${weight} lb (${goal})`,
+    privacy:
+      'Qué guarda Ignia, qué nunca recoge y cómo borrar tu cuenta y tus datos. Sin anuncios, sin venta de datos, sin rastreo entre sitios.',
+    terms: 'Los términos que aceptas al usar Ignia. En lenguaje claro y sin trampas.',
+    changelog: 'Cada cambio importante en Ignia, del más reciente al más viejo.',
+    status: 'Estado en vivo de los servicios detrás de Ignia, actualizado automáticamente.',
+    // Footer link graph.
+    navCalculators: 'Calculadoras',
+    navComparisons: 'Comparar',
+    navTargets: 'Metas de macros',
+    navProduct: 'Ignia',
+    navLegal: 'Legal',
+    navSiteMap: 'Mapa del sitio',
+    navHome: 'Inicio',
+    navApp: 'Abrir la app',
+    navDownload: 'Consigue la app de iPhone',
+    navSupport: 'Soporte',
+    navAllWeights: 'Todos los pesos',
+    goalLabel: { lose: 'Bajar', maintain: 'Mantener', gain: 'Subir' },
+    otherLang: 'Español',
   },
 };
 
@@ -196,10 +234,29 @@ const SITEMAP_ONLY = [
     priority: 0.5,
     alternates: staticPair('/support', '/es/support'),
   },
-  { path: '/privacy', changefreq: 'monthly', priority: 0.5 },
-  { path: '/terms', changefreq: 'monthly', priority: 0.5 },
-  { path: '/changelog', changefreq: 'weekly', priority: 0.6 },
-  { path: '/status', changefreq: 'always', priority: 0.4 },
+];
+
+/**
+ * SPA views that have per-URL copy and now get a prerendered file each, in
+ * both locales, instead of the shell.
+ *
+ * They used to sit in `SITEMAP_ONLY` above — which is precisely the failure
+ * that block's own comment warns about. Measured 2026-08-17: `/privacy`,
+ * `/terms`, `/changelog` and `/status` each served the homepage's `<title>`
+ * and `canonical=https://ignia.fit/`, so all four told Google they were
+ * duplicates of the homepage and none could ever be indexed on its own. That
+ * is the same defect `docs/seo-status.md` records as fixed for nine other
+ * URLs on 2026-07-29; these four were missed because they were listed as
+ * having "nothing to say per-URL", and they do. `/privacy` is also the URL
+ * Apple requires and `/terms` the one the App Store listing points at.
+ *
+ * The Spanish halves were not in the sitemap at all before this.
+ */
+const SHELL_PAGES = [
+  { key: '/privacy', i18nKey: 'privacy', copyKey: 'privacy', changefreq: 'monthly', priority: 0.5 },
+  { key: '/terms', i18nKey: 'terms', copyKey: 'terms', changefreq: 'monthly', priority: 0.5 },
+  { key: '/changelog', i18nKey: 'changelog', copyKey: 'changelog', changefreq: 'weekly', priority: 0.6 },
+  { key: '/status', i18nKey: 'status', copyKey: 'status', changefreq: 'always', priority: 0.4 },
 ];
 
 // ─── Head rewriting ────────────────────────────────────────────────────
@@ -326,6 +383,172 @@ function writeRoute(relPath, html) {
   writeFileSync(out, html, 'utf8');
 }
 
+// ─── Body injection ────────────────────────────────────────────────────
+//
+// WHY. Measured 2026-08-17: 110 of 114 sitemap URLs were *unknown to Google*
+// and the sitemap had never been downloaded. The cause is that "prerendered"
+// here means the <head> only — the body a first-pass crawler receives is
+// literally `<app-root></app-root>`, with no heading, no copy and no links.
+// Nothing on the site was crawlable without executing the bundle, and a
+// domain with 4 impressions in 90 days gets no render budget to spend.
+//
+// This is the floor, not real prerendering: it puts a genuine link graph and
+// a genuine text fallback into the served HTML without SSR and without any
+// runtime risk to the app. Two pieces, deliberately different:
+//
+//   - a VISIBLE <footer> of links. Outside <app-root>, so Angular never
+//     touches it and it survives hydration — which is what makes the link
+//     graph permanent rather than a first-pass artefact. These marketing
+//     pages render one or two links of their own today, so it is also the
+//     navigation they were missing.
+//   - a <noscript> heading + description. Honest fallback: without JS these
+//     pages say nothing but "Please enable JavaScript", so this is a real
+//     improvement for a real reader. It is not hidden text — it renders for
+//     anyone who has JS off, and it says exactly what the page says.
+//
+// Nothing here is injected into the shell (`index.html`): that file also
+// serves `/app` and every SPA route through the hosting catch-all, so a
+// footer in it would appear inside the logged-in app.
+
+const FOOTER_STYLE = `<style>
+  .ig-sm{border-top:1px solid #e7e5e2;background:#faf9f6;color:#57534e;
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    padding:40px 24px 48px}
+  .ig-sm__in{max-width:1040px;margin:0 auto;display:flex;flex-wrap:wrap;gap:32px}
+  .ig-sm h2{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#57534e;
+    margin:0 0 10px;font-weight:700}
+  .ig-sm ul{list-style:none;margin:0;padding:0;min-width:150px}
+  .ig-sm li{margin:0 0 6px}
+  .ig-sm a{color:#57534e;text-decoration:none}
+  .ig-sm a:hover{color:#c62f27;text-decoration:underline}
+  .ig-sm__foot{max-width:1040px;margin:28px auto 0;padding-top:16px;
+    border-top:1px solid #e7e5e2;font-size:12px}
+  @media (prefers-color-scheme:dark){
+    .ig-sm{background:#131210;border-color:#2b2822;color:#b3ada3}
+    .ig-sm h2{color:#b3ada3}
+    .ig-sm a{color:#b3ada3}
+    .ig-sm a:hover{color:#ff8a5c}
+    .ig-sm__foot{border-color:#2b2822}
+  }
+</style>`;
+
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+const li = (href, label) => `<li><a href="${href}">${esc(label)}</a></li>`;
+
+/** "Privacy — Ignia" → "Privacy". The i18n `pageTitle` values do not agree on
+ *  a separator — some use `·`, some an em dash, `/faq` uses `|` — so match
+ *  all of them rather than the one that happened to be checked first. */
+const stripBrand = (t) => String(t).replace(/\s*[|·—–-]\s*Ignia\s*$/, '').trim();
+
+/** Link groups for one page. Localised, and macros pages get their siblings
+ *  so all 36 brackets are reachable in two hops from any one of them. */
+function footerGroups(route, locale) {
+  const { prefix, i18n, lang } = locale;
+  const copy = COPY[lang];
+  const p = (path) => `${prefix}${path}`;
+
+  const calculators = [
+    li(p('/calculator'), copy.crumbCalculator),
+    ...CALC_VARIANTS.map((v) =>
+      li(p(`/${v.slug}`), i18n.calcVariants[v.key].title.replace(/ · Ignia$/, ''))),
+  ];
+
+  const comparisons = VS.map((v) => li(p(`/vs/${v.slug}`), `vs ${v.name}`));
+
+  // Macro brackets. On a bracket page: every weight for that goal, plus the
+  // same weight under the other two goals. Anywhere else: a seed per goal.
+  const m = /^\/macros\/(lose|maintain|gain)\/(\d+)-lb$/.exec(route.key);
+  const targets = [];
+  if (m) {
+    const [, goal, weight] = m;
+    for (const w of RANGES[goal]) {
+      if (String(w) !== weight) {
+        targets.push(li(p(`/macros/${goal}/${w}-lb`), `${copy.goalLabel[goal]} · ${w} lb`));
+      }
+    }
+    for (const g of Object.keys(RANGES)) {
+      if (g !== goal && RANGES[g].includes(Number(weight))) {
+        targets.push(li(p(`/macros/${g}/${weight}-lb`), `${copy.goalLabel[g]} · ${weight} lb`));
+      }
+    }
+  } else {
+    for (const g of Object.keys(RANGES)) {
+      for (const w of [150, 180, 200].filter((x) => RANGES[g].includes(x))) {
+        targets.push(li(p(`/macros/${g}/${w}-lb`), `${copy.goalLabel[g]} · ${w} lb`));
+      }
+    }
+  }
+  targets.push(li(p('/calculator'), copy.navAllWeights));
+
+  const product = [
+    li(p('/') || '/', copy.navHome),
+    li(p('/download'), copy.navDownload),
+    li(p('/faq'), copy.crumbFaq),
+    li(p('/support'), copy.navSupport),
+    li(p('/changelog'), stripBrand(i18n.changelog.pageTitle)),
+    li(p('/status'), stripBrand(i18n.status.pageTitle)),
+    li('/app', copy.navApp),
+  ];
+
+  const legal = [
+    li(p('/privacy'), stripBrand(i18n.privacy.pageTitle)),
+    li(p('/terms'), stripBrand(i18n.terms.pageTitle)),
+  ];
+
+  return [
+    [copy.navCalculators, calculators],
+    [copy.navComparisons, comparisons],
+    [copy.navTargets, targets],
+    [copy.navProduct, product],
+    [copy.navLegal, legal],
+  ];
+}
+
+function bodyBlocks(route, alternates, { footer = true } = {}) {
+  const { locale, title, description } = route;
+  const copy = COPY[locale.lang];
+
+  // The other locale's URL for this same page — a crawlable hreflang partner,
+  // not just a <head> declaration.
+  const other = (alternates ?? []).find((a) => a.hreflang !== locale.hreflang);
+  const langLink = other
+    ? `<p class="ig-sm__foot"><a href="${other.url}" hreflang="${other.hreflang}">` +
+      `${esc(COPY[locale.lang === 'en' ? 'es' : 'en'].otherLang)}</a></p>`
+    : '';
+
+  const groups = footerGroups(route, locale)
+    .map(([heading, items]) => `<ul><li><h2>${esc(heading)}</h2></li>${items.join('')}</ul>`)
+    .join('');
+
+  // The heading a crawler's first pass reads, and what a no-JS reader gets
+  // instead of nothing but "Please enable JavaScript".
+  const heading =
+    `<div class="ig-sm" style="border:0"><div class="ig-sm__in" style="display:block">` +
+    `<h1 style="font-size:24px;margin:0 0 8px">${esc(stripBrand(title))}</h1>` +
+    `<p style="margin:0">${esc(description)}</p></div></div>`;
+
+  const nav =
+    `<footer class="ig-sm" aria-label="${esc(copy.navSiteMap)}">` +
+    `<div class="ig-sm__in">${groups}</div>${langLink}</footer>`;
+
+  // A landing page already renders its own footer inside the app, so a second
+  // visible one below it would read as a mistake. It still needs the link
+  // graph, so there the whole block goes inside <noscript>: invisible to
+  // anyone with JS, present in the HTML a first-pass crawler reads.
+  return footer
+    ? `\n<noscript>${heading}</noscript>\n${nav}\n`
+    : `\n<noscript>${heading}${nav}</noscript>\n`;
+}
+
+/** Insert the fallback + footer before </body>, and the footer's CSS before
+ *  </head>. Both are self-contained; nothing here depends on the app's
+ *  stylesheet, which may not have loaded when a crawler reads the file. */
+function injectBody(html, route, alternates, opts) {
+  return html
+    .replace('</head>', `    ${FOOTER_STYLE}\n  </head>`)
+    .replace('</body>', `${bodyBlocks(route, alternates, opts)}</body>`);
+}
+
 // ─── Route table ───────────────────────────────────────────────────────
 
 /**
@@ -355,6 +578,25 @@ function buildRoutes(locale) {
       canonical: `${SITE}${prefix}/`,
       changefreq: 'weekly',
       priority: 1.0,
+    });
+  }
+
+  for (const p of SHELL_PAGES) {
+    const slug = p.key.slice(1);
+    routes.push({
+      key: p.key,
+      locale,
+      file: file(`${slug}.html`),
+      path: `${prefix}${p.key}`,
+      title: i18n[p.i18nKey].pageTitle,
+      description: copy[p.copyKey],
+      canonical: url(p.key),
+      changefreq: p.changefreq,
+      priority: p.priority,
+      jsonLd: breadcrumb([
+        home,
+        { name: stripBrand(i18n[p.i18nKey].pageTitle), url: url(p.key) },
+      ]),
     });
   }
 
@@ -539,7 +781,16 @@ alternatesByKey.get('/')?.push({ hreflang: 'en', url: `${SITE}/` });
 
 let written = 0;
 for (const r of routes) {
-  writeRoute(r.file, rewrite(shell, r, alternatesByKey.get(r.key)));
+  const alternates = alternatesByKey.get(r.key);
+  let out = rewrite(shell, r, alternates);
+  // Landing pages take the link graph inside <noscript>; every other page
+  // takes it visibly. The ENGLISH landing page is the shell itself and is
+  // deliberately not in `routes` at all (see buildRoutes), so it gets
+  // neither — the crawl entry points into this graph are /download
+  // (hand-written, already indexed, already links out) and any prerendered
+  // page Google reaches from the sitemap.
+  out = injectBody(out, r, alternates, { footer: r.key !== '/' });
+  writeRoute(r.file, out);
   written++;
 }
 
