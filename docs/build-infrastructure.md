@@ -19,15 +19,36 @@ in the number, or a faster laptop reads as a regression.
 - **iOS — `eas build --local` on the Mac.** 15m57s cold, ~11m warm. Four targets
   verified nested in the `.ipa`. It also sidesteps the ASC 401 that breaks
   non-interactive *cloud* builds, so the ASC `.p8` never leaves the workstation.
-- **Android — `./gradlew bundleRelease` on the Mac.** 10m36s cold, **1m51s
-  incremental**, signed with the real upload key. **The Mac is the ONLY machine
-  here that can do this**: Windows cannot compile RN's New Architecture C++ at
-  all (260-char `MAX_PATH` vs a 350-char object path; upstream
-  react-native-keyboard-controller#1247, open), and WSL2 cannot either — this is
-  an ARM64 box and Google ships the NDK for `linux-x86_64` only.
+- **Android — `eas build --local` on the Mac.** The Mac is the only machine here
+  that can produce a *shippable* AAB, because `eas build --local` is the only
+  path that writes the EAS Update channel into `AndroidManifest.xml`. Raw
+  `./gradlew bundleRelease` compiles and signs correctly and yields an **OTA-dead
+  binary** — that is what vc 10 was, and the `build-android` skill forbids it.
+  The **10m36s cold / 1m51s incremental** figures were measured through raw
+  Gradle, so read them as the compile cost of this app's native graph, not as a
+  sanctioned release path.
 - **Android APKs** build locally and free on Windows via Gradle directly (*not*
-  through `eas build --local`, which refuses to run on Windows). AABs do not
-  build on Windows at all.
+  through `eas build --local`, which refuses to run on Windows).
+- **Windows CAN build a signed AAB — and must never ship one.** Measured
+  2026-08-17 on the Snapdragon X Elite X1E80100 workstation (12 cores, 32 GB):
+  `./gradlew bundleRelease` exited 0 in **12m58s** near-warm (1307 tasks, 274
+  executed) and produced a 93 MB signed `app-release.aab`. The older claim here
+  that "AABs do not build on Windows at all" was **wrong** — the New
+  Architecture C++ compiled fine. What is true is that the artifact is
+  unshippable, for a reason unrelated to the toolchain: `eas build --local`
+  refuses Android off Linux/macOS (`eas-cli`'s `checkRuntime.ts`), and it is the
+  only path that writes the EAS Update channel. The AAB's manifest carries
+  `expo.modules.updates.ENABLED` but **no `expo-channel-name` and no
+  `EXPO_UPDATE_URL`** — read out of `base/manifest/AndroidManifest.xml`, i.e.
+  the vc 10 defect reproduced. It also embeds a Windows fingerprint
+  (`3d3bc41024f101326fba4a5ce3ff075cc342edab`) matching no published runtime.
+  WSL2 is not the escape hatch either: this is an ARM64 box and Google ships the
+  NDK for `linux-x86_64` only — and no `windows-arm64` host exists in any NDK
+  release, r29 included, because Google cross-compiles the Windows toolchain
+  from Linux with MinGW rather than building it on Windows. The x86_64 NDK runs
+  here under emulation, which is where the 12m58s goes. Treat Windows as a
+  compile-check, never a release host — and do not strip the Android toolchain
+  off the Mac on the strength of this measurement.
 - **Most fixes need no build.** EAS Update ships JS/TS over the air in seconds.
   Run the fingerprint gate first (`docs/COMMANDS.md`).
 - The Mac holds `dev.keystore`, `credentials.json`, the Sentry token and an EAS
