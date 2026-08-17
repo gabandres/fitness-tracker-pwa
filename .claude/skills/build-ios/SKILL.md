@@ -1,6 +1,6 @@
 ---
 name: build-ios
-description: Build and optionally submit an iOS binary on the MacBook Air (`ignia-mac`) over SSH, or decide that a JS-only change needs no build at all — a local EAS build that costs no EAS quota and no cloud queue. Use for "cut an iOS build", "build for TestFlight", "ship the iPhone app", or whenever a mobile fix needs to reach iOS testers. Android is the `build-android` skill (also local, also on the Mac).
+description: Build and optionally submit an iOS binary on the MacBook Air (`ignia-mac`) over SSH, or decide that a JS-only change needs no build at all — a local EAS build that costs no EAS quota and no cloud queue. Use for "cut an iOS build", "build for TestFlight", "ship the iPhone app", or whenever a mobile fix needs to reach iOS testers. Android is the `build-android` skill, and it builds on the WINDOWS workstation — the Air is iOS-only since 2026-08-17.
 ---
 
 # Build iOS on the Mac
@@ -59,7 +59,7 @@ ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx eas whoami"
 | on the intended ref | yes | a branch is fine; record **which** in `STATUS.md` |
 | `which fastlane` | yes | `brew install fastlane` — **never** the gem (§3.9: system Ruby has a broken `ffi`) |
 | iOS runtimes count > 0 | yes | `sudo xcodebuild -downloadPlatform iOS`; an empty list means the platform component is missing even though `-showsdks` lists the SDK |
-| disk | **~17 GB is enough** | 25 GB is the comfortable figure; a build has completed at 17 GB with ~1 GB of headroom left. Clear `~/Library/Developer/Xcode/DerivedData/*` first — cheaper to lose than `~/.gradle` (5.5 GB), which Android needs |
+| disk | **~17 GB is enough** | 25 GB is the comfortable figure; a build has completed at 17 GB with ~1 GB of headroom left. Clear `~/Library/Developer/Xcode/DerivedData/*` first. The old advice to weigh this against `~/.gradle` is void — the Air's Android toolchain was deleted on 2026-08-17, so the whole disk is iOS's now |
 | `eas whoami` | yes | copy `~/.expo/state.json` from the workstation (owner must run the `scp`) |
 | `.env.local` on the Mac | for shippable builds | carries `SENTRY_AUTH_TOKEN` |
 

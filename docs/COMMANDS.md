@@ -106,14 +106,25 @@ bugs it caused: `CLAUDE.local.md`.
 ## OTA — the fingerprint gate
 
 An update published against a changed fingerprint **succeeds and reaches
-nobody**, which is indistinguishable from a working update. Gate first, and
-generate the fingerprint on the Mac — it is machine-dependent, and every binary
-is built there.
+nobody**, which is indistinguishable from a working update. Gate first, on the
+machine that **builds that platform** — the hash is machine-dependent, and since
+2026-08-17 the hosts are split: **Android on Windows, iOS on `ignia-mac`**. A
+hash generated on the other machine matches no binary.
 
 ```sh
+# iOS — on the Mac
 ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform ios"
+# Android — here
+cd apps/mobile && npx expo-updates fingerprint:generate --platform android
+
 cd apps/mobile && npx eas update:list --branch production --limit 3
 ```
+
+Publishing is likewise per-platform and per-host, and since Expo SDK 55 needs
+`--environment` (eas-cli: *"Required for projects using Expo SDK 55 or greater"*).
+Bare `eas update` publishes both platforms and is correct on neither machine;
+`.claude/hooks/guard_eas_update.py` blocks it, along with each platform from the
+wrong host and any publish missing `--environment`.
 
 Ground truth is the fingerprint file **inside the artifact**
 (`base/assets/fingerprint` in an `.aab`, `Payload/*.app/EXUpdates.bundle/fingerprint`

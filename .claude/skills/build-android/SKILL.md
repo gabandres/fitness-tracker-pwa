@@ -1,30 +1,47 @@
 ---
 name: build-android
-description: Ship an Android change — decide between an over-the-air EAS Update (free, instant, no build) and a real build, run the fingerprint gate that decides whether an OTA can land, and submit to the Play alpha track. Use for "ship this to Android", "cut an Android build", "push a fix to testers", or any mobile fix headed for Play. iOS is the `build-ios` skill (also local, also on the Mac).
+description: Ship an Android change — decide between an over-the-air EAS Update (free, instant, no build) and a real build, run the fingerprint gate that decides whether an OTA can land, and submit to the Play alpha track. Use for "ship this to Android", "cut an Android build", "push a fix to testers", or any mobile fix headed for Play. Android builds on the WINDOWS workstation; iOS is the `build-ios` skill, on the Mac.
 ---
 
 # Ship an Android change
 
-**Start by asking whether you need a build at all.** Most fixes do not. Both
-Android and iOS now build locally on `ignia-mac` at **zero EAS quota**, so a
-needless build costs ~11 minutes rather than a queue slot — but an OTA published
-against a changed fingerprint reaches **nobody** while reporting success, and
-that is the expensive direction.
+**Start by asking whether you need a build at all.** Most fixes do not. Android
+builds locally on this **Windows workstation** and iOS on `ignia-mac`, both at
+**zero EAS quota**, so a needless build costs ~10 minutes rather than a queue
+slot — but an OTA published against a changed fingerprint reaches **nobody**
+while reporting success, and that is the expensive direction.
 
 ## Step 1 — the fingerprint gate
 
-**Run it on `ignia-mac`. Never on the Windows workstation.** The fingerprint is a
-property of the machine as well as the commit — a gitignored `apps/mobile/android/`
-dir that exists only on Windows, CRLF-vs-LF, and divergent `node_modules` all feed
-it. Every binary is built on the Mac, so the Mac's number is the one they carry.
-Three OTAs were published against Windows numbers on 2026-08-07 and reached
-nothing.
+**Run it on the machine that BUILDS Android — since 2026-08-17 that is this
+Windows workstation, not the Mac.** The fingerprint is a property of the machine
+as well as the commit, so a hash generated anywhere else is a number that matches
+no Android binary. Three OTAs were published against the wrong machine's numbers
+on 2026-08-07 and reached nothing; the rule is unchanged, only the answer to
+"which machine" is.
 
 ```sh
-ssh ignia-mac "cd ~/fitness-tracker-pwa && git checkout main && git pull --ff-only"
-ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform android" \
+cd apps/mobile && npx expo-updates fingerprint:generate --platform android \
   | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).hash))"
 ```
+
+**Why the two hosts disagree** — measured 2026-08-17, and two of the three causes
+this file used to list are false:
+
+- **CRLF vs LF**, in exactly two files: `.gitignore` and
+  `targets/widget/expo-target.config.js`. Real, but worktree-only.
+- ~~a gitignored `apps/mobile/android/` dir that exists only on Windows~~ —
+  **disproven.** A `dir:` source hashes only git-*tracked* content, so an
+  untracked or ignored directory contributes nothing. Deleting `android/` before
+  a gate run is a no-op.
+- ~~divergent `node_modules`~~ — **disproven.** Windows walks 228 config-plugin
+  files the Mac does not, and all 228 were confirmed present on the Mac, at
+  identical versions from a byte-identical lockfile. It is `@expo/fingerprint`
+  behaving differently per OS, so aligning Node/npm cannot converge the hashes
+  and `npm ci` is not a fix for a mismatch.
+
+**Do not try to make the two agree.** Each platform is gated and published on its
+own build host, and that is sufficient. Full write-up in `apps/mobile/AGENTS.md`.
 
 Compare against the fingerprint of the binary testers are running — the table in
 `apps/mobile/AGENTS.md`, whose "read from the artifact" rows are the only ones
@@ -67,10 +84,18 @@ strings, Metro-bundled assets.
 
 ## Step 2 — OTA (no build, no queue, no review)
 
-This step owns OTA publishing for **both** platforms — `eas update` publishes for
-both at once. `build-ios` links here rather than repeating it.
+This step owns OTA publishing for **both** platforms; `build-ios` links here
+rather than repeating it. But it is now **two publishes, not one**.
 
-**Publish from `ignia-mac`**, for the same machine-dependence reason as the gate.
+**Bare `eas update` publishes BOTH platforms, and under a split build host it is
+correct on NEITHER machine** — always pass `--platform`, and run each from the
+host that builds it: **Android from Windows, iOS from `ignia-mac`**.
+`.claude/hooks/guard_eas_update.py` enforces the whole table and blocks the bare
+form everywhere.
+
+**`--environment` is required.** eas-cli's own help: *"Required for projects
+using Expo SDK 55 or greater."* This app is on 57, so a publish without it simply
+errors — the guard blocks it too, so that anything reaching EAS actually runs.
 
 **Before publishing: tell the user what changed.** Store release notes — App Store
 "What's New", Play release notes — attach to **binary releases only**. An OTA
@@ -99,8 +124,16 @@ cd apps/mobile && npx expo export --platform android --output-dir <tmp>
 Then publish, and **verify which runtime it went out under**:
 
 ```sh
-ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx eas update --branch production --message '<what changed>'"
-ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx eas update:list --branch production --limit 3"
+# Android — on this Windows workstation
+cd apps/mobile && npx eas update --platform android --branch production \
+  --environment production --message '<what changed>'
+
+# iOS — on the Mac
+ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx eas update --platform ios \
+  --branch production --environment production --message '<what changed>'"
+
+# then confirm WHICH RUNTIME each went out under
+cd apps/mobile && npx eas update:list --branch production --limit 3
 ```
 
 `--message` is for **you**, in the EAS dashboard. Users never see it.
@@ -111,112 +144,121 @@ ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx eas update:list --bra
 - Branch/channel names match the `eas.json` build profiles.
 - Free tier is **1,000 monthly active users**; the tester base is single digits.
 
-## Step 3 — a real Android build, on the Mac, free
+## Step 3 — a real Android build, on WINDOWS, free
 
-`ignia-mac` is the **only** machine here that can build Android at all — see the
-closed-avenues table at the end. Zero EAS quota. ~11 minutes warm.
-`DEV_ENVIRONMENT.md` §3.11 has the runbook.
+**This workstation is the Android build host, permanently (2026-08-17), and the
+Mac can no longer do it at all** — its Android toolchain was deleted in the same
+change (`~/Library/Android`, `~/.gradle`, `~/.android` and both `android/` dirs).
+So the `eas build --local` runbook that used to live here is not deprecated, it
+is unrunnable; it is gone rather than demoted. Zero EAS quota, ~10 minutes.
 
-### Preflight
+`eas build --local` **refuses to run on Windows** (`eas-cli`'s `checkRuntime.ts`:
+*"Android builds are supported only on Linux and macOS"*), so raw Gradle is the
+only path here. Raw Gradle omits three things EAS Build does for free, and **all
+three fail silently**:
+
+| Missing | Consequence |
+|---|---|
+| EAS Update **channel** in `AndroidManifest.xml` | the binary calls `u.expo.dev` with no `expo-channel-name` and can never update. This shipped as vc 10 |
+| release **signing** | the generated template points `release` at the *debug* keystore, and Play rejects debug-signed uploads |
+| **versionCode** | `appVersionSource: "remote"` leaves it at `1` |
+
+`apps/mobile/scripts/patch-android-release.mjs` supplies all three, which is why
+it is no longer obsolete. **`verify-mobile-artifact.mjs` is the gate that catches
+exactly these defects — it must exit 0.**
+
+### The procedure
 
 ```sh
-ssh ignia-mac "cd ~/fitness-tracker-pwa && git log --oneline -1 && git status --short | head -5
-df -h / | awk 'NR==2{print \$4\" free\"}'
-ls apps/mobile/android 2>/dev/null && echo 'STALE PREBUILD DIR — delete it'"
+cd apps/mobile/android && ./gradlew --stop || true   # BEFORE the clean; see below
+cd .. && npx expo prebuild -p android --clean
+node scripts/patch-android-release.mjs <versionCode> production
+cd android && ./gradlew bundleRelease
+node ../../../scripts/verify-mobile-artifact.mjs \
+  app/build/outputs/bundle/release/app-release.aab      # MUST exit 0
 ```
 
-- **Disk ≥ 20 GB.** Gradle caches and outputs add ~5 GB. `~/.gradle` is ~5.5 GB and
-  is a cache — safe to delete, at the cost of a slow next build. Clear Xcode
-  DerivedData first; it is cheaper to lose.
-- **`apps/mobile/android/` must not exist.** EAS treats a present native dir as
-  bare-workflow and carries stale config forward, reproducing the missing-channel
-  bug below.
+**Run Gradle detached** (`run_in_background`) — the build outruns a 10-minute
+foreground tool timeout, and a timeout kill is indistinguishable from a failure.
 
-### Launch detached, with a sentinel
+### `SENTRY_AUTH_TOKEN` must reach Gradle, or you lose the whole build at the end
 
-**Never run the build in the foreground of an SSH session** — the connection
-dropping kills it, and a dead SSH is indistinguishable from a finished process.
+`@sentry/react-native` uploads source maps as a **Gradle task**, so a missing or
+stale token **fails the build** — and it fails at
+`:app:createBundleReleaseJsAndAssets_SentryUpload_…`, i.e. *after* every native
+task has already run. Measured 2026-08-17 on the SDK 57 bump: 1089 tasks
+executed, all the C++ compiled, then `error: Auth token is required for this
+request` at **8m42s**.
 
-```sh
-ssh ignia-mac "cat > ~/run-android-build.sh <<'EOF'
-#!/bin/zsh
-cd ~/fitness-tracker-pwa/apps/mobile || exit 90
-set -a; . ~/fitness-tracker-pwa/.env.local; set +a
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
-export ANDROID_HOME=\$HOME/Library/Android/sdk
-export PATH=\"\$JAVA_HOME/bin:\$ANDROID_HOME/platform-tools:\$PATH\"
-export GRADLE_OPTS='-Dorg.gradle.internal.http.socketTimeout=60000 -Dorg.gradle.internal.http.connectionTimeout=60000'
-echo \"IGNIA_ANDROID_START \$(date -u +%FT%TZ)\"
-npx eas build -p android --profile production --local --non-interactive
-echo \"IGNIA_ANDROID_EXIT=\$?\"
-EOF
-chmod +x ~/run-android-build.sh
-rm -f ~/android-build.log
-nohup caffeinate -dims ~/run-android-build.sh > ~/android-build.log 2>&1 &
-echo launched"
+The token lives in the git-ignored `.env.local` at the repo root, and **a plain
+PowerShell/Gradle invocation does not read it** — the Mac's wrapper sources it
+explicitly (`set -a; . .env.local; set +a`) and the Windows path had no
+equivalent, which is the whole trap. Load it, without ever printing it:
 
-until ssh ignia-mac "grep -q IGNIA_ANDROID_EXIT ~/android-build.log" 2>/dev/null; do sleep 60; done
+```js
+// run-gradle.mjs — node run-gradle.mjs
+import { spawnSync } from 'node:child_process';
+process.loadEnvFile('Z:/macro-app/.env.local');
+// absolute path: `cmd /c` does not resolve gradlew.bat from cwd
+spawnSync('cmd.exe', ['/c', 'Z:\\macro-app\\apps\\mobile\\android\\gradlew.bat', 'bundleRelease'],
+  { cwd: 'Z:/macro-app/apps/mobile/android', stdio: 'inherit', env: process.env });
 ```
 
-`caffeinate -dims` is not optional: the dock can drop power delivery while still
-working as a dock, which puts the Air on battery where sleep is allowed.
+`npm run doctor` (group 3) validates the `.env.local` copy against the Sentry
+API. It is **green when the token is good but absent from Gradle's environment**,
+so a passing doctor does not predict this failure — the two check different
+things. There are three copies of this token (local, EAS ×2, GitHub) and nothing
+syncs them; `CLAUDE.local.md` has the rotation procedure and the standing
+instruction not to rotate it.
 
-**`GRADLE_OPTS` carries only the socket timeouts.** Gradle has no default socket
-timeout, and a dropped connection to Google's Maven once left a build hung for 19
-minutes looking exactly like slow compilation. **Heap and metaspace are NOT here
-any more** — they live in `apps/mobile/plugins/withGradleJvmArgs.js`, because an
-env var typed by hand works exactly as often as someone remembers it. That plugin
-exists because a release build died on `OutOfMemoryError: Metaspace` in
+**`./gradlew --stop` is not optional.** A daemon left from an earlier build holds
+handles on `node_modules/*/android/build`, and the failure is `Unable to delete
+file '…classes.jar'` at an arbitrary task — an error that looks nothing like its
+cause. `--no-daemon` does **not** help: it avoids *creating* a daemon, not the
+ones already running.
+
+Since SDK 57 `expo prebuild` **clears the native directory by default**, so
+`--clean` is now redundant (harmless, and worth keeping as documentation of
+intent). Pass `--no-clean` if you ever need to apply changes to an existing
+`android/` instead.
+
+To cut the build roughly fourfold, set `reactNativeArchitectures=arm64-v8a` in
+the generated `android/gradle.properties` — `x86`/`x86_64` serve only emulators
+and a few ChromeOS devices. Do it after prebuild; prebuild regenerates that file.
+Ship all four ABIs for anything that goes to Play.
+
+### The CMake warning is not a failure
+
+CMake emits `CMAKE_OBJECT_PATH_MAX` against `react-native-keyboard-controller`'s
+shadow node on every build here. This file once concluded from it that "every
+avenue is closed" on Windows, which was **wrong** — it is a warning, not a fatal
+error, and the builds succeed. What CMake actually says is that it cannot
+*guarantee* correct object placement. Treat it as a reason to insist on **device
+QA**, never as a reason not to build.
+
+### Heap, metaspace and socket timeouts
+
+Heap and metaspace live in `apps/mobile/plugins/withGradleJvmArgs.js`, not in a
+hand-typed `GRADLE_OPTS` — an env var typed by hand works exactly as often as
+someone remembers it. That plugin exists because a release build died on
+`OutOfMemoryError: Metaspace` in
 `:react-native-health-connect:lintVitalAnalyzeRelease` on 2026-08-08, and
 `expo-build-properties` has no option for Gradle JVM args.
 
-**On the Mac, use `eas build --local` — never raw `./gradlew bundleRelease`.**
-Gradle compiles and signs fine and Play accepts the output — and the binary
-**silently cannot receive OTA updates**, because `expo prebuild` does not read
-`eas.json` and never writes the update channel into `AndroidManifest.xml`.
-Nothing errors at build time or runtime. That shipped as vc 10 before anyone
-checked, and is why vc 11 exists.
-
-**On Windows the rule inverts, because `eas build --local` refuses to run there
-at all.** Raw Gradle is the only path, and
-`apps/mobile/scripts/patch-android-release.mjs` — **no longer obsolete as of
-2026-08-17** — injects the channel, the release signing and the versionCode that
-EAS Build would have. See "Windows CAN build Android" below for the full
-procedure, and **gate on `verify-mobile-artifact.mjs` exiting 0**, which is the
-check that catches exactly this defect.
-
-### `JAVA_HOME` and `ANDROID_HOME` are NOT in the Mac's shell config
-
-Verified 2026-08-08: neither appears in `~/.zshrc`, `~/.zprofile` or `~/.zshenv`.
-Every successful Android build so far passed them inline. A `nohup`-ed wrapper
-inherits nothing from an interactive shell, so **both must be exported inside the
-script** — that is why they are in the template above, and removing either
-reproduces a documented failure:
-
-| Missing | Fails in | Message |
-|---|---|---|
-| `JAVA_HOME` | ~45 s | `Android Gradle plugin requires Java 17 to run. You are currently using Java 11` — the Mac's default JDK is Microsoft's 11 at `/Library/Java/JavaVirtualMachines/microsoft-11.jdk`, and `openjdk@17` is keg-only so `/usr/libexec/java_home -v 17` cannot find it |
-| `ANDROID_HOME` | ~5 s | `SDK location not found` (this is `DEV_ENVIRONMENT.md` §3.11 trap 3 — it is what killed vc 12) |
-
-Both are cheap failures in wall-clock and **both burn a versionCode**, because
-`autoIncrement` counts attempts. Two were burned this way on 2026-08-08 alone,
-by a version of this file that stated the `JAVA_HOME` rule in prose beside a
-command that omitted it. A rule next to a command that contradicts it is worse
-than no rule: the command is what gets run.
-
-**Do not "fix" either by writing `org.gradle.java.home` or `sdk.dir` into
-`withGradleJvmArgs.js`** — that hardcodes machine-specific paths into committed
-config and breaks the EAS cloud fallback, which runs on Linux.
+**Do not "fix" a toolchain problem by writing `org.gradle.java.home` or `sdk.dir`
+into that plugin** — it hardcodes machine-specific paths into committed config
+and breaks the EAS cloud fallback, which runs on Linux.
 
 ### Verify the artifact — run the script, gate on its exit code
 
-`eas build --local` writes **`apps/mobile/build-<timestamp>.aab`**, not the Gradle
-output path. The checks are **code, not prose** (see the build-ios skill for what
-prose cost on 2026-08-08):
+Raw Gradle writes to the Gradle output path — there is no `build-<timestamp>.aab`
+here, because that name is something `eas build --local` produces and this host
+cannot run it. The checks are **code, not prose** (see the build-ios skill for
+what prose cost on 2026-08-08):
 
 ```sh
-scp scripts/verify-mobile-artifact.mjs scripts/native-expectations.json ignia-mac:/tmp/
-ssh ignia-mac "node /tmp/verify-mobile-artifact.mjs ~/fitness-tracker-pwa/apps/mobile/build-<ts>.aab"
+node scripts/verify-mobile-artifact.mjs \
+  apps/mobile/android/app/build/outputs/bundle/release/app-release.aab
 ```
 
 It asserts the signer is `CN=Macro Log Dev` (debug-signed is rejected by Play),
@@ -235,6 +277,11 @@ also burns a number per **attempt**, so failed builds leave permanent gaps (vc
 12, 14–17, 19, 20 and iOS build 26 do not exist). Read it from Play after
 submitting.
 
+On the Windows path the versionCode is whatever you passed to
+`patch-android-release.mjs`, since `autoIncrement` never runs — so nothing is
+burned by a failed attempt, and nothing is reserved either. Read the live one
+first (`node scripts/app-version-sync.mjs --check`) and pass the next number.
+
 ### Signing
 
 `credentialsSource: "local"` → `credentials/dev.keystore`, alias `macrolog-dev`.
@@ -242,61 +289,17 @@ submitting.
 against that cert and there is no recovery. It now exists on both machines;
 locations and the disposal list are in `CLAUDE.local.md`.
 
-### Windows CAN build Android — corrected 2026-08-17
+### Avenues that are genuinely closed on Windows
 
-This section used to read *"every avenue, closed"* and led with `MAX_PATH`. That
-was **wrong**. `./gradlew bundleRelease` on the Snapdragon X Elite workstation
-completed in **10m12s** and produced a verifier-green, signed, OTA-capable AAB
-(vc 31, fingerprint `3d3bc410…`, all four ABIs).
-
-CMake does still emit its `CMAKE_OBJECT_PATH_MAX` warning against
-`react-native-keyboard-controller`'s shadow node — that is almost certainly where
-the old conclusion came from. It is a **warning, not a fatal error**. What CMake
-actually says is that it cannot *guarantee* correct object placement, so treat it
-as a reason to insist on device QA, not as a reason not to build.
-
-**`eas build --local` on the Mac is still the preferred path whenever the Mac can
-build.** This one exists only because `eas build --local` refuses Android off
-Linux/macOS (`eas-cli`'s `checkRuntime.ts`), so Windows cannot use it at all.
-
-Raw Gradle omits two things EAS Build does for free, and **both fail silently**:
-
-| Missing | Consequence |
-|---|---|
-| EAS Update **channel** in `AndroidManifest.xml` | binary calls `u.expo.dev` with no `expo-channel-name` and can never update. This shipped as vc 10 |
-| release **signing** + **versionCode** | the template points `release` at the *debug* keystore, and `appVersionSource: "remote"` leaves versionCode at `1` |
-
-`scripts/patch-android-release.mjs` handles all of it (it is no longer obsolete —
-injecting the channel was the one thing it could not do). The procedure:
-
-```sh
-cd apps/mobile/android && ./gradlew --stop || true   # BEFORE the clean; see below
-cd .. && npx expo prebuild -p android --clean
-node scripts/patch-android-release.mjs <versionCode> production
-cd android && ./gradlew bundleRelease
-node ../../../scripts/verify-mobile-artifact.mjs <path-to.aab>   # MUST exit 0
-```
-
-**`./gradlew --stop` is not optional.** A daemon left from an earlier build holds
-handles on `node_modules/*/android/build`, and the failure is `Unable to delete
-file '…classes.jar'` at an arbitrary task — an error that looks nothing like its
-cause. `--no-daemon` does **not** help: it avoids *creating* a daemon, not the
-ones already running.
-
-To cut the build roughly fourfold, set `reactNativeArchitectures=arm64-v8a` in
-the generated `android/gradle.properties` — `x86`/`x86_64` serve only emulators
-and a few ChromeOS devices. Do it after prebuild; prebuild regenerates that file.
-
-**A Windows-built binary carries a Windows runtime version.** Shipping one splits
-the OTA cohort and inverts the publish rule for Android — see `STATUS.md`, and
-flip `.claude/hooks/guard_eas_update.py` in the same change.
-
-Genuinely closed, still:
+Kept because each was tried, and the first two will be re-proposed. **Note the
+header above this one used to read "every avenue, closed" and lead with
+`MAX_PATH` — that conclusion was wrong**, and it cost this project the belief
+that Windows could not build Android at all for weeks.
 
 | Attempt | Why it fails |
 |---|---|
-| `eas build --local` on Windows | refuses outright: *"Android builds are supported only on Linux and macOS"* |
-| `eas build --local` in WSL2 | **ARM64** machine (Snapdragon X Elite) → WSL is `aarch64`, and Google ships the SDK/NDK for `linux-x86_64` only ([tracker 227219818](https://issuetracker.google.com/issues/227219818), open) |
+| `eas build --local` on Windows | refuses outright: *"Android builds are supported only on Linux and macOS"* (`eas-cli` `checkRuntime.ts`) |
+| `eas build --local` in WSL2 | **ARM64** machine (Snapdragon X Elite) -> WSL is `aarch64`, and Google ships the SDK/NDK for `linux-x86_64` only ([tracker 227219818](https://issuetracker.google.com/issues/227219818), open) |
 | `-DCMAKE_OBJECT_PATH_MAX=200` | Reaches CMake (verified in `CMakeCache.txt`), no effect — sources are out-of-tree, so CMake embeds the mangled absolute path. Moot now that the warning is known non-fatal |
 
 ### Fallback: the EAS cloud build
@@ -309,10 +312,14 @@ has run to **two hours**. Check `SENTRY_AUTH_TOKEN` before queueing —
 
 ## Step 4 — submit FROM WINDOWS
 
-**The Mac cannot submit to Play.** It has `dev.keystore` but deliberately NOT
-`credentials/play-service-account.json` — that key can publish to the live
-listing, and the Mac already holds the signing keystore, the Sentry token and an
-EAS session. Pull the AAB back rather than adding a fourth credential to someone
+Since Android builds here, the AAB is already on this machine — there is nothing
+to copy. The `scp ignia-mac:…` step this section used to open with belonged to
+the Mac-build era and is gone.
+
+**The Mac still must not submit**, if it ever builds one again: it has
+`dev.keystore` but deliberately NOT `credentials/play-service-account.json`, a
+key that can publish to the live listing. It already holds the signing keystore,
+the Sentry token and an EAS session; a fourth credential does not go onto someone
 else's laptop.
 
 **Windows ARM64 is not a barrier here.** The architecture limit is on *building*
@@ -320,14 +327,12 @@ else's laptop.
 Node CLI that uploads a file to the Play API and runs fine.
 
 ```sh
-# on Windows
-scp ignia-mac:~/fitness-tracker-pwa/apps/mobile/build-<ts>.aab "$TEMP/claude/ignia-vcN.aab"
-cd apps/mobile && npx eas submit -p android --profile production --path "$TEMP/claude/ignia-vcN.aab" --non-interactive
+cd apps/mobile && npx eas submit -p android --profile production \
+  --path android/app/build/outputs/bundle/release/app-release.aab --non-interactive
 ```
 
-~93 MB over Tailscale, a few seconds. Goes to the **alpha** track with
-`releaseStatus: "completed"` (rolled out to the tester list, not a draft).
-`eas submit` consumes **no build quota**.
+Goes to the **alpha** track with `releaseStatus: "completed"` (rolled out to the
+tester list, not a draft). `eas submit` consumes **no build quota**.
 
 **Verify at Play, not from the CLI** — `androidpublisher` edits→tracks is the
 authority on what testers have, and it is also where the real versionCode comes

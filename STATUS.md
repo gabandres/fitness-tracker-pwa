@@ -31,14 +31,14 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 | **Public App Store (iOS)** | **1.1.0 / build 24**, `READY_FOR_SALE`. Missing everything since 2026-08-08: dictation, the redesigned Add screen, the fasting Live Activity, the wide widget, every TDEE correction, and the verification-email fix |
 | **App Review (iOS)** | **1.2.0 / build 55**, `WAITING_FOR_REVIEW` since 2026-08-15, **`releaseType: AFTER_APPROVAL` — it self-publishes on approval, with no human step** |
 | **TestFlight** | build **53** external (1.2.0) + the 08-14 OTA. Builds 54/55 are internal-only and code-identical to 53 under OTA |
-| **Play alpha** | **vc 30** (1.2.0) + the 08-14 OTA |
+| **Play alpha** | **vc 31** (1.2.0), built on Windows, rolled out at 100% `status=completed` |
 | **Play production** | not launched — gated on Google's 14-day checklist (§3) |
 | **Web PWA `ignia.fit`** | Live, bilingual (EN + es-PR), 105 prerendered pages (en 52 / es 53), 114-URL sitemap. **Frozen for logging features** (ADR-0022); the shell keeps shipping |
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101` |
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB, 13,272 foods, no network call (ADR-0018). Open Food Facts still serves branded + barcode |
 | **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU |
-| **`app-version.json`** | android `30`, ios `24`. **Both derived** by `scripts/app-version-sync.mjs`; `npm run doctor` fails on drift in either direction |
+| **`app-version.json`** | android `31`, ios `24`. **Both derived** by `scripts/app-version-sync.mjs`; `npm run doctor` fails on drift in either direction |
 
 **Two live facts that are easy to get wrong:**
 
@@ -54,22 +54,23 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
   machine BUILDS that platform.** Since 2026-08-17 that is two machines:
   **Android from Windows, iOS from `ignia-mac`.** Bare `eas update` publishes
   both and is correct on neither — always `--platform`-scope it.
-  `.claude/hooks/guard_eas_update.py` enforces the full table.
-  The same commit fingerprints differently on the two
-  machines (CRLF-vs-LF and divergent `node_modules`; a Windows-only prebuild dir
-  was also blamed until 2026-08-17, when it was measured to contribute nothing —
-  `dir:android` is listed as a fingerprint source but does not change the hash).
-  Every *shipped* binary is built on the Mac, so the Mac's value is the one they
-  carry: the `production` channel's Android branch points at
-  `6519916642c291db8255d433bf651e26c66a28b4` (vc 30). Three OTAs once published
-  under Windows numbers and reached **nobody** — indistinguishable from a working
-  update.
-  **DONE 2026-08-17: Android's build host is Windows, permanently.** vc 31 —
-  built, signed and verified entirely on the Windows workstation — is live on
-  the Play alpha track at 100%, `status=completed`. EAS's counter, Play, and
-  `app-version.json` (deployed) all read 31; the guard is flipped.
+  `.claude/hooks/guard_eas_update.py` enforces the full table, and also the
+  `--environment` flag that eas-cli requires from SDK 55 on. Three OTAs once
+  published under the wrong machine's numbers and reached **nobody** —
+  indistinguishable from a working update.
   **The Air is iOS-only now**: its Android SDK, Gradle caches and `~/.android`
   were removed (13 → **19 GB free**, which is back over the iOS threshold).
+
+  **Why the hosts disagree is now settled, and two of the three published causes
+  were wrong** (measured 2026-08-17). Real: **CRLF-vs-LF**, in exactly two files.
+  Disproven: **`dir:android`** — a `dir:` source hashes only git-*tracked*
+  content, so an ignored or untracked directory contributes nothing — and
+  **divergent `node_modules`**, where all 228 files Windows walks and the Mac
+  does not were confirmed present on the Mac at identical versions from a
+  byte-identical lockfile. It is `@expo/fingerprint` behaving differently per OS.
+  **So the two hosts cannot be made to agree, and do not need to** — each
+  platform is gated on the machine that builds it. Do not spend another session
+  aligning Node or re-running `npm ci` to chase it.
 
   **The Android fleet is split until testers update**, and this is the only
   loose end: vc 30 carries the Mac runtime `6519916…`, vc 31 carries the Windows
@@ -138,6 +139,7 @@ Everything else that was in this section has shipped and is in `CHANGELOG.md`.
 
 | Work | Blocked on |
 |---|---|
+| **Expo SDK 57 — built and verified, NOT merged** | **iOS 1.2.0 clearing review.** Branch `chore/expo-sdk-57` takes the app 54 → 57 (RN 0.86.2, React 19.2). Green: `tsc`, 26/26 jest suites, the Metro gate, all four buildable units, `expo-doctor` 20/21. It is off `main` on purpose — 1.2.0 is `WAITING_FOR_REVIEW` with `AFTER_APPROVAL`, so `main` must stay a tree a hotfix can ship from. **An SDK bump moves BOTH fingerprints** (Android `3d3bc410…` → `5621a4fa…`), so merging it obliges a new binary on each platform before anything reaches a user; there is no OTA across it. Details in the branch's commit messages, not here |
 | **Watch complication + Siri quick-add behaviour** | **UNVERIFIED on hardware.** ADR-0023 established that `transferCurrentComplicationUserInfo` cannot wake a **WidgetKit** complication (Apple FB12926788, open since 2023) — real-time delivery to the wrist is not achievable on this surface, and that is a requirement change, not a bug. What ships instead is an hourly pull. Nobody has watched a face move after a meal logged outside the app. Read *Settings → Apple Watch* on a device before writing any more code here |
 | **Android widget on a real home screen** | Nobody has placed one. The task handler registers through the custom `index.js`, a path no device has exercised. **Maestro cannot close this** — no `adb` command places a home-screen widget (the Quick Settings tile *is* drivable via `adb shell cmd statusbar click-tile`). 1 of 21 checkboxes in `apps/mobile/WIDGET.md` is ticked. The iOS half is done and verified on a physical iPhone |
 | **#46 — watch layouts at 40mm/46mm, both locales** | A Mac with Xcode running a simulator. Its precondition (the real layouts exist) is met; this is the readout it was designed to be. It is the **last open item** of the 16-ticket Apple glanceable-surfaces map |
@@ -148,13 +150,12 @@ Everything else that was in this section has shipped and is in `CHANGELOG.md`.
 | **The website is invisible to Google** | **A decision, not a task.** Measured 2026-08-17: 110 of 114 sitemap URLs are *unknown to Google*, the sitemap has never been downloaded, and 90 days of Search Console show 4 impressions and 0 clicks. Cause is structural — "prerendered" writes the `<head>` only, so a first-pass crawler sees `<app-root></app-root>`, and `routerLink` appears in zero files so there is no link graph to crawl either. Fixing it means real prerendering + crawlable anchors; neither is scoped. Full evidence in `docs/seo-status.md` |
 | **Web retirement question** | **A measurement, not intuition** (ADR-0022): `node scripts/usage-report.mjs --days 30`, reading `platforms`. May not be revisited before that data exists |
 
-**`ignia-mac` disk is the recurring constraint.** It was at 6.4 GB on 2026-08-14
-against a 17 GB floor for iOS; `~/.gradle` (5.9 GB) was deleted to buy the build,
-so **the next Android build there re-downloads the whole Gradle cache** — expect
-the cold figure (~10m36s), not the incremental one. The remaining ~199 GB is the
-machine owner's personal data and is not ours to reclaim, so the Mac holds
-roughly one platform's build caches at a time. `df -h /` reads the sealed System
-snapshot and lies; use `/System/Volumes/Data`.
+**`ignia-mac` disk is the recurring constraint.** 18 GB free as of 2026-08-17,
+against a ~17 GB floor for iOS — over the line, but not by much. It is an
+**iOS-only host now**, so its Android caches are gone and are not coming back;
+budget for one platform's build caches, not two. The remaining ~199 GB is the
+machine owner's personal data and is not ours to reclaim. `df -h /` reads the
+sealed System snapshot and lies; use `/System/Volumes/Data`.
 
 ## 4. Decided and deliberately not happening
 

@@ -412,9 +412,13 @@ as a logged-in GUI user with an unlocked keychain. More setup; correct destinati
 
 ### 3.9 Making it permanent — measured state, 2026-08-06
 
-**What is installed and verified on the Air** (`ignia-mac`): Xcode **26.6**, Node
-**22.23.2** (deliberately downgraded from the 26.7 Homebrew defaults to, because CI
-pins 22 and Expo SDK 54 is verified against 20/22 LTS), npm 10.9.8, CocoaPods
+**What is installed and verified on the Air** (`ignia-mac`): Xcode **26.6** —
+which is what makes SDK 55+ possible at all, since 55 raised the Xcode floor to
+26 — Node **22.23.2** (deliberately not the 26.7 Homebrew default), npm 10.9.8,
+and this is **left alone on purpose**: it is someone else's laptop, RN 0.86
+accepts `^22.13.0`, and only the Windows workstation may rewrite
+`package-lock.json` (the Air runs `npm ci` and nothing else — see
+`docs/build-infrastructure.md`). CocoaPods
 **1.17.0** on its own Homebrew Ruby 4.0.6 — the system Ruby is 2.6.10 with a broken
 `ffi`, so never use it. `LANG`/`LC_ALL` are set in `~/.zprofile` because CocoaPods
 warns and can fail without UTF-8.
@@ -692,155 +696,61 @@ allowed, **keep wrapping long builds in `caffeinate -dims`** — the pmset confi
 does not cover a build that starts on AC and continues on battery.
 
 
-### 3.11 Android on the Air too — 2026-08-07
+### 3.11 Android is NOT built on the Air any more — 2026-08-17
 
-**The Air builds Android as well as iOS, and it is the ONLY machine here that
-can.** Use `eas build --local`, exactly as for iOS:
+**Android's build host is the Windows workstation, permanently.** This section
+used to be a ~150-line runbook for `eas build --local -p android` on the Air,
+resting on the claim that Windows *could not* compile an AAB at all. Both halves
+are now void:
 
-```sh
-ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && eas build -p android --profile production --local --non-interactive"
-```
+- **Windows can.** `./gradlew bundleRelease` on the Snapdragon X Elite produced a
+  signed, verifier-green, OTA-capable AAB in **10m12s** — that is vc 31, live on
+  the Play alpha track. The `MAX_PATH` / `CMAKE_OBJECT_PATH_MAX` finding that
+  drove the old conclusion is a **warning, not a fatal error**; CMake declines to
+  *guarantee* object placement, which is an argument for device QA, not against
+  building.
+- **The Air no longer can.** Its Android toolchain was deleted the same day —
+  `~/Library/Android` (3.3 GB), `~/.gradle`, `~/.android` (2.9 GB) and both
+  `android/` directories — to get the disk back over the ~17 GB iOS floor. The
+  Air is an **iOS-only** host by choice now, so the runbook is not deprecated,
+  it is unrunnable.
 
-89 MB `.aab` in **13m03s** cold (two ABIs, C++ from scratch), 120 native `.so`
-libraries including `arm64-v8a/libappmodules.so`. **Zero EAS quota.**
+**The current Android procedure lives in the `build-android` skill**, not here:
+`./gradlew --stop` → `expo prebuild` → `scripts/patch-android-release.mjs` →
+`./gradlew bundleRelease` → `verify-mobile-artifact.mjs` (must exit 0).
+`patch-android-release.mjs` is therefore **not obsolete** — the line in this file
+that called it "kept only as the record of what a raw-Gradle build has to fake"
+was true only while EAS Build did the faking for us. It now supplies the three
+things raw Gradle omits, each of which fails **silently**: the EAS Update
+channel in `AndroidManifest.xml` (its absence shipped as vc 10 and is why vc 11
+exists), release signing (the template points `release` at the *debug* keystore),
+and the versionCode (`appVersionSource: "remote"` leaves it at `1`).
 
-> **Do NOT use raw `./gradlew bundleRelease`.** It compiles and signs fine and
-> Play accepts the result — and the binary **silently cannot receive OTA
-> updates**. `expo prebuild` does not read `eas.json`, so the update *channel* is
-> never written into `AndroidManifest.xml`; the app then calls `u.expo.dev` with
-> no `expo-channel-name` header and EAS has no branch to serve it. Nothing errors,
-> at build time or at runtime. That is what shipped as **vc 10** on 2026-08-07
-> before anyone checked, and it is why **vc 11** exists.
->
-> `eas build --local` runs the real EAS pipeline on local hardware, so it injects
-> the channel, resolves signing from `credentialsSource: "local"`, and pulls the
-> versionCode from the remote source — all the things `patch-android-release.mjs`
-> was hand-wiring. **That script is obsolete; it is kept only as the record of
-> what a raw-Gradle build has to fake.**
->
-> Verify the channel made it into any Android binary before submitting:
-> ```sh
-> unzip -p <aab> base/manifest/AndroidManifest.xml | strings | grep expo-channel-name
-> # → {"expo-channel-name":"production"}   ← must be present
-> ```
-> If `android/` already exists from a previous hand-run, **delete it first** —
-> EAS treats a present native dir as bare-workflow and will carry the stale
-> config forward.
+Two facts from the deleted runbook are worth keeping, because they are not
+macOS-specific:
 
-That last file is the point. Its compilation is **impossible on the Windows
-box**: RN's New Architecture C++ codegen embeds the full source path inside the
-object path, and `react-native-keyboard-controller` pushes one object file to 350
-characters against Windows' 260-char `MAX_PATH`
-([upstream #1247](https://github.com/kirillzyusko/react-native-keyboard-controller/issues/1247),
-open and unfixed). Everything tried and failed there, so nobody repeats it:
-shortening the staging directory (the remainder is 275 chars *alone*),
-`LongPathsEnabled` (already `1`; the SDK ships ninja 1.10.2, which predates the
-opt-in), and `-DCMAKE_OBJECT_PATH_MAX=200` (reaches CMake — verified in
-`CMakeCache.txt` — and does nothing, because the sources are out-of-tree so CMake
-embeds the mangled absolute path). **WSL2 is not an escape either**: this is a
-Snapdragon X Elite **ARM64** machine, so WSL is `aarch64`, and Google publishes
-the Android SDK and NDK for `linux-x86_64` only
-([tracker 227219818](https://issuetracker.google.com/issues/227219818), open).
-Native Windows works at all only because Windows-on-ARM emulates x86-64.
+- **Gradle has no default socket timeout.** A dropped connection to Google's
+  Maven once left a build hung for **19 minutes** looking exactly like slow
+  compilation. The tell: the log stops advancing, `app/build` gets zero writes,
+  the Java processes sit near 0% CPU. Set
+  `-Dorg.gradle.internal.http.socketTimeout=60000` and the matching
+  `connectionTimeout` in `GRADLE_OPTS`.
+- **Heap and metaspace belong in `apps/mobile/plugins/withGradleJvmArgs.js`**,
+  not in a hand-typed env var. That plugin exists because a release build died on
+  `OutOfMemoryError: Metaspace` in
+  `:react-native-health-connect:lintVitalAnalyzeRelease`, and
+  `expo-build-properties` exposes no option for Gradle JVM args.
 
-**Both halves re-verified upstream 2026-08-17**, and the framing above needs one
-correction: `MAX_PATH` is not an ARM problem and would break an x86 Windows box
-identically ([Rocket.Chat hit it too](https://github.com/RocketChat/Rocket.Chat.ReactNative/issues/6923)).
-What ARM64 removes is the *workaround* — an x86 Windows machine escapes into WSL2,
-and Google's own answer on the `linux-arm64` NDK is
-"[no current plans](https://github.com/android/ndk/discussions/1692)". So this is a
-common RN bug plus the one architecture that closes its standard fix, not a
-Windows-on-ARM capability gap. Say it that way; "Windows cannot build an AAB" is
-wrong and invites someone to re-litigate it.
-
-**One escape is diagnosed but NOT tried: upgrading ninja.** The note above
-correctly identifies the SDK's ninja 1.10.2 as predating the `LongPathsEnabled`
-opt-in, and then never replaces it — while
-[upstream's troubleshooting page](https://kirillzyusko.github.io/react-native-keyboard-controller/docs/troubleshooting)
-lists exactly that as a fix. `LongPathsEnabled` is already `1` here, so a modern
-`ninja.exe` dropped into the SDK is a single-experiment test. Odds are moderate,
-not good — `CMAKE_OBJECT_PATH_MAX` failing points at absolute-path mangling a new
-ninja may still choke on — but it is untested, so do not cite this section as
-proof the Windows box is exhausted.
-
-**Setup, userspace, no `sudo`** (~3 GB — far less than an Android Studio install,
-because only the components AGP actually resolved are pinned):
-
-```sh
-brew install openjdk@17          # the Mac shipped with 11; AGP 8.11 needs 17
-SDK=~/Library/Android/sdk && mkdir -p $SDK/cmdline-tools && cd $SDK/cmdline-tools
-curl -fsSLO https://dl.google.com/android/repository/commandlinetools-mac-11076708_latest.zip
-unzip -q commandlinetools-mac-*.zip && mv cmdline-tools latest
-export ANDROID_HOME=$SDK JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
-export PATH=$JAVA_HOME/bin:$SDK/cmdline-tools/latest/bin:$PATH
-yes | sdkmanager --licenses >/dev/null
-sdkmanager --install "platform-tools" "platforms;android-36" \
-  "build-tools;36.0.0" "ndk;27.1.12297006" "cmake;3.22.1"
-```
-
-Pin those versions to whatever the Gradle build actually resolves; taking latest
-invites a mismatch AGP then re-downloads.
-
-**Two traps, both of which cost real time:**
-
-1. **`JAVA_HOME` must be the explicit Homebrew path.** `openjdk@17` is **keg-only**,
-   so it is never linked into `/Library/Java/JavaVirtualMachines` and
-   `/usr/libexec/java_home -v 17` **cannot see it** — it silently returns nothing
-   and you get the system Java 11. `sdkmanager` then dies with
-   `UnsupportedClassVersionError … class file version 61.0 … recognizes up to 55.0`
-   (61 = Java 17, 55 = Java 11). Same species as the `~/.zshenv` note in §3.9: the
-   Mac does not surface Homebrew toolchains to Apple's own lookup helpers.
-2. **Gradle has NO default socket timeout.** A dropped connection to Google's Maven
-   left a build hung for **19 minutes** that looked exactly like slow compilation.
-   The tell: the log stops advancing, `android/app/build` gets zero writes, the
-   Java processes sit at ~0% CPU, and `lsof -i -a -p <pid>` shows a socket to
-   `*.1e100.net` in **`CLOSE_WAIT`**. Export before building:
-   ```sh
-   export GRADLE_OPTS="-Dorg.gradle.internal.http.socketTimeout=60000 \
-     -Dorg.gradle.internal.http.connectionTimeout=60000"
-   ```
-   (`eas build --local` drives Gradle itself, so this has to reach it via the
-   environment rather than a command-line flag.)
-3. **`ANDROID_HOME` must be exported by the BUILD SCRIPT, not inherited.** The
-   setup block above exports it in the shell that runs the setup, and nothing
-   persists it. An interactive SSH session may still have it via `~/.zshrc`, but a
-   detached build wrapper (`nohup … ~/run-android-build.sh`) runs zsh
-   **non-interactively**, which reads `~/.zshenv` and *not* `~/.zshrc` — so the
-   variable is simply absent and Gradle fails at configuration time with:
-   ```
-   SDK location not found. Define a valid SDK location with an ANDROID_HOME
-   environment variable or by setting the sdk.dir path in local.properties
-   ```
-   Measured 2026-08-07: fails in **23 s**, so it is cheap — but it reads like a
-   broken SDK install rather than an unset variable, which is the expensive part.
-   Third instance of the same species as the `~/.zshenv` note in §3.9. Put this in
-   the wrapper itself:
-   ```sh
-   export ANDROID_HOME=$HOME/Library/Android/sdk
-   export ANDROID_SDK_ROOT=$ANDROID_HOME
-   ```
-
-**Disk:** the SDK is ~3 GB, but Gradle caches and build outputs added ~5 GB on the
-first build (26 → 18 GB free). One-time, not per-build, but this Air has 228 GB
-total and iOS archives want room too.
-
-**Signing and versionCode are handled for you — by `eas build --local`, and only
-by it.** It resolves the keystore from `credentialsSource: "local"` and takes the
-versionCode from the remote source (`appVersionSource: "remote"`), incrementing it.
-Raw Gradle does neither: Expo's template points the `release` buildType at the
-**debug** keystore, so a plain `bundleRelease` produces `CN=Android Debug` — the
-wrong upload cert — and it neither reads nor increments the remote counter, so the
-number must be passed by hand and pushed back with `eas build:version:set` or the
-next cloud build re-mints a colliding one. Two more reasons not to use it.
-
-Verify anyway before submitting — three checks, all cheap:
-
-```sh
-keytool -printcert -jarfile <aab> | grep Owner     # NOT "CN=Android Debug"
-unzip -p <aab> base/manifest/AndroidManifest.xml | strings | grep expo-channel-name
-eas build:version:get -p android                   # matches what you shipped
-```
+**Do not re-litigate the Windows question from the old text.** For the record, so
+nobody re-derives it: `MAX_PATH` is a common React Native bug and would break an
+x86 Windows box identically; what ARM64 removes is the standard *workaround*,
+because WSL2 here is `aarch64` and Google ships the Android SDK/NDK for
+`linux-x86_64` only ([tracker 227219818](https://issuetracker.google.com/issues/227219818),
+with "[no current plans](https://github.com/android/ndk/discussions/1692)" for
+`linux-arm64`). None of that stops the native Windows build, which is what we
+actually use.
 
 See the `build-android` skill for the OTA-vs-build decision that comes first.
+
 
 ---
