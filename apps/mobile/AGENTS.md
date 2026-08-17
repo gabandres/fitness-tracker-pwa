@@ -54,8 +54,21 @@ the bug you "fixed" keeps getting reported.
 
 ## The fingerprint is a property of the MACHINE, not just the commit
 
-**Run the gate — and `eas update` itself — on `ignia-mac`. Never on the Windows
-workstation.** The same commit fingerprints differently on the two machines:
+**Run the gate — and `eas update` itself — on the machine that BUILDS that
+platform. Since 2026-08-17 that is not one machine:**
+
+| Platform | Built on | Gate + `eas update` from |
+|---|---|---|
+| **Android** | the Windows workstation (vc 31+) | **Windows** |
+| **iOS** | `ignia-mac` | **`ignia-mac`** |
+
+**Bare `eas update` publishes BOTH platforms and is therefore correct on
+NEITHER machine — always pass `--platform`.** `.claude/hooks/guard_eas_update.py`
+enforces the whole table; it blocks the bare form everywhere and blocks each
+platform from the wrong host.
+
+The rule below is why, and it still holds — only the "which machine" answer
+changed. The same commit fingerprints differently on the two machines:
 
 | Machine | commit `c3a7333a`, android | ios |
 |---|---|---|

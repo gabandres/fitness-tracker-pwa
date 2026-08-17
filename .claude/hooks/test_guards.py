@@ -83,6 +83,11 @@ case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform android --branch
 # iOS still belongs to the Mac.
 case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform ios --branch production"'), "ios via ignia-mac (owner)", "allow")
 case(E, cmd("cd apps/mobile && npx eas update --platform ios --branch production"), "ios from Windows (wrong host)", "BLOCK")
+# Mentions, not invocations. The `|` inside a quoted regex used to split into a
+# phantom segment starting with `eas update` and block a plain grep (2026-08-17).
+case(E, cmd('grep -nE "ssh ignia-mac.*(eas update|gradlew)" docs/COMMANDS.md'), "grep whose PATTERN mentions eas update", "allow")
+case(E, cmd("rg 'eas update --platform android' docs/"), "rg for the publish command", "allow")
+case(E, cmd('ssh ignia-mac "grep -n \'eas update\' notes.md"'), "grep ON the Mac, still a mention", "allow")
 
 print("\n-- firebase/firestore import --")
 SPEC = "import { Timestamp } from 'firebase/firestore';"

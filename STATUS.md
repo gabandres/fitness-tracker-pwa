@@ -50,8 +50,12 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
   TestFlight build is by definition not in that state. **When 1.2.0 is approved,
   `ios.latestBuild` becomes 55** — run the script, then `npm run build &&
   firebase deploy --only hosting`, or the corrected file reaches nobody.
-- **The EAS Update fingerprint is machine-dependent — publish from `ignia-mac`,
-  never from Windows.** The same commit fingerprints differently on the two
+- **The EAS Update fingerprint is machine-dependent — publish from whichever
+  machine BUILDS that platform.** Since 2026-08-17 that is two machines:
+  **Android from Windows, iOS from `ignia-mac`.** Bare `eas update` publishes
+  both and is correct on neither — always `--platform`-scope it.
+  `.claude/hooks/guard_eas_update.py` enforces the full table.
+  The same commit fingerprints differently on the two
   machines (CRLF-vs-LF and divergent `node_modules`; a Windows-only prebuild dir
   was also blamed until 2026-08-17, when it was measured to contribute nothing —
   `dir:android` is listed as a fingerprint source but does not change the hash).
@@ -60,22 +64,26 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
   `6519916642c291db8255d433bf651e26c66a28b4` (vc 30). Three OTAs once published
   under Windows numbers and reached **nobody** — indistinguishable from a working
   update.
-  **DECIDED 2026-08-17: Android's build host is Windows, permanently.** Windows
-  builds a signed, verifier-green, OTA-capable AAB (vc 31, fingerprint
-  `3d3bc410…`) in ~10m; the Mac becomes iOS-only by choice.
-  **The switch is NOT live yet, and the order matters:**
+  **DONE 2026-08-17: Android's build host is Windows, permanently.** vc 31 —
+  built, signed and verified entirely on the Windows workstation — is live on
+  the Play alpha track at 100%, `status=completed`. EAS's counter, Play, and
+  `app-version.json` (deployed) all read 31; the guard is flipped.
+  **The Air is iOS-only now**: its Android SDK, Gradle caches and `~/.android`
+  were removed (13 → **19 GB free**, which is back over the iOS threshold).
 
-  | | Android OTA | iOS OTA |
-  |---|---|---|
-  | **Now** (vc 30 live, Mac-built) | **from the Mac** | from the Mac |
-  | **After vc 31 ships to Play** | **from Windows** | from the Mac |
+  **The Android fleet is split until testers update**, and this is the only
+  loose end: vc 30 carries the Mac runtime `6519916…`, vc 31 carries the Windows
+  runtime `3d3bc410…`. Android OTAs published from Windows reach **vc 31 only**.
+  The banner (`app-version.json` = 31) is what drains it. Do not publish Android
+  OTAs from the Mac to "cover" vc 30 — that strands vc 31 instead and the guard
+  blocks it.
 
-  Publishing Android from Windows *before* vc 31 is in testers' hands reaches
-  **nobody** — the same failure this rule exists to prevent. Flip
-  `.claude/hooks/guard_eas_update.py` in the same change that ships vc 31, not
-  before. **And bare `eas update` publishes BOTH platforms, so under a split
-  build host it is correct on neither machine — every publish must be
-  `--platform`-scoped.**
+  **vc 31 has had no device QA.** It is functionally identical to vc 30 + the
+  08-14 OTA, but it is the first binary from a toolchain where CMake declined to
+  guarantee object placement (`CMAKE_OBJECT_PATH_MAX`). The check that matters
+  most is **Google Sign-In on a Play install** — it has broken twice here and is
+  structurally invisible on a local build. Its cert `375dd3e6…` is registered
+  (`npm run doctor`), so this is expected to pass; nobody has watched it.
 
 ### The measurement that should shape the next decision
 

@@ -92,6 +92,32 @@ def command_segments(cmd):
     return out
 
 
+QUOTED = re.compile(r"'[^']*'|\"[^\"]*\"")
+
+
+def split_quotes(cmd):
+    """Blank out quoted spans, returning (outer, payloads).
+
+    The segmenter splits on shell metacharacters, and it cannot tell a real `|`
+    from one inside a quoted regex. Without this,
+    `grep -nE "(eas update|gradlew)" docs/` splits into a phantom segment
+    starting with `eas update` and the guard fires on a MENTION -- which this
+    guard's whole contract forbids, and which happened on 2026-08-17.
+
+    Quoted text is data, exactly like a heredoc body. The one case that must
+    still see inside quotes is `ssh ignia-mac "... eas update ..."`, so the
+    payloads are returned separately and segmented on their own -- reached only
+    when `ssh ignia-mac` appears OUTSIDE the quotes.
+    """
+    payloads = []
+
+    def repl(m):
+        payloads.append(m.group(0)[1:-1])
+        return " QUOTED "
+
+    return QUOTED.sub(repl, cmd), payloads
+
+
 def block(reason, fix):
     print(f"BLOCKED: {reason}\n\n{fix}", file=sys.stderr)
     sys.exit(2)
@@ -100,15 +126,24 @@ def block(reason, fix):
 data = json.load(sys.stdin)
 cmd = ((data.get("tool_input") or {}).get("command") or "")
 
-if not any(PUBLISH.match(s) for s in command_segments(cmd)):
+outer, payloads = split_quotes(cmd)
+
+# Publishing directly on this machine.
+local_publish = any(PUBLISH.match(s) for s in command_segments(outer))
+# Publishing on the Mac -- `ssh ignia-mac` must appear OUTSIDE the quotes, so a
+# grep whose *pattern* mentions ssh cannot reach this branch.
+mac_publish = bool(MAC.search(outer)) and any(
+    PUBLISH.match(s) for p in payloads for s in command_segments(p)
+)
+
+if not (local_publish or mac_publish):
     sys.exit(0)
 if "--help" in cmd:
     sys.exit(0)
 
 m = PLATFORM.search(cmd)
 platform = m.group(1).lower() if m else None
-on_mac = bool(MAC.search(cmd))
-here = "mac" if on_mac else "windows"
+here = "mac" if mac_publish and not local_publish else "windows"
 
 if platform not in OWNER:
     block(

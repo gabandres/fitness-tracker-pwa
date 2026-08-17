@@ -6,6 +6,49 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-17 — Android builds on Windows now, and the binary that proves it is live
+
+For its whole life this app could only be built on one MacBook Air, and that Air
+is someone else's laptop with 187 GB of their own data on it. It had already
+been demoted to an iOS-only build host on disk grounds. **Android now builds on
+the Windows workstation instead — permanently — and vc 31, built and signed
+entirely here, is live on the Play alpha track.**
+
+The received wisdom said this was impossible: `build-infrastructure.md` claimed
+"AABs do not build on Windows at all", blaming the 260-character `MAX_PATH`
+limit against React Native's New Architecture C++. That was wrong. Gradle
+compiled the whole native graph in 10m12s across all four ABIs. CMake does still
+warn that it cannot *guarantee* object placement for
+`react-native-keyboard-controller` — almost certainly where the old conclusion
+came from — but a warning is not a failure.
+
+**What was genuinely broken was subtler, and silent.** `eas build --local`
+refuses to run Android off Linux/macOS, so Windows has to use raw Gradle — and
+`expo prebuild` never reads `eas.json`, so nothing wrote the EAS Update
+**channel** into `AndroidManifest.xml`. The resulting binary compiles, signs,
+passes Play, installs, runs, and can never receive an over-the-air update: it
+calls `u.expo.dev` with no `expo-channel-name` header and is told nothing.
+Nothing errors, at build time or at runtime. This exact defect shipped once
+before as vc 10, and the first Windows AAB reproduced it perfectly.
+
+`scripts/patch-android-release.mjs` now injects the channel alongside the release
+signing and versionCode it already handled, which is precisely the gap that had
+marked it obsolete. `verify-mobile-artifact.mjs` — the gate that catches this —
+turned out to have never been runnable on Windows at all, because it shelled out
+to `strings`; it no longer does.
+
+Two beliefs were measured and discarded along the way. `dir:android` is listed
+as a fingerprint source but contributes **nothing** to the hash, so the ritual of
+deleting `android/` before a gate run was a no-op and was never a cause of the
+Windows/Mac divergence. And a `versionCode` printed in a build log still means
+nothing — the artifact and Play are the only authorities.
+
+The cost is one OTA cohort split, paid once: vc 30 carries the Mac runtime and
+vc 31 the Windows one, and Android updates now publish from Windows.
+`.claude/hooks/guard_eas_update.py` routes by platform to enforce it, and blocks
+bare `eas update` everywhere — it publishes both platforms, so under a split
+build host it is correct on neither machine.
+
 ## 2026-08-16 — The weekly recap opens the app, counts the week correctly, and can be unsubscribed in one click
 
 Three things about the Sunday recap email, all visible in the one that went out
