@@ -65,8 +65,17 @@ workstation.** The same commit fingerprints differently on the two machines:
 Three commit-independent causes, found by diffing the two `sources` arrays
 (516 entries on Windows, 286 on the Mac):
 
-- a stale **`apps/mobile/android/`** prebuild dir exists on Windows only — it is
-  gitignored, so nothing syncs or removes it, and `dir:android` is hashed;
+- ~~a stale **`apps/mobile/android/`** prebuild dir exists on Windows only — it is
+  gitignored, so nothing syncs or removes it, and `dir:android` is hashed;~~
+  **DISPROVEN 2026-08-17 — `dir:android` is listed as a source but contributes
+  NOTHING to the hash.** Measured on the Windows workstation by generating with
+  the directory present and again with it moved aside: `3d3bc410…` both times,
+  521 sources vs 520. Almost certainly because `android/` is wholly gitignored
+  and the fingerprinter honours that. Two builds from *different* `android/`
+  contents (a stale vc-10 prebuild and a fresh vc-31 one, differing in
+  versionCode, AndroidManifest.xml and gradle.properties) also embedded the
+  identical fingerprint. So this is not a cause of Windows/Mac divergence, and
+  deleting `android/` before a gate run is a no-op;
 - **CRLF vs LF** in tracked files (`.gitignore`, `targets/widget/expo-target.config.js`
   both hash differently) — Windows checks out CRLF;
 - divergent `node_modules`, which changes which config-plugin files are walked.
@@ -228,12 +237,14 @@ their artifacts. Otherwise the second publish targets a runtime nobody runs.
 **2026-08-09: the gate was run at commit `43f15149` and both platforms matched
 their live artifacts exactly** — android `ca2dc124…` (vc 29), ios `1d89fedf…`
 (build 41) — so the OTA published that day lands on the current cohort. One
-precondition is worth repeating because it was nearly missed: the Mac had an
-`apps/mobile/android/` prebuild dir at the time (created to build a QA APK for
-the Maestro emulator), and **`dir:android` is hashed**. It was deleted before
-generating. A gate run with that directory present reports a hash no binary
-carries — the Windows-vs-Mac divergence at the top of this section, reproduced
-on the Mac itself.
+precondition was recorded here as load-bearing and **turned out not to be**: the
+Mac had an `apps/mobile/android/` prebuild dir at the time (created to build a
+QA APK for the Maestro emulator), and it was deleted before generating on the
+belief that `dir:android` is hashed. It is not — see the struck-through bullet
+above, measured 2026-08-17. Deleting it changed nothing; the gate would have
+returned the same hash either way. Harmless as a habit, but do not reach for it
+as an explanation when a fingerprint fails to match, and do not spend a step on
+it: the real divergence causes are CRLF-vs-LF and divergent `node_modules`.
 
 Do not assume "published" means "delivered"; check which runtime version the
 update went out under:
