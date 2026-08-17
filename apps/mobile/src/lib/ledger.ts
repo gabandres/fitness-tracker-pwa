@@ -595,7 +595,26 @@ export async function ensureProfile(uid: string): Promise<void> {
   const ref = userDoc(uid);
   const snap = await getDoc(ref);
   if (snap.exists()) {
-    await updateDoc(ref, { lastSeenAt: Timestamp.now() });
+    // Refresh `timezoneOffsetMin` here, not just on the weekly-digest toggle.
+    // This runs from `onAuthStateChanged`, so it fires on every cold start —
+    // which is what makes it SELF-HEALING for the users who opted into the
+    // digest before mobile wrote a timezone at all. Their profiles carry no
+    // offset, and the server reads a missing one as UTC, so their Sunday
+    // 10:00 recap arrives at 06:00 in Puerto Rico. Fixing it only on the
+    // toggle would have left every existing opt-in broken until they
+    // happened to flip the switch twice. Travel and DST correct themselves
+    // for free.
+    //
+    // Guarded on `profileCompleted` because `firestore.rules` validates the
+    // profile with `keys().hasOnly([...])` and `timezoneOffsetMin` is on the
+    // COMPLETED list only — adding it to a doc still in the initial shape
+    // fails both validators and would reject this write, killing the
+    // `lastSeenAt` touch for everyone mid-onboarding.
+    const patch: Record<string, unknown> = { lastSeenAt: Timestamp.now() };
+    if (snap.data()?.['profileCompleted'] === true) {
+      patch['timezoneOffsetMin'] = new Date().getTimezoneOffset();
+    }
+    await updateDoc(ref, patch);
     return;
   }
   const now = Timestamp.now();
