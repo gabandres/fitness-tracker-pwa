@@ -99,6 +99,13 @@ Everything else that was in this section has shipped and is in `CHANGELOG.md`.
   a different runtime that has never been an OTA target, so no OTA can reach
   them — only the 1.2.0 release can.
 
+- **The mobile timezone self-heal** (`145d8b88`, 2026-08-17). `ensureProfile`
+  now writes `timezoneOffsetMin` on every cold start; nothing in the mobile app
+  had ever written it, so mobile-only digest opt-ins were computed **and sent**
+  as UTC (06:00 in Puerto Rico, not 10:00 local). The server half shipped the
+  same day and is live. This client half reaches nobody until a build or an
+  OTA, and the iOS OTA is the one held above.
+
 ## 3. Open work, and what each is blocked on
 
 | Work | Blocked on |
@@ -110,6 +117,7 @@ Everything else that was in this section has shipped and is in `CHANGELOG.md`.
 | **App Store screenshots** | Owner, on device (`store-assets/README.md`) |
 | **Photo-scan validation gate** | 30–50 real photos, judging the **item list and portions** — never the macros. Harness: `scripts/validate-photo-itemiser.mjs` (ADR-0015 §2) |
 | **`13-e2e-delete` on iOS** | Row tap does not open the editor. Deliberately left red; diagnosis notes in the Maestro suite README. The fresh-account arc has never been run, and the mic's listening state can only close on hardware |
+| **The website is invisible to Google** | **A decision, not a task.** Measured 2026-08-17: 110 of 114 sitemap URLs are *unknown to Google*, the sitemap has never been downloaded, and 90 days of Search Console show 4 impressions and 0 clicks. Cause is structural — "prerendered" writes the `<head>` only, so a first-pass crawler sees `<app-root></app-root>`, and `routerLink` appears in zero files so there is no link graph to crawl either. Fixing it means real prerendering + crawlable anchors; neither is scoped. Full evidence in `docs/seo-status.md` |
 | **Web retirement question** | **A measurement, not intuition** (ADR-0022): `node scripts/usage-report.mjs --days 30`, reading `platforms`. May not be revisited before that data exists |
 
 **`ignia-mac` disk is the recurring constraint.** It was at 6.4 GB on 2026-08-14

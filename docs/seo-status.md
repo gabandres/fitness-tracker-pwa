@@ -95,6 +95,66 @@ about to be crawled for the first time, and they will be crawled correct.
   Every page there canonicalizes to ignia.fit, so it should not compete, but it
   is worth watching that Google does not index the `.web.app` host.
 
+## Measurement, 2026-08-17 — 19 days in, nothing has moved
+
+Taken by inspecting **all 114 sitemap URLs** through the URL Inspection API,
+plus `sitemaps.list` and a 90-day Search Analytics query. This supersedes the
+expectation set at the bottom of this file ("crawled over days to weeks"): the
+days-to-weeks have passed.
+
+| Measure | Value |
+|---|---|
+| Sitemap URLs indexed | **4** — `/`, `/vs/calai`, `/download`, `/es/download` |
+| Sitemap URLs *unknown to Google* | **110** of 114 |
+| Sitemap `lastDownloaded` | **never.** `isPending: true` since the 2026-07-29 submit |
+| Impressions, 90 days | **4**, across 2 pages. Clicks: **0** |
+| GSC "Not found (404)" | 1 page, and it is **not one of ours** (see below) |
+
+**Three findings, and the third explains the other two.**
+
+**1. The sitemap has never been fetched.** Not rejected — *never downloaded*,
+19 days after submission. It is technically clean: valid XML,
+`application/xml`, 114 URLs, reciprocal hreflang, allowed by robots.txt. It
+carries no `<lastmod>` on any entry, which is worth adding **only** if the
+values are honest — stamping all 114 with the build time is the inaccurate
+pattern Google says it discounts. Re-submitted 2026-08-17.
+
+**2. Every page is an orphan.** 113 of 114 sitemap URLs are unreachable from
+the homepage in two clicks, because **`routerLink` appears in zero files under
+`src/app`** — the app navigates by click handler, so the DOM contains no
+crawlable `<a href>`. Each served page carries exactly one internal link,
+`href="/"`. With no link graph, discovery depends entirely on the sitemap in
+(1), and the two reinforce each other.
+
+**3. "Prerendered" means the `<head>` only.** `scripts/prerender-seo.mjs`
+writes per-route `<title>`, description, canonical, hreflang and JSON-LD into
+copies of `index.html`. It renders no component markup, by design. What
+Googlebot receives on `/calculator`, `/vs/calai` and `/` is:
+
+```
+<app-root></app-root>          # zero <h1>, zero body copy, zero links
+```
+
+So the content exists only after JS runs. Google does render JS, but on a
+second pass with its own budget — and on a domain with 4 impressions in 90
+days there is no budget to spend. **The pages are not thin; they are, to a
+first-pass crawler, empty.** That is a different problem from the one this file
+was opened for, and it is not fixable by resubmitting anything: it needs real
+prerendering (`@angular/ssr`, `outputMode: 'static'`) so the markup ships in
+the HTML, and crawlable anchors so the 114 URLs form a graph. Both are
+architectural and neither has been scoped.
+
+**On the 404.** Not identifiable from any API — the coverage export gives a
+count, the URL Inspection API needs a URL you already have, and Search
+Analytics only lists pages with impressions. What is ruled out: all 114 sitemap
+URLs return 200 and none reports a 404 to Google, all 115 same-origin links on
+the site return 200, and every `ignia.fit` URL referenced anywhere in this repo
+returns 200. On this host only two shapes can hard-404 at all — `/u/` or
+`/u/<1–2 chars>`, and `/og/u/<missing>.png` — because the `**` → `/index.html`
+rewrite answers 200 for everything else. Both were inspected: unknown to
+Google. If it is a URL that should not exist, a 404 is the correct answer and
+there is nothing to fix; the GSC UI drill-down names it in one click.
+
 ## How to check
 
 ```sh
