@@ -115,7 +115,7 @@ export * from './plate-math';
 export * from './warmup';
 export * from './workout-progression';
 // Function-only export (the ./workout types stay un-barreled — see note above).
-export { normalizeClusterGroups } from './cluster-groups';
+export { normalizeClusterGroups, setRowLabels } from './cluster-groups';
 // Finish-boundary guard: fill a logged set's missing load from its siblings
 // (both apps — ADR-0012). Function-only, so the ./workout types stay un-barreled.
 export { fillMissingClusterLoads } from './workout';

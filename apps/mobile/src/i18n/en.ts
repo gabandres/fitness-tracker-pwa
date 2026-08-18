@@ -518,7 +518,10 @@ export const en = {
   'train.merge': 'Merge',
   'train.mergeInto': 'Merge into…',
   'train.deleteExercise': 'Delete this exercise? History keeps its name.',
-  'train.rirShort': 'RIR',
+  // The column header over the reps-in-reserve cell. NOT the acronym: RIR is
+  // the single hardest word in the tab, and "left" says the same thing in a
+  // cell this narrow. The glossary still teaches the term.
+  'train.rirShort': 'LEFT',
   'train.rirPrompt': 'How many more reps could you have done?',
   'train.rirScale.none': 'RIR —',
   'train.rirScale.0': '0 · to failure',
@@ -541,12 +544,12 @@ export const en = {
   'train.glossary.sectionLogging': 'Logging a set',
   'train.glossary.sectionProgress': 'Getting stronger',
   'train.glossary.sectionPlates': 'Plates & warm-up',
-  'train.glossary.rir': 'RIR — reps in reserve',
-  'train.glossary.rirBody': "How many more reps you could have done before failing. 0 means you couldn't have managed one more; 3 means you had three left. Leave it blank if you'd rather not track effort — nothing else in the app depends on it.",
+  'train.glossary.rir': 'LEFT — reps in reserve (RIR)',
+  'train.glossary.rirBody': "The column headed LEFT: how many more reps you could have done before failing. Its technical name is RIR, reps in reserve. 0 means you couldn't have managed one more; 3 means you had three left. Leave it blank if you'd rather not track effort — nothing else in the app depends on it.",
   'train.glossary.setTypes': 'Set types',
   'train.glossary.setTypesBody': "Tap a set's number to change its type. Warm-ups are excluded from records and progression; everything else counts.",
-  'train.glossary.cluster': 'Cluster (C1, C2)',
-  'train.glossary.clusterBody': 'One activation set plus a few minis at the same weight, separated by short rests. Sets in a cluster are numbered C1, C2 instead of 1, 2.',
+  'train.glossary.cluster': 'Cluster (1a, 1b, 1c)',
+  'train.glossary.clusterBody': 'One activation set plus a few minis at the same weight, separated by short rests. A cluster takes one set number and letters its parts — 1a, 1b, 1c — so it stays in step with the sets around it.',
   'train.glossary.rest': 'Rest timer',
   'train.glossary.restBody': 'Starts when you tick a set off. The length comes from the template: a short one between sets, a longer one between clusters.',
   'train.glossary.progression': 'Auto-progression',
@@ -584,6 +587,12 @@ export const en = {
   // Per-set prescription cells in the template editor. The three short ones
   // are placeholders standing in for a column header, so they must stay to
   // ~4 chars — the inputs are 52pt wide.
+  'train.moreOptions': 'More options',
+  'train.removeExercise': 'Remove exercise',
+  'train.setCount': '{n} sets',
+  'train.setCountOne': '1 set',
+  'train.setShort': 'Set',
+  'train.setTypeA11y': 'Set {n}, type: {kind}. Tap to change.',
   'train.lbShort': 'lb',
   'train.repsShort': 'reps',
   'train.secShort': 'sec',

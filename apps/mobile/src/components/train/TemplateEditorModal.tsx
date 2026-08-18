@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
-import { normalizeClusterGroups } from '@macrolog/core';
+import { normalizeClusterGroups, setRowLabels } from '@macrolog/core';
 import type {
   Exercise,
   LogStyle,
@@ -22,7 +22,7 @@ import type {
 } from '@/lib/workout';
 import { DEFAULT_LOG_STYLE } from '@/lib/workout';
 import type { useTrain } from '@/hooks/useTrain';
-import { useT } from '@/i18n';
+import { type TFn, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { smoothLayout } from '@/lib/motion';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
@@ -84,6 +84,32 @@ function toPlannedSet(d: DraftSet): PlannedSet {
 
 const newDraftSet = (kind: SetKind): DraftSet => toDraftSet({ kind });
 
+/** The one line a collapsed card shows — "3 × 8 · 20 lb". It answers the
+ *  question the old card made you expand it to answer, and it degrades
+ *  honestly: reps or load that differ across sets collapse to a set count
+ *  rather than picking one row's number and implying it holds for all. */
+function exSummary(d: DraftEx, t: TFn): string {
+  const n = d.sets.length;
+  const sets = n === 1 ? t('train.setCountOne') : t('train.setCount', { n });
+  const one = (vals: string[]): string | null => {
+    const seen = new Set(vals.map((v) => v.trim()).filter(Boolean));
+    return seen.size === 1 && seen.size === vals.length ? [...seen][0] : null;
+  };
+
+  if (d.logStyle === 'time') {
+    const secs = one(d.sets.map((x) => x.durationText));
+    return secs ? `${n} × ${secs}s` : sets;
+  }
+
+  const reps = one(d.sets.map((x) => x.repsText));
+  const head = reps ? `${n} × ${reps}` : sets;
+  if (d.logStyle === 'bodyweight') return head;
+
+  // Per-set weight wins; the exercise-level default is the fallback it always was.
+  const load = one(d.sets.map((x) => x.weightText)) ?? d.targetLoad.trim();
+  return load ? `${head} · ${load} lb` : head;
+}
+
 // carries EVERY field the stored TemplateExercise has, because the editor
 // writes `exercises` as a full overwrite. A field the editor cannot see is a
 // field the next save deletes — which is how mobile edits used to flatten
@@ -126,6 +152,10 @@ export function TemplateEditorModal({
   const [exName, setExName] = useState('');
   const [exStyle, setExStyle] = useState<LogStyle>('weight-reps');
   const [kindOpen, setKindOpen] = useState<string | null>(null); // `${exIdx}:${setIdx}`
+  /** Accordion: at most ONE exercise expanded, so the sheet stays a list you
+   *  can scan. A freshly added exercise opens itself — you added it to edit it. */
+  const [openEx, setOpenEx] = useState<number | null>(null);
+  const [moreEx, setMoreEx] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -150,6 +180,8 @@ export function TemplateEditorModal({
       })),
     );
     setKindOpen(null);
+    setOpenEx(null);
+    setMoreEx(null);
     setErr('');
     setExName('');
     setExStyle('weight-reps');
@@ -177,6 +209,8 @@ export function TemplateEditorModal({
         sets: [newDraftSet('working'), newDraftSet('working'), newDraftSet('working')],
       },
     ]);
+    setOpenEx(exercises.length); // the index the new card lands on
+    setMoreEx(null);
     setExName('');
   }
 
@@ -208,6 +242,10 @@ export function TemplateEditorModal({
 
   function removeEx(index: number) {
     setExercises((prev) => prev.filter((_, i) => i !== index));
+    // The flags are INDICES into a list that just shifted; stale ones would
+    // expand whichever exercise slid into the removed slot.
+    setOpenEx(null);
+    setMoreEx(null);
   }
 
   // Reorder by one position (array order IS the saved template order). Robust
@@ -220,6 +258,8 @@ export function TemplateEditorModal({
       [next[from], next[to]] = [next[to], next[from]];
       return next;
     });
+    setOpenEx((o) => (o === from ? to : o === to ? from : o));
+    setMoreEx(null);
     haptics.tap();
   }
 
@@ -414,8 +454,14 @@ export function TemplateEditorModal({
             {exercises.length === 0 ? (
               <Text style={[styles.empty, { marginTop: space.md }]}>{t('train.templateNoEx')}</Text>
             ) : (
-              exercises.map((d, i) => (
-                <View key={`${d.exerciseId}-${i}`} style={styles.tplExCard}>
+              exercises.map((d, i) => {
+                // One label per row, derived from the whole sequence: a
+                // cluster takes one set number with lettered sub-sets.
+                const setLabels = setRowLabels(d.sets);
+                const open = openEx === i;
+                const more = moreEx === i;
+                return (
+                <Animated.View key={`${d.exerciseId}-${i}`} style={styles.tplExCard} layout={smoothLayout}>
                   <View style={styles.tplExTop}>
                     <View style={styles.tplReorder}>
                       <TouchableOpacity
@@ -439,131 +485,70 @@ export function TemplateEditorModal({
                         <Ionicons name="chevron-down" size={18} color={i === exercises.length - 1 ? colors.line : colors.muted} />
                       </TouchableOpacity>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.tplExName}>{d.name}</Text>
-                      <Text style={styles.tplExMeta}>{t(logStyleKey(d.logStyle))}</Text>
-                    </View>
+                    {/* The whole name block is the expand target: one open
+                        exercise at a time, so a six-exercise template is six
+                        readable lines instead of six full forms. The summary
+                        is what the card used to make you open it to learn. */}
                     <TouchableOpacity
-                      onPress={() => removeEx(i)}
-                      hitSlop={8}
-                      style={styles.tplDel}
-                      testID={`template-remove-${i}`}
+                      style={{ flex: 1 }}
+                      onPress={() => {
+                        haptics.tap();
+                        setOpenEx(open ? null : i);
+                      }}
                       accessibilityRole="button"
-                      accessibilityLabel={t('common.remove')}
+                      accessibilityState={{ expanded: open }}
+                      accessibilityLabel={`${d.name}. ${exSummary(d, t)}`}
+                      testID={`template-ex-toggle-${i}`}
                     >
-                      <Ionicons name="close" size={18} color={colors.faint} />
+                      <Text style={styles.tplExName}>{d.name}</Text>
+                      <Text style={styles.tplExMeta}>{exSummary(d, t)}</Text>
                     </TouchableOpacity>
-                  </View>
-                  <View style={styles.tplExControls}>
-                    {d.logStyle !== 'bodyweight' ? (
-                      <View style={styles.tplLoadWrap}>
-                        <TextInput
-                          style={styles.tplLoadInput}
-                          placeholder={t('train.target')}
-                          placeholderTextColor={colors.faint}
-                          keyboardType="numeric"
-                          value={d.targetLoad}
-                          onChangeText={(v) => patchEx(i, { targetLoad: v })}
-                          testID={`template-load-${i}`}
-                        />
-                        <Text style={styles.tplLoadUnit}>lb</Text>
-                      </View>
-                    ) : (
-                      <View style={{ flex: 1 }} />
-                    )}
-                  </View>
-
-                  <Text style={styles.fieldLabel}>{t('train.cues')}</Text>
-                  <TextInput
-                    style={[styles.input, styles.notesInput]}
-                    placeholderTextColor={colors.faint}
-                    value={d.cuesText}
-                    onChangeText={(v) => patchEx(i, { cuesText: v })}
-                    multiline
-                    testID={`template-cues-${i}`}
-                  />
-
-                  <TouchableOpacity
-                    style={styles.progToggle}
-                    onPress={() => {
-                      haptics.tap();
-                      patchEx(i, { hasProgression: !d.hasProgression });
-                    }}
-                    testID={`template-progression-${i}`}
-                  >
                     <Ionicons
-                      name={d.hasProgression ? 'checkbox' : 'square-outline'}
+                      name={open ? 'chevron-up' : 'chevron-down'}
                       size={18}
-                      color={d.hasProgression ? colors.ink : colors.faint}
+                      color={colors.muted}
                     />
-                    <Text style={styles.progToggleText}>{t('train.progression')}</Text>
-                  </TouchableOpacity>
-                  {d.hasProgression ? (
-                    <View style={styles.progRow}>
-                      <View style={styles.progCell}>
-                        <Text style={styles.tplSetsLabel}>{t('train.targetReps')}</Text>
-                        <TextInput
-                          style={styles.tplLoadInput}
-                          keyboardType="numeric"
-                          placeholder="12"
-                          placeholderTextColor={colors.faint}
-                          value={d.targetReps}
-                          onChangeText={(v) => patchEx(i, { targetReps: v })}
-                          testID={`template-target-reps-${i}`}
-                        />
-                      </View>
-                      <View style={styles.progCell}>
-                        <Text style={styles.tplSetsLabel}>{t('train.holdSessions')}</Text>
-                        <TextInput
-                          style={styles.tplLoadInput}
-                          keyboardType="numeric"
-                          placeholder="2"
-                          placeholderTextColor={colors.faint}
-                          value={d.holdSessions}
-                          onChangeText={(v) => patchEx(i, { holdSessions: v })}
-                          testID={`template-hold-sessions-${i}`}
-                        />
-                      </View>
-                      <View style={styles.progCell}>
-                        <Text style={styles.tplSetsLabel}>{t('train.incrementLb')}</Text>
-                        <TextInput
-                          style={styles.tplLoadInput}
-                          keyboardType="numeric"
-                          placeholder="5"
-                          placeholderTextColor={colors.faint}
-                          value={d.incrementLb}
-                          onChangeText={(v) => patchEx(i, { incrementLb: v })}
-                          testID={`template-increment-${i}`}
-                        />
-                      </View>
-                    </View>
-                  ) : null}
-                  {d.hasProgression ? (
-                    /* The three numbers ARE the rule, but nobody reads them as
-                       one. Echoing them back as a sentence is the explanation. */
-                    <Text style={styles.progRule}>
-                      {t('train.progressionRule', {
-                        reps: d.targetReps || 12,
-                        sessions: d.holdSessions || 2,
-                        lb: d.incrementLb || 5,
-                      })}
-                    </Text>
-                  ) : null}
-
-                  {/* Sets, edited individually. A cluster is activation +
-                      two minis; the C-number is derived, never typed. */}
+                  </View>
+                  {open ? (
+                  <>
+                  {/* Sets are a small TABLE: a row says what to do, and the
+                      headers say what the numbers mean, so neither needs a
+                      legend. The set number doubles as the type control —
+                      tapping it opens the kind picker — which removes a
+                      full-width button from every row without hiding
+                      anything, because a non-working kind still prints its
+                      name under the number. */}
                   <Text style={styles.fieldLabel}>{t('train.sets')}</Text>
+                  <View style={styles.tplSetHead}>
+                    <Text style={[styles.tplSetHeadCell, styles.tplSetNumCell]}>{t('train.setShort')}</Text>
+                    {d.logStyle === 'weight-reps' ? (
+                      <Text style={[styles.tplSetHeadCell, styles.tplSetCell]}>{t('train.lbShort')}</Text>
+                    ) : null}
+                    <Text style={[styles.tplSetHeadCell, styles.tplSetCell]}>
+                      {d.logStyle === 'time' ? t('train.secShort') : t('train.repsShort')}
+                    </Text>
+                    <View style={styles.tplSetDelCell} />
+                  </View>
                   {d.sets.map((ps, si) => {
                     const openKey = `${i}:${si}`;
                     return (
                       <View key={si}>
                         <View style={styles.tplSetRow}>
                           <TouchableOpacity
-                            style={styles.tplSetKind}
+                            style={styles.tplSetNumCell}
                             onPress={() => setKindOpen(kindOpen === openKey ? null : openKey)}
+                            accessibilityLabel={t('train.setTypeA11y', {
+                              n: setLabels[si],
+                              kind: t(kindLabelKey(ps.kind)),
+                            })}
                             testID={`template-set-kind-${i}-${si}`}
                           >
-                            <Text style={styles.tplSetKindText}>{t(kindLabelKey(ps.kind))}</Text>
+                            <Text style={styles.tplSetNum}>{setLabels[si]}</Text>
+                            {ps.kind !== 'working' ? (
+                              <Text style={styles.tplSetKindTag} numberOfLines={1}>
+                                {t(kindLabelKey(ps.kind))}
+                              </Text>
+                            ) : null}
                           </TouchableOpacity>
 
                           {/* The prescription. A template that cannot say
@@ -572,7 +557,7 @@ export function TemplateEditorModal({
                               the units so the row needs no header. */}
                           {d.logStyle === 'time' ? (
                             <TextInput
-                              style={styles.tplSetInput}
+                              style={[styles.tplSetInput, styles.tplSetCell]}
                               keyboardType="numeric"
                               placeholder={t('train.secShort')}
                               placeholderTextColor={colors.faint}
@@ -585,7 +570,7 @@ export function TemplateEditorModal({
                             <>
                               {d.logStyle !== 'bodyweight' ? (
                                 <TextInput
-                                  style={styles.tplSetInput}
+                                  style={[styles.tplSetInput, styles.tplSetCell]}
                                   keyboardType="numeric"
                                   placeholder={t('train.lbShort')}
                                   placeholderTextColor={colors.faint}
@@ -596,7 +581,7 @@ export function TemplateEditorModal({
                                 />
                               ) : null}
                               <TextInput
-                                style={styles.tplSetInput}
+                                style={[styles.tplSetInput, styles.tplSetCell]}
                                 keyboardType="numeric"
                                 placeholder={t('train.repsShort')}
                                 placeholderTextColor={colors.faint}
@@ -608,13 +593,10 @@ export function TemplateEditorModal({
                             </>
                           )}
 
-                          <Text style={styles.tplSetGroup}>
-                            {ps.group != null ? t('train.cluster', { n: ps.group }) : ''}
-                          </Text>
                           <TouchableOpacity
                             onPress={() => removeSet(i, si)}
                             hitSlop={8}
-                            style={styles.tplDel}
+                            style={styles.tplSetDelCell}
                             accessibilityLabel={t('train.removeSet')}
                             testID={`template-set-remove-${i}-${si}`}
                           >
@@ -652,8 +634,143 @@ export function TemplateEditorModal({
                       <Text style={styles.sectionAction}>{t('train.addCluster')}</Text>
                     </TouchableOpacity>
                   </View>
-                </View>
-              ))
+
+                  {/* Everything below is optional, and none of it is what a
+                      beginner came here to do. Cues, the progression rule and
+                      the exercise-level default load used to sit above the
+                      sets, which is how a card reached eight controls. */}
+                  <TouchableOpacity
+                    style={styles.moreRow}
+                    onPress={() => {
+                      haptics.tap();
+                      setMoreEx(more ? null : i);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: more }}
+                    testID={`template-more-${i}`}
+                  >
+                    <Text style={styles.moreText}>{t('train.moreOptions')}</Text>
+                    <Ionicons
+                      name={more ? 'chevron-up' : 'chevron-down'}
+                      size={16}
+                      color={colors.muted}
+                    />
+                  </TouchableOpacity>
+
+                  {more ? (
+                    <View style={styles.moreBody}>
+                      <View style={styles.tplExControls}>
+                        {d.logStyle !== 'bodyweight' ? (
+                          <View style={styles.tplLoadWrap}>
+                            <TextInput
+                              style={styles.tplLoadInput}
+                              placeholder={t('train.target')}
+                              placeholderTextColor={colors.faint}
+                              keyboardType="numeric"
+                              value={d.targetLoad}
+                              onChangeText={(v) => patchEx(i, { targetLoad: v })}
+                              testID={`template-load-${i}`}
+                            />
+                            <Text style={styles.tplLoadUnit}>lb</Text>
+                          </View>
+                        ) : (
+                          <View style={{ flex: 1 }} />
+                        )}
+                      </View>
+
+                      <Text style={styles.fieldLabel}>{t('train.cues')}</Text>
+                      <TextInput
+                        style={[styles.input, styles.notesInput]}
+                        placeholderTextColor={colors.faint}
+                        value={d.cuesText}
+                        onChangeText={(v) => patchEx(i, { cuesText: v })}
+                        multiline
+                        testID={`template-cues-${i}`}
+                      />
+
+                      <TouchableOpacity
+                        style={styles.progToggle}
+                        onPress={() => {
+                          haptics.tap();
+                          patchEx(i, { hasProgression: !d.hasProgression });
+                        }}
+                        testID={`template-progression-${i}`}
+                      >
+                        <Ionicons
+                          name={d.hasProgression ? 'checkbox' : 'square-outline'}
+                          size={18}
+                          color={d.hasProgression ? colors.ink : colors.faint}
+                        />
+                        <Text style={styles.progToggleText}>{t('train.progression')}</Text>
+                      </TouchableOpacity>
+                      {d.hasProgression ? (
+                        <View style={styles.progRow}>
+                          <View style={styles.progCell}>
+                            <Text style={styles.tplSetsLabel}>{t('train.targetReps')}</Text>
+                            <TextInput
+                              style={styles.tplLoadInput}
+                              keyboardType="numeric"
+                              placeholder="12"
+                              placeholderTextColor={colors.faint}
+                              value={d.targetReps}
+                              onChangeText={(v) => patchEx(i, { targetReps: v })}
+                              testID={`template-target-reps-${i}`}
+                            />
+                          </View>
+                          <View style={styles.progCell}>
+                            <Text style={styles.tplSetsLabel}>{t('train.holdSessions')}</Text>
+                            <TextInput
+                              style={styles.tplLoadInput}
+                              keyboardType="numeric"
+                              placeholder="2"
+                              placeholderTextColor={colors.faint}
+                              value={d.holdSessions}
+                              onChangeText={(v) => patchEx(i, { holdSessions: v })}
+                              testID={`template-hold-sessions-${i}`}
+                            />
+                          </View>
+                          <View style={styles.progCell}>
+                            <Text style={styles.tplSetsLabel}>{t('train.incrementLb')}</Text>
+                            <TextInput
+                              style={styles.tplLoadInput}
+                              keyboardType="numeric"
+                              placeholder="5"
+                              placeholderTextColor={colors.faint}
+                              value={d.incrementLb}
+                              onChangeText={(v) => patchEx(i, { incrementLb: v })}
+                              testID={`template-increment-${i}`}
+                            />
+                          </View>
+                        </View>
+                      ) : null}
+                      {d.hasProgression ? (
+                        /* The three numbers ARE the rule, but nobody reads them as
+                           one. Echoing them back as a sentence is the explanation. */
+                        <Text style={styles.progRule}>
+                          {t('train.progressionRule', {
+                            reps: d.targetReps || 12,
+                            sessions: d.holdSessions || 2,
+                            lb: d.incrementLb || 5,
+                          })}
+                        </Text>
+                      ) : null}
+                      <TouchableOpacity
+                        onPress={() => removeEx(i)}
+                        style={styles.moreRemove}
+                        testID={`template-remove-${i}`}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('common.remove')}
+                      >
+                        <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                        <Text style={styles.moreRemoveText}>{t('train.removeExercise')}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
+                  </>
+                  ) : null}
+                </Animated.View>
+                );
+              })
             )}
 
             {err ? <Text style={[styles.error, { marginTop: space.sm }]}>{err}</Text> : null}

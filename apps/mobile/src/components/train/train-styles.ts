@@ -300,7 +300,7 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   progToggleText: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
   progRow: { flexDirection: 'row', gap: space.sm },
   progCell: { flex: 1, gap: space.xs },
-  tplSetRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: 2 },
+  tplSetRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.xs },
   tplSetKind: {
     borderWidth: 1,
     borderColor: colors.line,
@@ -310,21 +310,58 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     paddingVertical: space.xs,
   },
   tplSetKindText: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
-  // Narrower than tplLoadInput: up to three of these share a set row with the
-  // kind button and the ✕, and 64pt each overflows at the smallest width.
+  // The set table. Cells share one width contract so the header sits over the
+  // column it names: fixed number + delete cells at the ends, the value cells
+  // splitting what is left. 44pt tall — these are the most-tapped controls in
+  // the tab and used to be 28.
+  tplSetHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.xs },
+  tplSetHeadCell: {
+    fontSize: font.tiny,
+    fontWeight: '700',
+    color: colors.muted,
+    letterSpacing: 0.4,
+    textAlign: 'center',
+  },
+  tplSetNumCell: { width: 40, alignItems: 'center', justifyContent: 'center' },
+  tplSetNum: { fontFamily: type.heading, fontSize: font.body, color: colors.ink },
+  /** Printed under the number only for a non-`working` kind, so the common
+   *  row stays a bare number and an unusual one still names itself. */
+  tplSetKindTag: { fontSize: 10, color: colors.muted, marginTop: -1 },
+  tplSetCell: { flex: 1 },
+  tplSetDelCell: { width: 26, alignItems: 'center', justifyContent: 'center' },
   tplSetInput: {
-    width: 52,
+    height: 44,
     backgroundColor: colors.inputBg,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.sm,
-    paddingVertical: space.xs,
     textAlign: 'center',
-    fontSize: font.small,
+    fontSize: font.body,
     color: colors.ink,
   },
   tplSetGroup: { flex: 1, fontSize: font.tiny, color: colors.muted },
   tplSetBtns: { flexDirection: 'row', gap: space.lg, marginTop: space.xs },
+  // "More options" — the one level of depth everything optional lives behind.
+  moreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 44,
+    marginTop: space.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    paddingTop: space.sm,
+  },
+  moreText: { fontSize: font.small, fontWeight: '600', color: colors.muted },
+  moreBody: { gap: space.sm, paddingTop: space.xs },
+  moreRemove: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    minHeight: 44,
+    marginTop: space.xs,
+  },
+  moreRemoveText: { fontSize: font.small, fontWeight: '700', color: colors.danger },
   tplLoadInput: {
     width: 64,
     backgroundColor: colors.inputBg,

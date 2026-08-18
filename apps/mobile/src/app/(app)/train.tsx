@@ -30,6 +30,7 @@ import {
   STARTER_TEMPLATES,
   clampRir,
   seedTemplateName,
+  setRowLabels,
 } from '@macrolog/core';
 import {
   type ProgressionSuggestion,
@@ -808,6 +809,7 @@ function ExerciseCard({
   const { colors } = useTheme();
   const ex = train.active!.exercises[exerciseIndex];
   const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
+  const setLabels = useMemo(() => setRowLabels(ex.sets), [ex.sets]);
   const [panelOpen, setPanelOpen] = useState(false);
 
   // Set progress drives the collapsed-row badge (a check when every set is
@@ -876,6 +878,8 @@ function ExerciseCard({
             </TouchableOpacity>
           ) : null}
 
+      {/* Row labels are derived from the whole sequence, not the index: a
+          cluster takes one set number with lettered sub-sets (2a/2b/2c). */}
       <View style={styles.setHeadRow}>
         <Text style={[styles.setHeadCell, styles.setNumCell]}>#</Text>
         {style === 'weight-reps' ? <Text style={[styles.setHeadCell, styles.setInputCell]}>{t('train.lb')}</Text> : null}
@@ -896,7 +900,7 @@ function ExerciseCard({
           setIndex={setIdx}
           set={set}
           logStyle={style}
-          number={setIdx + 1}
+          label={setLabels[setIdx]}
           onDone={onSetDone}
         />
       ))}
@@ -973,7 +977,7 @@ function SetRow({
   setIndex,
   set,
   logStyle,
-  number,
+  label,
   onDone,
 }: {
   train: ReturnType<typeof useTrain>;
@@ -981,7 +985,9 @@ function SetRow({
   setIndex: number;
   set: WorkoutSet;
   logStyle: LogStyle;
-  number: number;
+  /** Row label from `setRowLabels` — "2" for a straight set, "2a/2b/2c"
+   *  for a cluster. Derived by the parent, which holds the whole sequence. */
+  label: string;
   onDone?: (kind: WorkoutSet['kind']) => void;
 }) {
   // Local string buffers so partial decimal input binds cleanly; the parsed
@@ -1005,8 +1011,6 @@ function SetRow({
   const target = logStyle === 'time' ? set.targetDurationSec : set.targetReps;
   // RIR is meaningful on real working effort, not warmups/back-offs.
   const showRir = set.kind === 'working' || set.kind === 'activation' || set.kind === 'mini';
-  // Clustered sets show C1/C2 in place of the plain set number.
-  const label = set.group != null ? `C${set.group}` : String(number);
 
   return (
    <View>

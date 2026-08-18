@@ -1,5 +1,5 @@
 > **VERDICT** — Ignia's template editor is harder to use than Strong/Hevy/Boostcamp/Alpha Progression while prescribing *less*: every comparator's atomic unit is a **set row with its own target reps and load**, edited in a compact table, whereas our `PlannedSet` is `{ kind, group? }` — no reps, no weight — so a template physically cannot say "3 × 8 @ 135" and the session logger has nothing to prefill. The fix is not to simplify the editor's styling; it is to **put reps/load on the set row** and demote cues/progression/cluster behind a per-exercise menu, which makes the editor smaller and the workout run itself.
-> **Status:** RESEARCHED; **proposals 1 and 2 were approved and are BUILT** (2026-08-18) — per-set targets on `PlannedSet`, and the session pre-filling from them. Proposals 3-5 (collapsed cards, drag-to-reorder, demoting clusters) are still open and unbuilt.
+> **Status:** RESEARCHED, then BUILT (2026-08-18). Proposals 1, 2, 3 and 5 shipped, plus a vocabulary pass the owner asked for after seeing the mockups ("I don't want users to struggle and have a learning curve"). **Proposal 4 (drag-to-reorder) is the only one still open** — it needs a new dependency and on-device tuning, so the ▲▼ controls stay. Design canvas: the four artboards published 2026-08-18.
 > **Researched:** 2026-08-18
 > **Read this only if:** you are changing template creation/editing or the run-a-template session flow in `apps/mobile`.
 > **Do not** re-derive the comparator behaviour below; cite it.
@@ -93,11 +93,11 @@ Ordered by payoff per unit of risk. **1 and 2 are the ones that answer the owner
 
 **2. Prefill the session from those targets.** — **BUILT 2026-08-18**, with one correction found during implementation and recorded in §8. Once sets carry targets, `startFromTemplate` seeds each set's weight/reps, the lifter confirms with one tap per set, and `lastHint` stays as the reality check beside the plan. This is the single biggest win for "working out off a template" and is nearly free once 1 lands.
 
-**3. Collapse the exercise card.** Default to a one-line summary — `Bench Press · 3 × 8 · 135 lb` — expanding on tap. Cues and progression move behind a per-exercise ⋯ menu, matching Hevy's notes/rest-timer placement. The card stops being eight controls and becomes one row.
+**3. Collapse the exercise card.** — **BUILT 2026-08-18.** Default to a one-line summary — `Bench Press · 3 × 8 · 135 lb` — expanding on tap. Cues and progression move behind a per-exercise ⋯ menu, matching Hevy's notes/rest-timer placement. The card stops being eight controls and becomes one row.
 
-**4. Drag to reorder**, replacing the chevrons. Standard everywhere; the chevrons are the tell that this editor was built quickly.
+**4. Drag to reorder**, replacing the chevrons. — **NOT built.** It needs a gesture library (`react-native-draggable-flatlist` or a Reanimated implementation) and on-device tuning, and no SDK 57 binary has had device QA yet. The ▲▼ controls stay until then. Standard everywhere; the chevrons are the tell that this editor was built quickly.
 
-**5. Reconsider clusters' prominence.** Activation/mini clustering is genuinely ours and worth keeping — but `Add cluster` currently sits at the same visual weight as `Add set`, and the vocabulary is unexplained at the point of use. Behind the ⋯ menu with a one-line description, it costs nothing and stops confusing the common case.
+**5. Reconsider clusters' prominence.** — **BUILT 2026-08-18**, differently and better: see §9. Activation/mini clustering is genuinely ours and worth keeping — but `Add cluster` currently sits at the same visual weight as `Add set`, and the vocabulary is unexplained at the point of use. Behind the ⋯ menu with a one-line description, it costs nothing and stops confusing the common case.
 
 **Explicitly NOT proposed:** community/shared routine libraries (Hevy's), multi-week periodization (Boostcamp's), or algorithmic program generation (Hevy Trainer, Alpha Progression). All are out of scope for a free single-developer app, and the last two are AI-cost surfaces the owner has ruled out.
 
@@ -138,6 +138,43 @@ same gap that once let `rir: 8` be stored). Covered by
 `apps/mobile/src/__tests__/train.template-targets.test.ts` — 8 cases, the
 load-bearing one being "start a template, log nothing, finish → zero sets
 saved".
+
+## 9. The vocabulary pass — the half the research nearly missed
+
+The competitive review found the structural gap and would have stopped there.
+Seeing the mockups next to the real screenshots made the other half obvious,
+and the owner named it: *"I don't want users to struggle and have a learning
+curve understanding how this works."*
+
+Density was never the whole problem. **The first thing a new user met was
+jargon**: `Activation`, `Mini`, `C1`, `Cues`, `Auto-progression`, `RIR` — all
+cluster-training vocabulary, all on screen at once, all before anything they
+came to do. The app already had a `TrainGlossary` explaining these terms, which
+is the tell: a glossary is a workaround for names that do not explain
+themselves.
+
+What shipped:
+
+- **`C1` → `1a / 1b / 1c`.** The old notation was worse than jargon, it was
+  *two numbering schemes interleaved*: a session's rows read `1, C1, C1, C1, 2`,
+  where `C1` is the cluster's index and `1`/`2` are row positions, so neither
+  number told you where you were. A cluster now takes one set number and letters
+  its parts. `setRowLabels` in `packages/core` owns this; it is presentation
+  only and `group` remains the stored truth.
+- **The `RIR` column header → `LEFT`** (`FALTAN` in es-PR). The acronym is the
+  single hardest word in the tab. The glossary still teaches "RIR", now under a
+  heading that leads with what the column actually says.
+- **The set number IS the type control.** Tapping it opens the kind picker, as
+  in Hevy — which deleted a full-width button from every row without hiding
+  anything, because a non-`working` kind still prints its name under the number.
+- **Cues, auto-progression and the exercise-level default load moved behind
+  "More options"**, one disclosure inside the open card. Nothing was removed.
+
+Deliberate deviation from the mockup: the advanced panel is an inline
+disclosure, not a nested sheet. Nested `Modal`s inside the editor's own `Modal`
+are a known-flaky combination in React Native, and nothing here has had device
+QA — the disclosure delivers the same "one level down, collapsed by default"
+without that risk.
 
 ## 7. Open question for the owner
 

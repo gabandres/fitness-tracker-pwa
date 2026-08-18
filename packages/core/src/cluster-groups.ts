@@ -48,3 +48,59 @@ export function normalizeClusterGroups<T extends { kind: SetKind; group?: number
     return s.group === undefined ? s : { ...s, group: undefined };
   });
 }
+
+/**
+ * Human-readable row labels for a set sequence: plain sets count `1, 2, 3`,
+ * and a cluster takes ONE of those numbers with lettered sub-sets —
+ * `1a, 1b, 1c`. A three-set cluster followed by a straight set reads
+ * `1a 1b 1c 2`.
+ *
+ * This replaces the `C1`/`C2` notation, which was unreadable without the
+ * glossary: it told you a cluster's *index* but not where the cluster sat in
+ * the workout, so a session's rows read `1, C1, C1, C1, 2` — two independent
+ * numbering schemes interleaved, neither of them the row's position. The
+ * letters carry the same grouping with no vocabulary attached, and stay
+ * legible in a 36pt-wide cell.
+ *
+ * Presentation only: `group` remains the stored truth and is untouched.
+ * Reads the CONSECUTIVE run of equal groups rather than the group number, so
+ * it agrees with {@link normalizeClusterGroups} by construction and does not
+ * depend on stored numbers being healed first.
+ */
+export function setRowLabels(sets: readonly { kind: SetKind; group?: number }[]): string[] {
+  const out: string[] = [];
+  let main = 0;
+  let sub = 0;
+  let openGroup: number | undefined;
+
+  for (const s of sets) {
+    if (s.group == null) {
+      main += 1;
+      openGroup = undefined;
+      out.push(String(main));
+      continue;
+    }
+    if (s.group !== openGroup) {
+      // A new cluster consumes the next whole set number.
+      main += 1;
+      sub = 0;
+      openGroup = s.group;
+    } else {
+      sub += 1;
+    }
+    out.push(`${main}${subLetter(sub)}`);
+  }
+  return out;
+}
+
+/** a, b, c … z, then aa, ab … — clusters run to three in practice, so the
+ *  wrap-around is a guard against a pathological template, not a feature. */
+function subLetter(i: number): string {
+  let n = i;
+  let s = '';
+  do {
+    s = String.fromCharCode(97 + (n % 26)) + s;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return s;
+}

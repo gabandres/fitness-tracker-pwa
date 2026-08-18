@@ -111,6 +111,9 @@ it('renumbers clusters when one is appended', async () => {
   const { getByTestId } = await render(<TrainScreen />);
 
   await fireEvent.press(getByTestId('edit-template-t1'));
+  // Exercise cards open collapsed — one at a time — so the set controls are
+  // behind the card's own toggle now.
+  await fireEvent.press(getByTestId('template-ex-toggle-0'));
   await fireEvent.press(getByTestId('template-add-cluster-0'));
   await fireEvent.press(getByTestId('save-template'));
 
@@ -125,4 +128,49 @@ it('renumbers clusters when one is appended', async () => {
     { kind: 'mini', group: 2 },
     { kind: 'mini', group: 2 },
   ]);
+});
+
+/**
+ * Readability behaviour (2026-08-18). The card used to render every control
+ * for every exercise at once; a six-exercise template was six full forms in
+ * one scroll. Cards now open collapsed behind a one-line summary, and the
+ * optional half (cues, progression, the default load) sits behind "More
+ * options" — so these testIDs being absent until opened IS the feature.
+ */
+it('opens exercise cards collapsed, showing a summary instead of the form', async () => {
+  const { getByTestId, queryByTestId } = await render(<TrainScreen />);
+  await fireEvent.press(getByTestId('edit-template-t1'));
+
+  expect(queryByTestId('template-add-set-0')).toBeNull();
+  expect(queryByTestId('template-set-weight-0-0')).toBeNull();
+  // The optional half is a further level down, not merely off-screen.
+  expect(queryByTestId('template-cues-0')).toBeNull();
+  expect(queryByTestId('template-progression-0')).toBeNull();
+
+  await fireEvent.press(getByTestId('template-ex-toggle-0'));
+  expect(getByTestId('template-add-set-0')).toBeTruthy();
+  expect(getByTestId('template-set-weight-0-0')).toBeTruthy();
+
+  // Still one level down, even with the card open.
+  expect(queryByTestId('template-cues-0')).toBeNull();
+  await fireEvent.press(getByTestId('template-more-0'));
+  expect(getByTestId('template-cues-0')).toBeTruthy();
+  expect(getByTestId('template-progression-0')).toBeTruthy();
+});
+
+it('round-trips per-set targets typed into the table', async () => {
+  const { getByTestId } = await render(<TrainScreen />);
+  await fireEvent.press(getByTestId('edit-template-t1'));
+  await fireEvent.press(getByTestId('template-ex-toggle-0'));
+
+  await fireEvent.changeText(getByTestId('template-set-weight-0-0'), '135');
+  await fireEvent.changeText(getByTestId('template-set-reps-0-0'), '8');
+  await fireEvent.press(getByTestId('save-template'));
+
+  await waitFor(() => expect(mockSaveTemplate).toHaveBeenCalledTimes(1));
+  const sets = mockSaveTemplate.mock.calls[0][0].exercises[0].plannedSets;
+  expect(sets[0]).toMatchObject({ kind: 'activation', group: 1, weight: 135, reps: 8 });
+  // The rows left alone prescribe nothing rather than inheriting row 1.
+  expect(sets[1].weight).toBeUndefined();
+  expect(sets[1].reps).toBeUndefined();
 });

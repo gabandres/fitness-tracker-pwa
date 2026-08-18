@@ -516,7 +516,10 @@ export const esPR: Record<I18nKey, string> = {
   'train.merge': 'Combinar',
   'train.mergeInto': 'Combinar con…',
   'train.deleteExercise': '¿Borrar este ejercicio? El historial conserva su nombre.',
-  'train.rirShort': 'RIR',
+  // Encabezado de la celda de reps en reserva. No la sigla: RIR es la palabra
+  // mas dificil de la pestana, y "faltan" dice lo mismo. El glosario sigue
+  // ensenando el termino.
+  'train.rirShort': 'FALTAN',
   'train.rirPrompt': '¿Cuántas reps más podías hacer?',
   'train.rirScale.none': 'RIR —',
   'train.rirScale.0': '0 · al fallo',
@@ -539,12 +542,12 @@ export const esPR: Record<I18nKey, string> = {
   'train.glossary.sectionLogging': 'Registrar una serie',
   'train.glossary.sectionProgress': 'Ponerte más fuerte',
   'train.glossary.sectionPlates': 'Discos y calentamiento',
-  'train.glossary.rir': 'RIR — reps en reserva',
-  'train.glossary.rirBody': 'Cuántas reps más podías hacer antes de fallar. 0 significa que no te quedaba ninguna; 3 significa que te quedaban tres. Déjalo en blanco si prefieres no medir el esfuerzo — nada más en la app depende de esto.',
+  'train.glossary.rir': 'FALTAN — reps en reserva (RIR)',
+  'train.glossary.rirBody': 'La columna FALTAN: cuántas reps más podías hacer antes de fallar. Su nombre técnico es RIR, reps en reserva. 0 significa que no te quedaba ninguna; 3 significa que te quedaban tres. Déjalo en blanco si prefieres no medir el esfuerzo — nada más en la app depende de esto.',
   'train.glossary.setTypes': 'Tipos de serie',
   'train.glossary.setTypesBody': 'Toca el número de una serie para cambiar su tipo. Los calentamientos quedan fuera de récords y progresión; todo lo demás cuenta.',
-  'train.glossary.cluster': 'Cluster (C1, C2)',
-  'train.glossary.clusterBody': 'Una serie de activación más varias minis al mismo peso, separadas por descansos cortos. Las series de un cluster se numeran C1, C2 en vez de 1, 2.',
+  'train.glossary.cluster': 'Cluster (1a, 1b, 1c)',
+  'train.glossary.clusterBody': 'Una serie de activación más varias minis al mismo peso, separadas por descansos cortos. Un cluster ocupa un solo número de serie y usa letras para sus partes — 1a, 1b, 1c — para no perder el hilo con las series de al lado.',
   'train.glossary.rest': 'Temporizador de descanso',
   'train.glossary.restBody': 'Empieza cuando marcas una serie. La duración viene de la plantilla: corto entre series, más largo entre clusters.',
   'train.glossary.progression': 'Auto-progresión',
@@ -582,6 +585,12 @@ export const esPR: Record<I18nKey, string> = {
   // Celdas de prescripcion por serie en el editor de plantillas. Las tres
   // cortas son placeholders que sustituyen un encabezado de columna, asi que
   // deben quedarse en ~4 caracteres — los campos miden 52pt.
+  'train.moreOptions': 'Más opciones',
+  'train.removeExercise': 'Quitar ejercicio',
+  'train.setCount': '{n} series',
+  'train.setCountOne': '1 serie',
+  'train.setShort': 'Serie',
+  'train.setTypeA11y': 'Serie {n}, tipo: {kind}. Toca para cambiar.',
   'train.lbShort': 'lb',
   'train.repsShort': 'reps',
   'train.secShort': 'seg',
