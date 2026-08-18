@@ -122,7 +122,7 @@ any run, so every "review every screenshot" instruction pointed at nothing.
 Run the collector after every suite run:
 
 ```sh
-~/qa-collect-shots.sh     # copies the latest run's shots into shots/
+.maestro/regression/collect-shots.sh    # copies the latest run's shots into shots/
 ```
 
 The entry sheet is opened through the widget deep link (`ignia://?openAdd=1`)
@@ -139,7 +139,9 @@ captures, confirm 01's shot is in the theme you expect.
 ## Third run — 2026-08-18 · iOS on Expo SDK 57 · two shipped bugs, one red closed
 
 **The first Maestro run against any SDK 57 binary**, nine days after the last
-one and one SDK major later. Android could not take part — see "Android has
+one and one SDK major later. It ended at **16/16 in 9m 42s with 64 captures
+reviewed**, and the fresh-account arc green beside it — but it did not start
+there, and what it cost on the way is the useful part of this section. Android could not take part — see "Android has
 no host" above. iOS: **14/16 on the first pass**, both failures diagnosed, both
 fixed, and the diagnosis turned up **two layout bugs that were shipping**.
 

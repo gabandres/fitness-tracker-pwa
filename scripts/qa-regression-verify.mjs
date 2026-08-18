@@ -15,7 +15,8 @@
  *   node scripts/qa-regression-verify.mjs snapshot     --email qa-test@ignia.fit
  *   node scripts/qa-regression-verify.mjs cleanup      --email qa-test@ignia.fit [--label 'QA E2E Sandwich']
  *   node scripts/qa-regression-verify.mjs set-locale   --email qa-test@ignia.fit --locale en
- *   node scripts/qa-regression-verify.mjs create-empty --email qa-test-empty@ignia.fit --password '…' [--unverified]
+ *   node scripts/qa-regression-verify.mjs create-empty --email qa-test-empty@ignia.fit [--password '…'] [--unverified]
+ *       omit --password and one is generated, printed, and set even if the account already exists
  *   node scripts/qa-regression-verify.mjs set-verified --email qa-test-empty@ignia.fit
  *   node scripts/qa-regression-verify.mjs reset-empty  --email qa-test-empty@ignia.fit
  *
@@ -28,6 +29,7 @@
  * one-shot per fresh account by nature (onboarding only shows when no profile
  * exists). It refuses to touch an account whose email lacks the QA marker.
  */
+import { randomBytes } from 'node:crypto';
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
@@ -131,20 +133,56 @@ if (cmd === 'snapshot') {
   await db.doc(`users/${uid}`).set({ preferredLocale: locale }, { merge: true });
   console.log(`✓ ${email} preferredLocale → ${locale}`);
 } else if (cmd === 'create-empty') {
-  const password = arg('password');
-  if (!password) {
-    console.error('--password required');
+  // --password is OPTIONAL now, and an existing account has its password RESET
+  // rather than left alone. Both changes close traps measured on 2026-08-18,
+  // when the fresh-account arc ran for the first time and cost three cycles to
+  // the same symptom — the app's own `signin-error`, "Wrong email or password",
+  // which is indistinguishable from having typed the wrong password.
+  //
+  //   1. The old code printed "leaving auth as-is" when the account existed,
+  //      so a caller who passed a NEW password got an account that still had
+  //      the OLD one. Nothing said so; the run failed at sign-in, in Maestro,
+  //      several minutes later.
+  //   2. A caller-supplied password went straight to Firebase, which rejects
+  //      it with `Missing password requirements: [Password must contain an
+  //      upper case character]` — a server error for something checkable here.
+  //   3. Generating one with `openssl rand -base64 18` piped through a newline
+  //      strip that only removes LF leaves a CARRIAGE RETURN on Windows, so
+  //      the account gets a password one invisible byte longer than the one
+  //      Maestro later types.
+  //
+  // Generating it here removes all three: the value is known-good, known-clean,
+  // and printed once so the caller can hand it to Maestro.
+  const supplied = arg('password');
+  if (supplied !== null && !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(supplied.trim())) {
+    console.error(
+      'Refusing: --password must be 8+ chars with an upper case letter, a lower case letter and a digit.',
+    );
+    console.error('Firebase enforces this server-side and reports it as "Missing password requirements".');
+    console.error('Omit --password to have one generated.');
     process.exit(1);
   }
+  // .trim() is not cosmetic — see trap 3 above.
+  const password = supplied === null ? `Qa1!${randomBytes(9).toString('hex')}` : supplied.trim();
+
   let uid;
+  let created = false;
   try {
     uid = await uidOf(email);
-    console.log(`account exists (uid ${uid}) — leaving auth as-is`);
   } catch {
     const u = await auth.createUser({ email, password, emailVerified: !has('unverified') });
     uid = u.uid;
-    console.log(`✓ created ${email} (uid ${uid}, verified: ${!has('unverified')}) — NO docs seeded`);
+    created = true;
   }
+  if (!created) {
+    // Idempotent: the password the caller is about to use must be the one the
+    // account has, whether or not this invocation created it.
+    await auth.updateUser(uid, { password, emailVerified: !has('unverified') });
+  }
+  console.log(
+    `✓ ${created ? 'created' : 'reset'} ${email} (uid ${uid}, verified: ${!has('unverified')}) — NO docs seeded`,
+  );
+  if (supplied === null) console.log(`  password: ${password}`);
 } else if (cmd === 'set-verified') {
   const uid = await uidOf(email);
   await auth.updateUser(uid, { emailVerified: true });

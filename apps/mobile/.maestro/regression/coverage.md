@@ -18,7 +18,7 @@ against a state you did not intend (that is what turned one iOS run into
 `shots/` at all unless the collector ran. Before ticking rows: confirm the
 locale/theme are back to baseline, and look at the captures.
 
-**Where this stands, 2026-08-18.** iOS is **31 of 33 rows**. The two that are
+**Where this stands, 2026-08-18.** iOS is **31 of 33 rows**, earned by a single clean sweep — `16/16 Flows Passed in 9m 42s`, 64 captures collected and reviewed — plus the fresh-account arc run separately, as it must be. The two that are
 left cannot be closed on a simulator by anyone: the barcode camera needs a
 camera, and the mic's listening state needs a speech recognizer. **Android is
 frozen at its 2026-08-09 dates and cannot be re-run at all** — it has no host
@@ -100,7 +100,7 @@ Six steps, and every one of them matters. The arc had never run on either
 platform, and its first iOS pass needed four fixes before it went green:
 
 ```sh
-node scripts/qa-regression-verify.mjs create-empty --email qa-test-empty@ignia.fit --password <pw> --unverified
+node scripts/qa-regression-verify.mjs create-empty --email qa-test-empty@ignia.fit --unverified   # prints the password
 maestro --device <udid> test .maestro/regression/empty/01-verify-email.yaml -e EMAIL=… -e PASSWORD=…
 node scripts/qa-regression-verify.mjs set-verified --email qa-test-empty@ignia.fit
 maestro --device <udid> test .maestro/regression/empty/02-onboarding-empty.yaml -e EMAIL=… -e PASSWORD=…
@@ -108,16 +108,17 @@ node scripts/qa-regression-verify.mjs reset-empty  --email qa-test-empty@ignia.f
 maestro --device <udid> test .maestro/android-signin.yaml -e EMAIL=qa-test@ignia.fit -e PASSWORD=…
 ```
 
-- **The password must satisfy Firebase's policy** — it rejects a lowercase-only
-  string with `Missing password requirements: [Password must contain an upper
-  case character]`.
-- **Generate it with `tr -d '
-'`, not `tr -d '
-'`.** On Windows the file
-  keeps a carriage return, the account is created with a password one invisible
-  byte longer than the one Maestro types, and the flow fails on `signin-error:
-  "Wrong email or password"` — which reads exactly like a wrong password
-  because it is one.
+- **Let `create-empty` generate the password. Do not supply one.** It prints
+  the value, and generating it there is the only way to be sure of three
+  things that each cost a cycle on 2026-08-18 — and each surfaced as the same
+  symptom, the app's own `signin-error`, *"Wrong email or password"*, minutes
+  later inside Maestro. Firebase rejects a lowercase-only string server-side;
+  a password generated on Windows keeps a carriage return and is one invisible
+  byte longer than what Maestro types; and the command USED to leave an
+  existing account's password alone while accepting a new one on the command
+  line. The script handles all three now: it validates a supplied password up
+  front, generates a clean compliant one when none is given, and RESETS an
+  existing account rather than silently keeping the old secret.
 - **`02` signs in fresh rather than relaunching warm.** After `set-verified`
   the app routes straight into onboarding, so the wall's refresh button never
   fires and the client keeps its pre-verification token: the entire funnel
