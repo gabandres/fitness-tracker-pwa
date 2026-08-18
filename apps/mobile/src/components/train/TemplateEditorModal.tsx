@@ -91,9 +91,15 @@ const newDraftSet = (kind: SetKind): DraftSet => toDraftSet({ kind });
 function exSummary(d: DraftEx, t: TFn): string {
   const n = d.sets.length;
   const sets = n === 1 ? t('train.setCountOne') : t('train.setCount', { n });
+  /** The value every set shares, or null if they differ — or if ANY set
+   *  leaves it blank, because "3 × 8" must not describe a template where only
+   *  the first row says 8. Compare the FILLED count to the set count: an
+   *  earlier version compared the deduped Set's `size` to it, which is 1 for
+   *  any uniform run and so could only ever be true for a single set. */
   const one = (vals: string[]): string | null => {
-    const seen = new Set(vals.map((v) => v.trim()).filter(Boolean));
-    return seen.size === 1 && seen.size === vals.length ? [...seen][0] : null;
+    const filled = vals.map((v) => v.trim()).filter(Boolean);
+    if (filled.length !== vals.length) return null;
+    return new Set(filled).size === 1 ? filled[0] : null;
   };
 
   if (d.logStyle === 'time') {
@@ -439,8 +445,15 @@ export function TemplateEditorModal({
                     );
                   })}
                 </View>
-                {matches.map((e) => (
-                  <TouchableOpacity key={e.id} style={styles.catalogRow} onPress={() => addFromCatalog(e)}>
+                {matches.map((e, mi) => (
+                  <TouchableOpacity
+                    key={e.id}
+                    style={styles.catalogRow}
+                    onPress={() => addFromCatalog(e)}
+                    // Indexed, not keyed by doc id: a UI test can know "the
+                    // first match" but never a Firestore id it did not create.
+                    testID={`template-match-${mi}`}
+                  >
                     <Text style={styles.catalogName}>{e.name}</Text>
                     <Text style={styles.catalogStyle}>{t(logStyleKey(e.logStyle))}</Text>
                   </TouchableOpacity>

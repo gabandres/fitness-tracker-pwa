@@ -34,3 +34,5 @@ executionOrder:
     - 14-metrics
     - 15-search
     - 16-train-terms
+    # 17-coach-ask is tagged `manual` and excluded — it spends real AI money.
+    - 18-train-template

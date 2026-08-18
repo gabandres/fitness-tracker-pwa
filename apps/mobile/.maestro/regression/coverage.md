@@ -34,6 +34,7 @@ status.
 | (app)/index — Today | `01-today.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
 | (app)/train | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 |
 | (app)/train — logging interactions | `16-train-terms.yaml` (glossary, RIR scale, set-type rows; starts + discards a workout) | ✓ 2026-08-12 | ✓ 2026-08-18 — first iOS run; took five platform fixes and exposed a false-positive assert |
+| (app)/train — template editor | `18-train-template.yaml` (build a template from a seeded exercise, set table + headers, collapsed card summary, More options, save → re-open → per-set targets still there) | — no Android host | ✓ 2026-08-18 — first run; the only flow that exercises the editor at all |
 | (app)/trends | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 |
 | (app)/body | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 — **caught the body-fat overflow** |
 | (app)/settings | `04-settings.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
@@ -86,7 +87,7 @@ status.
 | Barcode camera, scan photo flow past intro | Needs a camera/injected image; system UI is outside Maestro's reach |
 | Coach ask→reply | Still out of the SUITE for the same reason (metered Gemini spend). Now covered by `17-coach-ask.yaml`, tagged `manual` so `excludeTags` keeps it out of directory runs — run it by hand with `--include-tags manual` |
 | refine-targets save | Rewrites the QA account's targets; every later ring number moves |
-| Template editor (progression rule sentence, set-type rows there) | Not yet authored — `16-train-terms.yaml` covers the SESSION logger only |
+| Template editor — the progression rule sentence | Partly closed 2026-08-18 by `18-train-template.yaml`, which covers the set table, the collapsed summary and the save→re-open round-trip. The progression fields are still unasserted on device: `template-cues-*` is a MULTILINE TextInput, i.e. a UITextView, so a swipe over it scrolls the field instead of the sheet and `scrollUntilVisible` never reaches what sits below. Unit-covered instead |
 | Weight log (Body interactions) | Not yet authored |
 | ShareCard / TipSheet / WeeklyReportCard / RecalibrationCard | Trigger conditions are data-dependent; not yet authored |
 | Offline / error states | Emulator network shaping not wired into the suite yet |

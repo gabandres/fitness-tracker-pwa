@@ -136,6 +136,65 @@ that run's "light" evidence was nothing of the kind. Before trusting a set of
 captures, confirm 01's shot is in the theme you expect.
 
 
+## Fourth run — 2026-08-18 (later) · iOS · 17/17, and the host is now the risk
+
+**17/17 in ~11 min**, on a Release build of the template-editor rework, with a
+new flow — `18-train-template` — covering a surface the suite had never
+touched. `17-coach-ask` is excluded by design (tagged `manual`; metered Gemini
+spend). Flow 01's capture is light, so flow 10 restored the theme and the whole
+set of 73 captures is trustworthy.
+
+Nothing in the app failed. Everything that went wrong was the host or the
+harness, and those are the notes worth keeping.
+
+### The sign-in flow was broken on iOS, silently
+
+`android-signin.yaml` gated on `visible: 'Sign in to your account'`. On the iOS
+simulator the signed-out screen's hierarchy exposes **no `text` attribute on any
+node** — a dump of a perfectly rendered sign-in screen listed the ids `email`,
+`password`, `signin-submit`, `signin-google`, `switch-signin`, `switch-signup`,
+`toggle-password`, and the only strings in 49 KB of JSON were the simulator's
+status bar. So the condition was false, the sign-in block was SKIPPED, and the
+flow failed later at the Today assertion having typed nothing — which reads
+exactly like a broken app. It also raced: `runFlow: when:` is evaluated the
+instant `launchApp` returns, and a cold start is still on its splash then. Both
+fixed (ids + an optional `extendedWaitUntil` before the branch).
+
+### Three iOS harness traps, all of which look like app bugs
+
+- **The XCUITest hierarchy is TRUNCATED on a deep sheet.** With an exercise
+  card expanded, the dump came back ~51 KB with its tail cut: `save-template`
+  and `delete-template` were absent while every `template-set-*` id was
+  present, and a capture of that same step showed the Remove button rendered in
+  full. Collapse before addressing a sheet's footer.
+- **A multiline `TextInput` is a `UITextView`** — a scrollable. A swipe that
+  starts over one scrolls the field, not the sheet, so `scrollUntilVisible`
+  silently never advances.
+- **`scrollUntilVisible` fails on elements already fully on screen**, reporting
+  "no visible element found". Tap those directly.
+
+### `collect-shots.sh` could have copied another project's screenshots
+
+`ignia-mac` is a SHARED laptop and another project's Maestro suite started **73
+seconds after** this one — flows named `01-appointment`, `05-territory`,
+`08-visit-outcomes`. The collector took `ls -dt | head -1`, which was THEIR run.
+Nothing leaked only because their flows take no screenshots. It now picks the
+newest run that actually contains one of ours, and accepts an explicit run dir.
+
+### The Air's disk is now the binding constraint, not a nuisance
+
+Two builds in one session drove it from 16 GB to **816 MB**, and the second
+build died as `lipo: can't write to output file … (No space left on device)`
+while writing the dSYM. A later suite run was killed mid-flight at flow 02 with
+no error line at all — silently, at 2.8 GB. `DerivedData` for this project
+alone was **10 GB**; clearing it returned the machine to 14 GB. Clear it after a
+session. Also: `SENTRY_DISABLE_AUTO_UPLOAD=true` belongs on any QA build — the
+first build failed outright on the Sentry source-map phase for want of a token,
+and uploading QA symbols would pollute the production `ignia-mobile` project.
+
+Load average on that machine was **856**, with DisplayLink Manager at ~82% CPU
+against clang's 70%, so a cold build took ~30 min against a documented 13–16.
+
 ## Third run — 2026-08-18 · iOS on Expo SDK 57 · two shipped bugs, one red closed
 
 **The first Maestro run against any SDK 57 binary**, nine days after the last

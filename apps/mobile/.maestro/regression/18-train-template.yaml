@@ -1,0 +1,298 @@
+# The TEMPLATE EDITOR — building and re-opening a workout template.
+#
+# Closes the gap coverage.md carried as "Not yet authored — 16-train-terms
+# covers the SESSION logger only". That gap mattered on 2026-08-18, when the
+# editor was rebuilt for readability (per-set targets, collapsed cards,
+# "More options") and the whole 16-flow suite would have walked past every
+# line of it without touching the screen.
+#
+# What only a device run can prove here, and jest cannot:
+#   - the set TABLE lines up under its own column headers (RNTL renders the
+#     element tree and never runs a Yoga layout pass — the exact blind spot
+#     that shipped the collapsed search field on 2026-08-08);
+#   - the collapsed card's summary is REAL text on screen, not a string in a
+#     props object;
+#   - a template round-trips through Firestore with its per-set targets, which
+#     is the half no unit test reaches: `plannedSets` entries are new fields on
+#     a doc whose rules validate `exercises` only as an opaque list.
+#
+# STATE: creates ONE template and ONE catalog exercise, and deletes both in its
+# own tail. If a run dies mid-flow the marker is "QA Tpl Check" (Train →
+# Templates) — delete it by hand. The exercise is seeded and untouched.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- tapOn: 'Train'
+
+# A session left in progress by an earlier flow's death hides the whole idle
+# view, and `new-template` is then not on screen for a reason that has nothing
+# to do with templates. Same guard as 16.
+- runFlow:
+    when:
+      visible:
+        id: 'discard-workout'
+    commands:
+      - tapOn:
+          id: 'discard-workout'
+      - extendedWaitUntil:
+          visible:
+            id: 'start-workout'
+          timeout: 15000
+
+# ── 1. A new template, named ──────────────────────────────────────
+- scrollUntilVisible:
+    element:
+      id: 'new-template'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'new-template'
+- assertVisible: 'New template'
+- tapOn:
+    id: 'template-name'
+- inputText: 'QA Tpl Check'
+# Dismiss the keyboard by tapping the sheet's own title — Maestro taps an
+# element's LAYOUT bounds, so a later tap would otherwise land on the keyboard
+# (documented in 14-metrics and 16-train-terms).
+- tapOn: 'New template'
+
+# ── 2. Add an exercise from the seeded catalog ────────────────────
+# A SEEDED exercise, not a free-typed one. Free-typing writes a new catalog
+# doc, which then has to be deleted through two more sheets in the tail — and
+# that teardown was the single most fragile thing in this flow (a failed run
+# left duplicates behind, which changed the adder's match list and broke
+# LATER runs in a way that looked like a UI regression). Picking an existing
+# entry needs no write and no cleanup, so the only state this flow creates is
+# the template itself.
+- tapOn:
+    id: 'template-add-exercise'
+- inputText: 'Bench'
+- tapOn: 'Exercises'
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: .maestro/regression/shots/18-adder-matches
+- tapOn:
+    id: 'template-match-0'
+
+# ── 3. The card opens COLLAPSED — the readability change ──────────
+# A freshly added exercise opens itself (you added it to edit it), so collapse
+# it first and assert the summary is what a closed card shows.
+- extendedWaitUntil:
+    visible:
+      id: 'template-ex-toggle-0'
+    timeout: 15000
+- tapOn:
+    id: 'template-ex-toggle-0'
+# Three working sets, nothing prescribed yet: the summary degrades to a count
+# rather than inventing numbers.
+- assertVisible: '.*3 sets.*'
+- assertNotVisible:
+    id: 'template-add-set-0'
+- assertNotVisible:
+    id: 'template-set-weight-0-0'
+- takeScreenshot: .maestro/regression/shots/18-card-collapsed
+
+# ── 4. Expanded: the set table and its headers ────────────────────
+- tapOn:
+    id: 'template-ex-toggle-0'
+- extendedWaitUntil:
+    visible:
+      id: 'template-set-weight-0-0'
+    timeout: 15000
+# The column headers are the whole point of the table — they are what makes a
+# row readable without a legend. Regex, not bare strings: iOS merges sibling
+# Texts inside one row into a single label (flow 16 measured this three times),
+# so the header row can read "Set, lb, reps" as ONE node there and as three on
+# Android. The capture is the real evidence that they line up over their
+# columns — an assertion cannot see alignment at all.
+- assertVisible: '.*lb.*'
+- assertVisible: '.*reps.*'
+# Row 1 is a bare number; the type control now lives ON it.
+- assertVisible:
+    id: 'template-set-kind-0-0'
+- takeScreenshot: .maestro/regression/shots/18-set-table
+
+# ── 5. Prescribe every set ────────────────────────────────────────
+# All three, deliberately: the summary only prints numbers when every set
+# agrees, because "3 × 8" must not describe a template where one row says 8
+# and two say nothing. Filling one row is the OTHER case, covered in jest.
+- scrollUntilVisible:
+    element:
+      id: 'template-set-weight-0-0'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'template-set-weight-0-0'
+- inputText: '20'
+- scrollUntilVisible:
+    element:
+      id: 'template-set-reps-0-0'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'template-set-reps-0-0'
+- inputText: '8'
+- scrollUntilVisible:
+    element:
+      id: 'template-set-weight-0-1'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'template-set-weight-0-1'
+- inputText: '20'
+- scrollUntilVisible:
+    element:
+      id: 'template-set-reps-0-1'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'template-set-reps-0-1'
+- inputText: '8'
+- scrollUntilVisible:
+    element:
+      id: 'template-set-weight-0-2'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'template-set-weight-0-2'
+- inputText: '20'
+- scrollUntilVisible:
+    element:
+      id: 'template-set-reps-0-2'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'template-set-reps-0-2'
+- inputText: '8'
+# NOT `hideKeyboard`: iOS exposes no native dismiss action, so Maestro fakes it
+# and throws "Couldn't hide the keyboard" — measured here, and its own error
+# prescribes this workaround. `Sets` is the plain field label above the table;
+# scroll it into view first, because the last cell tapped was row 3 and the
+# label may have gone off the top.
+- scrollUntilVisible:
+    element:
+      text: 'Sets'
+    direction: UP
+    timeout: 10000
+- tapOn: 'Sets'
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: .maestro/regression/shots/18-set-prescribed
+
+# ── 6. "More options" — the optional half, one level down ─────────
+# Cues and auto-progression used to be on screen for every exercise at once.
+# They must NOT be visible until this row is tapped.
+- assertNotVisible:
+    id: 'template-cues-0'
+- scrollUntilVisible:
+    element:
+      id: 'template-more-0'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'template-more-0'
+- extendedWaitUntil:
+    visible:
+      id: 'template-cues-0'
+    timeout: 10000
+- takeScreenshot: .maestro/regression/shots/18-more-options
+# The progression checkbox sits below the cues box and is deliberately NOT
+# asserted here. The cues field appearing only after this row is tapped
+# already proves the disclosure works, and scrolling further is unreliable for
+# a structural reason: `template-cues-*` is a MULTILINE TextInput, which on
+# iOS is a UITextView — a scrollable. A swipe starting over it scrolls the
+# text field, not the sheet, so `scrollUntilVisible` never advances and
+# reports "no visible element found" for markup that is plainly present
+# (verified in the hierarchy dump). The unit suite covers both fields being
+# behind the disclosure; this flow is here for layout and persistence, which
+# is what only a device can show.
+#
+# Close it again before moving on, for the SAME reason: while the cues field
+# is on screen every later swipe risks landing on it, and a scroll that
+# silently moves nothing reads as a missing element.
+- tapOn:
+    id: 'template-more-0'
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# ── 7. Save, and prove the round-trip through Firestore ───────────
+- scrollUntilVisible:
+    element:
+      id: 'save-template'
+    direction: DOWN
+    timeout: 15000
+    visibilityPercentage: 60
+    centerElement: true
+- tapOn:
+    id: 'save-template'
+- extendedWaitUntil:
+    visible:
+      id: 'start-workout'
+    timeout: 15000
+# The saved template's own row, back on the Train tab.
+- scrollUntilVisible:
+    element:
+      text: '.*QA Tpl Check.*'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- takeScreenshot: .maestro/regression/shots/18-template-saved
+
+# Re-open it: the per-set targets must come back off the doc. This is the
+# assertion that a new optional field on `plannedSets` survives a real write
+# and a real read — the rules validate `exercises` as an opaque list, so
+# nothing else in the stack would notice if it did not.
+# By TEXT, not by testID: `edit-template-<id>` carries the Firestore doc id,
+# which a flow that just created the template cannot know.
+- tapOn: '.*QA Tpl Check.*'
+- extendedWaitUntil:
+    visible:
+      id: 'template-ex-toggle-0'
+    timeout: 15000
+# Collapsed on re-open, and the summary now carries the numbers that were
+# typed — which is only true if reps AND weight both round-tripped through
+# Firestore on every set.
+- assertVisible: '.*3 × 8 · 20 lb.*'
+- takeScreenshot: .maestro/regression/shots/18-reopened-summary
+- tapOn:
+    id: 'template-ex-toggle-0'
+- assertVisible:
+    id: 'template-set-weight-0-0'
+- takeScreenshot: .maestro/regression/shots/18-reopened-table
+
+# ── 8. Teardown: leave the account as we found it ─────────────────
+# Collapse the card FIRST. Not cosmetic — iOS caps the XCUITest hierarchy it
+# will serialise, and with the card expanded the dump comes back ~51 KB with
+# its TAIL CUT: `template-more-0`, `save-template` and `delete-template` were
+# all absent from it while every `template-set-*` id was present, and a
+# capture of that same step showed the Remove button rendered in full. So a
+# deep sheet makes its own footer unaddressable, and the failure reads as a
+# missing element rather than a truncated tree.
+- tapOn:
+    id: 'template-ex-toggle-0'
+- waitForAnimationToEnd:
+    timeout: 5000
+# A direct tap, NOT scrollUntilVisible. The Remove button shares the sheet's
+# last row with Save, so re-opening the template already leaves it on screen —
+# and the scroll variant failed here twice while a capture of that very step
+# showed the button rendered in full. Scrolling to something already visible
+# is a no-op that Maestro reports as "no visible element found".
+- tapOn:
+    id: 'delete-template'
+- extendedWaitUntil:
+    visible:
+      id: 'start-workout'
+    timeout: 15000
+# Nothing else to clean: the exercise came from the seeded catalog, so the
+# template was the only thing this flow ever created.
+- takeScreenshot: .maestro/regression/shots/18-teardown

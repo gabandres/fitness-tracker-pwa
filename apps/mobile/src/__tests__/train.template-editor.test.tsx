@@ -174,3 +174,38 @@ it('round-trips per-set targets typed into the table', async () => {
   expect(sets[1].weight).toBeUndefined();
   expect(sets[1].reps).toBeUndefined();
 });
+
+/**
+ * The collapsed card's summary is the whole readability argument — it is what
+ * the old card made you expand it to learn. It is also easy to get subtly
+ * wrong in a way no type checks: the first version compared a deduped Set's
+ * `size` to the set COUNT, which is 1 for any uniform run, so the numbers
+ * never appeared for more than one set and every card read "3 sets".
+ */
+it('summarises a uniformly prescribed exercise with its numbers', async () => {
+  const { getByTestId, getByText } = await render(<TrainScreen />);
+  await fireEvent.press(getByTestId('edit-template-t1'));
+  await fireEvent.press(getByTestId('template-ex-toggle-0'));
+
+  for (const i of [0, 1, 2]) {
+    await fireEvent.changeText(getByTestId(`template-set-weight-0-${i}`), '20');
+    await fireEvent.changeText(getByTestId(`template-set-reps-0-${i}`), '8');
+  }
+  await fireEvent.press(getByTestId('template-ex-toggle-0'));
+
+  expect(getByText('3 × 8 · 20 lb')).toBeTruthy();
+});
+
+it('falls back to a set count when the sets do not agree', async () => {
+  const { getByTestId, getByText } = await render(<TrainScreen />);
+  await fireEvent.press(getByTestId('edit-template-t1'));
+  await fireEvent.press(getByTestId('template-ex-toggle-0'));
+
+  // Only the first row prescribes anything — "3 × 8" would be a lie about the
+  // other two, so the summary must not claim it.
+  await fireEvent.changeText(getByTestId('template-set-reps-0-0'), '8');
+  await fireEvent.press(getByTestId('template-ex-toggle-0'));
+
+  // The template's own targetLoad (25) still stands in as the exercise default.
+  expect(getByText('3 sets · 25 lb')).toBeTruthy();
+});

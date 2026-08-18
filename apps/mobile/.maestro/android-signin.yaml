@@ -30,13 +30,41 @@ appId: fit.ignia.app
 
 # Already signed in from a previous run? Nothing to do. `runFlow` with a
 # condition keeps this idempotent, so it can be re-run without thinking.
+# Let the app finish booting BEFORE the branch below is evaluated. Measured
+# 2026-08-18: `runFlow: when:` is checked the instant `launchApp` returns, and
+# a cold start on the simulator is still on its splash then — so the condition
+# was false, the block SKIPPED, and the flow failed at the Today assertion
+# having typed nothing. The debug dump from the FAILING step (taken seconds
+# later) showed the sign-in screen fully rendered, which is what makes this
+# look like a selector bug rather than a race. `optional` because when a
+# session already exists this screen never appears and the wait must not fail.
+- extendedWaitUntil:
+    visible:
+      id: 'signin-submit'
+    timeout: 30000
+    optional: true
+
+# Selected by testID, not by text — measured 2026-08-18 on the iOS simulator.
+# The signed-out screen's hierarchy there exposes **no `text` attribute on any
+# node**: a dump of a perfectly rendered sign-in screen listed the ids `email`,
+# `password`, `signin-submit`, `signin-google`, `switch-signin`,
+# `switch-signup` and `toggle-password`, and the only strings anywhere in the
+# 49 KB of JSON were the simulator's own status bar ("No signal", "Not
+# charging"). So `visible: 'Sign in to your account'` was FALSE on the very
+# screen it describes, this whole block SKIPPED, and the flow failed at the
+# Today assertion having never typed a character — a sign-in failure that reads
+# exactly like a broken app. ids are stable across both platforms; the text was
+# only ever stable on Android.
 - runFlow:
     when:
-      visible: 'Sign in to your account'
+      visible:
+        id: 'signin-submit'
     commands:
-      - tapOn: 'Email'
+      - tapOn:
+          id: 'email'
       - inputText: ${EMAIL}
-      - tapOn: 'Password'
+      - tapOn:
+          id: 'password'
       - inputText: ${PASSWORD}
       # Tap the tagline (a plain, non-interactive Text) rather than
       # `hideKeyboard`: iOS has no native dismiss API, so Maestro fakes it by
@@ -44,16 +72,23 @@ appId: fit.ignia.app
       # page prescribes exactly this workaround. It survives here today only
       # because the alphabetic keyboard happens to scroll away; the numeric
       # keypads elsewhere in the suite did not.
-      - tapOn: 'Sign in to your account'
-      # `index: 1`, NOT 0. The screen carries the string "Sign in" TWICE — the
-      # Sign in / Sign up segmented toggle at the top, and the submit button
-      # below the password field. Index 0 is the toggle, and tapping it when it
-      # is already selected does nothing at all: the credentials stay typed, no
-      # error appears, and the flow fails on the next assertion having done
-      # precisely nothing. Confirmed from a screenshot, not guessed.
+      # Dismiss the keyboard by tapping the brand mark — a plain, non-interactive
+      # element, and the one node on this screen that is neither a field nor a
+      # button. (It used to tap the tagline by text, which no longer resolves on
+      # iOS; see the note above.) `hideKeyboard` is not usable: iOS has no
+      # native dismiss API, so Maestro fakes it by scrolling and throws when the
+      # keyboard stays up — its own known-issues page prescribes this
+      # workaround.
       - tapOn:
-          text: 'Sign in'
-          index: 1
+          id: 'flame'
+      # By id, which also settles an ambiguity the text selector had to encode
+      # by hand: the screen carries the string "Sign in" TWICE — the Sign in /
+      # Sign up segmented toggle (`switch-signin`) and the submit button — and
+      # this used to need `index: 1` to avoid tapping the toggle, which when
+      # already selected does nothing at all: credentials stay typed, no error
+      # appears, and the next assertion fails having done precisely nothing.
+      - tapOn:
+          id: 'signin-submit'
 
       # Dismiss iOS's "Save Password?" system dialog HERE, before asserting
       # Today — it appears the instant credentials are submitted and it COVERS
