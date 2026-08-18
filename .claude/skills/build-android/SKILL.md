@@ -19,8 +19,7 @@ A JS-only change ships over the air. An OTA published against a *changed*
 fingerprint **succeeds and reaches nobody** — that is the expensive direction.
 
 ```sh
-cd apps/mobile && npx expo prebuild -p android --clean   # gate AFTER prebuild
-npx expo-updates fingerprint:generate --platform android \
+cd apps/mobile && npx expo-updates fingerprint:generate --platform android \
   | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).hash))"
 ```
 
@@ -34,8 +33,13 @@ whose **"read from the artifact"** rows are the only ones that count.
 
 Rules, all measured (`REFERENCE.md` → *The fingerprint gate*):
 
-- **Generate on the machine that BUILDS that platform**, and **after prebuild**.
-  A hash from the wrong host, or from a pre-prebuild tree, matches no binary.
+- **Generate on the machine that BUILDS that platform.** A hash from the wrong
+  host matches no binary. (Prebuild does *not* affect it — a rule saying so was
+  written and withdrawn on 2026-08-17; the real mover was line endings.)
+- **A computed hash can drift with a clean `git status`.** `.gitignore` and
+  `targets/widget/expo-target.config.js` are hashed sources *and* the two files
+  Windows checks out as CRLF; git normalizing them moves the fingerprint with no
+  commit. If a gate disagrees for no visible reason, check line endings first.
 - **The gate answers "will an OTA reach these binaries", never "is an OTA
   enough".** If you touched `targets/` or `modules/`, you need a build whatever
   the hash says — `targets/` Swift does not move it, and an OTA carries no native

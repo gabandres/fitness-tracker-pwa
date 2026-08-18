@@ -146,3 +146,59 @@ run to **two hours**. Check `SENTRY_AUTH_TOKEN` before queueing. Note the cloud
 worker is a **third machine with a third fingerprint** — iOS build 42 reported a
 runtime matching neither host, so a cloud artifact ships under a runtime no
 installed binary matches.
+
+---
+
+## A half-evicted Gradle transform cache fails the LAST native link
+
+Measured 2026-08-17 on the vc 33 rebuild. After 16m19s — through every ABI, at
+`:app:buildCMakeRelWithDebInfo[x86]` linking `libappmodules.so`, the final native
+step — the build died with:
+
+```
+clang++: error: no such file or directory:
+  .../transforms/<hash>/workspace/transformed/fbjni-0.7.0/prefab/modules/fbjni/libs/android.x86/libfbjni.so
+  .../react-android-0.86.2-release/prefab/modules/jsi/libs/android.x86/libjsi.so
+  .../react-android-0.86.2-release/prefab/modules/reactnative/libs/android.x86/libreactnative.so
+ninja: build stopped: subcommand failed.
+```
+
+Those exact files were present for vc 32 — its log shows them being hard-linked
+(and falling back to a copy, because the Gradle cache is on `C:` and
+`node_modules` is on `Z:`, so the link is cross-volume). Between the two builds
+Gradle pruned the extracted contents while **keeping the transform directory and
+its lock file**, so it still considered the transform up to date and never
+re-extracted.
+
+It reads like a toolchain or NDK problem and is neither. The fix is to delete the
+two offending transform directories by their hash — the paths are in the error —
+so Gradle re-runs the transform:
+
+```sh
+cd apps/mobile/android && ./gradlew --stop
+rm -rf "C:/Users/gabri/.gradle/caches/<gradle-ver>/transforms/<hash>"
+```
+
+**`./gradlew --stop` does not always release the lock.** Both `.lock` files came
+back `Device or resource busy` until the two lingering `java` processes — the
+Gradle daemon (6.0 GB) and the Kotlin daemon (3.1 GB) — were killed outright.
+Stopping them also returned ~9.5 GB of RAM, which is worth knowing on its own:
+those daemons persist between builds holding their full heap.
+
+**Do not "fix" this by dropping x86.** `x86`/`x86_64` serve emulators and some
+ChromeOS devices; vc 32 shipped all four ABIs, and quietly shipping fewer is a
+silent coverage reduction, not a build fix.
+
+## The exit code of `cmd > log; echo $?` is the ECHO, not the build
+
+Bitten twice in one session, on both platforms. A launcher that ends with
+`echo "EXIT=$?"` piped or followed by anything else reports the *last* command's
+status, so a failed build is announced as success — the iOS build reported exit 0
+on a build that died, and so did the first vc 33 attempt. Write the sentinel
+**into the log** and read it from there:
+
+```sh
+node run-gradle.mjs > build.log 2>&1; echo "GRADLE_EXIT=$?" >> build.log
+```
+
+The log is the honest record; the harness's exit code is not.
