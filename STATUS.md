@@ -82,10 +82,24 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
   (`app-version.json` = 33, deployed) is what drains the older cohorts. Do not
   publish from the Mac to "cover" an older one; the guard blocks it.
 
-  **iOS is in the opposite, healthy state**: build 57's runtime `25e953e9…` is
-  reproducible from `main` on the Mac, and the write fix was published to it
-  over the air. Apple is reviewing build 55 on `886bf0b3…`, a different runtime,
-  so that submission is untouched.
+  **iOS was in the same state, and this claim used to say otherwise.** Measured
+  2026-08-18: the tree gates at `b3c50e91…` while build 57 ships `25e953e9…`,
+  read out of the `.ipa`. The cause is the same `withGradleJvmArgs.js` change
+  that shut Android's channel — an Android-only plugin, but the plugins array is
+  hashed as part of `app.json`, so it moved BOTH. That consequence was written
+  down for Android only, and this line read "healthy" for a day while the iOS
+  channel was shut.
+
+  **Closed by build 58** (2026-08-18, 1.2.0, verifier green, `b3c50e91…` = the
+  gate) — **on TestFlight and `VALID`**, uploaded 11:37:45-07:00. It is built
+  from the current tree, so a JS fix can reach it over the air, and it carries
+  the two layout bugs the Maestro sweep found. The submit needed two attempts:
+  the first hung at `- Submitting` for 1h35m and **exited 0 when killed**, so
+  treat only an ASC `/v1/builds` read as proof (`AGENTS.md`, build 58 row).
+  Apple is still reviewing build 55 on `886bf0b3…`, a third runtime, and that
+  submission is deliberately untouched — swapping its build forfeits the queue
+  position. **Still no device QA on any SDK 57 binary**, which is now the only
+  thing between build 58 and a release.
 
   **vc 32 has had NO device QA, and it is the riskiest binary yet shipped here** —
   a three-SDK jump (54 → 57, RN 0.81.5 → 0.86.2), built from a branch that is not
