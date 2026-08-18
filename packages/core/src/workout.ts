@@ -18,10 +18,30 @@ export type MuscleGroup =
   | 'hamstrings' | 'glutes' | 'calves' | 'core' | 'forearms';
 
 /** Planned scaffold for one set the session pre-fills. `group` clusters sets
- *  (C1/C2); omit it for plain straight sets. */
+ *  (C1/C2); omit it for plain straight sets.
+ *
+ *  `reps`/`repsMax`/`weight`/`durationSec` are the PRESCRIPTION — what the
+ *  template tells you to do on this set. They are what makes a template say
+ *  "3 × 8 @ 135" instead of just "three sets", and they are what
+ *  `templateToSessionExercises` pre-fills the logger with, so a lifter
+ *  confirms a number instead of typing it. All optional: every template
+ *  written before they existed stays valid and simply prescribes nothing.
+ *
+ *  Not to be confused with {@link ProgressionRule.targetReps}, which is a
+ *  *trigger* ("bump the load once you hit this for N sessions"), not a target
+ *  for a given set. */
 export interface PlannedSet {
   kind: SetKind;
   group?: number;
+  /** Prescribed reps. With `repsMax`, the lower bound of a range. */
+  reps?: number;
+  /** Upper bound of a rep RANGE, e.g. `reps: 8, repsMax: 10` → "8-10". */
+  repsMax?: number;
+  /** Prescribed load for this set. Overrides the exercise-level
+   *  `targetLoad`, which stays the fallback for sets that omit it. */
+  weight?: number;
+  /** Prescribed hold in seconds — `time` logStyle only. */
+  durationSec?: number;
 }
 
 /** How an exercise is logged. `weight-reps` (default) is load×reps;
@@ -78,6 +98,16 @@ export interface WorkoutSet {
   /** Reps in reserve (0 = to failure), 0–5. Write through {@link clampRir}. */
   rir?: number;
   done?: boolean;
+  /** The template's PRESCRIPTION for this set, snapshotted at start.
+   *
+   *  Deliberately NOT written into `reps`/`durationSec`: {@link isLoggedSet}
+   *  treats those as proof the set was performed, so pre-filling them would
+   *  make finishing a session record every prescribed set as done — training
+   *  history the lifter never did. These render as the input's placeholder
+   *  instead, and are committed to the real fields only when the set is
+   *  ticked `done`. */
+  targetReps?: number;
+  targetDurationSec?: number;
 }
 
 export interface SessionExercise {

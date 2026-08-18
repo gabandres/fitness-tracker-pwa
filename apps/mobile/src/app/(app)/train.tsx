@@ -490,7 +490,7 @@ function ExerciseDetailModal({
                   placeholderTextColor={colors.faint}
                   testID="edit-exercise-name"
                 />
-                <View style={[styles.styleRow, { marginTop: space.sm }]}>
+                <View style={styles.styleRow}>
                   {LOG_STYLES.map((ls) => {
                     const on = editStyle === ls.value;
                     return (
@@ -999,6 +999,10 @@ function SetRow({
   const [rirOpen, setRirOpen] = useState(false);
 
   const commit = () => train.commitActive();
+  // What the template prescribed for this set, if it came from one. Shown as
+  // the placeholder rather than the value: a target the lifter has not
+  // confirmed is not a logged set (see WorkoutSet.targetReps).
+  const target = logStyle === 'time' ? set.targetDurationSec : set.targetReps;
   // RIR is meaningful on real working effort, not warmups/back-offs.
   const showRir = set.kind === 'working' || set.kind === 'activation' || set.kind === 'mini';
   // Clustered sets show C1/C2 in place of the plain set number.
@@ -1033,7 +1037,7 @@ function SetRow({
 
       <TextInput
         style={[styles.setInput, styles.setInputCell]}
-        placeholder="0"
+        placeholder={target != null ? String(target) : '0'}
         placeholderTextColor={colors.faint}
         keyboardType="numeric"
         value={count}
@@ -1078,6 +1082,20 @@ function SetRow({
         onPress={() => {
           haptics.tap();
           const nowDone = !set.done;
+          // Ticking a prescribed set you have not typed into ACCEPTS the
+          // prescription — the one-tap path Strong/Hevy use, and the reason
+          // targets are not pre-filled as values: nothing is logged until
+          // this tap, so abandoning a session mid-way records only what was
+          // actually done. Typed input always wins; untick never erases.
+          const accept = nowDone && target != null && numOrUndef(count) == null;
+          if (accept) {
+            setCount(String(target));
+            train.editSet(
+              exerciseIndex,
+              setIndex,
+              logStyle === 'time' ? { durationSec: target } : { reps: target },
+            );
+          }
           train.applySetPatch(exerciseIndex, setIndex, { done: nowDone });
           if (nowDone) onDone?.(set.kind); // start the rest countdown
         }}

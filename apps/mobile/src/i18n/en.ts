@@ -581,6 +581,15 @@ export const en = {
   'train.sets': 'Sets',
   'train.removeSet': 'Remove set',
   'train.cluster': 'C{n}',
+  // Per-set prescription cells in the template editor. The three short ones
+  // are placeholders standing in for a column header, so they must stay to
+  // ~4 chars — the inputs are 52pt wide.
+  'train.lbShort': 'lb',
+  'train.repsShort': 'reps',
+  'train.secShort': 'sec',
+  'train.setWeightA11y': 'Set {n} target weight',
+  'train.setRepsA11y': 'Set {n} target reps',
+  'train.setDurationA11y': 'Set {n} target duration in seconds',
   'train.saveErr': "Couldn't save the template. Check your connection and try again.",
   'train.starters': 'Starters',
   'train.starterTitle': 'Starter templates',

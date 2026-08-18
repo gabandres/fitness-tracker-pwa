@@ -82,10 +82,24 @@ export interface ProgressionRule {
 // ─── Template ───────────────────────────────────────────────────
 /** Planned scaffold for one set the session pre-fills (the empty
  *  `__ / __ / __` slots on the paper sheet). `group` clusters sets
- *  (C1/C2); omit it for plain straight sets. */
+ *  (C1/C2); omit it for plain straight sets.
+ *
+ *  The four target fields are the PRESCRIPTION — what makes a template say
+ *  "3 × 8 @ 135" rather than just "three sets". They are authored in the
+ *  MOBILE template editor (the web logging app is frozen — ADR-0022); the web
+ *  side carries them so shared docs round-trip without loss, since a reader
+ *  that drops a field is a reader that deletes it on the next save. */
 export interface PlannedSet {
   kind: SetKind;
   group?: number;
+  /** Prescribed reps. With `repsMax`, the lower bound of a range. */
+  reps?: number;
+  /** Upper bound of a rep RANGE, e.g. `reps: 8, repsMax: 10` → "8-10". */
+  repsMax?: number;
+  /** Prescribed load; overrides the exercise-level `targetLoad`. */
+  weight?: number;
+  /** Prescribed hold in seconds — `time` logStyle only. */
+  durationSec?: number;
 }
 
 export interface TemplateExercise {
@@ -132,6 +146,13 @@ export interface WorkoutSet {
   /** Reps in reserve (0 = to failure). */
   rir?: number;
   done?: boolean;
+  /** The template's PRESCRIPTION for this set, snapshotted at start by the
+   *  MOBILE logger (ADR-0022 — this app is frozen and does not author them).
+   *  NOT written into `reps`/`durationSec`, because {@link isLoggedSet} reads
+   *  those as proof the set was performed. Carried here so a session started
+   *  on mobile round-trips through this reader without losing them. */
+  targetReps?: number;
+  targetDurationSec?: number;
 }
 
 /** A set counts as logged only if it carries the rep/duration count its

@@ -41,6 +41,49 @@ import { createStyles } from './train-styles';
  * the shared label maps come from siblings so the modal and the screen cannot
  * drift apart visually.
  */
+/**
+ * A planned set plus the raw text its numeric fields are edited through.
+ *
+ * Numbers alone cannot hold a half-typed value: `numOrUndef('2.')` is `2`, so
+ * a controlled input parsed on every keystroke eats the decimal point the
+ * moment it is typed, and a cleared field is indistinguishable from a zero.
+ * The text is authoritative while the sheet is open and is parsed back onto
+ * the {@link PlannedSet} in `save()`. The buffers ride ON the set object
+ * rather than in a parallel array because add/remove/reorder/cluster
+ * normalization all reshuffle these, and two arrays would drift.
+ */
+interface DraftSet extends PlannedSet {
+  weightText: string;
+  repsText: string;
+  durationText: string;
+}
+
+const numText = (n: number | undefined): string => (n != null ? String(n) : '');
+
+function toDraftSet(ps: PlannedSet): DraftSet {
+  return {
+    ...ps,
+    weightText: numText(ps.weight),
+    repsText: numText(ps.reps),
+    durationText: numText(ps.durationSec),
+  };
+}
+
+/** Strip the buffers and parse them back onto the stored shape. Anything the
+ *  editor never showed (`repsMax`) is carried through untouched — a field the
+ *  editor cannot see must not be a field the next save deletes. */
+function toPlannedSet(d: DraftSet): PlannedSet {
+  const { weightText, repsText, durationText, ...ps } = d;
+  return {
+    ...ps,
+    weight: numOrUndef(weightText),
+    reps: numOrUndef(repsText),
+    durationSec: numOrUndef(durationText),
+  };
+}
+
+const newDraftSet = (kind: SetKind): DraftSet => toDraftSet({ kind });
+
 // carries EVERY field the stored TemplateExercise has, because the editor
 // writes `exercises` as a full overwrite. A field the editor cannot see is a
 // field the next save deletes — which is how mobile edits used to flatten
@@ -57,7 +100,7 @@ interface DraftEx {
   incrementLb: string;
   /** The real planned sets, not a count — a count cannot represent a cluster
    *  (activation/mini/mini) and rewriting one as N working sets destroys it. */
-  sets: PlannedSet[];
+  sets: DraftSet[];
 }
 
 export function TemplateEditorModal({
@@ -103,7 +146,7 @@ export function TemplateEditorModal({
         targetReps: ex.progression ? String(ex.progression.targetReps) : '',
         holdSessions: ex.progression ? String(ex.progression.holdSessions) : '',
         incrementLb: ex.progression ? String(ex.progression.incrementLb) : '',
-        sets: ex.plannedSets.length ? ex.plannedSets.map((p) => ({ ...p })) : [{ kind: 'working' }],
+        sets: ex.plannedSets.length ? ex.plannedSets.map(toDraftSet) : [newDraftSet('working')],
       })),
     );
     setKindOpen(null);
@@ -131,7 +174,7 @@ export function TemplateEditorModal({
         targetReps: '',
         holdSessions: '',
         incrementLb: '',
-        sets: [{ kind: 'working' }, { kind: 'working' }, { kind: 'working' }],
+        sets: [newDraftSet('working'), newDraftSet('working'), newDraftSet('working')],
       },
     ]);
     setExName('');
@@ -183,7 +226,7 @@ export function TemplateEditorModal({
   /** Every set mutation re-derives cluster groups, so numbering stays
    *  sequential and contiguous after kind changes, inserts and deletes —
    *  same invariant the PWA editor holds (`mutateSets`). */
-  function mutateSets(index: number, fn: (sets: PlannedSet[]) => PlannedSet[]) {
+  function mutateSets(index: number, fn: (sets: DraftSet[]) => DraftSet[]) {
     setExercises((prev) =>
       prev.map((d, i) => (i === index ? { ...d, sets: normalizeClusterGroups(fn(d.sets)) } : d)),
     );
@@ -191,16 +234,21 @@ export function TemplateEditorModal({
 
   function addSet(index: number) {
     haptics.tap();
-    mutateSets(index, (sets) => [...sets, { kind: 'working' }]);
+    mutateSets(index, (sets) => [...sets, newDraftSet('working')]);
   }
 
   function addCluster(index: number) {
     haptics.tap();
-    mutateSets(index, (sets) => [...sets, { kind: 'activation' }, { kind: 'mini' }, { kind: 'mini' }]);
+    mutateSets(index, (sets) => [...sets, newDraftSet('activation'), newDraftSet('mini'), newDraftSet('mini')]);
   }
 
   function removeSet(index: number, setIdx: number) {
     mutateSets(index, (sets) => sets.filter((_, i) => i !== setIdx));
+  }
+
+  /** Edit one set's target buffers. No haptic — this fires per keystroke. */
+  function patchSet(index: number, setIdx: number, patch: Partial<DraftSet>) {
+    mutateSets(index, (sets) => sets.map((s, i) => (i === setIdx ? { ...s, ...patch } : s)));
   }
 
   function setSetKind(index: number, setIdx: number, kind: SetKind) {
@@ -240,7 +288,9 @@ export function TemplateEditorModal({
                   incrementLb: numOrUndef(d.incrementLb) ?? 5,
                 }
               : undefined,
-            plannedSets: normalizeClusterGroups(d.sets.length ? d.sets : [{ kind: 'working' }]),
+            plannedSets: normalizeClusterGroups(
+              d.sets.length ? d.sets : [newDraftSet('working')],
+            ).map(toPlannedSet),
           };
         }),
       };
@@ -515,6 +565,49 @@ export function TemplateEditorModal({
                           >
                             <Text style={styles.tplSetKindText}>{t(kindLabelKey(ps.kind))}</Text>
                           </TouchableOpacity>
+
+                          {/* The prescription. A template that cannot say
+                              "8 @ 135" makes the logger a blank form the
+                              lifter retypes every session. Placeholders carry
+                              the units so the row needs no header. */}
+                          {d.logStyle === 'time' ? (
+                            <TextInput
+                              style={styles.tplSetInput}
+                              keyboardType="numeric"
+                              placeholder={t('train.secShort')}
+                              placeholderTextColor={colors.faint}
+                              value={ps.durationText}
+                              onChangeText={(v) => patchSet(i, si, { durationText: v })}
+                              accessibilityLabel={t('train.setDurationA11y', { n: si + 1 })}
+                              testID={`template-set-duration-${i}-${si}`}
+                            />
+                          ) : (
+                            <>
+                              {d.logStyle !== 'bodyweight' ? (
+                                <TextInput
+                                  style={styles.tplSetInput}
+                                  keyboardType="numeric"
+                                  placeholder={t('train.lbShort')}
+                                  placeholderTextColor={colors.faint}
+                                  value={ps.weightText}
+                                  onChangeText={(v) => patchSet(i, si, { weightText: v })}
+                                  accessibilityLabel={t('train.setWeightA11y', { n: si + 1 })}
+                                  testID={`template-set-weight-${i}-${si}`}
+                                />
+                              ) : null}
+                              <TextInput
+                                style={styles.tplSetInput}
+                                keyboardType="numeric"
+                                placeholder={t('train.repsShort')}
+                                placeholderTextColor={colors.faint}
+                                value={ps.repsText}
+                                onChangeText={(v) => patchSet(i, si, { repsText: v })}
+                                accessibilityLabel={t('train.setRepsA11y', { n: si + 1 })}
+                                testID={`template-set-reps-${i}-${si}`}
+                              />
+                            </>
+                          )}
+
                           <Text style={styles.tplSetGroup}>
                             {ps.group != null ? t('train.cluster', { n: ps.group }) : ''}
                           </Text>

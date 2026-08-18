@@ -579,6 +579,15 @@ export const esPR: Record<I18nKey, string> = {
   'train.sets': 'Series',
   'train.removeSet': 'Quitar serie',
   'train.cluster': 'C{n}',
+  // Celdas de prescripcion por serie en el editor de plantillas. Las tres
+  // cortas son placeholders que sustituyen un encabezado de columna, asi que
+  // deben quedarse en ~4 caracteres — los campos miden 52pt.
+  'train.lbShort': 'lb',
+  'train.repsShort': 'reps',
+  'train.secShort': 'seg',
+  'train.setWeightA11y': 'Peso objetivo de la serie {n}',
+  'train.setRepsA11y': 'Repeticiones objetivo de la serie {n}',
+  'train.setDurationA11y': 'Duracion objetivo de la serie {n} en segundos',
   'train.saveErr': 'No se pudo guardar la plantilla. Verifica tu conexión e inténtalo otra vez.',
   'train.starters': 'Plantillas base',
   'train.starterTitle': 'Plantillas base',

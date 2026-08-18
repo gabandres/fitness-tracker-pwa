@@ -211,7 +211,10 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     fontSize: font.body,
     color: colors.ink,
   },
-  styleRow: { flexDirection: 'row', gap: space.sm },
+  // marginTop lives here, not at the call sites: the row always follows the
+  // exercise-name input, and both sheets used to space it themselves — the add
+  // sheet not at all, so the chips sat flush against the field.
+  styleRow: { flexDirection: 'row', gap: space.sm, marginTop: space.md },
   styleChip: {
     flex: 1,
     borderWidth: 1,
@@ -307,6 +310,19 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     paddingVertical: space.xs,
   },
   tplSetKindText: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
+  // Narrower than tplLoadInput: up to three of these share a set row with the
+  // kind button and the ✕, and 64pt each overflows at the smallest width.
+  tplSetInput: {
+    width: 52,
+    backgroundColor: colors.inputBg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.sm,
+    paddingVertical: space.xs,
+    textAlign: 'center',
+    fontSize: font.small,
+    color: colors.ink,
+  },
   tplSetGroup: { flex: 1, fontSize: font.tiny, color: colors.muted },
   tplSetBtns: { flexDirection: 'row', gap: space.lg, marginTop: space.xs },
   tplLoadInput: {

@@ -47,6 +47,13 @@ export interface WorkoutSet {
   /** Reps in reserve (0 = to failure). */
   rir?: number;
   done?: boolean;
+  /** The template's PRESCRIPTION for this set, snapshotted at start.
+   *  NOT written into `reps`/`durationSec`, because `isLoggedSet` reads those
+   *  as proof the set was performed — pre-filling them would record every
+   *  prescribed set as done. Rendered as the input placeholder, and committed
+   *  to the real fields only when the set is ticked `done`. */
+  targetReps?: number;
+  targetDurationSec?: number;
 }
 
 export interface SessionExercise {
@@ -78,10 +85,24 @@ export interface ProgressionRule {
 }
 
 /** Planned scaffold for one set the session pre-fills. `group` clusters sets
- *  (C1/C2); omit it for plain straight sets. */
+ *  (C1/C2); omit it for plain straight sets.
+ *
+ *  The four target fields are the PRESCRIPTION — what makes a template say
+ *  "3 × 8 @ 135" rather than just "three sets" — and are what
+ *  {@link templateToSessionExercises} pre-fills the logger with. All optional,
+ *  so templates written before they existed stay valid. Mirrors
+ *  `PlannedSet` in `packages/core` and `src/app/models/workout.ts`. */
 export interface PlannedSet {
   kind: SetKind;
   group?: number;
+  /** Prescribed reps. With `repsMax`, the lower bound of a range. */
+  reps?: number;
+  /** Upper bound of a rep RANGE, e.g. `reps: 8, repsMax: 10` → "8-10". */
+  repsMax?: number;
+  /** Prescribed load; overrides the exercise-level `targetLoad`. */
+  weight?: number;
+  /** Prescribed hold in seconds — `time` logStyle only. */
+  durationSec?: number;
 }
 
 export interface TemplateExercise {
@@ -110,11 +131,30 @@ export interface WorkoutTemplate {
 
 export type TemplateDraft = Omit<WorkoutTemplate, 'id' | 'createdAt' | 'updatedAt'>;
 
-/** Snapshot a template's exercises into fresh session exercises: each
- *  planned set becomes a scaffold {@link WorkoutSet} (weight pre-filled from
- *  `targetLoad` for load×reps styles; counts left blank). Unfilled scaffold
- *  rows are dropped by {@link dropEmptySets} on finish. An exercise with no
- *  planned sets gets one empty working set so it's loggable. */
+/** Snapshot a template's exercises into fresh session exercises: each planned
+ *  set becomes a scaffold {@link WorkoutSet} pre-filled with whatever the
+ *  template prescribes, so the lifter confirms numbers instead of typing them.
+ *
+ *  Precedence for load is per-set `weight` → exercise `targetLoad`, because
+ *  `targetLoad` is the one-number fallback that predates per-set targets and
+ *  must keep working for every template written before them. Reps come only
+ *  from the set: there has never been an exercise-level rep target, and
+ *  `progression.targetReps` is a bump *trigger*, not a prescription — reading
+ *  it here would silently pre-fill every set with a number the user never
+ *  wrote as a target.
+ *
+ *  A rep RANGE prescribes its lower bound, which is the number you must beat;
+ *  `repsMax` stays on the template as the goal to reach.
+ *
+ *  Reps/duration land in `targetReps`/`targetDurationSec`, NOT in
+ *  `reps`/`durationSec` — {@link isLoggedSet} reads the latter as proof the
+ *  set was performed, so writing them here would make finishing a session
+ *  record every prescribed set as done. Weight is different and IS pre-filled
+ *  outright: a load with no reps has never counted as a logged set, which is
+ *  why `targetLoad` could always be seeded this way.
+ *
+ *  Unfilled scaffold rows are dropped by {@link dropEmptySets} on finish. An
+ *  exercise with no planned sets gets one empty working set so it's loggable. */
 export function templateToSessionExercises(template: WorkoutTemplate): SessionExercise[] {
   return template.exercises.map((ex) => {
     const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
@@ -129,7 +169,9 @@ export function templateToSessionExercises(template: WorkoutTemplate): SessionEx
       sets: planned.map((ps) => ({
         kind: ps.kind,
         group: ps.group,
-        weight: style === 'time' ? undefined : ex.targetLoad,
+        weight: style === 'time' ? undefined : (ps.weight ?? ex.targetLoad),
+        targetReps: style === 'time' ? undefined : ps.reps,
+        targetDurationSec: style === 'time' ? ps.durationSec : undefined,
         done: false,
       })),
     };
