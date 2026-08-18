@@ -14,6 +14,14 @@ appId: fit.ignia.app
 - launchApp:
     clearState: false
 - assertVisible: 'Today'
+# The "New version available" banner re-renders Today asynchronously and puts
+# the list back at the top mid-flow — the mechanism written up in full in
+# 13-e2e-delete.yaml, where it was the standing iOS red. Every QA build is
+# CFBundleVersion 1, so the banner always fires here. Dismiss it before
+# touching the list. `optional: true` still WAITS for it, which is the point.
+- tapOn:
+    id: 'store-update-dismiss'
+    optional: true
 # visibilityPercentage: 60 — the default is 100, and on iOS the newest diary
 # row lands partly under the FAB/tab bar, so it is never 100% visible and the
 # scroll fails even though the row is on screen and IN FIRESTORE (verified with

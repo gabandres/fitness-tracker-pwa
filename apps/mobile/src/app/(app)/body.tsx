@@ -218,7 +218,7 @@ export default function Body() {
           </Animated.View>
 
           <View style={styles.bfCard} testID="bodyfat-card">
-            <View>
+            <View style={styles.bfText}>
               <Text style={styles.bfLabel}>{t('body.bodyFat')}</Text>
               <Text style={styles.bfHint}>
                 {bodyFat != null
@@ -627,9 +627,17 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
     paddingVertical: space.lg,
     marginTop: space.md,
   },
+  // flex: 1 is what keeps the percentage INSIDE the card. Without it the text
+  // column sizes to its content, the three lines of hint copy are wider than
+  // the card, and `space-between` pushes the value past the card border and
+  // off the right screen edge — measured 2026-08-18 from the regression
+  // captures, where "15.1%%" rendered as "15.1" with the sign cut off in EN and
+  // as "15." in es-PR, whose copy is longer. Same shape as the collapsed search
+  // field this suite was built for: a row whose children never agreed who gives.
+  bfText: { flex: 1 },
   bfLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   bfHint: { fontSize: font.tiny, color: colors.faint, marginTop: 2 },
-  bfValue: { fontFamily: type.display, fontSize: font.h1, color: colors.ink },
+  bfValue: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, marginLeft: space.md },
   measureHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.md },
   addLink: { fontSize: font.small, color: colors.accent, fontWeight: '700' },
   rowMeasure: { fontSize: font.small, fontWeight: '600', color: colors.ink },

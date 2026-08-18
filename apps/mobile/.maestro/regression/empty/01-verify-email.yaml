@@ -36,6 +36,16 @@ tags:
 - tapOn:
     text: 'Sign in'
     index: 1
+# iOS shows a "Save Password?" system dialog the instant credentials are
+# submitted, and it COVERS the wall. Dismiss it HERE, before asserting —
+# `android-signin.yaml` learned this on 2026-08-09 and this flow did not,
+# because it is excluded from directory runs and had never run on iOS at
+# all. Measured 2026-08-18: the assert below failed on a sign-in that had
+# fully succeeded, with the dialog sitting on top of the screen it wanted.
+# Android never shows it, hence optional.
+- tapOn:
+    text: 'Not Now'
+    optional: true
 # Unverified account → the verify-email wall, not Today, not onboarding.
 - extendedWaitUntil:
     visible: 'Verify your email to continue.'

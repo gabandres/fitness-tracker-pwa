@@ -368,7 +368,14 @@ function createStyles({ colors }: Theme) {
     },
     title: { fontFamily: type.display, fontSize: font.h1, color: colors.ink },
     date: { fontSize: font.body, color: colors.muted, marginTop: 2 },
-    body: { paddingHorizontal: space.xl, gap: space.lg },
+    // paddingBottom is load-bearing, not cosmetic: without it the LAST diary
+    // row ends flush with the tab bar and is clipped by the screen edge — the
+    // newest entry, which is the one a user most wants to tap. Measured
+    // 2026-08-18 from a Maestro hierarchy dump on the iPhone 17 simulator: the
+    // row's bounds were [24,813][378,878] against an 874pt screen, so its
+    // centre fell on the bar and the tap that should open the editor did
+    // nothing at all. Every other tab already pads (body.tsx uses `padding`).
+    body: { paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.lg },
     error: { color: colors.danger, fontSize: font.small },
     sectionTitle: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
     empty: { alignItems: 'center', paddingVertical: space.xl, gap: space.xs },

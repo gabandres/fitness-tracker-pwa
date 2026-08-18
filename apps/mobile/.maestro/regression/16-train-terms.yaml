@@ -53,10 +53,40 @@ appId: fit.ignia.app
     timeout: 10000
     visibilityPercentage: 60
 - takeScreenshot: .maestro/regression/shots/16-glossary-bottom
-# BottomSheet dismisses on backdrop press or hardware back; back is the only
-# one Maestro can aim at reliably, since the backdrop's tappable area is
-# whatever the sheet does not cover.
-- back
+# Dismissing this sheet needs a DIFFERENT command per platform — measured
+# 2026-08-18, on this flow's first-ever iOS run.
+#
+# `- back` dismissed it on Android and does nothing at all on iOS: there is no
+# hardware back there, so Maestro sends a left-edge swipe, which the router
+# honours for a pushed SCREEN (this is why `back` still works in 04-settings
+# and 05-history) and which a `Modal`-hosted BottomSheet never sees. The flow
+# then asserted "Train" with the glossary still over it — and the capture
+# shows a perfectly rendered sheet, so it reads as an app bug and is not one.
+#
+# Two things that look like the fix and are not, both tried and measured here:
+#   - the backdrop's `testID`: it is an `absoluteFill` Pressable BEHIND the
+#     sheet, and Maestro taps the centre of an element's bounds, which is the
+#     middle of the screen — i.e. on the sheet;
+#   - a `swipe` from the grab strip the component's own PanResponder listens
+#     to (dy > 120 or vy > 0.8 closes). The gesture ran, the strip was found,
+#     and the sheet did not move.
+#
+# So: a point tap on the backdrop, above where the sheet's top edge can reach.
+# This is the documented exception to "never tap by coordinates on a signed-in
+# account" — that rule exists because a missed tap once logged a real entry,
+# and here the point is over a modal backdrop whose only fallback target, if
+# the sheet were somehow already closed, is the non-interactive Train header.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          point: '50%, 12%'
 - assertVisible: 'Train'
 
 # ── 2. A set row, and the two pickers on it ───────────────────────
@@ -104,7 +134,23 @@ appId: fit.ignia.app
 # which is the half users get backwards.
 - tapOn:
     id: 'set-rir-0-0'
-- assertVisible: 'How many more reps could you have done?'
+# Anchor on a chip that exists ONLY while the picker is open.
+#
+# This line used to read `assertVisible: 'How many more reps could you have
+# done?'` and it was a FALSE POSITIVE on iOS — it passed whether or not the
+# picker opened. Two facts combined: the picker's own header renders
+# UPPERCASE, and the CELL carried that same sentence mixed-case as its
+# accessibility label, because iOS merges a touchable's content into one
+# label. So the assert matched the closed cell every time. It surfaced on
+# 2026-08-18, when the cell's label gained its current value and stopped
+# being an exact match — the assert failed on a run where the hierarchy dump
+# showed all seven picker chips plainly present.
+#
+# `set-rir-0-0-none` is rendered by the picker and by nothing else, so it
+# cannot pass against a closed cell. The three chip labels below are the
+# content assertions; this one is the state assertion.
+- assertVisible:
+    id: 'set-rir-0-0-none'
 - assertVisible: '0 · to failure'
 - assertVisible: '5+ · easy'
 - assertVisible: 'Not tracking'
@@ -120,10 +166,30 @@ appId: fit.ignia.app
 # child node holding '2'. A bare `text: '2'` would be the other wrong answer:
 # the set row is full of small integers, so it would pass against the set
 # number while the RIR cell stayed empty.
-- assertVisible:
-    id: 'set-rir-0-0'
-    containsChild:
-      text: '2'
+#
+# iOS needs a DIFFERENT assertion, and finding out why produced an app fix.
+# iOS merges a touchable's Text child into the touchable's own accessibility
+# label, so there is no child node to contain anything — measured 2026-08-18,
+# where the dump showed `set-rir-0-0` carrying only the prompt string and no
+# number anywhere in the tree, on a set whose RIR was visibly 2. The value was
+# not merely hard to select: it was **not exposed at all**, which is a real
+# VoiceOver defect (the cell announced its question and never its answer).
+# The cell now puts the value in its own label, so this asserts it directly.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - assertVisible:
+          id: 'set-rir-0-0'
+          containsChild:
+            text: '2'
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - assertVisible:
+          id: 'set-rir-0-0'
+          text: '.*2.*'
 - takeScreenshot: .maestro/regression/shots/16-rir-picked
 
 # Set types: "Activation" and "Mini" are cluster-training words. The picker is
@@ -131,8 +197,14 @@ appId: fit.ignia.app
 - tapOn:
     id: 'set-kind-0-0'
 - assertVisible: 'Set type'
-- assertVisible: 'A real, hard set — the default.'
-- assertVisible: 'First hard set of a cluster, taken close to failure.'
+# Regex, not the bare sentence. Each row of this picker is a title plus a
+# description, and iOS merges them into ONE label — measured 2026-08-18:
+# `set-kind-0-0-working` reads "Working, A real, hard set — the default.".
+# A full-match text selector cannot match a description that is only part
+# of its row's label. Android keeps the two Texts separate, and `.*…` still
+# matches there, so one regex serves both platforms.
+- assertVisible: '.*A real, hard set.*'
+- assertVisible: '.*First hard set of a cluster.*'
 - takeScreenshot: .maestro/regression/shots/16-set-types
 - tapOn:
     id: 'set-kind-0-0-working'
@@ -152,13 +224,19 @@ appId: fit.ignia.app
     timeout: 15000
 # The catalog entry outlives the session — remove it from the Exercises list so
 # the next run starts clean and no QA name leaks into a screenshot.
+# Regex, for the third time in this flow and the same reason: iOS merges a
+# catalog ROW into one label, so the bare name is not a node. Measured
+# 2026-08-18 — the session header read "QA Term Check, 0/1, " and the
+# catalog row is the same shape. `13-e2e-delete` matches its diary row the
+# same way. A teardown that cannot find its own row leaves the QA name in
+# the account, and the next run's screenshots inherit it.
 - scrollUntilVisible:
     element:
-      text: 'QA Term Check'
+      text: '.*QA Term Check.*'
     direction: DOWN
     timeout: 15000
     centerElement: true
-- tapOn: 'QA Term Check'
+- tapOn: '.*QA Term Check.*'
 - tapOn:
     id: 'exercise-delete'
 - tapOn:

@@ -7,6 +7,15 @@ appId: fit.ignia.app
 - launchApp:
     clearState: false
 - assertVisible: 'Today'
+# Dismiss the update banner BEFORE scrolling. This one optional tap is what
+# closed the suite's longest-standing iOS red — see the block above the
+# `entry-delete` wait for the full measurement. `optional: true` still WAITS
+# for the element (~17s) before giving up, which is what makes it work: the
+# banner is fetched asynchronously and lands a few seconds after Today does,
+# so a non-waiting check would race past it and dismiss nothing.
+- tapOn:
+    id: 'store-update-dismiss'
+    optional: true
 # visibilityPercentage: 60 — the default is 100, and on iOS the newest diary
 # row lands partly under the FAB/tab bar, so it is never 100% visible and the
 # scroll fails even though the row is on screen and IN FIRESTORE (verified with
@@ -38,24 +47,32 @@ appId: fit.ignia.app
     visibilityPercentage: 60
 - tapOn:
     text: '.*QA E2E Sandwich.*'
-# KNOWN RED ON iOS — deliberately not papered over.
+# SOLVED 2026-08-18 — this was the suite's one standing iOS red, and it was
+# never an app defect, never a long-press, and never the preset chip.
 #
-# On Android this passes and the deletion is confirmed in Firestore. On the
-# iOS simulator the tap above lands on the right element (a `maestro
-# hierarchy` dump on 2026-08-09 shows exactly ONE matching node, the row
-# itself, id `entry-<docId>`) and yet no sheet opens at all — the failure
-# capture shows Today with no modal and no alert.
+# The failure signature was misread for nine days. It is NOT "the tap lands
+# and no sheet opens": the `scrollUntilVisible` above SUCCEEDS, and then the
+# tap fails with *element not found*, because between the two commands the
+# row leaves the accessibility tree entirely. The hierarchy Maestro dumps on
+# failure contains `Entries`, `Breakfast` and `321 kcal` — and no node
+# carrying the row's name anywhere.
 #
-# Ruled OUT by measurement, so nobody re-pays for them:
-#   - a preset chip of the same name stealing the tap (only one node matches,
-#     and the preset does not exist when this runs standalone);
-#   - the row being unreachable (flow 11's scroll finds it with the same
-#     regex, and flow 12's identical tap DOES open the editor on iOS).
+# What moves it: the **"New version available" banner**. Every QA build is
+# CFBundleVersion 1, so it is permanently older than the shipped store
+# version, and Today renders the banner as soon as its async version fetch
+# returns. That re-render lands mid-flow and puts the list back at the top —
+# the failure capture is Today scrolled to the very top with the banner
+# across it. `tapOn` does not scroll, so it then spent 17s querying a tree
+# the row was no longer in.
 #
-# Still open: the row is a `PressScale` carrying BOTH onPress and onLongPress
-# inside an entering-animated view, so the next thing to try is whether
-# Maestro's iOS tap is being consumed as a long press — dump the hierarchy
-# immediately after the tap and look for the preset alert.
+# Why it looked iOS-only: nothing about the mechanism is. It is a race, and
+# the banner simply landed inside iOS's slower scroll→tap window every time.
+# Flows 11, 12 and 14 dismiss it now too, for the same reason — they were
+# passing on timing, not on correctness.
+#
+# The earlier eliminations still stand and are still worth keeping: only one
+# node ever matched the regex, and flow 12's identical tap does open the
+# editor. Both were true. They just were not the question.
 - extendedWaitUntil:
     visible:
       id: 'entry-delete'

@@ -1054,7 +1054,15 @@ function SetRow({
           style={[styles.setInput, styles.setRirCell, styles.setRirBtn]}
           onPress={() => setRirOpen((o) => !o)}
           accessibilityRole="button"
-          accessibilityLabel={t('train.rirPrompt')}
+          // The label carries the CURRENT VALUE, not just the prompt. Before
+          // 2026-08-18 it was the prompt alone, so VoiceOver announced the
+          // question and never the answer — a user could not hear what RIR a
+          // set was already on. It also made the value unassertable on iOS,
+          // which merges a touchable's Text child into this single label:
+          // a Maestro hierarchy dump of this cell showed the prompt and no
+          // number anywhere in the tree, on a set whose RIR was plainly 2.
+          accessibilityLabel={`${t('train.rirPrompt')} ${set.rir == null ? t('train.rirClear') : set.rir}`}
+          accessibilityValue={{ text: set.rir == null ? t('train.rirClear') : String(set.rir) }}
           testID={`set-rir-${exerciseIndex}-${setIndex}`}
         >
           <Text style={[styles.setRirValue, set.rir == null && styles.setRirEmpty]}>

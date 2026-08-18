@@ -18,58 +18,66 @@ against a state you did not intend (that is what turned one iOS run into
 `shots/` at all unless the collector ran. Before ticking rows: confirm the
 locale/theme are back to baseline, and look at the captures.
 
-## Route screens (13)
+**Where this stands, 2026-08-18.** iOS is **31 of 33 rows**. The two that are
+left cannot be closed on a simulator by anyone: the barcode camera needs a
+camera, and the mic's listening state needs a speech recognizer. **Android is
+frozen at its 2026-08-09 dates and cannot be re-run at all** — it has no host
+(README, "Android has no host"), so every Android ✓ below describes an app one
+SDK major behind what testers run. Read the Android column as history, not as
+status.
+
+## Route screens (14)
 
 | Screen | Flow | Android | iOS |
 |---|---|---|---|
-| sign-in | `../android-signin.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| (app)/index — Today | `01-today.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| (app)/train | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| (app)/train — logging interactions | `16-train-terms.yaml` (glossary, RIR scale, set-type rows; starts + discards a workout) | ✓ 2026-08-12 | ✗ unrun |
-| (app)/trends | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| (app)/body | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| (app)/settings | `04-settings.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| history/index | `05-history.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| history/[date] | `05-history.yaml` (deep link, `-e DATE`) | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| scan (intro only) | `06-scan-intro.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| coach (idle only) | `07-coach.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| refine-targets (render only) | `08-refine-targets.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| verify-email | `empty/01-verify-email.yaml` | ✗ authored, unrun | ✗ |
-| onboarding | `empty/02-onboarding-empty.yaml` | ✗ authored, unrun | ✗ |
+| sign-in | `../android-signin.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| (app)/index — Today | `01-today.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| (app)/train | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| (app)/train — logging interactions | `16-train-terms.yaml` (glossary, RIR scale, set-type rows; starts + discards a workout) | ✓ 2026-08-12 | ✓ 2026-08-18 — first iOS run; took five platform fixes and exposed a false-positive assert |
+| (app)/trends | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| (app)/body | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 — **caught the body-fat overflow** |
+| (app)/settings | `04-settings.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| history/index | `05-history.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| history/[date] | `05-history.yaml` (deep link, `-e DATE`) | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| scan (intro only) | `06-scan-intro.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| coach (idle only) | `07-coach.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| refine-targets (render only) | `08-refine-targets.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| verify-email | `empty/01-verify-email.yaml` | ✗ authored, unrun | ✓ 2026-08-18 — **first run ever, either platform** |
+| onboarding | `empty/02-onboarding-empty.yaml` | ✗ authored, unrun | ✓ 2026-08-18 — **first run ever, either platform** |
 
 ## Add-sheet modes (7)
 
 | Mode | Flow | Android | iOS |
 |---|---|---|---|
-| Browse (recency list + Quick add strip) | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| Manual (Write it in) | `02` render · `11` real write | ✓ 2026-08-09 (both) | ✓ 2026-08-09 (both) |
-| Describe a meal | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| Build a recipe | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| Import from a link | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| Search → results → serving detail | `15-search.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
+| Browse (recency list + Quick add strip) | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| Manual (Write it in) | `02` render · `11` real write | ✓ 2026-08-09 (both) | ✓ 2026-08-18 (both) |
+| Describe a meal | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| Build a recipe | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| Import from a link | `02-add-sheet.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| Search → results → serving detail | `15-search.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
 | Barcode | — camera; asserted present in `02`, never opened | ✗ camera | ✗ camera |
 
 ## Interactions
 
 | Interaction | Flow | Android | iOS |
 |---|---|---|---|
-| Log → appears in Entries (Firestore-verified) | `11-e2e-log.yaml` + `qa-regression-verify.mjs snapshot` | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| Edit entry (Firestore-verified) | `12-e2e-edit.yaml` + snapshot | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| Delete entry (Firestore-verified) | `13-e2e-delete.yaml` + snapshot | ✓ 2026-08-09 | ✗ **the one open iOS gap** — the row tap does not open the editor there, so `entry-delete` never renders; the capture shows Today with no sheet. Not an app defect on the evidence available (the same tap opens the editor in flow 12, which passes on iOS), but unexplained. Next session: dump `maestro hierarchy` with the row on screen |
-| Row long-press → save preset | `12-e2e-edit.yaml` + snapshot | ✓ 2026-08-09 (preset doc read back) | ✓ 2026-08-09 (preset doc read back) |
-| Water +8 / −8 | `14-metrics.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| Sleep log 7.5 h | `14-metrics.yaml` + snapshot | ✓ 2026-08-09 (`sleepHours: 7.5`) | ✓ 2026-08-09 |
+| Log → appears in Entries (Firestore-verified) | `11-e2e-log.yaml` + `qa-regression-verify.mjs snapshot` | ✓ 2026-08-09 | ✓ 2026-08-18 (123 kcal read back) |
+| Edit entry (Firestore-verified) | `12-e2e-edit.yaml` + snapshot | ✓ 2026-08-09 | ✓ 2026-08-18 (321 kcal / P 9g read back) |
+| Delete entry (Firestore-verified) | `13-e2e-delete.yaml` + snapshot | ✓ 2026-08-09 | ✓ 2026-08-18 (`entries: []` read back) — **closed after nine days red, and the old diagnosis was wrong twice over.** The tap never landed: the update Nudge re-rendered Today and returned the list to the top, so `tapOn` searched a tree the row had left. Under that sat a real app bug — Today's list had no bottom padding, so the row's centre fell on the tab bar. Both fixed |
+| Row long-press → save preset | `12-e2e-edit.yaml` + snapshot | ✓ 2026-08-09 (preset doc read back) | ✓ 2026-08-18 (preset doc read back) |
+| Water +8 / −8 | `14-metrics.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| Sleep log 7.5 h | `14-metrics.yaml` + snapshot | ✓ 2026-08-09 (`sleepHours: 7.5`) | ✓ 2026-08-18 (`sleepHours: 7.5`) |
 | Mic tap → listening state | `14-metrics.yaml` (conditional) | ✗ — button renders and the tap lands, but the emulator has no recognizer, so the state never appears. Closes on hardware only | ✗ same |
-| Month prev/next in History | `05-history.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
+| Month prev/next in History | `05-history.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
 
 ## State multipliers
 
 | State | Flow | Android | iOS |
 |---|---|---|---|
-| es-PR locale (Today, tabs, sheet, Settings) | `09-locale-es.yaml` | ✓ 2026-08-09 — **caught the `lb/wk` bug** | ✓ 2026-08-09 |
-| Dark theme (same surfaces) | `10-theme-dark.yaml` | ✓ 2026-08-09 | ✓ 2026-08-09 |
-| Boot / loading (BrandLoader splash) | `01-today.yaml`'s launch capture | ✓ 2026-08-09 — **caught the "Igni" wordmark** | ✓ 2026-08-09 (renders correctly there — the clipping was Android-only) |
-| Fresh account (onboarding funnel + every empty state) | `empty/02-onboarding-empty.yaml` | ✗ authored, unrun | ✗ |
+| es-PR locale (Today, tabs, sheet, Settings) | `09-locale-es.yaml` | ✓ 2026-08-09 — **caught the `lb/wk` bug** | ✓ 2026-08-18 — **caught the body-fat overflow first, its copy being longer** |
+| Dark theme (same surfaces) | `10-theme-dark.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
+| Boot / loading (BrandLoader splash) | `01-today.yaml`'s launch capture | ✓ 2026-08-09 — **caught the "Igni" wordmark** | ✓ 2026-08-18 (renders correctly there — the clipping was Android-only) |
+| Fresh account (onboarding funnel + every empty state) | `empty/02-onboarding-empty.yaml` | ✗ authored, unrun | ✓ 2026-08-18 — **first run ever**; the funnel saves and every empty state renders |
 
 ## Known NOT covered — each with its reason, so nobody "discovers" these
 
@@ -85,6 +93,37 @@ locale/theme are back to baseline, and look at the captures.
 | es-PR × dark combined | Multipliers run singly; the product of both is unwalked |
 | Widget, QS tile, Siri, Live Activity | Not app-UI — `adb cmd statusbar` / hardware rows in `WIDGET.md` |
 | Speech RESULTS (mic transcript → parse) | Simulators have no speech input; listening state only |
+
+## The fresh-account arc, as actually run — 2026-08-18
+
+Six steps, and every one of them matters. The arc had never run on either
+platform, and its first iOS pass needed four fixes before it went green:
+
+```sh
+node scripts/qa-regression-verify.mjs create-empty --email qa-test-empty@ignia.fit --password <pw> --unverified
+maestro --device <udid> test .maestro/regression/empty/01-verify-email.yaml -e EMAIL=… -e PASSWORD=…
+node scripts/qa-regression-verify.mjs set-verified --email qa-test-empty@ignia.fit
+maestro --device <udid> test .maestro/regression/empty/02-onboarding-empty.yaml -e EMAIL=… -e PASSWORD=…
+node scripts/qa-regression-verify.mjs reset-empty  --email qa-test-empty@ignia.fit
+maestro --device <udid> test .maestro/android-signin.yaml -e EMAIL=qa-test@ignia.fit -e PASSWORD=…
+```
+
+- **The password must satisfy Firebase's policy** — it rejects a lowercase-only
+  string with `Missing password requirements: [Password must contain an upper
+  case character]`.
+- **Generate it with `tr -d '
+'`, not `tr -d '
+'`.** On Windows the file
+  keeps a carriage return, the account is created with a password one invisible
+  byte longer than the one Maestro types, and the flow fails on `signin-error:
+  "Wrong email or password"` — which reads exactly like a wrong password
+  because it is one.
+- **`02` signs in fresh rather than relaunching warm.** After `set-verified`
+  the app routes straight into onboarding, so the wall's refresh button never
+  fires and the client keeps its pre-verification token: the entire funnel
+  completes and the save fails with "Please verify your email first".
+- **The last step is not optional.** The arc ends signed out, so the sandbox
+  needs `android-signin.yaml` before any other flow runs.
 
 ## The e2e + empty interleave (admin script on the ADC machine, Maestro on the Mac)
 

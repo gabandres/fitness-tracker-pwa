@@ -4,6 +4,21 @@ appId: fit.ignia.app
 - launchApp:
     clearState: false
 - assertVisible: 'Today'
+# `Today` alone is NOT enough to know the screen has rendered: it is also the
+# TAB BAR's label, and the tab bar is in the accessibility tree while the
+# BrandLoader splash is still painted over the whole screen. Measured
+# 2026-08-18 — 01-today-top and 01-today-metrics both captured the splash, so
+# two of this flow's three pieces of evidence showed the wordmark and nothing
+# else, and the run still went green. Wait for something only the loaded
+# screen has.
+# Waiting for a Today element is NOT enough either — tried and measured the
+# same day: the BrandLoader is an OVERLAY the root layout paints on top, so
+# every Today node (`hero-rings` included) is already in the tree beneath it
+# and the capture still came back as the wordmark. Wait for the loader to go.
+- extendedWaitUntil:
+    notVisible:
+      id: 'brand-loader'
+    timeout: 15000
 - takeScreenshot: .maestro/regression/shots/01-today-top
 # The metrics card. FASTING/WATER labels are uppercase in the UI but Maestro
 # matches case-insensitively on text.

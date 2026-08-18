@@ -15,11 +15,39 @@ appId: fit.ignia.app
 tags:
   - manual
 ---
+# `clearState: true` and a FRESH SIGN-IN, not a warm relaunch — measured
+# 2026-08-18, on this arc's first-ever iOS run.
+#
+# This flow used to relaunch warm and lean on the wall's refresh button to
+# pick up the new claim. That only works if the wall renders. It does not:
+# after `set-verified` the app routes straight into onboarding, so the
+# refresh never fires, the client keeps its PRE-verification token, and the
+# whole funnel completes and then fails at the last step with "Please verify
+# your email first". The capture shows "You're all set" and a computed plan
+# of 1,980 kcal / 130g — everything worked except the save.
+#
+# A fresh sign-in mints a token that carries emailVerified, which is the
+# only reliable way to get it. Keep the wall-refresh branch below anyway:
+# it costs nothing and covers a run where the wall DOES appear.
 - launchApp:
-    clearState: false
+    clearState: true
     stopApp: true
-# The client may still hold the pre-verification token; the wall's own refresh
-# button is the supported way through it.
+- extendedWaitUntil:
+    visible: 'Sign in to your account'
+    timeout: 30000
+- tapOn: 'Email'
+- inputText: ${EMAIL}
+- tapOn: 'Password'
+- inputText: ${PASSWORD}
+- tapOn: 'Sign in to your account'
+- tapOn:
+    text: 'Sign in'
+    index: 1
+# iOS's "Save Password?" dialog covers whatever comes next. Android never
+# shows it, hence optional. Same trap as android-signin.yaml and empty/01.
+- tapOn:
+    text: 'Not Now'
+    optional: true
 - runFlow:
     when:
       visible: 'Verify your email to continue.'
@@ -82,11 +110,50 @@ tags:
 # ── leave the sandbox signed out ──
 - tapOn:
     id: 'settings-open'
+# Wait, do not scroll. Sign out sits high in Settings on a FRESH account —
+# measured 2026-08-18 at bounds [41,564][361,584] on a 874pt screen, well
+# clear of the tab bar, on the first screenful. `scrollUntilVisible` failed
+# here at both 100% and 60% visibility WHILE the failure dump showed the
+# button fully on screen, so the percentage was never the problem: the
+# scroll was hunting for something already in front of it. The Sign-in
+# methods section below it renders only for an account with no linked
+# provider, which is exactly this account and not the main QA one — so the
+# two Settings screens are different heights, and a scroll tuned on one
+# does not transfer.
+# `speed: 10` is the fix, and the diagnosis took three attempts, so it is
+# worth stating plainly. At the default speed 40 this scroll failed at 100%
+# visibility, at 60%, and a bare wait failed too — while the hierarchy
+# Maestro dumps ON failure showed the button fully on screen at
+# [41,564][361,584]. That combination only fits one explanation: the scroll
+# DOES reach the target, and the visibility check races the swipe's
+# momentum, so the tree Maestro tests is a frame that has already moved.
+# A slower swipe carries less momentum and the check lands on a settled
+# frame. Reach for speed before percentage when a failure capture shows the
+# element plainly present.
 - scrollUntilVisible:
     element:
       id: 'settings-signout'
     direction: DOWN
-    timeout: 20000
+    timeout: 25000
+    speed: 10
+# centerElement, NOT a lowered visibilityPercentage. Sign out is MID-list on
+# this account — the Sign-in methods section renders below it, because a
+# fresh email/password account has no linked provider — so the documented
+# mid-list rule applies and centring is available. `visibilityPercentage: 30`
+# was the wrong lever and made things worse: it let the scroll stop with the
+# button 70% off screen, and the tap then landed on a neighbour. The capture
+# after it showed Settings still open and parked above the button.
+    centerElement: true
+# Settle the tree before tapping. With the scroll alone, the tap landed on
+# a neighbour — the capture after it showed Settings still open and parked
+# on CALORIE FLOOR, and Sign out has no confirmation dialog (`onPress={signOut}`
+# in settings.tsx), so a tap that reached it could not have failed quietly.
+# Maestro taps layout bounds, and a list still settling from a swipe hands
+# it bounds that are one frame stale.
+- extendedWaitUntil:
+    visible:
+      id: 'settings-signout'
+    timeout: 10000
 - tapOn:
     id: 'settings-signout'
 - extendedWaitUntil:
