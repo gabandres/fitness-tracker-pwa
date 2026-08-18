@@ -30,15 +30,15 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 |---|---|
 | **Public App Store (iOS)** | **1.1.0 / build 24**, `READY_FOR_SALE`. Missing everything since 2026-08-08: dictation, the redesigned Add screen, the fasting Live Activity, the wide widget, every TDEE correction, and the verification-email fix |
 | **App Review (iOS)** | **1.2.0 / build 55**, `WAITING_FOR_REVIEW` since 2026-08-15, **`releaseType: AFTER_APPROVAL` — it self-publishes on approval, with no human step** |
-| **TestFlight** | build **57** external (1.2.0) — the first **Expo SDK 57** iOS binary, `IN_BETA_TESTING` with *Public Beta Testers*, beta review `APPROVED`. **No device QA.** Build 56 does not exist (a killed attempt burned it). Builds 53/54/55 remain; 55 is what Apple is reviewing |
-| **Play alpha** | **vc 32** (1.2.0) — the first **Expo SDK 57** binary, built on Windows, `status=completed`. **No device QA.** Built from `chore/expo-sdk-57`, which is not on `main` |
+| **TestFlight** | build **57** external (1.2.0) — SDK 57, `IN_BETA_TESTING` with *Public Beta Testers*, beta review `APPROVED`. **Has the write fix over the air** (published to runtime `25e953e9…`). **No device QA.** Build 56 does not exist. 55 is what Apple is reviewing, on a different runtime |
+| **Play alpha** | **vc 33** (1.2.0) — SDK 57, carries the preset/custom-food write fix, `status=completed`. **No device QA.** Replaces vc 32, which CRLF normalization orphaned |
 | **Play production** | not launched — gated on Google's 14-day checklist (§3) |
 | **Web PWA `ignia.fit`** | Live, bilingual (EN + es-PR), 105 prerendered pages (en 52 / es 53), 114-URL sitemap. **Frozen for logging features** (ADR-0022); the shell keeps shipping |
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101` |
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB, 13,272 foods, no network call (ADR-0018). Open Food Facts still serves branded + barcode |
 | **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU |
-| **`app-version.json`** | android `32`, ios `24` — synced and **deployed** 2026-08-17. **Both derived** by `scripts/app-version-sync.mjs`; `npm run doctor` fails on drift in either direction |
+| **`app-version.json`** | android `33`, ios `24` — synced and **deployed** 2026-08-17. **Both derived** by `scripts/app-version-sync.mjs`; `npm run doctor` fails on drift in either direction |
 
 **Two live facts that are easy to get wrong:**
 
@@ -72,13 +72,20 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
   platform is gated on the machine that builds it. Do not spend another session
   aligning Node or re-running `npm ci` to chase it.
 
-  **The Android fleet now spans THREE runtimes**, and this is the loose end:
-  vc 30 `6519916…` (Mac), vc 31 `3d3bc410…` (Windows), vc 32 `d8741525…`
-  (Windows, SDK 57). An Android OTA reaches **vc 32 only** — the SDK bump moved
-  the hash, and no update crosses it in either direction. The banner
-  (`app-version.json` = 32, deployed) is what drains the older two. Do not
-  publish from the Mac to "cover" an older cohort; the guard blocks it and it
-  would strand vc 32 instead.
+  **No Android OTA currently reaches ANY shipped binary, and that is expected.**
+  The fleet spans vc 30 `6519916…`, vc 31 `3d3bc410…`, vc 32 `d8741525…` and
+  vc 33 `c1c010ac…`; the tree now reads `641cf5d4…` because the Gradle memory
+  fixes edited `plugins/withGradleJvmArgs.js`, which is hashed. **The next
+  Android JS fix needs a build, not an update** — vc 34 will re-open the channel.
+  vc 32 is additionally an orphan: its hash is only reproducible from a CRLF
+  worktree, a state `.gitattributes` removes. The banner
+  (`app-version.json` = 33, deployed) is what drains the older cohorts. Do not
+  publish from the Mac to "cover" an older one; the guard blocks it.
+
+  **iOS is in the opposite, healthy state**: build 57's runtime `25e953e9…` is
+  reproducible from `main` on the Mac, and the write fix was published to it
+  over the air. Apple is reviewing build 55 on `886bf0b3…`, a different runtime,
+  so that submission is untouched.
 
   **vc 32 has had NO device QA, and it is the riskiest binary yet shipped here** —
   a three-SDK jump (54 → 57, RN 0.81.5 → 0.86.2), built from a branch that is not
