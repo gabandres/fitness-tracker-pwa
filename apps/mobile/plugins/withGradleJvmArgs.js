@@ -53,11 +53,18 @@ const { withGradleProperties } = require('@expo/config-plugins');
  *
  * `org.gradle.parallel=true` is in the Expo template, and Gradle "will fork up
  * to `org.gradle.workers.max` JVMs", defaulting to the CPU count
- * (https://docs.gradle.org/current/userguide/build_environment.html). On this
- * 12-core workstation that is 12 forks, each able to spawn its own `clang++`;
- * 8+ concurrent compilers at 200–600 MB each were observed. 6 halves that fan-out
- * without changing what is built — the native work is bounded by the four ABIs,
- * not by the worker count.
+ * (https://docs.gradle.org/current/userguide/build_environment.html).
+ *
+ * **It does NOT cap the C++ compiler fan-out, measured on the vc 34 build.** With
+ * `workers.max=6` set, concurrent `clang++` peaked at **14** — higher, not lower.
+ * Gradle's worker cap bounds parallel *tasks*; each CMake task then invokes
+ * **ninja**, which parallelizes internally with its own `-j` defaulting to the
+ * CPU count. So one Gradle task can spawn a dozen compilers whatever this is set
+ * to. It is kept because bounding Gradle's own JVM forks is still worth having,
+ * but it is **not** the lever for the clang swarm and should not be sold as one.
+ *
+ * The real lever there is the ABI count — four ABIs is four full native builds —
+ * and that belongs to local iteration, not to a plugin that runs on every build.
  *
  * **None of this reduces the ABIs.** React Native's own guidance is that building
  * one ABI cuts native build time ~75%
