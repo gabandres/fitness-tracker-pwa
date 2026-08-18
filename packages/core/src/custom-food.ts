@@ -59,7 +59,11 @@ export function servingsFromGrams(food: CustomFood, grams: number): number {
 /** The one serving the user chose to save, already macro-resolved for its
  *  gram weight (mirrors the FoodDetail ServingOption shape). */
 export interface ServingSnapshot {
-  grams: number;
+  /** Gram weight of the chosen serving. **Omit it** for a manual entry with no
+   *  known weight — the food is then stored as an honest `servingSize: 1,
+   *  servingUnit: 'serving'`. A PRESENT but out-of-range value is still
+   *  clamped (grams: -5 -> 0.1), so absent and invalid stay distinguishable. */
+  grams?: number;
   calories: number;
   protein?: number;
   carbs?: number;
@@ -91,8 +95,8 @@ export function buildCustomFood(draft: CustomFoodDraft, createdAt: Date): Omit<C
   const s = draft.serving;
   const food: Omit<CustomFood, 'id'> = {
     name: draft.name.trim().slice(0, 100),
-    servingSize: round1(clampNum(s.grams, 0.1, 99_999, 100)),
-    servingUnit: 'g',
+    servingSize: s.grams != null ? round1(clampNum(s.grams, 0.1, 99_999, 100)) : 1,
+    servingUnit: s.grams != null ? 'g' : 'serving',
     calories: Math.round(clampNum(s.calories, 0, 19_999, 0)),
     source: draft.source,
     createdAt,

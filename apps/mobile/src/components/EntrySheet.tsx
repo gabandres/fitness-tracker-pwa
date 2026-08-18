@@ -25,6 +25,7 @@ import {
   type MealPreset,
   type MealType,
   buildCustomFood,
+  buildMealPreset,
   scaleCustomFood,
 } from '@macrolog/core';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
@@ -331,13 +332,18 @@ export function EntrySheet({
   async function saveAsPreset() {
     if (!onSavePreset || !label.trim() || calNum == null) return;
     haptics.tap();
-    await onSavePreset({
-      name: label.trim(),
-      calories: calNum,
-      protein: numOrUndef(protein),
-      carbs: numOrUndef(carbs),
-      fat: numOrUndef(fat),
-    });
+    // buildMealPreset clamps into the isValidPreset rule bounds. Writing the
+    // raw values here is what produced permission-denied in prod (Sentry
+    // IGNIA-MOBILE-9): the rule rejects and the preset is silently lost.
+    await onSavePreset(
+      buildMealPreset({
+        name: label.trim(),
+        calories: calNum,
+        protein: numOrUndef(protein),
+        carbs: numOrUndef(carbs),
+        fat: numOrUndef(fat),
+      }),
+    );
   }
 
   /** Save the current custom form as a reusable CustomFood. Grams-first +
@@ -373,21 +379,22 @@ export function EntrySheet({
       );
     } else {
       // No gram weight (manual entry, or a scan/search food whose DB lacked a
-      // serving weight). Honest serving:1; keep source/barcode/brand so even a
-      // weightless scan still de-dups by barcode.
-      food = {
-        name,
-        servingSize: 1,
-        servingUnit: 'serving',
-        calories: calNum,
-        source: ctx?.source ?? 'manual',
-        createdAt: new Date(),
-      };
-      if (ctx?.brand) food.brand = ctx.brand;
-      if (ctx?.barcode) food.barcode = ctx.barcode;
-      if (p != null) food.protein = p;
-      if (c != null) food.carbs = c;
-      if (f != null) food.fat = f;
+      // serving weight). Omitting `grams` is what selects the honest
+      // serving:1 save; source/barcode/brand are kept so even a weightless
+      // scan still de-dups by barcode. It goes through buildCustomFood so the
+      // isValidCustomFood bounds are applied — hand-building this object
+      // skipped them, Firestore rejected the write, and the food was silently
+      // lost (Sentry IGNIA-MOBILE-A).
+      food = buildCustomFood(
+        {
+          name,
+          brand: ctx?.brand,
+          barcode: ctx?.barcode,
+          source: ctx?.source ?? 'manual',
+          serving: { calories: calNum, protein: p, carbs: c, fat: f },
+        },
+        new Date(),
+      );
     }
     await onSaveCustomFood(food);
   }

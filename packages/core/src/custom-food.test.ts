@@ -128,3 +128,36 @@ describe('customFoodDocId', () => {
     expect(customFoodDocId({ source: 'barcode', barcode: undefined })).toBeNull();
   });
 });
+
+describe('buildCustomFood — manual save with no known gram weight', () => {
+  const now = new Date('2026-08-17T00:00:00Z');
+
+  it('stores an honest serving:1 when grams are ABSENT', () => {
+    const out = buildCustomFood(
+      { name: 'Abuela stew', source: 'manual', serving: { calories: 320, protein: 21 } },
+      now,
+    );
+    expect(out.servingSize).toBe(1);
+    expect(out.servingUnit).toBe('serving');
+    expect(out.calories).toBe(320);
+    expect(out.protein).toBe(21);
+  });
+
+  it('still clamps a PRESENT but invalid gram weight (absent != invalid)', () => {
+    const out = buildCustomFood(
+      { name: 'x', source: 'manual', serving: { grams: -5, calories: 10 } },
+      now,
+    );
+    expect(out.servingUnit).toBe('g');
+    expect(out.servingSize).toBe(0.1);
+  });
+
+  it('clamps a long name on the manual path too (the rejected-write bug)', () => {
+    const out = buildCustomFood(
+      { name: 'y'.repeat(240), source: 'manual', serving: { calories: 50_000 } },
+      now,
+    );
+    expect(out.name.length).toBe(100);
+    expect(out.calories).toBe(19_999);
+  });
+});

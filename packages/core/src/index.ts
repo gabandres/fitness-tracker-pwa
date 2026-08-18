@@ -76,6 +76,7 @@ export * from './food-plausibility';
 // My Foods library helpers (ADR-0013). Types (CustomFood, FoodSource,
 // ServingUnit) live in ./types; these are the pure scaling helpers.
 export * from './custom-food';
+export * from './meal-preset';
 // Food-search wire module (searchFoods / getFoodDetail): shared types +
 // normalize + serving-sort + a transport-injected client. Both frontends'
 // callable adapters plug in via makeFoodSearch. Wire-compatible with
