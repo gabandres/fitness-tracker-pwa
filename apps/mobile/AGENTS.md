@@ -430,3 +430,43 @@ shipped.** Which version is live, which build backs it, and what is merged but
 not yet in any binary all live in **`STATUS.md`**, which carries the command to
 re-check each one. Nothing in this folder should restate them; a second copy is
 how "planned" and "shipped" became indistinguishable here before.
+
+## A hashed file's LINE ENDINGS can move the fingerprint with no commit at all
+
+**Measured 2026-08-17, and it stranded a shipped binary.** `apps/mobile/.gitignore`
+is a `file:` fingerprint source *and* one of the two files this repo checks out as
+CRLF on Windows. vc 32 was built while it was CRLF, so the `.aab` embeds
+`d8741525…`. A later `git commit` normalized it to LF — `.gitattributes` says
+`* text=auto eol=lf`, and git had been warning *"CRLF will be replaced by LF the
+next time Git touches it"* — and the Android fingerprint moved to `0c82dbc1…`.
+
+Proven by flipping only that file's line endings back and forth:
+
+| `apps/mobile/.gitignore` | android fingerprint |
+|---|---|
+| CRLF (48 lines) | `d8741525…` — what vc 32 ships |
+| LF (55 lines) | `0c82dbc1…` — the normalized, correct tree |
+
+Everything else was ruled out first by measurement: the JS change itself (stash
+in/out, identical hash), root `engines`, the `android/` prebuild dir, and the 39
+Gradle output directories the build writes inside `node_modules/*/android`. Even
+checking out the exact build commit `c75352ef` gave `0c82dbc1…`, which is what
+proves the drift is worktree state and not repo content.
+
+**Three consequences.**
+
+1. **`git status` stays clean through this.** Nothing signals the drift — the
+   index was always LF; only the worktree changed. A gate run days after a build
+   can silently disagree with the binary for no reason a diff will show.
+2. **vc 32 is an ORPHAN runtime.** Its hash is only reproducible from a CRLF
+   worktree, which is a state `.gitattributes` actively removes. **No OTA from a
+   correct tree can ever reach vc 32** — do not try to recreate the CRLF to
+   publish one; the next git operation undoes it. It needs a replacement build.
+3. **iOS is unaffected.** Build 57 was produced on `ignia-mac`, where the checkout
+   is LF already, so its `25e953e9…` was computed from the same normalized state
+   the tree is in now.
+
+The durable fix is that the worktree now matches the index. Re-normalizing is a
+one-time event; once every hashed file is LF the class is closed. If a
+fingerprint ever fails to match for no visible reason, **check line endings on
+`.gitignore` and `targets/widget/expo-target.config.js` before anything else.**
