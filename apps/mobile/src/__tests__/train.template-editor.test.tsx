@@ -36,6 +36,14 @@ const mockTemplate: WorkoutTemplate = {
         { kind: 'mini', group: 1 },
       ],
     },
+    // A second exercise exists so reordering has something to reorder. Every
+    // other test indexes exercise 0, which this leaves untouched.
+    {
+      exerciseId: 'e2',
+      name: 'Incline DB Press',
+      logStyle: 'weight-reps',
+      plannedSets: [{ kind: 'working' }],
+    },
   ],
   createdAt: new Date('2026-07-05T02:51:12Z'),
   updatedAt: new Date('2026-08-06T16:08:19Z'),
@@ -208,4 +216,25 @@ it('falls back to a set count when the sets do not agree', async () => {
 
   // The template's own targetLoad (25) still stands in as the exercise default.
   expect(getByText('3 sets · 25 lb')).toBeTruthy();
+});
+
+/**
+ * Reorder. The ▲▼ pair was replaced by a drag handle, and a drag is invisible
+ * to VoiceOver — so the handle carries move-up / move-down accessibility
+ * ACTIONS running the same reorder the chevrons ran. That fallback is the part
+ * a unit test can reach: RNTL runs no gesture, so the drag itself is proven on
+ * device instead.
+ */
+it("reorders exercises through the drag handle's accessibility actions", async () => {
+  const { getByTestId } = await render(<TrainScreen />);
+  await fireEvent.press(getByTestId('edit-template-t1'));
+
+  await fireEvent(getByTestId('template-drag-1'), 'accessibilityAction', {
+    nativeEvent: { actionName: 'moveUp' },
+  });
+  await fireEvent.press(getByTestId('save-template'));
+
+  await waitFor(() => expect(mockSaveTemplate).toHaveBeenCalledTimes(1));
+  const names = mockSaveTemplate.mock.calls[0][0].exercises.map((e: { name: string }) => e.name);
+  expect(names).toEqual(['Incline DB Press', 'DB Flat Press']);
 });

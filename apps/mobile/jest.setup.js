@@ -6,6 +6,31 @@
  * let the component under test run, not to simulate Firebase.
  */
 
+// react-native-gesture-handler installs itself through a native module at
+// import time (`RNGestureHandlerModule.install()`), which throws
+// "install is not a function" in the JS test environment. It ships an official
+// jest setup that stubs exactly that. On the path of every Train test since
+// the template editor's drag-to-reorder (react-native-sortables is built on
+// gesture-handler), and of any screen that mounts a GestureHandlerRootView.
+require('react-native-gesture-handler/jestSetup');
+
+// react-native-sortables (drag-to-reorder in the template editor) is a
+// gesture/worklet boundary, which is what this file exists to stub. It builds
+// its drag handlers through `isWorkletFunction`, which Reanimated 4 exports and
+// the mock jest-expo substitutes does not — every Train test that mounted the
+// editor died with "isWorkletFunction is not a function", inside the library
+// rather than inside anything under test. Rendering children straight through
+// keeps every existing assertion meaningful (the cards, the set table and the
+// accordion are all still really rendered); the DRAG itself is not assertable
+// here anyway — RNTL runs no gesture and no layout pass — so it is proven on
+// device by `.maestro/regression/18-train-template.yaml` instead.
+jest.mock('react-native-sortables', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const passthrough = ({ children }) => React.createElement(View, null, children);
+  return { __esModule: true, default: { Flex: passthrough, Grid: passthrough, Handle: passthrough } };
+});
+
 // AsyncStorage backs the theme context, which BottomSheet imports — so it is
 // on the path of every screen test. Ships an official jest mock.
 jest.mock('@react-native-async-storage/async-storage', () =>

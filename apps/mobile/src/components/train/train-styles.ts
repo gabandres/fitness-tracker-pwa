@@ -284,7 +284,12 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     marginBottom: space.sm,
   },
   tplExTop: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm },
+  /** Fills the modal so the sheet keeps its own absolute/backdrop layout. */
+  ghRoot: { flex: 1 },
   tplReorder: { marginTop: -2 },
+  /** The drag grip. 44pt tall so the gesture has a real target — the ▲▼ pair
+   *  it replaced were 20pt each. */
+  tplDragHandle: { width: 32, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginLeft: -4 },
   tplMoveBtn: { paddingHorizontal: 2, paddingVertical: 1 },
   tplExName: { fontFamily: type.heading, fontSize: font.body, color: colors.ink },
   tplExMeta: { fontSize: font.small, color: colors.muted, marginTop: 1 },

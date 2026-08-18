@@ -585,6 +585,7 @@ export const esPR: Record<I18nKey, string> = {
   // Celdas de prescripcion por serie en el editor de plantillas. Las tres
   // cortas son placeholders que sustituyen un encabezado de columna, asi que
   // deben quedarse en ~4 caracteres — los campos miden 52pt.
+  'train.reorderA11y': '{name}. Arrastra para reordenar, o usa las acciones para moverlo.',
   'train.moreOptions': 'Más opciones',
   'train.removeExercise': 'Quitar ejercicio',
   'train.setCount': '{n} series',

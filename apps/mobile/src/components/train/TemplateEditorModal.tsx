@@ -9,7 +9,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, useAnimatedRef } from 'react-native-reanimated';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import Sortable from 'react-native-sortables';
 import { normalizeClusterGroups, setRowLabels } from '@macrolog/core';
 import type {
   Exercise,
@@ -162,6 +164,10 @@ export function TemplateEditorModal({
    *  can scan. A freshly added exercise opens itself — you added it to edit it. */
   const [openEx, setOpenEx] = useState<number | null>(null);
   const [moreEx, setMoreEx] = useState<number | null>(null);
+  /** Handed to Sortable so a drag near the sheet's edge scrolls it. It must be
+   *  a Reanimated AnimatedRef on an Animated.ScrollView — a plain ref is
+   *  accepted by the types and simply never auto-scrolls. */
+  const scrollRef = useAnimatedRef<Animated.ScrollView>();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -269,6 +275,25 @@ export function TemplateEditorModal({
     haptics.tap();
   }
 
+  /** Drag reorder. A MOVE, not the swap `moveEx` does: dragging card 1 to
+   *  position 3 must slide 2 and 3 up, where a swap would leave 2 where it is
+   *  and put 1 where 3 was. Both write the same array order, which IS the
+   *  saved template order. */
+  function onExDragEnd({ fromIndex, toIndex }: { fromIndex: number; toIndex: number }) {
+    if (fromIndex === toIndex) return;
+    haptics.tap();
+    setExercises((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+    // Same reason removeEx resets these: they are INDICES into a list that
+    // just shifted, and a stale one expands whichever card slid into the slot.
+    setOpenEx(null);
+    setMoreEx(null);
+  }
+
   /** Every set mutation re-derives cluster groups, so numbering stays
    *  sequential and contiguous after kind changes, inserts and deletes —
    *  same invariant the PWA editor holds (`mutateSets`). */
@@ -364,11 +389,20 @@ export function TemplateEditorModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      {/* Gestures inside a `Modal` need their own root: RNGH attaches to the
+          nearest GestureHandlerRootView, and the app's lives outside this
+          modal's native view on Android, where the drag would otherwise never
+          start. Harmless on iOS. */}
+      <GestureHandlerRootView style={styles.ghRoot}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheetWrap}>
         <Animated.View style={[styles.sheet, keyboardStyle]}>
           <View style={styles.handle} />
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <Animated.ScrollView
+            ref={scrollRef}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <Text style={styles.sheetTitle}>{template ? t('train.editTemplate') : t('train.newTemplateTitle')}</Text>
 
             <Text style={styles.fieldLabel}>{t('train.templateName')}</Text>
@@ -467,7 +501,20 @@ export function TemplateEditorModal({
             {exercises.length === 0 ? (
               <Text style={[styles.empty, { marginTop: space.md }]}>{t('train.templateNoEx')}</Text>
             ) : (
-              exercises.map((d, i) => {
+              /* Drag to reorder. `Sortable.Flex` rather than a sortable GRID
+                 because these cards are variable height — a collapsed card is
+                 one line and an open one is a whole form, and a grid assumes
+                 uniform cells. `customHandle` confines the gesture to the grip:
+                 the card header is already a tap target (expand/collapse), and
+                 a whole-card long-press would fight it. `scrollableRef` is what
+                 makes a drag near the sheet's edge scroll the sheet. */
+              <Sortable.Flex
+                customHandle
+                scrollableRef={scrollRef}
+                gap={0}
+                onDragEnd={onExDragEnd}
+              >
+              {exercises.map((d, i) => {
                 // One label per row, derived from the whole sequence: a
                 // cluster takes one set number with lettered sub-sets.
                 const setLabels = setRowLabels(d.sets);
@@ -476,27 +523,28 @@ export function TemplateEditorModal({
                 return (
                 <Animated.View key={`${d.exerciseId}-${i}`} style={styles.tplExCard} layout={smoothLayout}>
                   <View style={styles.tplExTop}>
-                    <View style={styles.tplReorder}>
-                      <TouchableOpacity
-                        onPress={() => moveEx(i, -1)}
-                        disabled={i === 0}
-                        hitSlop={6}
-                        style={styles.tplMoveBtn}
-                        testID={`template-up-${i}`}
-                        accessibilityLabel={t('train.moveUp')}
-                      >
-                        <Ionicons name="chevron-up" size={18} color={i === 0 ? colors.line : colors.muted} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => moveEx(i, 1)}
-                        disabled={i === exercises.length - 1}
-                        hitSlop={6}
-                        style={styles.tplMoveBtn}
-                        testID={`template-down-${i}`}
-                        accessibilityLabel={t('train.moveDown')}
-                      >
-                        <Ionicons name="chevron-down" size={18} color={i === exercises.length - 1 ? colors.line : colors.muted} />
-                      </TouchableOpacity>
+                    {/* One grip in place of the old ▲▼ pair. Dragging is
+                        invisible to VoiceOver, so the handle carries explicit
+                        move-up / move-down accessibility ACTIONS that run the
+                        same `moveEx` the chevrons used to — the reorder logic
+                        is unchanged, only its sighted affordance is. */}
+                    <View
+                      style={styles.tplDragHandle}
+                      accessibilityRole="adjustable"
+                      accessibilityLabel={t('train.reorderA11y', { name: d.name })}
+                      accessibilityActions={[
+                        { name: 'moveUp', label: t('train.moveUp') },
+                        { name: 'moveDown', label: t('train.moveDown') },
+                      ]}
+                      onAccessibilityAction={(e) => {
+                        if (e.nativeEvent.actionName === 'moveUp') moveEx(i, -1);
+                        if (e.nativeEvent.actionName === 'moveDown') moveEx(i, 1);
+                      }}
+                      testID={`template-drag-${i}`}
+                    >
+                      <Sortable.Handle>
+                        <Ionicons name="reorder-two-outline" size={22} color={colors.faint} />
+                      </Sortable.Handle>
                     </View>
                     {/* The whole name block is the expand target: one open
                         exercise at a time, so a six-exercise template is six
@@ -783,7 +831,8 @@ export function TemplateEditorModal({
                   ) : null}
                 </Animated.View>
                 );
-              })
+              })}
+              </Sortable.Flex>
             )}
 
             {err ? <Text style={[styles.error, { marginTop: space.sm }]}>{err}</Text> : null}
@@ -804,9 +853,10 @@ export function TemplateEditorModal({
               </TouchableOpacity>
             </View>
             <View style={{ height: 24 }} />
-          </ScrollView>
+          </Animated.ScrollView>
         </Animated.View>
       </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

@@ -587,6 +587,7 @@ export const en = {
   // Per-set prescription cells in the template editor. The three short ones
   // are placeholders standing in for a column header, so they must stay to
   // ~4 chars — the inputs are 52pt wide.
+  'train.reorderA11y': '{name}. Drag to reorder, or use the actions to move it up or down.',
   'train.moreOptions': 'More options',
   'train.removeExercise': 'Remove exercise',
   'train.setCount': '{n} sets',
