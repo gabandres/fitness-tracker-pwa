@@ -801,4 +801,67 @@ describe('firestore.rules', () => {
       setDoc(doc(db, 'users', 'alice', 'dailyActivity', '2026-07-23'), { steps: 1 }),
     );
   });
+
+  // ── Regression proof for Sentry IGNIA-MOBILE-9 / -A (2026-08-17) ──
+  //
+  // The mobile entry sheet hand-built these payloads and skipped every bound the
+  // rules enforce, so Firestore rejected the CREATE and the row was silently
+  // lost. These specs run the REAL payloads — the rejected ones, and the ones
+  // packages/core now produces — against the real rules. The "before" cases must
+  // fail, or the fix is being proven against a bug that was never there.
+  describe('preset / custom-food write bounds (the silently-lost-row bug)', () => {
+    const LONG = 'x'.repeat(240); // a dictated or photo-scanned label, easily >100
+
+    it('REJECTS the pre-fix preset payload (raw label, unclamped macros)', async () => {
+      const db = authed('u1');
+      await assertFails(
+        addDoc(collection(db, 'users/u1/presets'), {
+          name: LONG,
+          calories: 999_999,
+          protein: 5_000,
+        }),
+      );
+    });
+
+    it('ACCEPTS what buildMealPreset produces from that same input', async () => {
+      const db = authed('u1');
+      // buildMealPreset({ name: LONG, calories: 999999, protein: 5000 })
+      await assertSucceeds(
+        addDoc(collection(db, 'users/u1/presets'), {
+          name: LONG.slice(0, 100),
+          calories: 19_999,
+          protein: 999,
+        }),
+      );
+    });
+
+    it('REJECTS the pre-fix custom-food payload (raw name, unclamped calories)', async () => {
+      const db = authed('u1');
+      await assertFails(
+        addDoc(collection(db, 'users/u1/customFoods'), {
+          name: LONG,
+          servingSize: 1,
+          servingUnit: 'serving',
+          calories: 50_000,
+          source: 'manual',
+          createdAt: Timestamp.now(),
+        }),
+      );
+    });
+
+    it('ACCEPTS what buildCustomFood produces for the same manual save', async () => {
+      const db = authed('u1');
+      await assertSucceeds(
+        addDoc(collection(db, 'users/u1/customFoods'), {
+          name: LONG.slice(0, 100),
+          servingSize: 1,
+          servingUnit: 'serving',
+          calories: 19_999,
+          source: 'manual',
+          createdAt: Timestamp.now(),
+        }),
+      );
+    });
+  });
+
 });

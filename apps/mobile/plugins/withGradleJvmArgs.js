@@ -101,3 +101,38 @@ module.exports = function withGradleJvmArgs(config) {
     return cfg;
   });
 };
+
+/**
+ * ## PROVEN INERT ON THE WINDOWS WORKSTATION — 2026-08-17
+ *
+ * Everything above describes what this plugin *intends*. On the Windows Android
+ * build host it does not happen, and it took reading a live daemon's command
+ * line to notice:
+ *
+ *     gradle  -Xmx8192m  -XX:MaxMetaspaceSize=1024m     <-- actual
+ *     plugin  -Xmx6g     -XX:MaxMetaspaceSize=2g        <-- intended
+ *
+ * `C:\Users\gabri\.gradle\gradle.properties` contains
+ * `org.gradle.jvmargs=-Xmx8192m -XX:MaxMetaspaceSize=1024m`, and Gradle gives the
+ * USER-level file precedence over the project's. So the one thing this plugin
+ * exists for — raising metaspace past the 512m that killed a release build in
+ * Lint — is running at **1024m, half its intended 2g**, on the machine that now
+ * builds every Android release. vc 32 and vc 33 succeeded because 1024m happened
+ * to be enough, not because the guard was working.
+ *
+ * `kotlin.daemon.jvmargs` is NOT overridden and does take effect (verified: the
+ * daemon starts `-Xmx2g` instead of inheriting the launcher's 8g). So the Kotlin
+ * cap below is real; only the `org.gradle.jvmargs` line is shadowed.
+ *
+ * **Fixing it is a machine-level decision, not a repo one.** That file is outside
+ * this repo and applies to every Gradle project on the box, `tracker-app`
+ * included, so it has deliberately not been edited here. The options are to drop
+ * the `org.gradle.jvmargs` line from the user file so the project's value governs,
+ * or to raise the user file's metaspace to 2048m. Until one of those happens,
+ * treat this plugin as documentation of intent on Windows rather than as an
+ * active guard.
+ *
+ * Note also that `./gradlew --stop` does not stop the **Kotlin** daemon. A stale
+ * one survives with its old JVM args, which is exactly how the first reading of
+ * this came back as 8192m and nearly hid the finding.
+ */
