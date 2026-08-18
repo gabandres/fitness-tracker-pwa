@@ -149,7 +149,7 @@ export const esPR: Record<I18nKey, string> = {
   'today.entry': 'Registro',
   'whatsNew.title': 'Novedades',
   'whatsNew.body':
-    'Tu estimado de mantenimiento ya no da saltos después de una pausa en los pesajes. Al volver a la pesa quedaba una racha corta de lecturas que el estimado podía empezar a creer por sí sola, y unos días de agua se leían como pérdida rápida de grasa — moviendo el mantenimiento, y tu meta, cientos de calorías de un solo golpe. Ahora una racha tiene que cubrir una semana completa antes de cargar la tendencia, y ningún cambio de peso más rápido de 2 lb por semana se toma como evidencia sobre tu gasto. Si tu meta se veía mal esta semana, revísala otra vez.', // reemplazado: 'Tu racha y tus promedios semanales ahora cubren los días que dicen cubrir — los dos leían un caché de registros recientes, apenas dos días para quien registra varias comidas al día, así que los números pueden cambiar. La gráfica de peso también dice qué es la línea punteada: una tendencia de 4 semanas, dibujada más allá de una línea de 14 días.',
+    'Las plantillas de la pestaña Entrena se rehicieron. Una serie ahora es una fila que dice qué hacer — peso y reps, con encabezados — así que una plantilla por fin puede indicar "3 x 8 @ 135" y no solo "tres series", y al empezar el entrenamiento esos números ya vienen puestos: en gris es el plan, toca el check y se vuelven tuyos. Los ejercicios se colapsan a una línea legible, arrástralos por el asa para reordenarlos, y lo opcional (notas de técnica, subida automática de peso) se movió a "Más opciones". Los clusters se leen 1a/1b/1c en vez de C1, y la columna de RIR ahora se llama FALTAN.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',

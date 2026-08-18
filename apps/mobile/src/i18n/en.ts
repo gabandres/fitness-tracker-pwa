@@ -146,7 +146,7 @@ export const en = {
   'today.entry': 'Entry',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    'Your maintenance estimate no longer jumps after a break in weigh-ins. Coming back to the scale left a short run of readings that the estimate could start trusting on its own, and a few days of water could then read as fast fat loss — moving maintenance, and your target, by hundreds of calories in one step. A run now has to cover a full week before it carries the trend, and no weight change faster than 2 lb a week is treated as evidence about your burn. If your target looked wrong this week, check it again.', // superseded: 'Your streak and weekly averages now cover the days they claim — both were reading a rolling cache of recent entries, barely two days for anyone logging several meals a day, so expect the numbers to change. The weight chart also says what the dashed line is: a 4-week trend, drawn past a 14-day line.',
+    'Workout templates in the Train tab got a rebuild. A set is now a row that says what to do — weight and reps, under headers — so a template can finally prescribe "3 x 8 @ 135" instead of just "three sets", and starting a workout fills those numbers in for you: grey means it is the plan, tap the tick and it becomes yours. Exercises collapse to one readable line, drag the grip to reorder them, and the optional parts (form notes, automatic weight increases) moved under "More options". Clusters read 1a/1b/1c now instead of C1, and the RIR column is just called LEFT.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',
