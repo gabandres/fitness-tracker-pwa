@@ -6,6 +6,7 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { LucideAngularModule } from 'lucide-angular';
 import { SwUpdate } from '@angular/service-worker';
 import { TranslationService } from '../../services/translation.service';
+import { FEATURES } from '../../utils/features';
 import { UiCard } from '../ui/card.component';
 import { UiButton } from '../ui/button.component';
 
@@ -21,22 +22,25 @@ import { UiButton } from '../ui/button.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-      <!-- Support the app (Ko-fi) — mirrors mobile Settings. Links to the
-           /tip redirect (→ ko-fi.com/ignia); /support is the real help page,
-           and is what App Store Connect points at. Free v1, tip is optional. -->
-      <ui-card variant="default" class="block mb-3">
-        <h3 class="v2-h3 mb-2">{{ t('settings.support.section') }}</h3>
-        <div class="flex items-center justify-between gap-3">
-          <div class="min-w-0">
-            <p class="v2-caption">{{ t('settings.support.body') }}</p>
+      <!-- Support the app (Ko-fi) — mirrors mobile Settings. Gated by
+           FEATURES.tips (off while operations transfer to the LLC — see
+           utils/features.ts). When on, links to the /tip redirect;
+           /support is the real help page, and is what ASC points at. -->
+      @if (features.tips) {
+        <ui-card variant="default" class="block mb-3">
+          <h3 class="v2-h3 mb-2">{{ t('settings.support.section') }}</h3>
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <p class="v2-caption">{{ t('settings.support.body') }}</p>
+            </div>
+            <a href="/tip" target="_blank" rel="noopener"
+              class="v2-btn v2-btn--secondary v2-btn--sm shrink-0"
+              style="text-decoration: none;">
+              {{ t('settings.support.btn') }}
+            </a>
           </div>
-          <a href="/tip" target="_blank" rel="noopener"
-            class="v2-btn v2-btn--secondary v2-btn--sm shrink-0"
-            style="text-decoration: none;">
-            {{ t('settings.support.btn') }}
-          </a>
-        </div>
-      </ui-card>
+        </ui-card>
+      }
 
       <!-- Feedback -->
       <ui-card variant="default" class="block mb-3">
@@ -105,6 +109,8 @@ import { UiButton } from '../ui/button.component';
   `,
 })
 export class SettingsAboutSectionComponent {
+  protected readonly features = FEATURES;
+
   private readonly translation = inject(TranslationService);
   private readonly swUpdate = inject(SwUpdate);
 

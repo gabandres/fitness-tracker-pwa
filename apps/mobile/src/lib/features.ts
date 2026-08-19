@@ -31,6 +31,16 @@ export const FEATURES = {
    *  everyone (ADR-0017). Flip to `false` and `eas update` to kill it. */
   photoScan: true,
   /**
+   * Tip jar (iOS IAP TipSheet + Android Ko-fi link). OFF 2026-08-19: all
+   * donation intake is paused until the app's operations transfer to
+   * Bermudez Systems LLC — no revenue may reach the owner personally while
+   * they remain a PR resident. Hardcoded (OTA-gated) for the same reason as
+   * `photoScan` above. Re-enable only once payouts land in the LLC's bank
+   * account. The ASC consumables (`fit.ignia.tip.*`) are deactivated
+   * server-side too; flipping this back on requires reactivating those.
+   */
+  tips: false,
+  /**
    * Activity-informed activity-level correction: imported Health activeKcal
    * suggests a better `profile.activityLevel` bucket (docs/activity-informed-
    * tdee-spec.md). ONE flag gates BOTH surfaces — the Refine Targets pre-fill

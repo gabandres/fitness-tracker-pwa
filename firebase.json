@@ -54,7 +54,7 @@
       "redirects": [
         {
           "source": "/tip",
-          "destination": "https://ko-fi.com/ignia",
+          "destination": "/support",
           "type": 302
         }
       ],

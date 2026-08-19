@@ -19,6 +19,7 @@ import { importLogs, setCalorieFloor, setPreferredLocale, setProteinFloor, setUn
 import { exportDataCsv } from '@/lib/dataExport';
 import { deleteAccountForever } from '@/lib/deleteAccount';
 import { isTipIapAvailable } from '@/lib/purchases';
+import { FEATURES } from '@/lib/features';
 import { APP_STORE_REVIEW_URL } from '@/lib/reviewPrompt';
 import { TipSheet } from '@/components/TipSheet';
 import { QuickAddCard } from '@/components/QuickAddCard';
@@ -408,9 +409,14 @@ export default function Settings() {
             a digital app must use In-App Purchase, not an external link — so on a
             native iOS build we open the IAP TipSheet. Android (and Expo Go) keep
             the external, no-cut altruistic link, which Play permits.
-            TODO: swap the placeholder URL for the real Stripe Payment Link. */}
+            Gated by FEATURES.tips (off while operations transfer to the LLC —
+            see features.ts). The card stays on iOS for the Rate-app row. */}
+        {FEATURES.tips || Platform.OS === 'ios' ? (
+        <>
         <Text style={styles.section}>{t('settings.support')}</Text>
         <View style={styles.card}>
+          {FEATURES.tips ? (
+          <>
           <Text style={styles.rowValue}>{t('settings.supportBody')}</Text>
           <TouchableOpacity
             style={[styles.exportBtn, { marginTop: space.md }]}
@@ -424,6 +430,8 @@ export default function Settings() {
             <Ionicons name="heart-outline" size={16} color={colors.onInk} />
             <Text style={styles.exportBtnText}>{t('settings.supportBtn')}</Text>
           </TouchableOpacity>
+          </>
+          ) : null}
           {/* A permanent, un-throttled path to the listing for users who
               *want* to leave a rating. The in-app sheet (reviewPrompt.ts)
               can only fire a handful of times per year and never on demand,
@@ -441,7 +449,11 @@ export default function Settings() {
             </TouchableOpacity>
           ) : null}
         </View>
-        <TipSheet visible={showTip} onClose={() => setShowTip(false)} />
+        </>
+        ) : null}
+        {FEATURES.tips ? (
+          <TipSheet visible={showTip} onClose={() => setShowTip(false)} />
+        ) : null}
 
         {/* Legal — Apple 5.1.1(i) requires the privacy policy to be reachable
             inside the app, and 1.4.1 wants a medical disclaimer on a health

@@ -16,4 +16,12 @@
 export const FEATURES = {
   /** Meal-photo → macros loop. On, free, both platforms (ADR-0017). */
   photoScan: true,
+  /**
+   * Ko-fi tip card in Settings → About. OFF 2026-08-19: donation intake is
+   * paused on every surface until operations transfer to Bermudez Systems
+   * LLC (mirrors `tips` in apps/mobile/src/lib/features.ts; the /tip
+   * redirect in firebase.json now points at /support). Re-enable only once
+   * payouts land in the LLC's bank account.
+   */
+  tips: false,
 } as const;
