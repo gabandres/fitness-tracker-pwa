@@ -6,6 +6,22 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-19 — Donation intake paused everywhere: the app is transferring to Bermudez Systems LLC
+
+The owner is moving stateside in ~2 months and wants the corporate veil in
+place before any promotion. Until the app's operations — Apple developer
+account, payouts, contracts — actually run through **Bermudez Systems LLC
+(WY)**, no money may reach the owner personally, both to keep the veil
+buildable and to keep Puerto Rico foreign-registration and tax questions moot
+during the remaining residency window. So every donation surface is off:
+`FEATURES.tips=false` on web and mobile hides the tip card/button (gated, not
+deleted — the repo's standard for dormant features), `ignia.fit/tip` now 302s
+to `/support` instead of Ko-fi, and the three `fit.ignia.tip.*` consumables
+are being removed from sale in App Store Connect. The transfer checklist
+(EIN → D-U-N-S → Apple org conversion → LLC bank → Play org transfer) lives in
+`STATUS.md` §3, with the re-enable condition: payouts land in the LLC's bank
+account, not before.
+
 ## 2026-08-17 — Android builds on Windows now, and the binary that proves it is live
 
 For its whole life this app could only be built on one MacBook Air, and that Air
