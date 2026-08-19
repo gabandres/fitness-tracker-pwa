@@ -284,6 +284,9 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     marginBottom: space.sm,
   },
   tplExTop: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm },
+  /** The tappable part of a card header: everything but the drag grip. Row, so
+   *  the chevron rides at the far edge and is INSIDE the touchable. */
+  tplExTapRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44 },
   /** Fills the modal so the sheet keeps its own absolute/backdrop layout. */
   ghRoot: { flex: 1 },
   tplReorder: { marginTop: -2 },

@@ -568,12 +568,16 @@ export function TemplateEditorModal({
                         <Ionicons name="reorder-two-outline" size={22} color={colors.faint} />
                       </Sortable.Handle>
                     </View>
-                    {/* The whole name block is the expand target: one open
-                        exercise at a time, so a six-exercise template is six
-                        readable lines instead of six full forms. The summary
-                        is what the card used to make you open it to learn. */}
+                    {/* The whole row — name, summary AND chevron — is one tap
+                        target. The chevron used to sit OUTSIDE this touchable,
+                        so the one element that looks most like the control did
+                        nothing when tapped, which is worse than having no
+                        affordance at all. Everything except the drag grip
+                        toggles; the grip stays separate because it belongs to
+                        the gesture. One open exercise at a time, so a
+                        six-exercise template is six readable lines. */}
                     <TouchableOpacity
-                      style={{ flex: 1 }}
+                      style={styles.tplExTapRow}
                       onPress={() => {
                         haptics.tap();
                         setOpenEx(open ? null : i);
@@ -583,14 +587,16 @@ export function TemplateEditorModal({
                       accessibilityLabel={`${d.name}. ${exSummary(d, t)}`}
                       testID={`template-ex-toggle-${i}`}
                     >
-                      <Text style={styles.tplExName}>{d.name}</Text>
-                      <Text style={styles.tplExMeta}>{exSummary(d, t)}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.tplExName}>{d.name}</Text>
+                        <Text style={styles.tplExMeta}>{exSummary(d, t)}</Text>
+                      </View>
+                      <Ionicons
+                        name={open ? 'chevron-up' : 'chevron-down'}
+                        size={18}
+                        color={colors.muted}
+                      />
                     </TouchableOpacity>
-                    <Ionicons
-                      name={open ? 'chevron-up' : 'chevron-down'}
-                      size={18}
-                      color={colors.muted}
-                    />
                   </View>
                   {open ? (
                   <>
