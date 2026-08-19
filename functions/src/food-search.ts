@@ -114,7 +114,36 @@ interface FoodDetail {
 const OFF_USER_AGENT = "MacroLog/1.0 (https://ignia.fit)";
 const OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl";
 const OFF_PRODUCT_URL = "https://world.openfoodfacts.org/api/v2/product";
-const OFF_TIMEOUT_MS = 3500;
+/**
+ * How long the branded (Open Food Facts) leg may hold up a search response.
+ *
+ * This was 3500 ms, and `searchFoods` awaits it before returning ANYTHING —
+ * including the USDA hits, which are an in-memory scan that finishes in
+ * milliseconds. So the generic-food half, which is what "banana" or "chicken
+ * breast" resolves against, was held hostage by a third-party call for up to
+ * 3.5 s on every uncached query, warm instance or cold.
+ *
+ * OFF is also the wrong shape for this call site, and the ceiling is the reason:
+ * their documented limit is **10 requests/minute for search** (100/min for
+ * product GETs by barcode), and exceeding it risks an IP ban
+ * (https://openfoodfacts.github.io/openfoodfacts-server/api/). This app calls it
+ * from debounced typeahead, through ONE shared Cloud Functions egress IP for all
+ * users, so the budget is consumed globally and quickly. Probed 2026-08-19:
+ * 1308 ms for a good response, and two of three queries came back as an HTML
+ * error page after 1837 ms and 273 ms — i.e. paying full latency for nothing,
+ * which is what throttling looks like from here.
+ *
+ * 800 ms bounds the damage without changing behaviour when OFF is healthy. It is
+ * a cap, NOT a fix: the structural answer is to stop calling a 10/min search
+ * endpoint from typeahead at all — either serve branded text search from a
+ * bundled OFF subset the way ADR-0018 did for USDA, or keep OFF for barcode
+ * scanning only, where a single user-initiated product GET fits its limits
+ * comfortably. That is a product decision and is deliberately not made here.
+ *
+ * A timed-out leg sets `failed`, which already suppresses the cache write, so a
+ * throttled response cannot be cached and served for the 7-day TTL.
+ */
+const OFF_TIMEOUT_MS = 800;
 
 interface OffNutriments {
   ["energy-kcal_100g"]?: number;
