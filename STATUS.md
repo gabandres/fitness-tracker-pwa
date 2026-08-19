@@ -28,8 +28,8 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 
 | Surface | State |
 |---|---|
-| **Public App Store (iOS)** | **1.1.0 / build 24**, `READY_FOR_SALE`. Missing everything since 2026-08-08: dictation, the redesigned Add screen, the fasting Live Activity, the wide widget, every TDEE correction, and the verification-email fix |
-| **App Review (iOS)** | **1.2.0 / build 55**, `WAITING_FOR_REVIEW` since 2026-08-15, **`releaseType: AFTER_APPROVAL` — it self-publishes on approval, with no human step** |
+| **Public App Store (iOS)** | **1.2.0 / build 55**, approved and self-released (`AFTER_APPROVAL`) **2026-08-19** — confirmed via ASC API by `app-version-sync`. The 2026-08-08 feature gap is closed |
+| **App Review (iOS)** | nothing in review — 1.2.0 cleared 2026-08-19 |
 | **TestFlight** | build **57** external (1.2.0) — SDK 57, `IN_BETA_TESTING` with *Public Beta Testers*, beta review `APPROVED`. **Has the write fix over the air** (published to runtime `25e953e9…`). **No device QA.** Build 56 does not exist. 55 is what Apple is reviewing, on a different runtime |
 | **Play alpha** | **vc 33** (1.2.0) — SDK 57, carries the preset/custom-food write fix, `status=completed`. **No device QA.** Replaces vc 32, which CRLF normalization orphaned |
 | **Play production** | not launched — gated on Google's 14-day checklist (§3) |
@@ -38,7 +38,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB, 13,272 foods, no network call (ADR-0018). Open Food Facts still serves branded + barcode |
 | **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU |
-| **`app-version.json`** | android `33`, ios `24` — synced and **deployed** 2026-08-17. **Both derived** by `scripts/app-version-sync.mjs`; `npm run doctor` fails on drift in either direction |
+| **`app-version.json`** | android `33`, ios `55` — synced and **deployed** 2026-08-19. **Both derived** by `scripts/app-version-sync.mjs`; `npm run doctor` fails on drift in either direction |
 
 **Two live facts that are easy to get wrong:**
 
@@ -47,9 +47,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
   `READY_FOR_SALE`. iOS used to be hand-held with a note asking a human to
   remember it must name the live *App Store* build and never a TestFlight one;
   deriving it from `READY_FOR_SALE` enforces that structurally, since a
-  TestFlight build is by definition not in that state. **When 1.2.0 is approved,
-  `ios.latestBuild` becomes 55** — run the script, then `npm run build &&
-  firebase deploy --only hosting`, or the corrected file reaches nobody.
+  TestFlight build is by definition not in that state. 1.2.0's approval was executed through exactly that pipeline on 2026-08-19.
 - **The EAS Update fingerprint is machine-dependent — publish from whichever
   machine BUILDS that platform.** Since 2026-08-17 that is two machines:
   **Android from Windows, iOS from `ignia-mac`.** Bare `eas update` publishes

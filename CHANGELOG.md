@@ -6,6 +6,19 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-19 — iOS 1.2.0 is live on the App Store
+
+Approved and self-released (`AFTER_APPROVAL`) after four days in review;
+confirmed `READY_FOR_SALE` via the ASC API, `app-version.json` re-derived
+(ios 24 → 55) and deployed the same hour so returning PWA users see the
+update banner. 1.2.0 closes the gap open since 2026-08-08: dictation, the
+redesigned Add screen, the fasting Live Activity, the wide widget, the TDEE
+corrections, and the verification-email fix all reach the public store at
+once. Same-day coincidence worth the line: the operator transition also
+completed its money layer — Relay approved the LLC's bank account hours
+earlier, so the first store version to ship under the transition plan went
+out with donations dark and the corporate rails ready.
+
 ## 2026-08-19 — Donation intake paused everywhere: the app is transferring to Bermudez Systems LLC
 
 The owner is moving stateside in ~2 months and wants the corporate veil in
