@@ -11,10 +11,11 @@
  *   - USDA, from the dataset BUNDLED with this deploy (`./usda-db`). Generic
  *     and whole foods. No network call, no API key, no rate ceiling, and
  *     nothing upstream that can be down.
- *   - Open Food Facts, live. Branded and international packaged items, where
- *     OFF's crowdsourced coverage beats anything shippable in a bundle. Still
- *     proxied through here because OFF is a network dependency worth caching
- *     and rate-limiting.
+ *   - Open Food Facts, live — **BARCODE ONLY since 2026-08-19**. Branded and
+ *     packaged items, reached by `getFoodDetail` with `source: 'off'`. It is no
+ *     longer queried for TEXT search: OFF caps search at 10 req/min against
+ *     100 req/min for barcode GETs, and debounced typeahead behind one shared
+ *     egress IP cannot live inside that. See the note on `searchOff`.
  *
  * This replaced the live FDC API on both paths. That API needed a key
  * (`USDA_FDC_API_KEY`), was capped at 1,000 req/hour, had no CORS headers, and
@@ -28,7 +29,6 @@ import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { ErrorCode } from "./error-codes";
 import { assessMacros, isLoggableFood } from "./food-plausibility";
 import { buildUsdaDetail, findById, loadFoods, searchUsda } from "./usda-db";
-import { mergeHits } from "./food-ranking";
 
 const db = getFirestore();
 const SEARCH_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;       // 7 days
@@ -106,11 +106,13 @@ interface FoodDetail {
 }
 
 // ─── Open Food Facts ─────────────────────────────────────────────
-// OFF is free, key-less, and CORS-enabled. It complements FDC: FDC is
-// strong on generic/whole US foods + USDA-verified reference data, OFF
-// is strong on branded + international/packaged items (great barcode
-// coverage). We query both and merge so the typeahead isn't limited to
-// FDC's branded subset. OFF asks API users to send a descriptive UA.
+// OFF is free, key-less, and CORS-enabled, and it is strong exactly where the
+// bundled USDA data is weak: branded and international packaged goods. It is
+// used for BARCODE LOOKUPS ONLY. Text search used to merge OFF hits with the
+// USDA ones; that was removed on 2026-08-19 because OFF allows 10 req/min for
+// search against 100 req/min for barcode GETs, and a typeahead funnelled
+// through one shared egress IP spends the smaller budget almost immediately.
+// OFF asks API users to send a descriptive UA.
 const OFF_USER_AGENT = "MacroLog/1.0 (https://ignia.fit)";
 const OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl";
 const OFF_PRODUCT_URL = "https://world.openfoodfacts.org/api/v2/product";
@@ -133,15 +135,13 @@ const OFF_PRODUCT_URL = "https://world.openfoodfacts.org/api/v2/product";
  * error page after 1837 ms and 273 ms — i.e. paying full latency for nothing,
  * which is what throttling looks like from here.
  *
- * 800 ms bounds the damage without changing behaviour when OFF is healthy. It is
- * a cap, NOT a fix: the structural answer is to stop calling a 10/min search
- * endpoint from typeahead at all — either serve branded text search from a
- * bundled OFF subset the way ADR-0018 did for USDA, or keep OFF for barcode
- * scanning only, where a single user-initiated product GET fits its limits
- * comfortably. That is a product decision and is deliberately not made here.
+ * 800 ms was the cap that bounded the damage. THAT DECISION HAS SINCE BEEN MADE:
+ * text search no longer calls OFF at all, so this now governs only the barcode
+ * detail fetch, where it is a generous ceiling on a single user-initiated GET
+ * rather than a tax on every keystroke.
  *
- * A timed-out leg sets `failed`, which already suppresses the cache write, so a
- * throttled response cannot be cached and served for the 7-day TTL.
+ * A timed-out leg sets `failed`, which suppresses the search cache write, so a
+ * throttled response could never be cached and served for the 7-day TTL.
  */
 const OFF_TIMEOUT_MS = 800;
 
@@ -206,7 +206,17 @@ function normalizeQuery(q: string): string {
 
 /** Open Food Facts typeahead search. Sorted by scan popularity so the
  *  household-name products surface first. Times out fast and returns []
- *  on any failure so it never stalls or breaks the merged search. */
+ *  on any failure so it never stalls or breaks the merged search.
+ *
+ *  UNCALLED SINCE THE BARCODE-ONLY CUT (2026-08-19) and kept on purpose,
+ *  for two concrete reasons rather than sentiment. First, the OFF-subset
+ *  ingest that would restore branded TEXT search is scoped work, and this
+ *  is the shape its filter has to produce. Second, reinstating the merged
+ *  search is two lines, which matters while the tradeoff is still being
+ *  judged. Delete it if the ingest lands or the cut is made permanent --
+ *  a retained function with no caller and no expiry is how dead code
+ *  starts reading as live behaviour. `mergeHits` was NOT kept here; it
+ *  lives and is tested in ./food-ranking. */
 /** Hits, plus whether the upstream call actually completed. The distinction is
  *  load-bearing at the cache write below — see {@link OffResult}. */
 interface OffResult {
@@ -424,15 +434,40 @@ export const searchFoods = onCall(
       }
     }
 
-    // Cache miss → enforce the rate limit, then merge both databases. The USDA
-    // half is a local in-memory scan, so only the OFF call can be slow or fail;
-    // `searchOff` returns [] on any error, which now degrades to a still-useful
-    // result rather than an empty one.
+    // Cache miss → rate limit, then answer from the bundled USDA dataset alone.
+    //
+    // TEXT SEARCH NO LONGER CALLS OPEN FOOD FACTS. Barcode still does, and that
+    // split is the whole point: OFF publishes a limit of 100 req/min for product
+    // GETs by barcode and **10 req/min for SEARCH**
+    // (https://openfoodfacts.github.io/openfoodfacts-server/api/), with IP bans
+    // for exceeding it. A barcode scan is one user-initiated GET and fits
+    // comfortably. Debounced typeahead, funnelled through a single Cloud
+    // Functions egress IP shared by every user, does not fit at all — it was
+    // spending a global 10/min budget a few keystrokes at a time.
+    //
+    // The measurement that settled it (2026-08-19): three probes returned
+    // 1308 ms with results, and 1837 ms and 273 ms as HTML error pages — i.e.
+    // two of three paid full latency and returned nothing, which is what being
+    // throttled looks like from the caller. And `searchFoods` AWAITED that
+    // before returning the USDA hits, which are an in-memory scan already
+    // finished in milliseconds. So the generic-food half — what "banana" or
+    // "chicken breast" resolves against — was held up by a branded lookup that
+    // was usually failing.
+    //
+    // What this costs: branded/packaged products no longer appear in TEXT
+    // results. They remain reachable by barcode (`getFoodDetail` with
+    // `source: 'off'`), by photo scan, and as custom foods or presets.
+    //
+    // Restoring branded text search means ingesting a filtered OFF subset into
+    // the bundled format the way ADR-0018 did for USDA — which is also what OFF
+    // themselves tell heavy consumers to do, via the nightly dumps and 14-day
+    // delta exports. `searchOff` and `OFF_TIMEOUT_MS` are deliberately KEPT for
+    // that, and because reinstating this is one line if the tradeoff is judged
+    // wrong.
     await enforceFoodRateLimit("foodSearchRateLimit", uid, SEARCH_MIN_INTERVAL_MS);
 
-    const usdaHits = searchUsda(loadFoods(), normalized, size) as FoodSearchHit[];
-    const off = await searchOff(normalized, size);
-    const hits = mergeHits(usdaHits, off.hits, size);
+    const hits = searchUsda(loadFoods(), normalized, size) as FoodSearchHit[];
+    const off = { hits: [] as FoodSearchHit[], failed: false };
 
     // Best-effort cache write — but NOT when the OFF leg failed.
     //
