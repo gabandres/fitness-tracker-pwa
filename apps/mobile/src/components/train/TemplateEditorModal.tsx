@@ -642,14 +642,18 @@ export function TemplateEditorModal({
 
                           {/* The prescription. A template that cannot say
                               "8 @ 135" makes the logger a blank form the
-                              lifter retypes every session. Placeholders carry
-                              the units so the row needs no header. */}
+                              lifter retypes every session.
+                              NO placeholders on these cells: the column
+                              headers above already say lb / reps / sec, and
+                              repeating the unit inside every empty box was
+                              just noise — three rows of an exercise showed the
+                              word "reps" four times. The header labels the
+                              column; the cell stays empty until it has a
+                              number. */}
                           {d.logStyle === 'time' ? (
                             <TextInput
                               style={[styles.tplSetInput, styles.tplSetCell]}
                               keyboardType="numeric"
-                              placeholder={t('train.secShort')}
-                              placeholderTextColor={colors.faint}
                               value={ps.durationText}
                               onChangeText={(v) => patchSet(i, si, { durationText: v })}
                               accessibilityLabel={t('train.setDurationA11y', { n: si + 1 })}
@@ -661,8 +665,6 @@ export function TemplateEditorModal({
                                 <TextInput
                                   style={[styles.tplSetInput, styles.tplSetCell]}
                                   keyboardType="numeric"
-                                  placeholder={t('train.lbShort')}
-                                  placeholderTextColor={colors.faint}
                                   value={ps.weightText}
                                   onChangeText={(v) => patchSet(i, si, { weightText: v })}
                                   accessibilityLabel={t('train.setWeightA11y', { n: si + 1 })}
@@ -672,8 +674,6 @@ export function TemplateEditorModal({
                               <TextInput
                                 style={[styles.tplSetInput, styles.tplSetCell]}
                                 keyboardType="numeric"
-                                placeholder={t('train.repsShort')}
-                                placeholderTextColor={colors.faint}
                                 value={ps.repsText}
                                 onChangeText={(v) => patchSet(i, si, { repsText: v })}
                                 accessibilityLabel={t('train.setRepsA11y', { n: si + 1 })}
