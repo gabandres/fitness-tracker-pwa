@@ -268,3 +268,39 @@ you are sure is right, **check the session's working directory before believing
 it** — and remember `python .claude/hooks/test_guards.py` passes either way,
 because the matrix uses the `GUARD_DIST_ROOT` seam and never exercises the
 default.
+
+## What `expo prebuild --clean` costs, measured 2026-08-19
+
+| Run | Wall clock |
+|---|---|
+| Full release build (`prebuild --clean` → `bundleRelease`), 2 ABIs | **10m 29s** |
+| `bundleRelease` again on the same tree, no prebuild | **1m 41s** |
+| **What `--clean` throws away** | **~8m 48s — 84% of the build** |
+
+`--clean` deletes `android/` outright, so every native compile, Kotlin/Java
+compile, dex and package step runs from zero. Gradle can reuse all of it.
+
+**Two hazards that would make skipping it unsafe do NOT exist** — both checked
+rather than assumed:
+
+- `patch-android-release.mjs` is **idempotent**. Every mutation is guarded
+  (`if (!props.includes('IGNIA_STORE_FILE'))`, `if (!gradle.includes(...))`,
+  `if (manifest.includes(HEADERS_KEY))`) and logs *already present* on a second
+  run. It does not double-append signing config.
+- The versionCode rewrite is `/versionCode\s+\d+/`, **not** a match on the
+  template's `1`. It re-stamps an already-patched `build.gradle` correctly.
+
+**So keep `--clean` for a release whose native config moved, and skip it when
+nothing native changed:** a retry after a failed build, a versionCode-only
+rebuild or resubmit, or local iteration on a native change. That is where the
+~9 minutes is pure waste.
+
+The reason not to drop it wholesale is narrower than "safety": `android/` is
+generated from `app.json` + the plugins array and is gitignored, so a stale
+artifact from a *removed* plugin is invisible to `git status` and to every test.
+`--clean` is what guarantees the tree matches the config. And note the release
+path is normally only taken when the fingerprint moved — which means native
+config changed — which is exactly when `--clean` earns its cost.
+
+Caveat on the number: 1m 41s is a no-op incremental. A JS-only change adds the
+bundle task, so expect a few minutes — still far below a full rebuild.
