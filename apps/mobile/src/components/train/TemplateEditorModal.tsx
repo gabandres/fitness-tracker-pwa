@@ -8,6 +8,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import Animated, { FadeIn, FadeOut, useAnimatedRef } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -168,6 +169,15 @@ export function TemplateEditorModal({
    *  a Reanimated AnimatedRef on an Animated.ScrollView — a plain ref is
    *  accepted by the types and simply never auto-scrolls. */
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
+  /** Exercise cards need an explicit PIXEL width. They are children of
+   *  `Sortable.Flex`, which wraps each one in a container it measures from the
+   *  child — so there is no definite parent width for `100%` to resolve
+   *  against, and neither `width: '100%'` nor `alignItems="stretch"` fills the
+   *  row (both were tried on device; the cards stayed as wide as their exercise
+   *  names, and a template read as a ragged staircase). The sheet pads
+   *  `space.xl` each side. */
+  const { width: windowWidth } = useWindowDimensions();
+  const cardWidth = windowWidth - space.xl * 2;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -511,6 +521,14 @@ export function TemplateEditorModal({
               <Sortable.Flex
                 customHandle
                 scrollableRef={scrollRef}
+                // `flexDirection` DEFAULTS TO ROW — the library is built for
+                // chips, and without this the cards laid out as a wrapping row
+                // and each shrank to fit its own name, so a template read as a
+                // ragged staircase instead of a list. The cards also carry an
+                // explicit width (see tplExCard): `alignItems` here documents
+                // no `stretch` value, so the cross-axis size is the child's
+                // job, not the container's.
+                flexDirection="column"
                 gap={0}
                 onDragEnd={onExDragEnd}
               >
@@ -521,7 +539,11 @@ export function TemplateEditorModal({
                 const open = openEx === i;
                 const more = moreEx === i;
                 return (
-                <Animated.View key={`${d.exerciseId}-${i}`} style={styles.tplExCard} layout={smoothLayout}>
+                <Animated.View
+                  key={`${d.exerciseId}-${i}`}
+                  style={[styles.tplExCard, { width: cardWidth }]}
+                  layout={smoothLayout}
+                >
                   <View style={styles.tplExTop}>
                     {/* One grip in place of the old ▲▼ pair. Dragging is
                         invisible to VoiceOver, so the handle carries explicit
