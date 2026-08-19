@@ -1,7 +1,7 @@
 {
   "_comment": "Latest STORE BINARY available per platform. The mobile app fetches this on launch and compares it against expo-application's nativeBuildVersion; if this is higher it shows an 'update available' banner that deep-links to the store. Served with Cache-Control: no-cache (firebase.json), so a bump reaches devices on their next launch. Set a platform to 0 to disable its prompt. BOTH NUMBERS ARE DERIVED — run scripts/app-version-sync.mjs, never hand-edit them: android from the androidpublisher tracks API, ios from the App Store Connect version in READY_FOR_SALE. iOS was hand-held until 2026-08-15, with a note asking a human to remember that this must name the live APP STORE build and never a TestFlight one; deriving it from READY_FOR_SALE enforces that structurally, since TestFlight builds are by definition not in that state. npm run doctor fails on drift in either direction. A change here reaches nobody until npm run build && firebase deploy --only hosting.",
   "android": {
-    "latestVersionCode": 35
+    "latestVersionCode": 36
   },
   "ios": {
     "latestBuild": 55
