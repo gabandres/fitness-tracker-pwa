@@ -40,8 +40,20 @@ env:
 # keyboard is honest about the state.
 - takeScreenshot: .maestro/regression/shots/15-search-results
 # Serving detail: tap the USDA-named row (the input can't match this regex).
+# EXACT row, not the loose regex. '.*[Bb]anana.*raw.*' also matches
+# "Bananas, overripe, raw", "Bananas, ripe and slightly ripe, raw" and
+# "Pepper, banana, raw" — the last of which sits clipped at the bottom edge on
+# a 360x720dp screen, so the tap can land on the nav bar and the flow then
+# waits out its timeout on the results list. Measured on Android 2026-08-19.
 - tapOn:
-    text: '.*[Bb]anana.*raw.*'
+    text: '^Banana, raw$'
+# Wait for the DETAIL to exist before asserting anything in it. getFoodDetail
+# is a separate Cloud Function and cold-starts: measured 2.83-3.79s server-side
+# (plus searchFoods' own 2.06-2.36s), so this screen legitimately takes seconds
+# even on an iPhone 16 Pro. Anchor on "Quantity", which only the detail has.
+- extendedWaitUntil:
+    visible: '.*Quantity.*'
+    timeout: 30000
 # '.*Add.*': each serving row merges its label, macros and the Add affordance
 # into ONE accessibility element on iOS, so the bare word is not its own node
 # (same merge as the diary rows — see 11-e2e-log).

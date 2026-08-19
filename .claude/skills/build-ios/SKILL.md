@@ -51,7 +51,7 @@ ssh ignia-mac "cd ~/fitness-tracker-pwa/apps/mobile && npx eas whoami"
 
 | Check | If it fails |
 |---|---|
-| `git status` clean | `git stash push -u` — prebuild leaves generated artifacts |
+| `git status` clean | `git stash push -u` — prebuild leaves generated artifacts. **This is safe for `eas build --local`, which prebuilds, and it BREAKS `npx expo run:ios`, which does not.** `expo run:ios` only prebuilds when `ios/` is absent, so with `ios/` already on disk it skips prebuild and Xcode then fails with `Build input file cannot be found: targets/widget/Info.plist` (error 65) — the untracked target plists the stash just took away. Measured 2026-08-19. Recover with `git stash apply`, not a rebuild |
 | on the intended ref | a branch is fine; record **which** in `STATUS.md` |
 | `which fastlane` | `brew install fastlane` — **never** the gem (system Ruby has a broken `ffi`) |
 | iOS runtimes > 0 | `sudo xcodebuild -downloadPlatform iOS`. **watchOS runtime is also required** — the scheme embeds `IgniaWatch.app` and archiving needs the platform |

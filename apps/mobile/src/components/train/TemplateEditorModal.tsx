@@ -412,6 +412,17 @@ export function TemplateEditorModal({
             ref={scrollRef}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            /* Bottom slack is REQUIRED, not cosmetic. The exercise cards live in
+               a Sortable.Flex, which positions its children absolutely and
+               reports a container height that does not grow when a card is
+               expanded. So the ScrollView's contentSize under-counts the open
+               card, scrolling stops short of the end, and everything past it is
+               unreachable — measured on a 360x720dp Android screen 2026-08-19,
+               where opening "More options" put the unit selector, the cues box
+               and auto-progression permanently off-screen with no way to scroll
+               to them. Padding adds real contentSize, which is what restores
+               the scroll range. */
+            contentContainerStyle={{ paddingBottom: 360 }}
           >
             <Text style={styles.sheetTitle}>{template ? t('train.editTemplate') : t('train.newTemplateTitle')}</Text>
 

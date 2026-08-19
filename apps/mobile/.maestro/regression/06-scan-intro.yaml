@@ -18,7 +18,14 @@ appId: fit.ignia.app
 # README's original FAB-chip complaint. The label text is the one addressable
 # handle; capture the open dial first, it is the render evidence.
 - takeScreenshot: .maestro/regression/shots/06-fab-dial
-- tapOn: 'Scan meal'
+# Tap the testID, NOT the label text. Measured on Android 2026-08-19: the dial
+# opens and "Scan meal" is plainly VISIBLE on screen, but the label is not in
+# the hierarchy Maestro sees, so a text tap fails while the button is right
+# there. The header comment above used to claim the satellites expose no
+# testIDs — that is stale; LogSpeedDial gives them log-scan / log-manual.
+- tapOn:
+    id: 'log-scan'
+    optional: true
 # If that tap hit the label pill (not the button) the dial just closed —
 # reach the same screen by route instead; the screen, not the button, is what
 # the rest of this flow covers.

@@ -111,6 +111,15 @@ appId: fit.ignia.app
 - assertVisible: '.*lb.*'
 - assertVisible: '.*reps.*'
 # Row 1 is a bare number; the type control now lives ON it.
+# Scroll first: on a 360x720dp screen the set table's type control sits BELOW
+# the fold once the card expands, so a bare assertVisible fails on a control
+# that is present and correct. Measured on Android 2026-08-19 (iOS viewports
+# are tall enough that it happened to be on-screen there).
+- scrollUntilVisible:
+    element:
+      id: 'template-set-kind-0-0'
+    direction: DOWN
+    timeout: 20000
 - assertVisible:
     id: 'template-set-kind-0-0'
 - takeScreenshot: .maestro/regression/shots/18-set-table
@@ -201,10 +210,24 @@ appId: fit.ignia.app
     centerElement: true
 - tapOn:
     id: 'template-more-0'
-- extendedWaitUntil:
-    visible:
+# Same 360x720dp problem as the set-kind control above: tapping "More options"
+# reveals the cues box BELOW the fold, and extendedWaitUntil does not scroll —
+# it just waits out its timeout on a control that rendered correctly offscreen.
+# scrollUntilVisible both waits and scrolls. Measured on Android 2026-08-19.
+- scrollUntilVisible:
+    element:
       id: 'template-cues-0'
-    timeout: 10000
+    direction: DOWN
+    timeout: 20000
+    # visibilityPercentage must be RELAXED here. It defaults to 100, and the
+    # cues box is the last thing in the sheet: it sits clipped against the nav
+    # bar with nothing below it to scroll into, so 100% is unreachable and the
+    # scroll times out on a control that is visibly on screen and expanded.
+    # Measured on Android 2026-08-19 — the capture shows "More options" open
+    # with "Cues (one per line)" half-drawn at the bottom edge.
+    visibilityPercentage: 20
+- assertVisible:
+    id: 'template-cues-0'
 - takeScreenshot: .maestro/regression/shots/18-more-options
 # The progression checkbox sits below the cues box and is deliberately NOT
 # asserted here. The cues field appearing only after this row is tapped
