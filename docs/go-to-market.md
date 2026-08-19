@@ -26,8 +26,8 @@ app went live on the App Store.
 | App Store ID | `6788589414` · bundle `fit.ignia.app` |
 | Listing URL | <https://apps.apple.com/app/id6788589414> |
 | Platforms | iPhone (iOS 16+, **not** iPad — `supportsTablet: false`) · web PWA at <https://ignia.fit> |
-| Android | **live on the Play ALPHA track** (vc 30, v1.2.0) — closed testing only, NOT public. Production access needs 12 testers × 14 consecutive days. **Do not compute or quote a date**: Google owns the clock and ticks the third box on the app Dashboard's *Apply for access to production* checklist itself; the 12-tester requirement is already met (2026-08-06). Do not market Android as available |
-| Price | **Free. No paywall, no subscription, no trial.** Optional tip jar (iOS consumables via RevenueCat; external link on Android) that unlocks nothing |
+| Android | **live on the Play ALPHA track** (vc **34**, v1.2.0 — this said vc 30 until 2026-08-19) — closed testing only, NOT public. Production access needs 12 testers × 14 consecutive days. **Do not compute or quote a date**: Google owns the clock and ticks the third box on the app Dashboard's *Apply for access to production* checklist itself; the 12-tester requirement is already met (2026-08-06). Do not market Android as available |
+| Price | **Free. No paywall, no subscription, no trial.** **The tip jar is OFF since 2026-08-19** — `FEATURES.tips = false` on both platforms, the three `fit.ignia.tip.*` consumables are `DEVELOPER_REMOVED_FROM_SALE`, `/tip` → `/support`. Do not market a way to pay the developer; there isn't one. Re-enables only when payouts land in the Bermudez Systems LLC bank account (`STATUS.md` §3) |
 | Languages | English + Spanish (Puerto Rico), fully translated |
 
 **Shipped and claimable:**
@@ -56,7 +56,7 @@ released. Re-read `STATUS.md` §2 for the current cutline.
 | Pro / premium / unlimited-anything | `PRO_ENABLED = false`; there is no paid tier to upsell |
 | Free trial, "upgrade", pricing anchors | nothing to buy |
 | Progress photos | uploading works, but it was cut from the v1 story — don't market it |
-| Android app | closed alpha only (vc 30). Production access needs 12 testers × 14 consecutive days; **Google owns that clock and ticks the box itself** — read the *Apply for access to production* checklist on the app Dashboard rather than computing a date. Do not market Android as available |
+| Android app | closed alpha only (vc **34**). Production access needs 12 testers × 14 consecutive days; **Google owns that clock and ticks the box itself** — read the *Apply for access to production* checklist on the app Dashboard rather than computing a date. Do not market Android as available |
 | Voice dictation · the redesigned Add screen · the fasting Live Activity · the wide home-screen widget | all shipped and all **only on TestFlight** — they reach the public when 1.2.0 releases, not before |
 
 **Corrected 2026-08-15 — two rows in this table were badly wrong**, and both

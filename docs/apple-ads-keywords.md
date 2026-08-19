@@ -9,7 +9,7 @@ code ships for it.
 ## 0. Read this before spending anything
 
 **Ignia earns approximately zero per install.** `PRO_ENABLED` is `false` on both
-platforms and the tip jar unlocks nothing, so there is no LTV to recover a cost
+platforms and the tip jar is OFF entirely since 2026-08-19, so there is no LTV to recover a cost
 per install against. Health & Fitness CPI benchmarks run **$2–7**. Every dollar
 spent here is unrecoverable in revenue terms.
 

@@ -38,8 +38,11 @@ Re-read the live truth:
 node -e "import('./scripts/asc-client.mjs').then(async({api,APP_ID})=>{const r=await api('GET','/v1/apps/'+APP_ID+'/appStoreVersions?limit=5');r.data.forEach(v=>console.log(v.attributes.versionString,v.attributes.appStoreState))})"
 ```
 
-As of 2026-08-15 that prints `1.2.0 WAITING_FOR_REVIEW` over `1.1.0
-READY_FOR_SALE` — and if this paragraph disagrees with the command, the command
+As of 2026-08-19 that prints `1.2.0 READY_FOR_SALE` (build **55**, self-released
+that day). Builds 57 and 58 sit in TestFlight carrying the SAME `1.2.0` version
+string, which is why neither could be promoted — a new App Store version only
+accepts builds whose version string matches it, so shipping SDK 57 needed a
+fresh **1.2.1** binary. If this paragraph disagrees with the command, the command
 is right.
 
 **What is applied as listing metadata** (the thing this file *does* own): the
@@ -178,12 +181,20 @@ YOUR DATA IS YOURS
 No ads. No data selling. No cross-app tracking. Export or delete your
 account from inside the app whenever you want.
 
-Ignia is free because it's a solo project, not a funding round. There's an
-optional tip if you want to support it — it unlocks nothing, because
-nothing is locked.
+Ignia is free because it's a solo project, not a funding round. Nothing
+is locked, and nothing is upsold.
 
 Ignia is not a medical device and does not provide medical advice.
 ```
+
+> **The tip sentence was removed 2026-08-19 and the LIVE en-US listing still
+> has it.** Read from ASC that day: en-US description contains "There's an
+> optional tip if you want to support it", while all three `fit.ignia.tip.*`
+> consumables are `DEVELOPER_REMOVED_FROM_SALE` and `FEATURES.tips=false` on
+> both platforms — the listing advertises a purchase that cannot be made. The
+> es-MX description never mentioned it, so only en-US drifted. Description copy
+> is not editable on a released version, so this ships with the **next version
+> submission** — do not forget to paste the block above when creating it.
 
 ### URLs
 | Field | Value |
@@ -196,7 +207,7 @@ Ignia is not a medical device and does not provide medical advice.
 > page written to convert a store visitor, and it carries the browser fallback
 > for anyone who bounces off the install.
 
-### What's New — 1.2.0 · SUBMITTED 2026-08-15 with build 54
+### What's New — 1.2.0 · SHIPPED 2026-08-19 as build **55** (submitted 08-15 with build 54)
 
 **This is the live release copy.** Written against App Store 1.1.0 / build 24
 (uploaded 2026-08-07) → build 54, i.e. everything the public has not seen.
@@ -325,7 +336,7 @@ so it is not in this binary), and Apple Health *sync* itself — that shipped in
 password-reset email rebuild (`6cf63df3`) is server-side and already in effect
 for 1.0 users, so it is not app release news.
 
-### Submission-gating fields — 1.2.0 (read from ASC 2026-08-15)
+### Submission-gating fields — 1.2.0 (read from ASC 2026-08-15; 1.2.0 has since RELEASED as build 55)
 
 | Field | Value | Why |
 |---|---|---|

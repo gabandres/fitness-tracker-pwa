@@ -20,8 +20,12 @@ Two numbers move the needle for fat loss and lean recomp: **calories** and **pro
 - PWA — installs to home screen, works offline once cached
 
 **Pricing: free. All of it.** There is no Pro tier, no subscription, no trial
-and nothing to buy — `PRO_ENABLED` is `false` on both platforms. An optional tip
-jar unlocks nothing.
+and nothing to buy — `PRO_ENABLED` is `false` on both platforms. **Donation
+intake is also off** since 2026-08-19 (`FEATURES.tips = false` on both
+platforms, the three `fit.ignia.tip.*` consumables removed from sale in ASC,
+`/tip` → `/support`) while operations transfer to Bermudez Systems LLC; the
+re-enable condition is payouts landing in the LLC's bank account, not a date.
+This line described a live tip jar until then.
 
 *(Until 2026-08-15 this line advertised "Pro is $3/mo or $24/yr". A sweep on
 2026-08-13 removed that claim from the live site — `/vs`, the calculator, the
@@ -41,7 +45,7 @@ Uniquely, ships both photo-AI logging (like Cal AI) *and* adaptive TDEE coaching
 ## Project map
 
 - `src/` — the Angular PWA (the repo root *is* the default `ng` project). `services/fitness-store.service.ts` is the single reactive data layer; components inject it and read signals.
-- `apps/mobile/` — the Expo SDK 54 React Native app, live on the iOS App Store, Android in closed alpha. Has its own `AGENTS.md`; read it before working there.
+- `apps/mobile/` — the Expo SDK 57 React Native app, live on the iOS App Store, Android in closed alpha. Has its own `AGENTS.md`; read it before working there.
 - `packages/core/` (`@macrolog/core`) — pure shared domain types + math (TDEE, targets, dates, units), imported by both apps. Keep it dependency-free.
 - `functions/` — Cloud Functions (gen2, Node 22), read from `functions/src/index.ts` on 2026-08-15: `logWebhook`, `analyzePhoto`, `consultationStream` (SSE AI coach, server-held Gemini key), `checkAccessStatus`, `exportUserData`, `deleteAccount`, `registerAppleRefreshToken`, `generateWeeklyReport`, `statusPulse`, `weeklyFirestoreBackup`, `hourlyTasks`, `sendWelcomeEmail`, `onDailyLogCreated`, `onSubscriptionWritten`, `sendPasswordReset`, `sendVerificationEmail`, `searchFoods`, `getFoodDetail`, `importRecipe`, `ogImagePublicProfile`, `servePublicProfilePage`, `bootstrapAdmin`, `setAdminClaims`, `startImpersonation`, `stopImpersonation`.
   *(The old list named `sendDailyReminders`, `sendDayThreeCoachPush` and `publishUserCount` as separate functions. They are not: Cloud Scheduler's free tier is 3 jobs and all 3 are spent, so recurring work folds into the `hourlyTasks` dispatcher — see `CLAUDE.md`. Regenerate this list from `index.ts` rather than editing it by hand.)*

@@ -20,11 +20,32 @@ locale/theme are back to baseline, and look at the captures.
 
 **Where this stands, 2026-08-18.** iOS is **31 of 33 rows**, earned by a single clean sweep — `16/16 Flows Passed in 9m 42s`, 64 captures collected and reviewed — plus the fresh-account arc run separately, as it must be. The two that are
 left cannot be closed on a simulator by anyone: the barcode camera needs a
-camera, and the mic's listening state needs a speech recognizer. **Android is
-frozen at its 2026-08-09 dates and cannot be re-run at all** — it has no host
-(README, "Android has no host"), so every Android ✓ below describes an app one
-SDK major behind what testers run. Read the Android column as history, not as
-status.
+camera, and the mic's listening state needs a speech recognizer.
+
+**Android has a host again, 2026-08-19.** An **LG VS988 (LG G6, Android 9 /
+API 28)** runs the suite over adb from the Windows workstation, so "Android has
+no host" is retired. First run against Play-signed **vc 34** (SDK 57):
+**14 of 17 passed**. Failing: `06-scan-intro` ("Scan meal" not found),
+`15-search` ("banana raw" not found), `18-train-template`
+(`template-set-kind-0-0` missing).
+
+**The Android dates below are deliberately NOT updated to 2026-08-19.** This
+file's own rule is that a row flips only when a run's captures were collected
+AND reviewed, and `collect-shots.sh` did not run — `shots/` is empty on the
+Windows side, so there is nothing to review. A green Maestro line alone is
+exactly the evidence this file refuses to accept. Re-run with the collector and
+review the images before flipping anything.
+
+Two cautions the first run produced. A whole-suite cascade is easy to
+misread: an earlier run showed 15 failures, all of them `"Today" is visible`
+after the session was lost, and re-running the sign-in flow turned it into
+14/17 — count a mass failure as one fault until proven otherwise. And cold
+start on this device is **6.6s** to first frame with the brand loader clearing
+near `01-today`'s 15s budget, so that flow flakes on timing rather than on
+behaviour.
+
+Note the device is API 28 while `minSdkVersion` is 26, so this host does **not**
+prove the floor.
 
 ## Route screens (14)
 

@@ -94,7 +94,9 @@ locked features.
 >
 > It's also free. Not freemium, not trial-then-paywall — free. No ads, no data
 > selling. It's a solo project, not a funding round, so there's nobody to
-> monetize you for. There's a tip jar that unlocks nothing.
+> monetize you for. (A tip jar existed when this was drafted; donation intake
+> was switched OFF on 2026-08-19 for the LLC transfer, so do NOT say this at
+> launch — there is currently no way to pay the developer.)
 >
 > Also: fully translated to Spanish (Puerto Rico), because I live here and the
 > localized options in this category are basically nonexistent.
