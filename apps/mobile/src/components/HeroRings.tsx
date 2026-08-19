@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import Animated, {
   Easing,
@@ -48,21 +48,52 @@ function Ring({ r, stroke, trackColor, color, progress, delay }: RingProps) {
       : withDelay(delay, withTiming(p, { duration: motion.dur.slow * 2, easing: Easing.out(Easing.cubic) }));
   }, [p, delay, reduce, fill]);
   const animatedProps = useAnimatedProps(() => ({ strokeDashoffset: c * (1 - fill.value) }));
+  // iOS does not deliver Reanimated animated-prop UPDATES to react-native-svg
+  // (15.15.4, Fabric). The first computed value still lands, and that value is
+  // `c` — a full-circumference dash offset, i.e. the stroke entirely dashed
+  // away — so the ring reads as EMPTY until some unrelated re-render happens to
+  // push a fresh initial value through, at which point it snaps to position
+  // without ever sweeping. Measured on build 58 (SDK 57) 2026-08-19; Android is
+  // unaffected, and CountUpText animates fine because AnimatedTextInput is a
+  // core RN component, so this is SVG-specific rather than Reanimated failing.
+  //
+  // So on iOS draw the final value as a PLAIN prop: no sweep, but correct every
+  // time. Do not "fix" this by seeding `fill` with `p` — that value still has to
+  // travel the broken update path. The flare halo below degrades the same way
+  // (its opacity stays 0, so the protein celebration simply does not glow on
+  // iOS); that is a silent feature loss, not a visual defect, so it is left be.
+  // Revisit when react-native-svg ships Fabric prop updates on iOS.
+  const svgTakesAnimatedProps = Platform.OS !== 'ios';
   return (
     <>
       <Circle cx={SIZE / 2} cy={SIZE / 2} r={r} stroke={trackColor} strokeWidth={stroke} fill="none" />
-      <AnimatedCircle
-        cx={SIZE / 2}
-        cy={SIZE / 2}
-        r={r}
-        stroke={color}
-        strokeWidth={stroke}
-        fill="none"
-        strokeLinecap="round"
-        strokeDasharray={c}
-        animatedProps={animatedProps}
-        transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
-      />
+      {svgTakesAnimatedProps ? (
+        <AnimatedCircle
+          cx={SIZE / 2}
+          cy={SIZE / 2}
+          r={r}
+          stroke={color}
+          strokeWidth={stroke}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          animatedProps={animatedProps}
+          transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
+        />
+      ) : (
+        <Circle
+          cx={SIZE / 2}
+          cy={SIZE / 2}
+          r={r}
+          stroke={color}
+          strokeWidth={stroke}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - p)}
+          transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
+        />
+      )}
     </>
   );
 }

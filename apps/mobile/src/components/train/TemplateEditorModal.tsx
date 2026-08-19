@@ -518,6 +518,11 @@ export function TemplateEditorModal({
                  the card header is already a tap target (expand/collapse), and
                  a whole-card long-press would fight it. `scrollableRef` is what
                  makes a drag near the sheet's edge scroll the sheet. */
+              /* Gap between the "Add exercise…" field and the first card.
+                 It belongs on a wrapper, not on the input's marginBottom:
+                 `styleRow` below the input already carries marginTop space.md,
+                 so spacing the input would double to 24 once a name is typed. */
+              <View style={{ marginTop: space.md }}>
               <Sortable.Flex
                 customHandle
                 scrollableRef={scrollRef}
@@ -861,6 +866,7 @@ export function TemplateEditorModal({
                 );
               })}
               </Sortable.Flex>
+              </View>
             )}
 
             {err ? <Text style={[styles.error, { marginTop: space.sm }]}>{err}</Text> : null}
