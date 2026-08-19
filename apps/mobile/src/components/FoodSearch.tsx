@@ -129,8 +129,27 @@ export function FoodSearch({
 
   async function openDetail(hit: FoodSearchHit) {
     haptics.tap();
-    setPhase('detail-loading');
     setMultiplier(1);
+
+    // Fast path: the search response already carried the portion picker, so the
+    // picker opens with no network at all. `getFoodDetail` is a separate
+    // callable and therefore separately cold — measured 2.83–3.79 s, paid on
+    // every tap because it fires exactly once and never warms.
+    if (hit.servings?.length) {
+      setDetail({
+        source: hit.source,
+        id: hit.id,
+        description: hit.description,
+        brand: hit.brand,
+        servings: hit.servings,
+      });
+      setPhase('portion-pick');
+      return;
+    }
+
+    // Slow path, and it must stay: hits served from a pre-existing search cache
+    // entry, or by a functions deploy older than this bundle, carry no servings.
+    setPhase('detail-loading');
     try {
       const d = await getFoodDetail(hit.source, hit.id);
       setDetail(d);

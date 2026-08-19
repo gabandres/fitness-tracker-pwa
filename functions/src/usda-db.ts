@@ -47,6 +47,9 @@ export interface UsdaSearchHit {
   id: string;
   description: string;
   dataType: string;
+  /** The portion picker, so tapping a result needs no `getFoodDetail` call.
+   *  See the note on `FoodSearchHit.servings` in `packages/core`. */
+  servings?: UsdaServingOption[];
 }
 
 export interface UsdaServingOption {
@@ -336,11 +339,15 @@ export function searchUsda(foods: IndexedFood[], rawQuery: string, size: number)
       a.food.id.localeCompare(b.food.id),
   );
 
+  // Servings ride along with the hit. `buildUsdaDetail` is arithmetic over
+  // `per100` and `portions`, both already loaded here, so this costs a few
+  // multiplications per hit and saves the client an entire cold callable.
   return scored.slice(0, size).map(({ food }) => ({
     source: "fdc" as const,
     id: food.id,
     description: food.desc.slice(0, MAX_DESCRIPTION),
     dataType: food.dataType,
+    servings: buildUsdaDetail(food).servings,
   }));
 }
 

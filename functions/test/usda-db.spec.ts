@@ -105,6 +105,19 @@ describe("searchUsda", () => {
   it("emits the fdc wire source so the client dispatch is unchanged", () => {
     expect(searchUsda(foods, "banana", 1)[0].source).toBe("fdc");
   });
+
+  // The hit carries the portion picker so the client never calls getFoodDetail
+  // for an FDC result. If these two ever disagree, the picker a user sees
+  // depends on which path opened it — the exact drift the shared builder exists
+  // to prevent.
+  it("ships servings identical to the ones getFoodDetail would build", () => {
+    const withPortions = indexFoods([
+      food({ id: "10", desc: "Bananas, raw", portions: [{ label: "1 medium", grams: 118 }] }),
+    ]);
+    const [hit] = searchUsda(withPortions, "banana", 1);
+    expect(hit.servings).toEqual(buildUsdaDetail(withPortions[0]).servings);
+    expect(hit.servings?.map((s) => s.kind)).toEqual(["per100g", "portion"]);
+  });
 });
 
 describe("buildUsdaDetail", () => {

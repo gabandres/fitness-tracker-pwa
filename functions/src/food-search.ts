@@ -69,6 +69,12 @@ export interface FoodSearchHit {
    *  products land here legitimately, as do sparse crowd entries. Ranked below
    *  clean results and surfaced to the user rather than hidden. */
   suspect?: boolean;
+  /** The portion picker, shipped with the hit so tapping a result needs no
+   *  second round trip. Both backends already hold what this needs when the
+   *  hit is built and used to discard it, costing the client a separately-cold
+   *  `getFoodDetail`. OPTIONAL ON PURPOSE — a hit from an older cache entry or
+   *  an older deploy carries none, and the client falls back. */
+  servings?: ServingOption[];
 }
 
 interface ServingOption {
@@ -188,7 +194,14 @@ async function searchOff(query: string, size: number): Promise<OffResult> {
   url.searchParams.set("action", "process");
   url.searchParams.set("json", "1");
   url.searchParams.set("page_size", String(Math.min(size, SEARCH_PAGE_SIZE_MAX)));
-  url.searchParams.set("fields", "code,product_name,generic_name,brands,nutriments");
+  // `serving_size,serving_quantity` are here so the search response can carry a
+  // full portion picker (see FoodSearchHit.servings) — they are the only two
+  // fields the detail endpoint asked for that this one did not, and adding them
+  // costs nothing: same request, same upstream, two more keys in the projection.
+  url.searchParams.set(
+    "fields",
+    "code,product_name,generic_name,brands,serving_size,serving_quantity,nutriments",
+  );
   url.searchParams.set("sort_by", "unique_scans_n");
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), OFF_TIMEOUT_MS);
@@ -232,6 +245,14 @@ async function searchOff(query: string, size: number): Promise<OffResult> {
       // used below to rank a questionable entry under a clean one.
       if (verdict.verdict === "suspect") hit.suspect = true;
       if (p.brands) hit.brand = String(p.brands).split(",")[0].trim().slice(0, 80);
+      // Reuses the detail path's builder, so a serving list from search and one
+      // from `getFoodDetail` are the same rows by construction rather than by
+      // two implementations agreeing. It re-runs `isLoggableFood`, which this
+      // loop has already passed, and returns [] if it somehow disagrees — in
+      // which case the hit simply ships without servings and the client falls
+      // back, exactly as it does for an older deploy.
+      const servings = buildOffServings(p);
+      if (servings.length > 0) hit.servings = servings;
       out.push(hit);
       if (out.length >= size) break;
     }
@@ -359,7 +380,11 @@ export const searchFoods = onCall(
     // API: a v2 entry can name a Branded fdcId that only the old API could
     // resolve, and serving one would hand the client an id whose detail lookup
     // is now guaranteed to 404.
-    const cacheKey = createHash("sha1").update(`v3|${size}|${normalized}`).digest("hex");
+    // Bumped to v4 when hits gained `servings`: a v3 entry is still *correct*
+    // (the client falls back to getFoodDetail on a hit without them), but it is
+    // slow, and a 7-day TTL would keep every already-cached query paying the
+    // extra cold callable for a week after the fix deployed.
+    const cacheKey = createHash("sha1").update(`v4|${size}|${normalized}`).digest("hex");
     const cacheRef = db.collection("foodSearchCache").doc(cacheKey);
     const cacheSnap = await cacheRef.get();
     if (cacheSnap.exists) {

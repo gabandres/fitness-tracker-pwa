@@ -36,6 +36,23 @@ export interface FoodSearchHit {
    *  products land here legitimately, as do sparse crowd entries. Ranked below
    *  clean results and surfaced to the user rather than hidden. */
   suspect?: boolean;
+  /**
+   * The portion picker, shipped with the hit so tapping a result needs no
+   * second round trip.
+   *
+   * Both backends already hold everything this needs at hit-construction time —
+   * USDA from the bundled dataset, OFF from the `nutriments` the search
+   * response already carries — and used to discard it, so the client paid a
+   * separately-cold `getFoodDetail` (measured 2.83–3.79 s) to recompute what the
+   * server had just thrown away. `searchFoods` warms across keystrokes because
+   * the search is debounced typeahead; `getFoodDetail` fires exactly once, on
+   * tap, so it was cold every single time and could never amortize.
+   *
+   * OPTIONAL ON PURPOSE, and it must stay that way: a hit served from a
+   * pre-existing search cache entry, or by a functions deploy older than the
+   * client, carries none. Absent → fall back to `getDetail`. Never assume it.
+   */
+  servings?: ServingOption[];
 }
 
 /**
