@@ -98,6 +98,9 @@ and it omits three things that each fail **silently**: the EAS Update channel
 node scripts/app-version-sync.mjs --check            # live versionCode; pass the next one
 cd apps/mobile/android && ./gradlew --stop || true   # NOT optional
 cd .. && npx expo prebuild -p android --clean
+# prebuild DELETES android/local.properties — restore it or Gradle reports
+# "SDK location not found", which reads like a missing SDK install:
+[ -f android/local.properties ] || echo "sdk.dir=Z:/packages/android-sdk" > android/local.properties
 node scripts/patch-android-release.mjs <versionCode> production
 # load .env.local so SENTRY_AUTH_TOKEN reaches Gradle, then bundleRelease:
 node -e "process.loadEnvFile('Z:/macro-app/.env.local');require('child_process').spawnSync('cmd.exe',['/c','Z:\\\\macro-app\\\\apps\\\\mobile\\\\android\\\\gradlew.bat','bundleRelease'],{cwd:'Z:/macro-app/apps/mobile/android',stdio:'inherit',env:process.env})"
@@ -112,8 +115,25 @@ node -e "process.loadEnvFile('Z:/macro-app/.env.local');require('child_process')
   `Unable to delete file '…classes.jar'`.
 - `CMAKE_OBJECT_PATH_MAX` is a **warning**, not a failure. Build anyway; insist on
   device QA.
-- `reactNativeArchitectures=arm64-v8a` (after prebuild) cuts it ~4×, but ship all
-  four ABIs to Play.
+- **Pass the ABI list on the invocation** — `-PreactNativeArchitectures=...`.
+  Each ABI is a full native compile, and on this workstation every one of them
+  runs **emulated**: the NDK ships `windows-x86_64` only, there is no
+  `windows-aarch64`, and this box is a Snapdragon X. Four ABIs is four emulated
+  C++ builds.
+
+  | Build | Flag | Why |
+  |---|---|---|
+  | **Play release** | `-PreactNativeArchitectures=armeabi-v7a,arm64-v8a` | drops `x86`/`x86_64`, which only emulators and a few x86 Chromebooks run. Play serves per-device splits, so carrying them never cost a user a byte — only the build host. **~half the native work.** |
+  | Local check | `-PreactNativeArchitectures=arm64-v8a` | one ABI, [~75% off native build time](https://reactnative.dev/docs/build-speed). Never submit this. |
+
+  **It goes on the command line, NOT in `plugins/withGradleJvmArgs.js`.** Measured
+  2026-08-19: adding one key to that file moved the Android fingerprint
+  `ae526937…` → `f0f6cff9…`, and **even adding only a comment moved it**, to
+  `e84ab503…`. It is a hashed source. Baking the ABI list in therefore shuts the
+  Android OTA channel until the next binary ships — trading the ability to
+  hotfix testers over the air for a saving that is only ever collected *during a
+  build*, which is exactly when a flag is available anyway. Fold it into the
+  plugin at the next binary, when the fingerprint is moving regardless.
 
 ### Verify — gate on the exit code
 

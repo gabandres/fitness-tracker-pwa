@@ -37,8 +37,25 @@ except Exception:
 # stale or absent, and went red the moment anyone ran a build. A guard whose
 # test suite is red for a legitimate reason stops being read at all, which is
 # the failure this file exists to prevent one level down.
+# The default is anchored to CLAUDE_PROJECT_DIR, NOT to the process cwd.
+#
+# It used to be the bare relative path, and that made the guard fire on the
+# documented happy path. A PreToolUse hook inherits the Bash session's cwd, and
+# the session cwd is `apps/mobile` for most of a mobile release: the Metro gate
+# and both `eas update` publishes all start with `cd apps/mobile`, and it
+# persists. So `npm run build && firebase deploy --only hosting` -- run from the
+# repo root, against a dist with a perfectly good ngsw.json -- resolved DIST to
+# `apps/mobile/dist/...`, found nothing, and blocked with "this dist was not
+# produced by a prod build". Measured 2026-08-19: two identical refusals with
+# the file sitting on disk at 16 KB, and the fix was to `cd` the session back.
+#
+# That is the exact failure mode the header warns about one level up. A guard
+# that blocks the correct command is worse than no guard, because the way past
+# it is to stop believing it.
+_PROJECT_DIR = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
 DIST = os.environ.get(
-    "GUARD_DIST_ROOT", os.path.join("dist", "fitness-tracker-pwa", "browser")
+    "GUARD_DIST_ROOT",
+    os.path.join(_PROJECT_DIR, "dist", "fitness-tracker-pwa", "browser"),
 )
 NGSW = os.path.join(DIST, "ngsw.json")
 

@@ -202,3 +202,69 @@ node run-gradle.mjs > build.log 2>&1; echo "GRADLE_EXIT=$?" >> build.log
 ```
 
 The log is the honest record; the harness's exit code is not.
+
+## Three commands that FAILED and exited 0 — all on 2026-08-19
+
+Every one of these reported success. The lesson is the same each time: **verify
+the artifact or the API, never the exit code.** That rule was already here for
+`eas submit`; these are three more ways to arrive at it.
+
+### `gradlew.bat` is "not recognized" from the Bash tool
+
+`NoDefaultCurrentDirectoryInExePath` is set in the environment Git Bash hands to
+Node on this workstation, so `cmd.exe` refuses to resolve an executable from the
+current directory. The documented one-liner therefore fails with:
+
+```
+'gradlew.bat' is not recognized as an internal or external command
+```
+
+and the wrapper still exits 0, because the failure is inside `cmd.exe` and the
+outer pipeline succeeds. It also fails a *second*, unrelated way when the
+backslashes in the path are eaten by a shell layer, producing the tell-tale
+`Z:macro-appappsmobileandroidgradlew.bat`.
+
+Working invocation — unset the variable and use an explicit `.\`:
+
+```js
+const env = { ...process.env };
+delete env.NoDefaultCurrentDirectoryInExePath;
+spawnSync('cmd.exe', ['/d','/c','cd /d Z:\macro-app\apps\mobile\android && .\gradlew.bat bundleRelease'],
+          { cwd, stdio: 'inherit', env });
+```
+
+**Always `ls` the `.aab` afterwards.** A 16-minute build and a 3-second failure
+look identical in a task notification.
+
+### `firebase deploy --only functions` dies on a 10s discovery timeout
+
+```
+Error: User code failed to load. Cannot determine backend specification. Timeout after 10000.
+```
+
+Also exits 0. It is **not** necessarily your code: module load was measured at
+**417 ms** (`node -e "require('./functions/lib/index.js')"`) in the same session
+the deploy failed. Environmental — the CLI spawns a local analysis server and
+probes it. Retry with the documented escape hatch:
+
+```sh
+FUNCTIONS_DISCOVERY_TIMEOUT=120 firebase deploy --only functions:<name>
+```
+
+Confirm with `grep "Deploy complete"` on the log; the exit code proves nothing.
+Time the module load first — if it is fast, stop reading your own diff.
+
+### `guard_firebase_deploy.py` blocked a perfectly good hosting deploy
+
+Fixed 2026-08-19, recorded because the *shape* will recur. The guard resolved
+`dist/` relative to the process cwd, and a PreToolUse hook inherits the Bash
+session's cwd — which is `apps/mobile` for most of a release, since the Metro
+gate and both `eas update` publishes start with `cd apps/mobile` and it
+persists. So a correct deploy from the repo root was refused with "this dist was
+not produced by a prod build" while `ngsw.json` sat on disk at 16 KB.
+
+It is anchored to `CLAUDE_PROJECT_DIR` now. If any guard ever fires on a command
+you are sure is right, **check the session's working directory before believing
+it** — and remember `python .claude/hooks/test_guards.py` passes either way,
+because the matrix uses the `GUARD_DIST_ROOT` seam and never exercises the
+default.
