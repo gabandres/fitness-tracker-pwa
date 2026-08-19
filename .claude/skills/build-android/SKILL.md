@@ -115,25 +115,29 @@ node -e "process.loadEnvFile('Z:/macro-app/.env.local');require('child_process')
   `Unable to delete file '…classes.jar'`.
 - `CMAKE_OBJECT_PATH_MAX` is a **warning**, not a failure. Build anyway; insist on
   device QA.
-- **Pass the ABI list on the invocation** — `-PreactNativeArchitectures=...`.
-  Each ABI is a full native compile, and on this workstation every one of them
-  runs **emulated**: the NDK ships `windows-x86_64` only, there is no
-  `windows-aarch64`, and this box is a Snapdragon X. Four ABIs is four emulated
-  C++ builds.
+- **The release ABI set is TWO, and it lives in the plugin.**
+  `plugins/withGradleJvmArgs.js` writes
+  `reactNativeArchitectures=armeabi-v7a,arm64-v8a`, so a release build no longer
+  compiles `x86`/`x86_64`. Each ABI is a full native compile, and on this
+  workstation every one runs **emulated** — the NDK ships `windows-x86_64` only,
+  there is no `windows-aarch64`, and this box is a Snapdragon X. Dropping the two
+  ABIs nothing here runs roughly halves the native work. Play serves per-device
+  splits, so they never cost a user a byte; `armeabi-v7a` stays because
+  `minSdkVersion` is 26.
 
-  | Build | Flag | Why |
-  |---|---|---|
-  | **Play release** | `-PreactNativeArchitectures=armeabi-v7a,arm64-v8a` | drops `x86`/`x86_64`, which only emulators and a few x86 Chromebooks run. Play serves per-device splits, so carrying them never cost a user a byte — only the build host. **~half the native work.** |
-  | Local check | `-PreactNativeArchitectures=arm64-v8a` | one ABI, [~75% off native build time](https://reactnative.dev/docs/build-speed). Never submit this. |
+  For a **local check only**, override on the invocation — one ABI is
+  [~75% off native build time](https://reactnative.dev/docs/build-speed):
 
-  **It goes on the command line, NOT in `plugins/withGradleJvmArgs.js`.** Measured
-  2026-08-19: adding one key to that file moved the Android fingerprint
-  `ae526937…` → `f0f6cff9…`, and **even adding only a comment moved it**, to
-  `e84ab503…`. It is a hashed source. Baking the ABI list in therefore shuts the
-  Android OTA channel until the next binary ships — trading the ability to
-  hotfix testers over the air for a saving that is only ever collected *during a
-  build*, which is exactly when a flag is available anyway. Fold it into the
-  plugin at the next binary, when the fingerprint is moving regardless.
+  ```sh
+  ./gradlew bundleRelease -PreactNativeArchitectures=arm64-v8a   # never submit this
+  ```
+
+  **Changing that plugin moves the fingerprint.** Measured 2026-08-19: adding one
+  key moved the Android hash `ae526937…` → `f0f6cff9…`, and adding only a
+  *comment* moved it to `e84ab503…`. It is a hashed source. That is why the cut
+  shipped as part of **vc 36** rather than being slipped in between binaries —
+  it shut the OTA channel against vc 35, deliberately, and vc 36 reopens it. Do
+  not edit that file for a build-speed tweak without accounting for the channel.
 
 ### Verify — gate on the exit code
 

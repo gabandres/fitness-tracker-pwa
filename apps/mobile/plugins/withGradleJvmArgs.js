@@ -63,14 +63,37 @@ const { withGradleProperties } = require('@expo/config-plugins');
  * to. It is kept because bounding Gradle's own JVM forks is still worth having,
  * but it is **not** the lever for the clang swarm and should not be sold as one.
  *
- * The real lever there is the ABI count — four ABIs is four full native builds —
- * and that belongs to local iteration, not to a plugin that runs on every build.
+ * The real lever there is the ABI count — each ABI is a full native build — and
+ * as of 2026-08-19 this plugin DOES set it. That reverses what this paragraph
+ * said before, so the reasoning matters.
  *
- * **None of this reduces the ABIs.** React Native's own guidance is that building
- * one ABI cuts native build time ~75%
- * (https://reactnative.dev/docs/build-speed) and that all ABIs must be restored
- * for a release. Anything uploaded to Play keeps all four; the arm64-only switch
- * is for local iteration and belongs in the build-android skill, not here.
+ * ## Dropping x86: why the release ABI set is two, not four
+ *
+ * On this workstation every native compile runs **emulated**. The NDK ships
+ * `windows-x86_64` only — there is no `windows-aarch64` — and the box is a
+ * Snapdragon X, so four ABIs is four emulated C++ builds. That is most of a
+ * 16-minute release build.
+ *
+ * `x86` and `x86_64` are run by emulators and a few x86 Chromebooks; no phone
+ * uses them, the QA device (LG G6) is `arm64-v8a`, and this project has no
+ * emulator host at all. Play serves **per-device splits** from the AAB, so
+ * carrying them never cost a user a byte — only the build host. `armeabi-v7a`
+ * stays: `minSdkVersion` is 26, so 32-bit ARM devices are still in range.
+ *
+ * This overturns the previous rule here that "all ABIs must be restored for a
+ * release", which generalised
+ * [RN's build-speed guidance](https://reactnative.dev/docs/build-speed) past
+ * what it claims. RN's point is that a ONE-ABI build is a local-iteration trick;
+ * it is not an argument for shipping x86 to a store that splits per device.
+ * For local iteration the one-ABI switch is still right, and still belongs in
+ * the build-android skill: `-PreactNativeArchitectures=arm64-v8a`.
+ *
+ * **Setting it here moves the fingerprint, and that was the deliberate trade.**
+ * Measured the same day: adding one key to this file moved the Android hash
+ * `ae526937…` → `f0f6cff9…`, and adding only a COMMENT moved it to
+ * `e84ab503…`. So this closed the Android OTA channel against vc 35 and
+ * required vc 36. It was done knowingly, with the channel reopening on that
+ * binary — not as a side effect anyone should repeat casually.
  *
  * The remaining flags are the Expo template's own, carried over deliberately:
  * dropping the file-encoding line changes how Gradle reads source, which is not
@@ -91,6 +114,9 @@ const PROPS = {
   'kotlin.daemon.jvmargs': '-Xmx2g',
   // Default is the CPU count (12 here); each fork can spawn its own clang++.
   'org.gradle.workers.max': '6',
+  // Two ABIs, not the Expo template's four — see "Dropping x86" above. Override
+  // for a local check with -PreactNativeArchitectures=arm64-v8a.
+  reactNativeArchitectures: 'armeabi-v7a,arm64-v8a',
 };
 
 module.exports = function withGradleJvmArgs(config) {
