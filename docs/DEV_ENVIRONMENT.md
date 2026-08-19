@@ -208,11 +208,48 @@ why every iOS build so far cost a slot and a queue, and why the widget's missing
 `ExtensionStorage` pod could only be found by shipping a binary and reading a
 runtime probe. A Mac removes that whole class of blindness.
 
-Target machine: the MacBook Air M1. **Both platforms, as of 2026-08-07** — this
-section covers iOS; Android is §3.11. The Mac is the *only* machine here that can
-build Android at all: Windows hits the `MAX_PATH` wall compiling RN's New
-Architecture C++, and WSL2 cannot help because this is an ARM64 box against an
-`x86_64`-only NDK. Both are detailed in §3.11.
+Target machine: the MacBook Air M1. **iOS only, as of 2026-08-17.**
+
+> **CORRECTION (2026-08-18).** This section used to say the Mac was the *only*
+> machine that could build Android, because Windows hits the `MAX_PATH` wall on
+> RN's New Architecture C++. That is stale: Android's build host moved to
+> **Windows** on 2026-08-17 and vc 32, 33 and 34 were all built there. MAX_PATH
+> is cleared by keeping the SDK on a **short path** — `Z:\packagesndroid-sdk`,
+> not the `%LOCALAPPDATA%\Android\Sdk` default.
+>
+> Two traps follow from that, and together they cost three failed starts on
+> 2026-08-18. The workstation's exported `ANDROID_HOME` still points at the
+> **non-existent** default; and `npx expo prebuild -p android --clean` deletes
+> `android/local.properties`, which is machine-local and never committed. With
+> both true, Gradle stops at `SDK location not found`, which reads exactly like
+> a missing SDK install. Recreate it:
+>
+> ```sh
+> printf 'sdk.dir=Z:/packages/android-sdk
+' > apps/mobile/android/local.properties
+> ```
+>
+> Forward slashes deliberately — a Java properties file eats `\p` and `` as
+> invalid escapes, so the Windows-style path has to be double-escaped or avoided.
+
+**iOS QA builds on this machine: pass `DEBUG_INFORMATION_FORMAT=dwarf`.** The
+Air's data volume sat at 194 GB of 228 GB used on 2026-08-18 (most of it the
+owner's own files, not ours), and *three* separate iOS builds died on
+`lipo: can't write to output file … (No space left on device)` — generating the
+dSYM, the very last step, after all the C++. Debug symbols are worthless for a
+simulator run and cost several GB at the worst possible moment.
+
+Two more measured that day, both of which look like app bugs:
+
+- **A Release build ignores `expo-dev-client`.** Loading fresh JS into an
+  already-installed Release build over Metro does not work — it keeps its
+  embedded bundle — so a JS change there needs a rebuild, not a reconnect.
+- **A Debug build returns to the dev LAUNCHER on `launchApp`**, not to the app,
+  which breaks every Maestro flow that starts with one. Drive a dev-client
+  build where it stands (no `launchApp`), after opening
+  `exp+macro-log://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081`
+  — **`localhost`, not the LAN IP**: the simulator shares the host's network
+  stack and the LAN address fails with "Failed to load app from …".
 
 ### 3.1 Prerequisites
 

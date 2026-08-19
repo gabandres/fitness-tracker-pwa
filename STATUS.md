@@ -98,8 +98,29 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
   treat only an ASC `/v1/builds` read as proof (`AGENTS.md`, build 58 row).
   Apple is still reviewing build 55 on `886bf0b3…`, a third runtime, and that
   submission is deliberately untouched — swapping its build forfeits the queue
-  position. **Still no device QA on any SDK 57 binary**, which is now the only
-  thing between build 58 and a release.
+  position.
+
+  **BOTH channels are open again as of 2026-08-18, and the Train template
+  rebuild has shipped on both.**
+
+  - **iOS: OTA on build 58**, update group `66e6f663-…`, runtime `b3c50e91…` —
+    the same fingerprint build 58 ships, which is why no binary was needed.
+    `react-native-sortables` (drag-to-reorder) is pure JS and autolinks no
+    native module, so it did **not** move the hash. **Build 58 is now with
+    Public Beta Testers** (the group's newest was 57), so they get the update on
+    the launch after installing it.
+  - **Android: vc 34** on the Play alpha track, fingerprint `b6f97259…` read
+    from the `.aab`. Android could NOT take the OTA — the gate refused it, tree
+    `b6f97259…` against vc 33's `c1c010ac…`, exactly as this section predicted —
+    so the binary is what reopens it. `app-version.json` = 34 and hosting is
+    deployed, so the update banner fires.
+
+  **Device QA now exists for iOS and only iOS**: the Maestro suite ran 17/17
+  against an SDK 57 Release build (73 captures), and the drag library was
+  separately confirmed to mount before the OTA went out. **Android behaviour
+  remains unverified on any SDK 57 binary** — there is still no Android host for
+  the suite, and Google Sign-In on a Play-signed install is the check that has
+  broken twice and that nothing here can make.
 
   **vc 32 has had NO device QA, and it is the riskiest binary yet shipped here** —
   a three-SDK jump (54 → 57, RN 0.81.5 → 0.86.2), built from a branch that is not
