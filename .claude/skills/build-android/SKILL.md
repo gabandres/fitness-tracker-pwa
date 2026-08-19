@@ -97,14 +97,55 @@ and it omits three things that each fail **silently**: the EAS Update channel
 ```sh
 node scripts/app-version-sync.mjs --check            # live versionCode; pass the next one
 cd apps/mobile/android && ./gradlew --stop || true   # NOT optional
-cd .. && npx expo prebuild -p android --clean
-# prebuild DELETES android/local.properties — restore it or Gradle reports
+
+# --- prebuild is CONDITIONAL. See "When to skip --clean" below. ---
+cd .. && npx expo prebuild -p android --clean        # only when the fingerprint moved
+# prebuild DELETES android/local.properties - restore it or Gradle reports
 # "SDK location not found", which reads like a missing SDK install:
 [ -f android/local.properties ] || echo "sdk.dir=Z:/packages/android-sdk" > android/local.properties
-node scripts/patch-android-release.mjs <versionCode> production
-# load .env.local so SENTRY_AUTH_TOKEN reaches Gradle, then bundleRelease:
-node -e "process.loadEnvFile('Z:/macro-app/.env.local');require('child_process').spawnSync('cmd.exe',['/c','Z:\\\\macro-app\\\\apps\\\\mobile\\\\android\\\\gradlew.bat','bundleRelease'],{cwd:'Z:/macro-app/apps/mobile/android',stdio:'inherit',env:process.env})"
+
+node scripts/patch-android-release.mjs <versionCode> production   # safe to re-run
+# Run bundleRelease via the runner in REFERENCE.md. Two details are load-bearing:
+# an explicit .\gradlew.bat, and deleting NoDefaultCurrentDirectoryInExePath -
+# without both, cmd.exe reports "not recognized" and the wrapper still EXITS 0.
 ```
+
+### When to skip `--clean` - it costs 8m 48s
+
+Measured 2026-08-19: a full release build is **10m 29s**; `bundleRelease` again
+on the same tree with no prebuild is **1m 41s**. `--clean` deletes `android/`
+outright, so 84% of the build is work Gradle could have reused.
+
+**The rule is mechanical - do not eyeball it:**
+
+```sh
+# what the last build shipped, read from its artifact:
+unzip -p apps/mobile/android/app/build/outputs/bundle/release/app-release.aab base/assets/fingerprint
+# what the tree computes now:
+cd apps/mobile && npx expo-updates fingerprint:generate --platform android
+```
+
+| Fingerprints | Meaning | Prebuild |
+|---|---|---|
+| **Differ** | native config moved (`app.json`, plugins, native deps, SDK) | **`--clean`** |
+| **Match** | nothing native changed - a retry, a versionCode-only rebuild, local iteration | **skip prebuild entirely** |
+
+That mapping is not a convenience. What `--clean` actually protects against is a
+stale artifact from a **removed** plugin sitting in `android/`, which is
+generated and gitignored and therefore invisible to `git status` and to every
+test. If the fingerprint did not move, no plugin was removed, and there is
+nothing stale to protect against.
+
+**Skipping is safe from the patch script's side, verified rather than assumed:**
+`patch-android-release.mjs` guards every mutation (`if (!props.includes(...))`,
+`if (!gradle.includes(...))`, `if (manifest.includes(HEADERS_KEY))`) and logs
+*already present* on a re-run, and the versionCode rewrite matches
+`/versionCode\s+\d+/` rather than the template's literal `1`, so it re-stamps an
+already-patched `build.gradle` correctly. Re-run it either way - it is cheap and
+it is what supplies the channel, the signing config and the number.
+
+Caveat: 1m 41s is a no-op incremental. A JS change adds the bundle task, so
+expect a few minutes - still far below a full rebuild.
 
 - **Run Gradle detached** (`run_in_background`) — ~20 min on SDK 57, well past a
   foreground timeout, and a timeout kill looks exactly like a failure.
