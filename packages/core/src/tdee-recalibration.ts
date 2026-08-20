@@ -30,6 +30,18 @@ const RATE_WINDOW_DAYS = 28;
 const DEFAULT_DRIFT_THRESHOLD_KCAL = 75;
 /** Default quiet period (days) after an acknowledgement before re-surfacing. */
 const DEFAULT_MIN_DAYS_SINCE_ACK = 14;
+/**
+ * Widest 95% interval on maintenance that may still produce a headline, kcal.
+ *
+ * 250 is set against `DEFAULT_DRIFT_THRESHOLD_KCAL` (75), not chosen for feel:
+ * the card only re-surfaces once maintenance has drifted 75 kcal from the last
+ * acknowledgement, and announcing a 75 kcal move while the estimate itself is
+ * uncertain by more than that is claiming a signal smaller than the noise.
+ * 250 leaves room for a genuinely-measured account to clear it — the live
+ * account that motivated this reads ±116 after the per-run fix — while
+ * rejecting the ±700 it was reading before.
+ */
+const DEFAULT_CI95_CEILING_KCAL = 250;
 
 const MS_PER_DAY = 86_400_000;
 
@@ -52,6 +64,9 @@ export interface RecalibrationOptions {
   driftThresholdKcal?: number;
   /** Min days since the last ack before re-surfacing. Default 14. */
   minDaysSinceAck?: number;
+  /** Widest 95% interval on maintenance, in kcal, that may still produce a
+   *  headline. Default 250. */
+  ci95CeilingKcal?: number;
 }
 
 export interface RecalibrationDigest {
@@ -131,6 +146,27 @@ export function recalibrationDigest(
   const tdee = calculateTdee(merged, adjusted);
 
   if (tdee.source !== 'measured' || !tdee.reliable) return { ...UNAVAILABLE };
+
+  // ── Precision gate ──
+  // `reliable` asks whether enough days were LOGGED. It cannot ask whether the
+  // resulting number is worth announcing, and those are different questions: on
+  // 2026-08-20 an account was `reliable` with `confidence` 0.957 while the 95%
+  // interval on its maintenance ran 1,775..3,242, and the card announced a
+  // recalibration to 2,509 off a nine-day run whose slope was not
+  // distinguishable from zero.
+  //
+  // So gate on the interval too. This does not change the ESTIMATE — a wide
+  // estimate is still the user's best available number and still drives the
+  // target — it only decides whether the app volunteers a headline about it.
+  // Telling someone their metabolism changed is a strong claim; it should
+  // require data that can support one.
+  //
+  // `ci95Tdee` is absent on the legacy whole-window fallback path (too thin a
+  // window to pool per run), and an absent interval is not evidence of a tight
+  // one — treat it as failing the gate rather than passing by default.
+  const ci95 = tdee.ci95Tdee;
+  const ceiling = opts.ci95CeilingKcal ?? DEFAULT_CI95_CEILING_KCAL;
+  if (ci95 == null || ci95 > ceiling) return { ...UNAVAILABLE };
 
   const driftThresholdKcal = opts.driftThresholdKcal ?? DEFAULT_DRIFT_THRESHOLD_KCAL;
   const minDaysSinceAck = opts.minDaysSinceAck ?? DEFAULT_MIN_DAYS_SINCE_ACK;

@@ -132,3 +132,61 @@ describe('recalibrationDigest', () => {
     expect(d.deltaVsFormula).toBeNull();
   });
 });
+
+/**
+ * The precision gate, and the incident it exists for.
+ *
+ * On 2026-08-20 an account was measured AND reliable — `confidence` 0.957 — and
+ * the card announced a recalibration to 2,509 kcal. The number came from a
+ * nine-day run whose slope was not statistically distinguishable from zero, and
+ * the 95% interval on maintenance ran 1,775..3,242. `reliable` asks whether
+ * enough days were LOGGED; it cannot ask whether the answer is worth saying out
+ * loud, and telling someone their metabolism changed is a strong claim.
+ */
+describe('recalibrationDigest — precision gate', () => {
+  /** Steady intake, real trend, tight scale: a genuinely measurable account. */
+  function tightLogs(): DailyLog[] {
+    const logs: DailyLog[] = [];
+    // Deterministic ±0.15 lb wobble — enough to be realistic, not enough to
+    // swamp a 0.1 lb/day trend.
+    const wob = [0.1, -0.12, 0.05, -0.08, 0.14, -0.05, 0.02, -0.14, 0.09, -0.03];
+    for (let i = 29; i >= 0; i--) {
+      const d = 29 - i;
+      logs.push(log(i, 2000, 185 - d * 0.1 + wob[d % wob.length]));
+    }
+    return logs;
+  }
+
+  /** Same days logged, but the scale is pure noise — no recoverable rate. */
+  function noisyLogs(): DailyLog[] {
+    const logs: DailyLog[] = [];
+    const wob = [2.4, -2.1, 1.8, -2.6, 2.2, -1.7, 2.9, -2.3, 1.5, -2.8];
+    for (let i = 29; i >= 0; i--) {
+      const d = 29 - i;
+      logs.push(log(i, 2000, 185 + wob[d % wob.length]));
+    }
+    return logs;
+  }
+
+  it('surfaces for an account whose interval is tight', () => {
+    const d = recalibrationDigest(profile, tightLogs(), {}, { now: NOW });
+    expect(d.available).toBe(true);
+    expect(d.shouldSurface).toBe(true);
+  });
+
+  it('stays silent when the interval is too wide to support a headline', () => {
+    const d = recalibrationDigest(profile, noisyLogs(), {}, { now: NOW });
+    expect(d.available).toBe(false);
+    expect(d.shouldSurface).toBe(false);
+  });
+
+  it('honours an explicit ceiling', () => {
+    const logs = tightLogs();
+    // A ceiling of 1 kcal cannot be cleared by any real estimate.
+    const tight = recalibrationDigest(profile, logs, {}, { now: NOW, ci95CeilingKcal: 1 });
+    expect(tight.available).toBe(false);
+    // ...and a very loose one lets the same account through unchanged.
+    const loose = recalibrationDigest(profile, logs, {}, { now: NOW, ci95CeilingKcal: 100000 });
+    expect(loose.available).toBe(true);
+  });
+});
