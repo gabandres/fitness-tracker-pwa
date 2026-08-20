@@ -6,6 +6,37 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-20 — the activity correction comes out from behind its flag
+
+It was built and hidden the day before, because the advice it would have given
+was worse than the setting it proposed to replace. Two things fixed that, and
+only one of them was arithmetic.
+
+The label now names the value that actually gets stored. The five-bucket ladder
+snapped a raw 1.279 to "sedentary", while what the app would save was the
+floored 1.40 — nearest rung "light". So the card said one word and produced a
+target consistent with a different one. It also mattered for the fallback: the
+bucket is where the estimate lands if the multiplier ever goes missing, and
+reverting to sedentary would have been worse than never having asked.
+
+A consequence worth stating plainly: "sedentary" can no longer be *derived* at
+all. Its rung sits below the minimum published for an adult who is not
+bedbound, so no measurement can conclude it. Anyone may still choose it — that
+is their answer about themselves — but a near-silent wearable is a fact about
+the wearable.
+
+And the card leads with the burn rather than the bucket: "your last 4 weeks put
+your daily burn nearer 2,284 kcal than your current setting." A number someone
+can hold against their own sense of themselves, computed from the same function
+that stores it, under a line showing the active energy, the steps and how many
+days actually carried a reading. A recommendation you cannot argue with is one
+you can only obey.
+
+The flag was deleted rather than switched off. A flag that guards nothing still
+reads like a safeguard.
+
+---
+
 ## 2026-08-20 — the activity multiplier stops being a five-rung ladder
 
 The formula estimate rested on one of five hardcoded numbers, 0.175 apart —
