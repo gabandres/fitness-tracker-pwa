@@ -3,6 +3,7 @@ import {
   activityMultiplier,
   deriveActivityLevel,
   impliedMultiplier,
+  snapMultiplier,
   PAL_CEILING,
   PAL_FLOOR_FREE_LIVING,
 } from './activity-level';
@@ -104,14 +105,22 @@ describe('continuity — the property the ladder could not provide', () => {
   });
 });
 
-describe('snapMultiplier survives for naming only', () => {
-  it('still names a bucket, and still disagrees with the continuous value', () => {
-    // Kept because copy has to say a word, not a number. The point of this
-    // test is that the two are now allowed to differ: the label reads
-    // "sedentary" while the arithmetic uses 1.40.
-    expect(deriveActivityLevel(MEAN_ACTIVE_KCAL, BASAL)).toBe('sedentary');
+describe('the bucket label names the STORED value, not the raw one', () => {
+  it('reads `light`, because 1.40 is what gets stored', () => {
+    // The copy bug this closes: naming the raw 1.279 gave "switch to
+    // sedentary" while the stored 1.40 produces a target between light and
+    // moderate. The label snaps the clamped value instead, so the word and the
+    // number describe the same thing.
+    expect(snapMultiplier(impliedMultiplier(MEAN_ACTIVE_KCAL, BASAL))).toBe('sedentary'); // raw
+    expect(deriveActivityLevel(MEAN_ACTIVE_KCAL, BASAL)).toBe('light');                   // stored
     expect(activityMultiplier(MEAN_ACTIVE_KCAL, BASAL)).toBe(1.4);
-    expect(ACTIVITY_MULTIPLIERS.sedentary).toBe(1.2);
+  });
+
+  it('protects the fallback if the multiplier is ever absent', () => {
+    // The bucket is what the estimate reverts to with no stored multiplier.
+    // Reverting to sedentary would be materially worse than reverting to light.
+    expect(errVsBenchmark(ACTIVITY_MULTIPLIERS.sedentary)).toBeGreaterThan(0.15); // -17.9%
+    expect(errVsBenchmark(ACTIVITY_MULTIPLIERS.light)).toBeLessThan(0.07);        //  -5.9%
   });
 });
 

@@ -94,8 +94,16 @@ describe('deriveActivityLevel', () => {
     expect(snapMultiplier(1 + 600 / 1800)).toBe('light');
   });
 
-  it('reads a near-zero burn as sedentary', () => {
-    expect(deriveActivityLevel(40, 1800)).toBe('sedentary');
+  it('cannot derive `sedentary` at all any more — the floor is above that rung', () => {
+    // Changed 2026-08-20 with the FAO/WHO/UNU free-living floor of PAL 1.40.
+    // The ladder's `sedentary` rung is 1.2, BELOW the minimum published for an
+    // adult who is not bedbound, so no measurement can name it: 1.40 snaps to
+    // `light` (1.375). A user may still SELECT sedentary — that is their
+    // stated answer — but the device can no longer conclude it, which is the
+    // point. A near-zero activeKcal reading is a claim about the wearable, not
+    // about the person wearing it.
+    expect(deriveActivityLevel(40, 1800)).toBe('light');
+    expect(deriveActivityLevel(0.5, 1800)).toBe('light');
   });
 
   it('reads a heavy endurance burn as very_active', () => {

@@ -89,9 +89,26 @@ export function snapMultiplier(m: number): ActivityLevel {
   return best;
 }
 
-/** Mean active-energy burn + bare basal → the activity bucket it implies. */
+/**
+ * Mean active-energy burn + bare basal → the activity bucket that NAMES the
+ * multiplier we would actually store.
+ *
+ * Snaps the **clamped** multiplier ({@link activityMultiplier}), not the raw
+ * implied one, and the difference is not cosmetic. On the account this was
+ * built against the raw value is 1.279, which snaps to `sedentary`; the value
+ * that gets stored is the floored 1.40, whose nearest rung is `light`. Naming
+ * the raw one meant the card said "switch to sedentary" while the target it
+ * produced sat between light and moderate — telling the user one thing and
+ * doing another.
+ *
+ * It also protects the fallback. The bucket is what the estimate reverts to if
+ * the multiplier is ever absent, and reverting to `sedentary` (1,958 on that
+ * basal, −17.9% against its benchmark) would be far worse than reverting to
+ * `light` (2,244, −5.9%).
+ */
 export function deriveActivityLevel(mean: number, basalKcal: number): ActivityLevel {
-  return snapMultiplier(impliedMultiplier(mean, basalKcal));
+  const clamped = activityMultiplier(mean, basalKcal);
+  return snapMultiplier(clamped ?? impliedMultiplier(mean, basalKcal));
 }
 
 /** Calendar length of the trailing window: `[today − 28, today − 1]` (#23). */
@@ -179,11 +196,24 @@ export function suggestActivityLevel({
 
   // At seed there is nothing to hold onto, so the deadband is skipped — this
   // is a pre-fill of an empty field, not a correction of a stated answer.
+  //
+  // The deadband is measured on the RAW implied value on purpose, while the
+  // bucket below names the clamped one. They answer different questions: "is
+  // the measurement far enough from what the user told us to be worth
+  // raising?" is about the evidence, and "what do we call the number we would
+  // store?" is about the result. On the account this was built against the raw
+  // gap is 0.271 (fires) while the clamped move is 0.15 (inside the deadband) —
+  // so scoring the deadband on the clamped value would silently suppress a
+  // correction the evidence plainly supports.
   if (currentBucket != null) {
     if (Math.abs(implied - ACTIVITY_MULTIPLIERS[currentBucket]) < ACTIVITY_DEADBAND) return null;
   }
 
-  const derived = snapMultiplier(implied);
+  // Names the CLAMPED value, matching what the accept flow stores. Going
+  // through `deriveActivityLevel` rather than snapping `implied` again is the
+  // point: snapping the raw value here is what made the card say "sedentary"
+  // while storing 1.40.
+  const derived = deriveActivityLevel(mean, basalKcal);
   if (derived === currentBucket) return null;
   if (derived === declinedBucket) return null;
   return derived;

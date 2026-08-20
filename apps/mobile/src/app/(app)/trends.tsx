@@ -3,12 +3,17 @@ import { type Href, useRouter } from 'expo-router';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { type ActivityLevel, type TdeeResult, type WeeklyBudget, type WeeklyInsights, parseYmd } from '@macrolog/core';
+import {
+  type TdeeResult,
+  type WeeklyBudget,
+  type WeeklyInsights,
+  activityMultiplier as activityMultiplierFor,
+  parseYmd,
+} from '@macrolog/core';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { WeeklyReportCard } from '@/components/WeeklyReportCard';
 import { useTrends } from '@/hooks/useTrends';
 import { useActivitySuggestion } from '@/lib/activity-suggestion';
-import { FEATURES } from '@/lib/features';
 import { useAuth } from '@/lib/auth';
 import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
 import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
@@ -34,14 +39,6 @@ function slopeLabel(slope: number, t: TFn): string {
 // seed/formula both read as "Estimate" to the user; measured is "Adaptive".
 /** Bucket → the label the activity-correction card names it by (shared with
  *  the Refine Targets picker, so both surfaces say the same word). */
-const ACTIVITY_LABEL: Record<ActivityLevel, I18nKey> = {
-  sedentary: 'activity.sedentary',
-  light: 'activity.light',
-  moderate: 'activity.moderate',
-  active: 'activity.active',
-  very_active: 'activity.very_active',
-};
-
 const TDEE_MODE: Record<TdeeResult['source'], { badgeKey: I18nKey; hintKey: I18nKey }> = {
   measured: { badgeKey: 'trends.measured', hintKey: 'trends.measuredHint' },
   formula: { badgeKey: 'trends.estimate', hintKey: 'trends.formulaHint' },
@@ -72,18 +69,33 @@ export default function Trends() {
   // double-count: the anchor SUBSTITUTES for measurement in proportion to how
   // little of it there is, rather than being added to it.
   //
-  // Opening it is gated on `activityTdeeInMeasured`, which is OFF, because on
-  // the account this was measured against the suggestion is currently WORSE
-  // than the stored bucket (-17.9% vs +6.0%). Read that flag's comment before
-  // flipping it.
+  // It was held behind a dark flag while the suggestion was worse than the
+  // setting it replaced (-17.9% against a 2,385 benchmark, versus +6.1% for
+  // the stored bucket). The continuous multiplier fixed that: the stored value
+  // is now 1.40 (-4.2%) and the label names that value rather than the raw
+  // one, so the card says "light" and produces a target consistent with it.
   const { suggestion, guidance, decline, evidence } = useActivitySuggestion({
     uid: user?.uid,
     basalKcal,
     currentBucket: activityLevel,
-    enabled:
-      activityLevel != null &&
-      (tdee.source !== 'measured' || FEATURES.activityTdeeInMeasured),
+    // Measured mode INCLUDED since 2026-08-20. The old exclusion was right
+    // while the bucket did not touch measured targets; `measuredConfidence`
+    // made it touch them, so hiding the only corrective surface from measured
+    // users became the bug rather than the safeguard.
+    enabled: activityLevel != null,
   });
+
+  /**
+   * The daily burn the card promises, computed from the SAME clamped
+   * multiplier the accept flow would store — so the number shown and the
+   * number saved cannot drift apart. Null when there is no window to compute
+   * from, which is also when the card has nothing to claim.
+   */
+  const suggestedBurn = (() => {
+    if (!evidence?.meanActiveKcal || !(basalKcal > 0)) return null;
+    const m = activityMultiplierFor(evidence.meanActiveKcal, basalKcal);
+    return m == null ? null : Math.round(basalKcal * m);
+  })();
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -139,15 +151,23 @@ export default function Trends() {
             <Animated.View style={styles.correctionCard} entering={enterUp(1)} testID="activity-correction">
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={styles.correctionTitle}>{t('trends.activityCorrectionTitle')}</Text>
+                {/* Leads with the BURN, not the bucket. Naming a bucket was
+                    the copy bug: accepting stores a continuous multiplier the
+                    ladder cannot express, so "switch to sedentary" described
+                    neither the value stored nor the target produced. The kcal
+                    figure is the thing the user can check against their own
+                    sense of themselves, and it is what the target is built
+                    on. */}
                 <Text style={styles.correctionBody}>
-                  {t('trends.activityCorrectionBody', { level: t(ACTIVITY_LABEL[suggestion]) })}
+                  {t('trends.activityCorrectionBody', {
+                    burn: suggestedBurn != null ? suggestedBurn.toLocaleString() : '—',
+                  })}
                 </Text>
                 {/* The window behind the suggestion, so it can be argued with
-                    rather than only obeyed — a card that names a bucket and no
+                    rather than only obeyed — a card that states a number and no
                     evidence gives the user no way to spot a fortnight of watch
-                    downtime. Behind the same dark flag as measured-mode
-                    exposure: it is new copy on a shipped surface. */}
-                {FEATURES.activityTdeeInMeasured && evidence ? (
+                    downtime. */}
+                {evidence ? (
                   <Text style={styles.correctionEvidence} testID="activity-correction-evidence">
                     {t('trends.activityCorrectionEvidence', {
                       kcal: String(evidence.meanActiveKcal),

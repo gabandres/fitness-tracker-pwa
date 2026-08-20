@@ -375,8 +375,8 @@ export const esPR: Record<I18nKey, string> = {
   'trends.dailyTarget': 'Meta diaria',
   // Corrección del nivel de actividad — la actividad importada de Health
   // sugiere un nivel distinto al que la persona reportó.
-  'trends.activityCorrectionTitle': 'Tu actividad en Health dice más',
-  'trends.activityCorrectionBody': 'Las últimas 4 semanas se parecen más a “{level}”. Actualizarlo afina tu estimación de mantenimiento.',
+  'trends.activityCorrectionTitle': 'Ajusta tu gasto con tu reloj',
+  'trends.activityCorrectionBody': 'Tus últimas 4 semanas ponen tu gasto diario más cerca de {burn} kcal que de tu ajuste actual. Sobre eso se calcularía tu meta.',
   'trends.activityCorrectionCta': 'Revisar',
   'trends.activityCorrectionDismiss': 'Ahora no',
   'trends.activityCorrectionEvidence': 'Basado en {kcal} kcal de energía activa y {steps} pasos al día, en {days} de los últimos {window} días.',

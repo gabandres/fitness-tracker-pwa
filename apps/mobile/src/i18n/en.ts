@@ -377,8 +377,8 @@ export const en = {
   'trends.dailyTarget': 'Daily target',
   // Activity-level correction card — imported Health activity suggests a
   // better activity bucket than the one the user self-reported.
-  'trends.activityCorrectionTitle': 'Your Health activity says more',
-  'trends.activityCorrectionBody': 'The last 4 weeks look closer to “{level}”. Updating sharpens your maintenance estimate.',
+  'trends.activityCorrectionTitle': 'Set your burn from your watch',
+  'trends.activityCorrectionBody': 'Your last 4 weeks put your daily burn nearer {burn} kcal than your current setting. That is what your target would be built on.',
   'trends.activityCorrectionCta': 'Review',
   'trends.activityCorrectionDismiss': 'Not now',
   'trends.activityCorrectionEvidence': 'From {kcal} kcal active energy and {steps} steps a day, across {days} of the last {window} days.',
