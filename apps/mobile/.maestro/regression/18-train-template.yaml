@@ -42,11 +42,17 @@ appId: fit.ignia.app
           timeout: 15000
 
 # ── 1. A new template, named ──────────────────────────────────────
+# 60s, not 15s. The Train tab subscribes to templates, history, exercises and
+# the week summary on first focus, and on the LG G6 (API 28) after a cold start
+# it sat on its spinner for roughly two minutes before any of it rendered —
+# measured 2026-08-20. At 15s the scroll gave up while the tab was still empty
+# and reported "new-template" missing, which reads as a missing button rather
+# than an unfinished load. `+ New` was on screen the whole time once it settled.
 - scrollUntilVisible:
     element:
       id: 'new-template'
     direction: DOWN
-    timeout: 15000
+    timeout: 60000
     centerElement: true
 - tapOn:
     id: 'new-template'
@@ -98,18 +104,18 @@ appId: fit.ignia.app
 # ── 4. Expanded: the set table and its headers ────────────────────
 - tapOn:
     id: 'template-ex-toggle-0'
-# `scrollUntilVisible`, not `extendedWaitUntil` — collapsing the card in step 3
-# scrolls the sheet back up, so on re-expand the FIRST set row lands below the
-# fold on a 360x720dp screen and never comes back on its own. extendedWaitUntil
-# does not scroll, so it burned its full 15s against a row that was present,
-# correct and one swipe away, and reported it as a missing element. Measured on
-# the LG G6 (API 28) 2026-08-20: a manual swipe showed all three rows, both
-# inputs, +Add set/+Add cluster and Save rendered at full height. Same trap, and
-# same fix, as `template-set-kind-0-0` twenty lines below.
+# Collapsing the card in step 3 scrolls the sheet back up, so on re-expand the
+# FIRST set row lands below the fold on a 360x720dp screen and never comes back
+# on its own. `extendedWaitUntil` does not scroll, so it burned its full 15s
+# against a row that was present, correct and one swipe away, and reported it as
+# a missing element. Measured on the LG G6 (API 28) 2026-08-20: a manual swipe
+# showed all three rows, both inputs, +Add set/+Add cluster and Save at full
+# height.
 - scrollUntilVisible:
     element:
       id: 'template-set-weight-0-0'
     timeout: 15000
+    visibilityPercentage: 20
 # The column headers are the whole point of the table — they are what makes a
 # row readable without a legend. Regex, not bare strings: iOS merges sibling
 # Texts inside one row into a single label (flow 16 measured this three times),
@@ -222,10 +228,33 @@ appId: fit.ignia.app
 # reveals the cues box BELOW the fold, and extendedWaitUntil does not scroll —
 # it just waits out its timeout on a control that rendered correctly offscreen.
 # scrollUntilVisible both waits and scrolls. Measured on Android 2026-08-19.
+# Explicit swipes down the LEFT MARGIN before the scroll, because
+# `scrollUntilVisible` alone stalls here — measured on the LG G6 2026-08-20.
+# Its gesture starts mid-screen, and at this scroll position the middle of the
+# sheet is the set table's weight/reps TextInputs; the swipe gets eaten by a
+# field instead of moving the sheet, so it burns its whole timeout one screen
+# short of the target. The capture at failure shows "More options" already
+# EXPANDED with the unit selector half-drawn — i.e. the tap worked and only the
+# scroll did not. A manual swipe from low on the screen reached the cues box
+# immediately, with its two seeded cues, the auto-progression checkbox and
+# Remove exercise all rendered at full height. x=10% is the card gutter, which
+# has no input to swallow the gesture.
+- swipe:
+    start: 10%, 85%
+    end: 10%, 35%
+- swipe:
+    start: 10%, 85%
+    end: 10%, 35%
+# Then come back UP. The two swipes above deliberately run to the END of the
+# sheet — "Remove exercise" and Save, with nothing below — because the end is a
+# fixed anchor and overshooting it is impossible, whereas stopping ON the cues
+# box requires guessing a distance that changes with how many sets exist.
+# Searching UP from a known end is deterministic; searching DOWN from an
+# unknown middle is what stalled.
 - scrollUntilVisible:
     element:
       id: 'template-cues-0'
-    direction: DOWN
+    direction: UP
     timeout: 20000
     # visibilityPercentage must be RELAXED here. It defaults to 100, and the
     # cues box is the last thing in the sheet: it sits clipped against the nav
@@ -297,8 +326,19 @@ appId: fit.ignia.app
 - takeScreenshot: .maestro/regression/shots/18-reopened-summary
 - tapOn:
     id: 'template-ex-toggle-0'
-- assertVisible:
-    id: 'template-set-weight-0-0'
+# Scroll, don't just assert. Re-opening the sheet puts it back at the TOP —
+# name, notes, rest, exercise picker all above the card — so on a 360x720dp
+# screen the first set row is below the fold the moment the card expands, and a
+# bare assertVisible fails on a table that round-tripped correctly. Same trap as
+# the expand in step 4; measured on the LG G6 2026-08-20, where the capture
+# showed "Edit template" scrolled to the top with the Set/lb/reps header just
+# reaching the bottom edge.
+- scrollUntilVisible:
+    element:
+      id: 'template-set-weight-0-0'
+    direction: DOWN
+    timeout: 15000
+    visibilityPercentage: 20
 - takeScreenshot: .maestro/regression/shots/18-reopened-table
 
 # ── 8. Teardown: leave the account as we found it ─────────────────

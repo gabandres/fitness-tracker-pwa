@@ -28,9 +28,16 @@ env:
 # Results must contain a HIT, not just the query echoed back: '.*banana.*'
 # would match the search input's own text, so anchor on the raw-food naming
 # only a USDA row carries.
+# 45s, not 20s. `searchFoods` is a Cloud Function and cold-starts; on the LG G6
+# (API 28, 2019 firmware) the first search of a session was still showing its
+# spinner at 20s and had rendered "Banana, raw" (USDA, first row) by the time it
+# was checked again shortly after — measured 2026-08-20. The row was never
+# missing and the query was never wrong, so the 20s budget was reporting a cold
+# start as a search regression. Raise the budget rather than weaken the
+# assertion: what this flow is for is proving a USDA hit renders at all.
 - extendedWaitUntil:
     visible: '.*[Bb]anana.*raw.*'
-    timeout: 20000
+    timeout: 45000
 # The keyboard is deliberately left UP. `hideKeyboard` throws on iOS, and the
 # usual workaround — tapping a non-interactive label — has no target here:
 # once results render they REPLACE the Recent/Quick-add sections whose
