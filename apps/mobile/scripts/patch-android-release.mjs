@@ -34,6 +34,26 @@
  * App Store binary. Patching the gitignored `android/` keeps the blast radius
  * on the platform and machine actually doing the build.
  *
+ * ## The release ABI set lives here too, and for the same reason — 2026-08-19
+ *
+ * Step 1b writes `reactNativeArchitectures`. It was first written in
+ * `plugins/withGradleJvmArgs.js` (`1ddb51fa`), and that cost a channel: a config
+ * plugin's file contents are a hashed fingerprint source (`expoConfigPlugins`),
+ * so an **Android-only** build-speed tweak moved the **iOS** runtime too, from
+ * `7b347b0f…` to `6670f678…`. iOS build 60 was in App Store review on
+ * `7b347b0f…`, so 1.2.1 was heading for release with no over-the-air fix path.
+ * Measured on both hosts 2026-08-19: restoring that file byte-for-byte returns
+ * iOS to `7b347b0f…` and Android to `ae526937…`.
+ *
+ * The paragraph above already had the right rule — put Android-only build
+ * config in the gitignored `android/`, not in anything hashed. The ABI set is
+ * exactly that: it changes which `.so`s Gradle compiles on this workstation and
+ * nothing about the JS or the iOS project. Here it is also *automatic*, which a
+ * `-P` flag on the Gradle invocation is not — a forgotten flag silently ships
+ * four ABIs and costs ~6 minutes, and a flag written into `eas.json` would
+ * re-shut both channels, because `eas.json` is itself a hashed source
+ * (reason: `easBuild`).
+ *
  * ---
  *
  * Prepare the prebuilt `android/` project for a signed local release build.
@@ -106,6 +126,33 @@ if (!props.includes('IGNIA_STORE_FILE')) {
   console.log('gradle.properties: signing properties appended');
 } else {
   console.log('gradle.properties: signing properties already present');
+}
+
+// --- 1b. release ABI set (see "The release ABI set lives here too" above) ---
+// Every native compile on the Windows workstation runs EMULATED: the NDK ships a
+// `windows-x86_64` toolchain only — there is no `windows-aarch64` — and this box
+// is a Snapdragon X, so each ABI is a full emulated C++ build. The Expo template
+// defaults to four. `x86`/`x86_64` are run by emulators and a few x86
+// Chromebooks; no phone uses them, there is no emulator host on this project at
+// all, and Play serves per-device splits from the AAB so they never cost a user a
+// byte — only the build host. Measured 2026-08-19: 16m 04s (4 ABIs) -> 10m 29s
+// (2 ABIs), AAB 101 MB -> 66 MB. `armeabi-v7a` stays because minSdkVersion is 26.
+// Override for a LOCAL check only with -PreactNativeArchitectures=arm64-v8a; a
+// -P flag beats gradle.properties, and one ABI is ~75% off the native time.
+const ABIS = 'armeabi-v7a,arm64-v8a';
+props = readFileSync(gradleProps, 'utf8');
+if (new RegExp(`^reactNativeArchitectures=${ABIS}$`, 'm').test(props)) {
+  console.log(`gradle.properties: reactNativeArchitectures already ${ABIS}`);
+} else if (/^reactNativeArchitectures=.*$/m.test(props)) {
+  const before = props.match(/^reactNativeArchitectures=(.*)$/m)[1];
+  props = props.replace(/^reactNativeArchitectures=.*$/m, `reactNativeArchitectures=${ABIS}`);
+  writeFileSync(gradleProps, props);
+  console.log(`gradle.properties: reactNativeArchitectures ${before} -> ${ABIS}`);
+} else {
+  // The template has always shipped this key. If it is gone, the template moved
+  // under us — fail loudly rather than silently build four ABIs and blame Gradle.
+  console.error('reactNativeArchitectures absent from android/gradle.properties — template changed. Aborting.');
+  process.exit(1);
 }
 
 // --- 2. build.gradle: real release signingConfig + versionCode ---

@@ -70,6 +70,27 @@ handles on `node_modules/*/android/build`; the failure is `Unable to delete file
 '…classes.jar'` at an arbitrary task, an error that looks nothing like its cause.
 `--no-daemon` does not help — it avoids *creating* a daemon, not the running ones.
 
+> ### ⚠️ `plugins/withGradleJvmArgs.js` IS FROZEN — do not edit it, not even a comment
+>
+> Its file **contents** are a hashed fingerprint source (reason
+> `expoConfigPlugins`), so any byte changed there moves **both** platforms'
+> runtime versions and shuts **both** OTA channels. Measured 2026-08-19: adding
+> one key moved Android `ae526937…` → `f0f6cff9…`; adding **only a comment**
+> moved it to `e84ab503…`. It has cost a channel twice — the Gradle memory fixes
+> on 08-17, and the ABI cut on 08-19, which shut iOS against build 60 while that
+> build was in App Store review.
+>
+> **Its docstring is knowingly out of date and is left that way on purpose.** It
+> still says the ABI count "belongs to local iteration" and that "all ABIs must
+> be restored for a release". That is wrong — the release set is two — but
+> correcting the prose would strand every shipped binary, which costs far more
+> than a stale comment. The current truth lives in `SKILL.md` and in
+> `apps/mobile/scripts/patch-android-release.mjs`. **If a docs audit flags this
+> file, the correct action is to leave it alone and cite this box.**
+>
+> Editing it is only ever correct as part of a change that ships a new binary on
+> **both** platforms in the same sitting.
+
 **Heap and metaspace live in `apps/mobile/plugins/withGradleJvmArgs.js`**, not in
 a hand-typed `GRADLE_OPTS`. That plugin exists because a release build died on
 `OutOfMemoryError: Metaspace` in
@@ -185,9 +206,15 @@ Gradle daemon (6.0 GB) and the Kotlin daemon (3.1 GB) — were killed outright.
 Stopping them also returned ~9.5 GB of RAM, which is worth knowing on its own:
 those daemons persist between builds holding their full heap.
 
-**Do not "fix" this by dropping x86.** `x86`/`x86_64` serve emulators and some
-ChromeOS devices; vc 32 shipped all four ABIs, and quietly shipping fewer is a
-silent coverage reduction, not a build fix.
+**Do not "fix" this by dropping x86** — as a *cache-corruption* remedy. That is
+what this paragraph is about, and it still holds: clearing the transform cache is
+the fix, and changing the shipped ABI set to dodge a locked file is not.
+
+The release ABI set **was** cut to two on 2026-08-19, on its own merits, and that
+decision stands — the reasoning is in `SKILL.md` → *The release ABI set is TWO*.
+It is not a coverage reduction: Play serves per-device splits, no phone runs
+`x86`, and this project has no emulator host. What changed since this paragraph
+was written is that vc 32's "all four ABIs" is no longer the baseline.
 
 ## The exit code of `cmd > log; echo $?` is the ECHO, not the build
 

@@ -156,29 +156,34 @@ expect a few minutes - still far below a full rebuild.
   `Unable to delete file '…classes.jar'`.
 - `CMAKE_OBJECT_PATH_MAX` is a **warning**, not a failure. Build anyway; insist on
   device QA.
-- **The release ABI set is TWO, and it lives in the plugin.**
-  `plugins/withGradleJvmArgs.js` writes
-  `reactNativeArchitectures=armeabi-v7a,arm64-v8a`, so a release build no longer
-  compiles `x86`/`x86_64`. Each ABI is a full native compile, and on this
+- **The release ABI set is TWO, and it lives in `patch-android-release.mjs`.**
+  Step 1b of that script writes `reactNativeArchitectures=armeabi-v7a,arm64-v8a`
+  into the **gitignored** `android/gradle.properties`, so a release build no
+  longer compiles `x86`/`x86_64`. Each ABI is a full native compile, and on this
   workstation every one runs **emulated** — the NDK ships `windows-x86_64` only,
-  there is no `windows-aarch64`, and this box is a Snapdragon X. Dropping the two
-  ABIs nothing here runs roughly halves the native work. Play serves per-device
-  splits, so they never cost a user a byte; `armeabi-v7a` stays because
-  `minSdkVersion` is 26.
+  there is no `windows-aarch64`, and this box is a Snapdragon X. Measured
+  2026-08-19: **16m 04s → 10m 29s**, AAB **101 MB → 66 MB**. Play serves
+  per-device splits, so the dropped ABIs never cost a user a byte;
+  `armeabi-v7a` stays because `minSdkVersion` is 26.
 
-  For a **local check only**, override on the invocation — one ABI is
+  For a **local check only**, override on the invocation — a `-P` flag beats
+  `gradle.properties`, and one ABI is
   [~75% off native build time](https://reactnative.dev/docs/build-speed):
 
   ```sh
   ./gradlew bundleRelease -PreactNativeArchitectures=arm64-v8a   # never submit this
   ```
 
-  **Changing that plugin moves the fingerprint.** Measured 2026-08-19: adding one
-  key moved the Android hash `ae526937…` → `f0f6cff9…`, and adding only a
-  *comment* moved it to `e84ab503…`. It is a hashed source. That is why the cut
-  shipped as part of **vc 36** rather than being slipped in between binaries —
-  it shut the OTA channel against vc 35, deliberately, and vc 36 reopens it. Do
-  not edit that file for a build-speed tweak without accounting for the channel.
+  **Do NOT move it back into `plugins/withGradleJvmArgs.js`, and do not put it in
+  `eas.json` either — both are hashed fingerprint sources.** It lived in the
+  plugin for one day (`1ddb51fa`, reverted 2026-08-19) and that shut **iOS**:
+  a config plugin's file *contents* are hashed (reason `expoConfigPlugins`), so
+  an Android-only tweak moved the iOS runtime `7b347b0f…` → `6670f678…` while
+  build 60 sat in App Store review on `7b347b0f…` — 1.2.1 heading for release
+  with no OTA fix path. Even a *comment* in that file moves the hash
+  (`ae526937…` → `e84ab503…`). The gitignored `android/` is the correct home for
+  Android-only build config, which is the same rule that already keeps the
+  update channel and the signing config out of `app.json`.
 
 ### Verify — gate on the exit code
 
