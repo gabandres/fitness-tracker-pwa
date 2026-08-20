@@ -6,6 +6,43 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-19 — the daily target stops swinging on a single weigh-in
+
+One morning reading was worth 287 kcal of daily target. A 156.0 lb weigh-in the
+day after 158.0 — water, on any reading of it — moved measured maintenance 484
+kcal, because it sat at the end of an 8-day post-break line where a
+least-squares fit gives a point the most leverage it will ever have.
+
+Three changes shipped over the air to both platforms, and one measurement
+overturned the diagnosis on the way. The segment/whole-window switch was blamed
+first; it turned out the segment was selected at every step, so nothing was
+switching. Two continuous replacements for that switch were built and both made
+the numbers measurably worse, so neither shipped.
+
+What did: **endpoint corroboration** — fit with and without the newest weigh-in
+and take the smaller rate, so a new reading is adopted at once when it flattens
+a trend and must be seconded when it steepens one. Then **`reliable` finally
+affects the number**, blending a patchy estimate toward the formula anchor
+(complete-record accounts are byte-identical). Then **one clamp**: every path
+now reads its target through `finalCalorieTarget`, closing three call sites —
+two of them feeding an LLM — that could state a figure below the user's own
+calorie floor.
+
+Measured on a real account over 14 days: the estimator's swing fell from 719 to
+191 kcal, and day-to-day movement from 63 to 23.
+
+Separately, the measurement window went from 28 logged days to **42**, which
+fixes a sign error rather than an accuracy one: the window read ~7% low and the
+activity anchor read high, the two cancelled, and the cancellation depended on
+the user logging *badly*. At 28, logging perfectly returned a lower TDEE than
+logging half the time. At 42 both readings land in range.
+
+The activity bucket that anchor rests on is now known to be wrong too, and the
+card that would correct it ships **dark** — on the account measured, its
+suggestion is further from the truth than the setting it would replace.
+
+---
+
 ## 2026-08-19 — Android vc 37 reopens the iOS OTA channel against build 60
 
 A build-speed tweak cost an over-the-air fix path on the *other* platform, and
