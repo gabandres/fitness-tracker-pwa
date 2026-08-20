@@ -155,6 +155,22 @@ Auth → custom SMTP is **not available on this project**: every write to
 also why `fetchSignInMethodsForEmail` returns `[]` unconditionally, so never
 write logic that branches on its result.
 
+**BOTH OTA channels moved on 2026-08-19, in opposite directions.** The ABI cut
+(`1ddb51fa`) edited `plugins/withGradleJvmArgs.js`, which is hashed:
+
+| Platform | Tree now | Live binary | Channel |
+|---|---|---|---|
+| Android | `11681bf5…` | **vc 36** ships `11681bf5…` | **OPEN** |
+| iOS | `6670f678…` | build 60 ships `7b347b0f…` | **SHUT** |
+
+`withGradleJvmArgs.js` is an **Android-only** plugin, but the `plugins` array is
+hashed as part of `app.json`, so it moved the iOS hash too — the trap
+`apps/mobile/AGENTS.md` already documents, firing for the third time. **So a JS
+hotfix cannot reach iOS build 60 over the air**, and build 60 is the binary in
+App Store review. It needs build 61. Reverting is not an option: vc 36 ships the
+post-change hash, so undoing it would strand Android instead. Accept it; the
+next iOS binary reopens the channel.
+
 ## 2. Merged, on `main`, and not delivered anywhere
 
 Everything else that was in this section has shipped and is in `CHANGELOG.md`.
