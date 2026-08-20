@@ -147,7 +147,7 @@ export const en = {
   'today.entry': 'Entry',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    'Workout templates in the Train tab got a rebuild. A set is now a row that says what to do — weight and reps, under headers — so a template can finally prescribe "3 x 8 @ 135" instead of just "three sets", and starting a workout fills those numbers in for you: grey means it is the plan, tap the tick and it becomes yours. Exercises collapse to one readable line, drag the grip to reorder them, and the optional parts (form notes, automatic weight increases) moved under "More options". Clusters read 1a/1b/1c now instead of C1, and the RIR column is just called LEFT.',
+    'Your daily target holds steadier now. It is worked out from your weight trend, and a single morning weigh-in could swing it by hundreds of calories — water weight reads exactly like fat loss to a trend line. A new reading now has to be backed up by the next one before it can steepen your trend, though it still counts right away when it flattens one. And when your log has gaps, the estimate is held closer to your formula burn instead of chasing a patchy record. If you log most days, none of this changes your numbers at all.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',

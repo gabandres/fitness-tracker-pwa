@@ -150,7 +150,7 @@ export const esPR: Record<I18nKey, string> = {
   'today.entry': 'Registro',
   'whatsNew.title': 'Novedades',
   'whatsNew.body':
-    'Las plantillas de la pestaña Entrena se rehicieron. Una serie ahora es una fila que dice qué hacer — peso y reps, con encabezados — así que una plantilla por fin puede indicar "3 x 8 @ 135" y no solo "tres series", y al empezar el entrenamiento esos números ya vienen puestos: en gris es el plan, toca el check y se vuelven tuyos. Los ejercicios se colapsan a una línea legible, arrástralos por el asa para reordenarlos, y lo opcional (notas de técnica, subida automática de peso) se movió a "Más opciones". Los clusters se leen 1a/1b/1c en vez de C1, y la columna de RIR ahora se llama FALTAN.',
+    'Tu meta diaria ahora se mantiene más estable. Se calcula con tu tendencia de peso, y un solo pesaje en la mañana podía moverla cientos de calorías — el peso de agua se ve igualito que pérdida de grasa para una línea de tendencia. Ahora una lectura nueva tiene que confirmarse con la siguiente antes de poder inclinar tu tendencia, aunque sigue contando de una vez cuando la aplana. Y cuando tu registro tiene huecos, el estimado se mantiene más cerca de tu gasto por fórmula en vez de perseguir un registro incompleto. Si registras casi todos los días, nada de esto cambia tus números.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',

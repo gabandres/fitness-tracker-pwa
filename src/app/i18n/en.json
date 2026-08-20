@@ -632,6 +632,8 @@
     "done": "done"
   },
   "body": {
+    "steadyTarget": "One morning weigh-in can no longer swing your daily target by hundreds of calories. Water weight reads exactly like fat loss to a trend line, so a new reading now has to be backed up by the next one before it can steepen your trend — it still counts right away when it flattens one.",
+    "provisionalTarget": "When your log has gaps, your target is held closer to your formula burn instead of chasing a patchy record, and Today says so. If you log most days, none of this changes your numbers.",
     "chartWindows": "Last 14 days · the dashed line projects your 4-week trend",
     "projectionGoalDate": "At this pace: {{weight}} lb by {{date}}",
     "projectionRate": "Trending {{n}} lb/wk",

@@ -632,6 +632,8 @@
     "done": "listo"
   },
   "body": {
+    "steadyTarget": "Un solo pesaje en la mañana ya no puede mover tu meta diaria cientos de calorías. El peso de agua se ve igualito que pérdida de grasa para una línea de tendencia, así que una lectura nueva tiene que confirmarse con la siguiente antes de poder inclinar tu tendencia — sigue contando de una vez cuando la aplana.",
+    "provisionalTarget": "Cuando tu registro tiene huecos, tu meta se mantiene más cerca de tu gasto por fórmula en vez de perseguir un registro incompleto, y Today te lo dice. Si registras casi todos los días, nada de esto cambia tus números.",
     "chartWindows": "Últimos 14 días · la línea punteada proyecta tu tendencia de 4 semanas",
     "projectionGoalDate": "A este ritmo: {{weight}} lb para {{date}}",
     "projectionRate": "Tendencia {{n}} lb/sem",
