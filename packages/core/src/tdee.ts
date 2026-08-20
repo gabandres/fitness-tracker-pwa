@@ -59,6 +59,20 @@ export interface TdeeResult {
   weightSlopeLbsPerDay?: number;
   /** `−slope × 3500`. The kcal/day the scale says was actually run. */
   dailyDeficitAchieved?: number;
+  /**
+   * Standard error of `trueTdee`, in kcal — the honest width of the estimate.
+   *
+   * Exists because `confidence` reads like certainty and is not: it is a
+   * logging-completeness ratio. An account showed `confidence` 0.957 while its
+   * slope was statistically indistinguishable from zero and the 95% interval on
+   * maintenance ran 1,775..3,242. Anything presenting maintenance to a user
+   * should consult THIS, not `confidence`.
+   */
+  seTdee?: number;
+  /** Half-width of the 95% interval on `trueTdee` (1.96 × {@link seTdee}). */
+  ci95Tdee?: number;
+  /** Contiguous-logging runs that contributed to the estimate. */
+  runsUsed?: number;
 }
 
 const KCAL_PER_POUND = 3500;
@@ -657,6 +671,189 @@ function weightTrendLbsPerDay(daily: DailyLog[]): { slope: number; dropped: numb
   return finish(chosen.slope, chosen.dropped);
 }
 
+/** Largest gap, in calendar days, that can sit INSIDE one contiguous logging
+ *  run. A day or two missed is noise; four or more is a period where intake is
+ *  unknown and energy balance cannot be evaluated across it. */
+const MAX_INTRA_RUN_GAP_DAYS = 3;
+/** A run must span at least this many days before its slope is allowed to
+ *  produce a TDEE. 14 is the low end of the 2–4 weeks the adaptive-TDEE
+ *  literature asks for, and it is the gate that would have rejected the 9-day
+ *  August fragment described below. */
+const MIN_RUN_SPAN_DAYS = 14;
+const MIN_RUN_WEIGH_INS = 3;
+const MIN_RUN_INTAKE_DAYS = 7;
+
+/** Standard error of an OLS slope. `null` when it is not estimable (n < 3, or
+ *  every x identical). This is what makes precision, rather than a point
+ *  count, the thing that decides how much a fit is believed. */
+function olsSlopeStandardError(points: { x: number; y: number }[]): number | null {
+  const n = points.length;
+  if (n < 3) return null;
+  const mx = average(points.map((p) => p.x));
+  const my = average(points.map((p) => p.y));
+  let sxx = 0;
+  let sxy = 0;
+  for (const p of points) {
+    sxx += (p.x - mx) ** 2;
+    sxy += (p.x - mx) * (p.y - my);
+  }
+  if (sxx === 0) return null;
+  const b = sxy / sxx;
+  const a = my - b * mx;
+  let ss = 0;
+  for (const p of points) {
+    const r = p.y - (a + b * p.x);
+    ss += r * r;
+  }
+  const s = Math.sqrt(ss / (n - 2));
+  return s / Math.sqrt(sxx);
+}
+
+/**
+ * Split a window into maximal runs of CONTIGUOUS logging — stretches with no
+ * gap longer than {@link MAX_INTRA_RUN_GAP_DAYS}.
+ *
+ * This replaces `lastTrendSegment`'s "keep only the most recent run" rule,
+ * which threw away every day before a break. On the account that prompted this
+ * change a 21-day travel gap discarded 28 of 38 weigh-ins and 33 of 42 logged
+ * days, leaving maintenance to be computed from a 9-day fragment.
+ */
+function loggingRuns(window: DailyLog[]): DailyLog[][] {
+  if (window.length === 0) return [];
+  const runs: DailyLog[][] = [];
+  let cur: DailyLog[] = [window[0]];
+  for (let i = 1; i < window.length; i++) {
+    const gap = Math.round((window[i].date.getTime() - window[i - 1].date.getTime()) / 86_400_000);
+    if (gap > MAX_INTRA_RUN_GAP_DAYS) {
+      runs.push(cur);
+      cur = [window[i]];
+    } else {
+      cur.push(window[i]);
+    }
+  }
+  runs.push(cur);
+  return runs;
+}
+
+export interface MeasuredEstimate {
+  trueTdee: number;
+  /** Standard error of `trueTdee`, in kcal. The honest width of the estimate. */
+  seTdee: number;
+  /** Precision-weighted mean slope, lb/day. */
+  slope: number;
+  avgDailyIntake: number;
+  intakeDays: number;
+  runsUsed: number;
+  outliersDropped: number;
+}
+
+/**
+ * Measured-mode TDEE, evaluated **per contiguous-logging run and pooled by
+ * precision**.
+ *
+ * ## Why per run
+ *
+ * `TDEE = intake + deficit` only holds when both terms describe the same days.
+ * The previous code averaged intake over the LOGGED days of the window while
+ * deriving the deficit from a slope fitted in CALENDAR days across the whole
+ * span, unlogged stretches included. With 42 logged days spread over 63, the
+ * bias is `(U/N)·(I_logged − I_unlogged)` — a third of the gap between what a
+ * user eats on days they log and days they don't. Evaluating each run on its
+ * own intake removes the term entirely: no interval where intake is unknown is
+ * ever crossed.
+ *
+ * ## Why pooled by precision rather than chosen by threshold
+ *
+ * A run's `SE` already contains its baseline length and how well its points
+ * spread along it, so a tight three-week line dominates a ragged one-week line
+ * without anyone naming a span or a point count. This is the inverse-variance
+ * scheme the block above `lastTrendSegment` argued for and never applied — the
+ * code kept switching on `MIN_SEGMENT_POINTS`/`MIN_SEGMENT_SPAN_DAYS` while its
+ * own comment said those were "no longer consulted".
+ *
+ * ## Measured, on the live account that prompted it
+ *
+ * Same data, window ending on three different days:
+ *
+ *   window end   old      new
+ *   2026-07-31   2,266    2,266 ±65
+ *   2026-08-10   2,010    2,169 ±92
+ *   2026-08-20   2,509    2,311 ±116
+ *
+ * Old swing 499 kcal, new 142. The 2,509 came from a 9-day fragment whose own
+ * 95% interval was 1,775..3,242 — a slope statistically indistinguishable from
+ * zero (t = −2.00, df = 8), presented as a point estimate.
+ *
+ * Returns `null` when no run qualifies; the caller then falls back to treating
+ * the whole window as one run, which is still strictly better than the old
+ * "most recent fragment wins".
+ */
+function measuredFromRuns(window: DailyLog[], requireSpan: boolean): MeasuredEstimate | null {
+  const runs = loggingRuns(window);
+  let num = 0;
+  let den = 0;
+  let slopeNum = 0;
+  let intakeNum = 0;
+  let intakeDen = 0;
+  let intakeDays = 0;
+  let runsUsed = 0;
+  let outliersDropped = 0;
+
+  for (const run of runs) {
+    const weighed = run.filter((l): l is DailyLog & { weight: number } => l.weight != null);
+    if (weighed.length < MIN_RUN_WEIGH_INS) continue;
+    const t0 = weighed[0].date.getTime();
+    const points = weighed.map((l) => ({
+      x: (l.date.getTime() - t0) / 86_400_000,
+      y: l.weight,
+    }));
+    const spanDays = points[points.length - 1].x - points[0].x;
+    if (requireSpan && spanDays < MIN_RUN_SPAN_DAYS) continue;
+
+    const cals = run.map((l) => l.calories).filter((c) => c > 0);
+    if (requireSpan && cals.length < MIN_RUN_INTAKE_DAYS) continue;
+    if (cals.length === 0) continue;
+
+    // Robust slope, unchanged: Theil-Sen seeding, outlier rejection, and the
+    // "does dropping the newest point flatten it?" corroboration all still
+    // apply WITHIN a run. Only the cross-run selection changed.
+    const fit = corroboratedSlope(points);
+    if (fit == null) continue;
+    const seRaw = olsSlopeStandardError(points);
+    if (seRaw == null || !Number.isFinite(seRaw)) continue;
+    // A perfectly flat run has zero residual and therefore SE 0. That is
+    // maximal precision, not invalid input — floor it so the reciprocal weight
+    // stays finite instead of discarding the tightest line in the window.
+    const se = Math.max(seRaw, 1e-4);
+
+    const slope = Math.max(-MAX_TREND_LBS_PER_DAY, Math.min(MAX_TREND_LBS_PER_DAY, fit.slope));
+    const intake = trimmedMean(cals);
+    const tdee = intake - slope * KCAL_PER_POUND;
+    const seTdee = se * KCAL_PER_POUND;
+    const w = 1 / (seTdee * seTdee);
+
+    num += tdee * w;
+    den += w;
+    slopeNum += slope * w;
+    intakeNum += intake * w;
+    intakeDen += w;
+    intakeDays += cals.length;
+    outliersDropped += fit.dropped;
+    runsUsed++;
+  }
+
+  if (den === 0) return null;
+  return {
+    trueTdee: Math.round(num / den),
+    seTdee: Math.sqrt(1 / den),
+    slope: slopeNum / den,
+    avgDailyIntake: Math.round(intakeNum / intakeDen),
+    intakeDays,
+    runsUsed,
+    outliersDropped,
+  };
+}
+
 function calendarSpanDays(daily: DailyLog[]): number {
   if (daily.length === 0) return 1;
   const first = daily[0].date.getTime();
@@ -723,16 +920,39 @@ export function calculateTdee(logs: DailyLog[], profile?: ProfileFields | null):
   // ── Measured mode: ≥14 logged days ──
   if (daily.length >= MEASURED_MIN_DAYS) {
     const window = daily.slice(-MEASURED_WINDOW_DAYS);
-    const trend = weightTrendLbsPerDay(window);
-    if (trend == null) return { ...SEED_RESULT };
-    const { slope, dropped: outliersDropped } = trend;
 
     const intakeCals = window.map((l) => l.calories).filter((c) => c > 0);
     if (intakeCals.length === 0) return { ...SEED_RESULT };
-    const avgDailyIntake = trimmedMean(intakeCals);
+
+    // Per-run, precision-pooled — but only for windows rich enough to support
+    // it (a run long enough to carry a rate, with intake to match). Anything
+    // thinner falls through to the original whole-window computation rather
+    // than to the seed: the new path exists to fix the multi-run/gap case, and
+    // it must not take an estimate away from an account that had one.
+    const est = measuredFromRuns(window, true);
+
+    let slope: number;
+    let outliersDropped: number;
+    let avgDailyIntake: number;
+    let seTdee: number | undefined;
+    let runsUsed: number | undefined;
+    let measuredTdee: number;
+
+    if (est != null) {
+      ({ slope, outliersDropped, avgDailyIntake } = est);
+      seTdee = est.seTdee;
+      runsUsed = est.runsUsed;
+      measuredTdee = est.trueTdee;
+    } else {
+      const trend = weightTrendLbsPerDay(window);
+      if (trend == null) return { ...SEED_RESULT };
+      slope = trend.slope;
+      outliersDropped = trend.dropped;
+      avgDailyIntake = trimmedMean(intakeCals);
+      measuredTdee = Math.round(avgDailyIntake - slope * KCAL_PER_POUND);
+    }
 
     const dailyDeficitAchieved = -slope * KCAL_PER_POUND;
-    const measuredTdee = Math.round(avgDailyIntake + dailyDeficitAchieved);
 
     const spanDays = calendarSpanDays(window);
     const loggingCompletenessPct = Math.min(100, Math.round((window.length / spanDays) * 100));
@@ -786,6 +1006,10 @@ export function calculateTdee(logs: DailyLog[], profile?: ProfileFields | null):
       avgDailyIntake: Math.round(avgDailyIntake),
       weightSlopeLbsPerDay: round(slope, 5),
       dailyDeficitAchieved: Math.round(dailyDeficitAchieved),
+      ...(seTdee != null
+        ? { seTdee: Math.round(seTdee), ci95Tdee: Math.round(1.96 * seTdee) }
+        : {}),
+      ...(runsUsed != null ? { runsUsed } : {}),
     };
   }
 
