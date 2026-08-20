@@ -6,7 +6,7 @@ import {
   PAL_CEILING,
   PAL_FLOOR_FREE_LIVING,
 } from './activity-level';
-import { ACTIVITY_MULTIPLIERS, basalMifflinStJeor } from './tdee';
+import { ACTIVITY_MULTIPLIERS, basalMifflinStJeor, calculateTdee } from './tdee';
 
 /**
  * Step 3 — the continuous activity multiplier.
@@ -112,5 +112,50 @@ describe('snapMultiplier survives for naming only', () => {
     expect(deriveActivityLevel(MEAN_ACTIVE_KCAL, BASAL)).toBe('sedentary');
     expect(activityMultiplier(MEAN_ACTIVE_KCAL, BASAL)).toBe(1.4);
     expect(ACTIVITY_MULTIPLIERS.sedentary).toBe(1.2);
+  });
+});
+
+describe('the stored multiplier is what the formula estimate uses', () => {
+  const base = {
+    heightIn: 68, age: 33, sex: 'male', activityLevel: 'moderate',
+    targetPaceLbsPerWeek: 0.9, calorieFloor: 1850,
+  } as const;
+  /** Fewer than MEASURED_MIN_DAYS ⇒ formula mode, which is the anchor's math. */
+  const thin = Array.from({ length: 5 }, (_, i) => ({
+    date: new Date(`2026-07-0${i + 1}T12:00:00`),
+    calories: 1900,
+    weight: 157,
+  }));
+
+  it('absent ⇒ byte-identical to the ladder, which is every account without Health', () => {
+    const withField = calculateTdee(thin, { ...base });
+    const asBefore = Math.round(BASAL * ACTIVITY_MULTIPLIERS.moderate);
+    expect(withField.source).toBe('formula');
+    expect(withField.trueTdee).toBe(asBefore);
+  });
+
+  it('present ⇒ the continuous value wins over the bucket', () => {
+    const r = calculateTdee(thin, { ...base, activityMultiplier: 1.4 });
+    expect(r.trueTdee).toBe(Math.round(BASAL * 1.4));
+    // 2,285 against the account's 2,385 benchmark: −4.2%.
+    expect(errVsBenchmark(1.4)).toBeLessThan(0.05);
+  });
+
+  it('a corrupt stored value degrades to the bucket, never to NaN', () => {
+    for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const r = calculateTdee(thin, { ...base, activityMultiplier: bad as number });
+      expect(Number.isFinite(r.trueTdee)).toBe(true);
+      expect(r.trueTdee).toBe(Math.round(BASAL * ACTIVITY_MULTIPLIERS.moderate));
+    }
+  });
+
+  it('the bucket still names the level even when the number disagrees', () => {
+    // The stored bucket is the user's stated answer and drives copy; the
+    // multiplier drives arithmetic. They are allowed to disagree, and here
+    // they do: "moderate" alongside 1.40.
+    const p = { ...base, activityMultiplier: 1.4 };
+    expect(p.activityLevel).toBe('moderate');
+    expect(ACTIVITY_MULTIPLIERS[p.activityLevel]).toBe(1.55);
+    expect(calculateTdee(thin, p).trueTdee).toBe(Math.round(BASAL * 1.4));
   });
 });

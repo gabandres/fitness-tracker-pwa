@@ -13,7 +13,13 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { type ActivityLevel, type Sex, basalMifflinStJeor, paceReality } from '@macrolog/core';
+import {
+  type ActivityLevel,
+  type Sex,
+  activityMultiplier as activityMultiplierFor,
+  basalMifflinStJeor,
+  paceReality,
+} from '@macrolog/core';
 import { useActivitySuggestion } from '@/lib/activity-suggestion';
 import { useAuth } from '@/lib/auth';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
@@ -96,7 +102,7 @@ export default function RefineTargets() {
       ? basalMifflinStJeor({ heightIn: heightIn as number, age: ageNum as number, sex }, weightLbs)
       : 0;
 
-  const { suggestion, guidance, decline, accept, connect, connecting } = useActivitySuggestion({
+  const { suggestion, guidance, decline, accept, connect, connecting, evidence } = useActivitySuggestion({
     uid: user?.uid,
     basalKcal,
     // Null at seed ⇒ no deadband: this is a pre-fill of an empty field rather
@@ -140,16 +146,35 @@ export default function RefineTargets() {
     setError(null);
     setBusy(true);
     try {
+      // Saving a suggested bucket IS the accept.
+      const accepting = selected === suggestion || selected === suggested;
+      // When the user accepts, store the CONTINUOUS multiplier their own
+      // device window implies rather than the bucket's rung. The bucket is
+      // still saved — it is their stated answer and what copy says — but the
+      // ladder cannot express the value the data supports, and on a real
+      // account the nearest rung was 17.9% out where the continuous value is
+      // 4.2% (ADR-0024). `undefined` on any other save leaves the stored
+      // multiplier untouched; a manual bucket change clears it, because the
+      // user has just overridden the measurement on purpose.
+      const activityMultiplier = accepting
+        ? evidence?.meanActiveKcal
+          ? activityMultiplierFor(evidence.meanActiveKcal, basalKcal)
+          : undefined
+        : touched
+          ? null
+          : undefined;
+
       await saveRefinedTargets(user.uid, {
         heightIn,
         age: ageNum,
         sex,
         activityLevel: selected,
+        activityMultiplier,
         targetPaceLbsPerWeek: pace,
       });
-      // Saving a suggested bucket IS the accept — drop any remembered "no" so
-      // a future window is free to suggest that bucket again.
-      if (selected === suggestion || selected === suggested) accept();
+      // Drop any remembered "no" so a future window is free to suggest that
+      // bucket again.
+      if (accepting) accept();
       haptics.success();
       router.replace('/settings');
     } catch {

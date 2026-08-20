@@ -159,6 +159,15 @@ export interface RefineTargetsSubmission {
   /** Personal protein basis (g/kg, 1.6–2.2). Optional: omitted leaves the
    *  default 1.6 g/kg floor in effect. */
   proteinPerKg?: number;
+  /**
+   * Continuous activity multiplier to store alongside the bucket, or
+   * `undefined`/`null` to leave the stored value untouched / clear it.
+   *
+   * Written only when the user accepts an activity correction, so an account
+   * that never sees one keeps falling back to `ACTIVITY_MULTIPLIERS[bucket]`
+   * exactly as before.
+   */
+  activityMultiplier?: number | null;
 }
 
 /**
@@ -171,6 +180,23 @@ export interface ProfileFields {
   age: number;                 // 13–120
   sex: Sex;
   activityLevel: ActivityLevel;
+  /**
+   * Continuous activity multiplier derived from the device's own active-energy
+   * window, and the value the formula estimate uses when it is present.
+   *
+   * Supersedes `activityLevel` for ARITHMETIC only — the bucket stays as the
+   * user's stated answer and as the word shown in copy. Absent means "no
+   * device data", and the multiplier falls back to
+   * `ACTIVITY_MULTIPLIERS[activityLevel]`, which is what every account without
+   * Health import keeps doing.
+   *
+   * Why a number and not a sixth bucket: the ladder's rungs are 0.175 apart,
+   * or ±285 kcal/day on a 1,632 kcal basal, and the value a real account
+   * implied — 1.279 — cannot be expressed on it at all. Floored at the
+   * FAO/WHO/UNU free-living minimum of 1.40 before it is stored; see
+   * `activityMultiplier()` in ./activity-level.
+   */
+  activityMultiplier?: number;
   targetPaceLbsPerWeek: CutPace;
   goalWeightLbs?: number;      // optional
   travelMode?: boolean;        // LEGACY, read-only: pace=0. No writer since 2026-08-11 — see ./targets.ts

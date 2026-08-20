@@ -687,6 +687,13 @@ export async function saveRefinedTargets(uid: string, s: RefineTargetsSubmission
     age: s.age,
     sex: s.sex,
     activityLevel: s.activityLevel,
+    // The bucket stays the user's stated answer; the multiplier is what the
+    // formula estimate actually uses (ADR-0024). `undefined` leaves whatever
+    // is stored alone -- only an explicit number or null touches the field, so
+    // a plain Refine save cannot silently drop a good multiplier.
+    ...(s.activityMultiplier === undefined
+      ? {}
+      : { activityMultiplier: s.activityMultiplier === null ? deleteField() : s.activityMultiplier }),
     targetPaceLbsPerWeek: clampCutPace(s.targetPaceLbsPerWeek),
     manualCaloriesTarget: deleteField(),
     manualProteinTarget: deleteField(),

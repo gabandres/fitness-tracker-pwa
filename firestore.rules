@@ -305,6 +305,11 @@ service cloud.firestore {
               'calorieFloor',
               // Personal daily-protein safety floor (g), dialed in settings.
               'proteinFloor',
+              // Continuous activity multiplier derived from the device's own
+              // active-energy window, replacing the 5-bucket ladder for the
+              // formula estimate. Written only when the user accepts the
+              // activity correction; absent means "use activityLevel".
+              'activityMultiplier',
               'onboardingV2CompletedAt',
               // Day-3 "Refine targets" stamp.
               'targetsRefinedAt',
@@ -374,6 +379,15 @@ service cloud.firestore {
           // range), NOT the narrower stepper bounds the settings UI enforces.
           && (!('proteinFloor' in data.keys()) ||
               (data.proteinFloor is number && data.proteinFloor > 0 && data.proteinFloor < 1000))
+          // Band is the FAO/WHO/UNU 2001 PAL range for free-living adults
+          // (1.40 sedentary floor .. 2.40 vigorous ceiling), widened a little
+          // at both ends so a client clamp change does not need a rules
+          // deploy. The app clamps tighter (1.40..1.90); this is the outer
+          // sanity bound, not the product rule.
+          && (!('activityMultiplier' in data.keys()) ||
+              (data.activityMultiplier is number
+               && data.activityMultiplier >= 1.0
+               && data.activityMultiplier <= 2.5))
           && (!('onboardingV2CompletedAt' in data.keys()) ||
               data.onboardingV2CompletedAt is timestamp)
           && (!('targetsRefinedAt' in data.keys()) ||

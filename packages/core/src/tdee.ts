@@ -697,8 +697,24 @@ export function basalMifflinStJeor(
     : 10 * weightKg + 6.25 * heightCm - 5 * profile.age - 161;
 }
 
+/**
+ * Mifflin-St Jeor x activity. Prefers the continuous `activityMultiplier` when
+ * the profile carries one, and falls back to the five-bucket ladder otherwise.
+ *
+ * The fallback is the common path and must stay exact: an account with no
+ * Health import has no multiplier, and its number may not move. The
+ * preference, when present, is the whole point of ADR-0024 — a device-derived
+ * value the ladder could not express, floored at the FAO/WHO/UNU free-living
+ * minimum. Guarded on `> 0` and finiteness rather than presence, because a
+ * corrupt stored value must degrade to the bucket rather than to NaN.
+ */
 function mifflinStJeor(profile: ProfileFields, weightLbs: number): number {
-  return basalMifflinStJeor(profile, weightLbs) * ACTIVITY_MULTIPLIERS[profile.activityLevel];
+  const m = profile.activityMultiplier;
+  const multiplier =
+    typeof m === 'number' && Number.isFinite(m) && m > 0
+      ? m
+      : ACTIVITY_MULTIPLIERS[profile.activityLevel];
+  return basalMifflinStJeor(profile, weightLbs) * multiplier;
 }
 
 export function calculateTdee(logs: DailyLog[], profile?: ProfileFields | null): TdeeResult {

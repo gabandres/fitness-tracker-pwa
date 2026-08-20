@@ -636,6 +636,61 @@ describe('firestore.rules', () => {
     );
   });
 
+  it('accepts an in-range activityMultiplier on a completed profile', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      setDoc(doc(db, 'users', 'alice'), {
+        ...baseProfile(),
+        profileCompleted: true,
+        heightIn: 70,
+        age: 33,
+        sex: 'male',
+        activityLevel: 'moderate',
+        targetPaceLbsPerWeek: 1.0,
+        // The FAO/WHO/UNU free-living floor, and what a real account's
+        // device window resolves to.
+        activityMultiplier: 1.4,
+      }),
+    );
+  });
+
+  it('rejects an out-of-range activityMultiplier on a completed profile', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    for (const bad of [0.5, 3.0]) {
+      await assertFails(
+        setDoc(doc(db, 'users', 'alice'), {
+          ...baseProfile(),
+          profileCompleted: true,
+          heightIn: 70,
+          age: 33,
+          sex: 'male',
+          activityLevel: 'moderate',
+          targetPaceLbsPerWeek: 1.0,
+          activityMultiplier: bad, // outside the 1.0..2.5 sanity band
+        }),
+      );
+    }
+  });
+
+  it('rejects a non-numeric activityMultiplier', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      setDoc(doc(db, 'users', 'alice'), {
+        ...baseProfile(),
+        profileCompleted: true,
+        heightIn: 70,
+        age: 33,
+        sex: 'male',
+        activityLevel: 'moderate',
+        targetPaceLbsPerWeek: 1.0,
+        activityMultiplier: 'moderate',
+      }),
+    );
+  });
+
   it('accepts an in-range proteinFloor on a completed profile', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());
