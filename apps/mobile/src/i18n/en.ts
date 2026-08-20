@@ -130,6 +130,7 @@ export const en = {
   'today.underMaintenance': '{n} under your burn',
   'today.overMaintenance': '{n} over your burn',
   'today.maintenanceRough': '{logged} of {span} days logged — unlogged days pull this down',
+  'today.maintenanceProvisional': 'Your target is held steady while the record fills in',
   'today.maintenanceOutlier': '1 weigh-in ignored — a real jump in weight can look like a bad reading',
   'today.maintenanceOutliers':
     '{n} weigh-ins ignored — a real jump in weight can look like bad readings',

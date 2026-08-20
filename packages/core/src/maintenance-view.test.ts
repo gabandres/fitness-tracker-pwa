@@ -25,6 +25,11 @@ describe('maintenanceView', () => {
       loggedDays: 23,
       spanDays: 28,
       weighInsDropped: 0,
+      // A TdeeResult carrying no `confidence` reads as "nothing held back".
+      // Absent evidence of damping is not evidence of it — see the field's
+      // comment in maintenance-view.ts.
+      confidence: 1,
+      provisional: false,
     });
   });
 

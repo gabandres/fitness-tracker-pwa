@@ -70,6 +70,21 @@ export interface MaintenanceView {
    * thing to be able to say.
    */
   weighInsDropped: number | null;
+  /**
+   * True when the target derived from this maintenance figure was deliberately
+   * held back — `confidence < 1`, so part of the estimate is the formula anchor
+   * rather than this user's own measurement.
+   *
+   * Distinct from `reliable`, and the difference is the whole point of having
+   * both. `reliable` says *the record behind this number is patchy*.
+   * `provisional` says *and we therefore did not act on it at full strength*.
+   * Until 2026-08-19 only the first was true: the app said the estimate was
+   * rough and then shipped the rough number as the day's food anyway.
+   */
+  provisional: boolean;
+  /** 0..1. How much of the estimate is this user's own data; the remainder is
+   *  the formula anchor. 1 ⇒ nothing was held back. */
+  confidence: number;
 }
 
 /**
@@ -100,5 +115,10 @@ export function maintenanceView(tdee: TdeeResult, consumedKcal: number): Mainten
     loggedDays: tdee.windowDays ?? null,
     spanDays: tdee.spanDays ?? null,
     weighInsDropped: tdee.outliersDropped ?? null,
+    // `?? 1` so a TdeeResult from before these fields existed — or from a
+    // branch that does not compute them — reads as "nothing held back" rather
+    // than as provisional. Absent evidence of damping is not evidence of it.
+    confidence: tdee.confidence ?? 1,
+    provisional: (tdee.confidence ?? 1) < 1,
   };
 }

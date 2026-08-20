@@ -1,6 +1,6 @@
 import type { DailyLog, Profile } from './types';
 import { aggregateByDay, calculateTdee } from './tdee';
-import { mergeDailyWeights, toProfileFields } from './targets';
+import { finalCalorieTarget, mergeDailyWeights, toProfileFields } from './targets';
 import { weightSlopeLbPerWeek, type WeightPoint } from './weight-projection';
 import { localDateKey } from './date';
 
@@ -167,7 +167,7 @@ export function recalibrationDigest(
   return {
     available: true,
     trueTdee,
-    calorieTarget: tdee.newDailyTarget,
+    calorieTarget: finalCalorieTarget(tdee, profile),
     weightTrendLbPerWeek: weightSlopeLbPerWeek(windowWeighInPoints(logs ?? [], dailyWeights ?? {})),
     loggingCompletenessPct: tdee.loggingCompletenessPct ?? 0,
     deltaSinceAck,

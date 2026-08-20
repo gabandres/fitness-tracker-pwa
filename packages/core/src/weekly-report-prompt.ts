@@ -13,6 +13,7 @@
  */
 import type { DailyLog, ProfileFields } from './types';
 import type { TdeeResult } from './tdee';
+import { finalCalorieTarget } from './targets';
 import type { CoachLocale } from './coach-prompt';
 import { localDateKey } from './date';
 import { summarizeDays } from './day-summary';
@@ -119,7 +120,7 @@ function buildInstruction(input: WeeklyReportInput, now: Date): string {
   // ── Computed values ────────────────────────────────────────
   lines.push('## Current computed values');
   lines.push(`- True TDEE: ${tdee.trueTdee} kcal/day`);
-  lines.push(`- Daily target: ${tdee.newDailyTarget} kcal/day`);
+  lines.push(`- Daily target: ${finalCalorieTarget(tdee, profile)} kcal/day`);
   lines.push(`- TDEE source: ${tdee.source}`);
   lines.push('');
 

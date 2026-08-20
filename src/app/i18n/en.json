@@ -1852,6 +1852,7 @@
     "underMaintenance": "{{n}} under your burn",
     "overMaintenance": "{{n}} over your burn",
     "maintenanceRough": "{{logged}} of {{span}} days logged — unlogged days pull this down",
+    "maintenanceProvisional": "Your target is held steady while the record fills in",
     "maintenanceOutlier": "1 weigh-in ignored — a real jump in weight can look like a bad reading",
     "maintenanceOutliers": "{{n}} weigh-ins ignored — a real jump in weight can look like bad readings"
   },

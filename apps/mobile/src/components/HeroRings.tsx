@@ -238,6 +238,15 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
               })}
             </Text>
           )}
+          {/* Says what the app DID about a patchy record, not just that it
+              noticed one. The caveat above has always said the number is
+              rough; until 2026-08-19 the rough number was still shipped as the
+              day's target at full strength. This line is the other half. */}
+          {maintenance.provisional ? (
+            <Text style={styles.maintenanceCaveat} testID="maintenance-provisional">
+              {t('today.maintenanceProvisional')}
+            </Text>
+          ) : null}
           {/* NOT gated on `reliable`: a two-week break with a real weight
               change makes the guard drop every post-break weigh-in while the
               estimate still calls itself reliable, so this is the only

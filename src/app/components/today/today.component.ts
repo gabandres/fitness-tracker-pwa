@@ -132,6 +132,16 @@ import { WhatsNewBannerComponent, whatsNewVisible } from '../whats-new-banner/wh
               {{ t('today.maintenanceRough', { logged: m.loggedDays, span: m.spanDays }) }}
             </span>
           }
+          <!-- Says what the app DID about a patchy record, not just that it
+               noticed one. The rough-record line above has always said the
+               number is patchy; until 2026-08-19 the patchy number was still
+               shipped as the day's target at full strength, which is the half
+               this says. -->
+          @if (m.provisional) {
+            <span class="v2-caption" style="color: var(--v2-ink-faint);">
+              {{ t('today.maintenanceProvisional') }}
+            </span>
+          }
           <!-- NOT gated on reliable: the measured two-week-break case drops
                every post-break weigh-in while still reporting reliable=true,
                so this is the only warning that fires for it. -->

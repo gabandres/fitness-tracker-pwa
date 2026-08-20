@@ -239,7 +239,15 @@ describe('weight-trend gap segmentation', () => {
     // readings and maintenance came out at 2,038 — a 462 kcal error built by
     // throwing away every observation of a real 4 lb change.
     const r = calculateTdee(acrossBreak(180, () => 184), baseProfile);
-    expect(r.trueTdee).toBe(2500);
+    // `measuredTdee`, not `trueTdee`. This scenario is about the SEGMENTATION
+    // math, and that is what `measuredTdee` reports — the undamped
+    // `avgDailyIntake + deficit`. Since 2026-08-19 `trueTdee` additionally
+    // carries confidence damping, and a break necessarily costs completeness:
+    // 28 logged days across a 42-day span is 67%, just under RELIABLE_MIN_PCT,
+    // so ~4% of the estimate is pulled to the formula anchor. Asserting the
+    // exact 2,500 here would be asserting that damping does not exist.
+    expect(r.measuredTdee).toBe(2500);
+    expect(r.trueTdee).toBeCloseTo(2500, -2); // damping moves it ~12 kcal
     expect(r.outliersDropped).toBe(0);
   });
 
@@ -251,7 +259,9 @@ describe('weight-trend gap segmentation', () => {
       acrossBreak(180, (d) => (d < 7 ? 184 - d * 0.5 : 180.5)),
       baseProfile,
     );
-    expect(r.trueTdee).toBe(2500);
+    // See the step case above for why this pins `measuredTdee`.
+    expect(r.measuredTdee).toBe(2500);
+    expect(r.trueTdee).toBeCloseTo(2500, -2);
   });
 
   it('ignores a break shorter than a week', () => {

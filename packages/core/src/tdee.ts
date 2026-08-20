@@ -34,6 +34,31 @@ export interface TdeeResult {
   /** Weigh-ins discarded as implausible before fitting the trend. Non-zero
    *  means the user has a bad entry worth surfacing to them. */
   outliersDropped?: number;
+
+  // ── Diagnostics. Measured mode only; never inputs to anything. ──
+  /**
+   * `trueTdee` BEFORE confidence damping — the raw `avgDailyIntake +
+   * dailyDeficitAchieved`. Equal to `trueTdee` whenever {@link confidence} is
+   * 1, which is every reliable account.
+   *
+   * Exported so the two corrections stay separable when reading a regression:
+   * if the blend in `weightTrendLbsPerDay` is doing its job, this number is
+   * already stable and damping has little left to do. A large gap between this
+   * and `trueTdee` is a signal that the blend did NOT flatten the input.
+   */
+  measuredTdee?: number;
+  /** 0..1 weight given to the measured estimate against the formula anchor.
+   *  See {@link measuredConfidence}. 1 ⇒ nothing was damped. */
+  confidence?: number;
+  /** Trimmed mean of intake across the LOGGED days in the window. Unlogged
+   *  days are excluded, not imputed — the single largest bias in the estimate,
+   *  and the reason `loggingCompletenessPct` is worth showing a user. */
+  avgDailyIntake?: number;
+  /** The fitted trend actually used, after segment/window blending and the
+   *  physical clamp. Negative = losing weight. */
+  weightSlopeLbsPerDay?: number;
+  /** `−slope × 3500`. The kcal/day the scale says was actually run. */
+  dailyDeficitAchieved?: number;
 }
 
 const KCAL_PER_POUND = 3500;
@@ -254,6 +279,63 @@ const MIN_SEGMENT_SPAN_DAYS = 6;
 const MAX_TREND_LBS_PER_DAY = 2 / 7;
 
 /**
+ * The floor of the segment-trust ramp: a post-break run this short contributes
+ * nothing, and trust climbs from here to {@link MIN_SEGMENT_POINTS} /
+ * {@link MIN_SEGMENT_SPAN_DAYS}, where it reaches 1 and stays there.
+ *
+ * Two points is where a line stops existing, and a zero-day span is where a
+ * rate stops existing. Those are the honest bottoms of each ramp.
+ */
+const SEGMENT_MIN_POINTS_FOR_ANY_TRUST = 2;
+const SEGMENT_MIN_SPAN_FOR_ANY_TRUST = 0;
+
+/**
+ * How far a thin measured estimate is pulled toward the formula estimate.
+ *
+ * ## `reliable` was computed and then ignored
+ *
+ * `calculateTdee` has always known when its own answer was weak — it returns
+ * `reliable: false` below {@link RELIABLE_MIN_PCT} logging completeness or
+ * {@link RELIABLE_MIN_INTAKE_DAYS} intake days. Nothing consumed it except the
+ * UI and `targets.ts`'s measured-vs-manual choice. The target itself was
+ * computed from the weak number at full strength and shipped.
+ *
+ * Measured on a real account 2026-08-19: 28 logged days across a 49-day span —
+ * 57% complete, 21 days missing — produced a target the app simultaneously
+ * described as "unlogged days pull this down".
+ *
+ * ## The anchor is the formula estimate, deliberately
+ *
+ * When confidence is short the measured value is blended toward Mifflin-St
+ * Jeor × activity. That is not a new concept: it is the number this same
+ * function already returns when there are fewer than {@link MEASURED_MIN_DAYS}
+ * logged days. Extending it to "enough days, but full of holes" makes the mode
+ * boundary a ramp instead of a second cliff.
+ *
+ * It is deliberately NOT the user's previous target. That would make the
+ * estimator path-dependent — damping toward whatever it last printed, so a bad
+ * number persists and the answer depends on when the app was opened — and it
+ * would need a stored field, a rules deploy and a write path on both platforms
+ * for a value the estimator can already derive.
+ *
+ * It is also NOT a smoother over the weight series. That was benchmarked and
+ * came out ~130 kcal low; this touches the weight series not at all.
+ *
+ * **`reliable === true` ⟹ `confidence === 1` ⟹ byte-identical output**, because
+ * both ratios below are ≥ 1 exactly when `reliable`'s two conditions hold. No
+ * account with complete data sees any change from this.
+ */
+function measuredConfidence(loggingCompletenessPct: number, intakeDays: number): number {
+  const byCompleteness = clamp01(loggingCompletenessPct / RELIABLE_MIN_PCT);
+  const byIntakeDays = clamp01(intakeDays / RELIABLE_MIN_INTAKE_DAYS);
+  return Math.min(byCompleteness, byIntakeDays);
+}
+
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
+/**
  * Split weigh-in points wherever the user stopped weighing for a week or more,
  * and return the most recent run.
  *
@@ -312,49 +394,31 @@ function lastTrendSegment<T extends { x: number }>(points: T[]): T[] {
  * real change. Someone who truly drops 4 lb in a week still reads as dropping
  * 4 lb in a week.
  */
-function weightTrendLbsPerDay(daily: DailyLog[]): { slope: number; dropped: number } | null {
-  const weighed = daily.filter((l): l is DailyLog & { weight: number } => l.weight != null);
-  if (weighed.length < 2) return null;
-  const t0 = weighed[0].date.getTime();
-  const allPoints = weighed.map((l) => ({
-    x: (l.date.getTime() - t0) / 86_400_000,
-    y: l.weight,
-  }));
+/**
+ * The Theil–Sen → MAD-drop → OLS pipeline over one set of points.
+ *
+ * Extracted verbatim from `weightTrendLbsPerDay` so the segment fit and the
+ * whole-window fit can each be computed independently and then blended. The
+ * arithmetic is unchanged; only the clamp moved out, because clamping each
+ * input before averaging them is not the same as clamping the result, and it
+ * is the RESULT that has to be physically possible.
+ */
+interface Fit {
+  slope: number;
+  dropped: number;
+}
 
-  // Fit only what has happened since the last break in weighing — but only
-  // once that run can carry a fit on its own. The fallback is deliberately the
-  // old behaviour rather than `null`: returning null here would send
-  // `calculateTdee` to the hardcoded 2,450 seed, replacing a biased estimate
-  // built from the user's own data with one built from nobody's.
-  const segment = lastTrendSegment(allPoints);
-  // Points AND span. Four consecutive daily weigh-ins clear the count and span
-  // three days, which is an overnight reading, not a rate — see
-  // `MIN_SEGMENT_SPAN_DAYS` for the account that cost 1,700 kcal.
-  const segmentSpan =
-    segment.length >= 2 ? segment[segment.length - 1].x - segment[0].x : 0;
-  const trustSegment =
-    segment.length >= MIN_SEGMENT_POINTS && segmentSpan >= MIN_SEGMENT_SPAN_DAYS;
-  const points = trustSegment ? segment : allPoints;
+function robustSlopeOf(points: { x: number; y: number }[]): Fit | null {
+  const plain = (): Fit | null => {
+    const s = regressionSlope(points);
+    return s == null ? null : { slope: s, dropped: 0 };
+  };
 
-  /** Every return goes through here, so the clamp cannot be forgotten on one of
-   *  the four fallback paths below — which is exactly how a guard like this
-   *  normally rots. */
-  const finish = (slope: number | null, dropped: number) =>
-    slope == null
-      ? null
-      : {
-          slope: Math.max(-MAX_TREND_LBS_PER_DAY, Math.min(MAX_TREND_LBS_PER_DAY, slope)),
-          dropped,
-        };
-
-  if (points.length < OUTLIER_MIN_POINTS) {
-    return finish(regressionSlope(points), 0);
-  }
+  if (points.length < OUTLIER_MIN_POINTS) return plain();
 
   const robustSlope = theilSenSlope(points);
-  if (robustSlope == null) {
-    return finish(regressionSlope(points), 0);
-  }
+  if (robustSlope == null) return plain();
+
   // Intercept that puts the robust line through the middle of the data.
   const robustIntercept = median(points.map((p) => p.y - robustSlope * p.x));
 
@@ -367,11 +431,211 @@ function weightTrendLbsPerDay(daily: DailyLog[]): { slope: number; dropped: numb
 
   // Refuse to discard most of the data: if that many points are "outliers",
   // the trend is the anomaly, not the points.
-  if (kept.length < 2 || dropped > points.length / 3) {
-    return finish(regressionSlope(points), 0);
+  if (kept.length < 2 || dropped > points.length / 3) return plain();
+
+  const s = regressionSlope(kept);
+  return s == null ? null : { slope: s, dropped };
+}
+
+/**
+ * The most recent weigh-in may CONFIRM a trend. It may not create one.
+ *
+ * ## The measurement this exists for
+ *
+ * Measured 2026-08-19 on a live account. Its post-break segment was 9 weigh-ins
+ * over 8 days, comfortably past every trust threshold, and the segment was
+ * selected at every step — nothing switched. Removing only the most recent
+ * reading moved the fitted slope like this:
+ *
+ *   weigh-ins        OLS slope   implied deficit
+ *   9 (all)          −0.2100     735 kcal/day
+ *   8 (drop newest)  −0.0714     250 kcal/day
+ *
+ * One reading — 156.0 lb the morning after 158.0, a 2 lb overnight drop, which
+ * is water by every argument in this file — was worth **485 kcal/day of
+ * maintenance and 287 kcal of daily target**. It sits at the far end of the
+ * baseline, which is exactly where a least-squares fit gives a point the most
+ * leverage it will ever have.
+ *
+ * Theil–Sen on the same segment cuts that to 234 kcal, measured. Better, and
+ * still far too much to hand a user as their day's food.
+ *
+ * ## The rule
+ *
+ * Fit twice — with the newest point and without it — and report whichever
+ * implies the SMALLER rate of change.
+ *
+ * It is deliberately asymmetric. A new reading is adopted immediately when it
+ * flattens the trend, and has to wait for corroboration when it steepens one.
+ * That asymmetry is this file's existing bias, made explicit: an inflated
+ * maintenance raises the target, and `POST_BREAK_SETTLE_DAYS` already records
+ * that "the +969 version is the dangerous one — it raises the target".
+ *
+ * It does not blunt real change, which is the property `weightTrendLbsPerDay`
+ * promises. A genuine 4 lb week is present in the fit with or without its last
+ * morning, so both fits agree and the rule is inert. Only a rate that exists
+ * *because* of the newest point is held back, and only until the next weigh-in
+ * seconds it — at which point it is no longer the newest point.
+ *
+ * Below three points there is nothing to corroborate against, so the fit
+ * stands as-is.
+ */
+function corroboratedSlope(points: { x: number; y: number }[]): Fit | null {
+  const full = robustSlopeOf(points);
+  if (full == null || points.length < 3) return full;
+
+  const withoutNewest = robustSlopeOf(points.slice(0, -1));
+  if (withoutNewest == null) return full;
+
+  return Math.abs(withoutNewest.slope) < Math.abs(full.slope)
+    ? { slope: withoutNewest.slope, dropped: full.dropped }
+    : full;
+}
+
+/**
+ * How much the post-break segment is trusted, 0..1.
+ *
+ * The ramp climbs UP TO the existing thresholds and is 1 at and above them.
+ * That direction is the whole design, and getting it backwards was a real
+ * mistake made while writing this: a ramp that starts climbing AT
+ * {@link MIN_SEGMENT_SPAN_DAYS} gives zero weight to a segment spanning exactly
+ * that, and the step and rebound scenarios in `tdee.test.ts` span exactly that
+ * — {@link POST_BREAK_SETTLE_DAYS} eats the first seven of their fourteen days.
+ * It silently reverted both to the whole-window fit they exist to replace
+ * (2,500 → 2,073 and 2,409), which is the precise regression their tests pin.
+ *
+ * Ramping up to the thresholds instead means:
+ *   - at or above them, `w = 1` — byte-identical to the old `if` branch, so
+ *     every scenario the thresholds were tuned against is untouched;
+ *   - below them, partial credit instead of a hard zero, which is what removes
+ *     the cliff. The 2026-08-14 incident in `MIN_SEGMENT_SPAN_DAYS` went from
+ *     `w = 0` to `w = 1` on one logged meal; it now moves 0.33 → 0.5.
+ *
+ * `min` of the two ramps, not an average: span and count must both be earned.
+ * Four weigh-ins spread over a month is as weak a line as twelve crammed into
+ * three days, and averaging would let a high count buy a short span — which is
+ * the exact substitution `MIN_SEGMENT_SPAN_DAYS` was added to forbid.
+ */
+function segmentTrust(pointCount: number, spanDays: number): number {
+  const bySpan = clamp01(
+    (spanDays - SEGMENT_MIN_SPAN_FOR_ANY_TRUST) /
+      (MIN_SEGMENT_SPAN_DAYS - SEGMENT_MIN_SPAN_FOR_ANY_TRUST),
+  );
+  const byCount = clamp01(
+    (pointCount - SEGMENT_MIN_POINTS_FOR_ANY_TRUST) /
+      (MIN_SEGMENT_POINTS - SEGMENT_MIN_POINTS_FOR_ANY_TRUST),
+  );
+  return Math.min(bySpan, byCount);
+}
+
+function weightTrendLbsPerDay(daily: DailyLog[]): { slope: number; dropped: number } | null {
+  const weighed = daily.filter((l): l is DailyLog & { weight: number } => l.weight != null);
+  if (weighed.length < 2) return null;
+  const t0 = weighed[0].date.getTime();
+  const allPoints = weighed.map((l) => ({
+    x: (l.date.getTime() - t0) / 86_400_000,
+    y: l.weight,
+  }));
+
+  /** Every return goes through here, so the clamp cannot be forgotten on one of
+   *  the fallback paths below — which is exactly how a guard like this normally
+   *  rots. It is applied to the BLENDED slope, so no combination of fits can
+   *  produce a rate that is not physically possible. */
+  const finish = (slope: number | null, dropped: number) =>
+    slope == null
+      ? null
+      : {
+          slope: Math.max(-MAX_TREND_LBS_PER_DAY, Math.min(MAX_TREND_LBS_PER_DAY, slope)),
+          dropped,
+        };
+
+  /*
+   * Weigh what has happened since the last break in weighing — but WEIGH it,
+   * rather than switching to it.
+   *
+   * ## What the old code did, and the two separate defects in it
+   *
+   * `MIN_SEGMENT_POINTS` and `MIN_SEGMENT_SPAN_DAYS` selected between two
+   * fits: below them the whole window, at or above them the segment alone.
+   *
+   * **Defect one is the switch itself.** Two estimates that disagree by more
+   * than the quantity being estimated, chosen between by a threshold, give an
+   * answer that depends on which side of the threshold the data landed.
+   * `MIN_SEGMENT_SPAN_DAYS`' comment records exactly that: one logged meal
+   * pulled in a fourth weigh-in and maintenance moved 1,700 kcal. Raising the
+   * thresholds relocates that cliff; it does not lower it.
+   *
+   * **Defect two is endpoint leverage INSIDE the segment, and it is the one
+   * that was actually costing a real user 287 kcal.** Measured 2026-08-19 on a
+   * live account, at each count of most-recent weigh-ins removed:
+   *
+   *   dropped  segment      segment slope   window slope   old rule
+   *   0        9pts / 8d    −0.2100         −0.0129        trusted segment
+   *   1        8pts / 7d    −0.0714         −0.0050        trusted segment
+   *   2        7pts / 6d    −0.0500         −0.0018        trusted segment
+   *
+   * The segment was selected in all three. Nothing switched. The segment's own
+   * slope moved 3× because one 2 lb overnight reading left the end of an 8-day
+   * line — water, by every argument in this file — and that alone moved
+   * maintenance 484 kcal and the target 287.
+   *
+   * A span/count ramp cannot fix that. It would have to discard the segment to
+   * damp it, and discarding the segment is precisely what the step and rebound
+   * scenarios above exist to prevent.
+   *
+   * ## Inverse-variance weighting fixes both, and removes every threshold
+   *
+   * Each fit is weighted by the precision of its own slope, `Sxx / σ²`:
+   *
+   *   w = precision(segment) / (precision(segment) + precision(window))
+   *
+   * A settled post-break run is a tight line and keeps its weight, so the step
+   * and rebound scenarios still land on the truth. A run whose slope exists
+   * only because of one endpoint has a large residual, loses weight, and the
+   * longer baseline takes over. Nobody has to name a span or a point count:
+   * both are already inside `Sxx`, which grows with baseline length AND with
+   * having points spread along it.
+   *
+   * `MIN_SEGMENT_POINTS` and `MIN_SEGMENT_SPAN_DAYS` are consequently no longer
+   * consulted here. They are kept as documentation of the incidents that
+   * produced them — the numbers are gone, the evidence is not.
+   *
+   * **Honest caveat:** the segment is a subset of the window, so the two
+   * estimates are not independent and this is not textbook inverse-variance
+   * pooling. It is a "trust the tighter line" heuristic that happens to have
+   * the right limiting behaviour in both directions. The clamp below remains
+   * the hard guarantee; this only decides how much of each fit to believe.
+   */
+  const segment = lastTrendSegment(allPoints);
+
+  // No break, or nothing removed by the settle window: the two fits would be
+  // the same computation on the same points. Take the fast path so an
+  // unbroken history is byte-identical to what it has always been, and so
+  // floating-point blending cannot perturb it by a fraction of a kcal.
+  if (segment.length === allPoints.length) {
+    const only = corroboratedSlope(allPoints);
+    return finish(only?.slope ?? null, only?.dropped ?? 0);
   }
 
-  return finish(regressionSlope(kept), dropped);
+  const windowFit = corroboratedSlope(allPoints);
+  const segmentFit = segment.length >= 2 ? corroboratedSlope(segment) : null;
+
+  // Either fit missing ⇒ the other one is the whole answer. Falling back to the
+  // window rather than to `null` is deliberate and predates the blend:
+  // returning null sends `calculateTdee` to the hardcoded 2,450 seed, replacing
+  // a biased estimate built from the user's own data with one built from
+  // nobody's.
+  if (segmentFit == null) return finish(windowFit?.slope ?? null, windowFit?.dropped ?? 0);
+  if (windowFit == null) return finish(segmentFit.slope, segmentFit.dropped);
+
+  // Points AND span. Four consecutive daily weigh-ins clear the count and span
+  // three days, which is an overnight reading, not a rate — see
+  // `MIN_SEGMENT_SPAN_DAYS` for the account that cost 1,700 kcal.
+  const segmentSpan = segment[segment.length - 1].x - segment[0].x;
+  const trustSegment =
+    segment.length >= MIN_SEGMENT_POINTS && segmentSpan >= MIN_SEGMENT_SPAN_DAYS;
+  const chosen = trustSegment ? segmentFit : windowFit;
+  return finish(chosen.slope, chosen.dropped);
 }
 
 function calendarSpanDays(daily: DailyLog[]): number {
@@ -433,17 +697,44 @@ export function calculateTdee(logs: DailyLog[], profile?: ProfileFields | null):
     const avgDailyIntake = trimmedMean(intakeCals);
 
     const dailyDeficitAchieved = -slope * KCAL_PER_POUND;
-    const trueTdee = Math.round(avgDailyIntake + dailyDeficitAchieved);
-
-    const pace = profile?.targetPaceLbsPerWeek ?? DEFAULT_PACE_LBS_PER_WEEK;
-    const targetDeficit = (pace * KCAL_PER_POUND) / 7;
-    const floor = calorieFloor(profile);
-    const newDailyTarget = Math.max(floor, Math.round(trueTdee - targetDeficit));
+    const measuredTdee = Math.round(avgDailyIntake + dailyDeficitAchieved);
 
     const spanDays = calendarSpanDays(window);
     const loggingCompletenessPct = Math.min(100, Math.round((window.length / spanDays) * 100));
     const reliable =
       loggingCompletenessPct >= RELIABLE_MIN_PCT && intakeCals.length >= RELIABLE_MIN_INTAKE_DAYS;
+
+    // ── Confidence damping. See `measuredConfidence`. ──
+    // `reliable` used to be computed here and then never consulted, so a
+    // 57%-complete window shipped its estimate at full strength. Now a thin
+    // estimate is pulled toward the formula anchor — the same number this
+    // function returns below when there are too few days to measure at all.
+    //
+    // The anchor needs a profile. Without one there is nothing to anchor TO,
+    // so the measured value stands: a biased estimate from the user's own data
+    // still beats the 2,450 seed built from nobody's.
+    const confidence = measuredConfidence(loggingCompletenessPct, intakeCals.length);
+    let anchorWeight: number | null = null;
+    for (let i = window.length - 1; i >= 0; i--) {
+      if (window[i].weight != null) { anchorWeight = window[i].weight!; break; }
+    }
+    // `ProfileFields` types height/age/sex/activity as required, but real
+    // callers pass partials — mid-onboarding Firestore docs, and this repo's
+    // own tests (`{ calorieFloor, targetPaceLbsPerWeek } as never`). Mifflin on
+    // a partial yields NaN, and NaN would propagate silently through the blend
+    // into the target. Validate the anchor rather than trusting the type.
+    const rawAnchor =
+      profile && anchorWeight != null ? mifflinStJeor(profile, anchorWeight) : Number.NaN;
+    const anchor = Number.isFinite(rawAnchor) && rawAnchor > 0 ? Math.round(rawAnchor) : null;
+    const trueTdee =
+      anchor != null && confidence < 1
+        ? Math.round(confidence * measuredTdee + (1 - confidence) * anchor)
+        : measuredTdee;
+
+    const pace = profile?.targetPaceLbsPerWeek ?? DEFAULT_PACE_LBS_PER_WEEK;
+    const targetDeficit = (pace * KCAL_PER_POUND) / 7;
+    const floor = calorieFloor(profile);
+    const newDailyTarget = Math.max(floor, Math.round(trueTdee - targetDeficit));
 
     return {
       trueTdee,
@@ -455,6 +746,11 @@ export function calculateTdee(logs: DailyLog[], profile?: ProfileFields | null):
       spanDays,
       reliable,
       outliersDropped,
+      measuredTdee,
+      confidence: round(confidence, 4),
+      avgDailyIntake: Math.round(avgDailyIntake),
+      weightSlopeLbsPerDay: round(slope, 5),
+      dailyDeficitAchieved: Math.round(dailyDeficitAchieved),
     };
   }
 

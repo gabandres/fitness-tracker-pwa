@@ -116,6 +116,33 @@ export function proteinFloor(profile?: { proteinFloor?: number } | null): number
   return f != null && f > 0 ? f : 0;
 }
 
+/**
+ * **The only supported way to read a daily calorie target.**
+ *
+ * `TdeeResult.newDailyTarget` is a raw branch output, not the answer. Two of
+ * the three branches in `tdee.ts` apply the floor themselves and one — the seed
+ * fallback — does not: `SEED_RESULT.newDailyTarget` is a hardcoded 1800, which
+ * is below a user floor of 1850 and below any floor above 1800.
+ *
+ * That gap was live. `coach-prompt.ts`, `weekly-report-prompt.ts` and
+ * `tdee-recalibration.ts` each read `tdee.newDailyTarget` directly, so all
+ * three could state a target under the user's own floor — and two of them feed
+ * an LLM, which then advises against it in prose.
+ *
+ * Routing every read through here means the floor is applied exactly once, in
+ * one place, on every path. `Math.max` is idempotent, so a value `tdee.ts`
+ * already lifted comes back byte-identical.
+ *
+ * `tdee-consumers.test.ts` fails the build if any file outside `tdee.ts` and
+ * this one reads `.newDailyTarget`, including files that do not exist yet.
+ */
+export function finalCalorieTarget(
+  tdee: TdeeResult,
+  profile?: { calorieFloor?: number } | null,
+): number {
+  return Math.max(calorieFloor(profile), tdee.newDailyTarget);
+}
+
 export function dailyTargets(
   profile: Profile | null,
   logs: DailyLog[],
@@ -173,6 +200,11 @@ export function dailyTargets(
   // line is inert for every profile that has not set one.
   return {
     calorieTarget: Math.max(calorieFloor(profile), calorieTarget),
+    // NB: not `finalCalorieTarget` — `calorieTarget` here may have come from
+    // `manualCaloriesTarget` rather than from `tdee`, so the clamp is applied
+    // to the chosen value, not to `tdee.newDailyTarget`. Same floor, same
+    // expression; `finalCalorieTarget` is the entry point for callers that
+    // hold only a `TdeeResult`.
     proteinTarget: Math.max(proteinFloor(profile), proteinTarget),
     proteinMinTarget,
     currentWeight: w,
