@@ -98,8 +98,16 @@ appId: fit.ignia.app
 # ── 4. Expanded: the set table and its headers ────────────────────
 - tapOn:
     id: 'template-ex-toggle-0'
-- extendedWaitUntil:
-    visible:
+# `scrollUntilVisible`, not `extendedWaitUntil` — collapsing the card in step 3
+# scrolls the sheet back up, so on re-expand the FIRST set row lands below the
+# fold on a 360x720dp screen and never comes back on its own. extendedWaitUntil
+# does not scroll, so it burned its full 15s against a row that was present,
+# correct and one swipe away, and reported it as a missing element. Measured on
+# the LG G6 (API 28) 2026-08-20: a manual swipe showed all three rows, both
+# inputs, +Add set/+Add cluster and Save rendered at full height. Same trap, and
+# same fix, as `template-set-kind-0-0` twenty lines below.
+- scrollUntilVisible:
+    element:
       id: 'template-set-weight-0-0'
     timeout: 15000
 # The column headers are the whole point of the table — they are what makes a
