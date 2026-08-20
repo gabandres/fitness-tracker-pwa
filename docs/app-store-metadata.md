@@ -187,6 +187,14 @@ is locked, and nothing is upsold.
 Ignia is not a medical device and does not provide medical advice.
 ```
 
+> **APPLIED 2026-08-19 to the 1.2.1 submission** (`WAITING_FOR_REVIEW`), along
+> with one further correction this block does not show: the search bullet read
+> `• Search USDA FoodData Central and Open Food Facts` in BOTH locales and now
+> reads `• Search a built-in USDA food database` (es-MX: `• Busca en una base de
+> datos USDA integrada`). Text search stopped calling Open Food Facts on
+> 2026-08-19 — server-side, so the old line was already false for every live
+> user, not just for 1.2.1. OFF still serves barcode. Original note follows.
+>
 > **The tip sentence was removed 2026-08-19 and the LIVE en-US listing still
 > has it.** Read from ASC that day: en-US description contains "There's an
 > optional tip if you want to support it", while all three `fit.ignia.tip.*`
@@ -345,6 +353,12 @@ for 1.0 users, so it is not app release news.
 | Export compliance | declared on the build: `usesNonExemptEncryption=false` | set per-build, not per-version — a new build re-asks |
 | Demo account | `review@ignia.fit`, required | ASC carries it forward; never point Review at `demo@ignia.fit`. Re-confirmed verified, enabled and seeded before submitting 1.2.0 |
 | Release type | **`MANUAL`** | changed for 1.2.0. 1.1.0 used `AFTER_APPROVAL`, which publishes the instant Review passes; manual keeps the public moment a human decision, which matters when a promotion is being timed around it |
+
+✅ **RESOLVED 2026-08-19.** `usesIdfa` was PATCHed to `false` on the 1.2.1
+version before submitting and ASC accepted it (`PATCH /v1/appStoreVersions/<id>`
+with `attributes.usesIdfa`). The separate `/idfaDeclaration` sub-resource is
+**gone** — it 404s — so the field lives on the version itself now. The
+historical note follows.
 
 ⚠️ **The `usesIdfa` claim in this file was wrong.** It said a `null` value stops
 the submission flow to ask. 1.2.0 was submitted on 2026-08-15 with `usesIdfa`
