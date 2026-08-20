@@ -50,4 +50,45 @@ export const FEATURES = {
    * protocol can't be honoured. Set EXPO_PUBLIC_FEATURE_ACTIVITY_TDEE=0.
    */
   activityTdee: process.env.EXPO_PUBLIC_FEATURE_ACTIVITY_TDEE !== '0',
+  /**
+   * The activity-correction card in **measured** mode, plus the evidence line
+   * that shows the window behind a suggestion. **OFF, and it must stay off
+   * until the activity multiplier is continuous.**
+   *
+   * ## Why a second flag rather than widening `activityTdee`
+   *
+   * `activityTdee` gates a feature that is shipped and correct for its cohort.
+   * The Trends card is deliberately `enabled: tdee.source !== 'measured'`,
+   * because until 2026-08-19 the activity bucket did not enter measured mode at
+   * all — energy balance already contains every training calorie, so folding
+   * activity in would double-count it (`docs/activity-informed-tdee-spec.md`).
+   *
+   * **That stopped being true the same day.** `measuredConfidence` blends a
+   * thin measured estimate toward the Mifflin × activity anchor, so the bucket
+   * now moves the number for measured-mode users — and they are exactly the
+   * users the card is hidden from. This flag is the fix, and it is dark on
+   * purpose.
+   *
+   * ## Why it is dark
+   *
+   * Measured on the owner's account 2026-08-19, from 28 of 28 usable days of
+   * real Health data: mean activeKcal 246/day over a bare Mifflin basal of
+   * 1,632 gives an implied multiplier of 1.278, which the five-bucket ladder
+   * snaps to SEDENTARY (anchor 1,958). The account's own 97-day energy balance
+   * says 2,385. So the suggestion this card would show is **17.9% low — worse
+   * than the `moderate` already stored**, which is 6.0% high.
+   *
+   * Two causes, both real: the ladder cannot express 1.278 (its rungs are
+   * 0.175 apart, ±285 kcal on this account), and Apple's `activeKcal`
+   * understates NEAT, so the implied multiplier is biased low before it is
+   * even snapped. A visible recommendation that degrades the estimate is worse
+   * than no recommendation.
+   *
+   * **Unflag only when the continuous multiplier lands and the anchor sits
+   * BELOW the measured value for this account** — that is the acceptance test,
+   * because it is what makes `d(damped)/dc` positive, i.e. better logging
+   * finally raising the estimate instead of lowering it. Hardcoded, so
+   * flipping it is an OTA and not a build (see `photoScan` above).
+   */
+  activityTdeeInMeasured: false,
 } as const;

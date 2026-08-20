@@ -8,6 +8,7 @@ import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { WeeklyReportCard } from '@/components/WeeklyReportCard';
 import { useTrends } from '@/hooks/useTrends';
 import { useActivitySuggestion } from '@/lib/activity-suggestion';
+import { FEATURES } from '@/lib/features';
 import { useAuth } from '@/lib/auth';
 import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
 import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
@@ -58,14 +59,30 @@ export default function Trends() {
   const { user } = useAuth();
   const mode = TDEE_MODE[tdee.source];
 
-  // Activity-level correction. Pre-measured only: in measured mode energy
-  // balance already contains every training calorie, so folding activity in
-  // would double-count it.
-  const { suggestion, guidance, decline } = useActivitySuggestion({
+  // Activity-level correction.
+  //
+  // Historically pre-measured ONLY: in measured mode energy balance already
+  // contains every training calorie, so folding activity in would double-count
+  // it (`docs/activity-informed-tdee-spec.md`).
+  //
+  // **That reasoning expired on 2026-08-19.** `measuredConfidence` now blends a
+  // thin measured estimate toward the Mifflin x activity anchor, so the bucket
+  // moves the number for measured-mode users too — and this card, the only
+  // surface that corrects the bucket, is hidden from exactly them. It is not a
+  // double-count: the anchor SUBSTITUTES for measurement in proportion to how
+  // little of it there is, rather than being added to it.
+  //
+  // Opening it is gated on `activityTdeeInMeasured`, which is OFF, because on
+  // the account this was measured against the suggestion is currently WORSE
+  // than the stored bucket (-17.9% vs +6.0%). Read that flag's comment before
+  // flipping it.
+  const { suggestion, guidance, decline, evidence } = useActivitySuggestion({
     uid: user?.uid,
     basalKcal,
     currentBucket: activityLevel,
-    enabled: tdee.source !== 'measured' && activityLevel != null,
+    enabled:
+      activityLevel != null &&
+      (tdee.source !== 'measured' || FEATURES.activityTdeeInMeasured),
   });
 
   return (
@@ -125,6 +142,21 @@ export default function Trends() {
                 <Text style={styles.correctionBody}>
                   {t('trends.activityCorrectionBody', { level: t(ACTIVITY_LABEL[suggestion]) })}
                 </Text>
+                {/* The window behind the suggestion, so it can be argued with
+                    rather than only obeyed — a card that names a bucket and no
+                    evidence gives the user no way to spot a fortnight of watch
+                    downtime. Behind the same dark flag as measured-mode
+                    exposure: it is new copy on a shipped surface. */}
+                {FEATURES.activityTdeeInMeasured && evidence ? (
+                  <Text style={styles.correctionEvidence} testID="activity-correction-evidence">
+                    {t('trends.activityCorrectionEvidence', {
+                      kcal: String(evidence.meanActiveKcal),
+                      steps: evidence.meanSteps.toLocaleString(),
+                      days: String(evidence.usableDays),
+                      window: String(evidence.windowDays),
+                    })}
+                  </Text>
+                ) : null}
                 <View style={styles.correctionActions}>
                   <PressScale
                     style={styles.correctionPrimary}
@@ -477,6 +509,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
     correctionCard: { flexDirection: 'row', gap: space.md, marginTop: space.md, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: space.lg },
     correctionTitle: { fontSize: font.body, fontWeight: '700', color: colors.ink },
     correctionBody: { fontSize: font.small, color: colors.muted },
+    correctionEvidence: { fontSize: font.tiny, color: colors.muted, marginTop: space.xs, opacity: 0.85 },
     correctionActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.md },
     correctionPrimary: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.sm, paddingHorizontal: space.lg },
     correctionPrimaryText: { color: colors.onInk, fontSize: font.small, fontWeight: '700' },

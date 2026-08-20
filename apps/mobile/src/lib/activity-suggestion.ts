@@ -9,6 +9,7 @@ import {
   addDays,
   localDateKey,
   parseYmd,
+  reduceActivityWindow,
   suggestActivityLevel,
 } from '@macrolog/core';
 import { FEATURES } from './features';
@@ -92,6 +93,29 @@ export interface ActivitySuggestion {
   connect: () => Promise<boolean>;
   /** True while that permission prompt + first import is in flight. */
   connecting: boolean;
+  /**
+   * The window the suggestion was computed from — mean daily active energy,
+   * mean daily steps, and how many days actually carried a reading.
+   *
+   * Shown so a recommendation can be argued with rather than only obeyed. A
+   * card that says "switch to sedentary" and nothing else gives the user no
+   * way to notice that their watch was off for a fortnight, or that 246
+   * kcal/day is not what their training week felt like. Null until the first
+   * read lands, and `usableDays` can be 0 — that is a real state (no device),
+   * not a loading one.
+   */
+  evidence: ActivityEvidence | null;
+}
+
+export interface ActivityEvidence {
+  /** Mean activeKcal across the days that carried one. */
+  meanActiveKcal: number;
+  /** Mean steps across the days that carried a reading. Display-only: steps
+   *  select no branch in the decision (`classifyActivityWindow`). */
+  meanSteps: number;
+  /** Days with activeKcal > 0, and the window length they came from. */
+  usableDays: number;
+  windowDays: number;
 }
 
 /**
@@ -207,5 +231,17 @@ export function useActivitySuggestion(params: {
     }
   }, [uid, load]);
 
-  return { suggestion, guidance, decline, accept, connect, connecting };
+  const evidence = useMemo<ActivityEvidence | null>(() => {
+    if (window == null) return null;
+    const { mean, usableDays } = reduceActivityWindow(window.activeKcals);
+    const steps = window.steps.filter((s) => s > 0);
+    return {
+      meanActiveKcal: Math.round(mean),
+      meanSteps: steps.length ? Math.round(steps.reduce((a, v) => a + v, 0) / steps.length) : 0,
+      usableDays,
+      windowDays: ACTIVITY_WINDOW_DAYS,
+    };
+  }, [window]);
+
+  return { suggestion, guidance, decline, accept, connect, connecting, evidence };
 }

@@ -379,6 +379,7 @@ export const esPR: Record<I18nKey, string> = {
   'trends.activityCorrectionBody': 'Las últimas 4 semanas se parecen más a “{level}”. Actualizarlo afina tu estimación de mantenimiento.',
   'trends.activityCorrectionCta': 'Revisar',
   'trends.activityCorrectionDismiss': 'Ahora no',
+  'trends.activityCorrectionEvidence': 'Basado en {kcal} kcal de energía activa y {steps} pasos al día, en {days} de los últimos {window} días.',
   'trends.thisWeek': 'Esta semana',
   'trends.avgIntake': 'Consumo prom.',
   'trends.avgDeficit': 'Déficit prom.',

@@ -381,6 +381,7 @@ export const en = {
   'trends.activityCorrectionBody': 'The last 4 weeks look closer to “{level}”. Updating sharpens your maintenance estimate.',
   'trends.activityCorrectionCta': 'Review',
   'trends.activityCorrectionDismiss': 'Not now',
+  'trends.activityCorrectionEvidence': 'From {kcal} kcal active energy and {steps} steps a day, across {days} of the last {window} days.',
   'trends.thisWeek': 'This week',
   'trends.avgIntake': 'Avg intake',
   'trends.avgDeficit': 'Avg deficit',
