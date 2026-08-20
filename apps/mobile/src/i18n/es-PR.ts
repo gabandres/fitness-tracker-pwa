@@ -150,7 +150,7 @@ export const esPR: Record<I18nKey, string> = {
   'today.entry': 'Registro',
   'whatsNew.title': 'Novedades',
   'whatsNew.body':
-    'Tu meta diaria ahora se mantiene más estable. Se calcula con tu tendencia de peso, y un solo pesaje en la mañana podía moverla cientos de calorías — el peso de agua se ve igualito que pérdida de grasa para una línea de tendencia. Ahora una lectura nueva tiene que confirmarse con la siguiente antes de poder inclinar tu tendencia, aunque sigue contando de una vez cuando la aplana. Y cuando tu registro tiene huecos, el estimado se mantiene más cerca de tu gasto por fórmula en vez de perseguir un registro incompleto. Si registras casi todos los días, nada de esto cambia tus números.',
+    'Tu mantenimiento ahora aguanta los huecos en tu registro. Si dejaste de registrar por un tiempo — un viaje, una enfermedad, una semana ocupada — los días justo después del hueco podían fijar todo tu número solos, y unas libras de agua bajando se ven igualito que pérdida de grasa. Ahora cada tramo seguido de registro se mide por separado, contra lo que comiste en ese mismo tramo, y los tramos más estables pesan más. Un puñado de días ruidosos ya no puede más que semanas registrando consistente. Si registraste de corrido, tus números casi no se mueven.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',

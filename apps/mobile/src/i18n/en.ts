@@ -147,7 +147,7 @@ export const en = {
   'today.entry': 'Entry',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    'Your daily target holds steadier now. It is worked out from your weight trend, and a single morning weigh-in could swing it by hundreds of calories — water weight reads exactly like fat loss to a trend line. A new reading now has to be backed up by the next one before it can steepen your trend, though it still counts right away when it flattens one. And when your log has gaps, the estimate is held closer to your formula burn instead of chasing a patchy record. If you log most days, none of this changes your numbers at all.',
+    'Maintenance now holds up across gaps in your log. If you stopped logging for a while — travel, illness, a busy stretch — the days just after the break could set your whole number on their own, and a few pounds of water coming back off reads exactly like fat loss. Now every unbroken stretch of logging is measured separately, against what you ate during that same stretch, and the steadier stretches count for more. A handful of noisy days can no longer outweigh weeks of consistent logging. If you have logged straight through, your numbers barely move.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',
