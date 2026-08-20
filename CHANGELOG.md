@@ -6,6 +6,39 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-20 — the activity multiplier stops being a five-rung ladder
+
+The formula estimate rested on one of five hardcoded numbers, 0.175 apart —
+±285 kcal/day on a typical basal, which is larger than the error they were
+being used to correct. A real account's own device data implied 1.279, a value
+the ladder cannot represent at all; it snapped to 1.2 and landed 17.9% below
+that account's measured burn, worse than the setting it would have replaced.
+
+`activityMultiplier` is continuous now, stored on the profile, and floored at
+**PAL 1.40 — the FAO/WHO/UNU 2001 minimum for a free-living adult.** That floor
+is the correction for what a wrist wearable cannot see: it measures *detected*
+movement and misses most non-exercise activity thermogenesis, which runs to
+several hundred kcal a day even for desk work. The evidence is that the raw
+signal fell below the floor — 1.279 for someone walking 5,200 steps a day and
+lifting three times a week is not a fact about the person.
+
+The number is published rather than tuned. Fitting a constant until one
+account's figures came out right is what produced the problem being fixed.
+
+Anchor 2,530 → 2,285 against a 2,385 benchmark, and the gap between estimate
+and anchor closes from 263 kcal to 18. That last number is the point: the two
+now agree, so whether better logging nudges the estimate up or down stops
+being a question anyone has to care about.
+
+The bucket survives as the user's stated answer and as the word shown in copy;
+the multiplier is what the arithmetic uses. They are allowed to disagree.
+
+Shipped inert — no account carries the field yet, and the correction card that
+would write it is still dark, held back because it names a bucket while doing
+something the buckets cannot express.
+
+---
+
 ## 2026-08-19 — the daily target stops swinging on a single weigh-in
 
 One morning reading was worth 287 kcal of daily target. A 156.0 lb weigh-in the
