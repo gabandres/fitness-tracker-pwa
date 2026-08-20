@@ -253,15 +253,57 @@ backslashes in the path are eaten by a shell layer, producing the tell-tale
 
 Working invocation — unset the variable and use an explicit `.\`:
 
+**Do not put the path in the command string at all — pass it as `cwd`.** The
+recipe printed here used to be `cd /d Z:\macro-app\… && .\gradlew.bat`, and the
+backslashes in it had *already been eaten* by the editor that wrote them, so the
+doc handed out the broken form and it failed again on 2026-08-19. Every layer
+between an agent and `cmd.exe` — a Bash-tool heredoc, a JS string literal, a
+shell — takes one bite out of a backslash, and `\m`/`\a` are not valid JS escapes
+so they silently collapse to `m`/`a`. The tell-tale is
+`Z:macro-appappsmobileandroid`, and the visible symptom is cmd.exe's
+`The system cannot find the path specified.` — which reads like a missing
+directory, not a quoting bug.
+
+Node normalises `cwd`, so forward slashes are safe there and `cmd.exe` never
+sees the path:
+
 ```js
 const env = { ...process.env };
 delete env.NoDefaultCurrentDirectoryInExePath;
-spawnSync('cmd.exe', ['/d','/c','cd /d Z:\macro-app\apps\mobile\android && .\gradlew.bat bundleRelease'],
-          { cwd, stdio: 'inherit', env });
+spawnSync('cmd.exe', ['/d', '/c', '.\\gradlew.bat bundleRelease'],
+          { cwd: 'Z:/macro-app/apps/mobile/android', stdio: 'inherit', env });
 ```
+
+**Write that runner with a file-writing tool, never a heredoc.** Confirm it
+survived the trip before spending the wall-clock: `grep gradlew <runner>` must
+show a single backslash in `.\\gradlew.bat`'s source, and the failure costs 0
+minutes, so it is cheap to discover — the expensive version is believing the
+build started.
 
 **Always `ls` the `.aab` afterwards.** A 16-minute build and a 3-second failure
 look identical in a task notification.
+
+### `expo prebuild --clean` fails `EBUSY` because the *shell* is standing in it
+
+```
+✖ Failed to delete android code: EBUSY: resource busy or locked, rmdir 'Z:\macro-app\apps\mobile\android'
+```
+
+Nothing is holding the directory — no daemon, no editor. The Bash tool's working
+directory **persists between calls**, and `./gradlew --stop` is documented one
+line above as `cd apps/mobile/android && ./gradlew --stop`. That leaves the
+session parked inside the directory prebuild is about to delete, and Windows
+will not remove a directory that is any process's cwd.
+
+`cd` somewhere else first. If it is already wedged, PowerShell clears it:
+
+```sh
+# from a session whose cwd is NOT inside android/
+Remove-Item -Recurse -Force Z:\macro-app\apps\mobile\android
+```
+
+This one does *not* exit 0 — it fails honestly — but it reads as a locked file
+and sends you hunting for a daemon that is not there.
 
 ### `firebase deploy --only functions` dies on a 10s discovery timeout
 

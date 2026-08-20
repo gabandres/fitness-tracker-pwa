@@ -6,6 +6,40 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-19 — Android vc 37 reopens the iOS OTA channel against build 60
+
+A build-speed tweak cost an over-the-air fix path on the *other* platform, and
+this is the binary that buys it back.
+
+The ABI cut earlier the same day put `reactNativeArchitectures` in
+`plugins/withGradleJvmArgs.js`. A config plugin's **file contents** are a hashed
+fingerprint source, so an Android-only change moved the **iOS** runtime from
+`7b347b0f…` to `6670f678…` — off iOS build 60, which was sitting in App Store
+review. 1.2.1 was heading for public release with no way to ship a JS hotfix to
+it: any bug found after launch would have needed a whole new binary through
+review.
+
+The fix cost one Android build and nothing on the App Store side. The plugin is
+restored byte-for-byte and the ABI set moved to the **gitignored**
+`android/gradle.properties`, written by `patch-android-release.mjs` — the same
+place the release signing config and the EAS Update channel already live,
+because that file is not fingerprinted. Measured on the machine that builds each
+platform: iOS returns to `7b347b0f…` (= build 60) and Android to `ae526937…`.
+The ABI cut itself survives — vc 37's bundle carries exactly `arm64-v8a` and
+`armeabi-v7a` at 66 MB, built in 8m 56s.
+
+Both OTA channels are open. vc 36 becomes an orphan runtime, superseded on the
+same alpha track and drained by the update banner.
+
+Two traps recorded rather than re-learned: `eas submit` **failed and exited 0**
+(Play's edit expired mid-upload — the androidpublisher API is what caught it,
+a fourth distinct way that command lies), and the Gradle runner recipe in
+`build-android/REFERENCE.md` had its own backslashes already eaten, so it handed
+out a path that collapses to `Z:macro-appappsmobileandroid`. The recipe now
+passes the directory as `cwd` instead.
+
+---
+
 ## 2026-08-19 — iOS 1.2.0 is live on the App Store
 
 Approved and self-released (`AFTER_APPROVAL`) after four days in review;

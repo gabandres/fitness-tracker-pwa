@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-08-15 · **Owns:** current state only. Not history
+**Updated:** 2026-08-19 · **Owns:** current state only. Not history
 (`CHANGELOG.md`), not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`),
 not commands (`docs/COMMANDS.md`), not build tooling
 (`docs/build-infrastructure.md`).
@@ -31,14 +31,14 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 | **Public App Store (iOS)** | **1.2.0 / build 55**, approved and self-released (`AFTER_APPROVAL`) **2026-08-19** — confirmed via ASC API by `app-version-sync`. The 2026-08-08 feature gap is closed |
 | **App Review (iOS)** | **1.2.1 / build 60 is `WAITING_FOR_REVIEW`** (submitted 2026-08-19, release **MANUAL**). Carries the Train template rebuild, the iOS hero-ring fix, `FEATURES.tips=false` embedded and the faster food search. The en-US description finally drops the tip sentence, and BOTH locales drop the "Open Food Facts" claim from the search bullet — text search stopped calling OFF the same day. `usesIdfa` is now explicitly `false`, which closes the open question in `docs/app-store-metadata.md`. Note `POST /v1/reviewSubmissionItems` 500s transiently and leaves an EMPTY submission behind — check the item count before creating a second one |
 | **TestFlight** | **build 60 / 1.2.1** (SDK 57, runtime `7b347b0f…`), `VALID` 2026-08-19, internal group *Team (Expo)* — **not yet released to the external Public Beta Testers group**. Builds 57/58 remain, both stamped `1.2.0`. 1.2.1 exists because 55/57/58 all share the `1.2.0` version string and an App Store version only accepts builds whose string matches, so none could be promoted. **Rings fix is UNVERIFIED on device** — that confirmation gates the App Store submission. `eas submit` hung at `- Submitting` and exited 0; ingestion still took ~50 min, so poll ASC `/v1/builds`, never the CLI |
-| **Play alpha** | **vc 35** (1.2.1) — carries the template-editor scroll fix, the hero-ring rework and `FEATURES.tips=false` embedded. Live on the track, confirmed from the **androidpublisher API**; `eas submit` sat on `- Submitting` and never said so. It also **reopens the Android OTA channel** (`ae526937…`), shut since the 1.2.1 bump moved the tree off vc 34. **Behaviour UNVERIFIED** — re-run `18-train-template` first, since vc 35 fixes the bug it dies on |
+| **Play alpha** | **vc 37** (1.2.1), live on the track, confirmed from the **androidpublisher API** — runtime `ae526937…` read from the `.aab`, so the Android **OTA channel is OPEN**. It exists to undo the fingerprint cost of the ABI cut (see the OTA block below); behaviourally it is vc 36 plus nothing. **vc 36 is now an orphan runtime** — no OTA reaches it, and the update banner is what drains it. `eas submit` **failed and exited 0** on the first attempt (`This Edit has been deleted`, Play's edit expired mid-upload); the retry worked. **Behaviour UNVERIFIED** — re-run `18-train-template` first |
 | **Play production** | not launched — gated on Google's 14-day checklist (§3) |
 | **Web PWA `ignia.fit`** | Live, bilingual (EN + es-PR), 105 prerendered pages (en 52 / es 53), 114-URL sitemap. **Frozen for logging features** (ADR-0022); the shell keeps shipping |
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101` |
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB, 13,272 foods. **Text search makes NO network call at all as of 2026-08-19** — Open Food Facts was removed from it and now serves **barcode only**. OFF caps search at 10 req/min against 100/min for barcode GETs, and typeahead behind one shared egress IP could not live in that: two of three probes came back throttled after paying full latency. Servings also ship with each hit, so tapping a result makes no `getFoodDetail` call. Branded **text** results are the cost; `docs/research/off-branded-ingest.md` scopes getting them back |
 | **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU |
-| **`app-version.json`** | android `35`, ios `55` — synced and **deployed** 2026-08-19. **Both derived** by `scripts/app-version-sync.mjs`; `npm run doctor` fails on drift in either direction |
+| **`app-version.json`** | android `37`, ios `55` — synced and **deployed** 2026-08-19, read back from `https://ignia.fit/app-version.json`. **Both derived** by `scripts/app-version-sync.mjs`; `npm run doctor` fails on drift in either direction |
 
 **Two live facts that are easy to get wrong:**
 
@@ -155,21 +155,33 @@ Auth → custom SMTP is **not available on this project**: every write to
 also why `fetchSignInMethodsForEmail` returns `[]` unconditionally, so never
 write logic that branches on its result.
 
-**BOTH OTA channels moved on 2026-08-19, in opposite directions.** The ABI cut
-(`1ddb51fa`) edited `plugins/withGradleJvmArgs.js`, which is hashed:
+**BOTH OTA channels are OPEN as of 2026-08-19.** They were not, for a few hours:
+the ABI cut (`1ddb51fa`) put `reactNativeArchitectures` in
+`plugins/withGradleJvmArgs.js`, whose *file contents* are a hashed fingerprint
+source, so an **Android-only** build-speed tweak also moved the **iOS** runtime —
+off build 60, the binary in App Store review. 1.2.1 was heading for release with
+no over-the-air fix path.
+
+Fixed by `4ec7d2d7`: the plugin is restored byte-for-byte and the ABI set moved to
+step 1b of `patch-android-release.mjs`, which writes the **gitignored**
+`android/gradle.properties` — the same place the release signing config and the
+EAS Update channel already live, for the same reason. The rehome is
+fingerprint-neutral, and the ABI cut is preserved (vc 37's `.aab` carries exactly
+`arm64-v8a` + `armeabi-v7a`, 66 MB, built in 8m 56s).
 
 | Platform | Tree now | Live binary | Channel |
 |---|---|---|---|
-| Android | `11681bf5…` | **vc 36** ships `11681bf5…` | **OPEN** |
-| iOS | `6670f678…` | build 60 ships `7b347b0f…` | **SHUT** |
+| Android | `ae526937…` | **vc 37** ships `ae526937…` (read from the `.aab`) | **OPEN** |
+| iOS | `7b347b0f…` | build 60 ships `7b347b0f…` | **OPEN** |
 
-`withGradleJvmArgs.js` is an **Android-only** plugin, but the `plugins` array is
-hashed as part of `app.json`, so it moved the iOS hash too — the trap
-`apps/mobile/AGENTS.md` already documents, firing for the third time. **So a JS
-hotfix cannot reach iOS build 60 over the air**, and build 60 is the binary in
-App Store review. It needs build 61. Reverting is not an option: vc 36 ships the
-post-change hash, so undoing it would strand Android instead. Accept it; the
-next iOS binary reopens the channel.
+**`plugins/withGradleJvmArgs.js` is now FROZEN** — any byte, *including a
+comment*, moves both platforms and shuts both channels. Its docstring is
+knowingly stale and is left that way on purpose; correcting the prose would
+strand every shipped binary. Full box in `build-android/REFERENCE.md`.
+
+**vc 36 is an orphan runtime** — no OTA will ever reach it. That is accepted: vc
+37 supersedes it on the same alpha track, `app-version.json` = 37 is deployed, so
+the update banner drains it. Do not publish a second update to "cover" it.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
