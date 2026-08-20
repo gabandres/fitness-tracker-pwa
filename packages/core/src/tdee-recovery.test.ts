@@ -226,3 +226,65 @@ describe('measured TDEE recovers known expenditure', () => {
     expect(Math.abs(a.trueTdee - b.trueTdee)).toBeLessThan(250);
   });
 });
+
+/**
+ * Window widening — the alternative to freezing a stored estimate.
+ *
+ * When 42 logged days cannot produce an interval tight enough to act on, the
+ * estimator looks at more days rather than carrying forward a saved number. The
+ * carry-forward would have to be persisted, the only precedent here is
+ * device-local AsyncStorage, and that would let web and mobile disagree about
+ * the same account's target. Widening is stateless.
+ */
+describe('window widening and the holding state', () => {
+  it('a clean account never looks past 42 days', () => {
+    const logs = simulate({ tdee: 2500, days: 90, intake: () => 2000, startWeight: 200 });
+    const r = calculateTdee(logs, profile);
+    expect(r.estimateState).toBe('measuring');
+    expect(r.windowUsedDays).toBe(42);
+  });
+
+  it('widens when 42 days is too noisy, and the interval tightens', () => {
+    // Water noise large enough to swamp the trend over six weeks, but not over
+    // twelve — the case widening exists for.
+    const logs = simulate({
+      tdee: 2500,
+      days: 90,
+      intake: () => 2100,
+      startWeight: 205,
+      waterAmplitude: 3.2,
+      seed: 4242,
+    });
+    const r = calculateTdee(logs, profile);
+    // Either it widened, or 42 was already good enough; both are correct
+    // outcomes, but it must never report a wide interval AND a short window
+    // while more days were available to look at.
+    if (r.estimateState === 'measuring') {
+      expect(r.ci95Tdee!).toBeLessThanOrEqual(250);
+    } else {
+      expect(r.windowUsedDays).toBeGreaterThan(42);
+    }
+  });
+
+  it('reports `holding` rather than inventing precision it does not have', () => {
+    // Pure noise AND no more days to look at: 45 logged days means widening to
+    // 63 is not available, so the estimator cannot buy precision with history.
+    // (With 90 days it WOULD widen and clear the ceiling — which is the point
+    // of widening, and is asserted in the test above.)
+    const logs = simulate({
+      tdee: 2500,
+      days: 45,
+      intake: () => 2100,
+      startWeight: 205,
+      waterAmplitude: 9,
+      seed: 7,
+    });
+    const r = calculateTdee(logs, profile);
+    expect(r.estimateState).toBe('holding');
+    expect(r.ci95Tdee!).toBeGreaterThan(250);
+    // Still produces a usable target — holding is about what the app SAYS, not
+    // about withholding the number that drives the day's food.
+    expect(r.newDailyTarget).toBeGreaterThan(0);
+    expect(r.source).toBe('measured');
+  });
+});

@@ -73,6 +73,24 @@ export interface TdeeResult {
   ci95Tdee?: number;
   /** Contiguous-logging runs that contributed to the estimate. */
   runsUsed?: number;
+  /**
+   * Whether the estimate is precise enough to act on as a fresh measurement.
+   *
+   * - `measuring` — the interval cleared {@link CI95_CEILING_KCAL}.
+   * - `holding` — it did not, even after widening the window. The number is
+   *   still the user's best available estimate and still drives the target;
+   *   what changed is that the app should stop presenting it as news.
+   *
+   * Deliberately NOT a stored "last good value". Carry-forward would have to
+   * live somewhere, and the only precedent here is device-local AsyncStorage
+   * (`useRecalibration`'s ack) — which would make web and mobile disagree about
+   * the same account's target. Widening the window instead is stateless, so
+   * both frontends compute the same answer from the same rows.
+   */
+  estimateState?: 'measuring' | 'holding';
+  /** Logged days the winning estimate actually used. Equals
+   *  MEASURED_WINDOW_DAYS unless the window had to widen. */
+  windowUsedDays?: number;
 }
 
 const KCAL_PER_POUND = 3500;
@@ -682,6 +700,31 @@ const MAX_INTRA_RUN_GAP_DAYS = 3;
 const MIN_RUN_SPAN_DAYS = 14;
 const MIN_RUN_WEIGH_INS = 3;
 const MIN_RUN_INTAKE_DAYS = 7;
+/**
+ * Widest 95% interval on maintenance, in kcal, that still counts as a fresh
+ * measurement. Mirrors `DEFAULT_CI95_CEILING_KCAL` in `tdee-recalibration.ts`
+ * — the same question asked of the same number, and they should not drift.
+ */
+const CI95_CEILING_KCAL = 250;
+/**
+ * Logged-day windows to try, in order, when 42 cannot support a precise answer.
+ *
+ * Widening is the alternative to freezing a stored value, and it is chosen for
+ * a specific reason: a carry-forward has to be persisted somewhere, the only
+ * precedent in this app is device-local AsyncStorage, and that would let web
+ * and mobile show different targets for the same account. This is stateless, so
+ * both frontends land on the same number from the same rows.
+ *
+ * It costs responsiveness — a longer window lags a real metabolic change — but
+ * it only engages when the shorter window's interval is too wide to act on,
+ * which is exactly the case where lag beats noise.
+ *
+ * Bounded by supply, not preference: mobile hands the estimator
+ * `LOG_WINDOW_ROWS` = 400 rows, which covers 84 logged days for anyone
+ * averaging under ~4.8 entries a day and degrades gracefully above that
+ * (fewer days, not wrong days).
+ */
+const WIDENING_WINDOWS = [42, 63, 84] as const;
 
 /** Standard error of an OLS slope. `null` when it is not estimable (n < 3, or
  *  every x identical). This is what makes precision, rather than a point
@@ -919,17 +962,43 @@ export function calculateTdee(logs: DailyLog[], profile?: ProfileFields | null):
 
   // ── Measured mode: ≥14 logged days ──
   if (daily.length >= MEASURED_MIN_DAYS) {
-    const window = daily.slice(-MEASURED_WINDOW_DAYS);
-
-    const intakeCals = window.map((l) => l.calories).filter((c) => c > 0);
-    if (intakeCals.length === 0) return { ...SEED_RESULT };
-
     // Per-run, precision-pooled — but only for windows rich enough to support
     // it (a run long enough to carry a rate, with intake to match). Anything
     // thinner falls through to the original whole-window computation rather
     // than to the seed: the new path exists to fix the multi-run/gap case, and
     // it must not take an estimate away from an account that had one.
-    const est = measuredFromRuns(window, true);
+    //
+    // Try 42 logged days first and widen only if the interval is too wide to
+    // act on. Widening stops at the FIRST window that clears the ceiling, so an
+    // account with a clean short history is untouched — it never looks past 42.
+    // If none clear it, keep the tightest attempt: still the user's own data,
+    // just flagged `holding` so the app stops presenting it as news.
+    let window = daily.slice(-MEASURED_WINDOW_DAYS);
+    let est = measuredFromRuns(window, true);
+    let estimateState: 'measuring' | 'holding' = 'holding';
+
+    if (est != null && est.seTdee * 1.96 <= CI95_CEILING_KCAL) {
+      estimateState = 'measuring';
+    } else if (daily.length > MEASURED_WINDOW_DAYS) {
+      for (const size of WIDENING_WINDOWS) {
+        if (size === MEASURED_WINDOW_DAYS) continue;
+        if (daily.length < size) break;
+        const wider = daily.slice(-size);
+        const attempt = measuredFromRuns(wider, true);
+        if (attempt == null) continue;
+        if (est == null || attempt.seTdee < est.seTdee) {
+          est = attempt;
+          window = wider;
+        }
+        if (attempt.seTdee * 1.96 <= CI95_CEILING_KCAL) {
+          estimateState = 'measuring';
+          break;
+        }
+      }
+    }
+
+    const intakeCals = window.map((l) => l.calories).filter((c) => c > 0);
+    if (intakeCals.length === 0) return { ...SEED_RESULT };
 
     let slope: number;
     let outliersDropped: number;
@@ -1010,6 +1079,7 @@ export function calculateTdee(logs: DailyLog[], profile?: ProfileFields | null):
         ? { seTdee: Math.round(seTdee), ci95Tdee: Math.round(1.96 * seTdee) }
         : {}),
       ...(runsUsed != null ? { runsUsed } : {}),
+      ...(est != null ? { estimateState, windowUsedDays: window.length } : {}),
     };
   }
 
