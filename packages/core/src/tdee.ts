@@ -24,8 +24,8 @@ export interface TdeeResult {
   weightChangeTrend: number;
   source: 'measured' | 'formula' | 'seed';
   loggingCompletenessPct?: number;
-  /** Logged days the measured estimate was built from (≤ 28), and the calendar
-   *  span they were spread across. Reported so a UI can say "28 of 49 days"
+  /** Logged days the measured estimate was built from (≤ MEASURED_WINDOW_DAYS),
+   *  and the calendar span they were spread across. A UI can say "28 of 49 days"
    *  rather than "57%" — the counts are what tell a user that three weeks of
    *  eating are missing from the number. Measured mode only. */
   windowDays?: number;
@@ -65,7 +65,71 @@ const KCAL_PER_POUND = 3500;
 const MIN_DAILY_TARGET = 1500;
 const DEFAULT_PACE_LBS_PER_WEEK = 1.0;
 const MEASURED_MIN_DAYS = 14;
-const MEASURED_WINDOW_DAYS = 28;
+/**
+ * Logged days the measured estimate is built from. **42, raised from 28 on
+ * 2026-08-19.**
+ *
+ * ## What 28 was costing
+ *
+ * Measured on a real account against its own 97-day gap-free run, whose plain
+ * energy-balance answer is 2,385. Each window is compared both to that and to
+ * the plain-OLS benchmark over the same days it actually sees:
+ *
+ *   window   estimator   bench over same N days   vs bench   vs 2,385
+ *   28       2,211       2,232                     −0.9%      −7.3%
+ *   42       2,267       2,279                     −0.5%      −4.9%
+ *   56       2,327       2,337                     −0.4%      −2.4%
+ *
+ * The estimator tracks its own window to within 1% at every length, so the
+ * −7.3% was never estimator error — it was the window. A 28-day slice of a
+ * 97-day run is a different question from the run.
+ *
+ * ## Why this had to move, and had to move FIRST
+ *
+ * The window error was cancelling a second, opposite error, and the
+ * cancellation depended on the user logging badly.
+ *
+ * `measuredConfidence` blends a thin estimate toward the Mifflin anchor, and
+ * this account's stored activity bucket makes that anchor ~2,529 — high. At 28
+ * days the measured half was ~2,211 — low. At 57% completeness the two
+ * averaged to 2,271, which is right. At *full* completeness the anchor drops
+ * out and the answer falls to 2,211, which is not.
+ *
+ * **So better logging lowered the user's TDEE.** That is the wrong sign for an
+ * adaptive estimator, and it is the whole reason this constant moved before
+ * anything was done about the activity bucket: fixing the anchor first would
+ * have removed the compensating error and left the window error naked
+ * (measured 2,211 against a corrected anchor of ~2,244 gives 2,217 — worse
+ * than today). At 42 the perverse incentive is gone in its own right:
+ *
+ *   window 28:  conf 0.81 -> 2,271 (in range)   conf 1.0 -> 2,211 (below)
+ *   window 42:  conf 0.81 -> 2,317 (in range)   conf 1.0 -> 2,267 (in range)
+ *
+ * ## What it costs, measured rather than asserted
+ *
+ * Responsiveness, against a synthetic step from 2,500 to 2,200 with intake
+ * held flat — days until the estimate covers 50% and 90% of the move:
+ *
+ *   window   50%    90%
+ *   28       15d    24d
+ *   42       22d    35d
+ *   56       29d    46d
+ *
+ * Roughly linear: +14 days of window buys ~5 points of accuracy and costs ~11
+ * days of lag. 42 takes the better half of that curve; 56 pays another 11 days
+ * for 2.5 points. 35 days to 90% is inside a normal diet phase, and this
+ * project re-checks TDEE at weight milestones that are further apart than
+ * that.
+ *
+ * ## The supply constraint, checked
+ *
+ * The estimator only sees the rows it is handed. Web passes uncapped
+ * `_allTimeLogs`; mobile passes `LOG_WINDOW_ROWS` = 400 rows. 400 rows covers
+ * 42 logged days for anyone averaging under ~9.5 entries a day, so the widening
+ * lands for realistic loggers and degrades gracefully (fewer days, not wrong
+ * days) above that. It was ~14 entries a day at 28.
+ */
+const MEASURED_WINDOW_DAYS = 42;
 const RELIABLE_MIN_PCT = 70;
 const RELIABLE_MIN_INTAKE_DAYS = 10;
 
@@ -147,7 +211,7 @@ function median(values: number[]): number {
  * Theil–Sen slope: the median of the slopes between every pair of points.
  * Unlike least squares it cannot be dragged by a single bad value, which is
  * exactly what we need to *identify* bad values before fitting properly.
- * O(n²), but n is capped at MEASURED_WINDOW_DAYS, so ~380 pairs at worst.
+ * O(n²), but n is capped at MEASURED_WINDOW_DAYS, so ~860 pairs at worst.
  */
 function theilSenSlope(points: { x: number; y: number }[]): number | null {
   const slopes: number[] = [];
@@ -278,16 +342,6 @@ const MIN_SEGMENT_SPAN_DAYS = 6;
  */
 const MAX_TREND_LBS_PER_DAY = 2 / 7;
 
-/**
- * The floor of the segment-trust ramp: a post-break run this short contributes
- * nothing, and trust climbs from here to {@link MIN_SEGMENT_POINTS} /
- * {@link MIN_SEGMENT_SPAN_DAYS}, where it reaches 1 and stays there.
- *
- * Two points is where a line stops existing, and a zero-day span is where a
- * rate stops existing. Those are the honest bottoms of each ramp.
- */
-const SEGMENT_MIN_POINTS_FOR_ANY_TRUST = 2;
-const SEGMENT_MIN_SPAN_FOR_ANY_TRUST = 0;
 
 /**
  * How far a thin measured estimate is pulled toward the formula estimate.
@@ -492,41 +546,6 @@ function corroboratedSlope(points: { x: number; y: number }[]): Fit | null {
     : full;
 }
 
-/**
- * How much the post-break segment is trusted, 0..1.
- *
- * The ramp climbs UP TO the existing thresholds and is 1 at and above them.
- * That direction is the whole design, and getting it backwards was a real
- * mistake made while writing this: a ramp that starts climbing AT
- * {@link MIN_SEGMENT_SPAN_DAYS} gives zero weight to a segment spanning exactly
- * that, and the step and rebound scenarios in `tdee.test.ts` span exactly that
- * — {@link POST_BREAK_SETTLE_DAYS} eats the first seven of their fourteen days.
- * It silently reverted both to the whole-window fit they exist to replace
- * (2,500 → 2,073 and 2,409), which is the precise regression their tests pin.
- *
- * Ramping up to the thresholds instead means:
- *   - at or above them, `w = 1` — byte-identical to the old `if` branch, so
- *     every scenario the thresholds were tuned against is untouched;
- *   - below them, partial credit instead of a hard zero, which is what removes
- *     the cliff. The 2026-08-14 incident in `MIN_SEGMENT_SPAN_DAYS` went from
- *     `w = 0` to `w = 1` on one logged meal; it now moves 0.33 → 0.5.
- *
- * `min` of the two ramps, not an average: span and count must both be earned.
- * Four weigh-ins spread over a month is as weak a line as twelve crammed into
- * three days, and averaging would let a high count buy a short span — which is
- * the exact substitution `MIN_SEGMENT_SPAN_DAYS` was added to forbid.
- */
-function segmentTrust(pointCount: number, spanDays: number): number {
-  const bySpan = clamp01(
-    (spanDays - SEGMENT_MIN_SPAN_FOR_ANY_TRUST) /
-      (MIN_SEGMENT_SPAN_DAYS - SEGMENT_MIN_SPAN_FOR_ANY_TRUST),
-  );
-  const byCount = clamp01(
-    (pointCount - SEGMENT_MIN_POINTS_FOR_ANY_TRUST) /
-      (MIN_SEGMENT_POINTS - SEGMENT_MIN_POINTS_FOR_ANY_TRUST),
-  );
-  return Math.min(bySpan, byCount);
-}
 
 function weightTrendLbsPerDay(daily: DailyLog[]): { slope: number; dropped: number } | null {
   const weighed = daily.filter((l): l is DailyLog & { weight: number } => l.weight != null);

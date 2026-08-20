@@ -77,6 +77,60 @@ const PACE_DEFICIT = (0.9 * 3500) / 7; // 450
 const unclamped = (logs: DailyLog[]): number =>
   Math.round(calculateTdee(logs, PROFILE).trueTdee - PACE_DEFICIT);
 
+/**
+ * The last 42 logged days of the same account's 97-day gap-free run — i.e. a
+ * PERFECT record, which is what makes `confidence` 1 and takes the formula
+ * anchor out of the answer entirely.
+ */
+const GAP_FREE_42: Row[] = [
+  ['2026-05-31', 2110, 163.2], ['2026-06-01', 1947, 162.4], ['2026-06-02', 1789, 161.8],
+  ['2026-06-03', 1975, 163], ['2026-06-04', 1962, 162.6], ['2026-06-05', 1945, 162],
+  ['2026-06-06', 2072, 161.8], ['2026-06-07', 2160, 161.4], ['2026-06-08', 2005, 162.2],
+  ['2026-06-09', 2057, 160.4], ['2026-06-10', 2210, 160.8], ['2026-06-11', 1920, 160],
+  ['2026-06-12', 2220, 161], ['2026-06-13', 2240, 159.6], ['2026-06-14', 2910, 159.8],
+  ['2026-06-15', 2251, 161.6], ['2026-06-16', 1940, 162.2], ['2026-06-17', 1852, 160.2],
+  ['2026-06-18', 2474, 159.4], ['2026-06-19', 2120, 160.2], ['2026-06-20', 1861, 160.4],
+  ['2026-06-21', 1815, 160.4], ['2026-06-22', 1870, null], ['2026-06-23', 1860, 160.4],
+  ['2026-06-24', 1817, 160], ['2026-06-25', 2048, 161.2], ['2026-06-26', 2261, 161],
+  ['2026-06-27', 1900, 160], ['2026-06-28', 1943, 160], ['2026-06-29', 2020, 159.4],
+  ['2026-06-30', 1865, 161], ['2026-07-01', 1790, 160.2], ['2026-07-02', 1545, 159.6],
+  ['2026-07-03', 1859, 159.2], ['2026-07-04', 2020, 160], ['2026-07-05', 1765, 159.6],
+  ['2026-07-06', 1810, 158.8], ['2026-07-07', 1805, 158.2], ['2026-07-08', 1965, 158.18],
+  ['2026-07-09', 1887, 158.6], ['2026-07-10', 1612, 159], ['2026-07-11', 1850, 159.4],
+];
+
+describe('MEASURED_WINDOW_DAYS = 42 (2026-08-19)', () => {
+  const perfect = toLogs(GAP_FREE_42);
+
+  it('better logging must not LOWER the TDEE — the perverse incentive is gone', () => {
+    // The defect this constant moved for. At a 28-day window a complete record
+    // returned 2,211 while a 57%-complete one returned 2,271, because the
+    // window error was low and the activity anchor was high and the two
+    // cancelled only while the user logged badly. Both must now be in range.
+    const r = calculateTdee(perfect, PROFILE);
+    expect(r.reliable).toBe(true);
+    expect(r.confidence).toBe(1);           // anchor fully out of the answer
+    expect(r.trueTdee).toBe(r.measuredTdee); // nothing damped
+    expect(r.trueTdee).toBeGreaterThanOrEqual(2250);
+    expect(r.trueTdee).toBeLessThanOrEqual(2350);
+  });
+
+  it('actually uses 42 logged days when they exist', () => {
+    // Guards the constant itself: at 28 this reads 28 and the test above would
+    // fail for a reason that looks like an estimator bug.
+    const r = calculateTdee(perfect, PROFILE);
+    expect(r.windowDays).toBe(42);
+  });
+
+  it('tracks its own window plain-OLS benchmark within 1%', () => {
+    // Benchmark = plain energy balance over these exact 42 rows: 2,279.
+    // The point of this assertion is that the estimator is NOT the source of
+    // the residual gap to the 97-day figure (2,385) — the window length is.
+    const r = calculateTdee(perfect, PROFILE);
+    expect(Math.abs((r.measuredTdee ?? 0) / 2279 - 1)).toBeLessThan(0.01);
+  });
+});
+
 describe('endpoint leverage — one weigh-in cannot move the target (2026-08-19)', () => {
   const all = toLogs(WINDOW);
 
