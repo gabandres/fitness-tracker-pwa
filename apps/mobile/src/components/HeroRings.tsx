@@ -228,9 +228,20 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
           </Text>
           {/* Only when we can name the cause. A caveat that just says "rough"
               tells the user nothing they can act on. */}
-          {maintenance.reliable ||
-          maintenance.loggedDays == null ||
-          maintenance.spanDays == null ? null : (
+          {/* `holding` first, and it REPLACES the two lines below rather than
+              stacking with them. All three describe the same worry at different
+              strengths, and three caveats under one number reads as an app that
+              does not trust itself. Holding is the strongest: it says the answer
+              is too wide to act on, which is true whether or not the record is
+              patchy — an account can log every day and still land here if the
+              scale is noisy. */}
+          {maintenance.holding ? (
+            <Text style={styles.maintenanceCaveat} testID="maintenance-holding">
+              {t('today.maintenanceHolding')}
+            </Text>
+          ) : maintenance.reliable ||
+            maintenance.loggedDays == null ||
+            maintenance.spanDays == null ? null : (
             <Text style={styles.maintenanceCaveat}>
               {t('today.maintenanceRough', {
                 logged: maintenance.loggedDays,
@@ -242,7 +253,7 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
               noticed one. The caveat above has always said the number is
               rough; until 2026-08-19 the rough number was still shipped as the
               day's target at full strength. This line is the other half. */}
-          {maintenance.provisional ? (
+          {maintenance.provisional && !maintenance.holding ? (
             <Text style={styles.maintenanceCaveat} testID="maintenance-provisional">
               {t('today.maintenanceProvisional')}
             </Text>

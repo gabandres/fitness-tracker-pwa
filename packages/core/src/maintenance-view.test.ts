@@ -30,6 +30,9 @@ describe('maintenanceView', () => {
       // comment in maintenance-view.ts.
       confidence: 1,
       provisional: false,
+      // Same rule as `confidence` above: a TdeeResult with no `estimateState`
+      // reads as NOT holding. An absent interval is not evidence of a wide one.
+      holding: false,
     });
   });
 

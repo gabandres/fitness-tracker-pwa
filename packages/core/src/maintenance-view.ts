@@ -85,6 +85,18 @@ export interface MaintenanceView {
   /** 0..1. How much of the estimate is this user's own data; the remainder is
    *  the formula anchor. 1 ⇒ nothing was held back. */
   confidence: number;
+  /**
+   * True when the estimate's 95% interval is too wide to treat as a fresh
+   * measurement, even after the window widened to look at more days.
+   *
+   * Stronger than {@link reliable} and than {@link provisional}, and it
+   * subsumes both: those describe how patchy the RECORD is, this describes how
+   * wide the ANSWER is. An account can log every single day and still land here
+   * if the scale is noisy enough, which is why completeness could never have
+   * caught it — `confidence` read 0.957 on the account that reported 2,509 off
+   * an interval of 1,775..3,242.
+   */
+  holding: boolean;
 }
 
 /**
@@ -120,5 +132,9 @@ export function maintenanceView(tdee: TdeeResult, consumedKcal: number): Mainten
     // than as provisional. Absent evidence of damping is not evidence of it.
     confidence: tdee.confidence ?? 1,
     provisional: (tdee.confidence ?? 1) < 1,
+    // Absent state reads as NOT holding, for the same reason `confidence ?? 1`
+    // reads as nothing-held-back: a result from a branch that does not compute
+    // it is not evidence of a wide interval.
+    holding: tdee.estimateState === 'holding',
   };
 }

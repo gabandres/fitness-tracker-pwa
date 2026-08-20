@@ -132,6 +132,8 @@ export const esPR: Record<I18nKey, string> = {
   'today.underMaintenance': '{n} bajo lo que quemas',
   'today.overMaintenance': '{n} sobre lo que quemas',
   'today.maintenanceRough': '{logged} de {span} días registrados — los días sin registrar lo bajan',
+  'today.maintenanceHolding':
+    'Se mantiene igual — los pesajes recientes están muy regados para actualizarlo. Pésate casi todos los días y vuelve a moverse.',
   'today.maintenanceProvisional': 'Tu meta se mantiene estable mientras se completa el registro',
   'today.maintenanceOutlier':
     '1 pesaje ignorado — un cambio real de peso puede parecer una lectura mala',
