@@ -70,91 +70,6 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
   platform is gated on the machine that builds it. Do not spend another session
   aligning Node or re-running `npm ci` to chase it.
 
-  **No Android OTA currently reaches ANY shipped binary, and that is expected.**
-  The fleet spans vc 30 `6519916…`, vc 31 `3d3bc410…`, vc 32 `d8741525…` and
-  vc 33 `c1c010ac…`; the tree now reads `641cf5d4…` because the Gradle memory
-  fixes edited `plugins/withGradleJvmArgs.js`, which is hashed. **The next
-  Android JS fix needs a build, not an update** — vc 34 will re-open the channel.
-  vc 32 is additionally an orphan: its hash is only reproducible from a CRLF
-  worktree, a state `.gitattributes` removes. The banner
-  (`app-version.json` = 33, deployed) is what drains the older cohorts. Do not
-  publish from the Mac to "cover" an older one; the guard blocks it.
-
-  **iOS was in the same state, and this claim used to say otherwise.** Measured
-  2026-08-18: the tree gates at `b3c50e91…` while build 57 ships `25e953e9…`,
-  read out of the `.ipa`. The cause is the same `withGradleJvmArgs.js` change
-  that shut Android's channel — an Android-only plugin, but the plugins array is
-  hashed as part of `app.json`, so it moved BOTH. That consequence was written
-  down for Android only, and this line read "healthy" for a day while the iOS
-  channel was shut.
-
-  **Closed by build 58** (2026-08-18, 1.2.0, verifier green, `b3c50e91…` = the
-  gate) — **on TestFlight and `VALID`**, uploaded 11:37:45-07:00. It is built
-  from the current tree, so a JS fix can reach it over the air, and it carries
-  the two layout bugs the Maestro sweep found. The submit needed two attempts:
-  the first hung at `- Submitting` for 1h35m and **exited 0 when killed**, so
-  treat only an ASC `/v1/builds` read as proof (`AGENTS.md`, build 58 row).
-  Apple is still reviewing build 55 on `886bf0b3…`, a third runtime, and that
-  submission is deliberately untouched — swapping its build forfeits the queue
-  position.
-
-  **BOTH channels are open again as of 2026-08-18, and the Train template
-  rebuild has shipped on both.**
-
-  - **iOS: OTA on build 58**, update group `66e6f663-…`, runtime `b3c50e91…` —
-    the same fingerprint build 58 ships, which is why no binary was needed.
-    `react-native-sortables` (drag-to-reorder) is pure JS and autolinks no
-    native module, so it did **not** move the hash. **Build 58 is now with
-    Public Beta Testers** (the group's newest was 57), so they get the update on
-    the launch after installing it.
-  - **Android: vc 34** on the Play alpha track, fingerprint `b6f97259…` read
-    from the `.aab`. Android could NOT take the OTA — the gate refused it, tree
-    `b6f97259…` against vc 33's `c1c010ac…`, exactly as this section predicted —
-    so the binary is what reopens it. `app-version.json` = 34 and hosting is
-    deployed, so the update banner fires.
-
-  **Device QA now exists for iOS and only iOS**: the Maestro suite ran 17/17
-  against an SDK 57 Release build (73 captures), and the drag library was
-  separately confirmed to mount before the OTA went out. **Android behaviour
-  remains unverified on any SDK 57 binary** — there is still no Android host for
-  the suite, and Google Sign-In on a Play-signed install is the check that has
-  broken twice and that nothing here can make.
-
-  **vc 32 has had NO device QA, and it is the riskiest binary yet shipped here** —
-  a three-SDK jump (54 → 57, RN 0.81.5 → 0.86.2), built from a branch that is not
-  on `main`, on a toolchain where CMake declines to guarantee object placement
-  (`CMAKE_OBJECT_PATH_MAX`). vc 31 was never device-QA'd either. **The check that
-  matters most is Google Sign-In on a Play install** — broken twice here,
-  structurally invisible on a local build. The cert `375dd3e6…` is registered
-  (`npm run doctor`), so it is *expected* to pass; nobody has watched it.
-
-  **This lands during the Play production 14-day window** (§3), whose only
-  unticked box is 12 testers for 14 days, naively ~2026-08-20. A crash-on-launch
-  here costs testers, and testers dropping below 12 slips that date. If anything
-  is wrong, the fastest remedy is a new alpha release of vc 31's tree, **not** an
-  OTA — no OTA reaches vc 32's predecessors.
-
-### The measurement that should shape the next decision
-
-**The junk-mail verification bug was eating roughly half of password sign-ups.**
-Measured 2026-08-15: 33 accounts created in 45 days; 12 (36%) ever wrote a single
-row. Narrowing to accounts the bug could touch: **17 password sign-ups, 8 of
-which never verified their email — and all 8 logged zero meals.** Google/Apple
-sign-ups arrive pre-verified and are unaffected. `firestore.rules` blocks every
-write until `email_verified`, so an unverified account is a walled account.
-
-Both halves are now fixed (Resend sender alignment, and `sendVerificationEmail`
-replacing Firebase's own `firebaseapp.com` mail). **But the fix is not in the
-live App Store binary** — web and Android have it; iOS gets it only when 1.2.0 is
-approved. **So driving iOS traffic before 1.2.0 is live sends new users into the
-same wall this measured.**
-
-Auth → custom SMTP is **not available on this project**: every write to
-`notification.sendEmail` returns `400 EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED` because
-`enableImprovedEmailPrivacy` is on. **Do not turn that off to unlock it** — it is
-also why `fetchSignInMethodsForEmail` returns `[]` unconditionally, so never
-write logic that branches on its result.
-
 **BOTH OTA channels are OPEN as of 2026-08-19.** They were not, for a few hours:
 the ABI cut (`1ddb51fa`) put `reactNativeArchitectures` in
 `plugins/withGradleJvmArgs.js`, whose *file contents* are a hashed fingerprint
@@ -187,34 +102,14 @@ the update banner drains it. Do not publish a second update to "cover" it.
 
 Everything else that was in this section has shipped and is in `CHANGELOG.md`.
 
-- **The verification-email fix, iOS OTA only** (`86183368`, 2026-08-15).
-  Everything else about this fix has shipped — the **server half is deployed**
-  (it is a Cloud Function, so it needs no client release), **web is live**, and
-  **Android alpha has it** as an OTA published 2026-08-15 onto runtime
-  `6519916642…` (= vc 30). **iOS build 55 carries it embedded** and is the
-  binary in review.
-
-  What is held is the **iOS OTA**, and it is held for one narrow reason: it
-  would land on runtime `886bf0b3…`, which is the binary Apple is reviewing.
-  Its only beneficiaries are TestFlight testers on build 53, who already have
-  accounts, so it buys nothing and perturbs a live submission.
-
-  **It can no longer be published from `main`.** SDK 57 merged on 2026-08-17 and
-  moved the iOS fingerprint off `886bf0b3…`, so an OTA cut from `main` reaches
-  none of builds 50–55. If it is still wanted after 1.2.0 approves, publish it
-  from the **pre-SDK-57 commit `9c8a4b6`**, on `ignia-mac`, gating first — or
-  skip it, since the next iOS binary carries the fix embedded anyway.
-
-  **It is NOT the reason public iOS users lack the fix.** They are on build 24,
-  a different runtime that has never been an OTA target, so no OTA can reach
-  them — only the 1.2.0 release can.
-
 - **The mobile timezone self-heal** (`145d8b88`, 2026-08-17). `ensureProfile`
   now writes `timezoneOffsetMin` on every cold start; nothing in the mobile app
   had ever written it, so mobile-only digest opt-ins were computed **and sent**
   as UTC (06:00 in Puerto Rico, not 10:00 local). The server half shipped the
-  same day and is live. This client half reaches nobody until a build or an
-  OTA, and the iOS OTA is the one held above.
+  same day and is live. The client half has now reached **TestFlight build 60**
+  and **Play alpha vc 37** over the air. It has NOT reached public iOS: they
+  are on build 55 (`886bf0b3…`), a runtime no OTA from `main` can address, so
+  1.2.1's approval is what delivers it.
 
 ## 3. Open work, and what each is blocked on
 
@@ -228,10 +123,10 @@ Everything else that was in this section has shipped and is in `CHANGELOG.md`.
 | **Public iOS (build 55) cannot receive the TDEE fixes over the air** | **Apple's review queue, and that is the right answer.** Live App Store is 1.2.0 / build 55, runtime `886bf0b3…`; the tree is `7b347b0f…` (build 60), so no OTA from `main` reaches public users. It *is* technically reachable — `packages/core` is not a fingerprint source, so tonight's JS could be cherry-picked onto the pre-SDK-57 commit `9c8a4b63` and published under `886bf0b3…`. **Rejected**: it requires swapping `ignia-mac` to SDK 54 `node_modules` (the fingerprint hashes `expoAutolinkingConfig` and `package:react-native`), and it would push a bundle built from a tree that exists nowhere in git, never compiled and never device-tested, to 100% of public iOS users. 1.2.1/build 60 supersedes build 55 within days and already carries every fix via OTA. **NEVER use `EXPO_UPDATES_FINGERPRINT_OVERRIDE` to force it** — that would run SDK 57 JS on an SDK 54 native runtime and reach everyone before it broke them |
 | **App Store screenshots** | Owner, on device (`store-assets/README.md`) |
 | **Photo-scan validation gate** | 30–50 real photos, judging the **item list and portions** — never the macros. Harness: `scripts/validate-photo-itemiser.mjs` (ADR-0015 §2) |
-| **Android device QA — a host now exists, and it found three failures** | **Triage, not tooling.** The blocker is gone: an **LG VS988 (LG G6)** runs the suite over adb from the Windows box (the ARM emulator situation is unchanged and irrelevant now). It is **Android 9 / API 28**, not the "Android 8.0 / API 26" this file claimed until 2026-08-19 — two levels above `minSdk` 26, so a pass here does NOT prove the floor. First run 2026-08-19 against Play-signed **vc 34** (**vc 35 now supersedes it — re-run the suite against that**): `android-smoke` green, email/password sign-in green, suite **14 of 17**. Open: **`06-scan-intro`** ("Scan meal" not found), **`15-search`** ("banana raw" not found), **`18-train-template`** (`template-set-kind-0-0` missing — **vc 35 carries the fix; this is the first flow to re-run**). **Google Sign-In fails with `ApiException: INTERNAL_ERROR` (8)** — NOT `DEVELOPER_ERROR`; the signing cert of vc 34 (`1483ddc3…`, the *previous* Play key — Play still has not rotated), its OAuth Android client, the `webClientId`, the clock and the network were each verified good, and the failure happens inside Google's own picker activity. Sentry count=1, i.e. only the reproduction — no user has hit it. Cold start **6.6s**; the brand-loader wait in `01-today` sits right on its 15s budget and flaked once. **The hero rings render AND animate correctly here** — the iOS ring bug is not cross-platform. QA account `qa-test@ignia.fit` (uid in `CLAUDE.local.md`). `coverage.md` Android rows updated 2026-08-19 |
+| **Android device QA — a host now exists, and it found three failures** | **Triage, not tooling.** The blocker is gone: an **LG VS988 (LG G6)** runs the suite over adb from the Windows box (the ARM emulator situation is unchanged and irrelevant now). It is **Android 9 / API 28**, not the "Android 8.0 / API 26" this file claimed until 2026-08-19 — two levels above `minSdk` 26, so a pass here does NOT prove the floor. First run 2026-08-19 against Play-signed **vc 34** (**vc 35 now supersedes it — re-run the suite against that**): `android-smoke` green, email/password sign-in green, suite **14 of 17**. Open: **`06-scan-intro`** ("Scan meal" not found), **`15-search`** ("banana raw" not found), **`18-train-template`** (`template-set-kind-0-0` missing — **vc 35 carries the fix; this is the first flow to re-run**). **Google Sign-In fails with `ApiException: INTERNAL_ERROR` (8)** — NOT `DEVELOPER_ERROR`; the signing cert of vc 34 (`1483ddc3…`, the *previous* Play key — Play still has not rotated), its OAuth Android client, the `webClientId`, the clock and the network were each verified good, and the failure happens inside Google's own picker activity. Sentry count=1, i.e. only the reproduction — no user has hit it. Cold start **6.6s**; the brand-loader wait in `01-today` sits right on its 15s budget and flaked once. **The hero rings render AND animate correctly here** — the iOS ring bug is not cross-platform. QA account `qa-test@ignia.fit` (uid in `CLAUDE.local.md`). `coverage.md` Android rows updated 2026-08-19 **The LG G6 stalls and needs a power cycle before the next run** (owner-reported 2026-08-20) — reboot it, re-check `adb devices`, and remember a *phantom* `PID_633A` means USB debugging is off rather than a driver fault (`CLAUDE.local.md`). Re-run against **vc 37** |
 | **The website is invisible to Google** | **A decision, not a task.** Measured 2026-08-17: 110 of 114 sitemap URLs are *unknown to Google*, the sitemap has never been downloaded, and 90 days of Search Console show 4 impressions and 0 clicks. Cause is structural — "prerendered" writes the `<head>` only, so a first-pass crawler sees `<app-root></app-root>`, and `routerLink` appears in zero files so there is no link graph to crawl either. Fixing it means real prerendering + crawlable anchors; neither is scoped. Full evidence in `docs/seo-status.md` |
 | **Web retirement question** | **A measurement, not intuition** (ADR-0022): `node scripts/usage-report.mjs --days 30`, reading `platforms`. May not be revisited before that data exists |
-| **Transfer of operations to Bermudez Systems LLC (WY)** | **Owner console steps, in this order**: ① ~~EIN~~ **DONE 2026-08-19** (number + CP 575 location in `CLAUDE.local.md`) → ② ~~D-U-N-S~~ **DONE 2026-08-19** — Apple issued it same-day (number in `CLAUDE.local.md`) → ③ Apple Developer individual→organization **conversion** of the existing team — NEVER a fresh org enrollment, which strands the app on the old team (support request; Team ID/apps/reviews survive, seller name changes) → ④ ~~deactivate the 3 `fit.ignia.tip.*` consumables in ASC~~ **DONE** — all three read `DEVELOPER_REMOVED_FROM_SALE` from the ASC API 2026-08-19 (`inAppPurchasesV2`); that state is reversible, so re-enabling tips is a flip, not a re-create → ⑤ ~~LLC bank account~~ **DONE 2026-08-19 — Relay approved** (details in `CLAUDE.local.md`) → ⑥ new Play org account ($25) + app transfer — **IN PROGRESS since 2026-08-19** (owner un-deferred it same day): org signup under a NEW Google account on gabriel@bermudezsystems.com (one Google account = one Play developer account, so the personal Gmail cannot own both), then Google org verification (D-U-N-S 145071589 — brand-new, may take days to be visible), then the app-transfer form, which needs the ORIGINAL $25 transaction ID from the personal account (find it at pay.google.com). Org accounts are exempt from the 12-tester/14-day production gate. Separate Google deadline found in Gmail 2026-08-19: **all Play apps + signing keys must complete "Android developer verification" by Sep 30, 2026** or be removed — after the transfer this is the ORG account's task for `fit.ignia.app`, do not assume the personal account's Jul-8 identity verification covers it. **Donation intake is paused on all surfaces meanwhile** (`FEATURES.tips=false` both platforms, `/tip`→`/support`) so neither the owner nor the LLC earns anything while the owner is still a PR resident — that is what keeps PR foreign registration + a PR tax filing off the table before the move (~2 months out). Do NOT re-enable tips or ship the Pro tier until payouts land in the LLC's bank account. PR foreign registration deliberately skipped: zero revenue + interstate-commerce exemptions; worst case is back-fees, not veil loss |
+| **Transfer of operations to Bermudez Systems LLC (WY)** | **Owner console steps, in this order**: ① ~~EIN~~ **DONE 2026-08-19** (number + CP 575 location in `CLAUDE.local.md`) → ② ~~D-U-N-S~~ **DONE 2026-08-19** — Apple issued it same-day (number in `CLAUDE.local.md`) → ③ Apple Developer individual→organization **conversion** of the existing team — NEVER a fresh org enrollment, which strands the app on the old team (support request; Team ID/apps/reviews survive, seller name changes) → ④ ~~deactivate the 3 `fit.ignia.tip.*` consumables in ASC~~ **DONE** — all three read `DEVELOPER_REMOVED_FROM_SALE` from the ASC API 2026-08-19 (`inAppPurchasesV2`); that state is reversible, so re-enabling tips is a flip, not a re-create → ⑤ ~~LLC bank account~~ **DONE 2026-08-19 — Relay approved** (details in `CLAUDE.local.md`) → ⑥ ~~new Play org account ($25)~~ **DONE** and ~~Google org verification~~ **GREEN as of 2026-08-20 (owner-reported)** — identity docs cleared, website already verified. **⑦ THE APP TRANSFER IS NOW THE LIVE ACTION and nothing else blocks it.** File Play Console → app transfer; every field value it asks for is already recorded in `CLAUDE.local.md` (both developer account IDs and both original $25 transaction IDs — **strip the `PDS.` prefix on the form**). Org accounts are exempt from the 12-tester/14-day production gate, so completing this also removes the Play production blocker above. Separate Google deadline found 2026-08-19: **all Play apps + signing keys must complete "Android developer verification" by Sep 30, 2026** — after the transfer that is the ORG account's task for `fit.ignia.app`; do NOT assume the personal account's Jul-8 identity check carries over. **Donation intake stays paused** (`FEATURES.tips=false` both platforms, `/tip`→`/support`) until payouts land in the LLC's bank account; do NOT re-enable tips or ship Pro before then. PR foreign registration deliberately skipped: zero revenue + interstate-commerce exemptions; worst case is back-fees, not veil loss |
 
 **`ignia-mac` disk is the recurring constraint.** 18 GB free as of 2026-08-17,
 against a ~17 GB floor for iOS — over the line, but not by much. It is an
