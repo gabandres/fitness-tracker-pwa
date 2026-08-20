@@ -6,6 +6,51 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-20 — maintenance stops being decided by the days after a break
+
+A live account read maintenance **2,509** while its own gap-free history said
+**2,266**. The whole number came from a nine-day stretch after a trip: ten
+weigh-ins, a residual spread of 0.8 lb, and a slope that was not statistically
+distinguishable from zero — t = −2.00 at 8 degrees of freedom, with a 95%
+interval on maintenance running **1,775 to 3,242**. One number was printed from
+that and the daily target moved 178 kcal.
+
+Two faults, and the first was a comment. The block above `lastTrendSegment`
+argues carefully for weighting each fit by its own precision and states that
+`MIN_SEGMENT_POINTS` and `MIN_SEGMENT_SPAN_DAYS` are "no longer consulted" —
+while the code twenty lines below still switched on exactly those two constants,
+keeping only the most recent run and discarding everything before the gap. A
+21-day travel break threw away 28 of 38 weigh-ins and 33 of 42 logged days. The
+fix had been written down and never applied, and the prose was good enough that
+it read as solved.
+
+The second was that `TDEE = intake + deficit` was evaluated with its two halves
+covering different days: intake averaged over the days that were logged, deficit
+derived from a slope fitted across the calendar, unlogged stretches included.
+
+Measured mode now splits the window into runs of continuous logging, works out
+each run against its **own** intake, and pools them by precision. Both faults go
+together — no stretch where intake is unknown is ever crossed, and a tight
+three-week line outweighs a ragged one-week line with no threshold deciding it.
+Smoothing the scale first was tried and dropped on evidence: raw pooling came out
+tighter on the real account.
+
+Same data, window ending on three different days: **2,266 / 2,010 / 2,509**
+became **2,265 / 2,184 / 2,320**. The swing across those dates fell from 499 kcal
+to 136, and today's figure landed inside the range that account's own gap-free
+energy balance gives independently.
+
+The trigger was ordinary. Stop logging for four days — travel, illness, a busy
+week — and the window split. Anyone was one gap away from it, and it failed in
+the flattering direction: too high a maintenance raises the target, so you eat
+more, stall, and conclude the app does not work.
+
+Shipped over the air to both platforms the same day; no binary was needed.
+`packages/core` is not a fingerprint source, so it reached Android vc 37 and iOS
+build 60 on their existing runtimes.
+
+---
+
 ## 2026-08-20 — the activity correction comes out from behind its flag
 
 It was built and hidden the day before, because the advice it would have given
