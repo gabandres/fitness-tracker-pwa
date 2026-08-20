@@ -245,3 +245,68 @@ export function activityGuidance(input: {
   if (windowClass === 'steps-only') return { kind: 'steps-only' };
   return { kind: 'none' };
 }
+
+/**
+ * The lowest physical activity level a free-living adult is credited with.
+ *
+ * **1.40, from the FAO/WHO/UNU 2001 expert consultation on human energy
+ * requirements**, which classifies free-living adults as *sedentary or light
+ * activity lifestyle* PAL **1.40–1.69**, *active or moderately active*
+ * 1.70–1.99, and *vigorous* 2.00–2.40. 1.40 is the bottom of the lowest band —
+ * not an average, not a fit, and not a number chosen because of how it comes
+ * out on anyone's account.
+ *
+ * ## What it is doing here: this IS the NEAT correction
+ *
+ * {@link impliedMultiplier} builds a multiplier out of basal energy plus the
+ * device's `activeKcal`. A wrist wearable measures *detected* movement, so
+ * that total is missing most non-exercise activity thermogenesis — posture,
+ * fidgeting, standing, housework, the incidental cost of being awake. NEAT is
+ * not a rounding error: it varies by up to ~2,000 kcal/day between people and
+ * runs to several hundred kcal/day even for seated office work.
+ *
+ * The consequence is measurable rather than theoretical. On the owner's
+ * account, 2026-08-19, from 28 of 28 usable days: mean `activeKcal` 246/day
+ * over a bare Mifflin basal of 1,632 implies **1.279** — *below the FAO
+ * minimum for a free-living adult*, for someone walking 5,213 steps a day and
+ * lifting three times a week. A number that cannot be true of a person who is
+ * not bedbound is evidence about the instrument, not about the person.
+ *
+ * Flooring at 1.40 is therefore additive in effect — it supplies exactly the
+ * unrecorded NEAT needed to reach the lowest physiologically defensible
+ * answer — while being published rather than invented. Above the floor the
+ * device's own signal is used unmodified, so a genuinely more active user is
+ * still measured rather than assumed.
+ *
+ * Measured against that account's 97-day gap-free energy balance of 2,385:
+ *
+ *   raw implied 1.279          -> 2,087   −12.5%
+ *   snapped to the ladder 1.2  -> 1,958   −17.9%   (what the card would suggest)
+ *   stored bucket 1.55         -> 2,530    +6.1%   (what it has today)
+ *   floored at 1.40            -> 2,285    −4.2%   <- inside the ±5% target
+ *
+ * The ceiling stays at the ladder's own top rather than FAO's 2.40. Raising it
+ * would change the answer for very active users on no evidence gathered here,
+ * and that is a separate decision.
+ */
+export const PAL_FLOOR_FREE_LIVING = 1.4;
+export const PAL_CEILING = 1.9;
+
+/**
+ * A **continuous** activity multiplier from measured active energy — the
+ * replacement for snapping to {@link ACTIVITY_LADDER}.
+ *
+ * The ladder's rungs are 0.175 apart, which is ±285 kcal/day on a 1,632 kcal
+ * basal — larger than the error it is being used to correct — and it cannot
+ * represent a value like 1.279 at all. {@link snapMultiplier} survives for
+ * *naming* a level in copy; it must not be used for arithmetic.
+ *
+ * Returns `null` when there is nothing to compute from, so a caller can fall
+ * back to the self-reported bucket rather than silently adopting a floor.
+ */
+export function activityMultiplier(mean: number, basalKcal: number): number | null {
+  if (!(basalKcal > 0) || !(mean > 0)) return null;
+  const raw = impliedMultiplier(mean, basalKcal);
+  if (!Number.isFinite(raw)) return null;
+  return Math.min(PAL_CEILING, Math.max(PAL_FLOOR_FREE_LIVING, raw));
+}
