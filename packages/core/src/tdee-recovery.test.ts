@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { calculateTdee } from './tdee';
 import type { DailyLog, ProfileFields } from './types';
+import { asMeasured } from './tdee.test-utils';
 
 /**
  * Ground-truth recovery tests for measured-mode TDEE.
@@ -114,7 +115,7 @@ describe('measured TDEE recovers known expenditure', () => {
 
   it('weight gain — surplus is recovered with the right sign', () => {
     const logs = simulate({ tdee: 2300, days: 56, intake: () => 2800, startWeight: 160 });
-    const r = calculateTdee(logs, profile);
+    const r = asMeasured(calculateTdee(logs, profile));
     expect(r.trueTdee).toBeGreaterThan(2150);
     expect(r.trueTdee).toBeLessThan(2450);
     expect(r.weightSlopeLbsPerDay!).toBeGreaterThan(0);
@@ -135,7 +136,7 @@ describe('measured TDEE recovers known expenditure', () => {
       intake: (d) => (d >= 42 && d < 56 ? 3000 : 2050),
       logged: (d) => !(d >= 42 && d < 56),
     });
-    const r = calculateTdee(logs, profile);
+    const r = asMeasured(calculateTdee(logs, profile));
     expect(r.source).toBe('measured');
     // The post-gap run is 7 days — under MIN_RUN_SPAN_DAYS, so it is dropped
     // rather than pooled, and maintenance comes from the long clean run alone.
@@ -158,7 +159,7 @@ describe('measured TDEE recovers known expenditure', () => {
       intake: (d) => (d >= 21 && d < 35 ? 3000 : 2050),
       logged: (d) => !(d >= 21 && d < 35),
     });
-    const r = calculateTdee(logs, profile);
+    const r = asMeasured(calculateTdee(logs, profile));
     expect(r.runsUsed).toBe(2);
     expect(r.trueTdee).toBeGreaterThan(TRUE - 300);
     expect(r.trueTdee).toBeLessThan(TRUE + 300);
@@ -190,14 +191,14 @@ describe('measured TDEE recovers known expenditure', () => {
   });
 
   it('reports an interval, and it widens when the data is noisier', () => {
-    const tight = calculateTdee(
+    const tight = asMeasured(calculateTdee(
       simulate({ tdee: 2500, days: 56, intake: () => 2000, startWeight: 185, waterAmplitude: 0.3 }),
       profile,
-    );
-    const loose = calculateTdee(
+    ));
+    const loose = asMeasured(calculateTdee(
       simulate({ tdee: 2500, days: 56, intake: () => 2000, startWeight: 185, waterAmplitude: 3.0 }),
       profile,
-    );
+    ));
     expect(tight.ci95Tdee).toBeGreaterThan(0);
     expect(loose.ci95Tdee!).toBeGreaterThan(tight.ci95Tdee!);
   });
@@ -210,7 +211,7 @@ describe('measured TDEE recovers known expenditure', () => {
       startWeight: 185,
       logged: (d) => d % 7 !== 3,
     });
-    const r = calculateTdee(logs, profile);
+    const r = asMeasured(calculateTdee(logs, profile));
     expect(r.runsUsed).toBe(1);
     expect(r.trueTdee).toBeGreaterThan(2250);
     expect(r.trueTdee).toBeLessThan(2750);
@@ -239,7 +240,7 @@ describe('measured TDEE recovers known expenditure', () => {
 describe('window widening and the holding state', () => {
   it('a clean account never looks past 42 days', () => {
     const logs = simulate({ tdee: 2500, days: 90, intake: () => 2000, startWeight: 200 });
-    const r = calculateTdee(logs, profile);
+    const r = asMeasured(calculateTdee(logs, profile));
     expect(r.estimateState).toBe('measuring');
     expect(r.windowUsedDays).toBe(42);
   });
@@ -255,7 +256,7 @@ describe('window widening and the holding state', () => {
       waterAmplitude: 3.2,
       seed: 4242,
     });
-    const r = calculateTdee(logs, profile);
+    const r = asMeasured(calculateTdee(logs, profile));
     // Either it widened, or 42 was already good enough; both are correct
     // outcomes, but it must never report a wide interval AND a short window
     // while more days were available to look at.
@@ -279,7 +280,7 @@ describe('window widening and the holding state', () => {
       waterAmplitude: 9,
       seed: 7,
     });
-    const r = calculateTdee(logs, profile);
+    const r = asMeasured(calculateTdee(logs, profile));
     expect(r.estimateState).toBe('holding');
     expect(r.ci95Tdee!).toBeGreaterThan(250);
     // Still produces a usable target — holding is about what the app SAYS, not

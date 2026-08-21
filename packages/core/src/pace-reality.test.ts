@@ -2,18 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { DailyLog, ProfileFields } from './types';
 import { calculateTdee, type TdeeResult } from './tdee';
 import { paceReality } from './pace-reality';
+import { measuredTdeeFixture as measured } from './tdee.test-utils';
 
-const measured = (over: Partial<TdeeResult> = {}): TdeeResult => ({
-  trueTdee: 1870,
-  newDailyTarget: 1850,
-  weightChangeTrend: -0.1,
-  source: 'measured',
-  loggingCompletenessPct: 82,
-  windowDays: 23,
-  spanDays: 28,
-  reliable: true,
-  ...over,
-});
 
 describe('paceReality', () => {
   it('reports the pace a binding floor actually leaves — the measured owner case', () => {
@@ -88,9 +78,16 @@ describe('paceReality', () => {
   });
 
   it('reports formula mode — the clamp is identical there', () => {
-    const r = paceReality(measured({ source: 'formula', trueTdee: 2100 }), 1.5, {
-      calorieFloor: 1800,
-    });
+    // A real formula literal, not a measured fixture with `source` overridden:
+    // the union rejects that now, correctly — a formula estimate observed
+    // nothing and cannot carry window/reliability evidence.
+    const formula: TdeeResult = {
+      trueTdee: 2100,
+      newDailyTarget: 1350,
+      weightChangeTrend: 0,
+      source: 'formula',
+    };
+    const r = paceReality(formula, 1.5, { calorieFloor: 1800 });
     expect(r).toMatchObject({ target: 1800, floorBinding: true });
     expect(r?.effectivePace).toBe(0.6);
   });

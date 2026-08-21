@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ACTIVITY_MULTIPLIERS, basalMifflinStJeor, calculateTdee } from './tdee';
 import type { ActivityLevel, DailyLog, ProfileFields } from './types';
+import { asMeasured } from './tdee.test-utils';
 
 const baseProfile: ProfileFields = {
   heightIn: 70,
@@ -76,7 +77,7 @@ describe('calculateTdee', () => {
     for (let i = 19; i >= 0; i--) {
       logs.push(log(i, 2000, 185 - (19 - i) * 0.1));
     }
-    const r = calculateTdee(logs, baseProfile);
+    const r = asMeasured(calculateTdee(logs, baseProfile));
     expect(r.source).toBe('measured');
     // TDEE ≈ intake + deficit(0.1 lb/day * 3500) = 2000 + 350 = ~2350
     expect(r.trueTdee).toBeGreaterThan(2250);
@@ -105,7 +106,7 @@ describe('calculateTdee', () => {
     // 14 weigh-ins every OTHER day → spans ~27 calendar days → ~50% complete.
     const logs: DailyLog[] = [];
     for (let i = 0; i < 14; i++) logs.push(log(27 - i * 2, 2000, 185 - i * 0.1));
-    const r = calculateTdee(logs, baseProfile);
+    const r = asMeasured(calculateTdee(logs, baseProfile));
     expect(r.source).toBe('measured');
     expect(r.loggingCompletenessPct).toBeGreaterThanOrEqual(45);
     expect(r.loggingCompletenessPct).toBeLessThanOrEqual(55);
@@ -160,7 +161,7 @@ describe('weight-trend outlier rejection', () => {
     Array.from({ length: 21 }, (_, i) => log(20 - i, 2000, 185 - 0.2 * (20 - (20 - i))));
 
   it('changes nothing when every weigh-in is plausible', () => {
-    const r = calculateTdee(clean(), baseProfile);
+    const r = asMeasured(calculateTdee(clean(), baseProfile));
     expect(r.source).toBe('measured');
     expect(r.outliersDropped).toBe(0);
     // intake 2000 + 0.2 lb/day * 3500 = 2700
@@ -174,7 +175,7 @@ describe('weight-trend outlier rejection', () => {
     // maintenance from 2,741 to 1,619 kcal.
     withTypo[0] = log(20, 2000, 158);
 
-    const dirty = calculateTdee(withTypo, baseProfile);
+    const dirty = asMeasured(calculateTdee(withTypo, baseProfile));
     const pristine = calculateTdee(clean(), baseProfile);
 
     expect(dirty.outliersDropped).toBe(1);
@@ -196,7 +197,7 @@ describe('weight-trend outlier rejection', () => {
     const noisy = clean().map((l, i) =>
       l.weight != null ? { ...l, weight: l.weight + (i % 2 ? 1.5 : -1.5) } : l,
     );
-    expect(calculateTdee(noisy, baseProfile).outliersDropped).toBe(0);
+    expect(asMeasured(calculateTdee(noisy, baseProfile)).outliersDropped).toBe(0);
   });
 
   it('trusts the data when a third or more of it looks anomalous', () => {
@@ -205,7 +206,7 @@ describe('weight-trend outlier rejection', () => {
     const stepped = clean().map((l, i) =>
       l.weight != null && i > 10 ? { ...l, weight: l.weight - 8 } : l,
     );
-    expect(calculateTdee(stepped, baseProfile).outliersDropped).toBe(0);
+    expect(asMeasured(calculateTdee(stepped, baseProfile)).outliersDropped).toBe(0);
   });
 
   it('leaves short weigh-in histories alone', () => {
@@ -213,7 +214,7 @@ describe('weight-trend outlier rejection', () => {
     const sparse = Array.from({ length: 15 }, (_, i) =>
       i % 4 === 0 ? log(14 - i, 2000, 185 - i * 0.2) : log(14 - i, 2000),
     );
-    expect(calculateTdee(sparse, baseProfile).outliersDropped).toBe(0);
+    expect(asMeasured(calculateTdee(sparse, baseProfile)).outliersDropped).toBe(0);
   });
 });
 
@@ -238,7 +239,7 @@ describe('weight-trend gap segmentation', () => {
     // The step case. Fitted across the break, the new plateau looks like 7 bad
     // readings and maintenance came out at 2,038 — a 462 kcal error built by
     // throwing away every observation of a real 4 lb change.
-    const r = calculateTdee(acrossBreak(180, () => 184), baseProfile);
+    const r = asMeasured(calculateTdee(acrossBreak(180, () => 184), baseProfile));
     // `measuredTdee`, not `trueTdee`. This scenario is about the SEGMENTATION
     // math, and that is what `measuredTdee` reports — the undamped
     // `avgDailyIntake + deficit`. Since 2026-08-19 `trueTdee` additionally
@@ -255,10 +256,10 @@ describe('weight-trend gap segmentation', () => {
     // The rebound case, and the reason segmenting alone is not enough:
     // whole-window 2,392 · segmented without a settle window 3,469 · with it,
     // 2,500. The +969 version is the dangerous one — it raises the target.
-    const r = calculateTdee(
+    const r = asMeasured(calculateTdee(
       acrossBreak(180, (d) => (d < 7 ? 184 - d * 0.5 : 180.5)),
       baseProfile,
-    );
+    ));
     // See the step case above for why this pins `measuredTdee`.
     expect(r.measuredTdee).toBe(2500);
     expect(r.trueTdee).toBeCloseTo(2500, -2);
@@ -293,7 +294,7 @@ describe('weight-trend gap segmentation', () => {
     // The guard against over-reach: no break, no segmentation, byte-identical
     // to the behaviour every existing user has today.
     const daily = Array.from({ length: 21 }, (_, i) => log(20 - i, 2000, 185 - 0.2 * i));
-    const r = calculateTdee(daily, baseProfile);
+    const r = asMeasured(calculateTdee(daily, baseProfile));
     expect(r.outliersDropped).toBe(0);
     expect(r.trueTdee).toBeGreaterThan(2650);
     expect(r.trueTdee).toBeLessThan(2750);

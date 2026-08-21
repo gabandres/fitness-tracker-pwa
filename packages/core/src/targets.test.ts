@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { computeGoalProgress, currentWeight, dailyTargets } from './targets';
 import { computeProtein } from './macro-heuristic';
 import type { DailyLog, Profile } from './types';
+import { asMeasured } from './tdee.test-utils';
 
 function profile(p: Partial<Profile> = {}): Profile {
   return {
@@ -166,7 +167,7 @@ describe('dailyTargets — calorie floor covers every branch', () => {
       {},
     );
     expect(t.tdee.source).toBe('measured');
-    expect(t.tdee.reliable).toBe(false);
+    expect(asMeasured(t.tdee).reliable).toBe(false);
     expect(t.calorieTarget).toBe(1850);
   });
 
@@ -178,7 +179,7 @@ describe('dailyTargets — calorie floor covers every branch', () => {
   it('does not disturb a reliable measured target (already clamped upstream)', () => {
     const t = dailyTargets(fullProfile(), series(20, 2000, 200), {});
     expect(t.tdee.source).toBe('measured');
-    expect(t.tdee.reliable).toBe(true);
+    expect(asMeasured(t.tdee).reliable).toBe(true);
     expect(t.calorieTarget).toBe(t.tdee.newDailyTarget);
   });
 

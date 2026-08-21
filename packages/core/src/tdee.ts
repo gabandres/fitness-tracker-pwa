@@ -18,24 +18,51 @@ import { localDateKey } from './date';
  * its own, whatever older comments claimed — so a change here lands on web and
  * mobile alike.
  */
-export interface TdeeResult {
+/**
+ * What every TDEE estimate carries, whatever produced it.
+ *
+ * `newDailyTarget` here is a RAW branch output — the seed branch hardcodes
+ * 1800, which is below any `calorieFloor` above it. Only `targets.ts` applies
+ * the floor on every path, and `tdee-consumers.test.ts` enforces that nothing
+ * else reads this field.
+ */
+export interface TdeeBase {
   trueTdee: number;
   newDailyTarget: number;
   weightChangeTrend: number;
-  source: 'measured' | 'formula' | 'seed';
-  loggingCompletenessPct?: number;
+}
+
+/**
+ * A MEASURED estimate: fitted from the user's own weight trend and intake.
+ *
+ * Everything below `source` exists only on this member, which is the point of
+ * the union. These used to be optional fields on one flat `TdeeResult` shared
+ * by all three modes, so `tdee.reliable` was `boolean | undefined` on every
+ * read and `undefined` on two branches out of three — and a caller that forgot
+ * to check `source` first got a silent falsy rather than a type error. That is
+ * the shape of every bug in this area: `6bb5efee` announced a recalibration the
+ * data could not support, `f7db69a0` showed a maintenance number it could not
+ * stand behind. The compiler can now ask the question those fixes answered by
+ * hand.
+ *
+ * Same reasoning as `HistoryWindow` (ADR-0004): where "we don't know" is a real
+ * state, it rides in the type rather than in a sentinel that reads like data.
+ */
+export interface MeasuredTdee extends TdeeBase {
+  source: 'measured';
+  loggingCompletenessPct: number;
   /** Logged days the measured estimate was built from (≤ MEASURED_WINDOW_DAYS),
    *  and the calendar span they were spread across. A UI can say "28 of 49 days"
    *  rather than "57%" — the counts are what tell a user that three weeks of
-   *  eating are missing from the number. Measured mode only. */
-  windowDays?: number;
-  spanDays?: number;
-  reliable?: boolean;
+   *  eating are missing from the number. */
+  windowDays: number;
+  spanDays: number;
+  reliable: boolean;
   /** Weigh-ins discarded as implausible before fitting the trend. Non-zero
    *  means the user has a bad entry worth surfacing to them. */
-  outliersDropped?: number;
+  outliersDropped: number;
 
-  // ── Diagnostics. Measured mode only; never inputs to anything. ──
+  // ── Diagnostics. Never inputs to anything. Always produced in this mode. ──
   /**
    * `trueTdee` BEFORE confidence damping — the raw `avgDailyIntake +
    * dailyDeficitAchieved`. Equal to `trueTdee` whenever {@link confidence} is
@@ -46,19 +73,24 @@ export interface TdeeResult {
    * already stable and damping has little left to do. A large gap between this
    * and `trueTdee` is a signal that the blend did NOT flatten the input.
    */
-  measuredTdee?: number;
+  measuredTdee: number;
   /** 0..1 weight given to the measured estimate against the formula anchor.
    *  See {@link measuredConfidence}. 1 ⇒ nothing was damped. */
-  confidence?: number;
+  confidence: number;
   /** Trimmed mean of intake across the LOGGED days in the window. Unlogged
    *  days are excluded, not imputed — the single largest bias in the estimate,
    *  and the reason `loggingCompletenessPct` is worth showing a user. */
-  avgDailyIntake?: number;
+  avgDailyIntake: number;
   /** The fitted trend actually used, after segment/window blending and the
    *  physical clamp. Negative = losing weight. */
-  weightSlopeLbsPerDay?: number;
+  weightSlopeLbsPerDay: number;
   /** `−slope × 3500`. The kcal/day the scale says was actually run. */
-  dailyDeficitAchieved?: number;
+  dailyDeficitAchieved: number;
+
+  // ── Conditional even WITHIN measured mode: a run that produced no usable
+  //    standard error, or no widening pass, does not carry these. Optional
+  //    here means "this measured run may not have computed it", which is a
+  //    much narrower claim than the old shared-shape optionality. ──
   /**
    * Standard error of `trueTdee`, in kcal — the honest width of the estimate.
    *
@@ -92,6 +124,25 @@ export interface TdeeResult {
    *  MEASURED_WINDOW_DAYS unless the window had to widen. */
   windowUsedDays?: number;
 }
+
+/** Mifflin-St Jeor against the stated profile: a population average wearing
+ *  this user's height, weight, age and sex. Carries no evidence fields because
+ *  it observed nothing. */
+export interface FormulaTdee extends TdeeBase {
+  source: 'formula';
+}
+
+/** The hardcoded stand-in used before there is a profile at all. Never present
+ *  it to a user as their number. */
+export interface SeedTdee extends TdeeBase {
+  source: 'seed';
+}
+
+/**
+ * The adaptive-TDEE result. Narrow on `source` before reading anything beyond
+ * {@link TdeeBase} — the compiler will insist, which is the entire point.
+ */
+export type TdeeResult = MeasuredTdee | FormulaTdee | SeedTdee;
 
 const KCAL_PER_POUND = 3500;
 const MIN_DAILY_TARGET = 1500;

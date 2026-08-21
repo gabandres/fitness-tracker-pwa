@@ -1,19 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { TdeeResult } from './tdee';
 import { maintenanceView } from './maintenance-view';
+import { measuredTdeeFixture as measured } from './tdee.test-utils';
 
-const measured = (over: Partial<TdeeResult> = {}): TdeeResult => ({
-  trueTdee: 1870,
-  newDailyTarget: 1850,
-  weightChangeTrend: -0.1,
-  source: 'measured',
-  loggingCompletenessPct: 82,
-  windowDays: 23,
-  spanDays: 28,
-  reliable: true,
-  outliersDropped: 0,
-  ...over,
-});
 
 describe('maintenanceView', () => {
   it('reads intake against maintenance, not against the target', () => {
@@ -46,11 +34,15 @@ describe('maintenanceView', () => {
     expect(v?.reliable).toBe(true);
   });
 
-  it('is null, not 0, when the estimate reported no count at all', () => {
-    // Distinguishes "nothing was dropped" from "this result predates the
-    // field", so a UI can stay quiet rather than claim a clean window.
-    expect(maintenanceView(measured({ outliersDropped: undefined }), 1810)?.weighInsDropped)
-      .toBeNull();
+  it('always reports a count — a measured estimate cannot omit one', () => {
+    // This used to assert the opposite: that an absent `outliersDropped` came
+    // through as null, so a UI could distinguish "nothing was dropped" from "a
+    // result predating the field". `TdeeResult` is a discriminated union now
+    // and `outliersDropped` is REQUIRED on the measured member, so the absent
+    // case is unrepresentable rather than merely unlikely. `MaintenanceView`
+    // keeps its `number | null` because both UIs read the field by truthiness
+    // and 0 already reads the same as null there.
+    expect(maintenanceView(measured({ outliersDropped: 0 }), 1810)?.weighInsDropped).toBe(0);
   });
 
   it('reports a surplus as a positive delta', () => {

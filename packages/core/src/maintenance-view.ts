@@ -120,21 +120,22 @@ export function maintenanceView(tdee: TdeeResult, consumedKcal: number): Mainten
     maintenance: tdee.trueTdee,
     consumed,
     delta: consumed > 0 ? consumed - tdee.trueTdee : null,
-    reliable: tdee.reliable === true,
+    // No `=== true` / `?? null` guards below: the early return above narrows
+    // `tdee` to `MeasuredTdee`, where every one of these is REQUIRED. They were
+    // defences against a shape that can no longer exist — a formula or seed
+    // result reaching this line — and the compiler now rules that out instead.
+    reliable: tdee.reliable,
     // The counts, not the percentage: "28 of 49 days" tells a user that three
     // weeks of eating are missing from the number and that every missing day
     // drags it DOWN. "57%" tells them nothing they can act on.
-    loggedDays: tdee.windowDays ?? null,
-    spanDays: tdee.spanDays ?? null,
-    weighInsDropped: tdee.outliersDropped ?? null,
-    // `?? 1` so a TdeeResult from before these fields existed — or from a
-    // branch that does not compute them — reads as "nothing held back" rather
-    // than as provisional. Absent evidence of damping is not evidence of it.
-    confidence: tdee.confidence ?? 1,
-    provisional: (tdee.confidence ?? 1) < 1,
-    // Absent state reads as NOT holding, for the same reason `confidence ?? 1`
-    // reads as nothing-held-back: a result from a branch that does not compute
-    // it is not evidence of a wide interval.
+    loggedDays: tdee.windowDays,
+    spanDays: tdee.spanDays,
+    weighInsDropped: tdee.outliersDropped,
+    confidence: tdee.confidence,
+    provisional: tdee.confidence < 1,
+    // Still optional WITHIN measured mode — a run with no widening pass does
+    // not compute it — and an absent state reads as NOT holding: a run that did
+    // not measure the interval is not evidence that it was wide.
     holding: tdee.estimateState === 'holding',
   };
 }

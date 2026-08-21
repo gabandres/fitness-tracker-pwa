@@ -12,12 +12,23 @@ import type { TdeeResult } from '@macrolog/core';
  * nothing. The arithmetic itself is `packages/core/src/pace-reality.test.ts`.
  */
 
+// `TdeeResult` is a discriminated union: a measured estimate carries its
+// evidence, so a five-field literal no longer typechecks.
 const tdee: TdeeResult = {
   trueTdee: 1870,
   newDailyTarget: 1850,
   weightChangeTrend: -0.1,
   source: 'measured',
   reliable: true,
+  loggingCompletenessPct: 82,
+  windowDays: 23,
+  spanDays: 28,
+  outliersDropped: 0,
+  measuredTdee: 1870,
+  confidence: 1,
+  avgDailyIntake: 1700,
+  weightSlopeLbsPerDay: -0.0486,
+  dailyDeficitAchieved: 170,
 };
 
 let mockCalorieFloor: number | undefined = 1850;

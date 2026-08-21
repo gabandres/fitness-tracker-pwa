@@ -87,9 +87,9 @@ import { bcp47ForLang } from '../../utils/locale';
           <span class="v2-body-soft">kcal</span>
         </div>
         <p class="v2-body-soft mt-1">{{ t(tdeeHintKey()) }}</p>
-        @if (tdee().source === 'measured' && tdee().loggingCompletenessPct != null) {
+        @if (measuredTdee(); as m) {
           <p class="v2-caption mt-1" style="color: var(--v2-faint);">
-            {{ t('trends.completeness', { pct: completenessPct() }) }}{{ tdee().reliable ? '' : t('trends.logMore') }}
+            {{ t('trends.completeness', { pct: completenessPct() }) }}{{ m.reliable ? '' : t('trends.logMore') }}
           </p>
         }
         <div class="mt-3 inline-flex items-center gap-1.5 v2-caption" style="border: 1px solid var(--v2-rule); border-radius: 999px; padding: 4px 12px;">
@@ -381,8 +381,23 @@ export class TrendsComponent {
       default: return 'trends.seedHint';
     }
   });
+  /**
+   * The TDEE result when it is MEASURED, else null.
+   *
+   * `TdeeResult` is a discriminated union, and an Angular template cannot carry
+   * a narrowing across two separate `tdee()` calls — each is its own expression,
+   * so `@if (tdee().source === 'measured')` does not make `tdee().reliable`
+   * legal in the body. Narrowing once here and binding it with `as m` is what
+   * makes the evidence fields reachable, and it reads better than the old
+   * `!= null` guard, which was checking a field that had no business being
+   * optional in the first place.
+   */
+  protected readonly measuredTdee = computed(() => {
+    const t = this.tdee();
+    return t.source === 'measured' ? t : null;
+  });
   protected readonly completenessPct = computed(() =>
-    Math.round(this.tdee().loggingCompletenessPct ?? 0),
+    Math.round(this.measuredTdee()?.loggingCompletenessPct ?? 0),
   );
   protected readonly weekly = computed(() => this.store.weekly());
 

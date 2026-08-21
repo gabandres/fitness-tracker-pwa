@@ -5,6 +5,7 @@ import { buildCoachSystemInstruction } from './coach-prompt';
 import { buildWeeklyReportPayload } from './weekly-report-prompt';
 import { recalibrationDigest } from './tdee-recalibration';
 import type { DailyLog, Profile, ProfileFields } from './types';
+import { asMeasured } from './tdee.test-utils';
 
 /**
  * Locking tests for the 2026-08-19 target-stability work.
@@ -107,7 +108,7 @@ describe('MEASURED_WINDOW_DAYS = 42 (2026-08-19)', () => {
     // returned 2,211 while a 57%-complete one returned 2,271, because the
     // window error was low and the activity anchor was high and the two
     // cancelled only while the user logged badly. Both must now be in range.
-    const r = calculateTdee(perfect, PROFILE);
+    const r = asMeasured(calculateTdee(perfect, PROFILE));
     expect(r.reliable).toBe(true);
     expect(r.confidence).toBe(1);           // anchor fully out of the answer
     expect(r.trueTdee).toBe(r.measuredTdee); // nothing damped
@@ -118,7 +119,7 @@ describe('MEASURED_WINDOW_DAYS = 42 (2026-08-19)', () => {
   it('actually uses 42 logged days when they exist', () => {
     // Guards the constant itself: at 28 this reads 28 and the test above would
     // fail for a reason that looks like an estimator bug.
-    const r = calculateTdee(perfect, PROFILE);
+    const r = asMeasured(calculateTdee(perfect, PROFILE));
     expect(r.windowDays).toBe(42);
   });
 
@@ -126,8 +127,8 @@ describe('MEASURED_WINDOW_DAYS = 42 (2026-08-19)', () => {
     // Benchmark = plain energy balance over these exact 42 rows: 2,279.
     // The point of this assertion is that the estimator is NOT the source of
     // the residual gap to the 97-day figure (2,385) — the window length is.
-    const r = calculateTdee(perfect, PROFILE);
-    expect(Math.abs((r.measuredTdee ?? 0) / 2279 - 1)).toBeLessThan(0.01);
+    const r = asMeasured(calculateTdee(perfect, PROFILE));
+    expect(Math.abs(r.measuredTdee / 2279 - 1)).toBeLessThan(0.01);
   });
 });
 
@@ -172,7 +173,7 @@ describe('endpoint leverage — one weigh-in cannot move the target (2026-08-19)
       const k = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
       return [k, 2000, 180 - i * (0.5 / 7)] as Row;
     }));
-    const r = calculateTdee(steady, PROFILE);
+    const r = asMeasured(calculateTdee(steady, PROFILE));
     expect(r.measuredTdee).toBeGreaterThan(2200);
     expect(r.measuredTdee).toBeLessThan(2300);
   });
@@ -184,14 +185,14 @@ describe('3. convergence against the plain-OLS benchmark', () => {
     // (Over the FULL 97-day gap-free run it is 2385, but `MEASURED_WINDOW_DAYS`
     // is 28 LOGGED days, so the estimator structurally never sees the other 69.
     // That gap is a window-length policy question, not an estimator error.)
-    const r = calculateTdee(toLogs(GAP_FREE), PROFILE);
+    const r = asMeasured(calculateTdee(toLogs(GAP_FREE), PROFILE));
     expect(r.source).toBe('measured');
-    expect(Math.abs((r.measuredTdee ?? 0) / 2232 - 1)).toBeLessThan(0.05);
+    expect(Math.abs(r.measuredTdee / 2232 - 1)).toBeLessThan(0.05);
   });
 
   it('leaves a complete window undamped — reliable ⇒ confidence 1', () => {
     // The property that keeps every good logger's number byte-identical.
-    const r = calculateTdee(toLogs(GAP_FREE), PROFILE);
+    const r = asMeasured(calculateTdee(toLogs(GAP_FREE), PROFILE));
     expect(r.reliable).toBe(true);
     expect(r.confidence).toBe(1);
     expect(r.trueTdee).toBe(r.measuredTdee);

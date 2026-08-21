@@ -6,16 +6,14 @@ import {
   type MilestoneContext,
 } from './weekly-report-prompt';
 import type { DailyLog, ProfileFields } from './types';
-import type { TdeeResult } from './tdee';
+import { measuredTdeeFixture } from './tdee.test-utils';
 
 const NOW = new Date('2026-06-15T12:00:00'); // fixed "today" for determinism
 
-const tdee: TdeeResult = {
-  trueTdee: 2400,
-  newDailyTarget: 1900,
-  weightChangeTrend: 0.4,
-  source: 'measured',
-};
+// A complete measured result. `TdeeResult` is a discriminated union now,
+// so a four-field `{ source: 'measured' }` literal no longer typechecks —
+// which is the point: a measured estimate always carries its evidence.
+const tdee = measuredTdeeFixture({ trueTdee: 2400, newDailyTarget: 1900, weightChangeTrend: 0.4 });
 
 const profile: ProfileFields = {
   heightIn: 70,
