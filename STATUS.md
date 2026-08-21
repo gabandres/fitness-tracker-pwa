@@ -103,14 +103,15 @@ the update banner drains it. Do not publish a second update to "cover" it.
 Everything else that was in this section has shipped and is in `CHANGELOG.md`.
 
 - **The latency work (`1dbc6b5a`, `4b5ae6de`, 2026-08-21) — SHIPPED, both halves,
-  Android.** Server: `GEMINI_MODEL` moved `gemini-2.5-flash` → `gemini-3.5-flash-lite`
+  BOTH platforms.** Server: `GEMINI_MODEL` moved `gemini-2.5-flash` → `gemini-3.5-flash-lite`
   (benchmarked 3,182 ms → 1,846 ms at the identical list price, still free-tier),
   `loadFoods()` overlaps the model call, and `@anthropic-ai/sdk` + `resend` became
   lazy requires — `resend` is reached through `init.ts`, so EVERY function paid
   for it on every cold start; `require lib/index.js` went **535 ms → 230 ms**.
-  Client, delivered by **OTA #4 on vc 37** (`01a0264a…`): 768 px upload resize,
-  named scan-progress steps, `?fields=` on the barcode lookup, an on-device
-  barcode cache, and the OFF 404 → `FOOD_NOT_FOUND` fix.
+  Client, delivered by **OTA #4 on vc 37** (`01a0264a…`) and, since 2026-08-21,
+  by **iOS OTA #4 on build 60** (`01a02696…`): 768 px upload resize, named
+  scan-progress steps, `?fields=` on the barcode lookup, an on-device barcode
+  cache, and the OFF 404 → `FOOD_NOT_FOUND` fix.
 
   **Measured, and the two numbers have different confidence.** WARM is the solid
   one: **3.39 s → 2.24 s**, consistent across several samples. COLD is noisy and
@@ -124,13 +125,26 @@ Everything else that was in this section has shipped and is in `CHANGELOG.md`.
   restarted onto it, and a real scan rendered the new analyzing screen and a
   correct USDA-grounded review.
 
-- **iOS has NOT received any of the client half, and `ignia-mac` is out of disk.**
-  116 Mi free on 228 Gi — `git fetch` fails, so the iOS fingerprint gate could not
-  even be run, let alone a publish or a build. Our own artifacts are ~19 GB of it
-  (`~/Library/Developer/Xcode/DerivedData` alone is 9.2 GB of regenerable cache,
-  `Archives` 1.0 GB, `CoreSimulator` 3.0 GB). **This blocks every future iOS
-  build too, not just this OTA.** The server half already reaches iOS, since it
-  needs no client.
+- **iOS has the client half now — published 2026-08-21, and it reaches
+  TestFlight ONLY.** Gate run on `ignia-mac` and it matched build 60's runtime
+  (`7b347b0f…`) exactly; update group `d83c9d01…`. Public iOS is build 55
+  (`886bf0b3…`), a different runtime, and receives none of this until 1.2.1
+  clears review — do not report it as "shipped to iOS users". **Behaviour is
+  UNVERIFIED on iOS**: the identical JS is device-verified on Android, but no
+  iOS device has run it.
+
+  **The reason it lagged Android by a session is worth keeping.** Android OTAs
+  publish from the *Windows* workstation, so they need no `git push`; iOS
+  publishes from the Mac, which can only get code through `origin`. All ten
+  latency commits were on **local `main` only** — `origin/main` was still at
+  `0f9ccfa5`. A Mac that pulls cleanly and gates green will publish **stale JS
+  and exit 0**. Check `git rev-list --count origin/main..HEAD` before gating.
+
+  Disk on `ignia-mac` is no longer the blocker it was — **5.1 Gi free**, up from
+  116 Mi. That is enough for an OTA (Metro + upload) and is still too thin for a
+  native build's `DerivedData`; `~/Library/Developer/Xcode/DerivedData` was
+  9.2 GB of regenerable cache, but clearing it forces a full rebuild of the
+  owner's in-flight work on that shared machine — ask first.
 
 - **The barcode work is VERIFIED END TO END on Android, cache included.** A real
   product scanned on the LG G6 prefilled the entry sheet from Open Food Facts,

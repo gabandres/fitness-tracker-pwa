@@ -36,6 +36,31 @@ Windows side, so there is nothing to review. A green Maestro line alone is
 exactly the evidence this file refuses to accept. Re-run with the collector and
 review the images before flipping anything.
 
+**Full Android sweep, 2026-08-21, against vc 37 + OTA #4 — 16 of 17, and the
+captures were collected this time.** The one failure was `10-theme-dark`
+("No visible element found: id: settings-theme-dark"), and it is a **device
+flake, not a regression**: it died on `scrollUntilVisible` while still on
+*Today*, because the preceding `settings-open` tap never navigated — Maestro
+retried it for 26 s first. `04-settings` and `09-locale-es` drive the same
+`settings-open` chain and both passed in that same run. Re-run alone
+immediately after, the flow passed end to end **including its tail**, so the
+device is back on the System theme baseline. Because it failed *before* the
+theme was flipped, no later flow's captures were contaminated.
+
+`15-search` and `18-train-template` — the two historically flaky flows, and two
+of the three that failed on 2026-08-19 — both **passed**. `17-coach-ask` did not
+run and should not: it is tagged `manual` because it spends real AI money.
+
+73 captures collected (64 from the sweep, 9 dark from the `10` re-run).
+**Rows below are still NOT flipped, deliberately.** Only a sample was reviewed —
+`06-scan-intro`, `06-fab-dial`, and the `10-dark-*` set — not all 73, and this
+file's rule is that a row flips on a *reviewed* capture. Flipping 30 rows off a
+sample would be exactly the "green line as evidence" substitution the paragraph
+above refuses. The sample did earn two real findings: the What's New banner
+renders correctly on Today with the OTA #4 copy, in both light and dark, and
+`06-scan-intro`'s capture was being taken under the FAB dial's dismiss scrim
+(fixed in that flow the same day — see its header).
+
 Two cautions the first run produced. A whole-suite cascade is easy to
 misread: an earlier run showed 15 failures, all of them `"Today" is visible`
 after the session was lost, and re-running the sign-in flow turned it into
