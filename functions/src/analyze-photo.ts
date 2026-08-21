@@ -499,6 +499,32 @@ export const analyzePhoto = onCall(
       );
     }
 
+    // ── Validate the INPUT before charging anything for it.
+    //
+    // These two checks used to sit *after* the quota reserve and the spend
+    // record, which meant a request with no image, or one too large, consumed
+    // one of a free user's three daily scans without a single token being
+    // spent on their behalf. Nothing below this point has cost money yet, so
+    // nothing below this point may cost the user a slot. Order is the fix;
+    // a refund would be the wrong shape for a request that never ran.
+    const { photoBase64, locale } = request.data as { photoBase64?: string; locale?: string };
+    if (!photoBase64 || typeof photoBase64 !== "string") {
+      throw new HttpsError("invalid-argument", "photoBase64 is required.", { code: ErrorCode.PHOTO_MISSING });
+    }
+
+    // Defense-in-depth against direct API callers that bypass the client
+    // resize. The client caps raw uploads at 15 MB and resizes to 768px
+    // before base64 encoding, so legitimate payloads are well under 3 MB.
+    // Threshold here (~20 MB base64 = ~15 MB raw) matches the client
+    // precheck so the user-facing number is consistent.
+    if (photoBase64.length > 20_000_000) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Image too large after processing.",
+        { code: ErrorCode.PHOTO_TOO_LARGE },
+      );
+    }
+
     // Org-wide spend guard, checked BEFORE the per-user reserve so an
     // ordinary "you hit your own limit" rejection never consumes a slot of
     // the shared ceiling. A read, not a write — see spend-ceiling.ts.
@@ -511,34 +537,31 @@ export const analyzePhoto = onCall(
 
     // Daily quota (per user, resets at UTC midnight). Comped users skip it;
     // admin counts like everyone else (see Caller.quotaExempt).
+    //
+    // `reservedDay` is the receipt: non-null means this request holds a slot
+    // that the failure path below has to hand back. Capturing the DAY, not
+    // just a boolean, is what makes the refund target the doc that was
+    // actually charged across a UTC midnight.
     let photosRemaining = dailyQuota.limitFor("photo", true);
+    let reservedDay: string | null = null;
     if (!caller.quotaExempt) {
       const reserved = await dailyQuota.reserve(uid, "photo", caller.tier === "paid");
       photosRemaining = reserved.remaining;
+      reservedDay = reserved.day;
     }
 
     // Metered here rather than after the model call: the spend happens the
     // moment the request leaves, so a response that fails to parse still cost
     // money and still has to count. Records every tier, unlimited included.
+    //
+    // NOTE the deliberate asymmetry with the quota refund below: a failed scan
+    // gives the USER their slot back but never un-records the SPEND. The two
+    // guards answer different questions — the quota is a fairness mechanism
+    // and it is not fair to charge someone for nothing, while the ceiling is a
+    // solvency mechanism and the money left the building either way. Refunding
+    // the ceiling would let a stream of unreadable photos run up an unbounded
+    // bill while every individual request looked free.
     await spendCeiling.record("photo");
-
-    const { photoBase64, locale } = request.data as { photoBase64?: string; locale?: string };
-    if (!photoBase64 || typeof photoBase64 !== "string") {
-      throw new HttpsError("invalid-argument", "photoBase64 is required.", { code: ErrorCode.PHOTO_MISSING });
-    }
-
-    // Defense-in-depth against direct API callers that bypass the client
-    // resize. The client caps raw uploads at 15 MB and resizes to 1920px
-    // before base64 encoding, so legitimate payloads are well under 3 MB.
-    // Threshold here (~20 MB base64 = ~15 MB raw) matches the client
-    // precheck so the user-facing number is consistent.
-    if (photoBase64.length > 20_000_000) {
-      throw new HttpsError(
-        "invalid-argument",
-        "Image too large after processing.",
-        { code: ErrorCode.PHOTO_TOO_LARGE },
-      );
-    }
 
     // Locale-aware naming. The macros are locale-agnostic — they come from the
     // database — so only the human-readable text flips language.
@@ -631,6 +654,32 @@ export const analyzePhoto = onCall(
         photosRemaining,
       };
     } catch (err) {
+      // ── Refund the slot. The user got nothing usable, so they keep their scan.
+      //
+      // Every path that reaches here left the user empty-handed: the model
+      // identified no food, it refused, its answer was truncated, the JSON did
+      // not parse, or the network to it failed. On a 3/day free tier, charging
+      // for those means two unreadable photos leave someone with one attempt —
+      // and the most common reason a scan returns nothing is a bad photo, which
+      // is exactly when a person wants to immediately try again.
+      //
+      // `release()` is bounded and idempotent-ish by design: it will not take a
+      // counter below zero, so this cannot mint credit. It is awaited rather
+      // than fired-and-forgotten so the refund is durable before the client is
+      // told it failed — otherwise the client's retry can race the refund and
+      // read a stale count.
+      //
+      // Its own failure must never replace the real error. A refund that does
+      // not land is a user overcharged by one scan; an exception thrown from a
+      // catch block is the actual fault disappearing.
+      if (reservedDay) {
+        try {
+          await dailyQuota.release(uid, "photo", reservedDay);
+        } catch (refundErr) {
+          console.error(`analyzePhoto quota refund FAILED uid=${uid} day=${reservedDay}:`, refundErr);
+        }
+      }
+
       if (err instanceof HttpsError) throw err;
       console.error("analyzePhoto error:", err);
       throw new HttpsError("internal", "Photo analysis failed.", { code: ErrorCode.PHOTO_ANALYZE_FAILED });

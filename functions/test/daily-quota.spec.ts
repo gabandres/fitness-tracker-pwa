@@ -38,16 +38,17 @@ describe("limitFor", () => {
 describe("reserve", () => {
   it("counts down the free cap and throws on the over-limit call", async () => {
     const uid = freshUid();
-    expect(await quota.reserve(uid, "photo", false)).toEqual({ usedAfter: 1, remaining: 2 });
-    expect(await quota.reserve(uid, "photo", false)).toEqual({ usedAfter: 2, remaining: 1 });
-    expect(await quota.reserve(uid, "photo", false)).toEqual({ usedAfter: 3, remaining: 0 });
+    const day = utcDayKey();
+    expect(await quota.reserve(uid, "photo", false)).toEqual({ usedAfter: 1, remaining: 2, day });
+    expect(await quota.reserve(uid, "photo", false)).toEqual({ usedAfter: 2, remaining: 1, day });
+    expect(await quota.reserve(uid, "photo", false)).toEqual({ usedAfter: 3, remaining: 0, day });
     await expectQuotaExceeded(quota.reserve(uid, "photo", false), "PHOTO_QUOTA_EXCEEDED", 3);
     expect(await quota.peek(uid, "photo")).toBe(3); // failed reserve consumed nothing
   });
 
   it("uses the paid cap for paid callers", async () => {
     const uid = freshUid();
-    expect(await quota.reserve(uid, "consultation", true)).toEqual({ usedAfter: 1, remaining: 29 });
+    expect(await quota.reserve(uid, "consultation", true)).toEqual({ usedAfter: 1, remaining: 29, day: utcDayKey() });
   });
 
   it("throws the consultation code for consultation overruns", async () => {
@@ -81,12 +82,46 @@ describe("release", () => {
     expect(await quota.release(uid, "consultation")).toBe(false);
     expect(await quota.peek(uid, "consultation")).toBe(0);
     // The floor means the next reserve starts from 0, not negative.
-    expect(await quota.reserve(uid, "consultation", false)).toEqual({ usedAfter: 1, remaining: 2 });
+    expect(await quota.reserve(uid, "consultation", false)).toEqual({
+      usedAfter: 1,
+      remaining: 2,
+      day: utcDayKey(),
+    });
   });
 
   it("is a no-op when no doc exists yet", async () => {
     const uid = freshUid();
     expect(await quota.release(uid, "photo")).toBe(false);
+    expect(await quota.peek(uid, "photo")).toBe(0);
+  });
+
+  /**
+   * The reason `reserve` hands back a `day` at all. A scan reserved at
+   * 23:59:59 and refunded at 00:00:01 must credit the day it charged — a
+   * release that defaults to "today" would leave the overcharge in place AND
+   * hand out a free scan tomorrow, wrong in both directions at once.
+   */
+  it("refunds the day it was told to, not today", async () => {
+    const uid = freshUid();
+    const yesterday = "2026-08-20";
+
+    await quota.reserve(uid, "photo", false); // charges TODAY
+    expect(await quota.peek(uid, "photo")).toBe(1);
+
+    // A refund aimed at another day must not touch today's counter.
+    expect(await quota.release(uid, "photo", yesterday)).toBe(false);
+    expect(await quota.peek(uid, "photo")).toBe(1);
+
+    // Aimed at the day actually charged, it lands.
+    expect(await quota.release(uid, "photo", utcDayKey())).toBe(true);
+    expect(await quota.peek(uid, "photo")).toBe(0);
+  });
+
+  it("round-trips the day reserve reported", async () => {
+    const uid = freshUid();
+    const { day } = await quota.reserve(uid, "photo", false);
+    expect(day).toBe(utcDayKey());
+    expect(await quota.release(uid, "photo", day)).toBe(true);
     expect(await quota.peek(uid, "photo")).toBe(0);
   });
 });

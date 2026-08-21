@@ -132,15 +132,26 @@ Everything else that was in this section has shipped and is in `CHANGELOG.md`.
   build too, not just this OTA.** The server half already reaches iOS, since it
   needs no client.
 
-- **A photo scan that finds NO items still burns one of the user's 3 daily free
-  scans.** Found on-device 2026-08-21: `photoQuota` read `count: 3` after two
-  successful scans and one that returned an empty item list. `analyzePhoto`
-  reserves the quota *before* the model call and never calls the
-  `dailyQuota.release()` that exists for exactly this — so a user who photographs
-  something the model cannot read pays for it, and on a 3/day free tier two bad
-  photos leave them one attempt. Server-side, so it affects BOTH platforms.
-  Not fixed; the release call and the decision about which failure modes refund
-  (no-items vs a model error vs a truncation) are a small, real piece of work.
+- **FIXED 2026-08-21: a failed photo scan no longer costs a daily scan**
+  (`analyzePhoto`, deployed). Two separate wrongs, found by hitting the quota
+  on-device: input validation ran *after* the charge, so a request with no image
+  or an oversized one consumed a slot without a token being spent; and no
+  failure path ever called the `dailyQuota.release()` that had existed unused
+  since the module was written. Validation now runs before the reserve (a
+  request that never ran must not be refunded — it must never be charged), and
+  every failure after the model call refunds.
+
+  **The asymmetry is deliberate: a failed scan refunds the USER's quota but
+  never un-records the SPEND.** The quota is a fairness mechanism and charging
+  for nothing is unfair; the ceiling is a solvency mechanism and the money left
+  the building either way. Refunding the ceiling would let a stream of
+  unreadable photos run up an unbounded bill while every request looked free.
+
+  `reserve()` now returns the `day` it charged and `release()` takes it, so a
+  scan reserved at 23:59:59 and refunded at 00:00:01 credits the day it charged
+  instead of handing out a free scan tomorrow. Verified in production on a real
+  free-tier user: missing image → 400, quota 0; valid JPEG with no food → 500,
+  quota 0 (refunded); real meal → 200, 4 items, quota 1. 379 functions tests.
 
 ## 3. Open work, and what each is blocked on
 

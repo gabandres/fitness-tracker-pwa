@@ -64,7 +64,11 @@ export class DailyQuota {
    * `resource-exhausted` with the kind's ErrorCode + `{ limit }` details
    * when the cap is already reached (the slot is NOT consumed).
    */
-  async reserve(uid: string, kind: QuotaKind, paid: boolean): Promise<{ usedAfter: number; remaining: number }> {
+  async reserve(
+    uid: string,
+    kind: QuotaKind,
+    paid: boolean,
+  ): Promise<{ usedAfter: number; remaining: number; day: string }> {
     const cfg = KINDS[kind];
     const limit = this.limitFor(kind, paid);
     const today = utcDayKey();
@@ -83,16 +87,25 @@ export class DailyQuota {
       usedAfter = used + 1;
       tx.set(ref, { count: usedAfter, uid, date: today }, { merge: true });
     });
-    return { usedAfter, remaining: limit - usedAfter };
+    // `day` is returned so a caller refunding this reservation can target the
+    // doc that was actually charged. A request that starts at 23:59:59 and
+    // fails at 00:00:01 would otherwise refund the NEXT day's counter, which
+    // hands the user a free scan tomorrow and leaves today's overcharge in
+    // place — wrong in both directions at once.
+    return { usedAfter, remaining: limit - usedAfter, day: today };
   }
 
   /**
    * Refund one previously-reserved slot. Will not go below zero — a bad
    * client can't build up credit by spam-calling release. Returns false
    * when there was nothing to refund.
+   *
+   * Pass the `day` from the matching {@link reserve} call. It defaults to
+   * today only for callers that cannot have crossed a UTC midnight; anything
+   * that awaits a model between reserve and release should pass it explicitly.
    */
-  async release(uid: string, kind: QuotaKind): Promise<boolean> {
-    const ref = this.ref(kind, uid, utcDayKey());
+  async release(uid: string, kind: QuotaKind, day: string = utcDayKey()): Promise<boolean> {
+    const ref = this.ref(kind, uid, day);
     let released = false;
     await this.db.runTransaction(async (tx) => {
       const doc = await tx.get(ref);
