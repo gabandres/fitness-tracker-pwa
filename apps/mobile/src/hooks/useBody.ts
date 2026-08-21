@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { trackSubs } from '@/lib/sub-debug';
+import { useCoreSnapshot } from '@/hooks/useCoreSnapshot';
 import { exportDaily } from '@/lib/health-sync';
 import { track } from '@/lib/analytics';
 import {
   type BodyFatInput,
-  type DailyLog,
   type Measurement,
-  type Profile,
   type GoalProgress,
   type WeightProjection,
   type WeightPoint,
@@ -30,10 +29,7 @@ import {
   deleteMeasurement as deleteMeasurementDoc,
   updateMeasurement as updateMeasurementDoc,
   setDailyWeight,
-  subscribeDailyWeights,
   subscribeMeasurements,
-  subscribeProfile,
-  subscribeRecentLogs,
 } from '@/lib/ledger';
 
 export interface WeighIn {
@@ -85,32 +81,24 @@ const FORECAST_DAYS = 7;
 export function useBody(): BodyState {
   const { user } = useAuth();
   const uid = user?.uid;
-  const [weights, setWeights] = useState<Record<string, number>>({});
-  const [logs, setLogs] = useState<DailyLog[]>([]);
+  // Weights, logs and profile come through the shared wiring — same focus-gated
+  // per-hook channels as before (ADR-0016), one copy of the window/error policy.
+  // The 400 this hook used to pass as a bare literal was `LOG_WINDOW_ROWS` all
+  // along.
+  const { logs, weights, profile, loaded, error: snapshotError } = useCoreSnapshot('Body');
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  const [measurementError, setMeasurementError] = useState<Error | null>(null);
+  const loading = !loaded;
+  const error = snapshotError ?? measurementError;
 
-  // Focus-gated so the Body tab drops its live listeners when it blurs
-  // (battery/network). Re-subscribes from cache on refocus. See useToday.
+  // Measurements are this tab's alone, so they stay its own subscription —
+  // focus-gated and tracked the same way.
   useFocusEffect(
     useCallback(() => {
       if (!uid) return;
-      const unsubs = [
-        subscribeDailyWeights(
-          uid,
-          (w) => {
-            setWeights(w);
-            setLoading(false);
-          },
-          setError,
-        ),
-        subscribeRecentLogs(uid, 400, setLogs, setError),
-        subscribeMeasurements(uid, 20, setMeasurements, setError),
-        subscribeProfile(uid, setProfile, setError),
-      ];
-      return trackSubs('Body', unsubs);
+      return trackSubs('BodyMeasurements', [
+        subscribeMeasurements(uid, 20, setMeasurements, setMeasurementError),
+      ]);
     }, [uid]),
   );
 

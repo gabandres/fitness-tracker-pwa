@@ -29,8 +29,10 @@ import { health, type NutritionExport, type ReadableKind, type WorkoutExport } f
  */
 
 const CONNECTED_KEY = 'ignia.health.connected';
-/** First-import history depth — matches `LOG_WINDOW` so measured-mode TDEE
- *  benefits from imported weight immediately. */
+/** First-import history depth, in DAYS. Numerically equal to core's
+ *  `LOG_WINDOW_ROWS` and deliberately not derived from it — that one counts
+ *  ROWS, and conflating the two is the ADR-0004 footgun in miniature. Sized so
+ *  measured-mode TDEE benefits from imported weight immediately. */
 const IMPORT_DAYS = 400;
 
 /** Per-kind "already equal" tolerance for `valuesToApply` — unit round-trips

@@ -1,13 +1,11 @@
 import { useCallback, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { type DailyLog, computeStreak, localDateKey, parseYmd } from '@macrolog/core';
+import { type DailyLog, LOG_WINDOW_ROWS, computeStreak, localDateKey, parseYmd } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { useT } from '@/i18n';
 import { subscribeDailyWeights, subscribeRecentLogs } from '@/lib/ledger';
 import { trackSubs } from '@/lib/sub-debug';
 import { syncReminders } from '@/lib/reminders';
-
-const LOG_WINDOW = 400;
 
 /** Whole days since the most recent weigh-in (dailyWeights or a log's weight),
  *  or null when there's never been one. */
@@ -36,6 +34,11 @@ function daysSinceWeighIn(
  * and after every log (the logs `onSnapshot` fires). Focus-gated + trackSubs'd
  * like the other hooks (ADR-0016) — no permanent listener. A signature guard
  * skips redundant reschedules when the inputs haven't changed.
+ *
+ * Keeps its own two subscriptions rather than taking `useCoreSnapshot`'s three:
+ * it needs no profile, and it holds its inputs in refs precisely so a snapshot
+ * does not re-render the screen it is mounted on. It does share the window
+ * constant, which it used to restate as a local 400.
  */
 export function useReminderSync(): void {
   const { user } = useAuth();
@@ -64,7 +67,7 @@ export function useReminderSync(): void {
       };
 
       const unsubs = [
-        subscribeRecentLogs(uid, LOG_WINDOW, (l) => {
+        subscribeRecentLogs(uid, LOG_WINDOW_ROWS, (l) => {
           logsRef.current = l;
           recompute();
         }),

@@ -1,16 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  type DailyLog,
-  type Profile,
   type RecalibrationAck,
   type RecalibrationDigest,
   recalibrationDigest,
 } from '@macrolog/core';
-import { useAuth } from '@/lib/auth';
-import { subscribeDailyWeights, subscribeProfile, subscribeRecentLogs } from '@/lib/ledger';
+import { useCoreSnapshot } from '@/hooks/useCoreSnapshot';
 
-const LOG_WINDOW = 400;
 const ACK_KEY = 'ignia.tdee-recal-ack';
 
 /**
@@ -20,14 +16,11 @@ const ACK_KEY = 'ignia.tdee-recal-ack';
  * visible. The "last acknowledged" reference is persisted per-device in
  * AsyncStorage (mirrors the whatsNew dismiss key), so there's no Firestore
  * field to write. Subscribes to its own profile/logs/weights snapshots — the
- * intentional per-hook duplication (ADR-0016), same shape as useDailyTargets.
+ * intentional per-hook duplication (ADR-0016) — through the shared
+ * `useCoreSnapshot` wiring, same as useDailyTargets.
  */
 export function useRecalibration(): { digest: RecalibrationDigest; acknowledge: () => void } {
-  const { user } = useAuth();
-  const uid = user?.uid;
-  const [logs, setLogs] = useState<DailyLog[]>([]);
-  const [weights, setWeights] = useState<Record<string, number>>({});
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const { logs, weights, profile } = useCoreSnapshot('Recalibration');
   const [ack, setAck] = useState<RecalibrationAck | null>(null);
 
   useEffect(() => {
@@ -43,16 +36,6 @@ export function useRecalibration(): { digest: RecalibrationDigest; acknowledge: 
         /* no prior ack / unreadable — treat as never acknowledged */
       });
   }, []);
-
-  useEffect(() => {
-    if (!uid) return;
-    const unsubs = [
-      subscribeRecentLogs(uid, LOG_WINDOW, setLogs),
-      subscribeDailyWeights(uid, setWeights),
-      subscribeProfile(uid, setProfile),
-    ];
-    return () => unsubs.forEach((u) => u());
-  }, [uid]);
 
   const digest = useMemo(
     () => recalibrationDigest(profile, logs, weights, { now: Date.now(), ack }),

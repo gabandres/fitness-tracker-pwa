@@ -1,11 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
-import { trackSubs } from '@/lib/sub-debug';
+import { useMemo } from 'react';
 import {
   type ActivityLevel,
-  type DailyLog,
   type DailyTargets,
-  type Profile,
   type TdeeResult,
   type WeeklyBudget,
   type WeeklyInsights,
@@ -17,7 +13,6 @@ import {
   dailyTargets,
   localDateKey,
   summarizeDays,
-  LOG_WINDOW_ROWS,
   isoWeek,
   trailingDateKeys,
   weightPointsForDays,
@@ -26,8 +21,7 @@ import {
 
 /** Sparkline length — a chart-width choice, not a domain window. */
 const SPARK_DAYS = 14;
-import { useAuth } from '@/lib/auth';
-import { subscribeDailyWeights, subscribeProfile, subscribeRecentLogs } from '@/lib/ledger';
+import { useCoreSnapshot } from '@/hooks/useCoreSnapshot';
 
 const INSIGHT_DAYS = 7;
 const SLOPE_WINDOW_DAYS = 28;
@@ -60,35 +54,11 @@ export interface TrendsState {
 
 
 export function useTrends(): TrendsState {
-  const { user } = useAuth();
-  const uid = user?.uid;
-  const [logs, setLogs] = useState<DailyLog[]>([]);
-  const [weights, setWeights] = useState<Record<string, number>>({});
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
   // Focus-gated so the Trends tab drops its live listeners when it blurs
-  // (battery/network). Re-subscribes from cache on refocus. See useToday.
-  useFocusEffect(
-    useCallback(() => {
-      if (!uid) return;
-      const unsubs = [
-        subscribeRecentLogs(
-          uid,
-          LOG_WINDOW_ROWS,
-          (l) => {
-            setLogs(l);
-            setLoading(false);
-          },
-          setError,
-        ),
-        subscribeDailyWeights(uid, setWeights, setError),
-        subscribeProfile(uid, setProfile, setError),
-      ];
-      return trackSubs('Trends', unsubs);
-    }, [uid]),
-  );
+  // (battery/network); re-subscribes from cache on refocus. That discipline,
+  // the 400-row window and the error policy all live in `useCoreSnapshot`.
+  const { logs, weights, profile, loaded, error } = useCoreSnapshot('Trends');
+  const loading = !loaded;
 
   const targets: DailyTargets = useMemo(
     () => dailyTargets(profile, logs, weights),

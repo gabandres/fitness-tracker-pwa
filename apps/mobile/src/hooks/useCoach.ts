@@ -1,21 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   type DailyLog,
-  type Profile,
   type ProfileFields,
   type TdeeResult,
   dailyTargets,
   toProfileFields,
 } from '@macrolog/core';
-import { useAuth } from '@/lib/auth';
-import { subscribeDailyWeights, subscribeProfile, subscribeRecentLogs } from '@/lib/ledger';
-
-// Deliberately wider than the coach's own window: the adaptive-TDEE math below
-// needs a long series, and `buildCoachSystemInstruction` trims to
-// COACH_WINDOW_DAYS itself. Until 2026-08-12 it did NOT trim, so all 400 rows
-// (~100 days) went into the prompt and were announced to the model as "400
-// days" — the mirror image of the web app shipping a 14-ROW cache as "14 days".
-const LOG_WINDOW = 400;
+import { useCoreSnapshot } from '@/hooks/useCoreSnapshot';
 
 export interface CoachData {
   loading: boolean;
@@ -28,28 +19,20 @@ export interface CoachData {
 
 /**
  * Reactive data the AI coach grounds on: the recent log, per-day weights, the
- * completed profile, and the adaptive-TDEE output. Subscribes independently
- * (per-hook duplication is the app's precedent — the same collections back
- * other tabs) so the Coach screen needs no shared context.
+ * completed profile, and the adaptive-TDEE output.
+ *
+ * Reads the shared core triple through {@link useCoreSnapshot} — its own
+ * `onSnapshot` channels, per ADR-0016, just not its own copy of the wiring.
+ * The window it used to declare locally was 400, the same number
+ * `LOG_WINDOW_ROWS` has always held; it is deliberately wider than the coach's
+ * own window because the adaptive-TDEE math needs a long series, and
+ * `buildCoachSystemInstruction` trims to COACH_WINDOW_DAYS itself. Until
+ * 2026-08-12 it did NOT trim, so all 400 rows (~100 days) went into the prompt
+ * and were announced to the model as "400 days" — the mirror image of the web
+ * app shipping a 14-ROW cache as "14 days".
  */
 export function useCoach(): CoachData {
-  const { user } = useAuth();
-  const uid = user?.uid;
-  const [logs, setLogs] = useState<DailyLog[]>([]);
-  const [weights, setWeights] = useState<Record<string, number>>({});
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!uid) return;
-    setLoading(true);
-    const unsubs = [
-      subscribeRecentLogs(uid, LOG_WINDOW, (l) => { setLogs(l); setLoading(false); }, () => setLoading(false)),
-      subscribeDailyWeights(uid, setWeights, () => {}),
-      subscribeProfile(uid, setProfile, () => {}),
-    ];
-    return () => unsubs.forEach((u) => u());
-  }, [uid]);
+  const { logs, weights, profile, loaded } = useCoreSnapshot('Coach');
 
   const tdee = useMemo(() => dailyTargets(profile, logs, weights).tdee, [profile, logs, weights]);
   // Core's `toProfileFields` (the same narrowing `dailyTargets` uses) rather
@@ -65,5 +48,5 @@ export function useCoach(): CoachData {
     [profile],
   );
 
-  return { loading, logs, tdee, profile: profileFields, dailyWeights: weights };
+  return { loading: !loaded, logs, tdee, profile: profileFields, dailyWeights: weights };
 }
