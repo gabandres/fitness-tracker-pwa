@@ -2,12 +2,53 @@
  * @macrolog/core — the shared, framework-free brain consumed by both the
  * Angular PWA and the Expo app. Domain types + pure math only; NO Firestore
  * SDK, NO Angular, NO React. See docs/adr/0012.
+ *
+ * **The sections below mirror CONTEXT.md's headings**, so a reader who knows
+ * the glossary can find the module and a reader who finds the module can look
+ * up the term. They are the only structure this surface has: every line is
+ * still `export *`, so ~430 symbols share one flat namespace and an import from
+ * '@macrolog/core' autocompletes to all of them. Keep a new module under the
+ * heading its concept lives under in CONTEXT.md, and add the term there if it
+ * has none — a module whose name means nothing in the glossary is a module
+ * nobody will find twice.
  */
+
+// ─────────────────────────── Foundations ───────────────────────────
 export * from './types';
 export * from './unit-system';
-export * from './macro-heuristic';
 export * from './date';
+export * from './tier-limits';
+
+// ──────────────────────────── Logging ────────────────────────────
+// One row of intake (`DailyLog`) and the shapes around it: the per-day rollup,
+// the write-time meal-slot default, the entry-form draft, presets, My Foods.
 export * from './day-summary';
+export * from './meal-slots';
+export * from './meal-draft';
+export * from './meal-preset';
+// My Foods library helpers (ADR-0013). Types (CustomFood, FoodSource,
+// ServingUnit) live in ./types; these are the pure scaling helpers.
+export * from './custom-food';
+
+// ──────────────────── Time windows over logs ────────────────────
+// The windows every screen takes over logs and weights, named once. ADR-0004
+// gave the Angular app typed windows; the Expo app was built afterwards and
+// inherited none of it, so `400` was declared in three hooks and had already
+// drifted into a bare literal in a fourth. Builders take `now` explicitly.
+export * from './log-window';
+
+// ────────────────────────── Aggregations ──────────────────────────
+export * from './weekly-insights';
+export * from './weekly-summary';
+export * from './weekly-budget';
+export * from './streak';
+export * from './share-card';
+
+// ─────────────────── Targets + derivations ───────────────────
+// The TDEE → calorie-target → protein-target chain. `dailyTargets` in
+// ./targets is the one entry point both frontends derive from; change the
+// target math there, not per-frontend.
+export * from './macro-heuristic';
 export * from './tdee';
 // Activity-informed activity-level correction (docs/activity-informed-tdee-spec.md).
 // Imported Health activeKcal CORRECTS the self-reported activityLevel bucket
@@ -16,26 +57,26 @@ export * from './tdee';
 // the window read + decline memory are mobile-side adapters.
 export * from './activity-level';
 export * from './targets';
-// Non-production TDEE inspector (audit tool): reproduces measured-mode math
-// and re-runs it under exclude-recent / energy-balance / longer-window
-// variations so a low trueTdee can be diagnosed as water-suppression vs real
-// drop. Never wired into calculateTdee.
-export * from './tdee-diagnostics';
 // Adaptive-TDEE recalibration digest (v1.1 retention loop). Read-only over
 // calculateTdee/dailyTargets — turns the silent measured-mode adaptation into
 // a surfaceable "your real burn shifted" digest. No production target-math
 // change; the ack state is persisted per-device by each frontend.
 export * from './tdee-recalibration';
+// The Today "maintenance" line — intake read against measured burn rather than
+// against the target. Presentation gate only; invents no math. Null unless the
+// TDEE is genuinely measured, so a formula/seed guess never appears on Today
+// dressed as an observation.
+export * from './maintenance-view';
+// What a chosen pace actually delivers once calorieFloor clamps the target.
+// Same shape as maintenance-view: a reading over calculateTdee's own
+// arithmetic, no target math changed. Exists because the pace control is a
+// promise the app is free to break silently — 0.9 lb/wk against a floor 20
+// kcal under maintenance really ships 0.04.
+export * from './pace-reality';
+
+// ──────────────────────────── Body ────────────────────────────
 export * from './body-fat';
 export * from './weight-projection';
-export * from './weekly-insights';
-export * from './weekly-summary';
-export * from './weekly-budget';
-export * from './streak';
-export * from './meal-slots';
-export * from './meal-draft';
-export * from './share-card';
-export * from './tier-limits';
 // Bodyweight sanity rules (shared by both frontends — logger, workout-finish
 // mirror, store backstop). Distinct from ./macro-heuristic's CALC_WEIGHT_*
 // input range; see the header of ./weight-bounds.
@@ -48,69 +89,14 @@ export * from './measurement-bounds';
 // (apps/mobile/src/lib/health.ts). No native imports; the adapter + settings
 // wiring are gated on the EAS dev build. See STATUS.md §2.
 export * from './health-mapping';
-// Meal-photo scan types + macro helpers (ADR-0015). Pure; the CF + both apps
-// share these. The scan itself (camera + Gemini) is a per-frontend/CF adapter.
-export * from './photo-scan';
-// Retention nudge planner (ADR-0015). Pure; the expo-notifications layer is a
-// dumb adapter over what this returns.
-export * from './reminder-plan';
-// Home-screen widget snapshot contract (apps/mobile/WIDGET.md). A widget
-// can't hold our onSnapshot listeners, so the app writes a blob to shared
-// storage and the widget renders it: build (app side) + parse/view (widget
-// side) both live here. Android calls these directly; the iOS SwiftUI timeline
-// mirrors them in Swift against these tests. Storage + reload are adapters.
-export * from './widget-snapshot';
-// Quick-add: logging a preset from outside the app — widget button, Quick
-// Settings tile, iOS App Intent (ADR-0020). Slot resolution, the row that gets
-// written, the offline queue and the pre-minted ledger id. Pure; the storage
-// and the platform trigger are adapters.
-export * from './quick-add';
-// Product analytics: the closed event catalogue, the per-user-per-day doc id
-// and the pure buffering/clamping both frontends flush through. No transport
-// here — each app writes it with its own SDK, like every other document.
-export * from './usage-events';
-// Is a food's nutrition data believable? Atwater reconciliation + range sanity,
-// plus the source-trust buckets both the ranking and the UI badge read. Pure —
-// the Cloud Functions filter with it and the clients label with it.
-export * from './food-plausibility';
-// My Foods library helpers (ADR-0013). Types (CustomFood, FoodSource,
-// ServingUnit) live in ./types; these are the pure scaling helpers.
-export * from './custom-food';
-export * from './meal-preset';
-// Food-search wire module (searchFoods / getFoodDetail): shared types +
-// normalize + serving-sort + a transport-injected client. Both frontends'
-// callable adapters plug in via makeFoodSearch. Wire-compatible with
-// functions/src/food-search.ts (separate project).
-export * from './food-search';
-// Open Food Facts product resolution (ADR-0013 barcode path): OFF payload →
-// single-basis ResolvedProduct + the barcode-keyed save context. Pure; each
-// frontend keeps its own fetch and scanner adapter. Distinct from the cached
-// server search path in functions/src/food-search.ts — see the file header.
-export * from './off-product';
-// Nutrition Facts panel parser (ADR-0013 phase 3): OCR label text → editable
-// grams-first draft. Native OCR is a per-frontend adapter; the parse is pure.
-export * from './nutrition-label';
-// Recipe-URL import (v1.1): schema.org/Recipe JSON-LD → editable per-serving
-// draft. Pure extract + normalize; the HTML fetch is a per-frontend adapter
-// (mobile direct fetch, web CF proxy — no CORS in RN).
-export * from './recipe-import';
-// Natural-language meal parser (ADR-0013 text modality): free-text utterance →
-// macro-free {qty,unit,food}[] + a resolver that scales database servings. The
-// voice/text input adapter is per-frontend; the decomposition + scaling is pure.
-export * from './meal-utterance';
-export * from './speech-locale';
-// Shared AI-coach system-instruction builder (ADR-0012/0013): both frontends
-// assemble the identical grounded prompt, then POST it to consultationStream.
-export * from './coach-prompt';
-// Shared SSE frame parser (coach stream) — used by both frontends' readers.
-export * from './sse';
-// Shared Pro weekly-report prompt builder (both frontends → generateWeeklyReport).
-export * from './weekly-report-prompt';
-// NOTE: workout.ts types are intentionally NOT re-exported here — the PWA's
+
+// ──────────────────── Workout (Train tab) ────────────────────
+// NOTE: workout.ts TYPES are intentionally NOT re-exported here — the PWA's
 // utils shims do `export * from '@macrolog/core'` and already define their own
 // WorkoutSet/LogStyle/etc. in models/workout.ts, so barrel-exporting these
 // names would clash. The pure functions below need the types only in their
-// signatures (structural typing covers call sites in both apps).
+// signatures (structural typing covers call sites in both apps). That is why
+// this section is the one place `export {}` outnumbers `export *`.
 export * from './plate-math';
 export * from './warmup';
 export * from './workout-progression';
@@ -136,17 +122,58 @@ export { toWorkoutExercise, toWorkoutTemplate, toWorkoutSession } from './workou
 // Exported names are seed-specific (Seed*, EXERCISE_LIBRARY, seed*) — no clash
 // with the intentionally-un-barreled ./workout types.
 export * from './workout-seed';
-// Shared CSV export serializer (both apps). buildCsv + ExportData are unique
-// names; the ./workout types it consumes stay un-barreled (see note above).
-export { buildCsv, type ExportData } from './csv-export';
-// Switcher CSV import parser (MFP / Lose It! / Cronometer), pure + shared.
-export * from './import-csv';
+// Session- and screen-level Train derivations (idle hero, sparkline series,
+// summary counts, PR crossing). The layer above ./workout-progression; both
+// Train tabs read these instead of hand-mirroring them, which is how the two
+// apps came to disagree about the user's heaviest lift.
+export * from './train-view';
+
+// ──────────────────── Food-resolution pipeline ────────────────────
+// Barcode / label / text / photo → an editable macro draft → a CustomFood.
+// Every arm is pure; the fetch, the camera and the OCR are per-frontend
+// adapters. See ADR-0013.
+//
+// Is a food's nutrition data believable? Atwater reconciliation + range sanity,
+// plus the source-trust buckets both the ranking and the UI badge read. Pure —
+// the Cloud Functions filter with it and the clients label with it.
+// MIRRORED, not imported, by functions/src/food-plausibility.ts; the two are
+// held identical by functions/test/food-plausibility-parity.spec.ts.
+export * from './food-plausibility';
+// Food-search wire module (searchFoods / getFoodDetail): shared types +
+// normalize + serving-sort + a transport-injected client. Both frontends'
+// callable adapters plug in via makeFoodSearch. Wire-compatible with
+// functions/src/food-search.ts (separate project).
+export * from './food-search';
+// Open Food Facts product resolution (ADR-0013 barcode path): OFF payload →
+// single-basis ResolvedProduct + the barcode-keyed save context. Pure; each
+// frontend keeps its own fetch and scanner adapter. Distinct from the cached
+// server search path in functions/src/food-search.ts — see the file header.
+export * from './off-product';
+// Nutrition Facts panel parser (ADR-0013 phase 3): OCR label text → editable
+// grams-first draft. Native OCR is a per-frontend adapter; the parse is pure.
+export * from './nutrition-label';
+// Recipe-URL import (v1.1): schema.org/Recipe JSON-LD → editable per-serving
+// draft. Pure extract + normalize; the HTML fetch is a per-frontend adapter
+// (mobile direct fetch, web CF proxy — no CORS in RN).
+export * from './recipe-import';
+// Natural-language meal parser (ADR-0013 text modality): free-text utterance →
+// macro-free {qty,unit,food}[] + a resolver that scales database servings. The
+// voice/text input adapter is per-frontend; the decomposition + scaling is pure.
+export * from './meal-utterance';
+export * from './speech-locale';
+// Meal-photo scan types + macro helpers (ADR-0015). Pure; the CF + both apps
+// share these. The scan itself (camera + Gemini) is a per-frontend/CF adapter.
+// Deliberately de-emphasized against the pipeline above — meal-photo guessing
+// has a ~26–36% error floor.
+export * from './photo-scan';
+
+// ────────────────────── Firestore codecs ──────────────────────
 // Shared Firestore write-path pruner (both frontends' ledger adapters).
 // Date-guard is built in; each edge injects its Timestamp predicate.
 export * from './prune-undefined';
 // Shared Firestore READ-path mappers (doc → domain), the read-path twin of
 // prune-undefined. Structural Timestamp → Date (no firebase import); both
-// frontends' adapters map here. Workout mappers stay per-frontend (see file).
+// frontends' adapters map here. Workout mappers are in ./workout-mappers above.
 export * from './firestore-mappers';
 // Shared Firestore WRITE-path serializers (domain → doc), the twin of the
 // mappers above. Also pure, but a write must PRODUCE SDK values, so each edge
@@ -157,24 +184,39 @@ export * from './firestore-writers';
 // four are one number per day and used to be re-read inline at every call
 // site, legacy `ml` branch and all.
 export * from './daily-scalars';
-// Session- and screen-level Train derivations (idle hero, sparkline series,
-// summary counts, PR crossing). The layer above ./workout-progression; both
-// Train tabs read these instead of hand-mirroring them, which is how the two
-// apps came to disagree about the user's heaviest lift.
-export * from './train-view';
-// The Today "maintenance" line — intake read against measured burn rather than
-// against the target. Presentation gate only; invents no math. Null unless the
-// TDEE is genuinely measured, so a formula/seed guess never appears on Today
-// dressed as an observation.
-export * from './maintenance-view';
-// What a chosen pace actually delivers once calorieFloor clamps the target.
-// Same shape as maintenance-view: a reading over calculateTdee's own
-// arithmetic, no target math changed. Exists because the pace control is a
-// promise the app is free to break silently — 0.9 lb/wk against a floor 20
-// kcal under maintenance really ships 0.04.
-export * from './pace-reality';
-// The windows every screen takes over logs and weights, named once. ADR-0004
-// gave the Angular app typed windows; the Expo app was built afterwards and
-// inherited none of it, so `400` was declared in three hooks and had already
-// drifted into a bare literal in a fourth. Builders take `now` explicitly.
-export * from './log-window';
+
+// ─────────────────────────── AI surfaces ───────────────────────────
+// Shared AI-coach system-instruction builder (ADR-0012/0013): both frontends
+// assemble the identical grounded prompt, then POST it to consultationStream.
+export * from './coach-prompt';
+// Shared SSE frame parser (coach stream) — used by both frontends' readers.
+export * from './sse';
+// Shared Pro weekly-report prompt builder (both frontends → generateWeeklyReport).
+export * from './weekly-report-prompt';
+
+// ───────────────── Platform surfaces (outside the app) ─────────────────
+// Retention nudge planner (ADR-0015). Pure; the expo-notifications layer is a
+// dumb adapter over what this returns.
+export * from './reminder-plan';
+// Home-screen widget snapshot contract (apps/mobile/WIDGET.md). A widget
+// can't hold our onSnapshot listeners, so the app writes a blob to shared
+// storage and the widget renders it: build (app side) + parse/view (widget
+// side) both live here. Android calls these directly; the iOS SwiftUI timeline
+// mirrors them in Swift against these tests. Storage + reload are adapters.
+export * from './widget-snapshot';
+// Quick-add: logging a preset from outside the app — widget button, Quick
+// Settings tile, iOS App Intent (ADR-0020). Slot resolution, the row that gets
+// written, the offline queue and the pre-minted ledger id. Pure; the storage
+// and the platform trigger are adapters.
+export * from './quick-add';
+// Product analytics: the closed event catalogue, the per-user-per-day doc id
+// and the pure buffering/clamping both frontends flush through. No transport
+// here — each app writes it with its own SDK, like every other document.
+export * from './usage-events';
+
+// ────────────────────── Import / export ──────────────────────
+// Shared CSV export serializer (both apps). buildCsv + ExportData are unique
+// names; the ./workout types it consumes stay un-barreled (see note above).
+export { buildCsv, type ExportData } from './csv-export';
+// Switcher CSV import parser (MFP / Lose It! / Cronometer), pure + shared.
+export * from './import-csv';
