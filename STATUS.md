@@ -132,42 +132,15 @@ Everything else that was in this section has shipped and is in `CHANGELOG.md`.
   build too, not just this OTA.** The server half already reaches iOS, since it
   needs no client.
 
-- **`WHATS_NEW_VERSION` is bumped to `2026-08-21-speed` and shipped, but the
-  banner was not observed firing** on Today during the on-device run. Unexplained;
-  either it needs a fresh Today mount or the bump did not take. Worth ten minutes
-  before assuming users were told.
-
-- **`analyzePhoto`'s cold start is now the largest single latency item, and it
-  is a CHOSEN cost.** Post-fix it is ~3.2 s of a 5.4 s cold scan, and at this
-  traffic level an instance always idles out between scans, so essentially
-  every real user scan pays it. `minInstances` would remove it and is refused
-  on cost (CLAUDE.md). The addressable part has been taken: module evaluation
-  is down to ~230 ms and the rest is Cloud Run container provisioning plus Node
-  boot. Do not re-derive this by intuition — the note lives beside the `onCall`
-  options in `functions/src/analyze-photo.ts`, with the log queries.
-
-- **The mobile timezone self-heal** (`145d8b88`, 2026-08-17). `ensureProfile`
-  now writes `timezoneOffsetMin` on every cold start; nothing in the mobile app
-  had ever written it, so mobile-only digest opt-ins were computed **and sent**
-  as UTC (06:00 in Puerto Rico, not 10:00 local). The server half shipped the
-  same day and is live. The client half has now reached **TestFlight build 60**
-  and **Play alpha vc 37** over the air. It has NOT reached public iOS: they
-  are on build 55 (`886bf0b3…`), a runtime no OTA from `main` can address, so
-  1.2.1's approval is what delivers it.
-
-- **The architecture-review work is SHIPPED by OTA, both platforms**
-  (`50aeabef` … `c10d5422`, 2026-08-21). Seven commits: the seed-target defect
-  (`useDailyTargets` returned a 1,800 kcal seed as the user's target after a
-  failed listener), the shadowed `toProfileFields` in `useCoach`,
-  `useCoreSnapshot` behind five hooks, the core barrel grouped by CONTEXT.md's
-  headings with `tdee-diagnostics` deleted, the Train session reducer, and the
-  `TdeeResult` discriminated union. Android update group
-  `1a1168fa-116e-4d5b-8681-9c1d72ea8fed` on vc 37, iOS group
-  `e04af5fd-0203-41fe-a17f-c576dc76dd29` on build 60 — see the fingerprint
-  table in `apps/mobile/AGENTS.md`. **Device-verified on the LG G6 after
-  publishing**: `16-train-terms` and `18-train-template` both exit 0.
-  **Public iOS (build 55) does NOT have this** — different runtime; it arrives
-  when 1.2.1 releases.
+- **A photo scan that finds NO items still burns one of the user's 3 daily free
+  scans.** Found on-device 2026-08-21: `photoQuota` read `count: 3` after two
+  successful scans and one that returned an empty item list. `analyzePhoto`
+  reserves the quota *before* the model call and never calls the
+  `dailyQuota.release()` that exists for exactly this — so a user who photographs
+  something the model cannot read pays for it, and on a 3/day free tier two bad
+  photos leave them one attempt. Server-side, so it affects BOTH platforms.
+  Not fixed; the release call and the decision about which failure modes refund
+  (no-items vs a model error vs a truncation) are a small, real piece of work.
 
 ## 3. Open work, and what each is blocked on
 
