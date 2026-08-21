@@ -111,40 +111,19 @@ Everything else that was in this section has shipped and is in `CHANGELOG.md`.
   are on build 55 (`886bf0b3…`), a runtime no OTA from `main` can address, so
   1.2.1's approval is what delivers it.
 
-- **The seed-target defect + the hook-wiring consolidation** (`50aeabef`,
-  `fd8aa53a`, `0ab6280c`, 2026-08-20). `useDailyTargets` passed no `onError` to
-  any of its three subscriptions, and `dailyTargets` on empty inputs returns a
-  **seed** result — so a failed or silent listener rendered **1,800 kcal** in
-  Settings as the user's target, with nothing for a caller to check. It now
-  returns a discriminated `DailyTargetsView` (the ADR-0004 `HistoryWindow`
-  shape). `useCoach`'s local `toProfileFields` shadowed core's and dropped four
-  profile fields, so the coach prompt was grounded on a different profile than
-  the target math on the same screen — deleted in favour of core's. The 400-row
-  window is no longer declared anywhere outside `LOG_WINDOW_ROWS`, and five
-  hooks now share one focus-gated subscription discipline via
-  `useCoreSnapshot` (ADR-0016 unchanged — same listener count, one copy of the
-  wiring). `packages/core`'s barrel is grouped by CONTEXT.md's headings and
-  `tdee-diagnostics.ts` is deleted (203 lines, zero callers).
-  **All `.ts`/`.tsx`, so neither fingerprint moves — this is OTA-deliverable to
-  build 60 and vc 37 whenever someone chooses to publish it.** Public iOS is on
-  build 55 and needs 1.2.1, as above.
-
-- **The Train session reducer and the `TdeeResult` union** (`826d45d5`,
-  `c7441517`, 2026-08-21). `useTrain` carried seven mutation callbacks whose
-  differing write behaviour lived only in doc comments — three took the same
-  `(i, j, patch)` shape, and picking the wrong one silently failed to save a
-  set. They are one `dispatch(action, { defer })` over a pure
-  `applySessionAction` in `packages/core`, read from a ref so the stale-closure
-  hazard is gone structurally. Cluster grouping and set-kind transitions are
-  unit-tested for the first time (16 + 8 new tests). Separately, `TdeeResult` is
-  now `MeasuredTdee | FormulaTdee | SeedTdee` instead of one flat shape with 16
-  optional fields, so measured-only evidence is unreachable without narrowing on
-  `source` — no production core code needed changing, which says the callers
-  were already right and the type was not. **Also `.ts`/`.tsx` only**, so it
-  rides the same OTA as the entry above. **Train is the highest-risk surface
-  here and has NOT been exercised on a device since these changes** — the
-  Maestro flow to re-run first is `18-train-template`, plus a real logged
-  workout with a cluster.
+- **The architecture-review work is SHIPPED by OTA, both platforms**
+  (`50aeabef` … `c10d5422`, 2026-08-21). Seven commits: the seed-target defect
+  (`useDailyTargets` returned a 1,800 kcal seed as the user's target after a
+  failed listener), the shadowed `toProfileFields` in `useCoach`,
+  `useCoreSnapshot` behind five hooks, the core barrel grouped by CONTEXT.md's
+  headings with `tdee-diagnostics` deleted, the Train session reducer, and the
+  `TdeeResult` discriminated union. Android update group
+  `1a1168fa-116e-4d5b-8681-9c1d72ea8fed` on vc 37, iOS group
+  `e04af5fd-0203-41fe-a17f-c576dc76dd29` on build 60 — see the fingerprint
+  table in `apps/mobile/AGENTS.md`. **Device-verified on the LG G6 after
+  publishing**: `16-train-terms` and `18-train-template` both exit 0.
+  **Public iOS (build 55) does NOT have this** — different runtime; it arrives
+  when 1.2.1 releases.
 
 ## 3. Open work, and what each is blocked on
 
