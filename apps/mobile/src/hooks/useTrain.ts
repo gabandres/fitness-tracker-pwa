@@ -23,17 +23,21 @@ import {
   updateSession,
   updateTemplate as updateTemplateDoc,
 } from '@/lib/ledger';
-import { findDuplicateExercise, localDateKey, normalizeClusterGroups } from '@macrolog/core';
+import {
+  type SessionAction,
+  applySessionAction,
+  findDuplicateExercise,
+  localDateKey,
+  newWorkoutSet,
+} from '@macrolog/core';
 import {
   type Exercise,
   type ExerciseDraft,
   type LogStyle,
   type SessionExercise,
-  type SetKind,
   type TemplateDraft,
   type TemplateExercise,
   type WorkoutSession,
-  type WorkoutSet,
   type WorkoutTemplate,
   dropEmptySets,
   templateToSessionExercises,
@@ -84,22 +88,31 @@ export interface TrainState {
   /** Merge `fromId` into `toId`, rewriting every referencing session/template. */
   mergeCatalogExercises: (fromId: string, toId: string) => Promise<void>;
   /** Add an exercise to the active session, creating a catalog entry first
-   *  if `exerciseId` is null (free-typed name). */
+   *  if `exerciseId` is null (free-typed name). Not a `SessionAction` because
+   *  it resolves against the catalog with a ledger WRITE before the pure
+   *  append; it dispatches `addExercise` once it has an id. */
   addExerciseToActive: (name: string, logStyle: LogStyle, exerciseId?: string) => Promise<void>;
-  removeExercise: (index: number) => Promise<void>;
-  addSet: (exerciseIndex: number) => Promise<void>;
-  /** Append a cluster (one activation + two mini sets) and renumber groups. */
-  addCluster: (exerciseIndex: number) => Promise<void>;
-  /** Edit a set field locally (no write); call commitActive to persist. */
-  editSet: (exerciseIndex: number, setIndex: number, patch: Partial<WorkoutSet>) => void;
-  /** Patch a set AND persist atomically (no stale close-over). Use for
-   *  one-shot taps like the +load bump chip or the set-done toggle. */
-  applySetPatch: (exerciseIndex: number, setIndex: number, patch: Partial<WorkoutSet>) => Promise<void>;
-  /** Change a set's `kind`, re-derive cluster groups for the exercise, and
-   *  persist (kind changes can form/dissolve a cluster). */
-  setSetKind: (exerciseIndex: number, setIndex: number, kind: SetKind) => Promise<void>;
-  removeSet: (exerciseIndex: number, setIndex: number) => Promise<void>;
-  /** Flush the local active session to Firestore (call on input blur). */
+  /**
+   * Apply one structural edit to the active session and persist it.
+   *
+   * Replaces the seven callbacks this interface used to carry
+   * (`removeExercise`, `addSet`, `addCluster`, `editSet`, `applySetPatch`,
+   * `setSetKind`, `removeSet`), three of which were indistinguishable at the
+   * call site while their doc comments described different write behaviour.
+   * The edit itself is `applySessionAction` in `@macrolog/core` — pure, and
+   * unit-tested there rather than through a renderer.
+   *
+   * `defer: true` updates local state WITHOUT writing, for a per-keystroke
+   * edit that `commitActive` flushes on blur. Everything else persists
+   * immediately. That is the only axis the old callbacks actually varied on.
+   *
+   * Reads the session from a ref rather than a closed-over value, so the
+   * stale-closure hazard the old `applySetPatch` warned about in prose is gone
+   * structurally — and `dispatch` keeps a stable identity across renders.
+   */
+  dispatch: (action: SessionAction, opts?: { defer?: boolean }) => Promise<void>;
+  /** Flush the local active session to Firestore (call on input blur, after
+   *  any `dispatch(..., { defer: true })`). */
   commitActive: () => Promise<void>;
   /** Complete the workout: drop empty sets, flip to completed, mirror
    *  bodyweight → dailyWeights + sleep → dailySleep, mark the day exercised. */
@@ -123,10 +136,6 @@ export interface TrainState {
   cancelEdit: () => Promise<void>;
 }
 
-function newSet(): WorkoutSet {
-  return { kind: 'working', done: false };
-}
-
 export function useTrain(): TrainState {
   const { user } = useAuth();
   const uid = user?.uid;
@@ -134,7 +143,27 @@ export function useTrain(): TrainState {
   const [catalog, setCatalog] = useState<Exercise[]>([]);
   const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
   const [recentSessions, setRecentSessions] = useState<WorkoutSession[]>([]);
-  const [active, setActive] = useState<WorkoutSession | null>(null);
+  const [active, setActiveState] = useState<WorkoutSession | null>(null);
+  /**
+   * Mirror of `active`, read by every mutation instead of a closed-over value.
+   *
+   * The old callbacks each computed their next state from `active` captured in
+   * a `useCallback([active, persist])`, which is why one of them carried a "no
+   * stale close-over" warning in its doc comment: any of the eight could
+   * capture a stale session if it fired from a handler React had not yet
+   * re-rendered. A ref cannot be stale, so the hazard is gone by construction
+   * rather than by comment — and `dispatch` no longer depends on `active`, so
+   * it keeps one identity across a whole workout instead of churning on every
+   * keystroke.
+   *
+   * Every write to `active` goes through `setActive` below; nothing sets the
+   * state directly, or the ref would drift from it.
+   */
+  const activeRef = useRef<WorkoutSession | null>(null);
+  const setActive = useCallback((next: WorkoutSession | null) => {
+    activeRef.current = next;
+    setActiveState(next);
+  }, []);
   const [editingExisting, setEditingExisting] = useState(false);
   // Pristine snapshot of a reopened completed session, captured before any
   // edit, so Cancel can restore it (set edits live-write, so they're already
@@ -203,7 +232,7 @@ export function useTrain(): TrainState {
   // is exactly how IGNIA-MOBILE-6 arrived: unreadable, and invisible to the
   // user, who just saw the button do nothing.
   const startWorkout = useCallback(async () => {
-    if (!uid || active) return;
+    if (!uid || activeRef.current) return;
     const draft = { status: 'active' as const, date: new Date(), exercises: [] };
     try {
       const id = await startSession(uid, draft);
@@ -211,11 +240,11 @@ export function useTrain(): TrainState {
     } catch (e) {
       setError(e instanceof Error ? e : new Error('Start failed'));
     }
-  }, [uid, active]);
+  }, [uid, setActive]);
 
   const startFromTemplate = useCallback(
     async (template: WorkoutTemplate) => {
-      if (!uid || active) return;
+      if (!uid || activeRef.current) return;
       const draft = {
         status: 'active' as const,
         date: new Date(),
@@ -230,7 +259,7 @@ export function useTrain(): TrainState {
         setError(e instanceof Error ? e : new Error('Start failed'));
       }
     },
-    [uid, active],
+    [uid, setActive],
   );
 
   const saveTemplate = useCallback(
@@ -297,6 +326,31 @@ export function useTrain(): TrainState {
     [uid, catalog, es],
   );
 
+  /**
+   * Apply one pure {@link SessionAction} and persist, unless deferred.
+   *
+   * The whole body of what used to be seven callbacks: read the current session
+   * from the ref, run the reducer, store the result, write it. `applySessionAction`
+   * returns the SAME reference when an action changes nothing (an out-of-range
+   * index), so that case costs no render and no write.
+   */
+  const dispatch = useCallback(
+    async (action: SessionAction, opts?: { defer?: boolean }) => {
+      const prev = activeRef.current;
+      if (!prev) return;
+      const next = applySessionAction(prev, action);
+      if (next === prev) return;
+      setActive(next);
+      if (!opts?.defer) await persist(next);
+    },
+    [persist, setActive],
+  );
+
+  const commitActive = useCallback(async () => {
+    const current = activeRef.current;
+    if (current) await persist(current);
+  }, [persist]);
+
   const addCatalogExercise = useCallback(
     async (name: string, logStyle: LogStyle) => {
       if (!uid) throw new Error('Not signed in');
@@ -328,7 +382,9 @@ export function useTrain(): TrainState {
 
   const addExerciseToActive = useCallback(
     async (name: string, logStyle: LogStyle, exerciseId?: string) => {
-      if (!uid || !active) return;
+      // The ref, not a closed-over `active` — this callback's deps no longer
+      // track the session, so a captured value would be pinned at null forever.
+      if (!uid || !activeRef.current) return;
       let id = exerciseId;
       // Snapshot the CANONICAL catalog name, not what was typed. Sessions
       // store a name snapshot for display, so reusing an entry while keeping
@@ -350,129 +406,22 @@ export function useTrain(): TrainState {
       if (!id) {
         id = await addExerciseDoc(uid, { name, muscles: [], defaultCues: [], logStyle });
       }
-      const ex: SessionExercise = {
+      const exercise: SessionExercise = {
         exerciseId: id,
         name: canonical,
         cues: [],
         logStyle,
-        sets: [newSet()],
+        sets: [newWorkoutSet()],
       };
-      const next = { ...active, exercises: [...active.exercises, ex] };
-      setActive(next);
-      await persist(next);
+      await dispatch({ type: 'addExercise', exercise });
     },
-    [uid, active, persist, catalog],
+    [uid, catalog, dispatch],
   );
 
-  const removeExercise = useCallback(
-    async (index: number) => {
-      if (!active) return;
-      const next = { ...active, exercises: active.exercises.filter((_, i) => i !== index) };
-      setActive(next);
-      await persist(next);
-    },
-    [active, persist],
-  );
-
-  const addSet = useCallback(
-    async (exerciseIndex: number) => {
-      if (!active) return;
-      const exercises = active.exercises.map((ex, i) =>
-        i === exerciseIndex ? { ...ex, sets: [...ex.sets, newSet()] } : ex,
-      );
-      const next = { ...active, exercises };
-      setActive(next);
-      await persist(next);
-    },
-    [active, persist],
-  );
-
-  const addCluster = useCallback(
-    async (exerciseIndex: number) => {
-      if (!active) return;
-      const cluster: WorkoutSet[] = [
-        { kind: 'activation', done: false },
-        { kind: 'mini', done: false },
-        { kind: 'mini', done: false },
-      ];
-      const exercises = active.exercises.map((ex, i) =>
-        i === exerciseIndex ? { ...ex, sets: normalizeClusterGroups([...ex.sets, ...cluster]) } : ex,
-      );
-      const next = { ...active, exercises };
-      setActive(next);
-      await persist(next);
-    },
-    [active, persist],
-  );
-
-  const editSet = useCallback((exerciseIndex: number, setIndex: number, patch: Partial<WorkoutSet>) => {
-    setActive((prev) => {
-      if (!prev) return prev;
-      const exercises = prev.exercises.map((ex, i) =>
-        i === exerciseIndex
-          ? { ...ex, sets: ex.sets.map((s, j) => (j === setIndex ? { ...s, ...patch } : s)) }
-          : ex,
-      );
-      return { ...prev, exercises };
-    });
-  }, []);
-
-  const applySetPatch = useCallback(
-    async (exerciseIndex: number, setIndex: number, patch: Partial<WorkoutSet>) => {
-      if (!active) return;
-      const exercises = active.exercises.map((ex, i) =>
-        i === exerciseIndex
-          ? { ...ex, sets: ex.sets.map((s, j) => (j === setIndex ? { ...s, ...patch } : s)) }
-          : ex,
-      );
-      const next = { ...active, exercises };
-      setActive(next);
-      await persist(next);
-    },
-    [active, persist],
-  );
-
-  const setSetKind = useCallback(
-    async (exerciseIndex: number, setIndex: number, kind: SetKind) => {
-      if (!active) return;
-      const exercises = active.exercises.map((ex, i) =>
-        i === exerciseIndex
-          ? {
-              ...ex,
-              sets: normalizeClusterGroups(
-                ex.sets.map((s, j) => (j === setIndex ? { ...s, kind } : s)),
-              ),
-            }
-          : ex,
-      );
-      const next = { ...active, exercises };
-      setActive(next);
-      await persist(next);
-    },
-    [active, persist],
-  );
-
-  const removeSet = useCallback(
-    async (exerciseIndex: number, setIndex: number) => {
-      if (!active) return;
-      const exercises = active.exercises.map((ex, i) =>
-        i === exerciseIndex
-          ? { ...ex, sets: normalizeClusterGroups(ex.sets.filter((_, j) => j !== setIndex)) }
-          : ex,
-      );
-      const next = { ...active, exercises };
-      setActive(next);
-      await persist(next);
-    },
-    [active, persist],
-  );
-
-  const commitActive = useCallback(async () => {
-    if (active) await persist(active);
-  }, [active, persist]);
 
   const finishWorkout = useCallback(
     async (extras: { bodyweight?: number; sleepHours?: number }) => {
+      const active = activeRef.current;
       if (!uid || !active?.id) return;
       setSaving(true);
       try {
@@ -506,14 +455,15 @@ export function useTrain(): TrainState {
         setSaving(false);
       }
     },
-    [uid, active],
+    [uid, setActive],
   );
 
   const discardWorkout = useCallback(async () => {
+    const active = activeRef.current;
     if (!uid || !active?.id) return;
     await deleteSessionDoc(uid, active.id);
     setActive(null);
-  }, [uid, active]);
+  }, [uid, setActive]);
 
   const deleteSession = useCallback(
     async (id: string) => {
@@ -525,20 +475,21 @@ export function useTrain(): TrainState {
   const reopenSession = useCallback(
     (session: WorkoutSession) => {
       // Single-active invariant: don't clobber a live in-progress workout.
-      if (active || !session.id) return;
+      if (activeRef.current || !session.id) return;
       // Snapshot the pristine session for Cancel. The edit callbacks replace
       // (map/spread) rather than mutate, so this reference stays untouched.
       editOriginal.current = session;
       setEditingExisting(true);
       setActive(session);
     },
-    [active],
+    [setActive],
   );
 
   const finishEdit = useCallback(async () => {
-    // Edits already live-write through the set callbacks; flush the final state
-    // (an input may still hold focus) and drop any empty sets, exactly like
+    // Edits already live-write through dispatch; flush the final state (an
+    // input may still hold focus) and drop any empty sets, exactly like
     // finishWorkout — but leave status/date/bodyweight/sleep untouched.
+    const active = activeRef.current;
     if (uid && active?.id) {
       setSaving(true);
       try {
@@ -552,11 +503,11 @@ export function useTrain(): TrainState {
     editOriginal.current = null;
     setActive(null);
     setEditingExisting(false);
-  }, [uid, active]);
+  }, [uid, setActive]);
 
   const cancelEdit = useCallback(async () => {
     // Set edits live-write, so cancelling means restoring the pre-edit
-    // exercises we snapshotted at reopen — otherwise partial edits would stick.
+    // exercises snapshotted at reopen — otherwise partial edits would stick.
     const original = editOriginal.current;
     if (uid && original?.id) {
       setSaving(true);
@@ -571,7 +522,7 @@ export function useTrain(): TrainState {
     editOriginal.current = null;
     setActive(null);
     setEditingExisting(false);
-  }, [uid]);
+  }, [uid, setActive]);
 
   return {
     loading,
@@ -591,13 +542,7 @@ export function useTrain(): TrainState {
     deleteCatalogExercise,
     mergeCatalogExercises,
     addExerciseToActive,
-    removeExercise,
-    addSet,
-    addCluster,
-    editSet,
-    applySetPatch,
-    setSetKind,
-    removeSet,
+    dispatch,
     commitActive,
     finishWorkout,
     discardWorkout,

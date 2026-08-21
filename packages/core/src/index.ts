@@ -114,6 +114,17 @@ export {
   exerciseNameKey,
   findDuplicateExercise,
 } from './workout';
+// The in-progress session's edit rules as data: one pure reducer over a closed
+// SessionAction union, replacing seven mobile hook callbacks whose differing
+// write behaviour lived only in their doc comments. Function-only export, so
+// the ./workout types stay un-barreled; both apps' structurally identical
+// session shapes pass through it without a cast.
+export {
+  type SessionAction,
+  applySessionAction,
+  newCluster,
+  newWorkoutSet,
+} from './workout-session';
 // Workout doc → domain read mappers (both adapters — arch review E).
 // Function-only export; the ./workout types they return stay un-barreled and
 // each frontend assigns the result to its own structurally-identical type.

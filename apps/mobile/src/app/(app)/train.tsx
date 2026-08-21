@@ -869,7 +869,12 @@ function ExerciseCard({
                 haptics.tap();
                 const idx = ex.sets.findIndex((s) => isWorkingSet(s));
                 if (idx >= 0) {
-                  train.applySetPatch(exerciseIndex, idx, { weight: bumpTo });
+                  train.dispatch({
+                    type: 'patchSet',
+                    exerciseIndex,
+                    setIndex: idx,
+                    patch: { weight: bumpTo },
+                  });
                 }
               }}
               testID={`bump-${exerciseIndex}`}
@@ -906,10 +911,10 @@ function ExerciseCard({
       ))}
 
       <View style={styles.addSetRow}>
-        <TouchableOpacity style={styles.addSetBtn} onPress={() => train.addSet(exerciseIndex)} testID={`add-set-${exerciseIndex}`}>
+        <TouchableOpacity style={styles.addSetBtn} onPress={() => train.dispatch({ type: 'addSet', exerciseIndex })} testID={`add-set-${exerciseIndex}`}>
           <Text style={styles.addSetText}>{t('train.addSet')}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.addSetBtn} onPress={() => train.addCluster(exerciseIndex)} testID={`add-cluster-${exerciseIndex}`}>
+        <TouchableOpacity style={styles.addSetBtn} onPress={() => train.dispatch({ type: 'addCluster', exerciseIndex })} testID={`add-cluster-${exerciseIndex}`}>
           <Text style={styles.addSetText}>{t('train.addCluster')}</Text>
         </TouchableOpacity>
       </View>
@@ -959,7 +964,7 @@ function ExerciseCard({
 
           <TouchableOpacity
             style={styles.exRemoveRow}
-            onPress={() => train.removeExercise(exerciseIndex)}
+            onPress={() => train.dispatch({ type: 'removeExercise', exerciseIndex })}
             hitSlop={8}
             testID={`remove-ex-${exerciseIndex}`}
           >
@@ -991,7 +996,8 @@ function SetRow({
   onDone?: (kind: WorkoutSet['kind']) => void;
 }) {
   // Local string buffers so partial decimal input binds cleanly; the parsed
-  // value is pushed into the session state via editSet, persisted on blur.
+  // value is pushed into the session state via a deferred dispatch, persisted
+  // on blur.
   const [weight, setWeight] = useState(set.weight != null ? String(set.weight) : '');
   const [count, setCount] = useState(
     logStyle === 'time'
@@ -1032,7 +1038,10 @@ function SetRow({
           value={weight}
           onChangeText={(t) => {
             setWeight(t);
-            train.editSet(exerciseIndex, setIndex, { weight: numOrUndef(t) });
+            train.dispatch(
+              { type: 'patchSet', exerciseIndex, setIndex, patch: { weight: numOrUndef(t) } },
+              { defer: true },
+            );
           }}
           onEndEditing={commit}
           testID={`set-weight-${exerciseIndex}-${setIndex}`}
@@ -1048,7 +1057,15 @@ function SetRow({
         onChangeText={(t) => {
           setCount(t);
           const v = numOrUndef(t);
-          train.editSet(exerciseIndex, setIndex, logStyle === 'time' ? { durationSec: v } : { reps: v });
+          train.dispatch(
+            {
+              type: 'patchSet',
+              exerciseIndex,
+              setIndex,
+              patch: logStyle === 'time' ? { durationSec: v } : { reps: v },
+            },
+            { defer: true },
+          );
         }}
         onEndEditing={commit}
         testID={`set-count-${exerciseIndex}-${setIndex}`}
@@ -1094,13 +1111,20 @@ function SetRow({
           const accept = nowDone && target != null && numOrUndef(count) == null;
           if (accept) {
             setCount(String(target));
-            train.editSet(
-              exerciseIndex,
-              setIndex,
-              logStyle === 'time' ? { durationSec: target } : { reps: target },
+            // Deferred: the `done` patch on the next line persists, and it
+            // reads the same ref this one just updated, so one write carries
+            // both. Two immediate writes would race for no benefit.
+            train.dispatch(
+              {
+                type: 'patchSet',
+                exerciseIndex,
+                setIndex,
+                patch: logStyle === 'time' ? { durationSec: target } : { reps: target },
+              },
+              { defer: true },
             );
           }
-          train.applySetPatch(exerciseIndex, setIndex, { done: nowDone });
+          train.dispatch({ type: 'patchSet', exerciseIndex, setIndex, patch: { done: nowDone } });
           if (nowDone) onDone?.(set.kind); // start the rest countdown
         }}
         testID={`set-done-${exerciseIndex}-${setIndex}`}
@@ -1108,7 +1132,7 @@ function SetRow({
         <Text style={[styles.doneCheck, set.done && styles.doneCheckOn]}>✓</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => train.removeSet(exerciseIndex, setIndex)} hitSlop={6} style={styles.setDel}>
+      <TouchableOpacity onPress={() => train.dispatch({ type: 'removeSet', exerciseIndex, setIndex })} hitSlop={6} style={styles.setDel}>
         <Text style={styles.setDelText}>✕</Text>
       </TouchableOpacity>
     </View>
@@ -1126,7 +1150,7 @@ function SetRow({
               style={[styles.kindRow, on && styles.kindRowOn]}
               onPress={() => {
                 haptics.tap();
-                train.setSetKind(exerciseIndex, setIndex, k.value);
+                train.dispatch({ type: 'setSetKind', exerciseIndex, setIndex, kind: k.value });
                 setKindOpen(false);
               }}
               testID={`set-kind-${exerciseIndex}-${setIndex}-${k.value}`}
@@ -1147,7 +1171,10 @@ function SetRow({
             style={[styles.kindChip, set.rir == null && styles.kindChipOn]}
             onPress={() => {
               haptics.tap();
-              train.editSet(exerciseIndex, setIndex, { rir: undefined });
+              train.dispatch(
+                { type: 'patchSet', exerciseIndex, setIndex, patch: { rir: undefined } },
+                { defer: true },
+              );
               commit();
               setRirOpen(false);
             }}
@@ -1167,7 +1194,10 @@ function SetRow({
                   haptics.tap();
                   // Still through the shared 0–5 clamp (@macrolog/core) so the
                   // two loggers cannot disagree about what is storable.
-                  train.editSet(exerciseIndex, setIndex, { rir: clampRir(v) });
+                  train.dispatch(
+                    { type: 'patchSet', exerciseIndex, setIndex, patch: { rir: clampRir(v) } },
+                    { defer: true },
+                  );
                   commit();
                   setRirOpen(false);
                 }}
