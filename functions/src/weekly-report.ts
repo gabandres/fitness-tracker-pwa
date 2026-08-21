@@ -1,8 +1,8 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { GoogleGenAI } from "@google/genai";
 import { ErrorCode } from "./error-codes";
 import { callerAccess, db, geminiApiKey } from "./init";
+import { getGeminiClient } from "./gemini-client";
 
 // ─── Weekly AI report generation ────────────────────────────────────
 //
@@ -68,7 +68,7 @@ export const generateWeeklyReport = onCall(
     }
 
     try {
-      const client = new GoogleGenAI({ apiKey: geminiApiKey.value() });
+      const client = getGeminiClient();
       const result = await client.models.generateContent({
         model: "gemini-2.5-flash",
         contents: prompt,

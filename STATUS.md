@@ -132,6 +132,17 @@ Everything else that was in this section has shipped and is in `CHANGELOG.md`.
   build too, not just this OTA.** The server half already reaches iOS, since it
   needs no client.
 
+- **The web PWA's barcode fix is now DEPLOYED** (2026-08-21). It was committed
+  in `1dbc6b5a` and sat undelivered for several hours — a prod build plus
+  `firebase deploy --only hosting` is what publishes it, and neither had run.
+  Merged is not shipped, on the web exactly as much as on mobile.
+
+- **Cold-start numbers here have huge variance; stop quoting point estimates.**
+  Post-change cold samples so far: 5.41 s, 5.72 s, 6.85 s, **9.15 s** (the last
+  immediately after a redeploy). Warm is stable at **2.24–2.60 s** across six
+  samples and is the number worth tracking. Any claim of the form "cold went
+  from X to Y" off one sample per side is not supported by this data.
+
 - **FIXED 2026-08-21: a failed photo scan no longer costs a daily scan**
   (`analyzePhoto`, deployed). Two separate wrongs, found by hitting the quota
   on-device: input validation ran *after* the charge, so a request with no image

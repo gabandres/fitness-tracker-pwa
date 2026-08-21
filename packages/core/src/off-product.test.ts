@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   OffLookupError,
+  offProductUrl,
   resolveOffProduct,
   type OffResponse,
 } from './off-product';
@@ -305,5 +306,48 @@ describe('resolveOffProduct — real OFF v3 payloads', () => {
     // The per-serving basis wins over the per-100g one that is also present.
     expect(r).toMatchObject({ calories: 140, protein: 2, carbs: 19, fat: 6, grams: 31.7 });
     expect(r.brand).toBe('La Cestera');
+  });
+});
+
+describe('offProductUrl', () => {
+  it('requests exactly the fields resolveOffProduct reads — no more, no less', () => {
+    const url = offProductUrl('3017620422003');
+    const fields = new URL(url).searchParams.get('fields')!.split(',');
+
+    // The contract this function exists to hold. `serving_size` and
+    // `serving_quantity` are the load-bearing pair: drop them and the resolver
+    // silently re-bases every macro on 100 g instead of failing, which is a
+    // wrong number rather than an error (ADR-0013 "honest grams").
+    expect(fields.sort()).toEqual(
+      [
+        'brands',
+        'code',
+        'generic_name',
+        'nutriments',
+        'product_name',
+        'serving_quantity',
+        'serving_size',
+      ].sort(),
+    );
+  });
+
+  it('identifies the app in the query string, not a header', () => {
+    // `User-Agent` is a forbidden header name in browsers, so the PWA could
+    // never send one — OFF accepts app_name/app_version instead, and that is
+    // the one form that works from both a browser and React Native.
+    const params = new URL(offProductUrl('123')).searchParams;
+    expect(params.get('app_name')).toBe('Ignia');
+    expect(params.get('app_version')).toBe('1.0');
+    expect(offProductUrl('123', '2.5')).toContain('app_version=2.5');
+  });
+
+  it('hits the v3 product endpoint and escapes the barcode', () => {
+    expect(offProductUrl('3017620422003')).toMatch(
+      /^https:\/\/world\.openfoodfacts\.org\/api\/v3\/product\/3017620422003\?/,
+    );
+    // A barcode is digits in practice, but this is user-supplied input taken
+    // straight off a camera decode — it must not be able to open a query
+    // parameter of its own.
+    expect(offProductUrl('12/3?x=1&y=2')).toContain('product/12%2F3%3Fx%3D1%26y%3D2?');
   });
 });

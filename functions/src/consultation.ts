@@ -1,9 +1,9 @@
 import { getAuth } from "firebase-admin/auth";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import type { Response } from "express";
-import { GoogleGenAI } from "@google/genai";
 import { ErrorCode } from "./error-codes";
 import { callerAccess, dailyQuota, geminiApiKey, spendCeiling } from "./init";
+import { getGeminiClient } from "./gemini-client";
 
 // ─── AI coach (Gemini consultation) ─────────────────────────────────
 //
@@ -163,7 +163,7 @@ export const consultationStream = onRequest(
     res.write(`event: meta\ndata: ${JSON.stringify({ remaining, limit })}\n\n`);
 
     try {
-      const client = new GoogleGenAI({ apiKey: geminiApiKey.value() });
+      const client = getGeminiClient();
       const stream = await client.models.generateContentStream({
         model: CONSULT_MODEL,
         contents: prompt,
