@@ -129,6 +129,23 @@ Everything else that was in this section has shipped and is in `CHANGELOG.md`.
   build 60 and vc 37 whenever someone chooses to publish it.** Public iOS is on
   build 55 and needs 1.2.1, as above.
 
+- **The Train session reducer and the `TdeeResult` union** (`826d45d5`,
+  `c7441517`, 2026-08-21). `useTrain` carried seven mutation callbacks whose
+  differing write behaviour lived only in doc comments — three took the same
+  `(i, j, patch)` shape, and picking the wrong one silently failed to save a
+  set. They are one `dispatch(action, { defer })` over a pure
+  `applySessionAction` in `packages/core`, read from a ref so the stale-closure
+  hazard is gone structurally. Cluster grouping and set-kind transitions are
+  unit-tested for the first time (16 + 8 new tests). Separately, `TdeeResult` is
+  now `MeasuredTdee | FormulaTdee | SeedTdee` instead of one flat shape with 16
+  optional fields, so measured-only evidence is unreachable without narrowing on
+  `source` — no production core code needed changing, which says the callers
+  were already right and the type was not. **Also `.ts`/`.tsx` only**, so it
+  rides the same OTA as the entry above. **Train is the highest-risk surface
+  here and has NOT been exercised on a device since these changes** — the
+  Maestro flow to re-run first is `18-train-template`, plus a real logged
+  workout with a cluster.
+
 ## 3. Open work, and what each is blocked on
 
 | Work | Blocked on |
