@@ -102,6 +102,39 @@ the update banner drains it. Do not publish a second update to "cover" it.
 
 Everything else that was in this section has shipped and is in `CHANGELOG.md`.
 
+- **The latency work (`1dbc6b5a`, 2026-08-21) — server half LIVE everywhere,
+  client half in NO binary and NO update.** The split matters, so read it as
+  two things.
+
+  **Live now, for every user on every platform, no client needed:**
+  `GEMINI_MODEL` moved `gemini-2.5-flash` → `gemini-3.5-flash-lite`,
+  `loadFoods()` overlaps the model call, and `@anthropic-ai/sdk` + `resend`
+  became lazy requires (`resend` was reached through `init.ts`, so every
+  function paid for it on every cold start; `require lib/index.js` went
+  **535 ms → 230 ms**). Measured on production Cloud Run latency, before → after:
+  **cold 7.44 s → 5.41 s, warm 3.39 s → 2.24 s**, with 4/4 items grounded in
+  USDA on every verification run.
+
+  **Merged and delivered NOWHERE:** the client half — 768 px upload resize,
+  the named scan-progress steps, `?fields=` on the barcode lookups, the
+  on-device barcode cache, and the OFF 404 → `FOOD_NOT_FOUND` fix. The
+  fingerprint gate was run and **matches vc 37's `.aab` exactly**
+  (`ae526937893adb7f7349321b05caf2732da9658b`), so an OTA reaches the Android
+  alpha the moment one is published — it has not been. iOS was not gated at
+  all (that must run on `ignia-mac` against build 60's `7b347b0f…`).
+  `WHATS_NEW_VERSION` was bumped to `2026-08-21-speed` and its copy rewritten
+  in both locales, so **the banner ships with that OTA and fires on the next
+  launch after it lands**. Nothing announces it until then.
+
+- **`analyzePhoto`'s cold start is now the largest single latency item, and it
+  is a CHOSEN cost.** Post-fix it is ~3.2 s of a 5.4 s cold scan, and at this
+  traffic level an instance always idles out between scans, so essentially
+  every real user scan pays it. `minInstances` would remove it and is refused
+  on cost (CLAUDE.md). The addressable part has been taken: module evaluation
+  is down to ~230 ms and the rest is Cloud Run container provisioning plus Node
+  boot. Do not re-derive this by intuition — the note lives beside the `onCall`
+  options in `functions/src/analyze-photo.ts`, with the log queries.
+
 - **The mobile timezone self-heal** (`145d8b88`, 2026-08-17). `ensureProfile`
   now writes `timezoneOffsetMin` on every cold start; nothing in the mobile app
   had ever written it, so mobile-only digest opt-ins were computed **and sent**
@@ -129,6 +162,8 @@ Everything else that was in this section has shipped and is in `CHANGELOG.md`.
 
 | Work | Blocked on |
 |---|---|
+| **Publish the latency OTA (`1dbc6b5a`) to Android vc 37 and iOS build 60** | **A human running the publish.** Everything upstream is done: fingerprint gate run on Windows and it MATCHES vc 37 (`ae526937…`), Metro `expo export` clean, `tsc` green on all four units, 377 functions tests + 854 core + 204 web all passing. Android: `cd apps/mobile && npx eas update --platform android --branch production --environment production`. iOS must be gated **and** published on `ignia-mac` against build 60's `7b347b0f…` — every changed file is `.ts`/`.tsx`, so it is expected to match, but *expected* is not *measured*. Until both land, users have the server-side half only (which is already most of the win) |
+| **Tier D — on-device food-search index. SIZED, not built** | **A decision, not a blocker.** The case: production `searchFoods` measures **392 ms warm (304–484) and 2,141 ms cold**, plus the client's 350 ms debounce — and low traffic means the first search of a session is usually the cold one. Sizing done 2026-08-21: the whole 13,272-food dataset in a compact array form with portions is **1,750 KB raw / 356 KB gzipped**, `JSON.parse` is 14 ms on this workstation (so ~70–140 ms on the LG G6, once), and a full linear match scan is **2–4 ms per query** here (~20–40 ms on the G6). So an on-device typeahead is comfortably sub-50 ms per keystroke on a 2017 phone with no network, no cold start and no rate limit. What it costs is bundle size and resident memory on the weakest supported device, which is the part worth a human's judgement — and it needs an OTA channel that is currently unpublished anyway |
 | **Maintenance/TDEE estimator — FIXED and shipped by OTA 2026-08-20, now needs eyes on real accounts** | **Nothing; watching.** A live account read maintenance **2,509** when its own gap-free history said **2,266**. The whole number came from a 9-day post-travel fragment whose slope was statistically indistinguishable from zero (t = −2.00, df 8; 95% CI on maintenance **1,775..3,242**). Two causes, both now fixed in `145221e2`: `lastTrendSegment` kept only the most recent run and discarded 28 of 38 weigh-ins across a 21-day travel gap — while the comment directly above it claimed `MIN_SEGMENT_POINTS`/`MIN_SEGMENT_SPAN_DAYS` were "no longer consulted", which the code twenty lines down still did; and `TDEE = intake + deficit` mixed a logged-day intake average with a calendar-day slope, biasing by `(U/N)(I_logged − I_unlogged)`. Measured mode now evaluates each contiguous-logging run against its OWN intake and pools by `1/SE²`. Same account, window ending 07-31 / 08-10 / 08-20: old **2,266 / 2,010 / 2,509**, new **2,265 / 2,184 / 2,320** — swing 499 → 136, and today's value lands inside the 2,250–2,350 that account's gap-free energy balance independently gives. **VERIFIED ON iOS on the owner's own account** (2026-08-20, build 60 + the OTA) — the platform the estimator work could not otherwise reach, since the only test device here is Android. **Every measured user's maintenance moves and the recalibration card fires for them.** **The follow-ups are DONE and SHIPPED by OTA 2026-08-20** (second update of the day; the soak was cut short on the reasoning that a 12-tester alpha cannot find a 1-in-N crash in 24 h and all three changes are stability-positive): the recalibration card now gates on `ci95Tdee` so it cannot announce a move it can't support (`6bb5efee`); the estimator **widens its window** to 63 then 84 logged days rather than acting on an interval wider than 250 kcal, and reports `estimateState` (`e54dd0dc`) — chosen over a stored carry-forward because the only persistence precedent here is device-local AsyncStorage, which would make web and mobile disagree about the same account's target; and Today now says **"holding steady"** with a cause the user can act on, replacing the two weaker caveats rather than stacking with them (`f7db69a0`). **One earlier claim of mine was wrong and is worth correcting:** `confidence` was never rendered anywhere — every `confidence` in the UI is photo-scan. It misleads in the data model, not on screen. Trigger was ordinary: **stop logging for four days and the window split** |
 | **Watch complication + Siri quick-add behaviour** | **UNVERIFIED on hardware.** ADR-0023 established that `transferCurrentComplicationUserInfo` cannot wake a **WidgetKit** complication (Apple FB12926788, open since 2023) — real-time delivery to the wrist is not achievable on this surface, and that is a requirement change, not a bug. What ships instead is an hourly pull. Nobody has watched a face move after a meal logged outside the app. Read *Settings → Apple Watch* on a device before writing any more code here |
 | **Android widget on a real home screen** | Nobody has placed one. The task handler registers through the custom `index.js`, a path no device has exercised. **Maestro cannot close this** — no `adb` command places a home-screen widget (the Quick Settings tile *is* drivable via `adb shell cmd statusbar click-tile`). 1 of 21 checkboxes in `apps/mobile/WIDGET.md` is ticked. The iOS half is done and verified on a physical iPhone |

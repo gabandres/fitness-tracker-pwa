@@ -1,5 +1,6 @@
 import { defineSecret } from "firebase-functions/params";
-import { Resend } from "resend";
+// TYPE-ONLY on purpose — see `getResend()` for why the value is required lazily.
+import type { Resend } from "resend";
 
 // `defineSecret` returns a `SecretParam` whose type lives at
 // firebase-functions/lib/params/types — not a public module path, which
@@ -47,12 +48,36 @@ const REPLY_TO_ENV = process.env.MACROLOG_EMAIL_REPLY_TO;
 export const REPLY_TO =
   REPLY_TO_ENV && REPLY_TO_ENV.length > 0 ? REPLY_TO_ENV : REPLY_TO_FALLBACK;
 
+/**
+ * The Resend SDK, loaded on first use rather than at module scope.
+ *
+ * **This is a cold-start fix for functions that never send mail.** `init.ts`
+ * imports this module, and every function imports `init.ts` — so a static
+ * `import { Resend } from "resend"` was evaluated on the cold start of
+ * `analyzePhoto`, `searchFoods`, `logWebhook` and everything else, none of
+ * which send email. Measured in an isolated process on this workstation:
+ * **79 ms**, and a cold Cloud Run vCPU is slower. Cold starts are the single
+ * largest latency item in this codebase (~3.4 s of a 5.7 s photo scan, and at
+ * this traffic level essentially every request pays one), so work that a
+ * request cannot reach does not belong on that path.
+ *
+ * The type import above is erased at compile time and costs nothing, so the
+ * signature stays honest. `require` rather than `await import` keeps this
+ * function synchronous — making it async would ripple through every mail
+ * caller for no gain, and the output is CommonJS, so `require` is the lazy
+ * form here.
+ */
 export function getResend(): Resend {
   const key = resendApiKey.value();
   if (!key) {
     throw new Error("RESEND_API_KEY secret is not configured");
   }
-  return new Resend(key);
+  // Aliased rather than destructured to `Resend`: the type-only import above
+  // already binds that name in this scope, and TS treats the collision as
+  // "used as a value before it was imported as a type" (TS1361).
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const sdk = require("resend") as typeof import("resend");
+  return new sdk.Resend(key);
 }
 
 // ─── Headers ────────────────────────────────────────────────────────

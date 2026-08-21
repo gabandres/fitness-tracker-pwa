@@ -266,9 +266,28 @@ interface ScanDraft {
   confidence?: string;
 }
 
+/**
+ * Memoized per instance. `new GoogleGenAI({...})` was constructed inside the
+ * handler, so every request built a fresh client and, with it, a fresh HTTP
+ * agent — discarding the keep-alive connection and TLS session to
+ * `generativelanguage.googleapis.com` that the previous request on this same
+ * warm instance had already paid for. Hoisting it lets the second and later
+ * scans on an instance skip a TLS handshake.
+ *
+ * Lazy rather than at module scope because `geminiApiKey.value()` reads a
+ * mounted secret: at module-evaluation time on a cold start that is not
+ * reliably available, and reading it there would trade a real latency win for
+ * a boot-order bug.
+ */
+let geminiClient: GoogleGenAI | null = null;
+function getGemini(): GoogleGenAI {
+  if (!geminiClient) geminiClient = new GoogleGenAI({ apiKey: geminiApiKey.value() });
+  return geminiClient;
+}
+
 /** Gemini path — the free-tier default. */
 async function estimateWithGemini(photoBase64: string, prompt: string): Promise<ScanDraft> {
-  const client = new GoogleGenAI({ apiKey: geminiApiKey.value() });
+  const client = getGemini();
   const result = await client.models.generateContent({
     model: GEMINI_MODEL,
     contents: [
