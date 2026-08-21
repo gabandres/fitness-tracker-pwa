@@ -96,7 +96,8 @@ export default function Settings() {
   const locale = useLocale();
   const { user, profile, signOut } = useAuth();
   const { isPro, proPreview, setProPreview } = useSubscription();
-  const targets = useDailyTargets();
+  const targetsView = useDailyTargets();
+  const targets = targetsView.loaded ? targetsView.targets : null;
   const router = useRouter();
   const [savingUnit, setSavingUnit] = useState(false);
   const [reminderEnabled, setReminderEnabled] = useState(false);
@@ -259,7 +260,7 @@ export default function Settings() {
     let next: number | null;
     if (proteinFloor == null) {
       if (delta < 0) return;
-      const seed = targets.proteinMinTarget || PROTEIN_FLOOR_MIN;
+      const seed = targets?.proteinMinTarget || PROTEIN_FLOOR_MIN;
       next = Math.min(PROTEIN_FLOOR_MAX, Math.max(PROTEIN_FLOOR_MIN, seed));
     } else {
       const stepped = proteinFloor + delta;
@@ -273,8 +274,10 @@ export default function Settings() {
   const unit: UnitSystem = profile?.unitSystem ?? 'us';
   // Effective targets (TDEE chain), not the raw manual field — the latter is
   // deleted once the user refines into formula mode.
-  const kcal = targets.calorieTarget > 0 ? targets.calorieTarget : null;
-  const protein = targets.proteinTarget > 0 ? targets.proteinTarget : null;
+  // `null` while the three snapshots behind the TDEE chain are still silent or
+  // have errored — the row renders its "—" rather than the 1800 kcal seed.
+  const kcal = targets && targets.calorieTarget > 0 ? targets.calorieTarget : null;
+  const protein = targets && targets.proteinTarget > 0 ? targets.proteinTarget : null;
   const goalKey = profile?.goalDirection ? GOAL_LABEL[profile.goalDirection] : null;
 
   async function pickUnit(next: UnitSystem) {

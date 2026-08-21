@@ -39,7 +39,11 @@ jest.mock('@/lib/auth', () => ({
 }));
 
 jest.mock('@/hooks/useDailyTargets', () => ({
-  useDailyTargets: () => ({ tdee, calorieTarget: 1850, proteinTarget: 150 }),
+  useDailyTargets: () => ({
+    loaded: true,
+    error: null,
+    targets: { tdee, calorieTarget: 1850, proteinTarget: 150 },
+  }),
 }));
 
 jest.mock('@/lib/ledger', () => ({

@@ -47,7 +47,9 @@ jest.mock('@/lib/auth', () => ({
   useAuth: () => ({ user: { uid: 'u1', email: 'a@b.co' }, profile: { sex: 'male', heightIn: 70 } }),
 }));
 
-jest.mock('@/hooks/useDailyTargets', () => ({ useDailyTargets: () => ({ targets: null }) }));
+jest.mock('@/hooks/useDailyTargets', () => ({
+  useDailyTargets: () => ({ loaded: false, error: null }),
+}));
 
 import BodyScreen from '@/app/(app)/body';
 

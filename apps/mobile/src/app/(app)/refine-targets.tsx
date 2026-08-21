@@ -137,8 +137,13 @@ export default function RefineTargets() {
   // so. Reports existing arithmetic — no target math changes here — and only
   // when the floor changes a number the user can see. Live against the
   // stepper, not the saved profile, so it answers "what would this do?".
-  const { tdee } = useDailyTargets();
-  const reality = paceReality(tdee, pace, profile);
+  // No reality check until the targets are actually loaded — `paceReality`
+  // already returns null for a seed TDEE, but that leaned on the seed being
+  // the only empty-input result. Say it here instead of relying on it.
+  const targetsView = useDailyTargets();
+  const reality = targetsView.loaded
+    ? paceReality(targetsView.targets.tdee, pace, profile)
+    : null;
   const paceLimit = reality?.floorBinding ? reality : null;
 
   async function onSave() {

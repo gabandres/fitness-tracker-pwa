@@ -5,6 +5,7 @@ import {
   type ProfileFields,
   type TdeeResult,
   dailyTargets,
+  toProfileFields,
 } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { subscribeDailyWeights, subscribeProfile, subscribeRecentLogs } from '@/lib/ledger';
@@ -23,26 +24,6 @@ export interface CoachData {
   /** Completed profile as ProfileFields, or null pre-onboarding. */
   profile: ProfileFields | null;
   dailyWeights: Record<string, number>;
-}
-
-/** Narrow a loosely-typed Profile to ProfileFields once onboarding is done and
- *  the load-bearing fields are present; else null (the prompt handles null). */
-function toProfileFields(p: Profile | null): ProfileFields | null {
-  if (
-    !p || !p.profileCompleted ||
-    p.heightIn == null || p.age == null || p.sex == null ||
-    p.activityLevel == null || p.targetPaceLbsPerWeek == null
-  ) {
-    return null;
-  }
-  return {
-    heightIn: p.heightIn,
-    age: p.age,
-    sex: p.sex,
-    activityLevel: p.activityLevel,
-    targetPaceLbsPerWeek: p.targetPaceLbsPerWeek,
-    goalWeightLbs: p.goalWeightLbs,
-  };
 }
 
 /**
@@ -71,7 +52,18 @@ export function useCoach(): CoachData {
   }, [uid]);
 
   const tdee = useMemo(() => dailyTargets(profile, logs, weights).tdee, [profile, logs, weights]);
-  const profileFields = useMemo(() => toProfileFields(profile), [profile]);
+  // Core's `toProfileFields` (the same narrowing `dailyTargets` uses) rather
+  // than a local copy: this hook used to declare its own, which returned a
+  // hard-coded 6-key literal and so silently dropped `calorieFloor`,
+  // `proteinFloor`, `activityMultiplier` and `travelMode` — the coach prompt
+  // was grounded on a different profile than the target math on the same
+  // screen. The extra `profileCompleted` gate is this hook's own and stays:
+  // the prompt wants a finished profile, where the TDEE math is happy with any
+  // profile carrying the five anchor fields.
+  const profileFields = useMemo(
+    () => (profile?.profileCompleted ? toProfileFields(profile) : null),
+    [profile],
+  );
 
   return { loading, logs, tdee, profile: profileFields, dailyWeights: weights };
 }
