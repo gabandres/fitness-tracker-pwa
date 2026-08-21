@@ -132,6 +132,15 @@ Everything else that was in this section has shipped and is in `CHANGELOG.md`.
   build too, not just this OTA.** The server half already reaches iOS, since it
   needs no client.
 
+- **The barcode work is VERIFIED END TO END on Android, cache included.** A real
+  product scanned on the LG G6 prefilled the entry sheet from Open Food Facts,
+  and then the same product re-scanned **with Wi-Fi off** still resolved —
+  `dumpsys wifi` read `Wi-Fi is disabled` at the time, so it came from
+  AsyncStorage with no network available. That is the one claim about this
+  feature that could not be made from a unit test, and it is now made from the
+  device. Backed by 8 new Jest cases (`barcode-cache.test.ts`) covering the TTL,
+  the 404 → `FOOD_NOT_FOUND` fix, and the deliberate non-caching of failures.
+
 - **The web PWA's barcode fix is now DEPLOYED** (2026-08-21). It was committed
   in `1dbc6b5a` and sat undelivered for several hours — a prod build plus
   `firebase deploy --only hosting` is what publishes it, and neither had run.
