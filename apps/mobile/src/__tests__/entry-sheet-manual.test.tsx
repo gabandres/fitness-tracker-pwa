@@ -19,6 +19,9 @@ jest.mock('@/lib/foodSearch', () => ({
   searchFoods: (...a: unknown[]) => mockSearchFoods(...a),
   getFoodDetail: jest.fn(),
   sortServings: (s: unknown) => s,
+  // FoodSearch warms the bundled on-device index on mount (Tier D). A partial
+  // module mock leaves this undefined, which throws inside the effect.
+  warmFoodIndex: jest.fn(),
 }));
 
 jest.mock('@/lib/haptics', () => ({ tap: jest.fn(), success: jest.fn(), warn: jest.fn() }));

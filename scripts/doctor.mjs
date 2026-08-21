@@ -1335,6 +1335,46 @@ function checkRelativeMarkdownLinks() {
   else pass(G6, name, 'all relative .md targets exist');
 }
 
+/**
+ * The bundled food index and the ranking fixture are GENERATED artifacts, and
+ * both fail silently when they go stale.
+ *
+ * `apps/mobile/assets/food-index.json` is compacted from
+ * `functions/data/usda-foods.json`. Re-ingest the dataset without rebuilding it
+ * and the server searches the new database while every phone searches the old
+ * one — no error, no warning, just two different answers to the same query.
+ *
+ * `packages/core/src/__fixtures__/usda-search-golden.json` pins the ranking
+ * that `functions/src/usda-db.ts` and `packages/core/src/usda-search.ts` must
+ * both reproduce; it is the only thing stopping those two hand-mirrored copies
+ * from drifting. Its `--check` runs the SERVER implementation, so it needs
+ * `functions/lib` built and skips rather than fails when it is not.
+ */
+function checkGeneratedFoodArtifacts() {
+  const idxName = 'bundled food index matches the USDA ingest';
+  const idx = sh('node', ['scripts/build-food-index.mjs', '--check']);
+  if (idx.missing) skip(G2, idxName, 'node is not installed');
+  else if (!idx.ok) fail(G2, idxName, firstLine(idx.stderr) + ' — run: node scripts/build-food-index.mjs');
+  else pass(G2, idxName, 'compact index is current');
+
+  const goldName = 'food-search ranking fixture matches the server';
+  if (!existsSync(resolve(root, 'functions/lib/usda-db.js'))) {
+    skip(G2, goldName, 'functions/lib not built (npm --prefix functions run build)');
+    return;
+  }
+  const gold = sh('node', ['scripts/build-food-golden.mjs', '--check']);
+  if (gold.missing) skip(G2, goldName, 'node is not installed');
+  else if (!gold.ok)
+    fail(
+      G2,
+      goldName,
+      firstLine(gold.stderr) +
+        ' — the two copies of the ranking have drifted. Read the diff BEFORE regenerating: ' +
+        'regenerating makes the drift permanent.',
+    );
+  else pass(G2, goldName, firstLine(gold.stdout ?? ''));
+}
+
 // ═══ Run ════════════════════════════════════════════════════════════════
 guard(G1, 'copy vs flags', checkCopyVsFlags);
 
@@ -1342,6 +1382,8 @@ if (NO_CLOUD) {
   skip(G2, 'firestore.rules matches the released ruleset', '--no-cloud');
   skip(G2, 'deployed functions match functions/src exports', '--no-cloud');
   skip(G2, 'STATUS.md §1 matches App Store Connect', '--no-cloud');
+  // Local, no network: still run under --no-cloud.
+  guard(G2, 'generated food artifacts', checkGeneratedFoodArtifacts);
   skip(G3, `Cloud Scheduler jobs <= ${MAX_SCHEDULER_JOBS}`, '--no-cloud');
   skip(G3, `active secret versions <= ${ACCEPTED_SECRET_VERSIONS} (free tier ${MAX_SECRET_VERSIONS})`, '--no-cloud');
   skip(G3, `${QUOTA_DOC} matches the EAS iOS quota`, '--no-cloud');
@@ -1353,6 +1395,7 @@ if (NO_CLOUD) {
     fail(G2, 'firestore.rules matches the released ruleset', `check threw: ${e.message}`),
   );
   guard(G2, 'deployed functions match functions/src exports', checkDeployedFunctions);
+  guard(G2, 'generated food artifacts', checkGeneratedFoodArtifacts);
   await checkStatusVsAsc().catch((e) =>
     fail(G2, 'STATUS.md §1 matches App Store Connect', `check threw: ${e.message}`),
   );

@@ -146,6 +146,39 @@ Everything else that was in this section has shipped and is in `CHANGELOG.md`.
   9.2 GB of regenerable cache, but clearing it forces a full rebuild of the
   owner's in-flight work on that shared machine — ask first.
 
+- **Tier D — on-device food search — is BUILT and MERGED, and has reached no
+  device.** Owner approved the full index on 2026-08-21. Text search now runs
+  inside the app against a bundled copy of the same USDA dataset `searchFoods`
+  answers from, so it makes no network call at all: `searchFoods` was already
+  USDA-only (OFF text search was dropped 2026-08-19 for rate limits), which is
+  what made a complete on-device replacement possible rather than a partial one.
+  Barcode still goes to the server, and must — an OFF product is a live lookup.
+
+  **Measured, on this workstation.** Compact index 1,385 KB raw / **334 KB
+  gzipped** (better than the 1,750/356 the sizing predicted); Android bundle
+  11,095,849 → 13,140,531 bytes, i.e. **+2.0 MB of Hermes bytecode, +18%**.
+  Shipping the index as a JSON string instead of a required `.json` was tried
+  and is **worse** (13,961,046) — recorded in `localFoodSearch.ts` so nobody
+  repeats it. Query cost is 2–4 ms here; the ~20–40 ms G6 figure is still an
+  estimate.
+
+  **The drift risk is the real story, and it is now guarded.** The ranking
+  exists twice and cannot exist once — `functions/` is not a workspace and
+  cannot import `@macrolog/core` — so a hundred lines of scoring live in both
+  `functions/src/usda-db.ts` and `packages/core/src/usda-search.ts`. Drift there
+  is invisible: both sides keep returning plausible foods, only the order
+  differs, on a typeahead nobody diffs. `usda-search-golden.json` pins the exact
+  ordered ids for 24 queries, each one a ranking rule with a documented past
+  failure behind it ("tuna" → a sandwich wrap, "tomato sauce" → steak sauce),
+  and BOTH copies are asserted against it. `npm run doctor` now fails on a stale
+  index or a drifted fixture (group 2, two new checks — 20/21).
+
+  **Not verified on a device, and not published.** The premise rests on numbers
+  measured on a phone, and the LG G6 runs the published OTA bundle, not this
+  tree. It is a Metro-bundled asset, so it ships over the air with no binary —
+  and it is **not blocked by the Apple migration** for the same reason. Next
+  step is a device check of the decode cost and keystroke latency, then an OTA.
+
 - **The barcode work is VERIFIED END TO END on Android, cache included.** A real
   product scanned on the LG G6 prefilled the entry sheet from Open Food Facts,
   and then the same product re-scanned **with Wi-Fi off** still resolved —

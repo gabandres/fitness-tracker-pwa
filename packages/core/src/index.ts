@@ -231,3 +231,21 @@ export * from './usage-events';
 export { buildCsv, type ExportData } from './csv-export';
 // Switcher CSV import parser (MFP / Lose It! / Cronometer), pure + shared.
 export * from './import-csv';
+
+// On-device USDA food search: the ranking `searchFoods` runs server-side, run
+// instead inside the app against the compact index built by
+// `scripts/build-food-index.mjs`. Exported NARROWLY on purpose — the module's
+// `words`/`stem`/`normalizeQuery` helpers are tokenizer internals with names
+// far too generic for a shared barrel, and tests import them from the module
+// directly. Ranking parity with `functions/src/usda-db.ts` is pinned by
+// `__fixtures__/usda-search-golden.json`; see `usda-search.ts`.
+export {
+  FOOD_INDEX_FORMAT_VERSION,
+  loadFoodIndex,
+  searchFoodIndex,
+  findFoodById,
+  buildFoodDetail,
+  type CompactFoodIndex,
+  type CompactFoodRow,
+  type IndexedFood,
+} from './usda-search';
