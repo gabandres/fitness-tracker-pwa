@@ -111,6 +111,24 @@ Everything else that was in this section has shipped and is in `CHANGELOG.md`.
   are on build 55 (`886bf0b3…`), a runtime no OTA from `main` can address, so
   1.2.1's approval is what delivers it.
 
+- **The seed-target defect + the hook-wiring consolidation** (`50aeabef`,
+  `fd8aa53a`, `0ab6280c`, 2026-08-20). `useDailyTargets` passed no `onError` to
+  any of its three subscriptions, and `dailyTargets` on empty inputs returns a
+  **seed** result — so a failed or silent listener rendered **1,800 kcal** in
+  Settings as the user's target, with nothing for a caller to check. It now
+  returns a discriminated `DailyTargetsView` (the ADR-0004 `HistoryWindow`
+  shape). `useCoach`'s local `toProfileFields` shadowed core's and dropped four
+  profile fields, so the coach prompt was grounded on a different profile than
+  the target math on the same screen — deleted in favour of core's. The 400-row
+  window is no longer declared anywhere outside `LOG_WINDOW_ROWS`, and five
+  hooks now share one focus-gated subscription discipline via
+  `useCoreSnapshot` (ADR-0016 unchanged — same listener count, one copy of the
+  wiring). `packages/core`'s barrel is grouped by CONTEXT.md's headings and
+  `tdee-diagnostics.ts` is deleted (203 lines, zero callers).
+  **All `.ts`/`.tsx`, so neither fingerprint moves — this is OTA-deliverable to
+  build 60 and vc 37 whenever someone chooses to publish it.** Public iOS is on
+  build 55 and needs 1.2.1, as above.
+
 ## 3. Open work, and what each is blocked on
 
 | Work | Blocked on |
