@@ -102,29 +102,40 @@ the update banner drains it. Do not publish a second update to "cover" it.
 
 Everything else that was in this section has shipped and is in `CHANGELOG.md`.
 
-- **The latency work (`1dbc6b5a`, 2026-08-21) — server half LIVE everywhere,
-  client half in NO binary and NO update.** The split matters, so read it as
-  two things.
+- **The latency work (`1dbc6b5a`, `4b5ae6de`, 2026-08-21) — SHIPPED, both halves,
+  Android.** Server: `GEMINI_MODEL` moved `gemini-2.5-flash` → `gemini-3.5-flash-lite`
+  (benchmarked 3,182 ms → 1,846 ms at the identical list price, still free-tier),
+  `loadFoods()` overlaps the model call, and `@anthropic-ai/sdk` + `resend` became
+  lazy requires — `resend` is reached through `init.ts`, so EVERY function paid
+  for it on every cold start; `require lib/index.js` went **535 ms → 230 ms**.
+  Client, delivered by **OTA #4 on vc 37** (`01a0264a…`): 768 px upload resize,
+  named scan-progress steps, `?fields=` on the barcode lookup, an on-device
+  barcode cache, and the OFF 404 → `FOOD_NOT_FOUND` fix.
 
-  **Live now, for every user on every platform, no client needed:**
-  `GEMINI_MODEL` moved `gemini-2.5-flash` → `gemini-3.5-flash-lite`,
-  `loadFoods()` overlaps the model call, and `@anthropic-ai/sdk` + `resend`
-  became lazy requires (`resend` was reached through `init.ts`, so every
-  function paid for it on every cold start; `require lib/index.js` went
-  **535 ms → 230 ms**). Measured on production Cloud Run latency, before → after:
-  **cold 7.44 s → 5.41 s, warm 3.39 s → 2.24 s**, with 4/4 items grounded in
-  USDA on every verification run.
+  **Measured, and the two numbers have different confidence.** WARM is the solid
+  one: **3.39 s → 2.24 s**, consistent across several samples. COLD is noisy and
+  should not be quoted as a single figure — pre-change was 6.18–8.12 s (median
+  7.44 s, n=5); post-change samples are 5.41 s (from a workstation) and 6.85 s
+  (from the phone, n=1 each). The direction is right; the magnitude is not
+  established. Do not repeat "cold 7.44 → 5.41" as if it were a clean
+  before/after — it compares one sample against a median, from different clients.
 
-  **Merged and delivered NOWHERE:** the client half — 768 px upload resize,
-  the named scan-progress steps, `?fields=` on the barcode lookups, the
-  on-device barcode cache, and the OFF 404 → `FOOD_NOT_FOUND` fix. The
-  fingerprint gate was run and **matches vc 37's `.aab` exactly**
-  (`ae526937893adb7f7349321b05caf2732da9658b`), so an OTA reaches the Android
-  alpha the moment one is published — it has not been. iOS was not gated at
-  all (that must run on `ignia-mac` against build 60's `7b347b0f…`).
-  `WHATS_NEW_VERSION` was bumped to `2026-08-21-speed` and its copy rewritten
-  in both locales, so **the banner ships with that OTA and fires on the next
-  launch after it lands**. Nothing announces it until then.
+  **Verified on device**, not just published: the LG G6 fetched the manifest,
+  restarted onto it, and a real scan rendered the new analyzing screen and a
+  correct USDA-grounded review.
+
+- **iOS has NOT received any of the client half, and `ignia-mac` is out of disk.**
+  116 Mi free on 228 Gi — `git fetch` fails, so the iOS fingerprint gate could not
+  even be run, let alone a publish or a build. Our own artifacts are ~19 GB of it
+  (`~/Library/Developer/Xcode/DerivedData` alone is 9.2 GB of regenerable cache,
+  `Archives` 1.0 GB, `CoreSimulator` 3.0 GB). **This blocks every future iOS
+  build too, not just this OTA.** The server half already reaches iOS, since it
+  needs no client.
+
+- **`WHATS_NEW_VERSION` is bumped to `2026-08-21-speed` and shipped, but the
+  banner was not observed firing** on Today during the on-device run. Unexplained;
+  either it needs a fresh Today mount or the bump did not take. Worth ten minutes
+  before assuming users were told.
 
 - **`analyzePhoto`'s cold start is now the largest single latency item, and it
   is a CHOSEN cost.** Post-fix it is ~3.2 s of a 5.4 s cold scan, and at this
