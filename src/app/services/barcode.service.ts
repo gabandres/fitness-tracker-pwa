@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { type OffResponse, type ResolvedProduct, resolveOffProduct } from '@macrolog/core';
+import { type OffResponse, type ResolvedProduct, offProductUrl, resolveOffProduct } from '@macrolog/core';
 
 /**
  * Wraps the native BarcodeDetector API for scanning + OpenFoodFacts
@@ -63,9 +63,19 @@ export class BarcodeService {
    * and a plain Error for a transport failure.
    */
   async lookupProduct(barcode: string): Promise<ResolvedProduct> {
-    const url = `https://world.openfoodfacts.org/api/v3/product/${encodeURIComponent(barcode)}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`OpenFoodFacts returned ${res.status}.`);
+    // URL (and the `fields=` trim that makes it a 2.4 KB response instead of a
+    // 145.8 KB one) is built in core, beside the resolver that decides which
+    // fields are read — see `offProductUrl`.
+    const res = await fetch(offProductUrl(barcode));
+    // 404 is OFF v3's "no such product", and it ships a normal JSON body — so
+    // it must reach the resolver, which raises a typed `FOOD_NOT_FOUND` that
+    // `tError` can translate. Treating it as a transport failure (what this did
+    // until 2026-08-21) surfaced the generic "couldn't read that barcode",
+    // which tells the user to re-scan a barcode that read fine. Same fix as
+    // apps/mobile/src/lib/barcode.ts.
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`OpenFoodFacts returned ${res.status}.`);
+    }
     return resolveOffProduct((await res.json()) as OffResponse, barcode);
   }
 }

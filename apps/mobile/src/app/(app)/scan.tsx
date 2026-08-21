@@ -1,15 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { hasUngroundedItems, rescaleScannedItem, sumScannedMacros, type ScannedFoodItem } from '@macrolog/core';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { useToday } from '@/hooks/useToday';
-import { type TFn, useLocale, useT } from '@/i18n';
+import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { analyzeMealPhoto, captureMealPhoto, type ScanSource } from '@/lib/mealScan';
+import { analyzeMealPhoto, encodeMealPhoto, pickMealPhoto, type ScanSource } from '@/lib/mealScan';
 import { track } from '@/lib/analytics';
 import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -17,6 +17,27 @@ import { font, radius, space, type } from '@/theme';
 
 type Phase = 'intro' | 'analyzing' | 'review';
 const PORTION_STEPS = [0.5, 1, 1.5, 2] as const;
+
+/**
+ * The three things a scan actually does, in the order it does them, each named
+ * for what the user gets rather than what the code calls.
+ *
+ * Naming the wait is the cheapest latency work available here. The server side
+ * is ~7.4 s on a cold instance and roughly half of that is Cloud Run starting a
+ * container — a cost the cost rules say we accept rather than pay `minInstances`
+ * to avoid (see `functions/src/analyze-photo.ts`). Given a wait we are not
+ * removing, the remaining lever is making it read as progress instead of as a
+ * hang. `resolving` is genuinely brief; it is listed because a step that
+ * appears and passes quickly still tells the user the thing is moving.
+ */
+const SCAN_STEPS = ['preparing', 'reading', 'resolving'] as const;
+type ScanStep = (typeof SCAN_STEPS)[number];
+
+const STEP_LABEL: Record<ScanStep, I18nKey> = {
+  preparing: 'scan.stepPreparing',
+  reading: 'scan.stepReading',
+  resolving: 'scan.stepResolving',
+};
 
 /**
  * Photo scan review (ADR-0015 §1).
@@ -56,17 +77,45 @@ export default function Scan() {
   const [saving, setSaving] = useState(false);
   /** Which portion chip is active. 1× is the scan as returned. */
   const [portion, setPortion] = useState(1);
+  /** The just-captured frame, shown under the progress so the wait has a subject. */
+  const [preview, setPreview] = useState<string | null>(null);
+  const [step, setStep] = useState<ScanStep>('preparing');
 
+  /**
+   * Capture → analyze, with the waiting made legible.
+   *
+   * The ordering here is load-bearing. This used to `await captureMealPhoto()`
+   * — picker AND resize AND base64 encode — before calling `setPhase`, so the
+   * image work happened with the intro screen still rendered and no indicator
+   * anywhere. On a mid device that is half a second to a second and a half in
+   * which the app looks like it ignored the tap. Now the phase flips and the
+   * captured frame renders the moment the picker returns; encoding runs behind
+   * it.
+   *
+   * `step` drives the labelled progress. It is advanced from real transitions,
+   * never a timer: a fake progress bar that finishes before the work does is
+   * worse than a spinner, because it teaches users the app lies about waiting.
+   */
   async function onCapture(source: ScanSource) {
     haptics.tap();
     setError(null);
-    const base64 = await captureMealPhoto(source);
-    if (!base64) return; // cancelled or permission denied (no error banner on cancel)
+    const uri = await pickMealPhoto(source);
+    if (!uri) return; // cancelled or permission denied (no error banner on cancel)
+
+    setPreview(uri);
+    setStep('preparing');
     setPhase('analyzing');
+
     try {
       track('photo_scan');
+      const base64 = await encodeMealPhoto(uri);
+      if (!base64) throw new Error('encode');
+
+      setStep('reading');
       const scan = await analyzeMealPhoto(base64, locale);
       if (!scan.items.length) throw new Error('empty');
+
+      setStep('resolving');
       setItems(scan.items);
       setPortion(1);
       setMealName(defaultMealName(scan.items, t('scan.mealName')));
@@ -77,6 +126,8 @@ export default function Scan() {
       setError(t('scan.failed'));
       setPhase('intro');
       haptics.warning();
+    } finally {
+      setPreview(null);
     }
   }
 
@@ -155,8 +206,35 @@ export default function Scan() {
 
       {phase === 'analyzing' ? (
         <View style={styles.fill}>
-          <ActivityIndicator color={colors.accent} size="large" />
-          <Text style={styles.analyzing}>{t('scan.analyzing')}</Text>
+          {/* The captured frame, so the wait has a subject and the user can see
+              the app got the right photo without waiting to find out. */}
+          {preview ? <Image source={{ uri: preview }} style={styles.preview} /> : null}
+          <View style={styles.steps}>
+            {SCAN_STEPS.map((s, i) => {
+              const active = s === step;
+              const done = SCAN_STEPS.indexOf(step) > i;
+              return (
+                <View key={s} style={styles.stepRow}>
+                  {done ? (
+                    <Ionicons name="checkmark-circle" size={18} color={colors.teal} />
+                  ) : active ? (
+                    <ActivityIndicator size="small" color={colors.accent} />
+                  ) : (
+                    <Ionicons name="ellipse-outline" size={18} color={colors.faint} />
+                  )}
+                  <Text
+                    style={[
+                      styles.stepText,
+                      active && styles.stepTextOn,
+                      done && styles.stepTextDone,
+                    ]}
+                  >
+                    {t(STEP_LABEL[s])}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
         </View>
       ) : phase === 'review' && items.length ? (
         <>
@@ -409,8 +487,21 @@ function createStyles({ colors, shadow }: Theme) {
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.sm, gap: space.sm },
     back: { padding: 2 },
     title: { flex: 1, fontFamily: type.display, fontSize: font.h2, color: colors.ink },
-    fill: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.md },
+    fill: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.xl, padding: space.xl },
     analyzing: { fontSize: font.body, color: colors.muted },
+    preview: {
+      width: 200,
+      height: 200,
+      borderRadius: radius.lg,
+      backgroundColor: colors.card,
+    },
+    // Left-aligned as a block, centred as a whole: a checklist whose rows start
+    // at different x-positions reads as jitter rather than as progress.
+    steps: { gap: space.md, alignSelf: 'center' },
+    stepRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+    stepText: { fontSize: font.body, color: colors.faint },
+    stepTextOn: { color: colors.ink, fontWeight: '600' },
+    stepTextDone: { color: colors.muted },
     body: { padding: space.xl, gap: space.md, flexGrow: 1 },
     error: { color: colors.danger, fontSize: font.small, textAlign: 'center' },
     // intro

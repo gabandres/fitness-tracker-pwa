@@ -29,6 +29,11 @@ export const en = {
   'log.scan': 'Scan meal',
   'log.manual': 'Manual entry',
   'scan.analyzing': 'Reading your plate…',
+  // The three named steps of a scan. Each says what the user gets, not what the
+  // code is doing — "Getting the photo ready", not "Encoding JPEG".
+  'scan.stepPreparing': 'Getting the photo ready',
+  'scan.stepReading': 'Reading the plate',
+  'scan.stepResolving': 'Looking up the foods',
   'scan.review': 'Check the estimate',
   'scan.lowConf': 'Rough estimate — give it a quick look before adding.',
   'scan.mealName': 'Meal',
@@ -149,7 +154,7 @@ export const en = {
   'today.entry': 'Entry',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    'Maintenance now holds up across gaps in your log. If you stopped logging for a while — travel, illness, a busy stretch — the days just after the break could set your whole number on their own, and a few pounds of water coming back off reads exactly like fat loss. Now every unbroken stretch of logging is measured separately, against what you ate during that same stretch, and the steadier stretches count for more. A handful of noisy days can no longer outweigh weeks of consistent logging. If you have logged straight through, your numbers barely move.',
+    'Scanning got faster. A meal photo now comes back in about half the time, and the scan screen shows your photo and what it is working on instead of a blank spinner. Barcode lookups download about a sixtieth of what they used to, so they hold up on a weak signal, and anything you have scanned before comes back instantly. If a barcode is not in the database you will now be told that, instead of being asked to try the scan again.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',

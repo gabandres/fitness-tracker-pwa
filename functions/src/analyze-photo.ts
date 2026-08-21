@@ -1,5 +1,4 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenAI } from "@google/genai";
 import { ErrorCode } from "./error-codes";
 import { callerAccess, dailyQuota, geminiApiKey, spendCeiling } from "./init";
@@ -31,7 +30,7 @@ const MAX_ITEMS = 12;
  * this is ever flipped back to `true`, the server is the only place the
  * distinction survives.
  *
- * Costed before flipping (2026-08-04), on the active Gemini provider:
+ * Costed before flipping (2026-08-04), on the then-active `gemini-2.5-flash`:
  * ~$0.0015/scan, so the free tier's 3/day is ~$0.14 per user per month even
  * if someone maxes it out every single day, and the `photo` spend ceiling
  * bounds the worst possible day at 2,000 scans ≈ $3. Photo-scan is the
@@ -75,7 +74,37 @@ type PhotoProvider = "gemini" | "anthropic";
 // constant must not do.
 const PHOTO_PROVIDER = "gemini" as PhotoProvider;
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+/**
+ * **Benchmarked, not chosen from a spec sheet.** Same `ESTIMATION_PROMPT`, same
+ * `SCAN_SCHEMA`, same photo, three runs each, straight against the API
+ * (2026-08-21):
+ *
+ *   gemini-2.5-flash        thinkingBudget 0   3,182 ms   in 1,009 / out 482
+ *   gemini-3.1-flash-lite                      2,598 ms   in 1,840 / out 454
+ *   gemini-3.5-flash-lite                      1,846 ms   in 1,840 / out 443
+ *   gemini-3-flash-preview                    25,473 ms   + 5,862 thinking tokens
+ *
+ * So this model is **1.7x faster than 2.5-flash at the identical list price**
+ * ($0.30 in / $2.50 out per MTok), and it is still on the free tier — which is
+ * the property the whole provider choice above rests on.
+ *
+ * Two traps the benchmark surfaced, recorded so they are not re-hit:
+ *
+ * - `gemini-2.5-flash-lite` is **gone**: the API now 404s it with "no longer
+ *   available to new users". It is not a fallback. Neither is
+ *   `gemini-2.5-flash-lite`'s old sibling `gemini-2.5-flash-lite-preview`.
+ * - `gemini-3-flash-preview` **cannot have thinking disabled** — it spent 5,862
+ *   thinking tokens and 25 s per scan with `thinkingBudget: 0` ignored. Any
+ *   future move up the 3.x Flash line must re-check `thoughtsTokenCount` on a
+ *   real response before it ships, because the failure is a 10x latency
+ *   regression that no type or test catches.
+ *
+ * The 3.x line bills ~1,840 input tokens for the same image against 2.5's
+ * ~1,009 — a different image tokenizer, not a bigger upload. Still ~$0.002 a
+ * scan, but it is why the `photo` ceiling in spend-ceiling.ts wants re-deriving
+ * rather than assuming.
+ */
+const GEMINI_MODEL = "gemini-3.5-flash-lite";
 
 /**
  * Deliberately NOT prompt-cached on the Anthropic path: Haiku 4.5's minimum
@@ -257,29 +286,26 @@ async function estimateWithGemini(photoBase64: string, prompt: string): Promise<
       // No `additionalProperties` here — Gemini's JSON mode rejects it.
       responseJsonSchema: SCAN_SCHEMA,
       /**
-       * **Thinking OFF, and this is the single biggest latency win available.**
+       * **Thinking must be OFF, and on this model it already is.**
        *
-       * Gemini 2.5 Flash reasons internally by default (adaptive budget), and we
-       * ALSO ask for an explicit `reasoning` field — so every scan was paying to
-       * deliberate twice, once invisibly. Measured on two real food photos,
-       * mean of the same prompt and images:
+       * History, because the reasoning is what generalises: `gemini-2.5-flash`
+       * reasons internally by default (adaptive budget) while we ALSO ask for an
+       * explicit `reasoning` field, so every scan deliberated twice, once
+       * invisibly. Measured on two real food photos: 8,877 ms and 1,100-1,285
+       * thinking tokens by default, against 3,023 ms and zero with
+       * `thinkingBudget: 0`. A 2.9x speedup with IDENTICAL item detection.
        *
-       *   default (adaptive)   8,877 ms   1,100-1,285 thinking tokens
-       *   thinkingBudget: 0    3,023 ms   0
+       * `gemini-3.5-flash-lite` returns `thoughtsTokenCount: 0` with no
+       * `thinkingConfig` at all (verified across three runs), so the block is
+       * gone rather than carried forward as cargo. **If GEMINI_MODEL changes,
+       * re-check `usageMetadata.thoughtsTokenCount` on a real response** — see
+       * the `gemini-3-flash-preview` trap noted there.
        *
-       * A 2.9x speedup, and it removes ~1,200 billed output tokens per scan on
-       * top — thinking tokens bill as output. Item detection was IDENTICAL on
-       * both photos: 4 items and 2 items, same foods, comparable grams.
-       *
-       * The visible `reasoning` field is deliberately kept. Dropping it too gets
-       * to ~2,070 ms but the model stopped enumerating carefully and lost an
-       * item (the shrimp on the mofongo plate) — which is exactly the failure
-       * the chain-of-thought exists to prevent. Capping it at 30 words measured
-       * 2,580 ms with detection intact, if another 15% is ever worth re-testing.
-       *
-       * Note `gemini-2.5-flash-lite` is NOT an option: the API now 404s it.
+       * The visible `reasoning` field is deliberately kept. Dropping it too got
+       * 2.5-flash to ~2,070 ms but the model stopped enumerating carefully and
+       * lost an item (the shrimp on the mofongo plate) — exactly the failure the
+       * chain-of-thought exists to prevent.
        */
-      thinkingConfig: { thinkingBudget: 0 },
     },
   });
   // response.text is guaranteed valid JSON matching the schema.
@@ -295,6 +321,14 @@ async function estimateWithGemini(photoBase64: string, prompt: string): Promise<
  * therefore fails HERE, loudly and on the first call — which is the point. The
  * alternative was an empty API key producing a 401 from Anthropic that reads
  * like a bad key rather than a missing deployment step.
+ *
+ * The SDK is imported **dynamically**, and that is a latency fix, not style.
+ * A static `import Anthropic from "@anthropic-ai/sdk"` is evaluated on every
+ * cold start of this function — measured at 36 ms on a warm workstation, more
+ * on a cold Cloud Run vCPU — to serve a branch that `PHOTO_PROVIDER` never
+ * takes. Cold starts are ~4 s of a ~7.4 s scan (see the `onCall` options
+ * below), so anything on that path that the request cannot reach should not be
+ * on it. The `await import` costs nothing until the day the provider flips.
  */
 async function estimateWithAnthropic(photoBase64: string, prompt: string): Promise<ScanDraft> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -305,6 +339,7 @@ async function estimateWithAnthropic(photoBase64: string, prompt: string): Promi
         "secret, restore defineSecret in init.ts, and re-add it here before flipping.",
     );
   }
+  const { default: Anthropic } = await import("@anthropic-ai/sdk");
   const client = new Anthropic({ apiKey });
   const response = await client.messages.create({
     model: ANTHROPIC_MODEL,
@@ -403,6 +438,26 @@ export const analyzePhoto = onCall(
   // GB-seconds only while running, the free tier is 400,000/month, and a ~5 s
   // scan at 512 MiB is 2.5 GB-s — about 160,000 scans a month before this costs
   // anything. The daily quota caps a user at 3.
+  //
+  // ── `minInstances` is deliberately absent, and it is the single largest
+  // latency item in this function. Measured from production logging over 60
+  // days (2026-08-21): a COLD request is 6.18-8.12 s (median 7.44 s), a warm one
+  // is ~3.39 s, and every one of the slowest five carried a `STARTUP TCP probe`
+  // line in the same second. At this traffic level an instance is always idle
+  // out before the next scan, so **practically every real user scan pays the
+  // ~4 s cold-start tax.**
+  //
+  // The obvious fix — `minInstances: 1` — is refused on cost, not oversight:
+  // an always-warm 512 MiB instance is real recurring spend against an app that
+  // charges nothing, and the repo's cost rule (CLAUDE.md) forbids it outright.
+  // So this is a CHOSEN tradeoff. What is worth doing instead is shrinking the
+  // boot work: `lib/index.js` evaluates all ~30 exported functions on every
+  // cold start (~535 ms on a warm workstation) to serve this one, which needs
+  // ~50 ms of it. Lazy-requiring heavy dependencies inside their own modules is
+  // the officially supported lever; gating exports on `FUNCTION_TARGET` is NOT
+  // — Firebase documents it as a reserved variable with no supported pattern
+  // for conditional exports, and the deploy-time discovery pass reads the same
+  // file. Do not re-derive these numbers by intuition; re-read the logs.
   { secrets: [geminiApiKey], maxInstances: 10, memory: "512MiB" },
   async (request) => {
     // Auth + rate limit (BEFORE the quota reserve, so a throttled call
@@ -474,6 +529,20 @@ export const analyzePhoto = onCall(
 
     const prompt = ESTIMATION_PROMPT + descriptionLangSuffix;
 
+    // Warm the USDA index CONCURRENTLY with the model call. `loadFoods()` reads
+    // and indexes a 3.4 MB JSON (~113 ms on a warm workstation, more on a cold
+    // Cloud Run vCPU) and memoizes it per instance. It has no dependency on the
+    // model output, and until now it ran strictly after it — so on every cold
+    // instance the request paid for the index and the ~2 s model round trip
+    // back to back instead of overlapping them.
+    //
+    // Deliberately NOT awaited here: this is the whole point. The `.catch`
+    // keeps a failure from surfacing as an unhandled rejection while nothing is
+    // awaiting the promise; the real error still lands at the await below,
+    // inside the try, where it is already handled.
+    const foodsPromise = Promise.resolve().then(() => loadFoods());
+    foodsPromise.catch(() => { /* re-thrown at the await below */ });
+
     try {
       // The only place the provider choice is read. Everything below this
       // line is provider-agnostic, which is what makes flipping the constant
@@ -499,8 +568,11 @@ export const analyzePhoto = onCall(
       }
 
       // The substitution ADR-0015 §1 called for: the model said WHAT and HOW
-      // MUCH, the bundled USDA database says how many calories that is.
-      const items = resolveItems(loadFoods(), drafts);
+      // MUCH, the bundled USDA database says how many calories that is. The
+      // index was started before the model call above; by here it is resolved
+      // on any instance that has served a request before, and on a cold one it
+      // has been loading throughout the model round trip.
+      const items = resolveItems(await foodsPromise, drafts);
       const totals = totalsOf(items);
 
       const description = typeof parsed.description === "string" ? parsed.description.slice(0, 100) : "Meal";

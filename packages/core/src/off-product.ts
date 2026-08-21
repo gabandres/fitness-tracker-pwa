@@ -84,6 +84,62 @@ export interface OffResponse {
   product?: OffProductDoc;
 }
 
+/**
+ * Exactly the fields {@link resolveOffProduct} reads, as OFF's `fields=` list.
+ *
+ * It lives HERE, beside the interfaces above, because those interfaces are the
+ * definition of what the resolver consumes — a list kept in the two frontends
+ * would drift from the resolver the first time someone adds a nutriment, and
+ * the failure mode is silent: a missing field resolves to a plausible-looking
+ * wrong number, never an error.
+ */
+const OFF_FIELDS = [
+  'code',
+  'product_name',
+  'generic_name',
+  'brands',
+  'serving_size',
+  'serving_quantity',
+  'nutriments',
+] as const;
+
+/**
+ * Build the barcode lookup URL both frontends call.
+ *
+ * ## Why `fields=` is not an optimization detail
+ *
+ * Without it OFF returns the ENTIRE product document. Measured 2026-08-21 on
+ * EAN 3017620422003: **145.8 KB against 2.4 KB** for the seven fields above —
+ * a 60x payload for data that is thrown away during parsing. Four runs of each
+ * had near-identical medians (149 ms vs 143 ms) on a desktop link, because
+ * that is round-trip-bound; the difference lands on cellular, and in the tail
+ * (one of the four full-document runs took **1,760 ms**).
+ *
+ * Verified equivalent, not assumed: across five products the trimmed response
+ * is byte-identical on every field the resolver reads, `serving_size` and
+ * `serving_quantity` included. That check matters more than the speed — a
+ * dropped `serving_quantity` would silently re-base the macros on 100 g
+ * (ADR-0013 "honest grams") rather than fail.
+ *
+ * ## Why the app identity is a query parameter and not a header
+ *
+ * OFF asks API callers to identify themselves. `User-Agent` is a **forbidden
+ * header name** in browsers — the PWA's `fetch` would drop it silently — so
+ * OFF accepts `app_name`/`app_version` in the query string instead, which is
+ * the one form that works from both a browser and React Native. The Cloud
+ * Function keeps sending the header, since Node has no such restriction.
+ */
+export function offProductUrl(barcode: string, appVersion = '1.0'): string {
+  // Hand-built rather than `URLSearchParams`: core targets no runtime in
+  // particular (ADR-0012) and its tsconfig carries no DOM lib, so the global
+  // is not in scope here. `encodeURIComponent` is plain ES.
+  const query =
+    `fields=${OFF_FIELDS.join(',')}` +
+    `&app_name=Ignia` +
+    `&app_version=${encodeURIComponent(appVersion)}`;
+  return `https://world.openfoodfacts.org/api/v3/product/${encodeURIComponent(barcode)}?${query}`;
+}
+
 /** Food-library context for the save-to-My-Foods path (ADR-0013 2a-iii).
  *  Assembled here because both frontends built the identical object by hand. */
 export interface ResolvedServing {

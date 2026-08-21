@@ -31,6 +31,9 @@ export const esPR: Record<I18nKey, string> = {
   'log.scan': 'Escanear comida',
   'log.manual': 'Entrada manual',
   'scan.analyzing': 'Leyendo tu plato…',
+  'scan.stepPreparing': 'Preparando la foto',
+  'scan.stepReading': 'Leyendo el plato',
+  'scan.stepResolving': 'Buscando los alimentos',
   'scan.review': 'Revisa el estimado',
   'scan.lowConf': 'Estimado aproximado — dale un vistazo antes de añadir.',
   'scan.mealName': 'Comida',
@@ -152,7 +155,7 @@ export const esPR: Record<I18nKey, string> = {
   'today.entry': 'Registro',
   'whatsNew.title': 'Novedades',
   'whatsNew.body':
-    'Tu mantenimiento ahora aguanta los huecos en tu registro. Si dejaste de registrar por un tiempo — un viaje, una enfermedad, una semana ocupada — los días justo después del hueco podían fijar todo tu número solos, y unas libras de agua bajando se ven igualito que pérdida de grasa. Ahora cada tramo seguido de registro se mide por separado, contra lo que comiste en ese mismo tramo, y los tramos más estables pesan más. Un puñado de días ruidosos ya no puede más que semanas registrando consistente. Si registraste de corrido, tus números casi no se mueven.',
+    'El escaneo está más rápido. Una foto de comida ahora regresa como en la mitad del tiempo, y la pantalla te muestra tu foto y en qué va trabajando en vez de una rueda en blanco. Los códigos de barra bajan como una sesentava parte de lo que bajaban antes, así que aguantan con señal débil, y lo que ya escaneaste antes sale al instante. Si un código no está en la base de datos, ahora te lo decimos, en vez de pedirte que escanees otra vez.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',

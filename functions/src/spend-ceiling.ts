@@ -64,6 +64,14 @@ const COLLECTION = "opsBudget";
  * $8; the same ceiling on Opus 5 would be ~$40, which is the other reason
  * model choice is a cost decision and not only a quality one.
  *
+ * Re-derived 2026-08-21 for the active `gemini-3.5-flash-lite`: a measured scan
+ * is ~1,840 input + ~443 output tokens at $0.30/$2.50 per MTok = **~$0.0017**,
+ * so this ceiling now bounds the worst day at ~$3.40 rather than ~$8. The
+ * 3.x line bills ~1.8x the input tokens of `gemini-2.5-flash` for the same
+ * image (a different image tokenizer, not a bigger upload), which is why this
+ * was checked rather than assumed — the count is unchanged because the new
+ * bound is strictly tighter, not because nothing moved.
+ *
  * Raise them from the admin panel as real traffic arrives. If a ceiling is
  * being hit by legitimate use, that is a pricing conversation, not a bug.
  */

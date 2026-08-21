@@ -6,8 +6,8 @@ import { functions } from '@/lib/firebase';
 
 /**
  * Meal photo → itemized macros (ADR-0015 §1). Mirrors the PWA's photo path:
- * capture/pick → downscale to 1080px JPEG (keeps the base64 well under the CF's
- * ~15 MB cap) → base64 → the `analyzePhoto` Cloud Function.
+ * pick → downscale to a 768px JPEG (keeps the base64 well under the CF's ~15 MB
+ * cap) → base64 → the `analyzePhoto` Cloud Function.
  *
  * The function does **recognition + portion** with a vision model and resolves
  * the macros from the bundled USDA database server-side, so what arrives here is
@@ -64,11 +64,40 @@ const CONFIDENCE_SCORE: Record<AnalyzePhotoResult['confidence'], number> = {
 };
 
 /**
- * Acquire a meal photo and return it as a downscaled JPEG base64 string, or
- * null if permission is denied or the user cancels. `camera` opens the OS
- * camera on device; on web both sources fall back to the file picker.
+ * Long edge the photo is downscaled to before upload.
+ *
+ * **768, lowered from 1080 on 2026-08-21, and it is free.** Measured on the
+ * same photo with the production prompt and schema: item detection identical,
+ * and Gemini billed *exactly* the same 1,009 input tokens either way — the API
+ * tiles both resolutions into the same image-token budget, so the extra pixels
+ * never reached the model in the first place. What they did do is travel:
+ * base64 bytes fell 33.9 KB → 21.4 KB on that (simple) test image, and on a
+ * real photograph the ratio tracks the pixel ratio, so roughly half the upload.
+ *
+ * That upload is the one leg of a scan that scales with the user's connection
+ * rather than with our infrastructure, which makes it the leg worth shrinking:
+ * server-side latency is measured and bounded, cellular uplink is neither.
+ *
+ * Do not raise this to buy accuracy without re-measuring. The model's weak
+ * number is the PORTION, not the identification (ADR-0015 §1), and portion
+ * comes from plate-scale cues that survive downscaling fine.
  */
-export async function captureMealPhoto(source: ScanSource): Promise<string | null> {
+const UPLOAD_MAX_EDGE = 768;
+
+/**
+ * Acquire a meal photo — the picker half only. Returns the local URI, or null
+ * if permission is denied or the user cancels. `camera` opens the OS camera on
+ * device; on web both sources fall back to the file picker.
+ *
+ * Split from {@link encodeMealPhoto} on purpose. Together they used to be one
+ * `captureMealPhoto`, which the scan screen awaited *before* it switched to its
+ * analyzing state — so the resize and base64 encode (half a second to a second
+ * and a half on a mid device) ran with the intro screen still up and nothing
+ * moving. Two functions let the caller show the captured frame the instant the
+ * picker returns and encode behind it. Nothing got faster; the dead air went
+ * away, which is the part the user experiences.
+ */
+export async function pickMealPhoto(source: ScanSource): Promise<string | null> {
   const perm =
     source === 'camera'
       ? await ImagePicker.requestCameraPermissionsAsync()
@@ -79,7 +108,12 @@ export async function captureMealPhoto(source: ScanSource): Promise<string | nul
   const result = await picker({ mediaTypes: ['images'], quality: 1, allowsEditing: false });
   if (result.canceled || !result.assets?.length) return null;
 
-  const image = await ImageManipulator.manipulate(result.assets[0].uri).resize({ width: 1080 }).renderAsync();
+  return result.assets[0].uri;
+}
+
+/** Downscale a picked photo and return it as JPEG base64, ready for upload. */
+export async function encodeMealPhoto(uri: string): Promise<string | null> {
+  const image = await ImageManipulator.manipulate(uri).resize({ width: UPLOAD_MAX_EDGE }).renderAsync();
   const saved = await image.saveAsync({ format: SaveFormat.JPEG, compress: 0.8, base64: true });
   image.release();
   return saved.base64 ?? null;
