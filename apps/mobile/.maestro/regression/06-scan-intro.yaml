@@ -26,36 +26,33 @@ appId: fit.ignia.app
 - tapOn:
     id: 'log-scan'
     optional: true
-# If that tap hit the label pill (not the button) the dial just closed —
-# reach the same screen by route instead; the screen, not the button, is what
-# the rest of this flow covers.
+# Expect this to WARN on the LG VS988 and fall through to the branch below.
+# The satellites sit ~150dp above the tab bar, outside every ancestor's box,
+# so uiautomator clamps their bounds to an empty rect — Maestro sees no node
+# to tap even though a coordinate tap there works (measured 2026-08-21).
+# That is a harness-visibility problem, not a product one.
 - runFlow:
     when:
       notVisible: 'Scan a meal'
     commands:
-      # Close the dial FIRST. Reaching this branch means the `log-scan` tap
-      # above did not fire `choose()`, so the dial is still OPEN — and
-      # `LogSpeedDial` is rendered by the TAB LAYOUT, not by a screen, so it
-      # survives the deep link and ends up sitting on top of the scan screen.
-      # The three `assertVisible`s below still pass, because the scan screen
-      # really is mounted underneath, so on 2026-08-21 this flow was green
-      # while its one piece of audit evidence was the scan screen greyed out
-      # under the dial's scrim with the pills and close X over it. Exactly the
-      # green-line-as-evidence substitution this suite's README warns about.
+      # Reach the screen by route instead; the screen, not the button, is what
+      # the rest of this flow covers.
       #
-      # Two fixes that do NOT work, both measured that day and both green:
+      # This branch used to tap `log-button` first, to close a dial the deep
+      # link would otherwise leave sitting on top of the scan screen —
+      # `LogSpeedDial` is rendered by the TAB LAYOUT, so it survived the
+      # navigation. On 2026-08-21 that made this flow GREEN while its one piece
+      # of audit evidence was the scan screen greyed out under the dial's scrim:
+      # `assertVisible` passes on a screen mounted underneath an overlay.
+      #
+      # It was written up here as a harness artifact and it was not — a real
+      # user hit the same state on the scan RESULT the same day (UX_AUDIT,
+      # Abdiel Medina). `LogSpeedDial` now closes on any route change, so this
+      # deep link dismisses the dial on arrival and the workaround is gone.
+      #
+      # Two guards that do NOT work, both measured that day and both green:
       # `waitForAnimationToEnd` (nothing is animating — the dial is simply
-      # open), and guarding the tap with `when: visible: id: log-scan`, which
-      # logs SKIPPED every time because the satellites are absent from the
-      # hierarchy on this device. That absence is also why the `log-scan` tap
-      # above WARNs and why this branch is the one that runs.
-      #
-      # Unconditional is safe HERE and only here, because this branch runs only
-      # when the dial was left open. `log-button` is a toggle: the same tap on
-      # the happy path would OPEN the dial and ruin the capture the other way.
-      - tapOn:
-          id: 'log-button'
-          optional: true
+      # open) and `when: visible: id: log-scan`, which logs SKIPPED every time.
       - openLink: 'ignia:///scan'
       - tapOn:
           text: 'Open'

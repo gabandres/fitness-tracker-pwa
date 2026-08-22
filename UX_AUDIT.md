@@ -303,8 +303,17 @@ the class of defect this project keeps paying for.
 Three items, reported in Spanish over chat against the live Android build.
 Recorded verbatim in substance; nothing here is fixed yet.
 
-- [ ] **The speed dial stays open on top of the photo-scan result, blocking
-      "Add today".** His words: after the scan finishes and the food appears,
+- [x] **The speed dial stays open on top of the photo-scan result, blocking
+      "Add today". FIXED 2026-08-21, in code — awaiting the OTA.** Reproduced
+      on the LG VS988 first, and it was TWO defects, not one. (a) The label
+      pill was a plain `View`, so it became the touch target and no ancestor
+      was a responder: tapping the words "Scan meal" did nothing at all, while
+      the same tap 90px right on the circle worked. (b) Hardware back on the
+      scan screen navigated out from under the open dial and landed on Today
+      with it still fanned open. `LogSpeedDial` now makes pill+circle one
+      `Pressable`, takes back while open, and closes on any route change;
+      `log-speed-dial-dismiss.test.tsx` pins all three (3 fail before the fix,
+      3 pass after). The `06-scan-intro.yaml` workaround is deleted. His words: after the scan finishes and the food appears,
       *"se queda abierta la opcion de scan meal y manual entry por encima de la
       info"* — the Scan meal / Manual entry pills sit over the result and he
       expects them to dismiss on their own.
