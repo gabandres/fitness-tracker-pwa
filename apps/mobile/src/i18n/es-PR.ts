@@ -904,14 +904,15 @@ export const esPR: Record<I18nKey, string> = {
   'feedback.whatsNewPrompt': '¿Falta algo, o algo no sirve? Dímelo.',
   // ── water entry ──
   'water.title': 'Agua',
-  'water.modeAdd': 'Añadir',
-  'water.modeSet': 'Poner total',
+  'water.addTitle': 'Añadir agua',
+  'water.setTitle': 'Total de hoy',
   'water.amount': '¿Cuánta?',
   'water.unit': 'oz',
   'water.today': 'Hoy: {n} oz',
   'water.preview': '{from} → {to} oz',
-  'water.setHint': 'Reemplaza el total de hoy.',
-  'water.quick': 'Rápido',
+  'water.setHint': 'Esto reemplaza el total, no lo suma.',
+  'water.switchToSet': 'Mejor poner el total de hoy',
+  'water.switchToAdd': 'Mejor añadir al total de hoy',
   'water.tooMuch': 'Eso pasa del máximo diario de {n} oz.',
 
 };

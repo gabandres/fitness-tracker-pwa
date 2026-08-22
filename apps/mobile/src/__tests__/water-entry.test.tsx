@@ -58,7 +58,7 @@ describe('Water entry', () => {
     const { getByTestId } = await view;
 
     await fireEvent.press(getByTestId('water-open'));
-    await fireEvent.press(getByTestId('water-mode-set'));
+    await fireEvent.press(getByTestId('water-mode-toggle'));
     await fireEvent.changeText(getByTestId('water-input'), '5');
     await act(async () => {
       await fireEvent.press(getByTestId('water-save'));
@@ -71,13 +71,12 @@ describe('Water entry', () => {
     // Carrying the last mode over would make the common action depend on what
     // was done previously, which is the sort of state a user cannot see.
     const { view } = setup();
-    const { getByTestId } = await view;
+    const { getByTestId, getByText } = await view;
 
     await fireEvent.press(getByTestId('water-open'));
     expect(getByTestId('water-input').props.value).toBe('');
-    expect(getByTestId('water-mode-add').props.accessibilityState).toEqual(
-      expect.objectContaining({ selected: true }),
-    );
+    // The way out to Set total is offered, which means Add is the mode.
+    expect(getByText("Set today's total instead")).toBeTruthy();
   });
 
   it('seeds Set total from the current value so a correction is one keystroke', async () => {
@@ -85,20 +84,19 @@ describe('Water entry', () => {
     const { getByTestId } = await view;
 
     await fireEvent.press(getByTestId('water-open'));
-    await fireEvent.press(getByTestId('water-mode-set'));
+    await fireEvent.press(getByTestId('water-mode-toggle'));
     expect(getByTestId('water-input').props.value).toBe('16');
   });
 
-  it('quick chips fill the field rather than committing', async () => {
-    // A tap is a starting point you can edit, not a decision — otherwise the
-    // sheet is just the row's pills again with an extra step.
-    const { onAddWater, view } = setup();
-    const { getByTestId } = await view;
+  it('offers no in-sheet quick amounts — the row already has them', async () => {
+    // The first build of this sheet duplicated the +8/+16/+24 pills that sit
+    // two inches above it, which is how a one-field sheet becomes a form and
+    // how Save ended up under the keyboard on a 360dp screen.
+    const { view } = setup();
+    const { getByTestId, queryByTestId } = await view;
 
     await fireEvent.press(getByTestId('water-open'));
-    await fireEvent.press(getByTestId('water-quick-12'));
-    expect(getByTestId('water-input').props.value).toBe('12');
-    expect(onAddWater).not.toHaveBeenCalled();
+    expect(queryByTestId('water-quick-12')).toBeNull();
   });
 
   it('refuses a total past the storable daily maximum', async () => {

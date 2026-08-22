@@ -206,23 +206,26 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
 }
 
 /**
- * Water entry — a quick amount, or a corrected total.
+ * Water entry.
  *
- * ## Why two modes and not one
+ * ## What a user asked for, and what that does NOT mean
  *
- * The row's pills already answer "I drank a glass". What a user asked for is
- * the amount that is not a glass: *"no hay un opcion customizada cmo poner
- * 5oz"* (in-app feedback, 2026-08-22). That is an **add** — he drank 5 oz, he
- * did not decide his day totals 5 oz — so Add is the default and the one that
- * opens focused.
+ * *"no hay un opcion customizada cmo poner 5oz"* (in-app feedback,
+ * 2026-08-22). The row's pills answer "I drank a glass"; this answers "I drank
+ * five ounces". That is the whole requirement.
  *
- * Set total exists because the pills can only ever go one way per tap and a
- * mis-tap is otherwise repaired by counting backwards. It is a second mode
- * rather than a second sheet because they share every other control, and the
- * segmented pair is the same vocabulary the Daily-targets editor uses.
+ * **The first build of this sheet had a segmented Add/Set control, a row of
+ * quick chips, and the field — three ways to choose a number stacked above one
+ * another, for logging water.** It was rebuilt the same day: the chips
+ * duplicated the +8/+16/+24 already on the row two inches above, the segmented
+ * pair implied the two modes were equally likely when one is a daily action and
+ * the other is a rare repair, and on a 360dp screen the extra rows pushed Save
+ * under the keyboard. Adding controls because they are easy to add is how a
+ * one-field sheet becomes a form.
  *
- * The live `16 → 21 fl oz` line is what makes Add legible without arithmetic:
- * the thing being changed is a total, so the total is what it shows.
+ * What is left is a field, the total it will produce, and one quiet way out to
+ * the rare case. `Add` is the default and never carries state between opens —
+ * a common action must not depend on what was done last time.
  */
 function WaterModal({
   visible,
@@ -244,8 +247,6 @@ function WaterModal({
   const [value, setValue] = useState('');
 
   useEffect(() => {
-    // Always reopens in Add with an empty field. Carrying the previous mode
-    // over would make the common action depend on what was done last time.
     if (visible) {
       setMode('add');
       setValue('');
@@ -258,12 +259,12 @@ function WaterModal({
   const over = nextTotal > WATER_MAX_FLOZ;
   const valid = parsed && !over;
 
-  function pick(next: 'add' | 'set') {
+  function toggleMode() {
     haptics.tap();
+    const next = mode === 'add' ? 'set' : 'add';
     setMode(next);
     // Set total starts from what is on screen, so correcting 16 to 15 is one
-    // keystroke rather than a retype. Add stays empty — prefilling it would
-    // read as "add 16 more".
+    // keystroke. Add stays empty — prefilling it would read as "add 16 more".
     setValue(next === 'set' ? String(current) : '');
   }
 
@@ -274,27 +275,9 @@ function WaterModal({
         <Reanimated.View style={keyboardStyle}>
           <View style={styles.sheet}>
             <View style={styles.handle} />
-            <Text style={styles.sheetTitle}>{t('water.title')}</Text>
-
-            <View style={styles.segment}>
-              {(['add', 'set'] as const).map((m) => {
-                const on = mode === m;
-                return (
-                  <TouchableOpacity
-                    key={m}
-                    style={[styles.segBtn, on && styles.segBtnOn]}
-                    onPress={() => pick(m)}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: on }}
-                    testID={`water-mode-${m}`}
-                  >
-                    <Text style={[styles.segText, on && styles.segTextOn]}>
-                      {t(m === 'add' ? 'water.modeAdd' : 'water.modeSet')}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <Text style={styles.sheetTitle}>
+              {t(mode === 'add' ? 'water.addTitle' : 'water.setTitle')}
+            </Text>
 
             <View style={styles.inputRow}>
               <TextInput
@@ -306,15 +289,16 @@ function WaterModal({
                 value={value}
                 onChangeText={setValue}
                 selectTextOnFocus
-                accessibilityLabel={t('water.amount')}
+                returnKeyType="done"
+                onSubmitEditing={() => valid && onSave(clampWaterFlOz(nextTotal))}
+                accessibilityLabel={t(mode === 'add' ? 'water.addTitle' : 'water.setTitle')}
                 testID="water-input"
               />
               <Text style={styles.inputUnit}>{t('water.unit')}</Text>
             </View>
 
-            {/* The total, always — it is what is actually being changed. In Add
-                mode it previews the result, which is the whole reason a user
-                does not have to do the sum in their head. */}
+            {/* The total is what is actually being changed, so the total is
+                what this line shows — which is why nobody has to do the sum. */}
             <Text
               style={[styles.sheetNote, over && styles.sheetNoteBad]}
               testID="water-preview"
@@ -328,24 +312,6 @@ function WaterModal({
                     : t('water.today', { n: current })}
             </Text>
 
-            {/* The same amounts the row offers, reachable without closing the
-                sheet — they FILL the field rather than committing, so a tap is
-                a starting point you can edit, not a decision. */}
-            <View style={styles.quickRow}>
-              {[8, 12, 16, 24].map((q) => (
-                <PressScale
-                  key={q}
-                  scaleTo={0.9}
-                  style={styles.pill}
-                  onPress={() => { haptics.tap(); setValue(String(q)); }}
-                  accessibilityRole="button"
-                  testID={`water-quick-${q}`}
-                >
-                  <Text style={styles.pillText}>{q}</Text>
-                </PressScale>
-              ))}
-            </View>
-
             <TouchableOpacity
               style={[styles.save, !valid && styles.saveDisabled]}
               onPress={() => valid && onSave(clampWaterFlOz(nextTotal))}
@@ -353,6 +319,14 @@ function WaterModal({
               testID="water-save"
             >
               <Text style={styles.saveText}>{t('common.save')}</Text>
+            </TouchableOpacity>
+
+            {/* Quiet, and below the primary action, because it is the rare
+                repair — not a co-equal mode. */}
+            <TouchableOpacity onPress={toggleMode} hitSlop={8} testID="water-mode-toggle">
+              <Text style={styles.sheetLink}>
+                {t(mode === 'add' ? 'water.switchToSet' : 'water.switchToAdd')}
+              </Text>
             </TouchableOpacity>
           </View>
         </Reanimated.View>
@@ -449,22 +423,15 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   actionTextStop: { color: colors.danger },
   waterBtns: { flexDirection: 'row', gap: space.xs },
   waterValueRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  segment: { flexDirection: 'row', gap: space.sm, marginBottom: space.md },
-  segBtn: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radius.md,
-    paddingVertical: space.sm,
-    alignItems: 'center',
-    backgroundColor: colors.inputBg,
-  },
-  segBtnOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  segText: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
-  segTextOn: { color: colors.onInk },
   sheetNote: { fontSize: font.small, color: colors.muted, marginTop: space.xs, textAlign: 'center' },
   sheetNoteBad: { color: colors.danger },
-  quickRow: { flexDirection: 'row', gap: space.sm, justifyContent: 'center', marginTop: space.md },
+  sheetLink: {
+    fontSize: font.small,
+    color: colors.muted,
+    textAlign: 'center',
+    marginTop: space.md,
+    textDecorationLine: 'underline',
+  },
   waterValue: { color: colors.teal },
   pill: {
     paddingHorizontal: space.md,

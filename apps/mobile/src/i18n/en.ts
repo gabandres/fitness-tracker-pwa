@@ -909,14 +909,15 @@ export const en = {
 
   // ── water entry ──
   'water.title': 'Water',
-  'water.modeAdd': 'Add',
-  'water.modeSet': 'Set total',
+  'water.addTitle': 'Add water',
+  'water.setTitle': "Today's total",
   'water.amount': 'How much?',
   'water.unit': 'fl oz',
   'water.today': 'Today: {n} fl oz',
   'water.preview': '{from} → {to} fl oz',
-  'water.setHint': "Replaces today's total.",
-  'water.quick': 'Quick',
+  'water.setHint': 'This replaces the total, it does not add to it.',
+  'water.switchToSet': "Set today's total instead",
+  'water.switchToAdd': 'Add to today instead',
   'water.tooMuch': 'That is over the {n} fl oz daily maximum.',
 } as const;
 
