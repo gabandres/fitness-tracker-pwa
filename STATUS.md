@@ -173,11 +173,27 @@ Everything else that was in this section has shipped and is in `CHANGELOG.md`.
   and BOTH copies are asserted against it. `npm run doctor` now fails on a stale
   index or a drifted fixture (group 2, two new checks — 20/21).
 
-  **Not verified on a device, and not published.** The premise rests on numbers
-  measured on a phone, and the LG G6 runs the published OTA bundle, not this
-  tree. It is a Metro-bundled asset, so it ships over the air with no binary —
-  and it is **not blocked by the Apple migration** for the same reason. Next
-  step is a device check of the decode cost and keystroke latency, then an OTA.
+  **SHIPPED to Android and PROVEN ON DEVICE, offline** (2026-08-21). OTA #5 on
+  vc 37, update group `0cdd613d-0959-4aec-aa7a-66b48e2d675a`; gate matched vc
+  37's `.aab` before publishing and the Metro export was re-run after the last
+  edit. The LG G6 fetched `01a026f5…` and relaunched onto it
+  (`isUpdateAvailable=false` on the next server check).
+
+  Then the decisive test, the same one the barcode cache had to pass: **Wi-Fi
+  AND mobile data off** — `settings get global wifi_on` = 0 and
+  `ping 8.8.8.8` = "Network is unreachable" — and `15-search` ran green end to
+  end. The captures show the app's own "You're offline" banner on Today WHILE a
+  "banana" query returns the full ranked list (Banana, raw first, matching the
+  golden fixture) and the portion picker opens with every serving and its
+  scaled macros. So the index is genuinely on the device; it is not a warm
+  cache and not the server. Radios restored afterwards (ping 2/2, ~45 ms).
+
+  **iOS is deliberately NOT published yet.** App Review runs build 60, whose
+  runtime is the one iOS OTAs target, so an OTA now changes the app under a
+  reviewer's hands while 1.2.1 is in review. Permitted by Apple (JS updates to
+  interpreted code), but not worth doing mid-review. Publish after 1.2.1
+  releases. It is a Metro-bundled asset, so no binary is needed and the Apple
+  migration does not block it.
 
 - **The barcode work is VERIFIED END TO END on Android, cache included.** A real
   product scanned on the LG G6 prefilled the entry sheet from Open Food Facts,
