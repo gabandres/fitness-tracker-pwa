@@ -79,6 +79,10 @@ export default function FeedbackScreen() {
       setSent(true);
     } catch {
       setError(t('feedback.err'));
+    } finally {
+      // Same reason as the targets editor: clearing this only on the error
+      // path leaves the button permanently disabled in any case where the
+      // screen stays mounted.
       setBusy(false);
     }
   }

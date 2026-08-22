@@ -71,13 +71,19 @@ function issueText(
   if (!issue) return null;
   switch (issue.kind) {
     case 'belowFloor':
-      return t('targets.errBelowFloor', { n: issue.floor });
+      return t('targets.errBelowFloor', { n: issue.floor.toLocaleString() });
     case 'aboveCeiling':
-      return t('targets.errAboveCeiling', { n: issue.ceiling });
+      return t('targets.errAboveCeiling', { n: issue.ceiling.toLocaleString() });
     case 'notANumber':
       return t('targets.errNotANumber');
     case 'aggressive':
-      return t('targets.warnAggressive', { pct: issue.pctUnder, n: issue.measured });
+      // `toLocaleString`, because the note directly beneath this one formats
+      // the same number with a separator and the two sat on screen together
+      // reading 2723 and 2,723.
+      return t('targets.warnAggressive', {
+        pct: issue.pctUnder,
+        n: issue.measured.toLocaleString(),
+      });
   }
 }
 
@@ -145,6 +151,15 @@ export default function DailyTargetsScreen() {
       router.back();
     } catch {
       setError(t('targets.saveErr'));
+    } finally {
+      // ALWAYS, not just on the error path. Clearing `busy` only in `catch`
+      // relies on `router.back()` unmounting this screen, and when it does not
+      // the button is left spinning and `disabled` forever — every later tap
+      // silently ignored, with the save never re-issued. Seen on the LG VS988
+      // on 2026-08-21: the mode toggle moved to Automatic, the button showed a
+      // spinner, and Firestore still read `custom` because no write was ever
+      // sent. `setBusy` on an unmounted component is a no-op in React 19, so
+      // the unmount case costs nothing.
       setBusy(false);
     }
   }
