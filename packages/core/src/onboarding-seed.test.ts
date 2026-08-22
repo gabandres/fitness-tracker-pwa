@@ -7,7 +7,7 @@ import {
   onboardingSeed,
 } from './onboarding-seed';
 import { computeKcal } from './macro-heuristic';
-import { ACTIVITY_MULTIPLIERS, basalMifflinStJeor } from './tdee';
+import { ACTIVITY_MULTIPLIERS, basalMifflinStJeor, calculateTdee, paceOffsetKcal } from './tdee';
 
 /**
  * The numbers below are the UX_AUDIT F1 table, recomputed here rather than
@@ -41,11 +41,17 @@ describe('onboardingPace', () => {
     expect(onboardingPace('lose', 0)).toBe(1);
   });
 
-  it('persists 0 for maintain and for gain', () => {
+  it('persists 0 only for maintain', () => {
     expect(onboardingPace('maintain', 1.5)).toBe(0);
-    // Unsigned CutPace: every consumer subtracts it, so a bulker storing 0.5
-    // would be handed maintenance MINUS 250 once the estimator takes over.
-    expect(onboardingPace('gain', 1.5)).toBe(0);
+  });
+
+  it('persists a real surplus pace for gain', () => {
+    // This USED to be 0, because `CutPace` is unsigned and every consumer
+    // subtracted it — so storing 0.5 handed a bulker maintenance MINUS 250 the
+    // day the estimator took over. `paceOffsetKcal` reads `goalDirection` now
+    // (UX_AUDIT F7), so the stored pace finally means what it says.
+    expect(onboardingPace('gain')).toBe(GAIN_SURPLUS_LBS_PER_WEEK);
+    expect(onboardingPace('gain', 1.5)).toBe(1.5);
   });
 });
 
@@ -213,5 +219,77 @@ describe('onboardingSeed -- the defect this exists to fix', () => {
       activityLevel: 'moderate',
     });
     expect(seed.kcal % 10).toBe(0);
+  });
+});
+
+/**
+ * UX_AUDIT F7 — the sign. `CutPace` is unsigned and both `calculateTdee` and
+ * `paceReality` subtracted it, so a "gain" user was handed maintenance MINUS
+ * their pace once the estimator took over from this seed. These pin the whole
+ * chain: the seed, the stored pace, and what the estimator later does with it
+ * must all point the same way.
+ */
+describe('the seed and the estimator agree about which way the pace points', () => {
+  const profile = {
+    heightIn: 70,
+    age: 30,
+    sex: 'male' as const,
+    activityLevel: 'moderate' as const,
+  };
+
+  it('a surplus is a surplus in BOTH the seed and calculateTdee', () => {
+    const seed = onboardingSeed({ ...profile, weightLbs: 160, goal: 'gain', paceLbsPerWeek: 0.5 });
+    // One weighed day, so the formula branch fits the SAME 160 lb the seed
+    // used. Without it `calculateTdee` falls back to `goalWeightLbs ?? 180`,
+    // and the two would differ by the weight rather than by the sign.
+    const tdee = calculateTdee([{ date: new Date('2026-08-22T12:00:00Z'), calories: 0, weight: 160 }], {
+      ...profile,
+      targetPaceLbsPerWeek: 0.5,
+      goalDirection: 'gain',
+    });
+    expect(tdee.source).toBe('formula');
+    // Both land above maintenance, and on the same number.
+    expect(tdee.newDailyTarget).toBeGreaterThan(tdee.trueTdee);
+    expect(Math.abs(seed.kcal - tdee.newDailyTarget)).toBeLessThanOrEqual(5);
+  });
+
+  it('the SAME stored pace still cuts when the goal is "lose"', () => {
+    const tdee = calculateTdee([], {
+      ...profile,
+      targetPaceLbsPerWeek: 0.5,
+      goalDirection: 'lose',
+    });
+    expect(tdee.newDailyTarget).toBeLessThan(tdee.trueTdee);
+  });
+
+  it('an ABSENT direction keeps subtracting, byte for byte', () => {
+    // Every account predating v2 onboarding has no goalDirection stored. The
+    // fix must be additive for them, not a silent 500 kcal swing.
+    const before = calculateTdee([], { ...profile, targetPaceLbsPerWeek: 1 });
+    const explicit = calculateTdee([], {
+      ...profile,
+      targetPaceLbsPerWeek: 1,
+      goalDirection: 'lose',
+    });
+    expect(before.newDailyTarget).toBe(explicit.newDailyTarget);
+    expect(before.newDailyTarget).toBe(before.trueTdee - 500);
+  });
+
+  it('maintain is unaffected either way', () => {
+    const tdee = calculateTdee([], {
+      ...profile,
+      targetPaceLbsPerWeek: 0,
+      goalDirection: 'maintain',
+    });
+    expect(tdee.newDailyTarget).toBe(tdee.trueTdee);
+  });
+});
+
+describe('paceOffsetKcal', () => {
+  it('is positive for a deficit and negative for a surplus', () => {
+    expect(paceOffsetKcal(1, 'lose')).toBeCloseTo(500, 0);
+    expect(paceOffsetKcal(1, 'maintain')).toBeCloseTo(500, 0);
+    expect(paceOffsetKcal(1, undefined)).toBeCloseTo(500, 0);
+    expect(paceOffsetKcal(1, 'gain')).toBeCloseTo(-500, 0);
   });
 });

@@ -27,7 +27,12 @@ export const en = {
   'scan.choose': 'Choose from library',
   'scan.manual': 'Enter it manually',
   'log.scan': 'Scan meal',
-  'log.manual': 'Manual entry',
+  // UX_AUDIT F4: was "Manual entry", which labelled the FOOD DATABASE — the
+  // path most people want — as the manual-work option. The sheet behind it
+  // opens with a full-width "Search foods…" field as its first and largest
+  // element; the label now says that. Typing macros by hand is still in there,
+  // one tap further in, as "Write it in".
+  'log.manual': 'Search foods',
   'scan.analyzing': 'Reading your plate…',
   // The three named steps of a scan. Each says what the user gets, not what the
   // code is doing — "Getting the photo ready", not "Encoding JPEG".
@@ -220,6 +225,44 @@ export const en = {
 
   // ── entry sheet ──
   'entry.addTitle': 'Add food',
+  // ── What the numbers mean (UX_AUDIT F6) ────────────────────────────
+  // Opened from the "?" on Today and on Trends. Same component and same
+  // affordance as the Train glossary — see components/Glossary.tsx.
+  'numbers.glossary.title': 'What these numbers mean',
+  'numbers.glossary.intro': 'Plain-language definitions for everything on Today and Trends.',
+  'numbers.glossary.sectionToday': 'On Today',
+  'numbers.glossary.sectionTrends': 'On Trends',
+  'numbers.glossary.kcal': 'kcal',
+  'numbers.glossary.kcalBody':
+    'Short for kilocalorie — the same thing people mean by "calorie" on a food label. 250 kcal is 250 calories.',
+  'numbers.glossary.target': 'Your daily target',
+  'numbers.glossary.targetBody':
+    'The number to aim for today. It comes from your maintenance and your goal, and you can set it yourself in Settings, Daily targets.',
+  'numbers.glossary.maintenance': 'Maintenance',
+  'numbers.glossary.maintenanceBody':
+    'What you burn on an average day, all in — sleeping, walking around, training. Eat that and your weight holds steady. Eat under it and you lose.',
+  'numbers.glossary.protein': 'Protein target',
+  'numbers.glossary.proteinBody':
+    'Grams of protein a day. It tracks your body weight rather than your calories, because it is there to protect muscle while you lose fat.',
+  'numbers.glossary.streak': 'Streak',
+  'numbers.glossary.streakBody':
+    'Consecutive days you logged something. It is a nudge, not a score — breaking one costs you nothing.',
+  'numbers.glossary.measured': 'Measured',
+  'numbers.glossary.measuredBody':
+    'The badge means the number came from YOUR data — what you ate against how your weight actually moved. Before there is enough of that, we use a formula based on your height, age, sex and activity, and say so.',
+  'numbers.glossary.estimate': 'Maintenance estimate',
+  'numbers.glossary.estimateBody':
+    'Our best current answer for what you burn. It moves as you log more, and it is an estimate: treat a change of 50 or 100 as noise, not news.',
+  'numbers.glossary.completeness': 'Logging completeness',
+  'numbers.glossary.completenessBody':
+    'How many of the last few weeks you actually logged. Above 70% we trust the measured number; below that we lean on the formula instead. Higher is better, and nobody hits 100%.',
+  'numbers.glossary.trend': 'Weight trend',
+  'numbers.glossary.trendBody':
+    'The direction your weight is moving per week, smoothed. A single heavy morning is mostly water and does not move it much — which is the point of a trend.',
+  'numbers.glossaryOpen': 'What these numbers mean',
+  // The browse sheet's own title. Every other mode announced itself and this
+  // one — the one most people land on — opened with a bare search field.
+  'entry.browseTitle': 'Add food',
   'entry.editTitle': 'Edit entry',
   'entry.recent': 'Recent',
   'entry.suggested': 'Suggested',
@@ -339,17 +382,20 @@ export const en = {
   // The weigh-in sheet's note line. Deliberately the same three states, in the
   // same order, as `water.today` / `water.preview` / `water.tooMuch` — the two
   // sheets are the same mechanism and should read the same.
-  'body.weightToday': 'Today: {n} lb',
-  'body.weightLast': 'Last weigh-in: {n} lb',
+  'body.weightToday': 'Today: {n} {unit}',
+  'body.weightLast': 'Last weigh-in: {n} {unit}',
   'body.weightFirst': 'Your first weigh-in.',
-  'body.weightPreview': '{from} → {to} lb',
-  'body.weightRange': 'Enter a weight between {min} and {max} lb.',
+  'body.weightPreview': '{from} → {to} {unit}',
+  'body.weightRange': 'Enter a weight between {min} and {max} {unit}.',
   'body.updateWeight': "Update today's weight",
   'body.loadErr': "Couldn't load your weight history.",
   'body.chartWindows': 'Last 14 days · the dashed line projects your 4-week trend',
   'body.trend': 'Trend',
   'body.goalPace': 'At this pace',
-  'body.goalRemaining': '{n} lb to goal',
+  'body.goalRemaining': '{n} {unit} to goal',
+  // "per week" as its own word so the trend chip can read `-1.6 lb/wk` or
+  // `-0.7 kg/wk` without a second string per unit.
+  'body.perWeek': 'wk',
   'body.goalReached': 'Goal reached 🎉',
   'body.holdingSteady': 'Holding steady',
   'body.bodyFat': 'Body fat',
@@ -492,7 +538,7 @@ export const en = {
   'train.noSaved': 'No saved exercises yet — type a name above.',
   'train.finishTitle': 'Finish workout',
   'train.finishHint': "Optional — logged to today's Body + Today.",
-  'train.bodyweight': 'Bodyweight (lb)',
+  'train.bodyweight': 'Bodyweight ({unit})',
   'train.sleepH': 'Sleep (h)',
   'train.complete': 'Complete workout',
   'train.templates': 'Templates',
@@ -664,7 +710,13 @@ export const en = {
   'tip.thanksTitle': 'Thank you!',
   'tip.thanksBody': 'Your support genuinely helps keep Ignia free.',
   'settings.units': 'Units',
-  'settings.portionDisplay': 'Portion display',
+  // Was "Portion display", and that label was honest at the time: the setting
+  // reached food serving sizes and nothing else. Since UX_AUDIT F3 it also
+  // governs how body weight is entered and shown everywhere, so the narrow
+  // name became the wrong one. The sub-line names both, because a user
+  // changing this deserves to know what moves.
+  'settings.portionDisplay': 'Units',
+  'settings.portionDisplaySub': 'Serving sizes and body weight',
   'settings.unitUs': 'US (oz, lb)',
   'settings.unitMetric': 'Metric (g, kg)',
   'settings.appearance': 'Appearance',

@@ -235,3 +235,50 @@ describe('a redo from Settings', () => {
     expect(mockSave.mock.calls[0][1].targetPaceLbsPerWeek).toBe(0.7);
   });
 });
+
+/**
+ * UX_AUDIT F3, at the seam that mattered most: onboarding's weight step is the
+ * FIRST number a user types, and it fed a plan. Typing 68 on a metric profile
+ * built one for a 68 lb person.
+ */
+describe('onboarding weight entry in kilograms', () => {
+  beforeEach(() => {
+    mockProfile = { profileCompleted: false, unitSystem: 'metric' } as Partial<Profile>;
+  });
+
+  it('stores pounds for a weight typed in kilograms', async () => {
+    const screen = await render(<Onboarding />);
+    const { getByTestId } = screen;
+    await fireEvent.press(getByTestId('onboarding-next'));
+    await fireEvent.press(getByTestId('onboarding-goal-lose'));
+    await fireEvent.press(getByTestId('onboarding-next'));
+    await fireEvent.changeText(getByTestId('onboarding-weight'), '82');
+    await fireEvent.press(getByTestId('onboarding-next'));
+    await fireEvent.changeText(getByTestId('onboarding-target-weight'), '75');
+    await fireEvent.press(getByTestId('onboarding-next'));
+    await fireEvent.press(getByTestId('onboarding-skip-body'));
+    await fireEvent.press(getByTestId('onboarding-save'));
+
+    const payload = mockSave.mock.calls[0][1];
+    // 82 kg = 180.8 lb, 75 kg = 165.3 lb. Storing 82 and 75 is the defect.
+    expect(payload.weightLbs).toBeCloseTo(180.8, 1);
+    expect(payload.targetWeightLbs).toBeCloseTo(165.3, 1);
+  });
+
+  it('builds the calorie seed off the converted weight, not the typed number', async () => {
+    const screen = await render(<Onboarding />);
+    const { getByTestId } = screen;
+    await fireEvent.press(getByTestId('onboarding-next'));
+    await fireEvent.press(getByTestId('onboarding-goal-maintain'));
+    await fireEvent.press(getByTestId('onboarding-next'));
+    await fireEvent.changeText(getByTestId('onboarding-weight'), '82');
+    await fireEvent.press(getByTestId('onboarding-next'));
+    await fireEvent.press(getByTestId('onboarding-skip-body'));
+    await fireEvent.press(getByTestId('onboarding-save'));
+
+    // 180.8 lb x 14 = 2,531 -> rounded to 10. A seed built from 82 would be
+    // 1,150, which is under the floor and would have been clamped to 1,500 —
+    // a plausible-looking number for a diet nobody chose.
+    expect(mockSave.mock.calls[0][1].manualCaloriesTarget).toBe(2530);
+  });
+});

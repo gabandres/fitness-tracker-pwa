@@ -29,7 +29,8 @@ export const esPR: Record<I18nKey, string> = {
   'scan.choose': 'Elegir de la galería',
   'scan.manual': 'Ingrésalo manualmente',
   'log.scan': 'Escanear comida',
-  'log.manual': 'Entrada manual',
+  // Ver en.ts (UX_AUDIT F4): nombra la base de comidas, no el trabajo manual.
+  'log.manual': 'Buscar comidas',
   'scan.analyzing': 'Leyendo tu plato…',
   'scan.stepPreparing': 'Preparando la foto',
   'scan.stepReading': 'Leyendo el plato',
@@ -217,6 +218,40 @@ export const esPR: Record<I18nKey, string> = {
 
   // ── entry sheet ──
   'entry.addTitle': 'Añadir comida',
+  // ── Qué significan los números (UX_AUDIT F6) ───────────────────────
+  'numbers.glossary.title': 'Qué significan estos números',
+  'numbers.glossary.intro': 'Definiciones sencillas de todo lo que ves en Hoy y en Tendencias.',
+  'numbers.glossary.sectionToday': 'En Hoy',
+  'numbers.glossary.sectionTrends': 'En Tendencias',
+  'numbers.glossary.kcal': 'kcal',
+  'numbers.glossary.kcalBody':
+    'Abreviatura de kilocaloría — lo mismo que la gente llama "caloría" en una etiqueta. 250 kcal son 250 calorías.',
+  'numbers.glossary.target': 'Tu meta diaria',
+  'numbers.glossary.targetBody':
+    'El número al que apuntas hoy. Sale de tu mantenimiento y de tu meta, y puedes ponerlo tú en Ajustes, Metas diarias.',
+  'numbers.glossary.maintenance': 'Mantenimiento',
+  'numbers.glossary.maintenanceBody':
+    'Lo que quemas en un día promedio, todo incluido — durmiendo, caminando, entrenando. Come eso y tu peso se mantiene. Come por debajo y bajas.',
+  'numbers.glossary.protein': 'Meta de proteína',
+  'numbers.glossary.proteinBody':
+    'Gramos de proteína al día. Sigue tu peso corporal y no tus calorías, porque está ahí para proteger el músculo mientras bajas grasa.',
+  'numbers.glossary.streak': 'Racha',
+  'numbers.glossary.streakBody':
+    'Días seguidos que registraste algo. Es un empujón, no una nota — romperla no te cuesta nada.',
+  'numbers.glossary.measured': 'Medido',
+  'numbers.glossary.measuredBody':
+    'La etiqueta quiere decir que el número salió de TUS datos — lo que comiste contra cómo se movió tu peso de verdad. Antes de tener suficiente, usamos una fórmula con tu estatura, edad, sexo y actividad, y lo decimos.',
+  'numbers.glossary.estimate': 'Estimado de mantenimiento',
+  'numbers.glossary.estimateBody':
+    'Nuestra mejor respuesta por ahora de lo que quemas. Se mueve mientras registras más, y es un estimado: un cambio de 50 o 100 es ruido, no noticia.',
+  'numbers.glossary.completeness': 'Constancia del registro',
+  'numbers.glossary.completenessBody':
+    'Cuántos de los últimos días realmente registraste. Sobre 70% confiamos en el número medido; por debajo nos apoyamos en la fórmula. Mientras más alto mejor, y nadie llega a 100%.',
+  'numbers.glossary.trend': 'Tendencia de peso',
+  'numbers.glossary.trendBody':
+    'Hacia dónde va tu peso por semana, suavizado. Una mañana pesada es casi toda agua y casi no lo mueve — de eso se trata una tendencia.',
+  'numbers.glossaryOpen': 'Qué significan estos números',
+  'entry.browseTitle': 'Añadir comida',
   'entry.editTitle': 'Editar registro',
   'entry.recent': 'Reciente',
   'entry.suggested': 'Sugeridos',
@@ -329,17 +364,18 @@ export const esPR: Record<I18nKey, string> = {
   'body.recentWeight': 'Peso más reciente',
   'body.logWeight': 'Registrar peso',
   // Ver en.ts: los mismos tres estados que water.today / preview / tooMuch.
-  'body.weightToday': 'Hoy: {n} lb',
-  'body.weightLast': 'Último pesaje: {n} lb',
+  'body.weightToday': 'Hoy: {n} {unit}',
+  'body.weightLast': 'Último pesaje: {n} {unit}',
   'body.weightFirst': 'Tu primer pesaje.',
-  'body.weightPreview': '{from} → {to} lb',
-  'body.weightRange': 'Escribe un peso entre {min} y {max} lb.',
+  'body.weightPreview': '{from} → {to} {unit}',
+  'body.weightRange': 'Escribe un peso entre {min} y {max} {unit}.',
   'body.updateWeight': 'Actualizar el peso de hoy',
   'body.loadErr': 'No se pudo cargar tu historial de peso.',
   'body.chartWindows': 'Últimos 14 días · la línea punteada proyecta tu tendencia de 4 semanas',
   'body.trend': 'Tendencia',
   'body.goalPace': 'A este ritmo',
-  'body.goalRemaining': '{n} lb para la meta',
+  'body.goalRemaining': '{n} {unit} para la meta',
+  'body.perWeek': 'sem',
   'body.goalReached': 'Meta alcanzada 🎉',
   'body.holdingSteady': 'Estable',
   'body.bodyFat': 'Grasa corporal',
@@ -482,7 +518,7 @@ export const esPR: Record<I18nKey, string> = {
   'train.noSaved': 'Aún no hay ejercicios guardados — escribe un nombre arriba.',
   'train.finishTitle': 'Terminar entreno',
   'train.finishHint': 'Opcional — se registra en Cuerpo + Hoy.',
-  'train.bodyweight': 'Peso corporal (lb)',
+  'train.bodyweight': 'Peso corporal ({unit})',
   'train.sleepH': 'Sueño (h)',
   'train.complete': 'Completar entreno',
   'train.templates': 'Plantillas',
@@ -654,7 +690,8 @@ export const esPR: Record<I18nKey, string> = {
   'tip.thanksTitle': '¡Gracias!',
   'tip.thanksBody': 'Tu apoyo de verdad ayuda a mantener Ignia gratis.',
   'settings.units': 'Unidades',
-  'settings.portionDisplay': 'Mostrar porciones',
+  'settings.portionDisplay': 'Unidades',
+  'settings.portionDisplaySub': 'Tamaños de porción y peso corporal',
   'settings.unitUs': 'EE. UU. (oz, lb)',
   'settings.unitMetric': 'Métrico (g, kg)',
   'settings.appearance': 'Apariencia',

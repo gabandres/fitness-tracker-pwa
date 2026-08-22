@@ -1,3 +1,4 @@
+import type { GoalDirection } from './macro-heuristic';
 import type { ActivityLevel, DailyLog, ProfileFields } from './types';
 import { localDateKey } from './date';
 
@@ -1015,6 +1016,27 @@ function mifflinStJeor(profile: ProfileFields, weightLbs: number): number {
   return basalMifflinStJeor(profile, weightLbs) * multiplier;
 }
 
+/**
+ * The daily calorie offset a pace implies, SIGNED by the goal direction.
+ *
+ * `CutPace` is unsigned — it has always been "lb per week", never "which
+ * way" — and both consumers simply subtracted it. For a user whose goal is
+ * `'gain'` that produced maintenance MINUS the pace: the opposite of the goal
+ * they chose, delivered silently the moment the formula or measured branch
+ * took over from the onboarding seed (UX_AUDIT F7).
+ *
+ * Positive means "eat below maintenance". Absent or non-gain directions keep
+ * subtracting, byte for byte, which is every account predating v2 onboarding
+ * and every cut and maintain since.
+ */
+export function paceOffsetKcal(
+  paceLbsPerWeek: number,
+  goalDirection?: GoalDirection,
+): number {
+  const magnitude = (paceLbsPerWeek * KCAL_PER_POUND) / 7;
+  return goalDirection === 'gain' ? -magnitude : magnitude;
+}
+
 export function calculateTdee(logs: DailyLog[], profile?: ProfileFields | null): TdeeResult {
   const daily = aggregateByDay(logs ?? []);
 
@@ -1114,7 +1136,7 @@ export function calculateTdee(logs: DailyLog[], profile?: ProfileFields | null):
         : measuredTdee;
 
     const pace = profile?.targetPaceLbsPerWeek ?? DEFAULT_PACE_LBS_PER_WEEK;
-    const targetDeficit = (pace * KCAL_PER_POUND) / 7;
+    const targetDeficit = paceOffsetKcal(pace, profile?.goalDirection);
     const floor = calorieFloor(profile);
     const newDailyTarget = Math.max(floor, Math.round(trueTdee - targetDeficit));
 
@@ -1149,7 +1171,7 @@ export function calculateTdee(logs: DailyLog[], profile?: ProfileFields | null):
     }
     const trueTdee = Math.round(mifflinStJeor(profile, latestWeight));
     const pace = profile.targetPaceLbsPerWeek;
-    const targetDeficit = (pace * KCAL_PER_POUND) / 7;
+    const targetDeficit = paceOffsetKcal(pace, profile.goalDirection);
     const floor = calorieFloor(profile);
     const newDailyTarget = Math.max(floor, Math.round(trueTdee - targetDeficit));
     return { trueTdee, newDailyTarget, weightChangeTrend: 0, source: 'formula' };

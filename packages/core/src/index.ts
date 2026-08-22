@@ -88,6 +88,10 @@ export * from './weight-projection';
 // mirror, store backstop). Distinct from ./macro-heuristic's CALC_WEIGHT_*
 // input range; see the header of ./weight-bounds.
 export * from './weight-bounds';
+// Body weight in the unit the user reads and types, over a store that is always
+// POUNDS. Display/input seam only — see the header for why the model never
+// learns kilograms exist (UX_AUDIT F3).
+export * from './body-weight-units';
 // Per-field tape-measurement bands, in inches. One shared 0–200 range could
 // not tell a 15in chest from a 15in neck; these can.
 export * from './measurement-bounds';

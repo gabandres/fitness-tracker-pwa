@@ -535,8 +535,23 @@ for.**
       **stored**. For a fresh profile the state is `null` and neither option is
       selected (`refine-targets.tsx:57`). There is no male default.
 
-- [ ] **F3 · Body weight is pounds-only, everywhere, with no way to change
-      it.** Onboarding's `BigInput` hardcodes a literal `lb` glyph
+- [x] **F3 · Body weight is pounds-only, everywhere, with no way to change
+      it. FIXED 2026-08-22.** `packages/core/src/body-weight-units.ts` is the
+      seam: `parseWeightToLb` on the way in, `toDisplayWeight` /
+      `formatBodyWeight` on the way out, `weightBoundsFor` so the 50–500 band
+      is quoted as 23–226 kg to someone who reads kilograms. **Storage stays
+      in pounds** — `firestore.rules`, `checkWeightEntry`, Mifflin-St Jeor and
+      the TDEE regression are all lb, and a stored unit would mean migrating
+      every historical row or tagging each one. Applied at onboarding (both
+      weight steps), the Body hero, goal rail, trend chip and weigh-in
+      history, the weigh-in sheet, the Train finish sheet's bodyweight field,
+      and both History screens. Settings' row is renamed from **Portion
+      display** to **Units** with the sub-line *"Serving sizes and body
+      weight"* — the old label was honest and became wrong. **Lifted loads are
+      deliberately NOT converted**: volume, PRs, plate math and template loads
+      stay in pounds. That is a different concept with its own plate
+      arithmetic, and F3's sentence is about the weight of the person. The
+      original finding: Onboarding's `BigInput` hardcodes a literal `lb` glyph
       (`onboarding.tsx:443`) beside a 72 pt number, and the Body tab hardcodes
       `lb` on the hero, the goal rail and every history row. The `unitSystem`
       profile field exists and is settable, but Settings labels that row
@@ -545,8 +560,14 @@ for.**
       read body weight in kilograms anywhere in the app. Typing 68 (kg) at
       onboarding yields a plan built for a 68 lb person.
 
-- [ ] **F4 · The most common way to log food has no name on the entry
-      surface, and the name it does have discourages use.** The speed dial
+- [x] **F4 · The most common way to log food has no name on the entry
+      surface, and the name it does have discourages use. FIXED 2026-08-22.**
+      The speed-dial satellite is **Search foods** (`Buscar comidas`), which
+      names what the sheet behind it actually opens with; typing macros by
+      hand is still there, one tap further in, as *Write it in*. The sheet
+      also has a title now — every other mode announced itself and the one
+      most people land on opened with a bare search field. The original
+      finding: The speed dial
       offers exactly two choices: **Scan meal** and **Manual entry**. The sheet
       behind "Manual entry" opens with a full-width **"Search foods…"** field
       as its first and largest element. So the food database — the path most
@@ -555,7 +576,14 @@ for.**
       reads that dial as offering nothing for her. Renaming the satellite is a
       one-string change; the sheet also has no title.
 
-- [ ] **F5 · On Today, the + button covers the empty state's only CTA.** At
+- [x] **F5 · On Today, the + button covers the empty state's only CTA.
+      FIXED 2026-08-22.** The scroll content gets `flexGrow: 1` and the empty
+      block `flex: 1` + `justifyContent: 'center'` + a `FAB_BAND`
+      (96) bottom padding, so it claims the leftover height and centres itself
+      inside a region that **excludes** the button's band. Deterministic at any
+      screen height, where "add some padding" is a guess that holds at one. The
+      96 is a named constant now rather than a bare literal in one place and
+      absent where it mattered. The original finding: At
       360×720 dp the orange FAB is drawn over "Repeat yesterday", which renders
       as `Repe⬤sterday`. Screenshot-confirmed on the LG VS988. The ScrollView
       has a 96 px tail spacer (`index.tsx:333`) that handles the scrolling
@@ -563,7 +591,17 @@ for.**
       nothing scrolls and the spacer sits below the button instead of lifting
       it. The empty state is the one screen every new user sees first.
 
-- [ ] **F6 · Terms of art go unexplained on the two most-viewed panels.**
+- [x] **F6 · Terms of art go unexplained on the two most-viewed panels.
+      FIXED 2026-08-22.** The Train tab already had the answer — a "?" in the
+      header opening a glossary sheet — so rather than invent a second way to
+      explain a word, `TrainGlossary` was generalised into
+      `components/Glossary.tsx` and the same affordance added to **Today and
+      Trends**: same icon, same place, same sheet. `NumbersGlossary` defines
+      nine terms in both locales — kcal (*"the same thing people mean by
+      calorie on a food label"*), daily target, maintenance, protein target,
+      streak, the MEASURED badge, maintenance estimate, logging completeness
+      and weight trend. Completeness says out loud what 70% means and that
+      nobody hits 100%. The original finding:
       Today's hero reads `0 / 2,323 kcal` and `maintenance 2,723`; Trends leads
       with a **MEASURED** badge, *Maintenance estimate*, and *73% logging
       completeness*. None is defined anywhere in the app. "kcal" appears in
@@ -573,8 +611,22 @@ for.**
       Trends does one thing right and it is worth copying — *"Weekly averages
       unlock at 3 logged days"* explains itself.
 
-- [ ] **F7 · `CutPace` is unsigned and every consumer subtracts it, so the
-      estimator hands a "gain" user a DEFICIT.** Found while building F1, and
+- [x] **F7 · `CutPace` is unsigned and every consumer subtracts it, so the
+      estimator hands a "gain" user a DEFICIT. FIXED 2026-08-22.**
+      `paceOffsetKcal(pace, goalDirection)` in `packages/core/src/tdee.ts` is
+      the one place the sign is decided, and both `calculateTdee` branches plus
+      `onboardingSeed` now go through it — so the number the plan step shows
+      and the number the estimator produces a fortnight later finally agree.
+      `paceReality` returns null for a "gain" goal: a surplus moves AWAY from
+      the calorie floor, so there is nothing for that card to warn about and
+      computing it anyway reported a floor-capped pace that was not real.
+      `goalDirection` was already on `ProfileFields` and already survived
+      `toProfileFields` — nothing downstream had ever read it. **Absent keeps
+      subtracting, byte for byte**, which is every account predating v2
+      onboarding; only `'gain'` flips. Onboarding consequently stores a real
+      0.5 lb/wk surplus for a bulker instead of the 0 that F1 had to use as a
+      workaround. Pinned by four cases including the absent-direction one. The
+      original finding: Found while building F1, and
       recorded rather than fixed because it is a different defect with a
       different blast radius. `targetPaceLbsPerWeek` is typed `[0, 2]`
       (`types.ts:131`) and both `calculateTdee` (`tdee.ts`) and `paceReality`

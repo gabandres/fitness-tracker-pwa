@@ -23,6 +23,8 @@ import type {
 } from '@/lib/workout';
 import { DEFAULT_LOG_STYLE, isLoggedSet } from '@/lib/workout';
 import {
+  bodyWeightUnit,
+  parseWeightToLb,
   type SeedTemplate,
   RIR_MAX,
   RIR_MIN,
@@ -62,6 +64,7 @@ import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { TemplateEditorModal } from '@/components/train/TemplateEditorModal';
 import { LOG_STYLES, SET_KINDS, logStyleKey, numOrUndef } from '@/components/train/train-shared';
 import { BottomSheet } from '@/components/BottomSheet';
+import { useUnitSystem } from '@/lib/use-unit-system';
 import { createStyles } from '@/components/train/train-styles';
 import { Sparkline } from '@/components/Sparkline';
 import { TrainGlossary } from '@/components/TrainGlossary';
@@ -1316,6 +1319,10 @@ function FinishModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  // Body weight only — the LOADS on this screen (volume, PRs, plate math) stay
+  // in pounds on purpose. F3 is about the weight of the person, and converting
+  // barbell loads is a separate job with its own plate maths.
+  const unitSystem = useUnitSystem();
   const [bodyweight, setBodyweight] = useState('');
   const [sleep, setSleep] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1332,7 +1339,10 @@ function FinishModal({
     if (busy) return;
     setBusy(true);
     try {
-      await onFinish({ bodyweight: numOrUndef(bodyweight), sleepHours: numOrUndef(sleep) });
+      await onFinish({
+        bodyweight: parseWeightToLb(bodyweight, unitSystem) ?? undefined,
+        sleepHours: numOrUndef(sleep),
+      });
     } finally {
       setBusy(false);
     }
@@ -1352,7 +1362,9 @@ function FinishModal({
 
           <View style={styles.finishRow}>
             <View style={styles.finishField}>
-              <Text style={styles.fieldLabel}>{t('train.bodyweight')}</Text>
+              <Text style={styles.fieldLabel}>
+                {t('train.bodyweight', { unit: bodyWeightUnit(unitSystem) })}
+              </Text>
               <TextInput
                 style={styles.input}
                 placeholder="—"

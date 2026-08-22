@@ -18,9 +18,12 @@ import {
   MEASUREMENT_BOUNDS_IN,
   implausibleMeasurementFields,
   parseYmd,
-  WEIGHT_MAX_LB,
-  WEIGHT_MIN_LB,
+  type UnitSystem,
+  bodyWeightUnit,
   checkWeightEntry,
+  parseWeightToLb,
+  toDisplayWeight,
+  weightBoundsFor,
 } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
@@ -30,6 +33,7 @@ import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
 import type { BodyFatInput } from '@macrolog/core';
 import * as haptics from '@/lib/haptics';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
+import { useUnitSystem } from '@/lib/use-unit-system';
 import { CountUpText, enterUp, usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
@@ -43,10 +47,14 @@ function dayLabel(dateKey: string, locale: Locale): string {
  *  translated (`refine.paceUnit` — the same key Refine targets uses, so all
  *  three surfaces agree); it was hardcoded English until the Maestro suite's
  *  first es-PR pass rendered "lb/wk" beside Spanish copy. */
-function trendLabel(slopeLbPerWeek: number, t: TFn): string {
+function trendLabel(slopeLbPerWeek: number, unitSystem: UnitSystem, t: TFn): string {
+  // The threshold stays in POUNDS: "holding steady" is a statement about the
+  // measurement, not about how it is displayed, and converting it would make
+  // the same weekly change read as steady in one unit and moving in the other.
   if (Math.abs(slopeLbPerWeek) < 0.1) return t('body.holdingSteady');
   const sign = slopeLbPerWeek < 0 ? '−' : '+';
-  return `${sign}${Math.abs(slopeLbPerWeek).toFixed(1)} ${t('refine.paceUnit')}`;
+  const shown = toDisplayWeight(Math.abs(slopeLbPerWeek), unitSystem);
+  return `${sign}${shown.toFixed(1)} ${bodyWeightUnit(unitSystem)}/${t('body.perWeek')}`;
 }
 
 /** "waist and hip" / "cintura y cadera" — the missing tape inputs, named.
@@ -89,6 +97,8 @@ export default function Body() {
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const unitSystem = useUnitSystem();
+  const unit = bodyWeightUnit(unitSystem);
   const [open, setOpen] = useState(false);
   const [measureOpen, setMeasureOpen] = useState(false);
   // Which saved row the sheet is editing; null = adding a new one. The sheet
@@ -157,11 +167,16 @@ export default function Body() {
           <Animated.View style={[styles.heroPanel, goalPulse]} testID="body-hero">
             <View style={styles.hero}>
               {currentWeight != null ? (
-                <CountUpText value={currentWeight} decimals={1} style={styles.heroValue} testID="current-weight" />
+                <CountUpText
+                  value={toDisplayWeight(currentWeight, unitSystem)}
+                  decimals={1}
+                  style={styles.heroValue}
+                  testID="current-weight"
+                />
               ) : (
                 <Text style={styles.heroValue} testID="current-weight">—</Text>
               )}
-              <Text style={styles.heroUnit}>lb</Text>
+              <Text style={styles.heroUnit}>{unit}</Text>
             </View>
             <Text style={styles.heroCaption}>
               {todayWeight != null ? t('body.todayWeighIn') : t('body.recentWeight')}
@@ -183,7 +198,7 @@ export default function Body() {
             {projection ? (
               <View style={styles.trendChips} testID="trend-card">
                 <Text style={styles.trendChip}>
-                  {t('body.trend')}  <Text style={styles.trendChipValue}>{trendLabel(projection.slopeLbPerWeek, t)}</Text>
+                  {t('body.trend')}  <Text style={styles.trendChipValue}>{trendLabel(projection.slopeLbPerWeek, unitSystem, t)}</Text>
                 </Text>
                 {projection.goalDateKey ? (
                   <Text style={styles.trendChip}>
@@ -196,16 +211,19 @@ export default function Body() {
             {goalProgress ? (
               <View style={styles.goalWrap} testID="goal-card">
                 <View style={styles.goalHead}>
-                  <Text style={styles.goalStart}>{goalProgress.startWeight.toFixed(1)} lb</Text>
+                  <Text style={styles.goalStart}>{toDisplayWeight(goalProgress.startWeight, unitSystem).toFixed(1)} {unit}</Text>
                   <Text style={styles.goalPct}>{goalProgress.pct}%</Text>
-                  <Text style={styles.goalEnd}>{goalProgress.goalWeight.toFixed(1)} lb</Text>
+                  <Text style={styles.goalEnd}>{toDisplayWeight(goalProgress.goalWeight, unitSystem).toFixed(1)} {unit}</Text>
                 </View>
                 <View style={styles.goalTrack}>
                   <View style={[styles.goalFill, { width: `${goalProgress.pct}%` }]} />
                 </View>
                 <Text style={styles.goalRemaining}>
                   {goalProgress.remaining > 0
-                    ? t('body.goalRemaining', { n: goalProgress.remaining.toFixed(1) })
+                    ? t('body.goalRemaining', {
+                        n: toDisplayWeight(goalProgress.remaining, unitSystem).toFixed(1),
+                        unit,
+                      })
                     : t('body.goalReached')}
                 </Text>
               </View>
@@ -316,7 +334,7 @@ export default function Body() {
               {(showAllWeighIns ? weighIns : weighIns.slice(0, WEIGH_PREVIEW)).map((w) => (
                 <View key={w.dateKey} style={styles.row} testID={`weighin-${w.dateKey}`}>
                   <Text style={styles.rowDate}>{dayLabel(w.dateKey, locale)}</Text>
-                  <Text style={styles.rowWeight}>{w.weight} lb</Text>
+                  <Text style={styles.rowWeight}>{toDisplayWeight(w.weight, unitSystem)} {unit}</Text>
                 </View>
               ))}
               {weighIns.length > WEIGH_PREVIEW ? (
@@ -335,6 +353,7 @@ export default function Body() {
         visible={open}
         initial={todayWeight}
         current={currentWeight}
+        unitSystem={unitSystem}
         onClose={() => setOpen(false)}
         onSave={async (w) => {
           await setWeight(w);
@@ -516,6 +535,7 @@ function WeightModal({
   visible,
   initial,
   current,
+  unitSystem,
   onSave,
   onClose,
 }: {
@@ -524,6 +544,9 @@ function WeightModal({
   /** The most recent recorded weight, for the resting note. May be a previous
    *  day's when there is no weigh-in today. */
   current: number | null;
+  /** Display/entry unit only. `onSave` always receives POUNDS — see
+   *  `body-weight-units.ts` for why the store never learns about kilograms. */
+  unitSystem: UnitSystem;
   onSave: (weight: number) => Promise<void> | void;
   onClose: () => void;
 }) {
@@ -537,18 +560,22 @@ function WeightModal({
 
   useEffect(() => {
     if (visible) {
-      setValue(initial != null ? String(initial) : '');
+      setValue(initial != null ? String(toDisplayWeight(initial, unitSystem)) : '');
       setBusy(false);
     }
-  }, [visible, initial]);
+  }, [visible, initial, unitSystem]);
 
-  const n = Number(value.trim());
+  // `n` is POUNDS from here down, whatever the field says — one conversion, at
+  // the boundary, so every check and every call below stays in the stored unit.
+  const n = parseWeightToLb(value, unitSystem) ?? Number.NaN;
   // Shared plausible-bodyweight bounds (50–500 lb), same rule the web logger
   // uses — no prior passed, so only the range is enforced (this sheet has no
   // large-delta confirm flow). Was an ad-hoc `n < 1500`.
-  const typed = value.trim() !== '' && Number.isFinite(n);
+  const typed = Number.isFinite(n);
   const valid = typed && checkWeightEntry(n).ok;
-  const outOfRange = typed && !valid;
+  const outOfRange = value.trim() !== '' && !valid;
+  const unit = bodyWeightUnit(unitSystem);
+  const bounds = weightBoundsFor(unitSystem);
 
   async function save() {
     if (!valid || busy) return;
@@ -567,7 +594,7 @@ function WeightModal({
             <TextInput
               ref={inputRef}
               style={styles.input}
-              placeholder="180"
+              placeholder={String(toDisplayWeight(180, unitSystem))}
               placeholderTextColor={colors.faint}
               // `numeric`, not water's `number-pad`: a weigh-in carries a
               // decimal and `number-pad` has no decimal key. Same rule
@@ -581,7 +608,7 @@ function WeightModal({
               testID="weight-input"
               onSubmitEditing={save}
             />
-            <Text style={styles.inputUnit}>lb</Text>
+            <Text style={styles.inputUnit}>{unit}</Text>
           </View>
           {/* Water's note line, for the same reason: the sheet should say what
               it is about to change, so nobody has to hold the old number in
@@ -591,11 +618,18 @@ function WeightModal({
             testID="weight-note"
           >
             {outOfRange
-              ? t('body.weightRange', { min: WEIGHT_MIN_LB, max: WEIGHT_MAX_LB })
+              ? t('body.weightRange', { min: bounds.min, max: bounds.max, unit })
               : valid && current != null && n !== current
-                ? t('body.weightPreview', { from: current, to: n })
+                ? t('body.weightPreview', {
+                    from: toDisplayWeight(current, unitSystem),
+                    to: toDisplayWeight(n, unitSystem),
+                    unit,
+                  })
                 : current != null
-                  ? t(initial != null ? 'body.weightToday' : 'body.weightLast', { n: current })
+                  ? t(initial != null ? 'body.weightToday' : 'body.weightLast', {
+                      n: toDisplayWeight(current, unitSystem),
+                      unit,
+                    })
                   : t('body.weightFirst')}
           </Text>
           <TouchableOpacity

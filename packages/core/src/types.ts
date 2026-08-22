@@ -253,6 +253,21 @@ export interface ProfileFields {
   welcomeEmailSentAt?: Date;      // server-set latch; clients never write this
   // v2 2-question onboarding (Q10 of UX revamp v2). When present, the
   // FitnessStore prefers these manual targets over TDEE-derived math.
+  /**
+   * Which way the pace points — and it took until UX_AUDIT F7 for anything to
+   * read it for that.
+   *
+   * `CutPace` is UNSIGNED and both `calculateTdee` and `paceReality` simply
+   * SUBTRACTED it, so a user whose goal is "gain" was handed maintenance MINUS
+   * their pace the moment the formula or measured branch took over from the
+   * onboarding seed — the exact opposite of the goal they chose, silently, and
+   * weeks after they chose it. The direction was sitting right here the whole
+   * time; nothing downstream asked.
+   *
+   * Absent must keep behaving exactly as before — a deficit — because every
+   * account predating v2 onboarding has no direction stored. Only `'gain'`
+   * flips the sign. See `paceOffsetKcal` in ./tdee.
+   */
   goalDirection?: GoalDirection;
   targetWeightLbs?: number;       // for lose/gain; omitted for maintain
   manualCaloriesTarget?: number;  // heuristic: weight_lb × {11/14/17}

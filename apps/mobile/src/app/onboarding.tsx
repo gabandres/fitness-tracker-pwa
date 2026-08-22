@@ -9,11 +9,14 @@ import {
   type ActivityLevel,
   type GoalDirection,
   type Sex,
+  bodyWeightUnit,
   computeProtein,
   isPlausibleAge,
   isPlausibleHeightIn,
   onboardingPace,
   onboardingSeed,
+  parseWeightToLb,
+  toDisplayWeight,
   validateCalorieTarget,
 } from '@macrolog/core';
 import { BrandMark } from '@/components/BrandMark';
@@ -23,6 +26,7 @@ import { track } from '@/lib/analytics';
 import { type I18nKey, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { CountUpText, PressScale } from '@/lib/motion';
+import { useUnitSystem } from '@/lib/use-unit-system';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, motion, radius, space, type } from '@/theme';
 
@@ -78,6 +82,8 @@ export default function Onboarding() {
   const { user, profile, signOut } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const unitSystem = useUnitSystem();
+  const weightUnit = bodyWeightUnit(unitSystem);
   // A completed profile only reaches this screen via Settings → "Edit goals":
   // skip the welcome greeting and return to Settings when done.
   const isRedo = !!profile?.profileCompleted;
@@ -88,7 +94,9 @@ export default function Onboarding() {
   const [goal, setGoal] = useState<GoalDirection | null>(profile?.goalDirection ?? null);
   const [targetWeight, setTargetWeight] = useState(() => {
     const g = profile?.targetWeightLbs ?? profile?.goalWeightLbs;
-    return g != null ? String(g) : '';
+    // Stored in pounds; shown in whatever the profile reads in.
+    const u = profile?.unitSystem === 'metric' ? 'metric' : 'us';
+    return g != null ? String(toDisplayWeight(g, u)) : '';
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -118,7 +126,9 @@ export default function Onboarding() {
   const ageValid = isPlausibleAge(ageNum);
   const bodyComplete = sex != null && heightValid && ageValid;
 
-  const weightLbs = numOrUndef(weight);
+  // Typed in the user's own unit, stored in pounds. Typing `68` on a metric
+  // profile used to build a plan for a 68 lb person (UX_AUDIT F3).
+  const weightLbs = parseWeightToLb(weight, unitSystem) ?? undefined;
   // Onboarding has no pace control, so the pace is derived: 1 lb/wk for a cut
   // unless the user already dialled one in Refine, 0 otherwise. See
   // `onboardingPace` for why "gain" persists 0 rather than a surplus.
@@ -189,7 +199,7 @@ export default function Onboarding() {
     step === 'welcome' ||
     (step === 'goal' && goal != null) ||
     (step === 'weight' && weightLbs != null) ||
-    (step === 'goalWeight' && numOrUndef(targetWeight) != null) ||
+    (step === 'goalWeight' && parseWeightToLb(targetWeight, unitSystem) != null) ||
     (step === 'body' && bodyComplete) ||
     (step === 'activity' && activity != null) ||
     // A typed calorie number has to clear the floor before it can be saved —
@@ -228,7 +238,9 @@ export default function Onboarding() {
       await saveOnboardingV2(user.uid, {
         weightLbs,
         goalDirection: goal,
-        targetWeightLbs: skipGoalWeight ? undefined : numOrUndef(targetWeight),
+        targetWeightLbs: skipGoalWeight
+          ? undefined
+          : (parseWeightToLb(targetWeight, unitSystem) ?? undefined),
         manualCaloriesTarget: kcal,
         manualProteinTarget: protein,
         // The Mifflin-St Jeor set. Passed unconditionally — `toOnboardingV2Patch`
@@ -386,14 +398,14 @@ export default function Onboarding() {
           {step === 'weight' ? (
             <View style={styles.step}>
               <Text style={styles.question}>{t('onboarding.weightQ')}</Text>
-              <BigInput value={weight} onChangeText={setWeight} placeholder="180" styles={styles} colors={colors} testID="onboarding-weight" />
+              <BigInput value={weight} onChangeText={setWeight} placeholder={String(toDisplayWeight(180, unitSystem))} unit={weightUnit} styles={styles} colors={colors} testID="onboarding-weight" />
             </View>
           ) : null}
 
           {step === 'goalWeight' ? (
             <View style={styles.step}>
               <Text style={styles.question}>{t('onboarding.goalWeightQ')}</Text>
-              <BigInput value={targetWeight} onChangeText={setTargetWeight} placeholder="165" styles={styles} colors={colors} testID="onboarding-target-weight" />
+              <BigInput value={targetWeight} onChangeText={setTargetWeight} placeholder={String(toDisplayWeight(165, unitSystem))} unit={weightUnit} styles={styles} colors={colors} testID="onboarding-target-weight" />
             </View>
           ) : null}
 
@@ -708,6 +720,7 @@ function BigInput({
   value,
   onChangeText,
   placeholder,
+  unit,
   styles,
   colors,
   testID,
@@ -715,6 +728,9 @@ function BigInput({
   value: string;
   onChangeText: (v: string) => void;
   placeholder: string;
+  /** `lb` or `kg` — was a hardcoded literal, which is the whole of F3's first
+   *  sentence. */
+  unit: string;
   styles: ReturnType<typeof createStyles>;
   colors: Theme['colors'];
   testID: string;
@@ -733,7 +749,7 @@ function BigInput({
         maxLength={5}
         testID={testID}
       />
-      <Text style={styles.bigUnit}>lb</Text>
+      <Text style={styles.bigUnit}>{unit}</Text>
     </View>
   );
 }

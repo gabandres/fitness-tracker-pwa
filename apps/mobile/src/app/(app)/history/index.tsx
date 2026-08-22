@@ -3,9 +3,10 @@ import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { type DaySummary, localDateKey, monthGrid, parseYmd } from '@macrolog/core';
+import { type DaySummary, formatBodyWeight, localDateKey, monthGrid, parseYmd } from '@macrolog/core';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { useHistory } from '@/hooks/useHistory';
+import { useUnitSystem } from '@/lib/use-unit-system';
 import { type Locale, useLocale, useT } from '@/i18n';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
@@ -26,6 +27,7 @@ export default function HistoryCalendar() {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const { loading, error, days } = useHistory();
+  const unitSystem = useUnitSystem();
   const router = useRouter();
   // A date within the viewed month; starts on the current month.
   const [view, setView] = useState(() => new Date());
@@ -137,7 +139,7 @@ export default function HistoryCalendar() {
                       <Text style={styles.recentSub}>
                         {d.mealCount} {d.mealCount === 1 ? t('history.entryOne') : t('history.entryMany')}
                         {d.exercised ? `  ·  ${t('history.exercised')}` : ''}
-                        {d.weightLb != null ? `  ·  ${d.weightLb} lb` : ''}
+                        {d.weightLb != null ? `  ·  ${formatBodyWeight(d.weightLb, unitSystem)}` : ''}
                       </Text>
                     </View>
                     <Text style={styles.recentKcal}>{d.totalCalories.toLocaleString()}</Text>

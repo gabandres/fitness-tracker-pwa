@@ -3,10 +3,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { type DailyLog, type LogEntry, localDateKey, parseYmd, summarizeDay } from '@macrolog/core';
+import { type DailyLog, type LogEntry, formatBodyWeight, localDateKey, parseYmd, summarizeDay } from '@macrolog/core';
 import { EntrySheet } from '@/components/EntrySheet';
 import { MealEntries } from '@/components/MealEntries';
 import { useHistory } from '@/hooks/useHistory';
+import { useUnitSystem } from '@/lib/use-unit-system';
 import { useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -22,6 +23,7 @@ export default function DayDetail() {
   const dateKey = String(date);
   const router = useRouter();
   const { loading, logs, weights, presets, customFoods, addEntry, updateEntry, deleteEntry, addPreset, deletePreset, addCustomFood, deleteCustomFood } = useHistory();
+  const unitSystem = useUnitSystem();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<DailyLog | null>(null);
 
@@ -83,7 +85,9 @@ export default function DayDetail() {
             <Total label={t('today.fat')} value={`${summary.totalFat}g`} />
           </View>
           {summary.weightLb != null ? (
-            <Text style={styles.weight}>{t('history.weight')}: {summary.weightLb} lb</Text>
+            <Text style={styles.weight}>
+              {t('history.weight')}: {formatBodyWeight(summary.weightLb, unitSystem)}
+            </Text>
           ) : null}
 
           <Text style={styles.sectionTitle}>{t('today.entries')}</Text>

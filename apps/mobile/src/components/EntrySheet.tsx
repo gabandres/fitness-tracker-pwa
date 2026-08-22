@@ -536,7 +536,13 @@ export function EntrySheet({
 
   return (
     <BottomSheet visible={visible} onClose={onClose} backdropTestID="entry-backdrop">
+            {/* UX_AUDIT F4: this sheet had no title at all. Every other mode
+                below announces itself ("Add food", "Edit entry"); the one most
+                people land on opened with a bare search field and left them to
+                infer what they were looking at. */}
             {mode === 'browse' ? (
+              <>
+              <Text style={styles.browseTitle}>{t('entry.browseTitle')}</Text>
               <FoodSearch
                 unitSystem={unitSystem}
                 seedQuery={searchSeed}
@@ -551,6 +557,7 @@ export function EntrySheet({
                 onPick={(est) => prefill(est)}
                 onCreateFromQuery={(q) => openCustomBlank(q)}
               />
+              </>
             ) : mode === 'recipe' ? (
               <RecipeBuilder onCancel={() => setMode('browse')} onApply={(est) => prefill(est)} />
             ) : mode === 'recipeImport' ? (
@@ -739,6 +746,7 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   // defaults are these values byte for byte, so the swap changes nothing here
   // except which file owns them.
   // browse
+  browseTitle: { fontSize: font.h2, fontWeight: '800', color: colors.ink, marginBottom: space.sm },
   browse: { gap: space.lg, paddingTop: space.sm },
   group: { gap: space.xs },
   groupHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

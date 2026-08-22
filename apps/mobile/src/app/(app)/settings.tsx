@@ -561,6 +561,7 @@ export default function Settings() {
         <Text style={styles.section}>{t('settings.units')}</Text>
         <View style={styles.card}>
           <Text style={styles.rowLabel}>{t('settings.portionDisplay')}</Text>
+          <Text style={styles.rowValue}>{t('settings.portionDisplaySub')}</Text>
           <View style={styles.segment}>
             {(['us', 'metric'] as UnitSystem[]).map((u) => {
               const on = unit === u;

@@ -6,6 +6,47 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-22 — kilograms, a name for the food search, and what the numbers mean
+
+Four things people kept running into, cleared out together.
+
+**Kilograms.** Body weight was pounds-only everywhere — onboarding, the Body
+tab, your weigh-in history, the workout finish sheet — with no way to change
+it. There was a units setting, but it was called *Portion display* and the
+name was honest: it reached food serving sizes and nothing else. So if you
+think in kilograms, typing **68** at setup got you a plan built for a 68 lb
+person, and nothing anywhere said so. It's fixed: Settings → **Units** now
+governs body weight too, and every screen that shows or asks for your weight
+follows it. Barbell loads stay in pounds for now — that's a separate job with
+its own plate maths.
+
+**The food search had the wrong name.** The + button offered *Scan meal* and
+*Manual entry*. But "Manual entry" opens a food search — a database of tens of
+thousands of foods — so the easiest path in the app was labelled as the
+tedious one. It's called **Search foods** now. Typing the macros in yourself
+is still there, one tap further in, where it belongs. The sheet has a title
+now too.
+
+**The + button stopped covering the button underneath it.** On a smaller
+phone, an empty Today drew the orange **+** straight over *Repeat yesterday* —
+the one thing to tap on the first screen a new user sees.
+
+**And the numbers explain themselves.** Today leads with `0 / 2,323 kcal` and
+`maintenance 2,723`; Trends leads with a **MEASURED** badge and *73% logging
+completeness*. None of that was defined anywhere. There's a **?** on both
+screens now — the same one the Train tab has had — with plain-language
+definitions: what kcal actually is, what maintenance means, what the MEASURED
+badge is claiming, and whether 73% is good. (It is. Nobody hits 100%.)
+
+One quieter fix underneath: if your goal is to **gain**, the app was doing the
+arithmetic backwards. Your weekly pace was applied as a deficit no matter
+which direction you'd picked, so a few weeks in, someone trying to put weight
+on would have been handed a target *below* what they burn. It now points the
+way you asked for.
+
+---
+
+
 ## 2026-08-22 — the app stopped guessing your calories from your weight alone
 
 The first number Ignia ever gave you was your body weight times a constant:

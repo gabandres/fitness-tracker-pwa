@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useState } from 'react';
 import { type Href, useRouter } from 'expo-router';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -11,6 +12,7 @@ import {
   parseYmd,
 } from '@macrolog/core';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
+import { NumbersGlossary } from '@/components/NumbersGlossary';
 import { WeeklyReportCard } from '@/components/WeeklyReportCard';
 import { useTrends } from '@/hooks/useTrends';
 import { useActivitySuggestion } from '@/lib/activity-suggestion';
@@ -46,6 +48,7 @@ const TDEE_MODE: Record<TdeeResult['source'], { badgeKey: I18nKey; hintKey: I18n
 };
 
 export default function Trends() {
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
@@ -101,8 +104,22 @@ export default function Trends() {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>{t('nav.trends')}</Text>
+        {/* UX_AUDIT F6. Same icon, same place, same sheet as the Train tab's
+            "?" — this screen leads with a MEASURED badge, a maintenance
+            estimate and a completeness percentage, and defined none of them. */}
+        <TouchableOpacity
+          onPress={() => { haptics.tap(); setGlossaryOpen(true); }}
+          accessibilityRole="button"
+          accessibilityLabel={t('numbers.glossaryOpen')}
+          hitSlop={10}
+          style={styles.headerHelp}
+          testID="trends-glossary-open"
+        >
+          <Ionicons name="help-circle-outline" size={24} color={colors.muted} />
+        </TouchableOpacity>
         <HeaderAvatar />
       </View>
+      <NumbersGlossary visible={glossaryOpen} onClose={() => setGlossaryOpen(false)} />
       {loading ? (
         <View style={styles.fill}>
           <ActivityIndicator color={colors.accent} />
@@ -484,6 +501,9 @@ const createStyles = ({ colors, shadow }: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
+    // Pushes the "?" up against the avatar instead of leaving it stranded in
+    // the middle of the row, which `space-between` would otherwise do.
+    headerHelp: { marginLeft: 'auto', marginRight: space.md },
     title: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
     fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     body: { padding: space.xl, gap: space.sm },

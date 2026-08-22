@@ -1,6 +1,6 @@
 import { type GoalDirection, computeKcal } from './macro-heuristic';
 import { isPlausibleAge, isPlausibleHeightIn } from './profile-bounds';
-import { ACTIVITY_MULTIPLIERS, KCAL_PER_POUND, basalMifflinStJeor, calorieFloor } from './tdee';
+import { ACTIVITY_MULTIPLIERS, basalMifflinStJeor, calorieFloor, paceOffsetKcal } from './tdee';
 import { type ActivityLevel, type CutPace, type Sex, clampCutPace } from './types';
 
 /**
@@ -60,20 +60,18 @@ export const DEFAULT_LOSE_PACE_LBS_PER_WEEK = 1.0;
  *
  * 1. A stored pace wins for "lose". Onboarding has no pace control, so a redo
  *    must not silently overwrite the 0.7 lb/wk a user dialled in Refine.
- * 2. **"gain" persists 0, not a surplus.** `CutPace` is unsigned and every
- *    consumer — `calculateTdee`, `paceReality` — SUBTRACTS it, so storing 0.5
- *    for a bulker would hand them maintenance *minus* 250 the day the
- *    estimator takes over. 0 makes the estimator hold at maintenance, which is
- *    the closest thing the current model can express to "eat above it". The
- *    seed below still shows the surplus, because that is the honest starting
- *    number; the mismatch is a pre-existing gap in the pace model (recorded in
- *    UX_AUDIT as F7) and not something this seed can fix on its own.
+ * 2. **"gain" persists a real surplus pace now.** It used to persist 0, because
+ *    `CutPace` is unsigned and every consumer SUBTRACTED it — so storing 0.5
+ *    for a bulker handed them maintenance *minus* 250 the day the estimator
+ *    took over, and 0 (hold at maintenance) was the least-wrong thing the
+ *    model could express. UX_AUDIT F7 fixed the model: `paceOffsetKcal` reads
+ *    `goalDirection` and flips the sign, so the stored pace and the seed now
+ *    agree and a bulker keeps their surplus when the estimator takes over.
  */
 export function onboardingPace(goal: GoalDirection, storedPace?: number | null): CutPace {
-  if (goal !== 'lose') return 0;
-  return storedPace != null && storedPace > 0
-    ? clampCutPace(storedPace)
-    : DEFAULT_LOSE_PACE_LBS_PER_WEEK;
+  if (goal === 'maintain') return 0;
+  const fallback = goal === 'gain' ? GAIN_SURPLUS_LBS_PER_WEEK : DEFAULT_LOSE_PACE_LBS_PER_WEEK;
+  return storedPace != null && storedPace > 0 ? clampCutPace(storedPace) : fallback;
 }
 
 export interface OnboardingSeedInput {
@@ -150,13 +148,12 @@ export function onboardingSeed(input: OnboardingSeedInput): OnboardingSeed {
     ) * ACTIVITY_MULTIPLIERS[input.activityLevel as ActivityLevel],
   );
 
-  const pace =
-    goal === 'lose'
-      ? -onboardingPace('lose', input.paceLbsPerWeek)
-      : goal === 'gain'
-        ? GAIN_SURPLUS_LBS_PER_WEEK
-        : 0;
-  const raw = Math.round((maintenance + (pace * KCAL_PER_POUND) / 7) / 10) * 10;
+  // One expression for all three directions now that the pace carries a sign:
+  // `paceOffsetKcal` is positive for a deficit and negative for a surplus, and
+  // it is the SAME function `calculateTdee` uses — so the number shown on the
+  // plan step and the number the estimator produces weeks later agree.
+  const pace = onboardingPace(goal, input.paceLbsPerWeek);
+  const raw = Math.round((maintenance - paceOffsetKcal(pace, goal)) / 10) * 10;
 
   return {
     kcal: Math.max(floor, raw),

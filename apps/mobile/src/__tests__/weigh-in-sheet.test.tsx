@@ -17,6 +17,8 @@ import { fireEvent, renderWithProviders as render } from '@/test-utils';
  */
 
 let mockTodayWeight: number | null = 180.4;
+let mockUnitSystem: 'us' | 'metric' = 'us';
+const mockSetWeight = jest.fn().mockResolvedValue(undefined);
 
 jest.mock('@/hooks/useBody', () => ({
   useBody: () => ({
@@ -27,7 +29,7 @@ jest.mock('@/hooks/useBody', () => ({
       return mockTodayWeight;
     },
     weighIns: [],
-    setWeight: jest.fn(),
+    setWeight: mockSetWeight,
     measurements: [],
     bodyFat: null,
     bodyFatGap: null,
@@ -43,7 +45,16 @@ jest.mock('@/hooks/useBody', () => ({
 }));
 
 jest.mock('@/lib/auth', () => ({
-  useAuth: () => ({ user: { uid: 'u1', email: 'a@b.co' }, profile: { sex: 'male', heightIn: 70 } }),
+  useAuth: () => ({
+    user: { uid: 'u1', email: 'a@b.co' },
+    profile: {
+      sex: 'male',
+      heightIn: 70,
+      get unitSystem() {
+        return mockUnitSystem;
+      },
+    },
+  }),
 }));
 
 jest.mock('@/hooks/useDailyTargets', () => ({
@@ -54,6 +65,8 @@ import BodyScreen from '@/app/(app)/body';
 
 beforeEach(() => {
   mockTodayWeight = 180.4;
+  mockUnitSystem = 'us';
+  mockSetWeight.mockClear();
 });
 
 async function openSheet() {
@@ -110,5 +123,61 @@ describe('the weigh-in sheet matches the water sheet', () => {
     const note = view.getByTestId('weight-note').props.children;
     expect(note).toContain('180.4');
     expect(note).not.toContain('Today');
+  });
+});
+
+/**
+ * UX_AUDIT F3. Body weight was pounds-only everywhere, with no way to change
+ * it — `unitSystem` existed but only reached food serving sizes, so typing 68
+ * (kg) produced a plan for a 68 lb person.
+ *
+ * The rule these pin: **the field is in the user's unit and the store is
+ * always pounds.** A conversion missing in either direction produces a
+ * plausible number and nothing on screen says so, which is exactly the class
+ * of defect a test has to hold.
+ */
+describe('the weigh-in sheet in kilograms', () => {
+  beforeEach(() => {
+    mockUnitSystem = 'metric';
+  });
+
+  it('shows the stored pounds as kilograms', async () => {
+    const input = (await openSheet()).getByTestId('weight-input');
+    // 180.4 lb = 81.8 kg.
+    expect(input.props.value).toBe('81.8');
+  });
+
+  it('labels the field kg, not lb', async () => {
+    const view = await openSheet();
+    expect(view.getByTestId('weight-note').props.children).toContain('kg');
+  });
+
+  it('SAVES POUNDS when the user types kilograms', async () => {
+    const view = await openSheet();
+    await fireEvent.changeText(view.getByTestId('weight-input'), '80');
+    await fireEvent.press(view.getByTestId('weight-save'));
+    // 80 kg = 176.4 lb. Storing 80 would be the defect.
+    expect(mockSetWeight).toHaveBeenCalledTimes(1);
+    expect(mockSetWeight.mock.calls[0][0]).toBeCloseTo(176.4, 1);
+  });
+
+  it('quotes the out-of-range band in kilograms', async () => {
+    const view = await openSheet();
+    await fireEvent.changeText(view.getByTestId('weight-input'), '5');
+    const note = view.getByTestId('weight-note').props.children;
+    // 50–500 lb is 23–226 kg. Telling a metric user "between 50 and 500 lb" is
+    // a non-answer, and 50 is a weight they might legitimately be.
+    expect(note).toContain('23');
+    expect(note).toContain('226');
+    expect(note).not.toContain('500');
+  });
+
+  it('accepts a weight that is only valid because it was read as kg', async () => {
+    const view = await openSheet();
+    // 45 would be rejected as pounds (under the 50 lb floor) and is fine as
+    // kilograms — 99.2 lb. The unit has to be applied BEFORE the bounds check.
+    await fireEvent.changeText(view.getByTestId('weight-input'), '45');
+    await fireEvent.press(view.getByTestId('weight-save'));
+    expect(mockSetWeight.mock.calls[0][0]).toBeCloseTo(99.2, 1);
   });
 });

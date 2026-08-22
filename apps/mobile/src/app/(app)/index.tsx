@@ -9,6 +9,7 @@ import type { DailyLog, LogEntry } from '@macrolog/core';
 import { maintenanceView } from '@macrolog/core';
 import { DailyMetrics } from '@/components/DailyMetrics';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
+import { NumbersGlossary } from '@/components/NumbersGlossary';
 import { EntrySheet } from '@/components/EntrySheet';
 import { HeroRings } from '@/components/HeroRings';
 import { MealEntries } from '@/components/MealEntries';
@@ -34,6 +35,12 @@ import { formatDate } from '@/lib/date-format';
 
 /** Streak length below which a streak extension is too early to read as
  *  "this app is working for me" — see reviewPrompt.ts for the full policy. */
+/** Vertical band at the bottom of Today that the raised + button occupies —
+ *  the FAB itself plus the tab bar it sits above. Nothing tappable may be laid
+ *  out inside it. Was a bare `96` in one place and absent where it mattered
+ *  most (UX_AUDIT F5). */
+const FAB_BAND = 96;
+
 const MIN_STREAK_FOR_REVIEW = 3;
 
 function todayLabel(locale: Locale): string {
@@ -78,6 +85,7 @@ export default function Today() {
   // The single Nudge slot this screen is allowed to fill.
   const nudge = useTodayNudge();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
   const [repeating, setRepeating] = useState(false);
   const shareRef = useRef<View>(null);
 
@@ -251,9 +259,25 @@ export default function Today() {
           >
             <Ionicons name="share-outline" size={22} color={colors.muted} />
           </TouchableOpacity>
+          {/* UX_AUDIT F6. The hero right below this reads `0 / 2,323 kcal` over
+              `maintenance 2,723` and the app defined neither word anywhere.
+              Same icon, same place, same sheet as the Train tab's "?" — one
+              affordance across three tabs rather than a third way to explain
+              something. */}
+          <TouchableOpacity
+            onPress={() => { haptics.tap(); setGlossaryOpen(true); }}
+            testID="today-glossary-open"
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={t('numbers.glossaryOpen')}
+          >
+            <Ionicons name="help-circle-outline" size={22} color={colors.muted} />
+          </TouchableOpacity>
           <HeaderAvatar />
         </View>
       </View>
+
+      <NumbersGlossary visible={glossaryOpen} onClose={() => setGlossaryOpen(false)} />
 
       {/* Off-screen capture target for the share card (native share only). */}
       <View style={[styles.shareCapture, { pointerEvents: 'none' }]}>
@@ -330,7 +354,9 @@ export default function Today() {
           ) : (
             <MealEntries logs={todayLogs} onPress={openEdit} onSavePreset={savePresetFromLog} />
           )}
-          <View style={{ height: 96 }} />
+          {/* Clears the + button for the SCROLLING case (a populated list).
+              The empty state handles itself — see `styles.empty`. */}
+          <View style={{ height: FAB_BAND }} />
         </ScrollView>
       )}
 
@@ -375,10 +401,36 @@ function createStyles({ colors }: Theme) {
     // row's bounds were [24,813][378,878] against an 874pt screen, so its
     // centre fell on the bar and the tap that should open the editor did
     // nothing at all. Every other tab already pads (body.tsx uses `padding`).
-    body: { paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.lg },
+    // `flexGrow: 1` is what makes the empty-state fix below deterministic:
+    // with it, short content still fills the viewport, so `styles.empty` can
+    // claim the leftover height and centre itself inside a region that
+    // excludes the + button's band. Without it that block simply sits wherever
+    // the content above happens to end — which at 360x720dp is directly under
+    // the FAB (UX_AUDIT F5).
+    body: { flexGrow: 1, paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.lg },
     error: { color: colors.danger, fontSize: font.small },
     sectionTitle: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink },
-    empty: { alignItems: 'center', paddingVertical: space.xl, gap: space.xs },
+    // UX_AUDIT F5: the orange + button was drawn straight over "Repeat
+    // yesterday", which rendered as `Repe(+)sterday` on a 360x720dp screen —
+    // and the empty state is the one screen every new user sees first.
+    //
+    // The 96px tail spacer below the list only ever helped the SCROLLING case.
+    // On a first run the content is shorter than the viewport, so nothing
+    // scrolls and the spacer sits below the button instead of lifting it.
+    //
+    // `flex: 1` (against the container's `flexGrow: 1`) makes this block take
+    // all remaining height and centre its contents in it; `paddingBottom`
+    // reserves the FAB's band out of that centring, so the CTA is pushed above
+    // the button rather than into it. Deterministic at any screen height,
+    // where "add some padding" is a guess that holds at one.
+    empty: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingTop: space.xl,
+      paddingBottom: FAB_BAND,
+      gap: space.xs,
+    },
     emptyText: { fontSize: font.body, color: colors.muted, fontWeight: '600' },
     emptyHint: { fontSize: font.small, color: colors.faint },
     headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.md },

@@ -30,6 +30,7 @@
  * moves, and lets a caller that wants the stored answer pass
  * `profile.targetPaceLbsPerWeek`.
  */
+import type { GoalDirection } from './macro-heuristic';
 import { calorieFloor, type TdeeResult } from './tdee';
 
 const KCAL_PER_POUND = 3500;
@@ -84,10 +85,15 @@ function round2(n: number): number {
 export function paceReality(
   tdee: TdeeResult,
   requestedPaceLbsPerWeek: number,
-  profile?: { calorieFloor?: number } | null,
+  profile?: { calorieFloor?: number; goalDirection?: GoalDirection } | null,
 ): PaceReality | null {
   if (tdee.source === 'seed' || tdee.trueTdee <= 0) return null;
   if (!Number.isFinite(requestedPaceLbsPerWeek) || requestedPaceLbsPerWeek < 0) return null;
+  // A surplus cannot collide with the calorie FLOOR — it moves away from it —
+  // so there is nothing for this card to warn about on a "gain" goal, and
+  // computing it anyway would report a floor-capped pace that is not real
+  // (UX_AUDIT F7).
+  if (profile?.goalDirection === 'gain') return null;
 
   const floor = calorieFloor(profile);
   // Mirrors calculateTdee exactly — round the deficit-derived target, then take
