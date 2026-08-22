@@ -6,6 +6,43 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-22 — a tour, because someone asked to be shown around
+
+The report reached us second-hand and as one sentence: the app is not intuitive
+for women. Asked what that meant concretely, the answer was specific and
+buildable — **she needs some kind of tutorial or something. Like a walkthrough
+of the app.**
+
+Fair. Ignia never explained itself. You finished setup, landed on Today, and met
+`0 / 2,323 kcal`, `maintenance 2,723`, a fasting card and an orange **+**, with
+nothing naming any of it. That works if you learn software by tapping at it
+until it makes sense. Plenty of people don't, and the app had nothing for them.
+
+So there's a tour now. Six cards: the whole app first, so you can see its shape
+before meeting any of it; what the numbers on Today actually mean; the three
+ways to log a meal; weighing in, and why one heavy morning isn't a verdict; whose
+numbers these are and how to change them; and a close that says the thing none of
+the rest of the app says — **nothing here is permanent.** Every meal, weight and
+goal can be edited or deleted, so there is no wrong way to start.
+
+It opens itself once, it's skippable from any step, and it lives permanently at
+**Settings → How Ignia works**. A tour you can't reopen punishes anyone who
+dismissed it before they understood it.
+
+One thing it deliberately is not: a different app for different people. The
+research this drew on (GenderMag, Burnett et al.) is clear that these are
+statistical clusters in how people approach unfamiliar software, not rules about
+individuals — so the tour is one path anyone can take, and there is no branch in
+it anywhere.
+
+Also fixed, from a screenshot sent the same afternoon: when you typed a water
+amount, the sheet sat marooned above the keyboard with a band of empty space
+between them. Two bugs cancelling each other out — the sheet was reserving room
+for a navigation bar the keyboard was already covering, *and* the lift was
+parking it below the keyboard's top edge. The sheet sits on the keyboard now.
+
+---
+
 ## 2026-08-22 — water takes the amount you actually drank
 
 The feedback box shipped this morning. Ten hours later it produced its first
