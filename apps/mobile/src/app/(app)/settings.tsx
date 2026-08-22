@@ -905,7 +905,11 @@ export default function Settings() {
         <SignInMethodsCard />
 
         <View style={styles.card}>
-          <View style={styles.deleteDivider} />
+          {/* No divider above this row. A separator separates two things, and
+              Delete account is the ONLY row in its card — so the rule drew
+              across the top of an otherwise empty card and read as a stray
+              line. Same defect the `refineRow` border had when it was reused
+              as a solo row; see `soloRow` above. */}
           {/* Deletion runs IN-APP (Apple 5.1.1(v)) — this used to open the web
               privacy page, which does not satisfy the guideline. */}
           <TouchableOpacity
@@ -1031,7 +1035,6 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   accountEmail: { fontSize: font.small, color: colors.muted },
   signOut: { flexDirection: 'row', alignItems: 'center', gap: space.sm, justifyContent: 'flex-start' },
   signOutText: { color: colors.danger, fontWeight: '700', fontSize: font.body },
-  deleteDivider: { height: 1, backgroundColor: colors.line, marginVertical: space.md },
   deleteRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   deleteLabel: { fontSize: font.body, color: colors.danger, fontWeight: '600' },
 });
