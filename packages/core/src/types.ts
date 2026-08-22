@@ -154,6 +154,27 @@ export interface OnboardingV2Submission {
    *  the unchanged behaviour: the two values above act as a seed until the
    *  estimator has data. */
   targetMode?: TargetMode;
+  /**
+   * The four Mifflin-St Jeor inputs, collected by onboarding's body + activity
+   * steps since UX_AUDIT F1/F2 — `computeKcal` alone was biased by sex by up
+   * to 27%, and the app collected the right inputs only in Settings → Refine
+   * targets, where a new user never goes.
+   *
+   * **All five travel together or none does.** `firestore.rules` validates
+   * them as a group (the strict branch fires as soon as `heightIn` is
+   * present), `toProfileFields` needs all four plus a pace before the formula
+   * path will run at all, and the steps are skippable — so a partial set is
+   * not a state either the server or the target chain can represent.
+   * {@link toOnboardingV2Patch} drops the whole set rather than write half.
+   */
+  sex?: Sex;
+  heightIn?: number;
+  age?: number;
+  activityLevel?: ActivityLevel;
+  /** Onboarding has no pace control; the caller derives this from the goal
+   *  direction and any stored value — see `onboardingPace`. Required for the
+   *  four above to be written. */
+  targetPaceLbsPerWeek?: CutPace;
 }
 
 /** Payload from the Day-3 "Refine targets" sheet. Promotes a 2-Q-onboarded

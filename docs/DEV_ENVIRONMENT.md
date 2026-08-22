@@ -878,10 +878,18 @@ developer account), or `TXT hosting-site=gabrielbermudez`.
    the existing Outlook within ~15 min — no second license, no second login.
    *(Alternative: add the address as an alias on the `bermudezpr.com` user —
    also free, but LLC mail then lands mixed into the personal-business inbox.)*
-8. **Turn the Northwest email service OFF for this domain.** Northwest hosts
-   both the DNS and the mail, and suites like it often deliver locally for
-   domains they host regardless of the published MX. If a test message still
-   lands in Northwest webmail after the MX change, this step is why.
+8. **The MX write fails silently at priority 0 — use 1.** Measured 2026-08-22,
+   and this cost three wasted attempts: Northwest's DNS panel **rejects an MX
+   record with priority `0`** — Edit-then-Save and Add-new-row both revert the
+   form with **no error and no success toast** (TXT and CNAME writes on the
+   same page toast green and apply instantly, so it reads as an MX-specific
+   lock). It is not a lock and it is **not** related to the Northwest mail
+   service being active: the identical record at **priority 1** saved on the
+   first try. Microsoft's own instructions say priority 0; this panel treats 0
+   as empty. Add the Microsoft record at priority 1 first — it then outranks
+   Northwest's 10 immediately — then delete the old row and Save.
+   **Do not disable the Northwest mail service to “unblock” MX. It was never
+   the cause, and disabling it destroys the old mailbox.**
 9. **DKIM**: `security.microsoft.com` → Email & collaboration → Policies &
    rules → Threat policies → **DKIM** → select the domain → the two CNAME
    targets → add at Northwest → **Enable**.

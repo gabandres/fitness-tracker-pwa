@@ -18,6 +18,8 @@ import {
   type Sex,
   activityMultiplier as activityMultiplierFor,
   basalMifflinStJeor,
+  isPlausibleAge,
+  isPlausibleHeightIn,
   paceReality,
 } from '@macrolog/core';
 import { useActivitySuggestion } from '@/lib/activity-suggestion';
@@ -79,8 +81,13 @@ export default function RefineTargets() {
   const heightIn = ft != null && inch != null ? ft * 12 + inch : null;
   const ageNum = intOrNull(age);
 
-  const heightValid = heightIn != null && heightIn >= 40 && heightIn <= 96;
-  const ageValid = ageNum != null && ageNum >= 13 && ageNum <= 120;
+  // Bands live in `@macrolog/core/profile-bounds`, not here: onboarding's body
+  // step asks the same two questions since F1/F2, and `firestore.rules` spells
+  // the same numbers out a third time. A client band looser than the server's
+  // is a write that vanishes; tighter is a value the user cannot enter for no
+  // stated reason.
+  const heightValid = isPlausibleHeightIn(heightIn);
+  const ageValid = isPlausibleAge(ageNum);
 
   // ── Activity pre-fill from imported Health activity ──────────────────
   // Only ever fills an EMPTY activity field. A stored activityLevel is never

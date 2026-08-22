@@ -92,12 +92,20 @@ export const esPR: Record<I18nKey, string> = {
   'signIn.errGeneric': 'No se pudo iniciar sesión. Inténtalo de nuevo.',
 
   // ── onboarding ──
-  'onboarding.welcomeBody': 'Toma una foto de tu comida, registra tus pesas y alcanza tus metas. Configurar tu plan toma unos 30 segundos.',
+  'onboarding.welcomeBody': 'Toma una foto de tu comida, registra tus pesas y alcanza tus metas. Configurar tu plan toma como un minuto.',
   'onboarding.welcomeCta': 'Vamos',
   'onboarding.goalQ': '¿Cuál es tu meta?',
   'onboarding.weightQ': '¿Cuánto pesas ahora?',
   'onboarding.goalWeightQ': '¿Cuál es tu peso meta?',
   'onboarding.planQ': 'Todo listo',
+  // Ver en.ts: los cuatro datos de Mifflin-St Jeor, ahora en el primer uso.
+  'onboarding.bodyQ': 'Un poco sobre ti',
+  'onboarding.bodyWhy': 'Las calorías que quemas dependen de más que el peso. Estos tres hacen que tu meta sea tuya y no un promedio.',
+  'onboarding.activityQ': '¿Qué tan activo eres?',
+  'onboarding.skipBody': 'Omitir por ahora',
+  'onboarding.planBasis': 'Según tu estatura, edad, sexo y actividad — estimamos que quemas unas {n} kcal al día.',
+  'onboarding.planBasisRough': 'Esta es una estimación aproximada basada solo en tu peso. Añade tu estatura, edad, sexo y actividad en Ajustes → Afinar metas para precisarla.',
+  'onboarding.planFloor': 'Fijada en {n} — la meta diaria más baja que recomendamos.',
   'onboarding.planSub': 'Aquí está tu plan diario — puedes ajustarlo cuando quieras.',
   'onboarding.continue': 'Continuar',
   'onboarding.titleNew': 'Bienvenido a Ignia',

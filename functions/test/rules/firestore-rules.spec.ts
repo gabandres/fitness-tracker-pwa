@@ -413,6 +413,74 @@ describe('firestore.rules', () => {
     );
   });
 
+  // ─── The onboarding write, after UX_AUDIT F1/F2 ─────────────────────────
+  // Onboarding now collects sex/height/age/activity itself and writes them
+  // alongside the heuristic targets. Nothing in `firestore.rules` changed for
+  // it — the fields were already on the completed-profile allowlist and the
+  // strict branch already validated them — and THAT is the claim worth
+  // pinning: "no rules deploy needed" is exactly the belief that, when wrong,
+  // rejects every new client's very first write.
+
+  it('accepts the full onboarding-v2 write with the Mifflin-St Jeor set', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      setDoc(doc(db, 'users', 'alice'), {
+        ...baseProfile(),
+        profileCompleted: true,
+        goalDirection: 'lose',
+        targetWeightLbs: 165,
+        goalWeightLbs: 165,
+        manualCaloriesTarget: 1500,
+        manualProteinTarget: 130,
+        targetMode: 'auto',
+        onboardingV2CompletedAt: Timestamp.now(),
+        // The five that used to arrive only from Settings → Refine targets.
+        sex: 'female',
+        heightIn: 64,
+        age: 45,
+        activityLevel: 'light',
+        targetPaceLbsPerWeek: 1,
+        targetsRefinedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it('rejects a HALF-written Mifflin-St Jeor set, which is why the client writes it as a group', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      setDoc(doc(db, 'users', 'alice'), {
+        ...baseProfile(),
+        profileCompleted: true,
+        goalDirection: 'lose',
+        manualCaloriesTarget: 1500,
+        manualProteinTarget: 130,
+        // `heightIn` present flips the rule to its strict branch, which then
+        // demands age, sex, activityLevel and a pace. A skipped body step must
+        // therefore write NONE of them, not the ones it happens to have.
+        heightIn: 64,
+        sex: 'female',
+      }),
+    );
+  });
+
+  it('still accepts the skipped-body shape: heuristic targets and no profile fields', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      setDoc(doc(db, 'users', 'alice'), {
+        ...baseProfile(),
+        profileCompleted: true,
+        goalDirection: 'lose',
+        manualCaloriesTarget: 1980,
+        manualProteinTarget: 130,
+        targetMode: 'auto',
+        onboardingV2CompletedAt: Timestamp.now(),
+      }),
+    );
+  });
+
   // ─── syntheticAccount: the seeded-account marker ────────────────────────
   // Written by scripts/seed-demo-account.mjs over the admin SDK to keep the
   // demo/review logins out of the retention cohorts. Two things must hold: a

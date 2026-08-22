@@ -27,13 +27,15 @@
  * `writeBatch` call, the `pruneUndefined` binding, the collection paths, and
  * `mergeExercises` (a rewrite rule over fetched docs, not a serializer).
  */
-import type {
-  CustomFood,
-  LogEntry,
-  MealPreset,
-  MealType,
-  Measurement,
-  OnboardingV2Submission,
+import { hasFormulaInputs } from './onboarding-seed';
+import {
+  type CustomFood,
+  type LogEntry,
+  type MealPreset,
+  type MealType,
+  type Measurement,
+  type OnboardingV2Submission,
+  clampCutPace,
 } from './types';
 import type {
   LogStyle,
@@ -161,7 +163,24 @@ export function toOnboardingV2Patch<TS>(
 ): Record<string, unknown> {
   const stamp = codec.timestamp(now);
   const hasGoalWeight = submission.targetWeightLbs != null;
+  // The Mifflin-St Jeor set, all-or-nothing. See OnboardingV2Submission: the
+  // rules validate these as a group, `toProfileFields` needs the whole set,
+  // and the steps that collect them are skippable — so half a set is a state
+  // nothing downstream can represent. `hasFormulaInputs` also range-checks,
+  // which matters here because this is the last gate before a write the server
+  // would reject outright.
+  const refined =
+    hasFormulaInputs(submission) && submission.targetPaceLbsPerWeek != null
+      ? {
+          sex: submission.sex,
+          heightIn: submission.heightIn,
+          age: submission.age,
+          activityLevel: submission.activityLevel,
+          targetPaceLbsPerWeek: clampCutPace(submission.targetPaceLbsPerWeek),
+        }
+      : null;
   return {
+    ...(refined ?? {}),
     goalDirection: submission.goalDirection,
     manualCaloriesTarget: submission.manualCaloriesTarget,
     manualProteinTarget: submission.manualProteinTarget,
@@ -182,7 +201,15 @@ export function toOnboardingV2Patch<TS>(
     targetWeightLbs: hasGoalWeight ? submission.targetWeightLbs : codec.remove(),
     goalWeightLbs: hasGoalWeight ? submission.targetWeightLbs : codec.remove(),
     // See the doc comment: this is the field whose absence was the bug.
-    targetsRefinedAt: codec.remove(),
+    //
+    // Since F1/F2 it is CONDITIONAL. `targetsRefinedAt` means "the Refine card
+    // has been filled" and is the latch that hides the Refine-targets prompt.
+    // An onboarding run that collected sex/height/age/activity has collected
+    // exactly what that card asks for, so clearing the stamp there would send
+    // the user to a screen with nothing left to tell it. A run that SKIPPED
+    // those steps still clears it — that user has genuinely not answered, and
+    // the prompt is how they find out they can.
+    targetsRefinedAt: refined ? stamp : codec.remove(),
   };
 }
 

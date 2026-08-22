@@ -144,7 +144,14 @@ export interface SeedTdee extends TdeeBase {
  */
 export type TdeeResult = MeasuredTdee | FormulaTdee | SeedTdee;
 
-const KCAL_PER_POUND = 3500;
+/** The static 3,500 kcal ≈ 1 lb of body mass rule. Exported because the
+ *  onboarding seed (./onboarding-seed) has to turn a pace into a deficit with
+ *  exactly this constant — a second copy is how the number the plan step shows
+ *  drifts from the number the estimator produces a fortnight later. It IS a
+ *  simplification (Hall, Int J Obes 2013: it overestimates real loss as time
+ *  passes); it is the app's simplification everywhere, and consistency about a
+ *  known approximation beats two different approximations. */
+export const KCAL_PER_POUND = 3500;
 const MIN_DAILY_TARGET = 1500;
 const DEFAULT_PACE_LBS_PER_WEEK = 1.0;
 const MEASURED_MIN_DAYS = 14;

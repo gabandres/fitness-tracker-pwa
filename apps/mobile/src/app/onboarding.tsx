@@ -5,7 +5,17 @@ import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TextInput, V
 import Animated, { FadeInLeft, FadeInRight, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
-import { type GoalDirection, computeKcal, computeProtein, validateCalorieTarget } from '@macrolog/core';
+import {
+  type ActivityLevel,
+  type GoalDirection,
+  type Sex,
+  computeProtein,
+  isPlausibleAge,
+  isPlausibleHeightIn,
+  onboardingPace,
+  onboardingSeed,
+  validateCalorieTarget,
+} from '@macrolog/core';
 import { BrandMark } from '@/components/BrandMark';
 import { useAuth } from '@/lib/auth';
 import { saveOnboardingV2 } from '@/lib/ledger';
@@ -16,16 +26,34 @@ import { CountUpText, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, motion, radius, space, type } from '@/theme';
 
-type StepId = 'welcome' | 'goal' | 'weight' | 'goalWeight' | 'plan';
-const ORDER: StepId[] = ['welcome', 'goal', 'weight', 'goalWeight', 'plan'];
+type StepId = 'welcome' | 'goal' | 'weight' | 'goalWeight' | 'body' | 'activity' | 'plan';
+const ORDER: StepId[] = ['welcome', 'goal', 'weight', 'goalWeight', 'body', 'activity', 'plan'];
 /** Steps that get a progress dot (welcome is a greeting, not a form step). */
-const DOT_STEPS: StepId[] = ['goal', 'weight', 'goalWeight', 'plan'];
+const DOT_STEPS: StepId[] = ['goal', 'weight', 'goalWeight', 'body', 'activity', 'plan'];
+
+/** Same five buckets, same order, as Settings -> Refine targets. */
+const ACTIVITY: { value: ActivityLevel; labelKey: I18nKey }[] = [
+  { value: 'sedentary', labelKey: 'activity.sedentary' },
+  { value: 'light', labelKey: 'activity.light' },
+  { value: 'moderate', labelKey: 'activity.moderate' },
+  { value: 'active', labelKey: 'activity.active' },
+  { value: 'very_active', labelKey: 'activity.very_active' },
+];
 
 const GOALS: { key: GoalDirection; labelKey: I18nKey; hintKey: I18nKey; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: 'lose', labelKey: 'goal.lose', hintKey: 'goal.loseHint', icon: 'trending-down-outline' },
   { key: 'maintain', labelKey: 'goal.maintain', hintKey: 'goal.maintainHint', icon: 'swap-horizontal-outline' },
   { key: 'gain', labelKey: 'goal.gain', hintKey: 'goal.gainHint', icon: 'trending-up-outline' },
 ];
+
+/** Refine-targets' parser, not `numOrUndef`: 0 is a legal number of INCHES,
+ *  and `numOrUndef` rejects it. */
+function intOrNull(s: string): number | null {
+  const t = s.trim();
+  if (t === '') return null;
+  const n = Number(t);
+  return Number.isInteger(n) && n >= 0 ? n : null;
+}
 
 function numOrUndef(s: string): number | undefined {
   const t = s.trim();
@@ -65,8 +93,53 @@ export default function Onboarding() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ── The four Mifflin-St Jeor inputs (UX_AUDIT F1/F2) ─────────────────
+  // Prefilled from the profile so a redo, or anyone who already visited
+  // Settings → Refine targets, is not asked twice. Same fields, same bands and
+  // the same five buckets as that screen — the bands come from
+  // `@macrolog/core/profile-bounds` precisely so the two cannot drift apart or
+  // from `firestore.rules`.
+  const [sex, setSex] = useState<Sex | null>(profile?.sex ?? null);
+  const [feet, setFeet] = useState(profile?.heightIn ? String(Math.floor(profile.heightIn / 12)) : '');
+  const [inches, setInches] = useState(profile?.heightIn ? String(profile.heightIn % 12) : '');
+  const [age, setAge] = useState(profile?.age != null ? String(profile.age) : '');
+  const [activity, setActivity] = useState<ActivityLevel | null>(profile?.activityLevel ?? null);
+  // Set by the "Skip" link on either of the two new steps. It hides them from
+  // navigation and from the dots; it does NOT discard the values, because a
+  // redo arrives with them prefilled and skipping past an answer you already
+  // gave should not un-answer it.
+  const [skippedBody, setSkippedBody] = useState(false);
+
+  const ft = intOrNull(feet);
+  const inch = intOrNull(inches);
+  const heightIn = ft != null && inch != null ? ft * 12 + inch : null;
+  const ageNum = intOrNull(age);
+  const heightValid = isPlausibleHeightIn(heightIn);
+  const ageValid = isPlausibleAge(ageNum);
+  const bodyComplete = sex != null && heightValid && ageValid;
+
   const weightLbs = numOrUndef(weight);
-  const suggestedKcal = weightLbs && goal ? computeKcal(weightLbs, goal) : null;
+  // Onboarding has no pace control, so the pace is derived: 1 lb/wk for a cut
+  // unless the user already dialled one in Refine, 0 otherwise. See
+  // `onboardingPace` for why "gain" persists 0 rather than a surplus.
+  const pace = onboardingPace(goal ?? 'maintain', profile?.targetPaceLbsPerWeek);
+  // **The fix.** Mifflin-St Jeor when the four answers are in hand, weight ×
+  // constant when they are not. The old call was `computeKcal(weightLbs, goal)`
+  // unconditionally, which is sex-blind and over-fed women by up to 27%.
+  const seed =
+    weightLbs && goal
+      ? onboardingSeed({
+          weightLbs,
+          goal,
+          sex,
+          heightIn,
+          age: ageNum,
+          activityLevel: activity,
+          paceLbsPerWeek: pace,
+          calorieFloor: profile?.calorieFloor,
+        })
+      : null;
+  const suggestedKcal = seed?.kcal ?? null;
   const suggestedProtein = weightLbs ? computeProtein(weightLbs) : null;
 
   // The plan step USED to be read-only, and that is the whole of a real user's
@@ -96,9 +169,18 @@ export default function Onboarding() {
 
   // Skip the goal-weight step for "maintain" (there's no target to hit).
   const skipGoalWeight = goal === 'maintain';
+  /** Steps navigation and the dots both walk straight past. */
+  function isSkipped(s: StepId): boolean {
+    if (s === 'goalWeight') return skipGoalWeight;
+    if (s === 'body' || s === 'activity') return skippedBody;
+    return false;
+  }
+  // A loop rather than the single `if` this replaced: two skippable steps sit
+  // next to each other now, and "maintain" plus a skipped body is three in a
+  // row. One conditional bump would land on the middle of them.
   function neighbor(from: StepId, delta: 1 | -1): StepId {
     let idx = ORDER.indexOf(from) + delta;
-    if (ORDER[idx] === 'goalWeight' && skipGoalWeight) idx += delta;
+    while (ORDER[idx] && isSkipped(ORDER[idx])) idx += delta;
     if (ORDER[idx] === 'welcome' && isRedo) return from; // redo can't go before goal
     return ORDER[idx] ?? from;
   }
@@ -108,6 +190,8 @@ export default function Onboarding() {
     (step === 'goal' && goal != null) ||
     (step === 'weight' && weightLbs != null) ||
     (step === 'goalWeight' && numOrUndef(targetWeight) != null) ||
+    (step === 'body' && bodyComplete) ||
+    (step === 'activity' && activity != null) ||
     // A typed calorie number has to clear the floor before it can be saved —
     // otherwise `dailyTargets` clamps it on the way out and hands the user a
     // number they did not choose, which is the exact defect being fixed.
@@ -116,7 +200,24 @@ export default function Onboarding() {
   function go(delta: 1 | -1) {
     haptics.tap();
     setDir(delta);
+    // Back out of the plan after skipping = "actually, ask me". Un-skip and
+    // land on the FIRST of the two steps that were passed over, not the last:
+    // arriving on the activity question having never been asked the body one
+    // is how a back button becomes a maze.
+    if (delta === -1 && step === 'plan' && skippedBody) {
+      setSkippedBody(false);
+      setStep('body');
+      return;
+    }
     setStep((s) => neighbor(s, delta));
+  }
+
+  /** Give up on the body/activity pair and take the weight-only estimate. */
+  function skipBody() {
+    haptics.tap();
+    setSkippedBody(true);
+    setDir(1);
+    setStep('plan');
   }
 
   async function onFinish() {
@@ -130,6 +231,16 @@ export default function Onboarding() {
         targetWeightLbs: skipGoalWeight ? undefined : numOrUndef(targetWeight),
         manualCaloriesTarget: kcal,
         manualProteinTarget: protein,
+        // The Mifflin-St Jeor set. Passed unconditionally — `toOnboardingV2Patch`
+        // is the one place that decides whether a complete set was collected,
+        // so the screen does not get a second, subtly different opinion about
+        // it. Undefined here means "skipped or half-answered", and none of the
+        // five is then written.
+        sex: sex ?? undefined,
+        heightIn: heightIn ?? undefined,
+        age: ageNum ?? undefined,
+        activityLevel: activity ?? undefined,
+        targetPaceLbsPerWeek: pace,
         // Accepting the computed plan stays 'auto' — those numbers are a seed
         // and the estimator should take over once it has data. Only a number
         // the user actually typed becomes theirs to keep.
@@ -153,8 +264,9 @@ export default function Onboarding() {
 
   const entering = (dir === 1 ? FadeInRight : FadeInLeft).duration(motion.dur.base).reduceMotion(ReduceMotion.System);
   const showBack = step !== 'welcome' && !(isRedo && step === 'goal');
-  const dotIndex = DOT_STEPS.filter((s) => !(s === 'goalWeight' && skipGoalWeight)).indexOf(step);
-  const dotTotal = DOT_STEPS.filter((s) => !(s === 'goalWeight' && skipGoalWeight)).length;
+  const dots = DOT_STEPS.filter((s) => !isSkipped(s));
+  const dotIndex = dots.indexOf(step);
+  const dotTotal = dots.length;
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -285,6 +397,119 @@ export default function Onboarding() {
             </View>
           ) : null}
 
+          {/* ── The two steps F1/F2 added ──────────────────────────────
+              Sex, height and age on one screen; activity on the next. Both
+              are SKIPPABLE, and that is deliberate: someone who will not state
+              a sex must still be able to finish onboarding, and the seed falls
+              back to the old weight-only heuristic for them. What is not
+              defensible is silently producing a worse number without saying
+              so — hence the basis line on the plan step. */}
+          {step === 'body' ? (
+            <View style={styles.step}>
+              <Text style={styles.question}>{t('onboarding.bodyQ')}</Text>
+              <Text style={styles.stepSub}>{t('onboarding.bodyWhy')}</Text>
+
+              <View style={styles.field}>
+                <Text style={styles.label}>{t('refine.sex')}</Text>
+                <View style={styles.segment}>
+                  {(['male', 'female'] as Sex[]).map((s) => {
+                    const on = sex === s;
+                    return (
+                      <PressScale
+                        key={s}
+                        style={[styles.segBtn, on && styles.segBtnOn]}
+                        scaleTo={0.97}
+                        onPress={() => { haptics.tap(); setSex(s); }}
+                        accessibilityRole="button"
+                        testID={`onboarding-sex-${s}`}
+                      >
+                        <Text style={[styles.segText, on && styles.segTextOn]}>
+                          {s === 'male' ? t('refine.male') : t('refine.female')}
+                        </Text>
+                      </PressScale>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.label}>{t('refine.height')}</Text>
+                <View style={styles.row}>
+                  <View style={styles.unitInput}>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="5"
+                      placeholderTextColor={colors.faint}
+                      keyboardType="numeric"
+                      value={feet}
+                      onChangeText={setFeet}
+                      maxLength={1}
+                      accessibilityLabel={t('refine.feet')}
+                      testID="onboarding-feet"
+                    />
+                    <Text style={styles.unit}>{t('refine.feet')}</Text>
+                  </View>
+                  <View style={styles.unitInput}>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="10"
+                      placeholderTextColor={colors.faint}
+                      keyboardType="numeric"
+                      value={inches}
+                      onChangeText={setInches}
+                      maxLength={2}
+                      accessibilityLabel={t('refine.inches')}
+                      testID="onboarding-inches"
+                    />
+                    <Text style={styles.unit}>{t('refine.inches')}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.label}>{t('refine.age')}</Text>
+                <TextInput
+                  style={[styles.input, styles.ageInput]}
+                  placeholder="30"
+                  placeholderTextColor={colors.faint}
+                  keyboardType="numeric"
+                  value={age}
+                  onChangeText={setAge}
+                  maxLength={3}
+                  accessibilityLabel={t('refine.age')}
+                  testID="onboarding-age"
+                />
+              </View>
+
+              <SkipLink label={t('onboarding.skipBody')} onPress={skipBody} styles={styles} />
+            </View>
+          ) : null}
+
+          {step === 'activity' ? (
+            <View style={styles.step}>
+              <Text style={styles.question}>{t('onboarding.activityQ')}</Text>
+              <View style={styles.activityCol}>
+                {ACTIVITY.map((a) => {
+                  const on = activity === a.value;
+                  return (
+                    <PressScale
+                      key={a.value}
+                      style={[styles.activityRow, on && styles.activityRowOn]}
+                      scaleTo={0.98}
+                      onPress={() => { haptics.tap(); setActivity(a.value); }}
+                      accessibilityRole="button"
+                      testID={`onboarding-activity-${a.value}`}
+                    >
+                      <Text style={[styles.activityText, on && styles.activityTextOn]}>{t(a.labelKey)}</Text>
+                      {on ? <Ionicons name="checkmark" size={18} color={colors.onInk} /> : null}
+                    </PressScale>
+                  );
+                })}
+              </View>
+              <SkipLink label={t('onboarding.skipBody')} onPress={skipBody} styles={styles} />
+            </View>
+          ) : null}
+
           {step === 'plan' ? (
             <View style={styles.step}>
               <Text style={styles.question}>{t('onboarding.planQ')}</Text>
@@ -321,6 +546,20 @@ export default function Onboarding() {
               {/* The affordance has to be SAID. A tappable number that looks
                   like a readout is a feature nobody finds — which is how this
                   screen shipped for months with the plumbing already in it. */}
+              {/* Say what the number was built from. A user asked to trust a
+                  calorie target is owed the basis of it — and the skipped case
+                  has to say plainly that it is the rougher of the two, or the
+                  skip becomes a silent downgrade. */}
+              <Text style={styles.planSub} testID="onboarding-plan-basis">
+                {seed?.basis === 'formula' && seed.maintenance != null
+                  ? t('onboarding.planBasis', { n: seed.maintenance.toLocaleString() })
+                  : t('onboarding.planBasisRough')}
+              </Text>
+              {seed?.floorBinding && !edited ? (
+                <Text style={styles.planSub} testID="onboarding-plan-floor">
+                  {t('onboarding.planFloor', { n: (kcal ?? 0).toLocaleString() })}
+                </Text>
+              ) : null}
               <Text style={styles.planSub}>
                 {t('onboarding.planSub')} {t('targets.editHint')}
               </Text>
@@ -435,6 +674,36 @@ function PlanStat({
   );
 }
 
+/**
+ * The escape hatch on the body and activity steps.
+ *
+ * Understated on purpose: the four answers are what make the calorie target
+ * correct, so the CTA is the path. But a required sex question is a locked
+ * front door for anyone who will not answer it, and the app is unusable behind
+ * it — so the way past has to exist and has to be findable.
+ */
+function SkipLink({
+  label,
+  onPress,
+  styles,
+}: {
+  label: string;
+  onPress: () => void;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  return (
+    <PressScale
+      style={styles.skip}
+      scaleTo={0.96}
+      onPress={onPress}
+      accessibilityRole="button"
+      testID="onboarding-skip-body"
+    >
+      <Text style={styles.skipText}>{label}</Text>
+    </PressScale>
+  );
+}
+
 function BigInput({
   value,
   onChangeText,
@@ -510,6 +779,50 @@ const createStyles = ({ colors, shadow }: Theme) =>
     goalLabelOn: { color: colors.onInk },
     goalHint: { fontSize: font.small, color: colors.muted },
     goalHintOn: { color: colors.heroMuted },
+    // Sub-line under a step question (why we are asking).
+    stepSub: { fontSize: font.body, color: colors.muted, lineHeight: font.body * 1.4, marginTop: -space.md },
+    // Labelled form fields, mirroring Settings → Refine targets so the two
+    // screens that ask these four questions look like the same question.
+    field: { gap: space.xs },
+    label: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
+    segment: { flexDirection: 'row', gap: space.sm },
+    segBtn: { flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, paddingVertical: space.md, alignItems: 'center', backgroundColor: colors.inputBg },
+    segBtnOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+    segText: { fontSize: font.body, color: colors.muted, fontWeight: '600' },
+    segTextOn: { color: colors.onInk },
+    row: { flexDirection: 'row', gap: space.sm },
+    unitInput: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.xs },
+    input: {
+      backgroundColor: colors.inputBg,
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: radius.md,
+      paddingHorizontal: space.md,
+      paddingVertical: space.md,
+      fontSize: font.h3,
+      color: colors.ink,
+      flex: 1,
+      minWidth: 0,
+    },
+    unit: { fontSize: font.small, color: colors.muted },
+    ageInput: { flex: 0, width: 120 },
+    activityCol: { gap: space.sm },
+    activityRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: radius.md,
+      paddingHorizontal: space.lg,
+      paddingVertical: space.md,
+      backgroundColor: colors.inputBg,
+    },
+    activityRowOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+    activityText: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
+    activityTextOn: { color: colors.onInk },
+    skip: { alignSelf: 'center', paddingVertical: space.sm, paddingHorizontal: space.md },
+    skipText: { fontSize: font.small, color: colors.muted, textDecorationLine: 'underline' },
     // Big numeric input.
     bigInputRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: space.sm },
     bigInput: { fontFamily: type.display, fontSize: 72, color: colors.ink, textAlign: 'center', minWidth: 140, padding: 0 },

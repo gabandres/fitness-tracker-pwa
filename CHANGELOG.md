@@ -6,6 +6,46 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-22 — the app stopped guessing your calories from your weight alone
+
+The first number Ignia ever gave you was your body weight times a constant:
+**11 to lose, 14 to maintain, 17 to gain**. No height, no age, no sex, no
+activity level.
+
+That is wrong in a specific and unfair direction, and the app already knew it
+— the correct formula (Mifflin-St Jeor) has been in here the whole time, along
+with the four questions it needs. They just lived in **Settings → Refine
+targets**, behind a subtitle reading *"Sharpen your calorie target"*, which
+reads like an optional extra for people who enjoy settings screens.
+
+Here is what that cost. Take a 180 lb 45-year-old woman, lightly active. Her
+estimated maintenance is about **1,978 kcal**. Ignia's "lose fat" target for
+her was **1,980** — two calories *above* the amount she burns. She could have
+followed it perfectly, forever, and lost nothing. A man of the same weight,
+same age, same goal was given the identical number, and for him it was a real
+deficit: 0.69 lb a week. Same app, same inputs, one of them losing weight at
+2.4× the other's rate, for no reason either of them could see.
+
+So onboarding asks now. Two short steps after your goal weight — sex, height
+and age on one screen, how active you are on the next — and the target is built
+with the app's own arithmetic from the start instead of weeks later. That
+woman's target is now **1,500**, and the screen says why: it is the lowest
+daily target we'll recommend, and her full 1 lb/week deficit would have gone
+under it.
+
+Both steps are **skippable**. Nobody is locked out of the app for declining to
+state a sex, and if you skip, you get the old weight-only estimate — but the
+plan screen tells you that is what you're looking at, rather than presenting a
+rougher guess as though it were the same thing. Answering later in Settings →
+Refine targets still works exactly as before.
+
+Two smaller things came with it: the plan screen now shows what we estimate you
+burn in a day, not just what to eat, and if the safety floor is holding your
+target up, it says so instead of quietly handing you a number you didn't ask
+for.
+
+---
+
 ## 2026-08-22 — a tour, because someone asked to be shown around
 
 The report reached us second-hand and as one sentence: the app is not intuitive

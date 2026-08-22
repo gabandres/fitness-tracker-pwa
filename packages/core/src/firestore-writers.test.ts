@@ -378,6 +378,62 @@ describe('toOnboardingV2Patch', () => {
   it('clears targetsRefinedAt so a re-onboard cannot shadow the formula target', () => {
     expect(toOnboardingV2Patch(submission, codec, NOW)['targetsRefinedAt']).toBe(REMOVE);
   });
+
+  /**
+   * UX_AUDIT F1/F2: onboarding now collects the four Mifflin-St Jeor inputs
+   * itself. They are written as a GROUP or not at all — `firestore.rules`
+   * fires its strict branch the moment `heightIn` appears and then demands
+   * age, sex, activityLevel and a pace alongside it, so a half-written set is
+   * a rejected write rather than a degraded one.
+   */
+  describe('the Mifflin-St Jeor set', () => {
+    const refined = {
+      ...submission,
+      sex: 'female' as const,
+      heightIn: 64,
+      age: 38,
+      activityLevel: 'light' as const,
+      targetPaceLbsPerWeek: 1,
+    };
+
+    it('writes all five fields when onboarding collected them', () => {
+      const patch = toOnboardingV2Patch(refined, codec, NOW);
+      expect(patch['sex']).toBe('female');
+      expect(patch['heightIn']).toBe(64);
+      expect(patch['age']).toBe(38);
+      expect(patch['activityLevel']).toBe('light');
+      expect(patch['targetPaceLbsPerWeek']).toBe(1);
+    });
+
+    it('stamps targetsRefinedAt instead of clearing it', () => {
+      // The stamp is the Refine-targets prompt's latch. A run that asked these
+      // questions has nothing left to send the user to that screen for.
+      expect(toOnboardingV2Patch(refined, codec, NOW)['targetsRefinedAt']).toEqual(stamp);
+    });
+
+    it('rounds the pace to the storable 0.1 precision', () => {
+      const patch = toOnboardingV2Patch({ ...refined, targetPaceLbsPerWeek: 0.7333 }, codec, NOW);
+      expect(patch['targetPaceLbsPerWeek']).toBe(0.7);
+    });
+
+    it.each([
+      ['sex', { sex: undefined }],
+      ['age', { age: undefined }],
+      ['height', { heightIn: undefined }],
+      ['activity', { activityLevel: undefined }],
+      ['pace', { targetPaceLbsPerWeek: undefined }],
+      ['an in-band height', { heightIn: 12 }],
+      ['an in-band age', { age: 9 }],
+    ])('writes NONE of them when the set is missing %s', (_label, override) => {
+      const patch = toOnboardingV2Patch({ ...refined, ...override }, codec, NOW);
+      for (const key of ['sex', 'heightIn', 'age', 'activityLevel', 'targetPaceLbsPerWeek']) {
+        expect(patch[key]).toBeUndefined();
+      }
+      // ...and such a user is still shown the Refine prompt, because they
+      // genuinely have not answered.
+      expect(patch['targetsRefinedAt']).toBe(REMOVE);
+    });
+  });
 });
 
 describe('BATCH_CHUNK', () => {

@@ -443,9 +443,23 @@ for.**
       Discovery is entirely by tapping. Replayable from Settings is a
       requirement, not a nicety — see the facet notes above.
 
-- [ ] **F1 · The first number the app gives you is body weight × a constant,
-      and that constant is biased by sex. This is the strongest finding here
-      and it is arithmetic, not opinion.** Onboarding's plan step calls
+- [x] **F1 · The first number the app gives you is body weight × a constant,
+      and that constant is biased by sex. FIXED 2026-08-22 — onboarding asks
+      the four Mifflin-St Jeor questions itself and the seed runs the app's own
+      formula.** `packages/core/src/onboarding-seed.ts` (`onboardingSeed`) is
+      the new entry point: Mifflin-St Jeor × the activity bucket, minus the
+      pace deficit, floored — with `computeKcal` kept as the fallback for a
+      skipped set and for the two public web surfaces, whose signature and
+      behaviour are untouched. For the 180 lb 45-year-old woman below, "lose
+      fat" goes from **1,980 kcal (2 above her own maintenance) to 1,500** —
+      the floor binding, which the plan step now says out loud. The man of the
+      same weight and age gets 1,720, because they are different people. 24
+      cases in `onboarding-seed.test.ts`, 11 wiring cases in
+      `apps/mobile/src/__tests__/onboarding-body-step.test.tsx`, and three in
+      the rules spec proving the new write shape is accepted and a HALF-written
+      one is not. The original finding, unedited:
+
+      Onboarding's plan step calls
       `computeKcal(weightLb, goal)` — `packages/core/src/macro-heuristic.ts:46`
       — which is `weight × {11 lose | 14 maintain | 17 gain}`. No sex, no
       height, no age, no activity level. Compared against the app's *own*
@@ -490,8 +504,23 @@ for.**
       targets sits on the heuristic for the entire period in which she is
       deciding whether the app works.
 
-- [ ] **F2 · The app already contains the correct math and routes every new
-      user around it.** Sex, height, age and activity level — exactly the four
+- [x] **F2 · The app already contains the correct math and routes every new
+      user around it. FIXED 2026-08-22, same change as F1.** Two steps were
+      added between goal-weight and the plan: **body** (sex, height, age) and
+      **activity** (the same five buckets as Refine targets). Both are
+      **skippable** — a required sex question is a locked front door for anyone
+      who will not answer it — and a skipped set writes **none** of the five
+      fields rather than half, because `firestore.rules` validates them as a
+      group and `toProfileFields` needs all of them. The plan step now names
+      its own basis: estimated maintenance when the formula ran, and an explicit
+      *"rough estimate from your weight alone"* when it did not, so skipping is
+      a stated trade rather than a silent downgrade. A completed set also
+      stamps `targetsRefinedAt`, which retires the Refine-targets prompt for
+      that user — they have just answered it. No `firestore.rules` change was
+      needed: every field was already on the completed-profile allowlist.
+      The original finding:
+
+       Sex, height, age and activity level — exactly the four
       Mifflin-St Jeor inputs — are collected only in **Settings → Refine
       targets**, whose subtitle is *"Sharpen your calorie target · unlocks body
       fat"*. That reads as an optional power-user extra. It is not: without it
@@ -544,11 +573,28 @@ for.**
       Trends does one thing right and it is worth copying — *"Weekly averages
       unlock at 3 logged days"* explains itself.
 
-**Ranking, if the verbatim reports never arrive:** F1 and F2 are the same fix
-and should be done together — they are a correctness defect with a measurable
-sex-dependent error, not a matter of taste, and they are worth fixing on their
-own merits whatever the report turns out to have meant. F5 is a ten-minute
+- [ ] **F7 · `CutPace` is unsigned and every consumer subtracts it, so the
+      estimator hands a "gain" user a DEFICIT.** Found while building F1, and
+      recorded rather than fixed because it is a different defect with a
+      different blast radius. `targetPaceLbsPerWeek` is typed `[0, 2]`
+      (`types.ts:131`) and both `calculateTdee` (`tdee.ts`) and `paceReality`
+      compute `tdee − pace × 3500/7`. Nothing anywhere reads `goalDirection`
+      when deriving a target. So a bulker who sets a 1 lb/wk pace in Refine
+      targets is given maintenance **minus** 500 the moment the formula or
+      measured branch takes over — the opposite of the goal they chose. F1
+      works around it by persisting pace `0` for "gain", which makes the
+      estimator hold at maintenance rather than cut, and by seeding the plan
+      step at maintenance + 250 (a 0.5 lb/wk lean bulk) so the first number is
+      still honest. That is the closest the current model can express. A real
+      fix is either a signed pace or a goal-direction-aware target, and it
+      touches `packages/core` shared with the frozen web app — so it wants its
+      own change, not a rider on this one.
+
+**Ranking, if the verbatim reports never arrive:** ~~F1 and F2 are the same fix
+and should be done together~~ — **done 2026-08-22.** F5 is a ten-minute
 layout fix. F4 is one string. F3 and F6 are real but are scope, not defects.
+F7 is a correctness defect like F1 was, but it affects only users whose goal is
+"gain", which is the smallest of the three cohorts.
 
 ### Tier 3 — deliberately deferred, with the reason
 

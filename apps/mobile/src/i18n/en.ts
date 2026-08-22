@@ -95,12 +95,24 @@ export const en = {
   'onboarding.titleNew': 'Welcome to Ignia',
   'onboarding.titleEdit': 'Edit your goals',
   'onboarding.tagline': "Two questions and you're set — we'll do the math.",
-  'onboarding.welcomeBody': 'Snap a meal, log a lift, and hit your goals. Setting up your plan takes about 30 seconds.',
+  'onboarding.welcomeBody': 'Snap a meal, log a lift, and hit your goals. Setting up your plan takes about a minute.',
   'onboarding.welcomeCta': "Let's go",
   'onboarding.goalQ': "What's your goal?",
   'onboarding.weightQ': 'What do you weigh now?',
   'onboarding.goalWeightQ': "What's your goal weight?",
   'onboarding.planQ': "You're all set",
+  // ── The body + activity steps (UX_AUDIT F1/F2) ──────────────────
+  // The four Mifflin-St Jeor inputs, asked at first run instead of only in
+  // Settings -> Refine targets. `planBasis` and `planBasisRough` say which
+  // arithmetic produced the number on the plan step; a skipped set gets the
+  // rough one rather than silence.
+  'onboarding.bodyQ': 'A little about you',
+  'onboarding.bodyWhy': 'Calories burned depend on more than weight. These three make your target yours instead of an average.',
+  'onboarding.activityQ': 'How active are you?',
+  'onboarding.skipBody': 'Skip for now',
+  'onboarding.planBasis': 'Based on your height, age, sex and activity — we estimate you burn about {n} kcal a day.',
+  'onboarding.planBasisRough': 'This is a rough estimate from your weight alone. Add your height, age, sex and activity in Settings → Refine targets to sharpen it.',
+  'onboarding.planFloor': 'Held at {n} — the lowest daily target we recommend.',
   'onboarding.planSub': "Here's your daily plan — you can refine it anytime.",
   'onboarding.continue': 'Continue',
   'onboarding.currentWeight': 'Current weight (lb)',
