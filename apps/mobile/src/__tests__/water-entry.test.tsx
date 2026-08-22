@@ -76,7 +76,7 @@ describe('Water entry', () => {
     await fireEvent.press(getByTestId('water-open'));
     expect(getByTestId('water-input').props.value).toBe('');
     // The way out to Set total is offered, which means Add is the mode.
-    expect(getByText("Set today's total instead")).toBeTruthy();
+    expect(getByText('Set total')).toBeTruthy();
   });
 
   it('seeds Set total from the current value so a correction is one keystroke', async () => {

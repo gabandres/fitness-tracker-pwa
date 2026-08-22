@@ -275,9 +275,20 @@ function WaterModal({
         <Reanimated.View style={keyboardStyle}>
           <View style={styles.sheet}>
             <View style={styles.handle} />
-            <Text style={styles.sheetTitle}>
-              {t(mode === 'add' ? 'water.addTitle' : 'water.setTitle')}
-            </Text>
+            {/* The mode switch lives in the TITLE ROW and not under Save,
+                because the keyboard opens with the sheet: anything below the
+                primary button is behind it, and a rare path nobody can see is
+                a rare path nobody uses. Costs no height. */}
+            <View style={styles.sheetTitleRow}>
+              <Text style={styles.sheetTitle}>
+                {t(mode === 'add' ? 'water.addTitle' : 'water.setTitle')}
+              </Text>
+              <TouchableOpacity onPress={toggleMode} hitSlop={10} testID="water-mode-toggle">
+                <Text style={styles.sheetLink}>
+                  {t(mode === 'add' ? 'water.switchToSet' : 'water.switchToAdd')}
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             <View style={styles.inputRow}>
               <TextInput
@@ -319,14 +330,6 @@ function WaterModal({
               testID="water-save"
             >
               <Text style={styles.saveText}>{t('common.save')}</Text>
-            </TouchableOpacity>
-
-            {/* Quiet, and below the primary action, because it is the rare
-                repair — not a co-equal mode. */}
-            <TouchableOpacity onPress={toggleMode} hitSlop={8} testID="water-mode-toggle">
-              <Text style={styles.sheetLink}>
-                {t(mode === 'add' ? 'water.switchToSet' : 'water.switchToAdd')}
-              </Text>
             </TouchableOpacity>
           </View>
         </Reanimated.View>
@@ -425,13 +428,9 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   waterValueRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   sheetNote: { fontSize: font.small, color: colors.muted, marginTop: space.xs, textAlign: 'center' },
   sheetNoteBad: { color: colors.danger },
-  sheetLink: {
-    fontSize: font.small,
-    color: colors.muted,
-    textAlign: 'center',
-    marginTop: space.md,
-    textDecorationLine: 'underline',
-  },
+  sheetTitleRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  // Muted and small on purpose: it is a way out, not a second primary action.
+  sheetLink: { fontSize: font.small, color: colors.muted, textDecorationLine: 'underline' },
   waterValue: { color: colors.teal },
   pill: {
     paddingHorizontal: space.md,

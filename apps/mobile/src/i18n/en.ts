@@ -916,8 +916,8 @@ export const en = {
   'water.today': 'Today: {n} fl oz',
   'water.preview': '{from} → {to} fl oz',
   'water.setHint': 'This replaces the total, it does not add to it.',
-  'water.switchToSet': "Set today's total instead",
-  'water.switchToAdd': 'Add to today instead',
+  'water.switchToSet': 'Set total',
+  'water.switchToAdd': 'Add instead',
   'water.tooMuch': 'That is over the {n} fl oz daily maximum.',
 } as const;
 

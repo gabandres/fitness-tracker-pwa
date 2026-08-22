@@ -911,8 +911,8 @@ export const esPR: Record<I18nKey, string> = {
   'water.today': 'Hoy: {n} oz',
   'water.preview': '{from} → {to} oz',
   'water.setHint': 'Esto reemplaza el total, no lo suma.',
-  'water.switchToSet': 'Mejor poner el total de hoy',
-  'water.switchToAdd': 'Mejor añadir al total de hoy',
+  'water.switchToSet': 'Poner total',
+  'water.switchToAdd': 'Mejor añadir',
   'water.tooMuch': 'Eso pasa del máximo diario de {n} oz.',
 
 };
