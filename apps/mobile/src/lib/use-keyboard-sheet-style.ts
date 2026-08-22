@@ -1,4 +1,4 @@
-import { interpolate, useAnimatedStyle } from 'react-native-reanimated';
+import { useAnimatedStyle } from 'react-native-reanimated';
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { space } from '@/theme';
@@ -59,22 +59,5 @@ export function useKeyboardSheetPadding(rest: number, open: number = space.sm) {
     return keyboard > 0
       ? { paddingBottom: open + keyboard }
       : { paddingBottom: rest + insets.bottom };
-  });
-}
-
-/**
- * @deprecated Translates a whole sheet by the keyboard height. Correct on
- * Android and wrong on iOS for the reason in the module comment — it drags the
- * sheet's background up with its content and exposes the page beneath.
- * `DailyMetrics` has moved to {@link useKeyboardSheetPadding}; the Train sheets
- * and `BottomSheet` still use this and should follow.
- */
-export function useKeyboardSheetStyle() {
-  const insets = useSafeAreaInsets();
-  const { height, progress } = useReanimatedKeyboardAnimation();
-  return useAnimatedStyle(() => {
-    const nudge = Math.max(insets.bottom - space.sm, 0);
-    const offset = interpolate(progress.value, [0, 1], [0, nudge]);
-    return { transform: [{ translateY: height.value + offset }] };
   });
 }

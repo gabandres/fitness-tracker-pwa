@@ -3,7 +3,7 @@ import {
   Animated, Dimensions, Modal, PanResponder, Pressable, StyleSheet, View,
 } from 'react-native';
 import Reanimated from 'react-native-reanimated';
-import { useKeyboardSheetStyle } from '@/lib/use-keyboard-sheet-style';
+import { useKeyboardSheetPadding } from '@/lib/use-keyboard-sheet-style';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { radius, space } from '@/theme';
 
@@ -34,8 +34,12 @@ export function BottomSheet({ visible, onClose, children }: Props) {
   const anim = useRef(new Animated.Value(0)).current;
   const drag = useRef(new Animated.Value(0)).current;
 
-  // Frame-perfect keyboard lift (shared across every sheet) — see the hook.
-  const keyboardStyle = useKeyboardSheetStyle();
+  // The sheet GROWS for the keyboard rather than moving: `wrap` is flex-end,
+  // so extra bottom padding keeps the background pinned to the screen edge
+  // and pushes the content up. Moving it instead leaves whatever the keyboard
+  // frame does not paint — on iOS 26, the transparent band holding the
+  // system's floating "Done" pill — showing the page behind. See the hook.
+  const sheetPadding = useKeyboardSheetPadding(space.xxl);
 
   useEffect(() => {
     if (visible) {
@@ -74,16 +78,19 @@ export function BottomSheet({ visible, onClose, children }: Props) {
   ).current;
 
   const backdropStyle = useMemo(() => [styles.backdrop, { opacity: anim }], [anim, styles.backdrop]);
+  // Transform only. The painted surface (background, radius, padding) is the
+  // inner Reanimated view, because RN-Animated and Reanimated styles cannot be
+  // composed on one node and the padding is what has to animate.
   const sheetStyle = useMemo(
     () => [
-      styles.sheet,
+      styles.sheetMotion,
       {
         transform: [
           { translateY: Animated.add(anim.interpolate({ inputRange: [0, 1], outputRange: [OFFSCREEN, 0] }), drag) },
         ],
       },
     ],
-    [anim, drag, styles.sheet],
+    [anim, drag, styles.sheetMotion],
   );
 
   return (
@@ -94,14 +101,14 @@ export function BottomSheet({ visible, onClose, children }: Props) {
       <View style={[styles.wrap, { pointerEvents: 'box-none' }]}>
         {/* Outer Reanimated layer lifts the sheet with the keyboard (frame-
             perfect); inner RN-Animated layer owns the open/close spring + drag. */}
-        <Reanimated.View style={keyboardStyle}>
-          <Animated.View style={sheetStyle}>
+        <Animated.View style={sheetStyle}>
+          <Reanimated.View style={[styles.sheet, sheetPadding]}>
             <View style={styles.grabZone} {...pan.panHandlers}>
               <View style={styles.handle} />
             </View>
             {children}
-          </Animated.View>
-        </Reanimated.View>
+          </Reanimated.View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -110,14 +117,15 @@ export function BottomSheet({ visible, onClose, children }: Props) {
 const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFill, backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.35)' },
   wrap: { flex: 1, justifyContent: 'flex-end' },
+  sheetMotion: { maxHeight: '94%' },
   sheet: {
     backgroundColor: colors.paper,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
     paddingHorizontal: space.xl,
     paddingTop: space.sm,
+    // Overridden by useKeyboardSheetPadding; this is the resting value.
     paddingBottom: space.xxl,
-    maxHeight: '94%',
     ...shadow.e3,
   },
   // Generous touch target around the visual handle for the drag gesture.

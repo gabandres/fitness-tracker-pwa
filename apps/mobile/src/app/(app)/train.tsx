@@ -70,7 +70,7 @@ import * as haptics from '@/lib/haptics';
 import { CountUpText, enterUp, smoothLayout, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
-import { useKeyboardSheetStyle } from '@/lib/use-keyboard-sheet-style';
+import { useKeyboardSheetPadding } from '@/lib/use-keyboard-sheet-style';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { space } from '@/theme';
 import { formatDate } from '@/lib/date-format';
@@ -411,7 +411,12 @@ function ExerciseDetailModal({
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const keyboardStyle = useKeyboardSheetStyle();
+  // Sheets GROW for the keyboard, they do not move: `sheetWrap` is flex-end,
+  // so extra bottom padding keeps the background on the screen edge and
+  // pushes content up. Translating instead exposes whatever the keyboard
+  // frame does not paint — on iOS 26 that is the transparent band holding
+  // the system's floating "Done" pill, and it showed the page through it.
+  const sheetPadding = useKeyboardSheetPadding(space.xxl);
   const [mode, setMode] = useState<'view' | 'edit' | 'merge'>('view');
   const [confirmDel, setConfirmDel] = useState(false);
   const [editName, setEditName] = useState('');
@@ -476,7 +481,7 @@ function ExerciseDetailModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheetWrap}>
-        <Animated.View style={[styles.sheet, keyboardStyle]}>
+        <Animated.View style={[styles.sheet, sheetPadding]}>
           <View style={styles.handle} />
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.sheetTitle}>{exercise?.name}</Text>
@@ -1229,7 +1234,12 @@ function AddExerciseModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const keyboardStyle = useKeyboardSheetStyle();
+  // Sheets GROW for the keyboard, they do not move: `sheetWrap` is flex-end,
+  // so extra bottom padding keeps the background on the screen edge and
+  // pushes content up. Translating instead exposes whatever the keyboard
+  // frame does not paint — on iOS 26 that is the transparent band holding
+  // the system's floating "Done" pill, and it showed the page through it.
+  const sheetPadding = useKeyboardSheetPadding(space.xxl);
   const addExerciseInputRef = useDeferredFocus(visible);
   const [name, setName] = useState('');
   const [logStyle, setLogStyle] = useState<LogStyle>('weight-reps');
@@ -1256,7 +1266,7 @@ function AddExerciseModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheetWrap}>
-        <Animated.View style={[styles.sheet, keyboardStyle]}>
+        <Animated.View style={[styles.sheet, sheetPadding]}>
           <View style={styles.handle} />
           <Text style={styles.sheetTitle}>{t('train.addExerciseTitle')}</Text>
 
@@ -1326,7 +1336,12 @@ function FinishModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const keyboardStyle = useKeyboardSheetStyle();
+  // Sheets GROW for the keyboard, they do not move: `sheetWrap` is flex-end,
+  // so extra bottom padding keeps the background on the screen edge and
+  // pushes content up. Translating instead exposes whatever the keyboard
+  // frame does not paint — on iOS 26 that is the transparent band holding
+  // the system's floating "Done" pill, and it showed the page through it.
+  const sheetPadding = useKeyboardSheetPadding(space.xxl);
   const [bodyweight, setBodyweight] = useState('');
   const [sleep, setSleep] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1353,7 +1368,7 @@ function FinishModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheetWrap}>
-        <Animated.View style={[styles.sheet, keyboardStyle]}>
+        <Animated.View style={[styles.sheet, sheetPadding]}>
           <View style={styles.handle} />
           {/* Scroll so the numeric keyboard can't hide the Complete button
               (KeyboardAvoidingView under-lifts inside a bottom-sheet Modal). */}

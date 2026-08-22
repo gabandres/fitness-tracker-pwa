@@ -29,7 +29,7 @@ import { type TFn, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { smoothLayout } from '@/lib/motion';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
-import { useKeyboardSheetStyle } from '@/lib/use-keyboard-sheet-style';
+import { useKeyboardSheetPadding } from '@/lib/use-keyboard-sheet-style';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { space } from '@/theme';
 import { LOG_STYLES, SET_KINDS, kindLabelKey, logStyleKey, numOrUndef } from './train-shared';
@@ -152,7 +152,12 @@ export function TemplateEditorModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const keyboardStyle = useKeyboardSheetStyle();
+  // Sheets GROW for the keyboard, they do not move: `sheetWrap` is flex-end,
+  // so extra bottom padding keeps the background on the screen edge and
+  // pushes content up. Translating instead exposes whatever the keyboard
+  // frame does not paint — on iOS 26 that is the transparent band holding
+  // the system's floating "Done" pill, and it showed the page through it.
+  const sheetPadding = useKeyboardSheetPadding(space.xxl);
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
   const [restMini, setRestMini] = useState('');
@@ -406,7 +411,7 @@ export function TemplateEditorModal({
       <GestureHandlerRootView style={styles.ghRoot}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheetWrap}>
-        <Animated.View style={[styles.sheet, keyboardStyle]}>
+        <Animated.View style={[styles.sheet, sheetPadding]}>
           <View style={styles.handle} />
           <Animated.ScrollView
             ref={scrollRef}
