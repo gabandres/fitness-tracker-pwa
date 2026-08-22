@@ -37,7 +37,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101` |
 | **Photo-scan** | **ON and free to everyone, both platforms** (ADR-0017), resolving macros against the bundled USDA database (ADR-0019). Tiering is server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB, 13,272 foods. **Text search makes NO network call at all as of 2026-08-19** — Open Food Facts was removed from it and now serves **barcode only**. OFF caps search at 10 req/min against 100/min for barcode GETs, and typeahead behind one shared egress IP could not live in that: two of three probes came back throttled after paying full latency. Servings also ship with each hit, so tapping a result makes no `getFoodDetail` call. Branded **text** results are the cost; `docs/research/off-branded-ingest.md` scopes getting them back |
-| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU |
+| **OTA (EAS Update)** | Live. `runtimeVersion: {"policy":"fingerprint"}`, channels match build profiles. Free tier 1,000 MAU. **Latest: Android OTA number 7 on vc 37 (`2e0b017b…`) and iOS OTA number 5 on build 60 (`c4339b05…`), both 2026-08-22** — custom targets, in-app feedback, the speed-dial fix. Android verified on device; iOS not. Full rows in `apps/mobile/AGENTS.md` |
 | **`app-version.json`** | android `37`, ios `55` — synced and **deployed** 2026-08-19, read back from `https://ignia.fit/app-version.json`. **Both derived** by `scripts/app-version-sync.mjs`; `npm run doctor` fails on drift in either direction |
 
 **Two live facts that are easy to get wrong:**
@@ -57,7 +57,11 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
   published under the wrong machine's numbers and reached **nobody** —
   indistinguishable from a working update.
   **The Air is iOS-only now**: its Android SDK, Gradle caches and `~/.android`
-  were removed (13 → **19 GB free**, which is back over the iOS threshold).
+  were removed. **Its free space is NOT 19 GB any more — measured 2026-08-22 it
+  is at 100% with ~600 Mi free** on `/System/Volumes/Data`. That is enough to
+  gate and publish an OTA (a 17 MB Metro export, deleted after) and **not**
+  enough for an iOS build, whose floor is ~17 GB. Clear it before promising a
+  binary; `df -h /` reads the sealed System snapshot and lies.
 
   **Why the hosts disagree is now settled, and two of the three published causes
   were wrong** (measured 2026-08-17). Real: **CRLF-vs-LF**, in exactly two files.
@@ -100,149 +104,30 @@ the update banner drains it. Do not publish a second update to "cover" it.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
-Everything else that was in this section has shipped and is in `CHANGELOG.md`.
+**Nothing on Android.** Everything that was in this section has shipped and its
+outcome is in `CHANGELOG.md` — the latency work, Tier D on-device search, the
+photo-quota refund, and (2026-08-22) custom targets, in-app feedback and the
+speed-dial fix. The OTA rows in `apps/mobile/AGENTS.md` carry which update
+delivered what, with the runtime each went out under.
 
-- **The latency work (`1dbc6b5a`, `4b5ae6de`, 2026-08-21) — SHIPPED, both halves,
-  BOTH platforms.** Server: `GEMINI_MODEL` moved `gemini-2.5-flash` → `gemini-3.5-flash-lite`
-  (benchmarked 3,182 ms → 1,846 ms at the identical list price, still free-tier),
-  `loadFoods()` overlaps the model call, and `@anthropic-ai/sdk` + `resend` became
-  lazy requires — `resend` is reached through `init.ts`, so EVERY function paid
-  for it on every cold start; `require lib/index.js` went **535 ms → 230 ms**.
-  Client, delivered by **OTA #4 on vc 37** (`01a0264a…`) and, since 2026-08-21,
-  by **iOS OTA #4 on build 60** (`01a02696…`): 768 px upload resize, named
-  scan-progress steps, `?fields=` on the barcode lookup, an on-device barcode
-  cache, and the OFF 404 → `FOOD_NOT_FOUND` fix.
+**One real gap, and it is Apple's queue, not ours.** The 2026-08-22 iOS OTA
+(`c4339b05…`) targets build 60's runtime `7b347b0f…`, which is **TestFlight
+only**. Public iOS runs build 55 (`886bf0b3…`), a different runtime, and
+receives none of it until 1.2.1 is released. Do not report any of this as
+"shipped to iOS users".
 
-  **Measured, and the two numbers have different confidence.** WARM is the solid
-  one: **3.39 s → 2.24 s**, consistent across several samples. COLD is noisy and
-  should not be quoted as a single figure — pre-change was 6.18–8.12 s (median
-  7.44 s, n=5); post-change samples are 5.41 s (from a workstation) and 6.85 s
-  (from the phone, n=1 each). The direction is right; the magnitude is not
-  established. Do not repeat "cold 7.44 → 5.41" as if it were a clean
-  before/after — it compares one sample against a median, from different clients.
+**iOS behaviour is UNVERIFIED for all of it.** The identical JS is
+device-verified on Android in detail (see the OTA #6/#7 rows in `AGENTS.md`);
+no iOS device has run any of it. That is the standing shape of this project —
+the only test device here is Android — not a new problem.
 
-  **Verified on device**, not just published: the LG G6 fetched the manifest,
-  restarted onto it, and a real scan rendered the new analyzing screen and a
-  correct USDA-grounded review.
-
-- **iOS has the client half now — published 2026-08-21, and it reaches
-  TestFlight ONLY.** Gate run on `ignia-mac` and it matched build 60's runtime
-  (`7b347b0f…`) exactly; update group `d83c9d01…`. Public iOS is build 55
-  (`886bf0b3…`), a different runtime, and receives none of this until 1.2.1
-  clears review — do not report it as "shipped to iOS users". **Behaviour is
-  UNVERIFIED on iOS**: the identical JS is device-verified on Android, but no
-  iOS device has run it.
-
-  **The reason it lagged Android by a session is worth keeping.** Android OTAs
-  publish from the *Windows* workstation, so they need no `git push`; iOS
-  publishes from the Mac, which can only get code through `origin`. All ten
-  latency commits were on **local `main` only** — `origin/main` was still at
-  `0f9ccfa5`. A Mac that pulls cleanly and gates green will publish **stale JS
-  and exit 0**. Check `git rev-list --count origin/main..HEAD` before gating.
-
-  Disk on `ignia-mac` is no longer the blocker it was — **5.1 Gi free**, up from
-  116 Mi. That is enough for an OTA (Metro + upload) and is still too thin for a
-  native build's `DerivedData`; `~/Library/Developer/Xcode/DerivedData` was
-  9.2 GB of regenerable cache, but clearing it forces a full rebuild of the
-  owner's in-flight work on that shared machine — ask first.
-
-- **Tier D — on-device food search — is BUILT and MERGED, and has reached no
-  device.** Owner approved the full index on 2026-08-21. Text search now runs
-  inside the app against a bundled copy of the same USDA dataset `searchFoods`
-  answers from, so it makes no network call at all: `searchFoods` was already
-  USDA-only (OFF text search was dropped 2026-08-19 for rate limits), which is
-  what made a complete on-device replacement possible rather than a partial one.
-  Barcode still goes to the server, and must — an OFF product is a live lookup.
-
-  **Measured, on this workstation.** Compact index 1,385 KB raw / **334 KB
-  gzipped** (better than the 1,750/356 the sizing predicted); Android bundle
-  11,095,849 → 13,140,531 bytes, i.e. **+2.0 MB of Hermes bytecode, +18%**.
-  Shipping the index as a JSON string instead of a required `.json` was tried
-  and is **worse** (13,961,046) — recorded in `localFoodSearch.ts` so nobody
-  repeats it. Query cost is 2–4 ms here; the ~20–40 ms G6 figure is still an
-  estimate.
-
-  **The drift risk is the real story, and it is now guarded.** The ranking
-  exists twice and cannot exist once — `functions/` is not a workspace and
-  cannot import `@macrolog/core` — so a hundred lines of scoring live in both
-  `functions/src/usda-db.ts` and `packages/core/src/usda-search.ts`. Drift there
-  is invisible: both sides keep returning plausible foods, only the order
-  differs, on a typeahead nobody diffs. `usda-search-golden.json` pins the exact
-  ordered ids for 24 queries, each one a ranking rule with a documented past
-  failure behind it ("tuna" → a sandwich wrap, "tomato sauce" → steak sauce),
-  and BOTH copies are asserted against it. `npm run doctor` now fails on a stale
-  index or a drifted fixture (group 2, two new checks — 20/21).
-
-  **SHIPPED to Android and PROVEN ON DEVICE, offline** (2026-08-21). OTA #5 on
-  vc 37, update group `0cdd613d-0959-4aec-aa7a-66b48e2d675a`; gate matched vc
-  37's `.aab` before publishing and the Metro export was re-run after the last
-  edit. The LG G6 fetched `01a026f5…` and relaunched onto it
-  (`isUpdateAvailable=false` on the next server check).
-
-  Then the decisive test, the same one the barcode cache had to pass: **Wi-Fi
-  AND mobile data off** — `settings get global wifi_on` = 0 and
-  `ping 8.8.8.8` = "Network is unreachable" — and `15-search` ran green end to
-  end. The captures show the app's own "You're offline" banner on Today WHILE a
-  "banana" query returns the full ranked list (Banana, raw first, matching the
-  golden fixture) and the portion picker opens with every serving and its
-  scaled macros. So the index is genuinely on the device; it is not a warm
-  cache and not the server. Radios restored afterwards (ping 2/2, ~45 ms).
-
-  **iOS is deliberately NOT published yet.** App Review runs build 60, whose
-  runtime is the one iOS OTAs target, so an OTA now changes the app under a
-  reviewer's hands while 1.2.1 is in review. Permitted by Apple (JS updates to
-  interpreted code), but not worth doing mid-review. Publish after 1.2.1
-  releases. It is a Metro-bundled asset, so no binary is needed and the Apple
-  migration does not block it.
-
-- **The barcode work is VERIFIED END TO END on Android, cache included.** A real
-  product scanned on the LG G6 prefilled the entry sheet from Open Food Facts,
-  and then the same product re-scanned **with Wi-Fi off** still resolved —
-  `dumpsys wifi` read `Wi-Fi is disabled` at the time, so it came from
-  AsyncStorage with no network available. That is the one claim about this
-  feature that could not be made from a unit test, and it is now made from the
-  device. Backed by 8 new Jest cases (`barcode-cache.test.ts`) covering the TTL,
-  the 404 → `FOOD_NOT_FOUND` fix, and the deliberate non-caching of failures.
-
-- **The web PWA's barcode fix is now DEPLOYED** (2026-08-21). It was committed
-  in `1dbc6b5a` and sat undelivered for several hours — a prod build plus
-  `firebase deploy --only hosting` is what publishes it, and neither had run.
-  Merged is not shipped, on the web exactly as much as on mobile.
-
-- **Cold-start numbers here have huge variance; stop quoting point estimates.**
-  Post-change cold samples so far: 5.41 s, 5.72 s, 6.85 s, **9.15 s** (the last
-  immediately after a redeploy). Warm is stable at **2.24–2.60 s** across six
-  samples and is the number worth tracking. Any claim of the form "cold went
-  from X to Y" off one sample per side is not supported by this data.
-
-- **FIXED 2026-08-21: a failed photo scan no longer costs a daily scan**
-  (`analyzePhoto`, deployed). Two separate wrongs, found by hitting the quota
-  on-device: input validation ran *after* the charge, so a request with no image
-  or an oversized one consumed a slot without a token being spent; and no
-  failure path ever called the `dailyQuota.release()` that had existed unused
-  since the module was written. Validation now runs before the reserve (a
-  request that never ran must not be refunded — it must never be charged), and
-  every failure after the model call refunds.
-
-  **The asymmetry is deliberate: a failed scan refunds the USER's quota but
-  never un-records the SPEND.** The quota is a fairness mechanism and charging
-  for nothing is unfair; the ceiling is a solvency mechanism and the money left
-  the building either way. Refunding the ceiling would let a stream of
-  unreadable photos run up an unbounded bill while every request looked free.
-
-  `reserve()` now returns the `day` it charged and `release()` takes it, so a
-  scan reserved at 23:59:59 and refunded at 00:00:01 credits the day it charged
-  instead of handing out a free scan tomorrow. Verified in production on a real
-  free-tier user: missing image → 400, quota 0; valid JPEG with no food → 500,
-  quota 0 (refunded); real meal → 200, 4 items, quota 1. 379 functions tests.
 
 ## 3. Open work, and what each is blocked on
 
 | Work | Blocked on |
 |---|---|
-| **Publish the latency OTA (`1dbc6b5a`) to Android vc 37 and iOS build 60** | **A human running the publish.** Everything upstream is done: fingerprint gate run on Windows and it MATCHES vc 37 (`ae526937…`), Metro `expo export` clean, `tsc` green on all four units, 377 functions tests + 854 core + 204 web all passing. Android: `cd apps/mobile && npx eas update --platform android --branch production --environment production`. iOS must be gated **and** published on `ignia-mac` against build 60's `7b347b0f…` — every changed file is `.ts`/`.tsx`, so it is expected to match, but *expected* is not *measured*. Until both land, users have the server-side half only (which is already most of the win) |
-| **Tier D — on-device food-search index. SIZED, not built** | **A decision, not a blocker.** The case: production `searchFoods` measures **392 ms warm (304–484) and 2,141 ms cold**, plus the client's 350 ms debounce — and low traffic means the first search of a session is usually the cold one. Sizing done 2026-08-21: the whole 13,272-food dataset in a compact array form with portions is **1,750 KB raw / 356 KB gzipped**, `JSON.parse` is 14 ms on this workstation (so ~70–140 ms on the LG G6, once), and a full linear match scan is **2–4 ms per query** here (~20–40 ms on the G6). So an on-device typeahead is comfortably sub-50 ms per keystroke on a 2017 phone with no network, no cold start and no rate limit. What it costs is bundle size and resident memory on the weakest supported device, which is the part worth a human's judgement — and it needs an OTA channel that is currently unpublished anyway |
 | **Maintenance/TDEE estimator — FIXED and shipped by OTA 2026-08-20, now needs eyes on real accounts** | **Nothing; watching.** A live account read maintenance **2,509** when its own gap-free history said **2,266**. The whole number came from a 9-day post-travel fragment whose slope was statistically indistinguishable from zero (t = −2.00, df 8; 95% CI on maintenance **1,775..3,242**). Two causes, both now fixed in `145221e2`: `lastTrendSegment` kept only the most recent run and discarded 28 of 38 weigh-ins across a 21-day travel gap — while the comment directly above it claimed `MIN_SEGMENT_POINTS`/`MIN_SEGMENT_SPAN_DAYS` were "no longer consulted", which the code twenty lines down still did; and `TDEE = intake + deficit` mixed a logged-day intake average with a calendar-day slope, biasing by `(U/N)(I_logged − I_unlogged)`. Measured mode now evaluates each contiguous-logging run against its OWN intake and pools by `1/SE²`. Same account, window ending 07-31 / 08-10 / 08-20: old **2,266 / 2,010 / 2,509**, new **2,265 / 2,184 / 2,320** — swing 499 → 136, and today's value lands inside the 2,250–2,350 that account's gap-free energy balance independently gives. **VERIFIED ON iOS on the owner's own account** (2026-08-20, build 60 + the OTA) — the platform the estimator work could not otherwise reach, since the only test device here is Android. **Every measured user's maintenance moves and the recalibration card fires for them.** **The follow-ups are DONE and SHIPPED by OTA 2026-08-20** (second update of the day; the soak was cut short on the reasoning that a 12-tester alpha cannot find a 1-in-N crash in 24 h and all three changes are stability-positive): the recalibration card now gates on `ci95Tdee` so it cannot announce a move it can't support (`6bb5efee`); the estimator **widens its window** to 63 then 84 logged days rather than acting on an interval wider than 250 kcal, and reports `estimateState` (`e54dd0dc`) — chosen over a stored carry-forward because the only persistence precedent here is device-local AsyncStorage, which would make web and mobile disagree about the same account's target; and Today now says **"holding steady"** with a cause the user can act on, replacing the two weaker caveats rather than stacking with them (`f7db69a0`). **One earlier claim of mine was wrong and is worth correcting:** `confidence` was never rendered anywhere — every `confidence` in the UI is photo-scan. It misleads in the data model, not on screen. Trigger was ordinary: **stop logging for four days and the window split** |
+| **The 2026-08-22 work is unverified on iOS** | **No iOS test device.** Custom targets, in-app feedback and the speed-dial fix are all live on TestFlight build 60 via OTA `c4339b05…`, and every one of them is device-verified on Android (LG G6, in detail — see the OTA number 6 and number 7 rows in `apps/mobile/AGENTS.md`). Nobody has run any of it on an iPhone. The riskiest of the three on iOS is the speed dial, because its two defects were platform hit-testing behaviour: iOS `RCTView` hit-tests subviews outside its own bounds when `clipsToBounds` is off, which is exactly why the label pill was tappable on iOS and dead on Android, so the fix should be inert there rather than a regression — *should be* is not *measured* |
 | **Watch complication + Siri quick-add behaviour** | **UNVERIFIED on hardware.** ADR-0023 established that `transferCurrentComplicationUserInfo` cannot wake a **WidgetKit** complication (Apple FB12926788, open since 2023) — real-time delivery to the wrist is not achievable on this surface, and that is a requirement change, not a bug. What ships instead is an hourly pull. Nobody has watched a face move after a meal logged outside the app. Read *Settings → Apple Watch* on a device before writing any more code here |
 | **Android widget on a real home screen** | Nobody has placed one. The task handler registers through the custom `index.js`, a path no device has exercised. **Maestro cannot close this** — no `adb` command places a home-screen widget (the Quick Settings tile *is* drivable via `adb shell cmd statusbar click-tile`). 1 of 21 checkboxes in `apps/mobile/WIDGET.md` is ticked. The iOS half is done and verified on a physical iPhone |
 | **#46 — watch layouts at 40mm/46mm, both locales** | A Mac with Xcode running a simulator. Its precondition (the real layouts exist) is met; this is the readout it was designed to be. It is the **last open item** of the 16-ticket Apple glanceable-surfaces map |

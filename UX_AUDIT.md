@@ -304,7 +304,8 @@ Three items, reported in Spanish over chat against the live Android build.
 Recorded verbatim in substance; nothing here is fixed yet.
 
 - [x] **The speed dial stays open on top of the photo-scan result, blocking
-      "Add today". FIXED 2026-08-21, in code — awaiting the OTA.** Reproduced
+      "Add today". FIXED and SHIPPED 2026-08-22 — Android OTA number 6 and iOS
+      OTA number 5, both verified.** Reproduced
       on the LG VS988 first, and it was TWO defects, not one. (a) The label
       pill was a plain `View`, so it became the touch target and no ancestor
       was a responder: tapping the words "Scan meal" did nothing at all, while
@@ -329,7 +330,21 @@ Recorded verbatim in substance; nothing here is fixed yet.
       pill (or races the navigation) leaves it open over whatever comes next.
       Fix the component, not the flow — then simplify `06-scan-intro` back.
 
-- [ ] **No way to set a custom calorie goal.** *"cuando vas a editar el goal de
+- [x] **No way to set a custom calorie goal. SHIPPED 2026-08-22.** An explicit
+      `targetMode` (Automatic / Custom), editable numbers on the onboarding plan
+      step, and a Settings → Daily targets editor. The premise turned out to
+      understate it: `manualCaloriesTarget` already existed and was written at
+      onboarding, but it was a **seed** — `dailyTargets` used it only until a
+      measured estimate became reliable and then replaced it silently, so the
+      complaint was not just "no input" but "the number I was given is not
+      mine". Custom now beats measured, the estimator keeps running and is shown
+      beside the user's number, and Refine no longer deletes what they typed.
+      Verified on an LG VS988: the hero ring moved to a typed 2,000 against a
+      measured 2,723, and switching back to Automatic left both stored values
+      intact. **Decided against the plan's 1,200 input floor** — `dailyTargets`
+      clamps at `calorieFloor` (1,500 default), so 1,300 would have been stored
+      and 1,500 displayed, which is the same silent override in a new place.
+      ORIGINAL REPORT: *"cuando vas a editar el goal de
       los kcal … los pone automatico, no se le puede añadir un custom mode que
       la persona misma pueda poner la cantidad que quiere?"* The target is
       computed and cannot be overridden with a number the user chooses. Worth
@@ -337,7 +352,18 @@ Recorded verbatim in substance; nothing here is fixed yet.
       measured TDEE, so decide whether it pins the target, seeds it, or is a
       separate mode before building.
 
-- [ ] **No in-app feedback surface.** *"por qué no le haces una parte de feedback
+- [x] **No in-app feedback surface. SHIPPED 2026-08-22.** A composer at
+      Settings → Send feedback, in its own section second from the top, plus a
+      standing line on the What's-new card. Writes `users/{uid}/feedback/{id}`,
+      create-only, and a Firestore trigger emails the owner. **One detail here
+      was wrong and is worth keeping:** the note below says nothing in the app
+      points at `/support`. Something did — Settings → Help, filed under
+      **Legal** between Terms of Use and the medical disclaimer. That does not
+      weaken the report, it sharpens it: the channel existed and was placed
+      where nobody would find it, which is exactly the social-barrier point.
+      Verified end to end from the device — a real send reached
+      gabriel@bermudezsystems.com, confirmed `delivered` by the Resend API.
+      ORIGINAL REPORT: *"por qué no le haces una parte de feedback
       in-app para que por shy te escriban sugerencias"* — his point is the
       social barrier, not the channel: people who would not message the owner
       directly would leave a note inside the app. Note this arrived by private

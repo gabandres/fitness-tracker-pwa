@@ -6,6 +6,108 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-22 — three things a user asked for, and one of them was two bugs
+
+All three came from one person writing in over chat, in Spanish, against the
+live Android build. None were found by a test, and one had already been
+misdiagnosed by us.
+
+**The + button stops covering the screen.** He reported the Scan meal / Manual
+entry pills sitting on top of a finished photo scan, over "Add today".
+Reproduced on an LG G6 before anything was changed, and it was **two** defects,
+not one. The label pill was a plain view, so it became the touch target and no
+ancestor was a responder — tapping the words "Scan meal" did nothing at all,
+while the same tap 90 px right on the circle worked fine. And hardware back
+navigated out from under the open dial, landing on Today with it still fanned
+open. Pill and circle are one control now; back dismisses the dial; any route
+change closes it.
+
+The same state had been hit by the Maestro suite hours before he reported it,
+and was written up in that flow as a test-harness artifact because the flow was
+**green** — `assertVisible` passes on a screen mounted underneath an overlay.
+It was his bug. The workaround is deleted.
+
+**You can set your own calorie and protein goals.** There was no input control
+anywhere, and — worse — the number onboarding computed was a *seed*: once the
+estimator had enough data it silently replaced it, so someone who thought they
+had chosen 2,000 found 2,410 a fortnight later with nothing saying why. Targets
+now carry an explicit Automatic/Custom mode. Custom beats the measured
+estimate; the estimator keeps running and its answer stays on screen beside
+your number, so you can see both and pick. Per field, so owning your calories
+does not freeze your protein at whatever it was that day.
+
+Switching back to Automatic no longer destroys what you typed. It used to have
+to: whether a manual number existed *was* the mode, so Refine targets deleted
+the values to hand control back, and the only route to a custom number again
+was re-running onboarding.
+
+A typed number below your calorie floor is refused rather than accepted and
+quietly clamped up on display — the floor is where it always was, but now it
+says so instead of overriding you.
+
+**In-app feedback.** A composer in Settings, second section from the top, and a
+standing line on the What's-new card. The channel already existed and was filed
+under **Legal**, between Terms of Use and the medical disclaimer, which is not
+where anyone goes to say "this is confusing". His point was the social barrier,
+not the channel: people who would not message the owner directly will leave a
+note inside the app. It arrived by private chat, which is the evidence.
+
+Optional category chips that can be un-chosen, text only, and create-only —
+you cannot read back what you sent, because there is no inbox and a readable
+copy would imply one.
+
+---
+
+## 2026-08-21 — food search stops touching the network, and scanning gets faster
+
+**Search runs on the device.** The whole 13,272-food USDA dataset ships inside
+the app as a compact index, so typing a food makes no network call at all — no
+cold start, no rate limit, no signal required. This was only possible because
+`searchFoods` had stopped consulting Open Food Facts for text two days earlier,
+which left the server holding nothing the bundle lacks. Barcode still goes to
+the server and must: an Open Food Facts product is a live lookup.
+
+Cost, measured rather than estimated: 334 KB gzipped, and the Android bundle
+grew 11.1 MB → 13.1 MB. The ranking now exists in two places (the server's and
+the bundle's), so 24 queries have their exact result order pinned in a shared
+fixture and both copies are asserted against it — `npm run doctor` fails on a
+stale index or a drifted ranking.
+
+Proven on an LG G6 **with the radios off**: aeroplane mode, a search still
+returns the right rows.
+
+**Scanning got faster.** A meal photo comes back in about half the time
+(warm: 3.39 s → 2.24 s, consistent across samples; the cold figure is too noisy
+to quote). The model moved to a faster one at the same price, food loading
+overlaps the model call, and two SDKs that every function was paying for on
+every cold start became lazy requires — module load 535 ms → 230 ms.
+
+On the client: photos upload at 768 px instead of 1080 (the model billed the
+same either way, so the extra pixels only travelled), the scan screen shows
+your photo and the step it is on instead of a blank spinner, barcode lookups
+download about a sixtieth of what they used to, and anything scanned before
+comes back from an on-device cache. A barcode that is not in the database now
+says so, instead of asking you to scan it again — that one was the most common
+outcome telling users to retry something that had worked.
+
+Verified end to end on device, cache included: Wi-Fi off, a previously scanned
+product still resolved.
+
+**A failed photo scan no longer costs you a scan.** Two separate wrongs, found
+by running into the daily quota on a real phone: input validation ran *after*
+the charge, so a request with no image consumed a slot without a token ever
+being spent, and no failure path called the refund that had existed, unused,
+since the module was written. A scan reserved at 23:59:59 and refunded at
+00:00:01 now credits the day it charged rather than handing out a free scan
+tomorrow.
+
+The asymmetry is deliberate: a failed scan refunds the user's quota but never
+un-records the spend. The quota is a fairness mechanism and charging for
+nothing is unfair; the ceiling is a solvency mechanism and the money left the
+building either way.
+
+---
+
 ## 2026-08-20 — maintenance stops being decided by the days after a break
 
 A live account read maintenance **2,509** while its own gap-free history said
