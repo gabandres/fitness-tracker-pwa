@@ -547,11 +547,22 @@ for.**
       history, the weigh-in sheet, the Train finish sheet's bodyweight field,
       and both History screens. Settings' row is renamed from **Portion
       display** to **Units** with the sub-line *"Serving sizes and body
-      weight"* — the old label was honest and became wrong. **Lifted loads are
-      deliberately NOT converted**: volume, PRs, plate math and template loads
-      stay in pounds. That is a different concept with its own plate
-      arithmetic, and F3's sentence is about the weight of the person. The
-      original finding: Onboarding's `BigInput` hardcodes a literal `lb` glyph
+      weight"* — the old label was honest and became wrong.
+
+      **Lifted loads followed on the owner's ask, in a second pass**, and they
+      needed their own module (`load-units.ts`) rather than a reuse of the
+      body-weight one — because per unit the *objects* differ, not just the
+      number. The bar is 45 lb or **20 kg** (= 44.09 lb, so two different
+      bars); the plates are 45/35/25/10/5/2.5 against
+      25/20/15/10/5/2.5/**1.25**; the step is 5 or 2.5. Which is why **plate
+      math is solved in the display unit**: solve in pounds and convert
+      afterwards and a metric lifter is told to load 20.4 kg a side, a plate
+      nobody owns — pinned by a test asserting exactly that. Converted with it:
+      set entry, the set-table header, week volume, top set, session volume,
+      both PR cards, the bump suggestion, and the template editor's per-set
+      weight, target load, weight step and progression sentence. Storage stays
+      in pounds throughout, so a lifter who switches units can still compare
+      this month to last. The original finding: Onboarding's `BigInput` hardcodes a literal `lb` glyph
       (`onboarding.tsx:443`) beside a 72 pt number, and the Body tab hardcodes
       `lb` on the hero, the goal rail and every history row. The `unitSystem`
       profile field exists and is settable, but Settings labels that row
