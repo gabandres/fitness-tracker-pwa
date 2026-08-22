@@ -387,7 +387,7 @@ export default function Settings() {
         <Text style={styles.section}>{t('settings.help')}</Text>
         <View style={styles.card}>
           <TouchableOpacity
-            style={styles.refineRow}
+            style={styles.soloRow}
             onPress={() => router.push('/tour')}
             testID="settings-tour"
           >
@@ -402,7 +402,7 @@ export default function Settings() {
         <Text style={styles.section}>{t('feedback.title')}</Text>
         <View style={styles.card}>
           <TouchableOpacity
-            style={styles.refineRow}
+            style={styles.soloRow}
             onPress={() => router.push('/feedback')}
             testID="settings-feedback"
           >
@@ -981,6 +981,11 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   importActions: { flexDirection: 'row', alignItems: 'center', gap: space.lg, marginTop: space.sm },
   importCancel: { fontSize: font.body, color: colors.muted, fontWeight: '700' },
   refineRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingTop: space.sm, borderTopWidth: 1, borderTopColor: colors.line },
+  // `refineRow` carries a top border because it sits UNDER another row in the
+  // Goals card. Reused as the only row in a card it draws a rule above the
+  // card's first line — a stray <hr> over 'How Ignia works' and 'Send
+  // feedback'. Same metrics, no divider.
+  soloRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingTop: space.sm },
   digestRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space.sm, borderTopWidth: 1, borderTopColor: colors.line },
   segment: { flexDirection: 'row', gap: space.sm },
   segmentBtn: {
