@@ -739,17 +739,10 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   },
   rowDate: { fontSize: font.body, color: colors.muted },
   rowWeight: { fontSize: font.body, fontWeight: '700', color: colors.ink },
-  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.35)' },
-  sheetWrap: { flex: 1, justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: colors.paper,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    paddingHorizontal: space.xl,
-    paddingTop: space.md,
-    paddingBottom: space.xxl,
-  },
-  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line, marginBottom: space.md },
+  // Dead since this screen's two sheets moved to `<BottomSheet>`, which owns
+  // the backdrop, the wrapper, the panel and the handle. Left behind at the
+  // time; deleted now that every sheet in the app is on the same component and
+  // a stray local copy is the thing that would let one drift back out.
   sheetTitle: { fontSize: font.h2, fontWeight: '800', color: colors.ink, marginBottom: space.md },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   input: {

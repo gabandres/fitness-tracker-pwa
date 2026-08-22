@@ -185,19 +185,15 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   finishBtn: { flex: 1, backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },
   finishText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
   // modal
-  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.35)' },
-  sheetWrap: { flex: 1, justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: colors.paper,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    paddingHorizontal: space.xl,
-    paddingTop: space.md,
-    paddingBottom: space.xxl,
-    gap: space.sm,
-    maxHeight: '80%',
-  },
-  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line, marginBottom: space.sm },
+  // The backdrop / wrapper / panel / handle all live in `<BottomSheet>` now —
+  // Train's four sheets hand-rolled a `Modal animationType="slide"`, which
+  // slides the dim backdrop UP THE SCREEN with the panel and offers no
+  // drag-to-dismiss. What survives here is only what genuinely differs from
+  // the shared default, passed as `contentStyle`: a `gap` between the panel's
+  // direct children and a slightly taller `paddingTop`. The 80% ceiling is a
+  // `maxHeight` prop at each call site, for the same reason — a Train picker
+  // that covers the whole screen stops reading as a sheet.
+  sheetBody: { paddingTop: space.md, gap: space.sm },
   sheetTitle: { fontSize: font.h2, fontWeight: '800', color: colors.ink },
   sheetHint: { fontSize: font.small, color: colors.muted },
   sheetEmpty: { fontSize: font.small, color: colors.muted, paddingVertical: space.lg, textAlign: 'center' },

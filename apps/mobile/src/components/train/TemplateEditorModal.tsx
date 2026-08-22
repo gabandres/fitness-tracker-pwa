@@ -1,8 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import {
-  Modal,
-  Pressable,
   ScrollView,
   Text,
   TextInput,
@@ -29,10 +27,10 @@ import { type TFn, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { smoothLayout } from '@/lib/motion';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
-import { useKeyboardSheetPadding } from '@/lib/use-keyboard-sheet-style';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { space } from '@/theme';
 import { LOG_STYLES, SET_KINDS, kindLabelKey, logStyleKey, numOrUndef } from './train-shared';
+import { BottomSheet } from '@/components/BottomSheet';
 import { createStyles } from './train-styles';
 
 /**
@@ -157,7 +155,6 @@ export function TemplateEditorModal({
   // pushes content up. Translating instead exposes whatever the keyboard
   // frame does not paint — on iOS 26 that is the transparent band holding
   // the system's floating "Done" pill, and it showed the page through it.
-  const sheetPadding = useKeyboardSheetPadding(space.xxl);
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
   const [restMini, setRestMini] = useState('');
@@ -403,16 +400,14 @@ export function TemplateEditorModal({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <BottomSheet visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
       {/* Gestures inside a `Modal` need their own root: RNGH attaches to the
           nearest GestureHandlerRootView, and the app's lives outside this
           modal's native view on Android, where the drag would otherwise never
-          start. Harmless on iOS. */}
+          start. Harmless on iOS. It sits INSIDE `<BottomSheet>` rather than
+          wrapping it for exactly that reason — the root has to be within the
+          modal's native view, and the modal now belongs to the sheet. */}
       <GestureHandlerRootView style={styles.ghRoot}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheetWrap}>
-        <Animated.View style={[styles.sheet, sheetPadding]}>
-          <View style={styles.handle} />
           <Animated.ScrollView
             ref={scrollRef}
             keyboardShouldPersistTaps="handled"
@@ -904,9 +899,7 @@ export function TemplateEditorModal({
             </View>
             <View style={{ height: 24 }} />
           </Animated.ScrollView>
-        </Animated.View>
-      </View>
       </GestureHandlerRootView>
-    </Modal>
+    </BottomSheet>
   );
 }

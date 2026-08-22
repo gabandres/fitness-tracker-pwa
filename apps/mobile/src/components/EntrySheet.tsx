@@ -1,14 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Animated,
-  Dimensions,
-  Keyboard,
   Linking,
-  Modal,
-  PanResponder,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -29,6 +23,7 @@ import {
   scaleCustomFood,
 } from '@macrolog/core';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
+import { BottomSheet } from '@/components/BottomSheet';
 import { MicButton } from './MicButton';
 import { FoodSearch } from '@/components/FoodSearch';
 import { MealText } from '@/components/MealText';
@@ -96,7 +91,6 @@ type ServingCtx = {
   name?: string;
 };
 
-const SHEET_OFFSCREEN = Dimensions.get('window').height;
 
 /** Search-first add-food sheet, on a plain RN <Modal> (animationType "slide"
  *  is OS-driven, so it doesn't stutter while typing — unlike the old custom
@@ -161,86 +155,16 @@ export function EntrySheet({
   // different portion) → fall back to a manual serving:1 save.
   const [pendingServing, setPendingServing] = useState<{ ctx: ServingCtx; appliedCalories: number } | null>(null);
 
-  // Keep the Modal mounted through the exit animation. `anim` (0 = hidden,
-  // 1 = shown) drives the backdrop opacity (fades IN PLACE, full-screen) and
-  // the sheet's translateY (slides up) independently — so the dim doesn't drag
-  // up with the sheet the way Modal's built-in `animationType="slide"` does.
-  // Native driver → the slide stays smooth even while typing.
-  const [mounted, setMounted] = useState(visible);
-  const anim = useRef(new Animated.Value(0)).current;
-
-  // Track the keyboard height so the sheet's WHITE stays pinned to the screen
-  // bottom (fills behind the keyboard) while only the CONTENT lifts above it —
-  // no grey "cutout" between the sheet and the keyboard (the artifact a
-  // KeyboardAvoidingView wrapper produced by floating the whole sheet up).
-  const [kbHeight, setKbHeight] = useState(0);
-  useEffect(() => {
-    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const show = Keyboard.addListener(showEvt, (e) => setKbHeight(e.endCoordinates.height));
-    const hide = Keyboard.addListener(hideEvt, () => setKbHeight(0));
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, []);
-
-  const drag = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (visible) {
-      setMounted(true);
-      drag.setValue(0);
-      Animated.spring(anim, {
-        toValue: 1,
-        stiffness: 250,
-        damping: 28,
-        mass: 1,
-        overshootClamping: true,
-        useNativeDriver: true,
-      }).start();
-    } else if (mounted) {
-      Animated.timing(anim, { toValue: 0, duration: 180, useNativeDriver: true }).start(({ finished }) => {
-        if (finished) setMounted(false);
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
-
-  // Drag-to-dismiss on the handle strip: follow the finger, release past the
-  // threshold (or a flick) closes, otherwise spring back. Confined to the
-  // handle so it can't fight the search list's scroll or the keyboard.
-  // (onClose through a ref — the responder is created once, the prop isn't.)
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-  const pan = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
-      onPanResponderMove: (_, g) => drag.setValue(Math.max(0, g.dy)),
-      onPanResponderRelease: (_, g) => {
-        if (g.dy > 120 || g.vy > 0.8) onCloseRef.current();
-        else Animated.spring(drag, { toValue: 0, stiffness: 300, damping: 26, useNativeDriver: true }).start();
-      },
-    }),
-  ).current;
-
-  const backdropStyle = useMemo(() => [styles.backdrop, { opacity: anim }], [anim, styles.backdrop]);
-  const sheetStyle = useMemo(
-    () => [
-      styles.sheet,
-      {
-        transform: [
-          {
-            translateY: Animated.add(
-              anim.interpolate({ inputRange: [0, 1], outputRange: [SHEET_OFFSCREEN, 0] }),
-              drag,
-            ),
-          },
-        ],
-      },
-    ],
-    [anim, drag, styles.sheet],
-  );
+  // The mount-through-exit animation, the fade-in-place backdrop, the
+  // drag-to-dismiss handle and the keyboard padding all live in
+  // `<BottomSheet>` now. This file is where all four were invented — the
+  // shared component was modelled on it — and keeping a second copy here is
+  // how the two drift. It already had: the copy that stayed behind kept its
+  // own `Keyboard` listeners and applied `paddingBottom: kbHeight || 32`,
+  // which omits `insets.bottom` at rest. That is the exact expression that
+  // put Save under the LG VS988's 48dp navigation bar and cost it taps near
+  // its lower edge; `useKeyboardSheetPadding` has carried the fix since
+  // 2026-08-22 and this sheet was not on it.
 
   // Reset form + mode whenever the sheet (re)opens.
   useEffect(() => {
@@ -611,16 +535,7 @@ export function EntrySheet({
   );
 
   return (
-    <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
-      <Animated.View style={backdropStyle}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} testID="entry-backdrop" />
-      </Animated.View>
-      <View style={[styles.sheetWrap, { pointerEvents: 'box-none' }]}>
-        <Animated.View style={[sheetStyle, { paddingBottom: kbHeight > 0 ? kbHeight + space.sm : space.xxl }]}>
-          <View style={styles.grabZone} {...pan.panHandlers}>
-            <View style={styles.handle} />
-          </View>
-
+    <BottomSheet visible={visible} onClose={onClose} backdropTestID="entry-backdrop">
             {mode === 'browse' ? (
               <FoodSearch
                 unitSystem={unitSystem}
@@ -758,9 +673,11 @@ export function EntrySheet({
                 </View>
               </View>
             )}
-          </Animated.View>
-        </View>
 
+      {/* Stays INSIDE the sheet, as it always was: a `<Modal>` renders in its
+          own native view and takes no part in the parent's layout, and on iOS
+          presenting one from within another is the supported way to stack
+          them. Hoisting it to a sibling would change that for no gain. */}
       {scannerOpen ? (
         <BarcodeScanner
           visible={scannerOpen}
@@ -775,7 +692,7 @@ export function EntrySheet({
           }}
         />
       ) : null}
-    </Modal>
+    </BottomSheet>
   );
 }
 
@@ -817,20 +734,10 @@ function Field({ label, children, style }: { label: string; children: React.Reac
 
 const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   fill: { flex: 1 },
-  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.35)' },
-  sheetWrap: { flex: 1, justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: colors.paper,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    paddingHorizontal: space.xl,
-    paddingTop: space.sm,
-    maxHeight: '94%',
-    ...shadow.e3,
-  },
-  // Generous touch target around the visual handle for the drag gesture.
-  grabZone: { alignSelf: 'stretch', alignItems: 'center', paddingBottom: space.sm, marginTop: -space.sm, paddingTop: space.sm },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line },
+  // backdrop / sheetWrap / sheet / grabZone / handle all moved to
+  // `<BottomSheet>`, which this file's originals were copied into. Its
+  // defaults are these values byte for byte, so the swap changes nothing here
+  // except which file owns them.
   // browse
   browse: { gap: space.lg, paddingTop: space.sm },
   group: { gap: space.xs },

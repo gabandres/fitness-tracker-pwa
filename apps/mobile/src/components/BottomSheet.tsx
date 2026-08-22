@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated, Dimensions, Modal, PanResponder, Pressable, StyleSheet, View,
+  Animated, type DimensionValue, Dimensions, Modal, PanResponder, Pressable,
+  StyleSheet, type StyleProp, View, type ViewStyle,
 } from 'react-native';
 import Reanimated from 'react-native-reanimated';
 import { useKeyboardSheetPadding } from '@/lib/use-keyboard-sheet-style';
@@ -13,6 +14,21 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   children: ReactNode;
+  /**
+   * Extra style for the painted panel — the per-sheet metrics that differ and
+   * legitimately should: a `gap` between direct children, a wider `paddingTop`.
+   * Applied AFTER the base style and BEFORE the keyboard padding, so a call
+   * site can retune its spacing but cannot accidentally override the one thing
+   * that must not vary (see `useKeyboardSheetPadding` for why `paddingBottom`
+   * is not negotiable).
+   */
+  contentStyle?: StyleProp<ViewStyle>;
+  /** Ceiling on the panel's height. Defaults to 94% of the screen; the Train
+   *  sheets ask for 80%, which is a deliberate difference — a picker that
+   *  covers the whole screen stops reading as a sheet. */
+  maxHeight?: DimensionValue;
+  /** testID for the dim backdrop, for tests that dismiss by tapping it. */
+  backdropTestID?: string;
 }
 
 /**
@@ -28,7 +44,14 @@ interface Props {
  * Animated API (native driver) — proven smooth in these modals; see
  * lib/motion.tsx for the Reanimated primitives used elsewhere.
  */
-export function BottomSheet({ visible, onClose, children }: Props) {
+export function BottomSheet({
+  visible,
+  onClose,
+  children,
+  contentStyle,
+  maxHeight = '94%',
+  backdropTestID,
+}: Props) {
   const styles = useThemedStyles(createStyles);
   const [mounted, setMounted] = useState(visible);
   const anim = useRef(new Animated.Value(0)).current;
@@ -84,25 +107,26 @@ export function BottomSheet({ visible, onClose, children }: Props) {
   const sheetStyle = useMemo(
     () => [
       styles.sheetMotion,
+      { maxHeight },
       {
         transform: [
           { translateY: Animated.add(anim.interpolate({ inputRange: [0, 1], outputRange: [OFFSCREEN, 0] }), drag) },
         ],
       },
     ],
-    [anim, drag, styles.sheetMotion],
+    [anim, drag, maxHeight, styles.sheetMotion],
   );
 
   return (
     <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
       <Animated.View style={backdropStyle}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} testID={backdropTestID} />
       </Animated.View>
       <View style={[styles.wrap, { pointerEvents: 'box-none' }]}>
         {/* Outer Reanimated layer lifts the sheet with the keyboard (frame-
             perfect); inner RN-Animated layer owns the open/close spring + drag. */}
         <Animated.View style={sheetStyle}>
-          <Reanimated.View style={[styles.sheet, sheetPadding]}>
+          <Reanimated.View style={[styles.sheet, contentStyle, sheetPadding]}>
             <View style={styles.grabZone} {...pan.panHandlers}>
               <View style={styles.handle} />
             </View>
@@ -117,7 +141,8 @@ export function BottomSheet({ visible, onClose, children }: Props) {
 const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFill, backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.35)' },
   wrap: { flex: 1, justifyContent: 'flex-end' },
-  sheetMotion: { maxHeight: '94%' },
+  // maxHeight arrives from the `maxHeight` prop; this holds nothing else.
+  sheetMotion: {},
   sheet: {
     backgroundColor: colors.paper,
     borderTopLeftRadius: radius.lg,

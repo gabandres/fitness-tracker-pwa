@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   ScrollView,
   Text,
@@ -62,6 +61,7 @@ import { HeaderAvatar } from '@/components/HeaderAvatar';
 // against a web Train tab that has been split since it was written.
 import { TemplateEditorModal } from '@/components/train/TemplateEditorModal';
 import { LOG_STYLES, SET_KINDS, logStyleKey, numOrUndef } from '@/components/train/train-shared';
+import { BottomSheet } from '@/components/BottomSheet';
 import { createStyles } from '@/components/train/train-styles';
 import { Sparkline } from '@/components/Sparkline';
 import { TrainGlossary } from '@/components/TrainGlossary';
@@ -70,7 +70,6 @@ import * as haptics from '@/lib/haptics';
 import { CountUpText, enterUp, smoothLayout, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
-import { useKeyboardSheetPadding } from '@/lib/use-keyboard-sheet-style';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { space } from '@/theme';
 import { formatDate } from '@/lib/date-format';
@@ -352,11 +351,7 @@ function StarterTemplatesModal({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheetWrap}>
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
+    <BottomSheet visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.sheetTitle}>{t('train.starterTitle')}</Text>
             <Text style={styles.sheetHint}>{t('train.starterHint')}</Text>
@@ -383,9 +378,7 @@ function StarterTemplatesModal({
             ))}
             <View style={{ height: 24 }} />
           </ScrollView>
-        </View>
-      </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
@@ -411,12 +404,6 @@ function ExerciseDetailModal({
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  // Sheets GROW for the keyboard, they do not move: `sheetWrap` is flex-end,
-  // so extra bottom padding keeps the background on the screen edge and
-  // pushes content up. Translating instead exposes whatever the keyboard
-  // frame does not paint — on iOS 26 that is the transparent band holding
-  // the system's floating "Done" pill, and it showed the page through it.
-  const sheetPadding = useKeyboardSheetPadding(space.xxl);
   const [mode, setMode] = useState<'view' | 'edit' | 'merge'>('view');
   const [confirmDel, setConfirmDel] = useState(false);
   const [editName, setEditName] = useState('');
@@ -478,11 +465,7 @@ function ExerciseDetailModal({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheetWrap}>
-        <Animated.View style={[styles.sheet, sheetPadding]}>
-          <View style={styles.handle} />
+    <BottomSheet visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.sheetTitle}>{exercise?.name}</Text>
 
@@ -612,9 +595,7 @@ function ExerciseDetailModal({
             )}
             <View style={{ height: 24 }} />
           </ScrollView>
-        </Animated.View>
-      </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
@@ -1234,12 +1215,6 @@ function AddExerciseModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  // Sheets GROW for the keyboard, they do not move: `sheetWrap` is flex-end,
-  // so extra bottom padding keeps the background on the screen edge and
-  // pushes content up. Translating instead exposes whatever the keyboard
-  // frame does not paint — on iOS 26 that is the transparent band holding
-  // the system's floating "Done" pill, and it showed the page through it.
-  const sheetPadding = useKeyboardSheetPadding(space.xxl);
   const addExerciseInputRef = useDeferredFocus(visible);
   const [name, setName] = useState('');
   const [logStyle, setLogStyle] = useState<LogStyle>('weight-reps');
@@ -1263,11 +1238,7 @@ function AddExerciseModal({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheetWrap}>
-        <Animated.View style={[styles.sheet, sheetPadding]}>
-          <View style={styles.handle} />
+    <BottomSheet visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
           <Text style={styles.sheetTitle}>{t('train.addExerciseTitle')}</Text>
 
           <TextInput
@@ -1317,9 +1288,7 @@ function AddExerciseModal({
               <Text style={styles.empty}>{t('train.noSaved')}</Text>
             ) : null}
           </ScrollView>
-        </Animated.View>
-      </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
@@ -1336,12 +1305,6 @@ function FinishModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  // Sheets GROW for the keyboard, they do not move: `sheetWrap` is flex-end,
-  // so extra bottom padding keeps the background on the screen edge and
-  // pushes content up. Translating instead exposes whatever the keyboard
-  // frame does not paint — on iOS 26 that is the transparent band holding
-  // the system's floating "Done" pill, and it showed the page through it.
-  const sheetPadding = useKeyboardSheetPadding(space.xxl);
   const [bodyweight, setBodyweight] = useState('');
   const [sleep, setSleep] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1365,11 +1328,7 @@ function FinishModal({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheetWrap}>
-        <Animated.View style={[styles.sheet, sheetPadding]}>
-          <View style={styles.handle} />
+    <BottomSheet visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
           {/* Scroll so the numeric keyboard can't hide the Complete button
               (KeyboardAvoidingView under-lifts inside a bottom-sheet Modal). */}
           <ScrollView
@@ -1411,9 +1370,7 @@ function FinishModal({
             <Text style={styles.finishText}>{busy ? t('common.saving') : t('train.complete')}</Text>
           </TouchableOpacity>
           </ScrollView>
-        </Animated.View>
-      </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
