@@ -424,7 +424,15 @@ function createStyles({ colors }: Theme) {
     // the button rather than into it. Deterministic at any screen height,
     // where "add some padding" is a guess that holds at one.
     empty: {
-      flex: 1,
+      // NOT `flex: 1`. In RN that is `flexBasis: 0`, so the block contributes
+      // nothing to the content height and takes only what is left over — and
+      // when the hero and the metrics card already fill the viewport there is
+      // nothing left, so it collapses and the CTA falls off the bottom.
+      // Measured on the device, which is the only place it shows.
+      // Grow into spare room, never shrink below the content.
+      flexGrow: 1,
+      flexShrink: 0,
+      flexBasis: 'auto',
       alignItems: 'center',
       justifyContent: 'center',
       paddingTop: space.xl,
