@@ -144,6 +144,19 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   // maxHeight arrives from the `maxHeight` prop; this holds nothing else.
   sheetMotion: {},
   sheet: {
+    // **`flexShrink: 1` is load-bearing and was the bug.** The ceiling lives on
+    // the OUTER motion layer (RN-Animated and Reanimated styles cannot compose
+    // on one node), so without this the painted panel keeps its full content
+    // height and simply overflows the clamp: a tall sheet's pinned action row
+    // ends up below the fold with nothing able to scroll to it. Every sheet
+    // this component replaced carried its `maxHeight` on the painted view
+    // itself, so each one bounded its own flex children for free; the two-layer
+    // split quietly removed that. Caught on the device with the meal sheet's
+    // Add button behind the keyboard — `flexShrink` lets the panel take the
+    // clamped height, which is what makes it DEFINITE for the `flexShrink: 1`
+    // ScrollView inside it. A percentage cannot do this job: the panel's parent
+    // is auto-height, so a percentage maxHeight there resolves against nothing.
+    flexShrink: 1,
     backgroundColor: colors.paper,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
