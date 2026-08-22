@@ -18,13 +18,18 @@ import { space } from '@/theme';
  * untouched. On devices with no home indicator the inset is 0 → no nudge.
  */
 export function useKeyboardSheetStyle() {
-  const insets = useSafeAreaInsets();
-  const { height, progress } = useReanimatedKeyboardAnimation();
-  return useAnimatedStyle(() => {
-    const nudge = Math.max(insets.bottom - space.sm, 0);
-    const offset = interpolate(progress.value, [0, 1], [0, nudge]);
-    return { transform: [{ translateY: height.value + offset }] };
-  });
+  const { height } = useReanimatedKeyboardAnimation();
+  // `height` already reaches the keyboard's visible top, so the sheet's bottom
+  // edge lands exactly on it. There used to be a downward "nudge" of
+  // `insets.bottom - space.sm` here, on the theory that lifting by the full
+  // amount overshoots by the home indicator. MEASURED ON DEVICE 2026-08-22:
+  // it does not. The nudge simply parked the sheet that far BELOW the keyboard
+  // — which is the gap reported on iOS — and on the LG G6, whose 48dp nav-bar
+  // inset makes the nudge 40dp, it drove the Save button behind the keyboard
+  // the moment the compensating padding was removed. Sheet bottom == keyboard
+  // top; clearance for the primary button is the sheet's own padding, which is
+  // one job in one place.
+  return useAnimatedStyle(() => ({ transform: [{ translateY: height.value }] }));
 }
 
 /**
