@@ -284,7 +284,14 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
    *  the chevron rides at the far edge and is INSIDE the touchable. */
   tplExTapRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44 },
   /** Fills the modal so the sheet keeps its own absolute/backdrop layout. */
-  ghRoot: { flex: 1 },
+  // `flexShrink: 1`, NOT `flex: 1` — and the device is what proved it. This
+  // root used to be the direct child of a full-screen `Modal`, where `flex: 1`
+  // meant "the whole screen". Inside `<BottomSheet>`'s panel, whose height is
+  // content-driven, `flex: 1` means flexBasis 0 — so the editor rendered as a
+  // bare handle above an empty strip. Shrink-only sizes it to its content and
+  // still lets it give way to the panel's clamp, which is what bounds the
+  // ScrollView inside it.
+  ghRoot: { flexShrink: 1 },
   tplReorder: { marginTop: -2 },
   /** The drag grip. 44pt tall so the gesture has a real target — the ▲▼ pair
    *  it replaced were 20pt each. */
