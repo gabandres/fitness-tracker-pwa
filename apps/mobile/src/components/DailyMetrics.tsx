@@ -282,7 +282,7 @@ function WaterModal({
           what says the mechanism is wrong rather than the constant.
           `automaticOffset` is the library's answer to exactly this; its
           contract names modals. */}
-      <KeyboardAvoidingView behavior="padding" automaticOffset style={styles.sheetWrap}>
+      <KeyboardAvoidingView behavior="padding" style={styles.sheetWrap}>
         <Reanimated.View style={[styles.sheet, sheetPadding]}>
             <View style={styles.handle} />
             {/* The mode switch lives in the TITLE ROW and not under Save,
@@ -385,7 +385,7 @@ function SleepModal({
           what says the mechanism is wrong rather than the constant.
           `automaticOffset` is the library's answer to exactly this; its
           contract names modals. */}
-      <KeyboardAvoidingView behavior="padding" automaticOffset style={styles.sheetWrap}>
+      <KeyboardAvoidingView behavior="padding" style={styles.sheetWrap}>
         <Reanimated.View style={[styles.sheet, sheetPadding]}>
           <View style={styles.handle} />
           <Text style={styles.sheetTitle}>{t('metrics.hoursSlept')}</Text>
@@ -459,7 +459,24 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   },
   pillText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' },
-  sheetWrap: { flex: 1, justifyContent: 'flex-end' },
+  // Anchored to the bottom and PAINTED, rather than a full-screen flex box.
+  //
+  // Both matter. `KeyboardAvoidingView` puts its keyboard-height padding on
+  // this view, so giving it the sheet's own colour means that padded strip is
+  // cream instead of see-through. That is the whole fix for the "sheet is
+  // detached from the keyboard" report: on iOS 26 a `number-pad` has no return
+  // key, so the system floats its own "Done" pill in a TRANSPARENT band above
+  // the keypad — and that band is inside the keyboard frame every API reports.
+  // The sheet was never misplaced; it sat correctly on top of the whole frame
+  // and the empty band under it read as a gap. Nothing measurable distinguishes
+  // the band from the keypad, which is why three attempts at the arithmetic and
+  // then the library's own component all failed to close it.
+  //
+  // `position: absolute` rather than `flex: 1` because a painted full-screen
+  // box would cover the dimmed backdrop. At rest the padding is zero, so this
+  // paints nothing; with the keyboard up it paints exactly the strip the
+  // keyboard occupies, and the keypad is drawn opaque over most of it.
+  sheetWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: colors.paper },
   sheet: {
     backgroundColor: colors.paper,
     borderTopLeftRadius: radius.lg,
