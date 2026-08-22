@@ -22,6 +22,34 @@ locale/theme are back to baseline, and look at the captures.
 left cannot be closed on a simulator by anyone: the barcode camera needs a
 camera, and the mic's listening state needs a speech recognizer.
 
+**iOS re-swept 2026-08-22 on a Release simulator build from current `main`:
+17 of 19 flows pass**, including both new ones (`19-glossary`, `20-units-metric`).
+Two fail — `15-search` and `18-train-template` — and **both fail on the
+pre-change baseline too**, so neither is caused by that day's F3–F7 work. That
+was established rather than assumed: `27828e5c` was checked out on the Mac,
+rebuilt, installed and run against the same two flows, and both failed there
+as well. Do not re-attribute them to the units or glossary work.
+
+What each one actually shows, from the run's own artifacts:
+
+- **`15-search`** — the results render correctly (the capture shows *Banana,
+  raw* as the third row), and by the time `tapOn: '^Banana, raw$'` executes the
+  **result rows are not in the accessibility tree at all**: the captured
+  hierarchy at that step contains exactly two banana strings, both the search
+  input's own `banana`. So this is not a ranking change and not an anchoring
+  problem — the list is gone from the tree at tap time, which is where an
+  investigation should start.
+- **`18-train-template`** — the editor renders all three set rows (capture
+  `18-set-table`), the flow types 20/8 into each, and the SAVED document shows
+  row 0 as a bare `{kind:'working'}` while rows 1 and 2 carry `reps: 8,
+  weight: 20`. Read out of Firestore, not inferred. The summary then correctly
+  degrades to `3 sets` — which is the flow's own stated intent — so the
+  assertion is right and the lost first row is the defect.
+
+Both predate 2026-08-22 and are unclaimed. The suite's last clean iOS sweep was
+2026-08-18, and the on-device food search (2026-08-21) and the bottom-sheet
+sweep (2026-08-22) both landed in between.
+
 **Android has a host again, 2026-08-19.** An **LG VS988 (LG G6, Android 9 /
 API 28)** runs the suite over adb from the Windows workstation, so "Android has
 no host" is retired. First run against Play-signed **vc 34** (SDK 57):
@@ -83,8 +111,8 @@ prove the floor.
 | (app)/train — template editor | `18-train-template.yaml` (build a template from a seeded exercise, set table + headers, collapsed card summary, More options, save → re-open → per-set targets still there) | — no Android host | ✓ 2026-08-18 — first run; the only flow that exercises the editor at all |
 | (app)/trends | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 |
 | (app)/body | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 — **caught the body-fat overflow** |
-| Today / Trends / Train — the "?" glossaries | `19-glossary.yaml` (all three headers carry it, the sheet opens, and it scrolls to its last term rather than clipping at the panel ceiling) | ✗ authored 2026-08-22 | ✗ authored 2026-08-22 |
-| Body weight in kilograms | `20-units-metric.yaml` (Body hero + weigh-in sheet follow the Units setting; restores pounds in its own tail) | ✗ authored 2026-08-22 | ✗ authored 2026-08-22 |
+| Today / Trends / Train — the "?" glossaries | `19-glossary.yaml` (all three headers carry it, the sheet opens, and it scrolls to its last term rather than clipping at the panel ceiling) | ✗ authored 2026-08-22 | ✓ 2026-08-22 — first run, on a Release sim build from `9475676` |
+| Body weight in kilograms | `20-units-metric.yaml` (Body hero + weigh-in sheet follow the Units setting; restores pounds in its own tail) | ✗ authored 2026-08-22 | ✓ 2026-08-22 — first run, same build |
 | (app)/settings | `04-settings.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
 | history/index | `05-history.yaml` | ✓ 2026-08-09 | ✓ 2026-08-18 |
 | history/[date] | `05-history.yaml` (deep link, `-e DATE`) | ✓ 2026-08-09 | ✓ 2026-08-18 |
