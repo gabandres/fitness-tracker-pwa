@@ -1,6 +1,6 @@
 import { Injectable, Injector, computed, effect, inject, runInInjectionContext, signal } from '@angular/core';
 import { Auth, authState, signInWithCustomToken } from '@angular/fire/auth';
-import { Firestore, doc, onSnapshot } from '@angular/fire/firestore';
+import { Firestore, collectionGroup, doc, getDocs, limit, onSnapshot, orderBy, query } from '@angular/fire/firestore';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CallableGateway } from './callable.gateway';
 
@@ -22,6 +22,23 @@ export interface AuditLog {
   targetEmail?: string;
   details?: Record<string, unknown>;
   timestamp: string | null;
+}
+
+/** One in-app feedback report, as the admin panel shows it. Read straight
+ *  from Firestore over the admin-only collection-group rule — no callable in
+ *  between, because there is nothing to compute and a Cloud Function here
+ *  would just add a cold start to a list query. */
+export interface FeedbackRow {
+  id: string;
+  /** Owner of the subcollection the doc lives in, recovered from the path —
+   *  the document itself does not carry a uid field. */
+  uid: string;
+  message: string;
+  category: string;
+  appVersion: string;
+  platform: string;
+  locale: string;
+  createdAt: string | null;
 }
 
 export interface AdminUserRow {
@@ -247,6 +264,37 @@ export class AdminService {
     return this.callables.call<typeof params, { logs: AuditLog[]; hasMore: boolean }>(
       'getAuditLogs', params,
     );
+  }
+
+  /**
+   * Every user's feedback, newest first.
+   *
+   * `collectionGroup` needs its OWN index — a collection-group query does not
+   * inherit the automatic single-field one — so `firestore.indexes.json`
+   * carries a `feedback`/`createdAt` fieldOverride. Without it this fails with
+   * FAILED_PRECONDITION rather than returning nothing, which at least says so.
+   */
+  async getFeedback(max = 200): Promise<FeedbackRow[]> {
+    const q = query(
+      collectionGroup(this.firestore, 'feedback'),
+      orderBy('createdAt', 'desc'),
+      limit(max),
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => {
+      const data = d.data() as Record<string, unknown>;
+      const createdAt = data['createdAt'] as { toDate?: () => Date } | undefined;
+      return {
+        id: d.id,
+        uid: d.ref.parent.parent?.id ?? '—',
+        message: String(data['message'] ?? ''),
+        category: String(data['category'] ?? 'none'),
+        appVersion: String(data['appVersion'] ?? '—'),
+        platform: String(data['platform'] ?? '—'),
+        locale: String(data['locale'] ?? '—'),
+        createdAt: createdAt?.toDate ? createdAt.toDate().toISOString() : null,
+      };
+    });
   }
 
   async suspendUser(targetUid: string, disabled: boolean): Promise<void> {

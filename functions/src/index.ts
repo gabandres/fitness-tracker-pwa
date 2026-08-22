@@ -18,6 +18,7 @@ export { statusPulse, weeklyFirestoreBackup } from "./ops";
 export { hourlyTasks } from "./hourly-tasks";
 export { sendWelcomeEmail, onDailyLogCreated, onSubscriptionWritten } from "./user-lifecycle";
 export { sendPasswordReset } from "./password-reset";
+export { onFeedbackCreated } from "./feedback-notify";
 export { sendVerificationEmail } from "./verify-email";
 export { unsubscribeWeeklyDigest } from "./unsubscribe";
 

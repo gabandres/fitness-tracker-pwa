@@ -17,6 +17,17 @@
   ],
   "fieldOverrides": [
     {
+      "_comment": "A collection-group query does NOT inherit the automatic single-field index, so the admin panel's `collectionGroup('feedback').orderBy('createdAt','desc')` fails with a FAILED_PRECONDITION until this exists. The per-collection entries come along for free and cost nothing.",
+      "collectionGroup": "feedback",
+      "fieldPath": "createdAt",
+      "indexes": [
+        { "order": "ASCENDING",  "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING",  "queryScope": "COLLECTION_GROUP" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
       "collectionGroup": "dailyLogs",
       "fieldPath": "timestamp",
       "indexes": [

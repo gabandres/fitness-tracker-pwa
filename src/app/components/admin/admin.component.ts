@@ -1,11 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
-import { AdminService, AdminUserRow, AuditLog, PlatformStats, ActivityItem } from '../../services/admin.service';
+import { AdminService, AdminUserRow, AuditLog, FeedbackRow, PlatformStats, ActivityItem } from '../../services/admin.service';
 
 type AdminTab =
   | 'stats' | 'activity' | 'users' | 'admins' | 'subscriptions'
-  | 'comped' | 'audit' | 'support' | 'export';
+  | 'comped' | 'audit' | 'support' | 'feedback' | 'export';
 
 interface TabDef { readonly id: AdminTab; readonly label: string; }
 
@@ -505,6 +505,45 @@ interface TabDef { readonly id: AdminTab; readonly label: string; }
           </div>
         }
 
+        <!-- FEEDBACK TAB -->
+        @if (activeTab() === 'feedback') {
+          <div class="mt-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <h2 class="admin-h2">In-app feedback</h2>
+              <button type="button" (click)="loadFeedback()" [disabled]="busy()" class="admin-btn admin-btn--sm">
+                {{ busy() ? 'loading…' : 'reload' }}
+              </button>
+            </div>
+            <p class="admin-caption">
+              Reports filed from the mobile composer, newest first. Append-only — the reporter cannot
+              read, edit or delete what they sent, and neither can this panel. Reply by email; the
+              address is on the Users tab.
+            </p>
+            @if (feedback().length === 0) {
+              <p class="admin-caption">no feedback yet.</p>
+            } @else {
+              <div class="overflow-x-auto">
+                <table class="admin-table">
+                  <thead>
+                    <tr><th>when</th><th>category</th><th>message</th><th>uid</th><th>app</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (f of feedback(); track f.id) {
+                      <tr>
+                        <td class="admin-mono text-[11px]">{{ shortDate(f.createdAt) }}</td>
+                        <td><span class="chip chip-graphite">{{ f.category }}</span></td>
+                        <td class="text-xs" style="white-space: pre-wrap; max-width: 520px">{{ f.message }}</td>
+                        <td class="admin-mono text-[10px]">{{ f.uid }}</td>
+                        <td class="admin-mono text-[10px]">{{ f.appVersion }} · {{ f.platform }} · {{ f.locale }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </div>
+        }
+
         <!-- SUPPORT TAB -->
         @if (activeTab() === 'support') {
           <div class="mt-6 space-y-4 max-w-[640px]">
@@ -588,6 +627,7 @@ export class AdminComponent {
     { id: 'comped',        label: 'Comped' },
     { id: 'audit',         label: 'Audit log' },
     { id: 'support',       label: 'Support' },
+    { id: 'feedback',      label: 'Feedback' },
     { id: 'export',        label: 'Export' },
   ];
 
@@ -600,6 +640,7 @@ export class AdminComponent {
   readonly activityItems = signal<ActivityItem[]>([]);
   readonly allUsers = signal<AdminUserRow[]>([]);
   readonly auditLogs = signal<AuditLog[]>([]);
+  readonly feedback = signal<FeedbackRow[]>([]);
   readonly lookupResult = signal<AdminUserRow | null>(null);
 
   readonly userSearch = signal('');
@@ -638,6 +679,7 @@ export class AdminComponent {
     if (tab === 'users' && this.allUsers().length === 0) this.loadUsers();
     if (tab === 'subscriptions' && this.allUsers().length === 0) this.loadUsers();
     if (tab === 'audit' && this.auditLogs().length === 0) this.loadAuditLogs();
+    if (tab === 'feedback' && this.feedback().length === 0) this.loadFeedback();
   }
 
   constructor() {
@@ -676,6 +718,12 @@ export class AdminComponent {
         (b.createdAt || '').localeCompare(a.createdAt || ''),
       );
       this.allUsers.set(users);
+    });
+  }
+
+  async loadFeedback(): Promise<void> {
+    await this.run('loading feedback', async () => {
+      this.feedback.set(await this.admin.getFeedback());
     });
   }
 
