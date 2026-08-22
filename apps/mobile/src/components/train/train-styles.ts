@@ -261,6 +261,10 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     paddingVertical: space.md,
   },
   tplMain: { flex: 1, gap: 2 },
+  // Same gap as `list`, for the starter sheet's scroll content. The title and
+  // hint are children of the same container, so they gain it too — which is
+  // what they wanted anyway.
+  starterList: { gap: space.sm },
   tplStart: {
     backgroundColor: colors.ink,
     borderRadius: radius.sm,

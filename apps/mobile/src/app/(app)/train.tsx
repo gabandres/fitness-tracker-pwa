@@ -352,7 +352,18 @@ function StarterTemplatesModal({
 
   return (
     <BottomSheet visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          {/* `styles.list`'s gap, applied to the SCROLL CONTENT. The rows were
+              mapped straight into the ScrollView, so nothing separated them and
+              five bordered cards read as one striped block — while the
+              identical `tplRow` on the Train screen itself sits inside
+              `styles.list` and is spaced. The gap belongs to the container, not
+              to `tplRow`: putting a margin on the row would double the spacing
+              in the list that is already correct. */}
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.starterList}
+          >
             <Text style={styles.sheetTitle}>{t('train.starterTitle')}</Text>
             <Text style={styles.sheetHint}>{t('train.starterHint')}</Text>
             {available.length === 0 ? (
