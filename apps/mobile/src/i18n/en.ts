@@ -154,7 +154,7 @@ export const en = {
   'today.entry': 'Entry',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    'Scanning got faster. A meal photo now comes back in about half the time, and the scan screen shows your photo and what it is working on instead of a blank spinner. Barcode lookups download about a sixtieth of what they used to, so they hold up on a weak signal, and anything you have scanned before comes back instantly. If a barcode is not in the database you will now be told that, instead of being asked to try the scan again.',
+    'You can set your own calorie and protein goals now — tap either number when you set up your plan, or open Settings, Daily targets. Ignia keeps measuring your maintenance in the background either way, and shows you what it finds next to your number. The + button also stops covering the screen after you use it. All three of these came from people writing in, which you can now do from Settings.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',

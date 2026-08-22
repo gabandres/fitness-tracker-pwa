@@ -155,7 +155,7 @@ export const esPR: Record<I18nKey, string> = {
   'today.entry': 'Registro',
   'whatsNew.title': 'Novedades',
   'whatsNew.body':
-    'El escaneo está más rápido. Una foto de comida ahora regresa como en la mitad del tiempo, y la pantalla te muestra tu foto y en qué va trabajando en vez de una rueda en blanco. Los códigos de barra bajan como una sesentava parte de lo que bajaban antes, así que aguantan con señal débil, y lo que ya escaneaste antes sale al instante. Si un código no está en la base de datos, ahora te lo decimos, en vez de pedirte que escanees otra vez.',
+    'Ya puedes poner tus propias metas de calorías y proteína — toca cualquiera de los dos números cuando armas tu plan, o entra a Ajustes, Metas diarias. Ignia sigue midiendo tu mantenimiento por detrás de todos modos, y te enseña lo que encuentra al lado de tu número. El botón + también deja de taparte la pantalla después de usarlo. Las tres cosas salieron de gente que escribió, algo que ahora puedes hacer desde Ajustes.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',
