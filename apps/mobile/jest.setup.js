@@ -79,6 +79,13 @@ jest.mock('@/lib/sentry', () => ({
 
 // Haptics go through a native module and are pure side effect.
 jest.mock('@/lib/haptics', () => ({
+  // `tap` was MISSING here until 2026-08-21, and the gap was invisible: it
+  // only bites a test that presses a control whose handler calls it, and the
+  // failure reads `haptics.tap is not a function` from inside the component,
+  // which looks like a bug in the screen rather than in this list. Keep this
+  // in sync with `src/lib/haptics.ts` — an incomplete mock of a pure
+  // side-effect module fails LOUD in an unrelated place.
+  tap: jest.fn(),
   success: jest.fn(),
   warning: jest.fn(),
   selection: jest.fn(),

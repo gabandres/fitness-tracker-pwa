@@ -31,8 +31,6 @@ jest.mock('expo-router', () => ({
   usePathname: () => mockPathname,
 }));
 
-jest.mock('@/lib/haptics', () => ({ tap: jest.fn() }));
-
 // `I18nProvider` reads the locale off the profile, which drags in Firebase Auth
 // and its ESM-only `@firebase/util` postinstall shim. The dictionary stays real
 // (test-utils explains why) — only the profile behind it is stubbed.

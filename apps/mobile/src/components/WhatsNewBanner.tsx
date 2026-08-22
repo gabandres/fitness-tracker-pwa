@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useT } from '@/i18n';
@@ -73,6 +74,22 @@ export function WhatsNewBanner({ suppressed = false }: { suppressed?: boolean })
         <View style={styles.textCol}>
           <Text style={styles.title}>{t('whatsNew.title')}</Text>
           <Text style={styles.body}>{t('whatsNew.body')}</Text>
+          {/* A standing invitation, not a one-shot and not a popup.
+              A one-shot is missed by whoever was not paying attention that
+              week; a recurring prompt is the nag pattern. A quiet line on a
+              card that only appears when something CHANGED is present every
+              release and interrupts nothing. */}
+          <TouchableOpacity
+            onPress={() => {
+              haptics.tap();
+              router.push('/feedback');
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            testID="whats-new-feedback"
+          >
+            <Text style={styles.feedback}>{t('feedback.whatsNewPrompt')}</Text>
+          </TouchableOpacity>
         </View>
       </View>
       <TouchableOpacity
@@ -109,4 +126,5 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   textCol: { flex: 1, gap: 2 },
   title: { fontSize: font.small, color: colors.ink, fontWeight: '800' },
   body: { fontSize: font.small, color: colors.muted, lineHeight: 18 },
+  feedback: { fontSize: font.small, color: colors.ring, fontWeight: '700', marginTop: space.sm },
 });

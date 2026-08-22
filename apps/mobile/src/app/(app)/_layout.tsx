@@ -120,6 +120,10 @@ export default function AppTabsLayout() {
       <Tabs.Screen name="refine-targets" options={{ href: null }} />
       {/* Meal-photo scan (ADR-0015) — reached via the center camera button. */}
       <Tabs.Screen name="scan" options={{ href: null }} />
+      {/* Reachable via Settings → Daily targets; hidden from the tab bar. */}
+      <Tabs.Screen name="daily-targets" options={{ href: null }} />
+      {/* Reachable via Settings → Send feedback and the What's-new card. */}
+      <Tabs.Screen name="feedback" options={{ href: null }} />
     </Tabs>
   );
 }

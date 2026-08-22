@@ -249,3 +249,8 @@ export {
   type CompactFoodRow,
   type IndexedFood,
 } from './usda-search';
+
+// Validation for user-typed calorie/protein targets (targetMode). Shared so
+// the onboarding plan step and the Settings editor cannot disagree about what
+// a legal number is.
+export * from './target-input';

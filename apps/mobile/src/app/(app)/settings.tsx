@@ -334,16 +334,28 @@ export default function Settings() {
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.section}>{t('settings.goals')}</Text>
         <View style={styles.card}>
-          <View style={styles.rowBetween}>
-            <View>
+          {/* The targets row is the ENTRY POINT to the editor, not a readout.
+              A user asked for a custom calorie goal and could not find one
+              because there was nowhere to tap (UX_AUDIT, Abdiel Medina). The
+              mode is on the row itself, so "am I on automatic?" is answered
+              without opening anything. */}
+          <TouchableOpacity
+            style={styles.rowBetween}
+            onPress={() => router.push('/daily-targets')}
+            testID="settings-daily-targets"
+          >
+            <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>{t('settings.dailyTargets')}</Text>
               <Text style={styles.rowValue}>
+                {t(profile?.targetMode === 'custom' ? 'targets.summaryCustom' : 'targets.summaryAuto')}
+                {'  ·  '}
                 {kcal != null ? `${kcal.toLocaleString()} ${t('settings.kcalUnit')}` : '—'}
                 {protein != null ? `  ·  ${protein}${t('settings.proteinUnit')}` : ''}
               </Text>
               {goalKey ? <Text style={styles.rowSub}>{t('settings.goalPrefix', { goal: t(goalKey) })}</Text> : null}
             </View>
-          </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.editBtn}
             onPress={() => router.push('/onboarding')}
@@ -359,6 +371,27 @@ export default function Settings() {
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>{t('settings.refine')}</Text>
               <Text style={styles.rowValue}>{t('settings.refineSub')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Feedback sits SECOND, above everything except the user's own goals.
+            The channel already existed — Settings → Help opened
+            ignia.fit/support — filed under Legal, between Terms of Use and the
+            medical disclaimer, which is a place nobody goes to say "this is
+            confusing". The barrier a user named was social, not technical
+            (UX_AUDIT, Abdiel Medina), so position is the feature here. */}
+        <Text style={styles.section}>{t('feedback.title')}</Text>
+        <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.refineRow}
+            onPress={() => router.push('/feedback')}
+            testID="settings-feedback"
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>{t('feedback.settingsRow')}</Text>
+              <Text style={styles.rowValue}>{t('feedback.settingsSub')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.faint} />
           </TouchableOpacity>

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInLeft, FadeInRight, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { type GoalDirection, computeKcal, computeProtein } from '@macrolog/core';
+import { type GoalDirection, computeKcal, computeProtein, validateCalorieTarget } from '@macrolog/core';
 import { BrandMark } from '@/components/BrandMark';
 import { useAuth } from '@/lib/auth';
 import { saveOnboardingV2 } from '@/lib/ledger';
@@ -55,8 +55,33 @@ export default function Onboarding() {
   const [error, setError] = useState<string | null>(null);
 
   const weightLbs = numOrUndef(weight);
-  const kcal = weightLbs && goal ? computeKcal(weightLbs, goal) : null;
-  const protein = weightLbs ? computeProtein(weightLbs) : null;
+  const suggestedKcal = weightLbs && goal ? computeKcal(weightLbs, goal) : null;
+  const suggestedProtein = weightLbs ? computeProtein(weightLbs) : null;
+
+  // The plan step USED to be read-only, and that is the whole of a real user's
+  // second complaint: the app computed a calorie goal for him and offered
+  // nowhere to put the number he wanted (UX_AUDIT, Abdiel Medina, 2026-08-21).
+  // Tapping either number opens it for editing; an edited number is what makes
+  // the save `targetMode: 'custom'` rather than 'auto', so accepting the
+  // suggestion still behaves exactly as it did.
+  const [editing, setEditing] = useState<'kcal' | 'protein' | null>(null);
+  const [kcalDraft, setKcalDraft] = useState<string | null>(null);
+  const [proteinDraft, setProteinDraft] = useState<string | null>(null);
+
+  const kcal = kcalDraft != null ? (numOrUndef(kcalDraft) ?? null) : suggestedKcal;
+  const protein = proteinDraft != null ? (numOrUndef(proteinDraft) ?? null) : suggestedProtein;
+  const edited = kcalDraft != null || proteinDraft != null;
+  // Only the calorie number is checked against the floor here. Protein has no
+  // safety floor concept in onboarding, and the estimator's own clamp catches
+  // anything wild on the way out.
+  const kcalCheck = validateCalorieTarget(kcal, { profile });
+
+  function openEditor(which: 'kcal' | 'protein') {
+    haptics.tap();
+    setEditing(which);
+    if (which === 'kcal' && kcalDraft == null) setKcalDraft(String(suggestedKcal ?? ''));
+    if (which === 'protein' && proteinDraft == null) setProteinDraft(String(suggestedProtein ?? ''));
+  }
 
   // Skip the goal-weight step for "maintain" (there's no target to hit).
   const skipGoalWeight = goal === 'maintain';
@@ -72,7 +97,10 @@ export default function Onboarding() {
     (step === 'goal' && goal != null) ||
     (step === 'weight' && weightLbs != null) ||
     (step === 'goalWeight' && numOrUndef(targetWeight) != null) ||
-    step === 'plan';
+    // A typed calorie number has to clear the floor before it can be saved —
+    // otherwise `dailyTargets` clamps it on the way out and hands the user a
+    // number they did not choose, which is the exact defect being fixed.
+    (step === 'plan' && (!edited || kcalCheck.ok));
 
   function go(delta: 1 | -1) {
     haptics.tap();
@@ -91,6 +119,10 @@ export default function Onboarding() {
         targetWeightLbs: skipGoalWeight ? undefined : numOrUndef(targetWeight),
         manualCaloriesTarget: kcal,
         manualProteinTarget: protein,
+        // Accepting the computed plan stays 'auto' — those numbers are a seed
+        // and the estimator should take over once it has data. Only a number
+        // the user actually typed becomes theirs to keep.
+        targetMode: edited ? 'custom' : 'auto',
       });
       // Only on a first run: a redo is a target change by an existing user,
       // and counting it would inflate the one funnel step this exists to answer.
@@ -234,18 +266,45 @@ export default function Onboarding() {
               <Text style={styles.question}>{t('onboarding.planQ')}</Text>
               <View style={styles.planPanel} testID="onboarding-preview">
                 <View style={styles.planRow}>
-                  <View style={styles.planStat}>
-                    <CountUpText value={kcal ?? 0} style={styles.planValue} />
-                    <Text style={styles.planLabel}>{t('onboarding.calories')}</Text>
-                  </View>
+                  <PlanStat
+                    editing={editing === 'kcal'}
+                    value={kcal}
+                    draft={kcalDraft ?? ''}
+                    onChangeDraft={setKcalDraft}
+                    onOpen={() => openEditor('kcal')}
+                    onBlur={() => setEditing(null)}
+                    label={t('onboarding.calories')}
+                    styles={styles}
+                    colors={colors}
+                    testID="onboarding-kcal"
+                  />
                   <View style={styles.planDivider} />
-                  <View style={styles.planStat}>
-                    <CountUpText value={protein ?? 0} suffix="g" style={styles.planValue} />
-                    <Text style={styles.planLabel}>{t('onboarding.protein')}</Text>
-                  </View>
+                  <PlanStat
+                    editing={editing === 'protein'}
+                    value={protein}
+                    suffix="g"
+                    draft={proteinDraft ?? ''}
+                    onChangeDraft={setProteinDraft}
+                    onOpen={() => openEditor('protein')}
+                    onBlur={() => setEditing(null)}
+                    label={t('onboarding.protein')}
+                    styles={styles}
+                    colors={colors}
+                    testID="onboarding-protein"
+                  />
                 </View>
               </View>
-              <Text style={styles.planSub}>{t('onboarding.planSub')}</Text>
+              {/* The affordance has to be SAID. A tappable number that looks
+                  like a readout is a feature nobody finds — which is how this
+                  screen shipped for months with the plumbing already in it. */}
+              <Text style={styles.planSub}>
+                {t('onboarding.planSub')} {t('targets.editHint')}
+              </Text>
+              {edited && !kcalCheck.ok && kcalCheck.issue?.kind === 'belowFloor' ? (
+                <Text style={styles.error} testID="onboarding-kcal-error">
+                  {t('targets.errBelowFloor', { n: kcalCheck.issue.floor })}
+                </Text>
+              ) : null}
             </View>
           ) : null}
 
@@ -278,6 +337,77 @@ export default function Onboarding() {
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+/**
+ * One number on the plan panel: a big count-up that becomes a text field when
+ * tapped.
+ *
+ * It stays inside the hero panel rather than opening a sheet, because the
+ * thing being edited is the thing on screen — a modal here would hide the
+ * other number and the goal it belongs to. `selectTextOnFocus` means the first
+ * keystroke replaces the suggestion rather than appending to it, which is what
+ * someone who already knows their number expects.
+ */
+function PlanStat({
+  editing,
+  value,
+  suffix,
+  draft,
+  onChangeDraft,
+  onOpen,
+  onBlur,
+  label,
+  styles,
+  colors,
+  testID,
+}: {
+  editing: boolean;
+  value: number | null;
+  suffix?: string;
+  draft: string;
+  onChangeDraft: (v: string) => void;
+  onOpen: () => void;
+  onBlur: () => void;
+  label: string;
+  styles: ReturnType<typeof createStyles>;
+  colors: Theme['colors'];
+  testID: string;
+}) {
+  return (
+    <View style={styles.planStat}>
+      {editing ? (
+        <TextInput
+          style={styles.planInput}
+          value={draft}
+          onChangeText={onChangeDraft}
+          onBlur={onBlur}
+          keyboardType="number-pad"
+          autoFocus
+          selectTextOnFocus
+          returnKeyType="done"
+          onSubmitEditing={onBlur}
+          accessibilityLabel={label}
+          testID={`${testID}-input`}
+        />
+      ) : (
+        <PressScale
+          scaleTo={0.96}
+          onPress={onOpen}
+          accessibilityRole="button"
+          accessibilityLabel={label}
+          accessibilityHint={undefined}
+          testID={testID}
+        >
+          <View style={styles.planValueRow}>
+            <CountUpText value={value ?? 0} suffix={suffix} style={styles.planValue} />
+            <Ionicons name="pencil" size={14} color={colors.heroMuted} style={styles.planPencil} />
+          </View>
+        </PressScale>
+      )}
+      <Text style={styles.planLabel}>{label}</Text>
+    </View>
   );
 }
 
@@ -365,6 +495,18 @@ const createStyles = ({ colors, shadow }: Theme) =>
     planRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
     planStat: { flex: 1, alignItems: 'center', gap: space.xs },
     planValue: { fontFamily: type.display, fontSize: 44, color: colors.heroText },
+    planValueRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+    planPencil: { opacity: 0.7 },
+    planInput: {
+      fontFamily: type.display,
+      fontSize: 44,
+      color: colors.heroText,
+      textAlign: 'center',
+      minWidth: 120,
+      borderBottomWidth: 2,
+      borderBottomColor: colors.heroTrack,
+      paddingVertical: 0,
+    },
     planLabel: { fontSize: font.body, color: colors.heroMuted },
     planDivider: { width: 1, alignSelf: 'stretch', backgroundColor: colors.heroTrack, marginVertical: space.sm },
     planSub: { fontSize: font.body, color: colors.muted, textAlign: 'center', paddingHorizontal: space.md },

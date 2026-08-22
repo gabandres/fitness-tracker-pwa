@@ -28,6 +28,7 @@ import {
   type Measurement,
   type MealPreset,
   type OnboardingV2Submission,
+  type TargetMode,
   type Profile,
   type RefineTargetsSubmission,
   type UnitSystem,
@@ -695,11 +696,37 @@ export async function saveRefinedTargets(uid: string, s: RefineTargetsSubmission
       ? {}
       : { activityMultiplier: s.activityMultiplier === null ? deleteField() : s.activityMultiplier }),
     targetPaceLbsPerWeek: clampCutPace(s.targetPaceLbsPerWeek),
-    manualCaloriesTarget: deleteField(),
-    manualProteinTarget: deleteField(),
+    // Refining is a request to be AUTOMATIC, so it sets the mode — it no
+    // longer DELETES the manual numbers to get there. Deleting was the only
+    // way to hand control back when presence-of-a-value was the mode, and it
+    // threw away a number the user may have chosen on purpose: the one-way
+    // door out of custom targets, with no route back except re-running
+    // onboarding. The values now survive an automatic spell and return intact
+    // when the user switches back (`Profile.targetMode`, packages/core).
+    targetMode: 'auto',
     targetsRefinedAt: now,
     lastSeenAt: now,
   });
+}
+
+/** Switch between estimator-driven and user-typed targets, and store the
+ *  numbers. Per-field: pass `null` for a value to hand THAT number back to
+ *  the estimator while leaving the other one custom. Writing a value while
+ *  `mode` is `'auto'` is legal and inert — it is how the editor keeps a
+ *  number the user may want back without acting on it. */
+export async function saveTargetMode(
+  uid: string,
+  mode: TargetMode,
+  targets: { calories?: number | null; protein?: number | null } = {},
+): Promise<void> {
+  const patch: Record<string, unknown> = { targetMode: mode, lastSeenAt: Timestamp.now() };
+  if (targets.calories !== undefined) {
+    patch['manualCaloriesTarget'] = targets.calories == null ? deleteField() : targets.calories;
+  }
+  if (targets.protein !== undefined) {
+    patch['manualProteinTarget'] = targets.protein == null ? deleteField() : targets.protein;
+  }
+  await updateDoc(userDoc(uid), patch);
 }
 
 /** Append `hiddenRecentLabels` to the profile. Mirrors the PWA's
