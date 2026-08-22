@@ -803,3 +803,126 @@ See the `build-android` skill for the OTA-vs-build decision that comes first.
 
 
 ---
+
+## 4. Owner runbook — move `bermudezsystems.com` mail into the `bermudezpr.com` Microsoft 365 tenant
+
+Replaces the Northwest "Business Identity" free mail suite with a real
+Exchange mailbox, and retires forwarding-to-Gmail as a mechanism. **Cost $0** —
+the tenant already exists, holds multiple domains, and an unlicensed shared
+mailbox is free up to 50 GB. The address `gabriel@bermudezsystems.com` does not
+change; only where its mail lands.
+
+### 4.0 Measured starting state (2026-08-22, public DNS)
+
+| Domain | Nameservers | MX | Notes |
+|---|---|---|---|
+| `bermudezsystems.com` | `ns1/ns2.hosting.businessidentity.llc` (Northwest) | `10 mailserver.businessidentity.llc`, **TTL 60** | site `A 199.36.158.100`, `hosting-site=` and `google-site-verification=` TXT, SPF `v=spf1 a mx include:spf.postal.businessidentity.llc ~all`, **DMARC `p=quarantine`** |
+| `bermudezpr.com` | `ns1-4.bdm.microsoftonline.com` (**Microsoft-managed**) | `0 bermudezpr-com.mail.protection.outlook.com` | the live tenant; SPF `include:spf.protection.outlook.com -all`, `autodiscover` CNAME present, **no DMARC** |
+
+TTL on every record that changes is **60 seconds**, so both the cutover and the
+rollback are ~1 minute. There is no multi-hour window to schedule around.
+
+### 4.1 The record changes
+
+Change only these three; **everything else at Northwest stays exactly as it is.**
+
+| Record | From | To |
+|---|---|---|
+| `MX @` | `10 mailserver.businessidentity.llc` | `0 bermudezsystems-com.mail.protection.outlook.com` |
+| `TXT @` (SPF) | `v=spf1 a mx include:spf.postal.businessidentity.llc ~all` | `v=spf1 include:spf.protection.outlook.com -all` |
+| `CNAME autodiscover` | *(none)* | `autodiscover.outlook.com` |
+
+Add, then delete after verification: `TXT @` = `MS=ms……` (the wizard prints it).
+Add for DKIM: `CNAME selector1._domainkey` and `selector2._domainkey` →
+the two `…-bermudezsystems-com._domainkey.<tenant>.onmicrosoft.com` targets the
+admin center prints. **Copy those from the wizard, never from a guide.**
+
+**Do NOT touch:** the `A @` record (the site — Apple's org-website
+precondition), `TXT google-site-verification=1EYLbXKH66lt…` (the Play org
+account's website verification rides on it — deleting it un-verifies the
+developer account), or `TXT hosting-site=gabrielbermudez`.
+
+### 4.2 Order of operations
+
+1. **Read the backlog first.** Northwest webmail
+   (`accounts.northwestregisteredagent.com` → Services → Email) holds mail that
+   exists nowhere else — the first real in-app feedback was found sitting
+   there. It stays readable after the cutover, but do not delete the mailbox
+   until it is empty of anything wanted. Do **not** try to forward the backlog
+   out: the free suite caps sends at **5/day**.
+2. **M365 admin center** (`admin.microsoft.com`) → **Settings → Domains →
+   Add domain** → `bermudezsystems.com`. **Sign in as `andres@bermudezpr.com`,
+   NOT `gabriel@bermudezpr.com`** — measured 2026-08-22, the tenant has exactly
+   **one** Global Administrator and it is `andres@`. `gabriel@` is a lesser
+   admin, and the console does not explain itself: the **Add domain** button is
+   simply absent and Billing collapses to *Licenses* only, which reads like a
+   plan limitation rather than a permission. The role panel states it outright
+   — *"Only Global admins can … Add and manage domains"*. While signed in as
+   `andres@`, consider granting `gabriel@` **Domain Name Administrator** (least
+   privilege for exactly this) so the next DNS change does not need the other
+   account. **A tenant with one Global Admin is its own risk** — Microsoft
+   recommends 2–4; if `andres@` is locked out, nobody can administer it.
+3. Verification: choose **"Add a TXT record instead"**, copy the `MS=ms……`
+   value, add it as a `TXT @` at Northwest, then **Verify**.
+4. When asked how to connect: **"More options → Add your own DNS records"**.
+   **Never let the wizard take over the nameservers** — the site and the GSC TXT
+   live at Northwest and would go with them.
+5. Tick **Exchange / Exchange Online Protection only**. Skip the Teams/Skype
+   and Intune/MDM records; nothing here uses them.
+6. Apply the three changes in §4.1 at Northwest, then **Continue** so the
+   wizard re-checks.
+7. **Create the mailbox** → **Teams & groups → Shared mailboxes → Add a shared
+   mailbox**, name `Bermudez Systems LLC`, address
+   `gabriel@bermudezsystems.com`. Add `gabriel@bermudezpr.com` as a member with
+   **Read and manage** *and* **Send as**. It appears as its own folder tree in
+   the existing Outlook within ~15 min — no second license, no second login.
+   *(Alternative: add the address as an alias on the `bermudezpr.com` user —
+   also free, but LLC mail then lands mixed into the personal-business inbox.)*
+8. **Turn the Northwest email service OFF for this domain.** Northwest hosts
+   both the DNS and the mail, and suites like it often deliver locally for
+   domains they host regardless of the published MX. If a test message still
+   lands in Northwest webmail after the MX change, this step is why.
+9. **DKIM**: `security.microsoft.com` → Email & collaboration → Policies &
+   rules → Threat policies → **DKIM** → select the domain → the two CNAME
+   targets → add at Northwest → **Enable**.
+
+### 4.3 The trap that bites if steps are split across days
+
+`bermudezsystems.com` publishes **DMARC `p=quarantine`** today. The moment MX
+points at Microsoft while SPF still names Northwest, mail *sent* from the new
+mailbox fails SPF against a quarantine policy — it does not bounce, it lands in
+recipients' spam, silently. **Change MX and SPF in the same sitting, and do
+DKIM before relying on the address with Apple or Google.** Also: only **one**
+SPF TXT record may exist per domain — replace the Northwest one, never add a
+second.
+
+The DMARC record's `rua`/`ruf` point at `dmarc.businessidentity.llc`. Harmless
+to leave; repoint to a mailbox actually read if aggregate reports are wanted.
+
+### 4.4 Verify — and do not accept "it is configured" as evidence
+
+```sh
+Resolve-DnsName -Server 8.8.8.8 -Type MX  bermudezsystems.com
+Resolve-DnsName -Server 8.8.8.8 -Type TXT bermudezsystems.com
+```
+
+Then send a real message **from the personal Gmail to
+`gabriel@bermudezsystems.com`** and watch it arrive in Outlook; reply from the
+shared mailbox and open *Show original* in Gmail — expect `spf=pass`,
+`dkim=pass`, `dmarc=pass`. This is the check the previous arrangement never
+got: the forward was recorded as "owner to configure", was never configured,
+and delivery looked fine the whole time.
+
+### 4.5 What this does and does not change
+
+- The Play **org developer account login** is the Google account on this
+  address. A shared mailbox has no password and cannot be signed into — that is
+  fine, the Google account is unaffected; its recovery and verification mail
+  simply arrives in Outlook instead of Northwest webmail.
+- It does **not** address the real risk: the **domain's auto-renew is OFF** and
+  the free Northwest year lapses **~July 2027**, taking the developer-account
+  login, Apple's org-website precondition and the GSC TXT with it. Mail hosting
+  moving to Microsoft does not renew the registration. See `STATUS.md` §
+  `bermudezsystems.com` items ① and ②, which outrank this one.
+- Optional afterwards: `MACROLOG_FEEDBACK_TO` (`functions/src/feedback-notify.ts`)
+  can point back at the LLC address once a test has been watched to arrive.
