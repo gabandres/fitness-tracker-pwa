@@ -1,0 +1,110 @@
+# Body weight in kilograms — UX_AUDIT F3.
+#
+# Body weight was pounds-only everywhere, with no way to change it: the units
+# setting existed but was called *Portion display* and reached food serving
+# sizes only. Typing 68 (kg) at onboarding produced a plan for a 68 lb person.
+#
+# **This flow FLIPS ACCOUNT STATE and restores it in its own tail**, the same
+# contract 09-locale-es and 10-theme-dark keep. A mid-flow death leaves the
+# sandbox metric, which will read as a units regression in every later flow —
+# if that happens, set it back in Settings before re-running the suite.
+#
+# What a screenshot cannot check is the half that matters most: that the STORE
+# is still pounds. That is pinned in `packages/core/src/body-weight-units.test.ts`
+# and in `weigh-in-sheet.test.tsx`. This flow pins the wiring — that the
+# setting reaches body weight at all, which is precisely what it did not do.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    notVisible:
+      id: 'brand-loader'
+    timeout: 15000
+
+# ── Baseline: pounds on the Body hero ──
+- tapOn: 'Body'
+- extendedWaitUntil:
+    visible:
+      id: 'body-hero'
+    timeout: 15000
+- assertVisible: 'lb'
+- takeScreenshot: .maestro/regression/shots/20-units-lb
+
+# ── Switch to metric ──
+- tapOn:
+    id: 'settings-open'
+- extendedWaitUntil:
+    visible: 'Settings'
+    timeout: 15000
+# `centerElement` for the same reason 10-theme-dark needs it: without it the
+# target can land under the tab bar and the tap goes to a tab instead.
+- scrollUntilVisible:
+    element:
+      id: 'settings-unit-metric'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+# The row's own label, renamed from "Portion display" because it stopped being
+# true — it governs body weight now and the sub-line says so.
+- assertVisible: 'Units'
+- assertVisible: 'Serving sizes and body weight'
+- tapOn:
+    id: 'settings-unit-metric'
+- takeScreenshot: .maestro/regression/shots/20-units-setting
+- extendedWaitUntil:
+    visible:
+      id: 'settings-back'
+    timeout: 15000
+- tapOn:
+    id: 'settings-back'
+
+# ── The same hero, now in kilograms ──
+- tapOn: 'Body'
+- extendedWaitUntil:
+    visible:
+      id: 'body-hero'
+    timeout: 15000
+# `kg` only — deliberately NOT `assertNotVisible: 'lb'`. Maestro matches text
+# as a substring, so `lb` would hit any word containing those letters and the
+# assertion would fail for a reason that has nothing to do with units. The
+# screenshot is the evidence that the pounds are gone.
+- assertVisible: 'kg'
+- takeScreenshot: .maestro/regression/shots/20-units-kg
+
+# The weigh-in sheet: the field, its unit and its note all follow.
+- tapOn:
+    id: 'log-weight'
+- extendedWaitUntil:
+    visible:
+      id: 'weight-input'
+    timeout: 15000
+- assertVisible:
+    id: 'weight-note'
+- takeScreenshot: .maestro/regression/shots/20-units-sheet
+# Backdrop tap, not `back` — see 19-glossary for why.
+- tapOn:
+    point: '50%,8%'
+
+# ── Restore. The suite after this one assumes pounds. ──
+- tapOn:
+    id: 'settings-open'
+- extendedWaitUntil:
+    visible: 'Settings'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: 'settings-unit-us'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- tapOn:
+    id: 'settings-unit-us'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-back'
+    timeout: 15000
+- tapOn:
+    id: 'settings-back'
+- tapOn: 'Today'
+- assertVisible: 'Today'

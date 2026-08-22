@@ -1,0 +1,82 @@
+# The "?" glossaries — UX_AUDIT F6.
+#
+# Today leads with `0 / 2,323 kcal` over `maintenance 2,723`; Trends leads with
+# a MEASURED badge and a completeness percentage. None of those words was
+# defined anywhere in the app until F6 put the Train tab's "?" on both screens.
+#
+# What this flow is really pinning is the WIRING, in the one place a unit test
+# cannot see it: that both headers actually carry the button, that it opens the
+# sheet, and that the sheet is scrollable to its last term rather than clipped
+# at the panel's ceiling — `Glossary` caps its inner ScrollView at 460 for
+# exactly that reason and the cap is a guess until something looks.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    notVisible:
+      id: 'brand-loader'
+    timeout: 15000
+
+# ── Today ──
+- tapOn:
+    id: 'today-glossary-open'
+- extendedWaitUntil:
+    visible:
+      id: 'numbers-glossary-title'
+    timeout: 10000
+# The two words the finding named. "kcal" is the one that appears in 20+
+# strings where most people would read "calories".
+- assertVisible: 'kcal'
+- assertVisible: 'Maintenance'
+- takeScreenshot: .maestro/regression/shots/19-glossary-today
+
+# The Trends half lives below the fold — scroll INSIDE the sheet. If the cap is
+# wrong this is where it shows: the last terms become unreachable rather than
+# merely off-screen.
+- scrollUntilVisible:
+    element:
+      text: 'Logging completeness'
+    direction: DOWN
+    timeout: 15000
+- assertVisible: 'Weight trend'
+- takeScreenshot: .maestro/regression/shots/19-glossary-scrolled
+# Dismiss by tapping the BACKDROP, not `back`. iOS has no hardware back, and
+# Maestro's `back` there is an edge swipe, which a modal bottom sheet does not
+# answer. A point high on the screen is backdrop on every one of these sheets.
+- tapOn:
+    point: '50%,8%'
+
+# ── Trends: same affordance, same sheet ──
+- tapOn: 'Trends'
+- extendedWaitUntil:
+    visible:
+      id: 'trends-glossary-open'
+    timeout: 15000
+- tapOn:
+    id: 'trends-glossary-open'
+- extendedWaitUntil:
+    visible:
+      id: 'numbers-glossary-title'
+    timeout: 10000
+- takeScreenshot: .maestro/regression/shots/19-glossary-trends
+- tapOn:
+    point: '50%,8%'
+
+# ── Train keeps its own, unchanged by the generalisation ──
+- tapOn: 'Train'
+- extendedWaitUntil:
+    visible:
+      id: 'train-glossary-open'
+    timeout: 15000
+- tapOn:
+    id: 'train-glossary-open'
+- extendedWaitUntil:
+    visible:
+      id: 'train-glossary-title'
+    timeout: 10000
+- takeScreenshot: .maestro/regression/shots/19-glossary-train
+- tapOn:
+    point: '50%,8%'
+- tapOn: 'Today'
+- assertVisible: 'Today'

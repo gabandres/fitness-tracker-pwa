@@ -36,3 +36,7 @@ executionOrder:
     - 16-train-terms
     # 17-coach-ask is tagged `manual` and excluded — it spends real AI money.
     - 18-train-template
+    - 19-glossary
+    # 20 flips the account to metric and restores it in its own tail — keep it
+    # LAST, so a mid-flow death cannot leave every later flow reading kilograms.
+    - 20-units-metric
