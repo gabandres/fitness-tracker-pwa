@@ -6,6 +6,27 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-22 — water takes the amount you actually drank
+
+The feedback box shipped this morning. Ten hours later it produced its first
+real report, in Spanish, from someone who had never messaged us before:
+
+> *"solo se pueden anotar las opciones q estan puestas ahy no hay un opcion
+> customizada cmo poner 5oz"*
+
+He was right. The +8 / +16 / +24 buttons cover the common glass and nothing
+else. Tap the water number now and you get a field: type 5, see **0 → 5 fl oz**,
+save. The buttons stay where they were for the common case, and a small *Set
+total* link handles the rarer job of correcting a wrong total rather than adding
+to it.
+
+Fixed along the way: on phones with a software navigation bar, the bottom of
+every sheet sat underneath it — the Save button was clipped and would miss taps
+near its lower edge. That affected the sleep sheet too, and had since it was
+written.
+
+---
+
 ## 2026-08-22 — three things a user asked for, and one of them was two bugs
 
 All three came from one person writing in over chat, in Spanish, against the
