@@ -16,7 +16,8 @@ import * as haptics from '@/lib/haptics';
 import Reanimated from 'react-native-reanimated';
 import { PressScale } from '@/lib/motion';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
-import { useKeyboardSheetPadding, useKeyboardSheetStyle } from '@/lib/use-keyboard-sheet-style';
+import { useKeyboardSheetPadding } from '@/lib/use-keyboard-sheet-style';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
@@ -241,7 +242,6 @@ function WaterModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const keyboardStyle = useKeyboardSheetStyle();
   const sheetPadding = useKeyboardSheetPadding(space.xxl);
   const inputRef = useDeferredFocus(visible);
   const [mode, setMode] = useState<'add' | 'set'>('add');
@@ -272,9 +272,18 @@ function WaterModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheetWrap}>
-        <Reanimated.View style={keyboardStyle}>
-          <Reanimated.View style={[styles.sheet, sheetPadding]}>
+      {/* The sheet is lifted by the LIBRARY, not by hand.
+          A hand-rolled `translateY: -keyboardHeight` lands correctly on
+          Android and floats above the keypad on iOS, because RN's `Modal`
+          presents in its own window there and a view cannot infer its true
+          on-screen position from the main one. Measured on a real iPhone:
+          with the old downward nudge the sheet sat ~36pt above the keyboard,
+          and without it ~58pt — both wrong, in the same direction, which is
+          what says the mechanism is wrong rather than the constant.
+          `automaticOffset` is the library's answer to exactly this; its
+          contract names modals. */}
+      <KeyboardAvoidingView behavior="padding" automaticOffset style={styles.sheetWrap}>
+        <Reanimated.View style={[styles.sheet, sheetPadding]}>
             <View style={styles.handle} />
             {/* The mode switch lives in the TITLE ROW and not under Save,
                 because the keyboard opens with the sheet: anything below the
@@ -332,9 +341,8 @@ function WaterModal({
             >
               <Text style={styles.saveText}>{t('common.save')}</Text>
             </TouchableOpacity>
-          </Reanimated.View>
         </Reanimated.View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -353,7 +361,6 @@ function SleepModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const keyboardStyle = useKeyboardSheetStyle();
   const sheetPadding = useKeyboardSheetPadding(space.xxl);
   const inputRef = useDeferredFocus(visible);
   const [value, setValue] = useState('');
@@ -368,8 +375,17 @@ function SleepModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheetWrap}>
-        <Reanimated.View style={keyboardStyle}>
+      {/* The sheet is lifted by the LIBRARY, not by hand.
+          A hand-rolled `translateY: -keyboardHeight` lands correctly on
+          Android and floats above the keypad on iOS, because RN's `Modal`
+          presents in its own window there and a view cannot infer its true
+          on-screen position from the main one. Measured on a real iPhone:
+          with the old downward nudge the sheet sat ~36pt above the keyboard,
+          and without it ~58pt — both wrong, in the same direction, which is
+          what says the mechanism is wrong rather than the constant.
+          `automaticOffset` is the library's answer to exactly this; its
+          contract names modals. */}
+      <KeyboardAvoidingView behavior="padding" automaticOffset style={styles.sheetWrap}>
         <Reanimated.View style={[styles.sheet, sheetPadding]}>
           <View style={styles.handle} />
           <Text style={styles.sheetTitle}>{t('metrics.hoursSlept')}</Text>
@@ -395,8 +411,7 @@ function SleepModal({
             <Text style={styles.saveText}>{t('common.save')}</Text>
           </TouchableOpacity>
         </Reanimated.View>
-        </Reanimated.View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
