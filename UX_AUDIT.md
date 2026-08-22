@@ -421,8 +421,21 @@ arrived. They stand on their own merits — F1 in particular is a correctness
 defect, not a comprehension one — but **F0 is the thing she actually asked
 for.**
 
-- [ ] **F0 · There is no tutorial, no guided tour, and no first-run
-      orientation of any kind. This is the actual user request.** After the
+- [x] **F0 · There is no tutorial, no guided tour, and no first-run
+      orientation of any kind. SHIPPED 2026-08-22 — Android OTA numbers 12–15
+      and iOS OTA number 7, device-verified on Android end to end.** Six cards
+      at `apps/mobile/src/app/tour.tsx`: the whole map first, what Today's
+      numbers mean, the three ways to log a meal, weighing in, whose numbers
+      these are, and a close that states what is reversible. Auto-opens once
+      per device for anyone with a completed profile — deliberately NOT
+      first-run-only, because a first-run gate reaches every future user and
+      misses the one who asked, who already has an account. Skip marks it seen;
+      replayable from Settings → How Ignia works. The auto-open decision is
+      pure (`shouldAutoOpenTour`) and pinned by 11 cases. **The device rejected
+      the first publish three ways that `jest` passed** — the map card's fifth
+      row sat under the CTA, "Skip" cropped to "Skin", and the footer collided
+      with the tab bar and the + button; the tour is a root route now. Original
+      state, for the record: after the
       onboarding form saves, the user is dropped straight onto Today with a
       hero panel reading `0 / 2,323 kcal`, `maintenance 2,723`, a Fasting /
       Water / Sleep card, and a + button. Nothing names the tabs, nothing says
