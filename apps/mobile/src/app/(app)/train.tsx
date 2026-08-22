@@ -23,6 +23,13 @@ import type {
 } from '@/lib/workout';
 import { DEFAULT_LOG_STYLE, isLoggedSet } from '@/lib/workout';
 import {
+  type UnitSystem,
+  barFor,
+  formatLoad,
+  loadUnit,
+  parseLoadToLb,
+  platesFor,
+  toDisplayLoad,
   bodyWeightUnit,
   parseWeightToLb,
   type SeedTemplate,
@@ -151,6 +158,7 @@ function StartView({
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
+  const unitSystem = useUnitSystem();
   // null = closed; a template = edit it; {} = create new.
   const [editing, setEditing] = useState<WorkoutTemplate | Record<string, never> | null>(null);
   const [detailEx, setDetailEx] = useState<Exercise | null>(null);
@@ -181,12 +189,12 @@ function StartView({
           <View style={styles.heroChips}>
             {stats.volume > 0 ? (
               <Text style={styles.trendChip}>
-                {t('train.weekVolume')}  <Text style={styles.trendChipValue}>{stats.volume.toLocaleString()} lb</Text>
+                {t('train.weekVolume')}  <Text style={styles.trendChipValue}>{formatLoad(stats.volume, unitSystem, 0)}</Text>
               </Text>
             ) : null}
             {stats.topSet > 0 ? (
               <Text style={styles.trendChip}>
-                {t('train.topSet')}  <Text style={styles.trendChipValue}>{stats.topSet.toLocaleString()} lb</Text>
+                {t('train.topSet')}  <Text style={styles.trendChipValue}>{formatLoad(stats.topSet, unitSystem, 0)}</Text>
               </Text>
             ) : null}
           </View>
@@ -263,7 +271,7 @@ function StartView({
                 </Text>
                 <Text style={styles.histSub}>{sessionSummary(s, t)}</Text>
               </View>
-              {sessionVolume(s) > 0 ? <Text style={styles.histVol}>{sessionVolume(s).toLocaleString()} lb</Text> : null}
+              {sessionVolume(s) > 0 ? <Text style={styles.histVol}>{formatLoad(sessionVolume(s), unitSystem, 0)}</Text> : null}
             </Pressable>
           ))}
         </View>
@@ -399,8 +407,8 @@ function StarterTemplatesModal({
 // ─── Per-exercise history + e1RM ────────────────────────────────
 /** Working-set summary line for one logged exercise, by logStyle. The cells
  *  come from core; the separator is this app's spacing. */
-function setLine(ex: SessionExercise, style: LogStyle): string {
-  return workingSetCells(ex, style).join('   ');
+function setLine(ex: SessionExercise, style: LogStyle, unitSystem: UnitSystem): string {
+  return workingSetCells(ex, style, unitSystem).join('   ');
 }
 
 function ExerciseDetailModal({
@@ -417,6 +425,7 @@ function ExerciseDetailModal({
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
+  const unitSystem = useUnitSystem();
   const { colors } = useTheme();
   const [mode, setMode] = useState<'view' | 'edit' | 'merge'>('view');
   const [confirmDel, setConfirmDel] = useState(false);
@@ -552,8 +561,8 @@ function ExerciseDetailModal({
                     <View style={styles.prRow}>
                       {style === 'weight-reps' ? (
                         <>
-                          <PrCard label={t('train.prWeight')} value={`${prs.maxWeight} lb`} />
-                          <PrCard label={t('train.prE1rm')} value={`${Math.round(prs.bestE1RM)} lb`} hint={t('train.e1rmHint')} />
+                          <PrCard label={t('train.prWeight')} value={formatLoad(prs.maxWeight, unitSystem, 0)} />
+                          <PrCard label={t('train.prE1rm')} value={formatLoad(Math.round(prs.bestE1RM), unitSystem, 0)} hint={t('train.e1rmHint')} />
                         </>
                       ) : null}
                       {style === 'bodyweight' ? <PrCard label={t('train.prReps')} value={`${prs.maxReps}`} /> : null}
@@ -575,7 +584,7 @@ function ExerciseDetailModal({
                         <Text style={styles.detailDate}>
                           {formatDate(r.date, locale, { month: 'short', day: 'numeric' })}
                         </Text>
-                        <Text style={styles.detailSets}>{setLine(r.ex, style)}</Text>
+                        <Text style={styles.detailSets}>{setLine(r.ex, style, unitSystem)}</Text>
                       </View>
                     ))}
                   </>
@@ -806,6 +815,7 @@ function ExerciseCard({
 }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
+  const unitSystem = useUnitSystem();
   const { colors } = useTheme();
   const ex = train.active!.exercises[exerciseIndex];
   const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
@@ -833,7 +843,14 @@ function ExerciseCard({
   // snapshotted target load. Barbell-only (weight-reps).
   const keyWeight = ex.sets.find((s) => (s.weight ?? 0) > 0)?.weight ?? ex.targetLoad;
   const showPanel = style === 'weight-reps';
-  const load = panelOpen && keyWeight && keyWeight > 0 ? computePlateLoad(keyWeight) : null;
+  // Solved in the DISPLAY unit with that unit's own bar and plates — a metric
+  // gym's bar is 20 kg and its smallest plate is 1.25 kg, and converting a
+  // pound solve afterwards yields 20.4 kg plates nobody owns. See
+  // `load-units.ts` for why this module exists separately from body weight.
+  const load =
+    panelOpen && keyWeight && keyWeight > 0
+      ? computePlateLoad(toDisplayLoad(keyWeight, unitSystem), barFor(unitSystem), platesFor(unitSystem))
+      : null;
   const warm = panelOpen && keyWeight && keyWeight > 0 ? generateWarmup(keyWeight) : [];
 
   return (
@@ -879,7 +896,9 @@ function ExerciseCard({
               }}
               testID={`bump-${exerciseIndex}`}
             >
-              <Text style={styles.bumpText}>{t('train.bumpTo', { weight: bumpTo })}</Text>
+              <Text style={styles.bumpText}>
+                {t('train.bumpTo', { weight: formatLoad(bumpTo, unitSystem) })}
+              </Text>
             </TouchableOpacity>
           ) : null}
 
@@ -887,7 +906,8 @@ function ExerciseCard({
           cluster takes one set number with lettered sub-sets (2a/2b/2c). */}
       <View style={styles.setHeadRow}>
         <Text style={[styles.setHeadCell, styles.setNumCell]}>#</Text>
-        {style === 'weight-reps' ? <Text style={[styles.setHeadCell, styles.setInputCell]}>{t('train.lb')}</Text> : null}
+        {/* The column header IS the unit, so it stops being a fixed string. */}
+        {style === 'weight-reps' ? <Text style={[styles.setHeadCell, styles.setInputCell]}>{loadUnit(unitSystem)}</Text> : null}
         {style === 'time' ? (
           <Text style={[styles.setHeadCell, styles.setInputCell]}>{t('train.sec')}</Text>
         ) : (
@@ -934,7 +954,7 @@ function ExerciseCard({
             <View style={styles.panel} testID={`plates-panel-${exerciseIndex}`}>
               {keyWeight && keyWeight > 0 ? (
                 <>
-                  <Text style={styles.panelLabel}>{`${t('train.workingSet')} · ${keyWeight} lb`}</Text>
+                  <Text style={styles.panelLabel}>{`${t('train.workingSet')} · ${formatLoad(keyWeight, unitSystem)}`}</Text>
                   <Text style={styles.plateText}>
                     {load && load.perSide.length
                       ? `${load.perSide.map((p) => `${p.plate}×${p.count}`).join('   ')}  ${t('train.perSidePlates')}`
@@ -995,10 +1015,17 @@ function SetRow({
   label: string;
   onDone?: (kind: WorkoutSet['kind']) => void;
 }) {
+  const unitSystem = useUnitSystem();
   // Local string buffers so partial decimal input binds cleanly; the parsed
   // value is pushed into the session state via a deferred dispatch, persisted
   // on blur.
-  const [weight, setWeight] = useState(set.weight != null ? String(set.weight) : '');
+  //
+  // The BUFFER is in the training unit and the dispatch is in POUNDS — the one
+  // conversion, at the one boundary. Everything downstream (volume, e1RM,
+  // progression) keeps working on a single scale (UX_AUDIT F3).
+  const [weight, setWeight] = useState(
+    set.weight != null ? String(toDisplayLoad(set.weight, unitSystem)) : '',
+  );
   const [count, setCount] = useState(
     logStyle === 'time'
       ? set.durationSec != null ? String(set.durationSec) : ''
@@ -1039,7 +1066,12 @@ function SetRow({
           onChangeText={(t) => {
             setWeight(t);
             train.dispatch(
-              { type: 'patchSet', exerciseIndex, setIndex, patch: { weight: numOrUndef(t) } },
+              {
+                type: 'patchSet',
+                exerciseIndex,
+                setIndex,
+                patch: { weight: parseLoadToLb(t, unitSystem) ?? undefined },
+              },
               { defer: true },
             );
           }}

@@ -11,7 +11,15 @@ import {
 import Animated, { FadeIn, FadeOut, useAnimatedRef } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Sortable from 'react-native-sortables';
-import { normalizeClusterGroups, setRowLabels } from '@macrolog/core';
+import {
+  type UnitSystem,
+  defaultIncrement as defaultIncrementLb,
+  loadUnit,
+  normalizeClusterGroups,
+  parseLoadToLb,
+  setRowLabels,
+  toDisplayLoad,
+} from '@macrolog/core';
 import type {
   Exercise,
   LogStyle,
@@ -31,6 +39,7 @@ import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { space } from '@/theme';
 import { LOG_STYLES, SET_KINDS, kindLabelKey, logStyleKey, numOrUndef } from './train-shared';
 import { BottomSheet } from '@/components/BottomSheet';
+import { useUnitSystem } from '@/lib/use-unit-system';
 import { createStyles } from './train-styles';
 
 /**
@@ -61,10 +70,13 @@ interface DraftSet extends PlannedSet {
 
 const numText = (n: number | undefined): string => (n != null ? String(n) : '');
 
-function toDraftSet(ps: PlannedSet): DraftSet {
+function toDraftSet(ps: PlannedSet, unitSystem: UnitSystem = 'us'): DraftSet {
   return {
     ...ps,
-    weightText: numText(ps.weight),
+    // Stored pounds out, training unit in. The default keeps the one call
+    // site that has no profile (`newDraftSet`, an empty row) on pounds, which
+    // is inert because the buffer it produces is empty anyway.
+    weightText: ps.weight != null ? String(toDisplayLoad(ps.weight, unitSystem)) : '',
     repsText: numText(ps.reps),
     durationText: numText(ps.durationSec),
   };
@@ -73,11 +85,13 @@ function toDraftSet(ps: PlannedSet): DraftSet {
 /** Strip the buffers and parse them back onto the stored shape. Anything the
  *  editor never showed (`repsMax`) is carried through untouched — a field the
  *  editor cannot see must not be a field the next save deletes. */
-function toPlannedSet(d: DraftSet): PlannedSet {
+function toPlannedSet(d: DraftSet, unitSystem: UnitSystem): PlannedSet {
   const { weightText, repsText, durationText, ...ps } = d;
   return {
     ...ps,
-    weight: numOrUndef(weightText),
+    // The draft buffer is in the TRAINING unit; the stored set is pounds
+    // (UX_AUDIT F3). One conversion, here, at the one boundary.
+    weight: parseLoadToLb(weightText, unitSystem) ?? undefined,
     reps: numOrUndef(repsText),
     durationSec: numOrUndef(durationText),
   };
@@ -89,7 +103,7 @@ const newDraftSet = (kind: SetKind): DraftSet => toDraftSet({ kind });
  *  question the old card made you expand it to answer, and it degrades
  *  honestly: reps or load that differ across sets collapse to a set count
  *  rather than picking one row's number and implying it holds for all. */
-function exSummary(d: DraftEx, t: TFn): string {
+function exSummary(d: DraftEx, t: TFn, unit: string): string {
   const n = d.sets.length;
   const sets = n === 1 ? t('train.setCountOne') : t('train.setCount', { n });
   /** The value every set shares, or null if they differ — or if ANY set
@@ -114,7 +128,9 @@ function exSummary(d: DraftEx, t: TFn): string {
 
   // Per-set weight wins; the exercise-level default is the fallback it always was.
   const load = one(d.sets.map((x) => x.weightText)) ?? d.targetLoad.trim();
-  return load ? `${head} · ${load} lb` : head;
+  // `unit` is passed in rather than read here: this is a pure formatter and
+  // the draft buffers are already in the training unit.
+  return load ? `${head} · ${load} ${unit}` : head;
 }
 
 // carries EVERY field the stored TemplateExercise has, because the editor
@@ -149,6 +165,7 @@ export function TemplateEditorModal({
 }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
+  const unitSystem = useUnitSystem();
   const { colors } = useTheme();
   // Sheets GROW for the keyboard, they do not move: `sheetWrap` is flex-end,
   // so extra bottom padding keeps the background on the screen edge and
@@ -194,13 +211,15 @@ export function TemplateEditorModal({
         exerciseId: ex.exerciseId,
         name: ex.name,
         logStyle: ex.logStyle ?? 'weight-reps',
-        targetLoad: ex.targetLoad != null ? String(ex.targetLoad) : '',
+        targetLoad: ex.targetLoad != null ? String(toDisplayLoad(ex.targetLoad, unitSystem)) : '',
         cuesText: (ex.cues ?? []).join('\n'),
         hasProgression: !!ex.progression,
         targetReps: ex.progression ? String(ex.progression.targetReps) : '',
         holdSessions: ex.progression ? String(ex.progression.holdSessions) : '',
-        incrementLb: ex.progression ? String(ex.progression.incrementLb) : '',
-        sets: ex.plannedSets.length ? ex.plannedSets.map(toDraftSet) : [newDraftSet('working')],
+        incrementLb: ex.progression ? String(toDisplayLoad(ex.progression.incrementLb, unitSystem)) : '',
+        sets: ex.plannedSets.length
+          ? ex.plannedSets.map((ps) => toDraftSet(ps, unitSystem))
+          : [newDraftSet('working')],
       })),
     );
     setKindOpen(null);
@@ -362,18 +381,19 @@ export function TemplateEditorModal({
             exerciseId: d.exerciseId,
             name: d.name,
             logStyle: d.logStyle,
-            targetLoad: numOrUndef(d.targetLoad),
+            targetLoad: parseLoadToLb(d.targetLoad, unitSystem) ?? undefined,
             cues: cues.length ? cues : undefined,
             progression: d.hasProgression
               ? {
                   targetReps: numOrUndef(d.targetReps) ?? 12,
                   holdSessions: numOrUndef(d.holdSessions) ?? 2,
-                  incrementLb: numOrUndef(d.incrementLb) ?? 5,
+                  incrementLb:
+                    parseLoadToLb(d.incrementLb, unitSystem) ?? defaultIncrementLb(unitSystem),
                 }
               : undefined,
             plannedSets: normalizeClusterGroups(
               d.sets.length ? d.sets : [newDraftSet('working')],
-            ).map(toPlannedSet),
+            ).map((d) => toPlannedSet(d, unitSystem)),
           };
         }),
       };
@@ -600,12 +620,12 @@ export function TemplateEditorModal({
                       }}
                       accessibilityRole="button"
                       accessibilityState={{ expanded: open }}
-                      accessibilityLabel={`${d.name}. ${exSummary(d, t)}`}
+                      accessibilityLabel={`${d.name}. ${exSummary(d, t, loadUnit(unitSystem))}`}
                       testID={`template-ex-toggle-${i}`}
                     >
                       <View style={{ flex: 1 }}>
                         <Text style={styles.tplExName}>{d.name}</Text>
-                        <Text style={styles.tplExMeta}>{exSummary(d, t)}</Text>
+                        <Text style={styles.tplExMeta}>{exSummary(d, t, loadUnit(unitSystem))}</Text>
                       </View>
                       <Ionicons
                         name={open ? 'chevron-up' : 'chevron-down'}
@@ -627,7 +647,7 @@ export function TemplateEditorModal({
                   <View style={styles.tplSetHead}>
                     <Text style={[styles.tplSetHeadCell, styles.tplSetNumCell]}>{t('train.setShort')}</Text>
                     {d.logStyle === 'weight-reps' ? (
-                      <Text style={[styles.tplSetHeadCell, styles.tplSetCell]}>{t('train.lbShort')}</Text>
+                      <Text style={[styles.tplSetHeadCell, styles.tplSetCell]}>{loadUnit(unitSystem)}</Text>
                     ) : null}
                     <Text style={[styles.tplSetHeadCell, styles.tplSetCell]}>
                       {d.logStyle === 'time' ? t('train.secShort') : t('train.repsShort')}
@@ -776,7 +796,7 @@ export function TemplateEditorModal({
                               onChangeText={(v) => patchEx(i, { targetLoad: v })}
                               testID={`template-load-${i}`}
                             />
-                            <Text style={styles.tplLoadUnit}>lb</Text>
+                            <Text style={styles.tplLoadUnit}>{loadUnit(unitSystem)}</Text>
                           </View>
                         ) : (
                           <View style={{ flex: 1 }} />
@@ -835,7 +855,9 @@ export function TemplateEditorModal({
                             />
                           </View>
                           <View style={styles.progCell}>
-                            <Text style={styles.tplSetsLabel}>{t('train.incrementLb')}</Text>
+                            <Text style={styles.tplSetsLabel}>
+                              {t('train.incrementLb', { unit: loadUnit(unitSystem) })}
+                            </Text>
                             <TextInput
                               style={styles.tplLoadInput}
                               keyboardType="numeric"
@@ -855,7 +877,7 @@ export function TemplateEditorModal({
                           {t('train.progressionRule', {
                             reps: d.targetReps || 12,
                             sessions: d.holdSessions || 2,
-                            lb: d.incrementLb || 5,
+                            lb: `${d.incrementLb || defaultIncrementLb(unitSystem)} ${loadUnit(unitSystem)}`,
                           })}
                         </Text>
                       ) : null}

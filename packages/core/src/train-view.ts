@@ -32,6 +32,8 @@ import type {
   WorkoutSet,
   WorkoutTemplate,
 } from './workout';
+import { toDisplayLoad } from './load-units';
+import type { UnitSystem } from './unit-system';
 import { DEFAULT_LOG_STYLE, isLoggedSet } from './workout';
 import type { ProgressionSuggestion } from './workout-progression';
 import { computeExercisePRs, isWorkingSet, metricForSet } from './workout-progression';
@@ -169,6 +171,10 @@ export function exerciseSeries(history: readonly SessionExercise[], style: LogSt
 export function workingSetCells(
   ex: Pick<SessionExercise, 'sets'>,
   style: LogStyle,
+  /** Training unit for the weight cells. Weights are STORED in pounds; this
+   *  only decides what the cell says. Omitted keeps pounds, which is every
+   *  existing caller and every account that never chose (UX_AUDIT F3). */
+  unitSystem?: UnitSystem,
 ): string[] {
   const cells: string[] = [];
   for (const s of ex.sets) {
@@ -178,7 +184,7 @@ export function workingSetCells(
     } else if (style === 'bodyweight') {
       if (s.reps != null) cells.push(`${s.reps}`);
     } else if (s.weight != null && s.reps != null) {
-      cells.push(`${s.weight}×${s.reps}`);
+      cells.push(`${toDisplayLoad(s.weight, unitSystem)}×${s.reps}`);
     }
   }
   return cells;

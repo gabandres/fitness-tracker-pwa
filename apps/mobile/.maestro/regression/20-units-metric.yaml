@@ -86,6 +86,17 @@ appId: fit.ignia.app
 - tapOn:
     point: '50%,8%'
 
+# ── Lifted loads follow the same setting ──
+# A metric gym's bar is 20 kg and its smallest plate is 1.25 kg, so the plate
+# solver runs in the DISPLAY unit rather than solving in pounds and converting
+# — converting afterwards yields 20.4 kg plates no rack owns. The arithmetic is
+# `packages/core/src/load-units.test.ts`; this is the wiring.
+- tapOn: 'Train'
+- extendedWaitUntil:
+    visible: 'Templates'
+    timeout: 15000
+- takeScreenshot: .maestro/regression/shots/20-units-train-kg
+
 # ── Restore. The suite after this one assumes pounds. ──
 - tapOn:
     id: 'settings-open'

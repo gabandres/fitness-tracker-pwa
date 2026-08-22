@@ -109,6 +109,11 @@ export * from './health-mapping';
 // signatures (structural typing covers call sites in both apps). That is why
 // this section is the one place `export {}` outnumbers `export *`.
 export * from './plate-math';
+// Lifted load in the unit the user TRAINS in, over a pound store. Separate
+// from body weight on purpose: the bar, the plates and the step are all
+// different objects per unit, so plate math is solved in the display unit
+// rather than solved in pounds and converted (UX_AUDIT F3).
+export * from './load-units';
 export * from './warmup';
 export * from './workout-progression';
 // Function-only export (the ./workout types stay un-barreled — see note above).
