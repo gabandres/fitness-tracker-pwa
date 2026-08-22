@@ -370,6 +370,135 @@ Recorded verbatim in substance; nothing here is fixed yet.
       chat, which is itself the evidence. `/support` exists on the web shell but
       nothing in the app points at it.
 
+### From a second-hand report — "the app is not intuitive for women", 2026-08-22 (walkthrough findings, NOT the user's words)
+
+**There is no verbatim report, and that is the first thing to fix.** What
+reached this repo is one sentence, relayed: *the app is not intuitive for
+women*. Not known: who said it, how many people, which platform, which screen,
+or what "not intuitive" meant concretely. It is **not** in the in-app feedback
+system — the `feedback` collection group holds two documents, one QA row and
+one water report, both already handled. So nothing below is a user's words, and
+none of it should be shipped as if it were.
+
+The owner confirmed on 2026-08-22 that the one sentence is all that exists.
+What follows instead is a **structured first-run walkthrough** on the LG VS988
+(Android 9, 360×720 dp) against Play-signed vc 37 plus the current OTA, read
+against the source. These are findings a fresh pair of eyes hits; they are
+**candidate explanations**, not a diagnosis of the report.
+
+**Ask for the actual words before building any of this.** The precedent is
+Abdiel's calorie-goal item directly above: the paraphrase said "no custom
+option", the real defect was that the number *was* settable and then silently
+overwritten. A summary that has passed through two people is the weakest
+evidence in this file.
+
+- [ ] **F1 · The first number the app gives you is body weight × a constant,
+      and that constant is biased by sex. This is the strongest finding here
+      and it is arithmetic, not opinion.** Onboarding's plan step calls
+      `computeKcal(weightLb, goal)` — `packages/core/src/macro-heuristic.ts:46`
+      — which is `weight × {11 lose | 14 maintain | 17 gain}`. No sex, no
+      height, no age, no activity level. Compared against the app's *own*
+      Mifflin-St Jeor path (`basalMifflinStJeor`, `packages/core/src/tdee.ts:981`)
+      at the "Lightly active" 1.375 bucket:
+
+      | Person (same weight, same age, same activity) | Real maintenance | App "maintain" | App "lose" → actual rate |
+      |---|---|---|---|
+      | Woman, 150 lb, 30 | 1,894 | 2,100 (**+11%**) | 1,650 → 0.49 lb/wk |
+      | Man, 150 lb, 30 | 2,240 | 2,100 (−6%) | 1,650 → 1.18 lb/wk |
+      | Woman, 180 lb, 45 | 1,978 | 2,520 (**+27%**) | 1,980 → **−0.00 lb/wk** |
+      | Man, 180 lb, 45 | 2,324 | 2,520 (+8%) | 1,980 → 0.69 lb/wk |
+
+      Heights are the CDC/NCHS **measured** NHANES means for US adults 20+,
+      Aug 2021–Aug 2023 — 5'8.9" male, 5'3.5" female — so the only things
+      varying between the paired rows are sex and average height, the two
+      inputs `computeKcal` does not take. Every constant used is the app's own:
+      the 1.375 "light" bucket from `ACTIVITY_MULTIPLIERS` (`tdee.ts:226`) and
+      `KCAL_PER_POUND = 3500` (`tdee.ts:147`).
+
+      Same app, same weight, same age, same goal: the man loses at **2.4×** the
+      woman's rate. The bottom row is the one that matters — for a 180 lb
+      45-year-old woman the app's "lose fat" target of 1,980 kcal sits **2
+      kcal/day above** her estimated maintenance. She follows it exactly and
+      loses nothing, ever. "Not intuitive" is a mild way to describe that; so
+      is "this app doesn't work".
+
+      **Two honest caveats, neither of which rescues the finding.** Mifflin-St
+      Jeor is itself an estimate (±10% is the usual quoted band), so the "real
+      maintenance" column is a reference point, not truth — but it is *the app's
+      own reference point*, which is the whole argument: Ignia disagrees with
+      itself by up to 27%, and does so in one direction for women. And the
+      3,500 kcal/lb conversion is a static rule that **overestimates** real
+      loss as time passes (Hall, *Int J Obes* 2013), so the lb/wk column is the
+      optimistic case; the lived result is slower still.
+
+      Why it persists: `dailyTargets` (`packages/core/src/targets.ts:178-186`)
+      uses the onboarding number until `tdee.source === 'measured' && reliable`
+      — weeks of logging away. The formula path cannot rescue it either,
+      because `toProfileFields` returns `null` without `sex`/`heightIn`/`age`/
+      `activityLevel` (`targets.ts:85-97`). So a user who never opens Refine
+      targets sits on the heuristic for the entire period in which she is
+      deciding whether the app works.
+
+- [ ] **F2 · The app already contains the correct math and routes every new
+      user around it.** Sex, height, age and activity level — exactly the four
+      Mifflin-St Jeor inputs — are collected only in **Settings → Refine
+      targets**, whose subtitle is *"Sharpen your calorie target · unlocks body
+      fat"*. That reads as an optional power-user extra. It is not: without it
+      the target is a guess with a sex-dependent error (F1), and the body-fat
+      estimate — whose formula genuinely differs by sex,
+      `packages/core/src/body-fat.ts:37` — cannot run at all. The screen is
+      four short fields. Moving it, or a prompt toward it, into the first run
+      is the cheapest fix in this section.
+
+      *Not a finding, recorded so nobody re-reports it:* the Sex selector shows
+      "Male" pre-selected on the QA account because that account has it
+      **stored**. For a fresh profile the state is `null` and neither option is
+      selected (`refine-targets.tsx:57`). There is no male default.
+
+- [ ] **F3 · Body weight is pounds-only, everywhere, with no way to change
+      it.** Onboarding's `BigInput` hardcodes a literal `lb` glyph
+      (`onboarding.tsx:443`) beside a 72 pt number, and the Body tab hardcodes
+      `lb` on the hero, the goal rail and every history row. The `unitSystem`
+      profile field exists and is settable, but Settings labels that row
+      **`settings.portionDisplay`** and it only reaches food serving sizes — so
+      the label is honest and the gap is real: a metric user cannot enter or
+      read body weight in kilograms anywhere in the app. Typing 68 (kg) at
+      onboarding yields a plan built for a 68 lb person.
+
+- [ ] **F4 · The most common way to log food has no name on the entry
+      surface, and the name it does have discourages use.** The speed dial
+      offers exactly two choices: **Scan meal** and **Manual entry**. The sheet
+      behind "Manual entry" opens with a full-width **"Search foods…"** field
+      as its first and largest element. So the food database — the path most
+      people want — is labelled as the manual-work option. A user who does not
+      want to photograph her lunch and does not want to type macros by hand
+      reads that dial as offering nothing for her. Renaming the satellite is a
+      one-string change; the sheet also has no title.
+
+- [ ] **F5 · On Today, the + button covers the empty state's only CTA.** At
+      360×720 dp the orange FAB is drawn over "Repeat yesterday", which renders
+      as `Repe⬤sterday`. Screenshot-confirmed on the LG VS988. The ScrollView
+      has a 96 px tail spacer (`index.tsx:333`) that handles the scrolling
+      case, but on a first run the content is *shorter* than the viewport, so
+      nothing scrolls and the spacer sits below the button instead of lifting
+      it. The empty state is the one screen every new user sees first.
+
+- [ ] **F6 · Terms of art go unexplained on the two most-viewed panels.**
+      Today's hero reads `0 / 2,323 kcal` and `maintenance 2,723`; Trends leads
+      with a **MEASURED** badge, *Maintenance estimate*, and *73% logging
+      completeness*. None is defined anywhere in the app. "kcal" appears in
+      20+ strings where most people would read "calories"; "maintenance" is a
+      term someone who has dieted before knows and nobody else does; and a
+      first-run user has no way to tell whether 73% completeness is good.
+      Trends does one thing right and it is worth copying — *"Weekly averages
+      unlock at 3 logged days"* explains itself.
+
+**Ranking, if the verbatim reports never arrive:** F1 and F2 are the same fix
+and should be done together — they are a correctness defect with a measurable
+sex-dependent error, not a matter of taste, and they are worth fixing on their
+own merits whatever the report turns out to have meant. F5 is a ten-minute
+layout fix. F4 is one string. F3 and F6 are real but are scope, not defects.
+
 ### Tier 3 — deliberately deferred, with the reason
 
 - [x] **N6 · Restaurant / chain-menu data — MOSTLY ALREADY SHIPPED, measured
