@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
+import * as Application from 'expo-application';
+import * as Updates from 'expo-updates';
 import {
   DEFAULT_MEAL_REMINDERS,
   type ImportParseError,
@@ -539,6 +541,21 @@ export default function Settings() {
           </TouchableOpacity>
           <Text style={styles.legalNote}>{t('settings.medicalDisclaimer')}</Text>
           <Text style={styles.legalNote}>{t('settings.dataCredit')}</Text>
+          {/* Which BUILD and which over-the-air BUNDLE this app is running.
+              Not vanity: an OTA lands on the launch after it downloads, so
+              "is that bug fixed?" is unanswerable without it, and this repo has
+              already twice called a JS behaviour broken while measuring the
+              previous bundle. `updateId` is null on an embedded launch — that
+              is the honest answer, not a blank. */}
+          <Text style={styles.legalNote} selectable testID="settings-build">
+            {t('settings.buildLine', {
+              version: Application.nativeApplicationVersion ?? '?',
+              build: Application.nativeBuildVersion ?? '?',
+              bundle: Updates.isEmbeddedLaunch || !Updates.updateId
+                ? t('settings.bundleEmbedded')
+                : Updates.updateId.slice(0, 8),
+            })}
+          </Text>
         </View>
 
         <Text style={styles.section}>{t('settings.units')}</Text>

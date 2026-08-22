@@ -967,5 +967,7 @@ export const esPR: Record<I18nKey, string> = {
   'settings.help': 'Ayuda',
   'settings.tour': 'Cómo funciona Ignia',
   'settings.tourSub': 'Un recorrido corto por la app. Ábrelo cuando quieras.',
+  'settings.buildLine': 'Versión {version} ({build}) · paquete {bundle}',
+  'settings.bundleEmbedded': 'incluido',
 
 };

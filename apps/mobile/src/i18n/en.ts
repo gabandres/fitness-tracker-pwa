@@ -975,6 +975,8 @@ export const en = {
   'settings.help': 'Help',
   'settings.tour': 'How Ignia works',
   'settings.tourSub': 'A short tour of the app. Reopen it whenever you like.',
+  'settings.buildLine': 'Version {version} ({build}) · bundle {bundle}',
+  'settings.bundleEmbedded': 'built in',
 } as const;
 
 export type I18nKey = keyof typeof en;
