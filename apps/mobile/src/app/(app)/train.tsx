@@ -851,7 +851,14 @@ function ExerciseCard({
     panelOpen && keyWeight && keyWeight > 0
       ? computePlateLoad(toDisplayLoad(keyWeight, unitSystem), barFor(unitSystem), platesFor(unitSystem))
       : null;
-  const warm = panelOpen && keyWeight && keyWeight > 0 ? generateWarmup(keyWeight) : [];
+  // Same rule as the plate solve directly above, and it was missed on the
+  // first pass: the ladder is BUILT from plate loads, so running it in pounds
+  // and rendering the result next to a kg working set produced `45 x 10` under
+  // `WORKING SET · 100 KG`. Caught on the device.
+  const warm =
+    panelOpen && keyWeight && keyWeight > 0
+      ? generateWarmup(toDisplayLoad(keyWeight, unitSystem), barFor(unitSystem), platesFor(unitSystem))
+      : [];
 
   return (
     <Animated.View style={styles.exCard} layout={smoothLayout}>

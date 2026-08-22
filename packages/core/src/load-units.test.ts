@@ -12,6 +12,7 @@ import {
   toDisplayLoad,
 } from './load-units';
 import { computePlateLoad } from './plate-math';
+import { generateWarmup } from './warmup';
 
 /**
  * UX_AUDIT F3, second half: lifted loads. The rule is the same as body
@@ -121,5 +122,27 @@ describe('formatLoad', () => {
   it('joins the number and its unit in one place', () => {
     expect(formatLoad(225, 'us', 0)).toBe('225 lb');
     expect(formatLoad(100, 'metric')).toBe('45.4 kg');
+  });
+});
+
+describe('the warm-up ladder is built in the display unit too', () => {
+  it('ramps a 100 kg squat off a 20 kg bar', () => {
+    const warm = generateWarmup(100, barFor('metric'), platesFor('metric'));
+    // First rung is always the empty bar — and it is the METRIC bar.
+    expect(warm[0].weight).toBe(20);
+    // Every rung has to be a weight this rack can actually build.
+    for (const w of warm) {
+      const solved = computePlateLoad(w.weight, barFor('metric'), platesFor('metric'))!;
+      expect(solved.achievable).toBe(w.weight);
+    }
+    expect(warm[warm.length - 1].weight).toBeLessThan(100);
+  });
+
+  it('is why the ladder cannot be generated in pounds and shown in kg', () => {
+    // The defect the device caught: the panel read `45 x 10` (a pound bar)
+    // directly under `WORKING SET · 100 KG`.
+    const inPounds = generateWarmup(220, barFor('us'), platesFor('us'));
+    expect(inPounds[0].weight).toBe(45);
+    expect(generateWarmup(100, barFor('metric'), platesFor('metric'))[0].weight).toBe(20);
   });
 });
