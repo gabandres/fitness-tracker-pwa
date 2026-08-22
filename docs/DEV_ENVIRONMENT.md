@@ -804,6 +804,81 @@ See the `build-android` skill for the OTA-vs-build decision that comes first.
 
 ---
 
+### 3.12 Maestro on the Air — the two things that stop it dead
+
+Both were hit on 2026-08-22, the first time the suite ran on this machine since
+Maestro 2.x, and neither says what it means.
+
+**1. Maestro needs Java 17+ and this Mac defaults to 11.** The message is
+`ERROR: Java 17 or higher is required.` and `/usr/libexec/java_home -V` lists
+only Microsoft 11 and Temurin 8 — so it reads like "install a JDK". A modern one
+is already here, from Homebrew, just not on `PATH`:
+
+```sh
+export JAVA_HOME=/opt/homebrew/opt/openjdk        # 26.0.2
+export PATH="$JAVA_HOME/bin:$HOME/.maestro/bin:$PATH"
+```
+
+Do NOT set it globally — the same trap as §0 in the other direction. Xcode and
+Gradle are happy where they are.
+
+**2. `maestro test .maestro/regression/` runs ONE flow and reports success.**
+Maestro 2.x does not resolve this repo's workspace `config.yaml` the way 1.x
+did: it prints `Requested 1 shards, but it cannot be higher than the number of
+flows (0)`, runs `01-today` alone, and exits 0. A suite that silently shrank to
+one flow and passed is worse than one that fails.
+
+Until the config is ported, drive the documented order explicitly and key on the
+**exit code** — `[Passed]` is printed only in workspace mode, so grepping for it
+marks every single-file run as failed:
+
+```sh
+for f in 01-today 02-add-sheet … 20-units-metric; do
+  maestro test .maestro/regression/$f.yaml && echo "PASS $f" || echo "FAIL $f"
+done
+```
+
+`config.yaml`'s `flowsOrder` is still the source of truth for the ORDER, and the
+order still matters: 11→12→13 share one diary row, and 09/10/20 flip account or
+device state they restore in their own tails.
+
+**3. A fresh install opens the guided tour, and the tour covers Today.** The
+suite died at its first scroll with `No visible element found: "Water"`, which
+reads exactly like a metrics-card regression. `.maestro/android-signin.yaml`
+dismisses the tour now, guarded by `runFlow: when:` so a device that has already
+seen it is unaffected.
+
+### 3.13 Building the app for the SIMULATOR — do not pass `-sdk`
+
+```sh
+xcodebuild -workspace ios/Ignia.xcworkspace -scheme Ignia -configuration Release   -destination 'platform=iOS Simulator,id=<SIM-UDID>' build
+```
+
+**`-sdk iphonesimulator` fails the build**, and the error names an asset
+catalog rather than the flag:
+
+```
+targets/watch/Assets.xcassets: error: The stickers icon set, app icon set, or
+icon stack named "AppIcon" did not have any applicable content.
+```
+
+The Ignia scheme embeds `IgniaWatch`. `-sdk` forces EVERY target in the scheme
+onto that SDK, so the watch app is built against the iOS simulator SDK, and its
+`AppIcon` is `platform: watchos` only — correctly. `-destination` lets each
+target choose its own SDK and the watch builds for watchsimulator as it should.
+
+Set `SENTRY_DISABLE_AUTO_UPLOAD=true` as well, or the bundle step fails on
+`Auth token is required`.
+
+The resulting `.app` is at
+`~/Library/Developer/Xcode/DerivedData/Ignia-*/Build/Products/Release-iphonesimulator/Ignia.app`
+and is installed with `xcrun simctl install <UDID> <path>`.
+
+**A simulator build carries no `expo-channel-name`**, so it cannot receive an
+OTA — `Expo.plist` has `EXUpdatesURL` and no request headers. Verified
+2026-08-22. That is why verifying a JS change on the sim means rebuilding, not
+publishing.
+
 ## 4. Owner runbook — move `bermudezsystems.com` mail into the `bermudezpr.com` Microsoft 365 tenant
 
 Replaces the Northwest "Business Identity" free mail suite with a real
