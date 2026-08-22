@@ -44,6 +44,11 @@ jest.mock('react-native-keyboard-controller', () => ({
   useReanimatedKeyboardAnimation: () => ({ height: { value: 0 }, progress: { value: 0 } }),
   KeyboardProvider: ({ children }) => children,
   KeyboardAwareScrollView: ({ children }) => children,
+  // The five input screens take their KeyboardAvoidingView from here rather
+  // than from react-native — see the note at the top of each. A mock that
+  // omits it renders `undefined`, and RNTL reports that as "Element type is
+  // invalid", which reads like a broken screen rather than a missing mock.
+  KeyboardAvoidingView: ({ children }) => children,
 }));
 
 // Reanimated 4 (SDK 57) split its worklets runtime into `react-native-worklets`,

@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { buildCoachSystemInstruction } from '@macrolog/core';
 import { CoachMarkdown } from '@/components/CoachMarkdown';
 import { useCoach } from '@/hooks/useCoach';
@@ -43,6 +43,15 @@ function errorKey(code: string | undefined): I18nKey {
   }
 }
 
+// `KeyboardAvoidingView` comes from react-native-keyboard-controller, NOT from
+// react-native. RN's own version was built for iOS and reads the keyboard frame
+// straight from the system notification, which iOS 26 reports inconsistently
+// (Apple forums 800310 / 814154) — that is the "spacing is much larger" the
+// input screens were showing. The library normalises the frame across both
+// platforms and is already a dependency, with <KeyboardProvider> mounted at the
+// app root, so this costs nothing new. Same props, so `behavior` stays
+// iOS-only: Android relies on windowSoftInputMode=adjustResize and must not
+// also be padded.
 export default function Coach() {
   const t = useT();
   const styles = useThemedStyles(createStyles);

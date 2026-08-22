@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInLeft, FadeInRight, ReduceMotion } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { type GoalDirection, computeKcal, computeProtein, validateCalorieTarget } from '@macrolog/core';
 import { BrandMark } from '@/components/BrandMark';
 import { useAuth } from '@/lib/auth';
@@ -33,11 +34,21 @@ function numOrUndef(s: string): number | undefined {
   return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
+// `KeyboardAvoidingView` comes from react-native-keyboard-controller, NOT from
+// react-native. RN's own version was built for iOS and reads the keyboard frame
+// straight from the system notification, which iOS 26 reports inconsistently
+// (Apple forums 800310 / 814154) — that is the "spacing is much larger" the
+// input screens were showing. The library normalises the frame across both
+// platforms and is already a dependency, with <KeyboardProvider> mounted at the
+// app root, so this costs nothing new. Same props, so `behavior` stays
+// iOS-only: Android relies on windowSoftInputMode=adjustResize and must not
+// also be padded.
 export default function Onboarding() {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const { user, profile, signOut } = useAuth();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   // A completed profile only reaches this screen via Settings → "Edit goals":
   // skip the welcome greeting and return to Settings when done.
@@ -147,7 +158,20 @@ export default function Onboarding() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
+      {/* `keyboardVerticalOffset` cancels a double-count that is iOS-only and
+          was reported as "spacing is much larger" on the input screens.
+          `SafeAreaView` above already reserves `insets.bottom` for the home
+          indicator, and `behavior="padding"` then adds the keyboard height
+          MEASURED FROM THE SCREEN BOTTOM — a span that already contains those
+          same points. The two stack and the content lifts an inset too far.
+          This screen is the only one of the five carrying the 'bottom' edge,
+          which is why it is the worst of them. Zero on Android, where the
+          behavior is undefined and nothing is added in the first place. */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={-insets.bottom}
+        style={styles.fill}
+      >
         {/* Top bar: back + progress dots (hidden on the welcome greeting). */}
         <View style={styles.topBar}>
           {showBack ? (
