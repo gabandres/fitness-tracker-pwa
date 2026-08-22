@@ -370,27 +370,65 @@ Recorded verbatim in substance; nothing here is fixed yet.
       chat, which is itself the evidence. `/support` exists on the web shell but
       nothing in the app points at it.
 
-### From a second-hand report — "the app is not intuitive for women", 2026-08-22 (walkthrough findings, NOT the user's words)
+### From a real user — "not intuitive for women", relayed 2026-08-22 (partially resolved: she asked for a tutorial)
 
-**There is no verbatim report, and that is the first thing to fix.** What
-reached this repo is one sentence, relayed: *the app is not intuitive for
-women*. Not known: who said it, how many people, which platform, which screen,
-or what "not intuitive" meant concretely. It is **not** in the in-app feedback
-system — the `feedback` collection group holds two documents, one QA row and
-one water report, both already handled. So nothing below is a user's words, and
-none of it should be shipped as if it were.
+**The report arrived in two pieces and the second one is the actionable half.**
+First: one relayed sentence — *the app is not intuitive for women* — with no
+author, platform, screen or task. Then, on being asked, the owner came back
+with what she actually said: **she needs some kind of tutorial or walkthrough
+of the app.** The owner's own framing: *"at least for men we typically just
+start tapping and figuring things out but maybe for women the story changes."*
 
-The owner confirmed on 2026-08-22 that the one sentence is all that exists.
-What follows instead is a **structured first-run walkthrough** on the LG VS988
-(Android 9, 360×720 dp) against Play-signed vc 37 plus the current OTA, read
-against the source. These are findings a fresh pair of eyes hits; they are
-**candidate explanations**, not a diagnosis of the report.
+That is a concrete, buildable request, and it is **not** the same problem as
+anything else in this section. It is not a missing feature and not a broken
+screen — the app never explains itself to someone who does not want to learn it
+by poking at it.
 
-**Ask for the actual words before building any of this.** The precedent is
-Abdiel's calorie-goal item directly above: the paraphrase said "no custom
-option", the real defect was that the number *was* settable and then silently
-overwritten. A summary that has passed through two people is the weakest
-evidence in this file.
+**The owner's intuition has real research behind it, and the research says
+build the tutorial rather than build a "women's version".** Burnett et al.'s
+GenderMag work (Oregon State) identifies five problem-solving facets whose
+individual differences *cluster* by gender — motivations, information
+processing style, computer self-efficacy, attitude toward risk, and **learning
+style: tinkering vs. process-oriented**. Information processing style is the
+one with the strongest reported effect (p = 0.0003). "Just start tapping" is
+tinkering; "show me how this works first" is process-oriented. Both are normal;
+only one of them is currently served by Ignia.
+
+The load-bearing consequence for this repo: these are **statistical clusters,
+not rules about individuals**, so the fix is an orientation path *anyone* can
+take, never a gender-branched UI. A tutorial helps the tinkerer who wants a
+refresher and the process-oriented user who wants the map, and it never has to
+guess which one is reading. Gender-targeted UI would be both condescending and
+unshippable, and the research does not ask for it.
+
+**What that means concretely** — each maps to a GenderMag facet rather than to
+taste:
+
+- *Process-oriented learning* → a guided path with a stated order and an end,
+  not a pile of tooltips waiting to be discovered.
+- *Comprehensive information processing* → show the whole map before the first
+  step, so the user can see the shape of the app rather than meeting it one
+  surprise at a time.
+- *Lower computer self-efficacy + risk aversion* → say what is reversible.
+  "You can change this later" removes the cost of a wrong tap, and most of this
+  app *is* reversible; nothing currently says so.
+- *Replayable and skippable* → a tutorial that cannot be re-opened punishes the
+  user who dismissed it before understanding it.
+
+The findings below (F1–F6) came from a structured first-run walkthrough on the
+LG VS988 against vc 37 plus the current OTA, run before the tutorial detail
+arrived. They stand on their own merits — F1 in particular is a correctness
+defect, not a comprehension one — but **F0 is the thing she actually asked
+for.**
+
+- [ ] **F0 · There is no tutorial, no guided tour, and no first-run
+      orientation of any kind. This is the actual user request.** After the
+      onboarding form saves, the user is dropped straight onto Today with a
+      hero panel reading `0 / 2,323 kcal`, `maintenance 2,723`, a Fasting /
+      Water / Sleep card, and a + button. Nothing names the tabs, nothing says
+      what the primary action is, and nothing says what any number means.
+      Discovery is entirely by tapping. Replayable from Settings is a
+      requirement, not a nicety — see the facet notes above.
 
 - [ ] **F1 · The first number the app gives you is body weight × a constant,
       and that constant is biased by sex. This is the strongest finding here
