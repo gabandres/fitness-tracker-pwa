@@ -1,8 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import {
-  Modal,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -10,13 +8,12 @@ import {
   View,
 } from 'react-native';
 import { WATER_MAX_FLOZ, clampWaterFlOz } from '@macrolog/core';
+import { BottomSheet } from '@/components/BottomSheet';
 import { type TFn, useT } from '@/i18n';
 import type { DailyActivity } from '@/lib/ledger';
 import * as haptics from '@/lib/haptics';
-import Reanimated from 'react-native-reanimated';
 import { PressScale } from '@/lib/motion';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
-import { useKeyboardSheetPadding } from '@/lib/use-keyboard-sheet-style';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
@@ -241,7 +238,6 @@ function WaterModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const sheetPadding = useKeyboardSheetPadding(space.xxl, space.md);
   const inputRef = useDeferredFocus(visible);
   const [mode, setMode] = useState<'add' | 'set'>('add');
   const [value, setValue] = useState('');
@@ -269,16 +265,7 @@ function WaterModal({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      {/* The sheet does not MOVE for the keyboard — it GROWS. Its background
-          runs to the screen edge and only the content is pushed up, which is
-          how a native sheet behaves and the only arrangement in which iOS 26's
-          transparent "Done" band cannot show the page through it. See
-          `use-keyboard-sheet-style.ts`. */}
-      <View style={styles.sheetWrap}>
-        <Reanimated.View style={[styles.sheet, sheetPadding]}>
-            <View style={styles.handle} />
+    <BottomSheet visible={visible} onClose={onClose}>
             {/* The mode switch lives in the TITLE ROW and not under Save,
                 because the keyboard opens with the sheet: anything below the
                 primary button is behind it, and a rare path nobody can see is
@@ -335,9 +322,7 @@ function WaterModal({
             >
               <Text style={styles.saveText}>{t('common.save')}</Text>
             </TouchableOpacity>
-        </Reanimated.View>
-      </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
@@ -355,7 +340,6 @@ function SleepModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const sheetPadding = useKeyboardSheetPadding(space.xxl, space.md);
   const inputRef = useDeferredFocus(visible);
   const [value, setValue] = useState('');
 
@@ -367,41 +351,37 @@ function SleepModal({
   const valid = value.trim() !== '' && Number.isFinite(n) && n >= 0 && n <= 24;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      {/* The sheet does not MOVE for the keyboard — it GROWS. Its background
-          runs to the screen edge and only the content is pushed up, which is
-          how a native sheet behaves and the only arrangement in which iOS 26's
-          transparent "Done" band cannot show the page through it. See
-          `use-keyboard-sheet-style.ts`. */}
-      <View style={styles.sheetWrap}>
-        <Reanimated.View style={[styles.sheet, sheetPadding]}>
-          <View style={styles.handle} />
-          <Text style={styles.sheetTitle}>{t('metrics.hoursSlept')}</Text>
-          <View style={styles.inputRow}>
-            <TextInput
-              ref={inputRef}
-              style={styles.input}
-              placeholder="0"
-              placeholderTextColor={colors.faint}
-              keyboardType="numeric"
-              value={value}
-              onChangeText={setValue}
-              testID="sleep-input"
-            />
-            <Text style={styles.inputUnit}>h</Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.save, !valid && styles.saveDisabled]}
-            onPress={() => valid && onSave(n)}
-            disabled={!valid}
-            testID="sleep-save"
-          >
-            <Text style={styles.saveText}>{t('common.save')}</Text>
-          </TouchableOpacity>
-        </Reanimated.View>
+    <BottomSheet visible={visible} onClose={onClose}>
+      <Text style={styles.sheetTitle}>{t('metrics.hoursSlept')}</Text>
+      <View style={styles.inputRow}>
+        <TextInput
+          ref={inputRef}
+          style={styles.input}
+          placeholder="8"
+          placeholderTextColor={colors.faint}
+          keyboardType="numeric"
+          value={value}
+          // Prefilled with last night's value, so the first keystroke must
+          // REPLACE it rather than append to it — 7 becoming 78 is not an
+          // edit anybody meant. Same rule as the water and weight sheets.
+          selectTextOnFocus
+          returnKeyType="done"
+          onChangeText={setValue}
+          onSubmitEditing={() => valid && onSave(n)}
+          accessibilityLabel={t('metrics.hoursSlept')}
+          testID="sleep-input"
+        />
+        <Text style={styles.inputUnit}>h</Text>
       </View>
-    </Modal>
+      <TouchableOpacity
+        style={[styles.save, !valid && styles.saveDisabled]}
+        onPress={() => valid && onSave(n)}
+        disabled={!valid}
+        testID="sleep-save"
+      >
+        <Text style={styles.saveText}>{t('common.save')}</Text>
+      </TouchableOpacity>
+    </BottomSheet>
   );
 }
 
@@ -447,31 +427,13 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
     backgroundColor: colors.tealSoft,
   },
   pillText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
-  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' },
-  // Pins the sheet to the bottom of the Modal without painting anything: the
-  // sheet itself is the visible surface and now reaches the screen edge under
-  // its own padding. `position: absolute` rather than `flex: 1` so it cannot
-  // intercept taps meant for the dimmed backdrop behind it.
-  sheetWrap: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-  sheet: {
-    backgroundColor: colors.paper,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    paddingHorizontal: space.xl,
-    paddingTop: space.md,
-    // Overridden by `useKeyboardSheetPadding`, which adds the bottom safe-area
-    // inset at rest and ramps it back out as the keyboard rises. A bottom sheet
-    // renders inside a `Modal`, which fills the physical screen and does NOT
-    // respect insets, so a fixed 32 leaves the last rows under a software
-    // navigation bar — 48dp on the LG VS988, which clipped the Save button by
-    // ~16dp and made it miss taps near its lower edge. Adding it
-    // UNCONDITIONALLY was the other half of that bug: with the keyboard open
-    // the inset reserves room for a nav bar the keyboard is already covering,
-    // which is the empty band that made the sheet look detached from the
-    // keyboard on iOS.
-    paddingBottom: space.xxl,
-  },
-  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line, marginBottom: space.md },
+  // NB: no backdrop / sheetWrap / sheet / handle styles here any more. Water
+  // and Sleep render inside the shared `<BottomSheet>`, which owns all four —
+  // and owns the two behaviours this file's hand-rolled copy never had: a
+  // backdrop that fades IN PLACE (RN's `animationType="slide"` slides the dim
+  // rectangle up the screen with the panel, which is the "weird backdrop" the
+  // meal EntrySheet was rebuilt to avoid) and drag-to-dismiss on the handle.
+  // The keyboard-grows padding moves with it.
   sheetTitle: { fontSize: font.h2, fontWeight: '800', color: colors.ink, marginBottom: space.md },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   input: {

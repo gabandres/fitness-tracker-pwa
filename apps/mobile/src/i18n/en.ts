@@ -336,6 +336,14 @@ export const en = {
   'body.todayWeighIn': "Today's weigh-in",
   'body.recentWeight': 'Most recent weight',
   'body.logWeight': 'Log weight',
+  // The weigh-in sheet's note line. Deliberately the same three states, in the
+  // same order, as `water.today` / `water.preview` / `water.tooMuch` — the two
+  // sheets are the same mechanism and should read the same.
+  'body.weightToday': 'Today: {n} lb',
+  'body.weightLast': 'Last weigh-in: {n} lb',
+  'body.weightFirst': 'Your first weigh-in.',
+  'body.weightPreview': '{from} → {to} lb',
+  'body.weightRange': 'Enter a weight between {min} and {max} lb.',
   'body.updateWeight': "Update today's weight",
   'body.loadErr': "Couldn't load your weight history.",
   'body.chartWindows': 'Last 14 days · the dashed line projects your 4-week trend',

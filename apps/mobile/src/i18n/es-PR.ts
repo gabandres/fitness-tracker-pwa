@@ -328,6 +328,12 @@ export const esPR: Record<I18nKey, string> = {
   'body.todayWeighIn': 'Pesaje de hoy',
   'body.recentWeight': 'Peso más reciente',
   'body.logWeight': 'Registrar peso',
+  // Ver en.ts: los mismos tres estados que water.today / preview / tooMuch.
+  'body.weightToday': 'Hoy: {n} lb',
+  'body.weightLast': 'Último pesaje: {n} lb',
+  'body.weightFirst': 'Tu primer pesaje.',
+  'body.weightPreview': '{from} → {to} lb',
+  'body.weightRange': 'Escribe un peso entre {min} y {max} lb.',
   'body.updateWeight': 'Actualizar el peso de hoy',
   'body.loadErr': 'No se pudo cargar tu historial de peso.',
   'body.chartWindows': 'Últimos 14 días · la línea punteada proyecta tu tendencia de 4 semanas',

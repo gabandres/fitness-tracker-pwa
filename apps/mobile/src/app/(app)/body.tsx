@@ -18,6 +18,8 @@ import {
   MEASUREMENT_BOUNDS_IN,
   implausibleMeasurementFields,
   parseYmd,
+  WEIGHT_MAX_LB,
+  WEIGHT_MIN_LB,
   checkWeightEntry,
 } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
@@ -332,6 +334,7 @@ export default function Body() {
       <WeightModal
         visible={open}
         initial={todayWeight}
+        current={currentWeight}
         onClose={() => setOpen(false)}
         onSave={async (w) => {
           await setWeight(w);
@@ -484,14 +487,43 @@ function MeasurementModal({
   );
 }
 
+/**
+ * Weigh-in entry.
+ *
+ * **Deliberately the same sheet, and the same mechanism, as logging water**
+ * (`DailyMetrics.tsx`). They were not: this one used the shared
+ * `<BottomSheet>` while water hand-rolled its own `Modal`, and water had the
+ * input affordances this one lacked. Both halves were fixed at once —
+ * water/sleep moved onto `<BottomSheet>`, and the three behaviours below came
+ * here from water:
+ *
+ * - `selectTextOnFocus`, because the field is PREFILLED. Without it, editing
+ *   180.4 to 179.8 costs five backspaces and typing turns 180.4 into 180.4179.8.
+ * - `returnKeyType="done"` next to the existing `onSubmitEditing`, so the
+ *   keyboard's own key is the obvious way to finish a one-field sheet.
+ * - A note line under the field with the same three states water has: the
+ *   current value at rest, `from → to` once something is typed, and the
+ *   out-of-range message. That last one is the substantive one — an
+ *   out-of-band weight used to do nothing but grey out Save, which says
+ *   "broken" rather than "50–500".
+ *
+ * What is NOT copied is water's add/set toggle: water accumulates through the
+ * day and weight replaces, so "add 5 lb" is not a thing anyone means. Same
+ * shell, same input rules, different arithmetic — copying the toggle too
+ * would be consistency applied past the point where it means anything.
+ */
 function WeightModal({
   visible,
   initial,
+  current,
   onSave,
   onClose,
 }: {
   visible: boolean;
   initial: number | null;
+  /** The most recent recorded weight, for the resting note. May be a previous
+   *  day's when there is no weigh-in today. */
+  current: number | null;
   onSave: (weight: number) => Promise<void> | void;
   onClose: () => void;
 }) {
@@ -514,7 +546,9 @@ function WeightModal({
   // Shared plausible-bodyweight bounds (50–500 lb), same rule the web logger
   // uses — no prior passed, so only the range is enforced (this sheet has no
   // large-delta confirm flow). Was an ad-hoc `n < 1500`.
-  const valid = value.trim() !== '' && checkWeightEntry(n).ok;
+  const typed = value.trim() !== '' && Number.isFinite(n);
+  const valid = typed && checkWeightEntry(n).ok;
+  const outOfRange = typed && !valid;
 
   async function save() {
     if (!valid || busy) return;
@@ -533,16 +567,37 @@ function WeightModal({
             <TextInput
               ref={inputRef}
               style={styles.input}
-              placeholder="0"
+              placeholder="180"
               placeholderTextColor={colors.faint}
+              // `numeric`, not water's `number-pad`: a weigh-in carries a
+              // decimal and `number-pad` has no decimal key. Same rule
+              // (give the field the keypad its values need), different keypad.
               keyboardType="numeric"
               value={value}
+              selectTextOnFocus
+              returnKeyType="done"
               onChangeText={setValue}
+              accessibilityLabel={t('body.logWeight')}
               testID="weight-input"
               onSubmitEditing={save}
             />
             <Text style={styles.inputUnit}>lb</Text>
           </View>
+          {/* Water's note line, for the same reason: the sheet should say what
+              it is about to change, so nobody has to hold the old number in
+              their head to check the new one. */}
+          <Text
+            style={[styles.sheetNote, outOfRange && styles.sheetNoteBad]}
+            testID="weight-note"
+          >
+            {outOfRange
+              ? t('body.weightRange', { min: WEIGHT_MIN_LB, max: WEIGHT_MAX_LB })
+              : valid && current != null && n !== current
+                ? t('body.weightPreview', { from: current, to: n })
+                : current != null
+                  ? t(initial != null ? 'body.weightToday' : 'body.weightLast', { n: current })
+                  : t('body.weightFirst')}
+          </Text>
           <TouchableOpacity
             style={[styles.save, !valid && styles.saveDisabled]}
             onPress={save}
@@ -709,6 +764,10 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
     color: colors.ink,
   },
   inputUnit: { fontSize: font.h3, color: colors.muted },
+  // Same two styles, same names, as the water/sleep sheets in DailyMetrics —
+  // the note line under a one-field sheet reads identically wherever it is.
+  sheetNote: { fontSize: font.small, color: colors.muted, marginTop: space.xs, textAlign: 'center' },
+  sheetNoteBad: { color: colors.danger },
   save: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center', marginTop: space.lg },
   saveDisabled: { opacity: 0.4 },
   saveText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
