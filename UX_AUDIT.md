@@ -298,6 +298,43 @@ the class of defect this project keeps paying for.
       recognizer at all; on hardware one normally exists, which is why this
       path had never been seen.
 
+### From a real user — Abdiel Medina, 2026-08-21 (unscheduled, not yet triaged)
+
+Three items, reported in Spanish over chat against the live Android build.
+Recorded verbatim in substance; nothing here is fixed yet.
+
+- [ ] **The speed dial stays open on top of the photo-scan result, blocking
+      "Add today".** His words: after the scan finishes and the food appears,
+      *"se queda abierta la opcion de scan meal y manual entry por encima de la
+      info"* — the Scan meal / Manual entry pills sit over the result and he
+      expects them to dismiss on their own.
+
+      **This is the SAME defect the Maestro suite hit the same day, and that
+      matters.** `06-scan-intro`'s capture came out as the scan screen greyed
+      under the dial's scrim, and it was written up in that flow as a
+      test-harness artifact — "the fallback deep link lands with the dial still
+      open." A real user hitting it on the review screen says otherwise: it is a
+      **product bug**, and the flow's comment understates it. `LogSpeedDial` is
+      rendered by the TAB LAYOUT, so it survives navigation; `choose()` closes it
+      only when the satellite BUTTON is tapped, and a tap that lands on the label
+      pill (or races the navigation) leaves it open over whatever comes next.
+      Fix the component, not the flow — then simplify `06-scan-intro` back.
+
+- [ ] **No way to set a custom calorie goal.** *"cuando vas a editar el goal de
+      los kcal … los pone automatico, no se le puede añadir un custom mode que
+      la persona misma pueda poner la cantidad que quiere?"* The target is
+      computed and cannot be overridden with a number the user chooses. Worth
+      weighing against the estimator work — a manual override competes with
+      measured TDEE, so decide whether it pins the target, seeds it, or is a
+      separate mode before building.
+
+- [ ] **No in-app feedback surface.** *"por qué no le haces una parte de feedback
+      in-app para que por shy te escriban sugerencias"* — his point is the
+      social barrier, not the channel: people who would not message the owner
+      directly would leave a note inside the app. Note this arrived by private
+      chat, which is itself the evidence. `/support` exists on the web shell but
+      nothing in the app points at it.
+
 ### Tier 3 — deliberately deferred, with the reason
 
 - [x] **N6 · Restaurant / chain-menu data — MOSTLY ALREADY SHIPPED, measured
