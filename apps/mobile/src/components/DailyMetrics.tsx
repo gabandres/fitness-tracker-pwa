@@ -14,10 +14,9 @@ import { type TFn, useT } from '@/i18n';
 import type { DailyActivity } from '@/lib/ledger';
 import * as haptics from '@/lib/haptics';
 import Reanimated from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PressScale } from '@/lib/motion';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
-import { useKeyboardSheetStyle } from '@/lib/use-keyboard-sheet-style';
+import { useKeyboardSheetPadding, useKeyboardSheetStyle } from '@/lib/use-keyboard-sheet-style';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
@@ -243,7 +242,7 @@ function WaterModal({
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const keyboardStyle = useKeyboardSheetStyle();
-  const insets = useSafeAreaInsets();
+  const sheetPadding = useKeyboardSheetPadding(space.xxl);
   const inputRef = useDeferredFocus(visible);
   const [mode, setMode] = useState<'add' | 'set'>('add');
   const [value, setValue] = useState('');
@@ -275,7 +274,7 @@ function WaterModal({
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheetWrap}>
         <Reanimated.View style={keyboardStyle}>
-          <View style={[styles.sheet, { paddingBottom: space.xxl + insets.bottom }]}>
+          <Reanimated.View style={[styles.sheet, sheetPadding]}>
             <View style={styles.handle} />
             {/* The mode switch lives in the TITLE ROW and not under Save,
                 because the keyboard opens with the sheet: anything below the
@@ -333,7 +332,7 @@ function WaterModal({
             >
               <Text style={styles.saveText}>{t('common.save')}</Text>
             </TouchableOpacity>
-          </View>
+          </Reanimated.View>
         </Reanimated.View>
       </View>
     </Modal>
@@ -355,7 +354,7 @@ function SleepModal({
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const keyboardStyle = useKeyboardSheetStyle();
-  const insets = useSafeAreaInsets();
+  const sheetPadding = useKeyboardSheetPadding(space.xxl);
   const inputRef = useDeferredFocus(visible);
   const [value, setValue] = useState('');
 
@@ -371,7 +370,7 @@ function SleepModal({
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheetWrap}>
         <Reanimated.View style={keyboardStyle}>
-        <View style={[styles.sheet, { paddingBottom: space.xxl + insets.bottom }]}>
+        <Reanimated.View style={[styles.sheet, sheetPadding]}>
           <View style={styles.handle} />
           <Text style={styles.sheetTitle}>{t('metrics.hoursSlept')}</Text>
           <View style={styles.inputRow}>
@@ -395,7 +394,7 @@ function SleepModal({
           >
             <Text style={styles.saveText}>{t('common.save')}</Text>
           </TouchableOpacity>
-        </View>
+        </Reanimated.View>
         </Reanimated.View>
       </View>
     </Modal>
@@ -452,12 +451,16 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
     borderTopRightRadius: radius.lg,
     paddingHorizontal: space.xl,
     paddingTop: space.md,
-    // Overridden inline with the bottom safe-area inset added. A bottom sheet
+    // Overridden by `useKeyboardSheetPadding`, which adds the bottom safe-area
+    // inset at rest and ramps it back out as the keyboard rises. A bottom sheet
     // renders inside a `Modal`, which fills the physical screen and does NOT
     // respect insets, so a fixed 32 leaves the last rows under a software
     // navigation bar — 48dp on the LG VS988, which clipped the Save button by
-    // ~16dp and made it miss taps near its lower edge. Zero on a device with
-    // no nav bar, so this changes nothing there.
+    // ~16dp and made it miss taps near its lower edge. Adding it
+    // UNCONDITIONALLY was the other half of that bug: with the keyboard open
+    // the inset reserves room for a nav bar the keyboard is already covering,
+    // which is the empty band that made the sheet look detached from the
+    // keyboard on iOS.
     paddingBottom: space.xxl,
   },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line, marginBottom: space.md },

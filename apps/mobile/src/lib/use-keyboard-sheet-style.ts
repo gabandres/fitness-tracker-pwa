@@ -26,3 +26,30 @@ export function useKeyboardSheetStyle() {
     return { transform: [{ translateY: height.value + offset }] };
   });
 }
+
+/**
+ * The sheet's own bottom padding, animated so it collapses as the keyboard
+ * rises.
+ *
+ * A bottom sheet renders inside a `Modal`, which fills the physical screen and
+ * ignores safe-area insets, so the resting padding has to carry
+ * `insets.bottom` itself or the last row sits under the software navigation
+ * bar (48dp on the LG VS988 — that clipped Save and made it miss taps).
+ *
+ * **But that inset is dead space the moment the keyboard opens**, because the
+ * keyboard is drawn over the home indicator / nav bar it was reserving room
+ * for. Adding it anyway leaves a visible band of empty sheet between the
+ * primary button and the keyboard — reported on iOS as the sheet looking
+ * "detached" from the keyboard, which is exactly what it is. So it ramps out
+ * on `progress`, in lock-step with the lift above, and the resting position is
+ * untouched.
+ *
+ * @param base padding that always applies, keyboard or not
+ */
+export function useKeyboardSheetPadding(base: number) {
+  const insets = useSafeAreaInsets();
+  const { progress } = useReanimatedKeyboardAnimation();
+  return useAnimatedStyle(() => ({
+    paddingBottom: base + interpolate(progress.value, [0, 1], [insets.bottom, 0]),
+  }));
+}
