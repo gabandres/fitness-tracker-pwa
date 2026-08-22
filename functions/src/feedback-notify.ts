@@ -42,16 +42,28 @@ const FEEDBACK_NOTIFY = true;
 
 /**
  * Where the ping goes. `MACROLOG_FEEDBACK_TO` overrides, matching how
- * `resend-client.ts` treats `FROM`/`REPLY_TO`, so changing the destination is
- * a config edit rather than a code change.
+ * `resend-client.ts` treats `FROM`/`REPLY_TO`.
  *
- * The default is the LLC mailbox. Two things worth knowing about it: the
- * Northwest suite it belongs to is free for year one only and lapses ~July
- * 2027 with auto-renew currently off (`STATUS.md` / `CLAUDE.local.md`), and
- * if it lapses these pings stop silently. That is the reason for the env
- * override rather than a hardcoded address.
+ * **This was `gabriel@bermudezsystems.com` and is not any more — changed
+ * 2026-08-22 because the owner never received the first real one.** Resend
+ * reported that message `delivered`, which is true and is also the end of what
+ * Resend can see: `delivered` means Northwest's MX returned a 250, not that a
+ * human read it. The LLC mailbox is supposed to forward to the Gmail below,
+ * and `CLAUDE.local.md` records that forward as *"1 slot on the plan (owner to
+ * configure)"* — i.e. it was never confirmed configured, and the evidence now
+ * says it is not.
+ *
+ * So the ping goes straight to the inbox the owner actually reads. The LLC
+ * address stays the ORG CONTACT on Apple/Google records — that is a different
+ * job from an ops notification, and routing this through an unverified forward
+ * bought nothing but a silent failure.
+ *
+ * Move it back only after sending a test to the LLC address and watching it
+ * arrive in Gmail. Note also that the Northwest suite is free for year one and
+ * lapses ~July 2027 with auto-renew off, so it is not a durable destination
+ * for anything time-sensitive.
  */
-const FALLBACK_TO = "gabriel@bermudezsystems.com";
+const FALLBACK_TO = "gabrielandresbermudez@gmail.com";
 const NOTIFY_TO = process.env["MACROLOG_FEEDBACK_TO"] || FALLBACK_TO;
 
 const ADMIN_FEEDBACK_URL = "https://ignia.fit/admin?tab=feedback";

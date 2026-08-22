@@ -906,6 +906,18 @@ export const en = {
   'feedback.tooLong': '{n} characters over the limit.',
   'feedback.privacy': 'Sent with your app version and language so I can reproduce it. Nothing else.',
   'feedback.whatsNewPrompt': 'Something missing, or broken? Tell me.',
+
+  // ── water entry ──
+  'water.title': 'Water',
+  'water.modeAdd': 'Add',
+  'water.modeSet': 'Set total',
+  'water.amount': 'How much?',
+  'water.unit': 'fl oz',
+  'water.today': 'Today: {n} fl oz',
+  'water.preview': '{from} → {to} fl oz',
+  'water.setHint': "Replaces today's total.",
+  'water.quick': 'Quick',
+  'water.tooMuch': 'That is over the {n} fl oz daily maximum.',
 } as const;
 
 export type I18nKey = keyof typeof en;

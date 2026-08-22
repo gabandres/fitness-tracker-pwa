@@ -902,4 +902,16 @@ export const esPR: Record<I18nKey, string> = {
   'feedback.tooLong': '{n} caracteres de más.',
   'feedback.privacy': 'Se envía con la versión de tu app y tu idioma para poder reproducirlo. Nada más.',
   'feedback.whatsNewPrompt': '¿Falta algo, o algo no sirve? Dímelo.',
+  // ── water entry ──
+  'water.title': 'Agua',
+  'water.modeAdd': 'Añadir',
+  'water.modeSet': 'Poner total',
+  'water.amount': '¿Cuánta?',
+  'water.unit': 'oz',
+  'water.today': 'Hoy: {n} oz',
+  'water.preview': '{from} → {to} oz',
+  'water.setHint': 'Reemplaza el total de hoy.',
+  'water.quick': 'Rápido',
+  'water.tooMuch': 'Eso pasa del máximo diario de {n} oz.',
+
 };
