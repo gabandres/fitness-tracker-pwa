@@ -139,14 +139,20 @@ export function toLogPatch<TS>(entry: LogEntry, codec: DocCodec<TS>): Record<str
  * still marked "refined". Manual outranks formula in the target chain
  * (see `targets.ts`), so that user was pinned to a heuristic number derived
  * from a pace they had already replaced, with no way back except refining
- * again. Clearing the stamp restores the invariant the two writers jointly own:
+ * again. Clearing the stamp is still correct: it re-shows the Refine Targets
+ * prompt card (the stamp is that card's latch), and a user who just restated
+ * their goal should be invited to refine into a pace that matches it.
+ *
+ * **The invariant that used to justify it is GONE as of 2026-08-21.** It read:
  *
  *   `targetsRefinedAt` present  ⟺  manual targets absent
  *
- * Clearing it also re-shows the Refine Targets prompt card (the stamp is that
- * card's latch), which is the correct outcome: the user is back on the
- * heuristic and should be invited to refine into a pace matching their new
- * goal.
+ * and it was enforced by `saveRefinedTargets` DELETING the manual values —
+ * which also destroyed any number the user had chosen on purpose, with no way
+ * back except re-running onboarding. `targetMode` replaces it: the mode alone
+ * decides whether the manual values are honoured, so Refine can set `'auto'`
+ * and leave them stored, and switching back to `'custom'` restores them
+ * intact. `targetsRefinedAt` now means only "the Refine card has been filled".
  */
 export function toOnboardingV2Patch<TS>(
   submission: OnboardingV2Submission,
@@ -159,6 +165,11 @@ export function toOnboardingV2Patch<TS>(
     goalDirection: submission.goalDirection,
     manualCaloriesTarget: submission.manualCaloriesTarget,
     manualProteinTarget: submission.manualProteinTarget,
+    // Written on EVERY onboarding save, including the default 'auto', so a
+    // user who re-runs onboarding and accepts the computed numbers is put
+    // back on automatic rather than inheriting a stale 'custom' from a
+    // previous run. An omitted mode would leave the old value in place.
+    targetMode: submission.targetMode ?? 'auto',
     onboardingV2CompletedAt: stamp,
     // Mark the profile complete so the v1 gate doesn't re-trigger v1
     // onboarding for users who came in through the v2 path.

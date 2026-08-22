@@ -10,6 +10,7 @@ import {
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   serverTimestamp,
@@ -488,6 +489,123 @@ describe('firestore.rules', () => {
     weeklyDigestOptIn: true,
     hiddenRecentLabels: ['oatmeal', 'protein shake'],
     webhookApiKey: '0'.repeat(36),
+    targetMode: 'auto',
+  });
+
+  // ─── targetMode + in-app feedback (2026-08-21) ──────────────────────────
+  // `targetMode` decides whether the estimator is overridden, so an
+  // unrecognised value must not be storable at all — the client is not the
+  // control here.
+  it('lets a profile switch to custom targets', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'alice'), fullProfile());
+    });
+    const db = authed('alice');
+    await assertSucceeds(
+      updateDoc(doc(db, 'users', 'alice'), {
+        targetMode: 'custom',
+        manualCaloriesTarget: 2000,
+        lastSeenAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it('rejects a targetMode outside the closed set', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'alice'), fullProfile());
+    });
+    const db = authed('alice');
+    await assertFails(
+      updateDoc(doc(db, 'users', 'alice'), { targetMode: 'manual' }),
+    );
+  });
+
+  it('lets a user file feedback about themselves', async () => {
+    const db = authed('alice');
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'feedback'), {
+        message: 'the speed dial covers the scan result',
+        category: 'bug',
+        createdAt: Timestamp.now(),
+        appVersion: '1.2.1',
+        platform: 'android',
+        locale: 'es-PR',
+      }),
+    );
+  });
+
+  it('lets a user file feedback with no category chosen', async () => {
+    // An unset chip must stay a legitimate submission — the chooser is
+    // optional by design, and a rule that quietly required it would turn a
+    // "just tell me what you think" box into a form.
+    const db = authed('alice');
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'feedback'), {
+        message: 'love the app',
+        createdAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it('refuses feedback filed into someone else’s subcollection', async () => {
+    const db = authed('alice');
+    await assertFails(
+      addDoc(collection(db, 'users', 'bob', 'feedback'), {
+        message: 'not mine to write',
+        createdAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it('caps the message length in the RULE, not only in the client', async () => {
+    // This is the one collection any authenticated user can append to at
+    // will, so the cap has to hold where the client cannot reach it.
+    const db = authed('alice');
+    await assertFails(
+      addDoc(collection(db, 'users', 'alice', 'feedback'), {
+        message: 'x'.repeat(4001),
+        createdAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it('refuses an empty feedback message', async () => {
+    const db = authed('alice');
+    await assertFails(
+      addDoc(collection(db, 'users', 'alice', 'feedback'), {
+        message: '',
+        createdAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it('does not let the reporter read back what they sent', async () => {
+    // Deliberate: there is no in-app inbox, and a readable copy would imply
+    // one. The owner reads these through the admin panel.
+    let id = '';
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const ref = await addDoc(collection(ctx.firestore(), 'users', 'alice', 'feedback'), {
+        message: 'sent earlier',
+        createdAt: Timestamp.now(),
+      });
+      id = ref.id;
+    });
+    const db = authed('alice');
+    await assertFails(getDoc(doc(db, 'users', 'alice', 'feedback', id)));
+  });
+
+  it('does not let the reporter edit or delete a filed report', async () => {
+    let id = '';
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const ref = await addDoc(collection(ctx.firestore(), 'users', 'alice', 'feedback'), {
+        message: 'sent earlier',
+        createdAt: Timestamp.now(),
+      });
+      id = ref.id;
+    });
+    const db = authed('alice');
+    await assertFails(updateDoc(doc(db, 'users', 'alice', 'feedback', id), { message: 'rewritten' }));
+    await assertFails(deleteDoc(doc(db, 'users', 'alice', 'feedback', id)));
   });
 
   it('lets a real-shaped profile change its calorie floor', async () => {

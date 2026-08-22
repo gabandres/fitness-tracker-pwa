@@ -8,6 +8,11 @@
  * `services/firebase.service.ts` so existing imports keep working.
  */
 import type { GoalDirection } from './macro-heuristic';
+
+/** Whether the daily targets come from the estimator or from numbers the user
+ *  typed. See `Profile.targetMode` for why this is explicit rather than
+ *  inferred from whether a manual value happens to be present. */
+export type TargetMode = 'auto' | 'custom';
 import type { UnitSystem } from './unit-system';
 
 // ─── Log types ──────────────────────────────────────────────────
@@ -144,6 +149,11 @@ export interface OnboardingV2Submission {
   targetWeightLbs?: number;
   manualCaloriesTarget: number;
   manualProteinTarget: number;
+  /** `'custom'` when the user EDITED either number on the plan step rather
+   *  than accepting what was computed for them. Omitted ⇒ `'auto'`, which is
+   *  the unchanged behaviour: the two values above act as a seed until the
+   *  estimator has data. */
+  targetMode?: TargetMode;
 }
 
 /** Payload from the Day-3 "Refine targets" sheet. Promotes a 2-Q-onboarded
@@ -226,6 +236,33 @@ export interface ProfileFields {
   targetWeightLbs?: number;       // for lose/gain; omitted for maintain
   manualCaloriesTarget?: number;  // heuristic: weight_lb × {11/14/17}
   manualProteinTarget?: number;   // heuristic snapshot (frozen grams) from onboarding
+  /**
+   * Whether the two `manual*Target` fields above are the user's OWN numbers or
+   * a computed starting point.
+   *
+   * ## Why an explicit field and not "is manualCaloriesTarget set"
+   *
+   * Presence used to be the mode, implicitly, and it made those values
+   * load-bearing for two different jobs: onboarding writes a *computed*
+   * heuristic into them, and a user who types a number writes an *intent*
+   * into the same place. Nothing could tell the two apart, which is why
+   * `saveRefinedTargets` had to `deleteField()` them to get back to automatic
+   * — throwing away a number the user may have chosen deliberately, with no
+   * way back except re-running onboarding.
+   *
+   * With the mode explicit, the numbers stay stored while `'auto'` is active
+   * and come back intact when the user switches to `'custom'`.
+   *
+   * **Omitted means `'auto'`**, which is every account predating this field —
+   * and `targets.ts` keeps the old behaviour byte-for-byte for them, so this
+   * is additive rather than a migration.
+   *
+   * PER-FIELD, deliberately: `'custom'` means "honour whichever `manual*`
+   * fields are set", not "the user owns both numbers". Protein left unset
+   * keeps tracking body weight, which matters because protein is derived from
+   * weight and freezing it is a silent regression nobody asked for.
+   */
+  targetMode?: TargetMode;
   // Personal protein basis on the g/kg standard (clamped 1.6–2.2). When set
   // it drives proteinTarget LIVE off current weight, overriding the frozen
   // manualProteinTarget snapshot. Lets a lean-cutting lifter dial e.g. 1.9.

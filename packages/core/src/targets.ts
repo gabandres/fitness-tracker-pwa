@@ -162,23 +162,45 @@ export function dailyTargets(
   const adjusted = fields?.travelMode ? { ...fields, targetPaceLbsPerWeek: 0 } : fields;
   const tdee = calculateTdee(merged, adjusted);
 
+  // `targetMode: 'custom'` means the user typed these numbers and they win —
+  // including over a measured estimate. Omitted (every account predating the
+  // field) means 'auto', which keeps the branch below byte-for-byte.
+  //
+  // The distinction matters more than it looks. Under 'auto' the manual value
+  // is a SEED: it is used until the estimator has enough data, and then
+  // silently replaced. That is correct for onboarding's computed heuristic and
+  // wrong for a number a person chose — a user who set 2,000 watched it become
+  // 2,410 a fortnight later with nothing telling them why (UX_AUDIT, Abdiel
+  // Medina, 2026-08-21). Per-field on purpose: a `manual*` left unset stays
+  // automatic even in custom mode.
+  const custom = profile?.targetMode === 'custom';
+
   let calorieTarget: number;
-  if (tdee.source === 'measured' && tdee.reliable) {
+  const manualKcal = profile?.manualCaloriesTarget;
+  const hasManualKcal = manualKcal != null && manualKcal > 0;
+  if (custom && hasManualKcal) {
+    calorieTarget = manualKcal;
+  } else if (tdee.source === 'measured' && tdee.reliable) {
     calorieTarget = tdee.newDailyTarget;
   } else {
-    const manual = profile?.manualCaloriesTarget;
-    calorieTarget = manual != null && manual > 0 ? manual : tdee.newDailyTarget;
+    calorieTarget = hasManualKcal ? manualKcal : tdee.newDailyTarget;
   }
 
   const w = currentWeight(logs, dailyWeights);
 
   let proteinTarget: number;
   const perKg = profile?.proteinPerKg;
-  if (perKg != null && perKg > 0 && w) {
+  const manualProtein = profile?.manualProteinTarget;
+  const hasManualProtein = manualProtein != null && manualProtein > 0;
+  // Same rule as calories: an explicit custom number outranks the g/kg basis,
+  // which is itself a derived value. Outside custom mode the order is
+  // unchanged — perKg first, then the frozen onboarding snapshot.
+  if (custom && hasManualProtein) {
+    proteinTarget = manualProtein;
+  } else if (perKg != null && perKg > 0 && w) {
     proteinTarget = computeProtein(w, perKg);
   } else {
-    const manual = profile?.manualProteinTarget;
-    proteinTarget = manual != null && manual > 0 ? manual : w ? computeProtein(w) : 0;
+    proteinTarget = hasManualProtein ? manualProtein : w ? computeProtein(w) : 0;
   }
 
   const proteinMinTarget = w ? computeProtein(w) : 0;

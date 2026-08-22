@@ -76,6 +76,42 @@ service cloud.firestore {
           && data.profileCompleted is bool;
     }
 
+    // ─── In-app feedback ────────────────────────────────────────
+    // Written by the mobile composer (UX_AUDIT, Abdiel Medina 2026-08-21:
+    // people who would not message the owner directly will leave a note
+    // inside the app). Create-only from the client — a user cannot read,
+    // edit or delete what they sent, which keeps the record an append-only
+    // log rather than something that can be quietly rewritten after the
+    // owner has read it.
+    //
+    // `message` is length-capped HERE and not only in the client, because
+    // the client cap is a courtesy and the rule is the control: this is the
+    // one collection any authenticated user can add documents to at will.
+    // `category` is a closed set with an explicit 'none' rather than an
+    // absent field, so an unset chip is still a legitimate submission.
+    function isValidFeedback(data) {
+      return data.keys().hasOnly([
+              'message', 'category', 'createdAt',
+              // Context attached silently by the composer, so a report can be
+              // reproduced without asking the reporter what they were running.
+              'appVersion', 'platform', 'locale'
+            ])
+          && 'message' in data.keys()
+          && data.message is string
+          && data.message.size() > 0
+          && data.message.size() <= 4000
+          && 'createdAt' in data.keys()
+          && data.createdAt is timestamp
+          && (!('category' in data.keys()) ||
+              data.category in ['bug', 'idea', 'confusing', 'other', 'none'])
+          && (!('appVersion' in data.keys()) ||
+              (data.appVersion is string && data.appVersion.size() <= 40))
+          && (!('platform' in data.keys()) ||
+              data.platform in ['ios', 'android', 'web'])
+          && (!('locale' in data.keys()) ||
+              (data.locale is string && data.locale.size() <= 20));
+    }
+
     function isValidProfileInitial(data) {
       return data.keys().hasOnly([
               'email', 'createdAt', 'lastSeenAt', 'profileCompleted',
@@ -299,6 +335,11 @@ service cloud.firestore {
               // goal direction + onboarding stamp.
               'goalDirection', 'targetWeightLbs',
               'manualCaloriesTarget', 'manualProteinTarget',
+              // Whether the two manual* values above are the user's OWN
+              // numbers or a computed starting point. See Profile.targetMode
+              // in packages/core — the values alone cannot say which, which
+              // is why refining used to have to DELETE them.
+              'targetMode',
               // Personal protein basis (g/kg), dialed in settings / refine.
               'proteinPerKg',
               // Personal daily-calorie safety floor (kcal), dialed in settings.
@@ -371,6 +412,11 @@ service cloud.firestore {
               (data.manualCaloriesTarget is number && data.manualCaloriesTarget > 0 && data.manualCaloriesTarget < 20000))
           && (!('manualProteinTarget' in data.keys()) ||
               (data.manualProteinTarget is number && data.manualProteinTarget > 0 && data.manualProteinTarget < 1000))
+          // Closed set, not a free string: this field decides whether the
+          // estimator is overridden, so an unrecognised value must not be
+          // storable at all.
+          && (!('targetMode' in data.keys()) ||
+              data.targetMode in ['auto', 'custom'])
           && (!('proteinPerKg' in data.keys()) ||
               (data.proteinPerKg is number && data.proteinPerKg >= 1.6 && data.proteinPerKg <= 2.2))
           && (!('calorieFloor' in data.keys()) ||
@@ -514,6 +560,17 @@ service cloud.firestore {
         allow create: if isOwner(uid) && isValidLog(request.resource.data);
         allow update: if isOwner(uid) && isValidLog(request.resource.data);
         allow delete: if isOwner(uid);
+      }
+
+      // In-app feedback — append-only from the client. The owner reads it
+      // through the admin panel's collectionGroup query (see the
+      // /{path=**}/feedback rule further down); the reporter cannot read
+      // even their own, which is deliberate: there is no in-app inbox, and a
+      // readable copy would imply one.
+      match /feedback/{feedbackId} {
+        allow read:   if isAdmin();
+        allow create: if isOwner(uid) && isValidFeedback(request.resource.data);
+        allow update, delete: if false;
       }
 
       // Meal presets — quick-add templates.
@@ -858,6 +915,15 @@ service cloud.firestore {
       // bypasses these rules. A client deleting its own counters is harmless
       // but pointless, and denying it keeps the surface minimal.
       allow delete: if false;
+    }
+
+    // Admin-only collectionGroup read over every user's feedback. The
+    // per-user rule above cannot serve this: a collectionGroup query is
+    // evaluated against a rule matched on the COLLECTION ID, not on the
+    // document path, so without this block the admin panel's query fails
+    // even though the admin can read each document individually.
+    match /{path=**}/feedback/{feedbackId} {
+      allow read: if isAdmin();
     }
 
     match /{document=**} {

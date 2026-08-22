@@ -340,7 +340,20 @@ describe('toOnboardingV2Patch', () => {
       targetWeightLbs: 150,
       goalWeightLbs: 150,
       targetsRefinedAt: REMOVE,
+      targetMode: 'auto',
     });
+  });
+
+  it("writes 'custom' when the user edited a number on the plan step", () => {
+    const patch = toOnboardingV2Patch({ ...submission, targetMode: 'custom' }, codec, NOW);
+    expect(patch['targetMode']).toBe('custom');
+  });
+
+  it("writes 'auto' EXPLICITLY when they did not, rather than omitting it", () => {
+    // Omitting would leave a stale 'custom' in place for someone re-running
+    // onboarding to get back to automatic — which is one of the two ways out
+    // of custom mode.
+    expect(toOnboardingV2Patch(submission, codec, NOW)['targetMode']).toBe('auto');
   });
 
   it('clears BOTH goal-weight fields on maintain', () => {

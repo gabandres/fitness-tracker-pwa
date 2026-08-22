@@ -191,6 +191,91 @@ describe('dailyTargets — calorie floor covers every branch', () => {
 });
 
 /**
+ * `targetMode: 'custom'` — the user's own numbers, not a starting point.
+ *
+ * Before it existed, `manualCaloriesTarget` was a SEED: used until the
+ * estimator had enough data, then silently replaced. That is right for the
+ * heuristic onboarding computes and wrong for a number a person typed, and
+ * the gap is what a real user reported — a chosen target quietly becoming a
+ * measured one with nothing saying why (UX_AUDIT, Abdiel Medina, 2026-08-21).
+ *
+ * The 'auto' cases below are the load-bearing half: this field is additive,
+ * and every account that predates it has no `targetMode` at all.
+ */
+describe('dailyTargets — targetMode', () => {
+  it("custom beats a reliable measured estimate", () => {
+    const logs = series(20, 2000, 200);
+    const auto = dailyTargets(fullProfile(), logs, {});
+    expect(auto.tdee.source).toBe('measured');
+    expect(asMeasured(auto.tdee).reliable).toBe(true);
+
+    const custom = dailyTargets(
+      fullProfile({ targetMode: 'custom', manualCaloriesTarget: 2000 }),
+      logs,
+      {},
+    );
+    // Same estimate underneath — the mode picks which number is USED, it does
+    // not stop the estimator running. That is what keeps "we measure N"
+    // truthful next to the user's own number.
+    expect(custom.tdee.source).toBe('measured');
+    expect(custom.calorieTarget).toBe(2000);
+    expect(custom.calorieTarget).not.toBe(auto.calorieTarget);
+  });
+
+  it('omitted targetMode keeps the old seed behaviour exactly', () => {
+    const logs = series(20, 2000, 200);
+    const legacy = dailyTargets(fullProfile({ manualCaloriesTarget: 2000 }), logs, {});
+    // No targetMode: the measured estimate still wins, as it always did.
+    expect(legacy.calorieTarget).toBe(legacy.tdee.newDailyTarget);
+    expect(legacy.calorieTarget).not.toBe(2000);
+  });
+
+  it("'auto' with a stored custom number ignores it — the number survives, unused", () => {
+    // The whole point of an explicit mode: switching back to automatic must
+    // not require destroying what the user typed.
+    const logs = series(20, 2000, 200);
+    const t = dailyTargets(
+      fullProfile({ targetMode: 'auto', manualCaloriesTarget: 2000 }),
+      logs,
+      {},
+    );
+    expect(t.calorieTarget).toBe(t.tdee.newDailyTarget);
+  });
+
+  it('is per-field: custom calories leaves protein tracking body weight', () => {
+    const logs = series(20, 2000, 200);
+    const t = dailyTargets(
+      fullProfile({ targetMode: 'custom', manualCaloriesTarget: 2000 }),
+      logs,
+      {},
+    );
+    expect(t.calorieTarget).toBe(2000);
+    // No manualProteinTarget set, so protein is still derived from weight.
+    expect(t.proteinTarget).toBe(computeProtein(t.currentWeight!));
+  });
+
+  it('custom protein outranks the g/kg basis', () => {
+    const logs = series(20, 2000, 200);
+    const t = dailyTargets(
+      fullProfile({ targetMode: 'custom', manualProteinTarget: 190, proteinPerKg: 2.0 }),
+      logs,
+      {},
+    );
+    expect(t.proteinTarget).toBe(190);
+  });
+
+  it('still clamps a custom target up to the calorie floor', () => {
+    // The mode says whose number it is, not whether the safety floor applies.
+    const t = dailyTargets(
+      fullProfile({ targetMode: 'custom', manualCaloriesTarget: 1300, calorieFloor: 1850 }),
+      series(20, 2000, 200),
+      {},
+    );
+    expect(t.calorieTarget).toBe(1850);
+  });
+});
+
+/**
  * Protein had no floor concept at all. `proteinFloor` is opt-in: unset must
  * behave exactly as before, which is what the last two cases pin down.
  */
