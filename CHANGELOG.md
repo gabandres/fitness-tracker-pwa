@@ -16,9 +16,19 @@ it. There was a units setting, but it was called *Portion display* and the
 name was honest: it reached food serving sizes and nothing else. So if you
 think in kilograms, typing **68** at setup got you a plan built for a 68 lb
 person, and nothing anywhere said so. It's fixed: Settings → **Units** now
-governs body weight too, and every screen that shows or asks for your weight
-follows it. Barbell loads stay in pounds for now — that's a separate job with
-its own plate maths.
+governs weight everywhere — your body weight *and* what's on the bar.
+
+The barbell half is the fussier one and worth saying out loud. A metric gym is
+not an imperial gym with the numbers translated: the bar is 20 kg, not 45 lb
+converted; the plates are 25/20/15/10/5/2.5/1.25, and there is no such thing as
+a 20.4 kg plate. So the plate helper solves in kilograms with kilogram plates
+rather than working it out in pounds and converting the answer — which is how
+you end up telling someone to load a plate that does not exist. Your weight
+step defaults to 2.5 kg instead of 5 lb for the same reason: it is the smallest
+pair on the rack.
+
+Everything is still stored one way underneath, so switching units does not
+strand your history — this month still compares to last.
 
 **The food search had the wrong name.** The + button offered *Scan meal* and
 *Manual entry*. But "Manual entry" opens a food search — a database of tens of
