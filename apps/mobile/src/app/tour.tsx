@@ -158,7 +158,7 @@ export default function Tour() {
     .reduceMotion(ReduceMotion.System);
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       {/* Top bar: progress dots + a skip that is available on every step. */}
       <View style={styles.topBar}>
         <View style={styles.dots}>
@@ -250,17 +250,30 @@ const createStyles = ({ colors, shadow }: Theme) =>
       justifyContent: 'space-between',
       paddingHorizontal: space.xl,
       paddingTop: space.md,
-      height: 44,
+      // minHeight, not height: a fixed 44 cropped the descender on "Skip" —
+      // it rendered as "Skin" on the LG G6. Font scaling makes that worse,
+      // never better, so the row has to be free to grow.
+      minHeight: 44,
     },
     dots: { flexDirection: 'row', gap: space.xs },
     dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.line },
     dotOn: { width: 22, backgroundColor: colors.ink },
     dotDone: { backgroundColor: colors.accent },
     skip: { paddingVertical: space.sm, paddingHorizontal: space.sm },
-    skipText: { fontSize: font.body, color: colors.muted },
+    skipText: { fontSize: font.body, lineHeight: font.body * 1.4, color: colors.muted },
     // flexGrow centres a short card and scrolls a tall one — the map step is
     // five rows and overflows a 360x720dp screen.
-    scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: space.xl, paddingVertical: space.lg },
+    // flexGrow centres a short card and scrolls a tall one. The bottom pad is
+    // load-bearing rather than cosmetic: the map step is five rows and overflows
+    // a 360x720dp screen, and without it the fifth row sat under the pinned CTA
+    // — on the device it simply was not there.
+    scroll: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      paddingHorizontal: space.xl,
+      paddingTop: space.lg,
+      paddingBottom: space.xxl,
+    },
     card: { width: '100%', maxWidth: 480, alignSelf: 'center', gap: space.md },
     counter: { fontSize: font.tiny, color: colors.faint, letterSpacing: 0.6, textTransform: 'uppercase' },
     title: { fontFamily: type.display, fontSize: 28, color: colors.ink, lineHeight: 34 },

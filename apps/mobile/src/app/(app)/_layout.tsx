@@ -111,11 +111,11 @@ function useTourOnce() {
       profileCompleted: profile?.profileCompleted === true,
       // segments is ['(app)', <screen>] inside this layout; the tab root has
       // no second segment, so treat that as 'index'.
-      route: segments[1] ?? 'index',
+      route: segments[0] === '(app)' ? (segments[1] ?? 'index') : segments[0],
     });
     if (!open) return;
     navigated.current = true;
-    router.push('/(app)/tour');
+    router.push('/tour');
   }, [seen, profile?.profileCompleted, segments, router]);
 }
 
@@ -161,8 +161,6 @@ export default function AppTabsLayout() {
       <Tabs.Screen name="daily-targets" options={{ href: null }} />
       {/* Reachable via Settings → Send feedback and the What's-new card. */}
       <Tabs.Screen name="feedback" options={{ href: null }} />
-      {/* Guided tour — opens itself once, and via Settings → How Ignia works. */}
-      <Tabs.Screen name="tour" options={{ href: null }} />
     </Tabs>
   );
 }

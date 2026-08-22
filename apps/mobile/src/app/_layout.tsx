@@ -47,9 +47,13 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
     const inApp = route === '(app)';
     const onOnboarding = route === 'onboarding';
     const onVerify = route === 'verify-email';
+    // The guided tour is a root route so it can take the whole screen — inside
+    // the tab layout the bar and the raised + button overlapped its footer and
+    // clipped its last row.
+    const onTour = route === 'tour';
 
     if (!user) {
-      if (inApp || onOnboarding || onVerify) router.replace('/sign-in');
+      if (inApp || onOnboarding || onVerify || onTour) router.replace('/sign-in');
       return;
     }
     // Email/password signups must verify before they can write anything
@@ -74,7 +78,7 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
     }
     // Completed users live in (app); leave them on /onboarding when they open
     // it deliberately (Settings → Edit goals / redo).
-    if (!inApp && !onOnboarding) router.replace('/(app)');
+    if (!inApp && !onOnboarding && !onTour) router.replace('/(app)');
   }, [user, initializing, emailVerified, profile, profileLoading, profileConfirmed, offline, segments, router]);
 
   // Always mount <Slot/> so the navigator exists when the redirect effect
