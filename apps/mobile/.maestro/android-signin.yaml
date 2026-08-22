@@ -28,6 +28,25 @@ appId: fit.ignia.app
 - launchApp:
     clearState: false
 
+# ── Dismiss the guided tour, if this device has not seen it ──
+# The tour (UX_AUDIT F0) auto-opens ONCE PER DEVICE for anyone with a
+# completed profile, and it is a ROOT route — it covers Today entirely. On a
+# fresh simulator that is every first run, so without this the whole suite
+# fails at its first `scrollUntilVisible`, reporting "No visible element
+# found: Water" as though the metrics card had regressed. Measured on the
+# 2026-08-22 iOS run, which is the first time the suite met a fresh install
+# since the tour shipped.
+#
+# It belongs HERE rather than in each flow: this is the once-per-device setup
+# flow, and the tour's own latch is once-per-device too.
+- runFlow:
+    when:
+      visible:
+        id: 'tour-skip'
+    commands:
+      - tapOn:
+          id: 'tour-skip'
+
 # Already signed in from a previous run? Nothing to do. `runFlow` with a
 # condition keeps this idempotent, so it can be re-run without thinking.
 # Let the app finish booting BEFORE the branch below is evaluated. Measured
