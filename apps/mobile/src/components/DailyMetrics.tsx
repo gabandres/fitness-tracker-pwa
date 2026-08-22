@@ -17,7 +17,6 @@ import Reanimated from 'react-native-reanimated';
 import { PressScale } from '@/lib/motion';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useKeyboardSheetPadding } from '@/lib/use-keyboard-sheet-style';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
@@ -242,7 +241,7 @@ function WaterModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const sheetPadding = useKeyboardSheetPadding(space.xxl);
+  const sheetPadding = useKeyboardSheetPadding(space.xxl, space.md);
   const inputRef = useDeferredFocus(visible);
   const [mode, setMode] = useState<'add' | 'set'>('add');
   const [value, setValue] = useState('');
@@ -272,17 +271,12 @@ function WaterModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      {/* The sheet is lifted by the LIBRARY, not by hand.
-          A hand-rolled `translateY: -keyboardHeight` lands correctly on
-          Android and floats above the keypad on iOS, because RN's `Modal`
-          presents in its own window there and a view cannot infer its true
-          on-screen position from the main one. Measured on a real iPhone:
-          with the old downward nudge the sheet sat ~36pt above the keyboard,
-          and without it ~58pt — both wrong, in the same direction, which is
-          what says the mechanism is wrong rather than the constant.
-          `automaticOffset` is the library's answer to exactly this; its
-          contract names modals. */}
-      <KeyboardAvoidingView behavior="padding" style={styles.sheetWrap}>
+      {/* The sheet does not MOVE for the keyboard — it GROWS. Its background
+          runs to the screen edge and only the content is pushed up, which is
+          how a native sheet behaves and the only arrangement in which iOS 26's
+          transparent "Done" band cannot show the page through it. See
+          `use-keyboard-sheet-style.ts`. */}
+      <View style={styles.sheetWrap}>
         <Reanimated.View style={[styles.sheet, sheetPadding]}>
             <View style={styles.handle} />
             {/* The mode switch lives in the TITLE ROW and not under Save,
@@ -342,7 +336,7 @@ function WaterModal({
               <Text style={styles.saveText}>{t('common.save')}</Text>
             </TouchableOpacity>
         </Reanimated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -361,7 +355,7 @@ function SleepModal({
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const sheetPadding = useKeyboardSheetPadding(space.xxl);
+  const sheetPadding = useKeyboardSheetPadding(space.xxl, space.md);
   const inputRef = useDeferredFocus(visible);
   const [value, setValue] = useState('');
 
@@ -375,17 +369,12 @@ function SleepModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      {/* The sheet is lifted by the LIBRARY, not by hand.
-          A hand-rolled `translateY: -keyboardHeight` lands correctly on
-          Android and floats above the keypad on iOS, because RN's `Modal`
-          presents in its own window there and a view cannot infer its true
-          on-screen position from the main one. Measured on a real iPhone:
-          with the old downward nudge the sheet sat ~36pt above the keyboard,
-          and without it ~58pt — both wrong, in the same direction, which is
-          what says the mechanism is wrong rather than the constant.
-          `automaticOffset` is the library's answer to exactly this; its
-          contract names modals. */}
-      <KeyboardAvoidingView behavior="padding" style={styles.sheetWrap}>
+      {/* The sheet does not MOVE for the keyboard — it GROWS. Its background
+          runs to the screen edge and only the content is pushed up, which is
+          how a native sheet behaves and the only arrangement in which iOS 26's
+          transparent "Done" band cannot show the page through it. See
+          `use-keyboard-sheet-style.ts`. */}
+      <View style={styles.sheetWrap}>
         <Reanimated.View style={[styles.sheet, sheetPadding]}>
           <View style={styles.handle} />
           <Text style={styles.sheetTitle}>{t('metrics.hoursSlept')}</Text>
@@ -411,7 +400,7 @@ function SleepModal({
             <Text style={styles.saveText}>{t('common.save')}</Text>
           </TouchableOpacity>
         </Reanimated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -459,24 +448,11 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   },
   pillText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' },
-  // Anchored to the bottom and PAINTED, rather than a full-screen flex box.
-  //
-  // Both matter. `KeyboardAvoidingView` puts its keyboard-height padding on
-  // this view, so giving it the sheet's own colour means that padded strip is
-  // cream instead of see-through. That is the whole fix for the "sheet is
-  // detached from the keyboard" report: on iOS 26 a `number-pad` has no return
-  // key, so the system floats its own "Done" pill in a TRANSPARENT band above
-  // the keypad — and that band is inside the keyboard frame every API reports.
-  // The sheet was never misplaced; it sat correctly on top of the whole frame
-  // and the empty band under it read as a gap. Nothing measurable distinguishes
-  // the band from the keypad, which is why three attempts at the arithmetic and
-  // then the library's own component all failed to close it.
-  //
-  // `position: absolute` rather than `flex: 1` because a painted full-screen
-  // box would cover the dimmed backdrop. At rest the padding is zero, so this
-  // paints nothing; with the keyboard up it paints exactly the strip the
-  // keyboard occupies, and the keypad is drawn opaque over most of it.
-  sheetWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: colors.paper },
+  // Pins the sheet to the bottom of the Modal without painting anything: the
+  // sheet itself is the visible surface and now reaches the screen edge under
+  // its own padding. `position: absolute` rather than `flex: 1` so it cannot
+  // intercept taps meant for the dimmed backdrop behind it.
+  sheetWrap: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   sheet: {
     backgroundColor: colors.paper,
     borderTopLeftRadius: radius.lg,
