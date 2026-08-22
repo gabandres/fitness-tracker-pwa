@@ -919,6 +919,62 @@ export const en = {
   'water.switchToSet': 'Set total',
   'water.switchToAdd': 'Add instead',
   'water.tooMuch': 'That is over the {n} fl oz daily maximum.',
+  // ─── Guided tour (F0) ──────────────────────────────────
+  // Written for someone who does not want to learn the app by tapping at it.
+  // Every card names what is REVERSIBLE, because "can I undo this?" is the
+  // question that stops a cautious user from trying anything at all.
+  'tour.skip': 'Skip',
+  'tour.next': 'Next',
+  'tour.back': 'Back',
+  'tour.done': 'Start using Ignia',
+  'tour.progress': 'Step {n} of {total}',
+
+  'tour.map.title': 'Here is the whole app',
+  'tour.map.body': 'Five places, and that is all of them. You can come back to this tour whenever you want.',
+  'tour.map.today': 'Today',
+  'tour.map.todaySub': 'What you have eaten today, and how much is left.',
+  'tour.map.train': 'Train',
+  'tour.map.trainSub': 'Your workouts. Optional — ignore this tab if you only want to track food.',
+  'tour.map.trends': 'Trends',
+  'tour.map.trendsSub': 'How the last few weeks have actually gone.',
+  'tour.map.bodyTab': 'Body',
+  'tour.map.bodySub': 'Your weight over time.',
+  'tour.map.add': 'The orange + button',
+  'tour.map.addSub': 'Log food from any tab. This is the button you will use most.',
+
+  'tour.numbers.title': 'What the numbers on Today mean',
+  'tour.numbers.calories': '0 / 2,000 kcal',
+  'tour.numbers.caloriesSub': 'Calories you have eaten, then your goal for the day. "kcal" is just the normal food calorie — the one on every nutrition label.',
+  'tour.numbers.protein': '0g / 120g protein',
+  'tour.numbers.proteinSub': 'Same idea for protein: eaten, then your goal.',
+  'tour.numbers.maintenance': 'maintenance 2,400',
+  'tour.numbers.maintenanceSub': 'What your body burns in a day. Eat under it and you lose weight; eat over it and you gain. Your goal is set below it on purpose.',
+
+  'tour.log.title': 'Three ways to log a meal',
+  'tour.log.search': 'Search for it',
+  'tour.log.searchSub': 'Type "banana" or "chicken breast". This is the quickest way and the one most people use.',
+  'tour.log.photo': 'Take a photo',
+  'tour.log.photoSub': 'Point the camera at your plate and Ignia estimates what is on it. You can correct anything it gets wrong before saving.',
+  'tour.log.manual': 'Write it in',
+  'tour.log.manualSub': 'Type the calories yourself when you already know them.',
+  'tour.log.undo': 'Tap any meal you have logged to edit it, or to delete it. Nothing you log is permanent.',
+
+  'tour.body.title': 'Weighing in',
+  'tour.body.body': 'Tap Body, then Log weight. Weigh yourself whenever you like — daily is ideal, but Ignia works with far less.',
+  'tour.body.trend': 'Ignia follows the TREND, not single days. Weight swings a few pounds from water, salt and sleep, so one heavy morning does not mean you did anything wrong.',
+
+  'tour.targets.title': 'Your numbers are yours',
+  'tour.targets.body': 'Ignia starts with an estimate, then learns your real numbers from what you log and what the scale says. It gets more accurate the longer you use it.',
+  'tour.targets.custom': 'Prefer your own numbers? Settings → Daily targets. Type them in and Ignia will keep them.',
+  'tour.targets.refine': 'Settings → Refine targets asks your height, age and a few details. It takes about twenty seconds and makes the estimate considerably better.',
+
+  'tour.done.title': 'That is everything',
+  'tour.done.body': 'Nothing in Ignia is permanent. Every meal, weight and goal can be changed or deleted later, so there is no wrong way to start.',
+  'tour.done.replay': 'You can reopen this tour any time from Settings → How Ignia works.',
+
+  'settings.help': 'Help',
+  'settings.tour': 'How Ignia works',
+  'settings.tourSub': 'A short tour of the app. Reopen it whenever you like.',
 } as const;
 
 export type I18nKey = keyof typeof en;

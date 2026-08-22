@@ -1,12 +1,13 @@
-import { useEffect, useRef, type ComponentProps } from 'react';
+import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter, useSegments } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LogSpeedDial } from '@/components/LogSpeedDial';
 import { useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import { useAutoApplyOta } from '@/lib/app-update';
+import { loadTourSeen, shouldAutoOpenTour } from '@/lib/tour';
 import { useHealthAutoImport } from '@/lib/health-sync';
 import { track } from '@/lib/analytics';
 import * as haptics from '@/lib/haptics';
@@ -83,9 +84,45 @@ function AppTabBar({ state, descriptors, navigation }: AppTabBarProps) {
   );
 }
 
+/**
+ * Open the guided tour once, for anyone who has not seen it on this device.
+ *
+ * Mounted here rather than at the end of onboarding on purpose: a
+ * first-run-only tour would reach every FUTURE user and miss the one who asked
+ * for it, who already has an account. `shouldAutoOpenTour` holds the rest of
+ * the reasoning and is tested on its own; this hook only performs the
+ * navigation.
+ */
+function useTourOnce() {
+  const { profile } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+  const [seen, setSeen] = useState<boolean | null>(null);
+  const navigated = useRef(false);
+
+  useEffect(() => {
+    void loadTourSeen().then(setSeen);
+  }, []);
+
+  useEffect(() => {
+    if (navigated.current) return;
+    const open = shouldAutoOpenTour({
+      seen,
+      profileCompleted: profile?.profileCompleted === true,
+      // segments is ['(app)', <screen>] inside this layout; the tab root has
+      // no second segment, so treat that as 'index'.
+      route: segments[1] ?? 'index',
+    });
+    if (!open) return;
+    navigated.current = true;
+    router.push('/(app)/tour');
+  }, [seen, profile?.profileCompleted, segments, router]);
+}
+
 export default function AppTabsLayout() {
   const t = useT();
   const { user } = useAuth();
+  useTourOnce();
   // Pull weight/sleep/water from Apple Health / Health Connect on app-open and
   // every foreground (no-op unless the user connected Health in Settings).
   useHealthAutoImport(user?.uid);
@@ -124,6 +161,8 @@ export default function AppTabsLayout() {
       <Tabs.Screen name="daily-targets" options={{ href: null }} />
       {/* Reachable via Settings → Send feedback and the What's-new card. */}
       <Tabs.Screen name="feedback" options={{ href: null }} />
+      {/* Guided tour — opens itself once, and via Settings → How Ignia works. */}
+      <Tabs.Screen name="tour" options={{ href: null }} />
     </Tabs>
   );
 }

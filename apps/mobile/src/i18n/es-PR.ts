@@ -914,5 +914,58 @@ export const esPR: Record<I18nKey, string> = {
   'water.switchToSet': 'Poner total',
   'water.switchToAdd': 'Mejor añadir',
   'water.tooMuch': 'Eso pasa del máximo diario de {n} oz.',
+  // ─── Recorrido guiado (F0) ─────────────────────────────
+  'tour.skip': 'Saltar',
+  'tour.next': 'Siguiente',
+  'tour.back': 'Atrás',
+  'tour.done': 'Empezar a usar Ignia',
+  'tour.progress': 'Paso {n} de {total}',
+
+  'tour.map.title': 'Esta es la app completa',
+  'tour.map.body': 'Cinco lugares, y son todos. Puedes volver a este recorrido cuando quieras.',
+  'tour.map.today': 'Hoy',
+  'tour.map.todaySub': 'Lo que has comido hoy, y cuánto te queda.',
+  'tour.map.train': 'Entrenar',
+  'tour.map.trainSub': 'Tus entrenamientos. Opcional — ignora esta pestaña si solo quieres anotar comida.',
+  'tour.map.trends': 'Tendencias',
+  'tour.map.trendsSub': 'Cómo te ha ido de verdad estas últimas semanas.',
+  'tour.map.bodyTab': 'Cuerpo',
+  'tour.map.bodySub': 'Tu peso a lo largo del tiempo.',
+  'tour.map.add': 'El botón + anaranjado',
+  'tour.map.addSub': 'Anota comida desde cualquier pestaña. Es el botón que más vas a usar.',
+
+  'tour.numbers.title': 'Qué significan los números de Hoy',
+  'tour.numbers.calories': '0 / 2,000 kcal',
+  'tour.numbers.caloriesSub': 'Las calorías que has comido, y luego tu meta del día. "kcal" es la caloría normal de la comida — la misma que aparece en cualquier etiqueta.',
+  'tour.numbers.protein': '0g / 120g proteína',
+  'tour.numbers.proteinSub': 'Lo mismo con la proteína: comida, y luego tu meta.',
+  'tour.numbers.maintenance': 'mantenimiento 2,400',
+  'tour.numbers.maintenanceSub': 'Lo que tu cuerpo quema en un día. Si comes menos, bajas de peso; si comes más, subes. Tu meta está por debajo a propósito.',
+
+  'tour.log.title': 'Tres formas de anotar una comida',
+  'tour.log.search': 'Búscala',
+  'tour.log.searchSub': 'Escribe "guineo" o "pechuga de pollo". Es lo más rápido y lo que casi todo el mundo usa.',
+  'tour.log.photo': 'Tómale una foto',
+  'tour.log.photoSub': 'Apunta la cámara al plato e Ignia estima lo que hay. Puedes corregir lo que salga mal antes de guardar.',
+  'tour.log.manual': 'Escríbela',
+  'tour.log.manualSub': 'Escribe las calorías tú misma cuando ya las sepas.',
+  'tour.log.undo': 'Toca cualquier comida que hayas anotado para editarla o borrarla. Nada de lo que anotes es permanente.',
+
+  'tour.body.title': 'Pesarte',
+  'tour.body.body': 'Toca Cuerpo y luego Anotar peso. Pésate cuando quieras — a diario es lo ideal, pero Ignia funciona con mucho menos.',
+  'tour.body.trend': 'Ignia sigue la TENDENCIA, no los días sueltos. El peso sube y baja varias libras por agua, sal y sueño, así que una mañana pesada no significa que hiciste algo mal.',
+
+  'tour.targets.title': 'Tus números son tuyos',
+  'tour.targets.body': 'Ignia empieza con un estimado y luego aprende tus números reales de lo que anotas y de lo que dice la pesa. Se vuelve más preciso mientras más la uses.',
+  'tour.targets.custom': '¿Prefieres tus propios números? Ajustes → Metas diarias. Escríbelos e Ignia los mantiene.',
+  'tour.targets.refine': 'Ajustes → Afinar metas te pregunta estatura, edad y unos detalles. Toma unos veinte segundos y mejora bastante el estimado.',
+
+  'tour.done.title': 'Eso es todo',
+  'tour.done.body': 'Nada en Ignia es permanente. Cada comida, peso y meta se puede cambiar o borrar después, así que no hay forma incorrecta de empezar.',
+  'tour.done.replay': 'Puedes volver a abrir este recorrido cuando quieras desde Ajustes → Cómo funciona Ignia.',
+
+  'settings.help': 'Ayuda',
+  'settings.tour': 'Cómo funciona Ignia',
+  'settings.tourSub': 'Un recorrido corto por la app. Ábrelo cuando quieras.',
 
 };

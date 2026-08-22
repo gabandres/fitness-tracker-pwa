@@ -382,6 +382,23 @@ export default function Settings() {
             medical disclaimer, which is a place nobody goes to say "this is
             confusing". The barrier a user named was social, not technical
             (UX_AUDIT, Abdiel Medina), so position is the feature here. */}
+        {/* Help sits directly ABOVE feedback on purpose: someone who came to
+            Settings confused should meet the tour before the report box. */}
+        <Text style={styles.section}>{t('settings.help')}</Text>
+        <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.refineRow}
+            onPress={() => router.push('/tour')}
+            testID="settings-tour"
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>{t('settings.tour')}</Text>
+              <Text style={styles.rowValue}>{t('settings.tourSub')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.section}>{t('feedback.title')}</Text>
         <View style={styles.card}>
           <TouchableOpacity
