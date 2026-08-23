@@ -6,6 +6,42 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-23 — email in Portuguese, a site that finishes what it starts
+
+**Email speaks all three languages now.** Ignia has shipped Portuguese in the
+app for a day; the mail it sends still arrived in English, because five
+separate places in the server decided the language by hand and every one of
+them could only choose between English and Spanish. One of them stored it as a
+yes-or-no. They all go through one list now, so the next language is a row
+rather than a hunt.
+
+Two things were wrong in English and Spanish too, and had been for a while.
+The weekly recap printed your weight change in **pounds no matter what**, even
+after the app itself learned kilograms — so the same week read −1.4 lb in your
+inbox and −0.6 kg on your phone, with nothing to say which was real. And the
+line telling you how to turn the recap off named a setting that does not
+exist: it said *Weekly digest*, the app says **Weekly recap email**. Anyone who
+went looking found nothing. Numbers in the recap are also written the way your
+language writes them now — in Brazil, 2.100 rather than 2,100.
+
+**Ignia has a real support address.** Writing to `support@ignia.fit` now
+reaches a person. It also replaces a personal Gmail that was published in
+thirty-two places across the terms, the privacy policy, the support and
+download pages and the app's About sheet — including as the address for
+data-deletion and GDPR requests.
+
+**The landing page finishes the thought it starts.** ignia.fit opened in one
+voice and, past the first screen, quietly became a different website — generic
+headings, a different typeface, the same three sentences said four times over.
+It reads as one page now, it is shorter, and the three grey circles pretending
+to be other people's faces are gone. They stood for nobody.
+
+**Ignia is operated by Bermudez Systems LLC.** The terms and the privacy policy
+name the company; until today they said Ignia was run by an individual and not
+a company, which stopped being true some time ago.
+
+---
+
 ## 2026-08-23 — the Android app got a quarter smaller
 
 Nothing on screen changed. The download did: the Android bundle went from
