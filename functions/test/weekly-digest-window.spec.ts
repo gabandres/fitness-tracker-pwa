@@ -5,6 +5,7 @@ import {
   dayKeyOfShifted,
   digestWindow,
   walkStreak,
+  weightDocFromId,
 } from "../src/weekly-digest";
 
 // The digest's date maths, isolated from Firestore. Every case here maps to a
@@ -150,5 +151,45 @@ describe("computeWeightDelta", () => {
   it("rounds to a tenth", () => {
     const pts = [at("2026-08-11", 180.04), at("2026-08-16", 179.001)];
     expect(computeWeightDelta(pts, undefined, windowStart)).toBe(-1);
+  });
+});
+
+describe("weightDocFromId", () => {
+  // A dailyWeights doc is `users/{uid}/dailyWeights/{YYYY-MM-DD} -> { weight }`
+  // and stores NO `date` field. The digest used to filter and order on `date`;
+  // Firestore omits docs missing the ordered field, so those queries matched
+  // nothing for everyone and WEIGHT CHANGE was a permanent em dash. Measured
+  // 2026-08-23 on an account with 126 weigh-ins. These cases pin the mapping
+  // that replaced them.
+  it("resolves the doc ID through the user's offset, not UTC midnight", () => {
+    // 240 = UTC-4. Local midnight on the 14th is 04:00Z the same day; reading
+    // the key as UTC midnight would place it 4h early and can sort a weigh-in
+    // to the wrong side of the window edge.
+    const doc = weightDocFromId("2026-08-14", { weight: 180 }, 240);
+    expect(doc.weight).toBe(180);
+    expect(doc.date?.toMillis()).toBe(Date.parse("2026-08-14T04:00:00Z"));
+  });
+
+  it("is offset-symmetric for UTC", () => {
+    expect(weightDocFromId("2026-08-14", { weight: 1 }, 0).date?.toMillis())
+      .toBe(Date.parse("2026-08-14T00:00:00Z"));
+  });
+
+  it("yields no date for a malformed ID rather than an Invalid Date", () => {
+    // computeWeightDelta treats a doc without a date as invalid and skips it,
+    // so a stray key degrades to "no reading", never to NaN arithmetic.
+    const doc = weightDocFromId("latest", { weight: 180 }, 240);
+    expect(doc.date).toBeUndefined();
+    expect(doc.weight).toBe(180);
+  });
+
+  it("feeds computeWeightDelta end to end", () => {
+    const tz = 240;
+    const windowStart = Date.parse("2026-08-10T04:00:00Z");
+    const pts = [
+      weightDocFromId("2026-08-11", { weight: 181.4 }, tz),
+      weightDocFromId("2026-08-16", { weight: 179.8 }, tz),
+    ];
+    expect(computeWeightDelta(pts, undefined, windowStart)).toBe(-1.6);
   });
 });

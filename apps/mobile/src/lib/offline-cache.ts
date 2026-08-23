@@ -50,7 +50,16 @@ export type CacheSlice =
   | 'customFoods'
   | 'water'
   | 'sleep'
-  | 'activity';
+  | 'activity'
+  // Train's three. Added 2026-08-23: Today painted from disk while Train had
+  // no cached slice at all, so it was the ONE tab that blocked on a server
+  // round-trip before rendering anything — and it pays that cost on every
+  // focus, not just cold start, because its listeners are focus-gated. Bounded
+  // like the rest: the sessions slice mirrors the same `limit(50)` the
+  // subscription uses.
+  | 'workoutSessions'
+  | 'exercises'
+  | 'templates';
 
 function cacheKey(uid: string, slice: CacheSlice): string {
   return `${CACHE_PREFIX}.${uid}.${slice}`;

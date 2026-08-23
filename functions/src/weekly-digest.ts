@@ -1,4 +1,4 @@
-import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { FieldPath, getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { getResend, baseSendOptions, resendApiKey } from "./resend-client";
 import { weeklyDigestEmail } from "./email-templates";
@@ -143,6 +143,28 @@ interface DailyWeightDoc {
   weight?: number;
 }
 
+/**
+ * Rebuild the `date` a dailyWeights doc does not store.
+ *
+ * The doc ID IS the date, as a LOCAL day key — so it is resolved back through
+ * the same shift the day-key helpers use, not `Date.parse` of a bare key, which
+ * would place it at UTC midnight and mis-sort a weigh-in against the window
+ * edge by up to a day. A malformed ID yields no date, and `computeWeightDelta`
+ * already treats a doc without one as invalid.
+ */
+export function weightDocFromId(
+  id: string,
+  data: FirebaseFirestore.DocumentData,
+  tzOffsetMin: number,
+): DailyWeightDoc {
+  const weight = (data as DailyWeightDoc).weight;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(id)) return { weight };
+  return {
+    date: Timestamp.fromMillis(fromShifted(Date.parse(`${id}T00:00:00Z`), tzOffsetMin)),
+    weight,
+  };
+}
+
 function isSundayLocalHour(timezoneOffsetMin: number | undefined, nowMs: number): boolean {
   // Profile's `timezoneOffsetMin` is `Date.prototype.getTimezoneOffset()`
   // (minutes WEST of UTC, so a +5 offset means UTC-5). Convert to local
@@ -233,17 +255,26 @@ async function computeStatsForUser(
     db.collection(`users/${uid}/dailyLogs`)
       .where("timestamp", ">=", startTs)
       .get(),
-    // Bounded, unlike the previous read of the ENTIRE dailyWeights
-    // collection on every send.
+    // Keyed by DOCUMENT ID, which is the whole point: a dailyWeights doc is
+    // `users/{uid}/dailyWeights/{YYYY-MM-DD} -> { weight }` and carries NO
+    // `date` field. Both queries here used to filter and order on `date`, and
+    // Firestore silently omits documents that lack the ordered field — so they
+    // matched ZERO docs for every user, forever. `computeWeightDelta` then got
+    // an empty list, correctly returned null, and the mail printed an em dash
+    // that read as "you did not weigh in" rather than "this query is broken".
+    // Measured 2026-08-23: an account with 126 weigh-ins reported "—".
+    // Ordering by `__name__` DESCENDING needs the explicit index that
+    // firestore.indexes.json already carries for this collection.
     db.collection(`users/${uid}/dailyWeights`)
-      .where("date", ">=", startTs)
-      .orderBy("date", "asc")
+      .where(FieldPath.documentId(), ">=", window.keys[0])
+      .where(FieldPath.documentId(), "<=", window.keys[window.keys.length - 1])
+      .orderBy(FieldPath.documentId(), "asc")
       .get(),
     // One reading from just before the window, so a user who weighs in
     // weekly still gets a number instead of an em dash.
     db.collection(`users/${uid}/dailyWeights`)
-      .where("date", "<", startTs)
-      .orderBy("date", "desc")
+      .where(FieldPath.documentId(), "<", window.keys[0])
+      .orderBy(FieldPath.documentId(), "desc")
       .limit(1)
       .get(),
   ]);
@@ -277,8 +308,10 @@ async function computeStatsForUser(
     : null;
 
   const weightDeltaLbs = computeWeightDelta(
-    inWindowWeights.docs.map((d) => d.data() as DailyWeightDoc),
-    priorWeight.docs[0]?.data() as DailyWeightDoc | undefined,
+    inWindowWeights.docs.map((d) => weightDocFromId(d.id, d.data(), tzOffsetMin)),
+    priorWeight.docs[0]
+      ? weightDocFromId(priorWeight.docs[0].id, priorWeight.docs[0].data(), tzOffsetMin)
+      : undefined,
     window.startMs,
   );
 

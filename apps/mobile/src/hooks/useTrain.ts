@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { trackSubs } from '@/lib/sub-debug';
+import { useCachedState } from '@/hooks/useCachedState';
 import { track } from '@/lib/analytics';
 import { exportDaily, exportWorkout } from '@/lib/health-sync';
 import { useAuth } from '@/lib/auth';
@@ -140,9 +141,15 @@ export function useTrain(): TrainState {
   const { user } = useAuth();
   const uid = user?.uid;
   const es = useLocale() === 'es-PR';
-  const [catalog, setCatalog] = useState<Exercise[]>([]);
-  const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
-  const [recentSessions, setRecentSessions] = useState<WorkoutSession[]>([]);
+  // Cached to disk on the way in, same as Today's slices. The setters are the
+  // ones `onSnapshot` already calls, so the write-through is invisible here.
+  const [catalog, setCatalog] = useCachedState<Exercise[]>(uid, 'exercises', []);
+  const [templates, setTemplates] = useCachedState<WorkoutTemplate[]>(uid, 'templates', []);
+  const [recentSessions, setRecentSessions, sessionsFromCache] = useCachedState<WorkoutSession[]>(
+    uid,
+    'workoutSessions',
+    [],
+  );
   const [active, setActiveState] = useState<WorkoutSession | null>(null);
   /**
    * Mirror of `active`, read by every mutation instead of a closed-over value.
@@ -169,9 +176,25 @@ export function useTrain(): TrainState {
   // edit, so Cancel can restore it (set edits live-write, so they're already
   // in Firestore by the time the user changes their mind).
   const editOriginal = useRef<WorkoutSession | null>(null);
-  const [loading, setLoading] = useState(true);
+  // `snapshotArrived` replaces a plain `loading` flag, and the distinction is
+  // the bug it fixes. The old flag started true and was cleared in exactly ONE
+  // place — the sessions success callback — so an errored listener (offline, a
+  // dropped connection) left it true forever. train.tsx checks `loading` BEFORE
+  // it renders anything, and the `train.loadErr` string it already has lives
+  // inside StartView, i.e. the else branch, so the one screen that could
+  // explain the failure was unreachable exactly when it was needed. Now the
+  // spinner ends at whichever comes first — a snapshot, a cache hit, or an
+  // error — mirroring useToday.
+  const [snapshotArrived, setSnapshotArrived] = useState(false);
+  const [errored, setErrored] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  /** Record the error AND release the spinner, so the failure can be shown. */
+  const failWith = useCallback((e: Error) => {
+    setError(e);
+    setErrored(true);
+  }, []);
+  const loading = !snapshotArrived && !sessionsFromCache && !errored;
 
   // Focus-gated so the Train tab drops its live listeners when it blurs
   // (battery/network). Re-subscribes + reloads the active session on refocus.
@@ -181,8 +204,8 @@ export function useTrain(): TrainState {
       if (!uid) return;
       let alive = true;
       const unsubs = [
-        subscribeExercises(uid, setCatalog, setError),
-        subscribeTemplates(uid, setTemplates, setError),
+        subscribeExercises(uid, setCatalog, failWith),
+        subscribeTemplates(uid, setTemplates, failWith),
         subscribeRecentSessions(
           uid,
           50,
@@ -190,9 +213,9 @@ export function useTrain(): TrainState {
             // Recent list shows completed sessions; the active one (if any) is
             // surfaced separately via getActiveSession below.
             setRecentSessions(s.filter((x) => x.status === 'completed'));
-            setLoading(false);
+            setSnapshotArrived(true);
           },
-          setError,
+          failWith,
         ),
       ];
       // One-shot load of any in-progress session so set edits aren't clobbered
@@ -201,7 +224,7 @@ export function useTrain(): TrainState {
         .then((s) => {
           if (alive) setActive(s);
         })
-        .catch(setError);
+        .catch(failWith);
       const stop = trackSubs('Train', unsubs);
       return () => {
         alive = false;
