@@ -5,7 +5,7 @@ import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import { enterUp, PressScale, springLayout } from '@/lib/motion';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
-import { formatTime } from '@/lib/date-format';
+import { formatNumber, formatTime } from '@/lib/date-format';
 
 const SLOT_KEY: Record<MealSlot, I18nKey> = {
   breakfast: 'meal.breakfast',
@@ -70,7 +70,7 @@ export function MealEntries({
           {showHeaders ? (
             <View style={styles.slotHead}>
               <Text style={styles.slotLabel}>{t(SLOT_KEY[g.slot])}</Text>
-              <Text style={styles.slotTotal}>{g.totalCalories.toLocaleString()} kcal</Text>
+              <Text style={styles.slotTotal}>{formatNumber(g.totalCalories, locale)} kcal</Text>
             </View>
           ) : null}
           {g.entries.map((log) => {
@@ -88,7 +88,7 @@ export function MealEntries({
                     <Text style={styles.entryLabel}>{log.mealLabel || t('today.entry')}</Text>
                     <Text style={styles.entryMacros}>{sub || '—'}</Text>
                   </View>
-                  <Text style={styles.entryKcal}>{log.calories.toLocaleString()}</Text>
+                  <Text style={styles.entryKcal}>{formatNumber(log.calories, locale)}</Text>
                 </PressScale>
               </Animated.View>
             );

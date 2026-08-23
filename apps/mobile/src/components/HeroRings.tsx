@@ -11,7 +11,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import type { MaintenanceView } from '@macrolog/core';
-import { useT } from '@/i18n';
+import { useLocale, useT } from '@/i18n';
+import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { CountUpText } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -116,6 +117,7 @@ interface Props {
  */
 export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, carbs, fat, maintenance }: Props) {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const reduce = useReducedMotion();
@@ -185,7 +187,7 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
         <View style={styles.legendItem}>
           <View style={[styles.dot, { backgroundColor: over ? colors.danger : colors.ring }]} />
           <Text style={styles.legendText}>
-            {calConsumed.toLocaleString()} / {calTarget.toLocaleString()} {t('today.kcal')}
+            {formatNumber(calConsumed, locale)} / {formatNumber(calTarget, locale)} {t('today.kcal')}
           </Text>
         </View>
         <View style={styles.legendItem}>
@@ -213,16 +215,16 @@ export function HeroRings({ calConsumed, calTarget, protConsumed, protTarget, ca
           <Text style={styles.maintenanceLabel}>
             {t('today.maintenance')}{' '}
             <Text style={styles.maintenanceValue}>
-              {maintenance.maintenance.toLocaleString()}
+              {formatNumber(maintenance.maintenance, locale)}
             </Text>
             {maintenance.delta == null ? null : (
               <Text style={styles.maintenanceDelta}>
                 {'   ·   '}
                 {maintenance.delta < 0
                   ? t('today.underMaintenance', {
-                      n: Math.abs(maintenance.delta).toLocaleString(),
+                      n: formatNumber(Math.abs(maintenance.delta), locale),
                     })
-                  : t('today.overMaintenance', { n: maintenance.delta.toLocaleString() })}
+                  : t('today.overMaintenance', { n: formatNumber(maintenance.delta, locale) })}
               </Text>
             )}
           </Text>

@@ -36,6 +36,7 @@ import {
   syncReminders,
 } from '@/lib/reminders';
 import { LOCALES, LOCALE_DEFS, type I18nKey, type Locale, useLocale, useT } from '@/i18n';
+import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
@@ -353,7 +354,7 @@ export default function Settings() {
               <Text style={styles.rowValue}>
                 {t(profile?.targetMode === 'custom' ? 'targets.summaryCustom' : 'targets.summaryAuto')}
                 {'  ·  '}
-                {kcal != null ? `${kcal.toLocaleString()} ${t('settings.kcalUnit')}` : '—'}
+                {kcal != null ? `${formatNumber(kcal, locale)} ${t('settings.kcalUnit')}` : '—'}
                 {protein != null ? `  ·  ${protein}${t('settings.proteinUnit')}` : ''}
               </Text>
               {goalKey ? <Text style={styles.rowSub}>{t('settings.goalPrefix', { goal: t(goalKey) })}</Text> : null}

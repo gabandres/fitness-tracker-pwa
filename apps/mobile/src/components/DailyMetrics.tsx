@@ -9,7 +9,8 @@ import {
 } from 'react-native';
 import { WATER_MAX_FLOZ, clampWaterFlOz } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
-import { type TFn, useT } from '@/i18n';
+import { type TFn, useLocale, useT } from '@/i18n';
+import { formatNumber } from '@/lib/date-format';
 import type { DailyActivity } from '@/lib/ledger';
 import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
@@ -59,6 +60,7 @@ function elapsedLabel(since: Date, now: number, t: TFn): string {
  *  clock stays live without a global timer. */
 export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast }: Props) {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const [sleepOpen, setSleepOpen] = useState(false);
@@ -164,9 +166,9 @@ export function DailyMetrics({ water, sleep, activity, fastStartedAt, onAddWater
               <Text style={styles.label}>{t('metrics.activity')}</Text>
               <Text style={styles.value} testID="activity-value">
                 {[
-                  activity.steps != null ? t('metrics.steps', { n: activity.steps.toLocaleString() }) : null,
+                  activity.steps != null ? t('metrics.steps', { n: formatNumber(activity.steps, locale) }) : null,
                   activity.activeKcal != null
-                    ? t('metrics.activeKcal', { n: activity.activeKcal.toLocaleString() })
+                    ? t('metrics.activeKcal', { n: formatNumber(activity.activeKcal, locale) })
                     : null,
                 ]
                   .filter(Boolean)

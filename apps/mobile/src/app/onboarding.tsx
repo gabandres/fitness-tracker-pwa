@@ -23,7 +23,8 @@ import { BrandMark } from '@/components/BrandMark';
 import { useAuth } from '@/lib/auth';
 import { saveOnboardingV2 } from '@/lib/ledger';
 import { track } from '@/lib/analytics';
-import { type I18nKey, useT } from '@/i18n';
+import { type I18nKey, useLocale, useT } from '@/i18n';
+import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { CountUpText, PressScale } from '@/lib/motion';
 import { useUnitSystem } from '@/lib/use-unit-system';
@@ -77,6 +78,7 @@ function numOrUndef(s: string): number | undefined {
 // also be padded.
 export default function Onboarding() {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const { user, profile, signOut } = useAuth();
@@ -564,12 +566,12 @@ export default function Onboarding() {
                   skip becomes a silent downgrade. */}
               <Text style={styles.planSub} testID="onboarding-plan-basis">
                 {seed?.basis === 'formula' && seed.maintenance != null
-                  ? t('onboarding.planBasis', { n: seed.maintenance.toLocaleString() })
+                  ? t('onboarding.planBasis', { n: formatNumber(seed.maintenance, locale) })
                   : t('onboarding.planBasisRough')}
               </Text>
               {seed?.floorBinding && !edited ? (
                 <Text style={styles.planSub} testID="onboarding-plan-floor">
-                  {t('onboarding.planFloor', { n: (kcal ?? 0).toLocaleString() })}
+                  {t('onboarding.planFloor', { n: formatNumber((kcal ?? 0), locale) })}
                 </Text>
               ) : null}
               <Text style={styles.planSub}>

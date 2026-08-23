@@ -10,7 +10,7 @@ import { useUnitSystem } from '@/lib/use-unit-system';
 import { type Locale, useLocale, useT } from '@/i18n';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
-import { formatDate } from '@/lib/date-format';
+import { formatDate, formatNumber } from '@/lib/date-format';
 
 // Narrow weekday letters (Jan 1 2023 was a Sunday). Built per locale, not
 // once at module load — the app language can differ from the device's.
@@ -142,7 +142,7 @@ export default function HistoryCalendar() {
                         {d.weightLb != null ? `  ·  ${formatBodyWeight(d.weightLb, unitSystem)}` : ''}
                       </Text>
                     </View>
-                    <Text style={styles.recentKcal}>{d.totalCalories.toLocaleString()}</Text>
+                    <Text style={styles.recentKcal}>{formatNumber(d.totalCalories, locale)}</Text>
                     <Ionicons name="chevron-forward" size={16} color={colors.faint} />
                   </Pressable>
                 ))}

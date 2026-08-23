@@ -12,7 +12,7 @@ import { useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
-import { formatDate } from '@/lib/date-format';
+import { formatDate, formatNumber } from '@/lib/date-format';
 
 export default function DayDetail() {
   const t = useT();
@@ -79,7 +79,7 @@ export default function DayDetail() {
       ) : (
         <ScrollView contentContainerStyle={styles.body}>
           <View style={styles.totals}>
-            <Total label={t('today.calories')} value={summary.totalCalories.toLocaleString()} />
+            <Total label={t('today.calories')} value={formatNumber(summary.totalCalories, locale)} />
             <Total label={t('history.protein')} value={`${summary.totalProtein}g`} />
             <Total label={t('today.carbs')} value={`${summary.totalCarbs}g`} />
             <Total label={t('today.fat')} value={`${summary.totalFat}g`} />

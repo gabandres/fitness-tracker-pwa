@@ -26,7 +26,8 @@ import { useActivitySuggestion } from '@/lib/activity-suggestion';
 import { useAuth } from '@/lib/auth';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
 import { getLatestDailyWeight, saveRefinedTargets } from '@/lib/ledger';
-import { type I18nKey, useT } from '@/i18n';
+import { type I18nKey, useLocale, useT } from '@/i18n';
+import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
@@ -57,6 +58,7 @@ function intOrNull(s: string): number | null {
 // also be padded.
 export default function RefineTargets() {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const router = useRouter();
@@ -335,12 +337,12 @@ export default function RefineTargets() {
               <Text style={styles.paceNote} testID="refine-pace-floor">
                 {paceLimit.effectivePace > 0
                   ? t('refine.paceFloorCapped', {
-                      floor: paceLimit.floor.toLocaleString(),
+                      floor: formatNumber(paceLimit.floor, locale),
                       pace: paceLimit.effectivePace.toFixed(2),
                     })
                   : t('refine.paceFloorNoDeficit', {
-                      floor: paceLimit.floor.toLocaleString(),
-                      maintenance: paceLimit.maintenance.toLocaleString(),
+                      floor: formatNumber(paceLimit.floor, locale),
+                      maintenance: formatNumber(paceLimit.maintenance, locale),
                     })}
               </Text>
             ) : null}

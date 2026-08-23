@@ -23,7 +23,7 @@ import * as haptics from '@/lib/haptics';
 import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
-import { formatDate } from '@/lib/date-format';
+import { formatDate, formatNumber } from '@/lib/date-format';
 
 function dayLabel(dateKey: string, locale: Locale): string {
   return formatDate(parseYmd(dateKey), locale, { weekday: 'short', month: 'short', day: 'numeric' });
@@ -153,7 +153,7 @@ export default function Trends() {
             <View style={styles.heroChips}>
               <Text style={styles.trendChip}>
                 {t('trends.dailyTarget')}  <Text style={styles.trendChipValue}>
-                  {targetCalories > 0 ? `${targetCalories.toLocaleString()} kcal` : '—'}
+                  {targetCalories > 0 ? `${formatNumber(targetCalories, locale)} kcal` : '—'}
                 </Text>
               </Text>
             </View>
@@ -177,7 +177,7 @@ export default function Trends() {
                     on. */}
                 <Text style={styles.correctionBody}>
                   {t('trends.activityCorrectionBody', {
-                    burn: suggestedBurn != null ? suggestedBurn.toLocaleString() : '—',
+                    burn: suggestedBurn != null ? formatNumber(suggestedBurn, locale) : '—',
                   })}
                 </Text>
                 {/* The window behind the suggestion, so it can be argued with
@@ -188,7 +188,7 @@ export default function Trends() {
                   <Text style={styles.correctionEvidence} testID="activity-correction-evidence">
                     {t('trends.activityCorrectionEvidence', {
                       kcal: String(evidence.meanActiveKcal),
-                      steps: evidence.meanSteps.toLocaleString(),
+                      steps: formatNumber(evidence.meanSteps, locale),
                       days: String(evidence.usableDays),
                       window: String(evidence.windowDays),
                     })}
@@ -337,9 +337,9 @@ function ThisWeek({
       <View style={styles.tileRow}>
         <StatTile
           label={t('trends.avgIntake')}
-          value={`${insights.avgCalories.toLocaleString()}`}
+          value={`${formatNumber(insights.avgCalories, locale)}`}
           unit="kcal"
-          sub={`${Math.abs(deficit).toLocaleString()} ${deficit >= 0 ? t('trends.avgDeficit') : t('trends.avgSurplus')}`}
+          sub={`${formatNumber(Math.abs(deficit), locale)} ${deficit >= 0 ? t('trends.avgDeficit') : t('trends.avgSurplus')}`}
           subColor={deficit >= 0 ? colors.accent : colors.danger}
           styles={styles}
         />
@@ -460,7 +460,7 @@ function Budget({
       <View style={styles.kv}>
         <Text style={styles.kvLabel}>{t('trends.budgetUsed')}</Text>
         <Text style={styles.kvValue}>
-          {Math.round(budget.consumed).toLocaleString()} / {budget.weeklyBudget.toLocaleString()}
+          {formatNumber(Math.round(budget.consumed), locale)} / {formatNumber(budget.weeklyBudget, locale)}
         </Text>
       </View>
       <View style={styles.barStrip}>
@@ -482,14 +482,14 @@ function Budget({
         <Text style={styles.kvLabel}>{t('trends.budgetRemaining')}</Text>
         <Text style={[styles.kvValue, { color: budget.remaining < 0 ? colors.danger : colors.accent }]}>
           {budget.remaining < 0 ? '−' : ''}
-          {Math.abs(Math.round(budget.remaining)).toLocaleString()} kcal
+          {formatNumber(Math.abs(Math.round(budget.remaining)), locale)} kcal
         </Text>
       </View>
       {budget.pacePerRemainingDay != null ? (
         <View style={styles.kv}>
           <Text style={styles.kvLabel}>{t('trends.budgetPerDay')}</Text>
           <Text style={styles.kvValue}>
-            {budget.pacePerRemainingDay < 0 ? t('trends.budgetOver') : `${budget.pacePerRemainingDay.toLocaleString()} kcal`}
+            {budget.pacePerRemainingDay < 0 ? t('trends.budgetOver') : `${formatNumber(budget.pacePerRemainingDay, locale)} kcal`}
           </Text>
         </View>
       ) : null}

@@ -36,3 +36,26 @@ export function formatTime(
 ): string {
   return date.toLocaleTimeString(localeTag(locale), options);
 }
+
+/**
+ * Locale-aware number formatting — the same trap as the dates above, and it
+ * stayed hidden for exactly as long as this app shipped two languages.
+ *
+ * Every number in the app was written as a bare `n.toLocaleString()`, and no
+ * argument means the DEVICE locale, not the language the user picked in
+ * Ignia. That was invisible while the two locales were `en` and `es-PR`,
+ * because the United States and Puerto Rico both group with a comma —
+ * `widgets/strings.ts` says so in as many words, as a reason not to bother.
+ * Brazil groups with a dot, so `1,974 kcal` is simply wrong there, and the
+ * mirror case is worse: a Brazilian phone running the app in English rendered
+ * `1.974`, which an English reader parses as *one point nine seven four*.
+ *
+ * Pass the app locale from `useLocale()`, same as the date helpers.
+ */
+export function formatNumber(
+  value: number,
+  locale: Locale,
+  options?: Intl.NumberFormatOptions,
+): string {
+  return value.toLocaleString(localeTag(locale), options);
+}

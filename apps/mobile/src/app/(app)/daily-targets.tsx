@@ -22,7 +22,8 @@ import {
   validateProteinTarget,
 } from '@macrolog/core';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
-import { type I18nKey, useT } from '@/i18n';
+import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
+import { formatNumber } from '@/lib/date-format';
 import { useAuth } from '@/lib/auth';
 import { saveTargetMode } from '@/lib/ledger';
 import * as haptics from '@/lib/haptics';
@@ -67,13 +68,14 @@ function numOrNull(s: string): number | null {
 function issueText(
   issue: TargetIssue | null,
   t: (k: I18nKey, p?: Record<string, string | number>) => string,
+  locale: Locale,
 ): string | null {
   if (!issue) return null;
   switch (issue.kind) {
     case 'belowFloor':
-      return t('targets.errBelowFloor', { n: issue.floor.toLocaleString() });
+      return t('targets.errBelowFloor', { n: formatNumber(issue.floor, locale) });
     case 'aboveCeiling':
-      return t('targets.errAboveCeiling', { n: issue.ceiling.toLocaleString() });
+      return t('targets.errAboveCeiling', { n: formatNumber(issue.ceiling, locale) });
     case 'notANumber':
       return t('targets.errNotANumber');
     case 'aggressive':
@@ -82,7 +84,7 @@ function issueText(
       // reading 2723 and 2,723.
       return t('targets.warnAggressive', {
         pct: issue.pctUnder,
-        n: issue.measured.toLocaleString(),
+        n: formatNumber(issue.measured, locale),
       });
   }
 }
@@ -98,6 +100,7 @@ function issueText(
 // also be padded.
 export default function DailyTargetsScreen() {
   const t = useT();
+  const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const { user, profile } = useAuth();
@@ -173,7 +176,7 @@ export default function DailyTargetsScreen() {
     }
   }
 
-  const kcalMsg = custom ? issueText(kcalCheck.issue, t) : null;
+  const kcalMsg = custom ? issueText(kcalCheck.issue, t, locale) : null;
   const kcalBlocking = custom && !kcalCheck.ok;
   const proteinBad = custom && proteinCheck != null && !proteinCheck.ok;
 
@@ -228,7 +231,7 @@ export default function DailyTargetsScreen() {
               </View>
             ) : (
               <Text style={styles.autoValue} testID="targets-kcal-auto">
-                {computed ? `${computed.calorieTarget.toLocaleString()} ${t('targets.caloriesUnit')}` : '—'}
+                {computed ? `${formatNumber(computed.calorieTarget, locale)} ${t('targets.caloriesUnit')}` : '—'}
               </Text>
             )}
             {kcalMsg ? (
@@ -241,7 +244,7 @@ export default function DailyTargetsScreen() {
                 it explains where the number above came from. */}
             <Text style={styles.note} testID="targets-measured">
               {measured != null
-                ? t('targets.measuredNote', { n: measured.toLocaleString() })
+                ? t('targets.measuredNote', { n: formatNumber(measured, locale) })
                 : t('targets.measuredNotYet')}
             </Text>
           </View>
