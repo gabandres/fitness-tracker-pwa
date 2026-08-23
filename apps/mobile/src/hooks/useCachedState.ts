@@ -18,6 +18,8 @@ import { type CacheSlice, readCache, writeCache } from '@/lib/offline-cache';
  * session's totals. So the first live write wins permanently: once the setter
  * has run, hydration is discarded rather than applied late.
  *
+ * `set` takes an optional `{ authoritative }`; see the comment on it.
+ *
  * @returns `[value, set, paintedFromCache]` — the third element is true only
  *   when a cached value was actually applied, which is what lets a caller drop
  *   its spinner without claiming a cache hit it did not get.
@@ -26,7 +28,7 @@ export function useCachedState<T>(
   uid: string | undefined,
   slice: CacheSlice,
   initial: T,
-): [T, (next: T) => void, boolean] {
+): [T, (next: T, opts?: { authoritative?: boolean }) => void, boolean] {
   const [value, setValue] = useState<T>(initial);
   const [paintedFromCache, setPainted] = useState(false);
   /** Set by the first live write. Guards the late-hydration case above. */
@@ -48,10 +50,18 @@ export function useCachedState<T>(
   }, [uid, slice]);
 
   const set = useCallback(
-    (next: T) => {
-      live.current = true;
+    (next: T, opts?: { authoritative?: boolean }) => {
+      // `authoritative: false` means "this is what the local cache had, not what
+      // the server says" — an offline Firestore listener fires immediately with
+      // an EMPTY result and `fromCache: true`. Rendering it is fine; treating it
+      // as the first LIVE write is not, because that both discards the disk
+      // hydration below and writes the empty value through, wiping the cache for
+      // the next cold start. Default stays true so every existing caller is
+      // unchanged.
+      const authoritative = opts?.authoritative ?? true;
+      if (authoritative) live.current = true;
       setValue(next);
-      if (uid) writeCache(uid, slice, next);
+      if (uid && authoritative) writeCache(uid, slice, next);
     },
     [uid, slice],
   );

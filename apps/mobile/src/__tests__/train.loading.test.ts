@@ -22,7 +22,7 @@ const mockNoop = jest.fn();
 let mockSessionsImpl: (
   uid: string,
   n: number,
-  cb: (s: unknown[]) => void,
+  cb: (s: unknown[], meta?: { fromCache: boolean }) => void,
   onError: (e: Error) => void,
 ) => () => void;
 
@@ -39,7 +39,7 @@ jest.mock('@/lib/ledger', () => ({
   subscribeRecentSessions: (
     uid: string,
     n: number,
-    cb: (s: unknown[]) => void,
+    cb: (s: unknown[], meta?: { fromCache: boolean }) => void,
     onError: (e: Error) => void,
   ) => mockSessionsImpl(uid, n, cb, onError),
   getActiveSession: () => Promise.resolve(null),
@@ -83,6 +83,32 @@ describe('useTrain loading', () => {
     const hook = await renderHook(() => useTrain());
     await waitFor(() => expect(hook.result.current.loading).toBe(false));
     expect(hook.result.current.error).toBe(boom);
+  });
+
+  it('an offline cache-only emission does NOT count as a snapshot', async () => {
+    // Firestore is memory-only here, so an offline listener fires immediately
+    // with an EMPTY result and `fromCache: true`. Latching on that is what made
+    // Train render "No templates yet" for an account with three — and, worse,
+    // wrote the empty array through to AsyncStorage, wiping the cache for the
+    // next cold start. Measured on the LG G6 2026-08-23, with a WARM cache.
+    // With no disk cache in this harness the spinner correctly stays up: the
+    // absence of an answer is not an answer.
+    mockSessionsImpl = (_u, _n, cb) => {
+      cb([], { fromCache: true });
+      return mockNoop;
+    };
+    const hook = await renderHook(() => useTrain());
+    await new Promise((r) => setTimeout(r, 50));
+    expect(hook.result.current.loading).toBe(true);
+  });
+
+  it('a SERVER emission does clear it, even when empty', async () => {
+    mockSessionsImpl = (_u, _n, cb) => {
+      cb([], { fromCache: false });
+      return mockNoop;
+    };
+    const hook = await renderHook(() => useTrain());
+    await waitFor(() => expect(hook.result.current.loading).toBe(false));
   });
 
   it('does not report an error on the happy path', async () => {

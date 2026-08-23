@@ -204,16 +204,24 @@ export function useTrain(): TrainState {
       if (!uid) return;
       let alive = true;
       const unsubs = [
-        subscribeExercises(uid, setCatalog, failWith),
-        subscribeTemplates(uid, setTemplates, failWith),
+        subscribeExercises(uid, (rows, meta) =>
+          setCatalog(rows, { authoritative: !meta?.fromCache }),
+        ),
+        subscribeTemplates(uid, (rows, meta) =>
+          setTemplates(rows, { authoritative: !meta?.fromCache }),
+        ),
         subscribeRecentSessions(
           uid,
           50,
-          (s) => {
+          (s, meta) => {
             // Recent list shows completed sessions; the active one (if any) is
             // surfaced separately via getActiveSession below.
-            setRecentSessions(s.filter((x) => x.status === 'completed'));
-            setSnapshotArrived(true);
+            const authoritative = !meta?.fromCache;
+            setRecentSessions(s.filter((x) => x.status === 'completed'), { authoritative });
+            // Only a SERVER answer ends the spinner on its own. An offline
+            // listener's immediate empty cache hit is not an answer — the disk
+            // cache (`sessionsFromCache`) or an error releases it instead.
+            if (authoritative) setSnapshotArrived(true);
           },
           failWith,
         ),

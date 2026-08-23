@@ -171,7 +171,16 @@ export function useToday(): TodayState {
           setError,
         ),
         subscribeDailyWeights(uid, setWeights, setError),
-        subscribeProfile(uid, setProfile, setError),
+        // `subscribeProfile` has always reported provenance and the setter has
+        // always thrown it away. Honouring it means an offline listener's
+        // immediate empty cache hit no longer discards the disk-hydrated profile
+        // — nor overwrites it with null. Today's other slices still ignore this
+        // and have the same latent race; see `useCachedState`.
+        subscribeProfile(
+          uid,
+          (p, meta) => setProfile(p, { authoritative: !meta.fromCache }),
+          setError,
+        ),
         subscribePresets(uid, setPresets, setError),
         subscribeCustomFoods(uid, setCustomFoods, setError),
         subscribeDailyWater(uid, setWaterMap, setError),

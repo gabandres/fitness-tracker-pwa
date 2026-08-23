@@ -108,6 +108,27 @@ const userDoc = (uid: string) => doc(db, 'users', uid);
 
 type Unsub = () => void;
 
+/**
+ * Where a snapshot came from.
+ *
+ * This app runs Firestore MEMORY-ONLY (RN has no IndexedDB — `offline-cache.ts`
+ * explains why), and an offline listener still fires immediately with an EMPTY
+ * result carrying `fromCache: true`. That is not an answer, it is the absence of
+ * one, and treating it as authoritative did two kinds of damage in
+ * `useCachedState`: it latched the "first live write wins" guard, permanently
+ * discarding the disk hydration, and then wrote the empty array THROUGH to
+ * AsyncStorage, destroying the cache for the next cold start too. Measured on
+ * the LG G6 2026-08-23 — Train rendered "No templates yet" for an account with
+ * three, offline, with a warm cache.
+ */
+export interface SnapshotMeta {
+  fromCache: boolean;
+}
+
+const metaOf = (snap: { metadata: { fromCache: boolean } }): SnapshotMeta => ({
+  fromCache: snap.metadata.fromCache,
+});
+
 // ─── Naming the write that failed ───────────────────────────────
 //
 // A Firestore rejection that crosses an async boundary under Hermes arrives
@@ -869,12 +890,12 @@ function pruneUndefined<T>(value: T): T {
 // ── Exercise catalog ──
 export function subscribeExercises(
   uid: string,
-  cb: (exercises: Exercise[]) => void,
+  cb: (exercises: Exercise[], meta?: SnapshotMeta) => void,
   onError?: (e: Error) => void,
 ): Unsub {
   return onSnapshot(
     query(exercisesCol(uid), orderBy('name')),
-    (snap) => cb(snap.docs.map((d) => toExercise(d.id, d.data()))),
+    (snap) => cb(snap.docs.map((d) => toExercise(d.id, d.data())), metaOf(snap)),
     onError,
   );
 }
@@ -939,12 +960,12 @@ export async function mergeExercises(uid: string, fromId: string, toId: string):
 // isValidWorkoutTemplate). Mirrors FirestoreLedgerCore add/update/delete.
 export function subscribeTemplates(
   uid: string,
-  cb: (templates: WorkoutTemplate[]) => void,
+  cb: (templates: WorkoutTemplate[], meta?: SnapshotMeta) => void,
   onError?: (e: Error) => void,
 ): Unsub {
   return onSnapshot(
     query(templatesCol(uid), orderBy('updatedAt', 'desc')),
-    (snap) => cb(snap.docs.map((d) => toTemplate(d.id, d.data()))),
+    (snap) => cb(snap.docs.map((d) => toTemplate(d.id, d.data())), metaOf(snap)),
     onError,
   );
 }
@@ -980,12 +1001,12 @@ export async function getActiveSession(uid: string): Promise<WorkoutSession | nu
 export function subscribeRecentSessions(
   uid: string,
   count: number,
-  cb: (sessions: WorkoutSession[]) => void,
+  cb: (sessions: WorkoutSession[], meta?: SnapshotMeta) => void,
   onError?: (e: Error) => void,
 ): Unsub {
   return onSnapshot(
     query(sessionsCol(uid), orderBy('timestamp', 'desc'), limit(count)),
-    (snap) => cb(snap.docs.map((d) => toSession(d.id, d.data()))),
+    (snap) => cb(snap.docs.map((d) => toSession(d.id, d.data())), metaOf(snap)),
     onError,
   );
 }
