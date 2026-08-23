@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { CoachMarkdown } from '@/components/CoachMarkdown';
 import { ProUpsell } from '@/components/ProUpsell';
