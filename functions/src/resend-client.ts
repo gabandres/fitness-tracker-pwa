@@ -37,13 +37,51 @@ export const IS_SANDBOX_SENDER = FROM_EMAIL === SANDBOX_SENDER;
 
 // Reply-To is a real human mailbox on purpose: a monitored reply address is
 // a positive reputation signal, and the welcome mail invites replies.
-// TODO(owner): this defaults to a personal Gmail that is committed to the
-// repo. The obvious tidy-up — `hello@ignia.fit` — would BLACK-HOLE every
-// reply: the apex publishes no MX record, so there is nowhere for inbound
-// mail to land, and a reply-to that bounces is worse for reputation than a
-// Gmail that works. Moving it needs inbound mail to exist first (an MX, or
-// a forwarder), not just a better-looking address.
-const REPLY_TO_FALLBACK = "gabrielandresbermudez@gmail.com";
+//
+// This defaults to a personal Gmail that is committed to the repo, and the
+// obvious tidy-up — `support@ignia.fit` — would BLACK-HOLE every reply
+// today: **the apex publishes no MX record** (re-verified 2026-08-23,
+// `nslookup -type=MX ignia.fit` falls through to SOA), so there is nowhere
+// for inbound mail to land, and a reply-to that bounces costs more
+// reputation than a Gmail that works. Moving it needs inbound mail to
+// EXIST first, not just a better-looking address.
+//
+// What was missed until 2026-08-23: **the zone is already on Cloudflare
+// nameservers** (`dilbert`/`sunny.ns.cloudflare.com`). So Cloudflare Email
+// Routing gives real inbound on the apex for free, with no nameserver
+// migration and no edit to any existing record — it only ADDS MX, and
+// there is no MX to conflict with. That is the cheap half of the problem,
+// and it was never cheap-looking because the same option is genuinely
+// expensive on `bermudezsystems.com`, whose zone is NOT on Cloudflare
+// (see `STATUS.md` §3 — do not carry that objection across; the two
+// domains are in different positions).
+//
+// **DONE 2026-08-23, and verified by sending rather than by reading a
+// dashboard.** Cloudflare Email Routing is on, and this was proven the hard
+// way: the FIRST probe to `support@ignia.fit` hard-bounced with
+// `550 5.1.1 Address does not exist` — the MX records were live and
+// answering while the routing RULE did not yet exist, which is a state that
+// looks completely finished from the DNS side. A second probe, after the
+// rule was created, was accepted, and a real message from
+// `gabriel@bermudezsystems.com` arrived. "It is configured" is not
+// evidence — that same phrase was in this repo about the
+// `bermudezsystems.com` forward for months while it had never been created,
+// which is how the first real piece of in-app feedback went unread.
+//
+// One caveat worth keeping. **Forwarded mail can land in junk, and that is a
+// property of the SENDER, not of the route.** The verification message came
+// from `bermudezsystems.com`, which publishes DMARC `p=quarantine` and is
+// not DKIM-signed by Northwest — so forwarding breaks its SPF and
+// `p=quarantine` does exactly what it says. A reply from an ordinary user
+// mailbox does not have that problem: Gmail, iCloud and Outlook all
+// DKIM-sign, and DKIM survives a forward, so DMARC still aligns.
+//
+// The FROM address is a separate question and a harder one: sending as
+// `support@ignia.fit` needs the APEX verified as a second Resend sending
+// domain (DKIM + SPF at the apex, alongside Email Routing's SPF). It is
+// not required for a working Reply-To, and `hello@mail.ignia.fit` is
+// verified and DMARC-aligned — outbound-only by design, not by accident.
+const REPLY_TO_FALLBACK = "support@ignia.fit";
 const REPLY_TO_ENV = process.env.MACROLOG_EMAIL_REPLY_TO;
 export const REPLY_TO =
   REPLY_TO_ENV && REPLY_TO_ENV.length > 0 ? REPLY_TO_ENV : REPLY_TO_FALLBACK;
