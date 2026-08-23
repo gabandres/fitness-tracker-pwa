@@ -316,7 +316,12 @@ import { localizedPath } from '../../i18n/locale-path';
           <a [href]="downloadPath()" class="v2-link font-medium text-lg">{{ t('landing.getOnIphone') }}</a>
           <a href="/faq" class="v2-link font-medium text-lg mt-1">{{ t('landing.faqLink') }}</a>
           <a [href]="supportPath()" class="v2-link font-medium text-lg mt-1" style="color: var(--v2-accent);">{{ t('landing.supportLink') }} ♥</a>
-          <p class="v2-caption mt-2">&copy; {{ _getYear() }} Ignia</p>
+          <!-- Names the operating company, and deliberately stops there. The
+               App Store listing is still on an individual Apple account and
+               the Play transfer to the org account is in progress, so any
+               claim about who PUBLISHES the apps would contradict what the
+               two stores currently show. -->
+          <p class="v2-caption mt-2">&copy; {{ _getYear() }} Bermudez Systems LLC</p>
         </div>
       </footer>
     </article>

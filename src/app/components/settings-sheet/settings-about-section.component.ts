@@ -102,7 +102,7 @@ import { UiButton } from '../ui/button.component';
           &middot;
           <a href="/changelog" style="text-decoration: underline; text-decoration-style: dotted;">{{ t('v2.settings.changelog') }}</a>
           &middot;
-          <a href="mailto:gabrielandresbermudez&#64;gmail.com" style="text-decoration: underline; text-decoration-style: dotted;">{{ t('settings.legal.contact') }}</a>
+          <a href="mailto:support&#64;ignia.fit" style="text-decoration: underline; text-decoration-style: dotted;">{{ t('settings.legal.contact') }}</a>
         </p>
       </ui-card>
     </ng-container>
@@ -193,7 +193,7 @@ export class SettingsAboutSectionComponent {
       `Agent: ${navigator.userAgent}`,
       `Time : ${new Date().toISOString()}`,
     ].join('\n');
-    const href = `mailto:gabrielandresbermudez@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const href = `mailto:support@ignia.fit?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.location.href = href;
     this.closeSheet.emit();
   }
