@@ -32,7 +32,7 @@
  * without gcloud/firebase/gh credentials must still be able to run this, and
  * CI runs the credential-free subset via --no-cloud.
  */
-import { readFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { dirname, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -1178,19 +1178,39 @@ function diffKeys(group, name, a, b, labelA, labelB) {
   );
 }
 
+/**
+ * Which locales to check, discovered from the FILES rather than listed here.
+ *
+ * A hardcoded pair is what made adding Portuguese a ten-file change: this
+ * check said "en vs es-PR" and would have passed, silently, on a repo whose
+ * third language was half-written. Globbing the directory means a fourth
+ * language is covered the day its file lands, with no edit here.
+ */
+function localeFiles(dir, pattern) {
+  if (!existsSync(resolve(root, dir))) return [];
+  return readdirSync(resolve(root, dir))
+    .filter((f) => pattern.test(f) && !/^en\./.test(f))
+    .sort();
+}
+
 function checkWebI18n() {
-  const name = 'web en.json vs es-PR.json';
+  const name = 'web i18n locales vs en.json';
   const en = 'src/app/i18n/en.json';
-  const es = 'src/app/i18n/es-PR.json';
-  if (!has(en) || !has(es)) return fail(G4, name, 'web i18n files not found');
-  diffKeys(
-    G4,
-    name,
-    new Set(Object.keys(flattenJson(JSON.parse(read(en))))),
-    new Set(Object.keys(flattenJson(JSON.parse(read(es))))),
-    'en',
-    'es-PR',
-  );
+  if (!has(en)) return fail(G4, name, 'src/app/i18n/en.json not found');
+  const enKeys = new Set(Object.keys(flattenJson(JSON.parse(read(en)))));
+  const others = localeFiles('src/app/i18n', /^[a-z]{2}(-[A-Za-z]+)?\.json$/);
+  if (!others.length) return fail(G4, name, 'no non-English locale files found');
+  for (const f of others) {
+    const tag = f.replace(/\.json$/, '');
+    diffKeys(
+      G4,
+      `web en.json vs ${f}`,
+      enKeys,
+      new Set(Object.keys(flattenJson(JSON.parse(read(`src/app/i18n/${f}`))))),
+      'en',
+      tag,
+    );
+  }
 }
 
 /** Mobile bundles are flat `'key.name': 'value'` object literals in .ts, so
@@ -1202,11 +1222,48 @@ function mobileKeys(file) {
 }
 
 function checkMobileI18n() {
-  const name = 'mobile en.ts vs es-PR.ts';
+  const name = 'mobile i18n locales vs en.ts';
   const en = 'apps/mobile/src/i18n/en.ts';
-  const es = 'apps/mobile/src/i18n/es-PR.ts';
-  if (!has(en) || !has(es)) return fail(G4, name, 'mobile i18n files not found');
-  diffKeys(G4, name, mobileKeys(en), mobileKeys(es), 'en', 'es-PR');
+  if (!has(en)) return fail(G4, name, 'apps/mobile/src/i18n/en.ts not found');
+  const enKeys = mobileKeys(en);
+  const others = localeFiles('apps/mobile/src/i18n', /^[a-z]{2}-[A-Za-z]+\.ts$/);
+  if (!others.length) return fail(G4, name, 'no non-English locale files found');
+  for (const f of others) {
+    diffKeys(
+      G4,
+      `mobile en.ts vs ${f}`,
+      enKeys,
+      mobileKeys(`apps/mobile/src/i18n/${f}`),
+      'en',
+      f.replace(/\.ts$/, ''),
+    );
+  }
+
+  // The registry is the single place a language is turned on. A dict file that
+  // exists but is not registered renders for nobody, and reads in a diff as
+  // "Portuguese shipped" — so the file list and the registry must agree.
+  const reg = 'apps/mobile/src/i18n/registry.ts';
+  if (!has(reg)) return fail(G4, 'mobile locale registry', 'registry.ts not found');
+  const registered = new Set(
+    [...read(reg).matchAll(/^\s*'?([a-z]{2}(?:-[A-Za-z]+)?)'?:\s*\{\s*claims:/gm)].map((m) => m[1]),
+  );
+  const onDisk = new Set(others.map((f) => f.replace(/\.ts$/, '')));
+  const unregistered = [...onDisk].filter((t) => !registered.has(t));
+  const missingFile = [...registered].filter((t) => t !== 'en' && !onDisk.has(t));
+  if (unregistered.length || missingFile.length) {
+    fail(
+      G4,
+      'mobile locale registry',
+      [
+        unregistered.length ? `dict file but no registry entry: ${unregistered.join(', ')}` : '',
+        missingFile.length ? `registry entry but no dict file: ${missingFile.join(', ')}` : '',
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    );
+  } else {
+    pass(G4, 'mobile locale registry', `${registered.size} locales registered, all with dicts`);
+  }
 }
 
 // ═══ 5. STATUS.md §3 vs open issues ═════════════════════════════════════

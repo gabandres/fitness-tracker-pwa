@@ -6,9 +6,10 @@
 // entries are keyed by a stable slug so a starter template can reference
 // library exercises before any Firestore ids exist.
 //
-// LOCALIZATION: the English content below is the source; es-PR strings live in
-// the side-maps at the bottom (EXERCISE_ES / TEMPLATE_ES / TEMPLATE_CUES_ES),
-// keyed by the same stable `key`. The clone flow resolves name/cues/notes for
+// LOCALIZATION: the English content below is the source; every translation
+// lives in a side-map at the bottom, keyed by the same stable `key`, and is
+// reached through the SEED_L10N registry. Adding a language is ONE row
+// there — the resolvers never grow a branch. The clone flow resolves name/cues/notes for
 // the user's ACTIVE locale once (via the seed* helpers) and stores the result
 // as plain user data — once cloned it's the user's own (never re-translated).
 // The stable `key` is ALSO persisted as `seedKey` on the cloned exercise /
@@ -258,93 +259,106 @@ export const STARTER_TEMPLATES: readonly SeedTemplate[] = [
   },
 ] as const;
 
-// ─── es-PR translations (Puerto Rican Spanish) ──────────────────
-// Side-maps keyed by the stable seed `key`. Only entries present here are
-// localized; anything missing falls back to the English source above.
-export const EXERCISE_ES: Record<string, { nameEs: string; defaultCuesEs: string[] }> = {
+// ─── Translation side-maps ────────────────────────────────────
+// One set of maps per language, keyed by the stable seed `key`. Only entries
+// present are localized; anything missing falls through to the English source
+// above, so a partial translation is a valid one.
+//
+// ADDING A LANGUAGE: write the three maps, then add ONE row to SEED_L10N at
+// the bottom of this file. Nothing else here — or in either app — changes.
+
+/** Shape of a per-language exercise map. */
+export type SeedExerciseL10n = Record<string, { name: string; defaultCues: string[] }>;
+/** Shape of a per-language template map. */
+export type SeedTemplateL10n = Record<string, { name: string; notes?: string }>;
+/** Shape of a per-language `templateKey:exerciseKey` cue-override map. */
+export type SeedCuesL10n = Record<string, string[]>;
+
+// ─── es-PR (Puerto Rican Spanish) ─────────────────────
+export const EXERCISE_ES: SeedExerciseL10n = {
   // Chest
-  'barbell-bench-press': { nameEs: 'Press de Banca con Barra', defaultCuesEs: ['Retrae escápulas, arco leve', 'Barra a la línea del pezón', 'Empuja los pies contra el piso'] },
-  'incline-barbell-press': { nameEs: 'Press Inclinado con Barra', defaultCuesEs: ['Banco a 30–45°', 'Enfoca pecho superior'] },
-  'dumbbell-bench-press': { nameEs: 'Press de Banca con Mancuernas', defaultCuesEs: ['Estiramiento profundo abajo', 'Aprieta arriba'] },
-  'incline-dumbbell-press': { nameEs: 'Press Inclinado con Mancuernas', defaultCuesEs: ['Énfasis en pecho superior'] },
-  'machine-chest-press': { nameEs: 'Press de Pecho en Máquina', defaultCuesEs: ['Agarres a media altura del pecho', 'Codos ~45–60° del torso'] },
-  'incline-machine-press': { nameEs: 'Press Inclinado en Máquina', defaultCuesEs: ['Ángulo de pecho superior'] },
-  'paramount-supine-chest-press': { nameEs: 'Press de Pecho Supino Paramount', defaultCuesEs: ['Asiento para alinear agarres a media altura (línea del pezón)', 'Codos ~45–60° del torso', '3s bajando, 1s aprieta arriba, estiramiento profundo'] },
-  'paramount-incline-chest-press': { nameEs: 'Press de Pecho Inclinado Paramount', defaultCuesEs: ['Enfoca pecho superior', '3s bajando, estiramiento profundo'] },
-  'cable-fly': { nameEs: 'Apertura en Polea', defaultCuesEs: ['Codo doblado leve, mantenlo', 'Aprieta cruzando la línea media'] },
-  'pec-deck': { nameEs: 'Pec Deck', defaultCuesEs: ['Controla el estiramiento'] },
-  'chest-dip': { nameEs: 'Fondos para Pecho', defaultCuesEs: ['Inclínate al frente para enfocar pecho'] },
-  'push-up': { nameEs: 'Lagartija', defaultCuesEs: ['Cuerpo en línea recta'] },
+  'barbell-bench-press': { name: 'Press de Banca con Barra', defaultCues: ['Retrae escápulas, arco leve', 'Barra a la línea del pezón', 'Empuja los pies contra el piso'] },
+  'incline-barbell-press': { name: 'Press Inclinado con Barra', defaultCues: ['Banco a 30–45°', 'Enfoca pecho superior'] },
+  'dumbbell-bench-press': { name: 'Press de Banca con Mancuernas', defaultCues: ['Estiramiento profundo abajo', 'Aprieta arriba'] },
+  'incline-dumbbell-press': { name: 'Press Inclinado con Mancuernas', defaultCues: ['Énfasis en pecho superior'] },
+  'machine-chest-press': { name: 'Press de Pecho en Máquina', defaultCues: ['Agarres a media altura del pecho', 'Codos ~45–60° del torso'] },
+  'incline-machine-press': { name: 'Press Inclinado en Máquina', defaultCues: ['Ángulo de pecho superior'] },
+  'paramount-supine-chest-press': { name: 'Press de Pecho Supino Paramount', defaultCues: ['Asiento para alinear agarres a media altura (línea del pezón)', 'Codos ~45–60° del torso', '3s bajando, 1s aprieta arriba, estiramiento profundo'] },
+  'paramount-incline-chest-press': { name: 'Press de Pecho Inclinado Paramount', defaultCues: ['Enfoca pecho superior', '3s bajando, estiramiento profundo'] },
+  'cable-fly': { name: 'Apertura en Polea', defaultCues: ['Codo doblado leve, mantenlo', 'Aprieta cruzando la línea media'] },
+  'pec-deck': { name: 'Pec Deck', defaultCues: ['Controla el estiramiento'] },
+  'chest-dip': { name: 'Fondos para Pecho', defaultCues: ['Inclínate al frente para enfocar pecho'] },
+  'push-up': { name: 'Lagartija', defaultCues: ['Cuerpo en línea recta'] },
   // Back
-  'deadlift': { nameEs: 'Peso Muerto', defaultCuesEs: ['Columna neutral', 'Empuja el piso lejos', 'Cierra con los glúteos'] },
-  'barbell-row': { nameEs: 'Remo con Barra', defaultCuesEs: ['Bisagra ~45°', 'Jala a las costillas bajas'] },
-  'pendlay-row': { nameEs: 'Remo Pendlay', defaultCuesEs: ['Reinicia cada rep en el piso', 'Jalón explosivo'] },
-  'dumbbell-row': { nameEs: 'Remo con Mancuerna', defaultCuesEs: ['Apóyate en el banco', 'Lleva el codo a la cadera'] },
-  'lat-pulldown': { nameEs: 'Jalón al Pecho', defaultCuesEs: ['Barra al pecho superior', 'Baja los codos'] },
-  'pull-up': { nameEs: 'Dominada', defaultCuesEs: ['Cuelga completo, barbilla sobre la barra'] },
-  'chin-up': { nameEs: 'Dominada Supina', defaultCuesEs: ['Agarre supinado, ayuda el bíceps'] },
-  'seated-cable-row': { nameEs: 'Remo Sentado en Polea', defaultCuesEs: ['Pecho alto, jala al ombligo'] },
-  't-bar-row': { nameEs: 'Remo T-Bar', defaultCuesEs: ['Con pecho apoyado si está disponible'] },
-  'straight-arm-pulldown': { nameEs: 'Jalón con Brazos Rectos', defaultCuesEs: ['Solo dorsales, codos fijos'] },
-  'face-pull': { nameEs: 'Face Pull', defaultCuesEs: ['Jala a la frente, rota externo'] },
+  'deadlift': { name: 'Peso Muerto', defaultCues: ['Columna neutral', 'Empuja el piso lejos', 'Cierra con los glúteos'] },
+  'barbell-row': { name: 'Remo con Barra', defaultCues: ['Bisagra ~45°', 'Jala a las costillas bajas'] },
+  'pendlay-row': { name: 'Remo Pendlay', defaultCues: ['Reinicia cada rep en el piso', 'Jalón explosivo'] },
+  'dumbbell-row': { name: 'Remo con Mancuerna', defaultCues: ['Apóyate en el banco', 'Lleva el codo a la cadera'] },
+  'lat-pulldown': { name: 'Jalón al Pecho', defaultCues: ['Barra al pecho superior', 'Baja los codos'] },
+  'pull-up': { name: 'Dominada', defaultCues: ['Cuelga completo, barbilla sobre la barra'] },
+  'chin-up': { name: 'Dominada Supina', defaultCues: ['Agarre supinado, ayuda el bíceps'] },
+  'seated-cable-row': { name: 'Remo Sentado en Polea', defaultCues: ['Pecho alto, jala al ombligo'] },
+  't-bar-row': { name: 'Remo T-Bar', defaultCues: ['Con pecho apoyado si está disponible'] },
+  'straight-arm-pulldown': { name: 'Jalón con Brazos Rectos', defaultCues: ['Solo dorsales, codos fijos'] },
+  'face-pull': { name: 'Face Pull', defaultCues: ['Jala a la frente, rota externo'] },
   // Shoulders
-  'overhead-press': { nameEs: 'Press Militar', defaultCuesEs: ['Aprieta el core', 'Barra sobre medio pie al cierre'] },
-  'seated-db-shoulder-press': { nameEs: 'Press de Hombros Sentado con Mancuernas', defaultCuesEs: ['Empuja en arco leve', 'Baja hasta la altura de la oreja'] },
-  'machine-shoulder-press': { nameEs: 'Press de Hombros en Máquina', defaultCuesEs: ['Agarres a la altura del hombro'] },
-  'arnold-press': { nameEs: 'Press Arnold', defaultCuesEs: ['Rota las palmas durante el press'] },
-  'db-lateral-raise': { nameEs: 'Elevación Lateral con Mancuernas', defaultCuesEs: ['Lidera con los codos', 'Peso liviano para 12–15 reps'] },
-  'cable-lateral-raise': { nameEs: 'Elevación Lateral en Polea', defaultCuesEs: ['Tensión constante'] },
-  'rear-delt-fly': { nameEs: 'Apertura Posterior', defaultCuesEs: ['Inclínate leve al frente', 'Aprieta los deltoides posteriores'] },
-  'upright-row': { nameEs: 'Remo al Mentón', defaultCuesEs: ['Lidera con los codos, para al pecho'] },
+  'overhead-press': { name: 'Press Militar', defaultCues: ['Aprieta el core', 'Barra sobre medio pie al cierre'] },
+  'seated-db-shoulder-press': { name: 'Press de Hombros Sentado con Mancuernas', defaultCues: ['Empuja en arco leve', 'Baja hasta la altura de la oreja'] },
+  'machine-shoulder-press': { name: 'Press de Hombros en Máquina', defaultCues: ['Agarres a la altura del hombro'] },
+  'arnold-press': { name: 'Press Arnold', defaultCues: ['Rota las palmas durante el press'] },
+  'db-lateral-raise': { name: 'Elevación Lateral con Mancuernas', defaultCues: ['Lidera con los codos', 'Peso liviano para 12–15 reps'] },
+  'cable-lateral-raise': { name: 'Elevación Lateral en Polea', defaultCues: ['Tensión constante'] },
+  'rear-delt-fly': { name: 'Apertura Posterior', defaultCues: ['Inclínate leve al frente', 'Aprieta los deltoides posteriores'] },
+  'upright-row': { name: 'Remo al Mentón', defaultCues: ['Lidera con los codos, para al pecho'] },
   // Biceps
-  'barbell-curl': { nameEs: 'Curl con Barra', defaultCuesEs: ['Codos fijos, sin impulso'] },
-  'dumbbell-curl': { nameEs: 'Curl con Mancuernas', defaultCuesEs: ['Supina arriba'] },
-  'hammer-curl': { nameEs: 'Curl Martillo', defaultCuesEs: ['Agarre neutral, enfoca braquial'] },
-  'preacher-curl': { nameEs: 'Curl Predicador', defaultCuesEs: ['Sin rebote abajo'] },
-  'cable-curl': { nameEs: 'Curl en Polea', defaultCuesEs: ['Tensión constante todo el recorrido'] },
-  'incline-db-curl': { nameEs: 'Curl Inclinado con Mancuernas', defaultCuesEs: ['Estiramiento profundo en banco inclinado'] },
+  'barbell-curl': { name: 'Curl con Barra', defaultCues: ['Codos fijos, sin impulso'] },
+  'dumbbell-curl': { name: 'Curl con Mancuernas', defaultCues: ['Supina arriba'] },
+  'hammer-curl': { name: 'Curl Martillo', defaultCues: ['Agarre neutral, enfoca braquial'] },
+  'preacher-curl': { name: 'Curl Predicador', defaultCues: ['Sin rebote abajo'] },
+  'cable-curl': { name: 'Curl en Polea', defaultCues: ['Tensión constante todo el recorrido'] },
+  'incline-db-curl': { name: 'Curl Inclinado con Mancuernas', defaultCues: ['Estiramiento profundo en banco inclinado'] },
   // Triceps
-  'close-grip-bench': { nameEs: 'Press Cerrado', defaultCuesEs: ['Agarre al ancho de hombros', 'Codos pegados'] },
-  'machine-close-grip-press': { nameEs: 'Press Cerrado en Smith/Máquina', defaultCuesEs: ['Codos pegados, empuja con tríceps'] },
-  'triceps-pushdown': { nameEs: 'Extensión de Tríceps en Polea', defaultCuesEs: ['Codos fijos, cierre completo'] },
-  'rope-pushdown': { nameEs: 'Extensión en Polea con Soga', defaultCuesEs: ['Abre la soga abajo'] },
-  'overhead-db-extension': { nameEs: 'Extensión sobre la Cabeza con Mancuerna', defaultCuesEs: ['Estiramiento profundo detrás de la cabeza', 'Drop set OK'] },
-  'skullcrusher': { nameEs: 'Rompecráneos', defaultCuesEs: ['Baja a la frente, codos firmes'] },
-  'triceps-dip': { nameEs: 'Fondos para Tríceps', defaultCuesEs: ['Mantente recto para enfocar tríceps'] },
+  'close-grip-bench': { name: 'Press Cerrado', defaultCues: ['Agarre al ancho de hombros', 'Codos pegados'] },
+  'machine-close-grip-press': { name: 'Press Cerrado en Smith/Máquina', defaultCues: ['Codos pegados, empuja con tríceps'] },
+  'triceps-pushdown': { name: 'Extensión de Tríceps en Polea', defaultCues: ['Codos fijos, cierre completo'] },
+  'rope-pushdown': { name: 'Extensión en Polea con Soga', defaultCues: ['Abre la soga abajo'] },
+  'overhead-db-extension': { name: 'Extensión sobre la Cabeza con Mancuerna', defaultCues: ['Estiramiento profundo detrás de la cabeza', 'Drop set OK'] },
+  'skullcrusher': { name: 'Rompecráneos', defaultCues: ['Baja a la frente, codos firmes'] },
+  'triceps-dip': { name: 'Fondos para Tríceps', defaultCues: ['Mantente recto para enfocar tríceps'] },
   // Quads / legs
-  'back-squat': { nameEs: 'Sentadilla Trasera', defaultCuesEs: ['Aprieta, dobla en cadera y rodillas', 'Llega a la profundidad, empuja por el medio pie'] },
-  'front-squat': { nameEs: 'Sentadilla Frontal', defaultCuesEs: ['Codos altos, torso recto'] },
-  'leg-press': { nameEs: 'Prensa de Piernas', defaultCuesEs: ['Pies al ancho de hombros', 'No cierres las rodillas fuerte'] },
-  'hack-squat': { nameEs: 'Hack Squat', defaultCuesEs: ['Bajada profunda y controlada'] },
-  'leg-extension': { nameEs: 'Extensión de Piernas', defaultCuesEs: ['Aprieta arriba'] },
-  'walking-lunge': { nameEs: 'Zancada Caminando', defaultCuesEs: ['Paso largo, rodilla sigue los dedos'] },
-  'bulgarian-split-squat': { nameEs: 'Sentadilla Búlgara', defaultCuesEs: ['Pie trasero elevado, mantente recto'] },
-  'goblet-squat': { nameEs: 'Sentadilla Goblet', defaultCuesEs: ['Codos dentro de las rodillas abajo'] },
+  'back-squat': { name: 'Sentadilla Trasera', defaultCues: ['Aprieta, dobla en cadera y rodillas', 'Llega a la profundidad, empuja por el medio pie'] },
+  'front-squat': { name: 'Sentadilla Frontal', defaultCues: ['Codos altos, torso recto'] },
+  'leg-press': { name: 'Prensa de Piernas', defaultCues: ['Pies al ancho de hombros', 'No cierres las rodillas fuerte'] },
+  'hack-squat': { name: 'Hack Squat', defaultCues: ['Bajada profunda y controlada'] },
+  'leg-extension': { name: 'Extensión de Piernas', defaultCues: ['Aprieta arriba'] },
+  'walking-lunge': { name: 'Zancada Caminando', defaultCues: ['Paso largo, rodilla sigue los dedos'] },
+  'bulgarian-split-squat': { name: 'Sentadilla Búlgara', defaultCues: ['Pie trasero elevado, mantente recto'] },
+  'goblet-squat': { name: 'Sentadilla Goblet', defaultCues: ['Codos dentro de las rodillas abajo'] },
   // Hamstrings / glutes
-  'romanian-deadlift': { nameEs: 'Peso Muerto Rumano', defaultCuesEs: ['Rodillas suaves, empuja la cadera atrás', 'Siente el estiramiento del femoral'] },
-  'lying-leg-curl': { nameEs: 'Curl Femoral Acostado', defaultCuesEs: ['Sin levantar la cadera, curl completo'] },
-  'seated-leg-curl': { nameEs: 'Curl Femoral Sentado', defaultCuesEs: ['Controla la bajada'] },
-  'hip-thrust': { nameEs: 'Hip Thrust', defaultCuesEs: ['Barbilla recogida, cierre completo de cadera'] },
-  'good-morning': { nameEs: 'Buenos Días', defaultCuesEs: ['Poco peso, bisagra con columna neutral'] },
+  'romanian-deadlift': { name: 'Peso Muerto Rumano', defaultCues: ['Rodillas suaves, empuja la cadera atrás', 'Siente el estiramiento del femoral'] },
+  'lying-leg-curl': { name: 'Curl Femoral Acostado', defaultCues: ['Sin levantar la cadera, curl completo'] },
+  'seated-leg-curl': { name: 'Curl Femoral Sentado', defaultCues: ['Controla la bajada'] },
+  'hip-thrust': { name: 'Hip Thrust', defaultCues: ['Barbilla recogida, cierre completo de cadera'] },
+  'good-morning': { name: 'Buenos Días', defaultCues: ['Poco peso, bisagra con columna neutral'] },
   // Calves
-  'standing-calf-raise': { nameEs: 'Elevación de Pantorrilla de Pie', defaultCuesEs: ['Estiramiento completo, pausa arriba'] },
-  'seated-calf-raise': { nameEs: 'Elevación de Pantorrilla Sentado', defaultCuesEs: ['Enfoca el sóleo, tempo lento'] },
+  'standing-calf-raise': { name: 'Elevación de Pantorrilla de Pie', defaultCues: ['Estiramiento completo, pausa arriba'] },
+  'seated-calf-raise': { name: 'Elevación de Pantorrilla Sentado', defaultCues: ['Enfoca el sóleo, tempo lento'] },
   // Core
-  'plank': { nameEs: 'Plancha', defaultCuesEs: ['Glúteos firmes, columna neutral'] },
-  'hanging-leg-raise': { nameEs: 'Elevación de Piernas Colgado', defaultCuesEs: ['Sin balanceo, enrolla la pelvis'] },
-  'cable-crunch': { nameEs: 'Crunch en Polea', defaultCuesEs: ['Crunch con abdomen, no con cadera'] },
-  'ab-wheel': { nameEs: 'Rueda Abdominal', defaultCuesEs: ['Aprieta, no dejes caer la cadera'] },
+  'plank': { name: 'Plancha', defaultCues: ['Glúteos firmes, columna neutral'] },
+  'hanging-leg-raise': { name: 'Elevación de Piernas Colgado', defaultCues: ['Sin balanceo, enrolla la pelvis'] },
+  'cable-crunch': { name: 'Crunch en Polea', defaultCues: ['Crunch con abdomen, no con cadera'] },
+  'ab-wheel': { name: 'Rueda Abdominal', defaultCues: ['Aprieta, no dejes caer la cadera'] },
 };
 
-export const TEMPLATE_ES: Record<string, { nameEs: string; notesEs?: string }> = {
-  'chest-tri-sh-cluster': { nameEs: 'Pecho / Tríceps / Hombros (Cluster)', notesEs: 'Tope de 60 min. Formato cluster: activación / mini / mini.\nActivación: 9–12 reps @ RIR 1–2. Mini-sets: 3–5 reps @ RIR 0–1.\nDescansa 15–20s entre mini-sets, 2–3 min entre clusters.\nPROGRESIÓN: la activación llega a 12 reps × 2 sesiones → +2.5–5 lb.' },
-  'push-day': { nameEs: 'Día de Empuje', notesEs: 'Pecho, hombros, tríceps. 3 sets de trabajo cada uno, ~8–12 reps @ RIR 1–2.' },
-  'pull-day': { nameEs: 'Día de Jalón', notesEs: 'Espalda y bíceps. 3 sets de trabajo cada uno, ~8–12 reps @ RIR 1–2.' },
-  'leg-day': { nameEs: 'Día de Piernas', notesEs: 'Cuádriceps, femorales, glúteos, pantorrillas. 3 sets de trabajo cada uno, ~8–12 reps @ RIR 1–2.' },
-  'full-body': { nameEs: 'Cuerpo Completo', notesEs: 'Un gran levantamiento por patrón. 3 sets de trabajo cada uno, ~8–12 reps @ RIR 1–2.' },
+export const TEMPLATE_ES: SeedTemplateL10n = {
+  'chest-tri-sh-cluster': { name: 'Pecho / Tríceps / Hombros (Cluster)', notes: 'Tope de 60 min. Formato cluster: activación / mini / mini.\nActivación: 9–12 reps @ RIR 1–2. Mini-sets: 3–5 reps @ RIR 0–1.\nDescansa 15–20s entre mini-sets, 2–3 min entre clusters.\nPROGRESIÓN: la activación llega a 12 reps × 2 sesiones → +2.5–5 lb.' },
+  'push-day': { name: 'Día de Empuje', notes: 'Pecho, hombros, tríceps. 3 sets de trabajo cada uno, ~8–12 reps @ RIR 1–2.' },
+  'pull-day': { name: 'Día de Jalón', notes: 'Espalda y bíceps. 3 sets de trabajo cada uno, ~8–12 reps @ RIR 1–2.' },
+  'leg-day': { name: 'Día de Piernas', notes: 'Cuádriceps, femorales, glúteos, pantorrillas. 3 sets de trabajo cada uno, ~8–12 reps @ RIR 1–2.' },
+  'full-body': { name: 'Cuerpo Completo', notes: 'Un gran levantamiento por patrón. 3 sets de trabajo cada uno, ~8–12 reps @ RIR 1–2.' },
 };
 
-export const TEMPLATE_CUES_ES: Record<string, string[]> = {
+export const TEMPLATE_CUES_ES: SeedCuesL10n = {
   'chest-tri-sh-cluster:paramount-supine-chest-press': ['Asiento para alinear agarres a media altura (línea del pezón)', 'Codos ~45–60° del torso', '3s bajando, 1s aprieta arriba, estiramiento profundo', 'Esto REEMPLAZA el Smith vertical'],
   'chest-tri-sh-cluster:paramount-incline-chest-press': ['Mismos cues, enfoca pecho superior'],
   'chest-tri-sh-cluster:db-lateral-raise': ['Peso más liviano para llegar a 12–15 reps (bajado de 10 lb)'],
@@ -352,24 +366,137 @@ export const TEMPLATE_CUES_ES: Record<string, string[]> = {
   'chest-tri-sh-cluster:overhead-db-extension': ['Drop set OK'],
 };
 
+
+// ─── pt-BR (Brazilian Portuguese) ─────────────────────
+export const EXERCISE_PT: SeedExerciseL10n = {
+  // Chest
+  'barbell-bench-press': { name: 'Supino Reto com Barra', defaultCues: ['Escápulas retraídas, leve arco', 'Barra na linha do mamilo', 'Empurre os pés contra o chão'] },
+  'incline-barbell-press': { name: 'Supino Inclinado com Barra', defaultCues: ['Banco a 30–45°', 'Foca a parte superior do peitoral'] },
+  'dumbbell-bench-press': { name: 'Supino Reto com Halteres', defaultCues: ['Alongamento profundo embaixo', 'Contraia no topo'] },
+  'incline-dumbbell-press': { name: 'Supino Inclinado com Halteres', defaultCues: ['Ênfase na parte superior do peitoral'] },
+  'machine-chest-press': { name: 'Supino na Máquina', defaultCues: ['Pegadas na altura média do peito', 'Cotovelos a ~45–60° do tronco'] },
+  'incline-machine-press': { name: 'Supino Inclinado na Máquina', defaultCues: ['Ângulo de peitoral superior'] },
+  'paramount-supine-chest-press': { name: 'Supino Horizontal Paramount', defaultCues: ['Ajuste o banco para alinhar as pegadas na linha do mamilo', 'Cotovelos a ~45–60° do tronco', '3s descendo, 1s de contração no topo, alongamento profundo'] },
+  'paramount-incline-chest-press': { name: 'Supino Inclinado Paramount', defaultCues: ['Foca a parte superior do peitoral', '3s descendo, alongamento profundo'] },
+  'cable-fly': { name: 'Crucifixo na Polia', defaultCues: ['Cotovelo levemente flexionado, mantenha assim', 'Contraia cruzando a linha média'] },
+  'pec-deck': { name: 'Peck Deck', defaultCues: ['Controle o alongamento'] },
+  'chest-dip': { name: 'Mergulho para Peitoral', defaultCues: ['Incline o tronco à frente para focar o peitoral'] },
+  'push-up': { name: 'Flexão de Braço', defaultCues: ['Corpo em linha reta'] },
+  // Back
+  'deadlift': { name: 'Levantamento Terra', defaultCues: ['Coluna neutra', 'Empurre o chão para longe', 'Finalize com os glúteos'] },
+  'barbell-row': { name: 'Remada Curvada com Barra', defaultCues: ['Quadril flexionado a ~45°', 'Puxe até a costela inferior'] },
+  'pendlay-row': { name: 'Remada Pendlay', defaultCues: ['Reinicie cada repetição no chão', 'Puxada explosiva'] },
+  'dumbbell-row': { name: 'Remada Unilateral com Halter', defaultCues: ['Apoie-se no banco', 'Leve o cotovelo ao quadril'] },
+  'lat-pulldown': { name: 'Puxada na Polia Alta', defaultCues: ['Barra até a parte alta do peito', 'Puxe os cotovelos para baixo'] },
+  'pull-up': { name: 'Barra Fixa', defaultCues: ['Pendure-se por completo, queixo acima da barra'] },
+  'chin-up': { name: 'Barra Fixa Supinada', defaultCues: ['Pegada supinada, o bíceps ajuda'] },
+  'seated-cable-row': { name: 'Remada Sentada na Polia', defaultCues: ['Peito alto, puxe até o umbigo'] },
+  't-bar-row': { name: 'Remada Cavalinho', defaultCues: ['Com apoio no peito, se houver'] },
+  'straight-arm-pulldown': { name: 'Pulldown com Braços Estendidos', defaultCues: ['Só dorsais, cotovelos fixos'] },
+  'face-pull': { name: 'Face Pull', defaultCues: ['Puxe até a testa, rotação externa'] },
+  // Shoulders
+  'overhead-press': { name: 'Desenvolvimento Militar', defaultCues: ['Contraia o core', 'Barra sobre o meio do pé ao final'] },
+  'seated-db-shoulder-press': { name: 'Desenvolvimento Sentado com Halteres', defaultCues: ['Empurre em leve arco', 'Desça até a altura da orelha'] },
+  'machine-shoulder-press': { name: 'Desenvolvimento na Máquina', defaultCues: ['Pegadas na altura dos ombros'] },
+  'arnold-press': { name: 'Desenvolvimento Arnold', defaultCues: ['Gire as palmas durante o movimento'] },
+  'db-lateral-raise': { name: 'Elevação Lateral com Halteres', defaultCues: ['Conduza pelos cotovelos', 'Peso leve para 12–15 repetições'] },
+  'cable-lateral-raise': { name: 'Elevação Lateral na Polia', defaultCues: ['Tensão constante'] },
+  'rear-delt-fly': { name: 'Crucifixo Inverso', defaultCues: ['Incline levemente o tronco à frente', 'Contraia os deltoides posteriores'] },
+  'upright-row': { name: 'Remada Alta', defaultCues: ['Conduza pelos cotovelos, pare na altura do peito'] },
+  // Biceps
+  'barbell-curl': { name: 'Rosca Direta com Barra', defaultCues: ['Cotovelos fixos, sem impulso'] },
+  'dumbbell-curl': { name: 'Rosca Alternada com Halteres', defaultCues: ['Supine no topo'] },
+  'hammer-curl': { name: 'Rosca Martelo', defaultCues: ['Pegada neutra, foca o braquial'] },
+  'preacher-curl': { name: 'Rosca Scott', defaultCues: ['Sem repique embaixo'] },
+  'cable-curl': { name: 'Rosca na Polia', defaultCues: ['Tensão constante em toda a amplitude'] },
+  'incline-db-curl': { name: 'Rosca Inclinada com Halteres', defaultCues: ['Alongamento profundo no banco inclinado'] },
+  // Triceps
+  'close-grip-bench': { name: 'Supino com Pegada Fechada', defaultCues: ['Pegada na largura dos ombros', 'Cotovelos junto ao corpo'] },
+  'machine-close-grip-press': { name: 'Supino Fechado no Smith/Máquina', defaultCues: ['Cotovelos junto ao corpo, empurre com o tríceps'] },
+  'triceps-pushdown': { name: 'Tríceps na Polia Alta', defaultCues: ['Cotovelos fixos, extensão completa'] },
+  'rope-pushdown': { name: 'Tríceps Corda', defaultCues: ['Abra a corda embaixo'] },
+  'overhead-db-extension': { name: 'Extensão de Tríceps acima da Cabeça', defaultCues: ['Alongamento profundo atrás da cabeça', 'Drop set liberado'] },
+  'skullcrusher': { name: 'Tríceps Testa', defaultCues: ['Desça até a testa, cotovelos firmes'] },
+  'triceps-dip': { name: 'Mergulho para Tríceps', defaultCues: ['Mantenha o tronco ereto para focar o tríceps'] },
+  // Quads / legs
+  'back-squat': { name: 'Agachamento Livre', defaultCues: ['Contraia, flexione quadril e joelhos', 'Alcance a profundidade, empurre pelo meio do pé'] },
+  'front-squat': { name: 'Agachamento Frontal', defaultCues: ['Cotovelos altos, tronco ereto'] },
+  'leg-press': { name: 'Leg Press', defaultCues: ['Pés na largura dos ombros', 'Não trave os joelhos com força'] },
+  'hack-squat': { name: 'Hack Squat', defaultCues: ['Descida profunda e controlada'] },
+  'leg-extension': { name: 'Cadeira Extensora', defaultCues: ['Contraia no topo'] },
+  'walking-lunge': { name: 'Avanço Caminhando', defaultCues: ['Passo longo, joelho na linha dos dedos'] },
+  'bulgarian-split-squat': { name: 'Agachamento Búlgaro', defaultCues: ['Pé de trás elevado, tronco ereto'] },
+  'goblet-squat': { name: 'Agachamento Goblet', defaultCues: ['Cotovelos por dentro dos joelhos embaixo'] },
+  // Hamstrings / glutes
+  'romanian-deadlift': { name: 'Levantamento Terra Romeno', defaultCues: ['Joelhos levemente flexionados, quadril para trás', 'Sinta o alongamento do posterior'] },
+  'lying-leg-curl': { name: 'Mesa Flexora', defaultCues: ['Sem levantar o quadril, flexão completa'] },
+  'seated-leg-curl': { name: 'Cadeira Flexora', defaultCues: ['Controle a descida'] },
+  'hip-thrust': { name: 'Elevação Pélvica', defaultCues: ['Queixo recolhido, extensão total do quadril'] },
+  'good-morning': { name: 'Bom Dia', defaultCues: ['Pouca carga, flexione o quadril com a coluna neutra'] },
+  // Calves
+  'standing-calf-raise': { name: 'Panturrilha em Pé', defaultCues: ['Alongamento completo, pausa no topo'] },
+  'seated-calf-raise': { name: 'Panturrilha Sentado', defaultCues: ['Foca o sóleo, cadência lenta'] },
+  // Core
+  'plank': { name: 'Prancha', defaultCues: ['Glúteos firmes, coluna neutra'] },
+  'hanging-leg-raise': { name: 'Elevação de Pernas na Barra', defaultCues: ['Sem balanço, enrole a pelve'] },
+  'cable-crunch': { name: 'Abdominal na Polia', defaultCues: ['Flexione com o abdômen, não com o quadril'] },
+  'ab-wheel': { name: 'Roda Abdominal', defaultCues: ['Contraia, não deixe o quadril cair'] },
+};
+
+export const TEMPLATE_PT: SeedTemplateL10n = {
+  'chest-tri-sh-cluster': { name: 'Peito / Tríceps / Ombros (Cluster)', notes: 'Limite de 60 min. Formato cluster: ativação / mini / mini.\nAtivação: 9–12 reps @ RIR 1–2. Mini-séries: 3–5 reps @ RIR 0–1.\nDescanse 15–20s entre mini-séries, 2–3 min entre clusters.\nPROGRESSÃO: quando a ativação chegar a 12 reps × 2 sessões → +2,5–5 lb.' },
+  'push-day': { name: 'Treino de Empurrar', notes: 'Peito, ombros e tríceps. 3 séries de trabalho em cada, ~8–12 reps @ RIR 1–2.' },
+  'pull-day': { name: 'Treino de Puxar', notes: 'Costas e bíceps. 3 séries de trabalho em cada, ~8–12 reps @ RIR 1–2.' },
+  'leg-day': { name: 'Treino de Pernas', notes: 'Quadríceps, posteriores, glúteos e panturrilhas. 3 séries de trabalho em cada, ~8–12 reps @ RIR 1–2.' },
+  'full-body': { name: 'Corpo Inteiro', notes: 'Um grande exercício por padrão de movimento. 3 séries de trabalho em cada, ~8–12 reps @ RIR 1–2.' },
+};
+
+export const TEMPLATE_CUES_PT: SeedCuesL10n = {
+  'chest-tri-sh-cluster:paramount-supine-chest-press': ['Ajuste o banco para alinhar as pegadas na linha do mamilo', 'Cotovelos a ~45–60° do tronco', '3s descendo, 1s de contração no topo, alongamento profundo', 'Isto SUBSTITUI o Smith vertical'],
+  'chest-tri-sh-cluster:paramount-incline-chest-press': ['Mesmos pontos, foca a parte superior do peitoral'],
+  'chest-tri-sh-cluster:db-lateral-raise': ['Peso mais leve para chegar a 12–15 reps (reduzido de 10 lb)'],
+  'chest-tri-sh-cluster:machine-close-grip-press': ['APENAS 1 CLUSTER — NÃO acrescente um 2º cluster'],
+  'chest-tri-sh-cluster:overhead-db-extension': ['Drop set liberado'],
+};
+
+// ─── The locale registry — the ONLY place a language is registered ──
+/**
+ * Every localized seed lookup goes through this one table.
+ *
+ * The five resolvers below used to take `es: boolean`, which is precisely why
+ * a third language was a cross-cutting change: a boolean can only ever answer
+ * "Spanish, or not". They take the app's locale tag now, and a tag with no row
+ * here finds no side-map and falls through to the English source — the same
+ * behaviour `es === false` produced, without the arity.
+ *
+ * **To add a language: write the three maps above, add one row here. Done.**
+ */
+export const SEED_L10N: Record<
+  string,
+  { exercises: SeedExerciseL10n; templates: SeedTemplateL10n; cues: SeedCuesL10n }
+> = {
+  'es-PR': { exercises: EXERCISE_ES, templates: TEMPLATE_ES, cues: TEMPLATE_CUES_ES },
+  'pt-BR': { exercises: EXERCISE_PT, templates: TEMPLATE_PT, cues: TEMPLATE_CUES_PT },
+};
+
 /** Resolve a library exercise's display name for the active locale. */
-export function seedExerciseName(ex: SeedExercise, es: boolean): string {
-  return (es && EXERCISE_ES[ex.key]?.nameEs) || ex.name;
+export function seedExerciseName(ex: SeedExercise, locale: string): string {
+  return SEED_L10N[locale]?.exercises[ex.key]?.name || ex.name;
 }
 
 /** Resolve a library exercise's default cues for the active locale. */
-export function seedExerciseCues(ex: SeedExercise, es: boolean): string[] {
-  return (es && EXERCISE_ES[ex.key]?.defaultCuesEs) || ex.defaultCues;
+export function seedExerciseCues(ex: SeedExercise, locale: string): string[] {
+  return SEED_L10N[locale]?.exercises[ex.key]?.defaultCues || ex.defaultCues;
 }
 
 /** Resolve a starter template's display name for the active locale. */
-export function seedTemplateName(tpl: SeedTemplate, es: boolean): string {
-  return (es && TEMPLATE_ES[tpl.key]?.nameEs) || tpl.name;
+export function seedTemplateName(tpl: SeedTemplate, locale: string): string {
+  return SEED_L10N[locale]?.templates[tpl.key]?.name || tpl.name;
 }
 
 /** Resolve a starter template's notes for the active locale. */
-export function seedTemplateNotes(tpl: SeedTemplate, es: boolean): string | undefined {
-  return (es && TEMPLATE_ES[tpl.key]?.notesEs) || tpl.notes;
+export function seedTemplateNotes(tpl: SeedTemplate, locale: string): string | undefined {
+  return SEED_L10N[locale]?.templates[tpl.key]?.notes || tpl.notes;
 }
 
 /** Resolve the cues for one template-exercise: localized per-template override
@@ -378,12 +505,10 @@ export function seedTemplateExerciseCues(
   tplKey: string,
   se: SeedTemplateExercise,
   lib: SeedExercise | undefined,
-  es: boolean,
+  locale: string,
 ): string[] | undefined {
-  if (es) {
-    const ov = TEMPLATE_CUES_ES[`${tplKey}:${se.key}`];
-    if (ov) return ov;
-  }
+  const ov = SEED_L10N[locale]?.cues[`${tplKey}:${se.key}`];
+  if (ov) return ov;
   if (se.cues) return se.cues;
-  return lib ? seedExerciseCues(lib, es) : undefined;
+  return lib ? seedExerciseCues(lib, locale) : undefined;
 }

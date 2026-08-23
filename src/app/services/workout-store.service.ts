@@ -161,7 +161,7 @@ export class WorkoutStore {
     // (falling back to the resolved name for pre-seedKey clones) so a re-clone
     // — even after a locale switch — reuses the existing catalog entry instead
     // of splitting history/e1RM across a locale-named duplicate.
-    const es = this.i18n.language() === 'es-PR';
+    const locale = this.i18n.language();
 
     const bySeedKey = new Map(
       this._exercises()
@@ -176,8 +176,8 @@ export class WorkoutStore {
     for (const seedEx of seed.exercises) {
       const lib = findSeedExercise(seedEx.key);
       if (!lib) continue; // skip dangling references defensively
-      const name = seedExerciseName(lib, es);
-      const defaultCues = seedExerciseCues(lib, es);
+      const name = seedExerciseName(lib, locale);
+      const defaultCues = seedExerciseCues(lib, locale);
       let entry = bySeedKey.get(seedEx.key) ?? byName.get(name.toLowerCase());
       if (!entry) {
         const id = await this.fb.addExercise({ name, muscles: lib.muscles, defaultCues, seedKey: seedEx.key });
@@ -189,7 +189,7 @@ export class WorkoutStore {
         exerciseId: entry.id!,
         name: entry.name,
         targetLoad: seedEx.targetLoad,
-        cues: seedTemplateExerciseCues(seed.key, seedEx, lib, es),
+        cues: seedTemplateExerciseCues(seed.key, seedEx, lib, locale),
         progression: seedEx.progression,
         plannedSets: seedEx.plannedSets,
       });
@@ -199,8 +199,8 @@ export class WorkoutStore {
     this._exercises.set(await this.fb.getExercises());
 
     const id = await this.fb.addTemplate({
-      name: seedTemplateName(seed, es),
-      notes: seedTemplateNotes(seed, es),
+      name: seedTemplateName(seed, locale),
+      notes: seedTemplateNotes(seed, locale),
       restMiniSec: seed.restMiniSec,
       restClusterSec: seed.restClusterSec,
       exercises,

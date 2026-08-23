@@ -1,13 +1,18 @@
 import { type ReactNode, createContext, useContext, useMemo } from 'react';
 import { useAuth } from '@/lib/auth';
 import { type I18nKey, en } from './en';
-import { esPR } from './es-PR';
+import { LOCALE_DEFS, type Locale, resolveLocale } from './registry';
 
 export type { I18nKey } from './en';
-
-export type Locale = 'en' | 'es-PR';
-
-const DICTS: Record<Locale, Record<I18nKey, string>> = { en, 'es-PR': esPR };
+export type { Locale, LocaleDef } from './registry';
+export {
+  LOCALES,
+  LOCALE_DEFS,
+  DEFAULT_LOCALE,
+  normalizeLocale,
+  deviceLocale,
+  resolveLocale,
+} from './registry';
 
 export type TParams = Record<string, string | number>;
 export type TFn = (key: I18nKey, params?: TParams) => string;
@@ -25,14 +30,17 @@ interface I18nValue {
 const I18nContext = createContext<I18nValue | undefined>(undefined);
 
 /** Drives the active locale from `profile.preferredLocale` (the same field
- *  the PWA's Transloco uses), defaulting to English. Mount inside
- *  AuthProvider so the profile is available. */
+ *  the PWA's Transloco uses), falling back to the phone's own language —
+ *  see `resolveLocale`. Mount inside AuthProvider so the profile is
+ *  available. */
 export function I18nProvider({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
-  const locale: Locale = profile?.preferredLocale === 'es-PR' ? 'es-PR' : 'en';
+  const locale = resolveLocale(profile?.preferredLocale);
 
   const value = useMemo<I18nValue>(() => {
-    const dict = DICTS[locale];
+    const dict = LOCALE_DEFS[locale].dict;
+    // Falls back key-by-key rather than dict-by-dict: a locale missing one
+    // string renders English for that string only, not for the screen.
     const t: TFn = (key, params) => interpolate(dict[key] ?? en[key] ?? key, params);
     return { locale, t };
   }, [locale]);

@@ -47,6 +47,7 @@ import {
 } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import type { Profile } from '@macrolog/core';
+import type { Locale } from '@/i18n/registry';
 import { LinkError, type LinkableProvider, type PendingLink } from './link-error';
 export { LinkError } from './link-error';
 export type { LinkableProvider, PendingLink } from './link-error';
@@ -172,7 +173,7 @@ async function providerHintForEmail(email: string): Promise<'use-google' | 'use-
  * The callable reads the address from the auth token, so there is nothing to
  * pass and nothing a caller can spoof.
  */
-async function sendOwnedVerificationEmail(locale?: 'en' | 'es-PR'): Promise<void> {
+async function sendOwnedVerificationEmail(locale?: Locale): Promise<void> {
   const call = httpsCallable<{ locale: string }, { ok: true; alreadyVerified?: boolean }>(
     functions,
     'sendVerificationEmail',
@@ -374,7 +375,7 @@ interface AuthState {
   /** Re-sends the verification email to the current user. `locale` picks the
    *  language, and is supplied by the caller for the same reason
    *  `resetPassword` needs it — see the note there. */
-  resendVerification: (locale?: 'en' | 'es-PR') => Promise<void>;
+  resendVerification: (locale?: Locale) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   /** Creates a new email/password account and signs in. Sets the Firebase Auth
    *  displayName when provided, and sends a (best-effort) verification email.
@@ -383,13 +384,13 @@ interface AuthState {
     email: string,
     password: string,
     displayName?: string,
-    locale?: 'en' | 'es-PR',
+    locale?: Locale,
   ) => Promise<void>;
   /** Sends a password-reset email to `email`. */
   /** `locale` picks the language of the reset email. The caller supplies it
    *  because `I18nProvider` mounts inside this provider (it reads the signed-in
    *  profile), so the locale is not readable from here. */
-  resetPassword: (email: string, locale?: 'en' | 'es-PR') => Promise<void>;
+  resetPassword: (email: string, locale?: Locale) => Promise<void>;
   /** Launches the Google OAuth flow and signs in to Firebase with the
    *  returned id token. Throws GoogleSignInError on cancel/unavailable. */
   signInWithGoogle: () => Promise<void>;

@@ -148,6 +148,7 @@ export { toWorkoutExercise, toWorkoutTemplate, toWorkoutSession } from './workou
 // Shipped Train starter content (library + templates + es-PR maps + resolvers).
 // Exported names are seed-specific (Seed*, EXERCISE_LIBRARY, seed*) — no clash
 // with the intentionally-un-barreled ./workout types.
+export * from './locales';
 export * from './workout-seed';
 // Session- and screen-level Train derivations (idle hero, sparkline series,
 // summary counts, PR crossing). The layer above ./workout-progression; both

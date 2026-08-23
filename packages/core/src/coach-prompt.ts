@@ -16,7 +16,7 @@ import type { TdeeResult } from './tdee';
 import { finalCalorieTarget } from './targets';
 import { addDays, localDateKey } from './date';
 
-export type CoachLocale = 'en' | 'es-PR';
+export type CoachLocale = 'en' | 'es-PR' | 'pt-BR';
 
 /**
  * Calendar days of history the coach reasons over. The prompt has always
@@ -80,10 +80,16 @@ function formatHeight(totalInches: number): string {
 /** One-line language instruction so the coach answers in the UI's language.
  *  Kept in code (not translation JSON) so the prompt engineering stays where
  *  reviewers expect it. */
+const LANG_SUFFIX: Record<CoachLocale, string> = {
+  en: '\n\nRespond in English.',
+  'es-PR':
+    '\n\nRespond in Puerto Rican Spanish. Use informal "tú". Keep numeric formats (calories, grams, pounds) identical to the UI.',
+  'pt-BR':
+    '\n\nRespond in Brazilian Portuguese. Use informal "você". Keep numeric formats (calories, grams, pounds) identical to the UI.',
+};
+
 function langSuffix(locale: CoachLocale): string {
-  return locale === 'es-PR'
-    ? '\n\nRespond in Puerto Rican Spanish. Use informal "tú". Keep numeric formats (calories, grams, pounds) identical to the UI.'
-    : '\n\nRespond in English.';
+  return LANG_SUFFIX[locale] ?? LANG_SUFFIX.en;
 }
 
 /**

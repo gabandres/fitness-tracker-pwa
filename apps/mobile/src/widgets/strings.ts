@@ -7,7 +7,7 @@
  * lookup, keyed by the locale that rode in on the snapshot blob.
  *
  * The iOS SwiftUI widget has its own copy of these same strings; keep the two
- * in step. Both locales must stay at parity, same as `src/i18n`.
+ * in step. All three locales must stay at parity, same as `src/i18n`.
  */
 
 export interface WidgetStrings {
@@ -46,7 +46,16 @@ const esPR: WidgetStrings = {
   quickAddA11y: 'Registrar',
 };
 
-const TABLE: Record<string, WidgetStrings> = { en, 'es-PR': esPR };
+const ptBR: WidgetStrings = {
+  kcal: 'kcal',
+  left: 'restantes',
+  over: 'a mais',
+  protein: 'proteína',
+  empty: 'Abra o Ignia para começar',
+  quickAddA11y: 'Registrar',
+};
+
+const TABLE: Record<string, WidgetStrings> = { en, 'es-PR': esPR, 'pt-BR': ptBR };
 
 /** Falls back to English for any locale the widget doesn't carry strings for. */
 export function widgetStrings(locale: string): WidgetStrings {
@@ -56,7 +65,7 @@ export function widgetStrings(locale: string): WidgetStrings {
 /**
  * Thousands separators without `Intl` — Android's widget JS context is a bare
  * Hermes runtime and `toLocaleString` there has historically been a no-op that
- * silently returns the unformatted number. Both locales we ship use a comma
+ * silently returns the unformatted number. All three locales we ship are rendered with a comma
  * grouping at this magnitude, so one implementation covers them.
  */
 export function groupDigits(n: number): string {

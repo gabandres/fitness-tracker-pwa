@@ -140,7 +140,7 @@ export interface TrainState {
 export function useTrain(): TrainState {
   const { user } = useAuth();
   const uid = user?.uid;
-  const es = useLocale() === 'es-PR';
+  const locale = useLocale();
   // Cached to disk on the way in, same as Today's slices. The setters are the
   // ones `onSnapshot` already calls, so the write-through is invisible here.
   const [catalog, setCatalog] = useCachedState<Exercise[]>(uid, 'exercises', []);
@@ -320,7 +320,7 @@ export function useTrain(): TrainState {
         // resolved name for pre-seedKey clones) so re-cloning — even in another
         // locale — reuses the existing catalog entry instead of splitting
         // history/e1RM across a duplicate.
-        const name = lib ? seedExerciseName(lib, es) : se.key;
+        const name = lib ? seedExerciseName(lib, locale) : se.key;
         const existing = catalog.find(
           (c) =>
             (c.seedKey && c.seedKey === se.key) ||
@@ -331,7 +331,7 @@ export function useTrain(): TrainState {
           (await addExerciseDoc(uid, {
             name,
             muscles: lib?.muscles ?? [],
-            defaultCues: lib ? seedExerciseCues(lib, es) : [],
+            defaultCues: lib ? seedExerciseCues(lib, locale) : [],
             logStyle: 'weight-reps',
             seedKey: se.key,
           }));
@@ -339,22 +339,22 @@ export function useTrain(): TrainState {
           exerciseId: id,
           name,
           targetLoad: se.targetLoad,
-          cues: seedTemplateExerciseCues(seed.key, se, lib, es),
+          cues: seedTemplateExerciseCues(seed.key, se, lib, locale),
           logStyle: 'weight-reps',
           progression: se.progression,
           plannedSets: se.plannedSets,
         });
       }
       await addTemplateDoc(uid, {
-        name: seedTemplateName(seed, es),
-        notes: seedTemplateNotes(seed, es),
+        name: seedTemplateName(seed, locale),
+        notes: seedTemplateNotes(seed, locale),
         restMiniSec: seed.restMiniSec,
         restClusterSec: seed.restClusterSec,
         exercises,
         seedKey: seed.key,
       });
     },
-    [uid, catalog, es],
+    [uid, catalog, locale],
   );
 
   /**

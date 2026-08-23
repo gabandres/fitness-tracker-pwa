@@ -329,7 +329,7 @@ function StarterTemplatesModal({
 }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
-  const es = useLocale() === 'es-PR';
+  const locale = useLocale();
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
   // Hide starters the user has already cloned (matched by stable seedKey, so
@@ -342,7 +342,7 @@ function StarterTemplatesModal({
   const available = STARTER_TEMPLATES.filter(
     (seed) =>
       !cloned.has(seed.key) &&
-      !train.templates.some((tpl) => !tpl.seedKey && tpl.name.toLowerCase() === seedTemplateName(seed, es).toLowerCase()),
+      !train.templates.some((tpl) => !tpl.seedKey && tpl.name.toLowerCase() === seedTemplateName(seed, locale).toLowerCase()),
   );
 
   useEffect(() => {
@@ -383,7 +383,7 @@ function StarterTemplatesModal({
             {available.map((seed) => (
               <View key={seed.key} style={styles.tplRow}>
                 <View style={styles.tplMain}>
-                  <Text style={styles.histDate}>{seedTemplateName(seed, es)}</Text>
+                  <Text style={styles.histDate}>{seedTemplateName(seed, locale)}</Text>
                   <Text style={styles.histSub}>
                     {`${seed.exercises.length} ${seed.exercises.length === 1 ? t('train.exerciseOne') : t('train.exerciseMany')}`}
                   </Text>

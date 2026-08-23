@@ -380,18 +380,18 @@ export class TrainComponent {
    *  (holds across a locale switch); falls back to the localized name for
    *  clones made before seedKey existed. */
   protected readonly availableStarters = computed(() => {
-    const es = this.i18n.language() === 'es-PR';
+    const locale = this.i18n.language();
     const cloned = this.templates();
     const seedKeys = new Set(cloned.filter((tpl) => tpl.seedKey).map((tpl) => tpl.seedKey));
     const names = new Set(cloned.filter((tpl) => !tpl.seedKey).map((tpl) => tpl.name.toLowerCase()));
     return STARTER_TEMPLATES.filter(
-      (s) => !seedKeys.has(s.key) && !names.has(seedTemplateName(s, es).toLowerCase()),
+      (s) => !seedKeys.has(s.key) && !names.has(seedTemplateName(s, locale).toLowerCase()),
     );
   });
 
   /** Localized display name for a starter template (chooser list). */
   protected starterName(seed: SeedTemplate): string {
-    return seedTemplateName(seed, this.i18n.language() === 'es-PR');
+    return seedTemplateName(seed, this.i18n.language());
   }
 
   protected openSheet(): void {

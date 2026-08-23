@@ -47,10 +47,16 @@ function formatHeight(totalInches: number): string {
   return `${ft}'${inches}"`;
 }
 
+const LANG_SUFFIX: Record<CoachLocale, string> = {
+  en: '\n\nRespond in English.',
+  'es-PR':
+    '\n\nRespond in Puerto Rican Spanish. Use informal "tú". Keep numeric formats (calories, grams, pounds) identical to the UI.',
+  'pt-BR':
+    '\n\nRespond in Brazilian Portuguese. Use informal "você". Keep numeric formats (calories, grams, pounds) identical to the UI.',
+};
+
 function langSuffix(locale: CoachLocale): string {
-  return locale === 'es-PR'
-    ? '\n\nRespond in Puerto Rican Spanish. Use informal "tú". Keep numeric formats (calories, grams, pounds) identical to the UI.'
-    : '\n\nRespond in English.';
+  return LANG_SUFFIX[locale] ?? LANG_SUFFIX.en;
 }
 
 /**

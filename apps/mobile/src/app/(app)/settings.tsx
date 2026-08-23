@@ -35,7 +35,7 @@ import {
   setRemindersEnabled,
   syncReminders,
 } from '@/lib/reminders';
-import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
+import { LOCALES, LOCALE_DEFS, type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
@@ -53,10 +53,12 @@ const GOAL_LABEL: Record<string, I18nKey> = {
   gain: 'goalShort.gain',
 };
 
-const LANGUAGES: { value: Locale; label: string }[] = [
-  { value: 'en', label: 'English' },
-  { value: 'es-PR', label: 'Español' },
-];
+// Derived from the i18n registry, never listed here: a language added to
+// `src/i18n/registry.ts` appears in this picker with no edit to this file.
+const LANGUAGES: { value: Locale; label: string }[] = LOCALES.map((value) => ({
+  value,
+  label: LOCALE_DEFS[value].label,
+}));
 
 // Calorie-floor stepper bounds (kcal). Kept in sync with the PWA settings.
 /** The meal windows `planReminders` can schedule, in the order they occur.

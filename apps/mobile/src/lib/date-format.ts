@@ -1,4 +1,4 @@
-import type { Locale } from '@/i18n';
+import { LOCALE_DEFS, type Locale } from '@/i18n';
 
 /**
  * Locale-aware date formatting.
@@ -15,9 +15,10 @@ import type { Locale } from '@/i18n';
  * call a hook take it as a parameter.
  */
 
-/** App locale → BCP-47 tag Intl understands. */
+/** App locale → the BCP-47 tag Intl should format with. Registered once per
+ *  language in `src/i18n/registry.ts`; nothing branches here. */
 export function localeTag(locale: Locale): string {
-  return locale === 'es-PR' ? 'es-PR' : 'en-US';
+  return LOCALE_DEFS[locale].intlTag;
 }
 
 export function formatDate(
