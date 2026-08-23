@@ -20,14 +20,14 @@ import { join } from 'node:path';
 
 const DIST_ROOT = 'dist/fitness-tracker-pwa/browser';
 
-// Credentials reach this script two different ways, and only one of them was
-// ever wired. CI injects all three as env vars (.github/workflows/ci.yml), but
-// CI deliberately never deploys — releases are pushed by hand from a
-// workstation, where they live in the git-ignored .env.local. Without this
-// load, the only path that deploys was the only path that could not upload,
-// and every hand-pushed release silently skipped source maps.
-// `loadEnvFile` throws when the file is absent (CI, fork clones); that is the
-// normal case there, not an error.
+// Credentials reach this script from the git-ignored .env.local on whichever
+// workstation runs the build. This load is the ONLY wiring left: CI used to
+// inject the three SENTRY_* names as env vars, and that workflow was deleted
+// on 2026-08-23 (README §CI / CD) — but CI never deployed either, so without
+// this load the only path that deploys was the only path that could not
+// upload, and every hand-pushed release silently skipped source maps.
+// `loadEnvFile` throws when the file is absent (fork clones); that is a normal
+// case there, not an error.
 // Resolved against this file, not the cwd, and named explicitly: bare
 // loadEnvFile() reads `.env`, which this repo does not use.
 try {

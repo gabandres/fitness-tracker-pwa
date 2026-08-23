@@ -65,8 +65,8 @@ covers this class.
 
 ### Sentry (web)
 
-Credentials come from the environment (the same `SENTRY_*` names `ci.yml` passes
-as secrets); locally they live in the git-ignored env file described in
+Credentials come from the environment (`SENTRY_AUTH_TOKEN`, `SENTRY_ORG`,
+`SENTRY_PROJECT`); they live in the git-ignored env file described in
 `CLAUDE.local.md`. Check they are present before trying — if they are not, say so
 and fall back to asking the owner to read the issue list in the Sentry UI. Never
 guess a token, and never echo one.

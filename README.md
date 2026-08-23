@@ -51,7 +51,6 @@ Uniquely, ships both photo-AI logging (like Cal AI) *and* adaptive TDEE coaching
   *(The old list named `sendDailyReminders`, `sendDayThreeCoachPush` and `publishUserCount` as separate functions. They are not: Cloud Scheduler's free tier is 3 jobs and all 3 are spent, so recurring work folds into the `hourlyTasks` dispatcher — see `CLAUDE.md`. Regenerate this list from `index.ts` rather than editing it by hand.)*
 - `functions/test/rules/` — `@firebase/rules-unit-testing` suite for `firestore.rules`. Run with `npm run test:rules` (boots the Firestore emulator).
 - `src/app/i18n/` — Transloco locales (`en`, `es-PR`).
-- `.github/workflows/` — CI only (`ci.yml`: install, typecheck, test, build on PR + main). **There is no deploy workflow**; releases are pushed by hand from a workstation.
 - `scripts/sentry-release.mjs` — post-build sourcemap upload + strip (no-op if Sentry secrets absent).
 - `scripts/monitoring/` — one-time Cloud Monitoring alert-policy setup (`setup-alerts.sh`).
 
@@ -94,15 +93,14 @@ Firebase project: `fitness-tracker-gb-1775407101`. Hosting site: `macrolog`.
 
 - **`GEMINI_API_KEY`** used by `analyzePhoto` / `generateWeeklyReport` — stored in Firebase Functions Secret Manager (`firebase functions:secrets:set GEMINI_API_KEY`).
 - **Stripe secret key + webhook signing secret** — held by the `firestore-stripe-payments` extension in its own Secret Manager entries. See `STRIPE_SETUP.md`.
-- **`FIREBASE_TOKEN`** (CI deploy) — GitHub Actions repo secret; generate with `firebase login:ci`.
-- **`SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`** (CI sourcemap upload) — GitHub Actions repo secrets.
+- **`SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`** (sourcemap upload at build time) — read from the git-ignored `.env.local` on the workstation that runs the build. `CLAUDE.local.md` owns the copies and the rotation order.
 
 Local-only overrides belong in `src/environments/environment.local.ts` (gitignored). If you need a per-developer Gemini key for testing, put it there and import explicitly.
 
 ## CI / CD
 
-- **`.github/workflows/ci.yml`** runs on every PR + push to main: `npm run doctor -- --no-cloud`, unit tests, a functions build (PRs that touch `functions/**`), and a real production build. Doc-only pushes are skipped (`paths-ignore`). Sourcemaps upload to Sentry when the `SENTRY_*` secrets are present.
-- **There is no deploy workflow.** CI's job is to keep `main` green, not to ship — releases are pushed by hand from a workstation (`npm run build && firebase deploy`). This removed a dependency on the deprecated `firebase login:ci` token, which kept expiring and failing the run.
+- **There is no CI and no deploy workflow.** `.github/workflows/ci.yml` was deleted on 2026-08-23: it had failed on every run for days on a defect nobody was reading (`packages/core` typecheck), so its only live output was a failure email. A gate nobody reads is worse than no gate — it trains you to ignore red.
+- **Verification is a workstation step, before you ship.** `npm run doctor -- --no-cloud`, then the `verify-build` skill (all four buildable units: PWA, `packages/core`, `functions`, `apps/mobile`). Releases are pushed by hand — `npm run build && firebase deploy` — and the `PreToolUse` guards in `.claude/hooks/` block the deploys CI never caught anyway.
 
 ## Operator checklist (post-deploy)
 

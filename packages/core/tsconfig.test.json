@@ -1,0 +1,11 @@
+{
+  // The specs only. Widens `lib` to include the WHATWG globals every runtime
+  // vitest, a browser and Hermes all provide (`URL` is the one in use) —
+  // deliberately NOT inherited by src, see tsconfig.json.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["src/**/*.test.ts"],
+  "exclude": []
+}

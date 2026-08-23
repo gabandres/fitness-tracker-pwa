@@ -1,4 +1,14 @@
 {
+  // SOURCE ONLY. `lib` is ES2022 with no DOM and `types` is empty on purpose:
+  // core is imported by BOTH the Angular PWA and the Expo app, so anything it
+  // can reference has to exist in a browser AND in Hermes. Leaving DOM out is
+  // what makes "framework-free" checkable instead of aspirational — add it
+  // here and `document` compiles clean in a file React Native will run.
+  //
+  // Tests are EXCLUDED and checked by tsconfig.test.json against a wider lib.
+  // They run under vitest's `node` environment and legitimately use runtime
+  // globals (`URL`) that src must never assume. Both configs run in
+  // `npm run typecheck`.
   "compilerOptions": {
     "strict": true,
     "target": "ES2022",
@@ -11,5 +21,6 @@
     "lib": ["ES2022"],
     "types": []
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
 }
