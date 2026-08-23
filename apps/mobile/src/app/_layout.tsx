@@ -1,4 +1,9 @@
-import { Manrope_700Bold, Manrope_800ExtraBold, useFonts } from '@expo-google-fonts/manrope';
+// Subpath imports, not the package barrel: the barrel re-exports all seven
+// weights and Metro bundles every .ttf behind them, so importing two shipped
+// eight. Same trap as `@expo/vector-icons` — see the perf-budget commit.
+import { Manrope_700Bold } from '@expo-google-fonts/manrope/700Bold';
+import { Manrope_800ExtraBold } from '@expo-google-fonts/manrope/800ExtraBold';
+import { useFonts } from '@expo-google-fonts/manrope/useFonts';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
