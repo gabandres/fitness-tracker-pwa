@@ -9,6 +9,7 @@ import {
   transactionalSendOptions,
   resendApiKey,
 } from "./resend-client";
+import { emailLocale } from "./locales";
 import { verifyEmailEmail } from "./email-templates";
 
 /**
@@ -87,7 +88,7 @@ export const sendVerificationEmail = onCall<
       });
     }
 
-    const locale: "en" | "es-PR" = request.data?.locale === "es-PR" ? "es-PR" : "en";
+    const locale = emailLocale(request.data?.locale);
 
     if (!(await withinBudget(`verify_uid_${uid}`, MAX_PER_USER))) {
       console.warn(`sendVerificationEmail: rate limited uid=${uid}`);

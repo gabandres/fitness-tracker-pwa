@@ -224,7 +224,7 @@ export interface ProfileFields {
   timezoneOffsetMin?: number;  // from new Date().getTimezoneOffset()
   ageConfirmedAt?: Date;       // COPPA/EU: timestamp the user attested 13+ (16+ EU)
   ageConfirmed?: boolean;      // transient checkbox state — never persisted, drives the stamp below
-  preferredLocale?: string;    // Transloco active lang ('en' | 'es-PR'); used server-side for email locale
+  preferredLocale?: string;    // a tag from packages/core LOCALES; drives the app AND the email locale
   welcomeEmailSentAt?: Date;      // server-set latch; clients never write this
   // v2 2-question onboarding (Q10 of UX revamp v2). When present, the
   // FitnessStore prefers these manual targets over TDEE-derived math.

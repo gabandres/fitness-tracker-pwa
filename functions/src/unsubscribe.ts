@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
+import { type EmailLocale, emailLocale, htmlLangFor } from "./locales";
 import { resendApiKey } from "./resend-client";
 
 // ─── One-click unsubscribe (RFC 8058) ───────────────────────────────
@@ -88,9 +89,9 @@ export function unsubscribeUrl(uid: string, apiKey: string): string {
 // Deliberately self-contained: no external CSS, no fonts, no JS. This page is
 // reached from an email client's in-app browser as often as from a real one.
 
-function page(title: string, body: string, isEs: boolean): string {
+function page(title: string, body: string, locale: EmailLocale): string {
   return `<!doctype html>
-<html lang="${isEs ? "es" : "en"}">
+<html lang="${htmlLangFor(locale)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -124,35 +125,80 @@ function page(title: string, body: string, isEs: boolean): string {
 </html>`;
 }
 
-function donePage(isEs: boolean): string {
-  return isEs
-    ? page(
-      "Listo.",
-      `<p>No volverás a recibir el resumen semanal.</p>
-       <p>El resto de los correos de tu cuenta — restablecer contraseña, confirmar tu
-          correo — siguen llegando, porque son de seguridad y no se pueden desactivar.</p>
-       <p>¿Cambiaste de opinión? Actívalo otra vez en <strong>Ajustes → Resumen semanal</strong>.</p>`,
-      true,
-    )
-    : page(
-      "Done.",
-      `<p>You won't receive the weekly recap again.</p>
+// The quoted Settings row has to be the row a user will actually find.
+// Both frontends label it *weekly recap email* — web
+// `settings.reminders.weeklyDigest`, mobile `settings.weeklyDigest` — and
+// these pages said "Weekly digest", which is the internal name and exists
+// nowhere in either UI. Someone who changed their mind went looking for a
+// row that is not there.
+
+const DONE: Record<EmailLocale, { title: string; body: string }> = {
+  "en": {
+    title: "Done.",
+    body: `<p>You won't receive the weekly recap again.</p>
        <p>Account mail — password resets, email confirmation — still arrives, because
           that is security mail and can't be switched off.</p>
-       <p>Changed your mind? Turn it back on in <strong>Settings → Weekly digest</strong>.</p>`,
-      false,
-    );
+       <p>Changed your mind? Turn it back on in <strong>Settings → Weekly recap email</strong>.</p>`,
+  },
+  "es-PR": {
+    title: "Listo.",
+    body: `<p>No volverás a recibir el resumen semanal.</p>
+       <p>El resto de los correos de tu cuenta — restablecer contraseña, confirmar tu
+          correo — siguen llegando, porque son de seguridad y no se pueden desactivar.</p>
+       <p>¿Cambiaste de opinión? Actívalo otra vez en <strong>Ajustes → Resumen semanal por correo</strong>.</p>`,
+  },
+  "pt-BR": {
+    title: "Pronto.",
+    body: `<p>Você não vai mais receber o resumo semanal.</p>
+       <p>Os e-mails da sua conta — redefinir senha, confirmar o e-mail — continuam
+          chegando, porque são de segurança e não dá para desligar.</p>
+       <p>Mudou de ideia? Ligue de novo em <strong>Ajustes → E-mail de resumo semanal</strong>.</p>`,
+  },
+};
+
+const FAILED: Record<EmailLocale, { title: string; body: string }> = {
+  "en": {
+    title: "Something went wrong.",
+    body: `<p>We couldn't save that just now. Please try the link again, or turn the
+              weekly recap off in <strong>Settings → Weekly recap email</strong>.</p>`,
+  },
+  "es-PR": {
+    title: "Algo salió mal.",
+    body: `<p>No pudimos guardar eso ahora mismo. Intenta el enlace otra vez, o apaga el
+              resumen semanal en <strong>Ajustes → Resumen semanal por correo</strong>.</p>`,
+  },
+  "pt-BR": {
+    title: "Algo deu errado.",
+    body: `<p>Não conseguimos salvar isso agora. Tente o link de novo, ou desligue o
+              resumo semanal em <strong>Ajustes → E-mail de resumo semanal</strong>.</p>`,
+  },
+};
+
+function failedPage(locale: EmailLocale): string {
+  const t = FAILED[locale];
+  return page(t.title, t.body, locale);
 }
 
+function donePage(locale: EmailLocale): string {
+  const t = DONE[locale];
+  return page(t.title, t.body, locale);
+}
+
+// A bad token means the uid never resolved, so there is no profile to read a
+// language off. Stack all three rather than guess: it is the one page here
+// whose reader is definitionally unknown, and a wrong guess is worse than a
+// crowded page nobody should reach.
 function badTokenPage(): string {
   return page(
     "We couldn't read that link.",
     `<p>The link may have been broken by your email client, or it may have expired.</p>
      <p>You can always turn the weekly recap off inside the app:
-        <strong>Settings → Weekly digest</strong>.</p>
+        <strong>Settings → Weekly recap email</strong>.</p>
      <p style="opacity:.75">Puedes apagar el resumen semanal en la app:
-        <strong>Ajustes → Resumen semanal</strong>.</p>`,
-    false,
+        <strong>Ajustes → Resumen semanal por correo</strong>.</p>
+     <p style="opacity:.75">Você pode desligar o resumo semanal no app:
+        <strong>Ajustes → E-mail de resumo semanal</strong>.</p>`,
+    "en",
   );
 }
 
@@ -185,12 +231,12 @@ export const unsubscribeWeeklyDigest = onRequest(
       return;
     }
 
-    let isEs = false;
+    let locale: EmailLocale = "en";
     try {
       const db = getFirestore();
       const ref = db.doc(`users/${uid}`);
       const snap = await ref.get();
-      isEs = snap.data()?.["preferredLocale"] === "es-PR";
+      locale = emailLocale(snap.data()?.["preferredLocale"] as string | undefined);
       if (snap.exists) {
         await ref.set({ weeklyDigestOptIn: false }, { merge: true });
         console.log(`unsubscribeWeeklyDigest: opted out uid=${uid}`);
@@ -203,17 +249,13 @@ export const unsubscribeWeeklyDigest = onRequest(
       console.error(`unsubscribeWeeklyDigest: write failed uid=${uid}`, err);
       // Tell the truth rather than claiming success — but keep the status at
       // 200 so a one-click POST is not retried into a loop.
-      res.status(200).send(
-        page(
-          "Something went wrong.",
-          `<p>We couldn't save that just now. Please try the link again, or turn the
-              weekly recap off in <strong>Settings → Weekly digest</strong>.</p>`,
-          false,
-        ),
-      );
+      // `locale` is whatever we managed to resolve before the throw, and it is
+      // the read itself that usually throws — so this is English more often
+      // than not. That is the honest fallback, not a bug to paper over.
+      res.status(200).send(failedPage(locale));
       return;
     }
 
-    res.status(200).send(donePage(isEs));
+    res.status(200).send(donePage(locale));
   },
 );

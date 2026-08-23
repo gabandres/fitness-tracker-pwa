@@ -21,6 +21,8 @@
 // clients that ignore the <style> block simply keep the inline light
 // styling, which is the correct fallback.
 
+import { type EmailLocale, htmlLangFor, intlTagFor } from "./locales";
+
 // ─── Palette ────────────────────────────────────────────────────────
 // Mirrors `apps/mobile/src/theme.ts` (`palettes.light` / `palettes.dark`).
 // If the app palette moves, move these with it.
@@ -279,6 +281,10 @@ interface LayoutParams {
   heading: string;
   blocks: Block[];
   footer: string[];
+  /** `<html lang>`. Screen readers pick a voice from it, and Gmail's
+   *  offer-to-translate prompt keys off it — a Portuguese mail declaring
+   *  itself English gets offered a translation into English. */
+  lang: string;
 }
 
 function layout(p: LayoutParams): string {
@@ -290,7 +296,7 @@ function layout(p: LayoutParams): string {
     .join("");
 
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="${p.lang}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -374,6 +380,7 @@ export interface RenderedEmail {
 }
 
 function build(
+  locale: EmailLocale,
   subject: string,
   preheader: string,
   heading: string,
@@ -382,7 +389,7 @@ function build(
 ): RenderedEmail {
   return {
     subject,
-    html: layout({ preheader, heading, blocks, footer }),
+    html: layout({ preheader, heading, blocks, footer, lang: htmlLangFor(locale) }),
     text: renderText(heading, blocks, footer),
   };
 }
@@ -392,72 +399,99 @@ function build(
 // Transactional mail (password reset) deliberately carries NO unsubscribe
 // invitation — you cannot opt out of account-security mail, and offering it
 // confuses the consent model. Lifecycle mail (welcome, digest) does.
+//
+// These used to take `isEs: boolean`, which is why adding a third language
+// touched this file at all: a boolean can only ever answer "Spanish, or not".
+// They take a tag now, and the tables below are exhaustive by type — a
+// language added to `locales.ts` fails the build here until its copy exists,
+// which is the whole point. Silence would mean shipping English to someone
+// who asked for Portuguese.
 
-function footerLifecycle(isEs: boolean, unsubscribeUrl?: string): string[] {
-  const link = (label: string, href: string): string =>
-    `<a href="${href}" style="color:${LIGHT.accent};" class="i-accent">${label}</a>`;
+function link(label: string, href: string): string {
+  return `<a href="${href}" style="color:${LIGHT.accent};" class="i-accent">${label}</a>`;
+}
 
-  const lines = isEs
-    ? [
-      "Recibiste este correo porque creaste una cuenta en Ignia.",
-      `Bitácora privada · sin anuncios · nunca vendemos tus datos · ${link("Política de privacidad", `${SITE}/privacy`)}`,
-    ]
-    : [
-      "You're receiving this because you created an Ignia account.",
-      `Private log · no ads · we never sell your data · ${link("Privacy policy", `${SITE}/privacy`)}`,
-    ];
+const FOOTER_LIFECYCLE: Record<EmailLocale, (unsub?: string) => string[]> = {
+  "en": () => [
+    "You're receiving this because you created an Ignia account.",
+    `Private log · no ads · we never sell your data · ${link("Privacy policy", `${SITE}/privacy`)}`,
+  ],
+  "es-PR": () => [
+    "Recibiste este correo porque creaste una cuenta en Ignia.",
+    `Bitácora privada · sin anuncios · nunca vendemos tus datos · ${link("Política de privacidad", `${SITE}/privacy`)}`,
+  ],
+  "pt-BR": () => [
+    "Você está recebendo este e-mail porque criou uma conta no Ignia.",
+    `Diário privado · sem anúncios · nunca vendemos os seus dados · ${link("Política de privacidade", `${SITE}/privacy`)}`,
+  ],
+};
+
+const FOOTER_UNSUB: Record<EmailLocale, (url: string) => string> = {
+  "en": (url) => `${link("Unsubscribe from the weekly recap", url)} · one click, no questions.`,
+  "es-PR": (url) => `${link("Darte de baja del resumen semanal", url)} · un clic, sin preguntas.`,
+  "pt-BR": (url) => `${link("Cancelar o resumo semanal", url)} · um clique, sem perguntas.`,
+};
+
+function footerLifecycle(locale: EmailLocale, unsubscribeUrl?: string): string[] {
+  const lines = FOOTER_LIFECYCLE[locale]();
 
   // A visible opt-out, not just a header. Gmail hides its own unsubscribe
   // affordance behind a sender-reputation check, so a recipient who wants out
   // and cannot find the button marks the mail as spam instead — the single
   // most expensive signal a sender can collect.
-  if (unsubscribeUrl) {
-    lines.push(
-      isEs
-        ? `${link("Darte de baja del resumen semanal", unsubscribeUrl)} · un clic, sin preguntas.`
-        : `${link("Unsubscribe from the weekly recap", unsubscribeUrl)} · one click, no questions.`,
-    );
-  }
+  if (unsubscribeUrl) lines.push(FOOTER_UNSUB[locale](unsubscribeUrl));
   return lines;
 }
 
-function footerTransactional(isEs: boolean): string[] {
-  return isEs
-    ? [
-      "Este es un correo automático de seguridad de tu cuenta Ignia. No puedes darte de baja de estos mensajes.",
-      `<a href="${SITE}/privacy" style="color:${LIGHT.accent};" class="i-accent">Política de privacidad</a>`,
-    ]
-    : [
-      "This is an automated security message about your Ignia account. You can't unsubscribe from these.",
-      `<a href="${SITE}/privacy" style="color:${LIGHT.accent};" class="i-accent">Privacy policy</a>`,
-    ];
+const FOOTER_TRANSACTIONAL: Record<EmailLocale, string[]> = {
+  "en": [
+    "This is an automated security message about your Ignia account. You can't unsubscribe from these.",
+    `<a href="${SITE}/privacy" style="color:${LIGHT.accent};" class="i-accent">Privacy policy</a>`,
+  ],
+  "es-PR": [
+    "Este es un correo automático de seguridad de tu cuenta Ignia. No puedes darte de baja de estos mensajes.",
+    `<a href="${SITE}/privacy" style="color:${LIGHT.accent};" class="i-accent">Política de privacidad</a>`,
+  ],
+  "pt-BR": [
+    "Esta é uma mensagem automática de segurança da sua conta Ignia. Não dá para cancelar este tipo de e-mail.",
+    `<a href="${SITE}/privacy" style="color:${LIGHT.accent};" class="i-accent">Política de privacidade</a>`,
+  ],
+};
+
+function footerTransactional(locale: EmailLocale): string[] {
+  return FOOTER_TRANSACTIONAL[locale];
 }
 
 function firstNameOf(displayName?: string | null): string | null {
   return (displayName ?? "").trim().split(/\s+/)[0] || null;
 }
 
+/** `Hi <strong>Ada</strong>,` — or the nameless form when there is no name. */
+const GREETING: Record<EmailLocale, (first: string | null) => string> = {
+  "en": (f) => (f ? `Hi <strong>${escapeHtml(f)}</strong>,` : "Hi there,"),
+  "es-PR": (f) => (f ? `Hola <strong>${escapeHtml(f)}</strong>,` : "Hola,"),
+  "pt-BR": (f) => (f ? `Olá <strong>${escapeHtml(f)}</strong>,` : "Olá,"),
+};
+
 // ─── Welcome ────────────────────────────────────────────────────────
 
 export interface WelcomeEmailParams {
-  locale: "en" | "es-PR";
+  locale: EmailLocale;
   displayName?: string | null;
   /** Per-recipient one-click opt-out (`unsubscribe.ts`). Omitting it degrades
    *  the mail to a mailto-only opt-out — correct, but worse. */
   unsubscribeUrl?: string;
 }
 
+type Welcome = (first: string | null, unsubscribeUrl?: string) => RenderedEmail;
+
 export function welcomeEmail(params: WelcomeEmailParams): RenderedEmail {
-  const first = firstNameOf(params.displayName);
-  return params.locale === "es-PR"
-    ? welcomeEs(first, params.unsubscribeUrl)
-    : welcomeEn(first, params.unsubscribeUrl);
+  return WELCOME[params.locale](firstNameOf(params.displayName), params.unsubscribeUrl);
 }
 
 function welcomeEn(first: string | null, unsubscribeUrl?: string): RenderedEmail {
-  const hi = first ? `Hi <strong>${escapeHtml(first)}</strong>,` : "Hi there,";
   const blocks: Block[] = [
-    { kind: "lead", text: hi },
+    { kind: "lead", text: GREETING["en"](first) },
     {
       kind: "para",
       text:
@@ -482,18 +516,18 @@ function welcomeEn(first: string | null, unsubscribeUrl?: string): RenderedEmail
     { kind: "note", text: "Questions? Just reply — it reaches a human." },
   ];
   return build(
+    "en",
     "Welcome to Ignia",
     "Your private calorie and protein log is ready — here's how to get the most out of week one.",
     "You're in.",
     blocks,
-    footerLifecycle(false, unsubscribeUrl),
+    footerLifecycle("en", unsubscribeUrl),
   );
 }
 
 function welcomeEs(first: string | null, unsubscribeUrl?: string): RenderedEmail {
-  const hi = first ? `Hola <strong>${escapeHtml(first)}</strong>,` : "Hola,";
   const blocks: Block[] = [
-    { kind: "lead", text: hi },
+    { kind: "lead", text: GREETING["es-PR"](first) },
     {
       kind: "para",
       text:
@@ -518,13 +552,56 @@ function welcomeEs(first: string | null, unsubscribeUrl?: string): RenderedEmail
     { kind: "note", text: "¿Preguntas? Responde a este correo — llega a una persona." },
   ];
   return build(
+    "es-PR",
     "Bienvenido a Ignia",
     "Tu bitácora privada de calorías y proteína está lista — así aprovechas la primera semana.",
     "Listo.",
     blocks,
-    footerLifecycle(true, unsubscribeUrl),
+    footerLifecycle("es-PR", unsubscribeUrl),
   );
 }
+
+function welcomePt(first: string | null, unsubscribeUrl?: string): RenderedEmail {
+  const blocks: Block[] = [
+    { kind: "lead", text: GREETING["pt-BR"](first) },
+    {
+      kind: "para",
+      text:
+        "O Ignia é um diário silencioso e privado de calorias e proteína. Sem anúncios, sem sequências que te envergonham, sem placares vermelho-e-verde — só um lugar tranquilo para anotar o que você come e deixar a matemática trabalhar.",
+    },
+    { kind: "para", text: "Três coisas que vale a pena saber na primeira semana:" },
+    {
+      kind: "list",
+      items: [
+        "<strong>Primeiro registre, depois analise.</strong> A tela de registro foi feita para ser rápida — anote a refeição e siga em frente. As análises só começam a valer quando já existem dados por trás delas.",
+        "<strong>A sua manutenção fica real depois de duas semanas.</strong> Até lá o Ignia usa uma estimativa Mifflin-St Jeor. Quando você tiver 14 dias de peso e de registro, ele troca por um gasto medido e ajustado a você.",
+        "<strong>Quatro jeitos de registrar uma refeição:</strong> tire uma foto, escreva em linguagem natural, escolha um atalho salvo, ou leia um código de barras. Os quatro são gratuitos.",
+      ],
+    },
+    { kind: "divider" },
+    {
+      kind: "para",
+      text:
+        "A única pergunta que este app existe para responder é: <em>quantas calorias eu ainda tenho hoje?</em> Todo o resto está a serviço disso.",
+    },
+    { kind: "button", label: "Abrir o seu diário", href: APP_LINK },
+    { kind: "note", text: "Dúvidas? É só responder — chega numa pessoa." },
+  ];
+  return build(
+    "pt-BR",
+    "Bem-vindo ao Ignia",
+    "O seu diário privado de calorias e proteína está pronto — veja como aproveitar a primeira semana.",
+    "Tudo pronto.",
+    blocks,
+    footerLifecycle("pt-BR", unsubscribeUrl),
+  );
+}
+
+const WELCOME: Record<EmailLocale, Welcome> = {
+  "en": welcomeEn,
+  "es-PR": welcomeEs,
+  "pt-BR": welcomePt,
+};
 
 // ─── Password reset ─────────────────────────────────────────────────
 //
@@ -535,26 +612,27 @@ function welcomeEs(first: string | null, unsubscribeUrl?: string): RenderedEmail
 // clients strip or rewrite buttons.
 
 export interface PasswordResetEmailParams {
-  locale: "en" | "es-PR";
+  locale: EmailLocale;
   resetLink: string;
   displayName?: string | null;
   /** Firebase action codes are valid for one hour. */
   expiresInHours?: number;
 }
 
+type Timed = (link: string, hours: number, first: string | null) => RenderedEmail;
+
 export function passwordResetEmail(params: PasswordResetEmailParams): RenderedEmail {
-  const hours = params.expiresInHours ?? 1;
-  const first = firstNameOf(params.displayName);
-  return params.locale === "es-PR"
-    ? resetEs(params.resetLink, hours, first)
-    : resetEn(params.resetLink, hours, first);
+  return RESET[params.locale](
+    params.resetLink,
+    params.expiresInHours ?? 1,
+    firstNameOf(params.displayName),
+  );
 }
 
 function resetEn(link: string, hours: number, first: string | null): RenderedEmail {
-  const hi = first ? `Hi <strong>${escapeHtml(first)}</strong>,` : "Hi there,";
   const validFor = hours === 1 ? "one hour" : `${hours} hours`;
   const blocks: Block[] = [
-    { kind: "lead", text: hi },
+    { kind: "lead", text: GREETING["en"](first) },
     {
       kind: "para",
       text: "Someone asked to reset the password for your Ignia account. If that was you, use the button below.",
@@ -578,19 +656,19 @@ function resetEn(link: string, hours: number, first: string | null): RenderedEma
     { kind: "note", text: "Ignia will never email you asking for your password." },
   ];
   return build(
+    "en",
     "Reset your Ignia password",
     `A link to set a new password — it expires in ${validFor}.`,
     "Password reset.",
     blocks,
-    footerTransactional(false),
+    footerTransactional("en"),
   );
 }
 
 function resetEs(link: string, hours: number, first: string | null): RenderedEmail {
-  const hi = first ? `Hola <strong>${escapeHtml(first)}</strong>,` : "Hola,";
   const validFor = hours === 1 ? "una hora" : `${hours} horas`;
   const blocks: Block[] = [
-    { kind: "lead", text: hi },
+    { kind: "lead", text: GREETING["es-PR"](first) },
     {
       kind: "para",
       text: "Alguien pidió restablecer la contraseña de tu cuenta Ignia. Si fuiste tú, usa el botón de abajo.",
@@ -614,13 +692,56 @@ function resetEs(link: string, hours: number, first: string | null): RenderedEma
     { kind: "note", text: "Ignia nunca te va a pedir tu contraseña por correo." },
   ];
   return build(
+    "es-PR",
     "Restablece tu contraseña de Ignia",
     `Un enlace para poner una contraseña nueva — vence en ${validFor}.`,
     "Restablecer contraseña.",
     blocks,
-    footerTransactional(true),
+    footerTransactional("es-PR"),
   );
 }
+
+function resetPt(link: string, hours: number, first: string | null): RenderedEmail {
+  const validFor = hours === 1 ? "uma hora" : `${hours} horas`;
+  const blocks: Block[] = [
+    { kind: "lead", text: GREETING["pt-BR"](first) },
+    {
+      kind: "para",
+      text: "Alguém pediu para redefinir a senha da sua conta Ignia. Se foi você, use o botão abaixo.",
+    },
+    { kind: "button", label: "Escolher uma nova senha", href: link },
+    {
+      kind: "linkFallback",
+      href: link,
+      note: "O botão não funcionou? Cole isto no seu navegador:",
+    },
+    { kind: "divider" },
+    {
+      kind: "para",
+      text: `<strong>Este link expira em ${validFor}</strong> e só pode ser usado uma vez.`,
+    },
+    {
+      kind: "para",
+      text:
+        "<strong>Não foi você que pediu?</strong> Pode ignorar este e-mail sem problema — a sua senha continua exatamente a mesma, e ninguém entra sem este link.",
+    },
+    { kind: "note", text: "O Ignia nunca vai pedir a sua senha por e-mail." },
+  ];
+  return build(
+    "pt-BR",
+    "Redefina a sua senha do Ignia",
+    `Um link para criar uma senha nova — expira em ${validFor}.`,
+    "Redefinir senha.",
+    blocks,
+    footerTransactional("pt-BR"),
+  );
+}
+
+const RESET: Record<EmailLocale, Timed> = {
+  "en": resetEn,
+  "es-PR": resetEs,
+  "pt-BR": resetPt,
+};
 
 // ─── Email verification ─────────────────────────────────────────────
 //
@@ -633,7 +754,7 @@ function resetEs(link: string, hours: number, first: string | null): RenderedEma
 // which locks Firebase's own template and SMTP settings against any edit.
 
 export interface VerifyEmailParams {
-  locale: "en" | "es-PR";
+  locale: EmailLocale;
   verifyLink: string;
   displayName?: string | null;
   /** Firebase action codes are valid for one hour. */
@@ -641,18 +762,17 @@ export interface VerifyEmailParams {
 }
 
 export function verifyEmailEmail(params: VerifyEmailParams): RenderedEmail {
-  const hours = params.expiresInHours ?? 1;
-  const first = firstNameOf(params.displayName);
-  return params.locale === "es-PR"
-    ? verifyEs(params.verifyLink, hours, first)
-    : verifyEn(params.verifyLink, hours, first);
+  return VERIFY[params.locale](
+    params.verifyLink,
+    params.expiresInHours ?? 1,
+    firstNameOf(params.displayName),
+  );
 }
 
 function verifyEn(link: string, hours: number, first: string | null): RenderedEmail {
-  const hi = first ? `Hi <strong>${escapeHtml(first)}</strong>,` : "Hi there,";
   const validFor = hours === 1 ? "one hour" : `${hours} hours`;
   const blocks: Block[] = [
-    { kind: "lead", text: hi },
+    { kind: "lead", text: GREETING["en"](first) },
     {
       kind: "para",
       text: "Confirm this address and your Ignia account is ready — it's the last step before you can log anything.",
@@ -675,19 +795,19 @@ function verifyEn(link: string, hours: number, first: string | null): RenderedEm
     { kind: "note", text: "Ignia will never email you asking for your password." },
   ];
   return build(
+    "en",
     "Confirm your email for Ignia",
     `One link to confirm your address — it expires in ${validFor}.`,
     "Confirm your email.",
     blocks,
-    footerTransactional(false),
+    footerTransactional("en"),
   );
 }
 
 function verifyEs(link: string, hours: number, first: string | null): RenderedEmail {
-  const hi = first ? `Hola <strong>${escapeHtml(first)}</strong>,` : "Hola,";
   const validFor = hours === 1 ? "una hora" : `${hours} horas`;
   const blocks: Block[] = [
-    { kind: "lead", text: hi },
+    { kind: "lead", text: GREETING["es-PR"](first) },
     {
       kind: "para",
       text: "Confirma esta dirección y tu cuenta de Ignia queda lista — es el último paso antes de poder registrar nada.",
@@ -710,21 +830,81 @@ function verifyEs(link: string, hours: number, first: string | null): RenderedEm
     { kind: "note", text: "Ignia nunca te va a pedir tu contraseña por correo." },
   ];
   return build(
+    "es-PR",
     "Confirma tu correo para Ignia",
     `Un enlace para confirmar tu dirección — vence en ${validFor}.`,
     "Confirma tu correo.",
     blocks,
-    footerTransactional(true),
+    footerTransactional("es-PR"),
   );
 }
+
+function verifyPt(link: string, hours: number, first: string | null): RenderedEmail {
+  const validFor = hours === 1 ? "uma hora" : `${hours} horas`;
+  const blocks: Block[] = [
+    { kind: "lead", text: GREETING["pt-BR"](first) },
+    {
+      kind: "para",
+      text: "Confirme este endereço e a sua conta do Ignia fica pronta — é o último passo antes de você poder registrar qualquer coisa.",
+    },
+    { kind: "button", label: "Confirmar o meu e-mail", href: link },
+    {
+      kind: "linkFallback",
+      href: link,
+      note: "O botão não funcionou? Cole isto no seu navegador:",
+    },
+    { kind: "divider" },
+    {
+      kind: "para",
+      text: `<strong>Este link expira em ${validFor}</strong> e só pode ser usado uma vez. Você pode pedir outro pelo app quando quiser.`,
+    },
+    {
+      kind: "para",
+      text: "<strong>Não foi você que criou esta conta?</strong> Ignore este e-mail e nada acontece — a conta continua sem verificação e não dá para usar.",
+    },
+    { kind: "note", text: "O Ignia nunca vai pedir a sua senha por e-mail." },
+  ];
+  return build(
+    "pt-BR",
+    "Confirme o seu e-mail do Ignia",
+    `Um link para confirmar o seu endereço — expira em ${validFor}.`,
+    "Confirme o seu e-mail.",
+    blocks,
+    footerTransactional("pt-BR"),
+  );
+}
+
+const VERIFY: Record<EmailLocale, Timed> = {
+  "en": verifyEn,
+  "es-PR": verifyEs,
+  "pt-BR": verifyPt,
+};
 
 // ─── Weekly digest ──────────────────────────────────────────────────
 //
 // Retention email — sent to opted-in users. Same metrics as the in-app
 // weekly summary card. Skim-friendly: one stat block, big numbers.
+//
+// ## Two things this template used to get wrong in EVERY language
+//
+// **It printed `lb` at everyone.** UX_AUDIT F3 shipped kilograms on both
+// frontends — body weight is entered and read in the user's unit, with
+// pounds kept only as the storage unit — and this mail never learned. A
+// metric user saw `−1.4 lb` here and `−0.6 kg` in the app, for the same
+// week. Storage stays pounds (see `packages/core/src/body-weight-units.ts`
+// for why); the conversion belongs at the display seam, which is this file.
+//
+// **It formatted numbers as en-US at everyone.** `2100` and `1.4` are
+// written `2.100` and `1,4` in Brazil, and the mobile app started honouring
+// that on 2026-08-23. An email that disagrees with the app about what a
+// number looks like reads as a different product.
+
+/** `packages/core/src/health-mapping.ts`. Mirrored, not imported —
+ *  `functions/` is not a workspace. */
+const LB_PER_KG = 2.20462;
 
 export interface WeeklyDigestParams {
-  locale: "en" | "es-PR";
+  locale: EmailLocale;
   displayName?: string | null;
   avgCalories: number | null;
   avgProtein: number | null;
@@ -733,86 +913,125 @@ export interface WeeklyDigestParams {
    *  `weekly-digest.ts` guarantees that; this template only renders it. */
   daysLogged: number;
   streak: number;
+  /** The user's `unitSystem`, straight off the profile. `undefined` reads as
+   *  `'us'`, which is what the profile's own absence means. */
+  unitSystem?: "us" | "metric";
   /** Per-recipient one-click opt-out (`unsubscribe.ts`). */
   unsubscribeUrl?: string;
 }
 
+interface DigestStrings {
+  avgKcal: string;
+  avgProtein: string;
+  weightDelta: string;
+  daysLogged: string;
+  streak: string;
+  intro: string;
+  button: string;
+  /** The quoted label MUST be the row a user will actually find in Settings.
+   *  Web `settings.reminders.weeklyDigest`, mobile `settings.weeklyDigest` —
+   *  both read "weekly recap email", never "weekly digest", which is the
+   *  internal name and appeared here for years. */
+  optOut: string;
+  subject: string;
+  preheader: (daysLogged: number) => string;
+  heading: string;
+}
+
+const DIGEST: Record<EmailLocale, DigestStrings> = {
+  "en": {
+    avgKcal: "Avg kcal / day",
+    avgProtein: "Avg protein / day",
+    weightDelta: "Weight change",
+    daysLogged: "Days logged",
+    streak: "Streak",
+    intro: "Here's a snapshot of your last 7 days.",
+    button: "Open your log",
+    optOut: 'Don\'t want this email? Turn off "Weekly recap email" in Settings.',
+    subject: "Your weekly recap · Ignia",
+    preheader: (d) => `${d} of 7 days logged this week.`,
+    heading: "Your week.",
+  },
+  "es-PR": {
+    avgKcal: "Calorías / día",
+    avgProtein: "Proteína / día",
+    weightDelta: "Cambio de peso",
+    daysLogged: "Días registrados",
+    streak: "Racha",
+    intro: "Aquí está tu resumen de los últimos 7 días.",
+    button: "Abrir tu bitácora",
+    optOut: '¿No quieres este correo? Apaga "Resumen semanal por correo" en Ajustes.',
+    subject: "Tu resumen semanal · Ignia",
+    preheader: (d) => `${d} de 7 días registrados esta semana.`,
+    heading: "Tu semana.",
+  },
+  "pt-BR": {
+    avgKcal: "Calorias / dia",
+    avgProtein: "Proteína / dia",
+    weightDelta: "Variação de peso",
+    daysLogged: "Dias registrados",
+    streak: "Sequência",
+    intro: "Aqui está um retrato dos seus últimos 7 dias.",
+    button: "Abrir o seu diário",
+    optOut: 'Não quer este e-mail? Desligue "E-mail de resumo semanal" nos Ajustes.',
+    subject: "O seu resumo semanal · Ignia",
+    preheader: (d) => `${d} de 7 dias registrados nesta semana.`,
+    heading: "A sua semana.",
+  },
+};
+
 export function weeklyDigestEmail(params: WeeklyDigestParams): RenderedEmail {
-  const isEs = params.locale === "es-PR";
-  const first = firstNameOf(params.displayName);
-  const hi = first
-    ? `${isEs ? "Hola" : "Hi"} <strong>${escapeHtml(first)}</strong>,`
-    : isEs
-      ? "Hola,"
-      : "Hi there,";
+  const t = DIGEST[params.locale];
+  const nf = new Intl.NumberFormat(intlTagFor(params.locale));
+  const nf1 = new Intl.NumberFormat(intlTagFor(params.locale), {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
 
   const EMPTY = "—";
   const fmt = (n: number | null, suffix: string): string =>
-    n == null ? EMPTY : `${Math.round(n)}${suffix}`;
-  const fmtDelta = (n: number | null): string => {
-    if (n == null) return EMPTY;
-    return `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(1)} lb`;
+    n == null ? EMPTY : `${nf.format(Math.round(n))}${suffix}`;
+
+  // Sign is rendered by hand rather than by `signDisplay`, because the app
+  // uses U+2212 MINUS SIGN and Intl emits U+002D HYPHEN-MINUS. A hyphen is
+  // narrower than the plus it sits under in the stat column.
+  const fmtDelta = (lbs: number | null): string => {
+    if (lbs == null) return EMPTY;
+    const metric = params.unitSystem === "metric";
+    const value = metric ? lbs / LB_PER_KG : lbs;
+    const unit = metric ? "kg" : "lb";
+    return `${value >= 0 ? "+" : "−"}${nf1.format(Math.abs(value))} ${unit}`;
   };
 
-  const labels = isEs
-    ? {
-      avgKcal: "Calorías / día",
-      avgProtein: "Proteína / día",
-      weightDelta: "Cambio de peso",
-      daysLogged: "Días registrados",
-      streak: "Racha",
-    }
-    : {
-      avgKcal: "Avg kcal / day",
-      avgProtein: "Avg protein / day",
-      weightDelta: "Weight change",
-      daysLogged: "Days logged",
-      streak: "Streak",
-    };
-
   const blocks: Block[] = [
-    { kind: "lead", text: hi },
-    {
-      kind: "para",
-      text: isEs
-        ? "Aquí está tu resumen de los últimos 7 días."
-        : "Here's a snapshot of your last 7 days.",
-    },
+    { kind: "lead", text: GREETING[params.locale](firstNameOf(params.displayName)) },
+    { kind: "para", text: t.intro },
     {
       kind: "stats",
       rows: [
-        { label: labels.avgKcal, value: fmt(params.avgCalories, "") },
-        { label: labels.avgProtein, value: fmt(params.avgProtein, "g") },
-        { label: labels.weightDelta, value: fmtDelta(params.weightDeltaLbs) },
-        { label: labels.daysLogged, value: `${params.daysLogged} / 7` },
-        { label: labels.streak, value: `${params.streak}` },
+        { label: t.avgKcal, value: fmt(params.avgCalories, "") },
+        { label: t.avgProtein, value: fmt(params.avgProtein, " g") },
+        { label: t.weightDelta, value: fmtDelta(params.weightDeltaLbs) },
+        { label: t.daysLogged, value: `${nf.format(params.daysLogged)} / 7` },
+        { label: t.streak, value: nf.format(params.streak) },
       ],
     },
-    {
-      kind: "button",
-      label: isEs ? "Abrir tu bitácora" : "Open your log",
-      href: APP_LINK,
-    },
+    { kind: "button", label: t.button, href: APP_LINK },
     {
       kind: "note",
       // Names the in-app route only; the one-click link lives in the footer,
       // where a reader looks for it and where it does not read as a second
-      // ask five lines under the first. The quoted labels are the real
-      // toggles — web `settings.reminders.weeklyDigest*`, mobile
-      // Settings → Weekly digest.
-      text: isEs
-        ? '¿No quieres este correo? Apaga "Resumen semanal" en Ajustes.'
-        : 'Don\'t want this email? Turn off "Weekly digest" in Settings.',
+      // ask five lines under the first.
+      text: t.optOut,
     },
   ];
 
   return build(
-    isEs ? "Tu resumen semanal · Ignia" : "Your weekly recap · Ignia",
-    isEs
-      ? `${params.daysLogged} de 7 días registrados esta semana.`
-      : `${params.daysLogged} of 7 days logged this week.`,
-    isEs ? "Tu semana." : "Your week.",
+    params.locale,
+    t.subject,
+    t.preheader(params.daysLogged),
+    t.heading,
     blocks,
-    footerLifecycle(isEs, params.unsubscribeUrl),
+    footerLifecycle(params.locale, params.unsubscribeUrl),
   );
 }

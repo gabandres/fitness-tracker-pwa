@@ -1,6 +1,7 @@
 import { FieldPath, getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { getResend, baseSendOptions, resendApiKey } from "./resend-client";
+import { emailLocale } from "./locales";
 import { weeklyDigestEmail } from "./email-templates";
 import { unsubscribeUrl } from "./unsubscribe";
 
@@ -421,7 +422,12 @@ export async function runWeeklyDigest(): Promise<void> {
         continue;
       }
 
-      const locale: "en" | "es-PR" = data["preferredLocale"] === "es-PR" ? "es-PR" : "en";
+      const locale = emailLocale(data["preferredLocale"] as string | undefined);
+      // The mail used to print `lb` at everyone. UX_AUDIT F3 shipped
+      // kilograms on both frontends and this send path never learned —
+      // a metric user read `−1.4 lb` here and `−0.6 kg` in the app for
+      // the same week. The profile has carried the answer all along.
+      const unitSystem = data["unitSystem"] === "metric" ? "metric" as const : "us" as const;
       const displayName = (data["displayName"] as string | undefined)
         || (await getAuth().getUser(uid).then((u) => u.displayName).catch(() => null));
 
@@ -435,6 +441,7 @@ export async function runWeeklyDigest(): Promise<void> {
         locale,
         displayName,
         ...stats,
+        unitSystem,
         unsubscribeUrl: unsubUrl,
       });
 

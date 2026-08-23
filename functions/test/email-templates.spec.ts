@@ -6,6 +6,7 @@ import {
   weeklyDigestEmail,
   type RenderedEmail,
 } from "../src/email-templates";
+import { EMAIL_LOCALE_TAGS } from "../src/locales";
 
 // These templates are pure functions, so this suite needs no emulator — it
 // runs under the same `npm test` wrapper as the rest for convenience.
@@ -16,7 +17,12 @@ import {
 // bugs that would ship silently and only show up as junk-foldered mail or
 // an XSS report weeks later.
 
-const LOCALES = ["en", "es-PR"] as const;
+// Every shipped language, taken from the registry rather than written out
+// again — a fourth language added to `locales.ts` gets the whole structural
+// suite below (text part, escaping, dark mode, one-click opt-out, the /open
+// CTA) with no edit here. Writing the list down a second time is exactly the
+// habit that let five call sites narrow to two languages.
+const LOCALES = EMAIL_LOCALE_TAGS;
 
 /** Anything that survives here would render as markup in a text/plain part. */
 function hasHtmlTags(s: string): boolean {
@@ -130,8 +136,10 @@ describe("welcome email", () => {
   it("falls back to a generic greeting without a name", () => {
     const en = welcomeEmail({ locale: "en", displayName: null });
     const es = welcomeEmail({ locale: "es-PR", displayName: "  " });
+    const pt = welcomeEmail({ locale: "pt-BR", displayName: null });
     expect(en.html).toContain("Hi there");
     expect(es.html).toContain("Hola");
+    expect(pt.html).toContain("Olá");
   });
 
   it("escapes a hostile display name in the HTML part", () => {
@@ -161,7 +169,7 @@ describe("welcome email", () => {
     // photo-scan is ever gated again, invert this back rather than deleting
     // it — the copy and the gate have to move together, and this test is the
     // only thing that couples them.
-    const word = { en: "photo", "es-PR": "foto" } as const;
+    const word = { "en": "photo", "es-PR": "foto", "pt-BR": "foto" } as const;
     for (const locale of LOCALES) {
       const { html, text } = welcomeEmail({ locale, displayName: null });
       for (const part of [html.toLowerCase(), text.toLowerCase()]) {
@@ -285,16 +293,19 @@ describe("verification email", () => {
     expect(text).toContain(LINK);
   });
 
-  it("states the expiry window in both locales", () => {
-    expect(verifyEmailEmail({ locale: "en", verifyLink: LINK }).text).toContain("one hour");
-    expect(verifyEmailEmail({ locale: "es-PR", verifyLink: LINK }).text).toContain("una hora");
+  it("states the expiry window in every locale", () => {
+    const singular = { "en": "one hour", "es-PR": "una hora", "pt-BR": "uma hora" } as const;
+    for (const locale of LOCALES) {
+      expect(verifyEmailEmail({ locale, verifyLink: LINK }).text).toContain(singular[locale]);
+    }
   });
 
   it("pluralises a non-default expiry", () => {
-    expect(verifyEmailEmail({ locale: "en", verifyLink: LINK, expiresInHours: 6 }).text)
-      .toContain("6 hours");
-    expect(verifyEmailEmail({ locale: "es-PR", verifyLink: LINK, expiresInHours: 6 }).text)
-      .toContain("6 horas");
+    const plural = { "en": "6 hours", "es-PR": "6 horas", "pt-BR": "6 horas" } as const;
+    for (const locale of LOCALES) {
+      expect(verifyEmailEmail({ locale, verifyLink: LINK, expiresInHours: 6 }).text)
+        .toContain(plural[locale]);
+    }
   });
 
   it("escapes a hostile display name", () => {
@@ -324,16 +335,19 @@ describe("password reset email", () => {
     expect(text).toContain(LINK);
   });
 
-  it("states the expiry window in both locales", () => {
-    expect(passwordResetEmail({ locale: "en", resetLink: LINK }).text).toContain("one hour");
-    expect(passwordResetEmail({ locale: "es-PR", resetLink: LINK }).text).toContain("una hora");
+  it("states the expiry window in every locale", () => {
+    const singular = { "en": "one hour", "es-PR": "una hora", "pt-BR": "uma hora" } as const;
+    for (const locale of LOCALES) {
+      expect(passwordResetEmail({ locale, resetLink: LINK }).text).toContain(singular[locale]);
+    }
   });
 
   it("pluralises a non-default expiry", () => {
-    const en = passwordResetEmail({ locale: "en", resetLink: LINK, expiresInHours: 6 });
-    const es = passwordResetEmail({ locale: "es-PR", resetLink: LINK, expiresInHours: 6 });
-    expect(en.text).toContain("6 hours");
-    expect(es.text).toContain("6 horas");
+    const plural = { "en": "6 hours", "es-PR": "6 horas", "pt-BR": "6 horas" } as const;
+    for (const locale of LOCALES) {
+      expect(passwordResetEmail({ locale, resetLink: LINK, expiresInHours: 6 }).text)
+        .toContain(plural[locale]);
+    }
   });
 
   it("tells an unintended recipient they can ignore it", () => {
@@ -343,6 +357,9 @@ describe("password reset email", () => {
     );
     expect(flat(passwordResetEmail({ locale: "es-PR", resetLink: LINK }).text)).toContain(
       "¿No pediste esto?",
+    );
+    expect(flat(passwordResetEmail({ locale: "pt-BR", resetLink: LINK }).text)).toContain(
+      "Não foi você que pediu?",
     );
   });
 
@@ -360,6 +377,9 @@ describe("password reset email", () => {
     );
     expect(flat(passwordResetEmail({ locale: "es-PR", resetLink: LINK }).text)).toContain(
       "No puedes darte de baja",
+    );
+    expect(flat(passwordResetEmail({ locale: "pt-BR", resetLink: LINK }).text)).toContain(
+      "Não dá para cancelar",
     );
   });
 
@@ -381,8 +401,8 @@ describe("weekly digest email", () => {
       daysLogged: 6,
       streak: 12,
     });
-    expect(text).toContain("2101");
-    expect(text).toContain("158g");
+    expect(text).toContain("2,101");
+    expect(text).toContain("158 g");
     expect(text).toContain("−1.4 lb");
     expect(text).toContain("6 / 7");
   });
@@ -417,14 +437,139 @@ describe("weekly digest email", () => {
   });
 });
 
+describe("the weekly digest speaks the reader's units", () => {
+  // UX_AUDIT F3 shipped kilograms on both frontends; this mail printed `lb`
+  // at everyone until 2026-08-23. A metric user read `−1.4 lb` here and
+  // `−0.6 kg` in the app, for the same week — and had no way to tell which
+  // number was the real one. Storage stays in pounds; the conversion is a
+  // display concern, which is what this template is.
+  const base = {
+    displayName: null,
+    avgCalories: 2000,
+    avgProtein: 150,
+    daysLogged: 7,
+    streak: 3,
+  } as const;
+
+  it("converts the weight delta for a metric profile", () => {
+    const us = weeklyDigestEmail({ ...base, locale: "en", weightDeltaLbs: -2.2 });
+    const metric = weeklyDigestEmail({
+      ...base,
+      locale: "en",
+      weightDeltaLbs: -2.2,
+      unitSystem: "metric",
+    });
+    expect(us.text).toContain("−2.2 lb");
+    // 2.2 lb ÷ 2.20462 = 0.9979… kg.
+    expect(metric.text).toContain("−1.0 kg");
+    expect(metric.text).not.toContain("lb");
+  });
+
+  it("treats an absent unitSystem as US, which is what the profile means", () => {
+    // `unitSystem` is optional on the profile and its absence has always
+    // read as 'us' (see packages/core/src/unit-system.ts). Defaulting the
+    // other way would silently restate every existing user's weight.
+    const { text } = weeklyDigestEmail({ ...base, locale: "en", weightDeltaLbs: 1.5 });
+    expect(text).toContain("+1.5 lb");
+  });
+
+  it("still shows a dash, not a unit, when there is nothing to convert", () => {
+    const { text } = weeklyDigestEmail({
+      ...base,
+      locale: "pt-BR",
+      weightDeltaLbs: null,
+      unitSystem: "metric",
+    });
+    expect(text).toContain("—");
+    expect(text).not.toContain("0,0 kg");
+  });
+});
+
+describe("the weekly digest formats numbers the way the reader writes them", () => {
+  // The mobile app started honouring this on 2026-08-23 (`d03e0723`). An
+  // email that disagrees with the app about what 2,100 looks like reads as a
+  // different product — and in pt-BR `2.100` and `2,100` are a factor of a
+  // thousand apart, so it is not only cosmetic.
+  const base = {
+    displayName: null,
+    avgCalories: 2100,
+    avgProtein: 158,
+    weightDeltaLbs: -1.4,
+    daysLogged: 6,
+    streak: 12,
+  } as const;
+
+  it("groups thousands per locale", () => {
+    expect(weeklyDigestEmail({ ...base, locale: "en" }).text).toContain("2,100");
+    expect(weeklyDigestEmail({ ...base, locale: "es-PR" }).text).toContain("2,100");
+    expect(weeklyDigestEmail({ ...base, locale: "pt-BR" }).text).toContain("2.100");
+  });
+
+  it("uses the locale decimal separator on the weight delta", () => {
+    expect(weeklyDigestEmail({ ...base, locale: "en" }).text).toContain("−1.4 lb");
+    expect(weeklyDigestEmail({ ...base, locale: "pt-BR" }).text).toContain("−1,4 lb");
+  });
+
+  it("signs with U+2212, the glyph the stat column is set in", () => {
+    // Intl emits U+002D HYPHEN-MINUS, which is narrower than the `+` it
+    // sits under. The sign is rendered by hand for exactly this reason, so
+    // a refactor back onto `signDisplay` should fail here.
+    for (const locale of LOCALES) {
+      const { text } = weeklyDigestEmail({ ...base, locale });
+      expect(text).toContain("−1");
+      expect(text).not.toMatch(/-\d+[.,]\d\s(lb|kg)/);
+    }
+  });
+});
+
+describe("the opt-out names a Settings row that exists", () => {
+  // Both frontends label the toggle *weekly recap email* — web
+  // `settings.reminders.weeklyDigest`, mobile `settings.weeklyDigest`. This
+  // mail said "Weekly digest", the internal name, which appears nowhere in
+  // either UI. Someone who changed their mind went looking for a row that is
+  // not there, in every language.
+  const LABEL = {
+    "en": "Weekly recap email",
+    "es-PR": "Resumen semanal por correo",
+    "pt-BR": "E-mail de resumo semanal",
+  } as const;
+
+  it("quotes the shipped label", () => {
+    for (const locale of LOCALES) {
+      const { text } = weeklyDigestEmail({
+        locale,
+        displayName: null,
+        avgCalories: 2000,
+        avgProtein: 150,
+        weightDeltaLbs: null,
+        daysLogged: 4,
+        streak: 4,
+      });
+      expect(flat(text)).toContain(LABEL[locale]);
+    }
+  });
+});
+
 describe("locale parity", () => {
-  it("produces a different subject per locale for every template", () => {
-    // Catches a template that silently forgot its es-PR branch.
+  it("produces a distinct subject and body for every locale, per template", () => {
+    // Catches a template that silently forgot a branch — which is exactly
+    // what would have happened to pt-BR: four of the five call sites kept
+    // compiling while sending English.
     for (const kind of ["welcome", "reset", "verify", "digest"] as const) {
-      const en = ALL.find(([n]) => n === `${kind}/en`)![1];
-      const es = ALL.find(([n]) => n === `${kind}/es-PR`)![1];
-      expect(es.subject).not.toBe(en.subject);
-      expect(es.text).not.toBe(en.text);
+      const rendered = LOCALES.map((l) => ALL.find(([n]) => n === `${kind}/${l}`)![1]);
+      expect(new Set(rendered.map((r) => r.subject)).size).toBe(LOCALES.length);
+      expect(new Set(rendered.map((r) => r.text)).size).toBe(LOCALES.length);
+    }
+  });
+
+  it("declares the right language on the html element", () => {
+    // Gmail's offer-to-translate prompt keys off `<html lang>`, and a
+    // Portuguese mail declaring itself English gets offered a translation
+    // into English.
+    const expected = { "en": "en", "es-PR": "es", "pt-BR": "pt-BR" } as const;
+    for (const locale of LOCALES) {
+      const { html } = welcomeEmail({ locale, displayName: null });
+      expect(html).toContain(`lang="${expected[locale]}"`);
     }
   });
 });

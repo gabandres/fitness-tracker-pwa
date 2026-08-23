@@ -11,6 +11,7 @@ import {
   transactionalSendOptions,
   resendApiKey,
 } from "./resend-client";
+import { emailLocale } from "./locales";
 import { passwordResetEmail } from "./email-templates";
 
 /**
@@ -144,7 +145,7 @@ export const sendPasswordReset = onCall<SendPasswordResetRequest, Promise<SendPa
       });
     }
 
-    const locale: "en" | "es-PR" = request.data?.locale === "es-PR" ? "es-PR" : "en";
+    const locale = emailLocale(request.data?.locale);
     const emailTag = tag(email);
     const ip = request.rawRequest?.ip || "unknown";
 

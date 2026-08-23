@@ -2,6 +2,7 @@ import { Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { onDocumentUpdated, onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { getResend, baseSendOptions, resendApiKey } from "./resend-client";
+import { emailLocale } from "./locales";
 import { welcomeEmail } from "./email-templates";
 import { unsubscribeUrl } from "./unsubscribe";
 import { db } from "./init";
@@ -54,7 +55,7 @@ export const sendWelcomeEmail = onDocumentUpdated(
     // Clients write Transloco's active language to `preferredLocale` on the
     // profile when it changes; fall back to English otherwise.
     const preferredLocale = after.preferredLocale as string | undefined;
-    const locale: "en" | "es-PR" = preferredLocale === "es-PR" ? "es-PR" : "en";
+    const locale = emailLocale(preferredLocale);
 
     const displayName =
       (after.displayName as string | undefined) ??
