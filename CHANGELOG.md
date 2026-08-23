@@ -6,6 +6,27 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-23 — the Android app got a quarter smaller
+
+Nothing on screen changed. The download did: the Android bundle went from
+**19.0 MB to 14.4 MB, −24.2%**, and that is paid back on every update download
+and every cold start.
+
+Almost all of it was weight nobody had asked for. The app draws its icons from
+one family, Ionicons — but it imported them through a package barrel that
+re-exports **twenty** icon families, and the bundler dutifully shipped all
+twenty fonts. The same trap applied to the typeface: two Manrope weights are
+used, the barrel re-exports seven plus a variable face, and all of them were
+being shipped. Naming the two weights directly took the app's font assets from
+**5.7 MB to 1.6 MB**.
+
+The fix is nothing but import paths, so it reached existing testers over the
+air rather than needing a new build. A budget file now records these numbers
+and fails the build if they creep back — the previous 2 MB of growth went
+unnoticed for a day precisely because nothing was watching.
+
+---
+
 ## 2026-08-22 — kilograms, a name for the food search, and what the numbers mean
 
 Four things people kept running into, cleared out together.

@@ -18,6 +18,75 @@ against a state you did not intend (that is what turned one iOS run into
 `shots/` at all unless the collector ran. Before ticking rows: confirm the
 locale/theme are back to baseline, and look at the captures.
 
+**Full Android sweep, 2026-08-23, on the LG G6 against vc 37 + OTA 28 — 12 of
+19, and the 7 failures are the HARNESS, not the app.** First sweep since vc
+34/35, and the first ever run from the Windows workstation, which carries
+**Maestro 2.8.0**. Driven by the explicit `flowsOrder` loop keyed on exit code
+(§3.12 of `docs/DEV_ENVIRONMENT.md`); `17-coach-ask` excluded, it spends real
+AI money.
+
+Failures: `04-settings`, `09-locale-es`, `10-theme-dark`, `14-metrics`,
+`16-train-terms`, `18-train-template`, `19-glossary`.
+
+**Five of the seven die on `scrollUntilVisible`, and the app is provably fine.**
+04/09/10/14/16 all fail the same way, and the captured hierarchy at the moment
+of failure shows the target **present, on-screen, enabled, clickable and
+correctly bounded** — `settings-theme-dark` at `[927,698][1276,878]` on a
+1440×2880 screen, `settings-lang-es-PR` at `[736,1234][1276,1414]`. Maestro
+reported "No visible element found" for both.
+
+Three things were measured rather than assumed, in this order:
+
+1. **Manual swipes scroll everything the flows could not.** Today reaches Water
+   and Entries in three swipes; Settings reaches *Quick add* and continues to
+   *Sign-in methods* and *Delete account* in eight. Nothing is unreachable and
+   nothing is clipped.
+2. **`visibilityPercentage: 60` does not fix it.** A probe copy of `04-settings`
+   with the threshold lowered — the first remedy Maestro's own error tip
+   suggests — fails identically. So this is not a visibility-threshold problem.
+3. **The gesture origin is not the problem either.** Maestro's docs say
+   `scrollUntilVisible` swipes *from the centre of the screen*; five manual
+   swipes from exactly `(720,1440)` reach *Quick add* in about five seconds,
+   which Maestro failed to do in twenty.
+
+So the command is not making progress on these screens while an identical
+gesture, sent by hand, does. Maestro's own documentation warns that
+`scrollUntilVisible` "may repeatedly interact with static elements instead of
+triggering the desired scroll action" on complex layouts and recommends a
+**custom scroll loop** — which is what (1) and (3) show would work here. It
+fails on **Today** and **Settings** and succeeds on **Refine targets** (08) and
+the **Train workout** (16's `discard-workout`), so it is screen-specific, not
+global.
+
+**This exact message was written off once before.** The 2026-08-21 sweep logged
+`No visible element found: id: settings-theme-dark` and recorded it as a device
+flake because a re-run passed. On 2026-08-23 it took five flows in one run.
+A one-off that recurs is a defect; do not close it as a flake a third time.
+
+**The remaining two are NOT the same thing and are not attributed here.**
+`18-train-template` fails at `tapOn: template-match-0` — a *tap*, not a scroll,
+and a **different step** from the iOS failure below (`template-set-kind-0-0`),
+so the two platforms are not showing the same defect. It is the same *shape* as
+the documented iOS `15-search` finding — list rows absent from the
+accessibility tree at tap time — and that is where an investigation should
+start. `19-glossary` fails at `tapOn: "Today"`, which is always present, so it
+most likely inherited a bad screen state from 18; it has not been re-run alone.
+**Note `15-search` PASSED on Android** in this run, while it fails on iOS.
+
+**Not caused by that day's OTA**, and the mechanism rules it out rather than the
+timing: OTA 28 changed only which icon font and which Manrope weights are
+bundled. Neither can affect a scroll gesture, and every screen was screenshotted
+rendering correctly — icons on all four tabs plus Settings, no tofu.
+
+**State left clean.** 09 and 10 both died BEFORE their locale/theme flips, so no
+later flow inherited es-PR or dark — which is why 11–13 and 20 passed. 16 died
+on its own teardown scroll, leaving its `QA Term Check` catalog entry behind;
+it was removed by hand (Train → exercise → REMOVE → confirm) and the catalog now
+reads Plank → Rear delt DB flye. No workout was left in progress.
+
+**Rows are NOT flipped for this run** — `collect-shots.sh` did not run, so there
+are no captures to review, and this file's own rule stands.
+
 **Where this stands, 2026-08-18.** iOS is **31 of 33 rows**, earned by a single clean sweep — `16/16 Flows Passed in 9m 42s`, 64 captures collected and reviewed — plus the fresh-account arc run separately, as it must be. The two that are
 left cannot be closed on a simulator by anyone: the barcode camera needs a
 camera, and the mic's listening state needs a speech recognizer.
