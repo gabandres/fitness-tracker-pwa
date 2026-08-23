@@ -13,6 +13,8 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { useLocale } from '@/i18n';
+import { numberSeparators } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { motion } from '@/theme';
 
@@ -100,9 +102,18 @@ export function usePulse(scaleTo = 1.25) {
   return [style, trigger] as const;
 }
 
-/** Format with comma grouping and fixed decimals ("12345.67", 1 → "12,345.7").
- *  Worklet — runs on the UI thread. */
-function formatNumber(n: number, decimals: number): string {
+/**
+ * Format with grouping and fixed decimals ("12345.67", 1 → "12,345.7").
+ * Worklet — runs on the UI thread.
+ *
+ * The separators are PARAMETERS, not literals. A worklet runs in its own JS
+ * runtime and has no `Intl`, so it cannot ask what a locale groups with; it
+ * used to assume a comma, which was correct for `en` and `es-PR` and wrong
+ * the moment pt-BR shipped — Brazil writes 1.974, and the big number on Today
+ * is rendered through here. `numberSeparators()` resolves them on the JS
+ * thread and the two characters are captured as plain strings.
+ */
+function formatNumber(n: number, decimals: number, group: string, decimal: string): string {
   'worklet';
   const fixed = Math.abs(n).toFixed(decimals);
   const [int, frac] = fixed.split('.');
@@ -110,9 +121,9 @@ function formatNumber(n: number, decimals: number): string {
   for (let i = 0; i < int.length; i++) {
     out += int[i];
     const fromEnd = int.length - 1 - i;
-    if (fromEnd > 0 && fromEnd % 3 === 0) out += ',';
+    if (fromEnd > 0 && fromEnd % 3 === 0) out += group;
   }
-  return (n < 0 ? '−' : '') + out + (frac ? '.' + frac : '');
+  return (n < 0 ? '−' : '') + out + (frac ? decimal + frac : '');
 }
 
 type CountUpProps = {
@@ -132,6 +143,8 @@ type CountUpProps = {
  */
 export function CountUpText({ value, decimals = 0, suffix = '', style, testID }: CountUpProps) {
   const reduce = useReducedMotion();
+  // Resolved on the JS thread; the worklet below only ever sees two strings.
+  const { group, decimal } = numberSeparators(useLocale());
   const sv = useSharedValue(value);
   useEffect(() => {
     sv.value = reduce
@@ -139,7 +152,7 @@ export function CountUpText({ value, decimals = 0, suffix = '', style, testID }:
       : withTiming(value, { duration: motion.dur.slow, easing: Easing.out(Easing.cubic) });
   }, [value, reduce, sv]);
   const animatedProps = useAnimatedProps(() => {
-    const text = formatNumber(sv.value, decimals) + suffix;
+    const text = formatNumber(sv.value, decimals, group, decimal) + suffix;
     return { text, defaultValue: text };
   });
   return (

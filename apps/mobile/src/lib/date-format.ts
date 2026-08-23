@@ -59,3 +59,26 @@ export function formatNumber(
 ): string {
   return value.toLocaleString(localeTag(locale), options);
 }
+
+/**
+ * The grouping and decimal characters for a locale — `1.974,5` in Brazil,
+ * `1,974.5` in the US.
+ *
+ * Exists for the places that CANNOT call `Intl`: a Reanimated **worklet**
+ * runs in its own JS runtime with no `Intl` at all, and the Android widget
+ * runs in a bare Hermes context where `toLocaleString` has historically been
+ * a silent no-op. Both hard-coded a comma, which was invisible while every
+ * shipped locale used one. Resolve the separators here, on the JS thread,
+ * and hand the two characters across as plain strings.
+ */
+export function numberSeparators(locale: Locale): { group: string; decimal: string } {
+  try {
+    const parts = new Intl.NumberFormat(localeTag(locale)).formatToParts(1234.5);
+    return {
+      group: parts.find((p) => p.type === 'group')?.value ?? ',',
+      decimal: parts.find((p) => p.type === 'decimal')?.value ?? '.',
+    };
+  } catch {
+    return { group: ',', decimal: '.' };
+  }
+}
