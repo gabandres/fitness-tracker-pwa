@@ -41,6 +41,22 @@ cd apps/mobile && npx expo export --platform android --output-dir <tmp>
 plan quota in that incident — measured 7/15 before and after — but they cost
 the queue wait, which on the Android free tier has run to two hours.)
 
+**Measure the export before deleting it.** Nothing else in this repo can see
+bundle size — not `tsc`, not the 340 jest tests, not Maestro, not the
+fingerprint gate — and it is paid by every tester on every OTA download and
+every cold start:
+
+```sh
+node scripts/perf-budget.mjs --platform android --export-dir <tmp>
+```
+
+The bundle went **11,095,849 → 13,140,531 bytes (+2.0 MB, +18%)** in the single
+publish that shipped the food index, and drifted another **142,341** in the day
+after with nobody noticing — which is how it was found. Baselines live in
+`scripts/perf-budget.json` and a breach is either a regression to find or a
+growth to accept on the record (`npm run perf:budget -- --update`, and say why
+in the commit message). Raising `headroomPct` to make it pass defeats the point.
+
 # An OTA update that misses everyone looks EXACTLY like one that worked
 
 This app uses **EAS Update**. A JS-only change ships with `eas update` and needs

@@ -70,6 +70,19 @@ Run the Metro gate — `tsc` and `jest` both pass while bundling is broken:
 cd apps/mobile && npx expo export --platform android --output-dir <tmp>
 ```
 
+**Then measure that export before you delete it — it is the only free chance.**
+
+```sh
+node scripts/perf-budget.mjs --platform android --export-dir <tmp>
+```
+
+Bundle size is invisible to `tsc`, to the 340 jest tests, to Maestro and to the
+fingerprint gate, and it is paid by every tester on every OTA download and every
+cold start. It grew **+2.0 MB in one publish** when the food index shipped
+(2026-08-21) and drifted another 142 KB unnoticed in the day after. Exit 1 means
+either a regression to find or a growth to accept on the record with
+`npm run perf:budget -- --update` — never by raising `headroomPct`.
+
 ```sh
 # Android — here
 cd apps/mobile && npx eas update --platform android --branch production \
