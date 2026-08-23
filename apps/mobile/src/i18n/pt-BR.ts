@@ -164,6 +164,11 @@ export const ptBR = {
   'today.shareTagline': 'Controle grátis de kcal + proteína · ignia.fit',
   'today.loadErr': 'Não foi possível carregar seus dados. Puxe para tentar de novo.',
   'today.entry': 'Registro',
+  // Shown when the OS refuses to hand a web link to anything — Screen
+  // Time, an MDM profile, no browser able to claim https. The URL is in
+  // the body so the reader can still get there by hand.
+  'link.failedTitle': 'Não foi possível abrir esse link',
+  'link.failedBody': 'O seu aparelho bloqueou. Abra isto no seu navegador:\n\n{url}',
   'whatsNew.title': 'Novidades',
   'whatsNew.body':
     'Agora você pode definir suas próprias metas de calorias e proteína — toque em qualquer um dos números ao montar o plano, ou abra Ajustes, Metas diárias. De qualquer forma, o Ignia continua medindo a sua manutenção em segundo plano e mostra o que encontrou ao lado do seu número. O botão + também parou de cobrir a tela depois de usado. Os três vieram de pessoas que escreveram para nós — algo que você já pode fazer pelos Ajustes.',

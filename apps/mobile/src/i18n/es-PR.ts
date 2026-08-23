@@ -168,6 +168,11 @@ export const esPR: Record<I18nKey, string> = {
   'today.shareTagline': 'Registro gratis de kcal + proteína · ignia.fit',
   'today.loadErr': 'No se pudieron cargar tus datos. Desliza para reintentar.',
   'today.entry': 'Registro',
+  // Shown when the OS refuses to hand a web link to anything — Screen
+  // Time, an MDM profile, no browser able to claim https. The URL is in
+  // the body so the reader can still get there by hand.
+  'link.failedTitle': 'No se pudo abrir ese enlace',
+  'link.failedBody': 'Tu dispositivo lo bloqueó. Abre esto en tu navegador:\n\n{url}',
   'whatsNew.title': 'Novedades',
   'whatsNew.body':
     'Ya puedes poner tus propias metas de calorías y proteína — toca cualquiera de los dos números cuando armas tu plan, o entra a Ajustes, Metas diarias. Ignia sigue midiendo tu mantenimiento por detrás de todos modos, y te enseña lo que encuentra al lado de tu número. El botón + también deja de taparte la pantalla después de usarlo. Las tres cosas salieron de gente que escribió, algo que ahora puedes hacer desde Ajustes.',

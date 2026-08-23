@@ -23,6 +23,7 @@ import { deleteAccountForever } from '@/lib/deleteAccount';
 import { isTipIapAvailable } from '@/lib/purchases';
 import { FEATURES } from '@/lib/features';
 import { APP_STORE_REVIEW_URL } from '@/lib/reviewPrompt';
+import { openExternal } from '@/lib/open-external';
 import { TipSheet } from '@/components/TipSheet';
 import { QuickAddCard } from '@/components/QuickAddCard';
 import { WatchDiagnosticsCard } from '@/components/WatchDiagnosticsCard';
@@ -481,7 +482,7 @@ export default function Settings() {
             onPress={() =>
               isTipIapAvailable()
                 ? setShowTip(true)
-                : Linking.openURL('https://ignia.fit/tip')
+                : void openExternal('https://ignia.fit/tip', t)
             }
             testID="settings-support"
           >
@@ -499,7 +500,7 @@ export default function Settings() {
           {Platform.OS === 'ios' ? (
             <TouchableOpacity
               style={styles.linkRow}
-              onPress={() => Linking.openURL(APP_STORE_REVIEW_URL)}
+              onPress={() => void openExternal(APP_STORE_REVIEW_URL, t)}
               testID="settings-rate"
             >
               <Text style={styles.rowLabel}>{t('settings.rateApp')}</Text>
@@ -520,7 +521,7 @@ export default function Settings() {
         <View style={styles.card}>
           <TouchableOpacity
             style={styles.linkRow}
-            onPress={() => Linking.openURL('https://ignia.fit/privacy')}
+            onPress={() => void openExternal('https://ignia.fit/privacy', t)}
             testID="settings-privacy"
           >
             <Text style={styles.rowLabel}>{t('settings.privacyPolicy')}</Text>
@@ -528,7 +529,7 @@ export default function Settings() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.linkRow}
-            onPress={() => Linking.openURL('https://ignia.fit/terms')}
+            onPress={() => void openExternal('https://ignia.fit/terms', t)}
             testID="settings-terms"
           >
             <Text style={styles.rowLabel}>{t('settings.termsOfUse')}</Text>
@@ -536,7 +537,7 @@ export default function Settings() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.linkRow}
-            onPress={() => Linking.openURL('https://ignia.fit/support')}
+            onPress={() => void openExternal('https://ignia.fit/support', t)}
             testID="settings-help"
           >
             <Text style={styles.rowLabel}>{t('settings.supportHelp')}</Text>

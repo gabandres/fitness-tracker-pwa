@@ -175,6 +175,11 @@ export const en = {
   'today.shareTagline': 'Free kcal + protein tracking · ignia.fit',
   'today.loadErr': "Couldn't load your data. Pull to retry.",
   'today.entry': 'Entry',
+  // Shown when the OS refuses to hand a web link to anything — Screen
+  // Time, an MDM profile, no browser able to claim https. The URL is in
+  // the body so the reader can still get there by hand.
+  'link.failedTitle': "Couldn't open that link",
+  'link.failedBody': 'Your device blocked it. Open this in your browser instead:\n\n{url}',
   'whatsNew.title': "What's new",
   'whatsNew.body':
     'You can set your own calorie and protein goals now — tap either number when you set up your plan, or open Settings, Daily targets. Ignia keeps measuring your maintenance in the background either way, and shows you what it finds next to your number. The + button also stops covering the screen after you use it. All three of these came from people writing in, which you can now do from Settings.',

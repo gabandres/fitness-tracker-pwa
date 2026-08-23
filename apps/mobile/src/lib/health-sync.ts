@@ -197,12 +197,40 @@ export function useHealthSync(uid: string | undefined) {
  * returns to the foreground (guarded/no-op when disconnected). Mount once high
  * in the authed tree so a fresh scale reading shows up without opening Settings.
  */
+/**
+ * HealthKit refuses every read while the device is locked, and says so with
+ * `com.apple.healthkit Code=6 "Protected health data is inaccessible"`. That
+ * is documented Apple behaviour, not a failure — the encryption key for the
+ * health store is derived from the passcode and simply is not in memory.
+ *
+ * It reached Sentry anyway, from a real user's phone (build 60, 2026-08-23),
+ * because `void promise` DISCARDS THE VALUE WITHOUT CATCHING THE REJECTION.
+ * The two read the same at a glance and they are not the same thing: an
+ * unhandled rejection in React Native is reported exactly like a crash.
+ *
+ * So this swallows the locked-device case by name and lets anything else
+ * through to Sentry, where a real HealthKit fault still belongs.
+ */
+function isLockedDeviceError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? '');
+  return msg.includes('Protected health data is inaccessible')
+    || msg.includes('com.apple.healthkit Code=6');
+}
+
 export function useHealthAutoImport(uid: string | undefined): void {
   useEffect(() => {
     if (!uid) return;
-    void importHealth(uid);
+    const run = (): void => {
+      importHealth(uid).catch((err: unknown) => {
+        if (isLockedDeviceError(err)) return;
+        throw err;
+      });
+    };
+    run();
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void importHealth(uid);
+      // Only on the way back IN. A read fired as the app backgrounds is the
+      // one guaranteed to hit a locked store.
+      if (state === 'active') run();
     });
     return () => sub.remove();
   }, [uid]);
