@@ -33,15 +33,19 @@ export function useCachedState<T>(
   const [paintedFromCache, setPainted] = useState(false);
   /** Set by the first live write. Guards the late-hydration case above. */
   const live = useRef(false);
+  /** Mirror of `paintedFromCache` readable synchronously from `set`. */
+  const painted = useRef(false);
 
   useEffect(() => {
     live.current = false;
+    painted.current = false;
     setPainted(false);
     if (!uid) return;
     let cancelled = false;
     void readCache<T>(uid, slice).then((cached) => {
       if (cancelled || live.current || cached == null) return;
       setValue(cached);
+      painted.current = true;
       setPainted(true);
     });
     return () => {
@@ -59,6 +63,13 @@ export function useCachedState<T>(
       // the next cold start. Default stays true so every existing caller is
       // unchanged.
       const authoritative = opts?.authoritative ?? true;
+      // A cache-only value must not CLOBBER one we already painted from disk
+      // either. Not latching and not persisting was not enough: the offline
+      // empty snapshot still landed in state, so the hydrated list was replaced
+      // by [] a frame after it appeared and Train read as empty anyway. It is
+      // still allowed through when nothing better has been shown yet — an empty
+      // list beats no render at all.
+      if (!authoritative && painted.current) return;
       if (authoritative) live.current = true;
       setValue(next);
       if (uid && authoritative) writeCache(uid, slice, next);
