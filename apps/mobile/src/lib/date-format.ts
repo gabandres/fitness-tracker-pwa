@@ -82,3 +82,24 @@ export function numberSeparators(locale: Locale): { group: string; decimal: stri
     return { group: ',', decimal: '.' };
   }
 }
+
+/**
+ * When the daily scan/coach quota comes back, as a local clock time.
+ *
+ * The quota resets at **UTC midnight** (`functions/src/daily-quota.ts` keys
+ * its docs `${uid}_${YYYY-MM-DD}` off `toISOString()`), and the server's own
+ * message says "Resets at midnight UTC" — which is not a time any user can
+ * act on. In Puerto Rico that boundary is 8:00 PM; telling someone "midnight"
+ * would be wrong by four hours in the direction that makes them wait longer
+ * than they need to.
+ *
+ * So render the real boundary in their own clock. If the reset ever moves to
+ * the user's local midnight, this keeps telling the truth without an edit.
+ */
+export function quotaResetLabel(locale: Locale): string {
+  const now = new Date();
+  const nextUtcMidnight = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1),
+  );
+  return formatTime(nextUtcMidnight, locale);
+}

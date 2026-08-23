@@ -47,6 +47,12 @@ export const ptBR = {
   'scan.failed': 'Não deu para ler essa foto. Tente outro ângulo.',
   'scan.denied': 'É preciso liberar a câmera e as fotos para escanear refeições.',
   'scan.empty': 'Tire ou escolha uma foto para começar.',
+  'scan.errQuota': 'Você já usou seus {n} escaneamentos grátis por enquanto. Voltam às {time}.',
+  'scan.errRateLimited': 'Rápido demais — espere um instante e tente de novo.',
+  'scan.errTooLarge': 'Essa foto é grande demais para enviar. Tire uma nova.',
+  'scan.errBusy': 'O escaneamento atingiu o limite de hoje para todo mundo. Volta às {time}.',
+  'scan.errOff': 'O escaneamento de fotos está desligado no momento. Todo o resto continua funcionando.',
+  'scan.errAuth': 'Entre de novo para escanear.',
 
   // ── sign in ──
   'signIn.tagline': 'Entre na sua conta',

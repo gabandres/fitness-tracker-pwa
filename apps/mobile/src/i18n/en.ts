@@ -53,6 +53,12 @@ export const en = {
   'scan.failed': "Couldn't read that photo. Try another angle.",
   'scan.denied': 'Camera and photo access is needed to scan meals.',
   'scan.empty': 'Snap or pick a photo to get started.',
+  'scan.errQuota': "You've used your {n} free scans for now. More at {time}.",
+  'scan.errRateLimited': 'A bit too fast — wait a moment and try again.',
+  'scan.errTooLarge': 'That photo is too large to send. Try taking a new one.',
+  'scan.errBusy': 'Scanning is at its limit for today across everyone. It comes back at {time}.',
+  'scan.errOff': 'Photo scanning is switched off right now. Everything else still works.',
+  'scan.errAuth': 'Please sign in again to scan.',
 
   // ── sign in ──
   'signIn.tagline': 'Sign in to your account',

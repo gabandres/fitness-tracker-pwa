@@ -9,7 +9,14 @@ import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { useToday } from '@/hooks/useToday';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
-import { analyzeMealPhoto, encodeMealPhoto, pickMealPhoto, type ScanSource } from '@/lib/mealScan';
+import {
+  analyzeMealPhoto,
+  encodeMealPhoto,
+  pickMealPhoto,
+  scanErrorMessage,
+  type ScanSource,
+} from '@/lib/mealScan';
+import { quotaResetLabel } from '@/lib/date-format';
 import { track } from '@/lib/analytics';
 import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -74,6 +81,9 @@ export default function Scan() {
   const [items, setItems] = useState<ScannedFoodItem[]>([]);
   const [mealName, setMealName] = useState('');
   const [lowConf, setLowConf] = useState(false);
+  // The server has always returned this and the app has never shown it, so a
+  // user met the daily cap as a wall rather than as a countdown.
+  const [remaining, setRemaining] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   /** Which portion chip is active. 1× is the scan as returned. */
   const [portion, setPortion] = useState(1);
@@ -120,10 +130,16 @@ export default function Scan() {
       setPortion(1);
       setMealName(defaultMealName(scan.items, t('scan.mealName')));
       setLowConf(scan.confidence === 'low');
+      setRemaining(scan.photosRemaining ?? null);
       setPhase('review');
       haptics.success();
-    } catch {
-      setError(t('scan.failed'));
+    } catch (e) {
+      // Say what actually went wrong. This used to be a bare `catch {}` that
+      // rendered "Couldn't read that photo" for every failure — including the
+      // daily quota, which is not about the photo and which retaking it can
+      // only make worse. See `scanErrorMessage`.
+      const { key, params } = scanErrorMessage(e);
+      setError(t(key, { ...params, time: quotaResetLabel(locale) }));
       setPhase('intro');
       haptics.warning();
     } finally {
@@ -335,6 +351,9 @@ export default function Scan() {
               <Ionicons name="camera" size={40} color={colors.onInk} />
             </View>
             <Text style={styles.introHint}>{t('scan.hint')}</Text>
+            {remaining != null && remaining <= 2 ? (
+              <Text style={styles.remaining}>{t('scan.remaining', { n: remaining })}</Text>
+            ) : null}
           </Animated.View>
           <Animated.View entering={enterUp(1)}>
             <PressScale style={styles.primary} scaleTo={0.97} onPress={() => onCapture('camera')} testID="scan-take">
@@ -504,6 +523,7 @@ function createStyles({ colors, shadow }: Theme) {
     stepTextDone: { color: colors.muted },
     body: { padding: space.xl, gap: space.md, flexGrow: 1 },
     error: { color: colors.danger, fontSize: font.small, textAlign: 'center' },
+    remaining: { color: colors.muted, fontSize: font.small, textAlign: 'center', marginTop: space.xs },
     // intro
     introCard: { alignItems: 'center', gap: space.md, paddingVertical: space.xl },
     cameraCircle: { width: 96, height: 96, borderRadius: 48, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', ...shadow.e2 },

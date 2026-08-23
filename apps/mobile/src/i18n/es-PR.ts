@@ -49,6 +49,12 @@ export const esPR: Record<I18nKey, string> = {
   'scan.failed': 'No se pudo leer esa foto. Prueba otro ángulo.',
   'scan.denied': 'Se necesita acceso a la cámara y fotos para escanear comidas.',
   'scan.empty': 'Toma o elige una foto para empezar.',
+  'scan.errQuota': 'Ya usaste tus {n} escaneos gratis por ahora. Vuelven a las {time}.',
+  'scan.errRateLimited': 'Un poco muy rápido — espera un momento y trata de nuevo.',
+  'scan.errTooLarge': 'Esa foto es muy grande para enviar. Toma una nueva.',
+  'scan.errBusy': 'El escaneo llegó a su límite de hoy para todos. Vuelve a las {time}.',
+  'scan.errOff': 'El escaneo de fotos está apagado ahora mismo. Todo lo demás sigue funcionando.',
+  'scan.errAuth': 'Vuelve a iniciar sesión para escanear.',
 
   // ── sign in ──
   'signIn.tagline': 'Inicia sesión en tu cuenta',

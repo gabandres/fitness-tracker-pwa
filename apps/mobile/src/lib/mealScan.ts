@@ -1,4 +1,5 @@
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import type { I18nKey } from '@/i18n';
 import * as ImagePicker from 'expo-image-picker';
 import { httpsCallable } from 'firebase/functions';
 import { type ScannedFoodItem, type ScannedItemSource } from '@macrolog/core';
@@ -153,4 +154,60 @@ export async function analyzeMealPhoto(photoBase64: string, locale: string): Pro
       ];
 
   return { items, confidence: data.confidence, photosRemaining: data.photosRemaining };
+}
+
+/**
+ * Which message a failed scan deserves.
+ *
+ * `scan.tsx` used to catch every failure with a bare `catch {}` and render
+ * `scan.failed` — "Couldn't read that photo. Try another angle." That is a
+ * reasonable sentence for exactly one of the seven ways this call can fail,
+ * and a lie for the other six.
+ *
+ * It cost a real user a real afternoon. On 2026-08-23 a tester used his three
+ * free daily scans (13:31, 13:39, 16:46 UTC), and the fourth was correctly
+ * rejected with `resource-exhausted` / `PHOTO_QUOTA_EXCEEDED`. The app told
+ * him his PHOTO was bad — so he retook it, four more times, over 23 minutes.
+ * The wording did not merely fail to explain the problem; it prescribed the
+ * one action guaranteed not to work.
+ *
+ * The server has always sent a typed code in `details` (functions/src/
+ * error-codes.ts) and the client has always thrown it away. Codes that mean
+ * "the picture is the problem" still map to `scan.failed`; everything else
+ * now says what actually happened, and whether waiting helps.
+ */
+export interface ScanErrorMessage {
+  key: I18nKey;
+  params?: Record<string, string | number>;
+}
+
+/** The shape `httpsCallable` rejects with — `details` carries our own code. */
+interface CallableError {
+  details?: { code?: string; limit?: number };
+}
+
+export function scanErrorMessage(e: unknown): ScanErrorMessage {
+  const details = (e as CallableError | null)?.details;
+  switch (details?.code) {
+    case 'PHOTO_QUOTA_EXCEEDED':
+      // The one that matters: it is not the photo, and tomorrow it works.
+      return { key: 'scan.errQuota', params: { n: details.limit ?? 3 } };
+    case 'PHOTO_RATE_LIMITED':
+    case 'RATE_LIMITED':
+      return { key: 'scan.errRateLimited' };
+    case 'PHOTO_TOO_LARGE':
+      return { key: 'scan.errTooLarge' };
+    case 'SERVICE_CEILING_REACHED':
+      // Org-wide, not personal. Never tell them to upgrade or come back
+      // tomorrow with a different photo — neither is the problem.
+      return { key: 'scan.errBusy' };
+    case 'FEATURE_DISABLED':
+      return { key: 'scan.errOff' };
+    case 'UNAUTHENTICATED':
+      return { key: 'scan.errAuth' };
+    default:
+      // PHOTO_ESTIMATE_FAILED / PHOTO_ANALYZE_FAILED / a local encode failure
+      // / no network. Here the photo genuinely may be the problem.
+      return { key: 'scan.failed' };
+  }
 }

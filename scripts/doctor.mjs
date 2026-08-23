@@ -1239,32 +1239,46 @@ function checkMobileI18n() {
     );
   }
 
-  // The registry is the single place a language is turned on. A dict file that
-  // exists but is not registered renders for nobody, and reads in a diff as
-  // "Portuguese shipped" — so the file list and the registry must agree.
+  // Three lists must agree, and each can drift on its own:
+  //   packages/core/src/locales.ts  — the shared tag list (both frontends)
+  //   apps/mobile/src/i18n/DICTS    — which tags this app has strings for
+  //   <tag>.ts on disk              — the strings themselves
+  // A dict file with no registry entry renders for nobody while reading in a
+  // diff as "Portuguese shipped"; a core tag with no dict shows a language in
+  // the settings picker that paints an entirely English app.
+  const core = 'packages/core/src/locales.ts';
   const reg = 'apps/mobile/src/i18n/registry.ts';
-  if (!has(reg)) return fail(G4, 'mobile locale registry', 'registry.ts not found');
-  const registered = new Set(
-    [...read(reg).matchAll(/^\s*'?([a-z]{2}(?:-[A-Za-z]+)?)'?:\s*\{\s*claims:/gm)].map((m) => m[1]),
+  if (!has(core) || !has(reg)) return fail(G4, 'mobile locale registry', 'locales.ts or registry.ts not found');
+
+  const coreTags = new Set(
+    [...read(core).matchAll(/\{\s*tag:\s*'([^']+)'/g)].map((m) => m[1]),
   );
-  const onDisk = new Set(others.map((f) => f.replace(/\.ts$/, '')));
-  const unregistered = [...onDisk].filter((t) => !registered.has(t));
-  const missingFile = [...registered].filter((t) => t !== 'en' && !onDisk.has(t));
-  if (unregistered.length || missingFile.length) {
-    fail(
+  const dictBlock = read(reg).match(/const DICTS = \{([\s\S]*?)\n\}/);
+  const dictTags = new Set(
+    dictBlock
+      ? [...dictBlock[1].matchAll(/^\s*'?([A-Za-z-]+)'?\s*[,:]/gm)].map((m) => m[1])
+      : [],
+  );
+  const onDisk = new Set(['en', ...others.map((f) => f.replace(/\.ts$/, ''))]);
+
+  const problems = [
+    [...dictTags].filter((t) => !coreTags.has(t)).map((t) => `${t}: in DICTS but not in packages/core`),
+    [...coreTags].filter((t) => !dictTags.has(t)).map((t) => `${t}: in packages/core but has no dict`),
+    [...dictTags].filter((t) => !onDisk.has(t)).map((t) => `${t}: in DICTS but no <tag>.ts file`),
+    [...onDisk].filter((t) => !dictTags.has(t)).map((t) => `${t}: has a file but is not in DICTS`),
+  ].flat();
+
+  if (problems.length) {
+    fail(G4, 'mobile locale registry', problems.join(' · '));
+  } else {
+    pass(
       G4,
       'mobile locale registry',
-      [
-        unregistered.length ? `dict file but no registry entry: ${unregistered.join(', ')}` : '',
-        missingFile.length ? `registry entry but no dict file: ${missingFile.join(', ')}` : '',
-      ]
-        .filter(Boolean)
-        .join(' · '),
+      `${coreTags.size} locales — packages/core, DICTS and the files on disk agree`,
     );
-  } else {
-    pass(G4, 'mobile locale registry', `${registered.size} locales registered, all with dicts`);
   }
 }
+
 
 // ═══ 5. STATUS.md §3 vs open issues ═════════════════════════════════════
 const G5 = '5. STATUS.md vs issue tracker';
