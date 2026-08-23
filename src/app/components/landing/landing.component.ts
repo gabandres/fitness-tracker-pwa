@@ -76,6 +76,49 @@ import { localizedPath } from '../../i18n/locale-path';
         text-transform: uppercase;
         margin-bottom: var(--v2-space-4);
       }
+      /* The hero sets the brand voice — Instrument Serif italic, lowercase —
+         and then the page abandoned it: every heading below the fold was
+         Manrope Title Case, so the site read as two sites stapled together
+         and lost all its energy the moment you scrolled. The .v2-display
+         class cannot
+         carry the serif itself; it is the shared marketing <h1> for the
+         calculator, /macros, /faq, /vs and the legal pages, and changing it
+         would restyle a dozen surfaces. So the treatment is scoped here. */
+      .landing-h2 {
+        font-family: "Instrument Serif", "Geist", system-ui, serif;
+        font-weight: 400;
+        font-style: italic;
+        letter-spacing: -0.015em;
+        line-height: 1.05;
+        font-size: clamp(2.25rem, 1.4rem + 3.4vw, 3.5rem);
+        color: var(--v2-ink);
+        /* Serif italic at display size strands single words badly — the
+           proof headline broke as "one honest number / out." Balance costs
+           nothing where unsupported. */
+        text-wrap: balance;
+      }
+      /* Section eyebrow, mono and quiet, so the serif underneath does the
+         talking. */
+      .landing-rule {
+        font-family: var(--v2-font-mono);
+        font-size: 0.6875rem;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--v2-accent);
+        font-weight: 700;
+      }
+      .proof-card {
+        background: var(--v2-paper-2);
+        border: 1px solid var(--v2-rule);
+        border-top: 2px solid var(--v2-rule);
+        border-radius: var(--v2-radius-lg, 14px);
+        padding: var(--v2-space-5);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        transition: border-top-color 0.25s ease, transform 0.25s ease;
+      }
+      .proof-card:hover { transform: translateY(-3px); }
       .hover-link-card {
         text-decoration: none;
         display: block;
@@ -114,7 +157,10 @@ import { localizedPath } from '../../i18n/locale-path';
 
             <!-- App Store badge sits below the primary CTA, not beside it:
                  the web loop stays the fastest path to value (no install),
-                 while iOS visitors still get a one-tap route to the listing. -->
+                 while iOS visitors still get a one-tap route to the listing.
+                 It appears here and once more in the closing section, and
+                 nowhere in between — a badge repeated at every scroll stop
+                 stops reading as an offer. -->
             <div class="mt-6 flex flex-wrap items-center gap-4">
               <a [href]="APP_STORE_URL" rel="noopener" [attr.aria-label]="t('landing.appStoreAlt')">
                 <img src="/appstore-badge.svg" alt="{{ t('landing.appStoreAlt') }}"
@@ -123,17 +169,20 @@ import { localizedPath } from '../../i18n/locale-path';
               </a>
             </div>
 
+            <!-- This used to sit behind three empty grey circles standing in for
+                 faces. They represented nobody: there are no avatars in this
+                 product and never have been, so it was decoration pretending
+                 to be evidence — on the one page whose whole argument is that
+                 Ignia does not do that sort of thing. The count is real
+                 (public/stats.totalUsers, floored to a ten), so let it stand
+                 on its own. -->
             @if (socialProofCount(); as n) {
-              <div class="mt-8 flex items-center gap-3" style="color: var(--v2-hero-muted, #a39c91);">
-                <div class="flex -space-x-2">
-                  <div class="w-8 h-8 rounded-full bg-gray-600 border-2" style="border-color: var(--v2-hero-panel, #161412);"></div>
-                  <div class="w-8 h-8 rounded-full bg-gray-500 border-2" style="border-color: var(--v2-hero-panel, #161412);"></div>
-                  <div class="w-8 h-8 rounded-full bg-gray-400 border-2 flex items-center justify-center text-[10px] font-bold text-white" style="border-color: var(--v2-hero-panel, #161412);">+</div>
-                </div>
-                <p class="v2-caption" role="note" style="font-size: 0.875rem;">
-                  {{ t('landing.socialProof', { n }) }}
-                </p>
-              </div>
+              <p class="mt-8 v2-caption" role="note"
+                style="font-size: 0.875rem; color: var(--v2-hero-muted, #a39c91); display: flex; align-items: center; gap: 10px;">
+                <span aria-hidden="true"
+                  style="display: inline-block; width: 6px; height: 6px; border-radius: 999px; background: var(--v2-accent); flex: none;"></span>
+                {{ t('landing.socialProof', { n }) }}
+              </p>
             }
           </div>
 
@@ -151,49 +200,49 @@ import { localizedPath } from '../../i18n/locale-path';
       </section>
 
       <!-- ── 2. Product proof — three capture paths + TDEE + AI ──── -->
+      <!-- Left-aligned on purpose. Every section on this page used to be
+           centred at the same width with the same badge-heading-paragraph
+           rhythm, seven times over, which is what made a short page feel
+           long. The privacy pledge keeps the centred treatment because it is
+           the one emotional beat; the rest now vary. -->
       <section class="max-w-5xl mx-auto pt-8">
-        <div class="text-center mb-12">
-          <div class="section-badge">{{ t('landing.whatItDoesRule') }}</div>
-          <h2 class="v2-display" style="font-size: clamp(2rem, 4vw, 3rem); line-height: 1.1;">Powerful, simple tracking.</h2>
+        <div class="mb-10 max-w-3xl">
+          <p class="landing-rule mb-3">{{ t('landing.whatItDoesRule') }}</p>
+          <!-- Was the literal English string "Powerful, simple tracking." —
+               hardcoded in a fully translated template, so it was both the
+               only untranslated line on the page and the most generic one on
+               it. Every tracker claims to be powerful and simple. -->
+          <h2 class="landing-h2">{{ t('landing.proofHeadline') }}</h2>
         </div>
-        <div class="grid gap-6 sm:grid-cols-3">
-          <div class="glass-card flex flex-col justify-between">
-            <div>
-              <div class="w-12 h-12 rounded-full mb-4 flex items-center justify-center" style="background: var(--v2-accent-soft); color: var(--v2-accent);">
-                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path></svg>
-              </div>
-              <h3 class="v2-h3">{{ t('landing.proofCaptureTitle') }}</h3>
-              <p class="v2-body-soft mt-3">{{ t('landing.proofCaptureBody') }}</p>
-            </div>
-            <p class="v2-caption mt-6 font-mono" style="color: var(--v2-accent);">{{ t('landing.proofCaptureStamp') }}</p>
+        <!-- The stamp moved from the bottom of each card to the top and
+             became the card's index. It was already the most characterful
+             thing in the block and it was set at caption size under 60px of
+             whitespace, where nobody read it. The generic outline glyphs it
+             replaces (a plus, a trend line, a tick) said nothing the heading
+             underneath did not already say. -->
+        <div class="grid gap-5 sm:grid-cols-3">
+          <div class="proof-card" style="border-top-color: var(--v2-accent);">
+            <p class="landing-rule">{{ t('landing.proofCaptureStamp') }}</p>
+            <h3 class="v2-h3">{{ t('landing.proofCaptureTitle') }}</h3>
+            <p class="v2-body-soft">{{ t('landing.proofCaptureBody') }}</p>
           </div>
-          <div class="glass-card flex flex-col justify-between" style="border-top-color: var(--v2-sage); box-shadow: 0 -2px 10px var(--v2-sage-soft);">
-            <div>
-              <div class="w-12 h-12 rounded-full mb-4 flex items-center justify-center" style="background: var(--v2-sage-soft); color: var(--v2-sage);">
-                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
-              </div>
-              <h3 class="v2-h3">{{ t('landing.proofTdeeTitle') }}</h3>
-              <p class="v2-body-soft mt-3">{{ t('landing.proofTdeeBody') }}</p>
-            </div>
-            <p class="v2-caption mt-6 font-mono" style="color: var(--v2-sage);">{{ t('landing.proofTdeeStamp') }}</p>
+          <div class="proof-card" style="border-top-color: var(--v2-sage);">
+            <p class="landing-rule" style="color: var(--v2-sage);">{{ t('landing.proofTdeeStamp') }}</p>
+            <h3 class="v2-h3">{{ t('landing.proofTdeeTitle') }}</h3>
+            <p class="v2-body-soft">{{ t('landing.proofTdeeBody') }}</p>
           </div>
-          <div class="glass-card flex flex-col justify-between">
-            <div>
-              <div class="w-12 h-12 rounded-full mb-4 flex items-center justify-center" style="background: var(--v2-paper-3); color: var(--v2-ink);">
-                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-              </div>
-              <h3 class="v2-h3">{{ t('landing.proofCoachTitle') }}</h3>
-              <p class="v2-body-soft mt-3">{{ t('landing.proofCoachBody') }}</p>
-            </div>
-            <p class="v2-caption mt-6 font-mono" style="color: var(--v2-ink-muted);">{{ t('landing.proofCoachStamp') }}</p>
+          <div class="proof-card" style="border-top-color: var(--v2-ink-muted);">
+            <p class="landing-rule" style="color: var(--v2-ink-muted);">{{ t('landing.proofCoachStamp') }}</p>
+            <h3 class="v2-h3">{{ t('landing.proofCoachTitle') }}</h3>
+            <p class="v2-body-soft">{{ t('landing.proofCoachBody') }}</p>
           </div>
         </div>
       </section>
 
       <!-- ── 3. Privacy pledge ───────────────────────────────────── -->
       <section class="max-w-3xl mx-auto text-center py-12">
-        <div class="section-badge" style="background: transparent; border: 1px solid var(--v2-rule);">{{ t('landing.privacyLabel') }}</div>
-        <h2 class="v2-display mt-4 mb-6">
+        <p class="landing-rule mb-4">{{ t('landing.privacyLabel') }}</p>
+        <h2 class="landing-h2 mb-6">
           {{ t('landing.privacyLead') }}
           <span style="color: var(--v2-accent);">{{ t('landing.privacyEm') }}</span>
         </h2>
@@ -208,9 +257,9 @@ import { localizedPath } from '../../i18n/locale-path';
       <!-- ── 3.5 Quick targets ──────────────────────────────────── -->
       <section class="max-w-5xl mx-auto">
         <div class="flex items-end justify-between mb-6">
-          <div>
-            <h2 class="v2-h2">{{ t('landing.quickTargetsRule') }}</h2>
-            <p class="v2-body-soft mt-1">{{ t('landing.quickTargetsLead') }}</p>
+          <div class="max-w-2xl">
+            <h2 class="landing-h2" style="font-size: clamp(1.75rem, 1.2rem + 2.2vw, 2.5rem);">{{ t('landing.quickTargetsRule') }}</h2>
+            <p class="v2-body-soft mt-3">{{ t('landing.quickTargetsLead') }}</p>
           </div>
           <a href="/calculator" class="v2-link hidden sm:inline-flex">{{ t('landing.qtAllWeights') }}</a>
         </div>
@@ -224,37 +273,31 @@ import { localizedPath } from '../../i18n/locale-path';
         </div>
       </section>
 
-      <!-- ── 3.6 Download ────────────────────────────────────────── -->
-      <!-- The store funnel. /calculator, /macros/* and /vs/* pull organic
-           traffic into this page; without a visible store route that
-           traffic never becomes an App Store install (and install
-           velocity is what moves store ranking). -->
-      <section class="max-w-3xl mx-auto text-center py-4">
-        <div class="section-badge">{{ t('landing.downloadStamp') }}</div>
-        <h2 class="v2-display mt-2">{{ t('landing.downloadHeadline') }}</h2>
-        <p class="v2-body-soft mt-4 max-w-xl mx-auto">{{ t('landing.downloadBody') }}</p>
-        <div class="mt-7 flex flex-wrap items-center justify-center gap-4">
+      <!-- ── 4. The close: it's free, and it's on your phone ──────── -->
+      <!-- This was TWO sections — a "download" block and a "free" block —
+           sitting one under the other, each with its own badge, its own
+           centred display heading, its own paragraph and its own CTA, and
+           between them they made four calls to action inside one screen
+           height while saying the same two facts. The store funnel still
+           matters (organic traffic from /calculator, /macros/* and /vs/*
+           only becomes an install if there is a visible store route, and
+           install velocity is what moves store ranking) — it just does not
+           need a section of its own to carry one badge.
+           The id="pricing" anchor is kept: /faq and the footer link to it. -->
+      <section id="pricing" class="max-w-3xl mx-auto text-center py-4">
+        <p class="landing-rule mb-4">{{ t('landing.downloadStamp') }}</p>
+        <h2 class="landing-h2">{{ t('landing.downloadHeadline') }}</h2>
+        <p class="v2-body-soft mt-5 max-w-xl mx-auto">{{ t('landing.downloadBody') }}</p>
+        <div class="mt-8 flex flex-wrap items-center justify-center gap-4">
+          <a href="/app" class="v2-btn v2-btn--primary v2-btn--lg">{{ t('landing.freeCta') }}</a>
           <a [href]="APP_STORE_URL" rel="noopener" [attr.aria-label]="t('landing.appStoreAlt')">
             <img src="/appstore-badge.svg" alt="{{ t('landing.appStoreAlt') }}"
               width="180" height="60" loading="lazy" decoding="async"
-              class="h-[56px] w-auto transition-transform duration-200 hover:scale-105" />
+              class="h-[52px] w-auto transition-transform duration-200 hover:scale-105" />
           </a>
-          <a href="/app" class="v2-btn v2-btn--ghost">{{ t('landing.startLogging') }}</a>
         </div>
-        <p class="v2-caption mt-5">{{ t('landing.downloadAndroid') }}</p>
+        <p class="v2-caption mt-6">{{ t('landing.downloadAndroid') }}</p>
         <p class="v2-caption mt-2"><a [href]="downloadPath()" class="v2-link">{{ t('landing.downloadMore') }}</a></p>
-      </section>
-
-      <!-- ── 4. Free ──────────────────────────────────────────────── -->
-      <!-- Subscription/Pro pricing removed 2026-07-07 — Ignia is free (moving
-           to a donations model, not a paid tier). -->
-      <section id="pricing" class="max-w-3xl mx-auto text-center pt-8">
-        <div class="section-badge" style="background: transparent; border: 1px solid var(--v2-rule);">{{ t('landing.freeStamp') }}</div>
-        <h2 class="v2-display mt-4">{{ t('landing.freeHeadline') }}</h2>
-        <p class="v2-body-soft mt-4 max-w-xl mx-auto">{{ t('landing.freeBody') }}</p>
-        <a href="/app" class="v2-btn v2-btn--primary v2-btn--lg mt-8 inline-flex">
-          {{ t('landing.freeCta') }}
-        </a>
       </section>
 
       <!-- ── 5. Comparisons + FAQ footer ─────────────────────────── -->
