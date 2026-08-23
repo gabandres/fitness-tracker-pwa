@@ -250,7 +250,7 @@ async function createDoc(col: ReturnType<typeof collection>, data: object): Prom
 export function subscribeRecentLogs(
   uid: string,
   count: number,
-  cb: (logs: DailyLog[]) => void,
+  cb: (logs: DailyLog[], meta?: SnapshotMeta) => void,
   onError?: (e: Error) => void,
 ): Unsub {
   const q = query(logsCol(uid), orderBy('timestamp', 'desc'), limit(count));
@@ -260,7 +260,7 @@ export function subscribeRecentLogs(
     {
       next: (snap) => {
         reportSnapshotMeta(snap.metadata.fromCache);
-        cb(oldestFirst(snap.docs.map((d) => toDailyLog(d.id, d.data()))));
+        cb(oldestFirst(snap.docs.map((d) => toDailyLog(d.id, d.data()))), metaOf(snap));
       },
       error: (e) => onError?.(e),
     },
@@ -346,7 +346,7 @@ export async function importLogs(uid: string, entries: readonly LogEntry[]): Pro
 // ─── Daily weights ──────────────────────────────────────────────
 export function subscribeDailyWeights(
   uid: string,
-  cb: (weights: Record<string, number>) => void,
+  cb: (weights: Record<string, number>, meta?: SnapshotMeta) => void,
   onError?: (e: Error) => void,
 ): Unsub {
   return onSnapshot(
@@ -357,7 +357,7 @@ export function subscribeDailyWeights(
         const w = readWeightLb(d.data());
         if (w != null) weights[d.id] = w;
       }
-      cb(weights);
+      cb(weights, metaOf(snap));
     },
     onError,
   );
@@ -393,7 +393,7 @@ const waterDoc = (uid: string, dateKey: string) => doc(db, 'users', uid, 'dailyW
 
 export function subscribeDailyWater(
   uid: string,
-  cb: (water: Record<string, number>) => void,
+  cb: (water: Record<string, number>, meta?: SnapshotMeta) => void,
   onError?: (e: Error) => void,
 ): Unsub {
   return onSnapshot(
@@ -401,7 +401,7 @@ export function subscribeDailyWater(
     (snap) => {
       const water: Record<string, number> = {};
       for (const d of snap.docs) water[d.id] = readWaterFlOz(d.data()) ?? 0;
-      cb(water);
+      cb(water, metaOf(snap));
     },
     onError,
   );
@@ -418,7 +418,7 @@ const sleepDoc = (uid: string, dateKey: string) => doc(db, 'users', uid, 'dailyS
 
 export function subscribeDailySleep(
   uid: string,
-  cb: (sleep: Record<string, number>) => void,
+  cb: (sleep: Record<string, number>, meta?: SnapshotMeta) => void,
   onError?: (e: Error) => void,
 ): Unsub {
   return onSnapshot(
@@ -429,7 +429,7 @@ export function subscribeDailySleep(
         const h = readSleepHours(d.data());
         if (h != null) sleep[d.id] = h;
       }
-      cb(sleep);
+      cb(sleep, metaOf(snap));
     },
     onError,
   );
@@ -459,7 +459,7 @@ export type { DailyActivity };
 
 export function subscribeDailyActivity(
   uid: string,
-  cb: (activity: Record<string, DailyActivity>) => void,
+  cb: (activity: Record<string, DailyActivity>, meta?: SnapshotMeta) => void,
   onError?: (e: Error) => void,
 ): Unsub {
   return onSnapshot(
@@ -467,7 +467,7 @@ export function subscribeDailyActivity(
     (snap) => {
       const activity: Record<string, DailyActivity> = {};
       for (const d of snap.docs) activity[d.id] = readActivity(d.data());
-      cb(activity);
+      cb(activity, metaOf(snap));
     },
     onError,
   );
@@ -774,12 +774,12 @@ function toPreset(id: string, data: Record<string, unknown>): MealPreset {
 
 export function subscribePresets(
   uid: string,
-  cb: (presets: MealPreset[]) => void,
+  cb: (presets: MealPreset[], meta?: SnapshotMeta) => void,
   onError?: (e: Error) => void,
 ): Unsub {
   return onSnapshot(
     presetsCol(uid),
-    (snap) => cb(snap.docs.map((d) => toPreset(d.id, d.data()))),
+    (snap) => cb(snap.docs.map((d) => toPreset(d.id, d.data())), metaOf(snap)),
     onError,
   );
 }
@@ -803,12 +803,12 @@ const customFoodDoc = (uid: string, id: string) => doc(db, 'users', uid, 'custom
 
 export function subscribeCustomFoods(
   uid: string,
-  cb: (foods: CustomFood[]) => void,
+  cb: (foods: CustomFood[], meta?: SnapshotMeta) => void,
   onError?: (e: Error) => void,
 ): Unsub {
   return onSnapshot(
     customFoodsCol(uid),
-    (snap) => cb(snap.docs.map((d) => toCustomFood(d.id, d.data()))),
+    (snap) => cb(snap.docs.map((d) => toCustomFood(d.id, d.data())), metaOf(snap)),
     onError,
   );
 }

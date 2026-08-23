@@ -104,14 +104,25 @@ export function useToday(): TodayState {
   );
   const [snapshotArrived, setSnapshotArrived] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [failed, setFailed] = useState(false);
+  /** Record the error AND release the spinner, so a failure is not a hang. */
+  const failWith = useCallback((e: Error) => {
+    setError(e);
+    setFailed(true);
+  }, []);
   /** Rows parked on disk by an offline add, not yet in Firestore. */
   const [pending, setPending] = useState<DailyLog[]>([]);
 
-  // The spinner ends at whichever comes first: a real snapshot, or a cache hit.
-  // Without the second clause a cold start offline would spin forever — the
-  // listener never answers, and the whole point of the cache is that it does
-  // not have to.
-  const loading = !snapshotArrived && !logsFromCache;
+  // The spinner ends at whichever comes first: a real snapshot, a cache hit, or
+  // a failure. Without the second clause a cold start offline would spin forever
+  // — the listener never answers, and the whole point of the cache is that it
+  // does not have to.
+  //
+  // The THIRD clause is load-bearing now that `snapshotArrived` waits for a
+  // SERVER answer. Before that, an offline listener's empty cache hit latched it
+  // and the spinner cleared by accident; making it honest would have traded an
+  // empty screen for a permanent one on a cold cache. `failed` is the exit.
+  const loading = !snapshotArrived && !logsFromCache && !failed;
 
   // Re-read the parked queue when it changes (a park, or a flush that emptied
   // it) and whenever the account does. Cheap: one AsyncStorage read of a list
@@ -161,33 +172,49 @@ export function useToday(): TodayState {
     useCallback(() => {
       if (!uid) return;
       const unsubs = [
+        // Every slice below honours snapshot PROVENANCE. Firestore runs
+        // memory-only here (RN has no IndexedDB), so an offline listener fires
+        // immediately with an EMPTY result carrying `fromCache: true`. Treating
+        // that as real data discarded the disk hydration, wrote the empty value
+        // through — poisoning the cache for the next cold start — and then
+        // clobbered whatever had already been painted. Measured on Train, which
+        // took three publishes to get right; this is the same defect on the
+        // screen `offline-cache.ts` was actually written for.
         subscribeRecentLogs(
           uid,
           LOG_WINDOW_ROWS,
-          (l) => {
-            setLogs(l);
-            setSnapshotArrived(true);
+          (l, meta) => {
+            const authoritative = !meta?.fromCache;
+            setLogs(l, { authoritative });
+            // Only a SERVER answer ends the spinner on its own; the disk cache
+            // and `failed` below cover the offline cases.
+            if (authoritative) setSnapshotArrived(true);
           },
-          setError,
+          failWith,
         ),
-        subscribeDailyWeights(uid, setWeights, setError),
-        // `subscribeProfile` has always reported provenance and the setter has
-        // always thrown it away. Honouring it means an offline listener's
-        // immediate empty cache hit no longer discards the disk-hydrated profile
-        // — nor overwrites it with null. Today's other slices still ignore this
-        // and have the same latent race; see `useCachedState`.
-        subscribeProfile(
-          uid,
-          (p, meta) => setProfile(p, { authoritative: !meta.fromCache }),
-          setError,
+        subscribeDailyWeights(uid, (w, meta) =>
+          setWeights(w, { authoritative: !meta?.fromCache }),
         ),
-        subscribePresets(uid, setPresets, setError),
-        subscribeCustomFoods(uid, setCustomFoods, setError),
-        subscribeDailyWater(uid, setWaterMap, setError),
-        subscribeDailySleep(uid, setSleepMap, setError),
+        subscribeProfile(uid, (p, meta) =>
+          setProfile(p, { authoritative: !meta.fromCache }),
+        ),
+        subscribePresets(uid, (rows, meta) =>
+          setPresets(rows, { authoritative: !meta?.fromCache }),
+        ),
+        subscribeCustomFoods(uid, (rows, meta) =>
+          setCustomFoods(rows, { authoritative: !meta?.fromCache }),
+        ),
+        subscribeDailyWater(uid, (m, meta) =>
+          setWaterMap(m, { authoritative: !meta?.fromCache }),
+        ),
+        subscribeDailySleep(uid, (m, meta) =>
+          setSleepMap(m, { authoritative: !meta?.fromCache }),
+        ),
         // Health-imported steps / active energy. Read-only here — the
         // device measures these and the app never writes them back.
-        subscribeDailyActivity(uid, setActivityMap, setError),
+        subscribeDailyActivity(uid, (m, meta) =>
+          setActivityMap(m, { authoritative: !meta?.fromCache }),
+        ),
       ];
       return trackSubs('Today', unsubs);
     }, [uid]),
