@@ -201,6 +201,13 @@ export interface WorkoutSession {
    *  finish so it is one source of truth with the Body tab. */
   bodyweight?: number;
   sleepHours?: number;
+  /** How long the whole SESSION took, in minutes.
+   *
+   *  Not `CardioBlock.durationSec` (`@macrolog/core/cardio`), which is how long
+   *  ONE effort was. Different unit, different question, one careless
+   *  autocomplete apart (ADR-0025). The web never writes cardio — the Angular
+   *  logging surfaces are frozen (ADR-0022) — but it reads sessions the Expo
+   *  app wrote, so the confusion is reachable from here. */
   durationMin?: number;
   exercises: SessionExercise[];
   /** "Next session notes" carried forward to the next session of the

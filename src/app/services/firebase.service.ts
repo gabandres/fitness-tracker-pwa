@@ -140,8 +140,15 @@ export interface WorkoutSessionDoc {
   timestamp: Timestamp; // the session date
   bodyweight?: number;
   sleepHours?: number;
+  /** Minutes for the whole session — not `CardioBlock.durationSec`, which is
+   *  seconds for one effort (ADR-0025). */
   durationMin?: number;
   exercises: SessionExercise[];
+  /** Cardio blocks (ADR-0025) are absent from this interface on purpose: the
+   *  web writes none. They ARE present on documents the Expo app wrote, and
+   *  the shared mapper copies them into the domain object regardless — the
+   *  Angular Train tab simply ignores the field. `session-sheet.cardio.spec.ts`
+   *  pins that it ignores it without throwing. */
   nextNotes?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;

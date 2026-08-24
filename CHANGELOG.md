@@ -6,6 +6,21 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-24 — the Train glossary learns the cardio words
+
+The Train tab's "?" sheet gained a **Cardio** section — what a cardio block is,
+what modality means, what the 1-10 effort number is, and the one the screen
+otherwise leaves hanging: **why a watch's calories are shown and never spent.**
+A block can display "612 kcal reported" while the day's budget does not move,
+and with nothing to read that looks like a bug rather than the deliberate
+choice it is. Your target comes from your weight trend, and the trend already
+contains the workout.
+
+All three locales — English, Spanish (Puerto Rico), Portuguese (Brazil).
+
+**Not delivered anywhere yet**; it is JS, so it reaches testers on the next OTA
+per platform.
+
 ## 2026-08-24 — Oura account linking, server side
 
 `https://ignia.fit/oura/callback` is live. Ignia can now hold an Oura Cloud API
