@@ -1,4 +1,4 @@
-# ADR-0028: Multi-photo and description meal capture
+# ADR-0029: Multi-photo and description meal capture
 
 - **Status:** proposed — the owner's own worked example does not resolve today, and the reason is not the model
 - **Date:** 2026-08-24
