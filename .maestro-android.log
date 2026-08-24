@@ -1,0 +1,33 @@
+=== .maestro/regression/01-today.yaml
+Scrolling DOWN until "Entries" is visible with speed 40, visibility percentage 100%, timeout 15000 ms, with centering disabled... COMPLETED
+Scroll vertically... COMPLETED
+Take screenshot .maestro/regression/shots/01-today-entries... COMPLETED
+=== .maestro/regression/02-add-sheet.yaml
+Take screenshot .maestro/regression/shots/02-sheet-manual... COMPLETED
+Launch app "fit.ignia.app"... COMPLETED
+Assert that "Today" is visible... COMPLETED
+=== .maestro/regression/03-tabs.yaml
+Take screenshot .maestro/regression/shots/03-body-bottom... COMPLETED
+Tap on "Today"... COMPLETED
+Assert that "Today" is visible... COMPLETED
+=== .maestro/regression/04-settings.yaml
+Scroll vertically... COMPLETED
+Take screenshot .maestro/regression/shots/04-settings-lower... COMPLETED
+Press back... COMPLETED
+=== .maestro/regression/05-history.yaml
+==== Debug output (logs & screenshots) ====
+
+C:\Users\gabri\.maestro\tests\2026-08-24_195236
+=== .maestro/regression/06-scan-intro.yaml
+Take screenshot .maestro/regression/shots/06-scan-intro... COMPLETED
+Tap on id: scan-back... COMPLETED
+Assert that "Today" is visible... COMPLETED
+=== .maestro/regression/07-coach.yaml
+==== Debug output (logs & screenshots) ====
+
+C:\Users\gabri\.maestro\tests\2026-08-24_195459
+=== .maestro/regression/08-refine-targets.yaml
+==== Debug output (logs & screenshots) ====
+
+C:\Users\gabri\.maestro\tests\2026-08-24_195623
+=== .maestro/regression/09-locale-es.yaml
