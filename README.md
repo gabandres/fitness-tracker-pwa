@@ -110,3 +110,42 @@ One-time setup items tracked here so we don't lose them:
 - **Backups**: create GCS bucket `gs://fitness-tracker-gb-1775407101-backups` (us-central1) and add a 30-day object lifecycle rule. The `weeklyFirestoreBackup` function exports here every Sunday 06:00 UTC.
 - **Alerts**: run `scripts/monitoring/setup-alerts.sh` once with project ID + notification channel to create Cloud Monitoring policies.
 
+### A FIRST deploy that fails mid-create leaves the function unreachable, and `firebase deploy` will not repair it
+
+Measured 2026-08-24 on `fetchOuraWorkouts`. Every callable in this project
+carries `allUsers` + `roles/run.invoker` on its Cloud Run service, and it is
+**not optional**: a Firebase Auth ID token is not a Google IAM identity, so
+without that binding Cloud Run rejects the request at the infrastructure layer
+*before* the callable's own auth check runs.
+
+**Firebase sets the invoker on CREATE, never on UPDATE.** So this sequence
+leaves a permanently broken function:
+
+1. first deploy dies (`Could not build the function. Deadline Exceeded`),
+2. the retry succeeds — but reports `updating`, not `creating`,
+3. the binding is never applied, and **re-running `firebase deploy` does not
+   fix it**, because the function now exists.
+
+The symptom is precise and easy to misread as an auth bug in your own code:
+the function answers **403** where a healthy sibling answers **401**. 401 means
+the callable ran and rejected you; 403 means you never reached it.
+
+```sh
+# The check — a healthy callable answers 401, a broken one 403.
+curl -s -o /dev/null -w "%{http_code}
+" -X POST   https://us-central1-<project>.cloudfunctions.net/<fn>   -H "Content-Type: application/json" -d '{"data":{}}'
+
+# Confirm, and compare against any sibling.
+gcloud run services get-iam-policy <fn-lowercased> --region=us-central1   --project=<project> --format=json      # a broken one prints only an etag
+
+# The fix.
+gcloud run services add-iam-policy-binding <fn-lowercased>   --region=us-central1 --project=<project>   --member=allUsers --role=roles/run.invoker
+```
+
+**Note the service name is the function name LOWERCASED** (`fetchouraworkouts`).
+
+`npm run doctor` catches the function being absent, which is what surfaced this
+one — but it checks *deployed vs exported*, not *invokable*, so a function that
+deploys and cannot be called passes. Probe any NEW callable once before
+believing it works; an existing one cannot regress this way.
+
