@@ -121,3 +121,6 @@ scratch/
 
 # Scratch logs from build/publish runs — never source.
 .tmp-*
+
+# Local Maestro run logs (see apps/mobile/.maestro)
+.maestro-*.log
