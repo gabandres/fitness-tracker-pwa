@@ -57,3 +57,6 @@ decisions that are local to a single component.
 | 0022 | [The web PWA is frozen, not retired (amends 0015)](0022-web-pwa-frozen-not-retired.md) | accepted |
 | 0023 | [A watch push parks instead of dropping, and the widget's intent runs in the app](0023-watch-push-parks-instead-of-dropping.md) | accepted (amends 0020), **amended 2026-08-14** — the push cannot wake a WidgetKit complication (Apple FB12926788), so decisions 1–3 stand and decision 4 is under review |
 | 0024 | [A continuous activity multiplier from the device, floored at the FAO free-living minimum](0024-continuous-activity-multiplier-floored-at-fao-minimum.md) | accepted (decided 2026-08-19, written up 2026-08-23 — three files cited it before it existed) |
+| 0025 | [Cardio is a block on the workout session, not a second collection](0025-cardio-is-a-block-on-the-workout-session.md) | accepted |
+| 0026 | [Oura reaches Ignia through the OS health store, and its energy stops at the seed](0026-oura-through-the-os-health-store.md) | accepted |
+| 0027 | [Where restaurant foods come from](0027-restaurant-foods-source.md) | proposed (blocked on one measurement) |
