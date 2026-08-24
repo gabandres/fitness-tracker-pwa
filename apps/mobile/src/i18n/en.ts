@@ -182,7 +182,7 @@ export const en = {
   'link.failedBody': 'Your device blocked it. Open this in your browser instead:\n\n{url}',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    'You can set your own calorie and protein goals now — tap either number when you set up your plan, or open Settings, Daily targets. Ignia keeps measuring your maintenance in the background either way, and shows you what it finds next to your number. The + button also stops covering the screen after you use it. All three of these came from people writing in, which you can now do from Settings.',
+    'Train does cardio now. Log a run, a ride or a walk on its own, or add one to the end of a lifting day — either way it lands in the same history as your sets, so a week finally shows everything you did. Distance, average heart rate and how hard it felt are all optional; a duration on its own is a complete entry. It comes out in your CSV export too.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',
@@ -1106,7 +1106,7 @@ export const en = {
   'cardio.labelPlaceholder': 'Name (e.g. Zone 2)',
   // ── health workouts (ADR-0026) ──
   'health.workouts': 'Workouts',
-  'health.workoutsOn': 'Your cardio sessions import automatically.',
+  'health.workoutsOn': 'New. Cardio sessions can import when you sync. If yours do not show up, send feedback and I will look.',
   'health.reconnect': 'Reconnect to import workouts',
   'health.reconnectBody': 'Ignia can now import your cardio sessions. Reconnect Health to allow it.',
   'health.ouraHint': 'Not seeing your Oura sessions? Turn on workout export in the Oura app.',

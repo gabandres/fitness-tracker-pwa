@@ -175,7 +175,7 @@ export const esPR: Record<I18nKey, string> = {
   'link.failedBody': 'Tu dispositivo lo bloqueó. Abre esto en tu navegador:\n\n{url}',
   'whatsNew.title': 'Novedades',
   'whatsNew.body':
-    'Ya puedes poner tus propias metas de calorías y proteína — toca cualquiera de los dos números cuando armas tu plan, o entra a Ajustes, Metas diarias. Ignia sigue midiendo tu mantenimiento por detrás de todos modos, y te enseña lo que encuentra al lado de tu número. El botón + también deja de taparte la pantalla después de usarlo. Las tres cosas salieron de gente que escribió, algo que ahora puedes hacer desde Ajustes.',
+    'Train ya hace cardio. Registra una corrida, una vuelta en bici o una caminata sola, o añádela al final de un día de pesas — de cualquier forma cae en el mismo historial que tus series, así que la semana por fin enseña todo lo que hiciste. La distancia, el ritmo cardíaco promedio y qué tan duro se sintió son opcionales; con la duración sola ya queda completo. También sale en tu exportación CSV.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',
@@ -1075,7 +1075,7 @@ export const esPR: Record<I18nKey, string> = {
   'cardio.labelPlaceholder': 'Nombre (ej. Zona 2)',
   // ── health workouts (ADR-0026) ──
   'health.workouts': 'Entrenamientos',
-  'health.workoutsOn': 'Tus sesiones de cardio se importan solas.',
+  'health.workoutsOn': 'Nuevo. Las sesiones de cardio se pueden importar cuando sincronizas. Si las tuyas no aparecen, manda comentarios y lo reviso.',
   'health.reconnect': 'Reconecta para importar entrenamientos',
   'health.reconnectBody': 'Ignia ya puede importar tus sesiones de cardio. Reconecta Salud para permitirlo.',
   'health.ouraHint': '¿No ves tus sesiones de Oura? Activa la exportación de entrenamientos en la app de Oura.',
