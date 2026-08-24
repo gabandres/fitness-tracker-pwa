@@ -84,6 +84,89 @@ on its own teardown scroll, leaving its `QA Term Check` catalog entry behind;
 it was removed by hand (Train → exercise → REMOVE → confirm) and the catalog now
 reads Plank → Rear delt DB flye. No workout was left in progress.
 
+**FOLLOW-UP, later the same day (2026-08-23) — the scroll failures were a
+BUDGET, and the earlier entry above stops one measurement short of that.**
+
+Everything above is accurate about what was ruled out. What was not tried is the
+timeout, and it is the dominant cause: a `scrollUntilVisible` from the TOP of
+Settings to *Quick add* takes **~31 s** on this device, timed end-to-end (a
+launch-plus-open-Settings baseline of 31 s against 62 s for the same flow with
+the scroll appended). Every settings flow budgeted **20 s**. Point 3 above
+compares five *manual* swipes against Maestro's twenty seconds, but a manual
+swipe costs no hierarchy dump and Maestro takes one after every swipe — so the
+comparison does not show Maestro failing to progress, only that it is slower per
+swipe. It was progressing, and running out of time roughly two-thirds of the way
+down.
+
+**Why it looked intermittent, and why it broke in a batch.** The settings
+ScrollView **retains its scroll position between opens**. Whenever an earlier
+flow left the sheet part-way down, the next flow's scroll had less distance to
+cover and finished inside 20 s. So the budget only ever held because some
+previous flow had paid part of the cost — which is exactly why these flows
+passed for months and then failed together in a run whose order differed, and
+why re-running one alone could pass or fail depending on what preceded it. That
+is the mechanism behind "a one-off that recurs"; the entry above was right to
+refuse to call it flake.
+
+Raised to **60 s** on 04/09/10 and, pre-emptively, on 20 — whose row is just as
+deep and whose mid-run death is the one that leaves the account in kilograms.
+Result on the re-sweep: **04 passes consistently (57 s, 59 s), 10 passes
+(2m 27s)**.
+
+**Residual: 09 still failed once at 60 s**, on its FIRST scroll, so the budget is
+necessary but not sufficient and some genuine stalling remains. The deterministic
+remedy is the **custom scroll loop the entry above already recommends**, and it
+is verified working on this screen: swipe to the END down the left gutter, then
+search **UP**.
+
+```yaml
+- repeat:
+    times: 10
+    commands:
+      - swipe: { start: 10%, 85%, end: 10%, 25% }
+- scrollUntilVisible:
+    element: { id: 'settings-signout' }
+    direction: UP
+    visibilityPercentage: 30
+```
+
+That shape reached `settings-signout` first try after two DOWN-scroll attempts
+had failed on it — and `settings-signout` is the hardest target on the sheet,
+being clipped against the nav bar where `visibilityPercentage: 100` is
+unreachable.
+
+**The other four failures were four different things, none of them the app:**
+
+- **`14-metrics`** — the FIRST tap after the IME closes is swallowed. Ruled out
+  the two obvious causes on the device rather than reasoning about them:
+  `maestro hierarchy` puts `sleep-save` at `[96,2309][1344,2544]`, exactly where
+  it is painted, and a real `adb shell input tap 720 2426` at that centre writes
+  `sleepHours` on the first try. Maestro's own log says the tap COMPLETED and
+  nothing is written; a second, optional tap lands. Fixed with a platform-gated
+  `hideKeyboard` plus a repeated tap.
+- **`16-train-terms`** — failed ONLY in its teardown, with the row it wanted
+  plainly on screen in the capture. Another budget (15 s → 45 s). It leaked
+  `QA Term Check`; `qa-regression-verify.mjs cleanup` now also deletes
+  `QA `-prefixed exercises and templates, and found **six** on its first run.
+- **`19-glossary`** — two separate defects, and the entry above guessed wrong in
+  good faith: it did **not** inherit a bad state from 18. First, its own boot
+  wait was 15 s and the capture at failure shows the app still on the brand
+  loader. Then, once past that, it asserted the SECOND-TO-LAST glossary term
+  after scrolling to it, which only fits on a taller viewport; and it dismissed
+  the sheet at `50%,8%`, which on 360×720dp lands ON the Train glossary — the
+  longest of the three — so the sheet stayed open over the tab bar and the run
+  died at `tapOn: "Today"`. That is the "always present" element the entry above
+  puzzled over: it was present and covered. All three fixed, and the question
+  the flow exists to ask is now answered — **the last term IS reachable, so
+  `Glossary`'s 460 cap is fine on this viewport.**
+- **`18-train-template`** — passed on the re-sweep (2m 50s) with no change to it
+  at all, which fits the retained-scroll-position mechanism above.
+
+`Glossary` also gained the `backdropTestID` that `EntrySheet` has always had, so
+the dismissal can stop being a coordinate. **The suite does not use it yet**: it
+shipped to iOS as OTA 19, and the device this suite runs on is Android, which has
+not been published.
+
 **Rows are NOT flipped for this run** — `collect-shots.sh` did not run, so there
 are no captures to review, and this file's own rule stands.
 

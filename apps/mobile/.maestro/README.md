@@ -233,7 +233,24 @@ maestro test .maestro/android-signin.yaml -e EMAIL=qa-test@ignia.fit -e PASSWORD
 ```
 
 The address must contain `demo`/`test`/`review`/`appstore` or the seed script
-refuses it. The session persists to AsyncStorage, so it is a once-per-emulator
+refuses it. 
+
+**When a flow dies mid-run it leaves state behind, and one command clears all of
+it.** 11–13 leave a `QA E2E Sandwich` diary row or preset; 16 leaves a
+`QA Term Check` catalog exercise; 18 leaves a `QA Tpl Check` template. A
+stranded template is the nastiest of the three — it makes the NEXT run open
+*Edit template* instead of *New template*, a different layout that fails
+somewhere else and reads as a new bug.
+
+```sh
+node scripts/qa-regression-verify.mjs cleanup --email qa-test@ignia.fit
+```
+
+It deletes today's labelled entries and presets **and** any `QA `-prefixed
+exercise or template. The Train half was added 2026-08-23, the day flow 16's
+teardown failed and the documented recovery turned out not to cover the
+documented failure; it found six leftovers on its first run. Locale and theme
+are restored separately — `set-locale`, and the theme by re-running 10's tail. The session persists to AsyncStorage, so it is a once-per-emulator
 step and every other flow keeps `clearState: false`.
 
 ## The iOS Simulator runs Live Activities — and proved N3 (2026-08-08)

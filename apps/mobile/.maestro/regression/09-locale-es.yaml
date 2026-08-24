@@ -24,14 +24,30 @@ env:
 # taps its layout bounds and the touch goes to whatever is on top. Measured
 # 2026-08-09: this exact line put the run on the Trends tab instead of toggling
 # the theme. Centering moves the target clear of both bars.
-# 60s, not 20s — same measurement as 04-settings (LG G6, 2026-08-23): a scroll
-# from the top of Settings to the language row costs tens of seconds on this
-# device, and the sheet's retained scroll position is what used to hide it.
+# END-ANCHORED, not a DOWN scroll. Raising the budget to 60s was necessary and
+# NOT sufficient: on 2026-08-23 this flow still failed once at 60s, on this very
+# step, while `04-settings` passed twice at the same budget. Some genuine
+# stalling remains on the Settings sheet, which is what `coverage.md` predicted
+# and what Maestro's own docs warn about — `scrollUntilVisible` "may repeatedly
+# interact with static elements instead of triggering the desired scroll".
+#
+# So: swipe to the END down the left gutter (x=10% has no control to swallow the
+# gesture), then search UP. Searching up from a fixed end is deterministic;
+# searching down from an unknown middle is what stalled. This is the same shape
+# `18-train-template` uses for its cues box, and it reached `settings-signout`
+# first try on this device after two DOWN scrolls had failed on it.
+- repeat:
+    times: 10
+    commands:
+      - swipe:
+          start: 10%, 85%
+          end: 10%, 25%
 - scrollUntilVisible:
     element:
       id: 'settings-lang-es-PR'
-    direction: DOWN
+    direction: UP
     timeout: 60000
+    visibilityPercentage: 30
     centerElement: true
 - tapOn:
     id: 'settings-lang-es-PR'
@@ -101,19 +117,34 @@ env:
 # taps its layout bounds and the touch goes to whatever is on top. Measured
 # 2026-08-09: this exact line put the run on the Trends tab instead of toggling
 # the theme. Centering moves the target clear of both bars.
-# 60s, and this is the one that actually failed (2026-08-23): the flow died
-# here with "No visible element found: id: settings-lang-en", leaving the
-# account in SPANISH and cascading a "Today is not visible" failure into every
-# EN flow after it — 10, 11, 12, 13 and onward. The header above already warned
-# that a death here does exactly that; what it could not say is that the cause
-# was a timeout, not a selector. Spanish copy runs longer than English, so the
-# same sheet is TALLER in es-PR and this scroll is the longest one in the
-# suite.
+# END-ANCHORED, not a DOWN scroll. Raising the budget to 60s was necessary and
+# NOT sufficient: on 2026-08-23 this flow still failed once at 60s, on this very
+# step, while `04-settings` passed twice at the same budget. Some genuine
+# stalling remains on the Settings sheet, which is what `coverage.md` predicted
+# and what Maestro's own docs warn about — `scrollUntilVisible` "may repeatedly
+# interact with static elements instead of triggering the desired scroll".
+#
+# So: swipe to the END down the left gutter (x=10% has no control to swallow the
+# gesture), then search UP. Searching up from a fixed end is deterministic;
+# searching down from an unknown middle is what stalled. This is the same shape
+# `18-train-template` uses for its cues box, and it reached `settings-signout`
+# first try on this device after two DOWN scrolls had failed on it.
+# This is ALSO the flip BACK to English, so a failure here strands the account
+# in Spanish and cascades a "Today is not visible" failure into every later EN
+# flow — 10, 11, 12, 13 and onward. Recovery:
+#   node scripts/qa-regression-verify.mjs set-locale --email <qa> --locale en
+- repeat:
+    times: 10
+    commands:
+      - swipe:
+          start: 10%, 85%
+          end: 10%, 25%
 - scrollUntilVisible:
     element:
       id: 'settings-lang-en'
-    direction: DOWN
+    direction: UP
     timeout: 60000
+    visibilityPercentage: 30
     centerElement: true
 - tapOn:
     id: 'settings-lang-en'
