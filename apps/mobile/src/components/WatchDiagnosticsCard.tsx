@@ -33,6 +33,16 @@ import { font, radius, space } from '@/theme';
  * not move the OTA runtime version — so a device can be running new JS over
  * old native code and look entirely current.
  */
+/**
+ * Whether this build has a watch surface to diagnose at all.
+ *
+ * Exported because the SECTION HEADER lives in the settings screen while the
+ * guard lived only in here — so Android rendered an "Apple Watch" heading with
+ * nothing under it. A component that can return `null` must publish the
+ * condition, or every caller has to re-derive it and one of them will drift.
+ */
+export const watchDiagnosticsAvailable = Platform.OS === 'ios' && isWatchLinkAvailable;
+
 export function WatchDiagnosticsCard() {
   const t = useT();
   const styles = useThemedStyles(createStyles);
@@ -49,7 +59,7 @@ export function WatchDiagnosticsCard() {
 
   // iOS-only surface. Android has no counterpart and the native module is not
   // in that binary at all.
-  if (Platform.OS !== 'ios' || !isWatchLinkAvailable) return null;
+  if (!watchDiagnosticsAvailable) return null;
 
   const paired = isPaired();
   const installed = isWatchAppInstalled();

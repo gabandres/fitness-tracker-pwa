@@ -26,7 +26,7 @@ import { APP_STORE_REVIEW_URL } from '@/lib/reviewPrompt';
 import { openExternal } from '@/lib/open-external';
 import { TipSheet } from '@/components/TipSheet';
 import { QuickAddCard } from '@/components/QuickAddCard';
-import { WatchDiagnosticsCard } from '@/components/WatchDiagnosticsCard';
+import { WatchDiagnosticsCard, watchDiagnosticsAvailable } from '@/components/WatchDiagnosticsCard';
 import { SignInMethodsCard } from '@/components/SignInMethodsCard';
 import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
 import {
@@ -452,9 +452,15 @@ export default function Settings() {
             the external, no-cut altruistic link, which Play permits.
             Gated by FEATURES.tips (off while operations transfer to the LLC —
             see features.ts). The card stays on iOS for the Rate-app row. */}
+        {/* About & help — Support (tip + rate) and Legal merged under one
+            heading. They were two sections wrapping four rows, and one of
+            those rows is switched off (FEATURES.tips). The header is
+            UNCONDITIONAL while the block below it is not: the whole Support
+            card is hidden on Android with tips off, and a conditional header
+            would have taken Legal's heading with it. */}
+        <Text style={styles.section}>{t('settings.aboutSection')}</Text>
         {FEATURES.tips || Platform.OS === 'ios' ? (
         <>
-        <Text style={styles.section}>{t('settings.support')}</Text>
         <View style={styles.card}>
           {FEATURES.tips ? (
           <>
@@ -499,7 +505,6 @@ export default function Settings() {
         {/* Legal — Apple 5.1.1(i) requires the privacy policy to be reachable
             inside the app, and 1.4.1 wants a medical disclaimer on a health
             app. The Open Food Facts credit satisfies ODbL attribution (5.2.2). */}
-        <Text style={styles.section}>{t('settings.legal')}</Text>
         <View style={styles.card}>
           <TouchableOpacity
             style={styles.linkRow}
@@ -544,7 +549,7 @@ export default function Settings() {
           </Text>
         </View>
 
-        <Text style={styles.section}>{t('settings.units')}</Text>
+        <Text style={styles.section}>{t('settings.preferencesSection')}</Text>
         <View style={styles.card}>
           <Text style={styles.rowLabel}>{t('settings.portionDisplay')}</Text>
           <Text style={styles.rowValue}>{t('settings.portionDisplaySub')}</Text>
@@ -567,7 +572,6 @@ export default function Settings() {
           </View>
         </View>
 
-        <Text style={styles.section}>{t('settings.appearance')}</Text>
         <View style={styles.card}>
           <Text style={styles.rowLabel}>{t('settings.theme')}</Text>
           <View style={styles.segment}>
@@ -596,7 +600,6 @@ export default function Settings() {
           </View>
         </View>
 
-        <Text style={styles.section}>{t('settings.language')}</Text>
         <View style={styles.card}>
           <View style={styles.segment}>
             {LANGUAGES.map((l) => {
@@ -704,8 +707,14 @@ export default function Settings() {
             WCSession — the transport has four ways to fail and all four look
             identical from the wrist, so this is the only thing that turns a
             "my complication is stale" report into a diagnosis. */}
-        <Text style={styles.section}>{t('settings.watchSection')}</Text>
-        <WatchDiagnosticsCard />
+        {/* Header and card gate on the SAME exported condition. They did not,
+            and Android rendered an "Apple Watch" heading over empty space. */}
+        {watchDiagnosticsAvailable ? (
+          <>
+            <Text style={styles.section}>{t('settings.watchSection')}</Text>
+            <WatchDiagnosticsCard />
+          </>
+        ) : null}
 
 
         {/*
@@ -752,7 +761,7 @@ export default function Settings() {
           </View>
         </TouchableOpacity>
 
-        <Text style={styles.section}>{t('settings.calorieFloorSection')}</Text>
+        <Text style={styles.section}>{t('settings.floorsSection')}</Text>
         <View style={styles.card}>
           <View style={styles.rowBetween}>
             <View style={{ flex: 1 }}>
@@ -781,7 +790,6 @@ export default function Settings() {
           </View>
         </View>
 
-        <Text style={styles.section}>{t('settings.proteinFloorSection')}</Text>
         <View style={styles.card}>
           <View style={styles.rowBetween}>
             <View style={{ flex: 1 }}>
