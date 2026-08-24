@@ -133,7 +133,16 @@ appId: fit.ignia.app
 - tapOn:
     id: 'cardio-duration-0'
 - inputText: '32'
-- hideKeyboard
+# Tap OUTSIDE the field to blur it, rather than `hideKeyboard`. Two reasons,
+# one per platform, and the Android one is the important one:
+#   - iOS: `hideKeyboard` is not supported on the simulator and fails outright.
+#   - Android: `hideKeyboard` SUCCEEDS and does not fire the input's `onBlur` —
+#     and onBlur is what commits a deferred edit. Measured 2026-08-24 by
+#     reading the session doc back out of Firestore after a run that used it:
+#     the block was stored with `durationSec: 0` while the screen showed 32:00.
+# The session ScrollView sets `keyboardShouldPersistTaps="handled"`, so a tap on
+# the card's own title dismisses the keyboard AND blurs the field.
+- tapOn: 'Run'
 
 # 32 minutes through `formatDuration` in core: unpadded minutes under an hour.
 # If this reads 0:00 the deferred dispatch never committed on blur.
