@@ -162,10 +162,18 @@ unreachable.
 - **`18-train-template`** — passed on the re-sweep (2m 50s) with no change to it
   at all, which fits the retained-scroll-position mechanism above.
 
-`Glossary` also gained the `backdropTestID` that `EntrySheet` has always had, so
-the dismissal can stop being a coordinate. **The suite does not use it yet**: it
-shipped to iOS as OTA 19, and the device this suite runs on is Android, which has
-not been published.
+`Glossary` also gained the `backdropTestID` that `EntrySheet` has always had —
+and it **does not work for this dismissal**, which is the more useful finding.
+It shipped to both platforms (iOS OTA 19, Android update
+`01a0318b-3cab-7ab4-8abd-0072d3f7aa21`) and the LG G6 was confirmed running the
+Android one; `tapOn: id: 'glossary-backdrop'` then reported COMPLETED while
+dismissing nothing. The backdrop is `<Pressable style={StyleSheet.absoluteFill}>`,
+so its bounds are the WHOLE screen and Maestro taps an element's **centre** —
+which on a content-height sheet is behind the panel. The tap lands on the panel.
+
+So: a full-screen backdrop is not addressable by id for a dismissal, on any
+viewport. `19-glossary` stays on `50%,5%` and carries the disproof inline. The
+prop is inert and harmless; leave it.
 
 **Rows are NOT flipped for this run** — `collect-shots.sh` did not run, so there
 are no captures to review, and this file's own rule stands.

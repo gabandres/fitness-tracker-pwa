@@ -63,22 +63,26 @@ appId: fit.ignia.app
 # Dismiss by tapping the BACKDROP, not `back`. iOS has no hardware back, and
 # Maestro's `back` there is an edge swipe, which a modal bottom sheet does not
 # answer. A point high on the screen is backdrop on every one of these sheets.
-# 5%, not 8%. This dismisses the sheet by tapping its backdrop, and the
-# coordinate is viewport-dependent: the TRAIN glossary is the longest of the
-# three and on a 360x720dp screen its panel reaches to ~8% of the screen
-# height, so `50%,8%` landed ON the sheet. It stayed open, covered the tab bar,
-# and the run died two steps later at "Tap on Today" — a failure that reads
-# like a broken tab bar rather than a dismissal that did not happen. Measured
-# on the LG G6 2026-08-23.
+# A COORDINATE, and it must stay one. Measured twice on the LG G6 2026-08-23.
 #
-# 5% clears both edges on this device: the status bar ends at ~2.5% and the
-# tallest panel starts at ~8%.
+# First: `point: '50%,8%'` landed ON the sheet, because the TRAIN glossary is
+# the longest of the three and its panel reaches to ~8% of a 360x720dp screen.
+# The sheet stayed open over the tab bar and the run died two steps later at
+# "Tap on Today" — which reads like a broken tab bar. 5% clears both edges here
+# (status bar ends ~2.5%, tallest panel starts ~8%).
 #
-# **Switch this to `id: 'glossary-backdrop'` once a bundle carrying it ships.**
-# `Glossary` now passes that `backdropTestID` (the affordance EntrySheet has
-# always had), which removes the viewport dependence entirely — but the device
-# runs the published OTA bundle, so the id is not in the running app yet and a
-# flow using it fails today.
+# Then the obvious fix was tried and DISPROVEN: `Glossary` was given the
+# `backdropTestID` EntrySheet has, it shipped to both platforms (OTA 19), the
+# device was confirmed running that bundle — and `tapOn: id:
+# 'glossary-backdrop'` reports COMPLETED while dismissing nothing. The backdrop
+# is `<Pressable style={StyleSheet.absoluteFill}>`, so its bounds are the WHOLE
+# screen and Maestro taps an element's CENTRE — which on a content-height sheet
+# is behind the panel. The tap hits the panel, the sheet stays open, and the
+# next step fails exactly as before.
+#
+# So a full-screen backdrop is not addressable by id for a dismissal, and the
+# testID is only useful where the panel does not cover the centre. Do not
+# "improve" this back into an id.
 - tapOn:
     point: '50%,5%'
 
@@ -95,22 +99,26 @@ appId: fit.ignia.app
       id: 'numbers-glossary-title'
     timeout: 10000
 - takeScreenshot: .maestro/regression/shots/19-glossary-trends
-# 5%, not 8%. This dismisses the sheet by tapping its backdrop, and the
-# coordinate is viewport-dependent: the TRAIN glossary is the longest of the
-# three and on a 360x720dp screen its panel reaches to ~8% of the screen
-# height, so `50%,8%` landed ON the sheet. It stayed open, covered the tab bar,
-# and the run died two steps later at "Tap on Today" — a failure that reads
-# like a broken tab bar rather than a dismissal that did not happen. Measured
-# on the LG G6 2026-08-23.
+# A COORDINATE, and it must stay one. Measured twice on the LG G6 2026-08-23.
 #
-# 5% clears both edges on this device: the status bar ends at ~2.5% and the
-# tallest panel starts at ~8%.
+# First: `point: '50%,8%'` landed ON the sheet, because the TRAIN glossary is
+# the longest of the three and its panel reaches to ~8% of a 360x720dp screen.
+# The sheet stayed open over the tab bar and the run died two steps later at
+# "Tap on Today" — which reads like a broken tab bar. 5% clears both edges here
+# (status bar ends ~2.5%, tallest panel starts ~8%).
 #
-# **Switch this to `id: 'glossary-backdrop'` once a bundle carrying it ships.**
-# `Glossary` now passes that `backdropTestID` (the affordance EntrySheet has
-# always had), which removes the viewport dependence entirely — but the device
-# runs the published OTA bundle, so the id is not in the running app yet and a
-# flow using it fails today.
+# Then the obvious fix was tried and DISPROVEN: `Glossary` was given the
+# `backdropTestID` EntrySheet has, it shipped to both platforms (OTA 19), the
+# device was confirmed running that bundle — and `tapOn: id:
+# 'glossary-backdrop'` reports COMPLETED while dismissing nothing. The backdrop
+# is `<Pressable style={StyleSheet.absoluteFill}>`, so its bounds are the WHOLE
+# screen and Maestro taps an element's CENTRE — which on a content-height sheet
+# is behind the panel. The tap hits the panel, the sheet stays open, and the
+# next step fails exactly as before.
+#
+# So a full-screen backdrop is not addressable by id for a dismissal, and the
+# testID is only useful where the panel does not cover the centre. Do not
+# "improve" this back into an id.
 - tapOn:
     point: '50%,5%'
 
@@ -127,22 +135,26 @@ appId: fit.ignia.app
       id: 'train-glossary-title'
     timeout: 10000
 - takeScreenshot: .maestro/regression/shots/19-glossary-train
-# 5%, not 8%. This dismisses the sheet by tapping its backdrop, and the
-# coordinate is viewport-dependent: the TRAIN glossary is the longest of the
-# three and on a 360x720dp screen its panel reaches to ~8% of the screen
-# height, so `50%,8%` landed ON the sheet. It stayed open, covered the tab bar,
-# and the run died two steps later at "Tap on Today" — a failure that reads
-# like a broken tab bar rather than a dismissal that did not happen. Measured
-# on the LG G6 2026-08-23.
+# A COORDINATE, and it must stay one. Measured twice on the LG G6 2026-08-23.
 #
-# 5% clears both edges on this device: the status bar ends at ~2.5% and the
-# tallest panel starts at ~8%.
+# First: `point: '50%,8%'` landed ON the sheet, because the TRAIN glossary is
+# the longest of the three and its panel reaches to ~8% of a 360x720dp screen.
+# The sheet stayed open over the tab bar and the run died two steps later at
+# "Tap on Today" — which reads like a broken tab bar. 5% clears both edges here
+# (status bar ends ~2.5%, tallest panel starts ~8%).
 #
-# **Switch this to `id: 'glossary-backdrop'` once a bundle carrying it ships.**
-# `Glossary` now passes that `backdropTestID` (the affordance EntrySheet has
-# always had), which removes the viewport dependence entirely — but the device
-# runs the published OTA bundle, so the id is not in the running app yet and a
-# flow using it fails today.
+# Then the obvious fix was tried and DISPROVEN: `Glossary` was given the
+# `backdropTestID` EntrySheet has, it shipped to both platforms (OTA 19), the
+# device was confirmed running that bundle — and `tapOn: id:
+# 'glossary-backdrop'` reports COMPLETED while dismissing nothing. The backdrop
+# is `<Pressable style={StyleSheet.absoluteFill}>`, so its bounds are the WHOLE
+# screen and Maestro taps an element's CENTRE — which on a content-height sheet
+# is behind the panel. The tap hits the panel, the sheet stays open, and the
+# next step fails exactly as before.
+#
+# So a full-screen backdrop is not addressable by id for a dismissal, and the
+# testID is only useful where the panel does not cover the centre. Do not
+# "improve" this back into an id.
 - tapOn:
     point: '50%,5%'
 - tapOn: 'Today'
