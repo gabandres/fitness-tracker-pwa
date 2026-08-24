@@ -985,6 +985,153 @@ describe('firestore.rules', () => {
     );
   });
 
+  // ── Cardio blocks on sessions + templates (ADR-0025) ──
+  // `isValidWorkoutSession` validates with hasOnly(), which is an ALLOW-LIST:
+  // before this rule shipped, a session carrying `cardio` was not partially
+  // accepted and the field was not silently stripped — the ENTIRE write was
+  // rejected, logged strength sets included. The dev app talks to PROD
+  // Firestore, so these must be deployed before any client writes the field.
+
+  const validSession = (extra: Record<string, unknown> = {}) => ({
+    status: 'completed',
+    timestamp: Timestamp.now(),
+    exercises: [],
+    createdAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+    ...extra,
+  });
+
+  const validTemplate = (extra: Record<string, unknown> = {}) => ({
+    name: 'Push Day',
+    exercises: [],
+    createdAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+    ...extra,
+  });
+
+  const cardioBlock = () => ({
+    modality: 'run',
+    durationSec: 1930,
+    distanceM: 8046,
+    avgHr: 148,
+    source: 'manual',
+  });
+
+  it('accepts a workout session with no cardio field at all', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'workoutSessions'), validSession()),
+    );
+  });
+
+  it('accepts a workout session carrying an empty cardio list', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      addDoc(collection(db, 'users', 'alice', 'workoutSessions'), validSession({ cardio: [] })),
+    );
+  });
+
+  it('accepts a strength session that also carries a cardio finisher', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      addDoc(
+        collection(db, 'users', 'alice', 'workoutSessions'),
+        validSession({
+          exercises: [{ exerciseId: 'x1', name: 'Bench Press', cues: [], sets: [] }],
+          cardio: [cardioBlock()],
+        }),
+      ),
+    );
+  });
+
+  it('accepts a standalone cardio session — zero exercises, one block', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      addDoc(
+        collection(db, 'users', 'alice', 'workoutSessions'),
+        validSession({ exercises: [], cardio: [cardioBlock()] }),
+      ),
+    );
+  });
+
+  it('rejects a workout session with more than 20 cardio blocks', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      addDoc(
+        collection(db, 'users', 'alice', 'workoutSessions'),
+        validSession({ cardio: Array.from({ length: 21 }, cardioBlock) }),
+      ),
+    );
+  });
+
+  it('rejects a workout session whose cardio is a map, not a list', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      addDoc(
+        collection(db, 'users', 'alice', 'workoutSessions'),
+        validSession({ cardio: { modality: 'run', durationSec: 1930 } }),
+      ),
+    );
+  });
+
+  // The allow-list must stay closed. If widening it for `cardio` had been done
+  // by dropping hasOnly rather than extending it, every test above would still
+  // pass and this one would not.
+  it('still rejects a workout session carrying an unknown sibling field', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      addDoc(
+        collection(db, 'users', 'alice', 'workoutSessions'),
+        validSession({ cardio: [cardioBlock()], vo2max: 51.2 }),
+      ),
+    );
+  });
+
+  it('accepts a workout template prescribing cardio blocks', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      addDoc(
+        collection(db, 'users', 'alice', 'workoutTemplates'),
+        validTemplate({ cardioBlocks: [{ modality: 'run', targetDurationSec: 1800 }] }),
+      ),
+    );
+  });
+
+  it('rejects a workout template with more than 20 cardio blocks', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      addDoc(
+        collection(db, 'users', 'alice', 'workoutTemplates'),
+        validTemplate({
+          cardioBlocks: Array.from({ length: 21 }, () => ({
+            modality: 'run',
+            targetDurationSec: 1800,
+          })),
+        }),
+      ),
+    );
+  });
+
+  it('rejects a workout template whose cardioBlocks is a string', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      addDoc(
+        collection(db, 'users', 'alice', 'workoutTemplates'),
+        validTemplate({ cardioBlocks: 'run 30 min' }),
+      ),
+    );
+  });
+
   // ── dailyActivity (Health steps / active-energy import) ──
   // The dev app talks to PROD Firestore, so these rules must be deployed
   // before any client writes the new collection.
