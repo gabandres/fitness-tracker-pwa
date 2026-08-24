@@ -20,8 +20,14 @@
  * Which food *database* a result came from. Deliberately distinct from the
  * CustomFood *capture* `FoodSource` ('barcode' | 'label' | 'text' | 'manual')
  * in `./types` — same idea, different axis, so it gets its own name.
+ *
+ * `'menu'` is the bundled MenuStat chain-restaurant corpus (ADR-0027). Its
+ * items differ from `'fdc'` in one way that matters to every consumer: macros
+ * are per SERVING, and `ServingOption.grams` is **0** for the 60% of items
+ * MenuStat published no weight for. Treat a non-positive `grams` as "one
+ * serving, weight unknown" — never divide by it.
  */
-export type FoodDbSource = 'fdc' | 'off';
+export type FoodDbSource = 'fdc' | 'off' | 'menu';
 
 /** Slim hit returned by the typeahead search. */
 export interface FoodSearchHit {

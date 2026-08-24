@@ -29,6 +29,12 @@ import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { ErrorCode } from "./error-codes";
 import { assessMacros, isLoggableFood } from "./food-plausibility";
 import { buildUsdaDetail, findById, loadFoods, searchUsda } from "./usda-db";
+import {
+  loadRestaurantFoods,
+  menuStatDetail,
+  queryNamesChain,
+  searchMenuStat,
+} from "./menustat-db";
 
 const db = getFirestore();
 const SEARCH_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;       // 7 days
@@ -53,7 +59,7 @@ const SEARCH_PAGE_SIZE_MAX = 25;
 // contract is mirrored by hand — keep the two byte-for-byte in sync. The enum
 // is `FoodDbSource` on BOTH sides (was `FoodSource` here) so a source-axis
 // rename can't silently drift them apart, which it already had.
-type FoodDbSource = 'fdc' | 'off';
+type FoodDbSource = 'fdc' | 'off' | 'menu';
 
 export interface FoodSearchHit {
   /** Which database the hit came from — drives getFoodDetail dispatch. */
@@ -423,7 +429,11 @@ export const searchFoods = onCall(
     // (the client falls back to getFoodDetail on a hit without them), but it is
     // slow, and a 7-day TTL would keep every already-cached query paying the
     // extra cold callable for a week after the fix deployed.
-    const cacheKey = createHash("sha1").update(`v4|${size}|${normalized}`).digest("hex");
+    // Bumped to v5 when MenuStat restaurant items joined the result set
+    // (ADR-0027): a v4 entry is a page computed before `source: 'menu'` existed,
+    // so it is missing every restaurant hit and would keep being served for the
+    // full 7-day TTL after the deploy — the same reasoning as the v4 bump.
+    const cacheKey = createHash("sha1").update(`v5|${size}|${normalized}`).digest("hex");
     const cacheRef = db.collection("foodSearchCache").doc(cacheKey);
     const cacheSnap = await cacheRef.get();
     if (cacheSnap.exists) {
@@ -466,7 +476,31 @@ export const searchFoods = onCall(
     // wrong.
     await enforceFoodRateLimit("foodSearchRateLimit", uid, SEARCH_MIN_INTERVAL_MS);
 
-    const hits = searchUsda(loadFoods(), normalized, size) as FoodSearchHit[];
+    // ── Restaurant items (ADR-0027) ─────────────────────────────────────────
+    //
+    // Two modes, and the split is the whole design:
+    //
+    //  - The query NAMES a chain ("olive garden", "chickfila", "taco bell
+    //    burrito"). That is an unambiguous intent signal, so restaurant items
+    //    take the page and USDA fills whatever is left. Someone who typed
+    //    "olive garden" is not looking for the USDA entry on olives.
+    //  - It does not. Generic food leads — a bare "chicken" must still return
+    //    "Chicken, broiler, breast, raw" first — and a small tail of restaurant
+    //    matches is appended, so "chicken sandwich" surfaces the chains without
+    //    burying the ingredient.
+    //
+    // Both legs are in-memory scans over bundled data, so this adds no network
+    // call, no key and no failure mode to a request that previously had none.
+    const menuIndex = loadRestaurantFoods();
+    const chainNamed = queryNamesChain(menuIndex, normalized);
+    const menuBudget = chainNamed ? size : Math.max(2, Math.floor(size / 5));
+    const menuHits = searchMenuStat(menuIndex, normalized, menuBudget) as FoodSearchHit[];
+    const usdaHits = searchUsda(loadFoods(), normalized, size) as FoodSearchHit[];
+
+    const hits = chainNamed
+      ? [...menuHits, ...usdaHits].slice(0, size)
+      : [...usdaHits.slice(0, Math.max(0, size - menuHits.length)), ...menuHits];
+
     const off = { hits: [] as FoodSearchHit[], failed: false };
 
     // Best-effort cache write — but NOT when the OFF leg failed.
@@ -508,6 +542,9 @@ export const getFoodDetail = onCall(
     if (data.source === "off" && typeof data.id === "string" && data.id.length > 0) {
       source = "off";
       id = data.id.slice(0, 64);
+    } else if (data.source === "menu" && typeof data.id === "string" && /^[a-z0-9]{1,32}$/i.test(data.id)) {
+      source = "menu";
+      id = data.id;
     } else if (data.source === "fdc" && typeof data.id === "string" && /^\d+$/.test(data.id)) {
       source = "fdc";
       id = data.id;
@@ -535,6 +572,16 @@ export const getFoodDetail = onCall(
     let detail: FoodDetail;
     if (source === "off") {
       detail = await fetchOffDetail(id);
+    } else if (source === "menu") {
+      // Bundled, like the USDA branch below — the only failure is "not in this
+      // snapshot", which is what a client holding an id from an older ingest
+      // would hit. MenuStat ids are stable across years by design (ADR-0027),
+      // so that stays rare rather than being guaranteed by a re-ingest.
+      const found = menuStatDetail(loadRestaurantFoods(), id);
+      if (!found) {
+        throw new HttpsError("not-found", "Food not found.", { code: ErrorCode.FOOD_NOT_FOUND });
+      }
+      detail = found as FoodDetail;
     } else {
       // Bundled lookup — no network, so the only failure is "not in the
       // dataset". That can happen for an id minted by the old live-FDC backend

@@ -6,6 +6,30 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-24 — restaurant food, from 91 chains
+
+Search a chain by name — "chipotle", "chickfila", "olive garden", "cheesecake
+factory" — and you get its actual menu with calories and protein, instead of
+whatever generic entry came closest. **25,126 items across 91 chains**, all
+fifteen of the chains on the owner's own list included.
+
+Two things this deliberately does **not** do.
+
+It does not pretend to be current. Every item is labelled with its **2022
+snapshot**, because that is when the data was collected and the source has since
+gone offline. A 2022 figure is useful; a 2022 figure presented as today's menu
+is not.
+
+And it does not invent weights. Where a chain never published a serving weight —
+60% of them, including all of IHOP and The Cheesecake Factory — the item is one
+serving, and says so, rather than being assigned a gram figure nobody measured.
+
+Puerto Rico local restaurants are **not** in this, and no source has them. What
+is already there: 61 "Puerto Rican style" dishes in the food database — mofongo,
+alcapurrias, pasteles, serenata — plus My Foods for anything you eat often.
+
+Generic food search is unchanged and still works with no signal.
+
 ## 2026-08-24 — connect your Oura ring to Ignia
 
 Settings gains **Connected apps**. Link your Oura account and your runs, rides
