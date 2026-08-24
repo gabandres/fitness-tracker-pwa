@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
+import { needsOuraScopeUpgrade } from '@macrolog/core';
 import * as WebBrowser from 'expo-web-browser';
 import { parseOuraWorkouts } from '@macrolog/core';
 import { db, functions } from './firebase';
@@ -39,6 +40,13 @@ export interface OuraStatus {
   connected: boolean;
   scope?: string;
   connectedAt?: Date;
+  /** When the ring was last read, stamped by `fetchOuraWorkouts`. A client
+   *  cannot write it — `integrations/{provider}` is `allow write: if false` —
+   *  which is also why it is correct across devices rather than per-install. */
+  lastSyncedAt?: Date;
+  /** How many records came back on that read. Zero is a real answer (a rest
+   *  week), and is rendered as such rather than as a failure. */
+  lastRecordCount?: number;
 }
 
 const statusDoc = (uid: string) => doc(db, `users/${uid}/integrations/oura`);
@@ -74,6 +82,9 @@ export function useOuraStatus(uid: string | undefined) {
           connected: d?.['connected'] === true,
           scope: typeof d?.['scope'] === 'string' ? d['scope'] : undefined,
           connectedAt: d?.['connectedAt']?.toDate?.(),
+          lastSyncedAt: d?.['lastSyncedAt']?.toDate?.(),
+          lastRecordCount:
+            typeof d?.['lastRecordCount'] === 'number' ? d['lastRecordCount'] : undefined,
         });
         setReady(true);
       },
@@ -234,5 +245,26 @@ export function useOura(uid: string | undefined) {
     }
   }, [busy, uid]);
 
-  return { status, ready, busy, result, failed, connect, disconnect, syncNow };
+  /**
+   * True when this user consented under a narrower scope than Ignia now reads.
+   *
+   * Always false today, because `workout` is the only scope and everybody
+   * connected under it — which is exactly why it ships now rather than with the
+   * feature that needs it. The day sleep is added, every already-connected user
+   * flips to true and gets a reconnect prompt, instead of an empty card and no
+   * explanation. See `packages/core/src/oura-scopes.ts`.
+   */
+  const needsScopeUpgrade = status.connected && needsOuraScopeUpgrade(status.scope);
+
+  return {
+    status,
+    ready,
+    busy,
+    result,
+    failed,
+    needsScopeUpgrade,
+    connect,
+    disconnect,
+    syncNow,
+  };
 }

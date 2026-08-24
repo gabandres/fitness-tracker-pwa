@@ -825,91 +825,33 @@ export default function Settings() {
           needs nothing but a network. It is the only Oura affordance on
           Android until Health Connect's workout read ships in vc 38.
         */}
+        {/*
+          Connected apps moved to their OWN SCREEN (`connected-apps.tsx`).
+
+          It used to be ~85 lines of card right here, and the owner's verdict was
+          that connecting to a third party "should be way better UX". The concrete
+          problem under the aesthetic one: nothing ever told the user the link had
+          worked — consent completes in a system browser, the user comes back, and
+          one line of text changed. The new screen answers that with a status pill,
+          a last-checked time and a record count, and it has room for Garmin or
+          Whoop without this file growing another card each time.
+        */}
         <Text style={styles.section}>{t('oura.section')}</Text>
-        <View style={styles.card}>
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => router.push('/connected-apps')}
+          testID="settings-connected-apps"
+        >
           <View style={styles.rowBetween}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>{t('oura.title')}</Text>
+              <Text style={styles.rowLabel}>{t('settings.connectedApps')}</Text>
               <Text style={styles.rowValue}>
-                {oura.status.connected ? t('oura.subConnected') : t('oura.subDisconnected')}
+                {oura.status.connected ? t('oura.subConnected') : t('settings.connectedAppsSub')}
               </Text>
             </View>
-            <TouchableOpacity
-              onPress={oura.status.connected ? oura.disconnect : oura.connect}
-              disabled={oura.busy || !oura.ready}
-              style={[styles.exportBtn, (oura.busy || !oura.ready) && styles.exportBtnDisabled]}
-              testID="oura-toggle"
-            >
-              <Text style={styles.exportBtnText}>
-                {oura.busy
-                  ? t('oura.connecting')
-                  : oura.status.connected
-                    ? t('oura.disconnect')
-                    : t('oura.connect')}
-              </Text>
-            </TouchableOpacity>
+            <Ionicons name="chevron-forward" size={18} color={colors.faint} />
           </View>
-
-          {/* The consent argument, stated BEFORE the tap rather than after.
-              `scope=workout` is the only scope requested and a rules spec
-              asserts it, so this sentence is checkable, not marketing. */}
-          <Text style={styles.exportMsg}>{t('oura.scopeNote')}</Text>
-
-          {oura.status.connected ? (
-            <>
-              <View style={styles.digestRow}>
-                {/* `flex: 1` is load-bearing, not cosmetic. `digestRow` is
-                    `space-between`, and a bare <Text> in a row takes its full
-                    intrinsic width — so this three-line sentence pushed "Import
-                    now" past the right edge of the screen and it rendered
-                    clipped as "Impo" on a real iPhone. The rows at
-                    `weeklyDigest` and `health.workouts` wrap their text in a
-                    flex:1 View for exactly this reason; these two did not. */}
-                <Text style={[styles.rowValue, styles.digestRowText]}>{t('oura.revokeNote')}</Text>
-                <TouchableOpacity
-                  onPress={oura.syncNow}
-                  disabled={oura.busy}
-                  style={[styles.exportBtn, oura.busy && styles.exportBtnDisabled]}
-                  testID="oura-sync-now"
-                >
-                  <Text style={styles.exportBtnText}>
-                    {oura.busy ? t('common.saving') : t('oura.syncNow')}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              {/* The same promise the Train glossary makes, restated where the
-                  user turns the import on: an imported kcal is provenance and
-                  never a budget (ADR-0024 decision 4). */}
-              <Text style={styles.exportMsg}>{t('oura.energyNote')}</Text>
-            </>
-          ) : null}
-
-          {/*
-            Four outcomes, four different sentences, because they call for four
-            different actions. A single "sync failed" would tell a user to
-            retry a revoked grant forever, and would report OUR parser being
-            wrong about the wire shape as their ring being quiet.
-          */}
-          {oura.failed ? <Text style={styles.exportMsg}>{t('oura.failed')}</Text> : null}
-          {oura.result && !oura.result.linked ? (
-            <Text style={styles.exportMsg}>{t('oura.needsReconnect')}</Text>
-          ) : null}
-          {oura.result?.linked ? (
-            <Text style={styles.exportMsg}>
-              {oura.result.written > 0
-                ? t('oura.synced', { n: formatNumber(oura.result.written, locale) })
-                : t('oura.syncedNone')}
-            </Text>
-          ) : null}
-          {oura.result && oura.result.skipped > 0 ? (
-            <Text style={styles.exportMsg}>
-              {t('oura.skipped', { n: formatNumber(oura.result.skipped, locale) })}
-            </Text>
-          ) : null}
-          {oura.result?.truncated ? (
-            <Text style={styles.exportMsg}>{t('oura.truncated')}</Text>
-          ) : null}
-        </View>
+        </TouchableOpacity>
 
         <Text style={styles.section}>{t('settings.calorieFloorSection')}</Text>
         <View style={styles.card}>

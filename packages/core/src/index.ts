@@ -327,6 +327,16 @@ export {
   type IndexedFood,
 } from './usda-search';
 
+// Oura scope comparison (ADR-0026). The required set lives here and is
+// hand-mirrored by `SCOPE` in functions/src/oura-link.ts; both sides assert the
+// literal so a scope added to one cannot silently skip the other.
+export {
+  OURA_REQUIRED_SCOPES,
+  missingOuraScopes,
+  needsOuraScopeUpgrade,
+  parseOuraScopes,
+} from './oura-scopes';
+
 // Chain-restaurant routing (ADR-0027). Only the chain NAMES ship to the client;
 // the corpus itself stays on the server. `restaurant-chains.ts` explains why.
 export {

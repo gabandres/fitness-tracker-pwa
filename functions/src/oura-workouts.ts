@@ -1,5 +1,6 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { getOuraAccessToken, ouraClientSecret } from "./oura-link";
+import { Timestamp } from "firebase-admin/firestore";
+import { getOuraAccessToken, integrationDoc, ouraClientSecret } from "./oura-link";
 
 // ─── Oura Cloud API — the workout fetch (issue #72) ──────────────────
 //
@@ -205,6 +206,28 @@ export const fetchOuraWorkouts = onCall(
 
     const out = await collectWorkouts(token, days, uid);
     console.log(`fetchOuraWorkouts: uid=${uid} days=${days} records=${out.data.length}`);
+
+    // Stamp when the ring was last read, and how much came back.
+    //
+    // The Connected apps screen renders both, and this is the only place they
+    // can come from: `users/{uid}/integrations/oura` is `allow write: if false`
+    // in `firestore.rules`, so a client cannot record its own sync. Doing it
+    // server-side also makes it correct across devices, which a per-device
+    // AsyncStorage value would not be.
+    //
+    // Best-effort on purpose. A user whose workouts fetched fine should not see
+    // the call fail because a bookkeeping write did, so this never rejects the
+    // request — the cost of losing it is a stale "last synced", not lost data.
+    await integrationDoc(uid)
+      .set(
+        {
+          lastSyncedAt: Timestamp.now(),
+          lastRecordCount: out.data.length,
+        },
+        { merge: true },
+      )
+      .catch((err) => console.warn(`fetchOuraWorkouts: last-sync stamp failed uid=${uid}:`, err));
+
     return out;
   },
 );

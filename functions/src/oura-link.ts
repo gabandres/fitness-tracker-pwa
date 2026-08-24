@@ -52,6 +52,18 @@ const REDIRECT_URI = `${SITE}/oura/callback`;
  * (readiness / sleep / activity summaries) gets added the day a feature
  * consumes one, not in advance.
  */
+/**
+ * The scopes Ignia asks Oura for. **Hand-mirrored by `OURA_REQUIRED_SCOPES` in
+ * `packages/core/src/oura-scopes.ts`** — `functions/` is not a workspace and
+ * cannot import that package, so both sides assert this literal in their own
+ * suites instead.
+ *
+ * **Adding a scope means changing BOTH.** Oura cannot widen a grant without the
+ * user consenting again, so an already-connected user keeps the old scope and
+ * the new data is simply absent — no error, no prompt. Changing only this
+ * constant means nobody is ever told to reconnect; changing only the core list
+ * means everybody is told to, forever.
+ */
 const SCOPE = "workout";
 
 export const ouraClientSecret: ReturnType<typeof defineSecret> =
@@ -83,7 +95,11 @@ function tokenDoc(uid: string) {
  * writes at all, and extends to a second provider without touching the
  * profile shape again. Rule: owner-readable, server-written.
  */
-function integrationDoc(uid: string) {
+/** The public, client-READABLE half of the link (`allow write: if false` in
+ *  `firestore.rules`, so only the Admin SDK writes here). Exported because
+ *  `oura-workouts.ts` stamps the last-sync fields the Connected apps screen
+ *  renders — a client cannot write them, by design. */
+export function integrationDoc(uid: string) {
   return getFirestore().doc(`users/${uid}/integrations/oura`);
 }
 

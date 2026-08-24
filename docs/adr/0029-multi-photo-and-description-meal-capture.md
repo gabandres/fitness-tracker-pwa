@@ -2,7 +2,7 @@
 
 - **Status:** proposed — the owner's own worked example does not resolve today, and the reason is not the model
 - **Date:** 2026-08-24
-- **Amends:** [ADR-0017](0017-photo-scan-free-in-v1.md) (photo-scan on and free), [ADR-0013](0013-food-resolution-my-foods-library.md) (the trust rule), [ADR-0015](0015-ignia-pivot.md) §1 (why the model is not asked for macros)
+- **Amends:** [ADR-0017](0017-photo-scan-free-for-all-v1.md) (photo-scan on and free), [ADR-0013](0013-food-resolution-my-foods-library.md) (the trust rule), [ADR-0015](0015-macronaut-photo-first-freemium-pivot.md) §1 (why the model is not asked for macros)
 
 ## Context
 
