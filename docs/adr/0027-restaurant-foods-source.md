@@ -1,7 +1,9 @@
 # ADR-0027: Where restaurant foods come from
 
-- **Status:** proposed — blocked on one measurement, named below
-- **Date:** 2026-08-24
+- **Status:** **accepted** — all three measurements ran; option **A** stands, with three of its stated properties corrected below
+- **Date:** 2026-08-24 (proposed) · 2026-08-24 (accepted, same day, after the measurements)
+- **Measurements:** `docs/research/restaurant-foods-menustat.md` — counted from the files, not estimated
+- **Implements:** issue #67
 
 ## Context
 
@@ -56,7 +58,7 @@ few thousand, and label their provenance*.
 | **C** | **Nutritionix** | The best in class — monitors **600+ chains** for menu changes, 800k+ items | Enterprise from **$1,850/month** | Fails the cost gate outright. Listed so it is not re-proposed |
 | **D** | Crowdsourced user submissions | Unbounded | $0 in money, unbounded in moderation | MacroFactor's advantage *is* human verification of submissions. Without moderation capacity this reproduces MyFitnessPal's junk corpus, which is the thing users complain about. Not viable solo |
 
-## Proposed decision
+## Decision
 
 **Take A — bundle a curated chain-restaurant dataset — and treat B as an
 enrichment to be added only if a measurement says A is too thin.**
@@ -81,36 +83,115 @@ Concretely:
 4. When a chain is absent, the empty state says which chains *are* covered and
    offers My Foods, rather than returning nothing.
 
-## The measurement that unblocks this
+## The measurements — run 2026-08-24
 
-This ADR stays `proposed` until an ingest dry-run answers three questions,
-because two of them can kill option A outright:
+All three ran against the actual files. Full evidence, with per-chain tables, is
+in `docs/research/restaurant-foods-menustat.md`; only the answers are here.
 
-1. **License.** Are MenuStat's terms compatible with redistributing the data
-   inside a commercial app? The dataset is public and free to download, but
-   "free to download" is not a redistribution grant, and this is a public repo.
-   *If the answer is no, A dies and B becomes the recommendation.*
-2. **Completeness.** How many items survive "has calories AND protein"?
-   ADR-0018's own scoping was blocked for a session on a number that turned out
-   to be wrong by three orders of magnitude, so this gets counted, not
-   estimated.
-3. **Relevance.** How many of the ~25 chains a user here would actually eat at
-   are present? A dataset of 60,000 items that omits the local chains is worse
-   than useless — it looks like coverage and behaves like a gap.
+1. **License — qualified pass.** Three copies of MenuStat exist and they carry
+   **three different license positions**. Harvard Dataverse
+   ([doi:10.7910/DVN/K4NYTR](https://doi.org/10.7910/DVN/K4NYTR)) is **CC0 1.0**
+   but stops at 2018 and was deposited by a Harvard researcher, not by NYC
+   DOHMH. NYC Open Data's copy carries **no license field** and also stops at
+   2018. menustat.org itself published through **2022** under
+   *"© 2016 MenuStat. All rights reserved."* — no terms page, no grant.
+   **Decision taken by the owner on 2026-08-24: ship the 2022 file** and pursue
+   written permission by email in parallel, with the CC0 2018 file as the
+   documented fallback if the answer comes back no. The counterweight is that
+   the content is facts — calories, grams of protein — which are not
+   copyrightable in the US, and the same dataset through 2018 is CC0 by a third
+   party's hand.
+2. **Completeness — pass.** **25,217 of 26,238 items (96.1%)** in the 2022
+   snapshot carry calories AND protein, across 92 chains. Counted on distinct
+   `menu_item_id`; the 2018 file repeats each item per customizable build, and a
+   naive row count over-reports it by 2.4x. After deduplicating on
+   `item_description` the shipped corpus is **25,126 items across 91 chains**.
+3. **Relevance — pass.** The owner named 15 chains. **All 15 are present**;
+   14 are in the licensed 2018 file (The Cheesecake Factory is 2022-only). On
+   those 15 the bundled USDA corpus held **50** items; MenuStat adds **1,799**
+   food items — a 36x increase on exactly the chains that matter here.
 
-## Consequences (if adopted as proposed)
+### What the measurements changed
 
-- **No new AI, no new secret, no new scheduler job.** A refresh is a rerun of
-  the ingest script and a functions deploy, done by hand once a year — which is
-  how this repo already ships everything.
-- **Both clients are unmodified for search itself**, as in ADR-0018, provided
-  `FoodDbSource` widening is additive. The provenance chip ("Chipotle · 2026
-  menu") is a mobile-only UI addition; the web app is frozen
-  ([ADR-0022](0022-web-pwa-frozen-not-retired.md)) and simply renders the item
-  without the chip.
-- **We inherit a staleness obligation.** A bundled menu that silently ages is
-  the failure mode. The snapshot year is stored per item and rendered, so the
-  data cannot lie about its own age.
+**Three of this ADR's own claims were wrong, and are corrected rather than
+quietly kept:**
+
+- **The upstream is dead.** menustat.org stopped resolving between 2026-06-12
+  (last Internet Archive 200) and 2026-08-24, and collection had already stopped
+  after 2022 — its FAQ says data was gathered *"in January of each year through
+  2020."* There is **no annual snapshot to inherit**; this is terminal data, and
+  the snapshot year is stored per item and rendered for exactly that reason.
+- **"Both clients unmodified / a `functions`-only deploy" was false, twice.**
+  First, only 31% of the food items on the owner's chains carry a gram weight,
+  and `ServingOption.grams` was consumed unguarded in one place — so those items
+  ship with `grams: 0` and the web client's `food-search.component.ts` gained
+  the guard mobile has had since 2026-07-01. Second, and larger: **mobile
+  answers text search on-device** (Tier D) and never calls `searchFoods`, so a
+  server-only change would have reached the frozen web app and nobody else.
+- **Puerto Rico is not option A's problem, and option B does not fix it.**
+  FatSecret was searched directly: it has no El Mesón Sándwiches either. What
+  closes ground in PR is already shipped — 61 "Puerto Rican style" items in the
+  bundled corpus, plus My Foods.
+
+### How the corpus reaches mobile without bundling it
+
+The corpus is 4.3 MB. The compacted on-device USDA index is already 1.4 MB
+(+2.0 MB of Hermes bytecode, measured), so bundling MenuStat too would roughly
+triple it and undo most of the −24.2% bundle cut shipped 2026-08-22.
+
+So **only the 91 chain names ship to the phone** (~2 KB,
+`packages/core/src/restaurant-chains.data.ts`, generated by the ingest) and act
+as a router: a query that names a chain goes to `searchFoods`, which holds the
+whole corpus; every other query stays local, instant and offline as before. The
+two cases have genuinely different requirements — generic food search is the
+common path and must work with the radio off, while naming a restaurant is
+deliberate, rare, and already implies wanting something the device does not
+have. If the call fails, the client falls back to the local index rather than
+showing an error.
+
+The cost of that split is that a query which does *not* name a chain sees no
+restaurant items on mobile. That is accepted: it keeps the app's most-used path
+unchanged.
+
+## Consequences (as built)
+
+- **No new AI, no new secret, no new scheduler job.** Confirmed — the ingest is
+  a hand-run script and the data is committed. There is no refresh, because
+  there is no upstream left to refresh from.
+- **The delivery is a functions deploy + a hosting deploy + a mobile OTA.** Not
+  the "no client release" this ADR originally claimed, but still **no binary on
+  either platform**: the chain list is a JS module, so it rides an `eas update`.
+  `FoodDbSource` widened additively to `'fdc' | 'off' | 'menu'` in both
+  hand-mirrored copies.
+- **`grams: 0` means "one serving, weight not published"** and is now part of
+  the wire contract. 15,012 of 25,126 items are in that state. Every consumer
+  already guarded it except the web picker, which was fixed; the failure it was
+  producing was silent — `buildCustomFood` clamps an out-of-range 0 and would
+  have saved the food as **"100 g"**, a weight nobody measured.
+- **We inherit a staleness obligation, permanently.** A bundled menu that
+  silently ages is the failure mode, and this one can never be updated. The
+  snapshot year is stored per item and carried on the wire as
+  `dataType: "restaurant_menu_2022"`, so the data cannot lie about its own age.
 - **US-only, and the app says so.** Ignia ships en / es-PR / pt-BR; a US-only
   restaurant corpus is a real gap for two of those three locales, and the empty
   state must not pretend otherwise.
+- **MenuStat reuses item names, so the ingest deduplicates on
+  `item_description`.** 857 (chain, name) groups held more than one row with
+  genuinely different macros — Applebee's "Fries Basket" is 640 kcal as a kids'
+  side and 50 kcal under Sides & Extras. Keying on the description drops that to
+  48 residual collisions, and a targeted pass folds the menu section into the
+  visible name for those ("Fries Basket (Kids Sides)"). Picking one row silently
+  would have meant choosing which published figure to hide.
+
+## Follow-ups this decision creates
+
+- **Send the permission email** (drafted; recipients `info@menustat.org` /
+  `MenuStat@health.nyc.gov`). Nothing is blocked on the reply — it converts the
+  weakest point in this ADR into a document. A bounce is itself an answer.
+- **Pollo Tropical** is a major chain in Puerto Rico, publishes official
+  nutrition, and is **not** in MenuStat's 91. One chain, one published source,
+  hand-ingested — a better use of effort for this user than any API.
+- **The provenance chip** ("Chili's · 2022 menu") is a mobile-only UI addition
+  and is not built yet; the wire already carries what it needs. The web app is
+  frozen ([ADR-0022](0022-web-pwa-frozen-not-retired.md)) and renders the item
+  without a chip.

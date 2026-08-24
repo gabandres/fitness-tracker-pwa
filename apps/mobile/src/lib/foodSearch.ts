@@ -1,5 +1,5 @@
 import { httpsCallable } from 'firebase/functions';
-import { makeFoodSearch } from '@macrolog/core';
+import { makeFoodSearch, queryNamesRestaurantChain } from '@macrolog/core';
 import { functions } from './firebase';
 import { localGetDetail, localSearch } from './localFoodSearch';
 
@@ -20,16 +20,35 @@ const client = makeFoodSearch(
 );
 
 /**
- * Text search — ON DEVICE, no network (`localFoodSearch.ts` explains why the
- * server round trip bought nothing).
+ * Text search — ON DEVICE by default, no network (`localFoodSearch.ts` explains
+ * why the server round trip bought nothing for generic food).
  *
- * Async on purpose despite being synchronous underneath: `FoodSearch.tsx` and
- * `MealText.tsx` both `await` this behind a stale-request guard, and making it
- * sync would mean changing those call sites for no gain — and would move the
- * one-time index decode into a render pass. Keeping the promise also leaves the
- * server path one line away if this ever needs to be reverted.
+ * **One exception: a query that names a chain restaurant goes to the server.**
+ * The MenuStat corpus (ADR-0027) is 25,216 items / 4.3 MB and deliberately does
+ * NOT ship to the phone — only the 91 chain names do, as a router. So "olive
+ * garden" or "chickfila" pays a round trip and gets restaurant results; "banana"
+ * stays local, instant, and works with the radio off.
+ *
+ * If that call fails — offline, or the callable is down — we fall back to the
+ * local index rather than surfacing an error. A user who typed a chain name
+ * still gets whatever generic matches exist, which is what they had before this
+ * feature existed. Degrading to the old behaviour beats an empty screen.
+ *
+ * Async on purpose: `FoodSearch.tsx` and `MealText.tsx` both `await` this behind
+ * a stale-request guard, and the local path being synchronous underneath is an
+ * implementation detail.
  */
-export const searchFoods = async (query: string, pageSize = 20) => localSearch(query, pageSize);
+export const searchFoods = async (query: string, pageSize = 20) => {
+  if (queryNamesRestaurantChain(query)) {
+    try {
+      const hits = await client.search(query, pageSize);
+      if (hits.length) return hits;
+    } catch {
+      // Fall through to the local index — see the note above.
+    }
+  }
+  return localSearch(query, pageSize);
+};
 
 /**
  * Detail lookup. Bundled USDA foods resolve locally; **Open Food Facts barcodes

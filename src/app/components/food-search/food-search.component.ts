@@ -441,7 +441,15 @@ export class FoodSearchComponent {
       // (the picked portion × multiplier) as `source:'text'` — no barcode
       // stored even for OFF hits, keeping scan-dedup semantics clean.
       serving: {
-        grams: Math.round(s.grams * m),
+        // A MenuStat restaurant item carries `grams: 0` when the chain never
+        // published a weight (ADR-0027 — 60% of that corpus). Emitting
+        // `Math.round(0 * m)` here fed a 0 into `buildCustomFood`, which clamps
+        // it out of range and silently saves the food as "100 g" — a weight
+        // nobody measured. Undefined is the honest value and the one
+        // `custom-food.ts` already understands: it stores `servingUnit:
+        // 'serving'`. Mobile's picker has guarded this since 2026-07-01; this
+        // was the last unguarded consumer.
+        grams: s.grams > 0 ? Math.round(s.grams * m) : undefined,
         source: 'text',
         name: labelBase.slice(0, 100),
         ...(d.brand ? { brand: d.brand } : {}),

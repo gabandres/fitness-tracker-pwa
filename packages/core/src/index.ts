@@ -327,6 +327,15 @@ export {
   type IndexedFood,
 } from './usda-search';
 
+// Chain-restaurant routing (ADR-0027). Only the chain NAMES ship to the client;
+// the corpus itself stays on the server. `restaurant-chains.ts` explains why.
+export {
+  RESTAURANT_CHAINS,
+  RESTAURANT_SNAPSHOT_YEAR,
+  matchRestaurantChain,
+  queryNamesRestaurantChain,
+} from './restaurant-chains';
+
 // Validation for user-typed calorie/protein targets (targetMode). Shared so
 // the onboarding plan step and the Settings editor cannot disagree about what
 // a legal number is.
