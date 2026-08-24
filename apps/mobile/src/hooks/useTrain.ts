@@ -29,6 +29,7 @@ import {
   applySessionAction,
   findDuplicateExercise,
   localDateKey,
+  newCardioBlock,
   newWorkoutSet,
 } from '@macrolog/core';
 import {
@@ -40,9 +41,12 @@ import {
   type TemplateExercise,
   type WorkoutSession,
   type WorkoutTemplate,
+  dropEmptyCardio,
   dropEmptySets,
+  templateToSessionCardio,
   templateToSessionExercises,
 } from '@/lib/workout';
+import type { CardioModality } from '@macrolog/core/cardio';
 import {
   type SeedTemplate,
   fillMissingClusterLoads,
@@ -71,8 +75,11 @@ export interface TrainState {
    *  a reload). No-op if one is already active. */
   startWorkout: () => Promise<void>;
   /** Begin a session seeded from a template (snapshots its exercises +
-   *  planned sets, stamps templateId/templateName). No-op if one is active. */
+   *  planned sets + prescribed cardio, stamps templateId/templateName).
+   *  No-op if one is active. */
   startFromTemplate: (template: WorkoutTemplate) => Promise<void>;
+  /** Begin a cardio-only session — one block, no exercises (ADR-0025). */
+  startCardioWorkout: (modality: CardioModality) => Promise<void>;
   /** Create (id omitted) or overwrite (id given) a workout template. */
   saveTemplate: (draft: TemplateDraft, id?: string) => Promise<void>;
   /** Clone a shipped starter template: ensure its library exercises exist in
@@ -273,6 +280,34 @@ export function useTrain(): TrainState {
     }
   }, [uid, setActive]);
 
+  /**
+   * Start a session that is cardio only — a run with no lifting.
+   *
+   * Not a variant of {@link startWorkout} with a follow-up dispatch, because
+   * that would write the doc twice and leave a window where an empty session
+   * exists. It is the same session shape either way: `exercises: []` plus one
+   * block, which is what keeps a run inside Train's single history rather than
+   * in a second one (ADR-0025).
+   */
+  const startCardioWorkout = useCallback(
+    async (modality: CardioModality) => {
+      if (!uid || activeRef.current) return;
+      const draft = {
+        status: 'active' as const,
+        date: new Date(),
+        exercises: [],
+        cardio: [newCardioBlock(modality)],
+      };
+      try {
+        const id = await startSession(uid, draft);
+        setActive({ ...draft, id, createdAt: new Date(), updatedAt: new Date() });
+      } catch (e) {
+        setError(e instanceof Error ? e : new Error('Start failed'));
+      }
+    },
+    [uid, setActive],
+  );
+
   const startFromTemplate = useCallback(
     async (template: WorkoutTemplate) => {
       if (!uid || activeRef.current) return;
@@ -282,6 +317,7 @@ export function useTrain(): TrainState {
         templateId: template.id,
         templateName: template.name,
         exercises: templateToSessionExercises(template),
+        cardio: templateToSessionCardio(template),
       };
       try {
         const id = await startSession(uid, draft);
@@ -460,9 +496,13 @@ export function useTrain(): TrainState {
         // Heal logged-but-loadless sets from their siblings before pruning, so
         // a blank-weight cluster/activation row can't persist (see core).
         const exercises = dropEmptySets(fillMissingClusterLoads(active.exercises));
+        // A prescribed block the user never performed must not enter history —
+        // the cardio twin of dropEmptySets.
+        const cardio = dropEmptyCardio(active.cardio);
         await updateSession(uid, active.id, {
           status: 'completed',
           exercises,
+          ...(cardio !== undefined ? { cardio } : {}),
           bodyweight: extras.bodyweight,
           sleepHours: extras.sleepHours,
         });
@@ -565,6 +605,7 @@ export function useTrain(): TrainState {
     saving,
     startWorkout,
     startFromTemplate,
+    startCardioWorkout,
     saveTemplate,
     deleteTemplate,
     cloneStarterTemplate,

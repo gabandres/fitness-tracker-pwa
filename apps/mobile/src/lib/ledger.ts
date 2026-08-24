@@ -72,6 +72,10 @@ import {
   toTemplatePatch,
   toWeeklyReport,
   withDefaultMealSlot,
+  // The energy seam: a finished workout's marker log is 0 kcal, always
+  // (ADR-0026 decision 5). Named rather than inlined so the one crossing point
+  // between cardio and a measured target is greppable.
+  workoutMarkerEntry,
   // Shared workout doc→domain mappers (arch review E). Mobile does NOT
   // normalize cluster groups (the web adapter does), so it uses these directly.
   toWorkoutExercise as toExercise,
@@ -1011,6 +1015,14 @@ export function subscribeRecentSessions(
   );
 }
 
+/** One-shot read of the most recent `count` sessions, newest first. The
+ *  import path needs a snapshot rather than a subscription: it runs on app
+ *  foreground, merges into what it finds, and is done. */
+export async function getRecentSessions(uid: string, count: number): Promise<WorkoutSession[]> {
+  const snap = await getDocs(query(sessionsCol(uid), orderBy('timestamp', 'desc'), limit(count)));
+  return snap.docs.map((d) => toSession(d.id, d.data()));
+}
+
 export async function startSession(uid: string, draft: SessionDraft): Promise<string> {
   return createDoc(sessionsCol(uid), pruneUndefined(toSessionDoc(draft, CODEC)));
 }
@@ -1077,7 +1089,12 @@ export async function getAllSessions(uid: string): Promise<WorkoutSession[]> {
 /** Stamp `date` as an exercise day (a 0-kcal DailyLog with
  *  `exerciseCompleted`) so the workout counts toward the streak — but only
  *  if no exercise-marked log already exists that day. Mirrors
- *  FitnessStore.markExercised. */
+ *  FitnessStore.markExercised.
+ *
+ *  The zero comes from `workoutMarkerEntry` rather than a literal, because
+ *  this log IS an input to energy balance and therefore the one place an
+ *  imported cardio calorie could reach a measured target. ADR-0026 decision 5;
+ *  pinned by `cardio-energy-independence.test.ts`. */
 export async function markExercised(uid: string, date: Date): Promise<void> {
   const key = localDateKey(date);
   const snap = await getDocs(query(logsCol(uid), orderBy('timestamp', 'desc'), limit(60)));
@@ -1088,7 +1105,7 @@ export async function markExercised(uid: string, date: Date): Promise<void> {
     return marked && localDateKey(data.timestamp.toDate()) === key;
   });
   if (already) return;
-  await addLog(uid, { calories: 0, exerciseCompleted: true, timestamp: date });
+  await addLog(uid, { ...workoutMarkerEntry(), timestamp: date });
 }
 
 // ─── Consultation quota (read-only) ─────────────────────────────

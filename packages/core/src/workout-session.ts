@@ -1,3 +1,4 @@
+import type { CardioBlock, CardioModality } from './cardio';
 import { normalizeClusterGroups } from './cluster-groups';
 import type { SessionExercise, SetKind, WorkoutSession, WorkoutSet } from './workout';
 
@@ -34,7 +35,17 @@ export type SessionAction =
   /** Change a set's kind and renumber — a kind change can form or dissolve a
    *  cluster, which is the whole reason this is not a `patchSet`. */
   | { type: 'setSetKind'; exerciseIndex: number; setIndex: number; kind: SetKind }
-  | { type: 'removeSet'; exerciseIndex: number; setIndex: number };
+  | { type: 'removeSet'; exerciseIndex: number; setIndex: number }
+  // ── Cardio (ADR-0025) ──
+  // Cardio edits live in the SAME reducer as set edits, deliberately. The whole
+  // reason this module exists is that the alternative — a callback per edit on
+  // the hook — produced three mutations that were indistinguishable at the call
+  // site. Giving cardio its own set of callbacks would rebuild exactly that.
+  /** Append one empty block of `modality`, ready to be filled in. */
+  | { type: 'addCardio'; modality: CardioModality }
+  /** Patch one block's fields, by index into `session.cardio`. */
+  | { type: 'patchCardio'; blockIndex: number; patch: Partial<CardioBlock> }
+  | { type: 'removeCardio'; blockIndex: number };
 
 /** One empty working set — the row every "add set" produces. */
 export function newWorkoutSet(): WorkoutSet {
@@ -55,6 +66,17 @@ export function newCluster(): WorkoutSet[] {
     { kind: 'mini', done: false },
     { kind: 'mini', done: false },
   ];
+}
+
+/**
+ * One empty manual block — what "add cardio" produces.
+ *
+ * `durationSec: 0` is load-bearing rather than a placeholder: `isLoggedCardioBlock`
+ * reads a positive duration as proof the work happened, so a block sits invisible
+ * to every roll-up, and is dropped on finish, until the user actually fills it in.
+ */
+export function newCardioBlock(modality: CardioModality): CardioBlock {
+  return { modality, durationSec: 0, source: 'manual' };
 }
 
 /** Replace one exercise by index, leaving the session untouched if the index
@@ -139,5 +161,23 @@ export function applySessionAction(
       return mapExercise(session, action.exerciseIndex, (ex) =>
         mapSets(ex, (sets) => normalizeClusterGroups(sets.filter((_, j) => j !== action.setIndex))),
       );
+
+    case 'addCardio':
+      return { ...session, cardio: [...(session.cardio ?? []), newCardioBlock(action.modality)] };
+
+    case 'patchCardio': {
+      const cardio = session.cardio ?? [];
+      if (action.blockIndex < 0 || action.blockIndex >= cardio.length) return session;
+      return {
+        ...session,
+        cardio: cardio.map((b, i) => (i === action.blockIndex ? { ...b, ...action.patch } : b)),
+      };
+    }
+
+    case 'removeCardio': {
+      const cardio = session.cardio ?? [];
+      if (action.blockIndex < 0 || action.blockIndex >= cardio.length) return session;
+      return { ...session, cardio: cardio.filter((_, i) => i !== action.blockIndex) };
+    }
   }
 }

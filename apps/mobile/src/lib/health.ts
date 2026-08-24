@@ -1,5 +1,7 @@
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
+import type { HealthWorkout } from '@macrolog/core/health-workouts';
+import { toCardioModality } from '@macrolog/core/health-workouts';
 import {
   type WritableKind,
   type HealthSample,
@@ -63,6 +65,22 @@ export interface HealthPort {
   requestPermissions(): Promise<boolean>;
   /** Read the last `sinceDays` of one kind as canonical-unit samples. */
   readSamples(kind: ReadableKind, sinceDays: number): Promise<HealthSample[]>;
+  /**
+   * Read the last `sinceDays` of WORKOUTS as neutral events (ADR-0026).
+   *
+   * Deliberately not a `ReadableKind`: a workout is an event with a start, an
+   * end and a modality, and `health-mapping`'s daily-scalar pipeline would
+   * fold exactly that away. The pure mapping lives in
+   * `@macrolog/core/health-workouts`.
+   *
+   * **Returns `[]` rather than throwing when the scope was never granted.**
+   * That is not a convenience — it is HealthKit's own documented behaviour for
+   * an unauthorized read, and matching it on Android keeps the two platforms
+   * from needing different call sites. The cost is that "no permission" and
+   * "no workouts" are indistinguishable here, which is why the UI states the
+   * permission separately instead of inferring it from an empty list.
+   */
+  readWorkouts(sinceDays: number): Promise<HealthWorkout[]>;
   /** Write one day's canonical-unit value (weight lb / sleep hours / water
    *  fl oz / body-fat percent). The sample is dated within `dateKey`'s day, so
    *  editing a past day exports to Health on that day, not today. */
@@ -121,6 +139,19 @@ interface HKQty {
 interface HKCat extends HKQty {
   value: number;
 }
+/** The fields we read off a HealthKit workout. Loose for the same reason
+ *  {@link HKQty} is — kingstinct's generated workout types are heavier and
+ *  stricter than what can be verified here without a native build. */
+interface HKWorkoutRow {
+  uuid?: string;
+  workoutActivityType?: string | number;
+  startDate: string | number | Date;
+  endDate: string | number | Date;
+  totalDistance?: { quantity?: number };
+  totalEnergyBurned?: { quantity?: number };
+  sourceRevision?: { source?: { bundleIdentifier?: string; name?: string } };
+}
+
 /** One interval of a statistics-collection response. `sumQuantity` is absent
  *  for an interval with no samples at all. */
 interface HKStatsBucket {
@@ -176,6 +207,15 @@ const healthKit: HealthPort = {
         // permission sheet would make the user grant for nothing.
         'HKQuantityTypeIdentifierStepCount',
         'HKQuantityTypeIdentifierActiveEnergyBurned',
+        // Cardio import (ADR-0026). A READ scope only: we already write
+        // workouts via `toShare` below, and re-importing our own exports is
+        // guarded by `fromUs` rather than by asking for less access.
+        //
+        // Adding this moves NO native surface — HealthKit read types are
+        // requested at runtime and NSHealthShareUsageDescription already
+        // covers them — which is why iOS gets cardio import by OTA while
+        // Android waits for a binary. See the ADR-0026 amendment.
+        'HKWorkoutTypeIdentifier',
       ] as never,
       toShare: [
         'HKQuantityTypeIdentifierBodyMass',
@@ -298,6 +338,36 @@ const healthKit: HealthPort = {
     ]);
   },
 
+  async readWorkouts(sinceDays) {
+    const HK = await hkModule();
+    // Loosely typed for the same reason `writeWorkout` below is: the generated
+    // overloads are stricter than anything verifiable without a native build.
+    const query = HK.queryWorkoutSamples as unknown as
+      | ((opts: unknown) => Promise<unknown>)
+      | undefined;
+    if (typeof query !== 'function') return [];
+    const rows = (await query({
+      limit: 0,
+      energyUnit: 'kcal',
+      distanceUnit: 'm',
+      filter: { startDate: sinceDate(sinceDays), endDate: new Date() },
+    })) as unknown as HKWorkoutRow[];
+    return (rows ?? []).map((w) => ({
+      // `uuid` is HealthKit's stable per-sample identity and is what makes a
+      // re-import update rather than duplicate. Falling back to the time range
+      // keeps that property for any build where the field is absent.
+      id: String(w.uuid ?? `${ms(w.startDate)}-${ms(w.endDate)}`),
+      activityType: String(w.workoutActivityType ?? ''),
+      startMs: ms(w.startDate),
+      endMs: ms(w.endDate),
+      distanceM: w.totalDistance?.quantity,
+      kcal: w.totalEnergyBurned?.quantity,
+      sourceBundleId: w.sourceRevision?.source?.bundleIdentifier,
+      sourceName: w.sourceRevision?.source?.name,
+      fromUs: w.sourceRevision?.source?.bundleIdentifier === APP_ID,
+    }));
+  },
+
   async writeWorkout({ start, end }) {
     const HK = await hkModule();
     const durationSec = Math.max(1, Math.round((end.getTime() - start.getTime()) / 1000));
@@ -341,7 +411,94 @@ interface HCPeriodGroup {
   };
 }
 
+/** The ExerciseSession fields we read. `exerciseType` is a numeric enum on this
+ *  platform (HealthKit hands over a string), and `metadata.id` is the stable
+ *  record identity that makes a re-import update instead of duplicate. */
+interface HCExerciseSession {
+  startTime?: string;
+  endTime?: string;
+  exerciseType?: number | string;
+  title?: string;
+  metadata?: { id?: string; dataOrigin?: string };
+}
+
 const hcModule = () => import('react-native-health-connect');
+
+/**
+ * Invert Health Connect's `ExerciseType` name→int table into int→name.
+ *
+ * Without this every Android workout classifies as `other`, because
+ * `toCardioModality` matches on the platform's *name* and this platform sends a
+ * number. Read off the module rather than hard-coded: the table gains entries
+ * with each Health Connect release, and a stale local copy fails silently by
+ * mislabelling new types rather than by erroring.
+ *
+ * Returns `{}` if the export is missing or shaped differently — callers then
+ * fall back to the raw number, which maps to `other` and keeps its digits as a
+ * label. Wrong, but visibly wrong, which is the better failure.
+ */
+function exerciseTypeNames(mod: Record<string, unknown>): Record<number, string> {
+  const table = mod['ExerciseType'];
+  if (!table || typeof table !== 'object') return {};
+  const out: Record<number, string> = {};
+  for (const [name, value] of Object.entries(table as Record<string, unknown>)) {
+    if (typeof value === 'number') out[value] = name;
+  }
+  return out;
+}
+
+/** Modalities where a distance and an energy total are worth two extra calls.
+ *  A strength session has no distance, and a first import over 90 days would
+ *  otherwise pay for one per session to learn that. */
+const HC_DISTANCE_MODALITIES = new Set(['run', 'walk', 'ride', 'hike', 'row', 'swim']);
+
+/**
+ * Aggregate one session's distance and active energy.
+ *
+ * Health Connect stores these as their own record types rather than as fields
+ * on the session, so there is no cheaper way to get them. Each is independently
+ * guarded: `READ_DISTANCE` is not declared in `app.json` either, so on today's
+ * binary both simply come back absent, and a block with a duration and no
+ * distance is a correct block rather than a broken one.
+ */
+async function hcSessionTotals(
+  HC: Awaited<ReturnType<typeof hcModule>>,
+  typeName: string,
+  startTime: string | undefined,
+  endTime: string | undefined,
+): Promise<{ distanceM?: number; kcal?: number }> {
+  if (!startTime || !endTime) return {};
+  const modality = toCardioModality(typeName);
+  if (!HC_DISTANCE_MODALITIES.has(modality)) return {};
+  const filter = { operator: 'between', startTime, endTime };
+  // The aggregate entry point is looked up by name rather than called through
+  // the typed namespace, and both spellings are probed. The package's own
+  // declarations are not readable from this workspace, the two names have both
+  // shipped across versions, and Android cannot exercise this path at all
+  // until READ_EXERCISE lands in a binary — so an unresolvable name must
+  // degrade to "no totals" rather than fail to compile or throw at runtime.
+  // Same posture as `HK.saveWorkoutSample`, which is cast for the same reason.
+  const mod = HC as unknown as Record<string, unknown>;
+  const agg = (mod['aggregateRecord'] ?? mod['aggregate']) as
+    | ((opts: unknown) => Promise<unknown>)
+    | undefined;
+  if (typeof agg !== 'function') return {};
+  const one = async (recordType: string): Promise<Record<string, unknown> | null> => {
+    try {
+      return (await agg({ recordType, timeRangeFilter: filter })) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  };
+  const [dist, energy] = await Promise.all([one('Distance'), one('ActiveCaloriesBurned')]);
+  const meters = (dist?.['DISTANCE'] as { inMeters?: number } | undefined)?.inMeters;
+  const kcal = (energy?.['ACTIVE_CALORIES_TOTAL'] as { inKilocalories?: number } | undefined)
+    ?.inKilocalories;
+  return {
+    ...(typeof meters === 'number' ? { distanceM: meters } : {}),
+    ...(typeof kcal === 'number' ? { kcal } : {}),
+  };
+}
 
 const HC_READ: Record<ReadableKind, string> = {
   weight: 'Weight',
@@ -524,6 +681,64 @@ const healthConnect: HealthPort = {
     await HC.insertRecords([record] as never);
   },
 
+  async readWorkouts(sinceDays) {
+    // Guarded whole: until `android.permission.health.READ_EXERCISE` is
+    // declared in app.json (a manifest change, so it needs a NEW BINARY --
+    // ADR-0026 amendment, decision 7), Health Connect refuses this read. It is
+    // meant to return an empty list rather than throw, but "meant to" is not a
+    // contract worth a crash on the Train tab, and every failure mode here --
+    // missing permission, revoked permission, Health Connect not installed --
+    // is legitimately "no workouts to import".
+    try {
+      const HC = await hcModule();
+      await HC.initialize();
+      const res = (await HC.readRecords('ExerciseSession' as never, {
+        timeRangeFilter: {
+          operator: 'between',
+          startTime: sinceDate(sinceDays).toISOString(),
+          endTime: new Date().toISOString(),
+        },
+      } as never)) as unknown as { records?: HCExerciseSession[] } | HCExerciseSession[];
+      const records = Array.isArray(res) ? res : (res?.records ?? []);
+
+      // `exerciseType` is a NUMERIC enum here, where HealthKit gives a string.
+      // Handing the number straight to `toCardioModality` would classify every
+      // Android workout as `other`, silently. The module exports the name->int
+      // table, so invert it once per read.
+      const names = exerciseTypeNames(HC as unknown as Record<string, unknown>);
+
+      const out: HealthWorkout[] = [];
+      for (const r of records) {
+        const startMs = new Date(r.startTime ?? 0).getTime();
+        const endMs = new Date(r.endTime ?? 0).getTime();
+        if (!(endMs > startMs)) continue;
+        const typeName =
+          typeof r.exerciseType === 'number'
+            ? (names[r.exerciseType] ?? String(r.exerciseType))
+            : String(r.exerciseType ?? '');
+        const origin = r.metadata?.dataOrigin;
+        out.push({
+          id: String(r.metadata?.id ?? `${startMs}-${endMs}`),
+          activityType: typeName,
+          startMs,
+          endMs,
+          // Distance and energy are SEPARATE record types in Health Connect --
+          // an ExerciseSession carries neither -- so each needs its own
+          // aggregate over the session's window. Skipped for modalities where
+          // a distance is meaningless, to keep a first import from making two
+          // extra calls per strength session.
+          ...(await hcSessionTotals(HC, typeName, r.startTime, r.endTime)),
+          sourceBundleId: origin,
+          sourceName: r.title,
+          fromUs: origin === APP_ID,
+        });
+      }
+      return out;
+    } catch {
+      return [];
+    }
+  },
+
   async writeWorkout({ start, end, label }) {
     const HC = await hcModule();
     await HC.initialize();
@@ -551,6 +766,9 @@ const noopHealth: HealthPort = {
     return false;
   },
   async readSamples() {
+    return [];
+  },
+  async readWorkouts() {
     return [];
   },
   async writeDaily() {},

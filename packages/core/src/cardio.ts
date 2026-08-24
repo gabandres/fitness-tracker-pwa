@@ -220,6 +220,43 @@ export function isLoggedCardioBlock(b: Pick<CardioBlock, 'durationSec'>): boolea
   return Number.isFinite(b.durationSec) && b.durationSec > 0;
 }
 
+// ─── The energy seam ────────────────────────────────────────────
+
+/**
+ * The calorie value of the marker log a finished workout writes. It is zero,
+ * and it stays zero however much energy the ring reported.
+ *
+ * ## Why this is a named constant and not an inline `0`
+ *
+ * Finishing a session stamps a `DailyLog` so the day counts toward the streak
+ * and shows its History dot (ADR-0007). That log is an input to energy
+ * balance, and energy balance is what produces a measured target past 14
+ * logged days (ADR-0024). So this literal is the ONLY place a cardio calorie
+ * could cross into the estimator — and "we have the number, let's use it" is a
+ * natural-looking change that no existing test would have caught.
+ *
+ * Spending it here double-counts: the weight trend the estimator reads already
+ * contains the run. `CardioBlock.kcal` is what your ring said, rendered as
+ * provenance; it is not a budget.
+ *
+ * Pinned by `./cardio-energy-independence.test.ts`, which also demonstrates
+ * how far a measured target WOULD move if this were wired up — so the test
+ * cannot pass vacuously.
+ */
+export const WORKOUT_MARKER_KCAL = 0;
+
+/**
+ * The zero-calorie marker a finished session writes, whatever cardio it
+ * carried. Both the block list and its reported energy are accepted and
+ * deliberately ignored — taking them as arguments is what makes the discarding
+ * explicit at the call site instead of implicit in a literal.
+ */
+export function workoutMarkerEntry(
+  _cardio?: readonly Pick<CardioBlock, 'kcal'>[],
+): { calories: number; exerciseCompleted: true } {
+  return { calories: WORKOUT_MARKER_KCAL, exerciseCompleted: true };
+}
+
 /**
  * Whether a modality's rate reads naturally as pace (time per distance) or as
  * speed (distance per hour).

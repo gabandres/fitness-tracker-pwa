@@ -98,6 +98,49 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     gap: space.xs,
   },
   exRemove: { fontSize: font.tiny, color: colors.danger, fontWeight: '700', textTransform: 'uppercase' },
+
+  // ── cardio (ADR-0025) ──
+  // Shares `exCard`'s frame on purpose: a cardio block and an exercise are
+  // peers inside one session, and giving cardio its own card treatment would
+  // make it read as a different feature bolted on beside Train.
+  cardioHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44 },
+  cardioName: { fontFamily: type.heading, fontSize: font.h3, color: colors.ink, flexShrink: 1 },
+  cardioSummary: { fontSize: font.small, color: colors.muted, marginTop: 2 },
+  cardioFieldRow: { flexDirection: 'row', gap: space.sm, alignItems: 'flex-end' },
+  cardioField: { flex: 1, gap: space.xs },
+  cardioLabel: { fontSize: font.tiny, color: colors.muted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.3 },
+  cardioInput: {
+    backgroundColor: colors.inputBg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+    fontSize: font.body,
+    color: colors.ink,
+    textAlign: 'center',
+  },
+  // Provenance, not decoration: this chip is what makes an imported block read
+  // as "your ring recorded this" rather than as something the app invented.
+  cardioVia: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    backgroundColor: colors.inputBg,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.sm,
+    paddingVertical: 2,
+  },
+  cardioViaText: { fontSize: font.tiny, color: colors.muted, fontWeight: '700' },
+  // The ring's calorie number and, directly under it, why it is not a budget.
+  // The two are one unit — the number alone invites exactly the double-count
+  // ADR-0024 decision 4 forbids.
+  cardioKcal: { fontSize: font.small, color: colors.ink, fontWeight: '700', marginTop: space.xs },
+  cardioKcalWhy: { fontSize: font.tiny, color: colors.faint, lineHeight: 15, marginTop: 2 },
+  cardioWarn: { fontSize: font.tiny, color: colors.muted, lineHeight: 15, marginTop: space.xs },
+  cardioTarget: { fontSize: font.tiny, color: colors.accent, fontWeight: '700' },
+  modalityChips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
   setHeadRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   setHeadCell: { fontSize: font.tiny, color: colors.muted, fontWeight: '600', textTransform: 'uppercase' },
   setRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },

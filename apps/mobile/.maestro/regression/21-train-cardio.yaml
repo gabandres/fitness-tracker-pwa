@@ -1,0 +1,128 @@
+# CARDIO BLOCKS on a workout session — ADR-0025.
+#
+# What only a device run can prove here, and jest cannot:
+#   - the cardio card's inputs LAY OUT beside each other rather than collapsing
+#     (RNTL renders the element tree and never runs a Yoga layout pass — the
+#     blind spot that shipped a collapsed search field on 2026-08-08 and an
+#     invisible "Repeat yesterday" on 2026-08-22, both `flex` bugs);
+#   - the summary line recomputes from a real keystroke, through the deferred
+#     dispatch and the commit-on-blur, rather than from a props object;
+#   - a session round-trips through Firestore carrying `cardio`, which is the
+#     half no unit test reaches: the rules validate it as an opaque capped list,
+#     so a shape error surfaces as a rejected WRITE and nowhere else.
+#
+# The last one is the reason this flow exists at all. `cardio` was added to
+# `isValidWorkoutSession`'s hasOnly() allow-list on 2026-08-24 and deployed
+# before any client wrote the field; if that deploy were ever rolled back, every
+# assertion below would still pass locally and the write would fail silently on
+# the device.
+#
+# ANDROID NOTE: this flow covers the MANUAL path only. Cardio IMPORT from the
+# health store cannot run here — it needs `android.permission.health.READ_EXERCISE`,
+# which is a manifest change and therefore a new binary (ADR-0026 amendment,
+# decision 7). Until vc 38, `readWorkouts` returns an empty list on Android by
+# design, so there is nothing for a flow to assert. Import is verified on iOS.
+#
+# STATE: starts ONE session and DISCARDS it in its own tail, so nothing is left
+# in Firestore. If a run dies mid-flow the marker is an in-progress workout on
+# Train — tap "Discard" by hand, or the next flow's guard will.
+appId: fit.ignia.app
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Today'
+- tapOn: 'Train'
+
+# A session left in progress by an earlier flow's death hides the idle view and
+# `start-workout` is then absent for a reason that has nothing to do with
+# cardio. Same guard as 16 and 18.
+- runFlow:
+    when:
+      visible:
+        id: 'discard-workout'
+    commands:
+      - tapOn:
+          id: 'discard-workout'
+      - extendedWaitUntil:
+          visible:
+            id: 'start-workout'
+          timeout: 15000
+
+# 60s, not 15s. The Train tab subscribes to templates, history, exercises and
+# the week summary on first focus; on the LG G6 (API 28) after a cold start that
+# has taken ~2 minutes to settle. Measured 2026-08-20, same budget as 18.
+- extendedWaitUntil:
+    visible:
+      id: 'start-workout'
+    timeout: 60000
+- tapOn:
+    id: 'start-workout'
+
+# ── 1. Add a cardio block ─────────────────────────────────────────
+# The button sits below the exercise list, so on a session with exercises it is
+# off-screen — scroll rather than tap blind.
+- scrollUntilVisible:
+    element:
+      id: 'add-cardio'
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn:
+    id: 'add-cardio'
+
+# The picker is a <BottomSheet>; every other sheet in the app is too, and
+# `sheets-are-one-component.test.ts` fails the build if one is hand-rolled.
+- assertVisible: 'What did you do?'
+- tapOn:
+    id: 'cardio-modality-run'
+
+# ── 2. The card renders with its own fields ───────────────────────
+# "Add a duration to log this." is the empty-block line, and asserting it is
+# what proves a fresh block is NOT counted as work the user did — the cardio
+# form of the `targetReps` footgun ADR-0007 already paid for once.
+- assertVisible: 'Run'
+- assertVisible: 'Add a duration to log this.'
+
+# Every field must be on screen at once. If the row collapsed, these are the
+# assertions that fail — and they are the ones jest cannot make.
+- assertVisible: 'DISTANCE (mi)'
+- assertVisible: 'AVG HR (bpm)'
+- assertVisible: 'EFFORT'
+
+# ── 3. A real keystroke moves the summary ─────────────────────────
+# Tap the FIELD by id, not the label by text: a label tap focuses nothing, and
+# a shared id would type into whichever card rendered first.
+- tapOn:
+    id: 'cardio-duration-0'
+- inputText: '32'
+- hideKeyboard
+
+# 32 minutes, formatted by `formatDuration` in core: unpadded minutes under an
+# hour. If this reads 0:00 the deferred dispatch never committed on blur.
+- extendedWaitUntil:
+    visible: '32:00'
+    timeout: 10000
+
+# ── 4. It survives a round trip through Firestore ─────────────────
+# Leave Train and come back: the screen re-reads the active session from the
+# ledger, so a `cardio` array that the rules rejected would come back missing.
+- tapOn: 'Today'
+- assertVisible: 'Today'
+- tapOn: 'Train'
+- extendedWaitUntil:
+    visible: '32:00'
+    timeout: 30000
+
+# ── 5. Tail: discard, leaving no state ────────────────────────────
+- scrollUntilVisible:
+    element:
+      id: 'discard-workout'
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn:
+    id: 'discard-workout'
+- extendedWaitUntil:
+    visible:
+      id: 'start-workout'
+    timeout: 20000
