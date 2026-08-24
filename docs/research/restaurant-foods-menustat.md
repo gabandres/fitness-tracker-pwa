@@ -84,7 +84,9 @@ position than shipping the CC0 one, and the ADR must not blur them together.
 to redistribute the 2022 dataset inside a commercial app from a public repo, and
 stating the CC0-2018 fallback plainly so a “no” is cheap to give.
 
-**Expect the `info@menustat.org` copy to bounce.** That domain has no resolvable
+**Delivery is confirmed by Exchange message trace, not assumed:**
+`MenuStat@health.nyc.gov` = **Delivered**; `info@menustat.org` = **Pending**,
+and it will bounce. That domain has no resolvable
 MX — the whole zone SERVFAILs, which is the same failure that took the website
 down — so `health.nyc.gov` (valid Proofpoint MX) is the copy that can actually
 arrive, and Cc-ing it is what makes this worth sending at all. **A bounce from
