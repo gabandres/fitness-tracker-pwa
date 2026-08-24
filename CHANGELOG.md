@@ -6,6 +6,42 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-23 — the pages say what they are, to a crawler that runs no JavaScript
+
+Measured on 2026-08-17: 110 of 114 sitemap URLs were *unknown to Google*, and
+what a first-pass crawler received on every page was `<app-root></app-root>` —
+a title, a one-line description, and nothing else. The footer work that day
+gave the site a link graph. This gives it words.
+
+Every content route now ships its real copy in the served HTML, read from the
+same i18n bundles and `vs-data.ts` the components render from — so a copy edit
+or a translation lands in both surfaces or in neither. Live and verified on
+`ignia.fit`:
+
+| Page | Before | Now |
+|---|---|---|
+| `/privacy` — the URL App Review requires | title + 1 line | 6,571 chars, 10 sections |
+| `/es/privacy` | title + 1 line | 7,035 chars, 10 sections |
+| `/terms` — the URL the listing points at | title + 1 line | 10 sections |
+| `/faq` | title + 1 line | 12 questions and answers |
+| `/vs/<competitor>` | title + 1 line | the comparison table, as a real table |
+| 36 macro brackets · 8 calculator variants | title + 1 line | their figures and their copy |
+
+`/changelog`, `/status` and `/transformations` are deliberately unchanged —
+they are generated at runtime and have no static copy to lift.
+
+It goes inside `<noscript>`, alongside the heading fallback from 08-17: anyone
+with JavaScript gets the app byte for byte as before, there is no flash of
+static copy under the SPA, and there is no second visible body to drift. It is
+the same text the page renders, so it is a fallback and not a cloak.
+
+The legal pages fail the BUILD if a section is added to i18n and not carried
+over — a compliance page that is complete in the app and truncated to a crawler
+is exactly the drift nothing else here would report.
+
+**This changes what Google finds; it cannot make Google come.** Re-measure with
+`node scripts/gsc.mjs inspect` before claiming any of it worked.
+
 ## 2026-08-23 — the watch reads correctly on both sizes, in both languages
 
 **#46 is closed, and it was the last open item of the 16-ticket Apple
