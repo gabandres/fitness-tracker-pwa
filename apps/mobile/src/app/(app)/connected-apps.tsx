@@ -1,11 +1,22 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  Animated,
+  Easing,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth';
 import { useLocale, useT } from '@/i18n';
 import { formatDate, formatTime } from '@/lib/date-format';
+import { useHealthSync } from '@/lib/health-sync';
 import { useOura } from '@/lib/oura';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -28,15 +39,20 @@ import { font, radius, space } from '@/theme';
  * the ring was last read, and how much came back. Those three answer "is it
  * working?" without the user having to go and check Train.
  *
- * ## What is deliberately NOT here
+ * ## Apple Health belongs here too, and the first version was wrong to split it
  *
- * **Apple Health / Health Connect.** It looks like a sibling and is not: it is
- * an OS permission for a store on the device, with no account, no OAuth, no
- * revocation page and no scopes — and its controls are entangled with platform
- * branches this screen would have to reproduce. It stays in Settings under its
- * own heading. This screen is for services with an account on the other end,
- * which is what "connected apps" means to a user and what Garmin and Whoop
- * would join.
+ * It was left in Settings on the reasoning that it is an OS permission rather
+ * than an OAuth account — no credential, no revocation page, no scopes. That
+ * is a true distinction and the wrong one to organise a screen around: it
+ * describes how the integration is *implemented*, not what it *is* to the
+ * person using it. Someone asking "what is feeding my app?" means Apple Health
+ * every bit as much as Oura, and answering that in two different places is how
+ * the Settings page grew two near-identical sections in the first place.
+ *
+ * So both live here, and both get the same evidence: is it on, when did it last
+ * run, what came back. The platform branches Health needs are a few lines, and
+ * "the code is fiddlier" was never a reason to make the user look in two
+ * places.
  *
  * ## Adding the second provider
  *
@@ -53,7 +69,35 @@ export default function ConnectedAppsScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const oura = useOura(user?.uid);
+  const healthSync = useHealthSync(user?.uid);
   const [showDetails, setShowDetails] = useState(false);
+  const [healthMsg, setHealthMsg] = useState<string | null>(null);
+
+  async function toggleHealth(next: boolean) {
+    haptics.tap();
+    if (next) {
+      const ok = await healthSync.connect();
+      setHealthMsg(ok ? t('settings.healthConnected') : t('settings.healthDenied'));
+    } else {
+      await healthSync.disconnect();
+      setHealthMsg(null);
+    }
+  }
+
+  /** Re-prompt for the OS health scopes. Connecting again IS the whole fix —
+   *  `connectHealth` stamps the current scope version only on success, so a
+   *  declined prompt leaves the banner up rather than silently clearing it. */
+  async function onHealthReconnect() {
+    haptics.tap();
+    const ok = await healthSync.connect();
+    setHealthMsg(ok ? t('settings.healthConnected') : t('settings.healthDenied'));
+  }
+
+  async function onHealthSyncNow() {
+    haptics.tap();
+    const n = await healthSync.syncNow();
+    setHealthMsg(t('settings.healthSynced', { n }));
+  }
 
   const connected = oura.status.connected;
 
@@ -268,6 +312,69 @@ export default function ConnectedAppsScreen() {
             </View>
           ) : null}
         </View>
+
+        {healthSync.available ? (
+          <View style={styles.card} testID="provider-health">
+            <View style={styles.cardHead}>
+              <View style={styles.cardHeadText}>
+                <Text style={styles.provider}>
+                  {Platform.OS === 'ios'
+                    ? t('settings.healthConnectIos')
+                    : t('settings.healthConnectAndroid')}
+                </Text>
+                <Text style={styles.providerSub}>{t('settings.healthSub')}</Text>
+              </View>
+              <Switch
+                value={healthSync.connected}
+                onValueChange={toggleHealth}
+                trackColor={{ true: colors.tealSolid, false: colors.line }}
+                testID="health-toggle"
+              />
+            </View>
+
+            {healthSync.connected ? (
+              <>
+                {/*
+                  Workout import state is STATED rather than inferred, because
+                  an unauthorized read returns an EMPTY LIST on both platforms —
+                  so "no permission" and "no workouts" are identical to the code
+                  and must not be identical here.
+                */}
+                <View style={styles.evidence}>
+                  <Text style={styles.evidenceLine}>
+                    {healthSync.needsReauth
+                      ? t('health.reconnectBody')
+                      : Platform.OS === 'android'
+                        ? t('health.androidPending')
+                        : t('health.workoutsOn')}
+                  </Text>
+                  {!healthSync.needsReauth && Platform.OS === 'ios' ? (
+                    <Text style={styles.evidenceLine}>{t('health.ouraHint')}</Text>
+                  ) : null}
+                </View>
+
+                <View style={styles.actions}>
+                  <TouchableOpacity
+                    onPress={healthSync.needsReauth ? onHealthReconnect : onHealthSyncNow}
+                    disabled={healthSync.syncing}
+                    style={[styles.btn, styles.btnPrimary, healthSync.syncing && styles.btnDisabled]}
+                    testID="health-sync-now"
+                  >
+                    <Text style={[styles.btnText, styles.btnTextPrimary]}>
+                      {healthSync.syncing
+                        ? t('common.saving')
+                        : healthSync.needsReauth
+                          ? t('health.reconnect')
+                          : t('settings.healthSyncNow')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : null}
+
+            {healthMsg ? <Text style={styles.msg}>{healthMsg}</Text> : null}
+          </View>
+        ) : null}
 
         <Text style={styles.footnote}>{t('connected.footnote')}</Text>
       </ScrollView>

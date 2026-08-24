@@ -28,8 +28,6 @@ import { TipSheet } from '@/components/TipSheet';
 import { QuickAddCard } from '@/components/QuickAddCard';
 import { WatchDiagnosticsCard } from '@/components/WatchDiagnosticsCard';
 import { SignInMethodsCard } from '@/components/SignInMethodsCard';
-import { useHealthSync } from '@/lib/health-sync';
-import { useOura } from '@/lib/oura';
 import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
 import {
   getReminderSettings,
@@ -310,32 +308,6 @@ export default function Settings() {
     await setWeeklyDigestOptIn(user.uid, next);
   }
 
-  const healthSync = useHealthSync(user?.uid);
-  const oura = useOura(user?.uid);
-  const [healthMsg, setHealthMsg] = useState<string | null>(null);
-  async function toggleHealth(next: boolean) {
-    haptics.tap();
-    if (next) {
-      const ok = await healthSync.connect();
-      setHealthMsg(ok ? t('settings.healthConnected') : t('settings.healthDenied'));
-    } else {
-      await healthSync.disconnect();
-      setHealthMsg(null);
-    }
-  }
-  /** Re-prompt for the OS health scopes. Connecting again IS the whole fix —
-   *  `connectHealth` stamps the current scope version only on success, so a
-   *  declined prompt leaves the banner up rather than silently clearing it. */
-  async function onHealthReconnect() {
-    haptics.tap();
-    const ok = await healthSync.connect();
-    setHealthMsg(ok ? t('settings.healthConnected') : t('settings.healthDenied'));
-  }
-  async function onHealthSyncNow() {
-    haptics.tap();
-    const n = await healthSync.syncNow();
-    setHealthMsg(t('settings.healthSynced', { n }));
-  }
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -735,82 +707,6 @@ export default function Settings() {
         <Text style={styles.section}>{t('settings.watchSection')}</Text>
         <WatchDiagnosticsCard />
 
-        {healthSync.available ? (
-          <>
-            <Text style={styles.section}>{t('settings.healthSection')}</Text>
-            <View style={styles.card}>
-              <View style={styles.rowBetween}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.rowLabel}>
-                    {Platform.OS === 'ios' ? t('settings.healthConnectIos') : t('settings.healthConnectAndroid')}
-                  </Text>
-                  <Text style={styles.rowValue}>{t('settings.healthSub')}</Text>
-                </View>
-                <Switch
-                  value={healthSync.connected}
-                  onValueChange={toggleHealth}
-                  trackColor={{ true: colors.tealSolid, false: colors.line }}
-                  testID="health-toggle"
-                />
-              </View>
-              {healthSync.connected ? (
-                <View style={styles.digestRow}>
-                  {/* Same fix as the Oura row below. This string is short in
-                      English and fits today, so the bug is latent here — but
-                      es-PR and pt-BR are longer, and that is how it would
-                      surface: in a locale nobody screenshots. */}
-                  <Text style={[styles.rowValue, styles.digestRowText]}>{t('settings.healthSyncHint')}</Text>
-                  <TouchableOpacity
-                    onPress={onHealthSyncNow}
-                    disabled={healthSync.syncing}
-                    style={[styles.exportBtn, healthSync.syncing && styles.exportBtnDisabled]}
-                    testID="health-sync-now"
-                  >
-                    <Text style={styles.exportBtnText}>
-                      {healthSync.syncing ? t('common.saving') : t('settings.healthSyncNow')}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-              {/*
-                Cardio import (ADR-0026). The state is STATED rather than
-                inferred, because an unauthorized read returns an EMPTY LIST on
-                both platforms — so "no permission" and "no workouts" are the
-                same thing to the code, and must not be the same thing here.
-              */}
-              {healthSync.connected ? (
-                <View style={styles.digestRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.rowLabel}>{t('health.workouts')}</Text>
-                    <Text style={styles.rowValue}>
-                      {healthSync.needsReauth
-                        ? t('health.reconnectBody')
-                        : Platform.OS === 'android'
-                          ? t('health.androidPending')
-                          : t('health.workoutsOn')}
-                    </Text>
-                    {/* The one failure we can neither detect nor fix: with
-                        workout export off in the Oura app we see nothing at
-                        all, and that is indistinguishable from a rest week. */}
-                    {!healthSync.needsReauth && Platform.OS === 'ios' ? (
-                      <Text style={styles.rowValue}>{t('health.ouraHint')}</Text>
-                    ) : null}
-                  </View>
-                  {healthSync.needsReauth ? (
-                    <TouchableOpacity
-                      onPress={onHealthReconnect}
-                      style={styles.exportBtn}
-                      testID="health-reconnect"
-                    >
-                      <Text style={styles.exportBtnText}>{t('health.reconnect')}</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-              ) : null}
-              {healthMsg ? <Text style={styles.exportMsg}>{healthMsg}</Text> : null}
-            </View>
-          </>
-        ) : null}
 
         {/*
           Connected apps — the Oura Cloud API link (issue #72).
@@ -845,9 +741,12 @@ export default function Settings() {
           <View style={styles.rowBetween}>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>{t('settings.connectedApps')}</Text>
-              <Text style={styles.rowValue}>
-                {oura.status.connected ? t('oura.subConnected') : t('settings.connectedAppsSub')}
-              </Text>
+              {/* Static, deliberately. Labelling this row with live status
+                  would mean Settings holding an Oura snapshot listener purely
+                  for one line of text — and ADR-0016 is explicit that a hook
+                  subscribes for a screen that needs it, not for a label. The
+                  screen one tap away shows the real state. */}
+              <Text style={styles.rowValue}>{t('settings.connectedAppsSub')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.faint} />
           </View>

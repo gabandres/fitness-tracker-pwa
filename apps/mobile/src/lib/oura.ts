@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { needsOuraScopeUpgrade, parseOuraDaily } from '@macrolog/core';
 import * as WebBrowser from 'expo-web-browser';
@@ -348,4 +349,77 @@ export function useOura(uid: string | undefined) {
     disconnect,
     syncNow,
   };
+}
+
+
+/**
+ * Minimum gap between automatic imports, per app foreground.
+ *
+ * Oura's data changes a few times a day, not continuously, and a ring's night
+ * is finalised once. Re-reading on every single foreground would spend a user's
+ * battery and Oura's rate budget to re-fetch what we already have — so the
+ * automatic path is throttled and the manual button stays for "I want it now".
+ */
+const AUTO_IMPORT_MIN_GAP_MS = 60 * 60 * 1000;
+
+/**
+ * Import Oura in the background, without anyone tapping anything.
+ *
+ * **Why this exists.** The first version had one button, and it produced
+ * exactly the confusion it should have: a tester connected her ring, tapped
+ * Import on the Connected apps screen, was told 15 days had landed, went to
+ * Today and saw nothing to connect the two. The data was in Firestore the whole
+ * time — an import that needs to be asked for is an import most people will
+ * never ask for twice.
+ *
+ * Mirrors `useHealthAutoImport`, deliberately: same placement in the app
+ * layout, same AppState trigger, same "only on the way back IN" rule.
+ *
+ * Three differences, each because this one crosses the network to a third party
+ * rather than reading a local store:
+ *
+ * - **Throttled** to {@link AUTO_IMPORT_MIN_GAP_MS}, read from the
+ *   server-stamped `lastSyncedAt` so the throttle survives a reinstall and is
+ *   shared across the user's devices.
+ * - **Silent on failure.** An unreachable Oura is not something to interrupt
+ *   someone's day with; the Connected apps screen is where that is reported.
+ * - **Skipped entirely when the grant is stale.** Re-running an import that
+ *   cannot return sleep would refresh `lastSyncedAt` and make a broken link
+ *   look healthy. The reconnect notice is the correct surface for that.
+ */
+export function useOuraAutoImport(uid: string | undefined): void {
+  const running = useRef(false);
+
+  useEffect(() => {
+    if (!uid) return;
+
+    const run = async (): Promise<void> => {
+      if (running.current) return;
+      running.current = true;
+      try {
+        const snap = await getDoc(statusDoc(uid));
+        const d = snap.data();
+        if (d?.['connected'] !== true) return;
+        // A grant that predates a scope cannot import what the app now reads;
+        // stamping a fresh sync would disguise that.
+        if (needsOuraScopeUpgrade(typeof d['scope'] === 'string' ? d['scope'] : undefined)) return;
+
+        const last = d['lastSyncedAt']?.toDate?.()?.getTime?.() ?? 0;
+        if (last && Date.now() - last < AUTO_IMPORT_MIN_GAP_MS) return;
+
+        await importOuraWorkouts(uid);
+        await importOuraDaily(uid);
+      } catch {
+        // Silent by design — see the note above.
+      } finally {
+        running.current = false;
+      }
+    };
+
+    void run();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void run();
+    });
+    return () => sub.remove();
+  }, [uid]);
 }

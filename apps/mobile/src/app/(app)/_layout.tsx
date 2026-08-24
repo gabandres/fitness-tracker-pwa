@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth';
 import { useAutoApplyOta } from '@/lib/app-update';
 import { loadTourSeen, shouldAutoOpenTour } from '@/lib/tour';
 import { useHealthAutoImport } from '@/lib/health-sync';
+import { useOuraAutoImport } from '@/lib/oura';
 import { track } from '@/lib/analytics';
 import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
@@ -126,6 +127,9 @@ export default function AppTabsLayout() {
   // Pull weight/sleep/water from Apple Health / Health Connect on app-open and
   // every foreground (no-op unless the user connected Health in Settings).
   useHealthAutoImport(user?.uid);
+  // Oura imports itself on foreground too — an import you have to ask for is
+  // one most people ask for once. Throttled and silent; see the hook.
+  useOuraAutoImport(user?.uid);
   // Apply a downloaded OTA bundle on its own — at cold start, or on the next
   // foreground for one that arrived mid-session. Mounted here rather than in
   // UpdateBanner so it does not depend on Today being the visible tab.
