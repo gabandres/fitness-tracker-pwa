@@ -118,3 +118,6 @@ scratch/
 # (functions/data/usda-foods.json); these inputs are reproducible from the URLs
 # in that script and have no business in the repo.
 .cache/
+
+# Scratch logs from build/publish runs — never source.
+.tmp-*
