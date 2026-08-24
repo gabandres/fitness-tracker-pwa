@@ -19,7 +19,12 @@ import {
   parseLoadToLb,
   setRowLabels,
   toDisplayLoad,
+  CARDIO_MODALITIES,
+  distanceUnit,
+  parseDistanceToM,
+  toDisplayDistance,
 } from '@macrolog/core';
+import type { CardioModality, PlannedCardioBlock } from '@macrolog/core/cardio';
 import type {
   Exercise,
   LogStyle,
@@ -31,7 +36,7 @@ import type {
 } from '@/lib/workout';
 import { DEFAULT_LOG_STYLE } from '@/lib/workout';
 import type { useTrain } from '@/hooks/useTrain';
-import { type TFn, useT } from '@/i18n';
+import { type TFn, useT, type I18nKey} from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { smoothLayout } from '@/lib/motion';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
@@ -69,6 +74,32 @@ interface DraftSet extends PlannedSet {
 }
 
 const numText = (n: number | undefined): string => (n != null ? String(n) : '');
+
+/** Modality → i18n key for the editor's picker. A third copy of this map, and
+ *  deliberately so: the alternative is a shared module that every Train surface
+ *  imports for ten strings, which is the coupling `train-shared` exists to
+ *  keep small. */
+const TPL_MODALITY_KEY: Record<CardioModality, I18nKey> = {
+  run: 'cardio.modality.run',
+  walk: 'cardio.modality.walk',
+  ride: 'cardio.modality.ride',
+  swim: 'cardio.modality.swim',
+  row: 'cardio.modality.row',
+  elliptical: 'cardio.modality.elliptical',
+  stair: 'cardio.modality.stair',
+  hike: 'cardio.modality.hike',
+  sport: 'cardio.modality.sport',
+  other: 'cardio.modality.other',
+};
+
+/** One prescribed cardio block while it is being edited. Text buffers, in the
+ *  units the user reads — converted to seconds/meters on save. */
+interface DraftCardio {
+  modality: CardioModality;
+  label: string;
+  minutes: string;
+  distance: string;
+}
 
 function toDraftSet(ps: PlannedSet, unitSystem: UnitSystem = 'us'): DraftSet {
   return {
@@ -177,6 +208,15 @@ export function TemplateEditorModal({
   const [restMini, setRestMini] = useState('');
   const [restCluster, setRestCluster] = useState('');
   const [exercises, setExercises] = useState<DraftEx[]>([]);
+  /**
+   * Prescribed cardio (ADR-0025), as text buffers like every other field here.
+   *
+   * Minutes and display-unit distance, converted on save — the template stores
+   * seconds and meters, and nobody types either. Same seam `targetLoad` already
+   * draws for a barbell.
+   */
+  const [cardioBlocks, setCardioBlocks] = useState<DraftCardio[]>([]);
+  const [cardioPick, setCardioPick] = useState(false);
   const [exName, setExName] = useState('');
   const [exStyle, setExStyle] = useState<LogStyle>('weight-reps');
   const [kindOpen, setKindOpen] = useState<string | null>(null); // `${exIdx}:${setIdx}`
@@ -206,6 +246,17 @@ export function TemplateEditorModal({
     setNotes(template?.notes ?? '');
     setRestMini(template?.restMiniSec != null ? String(template.restMiniSec) : '');
     setRestCluster(template?.restClusterSec != null ? String(template.restClusterSec) : '');
+    setCardioBlocks(
+      (template?.cardioBlocks ?? []).map((b) => ({
+        modality: b.modality,
+        label: b.label ?? '',
+        minutes: b.targetDurationSec != null ? String(Math.round(b.targetDurationSec / 60)) : '',
+        distance:
+          b.targetDistanceM != null
+            ? String(toDisplayDistance(b.targetDistanceM, unitSystem))
+            : '',
+      })),
+    );
     setExercises(
       (template?.exercises ?? []).map((ex) => ({
         exerciseId: ex.exerciseId,
@@ -277,6 +328,18 @@ export function TemplateEditorModal({
     } finally {
       setBusy(false);
     }
+  }
+
+  function addCardio(modality: CardioModality) {
+    setCardioBlocks((cur) => [...cur, { modality, label: '', minutes: '', distance: '' }]);
+  }
+
+  function patchCardio(index: number, patch: Partial<DraftCardio>) {
+    setCardioBlocks((cur) => cur.map((b, i) => (i === index ? { ...b, ...patch } : b)));
+  }
+
+  function removeCardio(index: number) {
+    setCardioBlocks((cur) => cur.filter((_, i) => i !== index));
   }
 
   function patchEx(index: number, patch: Partial<DraftEx>) {
@@ -375,6 +438,21 @@ export function TemplateEditorModal({
         // cloned starter by seedKey, and dropping it on the first edit would
         // make the starter reappear as if it had never been added.
         seedKey: template?.seedKey,
+        // `undefined`, not `[]`, when there is no cardio: the writers omit an
+        // absent key entirely, so a template that never prescribed cardio does
+        // not gain an empty array on its next save.
+        cardioBlocks: cardioBlocks.length
+          ? cardioBlocks.map((b): PlannedCardioBlock => {
+              const minutes = numOrUndef(b.minutes);
+              const meters = b.distance.trim() ? parseDistanceToM(b.distance, unitSystem) : null;
+              return {
+                modality: b.modality,
+                label: b.label.trim() || undefined,
+                targetDurationSec: minutes != null ? Math.round(minutes * 60) : undefined,
+                targetDistanceM: meters ?? undefined,
+              };
+            })
+          : undefined,
         exercises: exercises.map((d): TemplateExercise => {
           const cues = d.cuesText.split('\n').map((c) => c.trim()).filter(Boolean);
           return {
@@ -491,6 +569,90 @@ export function TemplateEditorModal({
                 />
               </View>
             </View>
+
+            {/* ── Prescribed cardio (ADR-0025) ──
+                Above the exercise list rather than below it: a cardio-only
+                template (a running plan) is a legitimate template, and burying
+                the only section it uses under an empty exercise list would make
+                it read as an afterthought. */}
+            <Text style={[styles.fieldLabel, { marginTop: space.md }]}>
+              {t('cardio.templateSection')}
+            </Text>
+
+            {cardioBlocks.map((b, i) => (
+              <View key={`tpl-cardio-${i}`} style={[styles.exCard, { marginTop: space.sm }]}>
+                <View style={styles.cardioHead}>
+                  <Text style={styles.cardioName}>{t(TPL_MODALITY_KEY[b.modality])}</Text>
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder={t('cardio.labelPlaceholder')}
+                  placeholderTextColor={colors.faint}
+                  value={b.label}
+                  onChangeText={(v) => patchCardio(i, { label: v })}
+                  testID={`template-cardio-label-${i}`}
+                />
+                <View style={styles.cardioFieldRow}>
+                  <View style={styles.cardioField}>
+                    <Text style={styles.cardioLabel}>{t('cardio.targetDuration')}</Text>
+                    <TextInput
+                      style={styles.cardioInput}
+                      keyboardType="number-pad"
+                      inputMode="numeric"
+                      placeholder="—"
+                      placeholderTextColor={colors.faint}
+                      value={b.minutes}
+                      onChangeText={(v) => patchCardio(i, { minutes: v })}
+                      testID={`template-cardio-minutes-${i}`}
+                    />
+                  </View>
+                  <View style={styles.cardioField}>
+                    <Text style={styles.cardioLabel}>
+                      {t('cardio.targetDistance')} ({distanceUnit(unitSystem)})
+                    </Text>
+                    <TextInput
+                      style={styles.cardioInput}
+                      keyboardType="numeric"
+                      inputMode="decimal"
+                      placeholder="—"
+                      placeholderTextColor={colors.faint}
+                      value={b.distance}
+                      onChangeText={(v) => patchCardio(i, { distance: v })}
+                      testID={`template-cardio-distance-${i}`}
+                    />
+                  </View>
+                </View>
+                <TouchableOpacity onPress={() => removeCardio(i)} style={styles.exRemoveRow}>
+                  <Text style={styles.exRemove}>{t('cardio.remove')}</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+
+            {cardioPick ? (
+              <View style={[styles.modalityChips, { marginTop: space.sm }]}>
+                {CARDIO_MODALITIES.map((m) => (
+                  <TouchableOpacity
+                    key={m}
+                    style={styles.kindChip}
+                    testID={`template-cardio-modality-${m}`}
+                    onPress={() => {
+                      addCardio(m);
+                      setCardioPick(false);
+                    }}
+                  >
+                    <Text style={styles.kindChipText}>{t(TPL_MODALITY_KEY[m])}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.addExBtn, { marginTop: space.sm }]}
+                onPress={() => setCardioPick(true)}
+                testID="template-add-cardio"
+              >
+                <Text style={styles.addExText}>{t('cardio.templateAdd')}</Text>
+              </TouchableOpacity>
+            )}
 
             <Text style={[styles.fieldLabel, { marginTop: space.md }]}>{t('train.templateExercises')}</Text>
 

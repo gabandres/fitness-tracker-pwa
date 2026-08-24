@@ -211,3 +211,61 @@ describe('newCluster', () => {
     expect(newCluster().map((s) => s.kind)).toEqual(['activation', 'mini', 'mini']);
   });
 });
+
+// ─── Cardio actions (ADR-0025) ──────────────────────────────────
+
+describe('cardio actions', () => {
+  const base = (): WorkoutSession => ({
+    status: 'active',
+    date: new Date('2026-08-24T12:00:00'),
+    exercises: [
+      { exerciseId: 'bench', name: 'Bench', cues: [], sets: [{ kind: 'working', weight: 135, reps: 8 }] },
+    ],
+    createdAt: new Date('2026-08-24T12:00:00'),
+    updatedAt: new Date('2026-08-24T12:00:00'),
+  });
+
+  it('adds a block to a session that has no cardio field yet', () => {
+    const next = applySessionAction(base(), { type: 'addCardio', modality: 'run' });
+    expect(next.cardio).toEqual([{ modality: 'run', durationSec: 0, source: 'manual' }]);
+  });
+
+  // The prescription footgun ADR-0007 already paid for once, in its cardio
+  // form: a freshly added block must not count as work the user did.
+  it('adds it with a zero duration, so it is not yet logged work', () => {
+    const next = applySessionAction(base(), { type: 'addCardio', modality: 'ride' });
+    expect(next.cardio?.[0].durationSec).toBe(0);
+  });
+
+  it('patches a block by index', () => {
+    const one = applySessionAction(base(), { type: 'addCardio', modality: 'run' });
+    const two = applySessionAction(one, {
+      type: 'patchCardio',
+      blockIndex: 0,
+      patch: { durationSec: 1930, distanceM: 8046 },
+    });
+    expect(two.cardio?.[0]).toMatchObject({ durationSec: 1930, distanceM: 8046, modality: 'run' });
+  });
+
+  it('removes a block by index', () => {
+    let s = applySessionAction(base(), { type: 'addCardio', modality: 'run' });
+    s = applySessionAction(s, { type: 'addCardio', modality: 'ride' });
+    const next = applySessionAction(s, { type: 'removeCardio', blockIndex: 0 });
+    expect(next.cardio?.map((b) => b.modality)).toEqual(['ride']);
+  });
+
+  // Same contract the set actions already have: an out-of-range index is a
+  // no-op returning the SAME reference, so a caller can skip the write.
+  it('returns the same reference for an out-of-range index', () => {
+    const s = base();
+    expect(applySessionAction(s, { type: 'patchCardio', blockIndex: 3, patch: {} })).toBe(s);
+    expect(applySessionAction(s, { type: 'removeCardio', blockIndex: 0 })).toBe(s);
+  });
+
+  // The independence property, asserted where the edits actually happen.
+  it('never touches the exercises array', () => {
+    const s = base();
+    const next = applySessionAction(s, { type: 'addCardio', modality: 'run' });
+    expect(next.exercises).toBe(s.exercises);
+  });
+});

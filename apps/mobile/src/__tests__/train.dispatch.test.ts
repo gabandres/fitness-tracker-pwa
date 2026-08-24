@@ -231,3 +231,71 @@ describe('useTrain.dispatch — domain rules reach the session', () => {
     ]);
   });
 });
+
+/**
+ * The cardio half of the same write contract — added after a REAL data loss.
+ *
+ * `persist` wrote `{ exercises }` and nothing else. A cardio block therefore
+ * rendered, updated the summary line, survived a re-render, and never reached
+ * Firestore. Nothing errored: it is not a rejected write, it is an omitted
+ * field, so the app looked completely correct and the data was gone at the next
+ * cold start.
+ *
+ * Found on 2026-08-24 on the LG G6 by Maestro flow 21, whose round-trip step
+ * exists for exactly this, and confirmed by reading the session doc back out of
+ * production Firestore (`cardio: null` against a block visible on screen).
+ * Neither `tsc` nor 384 jest tests saw it.
+ */
+describe('dispatch persists cardio, not just exercises', () => {
+  it('writes the cardio array when a block is added', async () => {
+    const { result } = await withActiveSession();
+
+    await act(async () => {
+      await result.current.dispatch({ type: 'addCardio', modality: 'run' });
+    });
+
+    expect(mockUpdateSession).toHaveBeenCalled();
+    const patch = mockUpdateSession.mock.calls.at(-1)![2];
+    expect(patch.cardio).toEqual([{ modality: 'run', durationSec: 0, source: 'manual' }]);
+  });
+
+  it('carries a deferred edit through commitActive', async () => {
+    const { result } = await withActiveSession();
+    await act(async () => {
+      await result.current.dispatch({ type: 'addCardio', modality: 'ride' });
+    });
+    mockUpdateSession.mockClear();
+
+    await act(async () => {
+      await result.current.dispatch(
+        { type: 'patchCardio', blockIndex: 0, patch: { durationSec: 1920 } },
+        { defer: true },
+      );
+    });
+    expect(mockUpdateSession).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.commitActive();
+    });
+    const patch = mockUpdateSession.mock.calls.at(-1)![2];
+    expect(patch.cardio[0].durationSec).toBe(1920);
+  });
+
+  // Absent stays absent: a strength-only session must not gain an empty array,
+  // which would rewrite every existing session doc on its next set edit.
+  it('omits the key entirely on a session that has no cardio', async () => {
+    const { result } = await withActiveSession();
+
+    await act(async () => {
+      await result.current.dispatch({
+        type: 'patchSet',
+        exerciseIndex: 0,
+        setIndex: 0,
+        patch: { reps: 8 },
+      });
+    });
+
+    const patch = mockUpdateSession.mock.calls.at(-1)![2];
+    expect('cardio' in patch).toBe(false);
+  });
+});

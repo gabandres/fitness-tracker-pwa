@@ -138,6 +138,7 @@ export {
 export {
   type SessionAction,
   applySessionAction,
+  newCardioBlock,
   newCluster,
   newWorkoutSet,
 } from './workout-session';
@@ -178,7 +179,30 @@ export {
   clampHr,
   clampRpe,
   isLoggedCardioBlock,
+  // The energy seam: a finished session's marker log is ZERO calories however
+  // much the ring reported (ADR-0026 decision 5). Both write paths call this
+  // rather than an inline literal, so the one place a cardio calorie could
+  // cross into the estimator is named and tested.
+  WORKOUT_MARKER_KCAL,
+  workoutMarkerEntry,
 } from './cardio';
+// Health WORKOUTS — the event-stream sibling of ./health-mapping's daily
+// scalars (ADR-0026). Modality + provider normalization, import filtering and
+// the suggest-never-merge dedup. Function-only, so the ./cardio types stay
+// un-barreled; `HealthWorkout` is at `@macrolog/core/health-workouts`.
+export {
+  OVERLAP_MERGE_THRESHOLD,
+  humanizeActivityType,
+  importableWorkouts,
+  looksLikeSameEffort,
+  mergeImportedBlocks,
+  normalizeProvider,
+  overlapRatio,
+  blockSpan,
+  toCardioBlockFromHealth,
+  toCardioModality,
+  workoutDurationSec,
+} from './health-workouts';
 // Cardio derivations — weekly roll-up, per-block summary cells, distance/pace
 // formatting. A SIBLING of ./train-view and never an edit to it: the strength
 // derivations walk session.exercises and must keep walking only that.

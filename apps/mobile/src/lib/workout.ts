@@ -6,6 +6,28 @@
 
 import { normalizeClusterGroups } from '@macrolog/core';
 import { isLoggedSet as isLoggedSetCore } from '@macrolog/core/workout';
+import { isLoggedCardioBlock } from '@macrolog/core/cardio';
+
+/**
+ * Cardio types are RE-EXPORTED from core rather than re-declared here, unlike
+ * every strength type below.
+ *
+ * The duplication above is historical: those shapes existed in this file and
+ * in the PWA's `models/workout.ts` before `packages/core` did, and core
+ * deliberately does not barrel them because the PWA's `export *` shims would
+ * clash. None of that applies to a type introduced after core existed — there
+ * is no second copy to be compatible with, and the web app is frozen
+ * (ADR-0022) so one will never appear. One definition is strictly better than
+ * two kept in step by comment.
+ */
+export type {
+  CardioBlock,
+  CardioModality,
+  CardioProvider,
+  CardioSource,
+  PlannedCardioBlock,
+} from '@macrolog/core/cardio';
+import type { CardioBlock, PlannedCardioBlock } from '@macrolog/core/cardio';
 
 export type MuscleGroup =
   | 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps' | 'quads'
@@ -122,6 +144,10 @@ export interface WorkoutTemplate {
   restMiniSec?: number;
   restClusterSec?: number;
   exercises: TemplateExercise[];
+  /** Prescribed cardio (ADR-0025) — the analogue of `plannedSets`. Like
+   *  `exercises`, the editor writes this as a full overwrite, so a field the
+   *  editor cannot see is a field the next save deletes. */
+  cardioBlocks?: PlannedCardioBlock[];
   /** Stable slug of the shipped starter this was cloned from, if any. Lets
    *  the chooser hide an already-cloned starter across locales. */
   seedKey?: string;
@@ -186,8 +212,13 @@ export interface WorkoutSession {
   date: Date;
   bodyweight?: number;
   sleepHours?: number;
+  /** How long the whole SESSION took, in minutes. Not `CardioBlock.durationSec`,
+   *  which is how long one run was — different unit, different question. */
   durationMin?: number;
   exercises: SessionExercise[];
+  /** Logged cardio (ADR-0025). A run on its own is a session with
+   *  `exercises: []` and one block here. No strength derivation reads it. */
+  cardio?: CardioBlock[];
   nextNotes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -218,3 +249,41 @@ export function dropEmptySets(exercises: SessionExercise[]): SessionExercise[] {
     sets: normalizeClusterGroups(ex.sets.filter((s) => isLoggedSetCore(s, ex.logStyle ?? DEFAULT_LOG_STYLE))),
   }));
 }
+
+// ─── Cardio (ADR-0025) ──────────────────────────────────────────
+
+/**
+ * Snapshot a template's prescribed cardio into scaffold blocks, the way
+ * {@link templateToSessionExercises} does for sets.
+ *
+ * The prescription lands in `targetDurationSec` / `targetDistanceM` and
+ * **never** in `durationSec` / `distanceM`: `isLoggedCardioBlock` reads the
+ * latter as proof the work happened, so pre-filling them would record every
+ * prescribed block as performed. `durationSec` starts at 0, which is exactly
+ * what makes the block invisible to every roll-up until the user fills it in.
+ *
+ * This is the same footgun ADR-0007 already paid for once with `targetReps`.
+ */
+export function templateToSessionCardio(template: WorkoutTemplate): CardioBlock[] {
+  return (template.cardioBlocks ?? []).map((pb) => ({
+    modality: pb.modality,
+    ...(pb.label !== undefined ? { label: pb.label } : {}),
+    durationSec: 0,
+    ...(pb.notes !== undefined ? { notes: pb.notes } : {}),
+    ...(pb.targetDurationSec !== undefined ? { targetDurationSec: pb.targetDurationSec } : {}),
+    ...(pb.targetDistanceM !== undefined ? { targetDistanceM: pb.targetDistanceM } : {}),
+    source: 'manual' as const,
+  }));
+}
+
+/** Drop unperformed scaffold blocks before a session is frozen as `completed`
+ *  — the cardio twin of {@link dropEmptySets}. A prescription the user never
+ *  did must not enter their training history. */
+export function dropEmptyCardio(cardio: CardioBlock[] | undefined): CardioBlock[] | undefined {
+  if (cardio === undefined) return undefined;
+  return cardio.filter(isLoggedCardioBlock);
+}
+
+/** The zero-calorie marker a finished session writes, however much energy an
+ *  imported block reported (ADR-0026 decision 5 / ADR-0024 decision 4). */
+export { workoutMarkerEntry } from '@macrolog/core';

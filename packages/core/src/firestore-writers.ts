@@ -37,6 +37,7 @@ import {
   type OnboardingV2Submission,
   clampCutPace,
 } from './types';
+import type { CardioBlock, PlannedCardioBlock } from './cardio';
 import type {
   LogStyle,
   MuscleGroup,
@@ -364,6 +365,31 @@ export function toExerciseDoc<TS>(
   };
 }
 
+// ─── Workout: cardio blocks (ADR-0025) ──────────────────────────
+
+/**
+ * Serialize cardio blocks for storage.
+ *
+ * The one thing this exists for: `CardioBlock.startedAt` is a `Date`, and it
+ * is the only Date this codebase stores *inside an array element*. Every other
+ * date on a workout doc is a top-level field that the writers pass through
+ * `codec.timestamp` by hand, so a nested one would otherwise reach Firestore
+ * as a raw `Date` on one adapter and a `Timestamp` on the other — the two
+ * apps writing different types into the same field, which is precisely what
+ * this module exists to prevent.
+ *
+ * `startedAt` is genuinely optional (a hand-logged block need not carry one),
+ * so it is omitted rather than defaulted: stamping "now" would invent a start
+ * time the user never gave, and `firestore.rules` cannot catch it because it
+ * cannot iterate a list.
+ */
+function cardioFields<TS>(blocks: CardioBlock[], codec: DocCodec<TS>): Record<string, unknown>[] {
+  return blocks.map((b) => {
+    const { startedAt, ...rest } = b;
+    return startedAt === undefined ? { ...rest } : { ...rest, startedAt: codec.timestamp(startedAt) };
+  });
+}
+
 // ─── Workout: templates ─────────────────────────────────────────
 
 export interface TemplateDraftInput {
@@ -372,6 +398,9 @@ export interface TemplateDraftInput {
   restMiniSec?: number;
   restClusterSec?: number;
   exercises?: TemplateExercise[];
+  /** Prescribed cardio (ADR-0025). Carries no Date, so unlike
+   *  {@link CardioBlock} it needs no codec pass. */
+  cardioBlocks?: PlannedCardioBlock[];
   seedKey?: string;
 }
 
@@ -384,6 +413,7 @@ export interface TemplateDoc<TS> {
   notes?: string;
   restMiniSec?: number;
   restClusterSec?: number;
+  cardioBlocks?: PlannedCardioBlock[];
   seedKey?: string;
 }
 
@@ -394,6 +424,9 @@ function templateFields(draft: TemplateDraftInput) {
     ...(draft.notes !== undefined ? { notes: draft.notes } : {}),
     ...(draft.restMiniSec !== undefined ? { restMiniSec: draft.restMiniSec } : {}),
     ...(draft.restClusterSec !== undefined ? { restClusterSec: draft.restClusterSec } : {}),
+    // Absent stays absent: a template that never prescribed cardio must not
+    // gain an empty array, or every pre-ADR-0025 template rewrites on save.
+    ...(draft.cardioBlocks !== undefined ? { cardioBlocks: draft.cardioBlocks } : {}),
     ...(draft.seedKey !== undefined ? { seedKey: draft.seedKey } : {}),
   };
 }
@@ -435,6 +468,9 @@ export interface SessionDraftInput {
   sleepHours?: number;
   durationMin?: number;
   exercises?: SessionExercise[];
+  /** Logged cardio (ADR-0025). Blocks carry a Date, so they are serialized
+   *  through {@link cardioFields} rather than passed straight down. */
+  cardio?: CardioBlock[];
   nextNotes?: string;
 }
 
@@ -472,6 +508,9 @@ export function toSessionDoc<TS>(
     ...(draft.bodyweight !== undefined ? { bodyweight: draft.bodyweight } : {}),
     ...(draft.sleepHours !== undefined ? { sleepHours: draft.sleepHours } : {}),
     ...(draft.durationMin !== undefined ? { durationMin: draft.durationMin } : {}),
+    // Absent stays absent — a strength-only session must not gain an empty
+    // array it never had, which would rewrite every session doc on next save.
+    ...(draft.cardio !== undefined ? { cardio: cardioFields(draft.cardio, codec) } : {}),
     ...(draft.nextNotes !== undefined ? { nextNotes: draft.nextNotes } : {}),
   };
 }
@@ -495,6 +534,10 @@ export function toSessionPatch<TS>(
   if (patch.sleepHours !== undefined) data['sleepHours'] = patch.sleepHours;
   if (patch.durationMin !== undefined) data['durationMin'] = patch.durationMin;
   if (patch.exercises !== undefined) data['exercises'] = patch.exercises;
+  // Like `exercises`, this is a whole-array overwrite rather than a merge:
+  // Firestore unions arrays on merge, so a sparse patch would append blocks
+  // instead of replacing them and a deleted block would come back.
+  if (patch.cardio !== undefined) data['cardio'] = cardioFields(patch.cardio, codec);
   if (patch.nextNotes !== undefined) data['nextNotes'] = patch.nextNotes;
   return data;
 }

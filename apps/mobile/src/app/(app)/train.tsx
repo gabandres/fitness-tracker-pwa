@@ -39,7 +39,14 @@ import {
   clampRir,
   seedTemplateName,
   setRowLabels,
+  // Cardio (ADR-0025 / ADR-0026): the modality list the picker renders, the
+  // per-session cardio total the summary line appends, and the overlap
+  // heuristic that SUGGESTS a duplicate without ever merging one.
+  CARDIO_MODALITIES,
+  looksLikeSameEffort,
+  sessionCardioSec,
 } from '@macrolog/core';
+import type { CardioModality } from '@macrolog/core/cardio';
 import {
   type ProgressionSuggestion,
   computeExercisePRs,
@@ -71,6 +78,7 @@ import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { TemplateEditorModal } from '@/components/train/TemplateEditorModal';
 import { LOG_STYLES, SET_KINDS, logStyleKey, numOrUndef } from '@/components/train/train-shared';
 import { BottomSheet } from '@/components/BottomSheet';
+import { CardioBlockCard } from '@/components/train/CardioBlockCard';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { createStyles } from '@/components/train/train-styles';
 import { Sparkline } from '@/components/Sparkline';
@@ -643,8 +651,26 @@ function countsLine({ exercises, sets }: { exercises: number; sets: number }, t:
   return `${ex} · ${st}`;
 }
 
+/**
+ * "3 exercises · 12 sets · 32 min cardio".
+ *
+ * The cardio clause is APPENDED rather than folded into the counts, which is
+ * the summary-line form of ADR-0025's rule: `sessionCounts` walks
+ * `exercises[]` and must keep walking only that, so a session with cardio must
+ * not report more sets than it has.
+ *
+ * A cardio-only session drops the "0 exercises · 0 sets" prefix entirely —
+ * a run is not a lifting day with nothing in it.
+ */
 function sessionSummary(s: WorkoutSession, t: TFn): string {
-  return countsLine(sessionCounts(s), t);
+  const minutes = Math.round(sessionCardioSec(s) / 60);
+  const cardio = minutes > 0
+    ? `${minutes} ${t('cardio.durationUnit')} ${t('cardio.title').toLowerCase()}`
+    : '';
+  const counts = sessionCounts(s);
+  if (counts.exercises === 0 && cardio) return cardio;
+  const line = countsLine(counts, t);
+  return cardio ? `${line} · ${cardio}` : line;
 }
 
 function templateSummary(tpl: WorkoutTemplate, t: TFn): string {
@@ -657,8 +683,31 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
   const styles = useThemedStyles(createStyles);
   const session = train.active!;
   const [addOpen, setAddOpen] = useState(false);
+  const [cardioPickerOpen, setCardioPickerOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
   const rest = useRestTimer();
+
+  /**
+   * Indices of blocks that overlap another block on this session in time.
+   *
+   * A SUGGESTION surfaced on the card, never an automatic merge (ADR-0026
+   * decision 4): a false positive destroys a real training record, so the app
+   * points at the pair and the person decides. The usual shape is one run
+   * logged by hand and the same run detected by a ring.
+   */
+  const overlappingCardio = useMemo(() => {
+    const blocks = session.cardio ?? [];
+    const hits = new Set<number>();
+    for (let i = 0; i < blocks.length; i++) {
+      for (let j = i + 1; j < blocks.length; j++) {
+        if (looksLikeSameEffort(blocks[i], blocks[j])) {
+          hits.add(i);
+          hits.add(j);
+        }
+      }
+    }
+    return hits;
+  }, [session.cardio]);
   // Accordion: one exercise expanded at a time so a 9-exercise session stays
   // scannable. Start on the first unfinished exercise.
   const [expanded, setExpanded] = useState<number | null>(() => {
@@ -706,8 +755,33 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
           ))
         )}
 
+        {(session.cardio ?? []).map((block, i) => (
+          <CardioBlockCard
+            key={`cardio-${block.sourceId ?? i}`}
+            block={block}
+            index={i}
+            overlaps={overlappingCardio.has(i)}
+            onPatch={(patch, opts) =>
+              void train.dispatch({ type: 'patchCardio', blockIndex: i, patch }, opts)
+            }
+            onCommit={() => void train.commitActive()}
+            onRemove={() => {
+              haptics.tap();
+              void train.dispatch({ type: 'removeCardio', blockIndex: i });
+            }}
+          />
+        ))}
+
         <TouchableOpacity style={styles.addExBtn} onPress={() => setAddOpen(true)} testID="add-exercise">
           <Text style={styles.addExText}>{t('train.addExercise')}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.addExBtn}
+          onPress={() => setCardioPickerOpen(true)}
+          testID="add-cardio"
+        >
+          <Text style={styles.addExText}>{t('cardio.add')}</Text>
         </TouchableOpacity>
 
         <View style={styles.footerBtns}>
@@ -771,6 +845,11 @@ function ActiveSession({ train }: { train: ReturnType<typeof useTrain> }) {
         visible={addOpen}
         train={train}
         onClose={() => setAddOpen(false)}
+      />
+      <CardioPickerSheet
+        visible={cardioPickerOpen}
+        onClose={() => setCardioPickerOpen(false)}
+        onPick={(modality) => void train.dispatch({ type: 'addCardio', modality })}
       />
       <FinishModal
         visible={finishOpen}
@@ -1252,6 +1331,67 @@ function SetRow({
       </View>
     ) : null}
    </View>
+  );
+}
+
+/** Modality → i18n key. Lives here rather than in `train-shared` because the
+ *  picker is the only consumer; `CardioBlockCard` keeps its own copy for the
+ *  same reason the set-kind labels are duplicated between screen and sheet. */
+const CARDIO_MODALITY_KEY: Record<CardioModality, I18nKey> = {
+  run: 'cardio.modality.run',
+  walk: 'cardio.modality.walk',
+  ride: 'cardio.modality.ride',
+  swim: 'cardio.modality.swim',
+  row: 'cardio.modality.row',
+  elliptical: 'cardio.modality.elliptical',
+  stair: 'cardio.modality.stair',
+  hike: 'cardio.modality.hike',
+  sport: 'cardio.modality.sport',
+  other: 'cardio.modality.other',
+};
+
+// ─── Cardio modality picker ─────────────────────────────────────
+
+/**
+ * Pick what the effort was; the card then collects the numbers.
+ *
+ * Two steps rather than one long form because the modality is the only field
+ * with no sensible default — everything else on a cardio block is optional, and
+ * a run carrying just a duration is already a complete record. Uses
+ * `<BottomSheet>` like every other sheet here; `sheets-are-one-component.test.ts`
+ * fails the build on a hand-rolled slide Modal.
+ */
+function CardioPickerSheet({
+  visible,
+  onClose,
+  onPick,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onPick: (modality: CardioModality) => void;
+}) {
+  const t = useT();
+  const styles = useThemedStyles(createStyles);
+  return (
+    <BottomSheet visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
+      <Text style={styles.sheetTitle}>{t('cardio.pickModality')}</Text>
+      <View style={styles.modalityChips}>
+        {CARDIO_MODALITIES.map((m) => (
+          <TouchableOpacity
+            key={m}
+            style={styles.kindChip}
+            testID={`cardio-modality-${m}`}
+            onPress={() => {
+              haptics.tap();
+              onPick(m);
+              onClose();
+            }}
+          >
+            <Text style={styles.kindChipText}>{t(CARDIO_MODALITY_KEY[m])}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </BottomSheet>
   );
 }
 

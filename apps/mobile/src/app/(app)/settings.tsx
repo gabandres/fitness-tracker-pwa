@@ -321,6 +321,14 @@ export default function Settings() {
       setHealthMsg(null);
     }
   }
+  /** Re-prompt for the OS health scopes. Connecting again IS the whole fix —
+   *  `connectHealth` stamps the current scope version only on success, so a
+   *  declined prompt leaves the banner up rather than silently clearing it. */
+  async function onHealthReconnect() {
+    haptics.tap();
+    const ok = await healthSync.connect();
+    setHealthMsg(ok ? t('settings.healthConnected') : t('settings.healthDenied'));
+  }
   async function onHealthSyncNow() {
     haptics.tap();
     const n = await healthSync.syncNow();
@@ -756,6 +764,41 @@ export default function Settings() {
                       {healthSync.syncing ? t('common.saving') : t('settings.healthSyncNow')}
                     </Text>
                   </TouchableOpacity>
+                </View>
+              ) : null}
+              {/*
+                Cardio import (ADR-0026). The state is STATED rather than
+                inferred, because an unauthorized read returns an EMPTY LIST on
+                both platforms — so "no permission" and "no workouts" are the
+                same thing to the code, and must not be the same thing here.
+              */}
+              {healthSync.connected ? (
+                <View style={styles.digestRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rowLabel}>{t('health.workouts')}</Text>
+                    <Text style={styles.rowValue}>
+                      {healthSync.needsReauth
+                        ? t('health.reconnectBody')
+                        : Platform.OS === 'android'
+                          ? t('health.androidPending')
+                          : t('health.workoutsOn')}
+                    </Text>
+                    {/* The one failure we can neither detect nor fix: with
+                        workout export off in the Oura app we see nothing at
+                        all, and that is indistinguishable from a rest week. */}
+                    {!healthSync.needsReauth && Platform.OS === 'ios' ? (
+                      <Text style={styles.rowValue}>{t('health.ouraHint')}</Text>
+                    ) : null}
+                  </View>
+                  {healthSync.needsReauth ? (
+                    <TouchableOpacity
+                      onPress={onHealthReconnect}
+                      style={styles.exportBtn}
+                      testID="health-reconnect"
+                    >
+                      <Text style={styles.exportBtnText}>{t('health.reconnect')}</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               ) : null}
               {healthMsg ? <Text style={styles.exportMsg}>{healthMsg}</Text> : null}

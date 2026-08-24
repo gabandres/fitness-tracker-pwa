@@ -310,6 +310,7 @@ prove the floor.
 | (app)/train | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 |
 | (app)/train — logging interactions | `16-train-terms.yaml` (glossary, RIR scale, set-type rows; starts + discards a workout) | ✓ 2026-08-12 | ✓ 2026-08-18 — first iOS run; took five platform fixes and exposed a false-positive assert |
 | (app)/train — template editor | `18-train-template.yaml` (build a template from a seeded exercise, set table + headers, collapsed card summary, More options, save → re-open → per-set targets still there) | — no Android host | ✓ 2026-08-18 — first run; the only flow that exercises the editor at all |
+| (app)/train — cardio blocks | `21-train-cardio.yaml` (add a block, pick a modality, type a duration, see the summary recompute, and prove it round-trips through Firestore by leaving Train and coming back; discards in its own tail) | ✓ 2026-08-24 — **first run, and it found a real data loss**: `useTrain.persist` wrote `{ exercises }` only, so a cardio block rendered, updated the summary and never reached Firestore — an omitted field, not a rejected write, so nothing errored. Confirmed by reading the doc back (`cardio: null` against a block on screen), fixed, re-published, re-run green end to end | ✗ authored 2026-08-24 |
 | (app)/trends | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 |
 | (app)/body | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 — **caught the body-fat overflow** |
 | Today / Trends / Train — the "?" glossaries | `19-glossary.yaml` (all three headers carry it, the sheet opens, and it scrolls to its last term rather than clipping at the panel ceiling) | ✗ authored 2026-08-22 | ✓ 2026-08-22 — first run, on a Release sim build from `9475676` |
@@ -403,6 +404,42 @@ maestro --device <udid> test .maestro/android-signin.yaml -e EMAIL=qa-test@ignia
   completes and the save fails with "Please verify your email first".
 - **The last step is not optional.** The arc ends signed out, so the sandbox
   needs `android-signin.yaml` before any other flow runs.
+
+## Why flow 21's round trip really is Firestore-verified
+
+Worth writing down, because it looks like it only checks local state. Leaving
+Train and returning does **not** just re-render from memory: `useTrain`'s
+`useFocusEffect` calls `getActiveSession(uid)` on every focus and `setActive`s
+the result, so the screen is repainted from the server's copy. An uncommitted
+value cannot survive that step.
+
+The commit itself rides on **blur**, exactly as set inputs do — the numeric
+fields dispatch with `{ defer: true }` and `onBlur` flushes. In the flow, the
+tab tap is what blurs them. That matters for authoring: **`hideKeyboard` alone
+does not fire `onBlur` on Android.** A flow that types a value, hides the
+keyboard and then reads Firestore will find the field unwritten and blame the
+app — measured on 2026-08-24 while proving out the fix above.
+
+## Cardio import is NOT covered on Android, and cannot be
+
+`21-train-cardio.yaml` walks the MANUAL cardio path only. The import half —
+a run recorded by an Oura ring arriving through the OS health store — needs
+`android.permission.health.READ_EXERCISE`, which is a manifest entry and
+therefore a new binary (ADR-0026 amendment, decision 7). Until vc 38 ships,
+`readWorkouts` returns an empty list on Android **by design**, so there is
+nothing on screen for a flow to assert and a green run would prove nothing.
+
+The asymmetry is worth stating plainly, because it is the opposite of this
+project's usual one: iOS needs no binary here at all. HealthKit read types are
+requested at RUNTIME and `NSHealthShareUsageDescription` is already declared, so
+the iOS fingerprint does not move and cardio import ships over the air. For once
+Android is the platform waiting on a build.
+
+**There is exactly one Oura ring available to this project** (the account is in
+`CLAUDE.local.md`), so the import path's real verification is a hand run against
+that device, not a Maestro flow. What a flow can check — that an imported block
+renders its "via Oura" chip and its reported-kcal caveat — is worth authoring
+once a build exists to run it on.
 
 ## The e2e + empty interleave (admin script on the ADC machine, Maestro on the Mac)
 
