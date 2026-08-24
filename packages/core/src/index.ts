@@ -156,6 +156,34 @@ export * from './workout-seed';
 // apps came to disagree about the user's heaviest lift.
 export * from './train-view';
 
+// ──────────────────── Cardio (ADR-0025) ────────────────────
+// Same un-barreled rule as ./workout above, for the same reason: both
+// frontends keep their own structurally-identical CardioBlock next to their
+// Firestore code, so barrel-exporting the TYPES here would collide with the
+// PWA's `export *` shims the moment the web grows a copy. The types are
+// reachable at `@macrolog/core/cardio`; only values come through the barrel.
+export {
+  CARDIO_DISTANCE_MAX_M,
+  CARDIO_DURATION_MAX_SEC,
+  CARDIO_KCAL_MAX,
+  CARDIO_MODALITIES,
+  CARDIO_RATE_STYLE,
+  HR_MAX,
+  HR_MIN,
+  RPE_MAX,
+  RPE_MIN,
+  clampCardioDurationSec,
+  clampCardioKcal,
+  clampDistanceM,
+  clampHr,
+  clampRpe,
+  isLoggedCardioBlock,
+} from './cardio';
+// Cardio derivations — weekly roll-up, per-block summary cells, distance/pace
+// formatting. A SIBLING of ./train-view and never an edit to it: the strength
+// derivations walk session.exercises and must keep walking only that.
+export * from './cardio-view';
+
 // ──────────────────── Food-resolution pipeline ────────────────────
 // Barcode / label / text / photo → an editable macro draft → a CustomFood.
 // Every arm is pure; the fetch, the camera and the OCR are per-frontend

@@ -7,6 +7,8 @@
  * the minimal shapes @macrolog/core needs and is the dedup target.
  */
 
+import type { CardioBlock, PlannedCardioBlock } from './cardio';
+
 /** How a set counts. `working` is the default straight set; `activation`
  *  + `mini` model cluster training; `warmup` is excluded from PR/progression
  *  math; `drop` is a back-off set. */
@@ -137,8 +139,25 @@ export interface WorkoutSession {
   /** Logged bodyweight; the store mirrors this into dailyWeights on finish. */
   bodyweight?: number;
   sleepHours?: number;
+  /**
+   * How long the whole SESSION took, in minutes.
+   *
+   * Not to be confused with `CardioBlock.durationSec`, which is how long one
+   * run was. Different unit, different question, one careless autocomplete
+   * apart (ADR-0025).
+   */
   durationMin?: number;
   exercises: SessionExercise[];
+  /**
+   * Logged cardio (ADR-0025). A lifting day with a finisher has both arrays;
+   * a run on its own is a session with `exercises: []` and one block here.
+   *
+   * **No strength derivation may read this.** `sessionVolume`,
+   * `computeExercisePRs`, `bestE1RMByExercise`, `metricForSet`,
+   * `suggestProgression` and `trainHeroStats` walk `exercises` only, and
+   * `cardio-strength-independence.test.ts` fails if that stops being true.
+   */
+  cardio?: CardioBlock[];
   /** "Next session notes" carried forward to the next session of the template. */
   nextNotes?: string;
   createdAt: Date;
@@ -213,6 +232,11 @@ export interface WorkoutTemplate {
   /** Rest between clusters / exercises, seconds. */
   restClusterSec?: number;
   exercises: TemplateExercise[];
+  /** Prescribed cardio (ADR-0025) — the analogue of `plannedSets`. Starting a
+   *  session snapshots these into `WorkoutSession.cardio` as TARGETS, which
+   *  render as placeholders and are committed to the real fields only when the
+   *  block is actually performed. A prescription is not a record of work. */
+  cardioBlocks?: PlannedCardioBlock[];
   /** Stable slug of the shipped starter this was cloned from, if any. */
   seedKey?: string;
   createdAt: Date;

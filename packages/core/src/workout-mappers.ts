@@ -14,8 +14,22 @@
  * as a post-step (mobile does not — the historical asymmetry), so it stays a
  * per-frontend decision at the call site rather than baked into the shared shape.
  */
+import type { CardioBlock, PlannedCardioBlock } from './cardio';
 import { toDate } from './firestore-mappers';
 import type { Exercise, SessionExercise, TemplateExercise, WorkoutSession, WorkoutTemplate } from './workout';
+
+/**
+ * Cardio blocks carry one Date (`startedAt`), so they cannot be spread through
+ * like a set can — a stored `Timestamp` would reach the domain shape unconverted
+ * and every consumer would get a value that fails `instanceof Date`.
+ *
+ * `startedAt` is genuinely optional (a manual block need not have one), so the
+ * conversion is skipped rather than defaulted: `toDate(undefined)` would invent
+ * a start time the user never gave.
+ */
+function toCardioBlock(raw: CardioBlock): CardioBlock {
+  return raw.startedAt == null ? raw : { ...raw, startedAt: toDate(raw.startedAt) };
+}
 
 export function toWorkoutExercise(id: string, data: Record<string, unknown>): Exercise {
   return {
@@ -40,6 +54,7 @@ export function toWorkoutTemplate(id: string, data: Record<string, unknown>): Wo
       ...ex,
       plannedSets: ex.plannedSets ?? [],
     })),
+    cardioBlocks: data['cardioBlocks'] as PlannedCardioBlock[] | undefined,
     seedKey: data['seedKey'] as string | undefined,
     createdAt: toDate(data['createdAt']),
     updatedAt: toDate(data['updatedAt']),
@@ -61,6 +76,7 @@ export function toWorkoutSession(id: string, data: Record<string, unknown>): Wor
       ...ex,
       sets: ex.sets ?? [],
     })),
+    cardio: (data['cardio'] as CardioBlock[] | undefined)?.map(toCardioBlock),
     nextNotes: data['nextNotes'] as string | undefined,
     createdAt: toDate(data['createdAt']),
     updatedAt: toDate(data['updatedAt']),
