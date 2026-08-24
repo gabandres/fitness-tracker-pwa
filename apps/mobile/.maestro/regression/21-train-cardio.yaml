@@ -55,10 +55,15 @@ appId: fit.ignia.app
 # the one anchor that says "navigation worked" without also saying which state
 # we landed in. Without it a failed tab tap surfaces three steps later as a
 # missing button, which is what cost two runs on 2026-08-24.
+# 60s, not 30s. Train subscribes to templates, history, exercises and the week
+# summary on first focus, and on the LG G6 (API 28) that has taken ~2 minutes
+# from cold — the same budget flows 04/09/10/18/20 already carry. At 30s this
+# failed on a cold app while passing on a warm one, which is the shape of a
+# flake rather than a defect.
 - extendedWaitUntil:
     visible:
       id: 'train-glossary-open'
-    timeout: 30000
+    timeout: 60000
 
 # Let Train SETTLE before the guard reads it. `runFlow: when:` is a condition
 # check with no wait of its own, and this tab subscribes to templates, history,
@@ -161,7 +166,7 @@ appId: fit.ignia.app
 - extendedWaitUntil:
     visible:
       id: 'train-glossary-open'
-    timeout: 30000
+    timeout: 60000
 # SCROLL before asserting. Returning to Train resets the session ScrollView to
 # the top and the cardio card sits below the exercise list, so a bare assert
 # fails on an element that is present and merely off-screen — which reads

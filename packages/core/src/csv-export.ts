@@ -6,6 +6,7 @@
 // single dataset.
 
 import type { DailyLog, Measurement } from './types';
+import { isLoggedCardioBlock } from './cardio';
 import { type WorkoutSession, isLoggedSet } from './workout';
 import { normalizeClusterGroups } from './cluster-groups';
 import { localDateKey } from './date';
@@ -19,6 +20,12 @@ const COLS = [
   // Workout columns — filled on 'workout' (session) + 'workout_set' rows.
   'template', 'exercise', 'setKind', 'setGroup', 'setWeight', 'setReps',
   'setRir', 'durationMin', 'sleepHours',
+  // Cardio columns — filled on 'cardio' rows only (ADR-0025). Distance is
+  // exported in METERS, the stored unit, so the file does not depend on which
+  // display preference the user happened to have on export day.
+  'modality', 'cardioLabel', 'cardioDurationSec', 'cardioDistanceM',
+  'cardioAvgHr', 'cardioMaxHr', 'cardioKcal', 'cardioRpe', 'cardioSource',
+  'cardioProvider', 'cardioStartedAt', 'notes',
 ] as const;
 type Col = typeof COLS[number];
 
@@ -45,9 +52,14 @@ export interface ExportData {
 
 /**
  * Long-format CSV: every row carries a `type` discriminator
- * (meal | weight | water | sleep | measurement | workout | workout_set) and only
- * fills the columns relevant to that type. Workout sessions emit one `workout`
- * summary row plus one `workout_set` row per logged set.
+ * (meal | weight | water | sleep | measurement | workout | workout_set | cardio)
+ * and only fills the columns relevant to that type. Workout sessions emit one
+ * `workout` summary row, one `workout_set` row per logged set, and one `cardio`
+ * row per logged cardio block (ADR-0025).
+ *
+ * A cardio-only session — a run with no lifting — still emits its `workout`
+ * summary row, so the export mirrors what Train shows rather than making a run
+ * look like a session that never happened.
  */
 export function buildCsv(data: ExportData): string {
   const rows: string[] = [COLS.join(',')];
@@ -136,6 +148,35 @@ export function buildCsv(data: ExportData): string {
           setRir: set.rir,
         }));
       }
+    }
+    // Unperformed prescriptions are dropped, exactly as scaffold sets are:
+    // `isLoggedCardioBlock` is the same gate the roll-ups use, so the CSV can
+    // never claim work the user did not do.
+    for (const b of (s.cardio ?? []).filter(isLoggedCardioBlock)) {
+      rows.push(row({
+        type: 'cardio',
+        date,
+        // A block carries its OWN start time when the source knew it — a run
+        // imported at 9pm may have happened at 6am — so prefer it over the
+        // session's timestamp.
+        timestamp: (b.startedAt ?? s.date).toISOString(),
+        template: s.templateName,
+        modality: b.modality,
+        cardioLabel: b.label,
+        cardioDurationSec: b.durationSec,
+        cardioDistanceM: b.distanceM,
+        cardioAvgHr: b.avgHr,
+        cardioMaxHr: b.maxHr,
+        // Provenance, and worth being explicit because a spreadsheet invites
+        // arithmetic: this is what the device reported, and it is NOT part of
+        // any calorie budget (ADR-0024 decision 4 / ADR-0026 decision 5).
+        cardioKcal: b.kcal,
+        cardioRpe: b.rpe,
+        cardioSource: b.source,
+        cardioProvider: b.provider,
+        cardioStartedAt: b.startedAt?.toISOString(),
+        notes: b.notes,
+      }));
     }
   }
 

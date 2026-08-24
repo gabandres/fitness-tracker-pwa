@@ -310,7 +310,7 @@ prove the floor.
 | (app)/train | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 |
 | (app)/train — logging interactions | `16-train-terms.yaml` (glossary, RIR scale, set-type rows; starts + discards a workout) | ✓ 2026-08-12 | ✓ 2026-08-18 — first iOS run; took five platform fixes and exposed a false-positive assert |
 | (app)/train — template editor | `18-train-template.yaml` (build a template from a seeded exercise, set table + headers, collapsed card summary, More options, save → re-open → per-set targets still there) | — no Android host | ✓ 2026-08-18 — first run; the only flow that exercises the editor at all |
-| (app)/train — cardio blocks | `21-train-cardio.yaml` (add a block, pick a modality, type a duration, see the summary recompute, and prove it round-trips through Firestore by leaving Train and coming back; discards in its own tail) | ✓ 2026-08-24 — **first run, and it found a real data loss**: `useTrain.persist` wrote `{ exercises }` only, so a cardio block rendered, updated the summary and never reached Firestore — an omitted field, not a rejected write, so nothing errored. Confirmed by reading the doc back (`cardio: null` against a block on screen), fixed, re-published, re-run green end to end | ✗ authored 2026-08-24 |
+| (app)/train — cardio blocks | `21-train-cardio.yaml` (add a block, pick a modality, type a duration, see the summary recompute, and prove it round-trips through Firestore by leaving Train and coming back; discards in its own tail) | ✓ 2026-08-24 — **first run, and it found a real data loss**: `useTrain.persist` wrote `{ exercises }` only, so a cardio block rendered, updated the summary and never reached Firestore — an omitted field, not a rejected write, so nothing errored. Confirmed by reading the doc back (`cardio: null` against a block on screen), fixed, re-published, re-run green end to end | ✓ 2026-08-24 — green end to end on a Release simulator build from `main`. **No platform-gated selector was needed**: the first iOS run died at `tapOn: id: tab-train` and looked like an iOS id problem, but the accessibility tree showed the **guided tour** covering the app (`tour-skip`, `STEP 1 OF 6`) — §3.12's documented trap. Dismiss the tour and the identical flow passes. One real harness fix came out of it: `hideKeyboard` is unsupported on the iOS simulator AND does not blur on Android, so the flow taps out instead |
 | (app)/trends | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 |
 | (app)/body | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 — **caught the body-fat overflow** |
 | Today / Trends / Train — the "?" glossaries | `19-glossary.yaml` (all three headers carry it, the sheet opens, and it scrolls to its last term rather than clipping at the panel ceiling) | ✗ authored 2026-08-22 | ✓ 2026-08-22 — first run, on a Release sim build from `9475676` |
@@ -404,6 +404,20 @@ maestro --device <udid> test .maestro/android-signin.yaml -e EMAIL=qa-test@ignia
   completes and the save fails with "Please verify your email first".
 - **The last step is not optional.** The arc ends signed out, so the sandbox
   needs `android-signin.yaml` before any other flow runs.
+
+## `hideKeyboard` is the wrong tool on BOTH platforms
+
+Measured 2026-08-24 while bringing flow 21 up on iOS and Android:
+
+- **iOS simulator:** `hideKeyboard` is not supported and fails the step outright.
+- **Android:** it SUCCEEDS and does not fire the input's `onBlur`. That is worse,
+  because `onBlur` is what commits a deferred edit — a run using it stored
+  `durationSec: 0` while the screen showed `32:00`, confirmed by reading the
+  session doc back out of Firestore.
+
+Tap a neutral element instead. The session ScrollView sets
+`keyboardShouldPersistTaps="handled"`, so a tap on the card's own title
+dismisses the keyboard *and* blurs the field, on both platforms.
 
 ## Why flow 21's round trip really is Firestore-verified
 

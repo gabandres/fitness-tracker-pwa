@@ -73,3 +73,70 @@ describe('buildCsv', () => {
     expect(rows.filter((r) => r.startsWith('workout_set,')).length).toBe(1);
   });
 });
+
+// ─── Cardio rows (ADR-0025) ─────────────────────────────────────
+
+describe('cardio in the CSV export', () => {
+  const day = new Date('2026-08-24T12:00:00');
+  const session = (cardio: unknown[], exercises: unknown[] = []) => ({
+    logs: [], measurements: [], dailyWeights: {}, dailyWater: {}, dailySleep: {},
+    workoutSessions: [{
+      status: 'completed', date: day, createdAt: day, updatedAt: day,
+      templateName: 'Push Day', exercises, cardio,
+    }],
+  } as never);
+
+  it('emits one cardio row per logged block, with its own start time', () => {
+    const csv = buildCsv(session([
+      {
+        modality: 'run', durationSec: 1930, distanceM: 8046.7, avgHr: 148,
+        kcal: 612, rpe: 7, source: 'health', provider: 'oura',
+        sourceId: 'oura-1', startedAt: new Date('2026-08-24T06:15:00'),
+        notes: 'legs felt heavy',
+      },
+    ]));
+    const line = csv.split('\r\n').find((l) => l.startsWith('cardio,'));
+    expect(line).toBeDefined();
+    for (const v of ['run', '1930', '8046.7', '148', '612', '7', 'health', 'oura']) {
+      expect(line).toContain(v);
+    }
+    // The BLOCK's start, not the session's — a run imported at 9pm may have
+    // happened at 6am. Compared as an ISO instant rather than the local literal:
+    // `toISOString()` renders UTC, so the wall-clock string is not in the row.
+    const blockStart = new Date('2026-08-24T06:15:00').toISOString();
+    expect(line).toContain(blockStart);
+    expect(line).not.toContain(day.toISOString());
+    expect(line).toContain('legs felt heavy');
+  });
+
+  // The same gate the roll-ups use. A template's prescription that was never
+  // performed must not appear in an export as work the user did.
+  it('drops an unperformed prescription', () => {
+    const csv = buildCsv(session([
+      { modality: 'ride', durationSec: 0, targetDurationSec: 1800, source: 'manual' },
+    ]));
+    expect(csv.split('\r\n').some((l) => l.startsWith('cardio,'))).toBe(false);
+  });
+
+  // A run with no lifting is still a session, and the export should say so
+  // rather than making it look like a day that never happened.
+  it('still emits the workout summary row for a cardio-only session', () => {
+    const csv = buildCsv(session([{ modality: 'run', durationSec: 1200, source: 'manual' }]));
+    const lines = csv.split('\r\n');
+    expect(lines.some((l) => l.startsWith('workout,'))).toBe(true);
+    expect(lines.some((l) => l.startsWith('cardio,'))).toBe(true);
+    expect(lines.some((l) => l.startsWith('workout_set,'))).toBe(false);
+  });
+
+  it('leaves a session with no cardio field untouched', () => {
+    const csv = buildCsv({
+      logs: [], measurements: [], dailyWeights: {}, dailyWater: {}, dailySleep: {},
+      workoutSessions: [{
+        status: 'completed', date: day, createdAt: day, updatedAt: day,
+        exercises: [{ exerciseId: 'b', name: 'Bench', cues: [], sets: [{ kind: 'working', weight: 135, reps: 8 }] }],
+      }],
+    } as never);
+    expect(csv.split('\r\n').some((l) => l.startsWith('cardio,'))).toBe(false);
+    expect(csv.split('\r\n').some((l) => l.startsWith('workout_set,'))).toBe(true);
+  });
+});
