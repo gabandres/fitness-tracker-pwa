@@ -1,6 +1,6 @@
 # ADR-0026: Oura reaches Ignia through the OS health store, and its energy stops at the seed
 
-- **Status:** accepted, then **partly superseded by its own Amendment 2** (2026-08-24) — the Cloud API this ADR refused is being built. Decisions 1–5 survive as the fallback path for every non-Oura wearable, and Decision 5 (imported energy never reaches a target) is unamended and matters more, not less. Amendment 1 records the fingerprint measurement that phases the health-store rollout
+- **Status:** accepted, then **partly superseded by its own Amendment 2**, and widened by **Amendment 3** (2026-08-24) — the Cloud API this ADR refused is being built. Decisions 1–5 survive as the fallback path for every non-Oura wearable, and Decision 5 (imported energy never reaches a target) is unamended and matters more, not less. Amendment 1 records the fingerprint measurement that phases the health-store rollout
 - **Date:** 2026-08-24
 
 ## Context
@@ -315,6 +315,78 @@ The ten-user cap is irrelevant *today* and is not gone. Oura reviews an
 application before it may exceed ten connected users, and that review must be
 cleared **before any public release depends on the integration**, not after
 users start hitting it.
+
+## Amendment 3 — 2026-08-24: the scope widens to `daily`, and imports stop overwriting people
+
+Amendment 2 built the Cloud API on one scope, `workout`, and argued the others
+down on the grounds that nothing consumed them. **That argument was checked
+against the code and it was wrong.** Ignia has stored daily sleep hours, steps
+and active kcal since the Health importer shipped — `setDailySleep`,
+`setDailySteps` and `setDailyActiveEnergy` are real writers with real readers.
+The consumers were built; only the supply was missing.
+
+So the scope is now **`workout daily`**, and three things follow.
+
+### Why `daily` earns its place and the rest still do not
+
+- **Android gets it without a binary.** The Health Connect route needs a
+  runtime permission per data type, and each one moves the fingerprint — the
+  reason the workout read is still waiting on vc 38 while the Cloud API reached
+  testers a binary early. Sleep through the store would need the same again.
+- **The store route can fail silently.** With Oura's export switched off in
+  Oura's own app, Ignia sees nothing and cannot distinguish that from a rest
+  week. The Cloud API reads from Oura directly.
+- Everything else Oura offers — `heartrate`, `spo2`, `stress`, `tag`,
+  `session`, `ring_configuration`, `heart_health`, `personal`, `email` — is
+  still refused, and for the unchanged reason: nothing reads them, and each one
+  lengthens the consent screen protecting the things the user does want.
+
+**Decision 5 is untouched and is what keeps this safe.** `active_calories` from
+the ring is provenance, never a budget. It is verified not to reach the target:
+nothing in `packages/core` reads `activeKcal` for TDEE, and ADR-0024 makes the
+device's contribution seed-only by construction. More data does not mean a
+different number, and that is deliberate.
+
+### An import must not overwrite what a person typed
+
+`dailySleep` gains an optional `source`, enforced by `firestore.rules` as
+`'manual' | 'import'`. `importDailySleep` declines to write when the stored
+value is anything other than `'import'`.
+
+**A missing `source` counts as manual.** Documents written before this change
+could be either, and the conservative reading is the one that cannot destroy a
+real entry — imports fill empty days and refresh days they already own, and
+leave everything else alone.
+
+This is a **daily-total rule and not a workout rule**, and the difference is the
+whole point. Two sources reporting one night are two measurements of the same
+quantity, so the newer read normally wins; a hand-typed night is a statement of
+intent, not a measurement. Two sources reporting one *run* are two records of a
+distinct event, which is why Decision 4 still refuses to merge those and
+surfaces them instead.
+
+It also closes the same hole on the **existing Apple Health path**, which had
+it too: the Train session-finish sleep and the Today sleep sheet were both
+overwritable by an importer before this.
+
+### Every connected user must reconnect, and is told so
+
+Oura cannot widen a grant without fresh consent, so everyone who linked before
+2026-08-24 holds `workout` alone. `packages/core/src/oura-scopes.ts` compares
+the granted scope against the required set and the Connected apps screen shows
+a reconnect notice. Without it the failure is silent: the link stays live, the
+token refreshes, the callable succeeds, and the sleep row is simply empty.
+
+### The consent handoff now closes itself
+
+`WebBrowser.openAuthSessionAsync` dismisses when the browser reaches the
+redirect URL the app gave it, and iOS `ASWebAuthenticationSession` can only
+intercept a **custom scheme** — matching an `https://` URL needs Universal
+Links, which this app does not configure. Passing Oura's registered
+`https://ignia.fit/oura/callback` meant the session could never match its own
+redirect, so the user landed on the success page and had to tap Done. The
+callback now bounces to `ignia://oura/callback` after the exchange. Oura's
+registered redirect URI is unchanged.
 
 ## Alternatives rejected
 
