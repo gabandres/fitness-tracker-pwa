@@ -1009,3 +1009,68 @@ and delivery looked fine the whole time.
   `bermudezsystems.com` items ① and ②, which outrank this one.
 - Optional afterwards: `MACROLOG_FEEDBACK_TO` (`functions/src/feedback-notify.ts`)
   can point back at the LLC address once a test has been watched to arrive.
+
+### 3.14 The watchOS simulator — reading the watch faces at 40mm and 46mm
+
+Done 2026-08-23 to close #46. The whole run, and the four things that are not
+obvious.
+
+**Disk first.** A clean watch build peaked with the Air at **2.9 GiB free** and
+it started at 7.0. Clear our own DerivedData before starting — it was 12 GB and
+it is entirely ours (one directory, `Ignia-<hash>`; nothing of the machine
+owner's is in there):
+
+```sh
+rm -rf ~/Library/Developer/Xcode/DerivedData/Ignia-*
+```
+
+**Create the two sizes.** The runtime ships with no watch devices at all:
+
+```sh
+xcrun simctl create Ignia-W40 com.apple.CoreSimulator.SimDeviceType.Apple-Watch-SE-40mm-2nd-generation com.apple.CoreSimulator.SimRuntime.watchOS-26-5
+xcrun simctl create Ignia-W46 com.apple.CoreSimulator.SimDeviceType.Apple-Watch-Series-10-46mm       com.apple.CoreSimulator.SimRuntime.watchOS-26-5
+```
+
+**Build with `-destination`, never `-sdk`** — the same rule as §3.13, and the
+scheme is `IgniaWatch` (the complication is `IgniaWatchComplication`). It needs
+a full `expo prebuild -p ios --clean` first, WITH pods; the watch scheme pulls
+the main app's pod graph, so the first build is long even though the watch code
+is a few hundred lines of SwiftUI.
+
+```sh
+xcodebuild -workspace ios/Ignia.xcworkspace -scheme IgniaWatch -configuration Debug   -destination 'generic/platform=watchOS Simulator'   -derivedDataPath /tmp/wdd CODE_SIGNING_ALLOWED=NO build
+```
+
+**The watch is NOT localised through `.lproj`, and this is the part that wastes
+an hour.** Both string sets are compiled into `targets/_shared/Glance.swift` and
+chosen by the `locale` field of the snapshot the phone pushes. So setting
+`AppleLanguages` on the simulator does nothing, and a watch with no paired phone
+renders the empty state in one language forever. Seed the App Group instead:
+
+```sh
+J='{"v":1,"dateKey":"2026-08-23","kcalConsumed":1450,"kcalTarget":2323,"proteinConsumed":92,"proteinTarget":145,"updatedMs":1787537748000,"locale":"es-PR"}'
+xcrun simctl spawn Ignia-W40 defaults write group.fit.ignia.app ignia.widget.snapshot.v1 -string "$J"
+xcrun simctl terminate Ignia-W40 fit.ignia.app.watchkitapp
+xcrun simctl launch    Ignia-W40 fit.ignia.app.watchkitapp
+xcrun simctl io        Ignia-W40 screenshot /tmp/w40-es.png
+```
+
+**`-string` is load-bearing.** Without it `defaults` tries to parse the JSON as
+a plist, prints *"Could not parse: … Try single-quoting it"* to stderr, and
+writes **nothing** — the app then renders its empty state and the screenshots
+come out identical across locales, which looks like the app ignoring the
+locale rather than the seed never landing. Read it back (`defaults read`) before
+trusting a capture.
+
+**Tear the sims down afterwards**, same reasoning as the Android AVD in
+`.maestro/README.md`: they are disposable and this is not our laptop.
+
+```sh
+for S in Ignia-W40 Ignia-W46; do xcrun simctl shutdown $S; xcrun simctl delete $S; done
+rm -rf /tmp/wdd ~/Library/Developer/Xcode/DerivedData/Ignia-*
+```
+
+**Also worth killing on sight:** several `zsh -c until ! pgrep -f xcodebuild …`
+watcher processes from earlier sessions were found still running. Their own
+command line contains `xcodebuild`, so their `pgrep` matches themselves and they
+can never exit. Four of them had accumulated.

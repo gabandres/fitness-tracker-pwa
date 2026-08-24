@@ -6,6 +6,35 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-23 — the watch reads correctly on both sizes, in both languages
+
+**#46 is closed, and it was the last open item of the 16-ticket Apple
+glanceable-surfaces map.** The watch app was built for the simulator on
+`ignia-mac` and captured at **40mm (324x394)** and **46mm (416x496)**, each in
+English and es-PR — four renders, from a seeded App Group snapshot rather than
+an empty screen, so the numbers, the progress bar and the timestamp all had
+real content to lay out.
+
+Nothing is clipped, nothing overflows, and nothing truncates. Spanish runs
+longer than English at every line — *kcal restantes* against *kcal left*,
+*proteína 92/145* against *protein 92/145* — and still fits on the 40mm face,
+which is the case that would have broken first. The timestamp localises
+properly too: *as of 10:15 PM* becomes *a las 10:15 p. m.*
+
+The one difference between the sizes is the diagnostics footer, which is below
+the fold at 40mm and on screen at 46mm. That is not clipping: the view is a
+`ScrollView`, chosen deliberately and commented as such at
+`targets/watch/index.swift:281` because the screen has more content than the
+smallest face shows at once.
+
+Worth knowing for the next person: the watch is **not** localised through
+`.lproj`. Both string sets are compiled into `Glance.swift` and selected by a
+`locale` field on the snapshot the phone pushes — so a watch with no paired
+phone shows the empty state in one language, and the way to exercise the other
+is to seed `group.fit.ignia.app` / `ignia.widget.snapshot.v1` directly
+(`defaults write … -string`, and the `-string` matters: without it `defaults`
+parses the JSON as a plist and silently writes nothing).
+
 ## 2026-08-23 — email in Portuguese, a site that finishes what it starts
 
 **Email speaks all three languages now.** Ignia has shipped Portuguese in the
