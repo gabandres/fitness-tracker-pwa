@@ -79,11 +79,17 @@ licence.** The 2019–2022 files exist solely as Internet Archive captures of a
 site that said *All rights reserved*. Shipping those is a materially weaker
 position than shipping the CC0 one, and the ADR must not blur them together.
 
-If the owner wants the 2022 data on a clean footing, there is exactly one cheap
-move: **email `info@menustat.org` / `MenuStat@health.nyc.gov` and ask for
-written permission.** That mailbox may be dead along with the site. It costs one
-email to find out, and it converts the strongest objection in this ADR into a
-document.
+**SENT 2026-08-24 17:19 AST**, from `gabriel@bermudezsystems.com` to
+`info@menustat.org`, Cc `MenuStat@health.nyc.gov` — asking for written permission
+to redistribute the 2022 dataset inside a commercial app from a public repo, and
+stating the CC0-2018 fallback plainly so a “no” is cheap to give.
+
+**Expect the `info@menustat.org` copy to bounce.** That domain has no resolvable
+MX — the whole zone SERVFAILs, which is the same failure that took the website
+down — so `health.nyc.gov` (valid Proofpoint MX) is the copy that can actually
+arrive, and Cc-ing it is what makes this worth sending at all. **A bounce from
+the first address is itself evidence** for §0's claim that the project is
+retired, and is not a reason to re-send.
 
 ---
 
