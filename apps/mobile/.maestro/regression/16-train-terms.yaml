@@ -233,11 +233,22 @@ appId: fit.ignia.app
 # catalog row is the same shape. `13-e2e-delete` matches its diary row the
 # same way. A teardown that cannot find its own row leaves the QA name in
 # the account, and the next run's screenshots inherit it.
+# 45s, not 15s. This teardown was the ONLY step of this flow that failed on
+# 2026-08-23 — everything it actually tests passed — and the capture Maestro
+# saved at the failure shows "QA Term Check" plainly on screen, in the middle
+# of the Exercises list. The row was not missing; the budget ran out while the
+# Train tab was still settling, which on the LG G6 it does slowly (16's own
+# earlier steps already carry 60s budgets for the same reason).
+#
+# A teardown that fails is not cosmetic: it leaves the QA name in the account's
+# catalog, and the next run's screenshots inherit it. `qa-regression-verify.mjs
+# cleanup` now also deletes "QA "-prefixed exercises and templates, so the
+# recovery exists — but the flow should not need it.
 - scrollUntilVisible:
     element:
       text: '.*QA Term Check.*'
     direction: DOWN
-    timeout: 15000
+    timeout: 45000
     centerElement: true
 - tapOn: '.*QA Term Check.*'
 - tapOn:

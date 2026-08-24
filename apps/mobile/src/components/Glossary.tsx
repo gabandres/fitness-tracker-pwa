@@ -47,8 +47,21 @@ export function Glossary({
   const t = useT();
   const styles = useThemedStyles(createStyles);
 
+  // `backdropTestID` is the same affordance EntrySheet has carried since it was
+  // written. Without it a flow can only dismiss this sheet by tapping a
+  // COORDINATE, and that is viewport-dependent: the Train glossary is the
+  // longest of the three, and on a 360x720dp screen its panel reaches to ~8% of
+  // the screen height — so the `50%,8%` tap the suite used landed on the sheet
+  // rather than the backdrop. The sheet stayed open over the tab bar and the
+  // run died two steps later at "Tap on Today", which reads like a broken tab
+  // bar. Measured on the LG G6 2026-08-23.
+  //
+  // The suite still dismisses by coordinate (`50%,5%`) because the device runs
+  // the published OTA bundle and this id is not in it yet;
+  // `.maestro/regression/19-glossary.yaml` says to switch once a bundle
+  // carrying it ships.
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
+    <BottomSheet visible={visible} onClose={onClose} backdropTestID="glossary-backdrop">
       <Text style={styles.title} testID={testID}>{t(titleKey)}</Text>
       <Text style={styles.intro}>{t(introKey)}</Text>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollBody}>

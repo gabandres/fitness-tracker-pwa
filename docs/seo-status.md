@@ -220,3 +220,87 @@ indexing — thin or near-duplicate pages get crawled and dropped. The 36
 `/macros/<goal>/<weight>-lb` pages are the most at risk of that, since they
 differ mainly by number. If they are crawled and not indexed, that is a content
 signal, not a technical one, and no amount of sitemap resubmission fixes it.
+
+## The content half, shipped 2026-08-23
+
+The 2026-08-17 entry above ends by naming what the footer work did **not** fix:
+*"The body is still `<app-root></app-root>` plus a footer — the page's actual
+content still requires JS."* That is now closed for every route that has static
+content to give, and this section records both what shipped and why the
+originally-named fix (`@angular/ssr`) is not what shipped.
+
+### Real prerendering is blocked, and the blocker is not effort
+
+`@angular/ssr` with `outputMode: 'static'` prerenders by **routing** to each URL
+and rendering the component the router matches. This app has no router to match
+with. `src/app/app.routes.ts` is eight lines and declares exactly one route:
+
+```ts
+{ path: '**', children: [] }   // "no <router-outlet>" — pages switch by signal
+```
+
+Page selection is a signal in `app.ts`, initialised from
+`window.location.pathname` via `detectRoute()`. So `outputMode: 'static'` would
+enumerate one catch-all route with no component and render nothing, on every
+URL. Two further blockers sit behind that one: `App` reads browser globals
+during construction (`signal(!navigator.onLine)` is a field initialiser, and
+`navigator` does not exist in Node — Angular's SSR platform provides `document`,
+not `window`/`navigator`), and the auth/Firestore providers would have to be
+deferred or the render would never reach stability.
+
+**So "real prerendering" is not a build-config change; it is a router migration
+of the flagship app plus an SSR-safety pass.** That is a large change to a
+frontend ADR-0022 froze. It is not refused here — it is *scoped*, which is what
+the 2026-08-17 entry said had never been done. Anyone re-opening it should cost
+the router migration first, because everything else depends on it.
+
+### What shipped instead: the pages now carry their own copy
+
+`scripts/prerender-seo.mjs` writes each content route's **real text** into the
+served HTML, read from the same source the component renders from — the i18n
+bundles, and `src/app/components/vs-page/vs-data.ts` for the comparison table
+(imported directly; Node 24 strips TS types, so there is no second copy of the
+data and no build step). Measured on the emitted files:
+
+| Page | Crawlable text before | After |
+|---|---|---|
+| `/privacy` (Apple requires this URL) | title + 1 line | **6,514 chars, 10 sections** |
+| `/es/privacy` | title + 1 line | 6,875 chars, 10 sections |
+| `/terms` (the store listing points here) | title + 1 line | 4,838 chars, 10 sections |
+| `/faq` | title + 1 line | 4,363 chars, **12 Q&A** |
+| `/es/faq` | title + 1 line | 4,399 chars, 12 Q&A |
+| `/vs/<competitor>` | title + 1 line | ~1,400 chars + a real `<table>` |
+| `/macros/<goal>/<weight>-lb` × 36 | title + 1 line | ~660 chars incl. the kcal/protein figures |
+| `/<calculator-variant>` × 8 | title + 1 line | the variant's full body copy |
+
+All figures are readable TEXT with markup stripped, taken from a full
+`npm run build` on 2026-08-23 (`BUILD_EXIT=0`), not from a hand-run of the
+script.
+
+`/changelog`, `/status` and `/transformations` are deliberately unchanged: they
+are generated at runtime and have no static copy to lift.
+
+**Three properties hold this honest, and they matter more than the byte count.**
+
+1. **One source, never a copy.** Every string is read from where the app reads
+   it. A copy edit or a translation lands in both surfaces or in neither.
+2. **It goes inside `<noscript>`**, alongside the heading fallback that shipped
+   on 2026-08-17. Anyone with JS gets the app byte-for-byte as before, there is
+   no flash of static copy under the SPA, and there is no second visible body to
+   keep in sync. It is the same text the page renders, so it is a fallback and
+   not a cloak. The tradeoff, stated plainly: `<noscript>` content is indexable
+   but is not the same signal as main content. Making it main content requires
+   the app to remove it on bootstrap, which is the router/SSR work above.
+3. **The legal pages fail the build if a section is added and not carried
+   over.** `LEGAL_SECTIONS` in the script enumerates `/privacy` and `/terms`
+   section-by-section — they interleave prose with UI labels ("Export",
+   "Cancel") that must not render as copy, and no length or prefix rule
+   separates them cleanly — and `assertLegalCoverage()` throws on any
+   `*Heading` key in i18n that the table does not know about. A compliance page
+   that is complete in the app and truncated to a crawler is exactly the drift
+   nothing else here would report.
+
+**Not fixed by this, and still true:** the sitemap's `lastDownloaded` state, and
+whether any of it gets crawled. This changes what Google finds when it comes; it
+cannot make Google come. Re-measure with `node scripts/gsc.mjs inspect` before
+claiming any of it worked.

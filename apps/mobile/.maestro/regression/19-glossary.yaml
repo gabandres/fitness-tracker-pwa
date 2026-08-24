@@ -13,10 +13,14 @@ appId: fit.ignia.app
 ---
 - launchApp:
     clearState: false
+# 45s, not 15s. This flow failed on 2026-08-23 at its FIRST assertion after the
+# launch, and the capture Maestro saved shows the app still on the brand
+# loader — it had not finished booting. Eighteen flows in, on a 2019 device,
+# a cold start is not a 15-second operation.
 - extendedWaitUntil:
     notVisible:
       id: 'brand-loader'
-    timeout: 15000
+    timeout: 45000
 
 # ── Today ──
 - tapOn:
@@ -34,18 +38,49 @@ appId: fit.ignia.app
 # The Trends half lives below the fold — scroll INSIDE the sheet. If the cap is
 # wrong this is where it shows: the last terms become unreachable rather than
 # merely off-screen.
+# Anchor on the LAST term, not the second-to-last. The order in the sheet is
+# ... Logging completeness, then **Weight trend**, and scrolling stops the
+# moment the target enters the viewport — so scrolling to "Logging
+# completeness" leaves "Weight trend" still below the fold, and the assertion
+# under it failed on a 360x720dp screen while passing on the taller iOS
+# simulator, where both happen to fit at once. Measured on the LG G6
+# 2026-08-23.
+#
+# Anchoring on the last term is also the stronger version of what this flow is
+# for: the header says the cap on `Glossary`'s inner ScrollView is a guess and
+# that a wrong cap shows up here as the last terms being UNREACHABLE. Scrolling
+# to the last one is the test; scrolling to the one before it was not.
+# Answered on the device the same day: both are reachable, so the 460 cap is
+# fine on this viewport.
 - scrollUntilVisible:
     element:
-      text: 'Logging completeness'
+      text: 'Weight trend'
     direction: DOWN
-    timeout: 15000
+    timeout: 30000
 - assertVisible: 'Weight trend'
+- assertVisible: 'Logging completeness'
 - takeScreenshot: .maestro/regression/shots/19-glossary-scrolled
 # Dismiss by tapping the BACKDROP, not `back`. iOS has no hardware back, and
 # Maestro's `back` there is an edge swipe, which a modal bottom sheet does not
 # answer. A point high on the screen is backdrop on every one of these sheets.
+# 5%, not 8%. This dismisses the sheet by tapping its backdrop, and the
+# coordinate is viewport-dependent: the TRAIN glossary is the longest of the
+# three and on a 360x720dp screen its panel reaches to ~8% of the screen
+# height, so `50%,8%` landed ON the sheet. It stayed open, covered the tab bar,
+# and the run died two steps later at "Tap on Today" — a failure that reads
+# like a broken tab bar rather than a dismissal that did not happen. Measured
+# on the LG G6 2026-08-23.
+#
+# 5% clears both edges on this device: the status bar ends at ~2.5% and the
+# tallest panel starts at ~8%.
+#
+# **Switch this to `id: 'glossary-backdrop'` once a bundle carrying it ships.**
+# `Glossary` now passes that `backdropTestID` (the affordance EntrySheet has
+# always had), which removes the viewport dependence entirely — but the device
+# runs the published OTA bundle, so the id is not in the running app yet and a
+# flow using it fails today.
 - tapOn:
-    point: '50%,8%'
+    point: '50%,5%'
 
 # ── Trends: same affordance, same sheet ──
 - tapOn: 'Trends'
@@ -60,8 +95,24 @@ appId: fit.ignia.app
       id: 'numbers-glossary-title'
     timeout: 10000
 - takeScreenshot: .maestro/regression/shots/19-glossary-trends
+# 5%, not 8%. This dismisses the sheet by tapping its backdrop, and the
+# coordinate is viewport-dependent: the TRAIN glossary is the longest of the
+# three and on a 360x720dp screen its panel reaches to ~8% of the screen
+# height, so `50%,8%` landed ON the sheet. It stayed open, covered the tab bar,
+# and the run died two steps later at "Tap on Today" — a failure that reads
+# like a broken tab bar rather than a dismissal that did not happen. Measured
+# on the LG G6 2026-08-23.
+#
+# 5% clears both edges on this device: the status bar ends at ~2.5% and the
+# tallest panel starts at ~8%.
+#
+# **Switch this to `id: 'glossary-backdrop'` once a bundle carrying it ships.**
+# `Glossary` now passes that `backdropTestID` (the affordance EntrySheet has
+# always had), which removes the viewport dependence entirely — but the device
+# runs the published OTA bundle, so the id is not in the running app yet and a
+# flow using it fails today.
 - tapOn:
-    point: '50%,8%'
+    point: '50%,5%'
 
 # ── Train keeps its own, unchanged by the generalisation ──
 - tapOn: 'Train'
@@ -76,7 +127,23 @@ appId: fit.ignia.app
       id: 'train-glossary-title'
     timeout: 10000
 - takeScreenshot: .maestro/regression/shots/19-glossary-train
+# 5%, not 8%. This dismisses the sheet by tapping its backdrop, and the
+# coordinate is viewport-dependent: the TRAIN glossary is the longest of the
+# three and on a 360x720dp screen its panel reaches to ~8% of the screen
+# height, so `50%,8%` landed ON the sheet. It stayed open, covered the tab bar,
+# and the run died two steps later at "Tap on Today" — a failure that reads
+# like a broken tab bar rather than a dismissal that did not happen. Measured
+# on the LG G6 2026-08-23.
+#
+# 5% clears both edges on this device: the status bar ends at ~2.5% and the
+# tallest panel starts at ~8%.
+#
+# **Switch this to `id: 'glossary-backdrop'` once a bundle carrying it ships.**
+# `Glossary` now passes that `backdropTestID` (the affordance EntrySheet has
+# always had), which removes the viewport dependence entirely — but the device
+# runs the published OTA bundle, so the id is not in the running app yet and a
+# flow using it fails today.
 - tapOn:
-    point: '50%,8%'
+    point: '50%,5%'
 - tapOn: 'Today'
 - assertVisible: 'Today'

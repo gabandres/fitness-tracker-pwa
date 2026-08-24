@@ -41,6 +41,13 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+// The comparison table's own source of truth, imported rather than restated.
+// Node 24 strips TypeScript types natively, so a `.ts` data module is
+// importable from a plain `.mjs` build script with no compile step — which is
+// what keeps the prerendered table and the rendered table the same table.
+// If this ever moves to a Node without type stripping, the fix is a build
+// step, NOT a second copy of the data.
+import { VS_PROFILES } from '../src/app/components/vs-page/vs-data.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -440,6 +447,189 @@ const li = (href, label) => `<li><a href="${href}">${esc(label)}</a></li>`;
  *  all of them rather than the one that happened to be checked first. */
 const stripBrand = (t) => String(t).replace(/\s*[|·—–-]\s*Ignia\s*$/, '').trim();
 
+// ─── Page CONTENT for the no-JS/first-pass body ────────────────────────
+//
+// WHY THIS EXISTS, and why it is not the same job as the footer above.
+//
+// The 2026-08-17 measurement found the link graph missing AND the copy
+// missing. The footer fixed the first: 1 internal link per page became 32, so
+// the 118 URLs form a graph. It did nothing about the second — what a
+// first-pass crawler read was still a title, a one-line description and a list
+// of links, on every page, with the actual content of the page reachable only
+// by executing the bundle.
+//
+// A page whose crawlable text is its own <title> restated is a thin page, and
+// thin is a worse verdict than unknown: unknown gets recrawled, thin gets
+// dropped. So each content route now ships its REAL copy in the served HTML.
+//
+// Two rules hold this honest, and both matter more than the markup:
+//
+//   1. **One source, never a copy.** Every string below is read from the same
+//      place the component renders it from — the i18n bundles, and `vs-data.ts`
+//      for the comparison table. Nothing here is retyped prose. A copy edit
+//      lands in both surfaces or in neither, which is the only version of this
+//      that survives contact with a translator.
+//   2. **Inside <noscript>.** Anyone with JS gets the app, byte for byte as
+//      before; nobody sees a flash of static copy under the SPA, and there is
+//      no second visible body to keep in sync. It is the same text the page
+//      renders, so it is a fallback, not a cloak.
+//
+// This is still not SSR. `/calculator` cannot compute in a <noscript> block and
+// `/transformations` has nothing to say until Firestore answers. What it does
+// is stop the content pages being empty, which is the half of the 2026-08-17
+// finding the footer left open.
+
+const h2 = (s) => `<h2 style="font-size:17px;margin:18px 0 6px">${esc(s)}</h2>`;
+const para = (s) => `<p style="margin:0 0 8px">${esc(s)}</p>`;
+
+/**
+ * A paragraph whose source string is ALREADY HTML, emitted unescaped.
+ *
+ * `/privacy` and `/terms` are authored with inline markup — `<strong>`, `<em>`,
+ * `<br>` and `mailto:` links — and the components render them through Angular's
+ * `[innerHTML]`. Escaping them here would print `<strong>Export</strong>` as
+ * visible text on the two pages Apple and Google require to be readable, and
+ * would put raw tags into the indexed copy. So these strings pass through.
+ *
+ * That is safe for exactly one reason and it is worth stating: this is
+ * build-time content from the repo's own i18n bundles, not user input. Nothing
+ * reaches this function at runtime and nothing reaches it from Firestore. If a
+ * future page ever renders user-supplied copy, it must use `para`, not this.
+ */
+const rawPara = (s) => `<p style="margin:0 0 8px">${s}</p>`;
+
+/**
+ * The ordered content sections of the two legal pages, as
+ * `[headingKey, [bodyKey, ...]]`.
+ *
+ * Enumerated rather than pattern-matched. Both files interleave prose with
+ * UI-control labels ("Export", "Cancel", `deleteButton`) that must not be
+ * rendered as page copy, and no length or prefix rule separates the two
+ * cleanly — `dontAds` is 17 characters of real content and `deleteButton` is
+ * 17 characters of button. `assertLegalCoverage` below fails the build when a
+ * new section is added to i18n and not to this table, so being explicit here
+ * costs a line per section and cannot go quietly stale.
+ *
+ * These are the two URLs Apple and Google require to be live and readable
+ * (`/privacy` for App Review, `/terms` for the listing), which is why they are
+ * the first pages that had to stop being empty.
+ */
+const LEGAL_SECTIONS = {
+  privacy: [
+    ['storeHeading', ['storeBody1', 'storeBody2']],
+    ['healthHeading', ['healthBody']],
+    ['geminiHeading', ['geminiIntro', 'geminiPhoto', 'geminiCoach']],
+    ['dontHeading', ['dontSell', 'dontAds', 'dontTrain', 'dontShare']],
+    ['callHeading', ['callExport', 'callFullExport', 'callDelete', 'callQuestions']],
+    ['deleteStepsHeading', [
+      'deleteStepsIntro', 'deleteStepsApp', 'deleteStepsWeb', 'deleteStepsNoAccess',
+      'deleteWhat', 'deleteRetention',
+    ]],
+    ['gdprHeading', [
+      'gdprBody', 'gdprAccess', 'gdprRectify', 'gdprErase',
+      'gdprPortable', 'gdprRestrict', 'gdprObject',
+    ]],
+    ['ccpaHeading', ['ccpaBody']],
+    ['jurisdictionHeading', ['jurisdictionBody']],
+    ['medicalHeading', ['medicalBody']],
+  ],
+  terms: [
+    ['dealHeading', ['dealBody']],
+    ['medHeading', ['medBody']],
+    ['dataHeading', ['dataBody']],
+    ['availHeading', ['availBody']],
+    ['liabilityHeading', ['liabilityBody']],
+    ['arbHeading', ['arbBody']],
+    ['lawHeading', ['lawBody']],
+    ['subsHeading', ['subsBody']],
+    ['refundsHeading', ['refundsBody']],
+    ['contactHeading', ['contactBody']],
+  ],
+};
+
+/** Fail the build if i18n grew a legal section this table does not know about.
+ *  A silently-dropped section on `/privacy` is a compliance page that is
+ *  complete in the app and incomplete to a crawler — exactly the kind of drift
+ *  nothing else here would report. */
+function assertLegalCoverage(locale) {
+  for (const [page, table] of Object.entries(LEGAL_SECTIONS)) {
+    const known = new Set(table.map(([h]) => h));
+    const missing = Object.keys(locale.i18n[page] ?? {})
+      .filter((k) => k.endsWith('Heading') && !known.has(k));
+    if (missing.length) {
+      throw new Error(
+        `prerender-seo: ${locale.lang} ${page} has section heading(s) not in ` +
+        `LEGAL_SECTIONS: ${missing.join(', ')}. Add them (with their body keys) ` +
+        `so the prerendered page carries the same sections the app renders.`,
+      );
+    }
+  }
+}
+
+/** Legal page copy — headings + paragraphs, in the order the app renders. */
+function legalContent(page, i18n) {
+  const src = i18n[page];
+  const stamp = src.lastUpdated ? rawPara(src.lastUpdated) : '';
+  // Headings are plain text and stay escaped; bodies are authored HTML — see
+  // `rawPara`. The two are not interchangeable here.
+  return stamp + LEGAL_SECTIONS[page]
+    .map(([hk, bodyKeys]) =>
+      h2(src[hk]) + bodyKeys.filter((k) => src[k]).map((k) => rawPara(src[k])).join(''))
+    .join('');
+}
+
+/** The 12 Q&A pairs — the same list the page renders and the same list the
+ *  FAQPage JSON-LD already declares. Having the schema without the prose was
+ *  the odd half: Google matches rich results against on-page text. */
+function faqContent(i18n) {
+  return i18n.faq.items.map((it) => h2(it.q) + para(it.a)).join('');
+}
+
+/**
+ * The comparison page: tagline, the honest "when they win" paragraph, and the
+ * feature table as a real <table>.
+ *
+ * `VS_PROFILES` is English-only and the Spanish page renders those same
+ * English rows today, so the Spanish file carries them too. That is not an
+ * oversight to fix here: the prerendered text must match what the page
+ * actually shows, and emitting Spanish rows a visitor would never see is
+ * cloaking. Translating `vs-data.ts` fixes both surfaces at once.
+ */
+function vsContent(slug, i18n) {
+  const p = VS_PROFILES.find((x) => x.slug === slug);
+  if (!p) return '';
+  const rows = p.rows
+    .map((r) =>
+      `<tr><th scope="row" style="text-align:left;padding:4px 8px 4px 0">${esc(r.feature)}</th>` +
+      `<td style="padding:4px 8px 4px 0">${esc(r.us)}</td>` +
+      `<td style="padding:4px 0">${esc(r.them)}</td></tr>`)
+    .join('');
+  return (
+    para(p.tagline) +
+    h2(i18n.vs.honestTitle) + para(p.honestSummary) +
+    // `vs.tableTitle` is "Feature-by-feature: Ignia vs {{name}}" — interpolate
+    // it, or the page ships the placeholder as literal text.
+    h2(interp(i18n.vs.tableTitle, { name: p.name })) +
+    `<table style="border-collapse:collapse;font-size:14px"><thead><tr>` +
+    `<th scope="col" style="text-align:left;padding:4px 8px 4px 0">${esc(i18n.vs.colFeature)}</th>` +
+    `<th scope="col" style="text-align:left;padding:4px 8px 4px 0">Ignia</th>` +
+    `<th scope="col" style="text-align:left;padding:4px 0">${esc(p.name)}</th>` +
+    `</tr></thead><tbody>${rows}</tbody></table>`
+  );
+}
+
+/** A macro bracket: the numbers, stated as text a crawler can read, plus the
+ *  explainer. The JSON-LD already carries the same two figures — this is the
+ *  on-page text it is supposed to be describing. */
+function macrosContent(i18n, { goal, weight, kcal, protein }) {
+  return (
+    para(interp(i18n.macrosPage.subhead[goal], { weight })) +
+    para(`${i18n.macrosPage.kcalLabel}: ${kcal} · ` +
+         `${i18n.macrosPage.proteinLabel}: ${protein}${i18n.macrosPage.gramSuffix}`) +
+    para(interp(i18n.macrosPage.explainer[goal], { weight, kcal, protein }))
+  );
+}
+
 /** Link groups for one page. Localised, and macros pages get their siblings
  *  so all 36 brackets are reachable in two hops from any one of them. */
 function footerGroups(route, locale) {
@@ -522,10 +712,16 @@ function bodyBlocks(route, alternates, { footer = true } = {}) {
 
   // The heading a crawler's first pass reads, and what a no-JS reader gets
   // instead of nothing but "Please enable JavaScript".
+  // `route.content` is the page's real copy, read from the same i18n/data the
+  // component renders (see the CONTENT block above). Absent for the routes that
+  // genuinely have nothing static to say — `/transformations` waits on
+  // Firestore, `/status` on a heartbeat — which keep the heading-only fallback.
   const heading =
     `<div class="ig-sm" style="border:0"><div class="ig-sm__in" style="display:block">` +
     `<h1 style="font-size:24px;margin:0 0 8px">${esc(stripBrand(title))}</h1>` +
-    `<p style="margin:0">${esc(description)}</p></div></div>`;
+    `<p style="margin:0">${esc(description)}</p>` +
+    (route.content ?? '') +
+    `</div></div>`;
 
   const nav =
     `<footer class="ig-sm" aria-label="${esc(copy.navSiteMap)}">` +
@@ -581,6 +777,8 @@ function buildRoutes(locale) {
     });
   }
 
+  assertLegalCoverage(locale);
+
   for (const p of SHELL_PAGES) {
     const slug = p.key.slice(1);
     routes.push({
@@ -590,6 +788,9 @@ function buildRoutes(locale) {
       path: `${prefix}${p.key}`,
       title: i18n[p.i18nKey].pageTitle,
       description: copy[p.copyKey],
+      // /privacy and /terms carry their full text; /changelog and /status are
+      // generated at runtime and have no static copy to lift.
+      content: LEGAL_SECTIONS[p.i18nKey] ? legalContent(p.i18nKey, i18n) : undefined,
       canonical: url(p.key),
       changefreq: p.changefreq,
       priority: p.priority,
@@ -610,6 +811,7 @@ function buildRoutes(locale) {
     canonical: url('/calculator'),
     changefreq: 'monthly',
     priority: 0.9,
+    content: para(i18n.calculator.intro),
     jsonLd: breadcrumb([home, { name: copy.crumbCalculator, url: url('/calculator') }]),
   });
 
@@ -621,6 +823,9 @@ function buildRoutes(locale) {
       file: file(`${v.slug}.html`),
       path: `${prefix}/${v.slug}`,
       title: variant.title,
+      // The description is truncated to 320 for the meta tag; the body copy in
+      // full is what the page itself says, so that is what ships here.
+      content: para(variant.body),
       description: variant.body.slice(0, 320),
       canonical: url(`/${v.slug}`),
       changefreq: 'monthly',
@@ -659,6 +864,7 @@ function buildRoutes(locale) {
       path: `${prefix}/vs/${v.slug}`,
       title,
       description,
+      content: vsContent(v.slug, i18n),
       canonical: pageUrl,
       changefreq: 'monthly',
       priority: v.priority,
@@ -698,6 +904,7 @@ function buildRoutes(locale) {
     path: `${prefix}/faq`,
     title: i18n.faq.pageTitle,
     description: copy.faq,
+    content: para(i18n.faq.intro) + faqContent(i18n),
     canonical: url('/faq'),
     changefreq: 'monthly',
     priority: 0.7,
@@ -729,6 +936,7 @@ function buildRoutes(locale) {
         path: `${prefix}/macros/${goal}/${weight}-lb`,
         title,
         description,
+        content: macrosContent(i18n, { goal, weight, kcal, protein }),
         canonical: pageUrl,
         priority: MACROS_PRIORITY[goal],
         jsonLd: [

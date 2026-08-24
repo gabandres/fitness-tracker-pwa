@@ -24,11 +24,14 @@ env:
 # taps its layout bounds and the touch goes to whatever is on top. Measured
 # 2026-08-09: this exact line put the run on the Trends tab instead of toggling
 # the theme. Centering moves the target clear of both bars.
+# 60s, not 20s — same measurement as 04-settings (LG G6, 2026-08-23): a scroll
+# from the top of Settings to the language row costs tens of seconds on this
+# device, and the sheet's retained scroll position is what used to hide it.
 - scrollUntilVisible:
     element:
       id: 'settings-lang-es-PR'
     direction: DOWN
-    timeout: 20000
+    timeout: 60000
     centerElement: true
 - tapOn:
     id: 'settings-lang-es-PR'
@@ -98,11 +101,19 @@ env:
 # taps its layout bounds and the touch goes to whatever is on top. Measured
 # 2026-08-09: this exact line put the run on the Trends tab instead of toggling
 # the theme. Centering moves the target clear of both bars.
+# 60s, and this is the one that actually failed (2026-08-23): the flow died
+# here with "No visible element found: id: settings-lang-en", leaving the
+# account in SPANISH and cascading a "Today is not visible" failure into every
+# EN flow after it — 10, 11, 12, 13 and onward. The header above already warned
+# that a death here does exactly that; what it could not say is that the cause
+# was a timeout, not a selector. Spanish copy runs longer than English, so the
+# same sheet is TALLER in es-PR and this scroll is the longest one in the
+# suite.
 - scrollUntilVisible:
     element:
       id: 'settings-lang-en'
     direction: DOWN
-    timeout: 20000
+    timeout: 60000
     centerElement: true
 - tapOn:
     id: 'settings-lang-en'

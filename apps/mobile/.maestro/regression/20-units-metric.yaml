@@ -39,11 +39,16 @@ appId: fit.ignia.app
     timeout: 15000
 # `centerElement` for the same reason 10-theme-dark needs it: without it the
 # target can land under the tab bar and the tap goes to a tab instead.
+# 60s, not 20s — the LG G6 settings-scroll measurement of 2026-08-23 (see
+# 04-settings for the numbers). Raised BEFORE this flow failed, not after:
+# the Units row sits as deep in the sheet as the theme and language rows that
+# did fail, and this is the flow whose mid-run death leaves the account in
+# KILOGRAMS — which is why config.yaml already keeps it last.
 - scrollUntilVisible:
     element:
       id: 'settings-unit-metric'
     direction: DOWN
-    timeout: 20000
+    timeout: 60000
     centerElement: true
 # The row's own label, renamed from "Portion display" because it stopped being
 # true — it governs body weight now and the sub-line says so.
@@ -103,11 +108,16 @@ appId: fit.ignia.app
 - extendedWaitUntil:
     visible: 'Settings'
     timeout: 15000
+# 60s, not 20s — the LG G6 settings-scroll measurement of 2026-08-23 (see
+# 04-settings for the numbers). Raised BEFORE this flow failed, not after:
+# the Units row sits as deep in the sheet as the theme and language rows that
+# did fail, and this is the flow whose mid-run death leaves the account in
+# KILOGRAMS — which is why config.yaml already keeps it last.
 - scrollUntilVisible:
     element:
       id: 'settings-unit-us'
     direction: DOWN
-    timeout: 20000
+    timeout: 60000
     centerElement: true
 - tapOn:
     id: 'settings-unit-us'

@@ -107,6 +107,57 @@ the Mac** (`rm -rf apps/mobile/android`): a resident prebuild dir is hashed
 into the fingerprint and would strand every future OTA published from here
 (`AGENTS.md`, the machine-dependence section).
 
+### The Settings sheet is 31 seconds tall on the LG G6 — budget for it
+
+Measured 2026-08-23, and it broke three flows in one run before it was
+understood. A `scrollUntilVisible` from the TOP of Settings to a row near the
+bottom ("Quick add") takes **~31 s** on this device: the sheet has 17 sections
+and Maestro dumps the hierarchy after every swipe. Flows written with a 20 s
+budget therefore report a **missing element** for a row that is present,
+correct, and a few swipes away.
+
+**It is not flake, and the reason it looked like flake is the interesting
+part.** The settings ScrollView **retains its scroll position between opens**.
+So whenever an earlier flow happened to leave the sheet part-way down, the next
+flow's scroll had less distance to cover and finished inside 20 s. The budget
+only ever held because a previous flow had paid part of the cost — which is why
+these flows passed for months and then failed together the day the suite ran in
+a different order.
+
+Consequences, all of them measured on the 2026-08-23 run:
+
+- `04-settings` failed on "Quick add"; `09-locale-es` failed on
+  `settings-lang-en`, and because that is its **flip back to English**, it left
+  the account in Spanish and cascaded a "Today is not visible" failure into
+  every later EN flow; `10-theme-dark` failed on `settings-theme-dark`.
+- All settings scrolls now budget **60 s**. `20-units-metric` was raised at the
+  same time without having failed — its row is just as deep, and its mid-run
+  death is the one that leaves the account in kilograms.
+- Spanish is worse than English: the same sheet is taller when the copy is
+  longer, so `09` has the longest scroll in the suite.
+
+**When a settings row reports missing, check the budget before the selector.**
+A useful discriminator: reopen Settings and run the same scroll again — if it
+passes the second time, the sheet was already part-way down and you are looking
+at a timeout, not a missing element.
+
+**A different failure with the same symptom**, for the row nearest the bottom:
+`settings-signout` cannot be reached by `scrollUntilVisible` DOWN at all,
+because it sits clipped against the nav bar and `visibilityPercentage: 100` is
+unreachable there. Drive to the END with explicit swipes and search **UP**, the
+same technique `18-train-template` uses for the cues box:
+
+```yaml
+- repeat:
+    times: 10
+    commands:
+      - swipe: { start: 10%, 85%, end: 10%, 25% }
+- scrollUntilVisible:
+    element: { id: 'settings-signout' }
+    direction: UP
+    visibilityPercentage: 30
+```
+
 ### What Maestro can and cannot reach
 
 Maestro drives the **app's** UI. It cannot place a home-screen widget, and it

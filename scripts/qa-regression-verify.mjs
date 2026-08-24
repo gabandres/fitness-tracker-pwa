@@ -33,6 +33,9 @@ import { randomBytes } from 'node:crypto';
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+// Node 24 strips TS types natively, so core's locale list is importable here
+// with no build step — the same list the app's language picker is built from.
+import { LOCALES as CORE_LOCALES } from '../packages/core/src/locales.ts';
 
 const PROJECT_ID = 'fitness-tracker-gb-1775407101';
 
@@ -122,11 +125,43 @@ if (cmd === 'snapshot') {
   for (const e of entries) await db.doc(`users/${uid}/dailyLogs/${e.id}`).delete();
   const presets = await db.collection(`users/${uid}/presets`).where('name', '==', label).get();
   for (const d of presets.docs) await d.ref.delete();
-  console.log(`✓ removed ${entries.length} entries + ${presets.size} presets labeled "${label}"`);
+
+  // Train leftovers. Flows 16 and 18 each create a catalog exercise or a
+  // template and delete it in their own tail — and on 2026-08-23 flow 16's
+  // teardown was the ONLY step of it that failed, which left "QA Term Check"
+  // sitting in the account's exercise list. That is the state the flow's own
+  // header warns about ("delete it by hand"), and until now this tool could
+  // not, so the documented recovery did not cover the documented failure.
+  //
+  // Matched by NAME PREFIX rather than by the `--label` value: the two flows
+  // use their own names ("QA Term Check", "QA Tpl Check"), not the meal label,
+  // and a QA account has no legitimate row starting with "QA ".
+  let train = 0;
+  for (const coll of ['exercises', 'workoutTemplates']) {
+    const snap = await db.collection(`users/${uid}/${coll}`).get();
+    for (const d of snap.docs) {
+      if (String(d.data()?.name ?? '').startsWith('QA ')) {
+        await d.ref.delete();
+        train++;
+      }
+    }
+  }
+  console.log(
+    `✓ removed ${entries.length} entries + ${presets.size} presets labeled "${label}"` +
+    `, and ${train} "QA " exercise/template row(s)`,
+  );
 } else if (cmd === 'set-locale') {
   const locale = arg('locale');
-  if (locale !== 'en' && locale !== 'es-PR') {
-    console.error('--locale must be en or es-PR');
+  // Derived from core's registry, not a hardcoded pair. This accepted only
+  // `en` and `es-PR` until 2026-08-23, the day Portuguese shipped — and that
+  // was the day it was needed: the device was found sitting in pt-BR, and the
+  // documented recovery for a locale-stranded account could not express the
+  // locale it was stranded in. `packages/core/src/locales.ts` is the list both
+  // frontends already derive their pickers from, so a fourth language makes
+  // this tool work with no edit here at all.
+  const allowed = CORE_LOCALES.map((l) => l.tag);
+  if (!allowed.includes(locale)) {
+    console.error(`--locale must be one of: ${allowed.join(', ')}`);
     process.exit(1);
   }
   const uid = await uidOf(email);

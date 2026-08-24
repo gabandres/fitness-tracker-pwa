@@ -71,8 +71,37 @@ env:
 # fixes both at once.
 - tapOn: 'Hours slept'
 - takeScreenshot: .maestro/regression/shots/14-sleep-modal
+# Android dismisses the IME properly; the title tap above does NOT (measured on
+# the LG G6 2026-08-23 — the capture taken immediately after it still shows the
+# keyboard up). Keep the title tap for iOS, where `hideKeyboard` throws.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- waitForAnimationToEnd:
+    timeout: 5000
+# TWO taps, the second optional, and the reason is measured rather than
+# defensive. On the LG G6 the FIRST tap after the IME closes is swallowed by
+# the window: Maestro reports `tapOn sleep-save ... COMPLETED`, nothing is
+# written, and the sheet stays open with the value still typed in it. The
+# second tap lands and saves.
+#
+# It is NOT a product bug and it is NOT the sheet's geometry — both were ruled
+# out on the device rather than reasoned about. `maestro hierarchy` puts
+# `sleep-save` at [96,2309][1344,2544], exactly where it is painted, and a real
+# `adb shell input tap 720 2426` at that same centre writes `sleepHours` on the
+# FIRST try. So the bounds are right and the button works; what fails is the
+# first injected tap after the IME teardown.
+#
+# `optional: true` on the second tap keeps this correct where the first tap DID
+# land — the sheet is gone by then, and a required tap would fail on a save
+# that already happened.
 - tapOn:
     id: 'sleep-save'
+- tapOn:
+    id: 'sleep-save'
+    optional: true
 # The row's value arrives via the Firestore subscription round-trip, not the
 # tap — give it time.
 - extendedWaitUntil:

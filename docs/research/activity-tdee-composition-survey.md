@@ -1,6 +1,7 @@
 > **VERDICT** — No surveyed product adds measured active energy on top of a `BMR x activity-multiplier` TDEE — each either corrects the multiplier's own activity allowance or reconciles against the tracker's whole-day total — so Ignia must not build `formulaTdee + activeKcal`; the supported shape is correcting `profile.activityLevel` (Shape A), with Cronometer's above-baseline additive as the opt-in fallback.
 > **Status:** SETTLED (the six-product survey; the composition model itself is a follow-on decision ticket, and Shape A is device-gated per section 8.3) · **Researched:** 2026-07-23
 > **Read this only if:** you are specifying how measured activity moves a calorie target, and need the per-product composition shape, partial-day, missing-day, or double-count-guard evidence.
+> **Section 9 (added 2026-08-23) is the follow-up:** the device test of section 8.3 has run, its predicted failure landed exactly as written, and section 9.2 answers — with measurements — the recurring claim that Ignia's expenditure estimate rides on the wearable. It does not.
 > **Do not** re-derive the conclusions below; cite them.
 
 # How Comparable Products Combine Measured Active Energy With a Basal Estimate
@@ -460,3 +461,104 @@ No production activity data exists, so nothing below is validated. Each item nam
 | A trailing window is long enough to be stable inside `formula` mode's <14-day life | Day-to-day `activeKcal` variance low enough that a ~7-day mean is steady | High variance forcing a window ≥10 days, leaving Shape A ~3 days of usefulness before `measured` takes over — at which point the honest answer is **display-only, and ship nothing** |
 
 An additional non-device open question, for the decision ticket rather than the lab: whether a *correction that only ever lowers* the multiplier is acceptable. MFP ships the asymmetric version by default (positive adjustments only, negatives opt-in — §7); Cronometer's "above baseline" is likewise one-directional by construction (§5). A downward-only correction to `activityLevel` is the mirror image and is the more conservative choice for a weight-loss app, but it is a product decision, not a research finding.
+
+---
+
+## 9. The device test came in — and the claim it was later used to make
+
+Added 2026-08-23. §8.3 above was written before any activity data existed. It
+has since run on real accounts, and the result is worth recording here rather
+than in a new file, because §8.3 is where the prediction was made.
+
+### 9.1 §8.3's "single most likely failure" is exactly what happened
+
+The row read: *"Ratios clustering near the bottom — e.g. `activeKcal ≈ 350`,
+`bmr ≈ 1700` → implied 1.21, i.e. **everyone reads sedentary.**"*
+
+Measured on the owner's account 2026-08-19, 28 of 28 usable days: mean
+`activeKcal` **246/day** over a bare Mifflin basal of **1,632** → implied PAL
+**1.279**, for someone walking 5,213 steps a day and lifting three times a
+week. The predicted failure landed, at the predicted magnitude.
+
+**It did not kill Shape A; it produced the floor.** 1.279 is below the
+FAO/WHO/UNU free-living minimum of 1.40, which is a statement about the
+instrument rather than the person — a wrist wearable measures *detected*
+movement and so misses most NEAT. Clamping to 1.40 supplies the unrecorded
+NEAT and is a published number rather than a fitted one. Against that account's
+97-day gap-free energy balance of 2,385: raw 1.279 → 2,087 (−12.5%), snapped to
+the ladder → 1,958 (−17.9%), the stored self-reported bucket 1.55 → 2,530
+(+6.1%), floored 1.40 → **2,285 (−4.2%)**. See `PAL_FLOOR_FREE_LIVING` in
+`packages/core/src/activity-level.ts`, which carries the same table.
+
+The comparison that matters is the last two rows: the floored device value beat
+the user's own stated activity level. That is the real alternative here — not
+"device vs. nothing", but "device vs. what the user typed".
+
+### 9.2 The 2026-08-23 claim, and what measurement says about it
+
+A comparison against MacroFactor was put to this project in these terms: their
+targets update weekly and their expenditure needs ~2 weeks to stabilise, while
+Ignia's *"moved 173 within a single afternoon"*; and, offered as a new finding,
+that MacroFactor **deliberately takes no expenditure data from wearables**,
+which should be weighed before building on `activeKcal`.
+
+Taking those in order.
+
+**The wearable finding is not new — it is §6 of this file, settled 2026-07-23,
+and the design already answers it.** This document's own bottom line says
+MacroFactor "refuses wearable energy outright and says so explicitly, on
+validity grounds", and that its pre-data estimate is BMR × an activity factor,
+"exactly Ignia's `formula` mode". The repo rule for these notes is to cite them,
+not re-derive them.
+
+**The premise "Step 3 is built on activeKcal" does not survive contact with the
+code, and the seam is now a test.** `activeKcal` corrects the self-reported
+activity *bucket*; it never enters `calculateTdee`'s arithmetic. Measured
+2026-08-23 by driving `dailyTargets` directly: with 120 logged days, moving the
+stored multiplier across its whole legal range — 1.40, 1.55, 1.90 — leaves the
+target **byte-identical at 2,095 kcal**. In `formula` mode the same field moves
+it by 279 kcal. So once there is data to measure, Ignia and MacroFactor are
+doing the same thing; the wearable is a *prior*, alive only in the window before
+energy balance can speak, and floored while it is. This is pinned by
+`packages/core/src/tdee-wearable-independence.test.ts`, which exists precisely
+because folding `activeKcal` into the measured branch is a natural-looking
+change that every other test would have allowed.
+
+**The volatility claim is directionally right about the architecture and wrong
+about where the movement comes from.** There is no weekly cadence and no
+smoothing: `dailyTargets` recomputes from the current log set on every render,
+so a target *can* move the moment data lands. But measured against a clean
+120-day history, per-new-day movement is **mean 18 kcal, median 16, p90 32, max
+129**, and a same-day re-weigh of ±2 lb moves the target by **at most 15 kcal**.
+A 173 kcal afternoon move is not what measured mode does on good data.
+
+Two mechanisms *can* produce a jump that size, and neither is the wearable:
+
+| Mechanism | Measured move | Note |
+|---|---|---|
+| **`formula` → `measured` crossing on day 14** | **−449 kcal in one day** | The largest single-day move in the system, and it lands on a user who logged *perfectly* for two weeks. `measuredConfidence` damps thin windows, but a 14-of-14 window is not thin: confidence is 1, so the seed is replaced at full strength with no ramp. |
+| **A Health connect / accepted activity suggestion** | −279 kcal (this account) | `formula` mode only, and the user confirms it. |
+| A 21-day logging gap | +21 kcal | The 2026-08-20 per-run pooling fix (`145221e2`) working; this was worth ~250 kcal before it. |
+
+**So the honest reading of the claim is that it aimed at the wrong target and
+still hit something real.** The estimator is not wearable-driven and is not
+jittery. What it does have is an unsmoothed **cliff** at the mode crossing —
+which is exactly the thing MacroFactor's weekly cadence and two-week
+stabilisation exist to avoid, and the one place their behaviour is genuinely
+better than ours today.
+
+**Recommended, not done** (it changes every user's target and is a product
+decision): ramp the crossing instead of stepping it — blend the formula anchor
+into the measured value across roughly days 14–28, by *evidence quantity*
+rather than only by logging completeness, which is what `measuredConfidence`
+already scores. That converts a −449 cliff into ~−32/day and makes "about two
+weeks to stabilise" true of Ignia in the same sense it is true of MacroFactor.
+
+### 9.3 On the proposed tie-breaker
+
+The suggestion that whoever is right can be settled by eating to one estimate
+and seeing whether the weight moves as predicted is sound, and it is what
+`measured` mode already is: intake against observed trend *is* that experiment,
+run continuously. The caveat is only that it cannot adjudicate the seed, which
+is the half the wearable touches — by the time the experiment has enough data to
+answer, the seed has already been replaced.

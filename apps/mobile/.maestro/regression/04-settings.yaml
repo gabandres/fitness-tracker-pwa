@@ -7,11 +7,22 @@ appId: fit.ignia.app
 - tapOn:
     id: 'settings-open'
 - takeScreenshot: .maestro/regression/shots/04-settings-top
+# 60s, not 20s. Measured on the LG G6 (API 28) 2026-08-23: a scroll from the
+# TOP of Settings to "Quick add" takes ~31s on this device — the sheet is long
+# (17 sections) and each swipe is followed by a hierarchy dump. At 20s the
+# scroll gave up roughly two thirds of the way down and reported "Quick add"
+# missing, which reads as a deleted section rather than an unfinished scroll.
+#
+# It passed here for months because the settings ScrollView RETAINS ITS SCROLL
+# POSITION between opens: whenever an earlier flow left the sheet part-way
+# down, the remaining distance fit inside 20s. So this was never flake — it was
+# a budget that only held when a previous flow happened to pay part of the
+# cost, and it broke the day the suite ran in a different order.
 - scrollUntilVisible:
     element:
       text: 'Quick add'
     direction: DOWN
-    timeout: 20000
+    timeout: 60000
 - takeScreenshot: .maestro/regression/shots/04-settings-quickadd
 - scroll
 - takeScreenshot: .maestro/regression/shots/04-settings-lower
