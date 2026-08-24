@@ -6,6 +6,28 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-24 — connect your Oura ring to Ignia
+
+Settings gains **Connected apps**. Link your Oura account and your runs, rides
+and walks import straight into Train — no phone health store in the middle,
+which matters on Android, where the workout read is still waiting on a build.
+
+Ignia asks Oura for **your workouts and nothing else.** No sleep, no readiness,
+no heart rate. That is the whole of the consent screen, and it is checkable:
+one scope, pinned by a test.
+
+Calories your ring reports are shown for reference and **never** change your
+daily target. Your target comes from your weight trend, which already contains
+the workout.
+
+If a run reaches Ignia twice — once from your phone's health store and once
+from Oura — both are kept and Train offers to merge them. Nothing is collapsed
+on your behalf: a wrong merge loses a real session, and a visible duplicate is
+only an annoyance.
+
+**Not delivered anywhere yet.** The client half is JS and reaches testers on
+the next OTA per platform; it has not been exercised against a real ring.
+
 ## 2026-08-24 — the Train glossary learns the cardio words
 
 The Train tab's "?" sheet gained a **Cardio** section — what a cardio block is,

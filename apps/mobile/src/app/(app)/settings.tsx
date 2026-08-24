@@ -29,6 +29,7 @@ import { QuickAddCard } from '@/components/QuickAddCard';
 import { WatchDiagnosticsCard } from '@/components/WatchDiagnosticsCard';
 import { SignInMethodsCard } from '@/components/SignInMethodsCard';
 import { useHealthSync } from '@/lib/health-sync';
+import { useOura } from '@/lib/oura';
 import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
 import {
   getReminderSettings,
@@ -310,6 +311,7 @@ export default function Settings() {
   }
 
   const healthSync = useHealthSync(user?.uid);
+  const oura = useOura(user?.uid);
   const [healthMsg, setHealthMsg] = useState<string | null>(null);
   async function toggleHealth(next: boolean) {
     haptics.tap();
@@ -805,6 +807,98 @@ export default function Settings() {
             </View>
           </>
         ) : null}
+
+        {/*
+          Connected apps — the Oura Cloud API link (issue #72).
+
+          A SECOND transport for the same workouts the health store already
+          carries, and it exists because the health path had never actually
+          imported a real Oura record — see ADR-0026 Amendment 2. Both are
+          live; neither replaces the other.
+
+          Rendered unconditionally, unlike the health card above, because
+          `healthSync.available` gates on a native health store and this one
+          needs nothing but a network. It is the only Oura affordance on
+          Android until Health Connect's workout read ships in vc 38.
+        */}
+        <Text style={styles.section}>{t('oura.section')}</Text>
+        <View style={styles.card}>
+          <View style={styles.rowBetween}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>{t('oura.title')}</Text>
+              <Text style={styles.rowValue}>
+                {oura.status.connected ? t('oura.subConnected') : t('oura.subDisconnected')}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={oura.status.connected ? oura.disconnect : oura.connect}
+              disabled={oura.busy || !oura.ready}
+              style={[styles.exportBtn, (oura.busy || !oura.ready) && styles.exportBtnDisabled]}
+              testID="oura-toggle"
+            >
+              <Text style={styles.exportBtnText}>
+                {oura.busy
+                  ? t('oura.connecting')
+                  : oura.status.connected
+                    ? t('oura.disconnect')
+                    : t('oura.connect')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* The consent argument, stated BEFORE the tap rather than after.
+              `scope=workout` is the only scope requested and a rules spec
+              asserts it, so this sentence is checkable, not marketing. */}
+          <Text style={styles.exportMsg}>{t('oura.scopeNote')}</Text>
+
+          {oura.status.connected ? (
+            <>
+              <View style={styles.digestRow}>
+                <Text style={styles.rowValue}>{t('oura.revokeNote')}</Text>
+                <TouchableOpacity
+                  onPress={oura.syncNow}
+                  disabled={oura.busy}
+                  style={[styles.exportBtn, oura.busy && styles.exportBtnDisabled]}
+                  testID="oura-sync-now"
+                >
+                  <Text style={styles.exportBtnText}>
+                    {oura.busy ? t('common.saving') : t('oura.syncNow')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {/* The same promise the Train glossary makes, restated where the
+                  user turns the import on: an imported kcal is provenance and
+                  never a budget (ADR-0024 decision 4). */}
+              <Text style={styles.exportMsg}>{t('oura.energyNote')}</Text>
+            </>
+          ) : null}
+
+          {/*
+            Four outcomes, four different sentences, because they call for four
+            different actions. A single "sync failed" would tell a user to
+            retry a revoked grant forever, and would report OUR parser being
+            wrong about the wire shape as their ring being quiet.
+          */}
+          {oura.failed ? <Text style={styles.exportMsg}>{t('oura.failed')}</Text> : null}
+          {oura.result && !oura.result.linked ? (
+            <Text style={styles.exportMsg}>{t('oura.needsReconnect')}</Text>
+          ) : null}
+          {oura.result?.linked ? (
+            <Text style={styles.exportMsg}>
+              {oura.result.written > 0
+                ? t('oura.synced', { n: formatNumber(oura.result.written, locale) })
+                : t('oura.syncedNone')}
+            </Text>
+          ) : null}
+          {oura.result && oura.result.skipped > 0 ? (
+            <Text style={styles.exportMsg}>
+              {t('oura.skipped', { n: formatNumber(oura.result.skipped, locale) })}
+            </Text>
+          ) : null}
+          {oura.result?.truncated ? (
+            <Text style={styles.exportMsg}>{t('oura.truncated')}</Text>
+          ) : null}
+        </View>
 
         <Text style={styles.section}>{t('settings.calorieFloorSection')}</Text>
         <View style={styles.card}>

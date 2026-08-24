@@ -1120,6 +1120,30 @@ export const en = {
   'health.reconnectBody': 'Ignia can now import your cardio sessions. Reconnect Health to allow it.',
   'health.ouraHint': 'Not seeing your Oura sessions? Turn on workout export in the Oura app.',
   'health.androidPending': 'Cardio import arrives with the next Android update — it is not in this build yet.',
+  // ── Connected apps — Oura Cloud API (issue #72, ADR-0026 Amendment 2) ──
+  'oura.section': 'Connected apps',
+  'oura.title': 'Oura',
+  'oura.subDisconnected': 'Import your runs, rides and walks from your ring.',
+  'oura.subConnected': 'Connected. Your workouts import into Train.',
+  'oura.connect': 'Connect',
+  'oura.disconnect': 'Disconnect',
+  'oura.connecting': 'Opening Oura…',
+  // The consent argument, and it is true: `scope=workout` is the only scope
+  // requested, asserted in functions/test/oura-link.spec.ts.
+  'oura.scopeNote': 'Ignia asks for your workouts and nothing else — no sleep, no readiness, no heart rate.',
+  'oura.revokeNote': 'Disconnecting deletes our copy. To remove Ignia at Oura’s end too, visit cloud.ouraring.com.',
+  'oura.syncNow': 'Import now',
+  'oura.synced': 'Imported {n} workouts.',
+  'oura.syncedNone': 'Nothing new to import.',
+  'oura.needsReconnect': 'Oura no longer accepts our connection. Reconnect to keep importing.',
+  'oura.failed': 'Could not reach Oura. Try again in a moment.',
+  // Shown when Oura sent records our parser could not read. It names OUR bug
+  // rather than blaming the ring, because that is what it is.
+  'oura.skipped': '{n} workouts could not be read. Please report this.',
+  'oura.truncated': 'Showing the most recent workouts only.',
+  // A ring's calories are never spent — the same promise the Train glossary
+  // makes, restated where a user turns the import on.
+  'oura.energyNote': 'Calories from your ring are shown for reference and never change your daily target.',
 } as const;
 
 export type I18nKey = keyof typeof en;
