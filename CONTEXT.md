@@ -142,6 +142,12 @@ add a term when a real ambiguity exists, not preemptively.
   historic docs. New writes only set `exerciseCompleted`. Aggregation
   treats any of the three as "exercised that day". `toLogPatch` removes both on
   every edit, so any row that gets touched migrates forward.
+  **`cardioCompleted` is NOT the cardio feature and must not be revived by it.**
+  A **Cardio block** (below) lives on the `WorkoutSession`, not on the
+  `DailyLog`; finishing a session still stamps only `exerciseCompleted`, and
+  the marker log it writes is worth **zero** calories however much a ring
+  reported (`WORKOUT_MARKER_KCAL`). The name collision is the whole reason this
+  sentence exists.
 
 ## Time windows over logs
 
@@ -344,6 +350,35 @@ collections + a `WorkoutStore` facet back the Train tab.
   resume; there is at most **one active session** (enforced in
   `WorkoutStore.startSession`). The session's `date` is stored as the
   `timestamp` field at the seam.
+- **Cardio block** — The canonical term for one logged cardio effort: a run, a
+  ride, a walk. Type `CardioBlock` in `packages/core/src/cardio.ts`, stored as
+  `cardio: CardioBlock[]` **on the session**, beside `exercises[]`
+  ([ADR-0025](docs/adr/0025-cardio-is-a-block-on-the-workout-session.md)). Not
+  a "cardio session", not a "cardio entry", and **not** the legacy
+  `cardioCompleted` log flag (see "Legacy log fields"). A lifting day with a
+  finisher is ONE session carrying both arrays; a run on its own is a session
+  with `exercises: []`. That is what keeps Train to one history, one streak
+  marker and one template concept, and it is why no strength derivation may
+  read `cardio` — pinned by `cardio-strength-independence.test.ts`.
+  - **Modality** — the closed union of what the effort was (`run | walk | ride
+    | swim | row | elliptical | stair | hike | sport | other`). `other` plus a
+    free-text `label` absorbs everything else rather than growing the union.
+  - **RPE** — perceived effort, 1-10, the cardio counterpart of RIR. Optional;
+    a `durationSec` alone is a complete block (`isLoggedCardioBlock`).
+  - **Reported kcal** — `CardioBlock.kcal` is what the device said, rendered as
+    **display provenance only**. It never reaches a target: past 14 logged days
+    the target comes from energy balance, which already contains the workout
+    ([ADR-0024](docs/adr/0024-continuous-activity-multiplier-floored-at-fao-minimum.md)
+    decision 4, extended to the event stream). Pinned by
+    `cardio-energy-independence.test.ts`.
+  - **Source vs provider** — `source` is `manual | health` (how it got here);
+    `provider` is which wearable authored it (`oura | apple-watch | garmin |
+    whoop | other`). Apple Health is a *store*, not a source
+    ([ADR-0026](docs/adr/0026-oura-through-the-os-health-store.md)).
+  - **The naming footgun** — `CardioBlock.durationSec` is how long ONE effort
+    took; `WorkoutSession.durationMin` is how long the whole gym session took.
+    Different unit, different question, one careless autocomplete apart. Both
+    declarations carry a doc comment saying so.
 - **SetKind** — `warmup | activation | working | mini | drop`. A set's
   optional `group` clusters it (C1/C2); no group → plain straight set.
   Warmups/drops are excluded from PR + progression math.

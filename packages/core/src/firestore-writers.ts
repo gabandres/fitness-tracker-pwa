@@ -466,6 +466,7 @@ export interface SessionDraftInput {
   templateName?: string;
   bodyweight?: number;
   sleepHours?: number;
+  /** Whole-session minutes. Its cardio sibling below is per-effort SECONDS. */
   durationMin?: number;
   exercises?: SessionExercise[];
   /** Logged cardio (ADR-0025). Blocks carry a Date, so they are serialized

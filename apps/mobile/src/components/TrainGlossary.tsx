@@ -9,11 +9,17 @@ const SECTIONS: GlossarySection[] = [
     terms: ['progression', 'suggest', 'last', 'pr', 'e1rm', 'volume', 'topSet'],
   },
   { title: 'train.glossary.sectionPlates', terms: ['perSide', 'short', 'warmupPct'] },
+  // ADR-0025. Last, because it is the newest vocabulary and the smallest — but
+  // `ringKcal` is the one entry here that answers a question the UI otherwise
+  // raises and never resolves: the block shows a calorie number and the day's
+  // budget never moves. Leaving that unexplained reads as a bug.
+  { title: 'train.glossary.sectionCardio', terms: ['cardioBlock', 'modality', 'rpe', 'ringKcal'] },
 ];
 
 /**
- * Plain-language definitions for the Train tab's lifting vocabulary — RIR, set
- * types, clusters, auto-progression, e1RM, volume, plate math.
+ * Plain-language definitions for the Train tab's vocabulary — RIR, set types,
+ * clusters, auto-progression, e1RM, volume, plate math, and (ADR-0025) the
+ * cardio terms.
  *
  * The logger is dense with terms that only read as obvious to someone who
  * already trains that way: a user asked what RIR meant, and RIR was one of ten
