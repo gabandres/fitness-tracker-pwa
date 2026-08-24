@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { needsOuraScopeUpgrade } from '@macrolog/core';
+import { needsOuraScopeUpgrade, parseOuraDaily } from '@macrolog/core';
 import * as WebBrowser from 'expo-web-browser';
 import { parseOuraWorkouts } from '@macrolog/core';
 import { db, functions } from './firebase';
 import { toImportableBlocks, writeImportedBlocks } from './health-sync';
+import { importDailySleep, setDailyActiveEnergy, setDailySteps } from './ledger';
 
 /**
  * Oura Cloud API — the client half (issue #72, ADR-0026 Amendment 2).
@@ -122,10 +123,17 @@ export async function connectOura(): Promise<boolean> {
   if (!data?.url) return false;
 
   // `openAuthSessionAsync`, not `openBrowserAsync`: it is the ephemeral,
-  // app-associated session both platforms provide for exactly this flow, and
-  // it closes itself when the redirect lands rather than leaving the user on
-  // a success page wondering how to get back.
-  const result = await WebBrowser.openAuthSessionAsync(data.url, 'https://ignia.fit/oura/callback');
+  // app-associated session both platforms provide for exactly this flow.
+  //
+  // **The second argument must be the APP SCHEME, not the https redirect.** iOS
+  // `ASWebAuthenticationSession` can only intercept a custom scheme — matching
+  // an `https://` URL needs Universal Links, which this app does not configure.
+  // Passing the Oura-registered `https://ignia.fit/oura/callback` here meant the
+  // session could never match its own redirect, so the browser sat open on the
+  // success page and the user had to tap Done. `ouraCallback` now bounces to
+  // `ignia://oura/callback` once the token exchange is finished, and THAT is
+  // what this matches. Oura's registered redirect URI is unchanged.
+  const result = await WebBrowser.openAuthSessionAsync(data.url, 'ignia://oura/callback');
   return result.type === 'success' || result.type === 'dismiss';
 }
 
@@ -143,6 +151,14 @@ export async function disconnectOura(): Promise<void> {
 }
 
 /** What an import attempt did, in terms a UI can render honestly. */
+export interface OuraDailyImportResult {
+  /** Days for which at least one metric was written. */
+  days: number;
+  /** True when Oura refused one of the daily collections — the signature of a
+   *  grant that predates the `daily` scope. */
+  scopeDenied: boolean;
+}
+
 export interface OuraImportResult {
   /** Sessions written. Zero is a normal outcome — a rest week. */
   written: number;
@@ -190,6 +206,58 @@ export async function importOuraWorkouts(uid: string): Promise<OuraImportResult>
 }
 
 /**
+ * Import Oura's daily sleep and activity totals into the rows Ignia already
+ * keeps (ADR-0026, `daily` scope).
+ *
+ * These land in exactly the same documents the Apple Health / Health Connect
+ * importer writes — `setDailySleep`, `setDailySteps`, `setDailyActiveEnergy` —
+ * so a user on either transport, or both, ends up with one number per day
+ * rather than two competing ones. **Last writer wins, and that is correct
+ * here**: unlike a workout, a daily total is not a record of a distinct event
+ * that could be double-counted. Two sources reporting the same day are two
+ * measurements of one quantity, and the newer read is the better one.
+ *
+ * Failures are per-day and non-fatal. One bad write must not abandon the other
+ * thirteen days, and a partially imported fortnight is strictly better than an
+ * abandoned one.
+ */
+export async function importOuraDaily(uid: string): Promise<OuraDailyImportResult> {
+  if (!uid) return { days: 0, scopeDenied: false };
+
+  const call = httpsCallable<
+    { days?: number },
+    { linked: boolean; activity: unknown[]; sleep: unknown[]; truncated: boolean; scopeDenied: boolean }
+  >(functions, 'fetchOuraDaily');
+  const { data: res } = await call({});
+  if (!res?.linked) return { days: 0, scopeDenied: false };
+
+  const { rows } = parseOuraDaily(res.activity ?? [], res.sleep ?? []);
+  let days = 0;
+  for (const row of rows) {
+    let wrote = false;
+    try {
+      if (row.sleepHours != null) {
+        // Declines when the user typed that night themselves — see
+        // `importDailySleep`. A skip is not a failure and is not counted.
+        if (await importDailySleep(uid, row.dateKey, row.sleepHours)) wrote = true;
+      }
+      if (row.steps != null) {
+        await setDailySteps(uid, row.dateKey, row.steps);
+        wrote = true;
+      }
+      if (row.activeKcal != null) {
+        await setDailyActiveEnergy(uid, row.dateKey, row.activeKcal);
+        wrote = true;
+      }
+    } catch {
+      // Keep going — see the note above.
+    }
+    if (wrote) days++;
+  }
+  return { days, scopeDenied: res.scopeDenied === true };
+}
+
+/**
  * The Settings card's whole behaviour, in one hook.
  *
  * `busy` covers connect, disconnect and sync together rather than one flag
@@ -201,6 +269,7 @@ export function useOura(uid: string | undefined) {
   const { status, ready } = useOuraStatus(uid);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<OuraImportResult | null>(null);
+  const [daily, setDaily] = useState<OuraDailyImportResult | null>(null);
   const [failed, setFailed] = useState(false);
 
   const connect = useCallback(async () => {
@@ -225,6 +294,7 @@ export function useOura(uid: string | undefined) {
     try {
       await disconnectOura();
       setResult(null);
+      setDaily(null);
     } catch {
       setFailed(true);
     } finally {
@@ -237,7 +307,17 @@ export function useOura(uid: string | undefined) {
     setBusy(true);
     setFailed(false);
     try {
-      setResult(await importOuraWorkouts(uid));
+      // Workouts first: they are the reason the integration exists, and a
+      // failure importing daily totals should not cost the user their cardio.
+      const workouts = await importOuraWorkouts(uid);
+      setResult(workouts);
+      if (workouts.linked) {
+        try {
+          setDaily(await importOuraDaily(uid));
+        } catch {
+          // Non-fatal — the workout half already landed and is already shown.
+        }
+      }
     } catch {
       setFailed(true);
     } finally {
@@ -261,6 +341,7 @@ export function useOura(uid: string | undefined) {
     ready,
     busy,
     result,
+    daily,
     failed,
     needsScopeUpgrade,
     connect,

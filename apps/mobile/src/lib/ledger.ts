@@ -439,8 +439,52 @@ export function subscribeDailySleep(
   );
 }
 
-export async function setDailySleep(uid: string, dateKey: string, hours: number): Promise<void> {
-  await setDoc(sleepDoc(uid, dateKey), { hours: clampSleepHours(hours) });
+/** Where a night's number came from. Absent on every document written before
+ *  2026-08-24, which {@link importDailySleep} treats as `manual` — protecting
+ *  what a user already typed rather than assuming it is disposable. */
+export type SleepSource = 'manual' | 'import';
+
+/**
+ * Write a night the USER entered — the sleep sheet on Today, or the extras on a
+ * finished training session. Always wins over an importer.
+ */
+export async function setDailySleep(
+  uid: string,
+  dateKey: string,
+  hours: number,
+  source: SleepSource = 'manual',
+): Promise<void> {
+  await setDoc(sleepDoc(uid, dateKey), { hours: clampSleepHours(hours), source });
+}
+
+/**
+ * Write a night an IMPORTER measured (Apple Health, Health Connect, Oura) —
+ * **unless the user typed one first.**
+ *
+ * A daily total is not like a workout: two sources reporting one night are two
+ * measurements of the same quantity, so the newer read normally wins. The one
+ * exception is a number a person entered by hand, which is a statement of
+ * intent rather than a measurement, and silently replacing it is data loss the
+ * user never asked for and cannot undo.
+ *
+ * **A missing `source` counts as manual.** Documents predating this field could
+ * be either, and the conservative reading is the one that cannot destroy a real
+ * entry: imports fill empty days and refresh days they already own, and leave
+ * everything else alone.
+ *
+ * Returns whether it wrote, so a caller can report honestly instead of
+ * counting skips as successes.
+ */
+export async function importDailySleep(
+  uid: string,
+  dateKey: string,
+  hours: number,
+): Promise<boolean> {
+  const ref = sleepDoc(uid, dateKey);
+  const snap = await getDoc(ref);
+  if (snap.exists() && snap.data()?.['source'] !== 'import') return false;
+  await setDoc(ref, { hours: clampSleepHours(hours), source: 'import' });
+  return true;
 }
 
 // ─── Daily activity (import-only) ───────────────────────────────

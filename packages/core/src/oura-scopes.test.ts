@@ -13,8 +13,8 @@ describe('OURA_REQUIRED_SCOPES', () => {
    * stops the two drifting: a scope added on one side only is either a prompt
    * nobody gets or a prompt everybody gets forever.
    */
-  it('is exactly ["workout"] — mirrors SCOPE in functions/src/oura-link.ts', () => {
-    expect([...OURA_REQUIRED_SCOPES]).toEqual(['workout']);
+  it('is exactly ["workout","daily"] — mirrors SCOPE in functions/src/oura-link.ts', () => {
+    expect([...OURA_REQUIRED_SCOPES]).toEqual(['workout', 'daily']);
   });
 });
 
@@ -45,22 +45,31 @@ describe('parseOuraScopes', () => {
 
 describe('missingOuraScopes', () => {
   it('is empty when the grant covers everything required', () => {
-    expect(missingOuraScopes('workout')).toEqual([]);
     expect(missingOuraScopes('workout daily')).toEqual([]);
+    expect(missingOuraScopes('daily workout heartrate')).toEqual([]);
   });
 
   it('names what is absent', () => {
     expect(missingOuraScopes('daily')).toEqual(['workout']);
+    expect(missingOuraScopes('workout')).toEqual(['daily']);
   });
 });
 
 describe('needsOuraScopeUpgrade', () => {
   it('is false for a grant that already covers what Ignia reads', () => {
-    expect(needsOuraScopeUpgrade('workout')).toBe(false);
+    expect(needsOuraScopeUpgrade('workout daily')).toBe(false);
   });
 
   it('is true for a grant missing a required scope', () => {
     expect(needsOuraScopeUpgrade('daily heartrate')).toBe(true);
+  });
+
+  /** THE live case, not a hypothetical: everyone who linked before 2026-08-24
+   *  holds `workout` alone, and must be told to reconnect rather than shown an
+   *  empty sleep row. */
+  it('flags every user who connected under the workout-only grant', () => {
+    expect(needsOuraScopeUpgrade('workout')).toBe(true);
+    expect(missingOuraScopes('workout')).toEqual(['daily']);
   });
 
   it('is FALSE for an unknown grant, on purpose', () => {
@@ -78,9 +87,9 @@ describe('needsOuraScopeUpgrade', () => {
    * connected when `workout` was the only scope, after Ignia starts reading
    * sleep too.
    */
-  it('would flag a workout-only grant once sleep is added to the required set', () => {
-    const required = ['workout', 'daily'];
-    const have = new Set(parseOuraScopes('workout'));
-    expect(required.filter((s) => !have.has(s))).toEqual(['daily']);
+  it('does not flag a grant that carries MORE than Ignia asks for', () => {
+    // A user who once approved a wider set is fully covered; re-prompting them
+    // would be a reconnect that changes nothing.
+    expect(needsOuraScopeUpgrade('workout daily heartrate spo2')).toBe(false);
   });
 });

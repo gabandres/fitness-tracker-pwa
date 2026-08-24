@@ -2,14 +2,14 @@
  * Which Oura scopes Ignia needs, and how to tell that a connected user granted
  * fewer than it needs today (ADR-0026).
  *
- * ## The problem this exists to solve, before it happens
+ * ## The problem this solves — and it is live, not hypothetical
  *
  * Oura grants scopes at consent time and **a scope set cannot be widened
  * later without the user consenting again** — that is Oura's rule, not ours.
- * So the day Ignia asks for anything beyond `workout` (sleep and readiness are
- * the obvious candidates), every already-connected user is in a state the app
- * has never had to model: the link is live, the token refreshes, the callable
- * succeeds, and the new data is simply **absent**.
+ * `daily` was added on 2026-08-24, so **every user who linked before that date
+ * holds `workout` alone** and is in a state the app would otherwise not model:
+ * the link is live, the token refreshes, the callable succeeds, and the sleep
+ * and activity data is simply **absent**.
  *
  * That failure is silent in the worst way. Nothing errors, nothing prompts, and
  * the user sees an empty sleep card next to a Settings row that says
@@ -39,16 +39,23 @@
 /**
  * The scopes Ignia asks Oura for today.
  *
- * Exactly one, and that is a decision rather than a starting point: the consent
- * screen lists what it is about to share, and every extra scope makes the one
- * thing the user actually wants harder to see. Oura's console offers `email`,
- * `personal`, `daily`, `heartrate`, `tag`, `workout`, `session`, `spo2`,
- * `ring_configuration`, `stress` and `heart_health`; ADR-0026 takes `workout`
- * and argues each of the others down.
+ * Two, and each earns its place by having a consumer already built:
+ *
+ * - `workout` — cardio blocks on Train.
+ * - `daily` — daily sleep and activity summaries, which land in `setDailySleep`,
+ *   `setDailySteps` and `setDailyActiveEnergy`. Those writers already existed for
+ *   the Apple Health / Health Connect path; the Cloud API simply reaches them on
+ *   Android without the new runtime permission that route needs, and without
+ *   depending on the Oura app writing to a store the user can silently disable.
+ *
+ * Everything else Oura offers — `heartrate`, `spo2`, `stress`, `tag`, `session`,
+ * `ring_configuration`, `heart_health`, `personal`, `email` — is deliberately
+ * NOT requested. Nothing reads them, and each one lengthens the consent screen
+ * protecting the things the user actually wants.
  *
  * Mirrors `SCOPE` in `functions/src/oura-link.ts`.
  */
-export const OURA_REQUIRED_SCOPES: readonly string[] = ['workout'];
+export const OURA_REQUIRED_SCOPES: readonly string[] = ['workout', 'daily'];
 
 /**
  * Split a granted scope string into scopes.

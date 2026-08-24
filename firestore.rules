@@ -670,15 +670,28 @@ service cloud.firestore {
       }
 
       // Daily sleep — hours slept, one doc per calendar day keyed by date,
-      // shape { hours }. Canonical record; the Train session sheet's sleep
-      // mirrors here on finish. Range [0, 24].
+      // shape { hours, source? }. Canonical record; the Train session sheet's
+      // sleep mirrors here on finish. Range [0, 24].
+      //
+      // `source` distinguishes a number the USER typed from one an importer
+      // (Apple Health / Health Connect / Oura) wrote, so an automatic import
+      // can decline to overwrite a manual entry. It is OPTIONAL because every
+      // document written before 2026-08-24 lacks it; the client treats a
+      // missing source as 'manual', which protects existing hand-entered
+      // nights rather than assuming they are disposable.
+      //
+      // The enum is enforced here rather than trusted: this is the only
+      // access-control layer there is, and a free-form string would let a
+      // client write `source: 'manual'` from an importer and defeat the point.
       match /dailySleep/{dateKey} {
         allow read:   if isOwner(uid) || isAdmin();
         allow write:  if isOwner(uid)
-            && request.resource.data.keys().hasOnly(['hours'])
+            && request.resource.data.keys().hasOnly(['hours', 'source'])
             && request.resource.data.hours is number
             && request.resource.data.hours >= 0
-            && request.resource.data.hours <= 24;
+            && request.resource.data.hours <= 24
+            && (!('source' in request.resource.data.keys())
+                || request.resource.data.source in ['manual', 'import']);
       }
 
       // Daily activity — steps + active energy imported FROM the OS health

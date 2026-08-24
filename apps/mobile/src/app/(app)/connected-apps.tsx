@@ -1,12 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth';
 import { useLocale, useT } from '@/i18n';
 import { formatDate, formatTime } from '@/lib/date-format';
 import { useOura } from '@/lib/oura';
+import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space } from '@/theme';
 
@@ -55,6 +56,43 @@ export default function ConnectedAppsScreen() {
   const [showDetails, setShowDetails] = useState(false);
 
   const connected = oura.status.connected;
+
+  /**
+   * The success moment.
+   *
+   * Consent finishes in a system browser, so the app has no callback to react
+   * to — the only signal is the status document flipping to `connected`. That
+   * transition is what this watches, which is also why it is honest: it fires
+   * when the link genuinely exists, not when the browser merely closed. A user
+   * who tapped Cancel at Oura sees nothing, because nothing happened.
+   *
+   * It auto-clears: a success banner that stays forever stops meaning "just
+   * now" and becomes furniture.
+   */
+  const wasConnected = useRef(connected);
+  const [justConnected, setJustConnected] = useState(false);
+  const pop = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!wasConnected.current && connected) {
+      setJustConnected(true);
+      haptics.success();
+      pop.setValue(0);
+      Animated.sequence([
+        Animated.timing(pop, {
+          toValue: 1,
+          duration: 320,
+          easing: Easing.out(Easing.back(2)),
+          useNativeDriver: true,
+        }),
+        Animated.delay(2400),
+        Animated.timing(pop, { toValue: 0, duration: 220, useNativeDriver: true }),
+      ]).start(({ finished }) => {
+        if (finished) setJustConnected(false);
+      });
+    }
+    wasConnected.current = connected;
+  }, [connected, pop]);
   const syncedAt = oura.status.lastSyncedAt;
   const records = oura.status.lastRecordCount;
 
@@ -71,6 +109,24 @@ export default function ConnectedAppsScreen() {
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <Text style={styles.subtitle}>{t('connected.intro')}</Text>
+
+        {justConnected ? (
+          <Animated.View
+            style={[
+              styles.success,
+              {
+                opacity: pop,
+                transform: [
+                  { scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) },
+                ],
+              },
+            ]}
+            testID="oura-just-connected"
+          >
+            <Ionicons name="checkmark-circle" size={22} color={colors.tealSolid} />
+            <Text style={styles.successText}>{t('connected.justConnected')}</Text>
+          </Animated.View>
+        ) : null}
 
         <View style={styles.card} testID="provider-oura">
           <View style={styles.cardHead}>
@@ -113,10 +169,11 @@ export default function ConnectedAppsScreen() {
           ) : null}
 
           {/*
-            Scope upgrade. False for everyone today — `workout` is the only
-            scope Ignia asks for — and it ships now precisely so the day sleep
-            is added, an already-connected user gets this sentence instead of an
-            empty card. Oura cannot widen a grant without fresh consent.
+            Scope upgrade — and as of 2026-08-24 this is LIVE, not theoretical.
+            `daily` was added to the required set, and Oura cannot widen a grant
+            without fresh consent, so everyone who linked before that date holds
+            `workout` alone. Without this sentence they would see an empty sleep
+            row and no reason for it.
           */}
           {oura.needsScopeUpgrade ? (
             <View style={styles.notice} testID="oura-scope-upgrade">
@@ -178,6 +235,10 @@ export default function ConnectedAppsScreen() {
             <Text style={styles.msg}>{t('oura.skipped', { n: oura.result.skipped })}</Text>
           ) : null}
           {oura.result?.truncated ? <Text style={styles.msg}>{t('oura.truncated')}</Text> : null}
+          {oura.daily && oura.daily.days > 0 ? (
+            <Text style={styles.msg}>{t('oura.dailySynced', { n: oura.daily.days })}</Text>
+          ) : null}
+          {oura.daily?.scopeDenied ? <Text style={styles.msg}>{t('oura.dailyDenied')}</Text> : null}
 
           {/*
             The three explanatory paragraphs used to sit open on the card, which
@@ -279,6 +340,17 @@ const makeStyles = ({ colors }: Theme) =>
     btnTextQuiet: { color: colors.ink },
 
     msg: { fontSize: font.small, color: colors.muted },
+
+    success: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.sm,
+      backgroundColor: colors.tealSoft,
+      borderRadius: radius.md,
+      paddingVertical: space.md,
+      paddingHorizontal: space.lg,
+    },
+    successText: { flex: 1, fontSize: font.body, fontWeight: '700', color: colors.tealSolid },
 
     disclosure: {
       flexDirection: 'row',

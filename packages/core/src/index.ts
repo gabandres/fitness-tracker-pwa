@@ -327,6 +327,15 @@ export {
   type IndexedFood,
 } from './usda-search';
 
+// Oura daily summaries (ADR-0026, `daily` scope) -> the sleep/steps/activeKcal
+// rows the Health importer already writes.
+export {
+  parseOuraDaily,
+  sleepSecondsToHours,
+  type OuraDailyParse,
+  type OuraDailyRow,
+} from './oura-daily';
+
 // Oura scope comparison (ADR-0026). The required set lives here and is
 // hand-mirrored by `SCOPE` in functions/src/oura-link.ts; both sides assert the
 // literal so a scope added to one cannot silently skip the other.

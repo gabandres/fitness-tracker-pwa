@@ -39,7 +39,7 @@ const SITE = "https://ignia.fit";
 const REDIRECT_URI = `${SITE}/oura/callback`;
 
 /**
- * `workout` and nothing else.
+ * `workout` and `daily`, and nothing else.
  *
  * Oura's console offers every scope it has, and requesting them all is the
  * default path of least resistance. It is the wrong one: every extra scope
@@ -64,7 +64,7 @@ const REDIRECT_URI = `${SITE}/oura/callback`;
  * constant means nobody is ever told to reconnect; changing only the core list
  * means everybody is told to, forever.
  */
-const SCOPE = "workout";
+const SCOPE = "workout daily";
 
 export const ouraClientSecret: ReturnType<typeof defineSecret> =
   defineSecret("OURA_CLIENT_SECRET");
@@ -370,13 +370,43 @@ export const unlinkOura = onCall({ maxInstances: 3 }, async (request) => {
 // unsubscribe page's shell so the two branded interstitials stay
 // consistent.
 
-function page(title: string, body: string, locale: EmailLocale): string {
+/**
+ * Where the success page sends the browser once the exchange is done.
+ *
+ * **This is what closes the modal.** `WebBrowser.openAuthSessionAsync` dismisses
+ * itself when the browser navigates to the redirect URL the app handed it — but
+ * on iOS `ASWebAuthenticationSession` can only intercept a **custom scheme**,
+ * not an `https://` one (that needs Universal Links). Our registered Oura
+ * redirect is `https://ignia.fit/oura/callback`, so the session could never
+ * match it: the user landed on this page, it said "you can close this", and
+ * they had to tap Done themselves. That is the "not sleek" the owner reported.
+ *
+ * So the page bounces one more hop, to the app's own scheme, which the session
+ * DOES match — and the modal closes on its own.
+ *
+ * The Oura-registered redirect URI is unchanged; this is what happens after it.
+ */
+const APP_RETURN_URL = "ignia://oura/callback";
+
+function page(title: string, body: string, locale: EmailLocale, bounce = false): string {
+  // Belt and braces, because this runs in whatever browser Oura handed over:
+  // a meta refresh for the ones that honour it, a script for the ones that
+  // don't, and the visible link below as the manual fallback for both. The
+  // 400ms delay lets the page paint first, so a user who sees it sees a
+  // finished state rather than a flash.
+  const bounceHead = bounce
+    ? `<meta http-equiv="refresh" content="0.4;url=${APP_RETURN_URL}">`
+    : "";
+  const bounceScript = bounce
+    ? `<script>setTimeout(function(){location.replace(${JSON.stringify(APP_RETURN_URL)})},400)</script>`
+    : "";
   return `<!doctype html>
 <html lang="${htmlLangFor(locale)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
+${bounceHead}
 <title>${title} · Ignia</title>
 <style>
   :root { color-scheme: light dark; --paper:#faf9f6; --ink:#1c1917; --muted:#57534e; --line:#e7e5e2; --accent:#c62f27; }
@@ -400,8 +430,10 @@ function page(title: string, body: string, locale: EmailLocale): string {
   <p class="eyebrow">Ignia</p>
   <h1>${title}</h1>
   ${body}
+  ${bounce ? `<p><a href="${APP_RETURN_URL}">Return to Ignia</a></p>` : ""}
   <footer><a href="${SITE}">ignia.fit</a></footer>
 </main>
+${bounceScript}
 </body>
 </html>`;
 }
@@ -409,23 +441,26 @@ function page(title: string, body: string, locale: EmailLocale): string {
 const DONE: Record<EmailLocale, { title: string; body: string }> = {
   "en": {
     title: "Oura connected.",
-    body: `<p>You can close this tab and go back to Ignia.</p>
-       <p>Ignia can now read your <strong>workouts</strong> from Oura — nothing else.
-          Not sleep, not readiness, not heart rate.</p>
+    body: `<p>Taking you back to Ignia…</p>
+       <p>Ignia can now read your <strong>workouts</strong> and your <strong>daily
+          sleep and activity totals</strong> from Oura — nothing else. Not heart rate,
+          not blood oxygen, not tags or sessions.</p>
        <p>You can disconnect any time in <strong>Settings → Connected apps</strong>.</p>`,
   },
   "es-PR": {
     title: "Oura conectado.",
-    body: `<p>Puedes cerrar esta pestaña y volver a Ignia.</p>
-       <p>Ignia ahora puede leer tus <strong>entrenamientos</strong> de Oura — nada más.
-          Ni sueño, ni readiness, ni frecuencia cardíaca.</p>
+    body: `<p>Te llevamos de vuelta a Ignia…</p>
+       <p>Ignia ahora puede leer tus <strong>entrenamientos</strong> y tus <strong>totales
+          diarios de sueño y actividad</strong> de Oura — nada más. Ni frecuencia cardíaca,
+          ni oxígeno en sangre, ni etiquetas o sesiones.</p>
        <p>Puedes desconectarlo cuando quieras en <strong>Ajustes → Apps conectadas</strong>.</p>`,
   },
   "pt-BR": {
     title: "Oura conectado.",
-    body: `<p>Você pode fechar esta aba e voltar para o Ignia.</p>
-       <p>O Ignia agora pode ler seus <strong>treinos</strong> do Oura — nada além disso.
-          Nem sono, nem readiness, nem frequência cardíaca.</p>
+    body: `<p>Levando você de volta ao Ignia…</p>
+       <p>O Ignia agora pode ler seus <strong>treinos</strong> e seus <strong>totais
+          diários de sono e atividade</strong> do Oura — nada além disso. Nem frequência
+          cardíaca, nem oxigênio no sangue, nem tags ou sessões.</p>
        <p>Você pode desconectar quando quiser em <strong>Ajustes → Apps conectados</strong>.</p>`,
   },
 };
@@ -567,6 +602,6 @@ export const ouraCallback = onRequest(
       return;
     }
 
-    res.status(200).send(page(DONE[loc].title, DONE[loc].body, loc));
+    res.status(200).send(page(DONE[loc].title, DONE[loc].body, loc, true));
   },
 );

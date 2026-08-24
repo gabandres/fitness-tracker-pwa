@@ -1135,6 +1135,9 @@ export const en = {
   'connected.footnote': 'Connecting never gives Ignia your password. You approve it on the provider’s own site, and you can disconnect here at any time.',
   'settings.connectedApps': 'Connected apps',
   'settings.connectedAppsSub': 'Oura and other services that import into Ignia.',
+  'connected.justConnected': 'Connected. Importing your data now.',
+  'oura.dailySynced': 'Sleep and activity updated for {n} days.',
+  'oura.dailyDenied': 'Reconnect to include sleep and daily activity — your current approval covers workouts only.',
   'oura.section': 'Connected apps',
   'oura.title': 'Oura',
   'oura.subDisconnected': 'Import your runs, rides and walks from your ring.',
@@ -1144,7 +1147,7 @@ export const en = {
   'oura.connecting': 'Opening Oura…',
   // The consent argument, and it is true: `scope=workout` is the only scope
   // requested, asserted in functions/test/oura-link.spec.ts.
-  'oura.scopeNote': 'Ignia asks for your workouts and nothing else — no sleep, no readiness, no heart rate.',
+  'oura.scopeNote': 'Ignia asks Oura for your workouts and your daily sleep and activity totals — nothing else. No heart rate, no blood oxygen, no tags or sessions.',
   'oura.revokeNote': 'Disconnecting deletes our copy. To remove Ignia at Oura’s end too, visit cloud.ouraring.com.',
   'oura.syncNow': 'Import now',
   'oura.synced': 'Imported {n} workouts.',

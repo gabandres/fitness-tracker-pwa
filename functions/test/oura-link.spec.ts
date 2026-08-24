@@ -79,11 +79,11 @@ describe("oura authorize url", () => {
     expect(url.origin + url.pathname).toBe("https://cloud.ouraring.com/oauth/authorize");
   });
 
-  it("requests ONLY the workout scope", () => {
+  it("requests ONLY the workout and daily scopes", () => {
     // Changing scopes forces every already-connected user to re-consent, so
     // scope creep here has a real cost. If this assertion is updated, it
     // should be because a shipped feature reads the new scope.
-    expect(url.searchParams.get("scope")).toBe("workout");
+    expect(url.searchParams.get("scope")).toBe("workout daily");
   });
 
   it("sends the exact registered redirect_uri", () => {

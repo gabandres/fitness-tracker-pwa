@@ -117,6 +117,25 @@ export async function collectWorkouts(
   fetchImpl: Fetcher = fetch,
   nowMs: number = Date.now(),
 ): Promise<OuraWorkoutFetch> {
+  return collectRange(WORKOUT_URL, token, days, uid, fetchImpl, nowMs);
+}
+
+/**
+ * The same walk, against any `usercollection` range endpoint.
+ *
+ * Extracted when the `daily` scope arrived (ADR-0026) so `daily_activity` and
+ * `sleep` reuse the pagination, the timeout, the 401/403-means-reconnect rule
+ * and the truncation contract instead of growing second copies that drift. The
+ * only thing that varies between these endpoints is the URL.
+ */
+export async function collectRange(
+  url: string,
+  token: string,
+  days: number,
+  uid: string,
+  fetchImpl: Fetcher = fetch,
+  nowMs: number = Date.now(),
+): Promise<OuraWorkoutFetch> {
   const params = new URLSearchParams({
     start_date: dateParam(nowMs - days * 86_400_000),
     // Tomorrow, not today: `end_date` is a calendar day in the user's own
@@ -130,7 +149,7 @@ export async function collectWorkouts(
   const data: unknown[] = [];
 
   for (let page = 0; page < MAX_PAGES; page++) {
-    const res = await fetchImpl(`${WORKOUT_URL}?${params.toString()}`, {
+    const res = await fetchImpl(`${url}?${params.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });

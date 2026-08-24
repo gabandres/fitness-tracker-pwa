@@ -19,7 +19,7 @@ import {
   getRecentSessions,
   markExercised,
   setDailyActiveEnergy,
-  setDailySleep,
+  importDailySleep,
   setDailySteps,
   setDailyWater,
   setDailyWeight,
@@ -105,7 +105,13 @@ const EPSILON: Record<ReadableKind, number> = {
  *  shape; each clamps/rounds to its own canonical unit). */
 const WRITER: Record<ReadableKind, (uid: string, dateKey: string, value: number) => Promise<void>> = {
   weight: setDailyWeight,
-  sleep: setDailySleep,
+  // Guarded: an OS-store night must not overwrite one the user typed. Same
+  // rule the Oura importer follows — see `importDailySleep`. The signature
+  // matches the other writers; the boolean it returns is unused here
+  // because this map's contract is (uid, dateKey, value) => Promise<void>.
+  sleep: async (uid: string, dateKey: string, value: number) => {
+    await importDailySleep(uid, dateKey, value);
+  },
   water: setDailyWater,
   steps: setDailySteps,
   activeEnergy: setDailyActiveEnergy,

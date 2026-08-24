@@ -1132,6 +1132,48 @@ describe('firestore.rules', () => {
     );
   });
 
+  // ── dailySleep provenance (manual vs imported) ──
+  //
+  // `source` is what lets an automatic import decline to overwrite a night the
+  // user typed. Enforcing the enum in rules is the point: a free-form string
+  // would let an importer claim `manual` and defeat the protection, and rules
+  // are the only access-control layer this app has.
+
+  it('accepts a dailySleep doc with no source — every doc written before 2026-08-24', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      setDoc(doc(db, 'users', 'alice', 'dailySleep', '2026-08-24'), { hours: 7.5 }),
+    );
+  });
+
+  it.each(['manual', 'import'])('accepts a dailySleep source of %s', async (source) => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      setDoc(doc(db, 'users', 'alice', 'dailySleep', '2026-08-24'), { hours: 7.5, source }),
+    );
+  });
+
+  it('rejects a dailySleep source outside the enum', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      setDoc(doc(db, 'users', 'alice', 'dailySleep', '2026-08-24'), {
+        hours: 7.5,
+        source: 'oura',
+      }),
+    );
+  });
+
+  it('rejects an unknown field alongside dailySleep hours', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(
+      setDoc(doc(db, 'users', 'alice', 'dailySleep', '2026-08-24'), { hours: 7.5, note: 'x' }),
+    );
+  });
+
   // ── dailyActivity (Health steps / active-energy import) ──
   // The dev app talks to PROD Firestore, so these rules must be deployed
   // before any client writes the new collection.
