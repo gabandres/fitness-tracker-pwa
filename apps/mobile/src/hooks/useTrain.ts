@@ -254,7 +254,16 @@ export function useTrain(): TrainState {
       if (!uid || !session.id) return;
       setSaving(true);
       try {
-        await updateSession(uid, session.id, { exercises: session.exercises });
+        await updateSession(uid, session.id, {
+          exercises: session.exercises,
+          // Absent stays ABSENT. `toSessionPatch` writes the key only when it
+          // is present, so a strength-only session never gains an empty array
+          // — but a session that HAS cardio must carry it, and omitting it
+          // here is a silent data loss rather than a rejected write: the block
+          // renders, the summary updates, and Firestore never hears about it.
+          // Measured on the LG G6 on 2026-08-24, by Maestro flow 21.
+          ...(session.cardio !== undefined ? { cardio: session.cardio } : {}),
+        });
       } catch (e) {
         setError(e instanceof Error ? e : new Error('Save failed'));
       } finally {

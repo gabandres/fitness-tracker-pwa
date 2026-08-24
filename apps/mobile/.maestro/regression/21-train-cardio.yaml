@@ -17,50 +17,80 @@
 # assertion below would still pass locally and the write would fail silently on
 # the device.
 #
-# ANDROID NOTE: this flow covers the MANUAL path only. Cardio IMPORT from the
-# health store cannot run here — it needs `android.permission.health.READ_EXERCISE`,
+# ANDROID NOTE: this covers the MANUAL path only. Cardio IMPORT from the health
+# store cannot run here — it needs `android.permission.health.READ_EXERCISE`,
 # which is a manifest change and therefore a new binary (ADR-0026 amendment,
-# decision 7). Until vc 38, `readWorkouts` returns an empty list on Android by
-# design, so there is nothing for a flow to assert. Import is verified on iOS.
+# decision 7). Until vc 38 `readWorkouts` returns an empty list on Android by
+# design, so there is nothing on screen for a flow to assert.
+#
+# THREE HARNESS LESSONS, all measured on 2026-08-24 while authoring this:
+#   1. Tap the tabs by ID (`tab-train` / `tab-index`) and then ASSERT you
+#      arrived. `tapOn: 'Train'` reports COMPLETED whether or not it
+#      navigated, and two runs failed three steps later on a missing button
+#      with no way to tell a bad tap from a bad screen. Do not diagnose this
+#      from `maestro hierarchy` taken after the run — it can cold-start the app
+#      onto its initial route, which looks identical to "never navigated".
+#   2. Assert the field labels CASE-INSENSITIVELY. They carry
+#      `textTransform: 'uppercase'`, which on Android is applied to the TEXT
+#      NODE: the hierarchy reads 'DISTANCE (MI)' where the source says
+#      'Distance (mi)'. Asserting either literal casing is a platform-gated
+#      selector, and coverage.md records what those have cost this suite.
+#   3. The leftover-session guard has to SCROLL. Keying it on a visible
+#      `discard-workout` — which 16 and 18 both do — silently skips whenever
+#      that button is below the fold, and it always is once a session has a few
+#      exercises, because Discard sits in the footer under the whole list.
 #
 # STATE: starts ONE session and DISCARDS it in its own tail, so nothing is left
 # in Firestore. If a run dies mid-flow the marker is an in-progress workout on
-# Train — tap "Discard" by hand, or the next flow's guard will.
+# Train — the guard below clears it on the next run.
 appId: fit.ignia.app
 ---
 - launchApp:
     clearState: false
 - assertVisible: 'Today'
-- tapOn: 'Train'
+- tapOn:
+    id: 'tab-train'
+# Prove we actually LEFT Today. `train-glossary-open` is in the Train header
+# and is present in both of that tab's states (idle and mid-session), so it is
+# the one anchor that says "navigation worked" without also saying which state
+# we landed in. Without it a failed tab tap surfaces three steps later as a
+# missing button, which is what cost two runs on 2026-08-24.
+- extendedWaitUntil:
+    visible:
+      id: 'train-glossary-open'
+    timeout: 30000
 
-# Let Train SETTLE before the guard below reads it. `runFlow: when:` is a
-# condition check with no wait of its own, and this tab subscribes to
-# templates, history, exercises and the week summary on first focus — on the
-# LG G6 that has taken ~2 minutes. Without this the guard evaluates against a
-# still-loading screen, finds no `discard-workout`, skips, and the flow then
-# fails on `start-workout` for a reason that has nothing to do with cardio.
-# Measured 2026-08-24: that is exactly how this flow's first re-run died.
+# Let Train SETTLE before the guard reads it. `runFlow: when:` is a condition
+# check with no wait of its own, and this tab subscribes to templates, history,
+# exercises and the week summary on first focus — on the LG G6 that has taken
+# ~2 minutes.
 - waitForAnimationToEnd:
     timeout: 30000
 
-# A session left in progress by an earlier flow's death hides the idle view and
-# `start-workout` is then absent for a reason that has nothing to do with
-# cardio. Same guard as 16 and 18.
+# Clear a session left in progress by an earlier flow's death. See lesson 3.
 - runFlow:
     when:
-      visible:
-        id: 'discard-workout'
+      notVisible:
+        id: 'start-workout'
     commands:
+      # No centerElement, and a partial-visibility threshold: Discard is the
+      # LAST element in the session's scroll view, so it can never be centred
+      # and a 100%-visible + centred target scrolls forever. Measured
+      # 2026-08-24 — the scroll ran its full 30s against a button that was on
+      # screen.
+      - scrollUntilVisible:
+          element:
+            id: 'discard-workout'
+          direction: DOWN
+          timeout: 30000
+          visibilityPercentage: 40
       - tapOn:
           id: 'discard-workout'
       - extendedWaitUntil:
           visible:
             id: 'start-workout'
-          timeout: 15000
+          timeout: 20000
 
-# 60s, not 15s. The Train tab subscribes to templates, history, exercises and
-# the week summary on first focus; on the LG G6 (API 28) after a cold start that
-# has taken ~2 minutes to settle. Measured 2026-08-20, same budget as 18.
 - extendedWaitUntil:
     visible:
       id: 'start-workout'
@@ -69,8 +99,6 @@ appId: fit.ignia.app
     id: 'start-workout'
 
 # ── 1. Add a cardio block ─────────────────────────────────────────
-# The button sits below the exercise list, so on a session with exercises it is
-# off-screen — scroll rather than tap blind.
 - scrollUntilVisible:
     element:
       id: 'add-cardio'
@@ -80,8 +108,8 @@ appId: fit.ignia.app
 - tapOn:
     id: 'add-cardio'
 
-# The picker is a <BottomSheet>; every other sheet in the app is too, and
-# `sheets-are-one-component.test.ts` fails the build if one is hand-rolled.
+# The picker is a <BottomSheet>; every sheet in the app is, and
+# `sheets-are-one-component.test.ts` fails the build on a hand-rolled one.
 - assertVisible: 'What did you do?'
 - tapOn:
     id: 'cardio-modality-run'
@@ -93,46 +121,49 @@ appId: fit.ignia.app
 - assertVisible: 'Run'
 - assertVisible: 'Add a duration to log this.'
 
-# Every field must be on screen at once. If the row collapsed, these are the
-# assertions that fail — and they are the ones jest cannot make.
-#
-# CASE-INSENSITIVE, and that is not laziness. These labels carry
-# `textTransform: 'uppercase'`, which on Android is applied to the TEXT NODE —
-# `maestro hierarchy` reads 'DISTANCE (MI)' where the source says
-# `Distance (mi)`. Asserting the source casing fails on Android; asserting the
-# uppercase form would be an Android-only selector, and coverage.md already
-# records what platform-gated selectors cost this suite. `(?i)` is the one form
-# that is true on both.
-#
-# The unit is asserted too, not just the word: it is what proves the account is
-# still imperial, which flow 20 flips and restores.
+# Every field on screen at once. If the row collapsed, these are the assertions
+# that fail, and they are the ones jest cannot make. The unit is asserted too,
+# not just the word: it proves the account is still imperial, which flow 20
+# flips and restores.
 - assertVisible: '(?i)distance \(mi\)'
 - assertVisible: '(?i)avg hr \(bpm\)'
 - assertVisible: '(?i)effort'
 
 # ── 3. A real keystroke moves the summary ─────────────────────────
-# Tap the FIELD by id, not the label by text: a label tap focuses nothing, and
-# a shared id would type into whichever card rendered first.
 - tapOn:
     id: 'cardio-duration-0'
 - inputText: '32'
 - hideKeyboard
 
-# 32 minutes, formatted by `formatDuration` in core: unpadded minutes under an
-# hour. If this reads 0:00 the deferred dispatch never committed on blur.
+# 32 minutes through `formatDuration` in core: unpadded minutes under an hour.
+# If this reads 0:00 the deferred dispatch never committed on blur.
 - extendedWaitUntil:
     visible: '32:00'
-    timeout: 10000
+    timeout: 15000
 
 # ── 4. It survives a round trip through Firestore ─────────────────
 # Leave Train and come back: the screen re-reads the active session from the
-# ledger, so a `cardio` array that the rules rejected would come back missing.
-- tapOn: 'Today'
+# ledger, so a `cardio` array the rules rejected would come back missing.
+- tapOn:
+    id: 'tab-index'
 - assertVisible: 'Today'
-- tapOn: 'Train'
+- tapOn:
+    id: 'tab-train'
 - extendedWaitUntil:
-    visible: '32:00'
+    visible:
+      id: 'train-glossary-open'
     timeout: 30000
+# SCROLL before asserting. Returning to Train resets the session ScrollView to
+# the top and the cardio card sits below the exercise list, so a bare assert
+# fails on an element that is present and merely off-screen — which reads
+# exactly like a value that failed to persist. Measured 2026-08-24.
+- scrollUntilVisible:
+    element:
+      id: 'cardio-duration-0'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+- assertVisible: '32:00'
 
 # ── 5. Tail: discard, leaving no state ────────────────────────────
 - scrollUntilVisible:
@@ -140,7 +171,7 @@ appId: fit.ignia.app
       id: 'discard-workout'
     direction: DOWN
     timeout: 30000
-    centerElement: true
+    visibilityPercentage: 40
 - tapOn:
     id: 'discard-workout'
 - extendedWaitUntil:
