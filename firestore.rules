@@ -256,14 +256,19 @@ service cloud.firestore {
               (data.seedKey is string && data.seedKey.size() <= 100));
     }
 
+    // `cardioBlocks` is the PRESCRIPTION half of ADR-0025 — cardio a template
+    // tells you to do. Optional and absent on every template written before
+    // it existed, so it joins hasOnly and NOT hasAll.
     function isValidWorkoutTemplate(data) {
       return data.keys().hasOnly([
               'name', 'notes', 'restMiniSec', 'restClusterSec',
-              'exercises', 'seedKey', 'createdAt', 'updatedAt'
+              'exercises', 'cardioBlocks', 'seedKey', 'createdAt', 'updatedAt'
           ])
           && data.keys().hasAll(['name', 'exercises', 'createdAt', 'updatedAt'])
           && data.name is string && data.name.size() > 0 && data.name.size() <= 100
           && data.exercises is list && data.exercises.size() <= 40
+          && (!('cardioBlocks' in data.keys()) ||
+              (data.cardioBlocks is list && data.cardioBlocks.size() <= 20))
           && data.createdAt is timestamp && data.updatedAt is timestamp
           && (!('notes' in data.keys()) ||
               (data.notes is string && data.notes.size() <= 2000))
@@ -275,16 +280,26 @@ service cloud.firestore {
               (data.seedKey is string && data.seedKey.size() <= 100));
     }
 
+    // `cardio` carries the logged cardio blocks (ADR-0025). Like the set/
+    // exercise arrays above it, rules validate only that it is a list within a
+    // size cap — rules cannot iterate a list, so per-block field validity is
+    // the client's job via the packages/core clamps, under the same
+    // single-user trust model ADR-0007 established for nested sets.
+    //
+    // It is in hasOnly but NOT hasAll: a strength-only session has no cardio,
+    // and so does every session written before this field existed.
     function isValidWorkoutSession(data) {
       return data.keys().hasOnly([
               'status', 'templateId', 'templateName', 'timestamp',
               'bodyweight', 'sleepHours', 'durationMin',
-              'exercises', 'nextNotes', 'createdAt', 'updatedAt'
+              'exercises', 'cardio', 'nextNotes', 'createdAt', 'updatedAt'
           ])
           && data.keys().hasAll(['status', 'timestamp', 'exercises', 'createdAt', 'updatedAt'])
           && (data.status == 'active' || data.status == 'completed')
           && data.timestamp is timestamp
           && data.exercises is list && data.exercises.size() <= 40
+          && (!('cardio' in data.keys()) ||
+              (data.cardio is list && data.cardio.size() <= 20))
           && data.createdAt is timestamp && data.updatedAt is timestamp
           && (!('templateId' in data.keys()) ||
               (data.templateId is string && data.templateId.size() <= 100))
