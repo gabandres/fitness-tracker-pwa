@@ -755,7 +755,11 @@ export default function Settings() {
               </View>
               {healthSync.connected ? (
                 <View style={styles.digestRow}>
-                  <Text style={styles.rowValue}>{t('settings.healthSyncHint')}</Text>
+                  {/* Same fix as the Oura row below. This string is short in
+                      English and fits today, so the bug is latent here — but
+                      es-PR and pt-BR are longer, and that is how it would
+                      surface: in a locale nobody screenshots. */}
+                  <Text style={[styles.rowValue, styles.digestRowText]}>{t('settings.healthSyncHint')}</Text>
                   <TouchableOpacity
                     onPress={onHealthSyncNow}
                     disabled={healthSync.syncing}
@@ -854,7 +858,14 @@ export default function Settings() {
           {oura.status.connected ? (
             <>
               <View style={styles.digestRow}>
-                <Text style={styles.rowValue}>{t('oura.revokeNote')}</Text>
+                {/* `flex: 1` is load-bearing, not cosmetic. `digestRow` is
+                    `space-between`, and a bare <Text> in a row takes its full
+                    intrinsic width — so this three-line sentence pushed "Import
+                    now" past the right edge of the screen and it rendered
+                    clipped as "Impo" on a real iPhone. The rows at
+                    `weeklyDigest` and `health.workouts` wrap their text in a
+                    flex:1 View for exactly this reason; these two did not. */}
+                <Text style={[styles.rowValue, styles.digestRowText]}>{t('oura.revokeNote')}</Text>
                 <TouchableOpacity
                   onPress={oura.syncNow}
                   disabled={oura.busy}
@@ -1150,6 +1161,12 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   // feedback'. Same metrics, no divider.
   soloRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingTop: space.sm },
   digestRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space.sm, borderTopWidth: 1, borderTopColor: colors.line },
+  /** Text column inside a {@link digestRow}. The row is `space-between`, so a
+   *  bare <Text> sizes to its own content and shoves the trailing button off
+   *  screen — measured on a real iPhone, where "Import now" rendered as
+   *  "Impo" against the right edge. `flex: 1` makes the sentence yield; the
+   *  gap keeps it off the button once it does. */
+  digestRowText: { flex: 1, marginRight: space.md },
   segment: { flexDirection: 'row', gap: space.sm },
   segmentBtn: {
     flex: 1,
