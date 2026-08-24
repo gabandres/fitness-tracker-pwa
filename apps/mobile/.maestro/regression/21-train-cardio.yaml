@@ -33,6 +33,16 @@ appId: fit.ignia.app
 - assertVisible: 'Today'
 - tapOn: 'Train'
 
+# Let Train SETTLE before the guard below reads it. `runFlow: when:` is a
+# condition check with no wait of its own, and this tab subscribes to
+# templates, history, exercises and the week summary on first focus — on the
+# LG G6 that has taken ~2 minutes. Without this the guard evaluates against a
+# still-loading screen, finds no `discard-workout`, skips, and the flow then
+# fails on `start-workout` for a reason that has nothing to do with cardio.
+# Measured 2026-08-24: that is exactly how this flow's first re-run died.
+- waitForAnimationToEnd:
+    timeout: 30000
+
 # A session left in progress by an earlier flow's death hides the idle view and
 # `start-workout` is then absent for a reason that has nothing to do with
 # cardio. Same guard as 16 and 18.
@@ -85,9 +95,20 @@ appId: fit.ignia.app
 
 # Every field must be on screen at once. If the row collapsed, these are the
 # assertions that fail — and they are the ones jest cannot make.
-- assertVisible: 'DISTANCE (mi)'
-- assertVisible: 'AVG HR (bpm)'
-- assertVisible: 'EFFORT'
+#
+# CASE-INSENSITIVE, and that is not laziness. These labels carry
+# `textTransform: 'uppercase'`, which on Android is applied to the TEXT NODE —
+# `maestro hierarchy` reads 'DISTANCE (MI)' where the source says
+# `Distance (mi)`. Asserting the source casing fails on Android; asserting the
+# uppercase form would be an Android-only selector, and coverage.md already
+# records what platform-gated selectors cost this suite. `(?i)` is the one form
+# that is true on both.
+#
+# The unit is asserted too, not just the word: it is what proves the account is
+# still imperial, which flow 20 flips and restores.
+- assertVisible: '(?i)distance \(mi\)'
+- assertVisible: '(?i)avg hr \(bpm\)'
+- assertVisible: '(?i)effort'
 
 # ── 3. A real keystroke moves the summary ─────────────────────────
 # Tap the FIELD by id, not the label by text: a label tap focuses nothing, and

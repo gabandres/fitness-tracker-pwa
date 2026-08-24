@@ -310,6 +310,7 @@ prove the floor.
 | (app)/train | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 |
 | (app)/train — logging interactions | `16-train-terms.yaml` (glossary, RIR scale, set-type rows; starts + discards a workout) | ✓ 2026-08-12 | ✓ 2026-08-18 — first iOS run; took five platform fixes and exposed a false-positive assert |
 | (app)/train — template editor | `18-train-template.yaml` (build a template from a seeded exercise, set table + headers, collapsed card summary, More options, save → re-open → per-set targets still there) | — no Android host | ✓ 2026-08-18 — first run; the only flow that exercises the editor at all |
+| (app)/train — cardio blocks | `21-train-cardio.yaml` (add a block, pick a modality, type a duration, see the summary recompute, and prove it round-trips through Firestore by leaving Train and coming back; discards in its own tail) | ✗ authored 2026-08-24 | ✗ authored 2026-08-24 |
 | (app)/trends | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 |
 | (app)/body | `03-tabs.yaml` (full-depth) | ✓ 2026-08-09 | ✓ 2026-08-18 — **caught the body-fat overflow** |
 | Today / Trends / Train — the "?" glossaries | `19-glossary.yaml` (all three headers carry it, the sheet opens, and it scrolls to its last term rather than clipping at the panel ceiling) | ✗ authored 2026-08-22 | ✓ 2026-08-22 — first run, on a Release sim build from `9475676` |
@@ -403,6 +404,27 @@ maestro --device <udid> test .maestro/android-signin.yaml -e EMAIL=qa-test@ignia
   completes and the save fails with "Please verify your email first".
 - **The last step is not optional.** The arc ends signed out, so the sandbox
   needs `android-signin.yaml` before any other flow runs.
+
+## Cardio import is NOT covered on Android, and cannot be
+
+`21-train-cardio.yaml` walks the MANUAL cardio path only. The import half —
+a run recorded by an Oura ring arriving through the OS health store — needs
+`android.permission.health.READ_EXERCISE`, which is a manifest entry and
+therefore a new binary (ADR-0026 amendment, decision 7). Until vc 38 ships,
+`readWorkouts` returns an empty list on Android **by design**, so there is
+nothing on screen for a flow to assert and a green run would prove nothing.
+
+The asymmetry is worth stating plainly, because it is the opposite of this
+project's usual one: iOS needs no binary here at all. HealthKit read types are
+requested at RUNTIME and `NSHealthShareUsageDescription` is already declared, so
+the iOS fingerprint does not move and cardio import ships over the air. For once
+Android is the platform waiting on a build.
+
+**There is exactly one Oura ring available to this project** (the account is in
+`CLAUDE.local.md`), so the import path's real verification is a hand run against
+that device, not a Maestro flow. What a flow can check — that an imported block
+renders its "via Oura" chip and its reported-kcal caveat — is worth authoring
+once a build exists to run it on.
 
 ## The e2e + empty interleave (admin script on the ADC machine, Maestro on the Mac)
 

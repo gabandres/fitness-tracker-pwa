@@ -37,6 +37,12 @@ executionOrder:
     # 17-coach-ask is tagged `manual` and excluded — it spends real AI money.
     - 18-train-template
     - 19-glossary
+    # 21 runs BEFORE 20 despite the higher number, and that is deliberate: 20
+    # has to stay last (see below), so execution order and file numbering
+    # diverge here rather than renumbering a flow other docs already cite.
+    # 21 asserts imperial unit labels ("DISTANCE (mi)"), so running it after
+    # 20 would read kilometres if 20 ever died before its restore tail.
+    - 21-train-cardio
     # 20 flips the account to metric and restores it in its own tail — keep it
     # LAST, so a mid-flow death cannot leave every later flow reading kilograms.
     - 20-units-metric
