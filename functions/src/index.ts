@@ -21,6 +21,7 @@ export { sendPasswordReset } from "./password-reset";
 export { onFeedbackCreated } from "./feedback-notify";
 export { sendVerificationEmail } from "./verify-email";
 export { unsubscribeWeeklyDigest } from "./unsubscribe";
+export { beginOuraLink, unlinkOura, ouraCallback } from "./oura-link";
 
 // ─── Satellite modules ──────────────────────────────────────────────
 export {

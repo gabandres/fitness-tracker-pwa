@@ -6,6 +6,51 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-24 — Oura account linking, server side
+
+`https://ignia.fit/oura/callback` is live. Ignia can now hold an Oura Cloud API
+credential on a user's behalf; **nothing a user can touch exists yet** — the
+Connected-apps surface and the workout fetch are #72.
+
+This contradicts an ADR on purpose. **ADR-0026** chose Apple Health / Health
+Connect over the Cloud API, and the reasoning was good: the health store is
+free, needs no secret and no OAuth, and Oura already writes workouts into it.
+But it rested on a claim nobody had checked — and the health path has still
+never imported a single real Oura record, so "it already works for free" was
+never demonstrated. Amendment 2 records the reversal. **Both paths now exist**;
+the health-store route is not removed and remains the $0 one.
+
+What went in:
+
+- `beginOuraLink`, `ouraCallback`, `unlinkOura`. The authorize URL can't be
+  built on the client: `state` is an HMAC under a key derived from the client
+  secret, and since the callback arrives as a bare browser redirect with no
+  Firebase session attached, that `state` is the only thing carrying *identity*
+  — not just CSRF defence.
+- **Scope is `workout` and nothing else.** Oura's console offers every scope it
+  has and requesting them all is the path of least resistance; it is the wrong
+  one, because changing scopes later forces every connected user to re-consent.
+  A test asserts it.
+- The refresh token lives at `users/{uid}/private/oura`, which is protected by
+  the *absence* of a rule — the `match /{document=**}` catch-all denies it.
+  Protection-by-absence is invisible when reading the rules file, so two specs
+  now pin it: someone adding a convenient `private/**` match block would expose
+  a refresh token and nothing else in the repo would object.
+- Link status is a separate `users/{uid}/integrations/oura` doc rather than a
+  profile field. `isValidProfile` is a `hasOnly()` allow-list, so a
+  server-written key missing from it doesn't fail at write time — it silently
+  breaks **every subsequent client profile update**, because the client sends
+  the whole document back.
+- A hosting header fix worth knowing generally: a `headers` rule in
+  `firebase.json` **overrides whatever a rewritten function sets on its own
+  response**. The `**` rule's `Cache-Control: no-cache` was quietly downgrading
+  this endpoint's `no-store`, on a URL that carries an OAuth authorization code.
+
+Costs one Secret Manager version; the audited floor moved 7 → 8 (~$0.06/mo),
+argued in `scripts/doctor.mjs`. No scheduler job — the free tier's 3 are spent.
+
+---
+
 ## 2026-08-24 — 1.2.1 is on the App Store, and with it a fortnight of work
 
 Public iOS had been sitting on **build 55** since 2026-08-19 while every OTA

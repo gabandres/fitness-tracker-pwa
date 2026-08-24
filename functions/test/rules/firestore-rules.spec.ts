@@ -1252,4 +1252,59 @@ describe('firestore.rules', () => {
     });
   });
 
+  describe('Oura link — the credential must be unreachable from a client', () => {
+    // `users/{uid}/private/oura` holds an Oura REFRESH TOKEN. It is protected
+    // by the ABSENCE of a match block: nothing in firestore.rules names
+    // `private/**`, so the `match /{document=**} { allow read, write: if
+    // false }` catch-all denies it. Protection-by-absence is invisible when
+    // reading the file, which is exactly why it is asserted here — someone
+    // adding a convenience `match /private/{doc}` would open a refresh token
+    // to the client and nothing else in the repo would complain.
+
+    it('denies the OWNER reading their own stored Oura credential', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users/alice/private/oura'), {
+          accessToken: 'at_forged',
+          refreshToken: 'rt_forged',
+          expiresAt: Timestamp.now(),
+        });
+      });
+      await assertFails(getDoc(doc(authed('alice'), 'users/alice/private/oura')));
+    });
+
+    it('denies a client writing a forged Oura credential', async () => {
+      await assertFails(
+        setDoc(doc(authed('alice'), 'users/alice/private/oura'), { refreshToken: 'rt_forged' }),
+      );
+    });
+
+    it('lets the owner READ their integration status', async () => {
+      // The client half: enough to render "Connected since <date>" and a
+      // Disconnect button, and nothing more.
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users/alice/integrations/oura'), {
+          connected: true,
+          scope: 'workout',
+          connectedAt: Timestamp.now(),
+        });
+      });
+      await assertSucceeds(getDoc(doc(authed('alice'), 'users/alice/integrations/oura')));
+    });
+
+    it('denies the owner WRITING integration status — server-only', async () => {
+      // A client that could write here could claim to be connected with no
+      // token behind it, or forge connectedAt.
+      await assertFails(
+        setDoc(doc(authed('alice'), 'users/alice/integrations/oura'), { connected: true }),
+      );
+    });
+
+    it('denies another user reading the integration status', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users/alice/integrations/oura'), { connected: true });
+      });
+      await assertFails(getDoc(doc(authed('mallory'), 'users/alice/integrations/oura')));
+    });
+  });
+
 });

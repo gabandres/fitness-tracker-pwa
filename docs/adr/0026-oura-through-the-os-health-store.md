@@ -1,6 +1,6 @@
 # ADR-0026: Oura reaches Ignia through the OS health store, and its energy stops at the seed
 
-- **Status:** accepted · **amended 2026-08-24** (see [Amendment](#amendment--2026-08-24-the-workout-read-moves-the-android-fingerprint-and-not-the-ios-one) — the decision stands, one of its arguments does not)
+- **Status:** accepted, then **partly superseded by its own Amendment 2** (2026-08-24) — the Cloud API this ADR refused is being built. Decisions 1–5 survive as the fallback path for every non-Oura wearable, and Decision 5 (imported energy never reaches a target) is unamended and matters more, not less. Amendment 1 records the fingerprint measurement that phases the health-store rollout
 - **Date:** 2026-08-24
 
 ## Context
@@ -225,6 +225,72 @@ close this call was:
 If a feature ever needs Readiness or HRV balance, the revisit conditions above
 are unchanged except that condition 2 (approval past the cap) is now trivially
 satisfiable and should not be treated as an obstacle.
+
+## Amendment 2 — 2026-08-24: the Cloud API is being built after all
+
+**This ADR's central decision has been overruled by the owner, the same day it
+was written.** Recording it here rather than leaving the ADR to quietly
+disagree with the repository, which is the failure `CLAUDE.md` opens by warning
+about.
+
+### What changed
+
+The decision above rests on a comparison: the health path is free and already
+built, so it beats an API that costs a secret and an approval. Half of that
+turned out not to be true yet. The health path shipped, and **it has still never
+imported a single real Oura record** — `normalizeProvider` is tested against
+fixtures, Android returns an empty list until `READ_EXERCISE` reaches a binary,
+and no one has connected the one available ring. "It already works for free" was
+a prediction, not a measurement, and the ADR presented it as the latter.
+
+The other pillar was the **ten-connected-user cap**. Amendment 1 already
+withdrew that as load-bearing: with one known Oura user it constrains nothing.
+
+### What now exists
+
+An Oura application is registered at `developer.ouraring.com/applications`.
+
+- **Client ID** is not secret and is recorded in `CLAUDE.local.md`.
+- **Client secret** lives in Secret Manager as `OURA_CLIENT_SECRET` (version 1).
+  It cannot live in the mobile bundle — anyone can unzip the app — so the
+  token exchange must happen server-side, which is what forces the Cloud
+  Function this ADR was trying to avoid.
+- **Redirect URI** is `https://ignia.fit/oura/callback`, which still needs a
+  `firebase.json` rewrite and a `ouraCallback` function; today it falls through
+  to the SPA catch-all.
+- **`npm run doctor`'s secret floor moved 7 → 8.** That check fails on growth by
+  design, so the raise carries its argument in `scripts/doctor.mjs`.
+
+### What is still true from the original decision
+
+Everything in Decision 5 stands and matters more now, not less: **an imported
+`kcal` is display provenance and never reaches a target.** A richer API returns
+more energy numbers, and the temptation to spend them grows with the fidelity
+of the data. `cardio-energy-independence.test.ts` is unchanged and still the
+thing standing between that number and a user's calorie budget.
+
+Decisions 1–4 also survive as the *fallback* path: `HealthPort.readWorkouts`,
+the provider normalization and the suggest-never-merge dedup are all shipped and
+serve every non-Oura wearable, which the Cloud API never will. The two paths are
+complementary, and the dedup written for one already covers the other — a run
+arriving from both the health store and the API is exactly the overlapping-blocks
+case `looksLikeSameEffort` was written for.
+
+### Scope discipline
+
+Request **`workout` only**. Oura's console offers eleven scopes and its own
+guidance is to request the minimum; changing them later forces every connected
+user to re-consent. `daily` is added the day a feature actually reads a
+Readiness or Sleep score, not in anticipation. The authorize URL must also carry
+a per-request `state` — Oura's example omits it, and without it the callback
+cannot tell its own redirect from a forged one.
+
+### The condition this does not clear
+
+The ten-user cap is irrelevant *today* and is not gone. Oura reviews an
+application before it may exceed ten connected users, and that review must be
+cleared **before any public release depends on the integration**, not after
+users start hitting it.
 
 ## Alternatives rejected
 

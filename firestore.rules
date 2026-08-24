@@ -588,6 +588,28 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
+      // Third-party integration status — Oura today, others later.
+      //
+      // Owner-readable, SERVER-WRITTEN. The client needs to render
+      // "Connected since <date>" and a Disconnect button, and this is the
+      // only part of the link it is allowed to see.
+      //
+      // The credential itself lives at `users/{uid}/private/oura`, which
+      // matches NO rule in this file and is therefore denied by the
+      // `match /{document=**}` catch-all at the bottom. Do NOT add a match
+      // block for `private/**` — the absence of one IS the access control
+      // for the refresh token, and `firestore-rules.spec.ts` asserts the
+      // deny so this cannot regress silently.
+      //
+      // Writes are server-only (`beginOuraLink` / `ouraCallback` /
+      // `unlinkOura` via the Admin SDK, which bypasses rules). A client
+      // that could write here could claim to be connected without a token,
+      // or forge `connectedAt`.
+      match /integrations/{provider} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow write: if false;
+      }
+
       // Meal presets — quick-add templates.
       match /presets/{presetId} {
         allow read:   if isOwner(uid) || isAdmin();

@@ -80,6 +80,14 @@
           }
         },
         {
+          "_comment": "Oura Cloud API OAuth2 redirect. Registered at developer.ouraring.com as https://ignia.fit/oura/callback and compared byte-for-byte by Oura, so this path is not free to rename. Without this rewrite hosting serves the SPA shell via the ** rewrite below and the flow dead-ends on a branded 404 that returns 200 — the same failure /open had.",
+          "source": "/oura/callback",
+          "function": {
+            "functionId": "ouraCallback",
+            "region": "us-central1"
+          }
+        },
+        {
           "source": "/unsubscribe",
           "function": {
             "functionId": "unsubscribeWeeklyDigest",
@@ -111,6 +119,20 @@
             {
               "key": "Cache-Control",
               "value": "public, max-age=31536000, immutable"
+            }
+          ]
+        },
+        {
+          "_comment": "The `**` rule above sets Cache-Control: no-cache, and a hosting header rule OVERRIDES whatever the rewritten function sets on its own response — so ouraCallback's own no-store was being silently downgraded. no-cache permits STORING the response and only forces revalidation; this URL is reached with an OAuth authorization code in the query string, so it must not be written to disk at all.",
+          "source": "/oura/callback",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-store"
+            },
+            {
+              "key": "Referrer-Policy",
+              "value": "no-referrer"
             }
           ]
         },
