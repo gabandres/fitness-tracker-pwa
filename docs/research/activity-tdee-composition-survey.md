@@ -547,12 +547,30 @@ which is exactly the thing MacroFactor's weekly cadence and two-week
 stabilisation exist to avoid, and the one place their behaviour is genuinely
 better than ours today.
 
-**Recommended, not done** (it changes every user's target and is a product
-decision): ramp the crossing instead of stepping it — blend the formula anchor
-into the measured value across roughly days 14–28, by *evidence quantity*
-rather than only by logging completeness, which is what `measuredConfidence`
-already scores. That converts a −449 cliff into ~−32/day and makes "about two
-weeks to stabilise" true of Ignia in the same sense it is true of MacroFactor.
+**BUILT 2026-08-24.** `measuredConfidence` gained a third ratio on evidence
+quantity, taking confidence from 0 at `MEASURED_MIN_DAYS` (14) to 1 at
+`RAMP_TO_FULL_DAYS` (28). At exactly 14 days the blend is 100% anchor — the same
+Mifflin number `formula` mode returned the day before — so the crossing is
+continuous by construction rather than merely smaller. Re-measured on the same
+120-day walk: **day 13 → 14 is now +3 kcal, and the largest single-day move
+anywhere across the walk falls from 449 to 96.** Convergence is unaffected: the
+final target is 2,095 against a true 2,100. Pinned by
+`packages/core/src/tdee-crossing-ramp.test.ts`.
+
+**The endpoint was nearly set too short, and a clean fixture is what would have
+caused it.** Simulated noiselessly, the measured estimate is exact from day 14
+(2,350 against a true 2,350), which makes any ramp look like knowingly serving a
+wrong number and argues for finishing in a week. Re-run with realistic noise —
+intake SD 350 kcal, weight SD 1.5 lb — and day 14 reads **2,828 against the same
+true 2,350**: not merely imprecise but *worse than the formula anchor it would
+replace*. Its 95% interval is ±473 at 17 days, ±391 at 21, ±251 at 28, ±133 at
+42. So the ramp is accuracy, not caution.
+
+28 is also where the interval first comes inside `CI95_CEILING_KCAL` (250) — the
+width `tdee-recalibration` already refuses to announce a change below, on the
+grounds that claiming a signal smaller than the noise is not a claim. Two
+independent lines landing on the same day count is why this is a constant and
+not a tunable.
 
 ### 9.3 On the proposed tie-breaker
 

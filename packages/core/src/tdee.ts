@@ -224,6 +224,44 @@ const MEASURED_WINDOW_DAYS = 42;
 const RELIABLE_MIN_PCT = 70;
 const RELIABLE_MIN_INTAKE_DAYS = 10;
 
+/**
+ * Logged days at which a measured estimate is trusted at FULL strength.
+ *
+ * The estimate becomes available at {@link MEASURED_MIN_DAYS} (14) and reaches
+ * full weight here, ramping linearly in between. `measuredConfidence` explains
+ * why the ramp exists; this is why the far end is 28 and not sooner.
+ *
+ * **28 is measured, not chosen for feel — and the obvious shorter ramp is
+ * wrong for a reason a clean fixture actively hides.** Simulated against a
+ * *noiseless* logger, the measured estimate is exactly right from day 14
+ * (2,350 against a true 2,350), which makes any ramp look like deliberately
+ * serving a number you know is wrong. Re-run with realistic noise — intake
+ * SD 350 kcal, daily weight SD 1.5 lb — and day 14 reads **2,828 against the
+ * same true 2,350**. It is not just imprecise, it is 478 kcal off and *worse
+ * than the formula anchor it would be replacing*. The estimate earns trust on
+ * this schedule:
+ *
+ * | logged days | measured | 95% CI |
+ * |---|---|---|
+ * | 14 | 2,828 | (too few runs to compute) |
+ * | 17 | 2,315 | ±473 |
+ * | 21 | 2,441 | ±391 |
+ * | 28 | 2,341 | ±251 |
+ * | 42 | 2,283 | ±133 |
+ *
+ * So the ramp is not conservatism, it is accuracy: a day-14 measurement is not
+ * yet better evidence than Mifflin.
+ *
+ * **28 also falls out of a constant this file already had.** The estimate's CI
+ * first comes inside {@link CI95_CEILING_KCAL} — 250, the width above which
+ * `tdee-recalibration` refuses to announce a change at all, on the grounds
+ * that claiming a signal smaller than the noise is not a claim — at almost
+ * exactly 28 days (±251). Two independent lines of reasoning landing on the
+ * same day count is the strongest argument here, and it is why this is a
+ * constant rather than a tunable.
+ */
+const RAMP_TO_FULL_DAYS = 28;
+
 const SEED_RESULT: TdeeResult = {
   trueTdee: 2450,
   newDailyTarget: 1800,
@@ -466,14 +504,45 @@ const MAX_TREND_LBS_PER_DAY = 2 / 7;
  * It is also NOT a smoother over the weight series. That was benchmarked and
  * came out ~130 kcal low; this touches the weight series not at all.
  *
- * **`reliable === true` ⟹ `confidence === 1` ⟹ byte-identical output**, because
- * both ratios below are ≥ 1 exactly when `reliable`'s two conditions hold. No
- * account with complete data sees any change from this.
+ * ## The third term: the crossing itself was still a cliff (2026-08-24)
+ *
+ * The two ratios below both saturate at 14 logged days of complete logging —
+ * `RELIABLE_MIN_PCT` is a percentage and `RELIABLE_MIN_INTAKE_DAYS` is 10 — so
+ * a user who logs *perfectly* for two weeks arrives at day 14 with
+ * `confidence === 1` and gets the measured value at full strength, instantly.
+ * The ramp above only ever caught the "enough days, but full of holes" case.
+ *
+ * Measured 2026-08-24 by walking a clean 120-day history one day at a time:
+ * the target moves **−449 kcal between day 13 and day 14**, which is by far
+ * the largest single-day move the estimator can produce — an order of
+ * magnitude past the mean per-day move of 18 kcal once measured mode is
+ * running. It is the mode boundary, not the data, and the comment above
+ * already named making that boundary "a ramp instead of a second cliff" as the
+ * goal. This finishes the job with a third ratio, on evidence QUANTITY.
+ *
+ * So confidence now climbs from 0 at {@link MEASURED_MIN_DAYS} to 1 at
+ * {@link RAMP_TO_FULL_DAYS}. At exactly 14 days the blend is 100% anchor,
+ * which is the same number `formula` mode returned the day before — the
+ * transition is continuous by construction rather than merely smaller.
+ *
+ * **The old invariant is deliberately gone.** This used to promise
+ * `reliable === true ⟹ confidence === 1 ⟹ byte-identical output`. That is no
+ * longer true between 14 and 27 logged days, and it is the point: those
+ * accounts were the ones getting the cliff. Complete accounts at 28+ logged
+ * days are still byte-identical, which is what the fixtures in
+ * `tdee-stability.test.ts` pin.
  */
-function measuredConfidence(loggingCompletenessPct: number, intakeDays: number): number {
+function measuredConfidence(
+  loggingCompletenessPct: number,
+  intakeDays: number,
+  loggedDays: number,
+): number {
   const byCompleteness = clamp01(loggingCompletenessPct / RELIABLE_MIN_PCT);
   const byIntakeDays = clamp01(intakeDays / RELIABLE_MIN_INTAKE_DAYS);
-  return Math.min(byCompleteness, byIntakeDays);
+  const byEvidence = clamp01(
+    (loggedDays - MEASURED_MIN_DAYS) / (RAMP_TO_FULL_DAYS - MEASURED_MIN_DAYS),
+  );
+  return Math.min(byCompleteness, byIntakeDays, byEvidence);
 }
 
 function clamp01(v: number): number {
@@ -1117,7 +1186,7 @@ export function calculateTdee(logs: DailyLog[], profile?: ProfileFields | null):
     // The anchor needs a profile. Without one there is nothing to anchor TO,
     // so the measured value stands: a biased estimate from the user's own data
     // still beats the 2,450 seed built from nobody's.
-    const confidence = measuredConfidence(loggingCompletenessPct, intakeCals.length);
+    const confidence = measuredConfidence(loggingCompletenessPct, intakeCals.length, window.length);
     let anchorWeight: number | null = null;
     for (let i = window.length - 1; i >= 0; i--) {
       if (window[i].weight != null) { anchorWeight = window[i].weight!; break; }

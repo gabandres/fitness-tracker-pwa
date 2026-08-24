@@ -19,9 +19,20 @@ function log(daysAgo: number, calories: number, weight?: number): DailyLog {
 }
 
 /** 20 reliable days: intake 2000, losing 0.1 lb/day → measured, reliable. */
+/**
+ * 28 logged days, which is what "reliable" now MEANS.
+ *
+ * This was 20 days until 2026-08-24. The crossing ramp
+ * (`RAMP_TO_FULL_DAYS`) holds a 20-day window at ~43% confidence, so the digest
+ * would have been reporting a number that is mostly the Mifflin anchor while
+ * this file called it "the first reliable reading". 28 is where the ramp
+ * completes and where the estimate's own 95% interval first comes inside
+ * `CI95_CEILING_KCAL`, so it is the honest fixture for a test about a reading
+ * the app is willing to announce.
+ */
 function reliableLogs(): DailyLog[] {
   const logs: DailyLog[] = [];
-  for (let i = 19; i >= 0; i--) logs.push(log(i, 2000, 185 - (19 - i) * 0.1));
+  for (let i = 27; i >= 0; i--) logs.push(log(i, 2000, 185 - (27 - i) * 0.1));
   return logs;
 }
 

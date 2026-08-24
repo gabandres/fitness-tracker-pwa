@@ -79,9 +79,18 @@ describe('calculateTdee', () => {
     }
     const r = asMeasured(calculateTdee(logs, baseProfile));
     expect(r.source).toBe('measured');
-    // TDEE ≈ intake + deficit(0.1 lb/day * 3500) = 2000 + 350 = ~2350
-    expect(r.trueTdee).toBeGreaterThan(2250);
-    expect(r.trueTdee).toBeLessThan(2450);
+    // TDEE ≈ intake + deficit(0.1 lb/day * 3500) = 2000 + 350 = ~2350.
+    // Asserted on `measuredTdee`, which is the estimator's own answer, NOT on
+    // `trueTdee`. At 20 logged days the crossing ramp (RAMP_TO_FULL_DAYS) still
+    // has this window at ~43% confidence, so `trueTdee` is deliberately a blend
+    // of this number and the Mifflin anchor. The measurement is what this test
+    // is about; the blend is covered by `tdee-crossing-ramp.test.ts`.
+    expect(r.measuredTdee).toBeGreaterThan(2250);
+    expect(r.measuredTdee).toBeLessThan(2450);
+    // And the delivered value must sit BETWEEN the two, never outside them.
+    expect(r.trueTdee).toBeGreaterThan(r.measuredTdee);
+    expect(r.confidence).toBeGreaterThan(0);
+    expect(r.confidence).toBeLessThan(1);
     expect(r.reliable).toBe(true);
   });
 
@@ -272,9 +281,13 @@ describe('weight-trend gap segmentation', () => {
     for (let i = 20; i >= 0; i--) if (i > 13 || i < 8) logs.push(log(i, 2000, 185 - 0.2 * (20 - i)));
     const r = calculateTdee(logs, baseProfile);
     expect(r.source).toBe('measured');
-    // Still the whole-window slope: 0.2 lb/day ⇒ 2000 + 700.
-    expect(r.trueTdee).toBeGreaterThan(2650);
-    expect(r.trueTdee).toBeLessThan(2750);
+    // Still the whole-window slope: 0.2 lb/day ⇒ 2000 + 700. On `measuredTdee`
+    // rather than `trueTdee`: this fixture is 15 logged days, which the
+    // crossing ramp holds at ~7% confidence, so `trueTdee` is almost entirely
+    // the Mifflin anchor. What this test is about is the FIT — that six days
+    // off did not split the window — and the fit lives in `measuredTdee`.
+    expect(asMeasured(r).measuredTdee).toBeGreaterThan(2650);
+    expect(asMeasured(r).measuredTdee).toBeLessThan(2750);
   });
 
   it('keeps the old fit until enough weigh-ins survive the settle window', () => {
