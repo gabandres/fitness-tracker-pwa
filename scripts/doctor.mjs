@@ -705,8 +705,21 @@ const MAX_SECRET_VERSIONS = 6;
  *
  * Lower this the day a secret is genuinely retired. Raising it should take an
  * argument, not a keystroke.
+ *
+ * Raised 7 -> 8 on 2026-08-24 for OURA_CLIENT_SECRET. The argument, since the
+ * line above demands one: Oura's Cloud API is OAuth2-only (Personal Access
+ * Tokens were deprecated in December 2025), so a client secret exists whether
+ * or not we like it, and it CANNOT live in the mobile bundle — anyone can unzip
+ * the app and read it. Secret Manager is the only place it can go. Cost is one
+ * more version at ~$0.06/mo, printed on every run.
+ *
+ * This also contradicts ADR-0026, which chose the OS health store precisely to
+ * avoid this secret. That was an owner decision taken on 2026-08-24 after the
+ * health path had still never imported a real record; the ADR carries an
+ * amendment saying so. If the Cloud API is ever abandoned, retire this secret
+ * and put the floor back to 7.
  */
-const ACCEPTED_SECRET_VERSIONS = 7;
+const ACCEPTED_SECRET_VERSIONS = 8;
 
 function checkSchedulerJobs() {
   const name = `Cloud Scheduler jobs <= ${MAX_SCHEDULER_JOBS}`;
