@@ -175,6 +175,47 @@ So: a full-screen backdrop is not addressable by id for a dismissal, on any
 viewport. `19-glossary` stays on `50%,5%` and carries the disproof inline. The
 prop is inert and harmless; leave it.
 
+**iOS re-swept 2026-08-23/24 on a Release simulator build from current `main`:
+17 of 19**, and the two that fail are the same two as the 2026-08-22 baseline.
+So that day's Android work neither fixed nor broke iOS — with one exception,
+below, which was mine and is repaired.
+
+**First attempt: 0 of 19, all with the identical line** `Assertion is false:
+"Today" is visible`. That is one fault, not nineteen — a freshly installed
+simulator build is **signed out**, confirmed by screenshot. `android-signin.yaml`
+is misnamed and works on iOS; running it first turned 0/19 into 17/19. Recorded
+in `docs/DEV_ENVIRONMENT.md` §3.12 as step 0.
+
+**`19-glossary` failed on iOS because of a fix made for Android that day, and it
+is now platform-gated.** The dismissal is a backdrop tap above the panel, and
+the safe Y is not the same fraction of the screen on both: on the LG G6
+(360x720dp) the Train glossary reaches ~8%, so `50%,8%` lands ON the sheet and
+5% clears it; on the iPhone simulator (1179x2556) 8% is correct and 5% is up in
+the Dynamic Island where the tap never reaches the backdrop. Both failures
+present identically — the sheet stays open over the tab bar and the run dies two
+steps later on `tapOn: "Trends"`. Gated with `runFlow: when: platform:` using
+both measured values, and **verified green on both platforms**.
+
+The two genuine iOS failures, with more precision than the previous entry had:
+
+- **`15-search`** — the search itself is FINE on iOS. `.*[Bb]anana.*raw.*` is
+  visible, so the callable answers and the USDA rows render. What fails is the
+  anchored tap `^Banana, raw$`, which cannot match because iOS merges a list
+  row's label with its macros into one accessibility element. The anchor exists
+  for a real Android reason (four rows match the loose regex, and "Pepper,
+  banana, raw" sits clipped at the bottom edge on 360x720dp), so the fix is a
+  platform-gated selector, not a looser one.
+- **`18-train-template`** — it now gets MUCH further than the 2026-08-22 note
+  says. That entry has it dying at `template-set-kind-0-0`; it now walks the
+  whole editor, saves, re-opens the template, and fails only on the collapsed
+  summary `.*3 × 8 · 20 lb.*`. So the Android scroll/budget fixes did carry to
+  iOS for every earlier step. What remains is the summary string on iOS —
+  either the same label merge or a spacing difference.
+
+Neither is a product defect and neither blocks a release. Both are one
+platform-gated selector each, and both should be fixed with a verify pass on
+BOTH platforms — the `19-glossary` regression above is what happens otherwise.
+
 **Rows are NOT flipped for this run** — `collect-shots.sh` did not run, so there
 are no captures to review, and this file's own rule stands.
 
