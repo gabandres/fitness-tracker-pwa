@@ -881,6 +881,25 @@ publishing.
 
 ## 4. Owner runbook — move `bermudezsystems.com` mail into the `bermudezpr.com` Microsoft 365 tenant
 
+> **DONE — verified in public DNS 2026-08-23.** Keep the runbook for the record
+> and for the next domain, but the cutover has happened. Measured from
+> `dns.google`: MX is `1 bermudezsystems-com.mail.protection.outlook.com`, SPF
+> is `v=spf1 include:spf.protection.outlook.com -all`, `autodiscover` CNAMEs to
+> `autodiscover.outlook.com`, and the `MS=ms93273856` tenant-verification TXT is
+> present. The Northwest MX, the Northwest SPF and the
+> forwarding-to-Gmail mechanism are all gone.
+>
+> Two things survived the cutover and both are deliberate: the site still
+> answers on `A 199.36.158.100` (Northwest hosting — §4.1 says to leave it),
+> and `google-site-verification=1EYLbXKH66lt3XNRVrp3o066X7NqEeKBhMwWO64P57U` is
+> still there, which is what Play's org website verification rides on.
+>
+> **One loose end:** `_dmarc.bermudezsystems.com` still reads
+> `p=quarantine; rua=mailto:bounce@dmarc.businessidentity.llc`, so aggregate
+> reports go to Northwest's collector rather than to anyone who reads them.
+> Not breaking — SPF aligns under Microsoft — but repoint `rua`/`ruf` when
+> convenient.
+
 Replaces the Northwest "Business Identity" free mail suite with a real
 Exchange mailbox, and retires forwarding-to-Gmail as a mechanism. **Cost $0** —
 the tenant already exists, holds multiple domains, and an unlicensed shared

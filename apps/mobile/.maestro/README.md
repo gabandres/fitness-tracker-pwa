@@ -213,9 +213,39 @@ app, the row lands" — since the feature shipped. No unit test caught it becaus
 every test mocks the ledger, and mocks reject on demand where Firestore does
 not.
 
-**Still unresolved**: whether a tile tap logs on a *healthy* connection. The
-emulator's Firestore WebChannel errors, so the fixed path parks rather than
-lands here. That last step needs a tester on a real network.
+**Still unresolved**: whether a tile tap logs on a *healthy* connection — and
+2026-08-23 established that **the adb route cannot answer it on the LG G6**,
+which is worth knowing before anyone spends another evening on it.
+
+The network condition was finally right: Wi-Fi up, Firestore reachable at
+**39 ms**, signed in, and slot 1 bound to a real preset (*Chicken + rice (meal
+prep)*, 610 kcal — confirmed by the ① badge in Settings). The tile is genuinely
+registered: `settings get secure sysui_qs_tiles` lists
+`custom(fit.ignia.app/expo.modules.quickaddtile.QuickAddTileService)`, and
+`dumpsys package` shows the service with `BIND_QUICK_SETTINGS_TILE` and the
+`QS_TILE` action.
+
+What happened, in order:
+
+1. **With NO slot bound**, `cmd statusbar click-tile` worked and took the
+   documented fallback — `START u0 … ignia://?quickAddSlot=0 … from uid 10222`,
+   app opened, nothing written. So `onClick` really does fire, and the
+   signed-in/no-slot behaviour is confirmed.
+2. **After binding slot 1, every subsequent `click-tile` was inert.** No
+   activity start, no line from the app's pid in `logcat`, zero occurrences of
+   `quickadd` in the whole buffer, no Firestore row, and no parked row flushed
+   when the app was next opened. Tried with the app force-stopped, backgrounded,
+   and in the foreground.
+
+So the tile stopped responding to `click-tile` after the first invocation,
+independently of what the app would have done with the tap. That is an
+LG/SystemUI behaviour, not evidence about `logQuickAdd`: the emulator (AOSP
+SystemUI) drove this fine on 2026-08-08.
+
+**Closing this row therefore needs one of two things, and neither is adb on this
+phone:** a human tapping the tile from the real Quick Settings panel on the G6,
+or the AOSP emulator on a network where Firestore's WebChannel works. Do not
+re-attempt it with `cmd statusbar click-tile` here.
 
 **Still out of reach**: placing the 2×2 widget on the launcher. There is no `adb`
 command for it, and the AOSP launcher's widget picker is a long-press flow that
