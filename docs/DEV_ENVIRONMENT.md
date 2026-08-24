@@ -822,6 +822,25 @@ export PATH="$JAVA_HOME/bin:$HOME/.maestro/bin:$PATH"
 Do NOT set it globally — the same trap as §0 in the other direction. Xcode and
 Gradle are happy where they are.
 
+**0. A freshly installed simulator build is SIGNED OUT, and the whole suite
+fails identically if you forget.** Measured 2026-08-23: a Release build
+installed onto `QA-iPhone` came up on the sign-in screen, and all **19 flows
+failed with the same line** — `Assertion is false: "Today" is visible`. That
+uniformity is the tell, and this file's own rule applies: count a mass failure
+as one fault until proven otherwise. It is not 19 regressions, it is a missing
+session.
+
+Sign in first. `.maestro/android-signin.yaml` is misnamed — its comments record
+being measured on the **iOS** simulator, it selects by testID precisely because
+the iOS hierarchy exposes no `text` on that screen, and it also dismisses the
+guided tour, which auto-opens once per device and otherwise covers Today:
+
+```sh
+maestro test .maestro/android-signin.yaml   -e EMAIL=qa-test@ignia.fit -e PASSWORD='<the QA password>'
+```
+
+Then run the suite. Do not assume a session survives a rebuild.
+
 **2. `maestro test .maestro/regression/` runs ONE flow and reports success.**
 Maestro 2.x does not resolve this repo's workspace `config.yaml` the way 1.x
 did: it prints `Requested 1 shards, but it cannot be higher than the number of
