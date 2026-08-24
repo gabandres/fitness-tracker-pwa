@@ -1,6 +1,6 @@
 # ADR-0026: Oura reaches Ignia through the OS health store, and its energy stops at the seed
 
-- **Status:** accepted
+- **Status:** accepted · **amended 2026-08-24** (see [Amendment](#amendment--2026-08-24-the-workout-read-moves-the-android-fingerprint-and-not-the-ios-one) — the decision stands, one of its arguments does not)
 - **Date:** 2026-08-24
 
 ## Context
@@ -151,6 +151,80 @@ At that point it is a new ADR, and it is additive: the health path stays as the
 zero-config default and the Cloud API becomes an opt-in enrichment behind a
 `FEATURES` flag, mirroring how every other cost-bearing surface in this repo is
 gated.
+
+## Amendment — 2026-08-24: the workout read moves the Android fingerprint, and not the iOS one
+
+Written the same day, because two facts arrived after the decision and one of
+them weakens an argument above. The decision does not change; what it rests on
+does, and that is worth writing down rather than quietly leaving.
+
+### 1. The cost this ADR failed to price
+
+Reading workouts needs `android.permission.health.READ_EXERCISE` in
+`app.json`'s `android.permissions`. That is a manifest change, so it moves the
+Android runtime fingerprint — and an OTA published against a moved fingerprint
+**succeeds and reaches nobody**, which is indistinguishable from a working
+update. Measured on the Windows workstation, which is the host that builds
+Android:
+
+| `apps/mobile` state | Android fingerprint |
+|---|---|
+| `main` as-is | `ae526937893adb7f7349321b05caf2732da9658b` |
+| `+ READ_EXERCISE` | `b08493087dc6d304c07e3f0499e39cabcd601e78` |
+
+The baseline is the same `ae526937…` that Play alpha vc 37 actually ships, so
+this is a comparison against the shipping binary rather than against a local
+artifact.
+
+**iOS is the opposite, by construction.** HealthKit read *types* are requested
+at runtime through `requestAuthorization`; there is no per-type Info.plist key,
+`NSHealthShareUsageDescription` is already declared for the five daily scalars,
+and the `@kingstinct/react-native-healthkit` plugin config takes only the usage
+strings and `background`. No config file changes, and the fingerprint hashes
+native surfaces and dependencies rather than app JS — which is the property that
+makes any OTA possible. So the iOS runtime stays `7b347b0f…`.
+
+### 2. Decision 7 — the read ships in two phases
+
+**iOS gets cardio import by OTA. Android gets it with the next binary (vc 38),
+and the JS is safe to ship to both in the meantime**, because Health Connect
+denies an undeclared read rather than crashing: `readWorkouts` returns `[]` and
+the feature is simply absent until the permission exists.
+
+This is cheap precisely because of where Android stands — production is **not
+launched** (`STATUS.md` §1: production/beta/internal empty, alpha vc 37), so the
+people waiting on vc 38 are the twelve alpha testers, and Android builds run
+here on Windows with no dependency on the Apple organisation migration that is
+currently blocking `eas build -p ios`.
+
+**Do not let the Android half ride along silently.** The empty state on Android
+before vc 38 must read as "not on this build yet", not as "you have no
+workouts" — the two are indistinguishable to a user and the second one is a lie.
+
+### 3. The argument that got weaker
+
+Decision context above lists the Oura Cloud API's **ten-connected-user cap**
+among the reasons to refuse it. With exactly one known Oura user, that cap is
+not load-bearing and should not be cited as though it were. Two further
+corrections in the same direction, so the next reader is not misled about how
+close this call was:
+
+- The Cloud API moves **neither** fingerprint — it is a callable Cloud Function
+  plus client JS plus the `ignia://` scheme that already exists for widget taps,
+  and sync can be client-triggered on foreground rather than scheduled or
+  webhooked. That is a genuine advantage this ADR did not price, and on the
+  "don't move the fingerprint" axis it beats the chosen path outright.
+- What the decision still rests on, and what it does not:
+  - **Still standing:** the Health path serves *every* wearable — Garmin, Apple
+    Watch, Whoop, Fitbit — for the same code, while the Cloud API serves Oura
+    alone. It needs no per-user OAuth, no refresh tokens at rest, and no new
+    Secret Manager version against a floor of 7 that `npm run doctor` enforces
+    and fails on growth past.
+  - **No longer standing:** the user cap.
+
+If a feature ever needs Readiness or HRV balance, the revisit conditions above
+are unchanged except that condition 2 (approval past the cap) is now trivially
+satisfiable and should not be treated as an obstacle.
 
 ## Alternatives rejected
 
