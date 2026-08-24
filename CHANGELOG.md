@@ -6,6 +6,25 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-24 — 1.2.1 is on the App Store, and with it a fortnight of work
+
+Public iOS had been sitting on **build 55** since 2026-08-19 while every OTA
+published since targeted **build 60's** runtime, which is TestFlight-only. So a
+large body of finished work — the per-run TDEE fix, custom calorie and protein
+targets, the in-app feedback box, the bottom-sheet sweep, kilograms, the
+glossaries, and the *Help and support* link that had been silently doing
+nothing for ten days — was real, shipped, and reaching nobody who had installed
+Ignia from the store.
+
+**1.2.1 / build 60 is now `READY_FOR_SALE`.** It released itself: the version's
+`releaseType` was switched from `MANUAL` to `AFTER_APPROVAL` the night before,
+so Apple's approval published it without anyone watching for it. Under MANUAL
+an approved build waits for a human, which is a quiet way to lose days.
+
+`app-version.json` drifted the moment it landed — it still advertised iOS build
+55, so anyone on 55 was being told they were current. `npm run doctor` caught
+it; the number is re-derived from the `READY_FOR_SALE` version and deployed.
+
 ## 2026-08-23 — the pages say what they are, to a crawler that runs no JavaScript
 
 Measured on 2026-08-17: 110 of 114 sitemap URLs were *unknown to Google*, and
