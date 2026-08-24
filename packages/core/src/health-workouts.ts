@@ -18,7 +18,7 @@
  * devices, which matters because there is exactly one Oura ring available to
  * this project.
  */
-import type { CardioBlock, CardioModality, CardioProvider } from './cardio';
+import type { CardioBlock, CardioModality, CardioProvider, CardioSource } from './cardio';
 import { clampCardioKcal, clampDistanceM, clampHr } from './cardio';
 
 /**
@@ -49,6 +49,33 @@ export interface HealthWorkout {
   /** True when the writing app was us — see `health-mapping`'s `fromUs`. Our
    *  own `writeWorkout` exports must never be re-imported as cardio. */
   fromUs: boolean;
+  /**
+   * Who recorded it, when the transport TOLD us rather than left us to guess.
+   *
+   * The OS health store never sets this: there, provenance is inferred from a
+   * bundle id by {@link normalizeProvider}, which is a guess against a lookup
+   * table. A record fetched from Oura's own API is not a guess — it came from
+   * Oura, by construction — so that path sets this and the table is not
+   * consulted at all.
+   *
+   * That asymmetry is worth knowing when a "via Oura" chip renders as `other`:
+   * on the health path it means the pattern table missed, and on the cloud
+   * path it cannot happen.
+   */
+  provider?: CardioProvider;
+  /** Which transport delivered it. Absent means the OS health store, which is
+   *  the only source that existed when this interface was written. */
+  source?: CardioSource;
+  /**
+   * The user's own name for the effort, when the transport carries one.
+   *
+   * Oura's workout record has a `label` field; neither HealthKit nor Health
+   * Connect has an equivalent, so this is cloud-only. It is USER DATA and is
+   * never translated (ADR-0007, the precedent cues set), and it is used only
+   * where {@link toCardioBlockFromHealth} would otherwise have to invent a
+   * name — see there.
+   */
+  label?: string;
 }
 
 // ─── Provider provenance ────────────────────────────────────────
@@ -204,13 +231,22 @@ export function toCardioBlockFromHealth(w: HealthWorkout): CardioBlock {
     // Only label the ones the table could not place. A block that mapped
     // cleanly to `run` renders its modality name from i18n, and a redundant
     // English "Running" beside it would defeat the translation.
-    ...(modality === 'other' ? { label: humanizeActivityType(w.activityType) } : {}),
+    //
+    // Where the transport carried the user's OWN name for it, that wins over
+    // humanizing the platform's activity string — "Padel with Ana" beats
+    // "Racquet Sports", and unlike the humanized form it needs no translation
+    // because the user wrote it.
+    ...(modality === 'other'
+      ? { label: w.label?.trim() || humanizeActivityType(w.activityType) }
+      : {}),
     durationSec: workoutDurationSec(w),
     distanceM: clampDistanceM(w.distanceM),
     avgHr: clampHr(w.avgHr),
     kcal: clampCardioKcal(w.kcal),
-    source: 'health',
-    provider: normalizeProvider(w.sourceBundleId, w.sourceName),
+    // Two transports, one mapper (issue #72). An Oura-cloud record states its
+    // own provenance; a health-store record leaves it to be inferred.
+    source: w.source ?? 'health',
+    provider: w.provider ?? normalizeProvider(w.sourceBundleId, w.sourceName),
     sourceId: w.id,
     startedAt: new Date(w.startMs),
   };
@@ -279,12 +315,41 @@ export function blockSpan(b: Pick<CardioBlock, 'startedAt' | 'durationSec'>): Sp
  *
  * Two blocks that came from the same `sourceId` are not "duplicates" — they are
  * the same record, and the importer updates in place rather than asking.
+ *
+ * ## The two-ids case, and why the old short-circuit was wrong
+ *
+ * This used to return `false` whenever BOTH blocks carried a `sourceId`, on
+ * the reasoning that ids come from one store, so two different ids are two
+ * different efforts. **That premise died when a second import transport
+ * arrived** (issue #72): the same run can reach us through the OS health store
+ * AND through the Oura Cloud API, carrying a HealthKit UUID in one copy and an
+ * Oura document id in the other. Both have ids, neither matches, and
+ * `mergeImportedBlocks` adds both — a visible duplicate of one run, with no
+ * prompt offered, because the prompt was suppressed by exactly this line.
+ *
+ * So the short-circuit now applies only WITHIN a transport, which is where the
+ * original reasoning actually holds: two ids from the same store are two
+ * records. Across transports, ids say nothing, and the overlap test decides —
+ * as it already does for a hand-logged block against an imported one.
+ *
+ * Still a suggestion either way. Nothing here merges anything.
  */
-export function looksLikeSameEffort(
-  a: Pick<CardioBlock, 'startedAt' | 'durationSec' | 'sourceId'>,
-  b: Pick<CardioBlock, 'startedAt' | 'durationSec' | 'sourceId'>,
-): boolean {
-  if (a.sourceId && b.sourceId) return false;
+/**
+ * What this comparison needs from a block.
+ *
+ * `source` is REQUIRED on `CardioBlock` but optional here, and the difference
+ * is deliberate rather than sloppy. Read-path blocks arrive by spreading a
+ * Firestore document (`toCardioBlock`), which validates nothing, so a document
+ * written before ADR-0025 settled — or by anything with a bug — can reach this
+ * function without one. Declaring it required would make the `?? 'health'`
+ * below unreachable through the type system while leaving it reachable at
+ * runtime, which is the worst of both: a guard nobody can test.
+ */
+type EffortShape = Pick<CardioBlock, 'startedAt' | 'durationSec' | 'sourceId'> &
+  Partial<Pick<CardioBlock, 'source'>>;
+
+export function looksLikeSameEffort(a: EffortShape, b: EffortShape): boolean {
+  if (a.sourceId && b.sourceId && (a.source ?? 'health') === (b.source ?? 'health')) return false;
   const spanA = blockSpan(a);
   const spanB = blockSpan(b);
   if (!spanA || !spanB) return false;

@@ -272,9 +272,33 @@ thing standing between that number and a user's calorie budget.
 Decisions 1–4 also survive as the *fallback* path: `HealthPort.readWorkouts`,
 the provider normalization and the suggest-never-merge dedup are all shipped and
 serve every non-Oura wearable, which the Cloud API never will. The two paths are
-complementary, and the dedup written for one already covers the other — a run
-arriving from both the health store and the API is exactly the overlapping-blocks
-case `looksLikeSameEffort` was written for.
+complementary.
+
+> **CORRECTION, 2026-08-24 (issue #72).** This paragraph originally continued:
+> *"the dedup written for one already covers the other — a run arriving from
+> both the health store and the API is exactly the overlapping-blocks case
+> `looksLikeSameEffort` was written for."* **That was wrong, and it was wrong
+> in the direction that hides itself.**
+>
+> `looksLikeSameEffort` opened by returning `false` whenever *both* blocks
+> carried a `sourceId`, on the reasoning that ids come from one store, so two
+> different ids are two different efforts. That reasoning was correct when it
+> was written and there was one importer. A second transport kills the premise:
+> the same run arrives as a HealthKit UUID **and** an Oura document id, both
+> blocks have ids, neither matches, and the overlap test — the thing this
+> paragraph was relying on — never ran. `mergeImportedBlocks` added both and no
+> prompt was offered.
+>
+> So the pair that most needed the merge question was the one pair guaranteed
+> not to get it, and the ADR asserted the opposite. The short-circuit now
+> applies only *within* a transport, which is where its original reasoning
+> actually holds; across transports the overlap test decides, exactly as it
+> already did for a hand-logged block against an imported one.
+>
+> The lesson is narrower than "test your assumptions": a dedup rule written
+> when there is one source of ids encodes "one source of ids" as an invariant
+> without saying so. Adding the second source is what makes the assumption
+> visible, and by then it reads as a bug rather than a design that expired.
 
 ### Scope discipline
 

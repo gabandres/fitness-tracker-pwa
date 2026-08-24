@@ -205,10 +205,49 @@ describe('overlap detection', () => {
     expect(looksLikeSameEffort(manual(T0, 1800), imported(T0 + HOUR * 3, 1800, 'oura-2'))).toBe(false);
   });
 
-  // Two records that both came from a store are the store's business, not a
-  // duplicate to ask the user about.
-  it('never asks about two blocks that both carry a sourceId', () => {
+  // Two records that both came from THE SAME store are that store's business,
+  // not a duplicate to ask the user about.
+  it('never asks about two blocks from one transport that both carry a sourceId', () => {
     expect(looksLikeSameEffort(imported(T0, 1800, 'a'), imported(T0, 1800, 'b'))).toBe(false);
+  });
+
+  // ── The two-transports case (issue #72) ──
+  //
+  // One run reaches us twice: HealthKit hands over its own UUID, the Oura
+  // Cloud API hands over an Oura document id. Both blocks carry a `sourceId`,
+  // neither matches the other, so `mergeImportedBlocks` adds both — and the
+  // old short-circuit ("both have ids ⇒ different efforts") suppressed the
+  // very prompt that would have let the user say they are one run.
+  const fromCloud = (startMs: number, durationSec: number, id: string): CardioBlock => ({
+    modality: 'run', durationSec, source: 'oura', sourceId: id, startedAt: new Date(startMs),
+  });
+
+  it('DOES ask about one run that arrived through both transports', () => {
+    expect(
+      looksLikeSameEffort(imported(T0, 1800, 'hk-uuid'), fromCloud(T0 - 60_000, 1920, 'oura-doc')),
+    ).toBe(true);
+  });
+
+  it('still does not ask when two transports carry genuinely different sessions', () => {
+    // Crossing transports relaxes the id short-circuit; it does not relax the
+    // overlap test, which is what actually decides.
+    expect(
+      looksLikeSameEffort(imported(T0, 1800, 'hk-uuid'), fromCloud(T0 + HOUR * 3, 1800, 'oura-doc')),
+    ).toBe(false);
+  });
+
+  it('treats an absent source as the health store', () => {
+    // Reachable in practice, not just in theory: read-path blocks arrive by
+    // spreading a Firestore document, which validates nothing. A block stored
+    // without a `source` must keep the pre-#72 behaviour rather than suddenly
+    // being offered for merge against every imported block on the same day.
+    const a = { startedAt: new Date(T0), durationSec: 1800, sourceId: 'a' };
+    const b = { startedAt: new Date(T0), durationSec: 1800, sourceId: 'b' };
+    expect(looksLikeSameEffort(a, b)).toBe(false);
+
+    // And an absent source is 'health', so it does NOT match a cloud block.
+    const cloud = { startedAt: new Date(T0), durationSec: 1800, sourceId: 'c', source: 'oura' as const };
+    expect(looksLikeSameEffort(a, cloud)).toBe(true);
   });
 
   it('cannot match a block with no start time to anchor to', () => {

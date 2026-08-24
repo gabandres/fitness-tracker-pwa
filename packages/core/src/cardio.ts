@@ -46,11 +46,29 @@ export const CARDIO_MODALITIES: readonly CardioModality[] = [
   'run', 'walk', 'ride', 'hike', 'swim', 'row', 'elliptical', 'stair', 'sport', 'other',
 ];
 
-/** How the block got here. `health` means it was imported from the OS health
- *  store (ADR-0026); the wearable that actually recorded it is
- *  {@link CardioBlock.provider}, which is a different question — Apple Health
- *  is a store, not a source. */
-export type CardioSource = 'manual' | 'health';
+/**
+ * How the block got here — the TRANSPORT, not the device.
+ *
+ * - `manual` — the user typed it in Ignia.
+ * - `health` — imported from the OS health store (ADR-0026).
+ * - `oura` — imported from the Oura Cloud API directly (ADR-0026 Amendment 2).
+ *
+ * The wearable that actually recorded it is {@link CardioBlock.provider},
+ * which is a different question: Apple Health is a *store*, not a source, and
+ * a block can be `source: 'health'` with `provider: 'oura'` — the same ring,
+ * arriving by a different road.
+ *
+ * **`health` and `oura` are two roads to the same run, and that is the point
+ * of keeping them apart.** Both paths can deliver one effort, with DIFFERENT
+ * `sourceId`s (a HealthKit UUID against an Oura document id), so `sourceId`
+ * dedup cannot see the pair. `looksLikeSameEffort` reads this field to decide
+ * whether two ids are two records or two copies — see its note.
+ *
+ * Adding a member costs no `firestore.rules` deploy: `isValidWorkoutSession`
+ * validates `cardio` as a capped list and stops, because rules cannot iterate
+ * a list (see this file's header).
+ */
+export type CardioSource = 'manual' | 'health' | 'oura';
 
 /** Which wearable authored an imported block, normalized from HealthKit's
  *  `sourceRevision.source.bundleIdentifier` / Health Connect's

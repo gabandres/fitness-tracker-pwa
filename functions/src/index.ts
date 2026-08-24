@@ -22,6 +22,7 @@ export { onFeedbackCreated } from "./feedback-notify";
 export { sendVerificationEmail } from "./verify-email";
 export { unsubscribeWeeklyDigest } from "./unsubscribe";
 export { beginOuraLink, unlinkOura, ouraCallback } from "./oura-link";
+export { fetchOuraWorkouts } from "./oura-workouts";
 
 // ─── Satellite modules ──────────────────────────────────────────────
 export {

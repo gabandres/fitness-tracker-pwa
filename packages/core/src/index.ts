@@ -203,6 +203,14 @@ export {
   toCardioModality,
   workoutDurationSec,
 } from './health-workouts';
+// Oura Cloud API — the SECOND cardio import transport (issue #72, ADR-0026
+// Amendment 2). Parse-only: it turns Oura's wire shape into the same
+// `HealthWorkout` the health-store path produces, so there is one mapper and
+// two readers. The fetch itself is server-side (the refresh token is denied to
+// clients); this half is pure so it can be tested without the one ring.
+// Function-only, matching ./health-workouts — `OuraWorkout` is at
+// `@macrolog/core/oura-workouts`.
+export { parseOuraWorkouts, toHealthWorkout, ouraDateParam } from './oura-workouts';
 // Cardio derivations — weekly roll-up, per-block summary cells, distance/pace
 // formatting. A SIBLING of ./train-view and never an edit to it: the strength
 // derivations walk session.exercises and must keep walking only that.

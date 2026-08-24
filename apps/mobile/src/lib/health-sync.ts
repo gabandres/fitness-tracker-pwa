@@ -13,6 +13,7 @@ import {
   valuesToApply,
 } from '@macrolog/core';
 import type { CardioBlock } from '@macrolog/core/cardio';
+import type { HealthWorkout } from '@macrolog/core/health-workouts';
 import {
   getHealthScalarsOnce,
   getRecentSessions,
@@ -213,7 +214,20 @@ export async function importHealthWorkouts(uid: string): Promise<number> {
   if (!uid || !(await isHealthConnected())) return 0;
 
   const raw = await health.readWorkouts(WORKOUT_IMPORT_DAYS);
-  const blocks = importableWorkouts(raw)
+  return writeImportedBlocks(uid, toImportableBlocks(raw));
+}
+
+/**
+ * The shared tail of both import transports: raw workout records → the blocks
+ * worth storing.
+ *
+ * Split out when the Oura Cloud API became a second reader (issue #72). Both
+ * transports produce `HealthWorkout`, so both filter identically — and they
+ * must, or "what counts as importable" quietly forks per road and the same run
+ * is kept by one path and dropped by the other.
+ */
+export function toImportableBlocks(raw: readonly HealthWorkout[]): CardioBlock[] {
+  return importableWorkouts(raw)
     .map(toCardioBlockFromHealth)
     // Anything the modality table could not place is NOT imported. Oura and
     // the Watch both record strength training, and importing those as cardio
@@ -222,6 +236,25 @@ export async function importHealthWorkouts(uid: string): Promise<number> {
     // a duplicated history is not.
     .filter((b) => b.modality !== 'other')
     .filter(isLoggedCardioBlock);
+}
+
+/**
+ * Fold imported blocks into Train history — the write half, shared by both
+ * transports.
+ *
+ * See {@link importHealthWorkouts} for the shape and the idempotency rules;
+ * this is that function's body from the grouping step down, given a name so
+ * the Oura Cloud path (`importOuraWorkouts` in `./oura`) reaches the same
+ * writes rather than growing a parallel set of them.
+ *
+ * The one thing worth restating here: matching is by `sourceId`, and the two
+ * transports have DIFFERENT id namespaces for the same run. That is not this
+ * function's problem to solve — `mergeImportedBlocks` correctly adds both, and
+ * `looksLikeSameEffort` is what surfaces the pair to the user, on screen,
+ * where a person can answer. Collapsing them here would be the silent merge
+ * ADR-0026 decision 4 refuses.
+ */
+export async function writeImportedBlocks(uid: string, blocks: CardioBlock[]): Promise<number> {
   if (!blocks.length) return 0;
 
   const sessions = await getRecentSessions(uid, SESSION_SCAN_LIMIT);
