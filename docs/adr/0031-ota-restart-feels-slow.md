@@ -128,6 +128,93 @@ exactly the hang this change exists to remove. **Shipped: spinner only**, coral
 on the app's own canvas. The familiar logo splash follows a beat later anyway
 when the new bundle boots.
 
+## Amendment 1 — the measurements exist now, and they move the decision (2026-08-24)
+
+Taken on the **LG G6** (Android 9, 360x720dp) by screen-recording real
+`reloadAsync` restarts at 10 fps and reading the frames, with `dev.expo.updates`
+logcat as the clock. Not a `force-stop` relaunch — the real path.
+
+### (1) and (2): tap to first paint, and where the time goes
+
+Two independent captures of an OTA restart, consistent with each other:
+
+| | capture A | capture B |
+|---|---|---|
+| previous UI disappears | 8.5 s | 9.3 s |
+| pre-JS gap (a flat frame, nothing of ours on it) | 8.7 - 9.6 s | 9.5 - 10.0 s |
+| app's own dark `BrandLoader` paints | 9.9 s | 10.1 s |
+| **Today painted** | **13.1 s** | **14.3 s** |
+| **restart to Today** | **~4.6 s** | **~5.0 s** |
+| of which: pre-JS gap | ~1.0 s | ~0.7 s |
+| of which: **app boot** | **~3.5 s** | **~4.2 s** |
+
+**App boot is ~80% of it.** The ADR said this in advance: *"If boot dominates,
+the win is in boot and the reload screen is cosmetic."* It does, and it is. The
+reload screen covers at most a fifth of what the user waits through; the other
+four fifths is React mounting, `AuthGate` resolving, listeners re-subscribing
+and Today re-hydrating — and all of that is *already* behind the app's own
+branded loader, which does not read as a hang.
+
+### (3): the banner is not the common path — it is nearly unreachable
+
+No instrumentation was needed to answer this, because the banner could not be
+made to appear at all. Across roughly eight background/foreground cycles with an
+update genuinely pending, `useAutoApplyOta` won **every time**. Two mechanisms
+stack:
+
+- it applies on **every** foreground once a bundle is pending, and a user who is
+  not looking at Today in that exact window never sees the banner;
+- `UpdateBanner` is rendered with `suppressed={nudge !== 'update'}`, and
+  `useTodayNudge` ranks **What's new above it** — so for as long as a What's-new
+  banner is undismissed, the OTA banner cannot render even when one is pending.
+  This was observed directly: dismissing What's new was required before the
+  nudge slot was even a candidate.
+
+**So option C was aimed at the wrong thing.** It proposed *fewer* banners on the
+theory that the banner is a fallback few people hit. That is true, and it is
+already true — there is nothing to reduce. The banner is rare because auto-apply
+is aggressive, and the owner's complaint is therefore most likely about a
+restart he *did* see, i.e. an auto-applied one, where there is no tap at all.
+
+### The finding that matters most: on Android, option A does nothing
+
+**`reloadScreenOptions` is inert on Android in vc 37**, and this is measured
+rather than suspected. The same restart was captured with two different
+`backgroundColor` values shipped over the air - `colors.paper` and then
+`colors.heroPanel` (`#161412`) - and the gap was **byte-identically the same
+flat `#faf9f6`** both times, with **zero** coral pixels anywhere in a 480x480
+centre crop across every frame of it. A 72dp `large` spinner tinted `#ff6a3d`
+would be ~250px on this screen. Our view is not being drawn; what is on screen
+is the window background, which happens to be the splash colour.
+
+The likely cause is in `expo-updates@57.0.15`'s own source, which is installed
+here and is the same version vc 37 was built with. `RelaunchProcedure` shows the
+screen with `reloadScreenManager?.show(weakActivity?.get())`, and
+`ReloadScreenManager.show()` **returns early when the activity is null**.
+`weakActivity` is captured once, at React context initialisation, from
+`reactContext.currentActivity` - which during a cold start is set before the
+activity has resumed. Every restart we can produce belongs to a session that
+began cold.
+
+There is no workaround from JS: `Updates.showReloadScreen()` exists but its
+native implementation is wrapped in `if (BuildConfig.DEBUG)`, so it is a
+development preview and does nothing in a release binary.
+
+**The code stays.** It is correct against the documented API, costs six lines
+and no runtime, and the iOS half is untested - `ReloadScreenView.swift` attaches
+differently and may well work. But **Android must not be described as fixed**,
+and the OTA rows say so.
+
+### What this changes
+
+- **B (copy) is the only half of this that a user can perceive on Android
+  today**, and it ships.
+- **A is shipped but unproven on iOS and disproven on Android.**
+- **C is withdrawn as written.** Its premise - that reducing banners is the best
+  available win - does not survive (3): the banner is already rare. If anything
+  here is worth more work it is **app boot**, which owns ~80% of the wait, and
+  which this ADR explicitly put out of scope.
+
 ## Where the three measurements stand
 
 - **(1) tap to first paint** and **(2) the bundle-eval / app-boot split** —
