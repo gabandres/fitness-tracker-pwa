@@ -60,14 +60,20 @@ export function trailingDateKeys(n: number, now: Date, boundary: DayBoundary = M
 }
 
 /** One weight per day over the trailing `n` days, oldest first, **days with no
- *  weigh-in dropped** — a gap must not plot as a zero. */
+ *  weigh-in dropped** — a gap must not plot as a zero.
+ *
+ *  Takes `boundary` for the same reason every other window does (ADR-0030): a
+ *  weigh-in at 01:00 under a 03:00 day start belongs to the previous day, and
+ *  a window that disagrees with the one the intake cards use puts the weight
+ *  trend and the calorie trend on two different calendars. */
 export function weightSeriesForDays(
   weights: Readonly<Record<string, number>>,
   n: number,
   now: Date,
+  boundary: DayBoundary = MIDNIGHT,
 ): number[] {
   const out: number[] = [];
-  for (const key of trailingDateKeys(n, now)) {
+  for (const key of trailingDateKeys(n, now, boundary)) {
     const v = weights[key];
     if (typeof v === 'number') out.push(v);
   }
@@ -87,9 +93,10 @@ export function weightPointsForDays(
   weights: Readonly<Record<string, number>>,
   n: number,
   now: Date,
+  boundary: DayBoundary = MIDNIGHT,
 ): DatedWeight[] {
   const out: DatedWeight[] = [];
-  for (const key of trailingDateKeys(n, now)) {
+  for (const key of trailingDateKeys(n, now, boundary)) {
     const v = weights[key];
     if (typeof v === 'number') out.push({ dateKey: key, weightLb: v });
   }

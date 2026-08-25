@@ -82,10 +82,10 @@ export function useSleepTrends(
   // render is fine and per focus is what matters — a card left open across
   // midnight should move on, and this screen re-derives on refocus anyway.
   const dateKeys = useMemo(
-    // NOTE: boundary-aware, while the rest of `useTrends` (insights, budget,
-    // loggedThisWeek) still defaults to MIDNIGHT. That is a pre-existing gap in
-    // ADR-0030 step 3, not something introduced here — but it is the reason
-    // this line is not simply `trailingDateKeys(SLEEP_WINDOW_DAYS, new Date())`.
+    // Boundary-aware, like every other window on this screen. It was the ONLY
+    // boundary-aware one for a while, which meant Trends keyed the sleep card
+    // and the insight/budget cards to two different calendars; `useTrends`
+    // now threads the same boundary through all of them.
     // Writing a NEW pairing midnight-only would be adding a latent bug on
     // purpose; the pairing between a night and the day's eating is the entire
     // claim this card makes.

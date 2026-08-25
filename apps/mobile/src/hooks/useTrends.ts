@@ -8,6 +8,7 @@ import {
   type WeightPoint,
   addDays,
   basalMifflinStJeor,
+  dayBoundaryOf,
   computeWeeklyBudget,
   computeWeeklyInsights,
   dailyTargets,
@@ -75,32 +76,44 @@ export function useTrends(): TrendsState {
     [profile, logs, weights],
   );
 
+  // The user's day start (ADR-0030). EVERY window below is keyed by it, not by
+  // midnight: the sleep card was made boundary-aware when it shipped and the
+  // rest of this hook was not, so on any non-midnight boundary one screen was
+  // keying two cards to two different calendars — the sleep card counting a
+  // 01:00 entry as the previous day while the insight and budget cards counted
+  // it as the current one. `MIDNIGHT` is the default everywhere, and under it
+  // `dayKeyAt` IS the calendar date, so no existing account moves.
+  const boundary = useMemo(() => dayBoundaryOf(profile), [profile]);
+
   const insights = useMemo(() => {
     const today = new Date();
-    const summaries = summarizeDays(trailingDateKeys(INSIGHT_DAYS, today), logs, weights);
-    const points = weightPointsForDays(weights, SLOPE_WINDOW_DAYS, today);
+    const summaries = summarizeDays(
+      trailingDateKeys(INSIGHT_DAYS, today, boundary), logs, weights, boundary,
+    );
+    const points = weightPointsForDays(weights, SLOPE_WINDOW_DAYS, today, boundary);
     return computeWeeklyInsights(summaries, targets.calorieTarget, points, targets.proteinTarget);
-  }, [logs, weights, targets]);
+  }, [logs, weights, targets, boundary]);
 
   const loggedThisWeek = useMemo(() => {
     const today = new Date();
-    return summarizeDays(trailingDateKeys(INSIGHT_DAYS, today), logs, weights)
-      .filter((d) => d.mealCount > 0 && d.totalCalories > 0).length;
-  }, [logs, weights]);
+    return summarizeDays(
+      trailingDateKeys(INSIGHT_DAYS, today, boundary), logs, weights, boundary,
+    ).filter((d) => d.mealCount > 0 && d.totalCalories > 0).length;
+  }, [logs, weights, boundary]);
 
   const weightSeries = useMemo<number[]>(
-    () => weightSeriesForDays(weights, SPARK_DAYS, new Date()),
-    [weights],
+    () => weightSeriesForDays(weights, SPARK_DAYS, new Date(), boundary),
+    [weights, boundary],
   );
 
   const budget = useMemo<WeeklyBudget | null>(() => {
     // ISO-local week (Monday-start): the seven Mon→Sun date keys and today's
     // 1-based position. Monday is at most 6 days back, so the log window covers
     // the elapsed week.
-    const week = isoWeek(new Date());
-    const days = summarizeDays(week.keys, logs, weights);
+    const week = isoWeek(new Date(), boundary);
+    const days = summarizeDays(week.keys, logs, weights, boundary);
     return computeWeeklyBudget(days, week.daysElapsed, targets.calorieTarget);
-  }, [logs, weights, targets]);
+  }, [logs, weights, targets, boundary]);
 
   const basalKcal = useMemo(() => {
     if (!profile || profile.heightIn == null || profile.age == null || profile.sex == null) return 0;
