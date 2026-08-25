@@ -10,6 +10,32 @@ Update this file in the same commit as any flow change. If a surface ships
 that has no row here, the suite's "100%" claim is false until the row exists —
 add it as ✗ first, cover it second.
 
+## Run log — 2026-08-24, Android **21 of 21**
+
+Full suite on the LG VS988 (Android 9 / API 28) over adb, against the SHIPPED
+bundle — OTA `4a76f432…` on vc 37, device confirmed on it by
+`CheckCompleteUnavailable` before the run. **Every flow passed**, including the
+two most exposed to that day's Settings refactor (17 sections → 13):
+`04-settings` and `20-units-metric`.
+
+One near-miss worth recording, because it is the kind of thing that usually
+breaks a suite silently: `20-units-metric` asserts `'Units'`, and the Settings
+section header of that name was renamed to *Preferences*. It passes because the
+string it actually targets is the ROW label (`settings.portionDisplay`, also
+"Units"), not the header — which the flow's own comment says. Before the
+refactor there were two "Units" on that screen and now there is one;
+`assertVisible` is satisfied either way. **If that row is ever renamed, this
+flow fails and the section header is not the reason.**
+
+**iOS: NOT RUN, and not for a code reason.** The Release simulator build failed
+with `Internal Error: DecodingError.dataCorrupted … unexpected end of file`
+while compiling `ExpoCrypto`. That is a truncated write, not a Swift error:
+`ignia-mac` was at **354 MiB free, 100% full**, because the build's own 7 GB
+DerivedData filled it. The DerivedData was deleted (back to 7.4 GiB free, still
+96%), and a retry needs real headroom first — a full build wants ~7 GB and the
+disk has ~7.4 GB. **Do not re-run the iOS suite on that machine until its disk
+is dealt with**; it will fail the same way and leave the laptop at zero again.
+
 **A green run is not automatically evidence.** Two ways a pass can lie, both
 measured on 2026-08-09: a flow that dies before its restore tail leaves the
 account in es-PR or the device in dark, so every LATER flow is asserting
