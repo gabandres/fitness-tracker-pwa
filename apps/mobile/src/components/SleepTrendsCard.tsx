@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useRouter } from 'expo-router';
 import {
   SLEEP_MIN_NIGHTS,
   SLEEP_WINDOW_DAYS,
@@ -13,6 +14,7 @@ import { useLocale } from '@/i18n';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
 import { PressScale } from '@/lib/motion';
+import * as haptics from '@/lib/haptics';
 
 /**
  * Sleep on Trends — one number, one strip, one sentence (ADR-0033, issue #81).
@@ -53,6 +55,7 @@ export function SleepTrendsCard({ sleep }: { sleep: SleepTrends }) {
   const { colors } = useTheme();
   const t = useT();
   const locale = useLocale();
+  const router = useRouter();
 
   if (sleep.kind === 'pending') return null;
 
@@ -65,7 +68,17 @@ export function SleepTrendsCard({ sleep }: { sleep: SleepTrends }) {
     return (
       <View testID="sleep-empty-row">
         <View style={styles.hairline} />
-        <PressScale style={styles.linkRow} onPress={() => {}} disabled>
+        <PressScale
+          style={styles.linkRow}
+          testID="sleep-empty-link"
+          onPress={() => {
+            haptics.tap();
+            // The chevron is a promise. It was inert in the first device build
+            // and that reads as a broken row rather than as a decoration —
+            // Connected apps is where both halves of this sentence live.
+            router.push('/connected-apps');
+          }}
+        >
           <Text style={styles.linkLabel}>
             {t(
               sleep.connectedTo === 'oura'

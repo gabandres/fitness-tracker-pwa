@@ -4,7 +4,13 @@ jest.mock('@/lib/auth', () => ({
   useAuth: () => ({ user: { uid: 'u1' }, profile: null }),
 }));
 
-import { renderWithProviders as render } from '@/test-utils';
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({
+  ...jest.requireActual('expo-router'),
+  useRouter: () => ({ push: mockPush, back: jest.fn() }),
+}));
+
+import { fireEvent, renderWithProviders as render } from '@/test-utils';
 import React from 'react';
 import { SLEEP_MIN_NIGHTS, SLEEP_WINDOW_DAYS, sleepWindow, type SleepEntry } from '@macrolog/core';
 import { SleepTrendsCard } from '@/components/SleepTrendsCard';
@@ -67,6 +73,20 @@ describe('state 3 — no sleep at all, which is most people', () => {
 
     expect(invite.getByText(/connect Oura or Apple Health/)).toBeTruthy();
     expect(connected.getByText(/connected to Oura — no nights yet/)).toBeTruthy();
+  });
+
+  it('taps through to Connected apps — the chevron is a promise', async () => {
+    // It was inert in the first device build, and a chevron that does nothing
+    // reads as a broken row rather than as decoration. Caught by looking at a
+    // screenshot; pinned here so it cannot come back.
+    mockPush.mockClear();
+    const { getByTestId } = await render(
+      <SleepTrendsCard sleep={{ kind: 'empty', connectedTo: null }} />,
+    );
+
+    fireEvent.press(getByTestId('sleep-empty-link'));
+
+    expect(mockPush).toHaveBeenCalledWith('/connected-apps');
   });
 
   it('renders nothing at all while the listener has not answered', async () => {
