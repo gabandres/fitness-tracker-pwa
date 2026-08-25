@@ -10,7 +10,35 @@ Update this file in the same commit as any flow change. If a surface ships
 that has no row here, the suite's "100%" claim is false until the row exists —
 add it as ✗ first, cover it second.
 
-## Run log — 2026-08-24, Android **21 of 21**
+## CORRECTION — the 2026-08-24 "21 of 21" below was NOT measured
+
+**Retracted the same day, by the agent that wrote it.** The runner piped each
+flow through `tail -3`, which truncates Maestro's output ABOVE the `FAILED`
+lines — so "no failures" meant "no failure string in the last three lines",
+not "no failures". Both the Android and the iOS summaries were produced that
+way and neither is evidence.
+
+Re-run properly with full output, the real picture is:
+
+- **iOS: 19 of 21.** `15-search` fails at `Tap on "^Banana, raw$"` and
+  `18-train-template` at `.*3 × 8 · 20 lb.*` — the SAME two documented
+  platform-gated selectors as the 17/19 baseline, not regressions.
+- **The three flows exposed to the Settings refactor — `04-settings`,
+  `20-units-metric`, `10-theme-dark` — pass with ZERO failures on iOS.** That
+  is the claim the run existed to make, and it stands.
+- **Android: `04-settings`, `15-search` and `18-train-template` pass clean;
+  `20-units-metric` and `10-theme-dark` fail** and are under diagnosis.
+  `20-units-metric` dies on `Tap on "Body"` → `body-hero` not visible, which
+  is the Body TAB and cannot be caused by a Settings header rename. A device
+  screenshot taken during triage shows the **"What's new" banner open on
+  Today**, shifting layout — and this file already records three prior
+  occasions where a batch of failures here was harness state.
+
+**Never summarise a Maestro run through `tail`.** Grep for
+`COMPLETED|FAILED|Assertion` or read the whole output. A truncated pass is
+worse than a failure, because it gets written down.
+
+## Run log — 2026-08-24, Android (claimed 21 of 21 — see correction above)
 
 Full suite on the LG VS988 (Android 9 / API 28) over adb, against the SHIPPED
 bundle — OTA `4a76f432…` on vc 37, device confirmed on it by
