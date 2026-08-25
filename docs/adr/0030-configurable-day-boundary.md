@@ -1,6 +1,6 @@
 # ADR-0030: When does a day start?
 
-- **Status:** **partly built (2026-08-25)** — the core derivation exists and is tested. Nothing is wired to it yet, and there is no setting.
+- **Status:** **IMPLEMENTED and shipped (2026-08-25)** — Android OTA 52 (vc 37) and iOS OTA 26 (build 60, the PUBLIC App Store). All four steps are done: the derivation, the codemod, persistence, and the setting. **Open: Q4 (widget/watch) and Q5 (importers)** — decisions, not code; `npm run check:day-boundary` pins the 12 call sites blocked on them. See Amendments 1–3.
 - **Date:** 2026-08-24
 - **Touches:** every `dateKey` derivation, the TDEE estimator, fasting, the Health/Oura importers, the widget and the watch
 

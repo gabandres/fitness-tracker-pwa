@@ -404,3 +404,26 @@ registered redirect URI is unchanged.
   appeal is that the run is already there when you open the app.
 - **Treat a workout as a daily scalar.** Collapses start time, modality,
   distance and heart rate into one number per day, which is the entire feature.
+
+## Cross-reference — ADR-0030 Q5 now blocks this ADR's importers (2026-08-25)
+
+ADR-0030 (the configurable day boundary) shipped, and it left exactly one
+question open that lands on this ADR's code: **Q5 — do importers keep their
+source's day, or the user's?**
+
+`health.ts` and `health-sync.ts` are 9 of the 12 remaining call sites that still
+bucket a wall-clock instant by the calendar date rather than by the user's day
+(`npm run check:day-boundary --list`). They were **deliberately not converted**,
+and the reason is specific to what this ADR built rather than a general reluctance:
+
+`writeImportedBlocks` merges an imported cardio block into the user's own
+`WorkoutSession` for that day by comparing the two days. Converting one side and
+not the other makes those two keys disagree at any non-midnight boundary, so a
+run auto-detected by the ring at 00:30 would stop merging into the session the
+user logged by hand — which is decision 4's silent-merge refusal inverted into a
+silent *failure* to merge. Converting half an importer is worse than converting
+none.
+
+So Q5 has to be answered before either half moves, and the answer is a decision
+about provenance — a ring's record carries its own notion of when the workout
+happened — not a refactor.

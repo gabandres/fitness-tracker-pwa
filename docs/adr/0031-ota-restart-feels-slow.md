@@ -1,6 +1,6 @@
 # ADR-0031: The OTA restart cannot be instant, so stop pretending and cover it
 
-- **Status:** **accepted for A and B** (shipped 2026-08-24). **C remains held**, on the measurement below that does not exist yet.
+- **Status:** **accepted for A and B** (shipped 2026-08-24). **C is WITHDRAWN** — the measurement it was held on now exists and does not support it (Amendment 1). **A is disproven on Android**: `reloadScreenOptions` is inert there, measured with a control. Do not report the Android restart as fixed.
 - **Date:** 2026-08-24
 - **Reported by:** the owner, on a real device: *"the Update and Restart link on the OTA doesn't feel instant… I feel that it can be improved substantially."*
 
