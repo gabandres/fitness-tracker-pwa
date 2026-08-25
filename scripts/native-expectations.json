@@ -1,5 +1,5 @@
 {
-  "_comment": "What every shipped mobile artifact MUST structurally contain. Read by scripts/verify-mobile-artifact.mjs, which gates submission on it. Adding a required key here is how a new native capability becomes un-forgettable — builds 34, 38 and 39 each shipped missing something on this list before it existed.",
+  "_comment": "What every shipped mobile artifact MUST structurally contain. Read by scripts/verify-mobile-artifact.mjs, which gates submission on it. Adding a required key here is how a new native capability becomes un-forgettable \u2014 builds 34, 38 and 39 each shipped missing something on this list before it existed.",
   "ios": {
     "targets": [
       "Ignia.app",
@@ -37,6 +37,10 @@
     "requiredServices": [
       "expo.modules.quickaddtile.QuickAddTileService",
       "expo.modules.quickaddtile.QuickAddTileTaskService"
-    ]
+    ],
+    "requiredPermissions": [
+      "android.permission.health.READ_EXERCISE"
+    ],
+    "_permissionsComment": "Android-only permissions are declared in patch-android-release.mjs step 4b, NOT in app.json \u2014 app.json is hashed as a whole, so a one-sided key moves the OTHER platform's fingerprint (measured 2026-08-25: READ_EXERCISE alone shut the iOS channel off build 60). That rehoming moves the declaration into gitignored prebuild output, where nothing else checks it \u2014 which is exactly why it is listed here."
   }
 }

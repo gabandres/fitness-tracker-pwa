@@ -191,6 +191,16 @@ function verifyAab(path) {
       if (manifest.includes(svc)) ok(`service ${svc.split('.').pop()}`);
       else bad(`service ${svc}`, 'MISSING from the merged manifest');
     }
+    // Declared by `patch-android-release.mjs` step 4b rather than by `app.json`,
+    // because a one-sided key in `app.json` moves the OTHER platform's
+    // fingerprint. The cost of that rehoming is that nothing upstream checks it:
+    // prebuild output is gitignored, tsc cannot see a manifest, and a permission
+    // that silently vanishes reads at runtime as "the ring reported nothing".
+    // This is the check that makes it un-forgettable.
+    for (const perm of EXPECT.android.requiredPermissions ?? []) {
+      if (manifest.includes(perm)) ok(`permission ${perm.split('.').pop()}`);
+      else bad(`permission ${perm}`, 'MISSING — patch-android-release.mjs step 4b did not run');
+    }
   } catch (e) {
     bad('manifest', String(e.message).split('\n')[0]);
   }

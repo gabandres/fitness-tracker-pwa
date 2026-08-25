@@ -247,3 +247,55 @@ if (manifest.includes(HEADERS_KEY)) {
   writeFileSync(manifestPath, manifest);
   console.log(`AndroidManifest.xml: EAS Update channel "${channel}" injected`);
 }
+
+// --- 4b. AndroidManifest.xml: Android-only health permissions ---
+// These belong in `app.json` and CANNOT live there, for the same reason the
+// release ABI set could not (step 1b): **`app.json` is hashed as a WHOLE, so an
+// Android-only key moves the iOS fingerprint too.**
+//
+// Measured 2026-08-25. `dd3ceb10` added ONE line — `READ_EXERCISE`, a Health
+// Connect permission that iOS cannot read and no iOS file mentions — and it
+// moved the iOS runtime `7b347b0f…` -> `f319b32d…`, off **build 60, the public
+// App Store binary**. The iOS OTA channel was shut for a day and nothing said
+// so: an update published against the new hash would have exited 0 and reached
+// nobody. Deleting the line on `ignia-mac` returned the hash to `7b347b0f…`
+// exactly, which is what identifies the cause rather than guessing at it.
+//
+// So the permission is declared HERE instead, into the **gitignored** prebuild
+// output — the same place the channel above and the signing config in step 2
+// already go, and for the same reason: a `dir:` fingerprint source hashes only
+// git-TRACKED content, so nothing written under `android/` can move either
+// runtime. Precedent is `4ec7d2d7`, which rehomed `reactNativeArchitectures`
+// out of a hashed config plugin after it shut BOTH channels.
+//
+// **Add an Android-only permission here, never to `app.json`.** A permission
+// both platforms need still belongs in `app.json`; the trap is one-sided keys.
+const ANDROID_ONLY_PERMISSIONS = [
+  // Health Connect workout read (ADR-0026). The JS has shipped since
+  // 2026-08-24 and returned nothing, because the manifest never asked.
+  'android.permission.health.READ_EXERCISE',
+];
+
+const missingPermissions = ANDROID_ONLY_PERMISSIONS.filter(
+  (name) => !manifest.includes(`android:name="${name}"`),
+);
+if (missingPermissions.length === 0) {
+  console.log('AndroidManifest.xml: Android-only permissions already present');
+} else {
+  // Anchored on `<manifest …>` itself rather than on a sibling permission: the
+  // set of permissions Expo generates is a moving target, and an anchor that
+  // can vanish is an anchor that fails silently on the next SDK bump.
+  const anchor = /(<manifest\b[^>]*>)/;
+  if (!anchor.test(manifest)) {
+    console.error('No <manifest> element in AndroidManifest.xml — prebuild output is not what this expects.');
+    process.exit(1);
+  }
+  manifest = manifest.replace(
+    anchor,
+    (open) =>
+      `${open}\n` +
+      missingPermissions.map((name) => `  <uses-permission android:name="${name}"/>`).join('\n'),
+  );
+  writeFileSync(manifestPath, manifest);
+  console.log(`AndroidManifest.xml: injected ${missingPermissions.join(', ')}`);
+}
