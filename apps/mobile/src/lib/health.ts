@@ -534,6 +534,13 @@ const healthConnect: HealthPort = {
       { accessType: 'read', recordType: 'ActiveCaloriesBurned' },
       { accessType: 'write', recordType: 'BodyFat' },
       { accessType: 'write', recordType: 'Nutrition' },
+      // Cardio import. `read` is USELESS without
+      // `android.permission.health.READ_EXERCISE` in the manifest, which is a
+      // NATIVE change -- so this pair only does anything from vc 38 on. Asking
+      // for a permission the manifest does not declare is not an error here;
+      // Health Connect simply never grants it, and `readWorkouts` returns
+      // empty (ADR-0026 amendment, decision 7).
+      { accessType: 'read', recordType: 'ExerciseSession' },
       { accessType: 'write', recordType: 'ExerciseSession' },
     ];
     const granted = await HC.requestPermission(perms as never);
@@ -682,9 +689,10 @@ const healthConnect: HealthPort = {
   },
 
   async readWorkouts(sinceDays) {
-    // Guarded whole: until `android.permission.health.READ_EXERCISE` is
-    // declared in app.json (a manifest change, so it needs a NEW BINARY --
-    // ADR-0026 amendment, decision 7), Health Connect refuses this read. It is
+    // Guarded whole: `android.permission.health.READ_EXERCISE` is declared in
+    // app.json, but a manifest permission only exists in a BINARY -- so every
+    // build before vc 38 still has Health Connect refuse this read, and an OTA
+    // cannot change that (ADR-0026 amendment, decision 7). It is
     // meant to return an empty list rather than throw, but "meant to" is not a
     // contract worth a crash on the Train tab, and every failure mode here --
     // missing permission, revoked permission, Health Connect not installed --
