@@ -15,6 +15,15 @@ env:
 ---
 - launchApp:
     clearState: false
+# Wait for the loader to actually GO, the way 20-units-metric does. This flow
+# used `assertVisible: 'Today'` alone, which is not a readiness gate at all —
+# the tab bar sits UNDER the splash, so the assert passes while the overlay is
+# still up and eating taps. Necessary but not sufficient on its own: the splash
+# comes BACK at ~3.4s, so the repeat gate below is still required.
+- extendedWaitUntil:
+    notVisible:
+      id: 'brand-loader'
+    timeout: 15000
 - assertVisible: 'Today'
 # ── flip to dark ──
 # THE SPLASH COMES BACK ONCE, AND IT EATS THE TAP. `_layout.tsx` renders
@@ -36,7 +45,7 @@ env:
 # whole repeat block reports SKIPPED — a gate that silently does nothing.
 # `settings-back` exists on the Settings screen and nowhere else.
 - repeat:
-    times: 4
+    times: 8
     while:
       notVisible:
         id: 'settings-back'
@@ -49,6 +58,13 @@ env:
       - tapOn:
           id: 'settings-open'
           optional: true
+# `repeat` reports COMPLETED when it runs out of iterations, whether or not the
+# condition was ever satisfied — it is a bounded retry, not an assertion. Without
+# this line a gate that never landed passes silently and the flow dies 60s later
+# on the WRONG SCREEN, which is the exact misdirection the gate exists to remove.
+# Measured 2026-08-25: that is precisely what happened here on the relaunch.
+- assertVisible:
+    id: 'settings-back'
 # centerElement: true — scrollUntilVisible stops as soon as the element enters
 # the viewport, which on iOS routinely leaves it UNDER the tab bar; Maestro then
 # taps its layout bounds and the touch goes to whatever is on top. Measured
@@ -122,6 +138,15 @@ env:
 # Relaunch first: same off-screen-avatar trap as 09's tail.
 - launchApp:
     clearState: false
+# Wait for the loader to actually GO, the way 20-units-metric does. This flow
+# used `assertVisible: 'Today'` alone, which is not a readiness gate at all —
+# the tab bar sits UNDER the splash, so the assert passes while the overlay is
+# still up and eating taps. Necessary but not sufficient on its own: the splash
+# comes BACK at ~3.4s, so the repeat gate below is still required.
+- extendedWaitUntil:
+    notVisible:
+      id: 'brand-loader'
+    timeout: 15000
 - assertVisible: 'Today'
 # Same swallowed-tap gate as the head — this relaunch re-arms the splash, and
 # THIS is where the 2026-08-24 run actually died: the tap was eaten, the flow
@@ -129,7 +154,7 @@ env:
 # the device stranded in DARK. A restore tail that can be skipped silently is
 # worse than no restore tail.
 - repeat:
-    times: 4
+    times: 8
     while:
       notVisible:
         id: 'settings-back'
@@ -142,6 +167,13 @@ env:
       - tapOn:
           id: 'settings-open'
           optional: true
+# `repeat` reports COMPLETED when it runs out of iterations, whether or not the
+# condition was ever satisfied — it is a bounded retry, not an assertion. Without
+# this line a gate that never landed passes silently and the flow dies 60s later
+# on the WRONG SCREEN, which is the exact misdirection the gate exists to remove.
+# Measured 2026-08-25: that is precisely what happened here on the relaunch.
+- assertVisible:
+    id: 'settings-back'
 # centerElement: true — scrollUntilVisible stops as soon as the element enters
 # the viewport, which on iOS routinely leaves it UNDER the tab bar; Maestro then
 # taps its layout bounds and the touch goes to whatever is on top. Measured

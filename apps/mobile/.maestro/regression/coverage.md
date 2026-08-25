@@ -54,6 +54,56 @@ prior occasions where a batch of failures here was harness state.
 `COMPLETED|FAILED|Assertion`, or read the whole output. A truncated pass is
 worse than a failure, because it gets written down.
 
+### Verified on device — 2026-08-25, LG VS988, vc 37 + OTA 52
+
+**Both flows PASS, back to back, exit 0 with zero failures**, run from a clean
+baseline in the documented suite order with no force-stop between them. The
+swallowed-tap fix is confirmed: `Tap on "Body"` and `Tap on settings-open` now
+land, where on 08-24 they burned 24–27 s and never navigated.
+
+Three things that run taught, each of which cost a re-run:
+
+- **The loader wait was the actual fix, not the retry.** `20-units-metric`
+  already had `extendedWaitUntil notVisible: brand-loader`; `10-theme-dark` had
+  only `assertVisible: 'Today'`, which is not a readiness gate — the tab bar
+  sits UNDER the splash, so it passes while the overlay is still up. Adding the
+  loader wait to both launch points is what made `10-theme-dark` pass. The
+  retry loop alone did not.
+- **`repeat` is a bounded retry, NOT an assertion.** It reports COMPLETED once
+  it exhausts its iterations whether or not the condition ever held — so a gate
+  that never lands passes silently and the flow dies 60 s later on the wrong
+  screen, which is the exact misdirection the gate was added to remove. Both
+  flows now `assertVisible` the destination immediately after the loop. That
+  assert has already earned itself: it caught a warm-start failure that the bare
+  loop reported as COMPLETED.
+- **The retry budget is 8, not 4, and that is measured.** A COLD start lands on
+  the first tap; a warm launch straight after another flow exhausted all four.
+
+**What was covering the button, when 8 taps in a row were eaten:** the captured
+hierarchy showed `brand-loader` visible AND the **What's new banner open** AND a
+stale **offline banner** — on a device whose network pinged fine. The What's new
+banner was self-inflicted: `WHATS_NEW_VERSION` was bumped that morning for the
+day-boundary setting, and this file already records the banner shifting layout
+as a prior cause. **Dismiss What's new on the QA device after any OTA that bumps
+it, before running the suite.**
+
+**A failed `20-units-metric` is self-perpetuating.** It flips the account to
+metric early and restores at the tail, so a run that dies in between leaves
+metric on file and the NEXT run fails at its opening `"lb"` assertion — which
+reads like a units regression and is not. Check the profile before blaming the
+flow.
+
+**UNRESOLVED, and it is not the splash:** `20-units-metric`'s restore tail taps
+`settings-unit-us` and reports COMPLETED, but the write **does not reliably
+reach Firestore** — verified against the server after passing runs, twice
+`metric`, once `us`. Theme's tail (`settings-theme-system`) restores reliably in
+the same runs, so this is specific to the units tail. Suspects not yet
+separated: `pickUnit`'s `savingUnit` guard, `settings-back` tapped before the
+await settles, or the new **Day starts at** card (added 2026-08-25) sitting
+directly below Units and shifting what `centerElement` centres. **Until this is
+understood, reset `unitSystem` to `us` on `qa-test@ignia.fit` before running the
+suite** rather than trusting the tail.
+
 ### The Android run itself
 
 Full suite on the LG VS988 (Android 9 / API 28) over adb, against the SHIPPED
