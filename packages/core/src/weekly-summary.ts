@@ -1,5 +1,6 @@
 import type { DailyLog } from './types';
 import { aggregateByDay } from './tdee';
+import { MIDNIGHT, type DayBoundary } from './day-boundary';
 
 /**
  * Rolling weekly derivations — averages/adherence (`weeklySummary`), the
@@ -60,9 +61,13 @@ export function ema(values: number[], span = 7): number[] {
  * (not the last 7 entries). Aggregates first so three meals on a single day
  * count as one day, one calorie total, one protein total.
  */
-export function weeklySummary(logs: DailyLog[], targetCalories: number): WeeklySummary | null {
+export function weeklySummary(
+  logs: DailyLog[],
+  targetCalories: number,
+  boundary: DayBoundary = MIDNIGHT,
+): WeeklySummary | null {
   if (logs.length === 0) return null;
-  const daily = aggregateByDay(logs);
+  const daily = aggregateByDay(logs, boundary);
   const last7 = daily.slice(-7);
   if (last7.length === 0) return null;
 

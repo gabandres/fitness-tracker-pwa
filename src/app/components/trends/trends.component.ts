@@ -29,7 +29,7 @@ import {
   type WeightPoint,
 } from '@macrolog/core';
 import { computeWeeklyBudget, type WeeklyBudget } from '@macrolog/core';
-import { addDays, localDateKey } from '@macrolog/core';
+import { addDays } from '@macrolog/core';
 import { bcp47ForLang } from '../../utils/locale';
 
 /**

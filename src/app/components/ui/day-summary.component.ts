@@ -15,7 +15,7 @@ import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { TranslationService } from '../../services/translation.service';
 import type { DailyLog } from '../../services/firebase.service';
-import { localDateKey } from '@macrolog/core';
+import { calendarDateKey } from '@macrolog/core';
 import { bcp47ForLang } from '../../utils/locale';
 import { FastingStore } from '../../services/fasting-store.service';
 import { UiButton } from './button.component';
@@ -277,7 +277,7 @@ export class UiDaySummary {
 
   /** "Today's food" on today, "Food" on past days. */
   protected readonly entriesHeading = computed(() =>
-    this.dateKey() === localDateKey(new Date())
+    this.dateKey() === calendarDateKey(new Date())
       ? this.translation.t('v2.daySummary.todaysFood')
       : this.translation.t('v2.daySummary.food'),
   );

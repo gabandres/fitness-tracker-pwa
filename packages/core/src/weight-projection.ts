@@ -3,7 +3,7 @@
  * date utils only). Ported from the Angular PWA's weekly-insights so the
  * Expo app and the PWA project goal dates from the same regression.
  */
-import { addDays, localDateKey, parseYmd } from './date';
+import { addDays, calendarDateKey, parseYmd } from './date';
 
 export interface WeightPoint {
   dateKey: string;
@@ -91,7 +91,7 @@ export function projectWeight(
   if (goalWeightLb != null && fit.slopePerDay !== 0) {
     const deltaDays = (goalWeightLb - fit.currentFittedLb) / fit.slopePerDay;
     if (deltaDays > 0 && deltaDays <= MAX_PROJECTION_DAYS) {
-      goalDateKey = localDateKey(addDays(parseYmd(fit.lastDateKey), Math.round(deltaDays)));
+      goalDateKey = calendarDateKey(addDays(parseYmd(fit.lastDateKey), Math.round(deltaDays)));
     }
   }
 

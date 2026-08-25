@@ -4,7 +4,7 @@ import {
   type DailyTargets,
   type DaySummary,
   type MealPreset,
-  localDateKey,
+  calendarDateKey,
   resolveQuickAddTargets,
 } from '@macrolog/core';
 import { useLocale } from '@/i18n';
@@ -78,7 +78,7 @@ export function useWidgetSync(
   latest.current = { summary, targets, locale, quickAdd, uid };
 
   useEffect(() => {
-    void syncWidget(summary, targets, localDateKey(new Date()), locale, Date.now(), quickAdd);
+    void syncWidget(summary, targets, calendarDateKey(new Date()), locale, Date.now(), quickAdd);
   }, [summary, targets, locale, quickAdd]);
 
   // The Quick Settings tile's label mirror (ADR-0020). Driven from the same
@@ -115,7 +115,7 @@ export function useWidgetSync(
       const { summary: s, targets: tg, locale: l, quickAdd: qa, uid: u } = latest.current;
       // Recomputed here rather than captured: after a rollover the app can
       // resume on a different calendar day than the one this effect mounted on.
-      void syncWidget(s, tg, localDateKey(new Date()), l, Date.now(), qa);
+      void syncWidget(s, tg, calendarDateKey(new Date()), l, Date.now(), qa);
       if (u) void flushPendingLogs(u);
     });
     return () => sub.remove();

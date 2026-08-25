@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localDateKey, type DateKey } from './date';
+import { calendarDateKey, type DateKey } from './date';
 import {
   MAX_DAY_START_HOUR,
   MIDNIGHT,
@@ -14,19 +14,19 @@ const key = (s: string) => s as DateKey;
 const at = (y: number, m: number, d: number, h: number, min = 0) => new Date(y, m - 1, d, h, min);
 
 describe('MIDNIGHT is exactly today’s behaviour', () => {
-  // The adoption guarantee. Every one of the ~155 existing `localDateKey` call
+  // The adoption guarantee. Every one of the ~155 existing `calendarDateKey` call
   // sites can move to `dayKeyAt(d, boundary)` without changing a single answer
   // for an account that has never set a boundary — which is every account.
-  it('agrees with localDateKey at every hour of a day', () => {
+  it('agrees with calendarDateKey at every hour of a day', () => {
     for (let h = 0; h < 24; h++) {
       const d = at(2026, 8, 25, h, 30);
-      expect(dayKeyAt(d, MIDNIGHT)).toBe(localDateKey(d));
+      expect(dayKeyAt(d, MIDNIGHT)).toBe(calendarDateKey(d));
     }
   });
 
-  it('agrees with localDateKey across a month end and a leap day', () => {
+  it('agrees with calendarDateKey across a month end and a leap day', () => {
     for (const d of [at(2026, 8, 31, 23, 59), at(2028, 2, 29, 0, 0), at(2026, 12, 31, 23, 59)]) {
-      expect(dayKeyAt(d, MIDNIGHT)).toBe(localDateKey(d));
+      expect(dayKeyAt(d, MIDNIGHT)).toBe(calendarDateKey(d));
     }
   });
 });
@@ -168,7 +168,7 @@ describe('setDayStartHour', () => {
 describe('dayRange', () => {
   it('is [start, end) at midnight with no boundary', () => {
     const { start, end } = dayRange(key('2026-08-25'), MIDNIGHT);
-    expect(localDateKey(start)).toBe('2026-08-25');
+    expect(calendarDateKey(start)).toBe('2026-08-25');
     expect(start.getHours()).toBe(0);
     expect((end.getTime() - start.getTime()) / 3_600_000).toBe(24);
   });
@@ -178,6 +178,6 @@ describe('dayRange', () => {
     const { start, end } = dayRange(key('2026-08-25'), b);
     expect(start.getHours()).toBe(4);
     expect(end.getHours()).toBe(4);
-    expect(localDateKey(end)).toBe('2026-08-26');
+    expect(calendarDateKey(end)).toBe('2026-08-26');
   });
 });

@@ -27,7 +27,7 @@ import {
   toProfileFields,
   type DailyTargets,
 } from '@macrolog/core/targets';
-import { addDays, localDateKey, trailingDateKeys } from '@macrolog/core';
+import { addDays, calendarDateKey, trailingDateKeys } from '@macrolog/core';
 import { bcp47ForLang } from '../utils/locale';
 import { TranslationService } from './translation.service';
 import { summarizeDay } from '@macrolog/core';
@@ -449,9 +449,9 @@ export class FitnessStore {
   });
 
   readonly todaySummary: Signal<TodaySummary | null> = computed(() => {
-    const today = localDateKey(new Date());
+    const today = calendarDateKey(new Date());
     const todayLogs = this._logs().filter(
-      (l) => localDateKey(l.date) === today,
+      (l) => calendarDateKey(l.date) === today,
     );
     if (todayLogs.length === 0) return null;
     return {
@@ -544,7 +544,7 @@ export class FitnessStore {
     for (let i = 6; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(today.getDate() - i);
-      const key = localDateKey(d);
+      const key = calendarDateKey(d);
       const s = this.summaryFor(key);
       out.push({
         key,
@@ -561,9 +561,9 @@ export class FitnessStore {
 
   /** Logs for an arbitrary date key, sorted newest-first. Same fallback strategy as `summaryFor`. */
   logsForDay(dateKey: string): DailyLog[] {
-    let list = this._logs().filter((l) => localDateKey(l.date) === dateKey);
+    let list = this._logs().filter((l) => calendarDateKey(l.date) === dateKey);
     if (list.length === 0) {
-      list = this.allTimeLogs().filter((l) => localDateKey(l.date) === dateKey);
+      list = this.allTimeLogs().filter((l) => calendarDateKey(l.date) === dateKey);
     }
     return [...list].sort((a, b) => +b.date - +a.date);
   }
@@ -624,7 +624,7 @@ export class FitnessStore {
     };
   });
 
-  /** dateKey ("YYYY-MM-DD") → local-midnight Date. Mirrors `localDateKey`. */
+  /** dateKey ("YYYY-MM-DD") → local-midnight Date. Mirrors `calendarDateKey`. */
   private dateFromKey(key: string): Date {
     const [y, m, d] = key.split('-').map(Number);
     return new Date(y, m - 1, d);
@@ -670,7 +670,7 @@ export class FitnessStore {
       const target = this.targetCalories();
       if (!summary || target <= 0) return;
       if (summary.totalCalories <= target) return;
-      const key = `macrolog.budget-crossed.${localDateKey(new Date())}`;
+      const key = `macrolog.budget-crossed.${calendarDateKey(new Date())}`;
       try {
         if (localStorage.getItem(key)) return;
         localStorage.setItem(key, '1');
@@ -726,10 +726,10 @@ export class FitnessStore {
    * a workout is not a meal.
    */
   async markExercised(date: Date): Promise<void> {
-    const key = localDateKey(date);
+    const key = calendarDateKey(date);
     const already =
-      this._logs().some((l) => localDateKey(l.date) === key && l.exerciseCompleted) ||
-      this._allTimeLogs().some((l) => localDateKey(l.date) === key && l.exerciseCompleted);
+      this._logs().some((l) => calendarDateKey(l.date) === key && l.exerciseCompleted) ||
+      this._allTimeLogs().some((l) => calendarDateKey(l.date) === key && l.exerciseCompleted);
     if (already) return;
     await this.fb.addLog({ calories: 0, exerciseCompleted: true, timestamp: date });
     await this._refreshLogs();
@@ -751,11 +751,11 @@ export class FitnessStore {
     const date = patch.date ?? session?.date ?? new Date();
     const bodyweight = patch.bodyweight ?? session?.bodyweight;
     if (bodyweight != null && bodyweight > 0) {
-      await this.body.setDailyWeight(localDateKey(date), bodyweight);
+      await this.body.setDailyWeight(calendarDateKey(date), bodyweight);
     }
     const sleepHours = patch.sleepHours ?? session?.sleepHours;
     if (sleepHours != null && sleepHours > 0) {
-      await this.body.setDailySleep(localDateKey(date), sleepHours);
+      await this.body.setDailySleep(calendarDateKey(date), sleepHours);
     }
     await this.markExercised(date);
   }
@@ -774,10 +774,10 @@ export class FitnessStore {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-    const yKey = localDateKey(yesterday);
+    const yKey = calendarDateKey(yesterday);
 
     const yesterdayLogs = this._logs().filter(
-      (l) => localDateKey(l.date) === yKey,
+      (l) => calendarDateKey(l.date) === yKey,
     );
     if (yesterdayLogs.length === 0) return 0;
 
@@ -832,11 +832,11 @@ export class FitnessStore {
   async copyDayToToday(sourceDateKey: string): Promise<number> {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const todayKey = localDateKey(today);
+    const todayKey = calendarDateKey(today);
     if (sourceDateKey === todayKey) return 0;
 
     const sourceLogs = this._logs().filter(
-      (l) => localDateKey(l.date) === sourceDateKey,
+      (l) => calendarDateKey(l.date) === sourceDateKey,
     );
     if (sourceLogs.length === 0) return 0;
 
@@ -881,7 +881,7 @@ export class FitnessStore {
    */
   async toggleDayExercise(dateKey: string): Promise<void> {
     const dayLogs = this._logs().filter(
-      (l) => localDateKey(l.date) === dateKey,
+      (l) => calendarDateKey(l.date) === dateKey,
     );
 
     const isExercised = (l: DailyLog) =>
@@ -1170,7 +1170,7 @@ export class FitnessStore {
       await this._loadAllTimeLogs();
     }
     const keys = new Set(this.windowCalendarKeys(n));
-    return this._allTimeLogs().filter((l) => keys.has(localDateKey(l.date)));
+    return this._allTimeLogs().filter((l) => keys.has(calendarDateKey(l.date)));
   }
 
   /**
@@ -1204,7 +1204,7 @@ export class FitnessStore {
     const keys = new Set(this.windowCalendarKeys(n));
     return {
       loaded: true,
-      logs: this._allTimeLogs().filter((l) => keys.has(localDateKey(l.date))),
+      logs: this._allTimeLogs().filter((l) => keys.has(calendarDateKey(l.date))),
     };
   }
 

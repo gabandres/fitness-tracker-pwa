@@ -1,5 +1,5 @@
 import { summarizeDay, summarizeDays } from '@macrolog/core';
-import { localDateKey } from '@macrolog/core';
+import { calendarDateKey } from '@macrolog/core';
 import type { DailyLog } from '../services/firebase.service';
 
 /**
@@ -37,7 +37,7 @@ describe('summarizeDay / summarizeDays', () => {
 
     it('aggregates a multi-meal day with mixed exercise flags', () => {
       const date = dayAt([2026, 5, 22]);
-      const key = localDateKey(date);
+      const key = calendarDateKey(date);
       const otherDay = dayAt([2026, 5, 21]);
       const logs: DailyLog[] = [
         log({ date, calories: 500, protein: 30 }),
@@ -54,7 +54,7 @@ describe('summarizeDay / summarizeDays', () => {
 
     it('sums optional carbs/fat, zero when no entry carries them', () => {
       const date = dayAt([2026, 5, 22]);
-      const key = localDateKey(date);
+      const key = calendarDateKey(date);
       const logs: DailyLog[] = [
         log({ date, calories: 500, carbs: 40.2, fat: 15 }),
         log({ date, calories: 300, carbs: 20 }), // no fat -> ignored in fat sum
@@ -71,7 +71,7 @@ describe('summarizeDay / summarizeDays', () => {
 
     it('detects exercise via legacy lift/cardio flags', () => {
       const date = dayAt([2026, 5, 22]);
-      const key = localDateKey(date);
+      const key = calendarDateKey(date);
       const sLift = summarizeDay(key, [log({ date, calories: 0, liftCompleted: true })]);
       const sCardio = summarizeDay(key, [log({ date, calories: 0, cardioCompleted: true })]);
       expect(sLift.exercised).toBe(true);

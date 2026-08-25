@@ -4,7 +4,7 @@ import { LEDGER_PORT } from '../ledger/ports/ledger.port';
 import { AnalyticsService } from './analytics.service';
 import { Measurement } from './firebase.service';
 import { isStorableWeight, WEIGHT_ABS_MIN_LB, WEIGHT_ABS_MAX_LB } from '@macrolog/core';
-import { addDays, localDateKey } from '@macrolog/core';
+import { addDays, calendarDateKey } from '@macrolog/core';
 import type { WeightPoint } from '@macrolog/core';
 
 /**
@@ -44,7 +44,7 @@ export class BodyMetricStore {
     const today = new Date();
     const out: WeightPoint[] = [];
     for (let i = n - 1; i >= 0; i--) {
-      const dateKey = localDateKey(addDays(today, -i));
+      const dateKey = calendarDateKey(addDays(today, -i));
       const v = map[dateKey];
       if (typeof v === 'number') out.push({ dateKey, weightLb: v });
     }

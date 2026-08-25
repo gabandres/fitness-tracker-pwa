@@ -9,7 +9,7 @@ import type { DailyLog, Measurement } from './types';
 import { isLoggedCardioBlock } from './cardio';
 import { type WorkoutSession, isLoggedSet } from './workout';
 import { normalizeClusterGroups } from './cluster-groups';
-import { localDateKey } from './date';
+import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 
 const COLS = [
   'type', 'date', 'timestamp',
@@ -61,14 +61,14 @@ export interface ExportData {
  * summary row, so the export mirrors what Train shows rather than making a run
  * look like a session that never happened.
  */
-export function buildCsv(data: ExportData): string {
+export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): string {
   const rows: string[] = [COLS.join(',')];
 
   const sortedLogs = [...data.logs].sort((a, b) => a.date.getTime() - b.date.getTime());
   for (const l of sortedLogs) {
     rows.push(row({
       type: 'meal',
-      date: localDateKey(l.date),
+      date: dayKeyAt(l.date, boundary),
       timestamp: l.date.toISOString(),
       calories: l.calories,
       protein: l.protein,
@@ -103,7 +103,7 @@ export function buildCsv(data: ExportData): string {
   for (const m of sortedMeasurements) {
     rows.push(row({
       type: 'measurement',
-      date: localDateKey(m.date),
+      date: dayKeyAt(m.date, boundary),
       timestamp: m.date.toISOString(),
       waist: m.waist,
       chest: m.chest,
@@ -117,7 +117,7 @@ export function buildCsv(data: ExportData): string {
     (a, b) => a.date.getTime() - b.date.getTime(),
   );
   for (const s of sortedSessions) {
-    const date = localDateKey(s.date);
+    const date = dayKeyAt(s.date, boundary);
     const timestamp = s.date.toISOString();
     rows.push(row({
       type: 'workout',

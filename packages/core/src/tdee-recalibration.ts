@@ -2,7 +2,7 @@ import type { DailyLog, Profile } from './types';
 import { aggregateByDay, calculateTdee } from './tdee';
 import { finalCalorieTarget, mergeDailyWeights, toProfileFields } from './targets';
 import { weightSlopeLbPerWeek, type WeightPoint } from './weight-projection';
-import { localDateKey } from './date';
+import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 
 /**
  * Adaptive-TDEE recalibration digest (v1.1 retention loop).
@@ -112,12 +112,16 @@ const UNAVAILABLE: RecalibrationDigest = {
 function windowWeighInPoints(
   logs: DailyLog[],
   dailyWeights: Record<string, number>,
+  boundary: DayBoundary,
 ): WeightPoint[] {
-  const daily = aggregateByDay(mergeDailyWeights(logs, dailyWeights));
+  const daily = aggregateByDay(mergeDailyWeights(logs, dailyWeights), boundary);
   return daily
     .slice(-RATE_WINDOW_DAYS)
     .filter((l): l is DailyLog & { weight: number } => l.weight != null)
-    .map((l) => ({ dateKey: localDateKey(l.date), weightLb: l.weight }));
+    // `dayKeyAt`, not the calendar date: `aggregateByDay` keeps the original
+    // instant on the representative row, so under a non-midnight boundary the
+    // calendar date can name a DIFFERENT day than the bucket this row is.
+    .map((l) => ({ dateKey: dayKeyAt(l.date, boundary), weightLb: l.weight }));
 }
 
 function classifyTrend(delta: number | null, thresholdKcal: number): RecalibrationTrend {
@@ -137,6 +141,7 @@ export function recalibrationDigest(
   logs: DailyLog[],
   dailyWeights: Record<string, number>,
   opts: RecalibrationOptions,
+  boundary: DayBoundary = MIDNIGHT,
 ): RecalibrationDigest {
   const merged = mergeDailyWeights(logs ?? [], dailyWeights ?? {});
   const fields = toProfileFields(profile);
@@ -204,7 +209,7 @@ export function recalibrationDigest(
     available: true,
     trueTdee,
     calorieTarget: finalCalorieTarget(tdee, profile),
-    weightTrendLbPerWeek: weightSlopeLbPerWeek(windowWeighInPoints(logs ?? [], dailyWeights ?? {})),
+    weightTrendLbPerWeek: weightSlopeLbPerWeek(windowWeighInPoints(logs ?? [], dailyWeights ?? {}, boundary)),
     loggingCompletenessPct: tdee.loggingCompletenessPct ?? 0,
     deltaSinceAck,
     deltaVsFormula,

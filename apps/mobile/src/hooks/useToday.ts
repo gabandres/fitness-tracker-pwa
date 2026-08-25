@@ -17,7 +17,7 @@ import {
   computeStreak,
   currentWeight as coreCurrentWeight,
   dailyTargets,
-  localDateKey,
+  calendarDateKey,
   LOG_WINDOW_ROWS,
   summarizeDay,
 } from '@macrolog/core';
@@ -220,13 +220,13 @@ export function useToday(): TodayState {
     }, [uid]),
   );
 
-  const todayKey = localDateKey(new Date());
+  const todayKey = calendarDateKey(new Date());
   const summary = useMemo(() => summarizeDay(todayKey, logs, weights), [todayKey, logs, weights]);
   const targets = useMemo(() => dailyTargets(profile, logs, weights), [profile, logs, weights]);
   const todayLogs = useMemo(
     () =>
       logs
-        .filter((l) => localDateKey(l.date) === todayKey && l.calories > 0)
+        .filter((l) => calendarDateKey(l.date) === todayKey && l.calories > 0)
         .sort((a, b) => b.date.getTime() - a.date.getTime()),
     [logs, todayKey],
   );
@@ -262,7 +262,7 @@ export function useToday(): TodayState {
 
   const shareStats = useMemo<ShareStats>(() => {
     const loggedDays = new Set(
-      logs.filter((l) => l.calories > 0).map((l) => localDateKey(l.date)),
+      logs.filter((l) => l.calories > 0).map((l) => calendarDateKey(l.date)),
     ).size;
     const current = coreCurrentWeight(logs, weights);
     const wKeys = Object.keys(weights).sort();
@@ -283,8 +283,8 @@ export function useToday(): TodayState {
     if (!uid) return 0;
     const y = new Date();
     y.setDate(y.getDate() - 1);
-    const yKey = localDateKey(y);
-    const yLogs = logs.filter((l) => localDateKey(l.date) === yKey && l.calories > 0);
+    const yKey = calendarDateKey(y);
+    const yLogs = logs.filter((l) => calendarDateKey(l.date) === yKey && l.calories > 0);
     for (const l of yLogs) {
       const ts = new Date();
       ts.setHours(l.date.getHours(), l.date.getMinutes(), 0, 0);

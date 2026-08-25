@@ -1,5 +1,5 @@
 import type { DailyLog } from './types';
-import { localDateKey } from './date';
+import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 
 /**
  * Single-day rollup of food + exercise + weight, keyed by a local
@@ -59,6 +59,7 @@ export function summarizeDay(
   dateKey: string,
   logs: readonly DailyLog[],
   dailyWeights?: Record<string, number>,
+  boundary: DayBoundary = MIDNIGHT,
 ): DaySummary {
   let totalCalories = 0;
   let proteinSum = 0;
@@ -67,7 +68,7 @@ export function summarizeDay(
   let mealCount = 0;
   let exercised = false;
   for (const l of logs) {
-    if (localDateKey(l.date) !== dateKey) continue;
+    if (dayKeyAt(l.date, boundary) !== dateKey) continue;
     totalCalories += l.calories || 0;
     if (l.protein != null) proteinSum += l.protein;
     if (l.carbs != null) carbsSum += l.carbs;
@@ -89,7 +90,7 @@ export function summarizeDay(
 
 /**
  * Build summaries for many days at once. Iterates `logs` ONCE,
- * bucketing by `localDateKey`, so a 90-day report doesn't do 90×N
+ * bucketing by `dayKeyAt`, so a 90-day report doesn't do 90×N
  * filters. Returns one entry per `dateKeys` element in the order given;
  * days with no matching logs return zero totals.
  */
@@ -97,6 +98,7 @@ export function summarizeDays(
   dateKeys: readonly string[],
   logs: readonly DailyLog[],
   dailyWeights?: Record<string, number>,
+  boundary: DayBoundary = MIDNIGHT,
 ): DaySummary[] {
   // Pre-allocate buckets so the single log pass can find them in O(1)
   // and days with no logs still emit a zero row.
@@ -108,7 +110,7 @@ export function summarizeDays(
     buckets.set(k, { totalCalories: 0, proteinSum: 0, carbsSum: 0, fatSum: 0, mealCount: 0, exercised: false });
   }
   for (const l of logs) {
-    const key = localDateKey(l.date);
+    const key = dayKeyAt(l.date, boundary);
     const bucket = buckets.get(key);
     if (!bucket) continue;
     bucket.totalCalories += l.calories || 0;

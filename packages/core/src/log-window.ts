@@ -23,7 +23,8 @@
  * midnight would otherwise disagree with itself. It also makes every case below
  * testable without faking the clock.
  */
-import { addDays, localDateKey } from './date';
+import { addDays, calendarDateKey, parseYmd } from './date';
+import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 
 // ─── Named row windows ──────────────────────────────────────────
 
@@ -44,9 +45,18 @@ export const RECENT_LOGS_ROWS = 14;
 
 // ─── Window builders ────────────────────────────────────────────
 
-/** The trailing `n` dateKeys ending at `now`, OLDEST FIRST. */
-export function trailingDateKeys(n: number, now: Date): string[] {
-  return Array.from({ length: n }, (_, i) => localDateKey(addDays(now, i - (n - 1))));
+/**
+ * The trailing `n` dateKeys ending at `now`, OLDEST FIRST.
+ *
+ * The ANCHOR is the user's day (ADR-0030): at a non-midnight boundary, `now`
+ * at 01:00 still belongs to yesterday, so anchoring on the calendar date would
+ * end the window a day early and silently drop the day being lived. The steps
+ * back from it are plain calendar days, which is what `addDays` off a settled
+ * key gives.
+ */
+export function trailingDateKeys(n: number, now: Date, boundary: DayBoundary = MIDNIGHT): string[] {
+  const anchor = parseYmd(dayKeyAt(now, boundary));
+  return Array.from({ length: n }, (_, i) => calendarDateKey(addDays(anchor, i - (n - 1))));
 }
 
 /** One weight per day over the trailing `n` days, oldest first, **days with no
@@ -101,11 +111,13 @@ export interface IsoWeek {
  * into the wrong bucket. Monday is at most 6 days back, so the row window
  * always covers the elapsed week.
  */
-export function isoWeek(now: Date): IsoWeek {
-  const daysSinceMonday = (now.getDay() + 6) % 7; // Sun=0 → 6, Mon=1 → 0
-  const monday = addDays(now, -daysSinceMonday);
+export function isoWeek(now: Date, boundary: DayBoundary = MIDNIGHT): IsoWeek {
+  // Anchor on the user's day, then step in calendar days — see `trailingDateKeys`.
+  const anchor = parseYmd(dayKeyAt(now, boundary));
+  const daysSinceMonday = (anchor.getDay() + 6) % 7; // Sun=0 → 6, Mon=1 → 0
+  const monday = addDays(anchor, -daysSinceMonday);
   return {
-    keys: Array.from({ length: 7 }, (_, i) => localDateKey(addDays(monday, i))),
+    keys: Array.from({ length: 7 }, (_, i) => calendarDateKey(addDays(monday, i))),
     daysElapsed: daysSinceMonday + 1,
   };
 }

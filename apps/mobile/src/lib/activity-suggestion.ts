@@ -7,7 +7,7 @@ import {
   activityGuidance,
   activityWindowRange,
   addDays,
-  localDateKey,
+  calendarDateKey,
   parseYmd,
   reduceActivityWindow,
   suggestActivityLevel,
@@ -67,11 +67,11 @@ export async function readActivityWindow(uid: string, today = new Date()): Promi
   const docs = await getActivityWindow(uid, from, to);
   const activeKcals: number[] = [];
   const steps: number[] = [];
-  // Walk in LOCAL days — dateKeys are local (`localDateKey`), so stepping a
+  // Walk in LOCAL days — dateKeys are local (`calendarDateKey`), so stepping a
   // UTC cursor would shift the window by a day east of UTC+12.
   const start = parseYmd(from);
   for (let i = 0; i < ACTIVITY_WINDOW_DAYS; i++) {
-    const day = docs[localDateKey(addDays(start, i))];
+    const day = docs[calendarDateKey(addDays(start, i))];
     activeKcals.push(day?.activeKcal ?? 0);
     steps.push(day?.steps ?? 0);
   }

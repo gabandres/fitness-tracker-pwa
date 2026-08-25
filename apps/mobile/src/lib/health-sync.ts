@@ -5,7 +5,7 @@ import {
   type WritableKind,
   importableWorkouts,
   isLoggedCardioBlock,
-  localDateKey,
+  calendarDateKey,
   mergeImportedBlocks,
   parseYmd,
   reduceImportedSamples,
@@ -266,7 +266,7 @@ export async function writeImportedBlocks(uid: string, blocks: CardioBlock[]): P
   const sessions = await getRecentSessions(uid, SESSION_SCAN_LIMIT);
   const byDay = new Map<string, WorkoutSession>();
   for (const s of sessions) {
-    const key = localDateKey(s.date);
+    const key = calendarDateKey(s.date);
     // Sessions come back newest-first; keep the newest per day.
     if (!byDay.has(key)) byDay.set(key, s);
   }
@@ -274,7 +274,7 @@ export async function writeImportedBlocks(uid: string, blocks: CardioBlock[]): P
   // Group by day first so two runs on one day become one write, not two.
   const perDay = new Map<string, CardioBlock[]>();
   for (const b of blocks) {
-    const key = localDateKey(b.startedAt ?? new Date());
+    const key = calendarDateKey(b.startedAt ?? new Date());
     const list = perDay.get(key);
     if (list) list.push(b);
     else perDay.set(key, [b]);

@@ -8,7 +8,7 @@ import {
   flOzToLiters,
   kgToLb,
   litersToFlOz,
-  localDateKey,
+  calendarDateKey,
   parseYmd,
   percentToFraction,
 } from '@macrolog/core';
@@ -115,7 +115,7 @@ const pad2 = (n: number): string => String(n).padStart(2, '0');
  *  `toISOString()` would hand it a UTC instant and cut every bucket at the
  *  wrong hour for any user not on UTC. */
 function localIsoNaive(d: Date): string {
-  return `${localDateKey(d)}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+  return `${calendarDateKey(d)}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 }
 
 /** A concrete timestamp inside `dateKey`'s local day for a written sample:
@@ -243,7 +243,7 @@ const healthKit: HealthPort = {
       return rows
         .filter((s) => HK_ASLEEP.has(s.value))
         .map((s) => ({
-          dateKey: localDateKey(new Date(s.endDate)),
+          dateKey: calendarDateKey(new Date(s.endDate)),
           kind: 'sleep' as const,
           value: (ms(s.endDate) - ms(s.startDate)) / 3_600_000, // ms → hours
           endMs: ms(s.endDate),
@@ -283,7 +283,7 @@ const healthKit: HealthPort = {
             // Key the day the bucket STARTS: a [midnight, next-midnight)
             // interval ends at the *following* day's 00:00, so keying off the
             // end — as the raw-sample path does — shifts every day forward one.
-            dateKey: localDateKey(start),
+            dateKey: calendarDateKey(start),
             kind,
             value: q,
             endMs: b.endDate ? ms(b.endDate) : start.getTime(),
@@ -300,7 +300,7 @@ const healthKit: HealthPort = {
       filter,
     } as never)) as unknown as HKQty[];
     return rows.map((s) => ({
-      dateKey: localDateKey(new Date(s.endDate ?? s.startDate)),
+      dateKey: calendarDateKey(new Date(s.endDate ?? s.startDate)),
       kind,
       value: s.quantity,
       endMs: ms(s.endDate ?? s.startDate),
@@ -578,7 +578,7 @@ const healthConnect: HealthPort = {
         return [
           {
             // Key the day the bucket STARTS — see the iOS branch.
-            dateKey: localDateKey(start),
+            dateKey: calendarDateKey(start),
             kind,
             value,
             endMs: new Date(g.endTime ?? g.startTime ?? 0).getTime(),
@@ -605,7 +605,7 @@ const healthConnect: HealthPort = {
         const start = new Date(r.startTime ?? 0).getTime();
         const end = new Date(r.endTime ?? 0).getTime();
         return {
-          dateKey: localDateKey(new Date(end)),
+          dateKey: calendarDateKey(new Date(end)),
           kind: 'sleep' as const,
           value: (end - start) / 3_600_000,
           endMs: end,
@@ -617,7 +617,7 @@ const healthConnect: HealthPort = {
       return rows.map((r) => {
         const end = new Date(r.endTime ?? r.startTime ?? 0).getTime();
         return {
-          dateKey: localDateKey(new Date(end)),
+          dateKey: calendarDateKey(new Date(end)),
           kind: 'water' as const,
           value: litersToFlOz(r.volume?.inLiters ?? 0),
           endMs: end,
@@ -629,7 +629,7 @@ const healthConnect: HealthPort = {
     return rows.map((r) => {
       const t = new Date(r.time ?? 0).getTime();
       const lb = r.weight?.inPounds ?? (r.weight?.inKilograms != null ? kgToLb(r.weight.inKilograms) : 0);
-      return { dateKey: localDateKey(new Date(t)), kind: 'weight' as const, value: lb, endMs: t, fromUs: mine(r) };
+      return { dateKey: calendarDateKey(new Date(t)), kind: 'weight' as const, value: lb, endMs: t, fromUs: mine(r) };
     });
   },
 

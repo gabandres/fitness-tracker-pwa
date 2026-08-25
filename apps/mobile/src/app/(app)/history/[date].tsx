@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { type DailyLog, type LogEntry, formatBodyWeight, localDateKey, parseYmd, summarizeDay } from '@macrolog/core';
+import { type DailyLog, type LogEntry, formatBodyWeight, calendarDateKey, parseYmd, summarizeDay } from '@macrolog/core';
 import { EntrySheet } from '@/components/EntrySheet';
 import { MealEntries } from '@/components/MealEntries';
 import { useHistory } from '@/hooks/useHistory';
@@ -29,7 +29,7 @@ export default function DayDetail() {
 
   const summary = summarizeDay(dateKey, logs, weights);
   const dayLogs = logs
-    .filter((l) => localDateKey(l.date) === dateKey && l.calories > 0)
+    .filter((l) => calendarDateKey(l.date) === dateKey && l.calories > 0)
     .sort((a, b) => a.date.getTime() - b.date.getTime());
 
   function openAdd() {

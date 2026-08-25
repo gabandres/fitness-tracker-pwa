@@ -1,6 +1,7 @@
 import type { ActivityLevel } from './types';
 import { ACTIVITY_MULTIPLIERS } from './tdee';
-import { localDateKey } from './date';
+import { calendarDateKey, parseYmd } from './date';
+import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 
 /**
  * Activity-informed activity-level correction (docs/activity-informed-tdee-spec.md).
@@ -127,12 +128,19 @@ export const ACTIVITY_MIN_USABLE_DAYS = 21;
  * (the watch syncs through the evening), so counting it would read as a low
  * day every morning (#23).
  */
-export function activityWindowRange(today: Date): { from: string; to: string } {
+export function activityWindowRange(
+  today: Date,
+  boundary: DayBoundary = MIDNIGHT,
+): { from: string; to: string } {
+  // Anchor on the user's day (ADR-0030), then step in calendar days. The noon
+  // anchor is deliberate and stays: it keeps the stepping clear of both DST
+  // transitions.
+  const anchor = parseYmd(dayKeyAt(today, boundary));
   const at = (daysAgo: number) => {
-    const d = new Date(today);
+    const d = new Date(anchor);
     d.setHours(12, 0, 0, 0);
     d.setDate(d.getDate() - daysAgo);
-    return localDateKey(d);
+    return calendarDateKey(d);
   };
   return { from: at(ACTIVITY_WINDOW_DAYS), to: at(1) };
 }

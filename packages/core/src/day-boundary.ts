@@ -1,4 +1,4 @@
-import { addDays, localDateKey, parseYmd, type DateKey } from './date';
+import { addDays, calendarDateKey, parseYmd, type DateKey } from './date';
 
 /**
  * When does a day start? (ADR-0030)
@@ -34,7 +34,7 @@ import { addDays, localDateKey, parseYmd, type DateKey } from './date';
  *
  * A user who never touches the setting stores nothing at all: {@link MIDNIGHT}
  * is the empty list, and {@link dayKeyAt} under it is byte-for-byte
- * `localDateKey`. That equivalence is asserted in the tests, and it is what
+ * `calendarDateKey`. That equivalence is asserted in the tests, and it is what
  * makes adopting this at a call site a no-op until someone opts in.
  */
 
@@ -86,9 +86,9 @@ export function boundaryHourOn(key: DateKey, boundary: DayBoundary): number {
 /**
  * Which day does this instant belong to?
  *
- * The replacement for `localDateKey(new Date())` wherever the answer means "the
+ * The replacement for `calendarDateKey(new Date())` wherever the answer means "the
  * user's day" rather than "the calendar date". Pass {@link MIDNIGHT} and it IS
- * `localDateKey` — see the note above.
+ * `calendarDateKey` — see the note above.
  *
  * ## The transition, and why the changeover day is longer
  *
@@ -105,13 +105,13 @@ export function boundaryHourOn(key: DateKey, boundary: DayBoundary): number {
  * across a change and checking the mapping is a partition.
  */
 export function dayKeyAt(at: Date, boundary: DayBoundary): DateKey {
-  const calendarKey = localDateKey(at);
+  const calendarKey = calendarDateKey(at);
   const hour = boundaryHourOn(calendarKey, boundary);
   if (hour === 0) return calendarKey;
 
   const shifted = new Date(at);
   shifted.setHours(shifted.getHours() - hour);
-  const shiftedKey = localDateKey(shifted);
+  const shiftedKey = calendarDateKey(shifted);
 
   // The changeover window: shifting would land on a day governed by an OLDER
   // rule, i.e. a day that is already closed. Keep the instant where the old
@@ -158,7 +158,7 @@ export function setDayStartHour(
  */
 function dayStartsAt(key: DateKey, boundary: DayBoundary): Date {
   const hour = boundaryHourOn(key, boundary);
-  const prevKey = localDateKey(addDays(parseYmd(key), -1));
+  const prevKey = calendarDateKey(addDays(parseYmd(key), -1));
   const start = parseYmd(key);
   if (boundaryHourOn(prevKey, boundary) === hour) start.setHours(start.getHours() + hour);
   return start;
@@ -174,6 +174,27 @@ function dayStartsAt(key: DateKey, boundary: DayBoundary): Date {
  * and in both cases the timeline stays exactly covered.
  */
 export function dayRange(key: DateKey, boundary: DayBoundary): { start: Date; end: Date } {
-  const nextKey = localDateKey(addDays(parseYmd(key), 1));
+  const nextKey = calendarDateKey(addDays(parseYmd(key), 1));
   return { start: dayStartsAt(key, boundary), end: dayStartsAt(nextKey, boundary) };
+}
+
+/**
+ * The boundary a profile is on.
+ *
+ * The seam between the pure derivation above and the two frontends. It is
+ * deliberately **structurally typed** rather than taking `ProfileFields`: the
+ * field does not exist on the profile yet (ADR-0030 step 3 — `ProfileFields`,
+ * the Firestore mapper, and the `firestore.rules` validation that must be
+ * deployed BEFORE any client writes it), and typing it structurally means this
+ * function, its call sites, and the tests around them can all land first and
+ * keep working unchanged the day the field appears.
+ *
+ * Until then every account reads {@link MIDNIGHT}, which {@link dayKeyAt} makes
+ * byte-for-byte identical to the calendar date — so adopting this at a call
+ * site changes nobody's numbers.
+ */
+export function dayBoundaryOf(
+  profile: { readonly dayBoundary?: DayBoundary | null } | null | undefined,
+): DayBoundary {
+  return profile?.dayBoundary ?? MIDNIGHT;
 }

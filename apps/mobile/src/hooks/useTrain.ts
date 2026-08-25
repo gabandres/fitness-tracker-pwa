@@ -28,7 +28,7 @@ import {
   type SessionAction,
   applySessionAction,
   findDuplicateExercise,
-  localDateKey,
+  calendarDateKey,
   newCardioBlock,
   newWorkoutSet,
 } from '@macrolog/core';
@@ -515,7 +515,7 @@ export function useTrain(): TrainState {
           bodyweight: extras.bodyweight,
           sleepHours: extras.sleepHours,
         });
-        const dateKey = localDateKey(date);
+        const dateKey = calendarDateKey(date);
         if (extras.bodyweight != null && extras.bodyweight > 0) {
           await setDailyWeight(uid, dateKey, extras.bodyweight);
           void exportDaily('weight', dateKey, extras.bodyweight);

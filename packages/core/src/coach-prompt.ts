@@ -14,7 +14,8 @@ import type { DailyLog } from './types';
 import type { ProfileFields } from './types';
 import type { TdeeResult } from './tdee';
 import { finalCalorieTarget } from './targets';
-import { addDays, localDateKey } from './date';
+import { addDays } from './date';
+import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 
 export type CoachLocale = 'en' | 'es-PR' | 'pt-BR';
 
@@ -41,6 +42,8 @@ export interface CoachPromptInput {
   dailyWeights?: Record<string, number>;
   /** UI language — drives the trailing "respond in …" instruction. */
   locale?: CoachLocale;
+  /** The user's day boundary (ADR-0030). Omitted, days are calendar days. */
+  boundary?: DayBoundary;
 }
 
 /**
@@ -49,24 +52,24 @@ export interface CoachPromptInput {
  * data means a user who last logged three weeks ago still gets their most
  * recent fortnight of eating to ask about, instead of an empty table.
  *
- * Calendar-day keys, not millisecond arithmetic: `localDateKey` is the same
- * day boundary every other window in this package uses, and date-key strings
- * compare correctly without drifting across a DST change.
+ * Day keys, not millisecond arithmetic: `dayKeyAt` is the same day boundary
+ * every other window in this package uses, and date-key strings compare
+ * correctly without drifting across a DST change.
  */
-function logsInCoachWindow(logs: DailyLog[]): DailyLog[] {
+function logsInCoachWindow(logs: DailyLog[], boundary: DayBoundary): DailyLog[] {
   if (logs.length === 0) return logs;
   let newest = logs[0].date;
   for (const l of logs) if (l.date > newest) newest = l.date;
-  const cutoff = localDateKey(addDays(newest, -(COACH_WINDOW_DAYS - 1)));
-  return logs.filter((l) => localDateKey(l.date) >= cutoff);
+  const cutoff = dayKeyAt(addDays(newest, -(COACH_WINDOW_DAYS - 1)), boundary);
+  return logs.filter((l) => dayKeyAt(l.date, boundary) >= cutoff);
 }
 
 /** Distinct calendar days represented in the rows. `logs.length` is a count of
  *  MEALS; reporting it as days told the model a 14-row web window was two
  *  weeks of history when it was often two days. */
-function distinctDayCount(logs: DailyLog[]): number {
+function distinctDayCount(logs: DailyLog[], boundary: DayBoundary): number {
   const days = new Set<string>();
-  for (const l of logs) days.add(localDateKey(l.date));
+  for (const l of logs) days.add(dayKeyAt(l.date, boundary));
   return days.size;
 }
 
@@ -99,9 +102,9 @@ function langSuffix(locale: CoachLocale): string {
  * renders as "—" rather than a fabricated number.
  */
 export function buildCoachSystemInstruction(input: CoachPromptInput): string {
-  const { logs: allLogs, tdee, profile, dailyWeights = {}, locale = 'en' } = input;
-  const logs = logsInCoachWindow(allLogs);
-  const dayCount = distinctDayCount(logs);
+  const { logs: allLogs, tdee, profile, dailyWeights = {}, locale = 'en', boundary = MIDNIGHT } = input;
+  const logs = logsInCoachWindow(allLogs, boundary);
+  const dayCount = distinctDayCount(logs, boundary);
   const lines: string[] = [];
   lines.push('You are a precise, data-driven personal fitness consultant.');
   lines.push('');
@@ -169,7 +172,7 @@ export function buildCoachSystemInstruction(input: CoachPromptInput): string {
     lines.push('| Date | Weight (lbs) | Calories | Protein (g) | Exercise |');
     lines.push('| --- | --- | --- | --- | --- |');
     for (const log of logs) {
-      const iso = localDateKey(log.date);
+      const iso = dayKeyAt(log.date, boundary);
       const pro = log.protein != null ? String(log.protein) : '—';
       const exercised = (log.exerciseCompleted || log.liftCompleted || log.cardioCompleted) ? '✓' : '—';
       // Weight is logged once per day in a separate collection, not per meal

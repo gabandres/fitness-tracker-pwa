@@ -16,7 +16,7 @@ import { asMeasured } from './tdee.test-utils';
  * bites because of where in the baseline it sits.
  */
 
-/** [localDateKey, kcal, weight | null] */
+/** [calendarDateKey, kcal, weight | null] */
 type Row = [string, number, number | null];
 
 /** The account's last 28 LOGGED days as of 2026-08-19. Note 08-19 = 156.0 lb,

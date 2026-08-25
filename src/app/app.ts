@@ -26,7 +26,7 @@ import { FitnessStore } from './services/fitness-store.service';
 import { WeeklyReportStore } from './services/weekly-report-store.service';
 import { SubscriptionService } from './services/subscription.service';
 import { ThemeChoice, PRO_THEMES, isProTheme, readStoredTheme, writeStoredTheme } from './utils/theme';
-import { localDateKey } from '@macrolog/core';
+import { calendarDateKey } from '@macrolog/core';
 import { captureReferrerFromUrl } from './utils/referral';
 import { bcp47ForLang } from './utils/locale';
 import { mediaSignal } from './utils/media';
@@ -955,7 +955,7 @@ export class App {
     const now = new Date();
     if (now.getHours() < this.reminderHour) return;
     if (this.store.hasLoggedToday()) return;
-    const key = `macrolog.reminder.dismissed.${localDateKey(now)}`;
+    const key = `macrolog.reminder.dismissed.${calendarDateKey(now)}`;
     if (localStorage.getItem(key)) return;
     this.showReminder.set(true);
   }
@@ -963,7 +963,7 @@ export class App {
   protected dismissReminder(): void {
     this.showReminder.set(false);
     localStorage.setItem(
-      `macrolog.reminder.dismissed.${localDateKey(new Date())}`,
+      `macrolog.reminder.dismissed.${calendarDateKey(new Date())}`,
       '1',
     );
   }

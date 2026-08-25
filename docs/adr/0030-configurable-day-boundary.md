@@ -157,3 +157,74 @@ test caught it before anything consumed it.
 4. **The setting.** Last, and only after 1–3.
 5. **Q4 (widget/watch) and Q5 (importers) are still open.** Both are decisions,
    not code, and neither is blocked by anything above.
+
+## Amendment 2 — Q3 answered, and the estimator now buckets by the boundary (2026-08-25)
+
+Steps 1 and 2 of Amendment 1's list are done. Steps 3 and 4 are not, and the
+list below is now machine-checked rather than prose.
+
+### Q3 — "the implicit local midnight must stop being reachable"
+
+`localDateKey` is **gone**, renamed to `calendarDateKey` at all 189 references.
+The rename is the answer to Q3, and the reason is that the old name let a call
+site avoid the question: "the calendar date" and "the user's day" were the same
+function, so nobody ever chose between them. They are different questions, and
+the new name only answers one of them.
+
+The rule is stated on `calendarDateKey` and is mechanical: the calendar date is
+correct **only when the `Date` was synthesized from a key that is already
+settled** — `parseYmd(key)`, or `addDays` off one. Applied to a real wall-clock
+instant (`new Date()`, a log's `date`, a HealthKit sample's `endDate`), the
+right answer is `dayKeyAt` and the calendar date is a latent bug.
+
+### What was threaded, and what "no user affected" rests on
+
+`packages/core` now takes `boundary` explicitly everywhere the answer is a
+user's day: `aggregateByDay` and `calculateTdee` (**the estimator — the reason
+this ADR exists**), `summarizeDay` / `summarizeDays`, `computeStreak`,
+`mergeDailyWeights`, `recalibrationDigest`, `weeklySummary`, `buildCsv`,
+`buildCoachSystemInstruction`, and the weekly-report prompt.
+
+Three window builders were **anchor** bugs rather than bucketing bugs, and they
+are the class that would have survived a careless codemod: `trailingDateKeys`,
+`isoWeek` and `activityWindowRange` each derived "today" from the calendar date
+and then stepped backwards in calendar days. The steps were always right; the
+anchor was not. At a 3am boundary, a window built at 01:00 ran a full day ahead
+of the day the user was living. They now anchor on `dayKeyAt` and step from
+there, which is also why `parseYmd(dayKeyAt(...))` appears in each.
+
+Every one of these defaults to `MIDNIGHT`, under which `dayKeyAt` is
+byte-for-byte `calendarDateKey`. That is what let this land with nothing wired:
+**all 1,160 core tests passed before and after, unchanged.**
+
+That equivalence is necessary and it is **not** sufficient, so
+`day-boundary.consumers.test.ts` asserts the other half — that at a real 3am
+boundary each threaded consumer actually *moves*. Without it, a consumer that
+quietly kept calling `calendarDateKey` would pass the equivalence test forever
+and behave exactly as it did before the ADR: the "looks fixed" outcome this ADR
+names as the worst available one.
+
+### The seam that makes step 3 small
+
+`dayBoundaryOf(profile)` is **structurally typed** — `{ dayBoundary?: DayBoundary }`
+— not `ProfileFields`. The field does not exist yet, and typing it structurally
+means the function, its call sites and their tests all land before persistence
+does and keep working unchanged the day the field appears.
+
+### What is still NOT done
+
+1. **75 calls in 26 files still bucket a wall-clock instant by the calendar
+   date** — the frontends, which have no boundary to read until step 3. This is
+   no longer a prose estimate: `node scripts/check-day-boundary.mjs --list`
+   prints them, and the check is a **ratchet** that fails if the count moves in
+   either direction. Up is a new latent bug; down means a conversion landed and
+   nobody tightened the baseline.
+2. **Persistence.** Still no `ProfileFields` entry, no mapper, no
+   `firestore.rules` validation. Rules deploy **before** any client writes it.
+3. **The setting.** Last, and only after 2.
+4. **Q4 (widget/watch) and Q5 (importers) remain open decisions.** Q4 now has a
+   concrete stake: `apps/mobile/src/widgets/render.tsx` renders without the
+   profile in scope, so answering Q4 decides whether that call converts at all.
+
+The one thing that did NOT survive the sweep as a real finding: two dead
+`calendarDateKey` imports in `useTrends.ts` and `trends.component.ts`, removed.

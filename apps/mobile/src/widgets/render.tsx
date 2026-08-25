@@ -1,4 +1,4 @@
-import { type WidgetSnapshot, localDateKey, widgetView } from '@macrolog/core';
+import { type WidgetSnapshot, calendarDateKey, widgetView } from '@macrolog/core';
 import { TodayWidget } from './TodayWidget';
 
 /**
@@ -8,7 +8,7 @@ import { TodayWidget } from './TodayWidget';
  * from the app, and `widget-task-handler.tsx` when the OS wakes the widget on
  * its own schedule — so the staleness decision is made identically either way.
  *
- * `localDateKey(new Date())` is evaluated *at render time*, on purpose: an
+ * `calendarDateKey(new Date())` is evaluated *at render time*, on purpose: an
  * OS-driven `WIDGET_UPDATE` after midnight has to compare against the new day,
  * which is exactly what makes yesterday's blob fall through to the empty state
  * instead of being drawn as today's.
@@ -23,5 +23,5 @@ import { TodayWidget } from './TodayWidget';
  * resizable. The OS re-renders with a real width on `WIDGET_RESIZED`.
  */
 export function renderTodayWidget(snapshot: WidgetSnapshot | null, width?: number) {
-  return <TodayWidget view={widgetView(snapshot, localDateKey(new Date()))} width={width} />;
+  return <TodayWidget view={widgetView(snapshot, calendarDateKey(new Date()))} width={width} />;
 }

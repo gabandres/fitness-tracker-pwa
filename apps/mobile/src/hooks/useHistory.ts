@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { type CustomFood, type DailyLog, type DaySummary, type MealPreset, localDateKey, LOG_WINDOW_ROWS, summarizeDays } from '@macrolog/core';
+import { type CustomFood, type DailyLog, type DaySummary, type MealPreset, calendarDateKey, LOG_WINDOW_ROWS, summarizeDays } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { type LogWrites, useLogWrites } from '@/hooks/useLogWrites';
 import {
@@ -58,7 +58,7 @@ export function useHistory(): HistoryState {
 
   const days = useMemo(() => {
     const keys = new Set<string>();
-    for (const l of logs) keys.add(localDateKey(l.date));
+    for (const l of logs) keys.add(calendarDateKey(l.date));
     for (const k of Object.keys(weights)) keys.add(k);
     const sorted = [...keys].sort().reverse(); // newest first
     return summarizeDays(sorted, logs, weights);

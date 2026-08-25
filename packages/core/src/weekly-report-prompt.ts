@@ -15,7 +15,8 @@ import type { DailyLog, ProfileFields } from './types';
 import type { TdeeResult } from './tdee';
 import { finalCalorieTarget } from './targets';
 import type { CoachLocale } from './coach-prompt';
-import { localDateKey } from './date';
+import { calendarDateKey, parseYmd } from './date';
+import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 import { summarizeDays } from './day-summary';
 import { weightSlopeLbPerWeek, projectWeight, type WeightPoint } from './weight-projection';
 
@@ -36,6 +37,8 @@ export interface WeeklyReportInput {
   locale?: CoachLocale;
   /** Injectable "today" for deterministic tests; defaults to real now. */
   now?: Date;
+  /** The user's day boundary (ADR-0030). Omitted, days are calendar days. */
+  boundary?: DayBoundary;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -131,13 +134,18 @@ function buildInstruction(input: WeeklyReportInput, now: Date): string {
   lines.push('');
 
   // ── 14-day window summary + per-day table ──────────────────
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // The ANCHOR is the user's day, not the calendar date (ADR-0030) — at a
+  // non-midnight boundary a report built at 01:00 otherwise starts its window
+  // one day late. Every date derived BELOW is synthesized from this settled
+  // key, which is the one case `calendarDateKey` is the right answer.
+  const boundary = input.boundary ?? MIDNIGHT;
+  const today = parseYmd(dayKeyAt(now, boundary));
   const windowDays = 14;
   const windowKeys: string[] = [];
   for (let i = windowDays - 1; i >= 0; i--) {
-    windowKeys.push(localDateKey(new Date(today.getTime() - i * DAY_MS)));
+    windowKeys.push(calendarDateKey(new Date(today.getTime() - i * DAY_MS)));
   }
-  const days = summarizeDays(windowKeys, logs, dailyWeights).map((s) => ({
+  const days = summarizeDays(windowKeys, logs, dailyWeights, boundary).map((s) => ({
     key: s.dateKey,
     calories: s.totalCalories,
     protein: s.totalProtein,
@@ -166,7 +174,7 @@ function buildInstruction(input: WeeklyReportInput, now: Date): string {
   const TREND_WINDOW_DAYS = 28;
   const trendPoints: WeightPoint[] = [];
   for (let i = TREND_WINDOW_DAYS - 1; i >= 0; i--) {
-    const key = localDateKey(new Date(today.getTime() - i * DAY_MS));
+    const key = calendarDateKey(new Date(today.getTime() - i * DAY_MS));
     const w = dailyWeights[key];
     if (w != null) trendPoints.push({ dateKey: key, weightLb: w });
   }

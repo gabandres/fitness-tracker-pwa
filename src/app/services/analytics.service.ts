@@ -4,7 +4,7 @@ import {
   type UsageEvent,
   addUsageCount,
   hasUsageCounts,
-  localDateKey,
+  calendarDateKey,
 } from '@macrolog/core';
 import { LEDGER_PORT } from '../ledger/ports/ledger.port';
 import * as Sentry from '@sentry/angular';
@@ -144,7 +144,7 @@ export class AnalyticsService {
 
   private readonly ledger = inject(LEDGER_PORT);
   private buffer: UsageCounts = {};
-  private bufferDay = localDateKey(new Date());
+  private bufferDay = calendarDateKey(new Date());
   private flushTimer: ReturnType<typeof setInterval> | null = null;
 
   /**
@@ -155,7 +155,7 @@ export class AnalyticsService {
    * write per tap. See `analytics.ts` in the Expo app.
    */
   count(event: UsageEvent, n = 1): void {
-    const today = localDateKey(new Date());
+    const today = calendarDateKey(new Date());
     if (today !== this.bufferDay) {
       void this.flushCounts();
       this.bufferDay = today;

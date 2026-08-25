@@ -5,7 +5,7 @@ import {
   type UsagePlatform,
   addUsageCount,
   hasUsageCounts,
-  localDateKey,
+  calendarDateKey,
 } from '@macrolog/core';
 import { addBreadcrumb } from './sentry';
 /**
@@ -100,7 +100,7 @@ const platform: UsagePlatform = Platform.OS === 'ios' ? 'ios' : 'android';
 let buffer: UsageCounts = {};
 /** The day the buffer belongs to. A session that crosses local midnight must
  *  not fold yesterday's counts into today's document — it flushes first. */
-let bufferDay: string = localDateKey(new Date());
+let bufferDay: string = calendarDateKey(new Date());
 let uid: string | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
 let appStateSub: { remove: () => void } | null = null;
@@ -128,7 +128,7 @@ export function track(event: UsageEvent, n = 1): void {
   // exactly where we have the least visibility today.
   addBreadcrumb(event, n === 1 ? undefined : { n }, 'analytics');
   if (!uid) return;
-  const today = localDateKey(new Date());
+  const today = calendarDateKey(new Date());
   if (today !== bufferDay) {
     // Flush yesterday under yesterday's key before the buffer rolls over.
     void flush();
@@ -175,7 +175,7 @@ export function setAnalyticsUser(nextUid: string | null): void {
   if (nextUid === uid) return;
   void flush();
   uid = nextUid;
-  bufferDay = localDateKey(new Date());
+  bufferDay = calendarDateKey(new Date());
   if (nextUid) start();
   else stop();
 }
@@ -206,6 +206,6 @@ function stop(): void {
 export function resetAnalytics(): void {
   uid = null;
   buffer = {};
-  bufferDay = localDateKey(new Date());
+  bufferDay = calendarDateKey(new Date());
   stop();
 }

@@ -1,5 +1,5 @@
 import type { DailyLog, Profile, ProfileFields } from './types';
-import { localDateKey } from './date';
+import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 import { computeProtein } from './macro-heuristic';
 import { calculateTdee, calorieFloor, type TdeeResult } from './tdee';
 
@@ -14,10 +14,11 @@ import { calculateTdee, calorieFloor, type TdeeResult } from './tdee';
 export function mergeDailyWeights(
   logs: DailyLog[],
   dailyWeights: Record<string, number>,
+  boundary: DayBoundary = MIDNIGHT,
 ): DailyLog[] {
   if (!dailyWeights || Object.keys(dailyWeights).length === 0) return logs;
   return logs.map((l) => {
-    const w = dailyWeights[localDateKey(l.date)];
+    const w = dailyWeights[dayKeyAt(l.date, boundary)];
     return w != null ? { ...l, weight: w } : l;
   });
 }

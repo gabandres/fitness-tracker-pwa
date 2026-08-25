@@ -7,7 +7,7 @@ import {
   clampUsageCounts,
   clampWaterFlOz,
   hasUsageCounts,
-  localDateKey,
+  calendarDateKey,
 } from '@macrolog/core';
 import type { OnboardingV2Submission, RefineTargetsSubmission } from '@macrolog/core';
 import type { LedgerPort } from '../ports/ledger.port';
@@ -140,7 +140,7 @@ export class InMemoryLedgerAdapter implements LedgerPort {
     this._profile.set(next);
     // The submission's weight is mirrored to today's daily weight, exactly as
     // the Firestore adapter does — the dashboard reads it immediately.
-    this.weights[localDateKey(new Date())] = submission.weightLbs;
+    this.weights[calendarDateKey(new Date())] = submission.weightLbs;
   }
 
   /**

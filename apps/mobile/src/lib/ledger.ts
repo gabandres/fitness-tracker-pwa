@@ -47,7 +47,7 @@ import {
   clampCutPace,
   clampSleepHours,
   clampWaterFlOz,
-  localDateKey,
+  calendarDateKey,
   oldestFirst,
   pruneUndefined as pruneUndefinedCore,
   readActivity,
@@ -1140,13 +1140,13 @@ export async function getAllSessions(uid: string): Promise<WorkoutSession[]> {
  *  imported cardio calorie could reach a measured target. ADR-0026 decision 5;
  *  pinned by `cardio-energy-independence.test.ts`. */
 export async function markExercised(uid: string, date: Date): Promise<void> {
-  const key = localDateKey(date);
+  const key = calendarDateKey(date);
   const snap = await getDocs(query(logsCol(uid), orderBy('timestamp', 'desc'), limit(60)));
   const already = snap.docs.some((d) => {
     const data = d.data() as { timestamp?: Timestamp; exerciseCompleted?: boolean; liftCompleted?: boolean; cardioCompleted?: boolean };
     if (!data.timestamp) return false;
     const marked = data.exerciseCompleted || data.liftCompleted || data.cardioCompleted;
-    return marked && localDateKey(data.timestamp.toDate()) === key;
+    return marked && calendarDateKey(data.timestamp.toDate()) === key;
   });
   if (already) return;
   await addLog(uid, { ...workoutMarkerEntry(), timestamp: date });

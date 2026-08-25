@@ -34,7 +34,7 @@ export type ImportOnlyKind = 'steps' | 'activeEnergy';
 export type HealthKind = WritableKind | ImportOnlyKind;
 
 export interface HealthSample {
-  /** localDateKey — the app's day bucket the sample's end time falls in. */
+  /** `dayKeyAt` — the app's day bucket the sample's end time falls in. */
   dateKey: string;
   kind: HealthKind;
   /** Value in the app's canonical unit for `kind` (see HealthKind). */

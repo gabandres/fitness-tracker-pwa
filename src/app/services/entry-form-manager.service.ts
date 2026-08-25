@@ -5,7 +5,7 @@ import { MacroEstimate } from '../models/macro-estimate';
 import { buildCustomFood, customFoodDocId } from '@macrolog/core';
 import { TranslationService } from './translation.service';
 import { AuthService } from './auth.service';
-import { localDateKey } from '@macrolog/core';
+import { calendarDateKey } from '@macrolog/core';
 import {
   MEAL_DRAFT_ERROR_MESSAGE_KEYS,
   MealDraftResult,
@@ -98,7 +98,7 @@ export class EntryFormManager {
   /** Diary slot. Defaults by time-of-day on ADD; null = no slot
    *  ("other" bucket) — edit mode never invents one for legacy rows. */
   readonly mealType = signal<MealType | null>(defaultMealTypeForHour(new Date().getHours()));
-  readonly entryDate = signal<string>(localDateKey(new Date()));
+  readonly entryDate = signal<string>(calendarDateKey(new Date()));
   readonly calories = signal<number | null>(null);
   readonly protein = signal<number | null>(null);
   readonly carbs = signal<number | null>(null);
@@ -134,7 +134,7 @@ export class EntryFormManager {
     );
     this.mealLabel.set(meal.mealLabel ?? '');
     this.mealType.set(meal.mealType ?? null);
-    this.entryDate.set(localDateKey(meal.date));
+    this.entryDate.set(calendarDateKey(meal.date));
     this.status.set('idle');
   }
 
@@ -390,7 +390,7 @@ export class EntryFormManager {
     this.activePresetName.set(null);
     this.mealLabel.set('');
     this.mealType.set(defaultMealTypeForHour(new Date().getHours()));
-    this.entryDate.set(localDateKey(new Date()));
+    this.entryDate.set(calendarDateKey(new Date()));
     this.presetLimitHit.set(false);
     this.pendingServing = null;
   }

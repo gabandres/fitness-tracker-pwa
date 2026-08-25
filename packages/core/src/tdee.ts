@@ -1,6 +1,6 @@
 import type { GoalDirection } from './macro-heuristic';
 import type { ActivityLevel, DailyLog, ProfileFields } from './types';
-import { localDateKey } from './date';
+import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 
 /**
  * TDEE (Total Daily Energy Expenditure) estimator — pure port of the
@@ -294,11 +294,23 @@ function trimmedMean(arr: number[]): number {
   return average(sorted.slice(1, sorted.length - 1));
 }
 
-/** Aggregate multiple log entries per day into one row per day. */
-export function aggregateByDay(logs: DailyLog[]): DailyLog[] {
+/**
+ * Aggregate multiple log entries per day into one row per day.
+ *
+ * **This is the bucketing ADR-0030 exists for.** The measured estimator fits a
+ * per-day intake series against a weight trend, so an instant landing in the
+ * wrong bucket makes one day read under-eaten and the next over-eaten — a
+ * sawtooth the fit cannot tell apart from real behaviour. Bucket with
+ * `dayKeyAt`, never with the calendar date.
+ *
+ * `boundary` defaults to {@link MIDNIGHT}, under which this is byte-for-byte
+ * what it did before ADR-0030 — that equivalence is asserted in
+ * `day-boundary.test.ts` and is what let this change land with nothing wired.
+ */
+export function aggregateByDay(logs: DailyLog[], boundary: DayBoundary = MIDNIGHT): DailyLog[] {
   const byDate = new Map<string, DailyLog>();
   for (const log of logs) {
-    const key = localDateKey(log.date);
+    const key = dayKeyAt(log.date, boundary);
     const existing = byDate.get(key);
     if (!existing) {
       byDate.set(key, { ...log });
@@ -1106,8 +1118,12 @@ export function paceOffsetKcal(
   return goalDirection === 'gain' ? -magnitude : magnitude;
 }
 
-export function calculateTdee(logs: DailyLog[], profile?: ProfileFields | null): TdeeResult {
-  const daily = aggregateByDay(logs ?? []);
+export function calculateTdee(
+  logs: DailyLog[],
+  profile?: ProfileFields | null,
+  boundary: DayBoundary = MIDNIGHT,
+): TdeeResult {
+  const daily = aggregateByDay(logs ?? [], boundary);
 
   // ── Measured mode: ≥14 logged days ──
   if (daily.length >= MEASURED_MIN_DAYS) {

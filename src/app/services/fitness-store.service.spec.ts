@@ -224,7 +224,7 @@ describe('FitnessStore', () => {
     });
 
     it('should compute todaySummary from today entries only', async () => {
-      // Use local noon — production code uses localDateKey() (local time).
+      // Use local noon — production code uses calendarDateKey() (local time).
       const today = new Date();
       today.setHours(12, 0, 0, 0);
       const yesterday = new Date(today);

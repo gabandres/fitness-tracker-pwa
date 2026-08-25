@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { type DailyLog, LOG_WINDOW_ROWS, computeStreak, localDateKey, parseYmd } from '@macrolog/core';
+import { type DailyLog, LOG_WINDOW_ROWS, computeStreak, calendarDateKey, parseYmd } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { useT } from '@/i18n';
 import { subscribeDailyWeights, subscribeRecentLogs } from '@/lib/ledger';
@@ -17,7 +17,7 @@ function daysSinceWeighIn(
   let latestKey: string | null = wKeys.length ? wKeys.sort()[wKeys.length - 1] : null;
   for (const l of logs) {
     if (l.weight != null) {
-      const k = localDateKey(l.date);
+      const k = calendarDateKey(l.date);
       if (latestKey == null || k > latestKey) latestKey = k;
     }
   }
@@ -54,9 +54,9 @@ export function useReminderSync(): void {
       const recompute = () => {
         const logs = logsRef.current;
         const weights = weightsRef.current;
-        const todayKey = localDateKey(new Date());
+        const todayKey = calendarDateKey(new Date());
         const loggedToday =
-          weights[todayKey] != null || logs.some((l) => localDateKey(l.date) === todayKey);
+          weights[todayKey] != null || logs.some((l) => calendarDateKey(l.date) === todayKey);
         const streak = computeStreak(logs, { freezeMaxGap: 0 }).streak;
         const sinceWeigh = daysSinceWeighIn(logs, weights);
 
