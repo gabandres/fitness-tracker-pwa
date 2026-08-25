@@ -58,6 +58,8 @@ import {
   pruneUndefined as pruneUndefinedCore,
   readActivity,
   readSleepHours,
+  readSleepSource,
+  type SleepEntry,
   readWaterFlOz,
   readWeightLb,
   toCustomFood,
@@ -438,6 +440,50 @@ export function subscribeDailySleep(
       for (const d of snap.docs) {
         const h = readSleepHours(d.data());
         if (h != null) sleep[d.id] = h;
+      }
+      cb(sleep, metaOf(snap));
+    },
+    onError,
+  );
+}
+
+/**
+ * A bounded window of nights, WITH provenance — the Trends sleep card's reader
+ * (ADR-0033 decision 9, issue #81).
+ *
+ * Three things make this a separate function rather than an option on
+ * {@link subscribeDailySleep}, and all three are the same reason stated at
+ * different levels:
+ *
+ * - **It is range-bounded and the other one is not.** `subscribeDailySleep`
+ *   subscribes the WHOLE collection, which is right for `useToday`'s single
+ *   listener over a small account and is not what a second consumer should
+ *   copy: a two-year account has ~700 documents there. Copying an unbounded
+ *   listener into a second hook is how a read bill starts.
+ * - **It carries `source`, which the other one drops** — it returns
+ *   `dateKey → hours`. The card's footer names provenance at window level
+ *   (`imported` / `typed` / `both`), which is the strongest honest claim the
+ *   schema supports; there is no `provider`, so it can never say "via Oura".
+ * - **ADR-0016 says the second consumer opens its own listener** rather than
+ *   sharing Today's. The duplication is the model; what bounds it is
+ *   focus-gating, which `useCoreSnapshot` already enforces for this screen.
+ *
+ * `dateKey` IS the doc id, so the range is a `documentId()` query and needs no
+ * index — same shape as {@link getActivityWindow}. Inclusive at `since`.
+ */
+export function subscribeDailySleepSince(
+  uid: string,
+  since: string,
+  cb: (sleep: Record<string, SleepEntry>, meta?: SnapshotMeta) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    query(sleepCol(uid), where(documentId(), '>=', since)),
+    (snap) => {
+      const sleep: Record<string, SleepEntry> = {};
+      for (const d of snap.docs) {
+        const hours = readSleepHours(d.data());
+        if (hours != null) sleep[d.id] = { hours, source: readSleepSource(d.data()) };
       }
       cb(sleep, metaOf(snap));
     },

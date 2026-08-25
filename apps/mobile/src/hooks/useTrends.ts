@@ -21,6 +21,7 @@ import {
 /** Sparkline length — a chart-width choice, not a domain window. */
 const SPARK_DAYS = 14;
 import { useCoreSnapshot } from '@/hooks/useCoreSnapshot';
+import { type SleepTrends, useSleepTrends } from '@/hooks/useSleepTrends';
 
 const INSIGHT_DAYS = 7;
 const SLOPE_WINDOW_DAYS = 28;
@@ -49,6 +50,12 @@ export interface TrendsState {
   basalKcal: number;
   /** The stored self-reported bucket, or null if never stated. */
   activityLevel: ActivityLevel | null;
+  /**
+   * Sleep for the Trends card (ADR-0033). Its own focus-gated, range-bounded
+   * listener — `useCoreSnapshot` does not carry sleep and deliberately never
+   * will, since three screens would then pay for a listener one screen reads.
+   */
+  sleep: SleepTrends;
 }
 
 
@@ -58,6 +65,10 @@ export function useTrends(): TrendsState {
   // the 400-row window and the error policy all live in `useCoreSnapshot`.
   const { logs, weights, profile, loaded, error } = useCoreSnapshot('Trends');
   const loading = !loaded;
+
+  // The intake half of the sleep pairing is the stream above; the sleep half is
+  // this hook's own listener.
+  const sleep = useSleepTrends(logs, weights, profile);
 
   const targets: DailyTargets = useMemo(
     () => dailyTargets(profile, logs, weights),
@@ -116,5 +127,6 @@ export function useTrends(): TrendsState {
     budget,
     basalKcal,
     activityLevel: profile?.activityLevel ?? null,
+    sleep,
   };
 }

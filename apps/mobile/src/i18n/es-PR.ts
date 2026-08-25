@@ -467,6 +467,26 @@ export const esPR: Record<I18nKey, string> = {
   'trends.budgetRemaining': 'Restante',
   'trends.budgetPerDay': 'Disponible por día',
   'trends.budgetOver': 'Sobre presupuesto',
+  // ── Sueño en Tendencias (ADR-0033) ──
+  'trends.sleepTitle': 'Sueño',
+  'trends.sleepHeadline': '{h} h {m} min',
+  'trends.sleepCaption': 'por noche, últimas {n}',
+  'trends.sleepCaptionFew': 'por noche, {n} noches',
+  'trends.sleepLegend': 'tu promedio · los huecos son noches sin registro',
+  'trends.sleepCoverage': '{n} de {total} noches',
+  'trends.sleepSourceImported': 'importado',
+  'trends.sleepSourceTyped': 'anotado',
+  'trends.sleepSourceBoth': 'importado y anotado',
+  'trends.sleepClaimMore':
+    'En tus {short} noches más cortas registraste {kcal} kcal — {diff} más que en tus {long} más largas.',
+  'trends.sleepClaimLess':
+    'En tus {short} noches más cortas registraste {kcal} kcal — {diff} menos que en tus {long} más largas.',
+  'trends.sleepQualifier': 'Tus propios días, lado a lado. Un patrón, no una prueba.',
+  'trends.sleepProgress':
+    '{n} noches hasta ahora. Al llegar a {need}, Ignia comparará tus noches más cortas con lo que comiste esos días.',
+  'trends.sleepEmpty': 'Sueño · conecta Oura o Apple Health, o anota una noche en Hoy',
+  'trends.sleepEmptyOura': 'Sueño · conectado a Oura — aún sin noches',
+  'trends.sleepEmptyHealth': 'Sueño · conectado a Apple Health — aún sin noches',
   'trends.loadErr': 'No se pudieron cargar tus tendencias.',
 
   // ── coach (consulta con IA) ──

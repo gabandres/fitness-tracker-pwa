@@ -13,6 +13,7 @@ import {
 } from '@macrolog/core';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { NumbersGlossary } from '@/components/NumbersGlossary';
+import { SleepTrendsCard } from '@/components/SleepTrendsCard';
 import { WeeklyReportCard } from '@/components/WeeklyReportCard';
 import { useTrends } from '@/hooks/useTrends';
 import { useActivitySuggestion } from '@/lib/activity-suggestion';
@@ -54,7 +55,7 @@ export default function Trends() {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const router = useRouter();
-  const { loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal, activityLevel } = useTrends();
+  const { loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal, activityLevel, sleep } = useTrends();
   const { isPro } = useSubscription();
   const { user } = useAuth();
   const mode = TDEE_MODE[tdee.source];
@@ -253,8 +254,16 @@ export default function Trends() {
             <Budget budget={budget} styles={styles} colors={colors} t={t} locale={locale} />
           </Animated.View>
 
-          {/* 4. Coach — the Pro AI action. */}
+          {/* 4. Sleep — ADR-0033. Directly under Budget and above Coach: the
+              hero, This Week and Budget all set or spend a target, and sleep
+              sets nothing (`sleep-target-independence.test.ts` keeps it that
+              way). Below three nights this is one row, not a card. */}
           <Animated.View entering={enterUp(3)}>
+            <SleepTrendsCard sleep={sleep} />
+          </Animated.View>
+
+          {/* 5. Coach — the Pro AI action. */}
+          <Animated.View entering={enterUp(4)}>
             {isPro ? (
               <PressScale style={styles.coachBtn} onPress={() => { haptics.tap(); router.push('/coach' as Href); }} testID="coach-entry">
                 <Ionicons name="sparkles-outline" size={18} color={colors.onInk} />
@@ -277,10 +286,10 @@ export default function Trends() {
             )}
           </Animated.View>
 
-          {/* 5. Weekly report — Pro + server-entitled AI feature; hidden in
+          {/* 6. Weekly report — Pro + server-entitled AI feature; hidden in
               the free v1 (no IAP → its "PRO" tag + generate would dead-end). */}
           {PRO_ENABLED ? (
-            <Animated.View entering={enterUp(4)}>
+            <Animated.View entering={enterUp(5)}>
               <WeeklyReportCard />
             </Animated.View>
           ) : null}

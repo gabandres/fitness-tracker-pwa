@@ -111,6 +111,25 @@ export function useOuraStatus(uid: string | undefined) {
 }
 
 /**
+ * "Is Oura linked?", once, with no listener.
+ *
+ * {@link useOuraStatus} is the live answer and is right for a screen whose job
+ * is the integration. This exists for a caller that needs the fact exactly once
+ * and must not hold a channel open for it — the Trends sleep card, which uses
+ * it only to decide whether its empty row says *connect a source* or *connected
+ * to Oura, no nights yet* (ADR-0033 decision 6, ADR-0026's empty-state rule).
+ *
+ * Resolves `false` on any read failure. The failure direction matters: the
+ * wrong answer here understates the integration ("connect Oura") rather than
+ * claiming a connection that may not exist.
+ */
+export async function isOuraConnectedOnce(uid: string): Promise<boolean> {
+  if (!uid) return false;
+  const snap = await getDoc(statusDoc(uid));
+  return snap.data()?.['connected'] === true;
+}
+
+/**
  * Start the OAuth flow.
  *
  * Returns `true` only when the browser session ended in a way that could have

@@ -487,6 +487,36 @@ export const en = {
   'trends.budgetRemaining': 'Remaining',
   'trends.budgetPerDay': 'Left per day',
   'trends.budgetOver': 'Over budget',
+  // ── Sleep on Trends (ADR-0033) ──
+  // One honest comparison, never a score. The wording is load-bearing: nothing
+  // here may imply causation, and `sleepQualifier` exists to say so out loud.
+  'trends.sleepTitle': 'Sleep',
+  'trends.sleepHeadline': '{h}h {m}m',
+  'trends.sleepCaption': 'a night, last {n}',
+  'trends.sleepCaptionFew': 'a night, {n} nights',
+  'trends.sleepLegend': 'your average · gaps are nights with no reading',
+  'trends.sleepCoverage': '{n} of {total} nights',
+  'trends.sleepSourceImported': 'imported',
+  'trends.sleepSourceTyped': 'typed',
+  'trends.sleepSourceBoth': 'imported and typed',
+  // The claim. Two forms, because the difference is SIGNED — a card that only
+  // knew the magnitude would tell a user who eats less when tired that they eat
+  // more.
+  'trends.sleepClaimMore':
+    'On your {short} shortest nights you logged {kcal} kcal — {diff} more than on your {long} longest.',
+  'trends.sleepClaimLess':
+    'On your {short} shortest nights you logged {kcal} kcal — {diff} less than on your {long} longest.',
+  'trends.sleepQualifier': 'Your own days, side by side. A pattern, not a proof.',
+  // Names the exact threshold rather than counting down to a promise — the same
+  // job `activity.windowProgress` does on this screen.
+  'trends.sleepProgress':
+    '{n} nights so far. At {need}, Ignia will line your shorter nights up against what you ate on those days.',
+  // The 0–2 nights row. Three truths, and they are not interchangeable: nothing
+  // connected is an invitation, a connected source with no nights is a fact
+  // about the integration (ADR-0026's empty-state rule).
+  'trends.sleepEmpty': 'Sleep · connect Oura or Apple Health, or log a night on Today',
+  'trends.sleepEmptyOura': 'Sleep · connected to Oura — no nights yet',
+  'trends.sleepEmptyHealth': 'Sleep · connected to Apple Health — no nights yet',
   'trends.loadErr': "Couldn't load your trends.",
 
   // ── coach (AI consultation) ──

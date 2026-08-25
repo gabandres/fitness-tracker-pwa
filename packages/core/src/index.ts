@@ -29,6 +29,11 @@ export * from './tier-limits';
 // One row of intake (`DailyLog`) and the shapes around it: the per-day rollup,
 // the write-time meal-slot default, the entry-form draft, presets, My Foods.
 export * from './day-summary';
+// Sleep against intake (ADR-0033) — the Trends card's whole arithmetic, and
+// the gates that decide whether it is allowed to say anything. Nothing here is
+// read by `dailyTargets`, `tdee` or `weekly-insights`, and
+// `sleep-target-independence.test.ts` fails the build if that changes.
+export * from './sleep-intake';
 export * from './meal-slots';
 export * from './meal-draft';
 export * from './meal-preset';

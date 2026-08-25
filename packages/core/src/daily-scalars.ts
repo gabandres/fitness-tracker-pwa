@@ -46,6 +46,26 @@ export function readSleepHours(data: unknown): number | null {
 }
 
 /**
+ * Where a night's number came from: `manual` (typed) or `import`.
+ *
+ * **A missing `source` reads as `manual`, and that is not a default — it is the
+ * same conservative reading `importDailySleep` makes.** Documents predating
+ * 2026-08-24 carry no `source` at all and could be either; treating them as
+ * typed is the direction that cannot destroy a real entry, and the direction a
+ * provenance FOOTER should take too — "typed" over-claims nothing about the
+ * user, while "imported" would attribute their own entry to a device.
+ *
+ * Anything that is not one of the two literals is also `manual`, for the same
+ * reason: the rules constrain the field, but a reader that trusts the server
+ * to have been deployed first is a reader that can be surprised.
+ */
+export function readSleepSource(data: unknown): 'manual' | 'import' {
+  return (data as { source?: unknown } | null | undefined)?.source === 'import'
+    ? 'import'
+    : 'manual';
+}
+
+/**
  * Water in fl oz from a `dailyWater/{dateKey}` doc, or null when the doc holds
  * neither field.
  *
