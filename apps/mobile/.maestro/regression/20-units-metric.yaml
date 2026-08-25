@@ -23,7 +23,21 @@ appId: fit.ignia.app
     timeout: 15000
 
 # ── Baseline: pounds on the Body hero ──
-- tapOn: 'Body'
+# The brand-loader wait above is NOT sufficient on its own: `_layout.tsx` puts
+# `<Splash/>` back up a second time (absoluteFill, zIndex 100) once
+# `profileLoading` raises after `initializing` clears — measured on the LG G6
+# 2026-08-24, gone at ~1.9s, BACK at ~3.4s, gone for good at ~5.3s. A tap in
+# that second window is swallowed: `tapOn: 'Body'` burned 24-27s of retries and
+# still reported COMPLETED with the app sitting on Today, so `body-hero` was
+# never going to appear and the failure pointed at Body rather than at the
+# overlay. Retry until the hero is genuinely on screen.
+- repeat:
+    times: 4
+    while:
+      notVisible:
+        id: 'body-hero'
+    commands:
+      - tapOn: 'Body'
 - extendedWaitUntil:
     visible:
       id: 'body-hero'

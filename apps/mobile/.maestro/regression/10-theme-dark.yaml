@@ -17,8 +17,38 @@ env:
     clearState: false
 - assertVisible: 'Today'
 # ── flip to dark ──
-- tapOn:
-    id: 'settings-open'
+# THE SPLASH COMES BACK ONCE, AND IT EATS THE TAP. `_layout.tsx` renders
+# `<Splash/>` (absoluteFill, zIndex/elevation 100) while
+# `initializing || profileLoading || waitingOnProfile || !fontsReady`, and on a
+# cold start those do not clear together: measured on the LG G6 2026-08-24 the
+# loader is gone at ~1.9s, BACK at ~3.4s, and gone for good at ~5.3s.
+# `assertVisible: 'Today'` passes straight THROUGH it — the tab bar is in the
+# hierarchy underneath, so the assert is not a readiness gate — and a tap
+# landing in that second window is swallowed by the overlay. Maestro then burns
+# its whole retryIfNoChange budget (24-27s measured), reports COMPLETED, and the
+# app has not navigated; the next scrollUntilVisible spends 60s hunting a
+# Settings testID on Today and fails there instead, which reads like the
+# Settings refactor broke a testID. It did not. Retry until the destination is
+# actually on screen — that is the only gate that cannot race the overlay.
+# The gate is `settings-back` and NOT the text 'Settings': Maestro matches text
+# as a substring against accessibility labels too, and Today's avatar IS
+# labelled "Settings", so `notVisible: 'Settings'` is false on Today and the
+# whole repeat block reports SKIPPED — a gate that silently does nothing.
+# `settings-back` exists on the Settings screen and nowhere else.
+- repeat:
+    times: 4
+    while:
+      notVisible:
+        id: 'settings-back'
+    commands:
+      # optional: the loop re-checks its condition the instant the tap returns,
+      # which on this device is mid-navigation — so a second iteration can start
+      # after the tap ALREADY worked, by which point `settings-open` is gone with
+      # the Today header and a required tap fails the whole flow. Optional makes
+      # that harmless: the extra iteration warns, the condition re-reads, done.
+      - tapOn:
+          id: 'settings-open'
+          optional: true
 # centerElement: true — scrollUntilVisible stops as soon as the element enters
 # the viewport, which on iOS routinely leaves it UNDER the tab bar; Maestro then
 # taps its layout bounds and the touch goes to whatever is on top. Measured
@@ -93,8 +123,25 @@ env:
 - launchApp:
     clearState: false
 - assertVisible: 'Today'
-- tapOn:
-    id: 'settings-open'
+# Same swallowed-tap gate as the head — this relaunch re-arms the splash, and
+# THIS is where the 2026-08-24 run actually died: the tap was eaten, the flow
+# scrolled Today for 60s looking for `settings-theme-system`, and the tail left
+# the device stranded in DARK. A restore tail that can be skipped silently is
+# worse than no restore tail.
+- repeat:
+    times: 4
+    while:
+      notVisible:
+        id: 'settings-back'
+    commands:
+      # optional: the loop re-checks its condition the instant the tap returns,
+      # which on this device is mid-navigation — so a second iteration can start
+      # after the tap ALREADY worked, by which point `settings-open` is gone with
+      # the Today header and a required tap fails the whole flow. Optional makes
+      # that harmless: the extra iteration warns, the condition re-reads, done.
+      - tapOn:
+          id: 'settings-open'
+          optional: true
 # centerElement: true — scrollUntilVisible stops as soon as the element enters
 # the viewport, which on iOS routinely leaves it UNDER the tab bar; Maestro then
 # taps its layout bounds and the touch goes to whatever is on top. Measured
