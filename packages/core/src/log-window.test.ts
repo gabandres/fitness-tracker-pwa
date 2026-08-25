@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { type DayBoundary, MIDNIGHT } from './day-boundary';
 import {
   LOG_WINDOW_ROWS,
   RECENT_LOGS_ROWS,
@@ -56,6 +57,44 @@ describe('weightPointsForDays', () => {
       { dateKey: '2026-08-11', weightLb: 180.8 },
       { dateKey: '2026-08-12', weightLb: 180.4 },
     ]);
+  });
+});
+
+/**
+ * ADR-0030 step 3. These two windows took `boundary` late: the Trends screen
+ * had a boundary-aware sleep card sitting beside a midnight-only weight trend
+ * and calorie insight, so one screen keyed two cards to two different
+ * calendars. The ratchet in `scripts/check-day-boundary.mjs` cannot catch that
+ * class — it greps for `calendarDateKey`, and none of these call it.
+ */
+describe('the weight windows respect the day boundary', () => {
+  /** Days start at 03:00 from 2026-01-01 on. */
+  const THREE_AM: DayBoundary = [{ from: '2026-01-01' as never, hour: 3 }];
+  /** 01:00 Wednesday — under a 3am start this is still TUESDAY. */
+  const WED_1AM = new Date(2026, 7, 12, 1, 0);
+  const weights = { '2026-08-10': 181, '2026-08-11': 180.8, '2026-08-12': 180.4 };
+
+  it('defaults to midnight, so no existing account moves', () => {
+    expect(weightSeriesForDays(weights, 2, WED_1AM)).toEqual([180.8, 180.4]);
+    expect(weightSeriesForDays(weights, 2, WED_1AM, MIDNIGHT)).toEqual([180.8, 180.4]);
+  });
+
+  it('anchors the series on the user day, not the calendar date', () => {
+    // 01:00 Wed under a 3am start is Tuesday, so the trailing 2 days are
+    // Mon+Tue — Wednesday's weigh-in has not happened in her day yet.
+    expect(weightSeriesForDays(weights, 2, WED_1AM, THREE_AM)).toEqual([181, 180.8]);
+  });
+
+  it('anchors the points the same way, keys included', () => {
+    expect(weightPointsForDays(weights, 2, WED_1AM, THREE_AM)).toEqual([
+      { dateKey: '2026-08-10', weightLb: 181 },
+      { dateKey: '2026-08-11', weightLb: 180.8 },
+    ]);
+  });
+
+  it('agrees with trailingDateKeys, which is the window everything else uses', () => {
+    expect(weightPointsForDays(weights, 2, WED_1AM, THREE_AM).map((p) => p.dateKey))
+      .toEqual(trailingDateKeys(2, WED_1AM, THREE_AM).filter((k) => k in weights));
   });
 });
 
