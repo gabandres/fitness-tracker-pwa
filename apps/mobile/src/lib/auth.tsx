@@ -469,6 +469,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /** Whether the real auth event has landed. A ref, not state: the timer below
    *  reads it at fire time and must not re-arm when it changes. */
   const authAnswered = useRef(false);
+  /**
+   * The uid everything below keys on. Before Firebase answers this may be the
+   * session read off disk (#83); the real event clears `presumed` and this
+   * collapses back to `user.uid` (or null).
+   */
+  const sessionUid = user?.uid ?? presumed?.uid ?? null;
   const [isPro, setIsPro] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
   // Profile is keyed by uid so "loaded for the current user" is derivable
@@ -695,7 +701,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // `confirmed` records whether the SERVER has answered, and it is the field
   // the onboarding gate turns on — see `profileConfirmed` below.
   useEffect(() => {
-    const uid = user?.uid;
+    // `sessionUid`, not `user?.uid`: during a presumed session (#83) this is
+    // what lets `readCache` paint the profile from disk. Without it the gate
+    // sits at `assessRoute` -> 'wait' — the splash lifts off `initializing`
+    // and is immediately re-raised by the profile it never started loading,
+    // which is exactly the bug the first cut of this shipped with.
+    const uid = sessionUid;
     if (!uid) {
       setProfileEntry(null);
       return;
@@ -725,13 +736,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfileEntry({ uid, profile: null, confirmed: false });
       },
     );
-  }, [user?.uid]);
+  }, [sessionUid]);
 
   // Only trust the profile when it belongs to the current user; until then
   // the gate must treat it as still loading.
-  const matchedProfile = profileEntry && user && profileEntry.uid === user.uid ? profileEntry : null;
+  const matchedProfile =
+    profileEntry && sessionUid && profileEntry.uid === sessionUid ? profileEntry : null;
   const profile = matchedProfile ? matchedProfile.profile : null;
-  const profileLoading = !!user && !matchedProfile;
+  const profileLoading = !!sessionUid && !matchedProfile;
   /**
    * Whether the profile came from the SERVER, rather than from disk or from an
    * empty offline cache.
@@ -744,9 +756,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    */
   const profileConfirmed = !!matchedProfile && matchedProfile.confirmed;
 
-  // The real session always wins; `presumed` is only ever non-null before the
-  // first auth event (#83), and is cleared by it.
-  const sessionUid = user?.uid ?? presumed?.uid ?? null;
+  /** True while {@link sessionUid} came from disk rather than from Firebase. */
   const sessionPresumed = !user && presumed != null;
 
   /**

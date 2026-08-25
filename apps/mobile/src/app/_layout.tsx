@@ -93,7 +93,8 @@ function useGaveUpWaiting(waiting: boolean): boolean {
 /** Redirects between the authed tab group and the sign-in screen as auth
  *  state settles. The `(app)` group holds every signed-in surface. */
 function AuthGate({ fontsReady }: { fontsReady: boolean }) {
-  const { sessionUid, initializing, profile, profileLoading, profileConfirmed, emailVerified } = useAuth();
+  const { sessionUid, sessionPresumed, initializing, profile, profileLoading, profileConfirmed, emailVerified } =
+    useAuth();
   const offline = useIsOffline();
   const segments = useSegments();
   const router = useRouter();
@@ -135,10 +136,17 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
     // providers return verified emails, so they fall straight through. Once
     // verified, the routing below (which sees onVerify as neither inApp nor
     // onOnboarding) sends them to onboarding or the app.
-    if (!emailVerified) {
+    // A PRESUMED session never routes to verify-email (#83). The flag comes
+    // off a disk blob that can be stale — Firebase updates it on reload — and
+    // telling an already-verified user to go and verify their email is worse
+    // than the second or two it costs to wait for the real answer. Once
+    // Firebase has spoken, `sessionPresumed` is false and this behaves exactly
+    // as it always did.
+    if (!emailVerified && !sessionPresumed) {
       if (!onVerify) router.replace('/verify-email');
       return;
     }
+    if (!emailVerified) return;
     // Signed in and verified. Where to go is decided by `assessRoute`, which
     // carries the reasoning and is tested on its own — this effect only
     // performs the navigation.
@@ -158,7 +166,7 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
     // Completed users live in (app); leave them on /onboarding when they open
     // it deliberately (Settings → Edit goals / redo).
     if (!inApp && !onOnboarding && !onTour) router.replace('/(app)');
-  }, [sessionUid, initializing, emailVerified, decision, segments, router]);
+  }, [sessionUid, sessionPresumed, initializing, emailVerified, decision, segments, router]);
 
   // Always mount <Slot/> so the navigator exists when the redirect effect
   // fires; cover it with the splash while auth/profile/fonts settle.
