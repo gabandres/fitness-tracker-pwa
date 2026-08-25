@@ -175,7 +175,7 @@ export const ptBR = {
 
   // ── app updates ──
   'update.ota.title': 'Atualização pronta',
-  'update.ota.body': 'Reinicie o Ignia para receber as últimas correções.',
+  'update.ota.body': 'O Ignia reinicia para aplicá-la — alguns segundos.',
   'update.ota.action': 'Reiniciar',
   'update.store.title': 'Nova versão disponível',
   'update.store.body': 'Toque para atualizar o Ignia na loja.',

@@ -179,7 +179,7 @@ export const esPR: Record<I18nKey, string> = {
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',
-  'update.ota.body': 'Reinicia Ignia para recibir las últimas mejoras.',
+  'update.ota.body': 'Ignia se reinicia para aplicarla — unos segundos.',
   'update.ota.action': 'Reiniciar',
   'update.store.title': 'Nueva versión disponible',
   'update.store.body': 'Toca para actualizar Ignia en la tienda.',

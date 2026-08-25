@@ -186,7 +186,7 @@ export const en = {
 
   // ── app updates ──
   'update.ota.title': 'Update ready',
-  'update.ota.body': 'Restart Ignia to get the latest fixes.',
+  'update.ota.body': 'Ignia restarts to apply it — a few seconds.',
   'update.ota.action': 'Restart',
   'update.store.title': 'New version available',
   'update.store.body': 'Tap to update Ignia in the store.',

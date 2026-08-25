@@ -3,6 +3,8 @@ import { AppState, Linking, Platform, type AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Application from 'expo-application';
 import * as Updates from 'expo-updates';
+import { useTheme } from '@/lib/theme-context';
+import type { ColorTokens } from '@/theme';
 
 // Making an over-the-air update VISIBLE.
 //
@@ -25,6 +27,56 @@ import * as Updates from 'expo-updates';
  *  without expo-updates. */
 const canUpdate = Updates.isEnabled && !__DEV__;
 
+/**
+ * What the user looks at while the JS runtime restarts.
+ *
+ * ## Why this exists at all
+ *
+ * `reloadAsync()` is a **process restart**, not a screen transition (ADR-0031).
+ * Nothing configurable makes it instant, and the reported defect was never the
+ * duration — it was the silence: between the tap and the app coming back the
+ * user got the OS's own blank/splash handoff, which reads as a hang. This
+ * replaces that dead gap with a surface we control. It changes the duration by
+ * zero milliseconds and must never be described as making the restart faster.
+ *
+ * ## Why a spinner and not the logo
+ *
+ * `ReloadScreenOptions` also takes an `image`, and the obvious version — pass
+ * `require('.../splash-icon.png')` — is wrong twice:
+ *
+ *  - **Sizing.** expo-updates resolves a `require()` id with
+ *    `Image.resolveAssetSource`, which reports the asset's PIXEL size (ours is
+ *    1024x1024), and both native reload screens then treat width/height as
+ *    dp/points. That lays the mark out at 1024dp — 3584px on the LG G6 — and
+ *    crops it to the screen.
+ *  - **Motion.** Image and spinner are both centred by the native views
+ *    (`Gravity.CENTER` on Android, centre anchors on iOS), so showing both
+ *    stacks the spinner on top of the mark. Showing the mark alone reproduces
+ *    the launch splash — a still frame, which is the exact thing that reads as
+ *    a hang.
+ *
+ * A moving coral spinner on the app's own canvas says "working" with no
+ * ambiguity, and the familiar logo splash follows a beat later anyway when the
+ * new bundle boots.
+ *
+ * ## Why it takes colours rather than reading them
+ *
+ * ADR-0031 assumed this surface "cannot read `useTheme()` and must be
+ * configured statically", because it renders while the app is not running.
+ * That is true of the `app.json` reload-screen config and false here: the
+ * options are an argument to `reloadAsync`, evaluated in JS a moment BEFORE
+ * the restart, so the live palette is available and a dark-theme user gets a
+ * dark restart instead of a white flash. Pure, so the mapping is testable
+ * without a renderer.
+ */
+export function reloadScreenOptions(colors: ColorTokens): Updates.ReloadScreenOptions {
+  return {
+    backgroundColor: colors.paper,
+    fade: true,
+    spinner: { enabled: true, color: colors.ring, size: 'large' },
+  };
+}
+
 export interface OtaUpdateState {
   /** A new bundle is downloaded and waiting for a reload. */
   pending: boolean;
@@ -45,6 +97,7 @@ export interface OtaUpdateState {
  */
 export function useOtaUpdate(): OtaUpdateState {
   const { isUpdatePending } = Updates.useUpdates();
+  const { colors } = useTheme();
   const [foregroundPending, setForegroundPending] = useState(false);
   const [applying, setApplying] = useState(false);
 
@@ -80,13 +133,13 @@ export function useOtaUpdate(): OtaUpdateState {
     if (!canUpdate) return;
     setApplying(true);
     try {
-      await Updates.reloadAsync();
+      await Updates.reloadAsync({ reloadScreenOptions: reloadScreenOptions(colors) });
     } catch {
       // Reload refused (dev client, or updates disabled). Re-enable the button
       // rather than leaving it stuck in a spinner forever.
       setApplying(false);
     }
-  }, []);
+  }, [colors]);
 
   return {
     pending: canUpdate && (isUpdatePending || foregroundPending),
@@ -305,6 +358,7 @@ export function shouldAutoApplyOta(args: {
  */
 export function useAutoApplyOta(): void {
   const { isUpdatePending, downloadedUpdate, currentlyRunning } = Updates.useUpdates();
+  const { colors } = useTheme();
 
   // True only when a bundle was already waiting as this component first
   // rendered — i.e. it was downloaded by a previous run.
@@ -346,7 +400,7 @@ export function useAutoApplyOta(): void {
       })) return;
       if (target) await AsyncStorage.setItem(ATTEMPT_KEY, target);
       try {
-        await Updates.reloadAsync();
+        await Updates.reloadAsync({ reloadScreenOptions: reloadScreenOptions(colors) });
       } catch {
         // Reload refused (dev client / updates disabled). The banner remains.
       }
@@ -364,5 +418,5 @@ export function useAutoApplyOta(): void {
       alive = false;
       sub.remove();
     };
-  }, [isUpdatePending, downloadedUpdate?.updateId]);
+  }, [isUpdatePending, downloadedUpdate?.updateId, colors]);
 }

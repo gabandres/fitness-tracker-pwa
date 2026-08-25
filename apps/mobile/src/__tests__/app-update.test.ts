@@ -1,4 +1,5 @@
-import { shouldAutoApplyOta, shouldPromptStoreUpdate } from '@/lib/app-update';
+import { reloadScreenOptions, shouldAutoApplyOta, shouldPromptStoreUpdate } from '@/lib/app-update';
+import { palettes } from '@/theme';
 
 // The store-update banner is the half that cannot resolve itself: it sends the
 // user out of the app, so a wrong answer in either direction is expensive. A
@@ -97,5 +98,40 @@ describe('shouldAutoApplyOta', () => {
   it('applies when the target id is unknown but nothing has failed', () => {
     // A rollback UpdateInfo carries no updateId; it is still safe to apply.
     expect(shouldAutoApplyOta({ ...base, targetUpdateId: undefined })).toBe(true);
+  });
+});
+
+// The restart screen (ADR-0031). It is the only thing a user sees for the
+// seconds a `reloadAsync()` process restart takes, and it renders while the JS
+// that configured it is already gone — so the options object is the entire
+// surface and there is nothing to inspect afterwards.
+
+describe('reloadScreenOptions', () => {
+  it('paints the ACTIVE theme, not a fixed colour', () => {
+    // ADR-0031 assumed this had to be configured statically because the screen
+    // outlives the running app. It does not: the options are an argument to
+    // reloadAsync, so a dark-theme user gets a dark restart instead of a white
+    // flash. This test is what keeps that true.
+    expect(reloadScreenOptions(palettes.dark.colors).backgroundColor)
+      .toBe(palettes.dark.colors.paper);
+    expect(reloadScreenOptions(palettes.light.colors).backgroundColor)
+      .toBe(palettes.light.colors.paper);
+    expect(palettes.dark.colors.paper).not.toBe(palettes.light.colors.paper);
+  });
+
+  it('always shows something MOVING', () => {
+    // The reported defect is that the restart reads as a hang. A still frame —
+    // no spinner, or the logo alone — reproduces exactly that, so the spinner
+    // is the load-bearing part and not decoration.
+    for (const scheme of ['light', 'dark'] as const) {
+      expect(reloadScreenOptions(palettes[scheme].colors).spinner?.enabled).toBe(true);
+    }
+  });
+
+  it('carries no image, so nothing can be laid out at 1024dp', () => {
+    // expo-updates resolves a require() id to the asset's PIXEL size and both
+    // native reload screens then read width/height as dp. Our splash icon is
+    // 1024x1024, which is 3584px on the LG G6. See the note on the function.
+    expect(reloadScreenOptions(palettes.dark.colors).image).toBeUndefined();
   });
 });
