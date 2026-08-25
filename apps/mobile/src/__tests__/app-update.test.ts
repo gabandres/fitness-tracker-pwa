@@ -107,16 +107,29 @@ describe('shouldAutoApplyOta', () => {
 // surface and there is nothing to inspect afterwards.
 
 describe('reloadScreenOptions', () => {
-  it('paints the ACTIVE theme, not a fixed colour', () => {
+  it('is read from the palette, not hard-coded', () => {
     // ADR-0031 assumed this had to be configured statically because the screen
     // outlives the running app. It does not: the options are an argument to
-    // reloadAsync, so a dark-theme user gets a dark restart instead of a white
-    // flash. This test is what keeps that true.
-    expect(reloadScreenOptions(palettes.dark.colors).backgroundColor)
-      .toBe(palettes.dark.colors.paper);
-    expect(reloadScreenOptions(palettes.light.colors).backgroundColor)
-      .toBe(palettes.light.colors.paper);
-    expect(palettes.dark.colors.paper).not.toBe(palettes.light.colors.paper);
+    // reloadAsync, so the live palette is available. This test is what keeps
+    // that true even though the token it currently reads happens to be equal
+    // across the two palettes.
+    for (const scheme of ['light', 'dark'] as const) {
+      expect(reloadScreenOptions(palettes[scheme].colors).backgroundColor)
+        .toBe(palettes[scheme].colors.heroPanel);
+      expect(reloadScreenOptions(palettes[scheme].colors).spinner?.color)
+        .toBe(palettes[scheme].colors.ring);
+    }
+  });
+
+  it('never paints the same flat colour as the launch splash', () => {
+    // `app.json`'s splash backgroundColor is #faf9f6, which is ALSO
+    // `light.paper`. Using it here made the screen indistinguishable from the
+    // bare window background in a device capture — a surface nobody can
+    // observe is a surface nobody can verify.
+    for (const scheme of ['light', 'dark'] as const) {
+      expect(reloadScreenOptions(palettes[scheme].colors).backgroundColor)
+        .not.toBe('#faf9f6');
+    }
   });
 
   it('always shows something MOVING', () => {

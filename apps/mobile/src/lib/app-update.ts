@@ -55,9 +55,23 @@ const canUpdate = Updates.isEnabled && !__DEV__;
  *    the launch splash — a still frame, which is the exact thing that reads as
  *    a hang.
  *
- * A moving coral spinner on the app's own canvas says "working" with no
- * ambiguity, and the familiar logo splash follows a beat later anyway when the
- * new bundle boots.
+ * A moving coral spinner says "working" with no ambiguity, and the familiar
+ * logo splash follows a beat later anyway when the new bundle boots.
+ *
+ * ## Why `heroPanel` and not `paper`
+ *
+ * Measured on the LG G6, frame by frame: what paints immediately AFTER a
+ * restart is the app's own dark `BrandLoader`, not the light launch splash —
+ * the splash belongs to a cold process start, and a JS reload does not do one.
+ * `paper` would therefore flash light-then-dark for a dark-theme user, and
+ * `heroPanel` is the one surface ADR-0014 keeps dark in BOTH palettes precisely
+ * so the brand reads identically day or night. It makes the restart continuous
+ * with what follows it rather than with what preceded it.
+ *
+ * It is also the only value that makes this screen OBSERVABLE. `light.paper` is
+ * `#faf9f6`, byte-identical to the splash `backgroundColor` in `app.json`, so a
+ * light flat frame in a capture cannot be told apart from the window background
+ * — which is exactly the ambiguity that made the first two captures unreadable.
  *
  * ## Why it takes colours rather than reading them
  *
@@ -71,7 +85,7 @@ const canUpdate = Updates.isEnabled && !__DEV__;
  */
 export function reloadScreenOptions(colors: ColorTokens): Updates.ReloadScreenOptions {
   return {
-    backgroundColor: colors.paper,
+    backgroundColor: colors.heroPanel,
     fade: true,
     spinner: { enabled: true, color: colors.ring, size: 'large' },
   };
