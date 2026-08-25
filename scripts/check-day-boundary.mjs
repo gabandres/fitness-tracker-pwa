@@ -163,7 +163,7 @@ if (listOnly) {
 // and Q5, which are decisions rather than code. It may only ever go DOWN, and
 // the check fails in BOTH directions — so neither a new site nor a finished
 // conversion can pass unnoticed.
-const BASELINE = 12;
+const BASELINE = 10;
 
 if (total > BASELINE) {
   failed = true;

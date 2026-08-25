@@ -66,10 +66,19 @@ function dayKey(raw: unknown): string | undefined {
 /**
  * Seconds → hours, rounded to the quarter hour.
  *
- * A quarter is what `setDailySleep` stores and what the Health importer's own
- * tolerance uses (`sleep: 0.25`), so rounding here means an Oura-sourced night
- * and a Health-sourced one for the same date compare equal instead of
- * ping-ponging between two values that differ by seconds.
+ * **The quarter is NOT what gets stored, and a comment here claimed it was
+ * until 2026-08-25.** `clampSleepHours` snaps to the HALF hour
+ * (`Math.round(hours * 2) / 2`, `health-mapping.ts`), so an Oura night of
+ * 7h45m quarter-rounds to 7.75 here and is then stored as 8.0. This step is
+ * therefore precision that never survives the write.
+ *
+ * It is kept anyway, and the real reason is the weaker one: it collapses the
+ * seconds, so two sources reporting the same night agree *before* the clamp
+ * rather than relying on the clamp to agree for them. The equality the old
+ * comment claimed does hold — both paths land on halves — but it is
+ * `clampSleepHours` that makes it hold, not this function. Do not "fix" the
+ * Health importer's `sleep: 0.25` tolerance to match this; that tolerance is
+ * compared against stored values, which are halves.
  */
 export function sleepSecondsToHours(seconds: unknown): number | undefined {
   const s = positive(seconds);

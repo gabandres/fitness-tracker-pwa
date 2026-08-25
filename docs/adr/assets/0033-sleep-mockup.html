@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ADR-0033 — Sleep on Trends, mockup</title>
+<style>
+/*
+  ADR-0033 mockup. Static. No frameworks, no external assets.
+
+  Palette values are copied VERBATIM from apps/mobile/src/theme.ts (light
+  "Frost" / dark "Ember"). Type sizes are the real `font` scale. Spacing is the
+  real `space` scale, radii the real `radius` scale.
+
+  One substitution, and it is the only one: `type.display`
+  (Manrope_800ExtraBold) and `type.heading` (Manrope_700Bold) are not loadable
+  here without an external asset, so the display voice is rendered as a system
+  stack at weight 800/700. Everything the ADR argues about — hierarchy,
+  contrast, density at 360x720dp — survives the substitution.
+*/
+
+/* ── light: apps/mobile/src/theme.ts `light` ─────────────────── */
+.ph.light {
+  --paper:#faf9f6; --card:#f4f2ee; --ink:#1c1917; --muted:#57534e;
+  --faint:#a8a29e; --line:#e7e5e2; --accent:#c62f27; --ring:#ff6a3d;
+  --teal:#0f766e; --info:#0d74ce; --danger:#dc2626; --onInk:#ffffff;
+  --heroPanel:#161412; --heroTrack:#2e2a25; --heroText:#f3f1ec; --heroMuted:#a39c91;
+  --shadow:0 2px 8px rgba(28,25,23,.05);
+}
+/* ── dark: apps/mobile/src/theme.ts `dark` ───────────────────── */
+.ph.dark {
+  --paper:#131210; --card:#1d1b18; --ink:#f3f1ec; --muted:#b3ada3;
+  --faint:#7c766c; --line:#2b2822; --accent:#ff8a5c; --ring:#ff6a3d;
+  --teal:#3fd6c0; --info:#70b8ff; --danger:#f2555a; --onInk:#131210;
+  --heroPanel:#161412; --heroTrack:#2e2a25; --heroText:#f3f1ec; --heroMuted:#a39c91;
+  --shadow:0 2px 8px rgba(0,0,0,.35);
+}
+
+* { box-sizing:border-box; margin:0; padding:0; }
+
+body {
+  background:#e9e7e2;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  color:#1c1917;
+  padding:28px;
+}
+h1 { font-size:20px; font-weight:800; letter-spacing:-.2px; }
+.lede { font-size:13px; color:#57534e; max-width:780px; margin-top:6px; line-height:1.5; }
+.grid { display:grid; grid-template-columns:360px 360px; gap:20px 24px; margin-top:26px; width:max-content; }
+.colhead { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.8px; color:#78716c; }
+.statehead { grid-column:1 / -1; margin-top:14px; font-size:13px; font-weight:800; color:#1c1917; }
+.statehead span { font-weight:400; color:#57534e; }
+
+/* ── the phone: 360 x 720 dp, 1dp = 1px here ─────────────────── */
+.ph {
+  width:360px; height:720px; overflow:hidden; position:relative;
+  background:var(--paper); color:var(--ink);
+  border-radius:18px; border:1px solid #d6d3cd;
+  font-size:17px; /* font.body */
+}
+.scroll { padding:24px; } /* space.xl */
+
+/* header row (title uses font.h1 = 30, type.display) */
+.hdr { display:flex; align-items:center; justify-content:space-between; padding:12px 24px 0; }
+.hdr .t { font-size:30px; font-weight:800; letter-spacing:-.4px; }
+.hdr .r { display:flex; gap:12px; align-items:center; color:var(--muted); }
+.avatar { width:28px; height:28px; border-radius:999px; background:var(--line); }
+.qmark { width:24px; height:24px; border-radius:999px; border:1.6px solid var(--muted); font-size:14px;
+         display:flex; align-items:center; justify-content:center; color:var(--muted); font-weight:700; }
+
+/* section eyebrow — font.small 14 / 700 / uppercase / ls .5 */
+.section { font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:.5px;
+           color:var(--muted); margin:16px 0 4px; }
+.section:first-of-type { margin-top:0; }
+
+/* card — radius.lg 16, border 1 line, padding space.lg 16 */
+.card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; }
+.kv { display:flex; align-items:center; justify-content:space-between; padding:2px 0; }
+.kv .k { font-size:17px; color:var(--muted); }
+.kv .v { font-size:17px; color:var(--ink); font-weight:700; }
+.divider { height:1px; background:var(--line); margin:8px 0; }
+
+/* the Weekly Budget card above it, abbreviated — proves continuity */
+.barstrip { display:flex; align-items:flex-end; justify-content:space-between; height:72px; margin:6px 0; }
+.barcol { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; }
+.bartrack { width:55%; height:56px; border-radius:8px; background:var(--line);
+            display:flex; align-items:flex-end; overflow:hidden; }
+.barfill { width:100%; border-radius:8px; background:var(--ring); }
+.barday { font-size:12px; color:var(--faint); text-transform:uppercase; }
+
+/* ── the sleep card ──────────────────────────────────────────── */
+.sleepHead { display:flex; align-items:flex-end; gap:8px; }
+.sleepVal { font-size:30px; font-weight:800; line-height:1.05; letter-spacing:-.5px; color:var(--ink); }
+.sleepCap { font-size:14px; color:var(--muted); padding-bottom:3px; }
+
+/* nights strip: 14 columns, height ∝ hours, missing = a baseline dash */
+.nights { position:relative; height:84px; margin:12px 0 0; }
+.nightrow { display:flex; align-items:flex-end; gap:3px; height:64px; }
+.ncol { flex:1; height:100%; display:flex; align-items:flex-end; }
+.nbar { width:100%; border-radius:4px 4px 2px 2px; background:var(--faint); }
+.nbar.short { background:var(--info); }
+.nbar.gap { height:3px !important; background:var(--faint); opacity:.5; border-radius:2px; }
+/* the reference line is the USER'S OWN average — never an 8h prescription */
+.avgline { position:absolute; left:0; right:0; border-top:1px dashed var(--faint); opacity:.7; }
+.legend { font-size:12px; color:var(--faint); margin-top:2px; display:flex; align-items:center; gap:6px; }
+.legend i { width:16px; border-top:1px dashed var(--faint); opacity:.7; display:inline-block; }
+.ndays { display:flex; gap:3px; margin-top:6px; }
+.ndays span { flex:1; text-align:center; font-size:12px; color:var(--faint); text-transform:uppercase; }
+
+.claim { font-size:17px; line-height:1.35; color:var(--ink); }
+.claim b { font-weight:700; }
+.qualify { font-size:14px; line-height:1.35; color:var(--muted); margin-top:4px; }
+.foot { font-size:12px; color:var(--faint); }
+.progress { font-size:14px; color:var(--muted); line-height:1.35; }
+
+/* no-data: a ROW, not a card */
+.linkrow { display:flex; align-items:center; gap:10px; padding:12px 4px; }
+.linkrow .lbl { flex:1; font-size:14px; color:var(--muted); }
+.linkrow .lbl b { color:var(--ink); font-weight:700; }
+.chev { color:var(--faint); font-size:15px; }
+.hairline { height:1px; background:var(--line); }
+
+.note { grid-column:1 / -1; font-size:12px; color:#57534e; line-height:1.55; max-width:744px;
+        background:#f4f2ee; border:1px solid #dedbd5; border-radius:10px; padding:10px 12px; }
+.note code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; }
+</style>
+</head>
+<body>
+
+<h1>ADR-0033 &mdash; Sleep on the Trends tab</h1>
+<p class="lede">
+  Rendered at <b>360&times;720&nbsp;dp</b>, the LG&nbsp;G6 test device's logical screen &mdash; so what you see is
+  what fits without scrolling. The Weekly&nbsp;Budget card is drawn above the sleep card in every frame, because
+  the proposal is that sleep sits <i>directly below</i> it. Palette hex values are copied verbatim from
+  <code>apps/mobile/src/theme.ts</code>. Dark leads (ADR-0014).
+</p>
+
+<div class="grid">
+
+  <div class="colhead">Light &mdash; &ldquo;Frost&rdquo;</div>
+  <div class="colhead">Dark &mdash; &ldquo;Ember&rdquo; (leads)</div>
+
+  <!-- ═══════════ STATE 1: RICH ═══════════ -->
+  <div class="statehead">State 1 &mdash; enough evidence <span>&middot; 13 of the last 14 nights, all of those days fully logged. The one sentence appears.</span></div>
+
+  <!-- LIGHT -->
+  <div class="ph light">
+    <div class="hdr">
+      <div class="t">Trends</div>
+      <div class="r"><div class="qmark">?</div><div class="avatar"></div></div>
+    </div>
+    <div class="scroll">
+      <div class="section">Weekly budget</div>
+      <div class="card">
+        <div class="kv"><span class="k">Used</span><span class="v">14,820 / 17,150</span></div>
+        <div class="barstrip">
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:62%"></div></div><div class="barday">M</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:71%"></div></div><div class="barday">T</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:55%"></div></div><div class="barday">W</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:83%"></div></div><div class="barday">T</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:68%"></div></div><div class="barday">F</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:44%;opacity:.3"></div></div><div class="barday">S</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:0%;opacity:.3"></div></div><div class="barday">S</div></div>
+        </div>
+      </div>
+
+      <div class="section">Sleep</div>
+      <div class="card">
+        <div class="sleepHead">
+          <div class="sleepVal">6h 39m</div>
+          <div class="sleepCap">a night, last 14</div>
+        </div>
+
+        <div class="nights">
+          <div class="nightrow">
+            <div class="ncol"><div class="nbar" style="height:70%"></div></div>
+            <div class="ncol"><div class="nbar" style="height:65%"></div></div>
+            <div class="ncol"><div class="nbar short" style="height:55%"></div></div>
+            <div class="ncol"><div class="nbar" style="height:75%"></div></div>
+            <div class="ncol"><div class="nbar short" style="height:60%"></div></div>
+            <div class="ncol"><div class="nbar" style="height:80%"></div></div>
+            <div class="ncol"><div class="nbar" style="height:75%"></div></div>
+            <div class="ncol"><div class="nbar short" style="height:50%"></div></div>
+            <div class="ncol"><div class="nbar gap"></div></div>
+            <div class="ncol"><div class="nbar short" style="height:55%"></div></div>
+            <div class="ncol"><div class="nbar" style="height:70%"></div></div>
+            <div class="ncol"><div class="nbar" style="height:65%"></div></div>
+            <div class="ncol"><div class="nbar" style="height:85%"></div></div>
+            <div class="ncol"><div class="nbar short" style="height:60%"></div></div>
+          </div>
+          <!-- 6.65h of a 10h ceiling = 66.5% of the 64px track -->
+          <div class="avgline" style="top:21px"></div>
+          <div class="ndays">
+            <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+            <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+          </div>
+        </div>
+        <div class="legend"><i></i> your average &middot; gaps are nights with no reading</div>
+
+        <div class="divider"></div>
+        <p class="claim">On your <b>5 shortest nights</b> you logged <b>2,410 kcal</b> &mdash; <b>260 more</b> than on your 6 longest.</p>
+        <p class="qualify">Your own days, side by side. A pattern, not a proof.</p>
+        <div class="divider"></div>
+        <div class="foot">13 of 14 nights &middot; imported</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DARK -->
+  <div class="ph dark">
+    <div class="hdr">
+      <div class="t">Trends</div>
+      <div class="r"><div class="qmark">?</div><div class="avatar"></div></div>
+    </div>
+    <div class="scroll">
+      <div class="section">Weekly budget</div>
+      <div class="card">
+        <div class="kv"><span class="k">Used</span><span class="v">14,820 / 17,150</span></div>
+        <div class="barstrip">
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:62%"></div></div><div class="barday">M</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:71%"></div></div><div class="barday">T</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:55%"></div></div><div class="barday">W</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:83%"></div></div><div class="barday">T</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:68%"></div></div><div class="barday">F</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:44%;opacity:.3"></div></div><div class="barday">S</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:0%;opacity:.3"></div></div><div class="barday">S</div></div>
+        </div>
+      </div>
+
+      <div class="section">Sleep</div>
+      <div class="card">
+        <div class="sleepHead">
+          <div class="sleepVal">6h 39m</div>
+          <div class="sleepCap">a night, last 14</div>
+        </div>
+
+        <div class="nights">
+          <div class="nightrow">
+            <div class="ncol"><div class="nbar" style="height:70%"></div></div>
+            <div class="ncol"><div class="nbar" style="height:65%"></div></div>
+            <div class="ncol"><div class="nbar short" style="height:55%"></div></div>
+            <div class="ncol"><div class="nbar" style="height:75%"></div></div>
+            <div class="ncol"><div class="nbar short" style="height:60%"></div></div>
+            <div class="ncol"><div class="nbar" style="height:80%"></div></div>
+            <div class="ncol"><div class="nbar" style="height:75%"></div></div>
+            <div class="ncol"><div class="nbar short" style="height:50%"></div></div>
+            <div class="ncol"><div class="nbar gap"></div></div>
+            <div class="ncol"><div class="nbar short" style="height:55%"></div></div>
+            <div class="ncol"><div class="nbar" style="height:70%"></div></div>
+            <div class="ncol"><div class="nbar" style="height:65%"></div></div>
+            <div class="ncol"><div class="nbar" style="height:85%"></div></div>
+            <div class="ncol"><div class="nbar short" style="height:60%"></div></div>
+          </div>
+          <div class="avgline" style="top:21px"></div>
+          <div class="ndays">
+            <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+            <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+          </div>
+        </div>
+        <div class="legend"><i></i> your average &middot; gaps are nights with no reading</div>
+
+        <div class="divider"></div>
+        <p class="claim">On your <b>5 shortest nights</b> you logged <b>2,410 kcal</b> &mdash; <b>260 more</b> than on your 6 longest.</p>
+        <p class="qualify">Your own days, side by side. A pattern, not a proof.</p>
+        <div class="divider"></div>
+        <div class="foot">13 of 14 nights &middot; imported</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>Why the highlighted bars are the argument.</b> The five <span style="color:#0d74ce;font-weight:700">blue</span> bars
+    are <i>exactly</i> the nights the sentence is about, so the visual is not decoration next to a claim &mdash; it is the claim,
+    drawn. The dashed line is the user's <b>own</b> average, never an 8-hour prescription: Ignia has no authority to tell
+    anyone how long to sleep. The gap on night 9 is a missing night; it is drawn as a hairline, never as a zero and never
+    interpolated. The big number is a duration, never a score.
+  </div>
+
+  <!-- ═══════════ STATE 2: SPARSE ═══════════ -->
+  <div class="statehead">State 2 &mdash; some nights, not enough <span>&middot; 5 of 14. The average is a fact and is shown. The comparison is not, and the card says exactly what is missing.</span></div>
+
+  <!-- LIGHT -->
+  <div class="ph light">
+    <div class="hdr">
+      <div class="t">Trends</div>
+      <div class="r"><div class="qmark">?</div><div class="avatar"></div></div>
+    </div>
+    <div class="scroll">
+      <div class="section">Weekly budget</div>
+      <div class="card">
+        <div class="kv"><span class="k">Used</span><span class="v">9,140 / 17,150</span></div>
+        <div class="barstrip">
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:58%"></div></div><div class="barday">M</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:66%"></div></div><div class="barday">T</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:0%"></div></div><div class="barday">W</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:74%"></div></div><div class="barday">T</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:61%;opacity:.3"></div></div><div class="barday">F</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:0%;opacity:.3"></div></div><div class="barday">S</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:0%;opacity:.3"></div></div><div class="barday">S</div></div>
+        </div>
+      </div>
+
+      <div class="section">Sleep</div>
+      <div class="card">
+        <div class="sleepHead">
+          <div class="sleepVal">6h 30m</div>
+          <div class="sleepCap">a night, 5 nights</div>
+        </div>
+
+        <div class="nights">
+          <div class="nightrow">
+            <div class="ncol"><div class="nbar gap"></div></div>
+            <div class="ncol"><div class="nbar" style="height:65%"></div></div>
+            <div class="ncol"><div class="nbar gap"></div></div>
+            <div class="ncol"><div class="nbar" style="height:70%"></div></div>
+            <div class="ncol"><div class="nbar gap"></div></div>
+            <div class="ncol"><div class="nbar gap"></div></div>
+            <div class="ncol"><div class="nbar" style="height:55%"></div></div>
+            <div class="ncol"><div class="nbar gap"></div></div>
+            <div class="ncol"><div class="nbar" style="height:75%"></div></div>
+            <div class="ncol"><div class="nbar gap"></div></div>
+            <div class="ncol"><div class="nbar" style="height:60%"></div></div>
+            <div class="ncol"><div class="nbar gap"></div></div>
+            <div class="ncol"><div class="nbar gap"></div></div>
+            <div class="ncol"><div class="nbar gap"></div></div>
+          </div>
+          <div class="avgline" style="top:23px"></div>
+          <div class="ndays">
+            <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+            <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+          </div>
+        </div>
+        <div class="legend"><i></i> your average &middot; gaps are nights with no reading</div>
+
+        <div class="divider"></div>
+        <p class="progress">5 nights so far. At 14, Ignia will line your shorter nights up against what you ate on those days.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- DARK -->
+  <div class="ph dark">
+    <div class="hdr">
+      <div class="t">Trends</div>
+      <div class="r"><div class="qmark">?</div><div class="avatar"></div></div>
+    </div>
+    <div class="scroll">
+      <div class="section">Weekly budget</div>
+      <div class="card">
+        <div class="kv"><span class="k">Used</span><span class="v">9,140 / 17,150</span></div>
+        <div class="barstrip">
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:58%"></div></div><div class="barday">M</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:66%"></div></div><div class="barday">T</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:0%"></div></div><div class="barday">W</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:74%"></div></div><div class="barday">T</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:61%;opacity:.3"></div></div><div class="barday">F</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:0%;opacity:.3"></div></div><div class="barday">S</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:0%;opacity:.3"></div></div><div class="barday">S</div></div>
+        </div>
+      </div>
+
+      <div class="section">Sleep</div>
+      <div class="card">
+        <div class="sleepHead">
+          <div class="sleepVal">6h 30m</div>
+          <div class="sleepCap">a night, 5 nights</div>
+        </div>
+
+        <div class="nights">
+          <div class="nightrow">
+            <div class="ncol"><div class="nbar gap"></div></div>
+            <div class="ncol"><div class="nbar" style="height:65%"></div></div>
+            <div class="ncol"><div class="nbar gap"></div></div>
+            <div class="ncol"><div class="nbar" style="height:70%"></div></div>
+            <div class="ncol"><div class="nbar gap"></div></div>
+            <div class="ncol"><div class="nbar gap"></div></div>
+            <div class="ncol"><div class="nbar" style="height:55%"></div></div>
+            <div class="ncol"><div class="nbar gap"></div></div>
+            <div class="ncol"><div class="nbar" style="height:75%"></div></div>
+            <div class="ncol"><div class="nbar gap"></div></div>
+            <div class="ncol"><div class="nbar" style="height:60%"></div></div>
+            <div class="ncol"><div class="nbar gap"></div></div>
+            <div class="ncol"><div class="nbar gap"></div></div>
+            <div class="ncol"><div class="nbar gap"></div></div>
+          </div>
+          <div class="avgline" style="top:23px"></div>
+          <div class="ndays">
+            <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+            <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+          </div>
+        </div>
+        <div class="legend"><i></i> your average &middot; gaps are nights with no reading</div>
+
+        <div class="divider"></div>
+        <p class="progress">5 nights so far. At 14, Ignia will line your shorter nights up against what you ate on those days.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>The card does not appear and disappear.</b> From the third night onward the card is there, with the same
+    headline and the same strip; what arrives at the evidence bar is <i>one sentence</i>. That is the closest a binary
+    claim gets to <code>measuredConfidence</code>'s ramp &mdash; the layout does not jump, only the content changes.
+    The progress line names the exact threshold, the way <code>activity.windowProgress</code> already does on this
+    same screen.
+  </div>
+
+  <!-- ═══════════ STATE 3: NOTHING ═══════════ -->
+  <div class="statehead">State 3 &mdash; no sleep data at all <span>&middot; the majority of users. There is no card. There is one line, and it says something true.</span></div>
+
+  <!-- LIGHT -->
+  <div class="ph light">
+    <div class="hdr">
+      <div class="t">Trends</div>
+      <div class="r"><div class="qmark">?</div><div class="avatar"></div></div>
+    </div>
+    <div class="scroll">
+      <div class="section">Weekly budget</div>
+      <div class="card">
+        <div class="kv"><span class="k">Used</span><span class="v">11,300 / 17,150</span></div>
+        <div class="barstrip">
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:60%"></div></div><div class="barday">M</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:72%"></div></div><div class="barday">T</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:64%"></div></div><div class="barday">W</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:79%"></div></div><div class="barday">T</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:52%;opacity:.3"></div></div><div class="barday">F</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:0%;opacity:.3"></div></div><div class="barday">S</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:0%;opacity:.3"></div></div><div class="barday">S</div></div>
+        </div>
+        <div class="divider"></div>
+        <div class="kv"><span class="k">Left this week</span><span class="v" style="color:var(--accent)">5,850 kcal</span></div>
+      </div>
+
+      <!-- no section header, no card: one row -->
+      <div class="hairline" style="margin-top:20px"></div>
+      <div class="linkrow">
+        <div class="lbl"><b>Sleep</b> &middot; connect Oura or Apple Health, or log a night on Today</div>
+        <div class="chev">&rsaquo;</div>
+      </div>
+      <div class="hairline"></div>
+
+      <div class="section" style="margin-top:20px">Coach</div>
+      <div class="card" style="display:flex;align-items:center;gap:12px">
+        <div style="width:38px;height:38px;border-radius:12px;background:var(--ink)"></div>
+        <div style="flex:1"><div style="font-weight:700">Ask the coach</div>
+        <div style="font-size:14px;color:var(--muted)">Your numbers, explained</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DARK -->
+  <div class="ph dark">
+    <div class="hdr">
+      <div class="t">Trends</div>
+      <div class="r"><div class="qmark">?</div><div class="avatar"></div></div>
+    </div>
+    <div class="scroll">
+      <div class="section">Weekly budget</div>
+      <div class="card">
+        <div class="kv"><span class="k">Used</span><span class="v">11,300 / 17,150</span></div>
+        <div class="barstrip">
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:60%"></div></div><div class="barday">M</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:72%"></div></div><div class="barday">T</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:64%"></div></div><div class="barday">W</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:79%"></div></div><div class="barday">T</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:52%;opacity:.3"></div></div><div class="barday">F</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:0%;opacity:.3"></div></div><div class="barday">S</div></div>
+          <div class="barcol"><div class="bartrack"><div class="barfill" style="height:0%;opacity:.3"></div></div><div class="barday">S</div></div>
+        </div>
+        <div class="divider"></div>
+        <div class="kv"><span class="k">Left this week</span><span class="v" style="color:var(--accent)">5,850 kcal</span></div>
+      </div>
+
+      <div class="hairline" style="margin-top:20px"></div>
+      <div class="linkrow">
+        <div class="lbl"><b>Sleep</b> &middot; connected to Oura &mdash; no nights yet</div>
+        <div class="chev">&rsaquo;</div>
+      </div>
+      <div class="hairline"></div>
+
+      <div class="section" style="margin-top:20px">Coach</div>
+      <div class="card" style="display:flex;align-items:center;gap:12px">
+        <div style="width:38px;height:38px;border-radius:12px;background:var(--ink)"></div>
+        <div style="flex:1"><div style="font-weight:700">Ask the coach</div>
+        <div style="font-size:14px;color:var(--muted)">Your numbers, explained</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>The two frames above are the two different no-data truths</b>, and the difference is the point (ADR-0026's
+    empty-state rule). <i>Left:</i> nothing is connected &mdash; the row is an invitation. <i>Right:</i> a source IS
+    connected and has produced nothing, which is a fact about the integration, not about the user's sleep, and Ignia
+    must say so rather than showing an empty chart. Neither is a card, neither has a section header, and both are one
+    line tall &mdash; a permanently-empty widget on a screen this dense is the &ldquo;generic dashboard&rdquo; failure.
+  </div>
+
+</div>
+</body>
+</html>

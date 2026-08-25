@@ -285,7 +285,7 @@ per-hook subscription model is untouched.
 
 ### What is left, and it is exactly Q4 and Q5
 
-`npm run check:day-boundary` sits at **12 calls in 4 files**, and the ratchet
+`npm run check:day-boundary` sits at **10 calls in 3 files**, and the ratchet
 now fails in both directions. All 12 are blocked on a decision:
 
 - **Q4 (widget/watch)** — `widgets/render.tsx` and `useWidgetSync` render with
