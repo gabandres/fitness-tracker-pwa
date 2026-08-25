@@ -103,8 +103,17 @@ There are **two** ceilings, not one: a **30/month account total** and a
 **15/month per-platform** sub-cap. The account total runs out first if the two
 platforms are used unevenly.
 
-**iOS 11/15, Android 6/15 for the 2026-08-01 → 2026-09-01 period** (17/30 on the
-account total), read from the API on 2026-08-18. Android did not move on
+**iOS 13/15, Android 6/15 for the 2026-08-01 → 2026-09-01 period** (19/30 on the
+account total), read from the API on 2026-08-25 — 7 days left in the period.
+**No build of either platform has been created since 2026-08-10**, so the local
+hosts are doing exactly what they were adopted for; the 87% on iOS is spend from
+the first ten days of the month, not ongoing consumption. Two caveats worth
+keeping. **The counter moved 11 → 13 with no new builds**, so it either lags or
+the 08-18 reading was wrong — do not treat a rising number as evidence that
+something built. And **the two sources disagree on the split**: `build:list`
+says iOS 12 / Android 7 for this period while `account:usage` says iOS 13 /
+Android 6. The totals agree at 19; only the attribution differs, and
+`account:usage` is the one that bills. Android did not move on
 2026-08-18 despite shipping vc 34, and iOS did not move for any of the six
 builds that day either — all of them were LOCAL (`expo run:ios`, raw Gradle),
 which is the whole point of the local hosts. `eas submit` costs no quota. `npm run doctor` audits this
