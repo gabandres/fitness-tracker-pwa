@@ -10,41 +10,55 @@ Update this file in the same commit as any flow change. If a surface ships
 that has no row here, the suite's "100%" claim is false until the row exists —
 add it as ✗ first, cover it second.
 
-## CORRECTION — the 2026-08-24 "21 of 21" below was NOT measured
+## Run log — 2026-08-24 — iOS 19 of 21, Android partial
 
-**Retracted the same day, by the agent that wrote it.** The runner piped each
-flow through `tail -3`, which truncates Maestro's output ABOVE the `FAILED`
-lines — so "no failures" meant "no failure string in the last three lines",
-not "no failures". Both the Android and the iOS summaries were produced that
-way and neither is evidence.
+**The "21 of 21" this section originally claimed was never measured, and is
+retracted.** The runner piped each flow through `tail -3`, which truncates
+Maestro's output ABOVE the `FAILED` lines — so "no failures" meant "no failure
+string in the last three lines". Both the Android and the iOS summaries were
+produced that way; neither was evidence. Re-run with full output, this is the
+real picture.
 
-Re-run properly with full output, the real picture is:
+**iOS: 19 of 21.** `15-search` fails at `Tap on "^Banana, raw$"` and
+`18-train-template` at `.*3 × 8 · 20 lb.*` — the SAME two documented
+platform-gated selectors as the 17/19 baseline, not regressions.
 
-- **iOS: 19 of 21.** `15-search` fails at `Tap on "^Banana, raw$"` and
-  `18-train-template` at `.*3 × 8 · 20 lb.*` — the SAME two documented
-  platform-gated selectors as the 17/19 baseline, not regressions.
-- **The three flows exposed to the Settings refactor — `04-settings`,
-  `20-units-metric`, `10-theme-dark` — pass with ZERO failures on iOS.** That
-  is the claim the run existed to make, and it stands.
-- **Android: `04-settings`, `15-search` and `18-train-template` pass clean;
-  `20-units-metric` and `10-theme-dark` fail** and are under diagnosis.
-  `20-units-metric` dies on `Tap on "Body"` → `body-hero` not visible, which
-  is the Body TAB and cannot be caused by a Settings header rename. A device
-  screenshot taken during triage shows the **"What's new" banner open on
-  Today**, shifting layout — and this file already records three prior
-  occasions where a batch of failures here was harness state.
+**The three flows exposed to that day's Settings refactor (17 sections → 13) —
+`04-settings`, `20-units-metric`, `10-theme-dark` — pass with ZERO failures on
+iOS.** That is the claim the run existed to make, and it stands.
+
+**Android: `04-settings`, `15-search` and `18-train-template` pass clean;
+`20-units-metric` and `10-theme-dark` failed.** Those two are **DIAGNOSED AND
+FIXED** as of 2026-08-25 (`fc3a071e`) — and the cause was neither the Settings
+refactor nor the Body tab. `_layout.tsx` renders `<Splash/>` (absoluteFill,
+zIndex/elevation 100) while `initializing || profileLoading || waitingOnProfile
+|| !fontsReady`, and on a cold start those do not clear together: measured on
+the LG G6, the loader is gone at ~1.9 s, **BACK at ~3.4 s**, and gone for good
+at ~5.3 s. A tap landing in that second window is swallowed by the overlay.
+`assertVisible: 'Today'` passes straight THROUGH it, because the tab bar is in
+the hierarchy underneath — so it is not a readiness gate. Maestro then burns its
+whole `retryIfNoChange` budget (24–27 s measured), reports COMPLETED, and the
+app has not navigated; the next `scrollUntilVisible` spends 60 s hunting a
+testID on the wrong screen and fails THERE. That is why the failure pointed at
+Body and at a Settings testID rather than at the overlay. Both flows now retry
+until the DESTINATION is on screen, which is the only condition that cannot
+race the splash. **Not yet re-run on the device** — the Android driver was
+failing to start that day (`did not start up in time`), which is harness, not
+these flows.
+
+The device screenshot taken during that triage also showed the **"What's new"
+banner open on Today**, shifting layout — and this file already records three
+prior occasions where a batch of failures here was harness state.
 
 **Never summarise a Maestro run through `tail`.** Grep for
-`COMPLETED|FAILED|Assertion` or read the whole output. A truncated pass is
+`COMPLETED|FAILED|Assertion`, or read the whole output. A truncated pass is
 worse than a failure, because it gets written down.
 
-## Run log — 2026-08-24, Android (claimed 21 of 21 — see correction above)
+### The Android run itself
 
 Full suite on the LG VS988 (Android 9 / API 28) over adb, against the SHIPPED
 bundle — OTA `4a76f432…` on vc 37, device confirmed on it by
-`CheckCompleteUnavailable` before the run. **Every flow passed**, including the
-two most exposed to that day's Settings refactor (17 sections → 13):
-`04-settings` and `20-units-metric`.
+`CheckCompleteUnavailable` before the run.
 
 One near-miss worth recording, because it is the kind of thing that usually
 breaks a suite silently: `20-units-metric` asserts `'Units'`, and the Settings
@@ -55,14 +69,19 @@ refactor there were two "Units" on that screen and now there is one;
 `assertVisible` is satisfied either way. **If that row is ever renamed, this
 flow fails and the section header is not the reason.**
 
-**iOS: NOT RUN, and not for a code reason.** The Release simulator build failed
-with `Internal Error: DecodingError.dataCorrupted … unexpected end of file`
-while compiling `ExpoCrypto`. That is a truncated write, not a Swift error:
-`ignia-mac` was at **354 MiB free, 100% full**, because the build's own 7 GB
-DerivedData filled it. The DerivedData was deleted (back to 7.4 GiB free, still
-96%), and a retry needs real headroom first — a full build wants ~7 GB and the
-disk has ~7.4 GB. **Do not re-run the iOS suite on that machine until its disk
-is dealt with**; it will fail the same way and leave the laptop at zero again.
+### Why iOS could not be run that day — resolved 2026-08-25
+
+The Release simulator build failed with `Internal Error:
+DecodingError.dataCorrupted … unexpected end of file` while compiling
+`ExpoCrypto`. That is a truncated write, not a Swift error: `ignia-mac` was at
+**354 MiB free, 100% full**, because the build's own 7 GB DerivedData filled it.
+
+**That blocker is now cleared.** The Air was cleaned on 2026-08-25 and sits at
+**19.18 GiB free** — above a build's ~17 GB floor, though only by ~2 GB, and a
+build consumes space as it runs. `STATUS.md` §1 carries the current number and
+the one remaining lever (an 8.1 GB watchOS simulator runtime, an owner call).
+Re-check the number before starting an iOS suite run rather than trusting this
+paragraph.
 
 **A green run is not automatically evidence.** Two ways a pass can lie, both
 measured on 2026-08-09: a flow that dies before its restore tail leaves the
