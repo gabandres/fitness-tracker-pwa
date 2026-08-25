@@ -1,6 +1,6 @@
 # ADR-0030: When does a day start?
 
-- **Status:** proposed — scoped, not built. The next session's work.
+- **Status:** **partly built (2026-08-25)** — the core derivation exists and is tested. Nothing is wired to it yet, and there is no setting.
 - **Date:** 2026-08-24
 - **Touches:** every `dateKey` derivation, the TDEE estimator, fasting, the Health/Oura importers, the widget and the watch
 
@@ -99,3 +99,61 @@ derivation and its tests, then the estimator, then the UI. Shipping the toggle
 before the derivation is unified would give users a switch that fixes Today and
 leaves the estimator wrong — which is the worst of the available outcomes,
 because it would look fixed.
+
+
+## Amendment 1 — the derivation is built, and Q2's answer changed (2026-08-25)
+
+`packages/core/src/day-boundary.ts`, 17 tests. This is deliberately the *only*
+thing built: ADR-0030's own recommendation is that shipping the toggle before
+the derivation is unified is the worst available outcome, because it fixes Today
+and leaves the estimator wrong while looking fixed.
+
+### Q2 — "does it rewrite history?" — answered differently to the proposal
+
+The ADR proposed forward-only and concluded that would force the boundary to be
+stored **per day**, "or history silently reinterprets itself". That conclusion
+does not hold, and per-day storage is not the cheapest correct answer.
+
+A day boundary is a **temporal setting** — a value with a validity range — so it
+is stored as the short list of times it changed:
+
+```ts
+type DayBoundary = readonly { from: DateKey; hour: number }[]
+```
+
+One profile field, nothing written onto day documents, and past days keep the
+boundary they were logged under because the rule that governed them is still on
+file. An account that never touches the setting stores an empty list, and
+`dayKeyAt(d, MIDNIGHT)` is asserted to equal `localDateKey(d)` at every hour of a
+day — which is what lets the ~155 existing call sites migrate without changing
+one answer for anybody.
+
+### The transition is not free, and the shape of the cost is now pinned
+
+Moving the boundary 0 → 3 on day D cannot push D's 00:00–03:00 instants back
+onto D−1: that day is closed, already estimated, already seen. So **the
+changeover window keeps the old rule** and day D runs 27 hours. Lowering the
+boundary is the mirror image — the day *before* the change is short (19 hours
+for 5 → 2). In both directions the mapping stays a partition of the timeline,
+and there is a test that sweeps every hour across a change asserting exactly
+that: no instant lost, none counted twice, no earlier day moved.
+
+That partition test earned its place immediately: the first `dayRange` derived a
+day's start from the hour in force on that day, which disagreed with `dayKeyAt`
+on the changeover day and left an instant outside the range of its own day. The
+test caught it before anything consumed it.
+
+### What is NOT done, in the order it should be picked up
+
+1. **Nothing calls it.** `dayKeyAt` has no consumers; `localDateKey` is still
+   reachable and still used in ~155 places. Q3 ("the current implicit local
+   midnight must stop being reachable") is unaddressed — that is a codemod plus
+   a lint rule, not a decision.
+2. **The estimator.** The reason this ADR exists. It must bucket intake with
+   `dayKeyAt` before any user can move their boundary, or the differentiator is
+   fed a step change the first time someone does.
+3. **Persistence.** No `ProfileFields` entry, no `firestore.rules` validation, no
+   mapper. Rules must be deployed before any client writes the field.
+4. **The setting.** Last, and only after 1–3.
+5. **Q4 (widget/watch) and Q5 (importers) are still open.** Both are decisions,
+   not code, and neither is blocked by anything above.

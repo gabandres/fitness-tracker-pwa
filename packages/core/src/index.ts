@@ -17,6 +17,7 @@
 export * from './types';
 export * from './unit-system';
 export * from './date';
+export * from './day-boundary';
 export * from './tier-limits';
 
 // ──────────────────────────── Logging ────────────────────────────
