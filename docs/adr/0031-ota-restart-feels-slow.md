@@ -1,6 +1,6 @@
 # ADR-0031: The OTA restart cannot be instant, so stop pretending and cover it
 
-- **Status:** proposed — measurement first, then one small change
+- **Status:** **accepted for A and B** (shipped 2026-08-24). **C remains held**, on the measurement below that does not exist yet.
 - **Date:** 2026-08-24
 - **Reported by:** the owner, on a real device: *"the Update and Restart link on the OTA doesn't feel instant… I feel that it can be improved substantially."*
 
@@ -92,13 +92,68 @@ cannot be fixed over the air.
 Explicitly **do not** claim the restart became faster. It did not. It became
 legible.
 
+## What was actually read off the installed SDK, and what it changed
+
+`expo-updates@57.0.15`, `build/ReloadScreen.types.d.ts` and
+`build/Updates.d.ts`. The signature is:
+
+```ts
+reloadAsync(options?: { reloadScreenOptions?: ReloadScreenOptions }): Promise<void>
+```
+
+and `ReloadScreenOptions` is `backgroundColor`, `image`, `imageResizeMode`,
+`imageFullScreen`, `fade`, and `spinner: { enabled, color, size }`. Two things
+in that surface contradict what this ADR assumed, and both were found by
+reading it rather than by writing the call from memory — which is the reason the
+ADR insisted on reading it.
+
+**1. The options are an ARGUMENT, so the live theme IS available.** The
+Consequences section below says the reload screen "cannot read `useTheme()` and
+must be configured statically". That is true of the `app.json` reload-screen
+config and **false** of this path: `reloadAsync` is called from JS a moment
+before the restart, so the active palette can be passed in. A dark-theme user
+now gets a dark restart instead of a white flash. `reloadScreenOptions(colors)`
+in `apps/mobile/src/lib/app-update.ts` is a pure function of the palette and is
+unit-tested against both.
+
+**2. The logo cannot be shown, and the obvious version renders it at 1024dp.**
+`resolveImageSource` turns a `require()` id into `{ url, width, height, scale }`
+via `Image.resolveAssetSource`, which reports the asset's **pixel** size — ours
+is 1024x1024 — and both `ReloadScreenView`s then treat width/height as
+**dp/points**. On the LG G6 (density 3.5) that lays the mark out at 3584px and
+crops it. Passing an explicit `ReloadScreenImageSource` would fix the size, but
+image and spinner are both centred by the native views, so the two stack; and
+the mark alone is a still frame, which reproduces the launch splash and reads as
+exactly the hang this change exists to remove. **Shipped: spinner only**, coral
+on the app's own canvas. The familiar logo splash follows a beat later anyway
+when the new bundle boots.
+
+## Where the three measurements stand
+
+- **(1) tap to first paint** and **(2) the bundle-eval / app-boot split** —
+  still unmeasured. Neither could be taken before this shipped: producing a
+  pending update on the device requires publishing one.
+- **(3) banner taps vs silent auto-applies** — **not instrumented, and it is
+  not free.** The obvious route (a `usage-events` counter) does not work as
+  written: `track()` buffers in memory and flushes on backgrounding or every
+  five minutes, and `reloadAsync` kills the process immediately — so a count
+  incremented at the tap is lost by construction, and would under-report
+  precisely the number being measured. A durable version has to write the path
+  label to `AsyncStorage` before the reload and fold it in on the next boot,
+  which is a change to the update path plus a new event in three places
+  (`packages/core/src/usage-events.ts`, `firestore.rules`, and the rules test).
+  **C stays held until someone decides that is worth doing.** It is not blocked
+  on knowledge; it is blocked on a choice.
+
 ## Consequences
 
 - **The banner keeps telling the truth.** Its current copy is accurate; the
   failure is the silence after the tap, not the sentence before it.
 - **A reload screen is a new brand surface** and needs the dual-theme treatment
-  (ADR-0014) — it appears while the app is not running, so it cannot read
-  `useTheme()` and must be configured statically.
+  (ADR-0014). ~~It appears while the app is not running, so it cannot read
+  `useTheme()` and must be configured statically.~~ **Wrong — corrected above.**
+  The options are an argument to `reloadAsync`, evaluated in JS before the
+  restart, so the live palette is available and is what ships.
 - **This is JS-only and rides an OTA.** No binary, either platform.
 
 ## What is out of scope
