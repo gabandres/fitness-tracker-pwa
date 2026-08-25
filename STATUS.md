@@ -56,8 +56,13 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
   published under the wrong machine's numbers and reached **nobody** —
   indistinguishable from a working update.
   **The Air is iOS-only now**: its Android SDK, Gradle caches and `~/.android`
-  were removed. **Free space: 19 GiB, measured 2026-08-25** on
-  `/System/Volumes/Data` — enough for an iOS build, whose floor is ~17 GB.
+  were removed. **Free space: 19.18 GiB, measured 2026-08-25** on
+  `/System/Volumes/Data` — above an iOS build's ~17 GB floor, but only by ~2 GB,
+  and a build consumes space as it runs. **A second cleanup pass returned only
+  646 MiB**, so there is no easy headroom left: DerivedData, Archives, `iOS
+  DeviceSupport` and the Pods/npm caches are already gone. The one remaining
+  lever is the **8.1 GB watchOS simulator runtime**, and dropping it is the
+  OWNER'S CALL — it ends watch-target simulator testing on that machine.
   **The "~600 Mi free / 100% full" this file carried from 2026-08-22 was wrong
   by an order of magnitude**: the volume read 7.7 GiB avail on connect, before
   any cleanup, and clearing `~/Library/Developer/Xcode/DerivedData` alone
