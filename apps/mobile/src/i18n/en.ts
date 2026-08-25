@@ -178,6 +178,7 @@ export const en = {
   // Shown when the OS refuses to hand a web link to anything — Screen
   // Time, an MDM profile, no browser able to claim https. The URL is in
   // the body so the reader can still get there by hand.
+  'splash.stillConnecting': 'Still connecting…',
   'link.failedTitle': "Couldn't open that link",
   'link.failedBody': 'Your device blocked it. Open this in your browser instead:\n\n{url}',
   'whatsNew.title': "What's new",

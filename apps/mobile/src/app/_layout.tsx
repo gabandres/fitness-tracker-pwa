@@ -7,17 +7,18 @@ import { useFonts } from '@expo-google-fonts/manrope/useFonts';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { LogBox, StyleSheet, View } from 'react-native';
+import { LogBox, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AuthProvider, GATE_T0, useAuth } from '@/lib/auth';
+import { AuthProvider, useAuth } from '@/lib/auth';
 import { useIsOffline } from '@/lib/connectivity';
 import { assessRoute, shouldShowSplash } from '@/lib/onboarding-gate';
 import { BrandLoader } from '@/components/BrandLoader';
-import { I18nProvider } from '@/i18n';
+import { I18nProvider, useT } from '@/i18n';
 import { Sentry } from '@/lib/sentry';
 import { ThemeProvider, useTheme } from '@/lib/theme-context';
+import { font, space } from '@/theme';
 
 // Silence Expo Go's expo-notifications warnings: we use LOCAL notifications
 // (which work in Expo Go); remote push is deferred to a dev build (ADR-0015),
@@ -27,13 +28,33 @@ LogBox.ignoreLogs([
   '`expo-notifications` functionality is not fully supported in Expo Go',
 ]);
 
+/**
+ * How long the splash stays wordless before it admits it is waiting on
+ * something. Past this the user has been looking at a logo long enough to
+ * wonder whether the app is dead (#83) — and the honest answer costs one line.
+ */
+const SPLASH_EXPLAIN_AFTER_MS = 5000;
+
 /** Full-screen branded loading overlay while auth/profile/fonts settle, on
  *  the active theme's canvas so the handoff has no color flash. */
 function Splash() {
   const { colors } = useTheme();
+  const t = useT();
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setSlow(true), SPLASH_EXPLAIN_AFTER_MS);
+    return () => clearTimeout(id);
+  }, []);
   return (
     <View style={[styles.splash, { backgroundColor: colors.paper }]}>
       <BrandLoader />
+      {/* Deliberately no Retry button. The only recovery from here is a
+          restart, and a restart does not help when the cause is that the
+          network is not answering — so a button would promise a fix it cannot
+          deliver. Saying what is happening is the part that was missing. */}
+      {slow ? (
+        <Text style={[styles.splashNote, { color: colors.muted }]}>{t('splash.stillConnecting')}</Text>
+      ) : null}
     </View>
   );
 }
@@ -72,7 +93,7 @@ function useGaveUpWaiting(waiting: boolean): boolean {
 /** Redirects between the authed tab group and the sign-in screen as auth
  *  state settles. The `(app)` group holds every signed-in surface. */
 function AuthGate({ fontsReady }: { fontsReady: boolean }) {
-  const { user, initializing, profile, profileLoading, profileConfirmed, emailVerified } = useAuth();
+  const { sessionUid, initializing, profile, profileLoading, profileConfirmed, emailVerified } = useAuth();
   const offline = useIsOffline();
   const segments = useSegments();
   const router = useRouter();
@@ -80,12 +101,14 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
   // One `assessRoute` call feeding both the navigation and the splash — they
   // are the same question and used to be asked twice, which is how they drifted
   // apart in the first place.
-  const serverGaveUp = useGaveUpWaiting(!!user && (profileLoading || !profileConfirmed));
+  const serverGaveUp = useGaveUpWaiting(!!sessionUid && (profileLoading || !profileConfirmed));
   // `'app'` when there is nobody to route: signed out (or unverified) there is
   // no profile to wait for, and letting `assessRoute` answer `'wait'` off a null
   // profile would pin the splash over the sign-in screen.
   const decision =
-    user && emailVerified ? assessRoute({ profile, profileConfirmed, offline, serverGaveUp }) : 'app';
+    sessionUid && emailVerified
+      ? assessRoute({ profile, profileConfirmed, offline, serverGaveUp })
+      : 'app';
 
   useEffect(() => {
     if (initializing) return;
@@ -98,7 +121,12 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
     // clipped its last row.
     const onTour = route === 'tour';
 
-    if (!user) {
+    // `sessionUid`, not `user`: before Firebase answers this may be the session
+    // read off disk (#83). Redirecting to /sign-in on a slow network would tell
+    // a signed-in user they had been logged out, which is the one outcome worse
+    // than waiting. When the real event lands it wins — including when it says
+    // signed out, which lands here and redirects properly.
+    if (!sessionUid) {
       if (inApp || onOnboarding || onVerify || onTour) router.replace('/sign-in');
       return;
     }
@@ -130,7 +158,7 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
     // Completed users live in (app); leave them on /onboarding when they open
     // it deliberately (Settings → Edit goals / redo).
     if (!inApp && !onOnboarding && !onTour) router.replace('/(app)');
-  }, [user, initializing, emailVerified, decision, segments, router]);
+  }, [sessionUid, initializing, emailVerified, decision, segments, router]);
 
   // Always mount <Slot/> so the navigator exists when the redirect effect
   // fires; cover it with the splash while auth/profile/fonts settle.
@@ -139,7 +167,7 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
   // The latch, and the reasoning behind it, live in `onboarding-gate.ts` so the
   // decision can be tested without a router, a navigator or a Firebase session
   // — same split as `assessRoute`.
-  const uid = user?.uid ?? null;
+  const uid = sessionUid;
   const [settledUid, setSettledUid] = useState<string | null>(null);
   // Latched during render, not in an effect: an effect runs a frame later, and
   // that frame is exactly when a flap would slip a full-screen overlay in. The
@@ -148,14 +176,6 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
   const nextSettledUid = !uid ? null : gateSettled ? uid : settledUid;
   if (nextSettledUid !== settledUid) setSettledUid(nextSettledUid);
   const showSplash = shouldShowSplash({ gateSettled, uid, settledUid: nextSettledUid });
-  // TEMP instrumentation for #83 — removed before the fix ships.
-  useEffect(() => {
-    console.log(
-      `[GATE] render t=${Date.now() - GATE_T0}ms showSplash=${showSplash} initializing=${initializing}` +
-      ` fontsReady=${fontsReady} decision=${decision} serverGaveUp=${serverGaveUp}` +
-      ` profileLoading=${profileLoading} profileConfirmed=${profileConfirmed} offline=${offline} user=${uid ? 'yes' : 'no'}`,
-    );
-  }, [showSplash, initializing, fontsReady, decision, serverGaveUp, profileLoading, profileConfirmed, offline, uid]);
   return (
     <>
       <Slot />
@@ -178,6 +198,12 @@ const styles = StyleSheet.create({
     // branded loader fully covers it instead of the "+" peeking through.
     zIndex: 100,
     elevation: 100,
+  },
+  // Sits under the loader rather than replacing it: the brand mark is what
+  // says "this is still Ignia", the line is what says "and it is still trying".
+  splashNote: {
+    marginTop: space.lg,
+    fontSize: font.small,
   },
 });
 

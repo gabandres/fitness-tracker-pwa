@@ -171,6 +171,7 @@ export const esPR: Record<I18nKey, string> = {
   // Shown when the OS refuses to hand a web link to anything — Screen
   // Time, an MDM profile, no browser able to claim https. The URL is in
   // the body so the reader can still get there by hand.
+  'splash.stillConnecting': 'Aún conectando…',
   'link.failedTitle': 'No se pudo abrir ese enlace',
   'link.failedBody': 'Tu dispositivo lo bloqueó. Abre esto en tu navegador:\n\n{url}',
   'whatsNew.title': 'Novedades',

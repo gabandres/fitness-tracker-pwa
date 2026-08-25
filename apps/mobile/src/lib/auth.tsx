@@ -53,13 +53,19 @@ export { LinkError } from './link-error';
 export type { LinkableProvider, PendingLink } from './link-error';
 import { auth, functions } from './firebase';
 
-/** TEMP instrumentation for #83 — removed before the fix ships. */
-export const GATE_T0 = Date.now();
+/**
+ * How long to wait for Firebase before falling back to the session on disk.
+ *
+ * Comfortably past the ~771 ms a healthy launch takes and far short of the
+ * ~8,690 ms a dead network costs, both measured on the LG G6 (#83).
+ */
+const PRESUMED_SESSION_AFTER_MS = 1200;
 import { ensureProfile, subscribeProfile } from './ledger';
 import { registerAppleRefreshToken } from './appleSignin';
 import { addBreadcrumb, captureError, setSentryUser } from './sentry';
 import { clearQuickAdd } from './quick-add';
 import { clearOfflineCache, readCache, writeCache } from './offline-cache';
+import { type PersistedSession, readPersistedSession } from './persisted-session';
 import { flush as flushAnalytics, setAnalyticsUser, track } from './analytics';
 import { resetConnectivity } from './connectivity';
 import { clearWidget } from './widget';
@@ -353,6 +359,22 @@ async function acquireAppleCredential(): Promise<{
 interface AuthState {
   /** The signed-in Firebase user, or null when signed out. */
   user: User | null;
+  /**
+   * The uid to route by: the real session's, or — before Firebase has answered
+   * — the one read off disk. See {@link AuthState.sessionPresumed}.
+   */
+  sessionUid: string | null;
+  /**
+   * True when {@link AuthState.sessionUid} came from disk rather than from
+   * Firebase, because `onAuthStateChanged` had not fired yet (#83).
+   *
+   * **Never treat this as authentication.** It says a session was persisted on
+   * this device, not that it is still valid. It exists only so the gate can
+   * stop holding a tap-eating splash over a working app while Firebase
+   * validates a token over a network that is not answering. It is discarded the
+   * moment the real event arrives, and that event wins whatever it says.
+   */
+  sessionPresumed: boolean;
   /** True until the first onAuthStateChanged fires (avoids a sign-in flash). */
   initializing: boolean;
   /** True when the user's custom claims grant Pro (Stripe `stripeRole:paid`
@@ -442,6 +464,11 @@ const AuthContext = createContext<AuthState | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [initializing, setInitializing] = useState(true);
+  /** Set only if Firebase has not answered within {@link PRESUMED_SESSION_AFTER_MS}. */
+  const [presumed, setPresumed] = useState<PersistedSession | null>(null);
+  /** Whether the real auth event has landed. A ref, not state: the timer below
+   *  reads it at fire time and must not re-arm when it changes. */
+  const authAnswered = useRef(false);
   const [isPro, setIsPro] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
   // Profile is keyed by uid so "loaded for the current user" is derivable
@@ -591,10 +618,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // #83 — adopt the on-disk session if Firebase is too slow to answer.
+  //
+  // The grace period is the whole safety argument. Measured on the LG G6:
+  // `onAuthStateChanged` fires at ~771 ms on a working network and ~8,690 ms
+  // against black-holed DNS, because Firebase validates the restored token
+  // before it will emit and that call has no timeout we control. Waiting
+  // longer than a working network ever needs means the presumed session is
+  // adopted ONLY when the network is genuinely failing — which is also exactly
+  // when nothing else could have succeeded anyway. On a healthy launch this
+  // timer is cleared before it fires and the presumed path never runs at all.
   useEffect(() => {
-    console.log(`[GATE] authListenerAttached t=${Date.now() - GATE_T0}ms`);
+    let live = true;
+    const t = setTimeout(() => {
+      if (!live || authAnswered.current) return;
+      void readPersistedSession().then((session) => {
+        // Re-check: the disk read is async and Firebase may have answered
+        // during it. The real event always wins.
+        if (!live || authAnswered.current || !session) return;
+        setPresumed(session);
+        setInitializing(false);
+      });
+    }, PRESUMED_SESSION_AFTER_MS);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, []);
+
+  useEffect(() => {
     return onAuthStateChanged(auth, (u) => {
-      console.log(`[GATE] onAuthStateChanged FIRED t=${Date.now() - GATE_T0}ms user=${u ? 'yes' : 'no'}`);
+      // The real answer has landed; the presumed session is now worthless
+      // whatever it said, including when `u` is null (a revoked or signed-out
+      // session must not keep routing as signed in).
+      authAnswered.current = true;
+      setPresumed(null);
       setUser(u);
       setEmailVerified(u?.emailVerified ?? false);
       // uid only — never the email (PII minimization). A uid resolves to a
@@ -627,7 +685,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // #79: measured on the LG G6 with wifi associated but no route to the
       // backend, the splash covered a fully-rendered screen for 30+ seconds and
       // swallowed every tap, with no feedback of any kind.
-      console.log(`[GATE] initializing=false t=${Date.now() - GATE_T0}ms`);
       setInitializing(false);
     });
   }, []);
@@ -686,6 +743,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * condition.
    */
   const profileConfirmed = !!matchedProfile && matchedProfile.confirmed;
+
+  // The real session always wins; `presumed` is only ever non-null before the
+  // first auth event (#83), and is cleared by it.
+  const sessionUid = user?.uid ?? presumed?.uid ?? null;
+  const sessionPresumed = !user && presumed != null;
 
   /**
    * Runs the Microsoft OAuth dance and returns the Firebase credential.
@@ -747,12 +809,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthState>(
     () => ({
       user,
+      sessionUid,
+      sessionPresumed,
       initializing,
       isPro,
       profile,
       profileLoading,
       profileConfirmed,
-      emailVerified,
+      // Follows the presumed session too (#83), or a verified returning user
+      // gets bounced to /verify-email for the whole window.
+      emailVerified: user ? emailVerified : (presumed?.emailVerified ?? emailVerified),
       reloadUser: async () => {
         const u = auth.currentUser;
         if (!u) return false;
@@ -1019,12 +1085,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }),
     [
       user,
+      sessionUid,
+      sessionPresumed,
       initializing,
       isPro,
       profile,
       profileLoading,
       profileConfirmed,
       emailVerified,
+      presumed,
       googleAvailable,
       microsoftAvailable,
       msRequest,

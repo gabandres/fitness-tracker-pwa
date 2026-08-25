@@ -167,6 +167,7 @@ export const ptBR = {
   // Shown when the OS refuses to hand a web link to anything — Screen
   // Time, an MDM profile, no browser able to claim https. The URL is in
   // the body so the reader can still get there by hand.
+  'splash.stillConnecting': 'Ainda conectando…',
   'link.failedTitle': 'Não foi possível abrir esse link',
   'link.failedBody': 'O seu aparelho bloqueou. Abra isto no seu navegador:\n\n{url}',
   'whatsNew.title': 'Novidades',
