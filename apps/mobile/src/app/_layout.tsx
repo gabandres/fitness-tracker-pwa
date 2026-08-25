@@ -6,14 +6,14 @@ import { Manrope_800ExtraBold } from '@expo-google-fonts/manrope/800ExtraBold';
 import { useFonts } from '@expo-google-fonts/manrope/useFonts';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { LogBox, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { useIsOffline } from '@/lib/connectivity';
-import { assessRoute } from '@/lib/onboarding-gate';
+import { assessRoute, shouldShowSplash } from '@/lib/onboarding-gate';
 import { BrandLoader } from '@/components/BrandLoader';
 import { I18nProvider } from '@/i18n';
 import { Sentry } from '@/lib/sentry';
@@ -38,6 +38,37 @@ function Splash() {
   );
 }
 
+/**
+ * How long the gate will hold the splash waiting for a profile the server has
+ * not sent, before it concludes the server is not going to send one.
+ *
+ * Sized against the two real numbers around it: `connectivity.ts` needs 4 s of
+ * cache-only snapshots to admit it is offline, and Firestore's own backoff can
+ * take longer than that to produce any snapshot at all. 8 s is comfortably past
+ * both and still an order of magnitude under the 30–40 s hangs measured in #79.
+ */
+const GATE_MAX_WAIT_MS = 8000;
+
+/** True once `waiting` has been continuously true for {@link GATE_MAX_WAIT_MS}. */
+function useGaveUpWaiting(waiting: boolean): boolean {
+  const [gaveUp, setGaveUp] = useState(false);
+  // Reset DURING RENDER rather than in an effect (React's documented "adjusting
+  // state when a prop changes" pattern). An effect would be a second render
+  // pass, and worse, a later wait would inherit the previous one's verdict and
+  // give up instantly instead of starting its own clock.
+  const [wasWaiting, setWasWaiting] = useState(waiting);
+  if (wasWaiting !== waiting) {
+    setWasWaiting(waiting);
+    setGaveUp(false);
+  }
+  useEffect(() => {
+    if (!waiting) return;
+    const t = setTimeout(() => setGaveUp(true), GATE_MAX_WAIT_MS);
+    return () => clearTimeout(t);
+  }, [waiting]);
+  return gaveUp;
+}
+
 /** Redirects between the authed tab group and the sign-in screen as auth
  *  state settles. The `(app)` group holds every signed-in surface. */
 function AuthGate({ fontsReady }: { fontsReady: boolean }) {
@@ -45,6 +76,16 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
   const offline = useIsOffline();
   const segments = useSegments();
   const router = useRouter();
+
+  // One `assessRoute` call feeding both the navigation and the splash — they
+  // are the same question and used to be asked twice, which is how they drifted
+  // apart in the first place.
+  const serverGaveUp = useGaveUpWaiting(!!user && (profileLoading || !profileConfirmed));
+  // `'app'` when there is nobody to route: signed out (or unverified) there is
+  // no profile to wait for, and letting `assessRoute` answer `'wait'` off a null
+  // profile would pin the splash over the sign-in screen.
+  const decision =
+    user && emailVerified ? assessRoute({ profile, profileConfirmed, offline, serverGaveUp }) : 'app';
 
   useEffect(() => {
     if (initializing) return;
@@ -70,12 +111,17 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
       if (!onVerify) router.replace('/verify-email');
       return;
     }
-    // Signed in and verified — wait for the profile before choosing onboarding.
-    if (profileLoading) return;
-
-    // Where to go is decided by `assessRoute`, which carries the reasoning and
-    // is tested on its own — this effect only performs the navigation.
-    const decision = assessRoute({ profile, profileConfirmed, offline });
+    // Signed in and verified. Where to go is decided by `assessRoute`, which
+    // carries the reasoning and is tested on its own — this effect only
+    // performs the navigation.
+    //
+    // There used to be a `if (profileLoading) return;` above this line. It was
+    // redundant *and* harmful: `profileLoading` is true exactly when
+    // `matchedProfile` is null, which is exactly when `profile` is null and
+    // `profileConfirmed` is false — the state `assessRoute`'s first branch
+    // already handles. All the short-circuit did was reach that state's verdict
+    // *without* the offline/timeout escape, so an unanswered profile pinned the
+    // gate open forever (#79).
     if (decision === 'wait') return;
     if (decision === 'onboarding') {
       if (!onOnboarding) router.replace('/onboarding');
@@ -84,16 +130,24 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
     // Completed users live in (app); leave them on /onboarding when they open
     // it deliberately (Settings → Edit goals / redo).
     if (!inApp && !onOnboarding && !onTour) router.replace('/(app)');
-  }, [user, initializing, emailVerified, profile, profileLoading, profileConfirmed, offline, segments, router]);
+  }, [user, initializing, emailVerified, decision, segments, router]);
 
   // Always mount <Slot/> so the navigator exists when the redirect effect
   // fires; cover it with the splash while auth/profile/fonts settle.
-  // Also covers the moment added below: signed in, online, and still waiting
-  // for the server to say whether this account has onboarded. Without it the
-  // gate's deliberate `return` would leave a blank screen instead of the splash.
-  const waitingOnProfile =
-    !!user && !profileLoading && assessRoute({ profile, profileConfirmed, offline }) === 'wait';
-  const showSplash = initializing || (!!user && profileLoading) || waitingOnProfile || !fontsReady;
+  const gateSettled = !initializing && fontsReady && decision !== 'wait';
+
+  // The latch, and the reasoning behind it, live in `onboarding-gate.ts` so the
+  // decision can be tested without a router, a navigator or a Firebase session
+  // — same split as `assessRoute`.
+  const uid = user?.uid ?? null;
+  const [settledUid, setSettledUid] = useState<string | null>(null);
+  // Latched during render, not in an effect: an effect runs a frame later, and
+  // that frame is exactly when a flap would slip a full-screen overlay in. The
+  // assignment is idempotent for a given (uid, gateSettled), so a double render
+  // computes the same thing.
+  const nextSettledUid = !uid ? null : gateSettled ? uid : settledUid;
+  if (nextSettledUid !== settledUid) setSettledUid(nextSettledUid);
+  const showSplash = shouldShowSplash({ gateSettled, uid, settledUid: nextSettledUid });
   return (
     <>
       <Slot />
