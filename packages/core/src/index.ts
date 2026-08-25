@@ -18,6 +18,11 @@ export * from './types';
 export * from './unit-system';
 export * from './date';
 export * from './day-boundary';
+// Which document could hold the MANUAL twin of a night an importer is filing.
+// Foundation-level because it is a consequence of `day-boundary`, not of sleep:
+// the manual writer buckets by the user's day and every importer buckets by the
+// calendar wake day, so the two disagree in a window (issue #80).
+export * from './sleep-night';
 export * from './tier-limits';
 
 // ──────────────────────────── Logging ────────────────────────────

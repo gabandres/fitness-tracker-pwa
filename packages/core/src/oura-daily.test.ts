@@ -86,6 +86,42 @@ describe('parseOuraDaily', () => {
     expect(parseOuraDaily([], [])).toEqual({ rows: [], skipped: 0 });
   });
 
+  // `bedtime_end` is carried ONLY so the sleep import guard can ask whether a
+  // night could also have been typed under the previous day's key on a
+  // non-midnight boundary (issue #80). It is never stored — `dailySleep` holds
+  // `hours` and `source`, and the rules reject a third field.
+  it('carries the wake instant off `bedtime_end`', () => {
+    const { rows } = parseOuraDaily(
+      [],
+      [{ ...sleep('2026-08-24'), bedtime_end: '2026-08-24T06:45:00-04:00' }],
+    );
+    expect(rows[0]?.wakeMs).toBe(Date.parse('2026-08-24T06:45:00-04:00'));
+  });
+
+  it('keeps the LATEST wake when a nap and a night share a day', () => {
+    // Same rule `latestSampleEndByDay` follows: the period that ends last is
+    // the one that ends when the sleeper got up.
+    const { rows } = parseOuraDaily(
+      [],
+      [
+        { ...sleep('2026-08-24', 3600), bedtime_end: '2026-08-24T15:00:00Z' },
+        { ...sleep('2026-08-24', 27000), bedtime_end: '2026-08-24T06:45:00Z' },
+      ],
+    );
+    expect(rows[0]?.sleepHours).toBe(8.5);
+    expect(rows[0]?.wakeMs).toBe(Date.parse('2026-08-24T15:00:00Z'));
+  });
+
+  it('omits the wake instant rather than guessing one', () => {
+    // No record from a real ring has ever been parsed. A field that is absent,
+    // null, or a shape this module has not seen is "unknown" — and the guard
+    // treats unknown as the pre-#80 behaviour rather than as a wrong instant.
+    for (const bad of [undefined, null, 1756012800000, 'not a date']) {
+      const { rows } = parseOuraDaily([], [{ ...sleep('2026-08-24'), bedtime_end: bad }]);
+      expect(rows[0]?.wakeMs).toBeUndefined();
+    }
+  });
+
   it('sorts by date so a caller writes days in order', () => {
     const { rows } = parseOuraDaily(
       [activity('2026-08-25'), activity('2026-08-23'), activity('2026-08-24')],

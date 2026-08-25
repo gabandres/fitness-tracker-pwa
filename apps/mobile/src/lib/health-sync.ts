@@ -3,9 +3,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import {
   type WritableKind,
+  type DayBoundary,
   importableWorkouts,
   isLoggedCardioBlock,
   calendarDateKey,
+  latestSampleEndByDay,
   mergeImportedBlocks,
   parseYmd,
   reduceImportedSamples,
@@ -19,6 +21,7 @@ import {
   getRecentSessions,
   markExercised,
   setDailyActiveEnergy,
+  getDayBoundaryOnce,
   importDailySleep,
   setDailySteps,
   setDailyWater,
@@ -101,16 +104,38 @@ const EPSILON: Record<ReadableKind, number> = {
   activeEnergy: 1,
 };
 
-/** Firestore writer per readable kind (all share the `(uid, dateKey, value)`
- *  shape; each clamps/rounds to its own canonical unit). */
-const WRITER: Record<ReadableKind, (uid: string, dateKey: string, value: number) => Promise<void>> = {
+/**
+ * What one import RUN knows that a single day-value does not.
+ *
+ * Only the sleep writer reads it, and only because of issue #80: the guard that
+ * protects a hand-typed night has to look at the key the user would have typed
+ * under, which is a function of the account's day boundary and of when the
+ * sleeper woke. Both are per-run facts — one profile read and one pass over the
+ * samples — so they are gathered once and threaded, never fetched per night.
+ */
+interface ImportRun {
+  boundary: DayBoundary;
+  /** `dateKey → epoch ms` of the day's latest sleep sample end. Empty for
+   *  every other kind, which is why the writer signature can stay uniform. */
+  wokeAt: Record<string, number>;
+}
+
+/** Firestore writer per readable kind (all share the
+ *  `(uid, dateKey, value, run)` shape; each clamps/rounds to its own canonical
+ *  unit). */
+const WRITER: Record<
+  ReadableKind,
+  (uid: string, dateKey: string, value: number, run: ImportRun) => Promise<void>
+> = {
   weight: setDailyWeight,
   // Guarded: an OS-store night must not overwrite one the user typed. Same
-  // rule the Oura importer follows — see `importDailySleep`. The signature
-  // matches the other writers; the boolean it returns is unused here
-  // because this map's contract is (uid, dateKey, value) => Promise<void>.
-  sleep: async (uid: string, dateKey: string, value: number) => {
-    await importDailySleep(uid, dateKey, value);
+  // rule the Oura importer follows — see `importDailySleep`. The boolean it
+  // returns is unused here because this map's contract returns void.
+  sleep: async (uid: string, dateKey: string, value: number, run: ImportRun) => {
+    await importDailySleep(uid, dateKey, value, {
+      wakeAt: run.wokeAt[dateKey],
+      boundary: run.boundary,
+    });
   },
   water: setDailyWater,
   steps: setDailySteps,
@@ -183,14 +208,28 @@ export async function importHealth(uid: string): Promise<number> {
  *  can hold one guard across both halves instead of two that can interleave. */
 async function importScalars(uid: string): Promise<number> {
   {
-    const current = await getHealthScalarsOnce(uid);
+    const [current, boundary] = await Promise.all([
+      getHealthScalarsOnce(uid),
+      // One profile read per run, for the sleep guard alone (#80). It falls
+      // back to MIDNIGHT on failure, under which the guard is exactly what it
+      // was before — so this cannot block an import.
+      getDayBoundaryOnce(uid),
+    ]);
     let applied = 0;
     for (const kind of IMPORT_KINDS) {
       const samples = await health.readSamples(kind, IMPORT_DAYS);
       const reduced = reduceImportedSamples(samples);
+      // `reduceImportedSamples` folds sleep by SUM and throws the sample times
+      // away with it. The wake instant is not part of the value and is not
+      // stored — it only tells the guard which document could hold the manual
+      // twin of this night.
+      const run: ImportRun = {
+        boundary,
+        wokeAt: kind === 'sleep' ? latestSampleEndByDay(samples) : {},
+      };
       const toApply = valuesToApply(reduced, current[kind], EPSILON[kind]);
       for (const [dateKey, value] of Object.entries(toApply)) {
-        await WRITER[kind](uid, dateKey, value);
+        await WRITER[kind](uid, dateKey, value, run);
         applied++;
       }
     }

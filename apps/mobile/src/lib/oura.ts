@@ -7,7 +7,12 @@ import * as WebBrowser from 'expo-web-browser';
 import { parseOuraWorkouts } from '@macrolog/core';
 import { db, functions } from './firebase';
 import { toImportableBlocks, writeImportedBlocks } from './health-sync';
-import { importDailySleep, setDailyActiveEnergy, setDailySteps } from './ledger';
+import {
+  getDayBoundaryOnce,
+  importDailySleep,
+  setDailyActiveEnergy,
+  setDailySteps,
+} from './ledger';
 
 /**
  * Oura Cloud API — the client half (issue #72, ADR-0026 Amendment 2).
@@ -233,6 +238,11 @@ export async function importOuraDaily(uid: string): Promise<OuraDailyImportResul
   if (!res?.linked) return { days: 0, scopeDenied: false };
 
   const { rows } = parseOuraDaily(res.activity ?? [], res.sleep ?? []);
+  // One profile read for the whole import, not one per night — the sleep guard
+  // needs the account's day boundary to know which document could hold the
+  // manual twin of a night (#80). Falls back to MIDNIGHT, under which the guard
+  // is byte-for-byte what it was before.
+  const boundary = await getDayBoundaryOnce(uid);
   let days = 0;
   for (const row of rows) {
     let wrote = false;
@@ -240,7 +250,16 @@ export async function importOuraDaily(uid: string): Promise<OuraDailyImportResul
       if (row.sleepHours != null) {
         // Declines when the user typed that night themselves — see
         // `importDailySleep`. A skip is not a failure and is not counted.
-        if (await importDailySleep(uid, row.dateKey, row.sleepHours)) wrote = true;
+        // `wakeMs` is Oura's own `bedtime_end`: it is passed for the guard and
+        // is never stored.
+        if (
+          await importDailySleep(uid, row.dateKey, row.sleepHours, {
+            wakeAt: row.wakeMs,
+            boundary,
+          })
+        ) {
+          wrote = true;
+        }
       }
       if (row.steps != null) {
         await setDailySteps(uid, row.dateKey, row.steps);

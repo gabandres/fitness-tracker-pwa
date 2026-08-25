@@ -3,7 +3,7 @@ import {
   DAILY_FOLD, SLEEP_MAX_HOURS, WATER_MAX_FLOZ,
   clampSleepHours, clampWaterFlOz,
   fractionToPercent, flOzToLiters, isStorableHealthValue, kgToLb, lbToKg, litersToFlOz,
-  percentToFraction, reduceImportedSamples, valuesToApply,
+  latestSampleEndByDay, percentToFraction, reduceImportedSamples, valuesToApply,
   type HealthKind, type HealthSample,
 } from './health-mapping';
 
@@ -205,6 +205,42 @@ describe('activity import (steps / active energy)', () => {
       sample({ kind: 'steps', dateKey: '2026-07-01', value: 3000, endMs: 200 }),
     ]);
     expect(out['2026-07-01']).toBe(3000);
+  });
+});
+
+describe('latestSampleEndByDay', () => {
+  // Sleep folds by SUM, so `reduceImportedSamples` discards the sample times
+  // with the fold. The wake instant survives here for one consumer: the import
+  // guard's question of which key could hold the night's manual twin (#80).
+  it('keeps the LAST end per day, which is when the sleeper woke', () => {
+    const out = latestSampleEndByDay([
+      sample({ kind: 'sleep', dateKey: '2026-07-01', value: 2, endMs: 200 }),
+      sample({ kind: 'sleep', dateKey: '2026-07-01', value: 3, endMs: 900 }),
+      sample({ kind: 'sleep', dateKey: '2026-07-01', value: 1, endMs: 500 }),
+      sample({ kind: 'sleep', dateKey: '2026-07-02', value: 7, endMs: 50 }),
+    ]);
+    expect(out).toEqual({ '2026-07-01': 900, '2026-07-02': 50 });
+  });
+
+  it('drops our own exports, matching reduceImportedSamples', () => {
+    const out = latestSampleEndByDay([
+      sample({ kind: 'sleep', dateKey: '2026-07-01', value: 7, endMs: 900, fromUs: true }),
+      sample({ kind: 'sleep', dateKey: '2026-07-01', value: 7, endMs: 300 }),
+    ]);
+    expect(out).toEqual({ '2026-07-01': 300 });
+  });
+
+  it('ignores a non-finite end rather than propagating it', () => {
+    // An unknown instant makes the guard behave as it did before #80. A NaN
+    // reaching `dayKeyAt` would not.
+    const out = latestSampleEndByDay([
+      sample({ kind: 'sleep', dateKey: '2026-07-01', value: 7, endMs: Number.NaN }),
+    ]);
+    expect(out).toEqual({});
+  });
+
+  it('is empty for no samples', () => {
+    expect(latestSampleEndByDay([])).toEqual({});
   });
 });
 

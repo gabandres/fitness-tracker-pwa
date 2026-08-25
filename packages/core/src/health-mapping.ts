@@ -213,3 +213,43 @@ export function valuesToApply(
   }
   return out;
 }
+
+/**
+ * The latest sample end time per day — the instant the day's last fragment
+ * finished.
+ *
+ * `reduceImportedSamples` keeps this internally for `latest`/`preAggregated`
+ * kinds and throws it away for `sum` kinds, because a sum does not need a
+ * tie-break. **Sleep is a `sum` kind that needs it anyway**, for a reason that
+ * has nothing to do with folding: the wake instant is what tells
+ * `manualNightKeys` whether a night could have been typed under the previous
+ * day's key (issue #80). The `dateKey` on a sleep sample has already discarded
+ * the time.
+ *
+ * **The LATEST end, not the earliest, and the choice matters.** A night arrives
+ * as several stage fragments, and the one that ends last is the one that ends
+ * when the sleeper woke — which is the instant the boundary question is about.
+ * The earliest fragment on a day can end minutes after midnight in the middle
+ * of a night that runs to 07:00, and reading that as the wake time would put
+ * the night on the wrong side of the boundary.
+ *
+ * The known imprecision, stated rather than hidden: a **nap** later the same
+ * day ends after the night does and wins this max, so a day holding both an
+ * early-morning wake and an afternoon nap reports the nap. That reverts to the
+ * pre-#80 behaviour for that day — a missed protection, never a wrong write —
+ * and it needs an afternoon nap on a non-midnight boundary on a night that
+ * ended before the boundary, which is not a combination worth a per-fragment
+ * model of what a "night" is.
+ *
+ * Samples the app itself exported are dropped, matching
+ * {@link reduceImportedSamples}: they are not a measurement of anything.
+ */
+export function latestSampleEndByDay(samples: readonly HealthSample[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const s of samples ?? []) {
+    if (s.fromUs || !Number.isFinite(s.endMs)) continue;
+    const prev = out[s.dateKey];
+    if (prev == null || s.endMs > prev) out[s.dateKey] = s.endMs;
+  }
+  return out;
+}

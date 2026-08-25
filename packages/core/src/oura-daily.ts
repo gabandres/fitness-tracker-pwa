@@ -38,6 +38,18 @@ export interface OuraDailyRow {
   dateKey: string;
   /** Hours slept, to the quarter hour. Absent when Oura reported no duration. */
   sleepHours?: number;
+  /**
+   * Epoch ms of the LATEST `bedtime_end` folded into `sleepHours` — i.e. when
+   * the ring says the sleeper woke.
+   *
+   * Carried purely so the import guard can ask whether this night could also
+   * have been typed under the previous day's key on a non-midnight boundary
+   * (issue #80, `manualNightKeys`). **It is never stored**: `dailySleep` holds
+   * `hours` and `source` and the rules reject a third field. Absent when no
+   * sleep period on the day carried a parseable `bedtime_end`, which is the
+   * case the guard treats as "unknown" rather than guessing.
+   */
+  wakeMs?: number;
   steps?: number;
   activeKcal?: number;
 }
@@ -61,6 +73,21 @@ function positive(raw: unknown): number | undefined {
 /** Oura's `day` field, validated rather than trusted. */
 function dayKey(raw: unknown): string | undefined {
   return typeof raw === 'string' && DAY_KEY.test(raw) ? raw : undefined;
+}
+
+/**
+ * Oura's `bedtime_end` → epoch ms, or undefined.
+ *
+ * Published as an ISO 8601 string **with an offset**, which `Date.parse`
+ * handles; anything else — a null, a number, a shape this module has not seen —
+ * is "unknown", never a coerced zero. As with every other reader here, no
+ * record from a real ring has been parsed, so a wrong assumption must degrade
+ * to "we do not know" and not to a confident wrong instant.
+ */
+function instantMs(raw: unknown): number | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const ms = Date.parse(raw);
+  return Number.isFinite(ms) ? ms : undefined;
 }
 
 /**
@@ -140,6 +167,13 @@ export function parseOuraDaily(
     // Sum rather than replace: a nap and a night are two records for one day,
     // and the row is a daily TOTAL.
     target.sleepHours = Math.round(((target.sleepHours ?? 0) + hours) * 4) / 4;
+    // Latest wake wins, for the same reason `latestSampleEndByDay` takes the
+    // max: the period that ends last is the one that ends when the sleeper got
+    // up. See {@link OuraDailyRow.wakeMs}.
+    const wake = instantMs(rec?.['bedtime_end']);
+    if (wake !== undefined && (target.wakeMs === undefined || wake > target.wakeMs)) {
+      target.wakeMs = wake;
+    }
   }
 
   const rows = [...byDay.values()].sort((a, b) => a.dateKey.localeCompare(b.dateKey));

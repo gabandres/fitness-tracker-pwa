@@ -51,6 +51,8 @@ import {
   type DateKey,
   type DayBoundary,
   dayKeyAt,
+  manualNightKeys,
+  sanitizeDayBoundary,
   setDayStartHour as coreSetDayStartHour,
   oldestFirst,
   pruneUndefined as pruneUndefinedCore,
@@ -478,16 +480,34 @@ export async function setDailySleep(
  *
  * Returns whether it wrote, so a caller can report honestly instead of
  * counting skips as successes.
+ *
+ * **The guard is not keyed on the document id any more (issue #80).** It was,
+ * and that only asks the right question when the manual writer and the importer
+ * agree on the key — which a non-midnight `dayBoundary` makes false: the sleep
+ * sheet writes `dayKeyAt(now)` while every importer files the calendar wake
+ * day, so a night typed at 01:00 on a 3am boundary sits one document away from
+ * the import of the same night, and the guard read past it. Pass `night` and
+ * the check widens to the keys that night could have been typed under
+ * (`manualNightKeys`); omit it and this behaves exactly as it did.
+ *
+ * The **write** is still always at `dateKey` — the source's day, per ADR-0030
+ * Q5. Only the protection check moved.
  */
 export async function importDailySleep(
   uid: string,
   dateKey: string,
   hours: number,
+  night?: {
+    /** When the sleeper woke: a health sample's `endMs`, Oura's `bedtime_end`. */
+    wakeAt?: Date | number | null;
+    /** The account's boundary — {@link getDayBoundaryOnce}. */
+    boundary?: DayBoundary;
+  },
 ): Promise<boolean> {
-  const ref = sleepDoc(uid, dateKey);
-  const snap = await getDoc(ref);
-  if (snap.exists() && snap.data()?.['source'] !== 'import') return false;
-  await setDoc(ref, { hours: clampSleepHours(hours), source: 'import' });
+  const keys = manualNightKeys(dateKey as DateKey, night?.wakeAt, night?.boundary);
+  const snaps = await Promise.all(keys.map((k) => getDoc(sleepDoc(uid, k))));
+  if (snaps.some((s) => s.exists() && s.data()?.['source'] !== 'import')) return false;
+  await setDoc(sleepDoc(uid, dateKey), { hours: clampSleepHours(hours), source: 'import' });
   return true;
 }
 
@@ -556,6 +576,31 @@ export async function setDailySteps(uid: string, dateKey: string, steps: number)
 export async function setDailyActiveEnergy(uid: string, dateKey: string, kcal: number): Promise<void> {
   const v = Math.max(0, Math.min(ACTIVE_ENERGY_MAX_KCAL, Math.round(kcal)));
   await setDoc(activityDoc(uid, dateKey), { activeKcal: v }, { merge: true });
+}
+
+/**
+ * The account's day boundary, read once.
+ *
+ * The importers have no profile in scope — they run from Settings and from an
+ * app-foreground effect, neither of which holds a listener — and since issue
+ * #80 the sleep guard needs the boundary to know which document could hold the
+ * manual twin of a night. One document read per import RUN, not per night: the
+ * caller threads the result through its loop, which is why this is a bare
+ * getter rather than something `importDailySleep` does for itself.
+ *
+ * Falls back to {@link MIDNIGHT} on any failure. That is the safe direction —
+ * midnight is what every account that has never touched the setting is on, and
+ * it makes the guard behave exactly as it did before #80 rather than blocking
+ * an import on a profile read.
+ */
+export async function getDayBoundaryOnce(uid: string): Promise<DayBoundary> {
+  if (!uid) return MIDNIGHT;
+  try {
+    const snap = await getDoc(userDoc(uid));
+    return sanitizeDayBoundary(snap.data()?.['dayBoundary']);
+  } catch {
+    return MIDNIGHT;
+  }
 }
 
 // ─── Health sync — one-shot scalar reads ────────────────────────
