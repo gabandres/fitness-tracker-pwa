@@ -89,6 +89,27 @@ export interface WidgetSnapshot {
    * means "no buttons", which is exactly what an older writer produces.
    */
   quickAdd?: QuickAddTarget[];
+  /**
+   * Epoch ms at which this snapshot's day ENDS — the exclusive end of
+   * `dayRange(dateKey, boundary)` (ADR-0030).
+   *
+   * **The staleness guard, and the reason `dateKey` alone stopped being one.**
+   * Since ADR-0030 `dateKey` is the *user's* day, which is not the calendar
+   * date: on `dayStartHour: 3` a user is still on yesterday at 01:00. A widget
+   * comparing `dateKey` against its own calendar date therefore calls a
+   * previous day's totals "today" for the whole 00:00-03:00 window.
+   *
+   * The alternative was to re-derive the user's day in each widget — Swift and
+   * the Android renderer both — which means two more implementations of
+   * `dayKeyAt`'s boundary history, changeover day included. The app already
+   * computed the answer, so it ships the answer, and every consumer compares
+   * two instants instead of reasoning about calendars.
+   *
+   * **Additive and optional, and the wire version is deliberately NOT bumped**
+   * — same reasoning as `quickAdd`. A blob written before this field falls back
+   * to the calendar comparison, which is what that writer meant.
+   */
+  dayEndsMs?: number;
 }
 
 /** One rendered number: how far from target, and which side of it. */
@@ -157,6 +178,7 @@ export function buildWidgetSnapshot(
   nowMs: number,
   locale = 'en',
   quickAdd: readonly QuickAddTarget[] = [],
+  dayEndsMs?: number,
 ): WidgetSnapshot {
   return {
     v: WIDGET_SNAPSHOT_VERSION,
@@ -172,6 +194,13 @@ export function buildWidgetSnapshot(
     // `widgetSnapshotChanged` from reporting a change on first write after an
     // update, which would spend a metered WidgetKit reload on nothing.
     ...(quickAdd.length > 0 ? { quickAdd: quickAdd.slice(0, QUICK_ADD_MAX) } : {}),
+    // Omitted rather than zeroed when the caller does not know it, for the same
+    // byte-identity reason as `quickAdd`: a writer that cannot supply it must
+    // produce the blob an older writer produced, so consumers take the
+    // documented fallback instead of reading a `0` as "expired in 1970".
+    ...(typeof dayEndsMs === 'number' && Number.isFinite(dayEndsMs) && dayEndsMs > 0
+      ? { dayEndsMs: Math.round(dayEndsMs) }
+      : {}),
   };
 }
 
@@ -235,9 +264,16 @@ export function parseWidgetSnapshot(raw: string | null | undefined): WidgetSnaps
     return null;
   }
   if (!isSnapshot(parsed)) return null;
-  const { quickAdd: rawQuickAdd, ...rest } = parsed;
+  const { quickAdd: rawQuickAdd, dayEndsMs: rawEnds, ...rest } = parsed;
   const quickAdd = sanitizeQuickAdd(rawQuickAdd);
-  return quickAdd ? { ...rest, quickAdd } : rest;
+  // A malformed `dayEndsMs` must DROP to the fallback, never survive: a NaN
+  // comparison is false, so a garbage value would make the widget render a day
+  // that never expires. Same posture as `sanitizeQuickAdd` — a bad optional
+  // field costs its own feature and not the whole blob.
+  const dayEndsMs =
+    typeof rawEnds === 'number' && Number.isFinite(rawEnds) && rawEnds > 0 ? rawEnds : undefined;
+  const base = dayEndsMs === undefined ? rest : { ...rest, dayEndsMs };
+  return quickAdd ? { ...base, quickAdd } : base;
 }
 
 function metric(consumed: number, target: number): WidgetMetric {
@@ -250,14 +286,39 @@ function metric(consumed: number, target: number): WidgetMetric {
 }
 
 /**
+ * Has this snapshot's day ended?
+ *
+ * Prefers the day's own end instant, which the app computed with the user's
+ * boundary (ADR-0030) and shipped in the blob. That comparison is total, needs
+ * no calendar, and stays correct across the changeover day that runs 27 hours.
+ *
+ * Falls back to the calendar-date comparison for blobs written before
+ * `dayEndsMs` existed, or when the caller has no clock to offer. The fallback
+ * is WRONG under a non-midnight boundary — it calls the previous user-day
+ * "today" between midnight and the boundary — but a blob without the field came
+ * from a writer that had no boundary either, so it matches what produced it.
+ */
+function isStale(snapshot: WidgetSnapshot, todayKey: string, nowMs?: number): boolean {
+  const ends = snapshot.dayEndsMs;
+  if (typeof ends === 'number' && typeof nowMs === 'number' && Number.isFinite(nowMs)) {
+    return nowMs >= ends;
+  }
+  return snapshot.dateKey !== todayKey;
+}
+
+/**
  * Widget side: the snapshot plus "what day is it right now" gives exactly what
  * to draw. `todayKey` comes from the widget's own clock at render time, which
  * is why staleness is decided here and not baked into the blob — the blob
  * outlives the day it was written for.
  */
-export function widgetView(snapshot: WidgetSnapshot | null, todayKey: string): WidgetView {
+export function widgetView(
+  snapshot: WidgetSnapshot | null,
+  todayKey: string,
+  nowMs?: number,
+): WidgetView {
   if (!snapshot) return { state: 'empty', reason: 'no-snapshot', locale: 'en' };
-  if (snapshot.dateKey !== todayKey)
+  if (isStale(snapshot, todayKey, nowMs))
     return { state: 'empty', reason: 'stale', locale: snapshot.locale };
   if (snapshot.kcalTarget <= 0)
     return { state: 'empty', reason: 'no-targets', locale: snapshot.locale };
@@ -323,7 +384,13 @@ export function widgetSnapshotChanged(
     prev.locale !== next.locale ||
     // The buttons are rendered, so a slot change is a redraw — renaming a
     // preset must not leave a stale caption on a tappable button.
-    quickAddKey(prev.quickAdd) !== quickAddKey(next.quickAdd)
+    quickAddKey(prev.quickAdd) !== quickAddKey(next.quickAdd) ||
+    // Not rendered, but it decides WHEN the face expires. Changing the day
+    // boundary can move this and nothing else — a user with no logs inside the
+    // shifted window keeps identical totals — and skipping that write would
+    // leave the widget expiring on the old day for the rest of the day. One
+    // extra reload on a rare, deliberate settings change is the cheaper error.
+    prev.dayEndsMs !== next.dayEndsMs
   );
 }
 

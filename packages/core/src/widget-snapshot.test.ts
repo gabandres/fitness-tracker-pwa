@@ -389,3 +389,92 @@ describe('applyQuickAddToSnapshot', () => {
     expect(view.state === 'ready' && view.kcal.value).toBe(620);
   });
 });
+
+/**
+ * The bug these pin (ADR-0030, #77 Q4):
+ *
+ * `dateKey` became the USER's day when the day boundary shipped, but every
+ * widget still decided staleness by re-deriving the CALENDAR date from its own
+ * clock. For a user on `dayStartHour: 3` that made 00:00-03:00 render the
+ * previous day's totals under today's date — and a widget quick-add in that
+ * window filed against a different day than the app would have.
+ *
+ * The fix ships the day's end instant in the blob so no widget derives a day.
+ * These tests fail against the old two-argument `widgetView`.
+ */
+describe('widgetView staleness under a day boundary', () => {
+  const base = {
+    v: WIDGET_SNAPSHOT_VERSION,
+    dateKey: '2026-08-24',
+    kcalConsumed: 1200,
+    kcalTarget: 2000,
+    proteinConsumed: 80,
+    proteinTarget: 160,
+    updatedMs: 1,
+    locale: 'en',
+  } as const;
+
+  // The user's day 2026-08-24 under dayStartHour 3 ends at 2026-08-25T03:00 local.
+  const endsMs = new Date(2026, 7, 25, 3, 0, 0).getTime();
+  const withEnd: WidgetSnapshot = { ...base, dayEndsMs: endsMs };
+
+  it('is READY at 01:00, when the calendar date has rolled but the user day has not', () => {
+    const at = new Date(2026, 7, 25, 1, 0, 0);
+    // What the widget's own clock would say — and what used to decide this.
+    const view = widgetView(withEnd, '2026-08-25', at.getTime());
+    expect(view.state).toBe('ready');
+  });
+
+  it('goes STALE the moment the user day ends, not at midnight', () => {
+    expect(widgetView(withEnd, '2026-08-25', endsMs - 1).state).toBe('ready');
+    expect(widgetView(withEnd, '2026-08-25', endsMs).state).toBe('empty');
+  });
+
+  it('WOULD have rendered empty at 01:00 without the field — the old behaviour', () => {
+    const view = widgetView(base, '2026-08-25');
+    expect(view.state === 'empty' && view.reason).toBe('stale');
+  });
+
+  it('falls back to the calendar comparison for a pre-boundary blob', () => {
+    expect(widgetView(base, '2026-08-24', Date.now()).state).toBe('ready');
+    expect(widgetView(base, '2026-08-25', Date.now()).state).toBe('empty');
+  });
+
+  it('falls back when the caller offers no clock, even if the field is present', () => {
+    expect(widgetView(withEnd, '2026-08-24').state).toBe('ready');
+    expect(widgetView(withEnd, '2026-08-25').state).toBe('empty');
+  });
+
+  it('drops a malformed dayEndsMs rather than never expiring', () => {
+    // NaN compares false against everything, so an unsanitized value would make
+    // `nowMs >= ends` permanently false — a widget that never goes stale.
+    const raw = JSON.stringify({ ...base, dayEndsMs: 'soon' });
+    const parsed = parseWidgetSnapshot(raw);
+    expect(parsed?.dayEndsMs).toBeUndefined();
+    expect(widgetView(parsed, '2026-08-25', Date.now()).state).toBe('empty');
+  });
+
+  it('survives a round trip and a quick-add fold', () => {
+    const parsed = parseWidgetSnapshot(JSON.stringify(withEnd));
+    expect(parsed?.dayEndsMs).toBe(endsMs);
+    const folded = applyQuickAddToSnapshot(parsed, { presetId: 'p', name: 'Egg', calories: 70 }, 9);
+    expect(folded?.dayEndsMs).toBe(endsMs);
+  });
+
+  it('omits the field entirely when the builder is not given one', () => {
+    const built = buildWidgetSnapshot(
+      { totalCalories: 1200, totalProtein: 80 } as never,
+      { calorieTarget: 2000, proteinTarget: 160 } as never,
+      '2026-08-24',
+      1,
+      'en',
+    );
+    expect('dayEndsMs' in built).toBe(false);
+  });
+
+  it('counts a boundary move as a change, so the write is not skipped', () => {
+    // Moving the boundary can leave every rendered number identical while
+    // changing when the face expires.
+    expect(widgetSnapshotChanged(withEnd, { ...withEnd, dayEndsMs: endsMs + 3600_000 })).toBe(true);
+  });
+});

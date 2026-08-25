@@ -4,7 +4,10 @@ import {
   type DailyTargets,
   type DaySummary,
   type MealPreset,
-  calendarDateKey,
+  type DayBoundary,
+  dayBoundaryOf,
+  dayKeyAt,
+  dayRange,
   resolveQuickAddTargets,
 } from '@macrolog/core';
 import { useLocale } from '@/i18n';
@@ -45,14 +48,31 @@ import { syncWidget } from '@/lib/widget';
  * Fire-and-forget: `syncWidget` never rejects, and a stale widget must not be
  * able to disturb the screen that's drawing the real thing.
  */
+/**
+ * The day the blob describes, and the instant that day ends.
+ *
+ * Both come from the user's boundary (ADR-0030), and shipping the second is
+ * what lets every widget decide staleness without re-deriving a day. Before
+ * this, the snapshot was stamped `calendarDateKey(new Date())` while `summary`
+ * came from `useToday`, which is boundary-aware — so a user on `dayStartHour: 3`
+ * had the widget label the previous day's totals as today's from midnight until
+ * 03:00, and a widget quick-add in that window filed against a different day
+ * than the same food logged in the app.
+ */
+function dayStamp(boundary: DayBoundary, at: Date): { key: string; endsMs: number } {
+  const key = dayKeyAt(at, boundary);
+  return { key, endsMs: dayRange(key, boundary).end.getTime() };
+}
+
 export function useWidgetSync(
   summary: DaySummary,
   targets: DailyTargets,
   presets: readonly MealPreset[] = [],
 ): void {
   const locale = useLocale();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const uid = user?.uid;
+  const boundary = useMemo(() => dayBoundaryOf(profile), [profile]);
   const [slots, setSlots] = useState<string[]>([]);
 
   useEffect(() => {
@@ -74,12 +94,13 @@ export function useWidgetSync(
   // Read through a ref inside the AppState listener so the subscription is
   // registered once instead of being torn down and rebuilt on every keystroke
   // that moves a total.
-  const latest = useRef({ summary, targets, locale, quickAdd, uid });
-  latest.current = { summary, targets, locale, quickAdd, uid };
+  const latest = useRef({ summary, targets, locale, quickAdd, uid, boundary });
+  latest.current = { summary, targets, locale, quickAdd, uid, boundary };
 
   useEffect(() => {
-    void syncWidget(summary, targets, calendarDateKey(new Date()), locale, Date.now(), quickAdd);
-  }, [summary, targets, locale, quickAdd]);
+    const { key, endsMs } = dayStamp(boundary, new Date());
+    void syncWidget(summary, targets, key, locale, Date.now(), quickAdd, endsMs);
+  }, [summary, targets, locale, quickAdd, boundary]);
 
   // The Quick Settings tile's label mirror (ADR-0020). Driven from the same
   // resolved slots as the snapshot above, so the tile and the widget can never
@@ -112,10 +133,12 @@ export function useWidgetSync(
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state !== 'active') return;
-      const { summary: s, targets: tg, locale: l, quickAdd: qa, uid: u } = latest.current;
+      const { summary: s, targets: tg, locale: l, quickAdd: qa, uid: u, boundary: b } = latest.current;
       // Recomputed here rather than captured: after a rollover the app can
-      // resume on a different calendar day than the one this effect mounted on.
-      void syncWidget(s, tg, calendarDateKey(new Date()), l, Date.now(), qa);
+      // resume on a different day than the one this effect mounted on — and
+      // with a boundary that day is not the calendar one.
+      const { key, endsMs } = dayStamp(b, new Date());
+      void syncWidget(s, tg, key, l, Date.now(), qa, endsMs);
       if (u) void flushPendingLogs(u);
     });
     return () => sub.remove();

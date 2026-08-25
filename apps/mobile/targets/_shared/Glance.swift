@@ -206,10 +206,27 @@ public enum Glance {
     /// silent class of failure as the `useMemoCache` defect on Android.
     public let quickAdd: [QuickAddSlot]?
 
+    /// The instant this snapshot's day ENDS, epoch ms — the exclusive end of
+    /// `dayRange(dateKey, boundary)` phone-side (ADR-0030).
+    ///
+    /// **This exists so Swift never has to know what a day is.** `dateKey` is
+    /// the *user's* day, which since ADR-0030 is not the calendar date: a user
+    /// on `dayStartHour: 3` is still on yesterday at 01:00. Re-deriving that
+    /// here would mean porting `dayKeyAt`'s boundary history — including the
+    /// 27-hour changeover day — into Swift, and a second implementation of a
+    /// domain rule is a second thing to get wrong. JS already computed the
+    /// answer; it ships the answer.
+    ///
+    /// Optional, and the wire `version` deliberately does NOT move for it —
+    /// same reasoning as `quickAdd` above. A blob written by vc 37 has no
+    /// `dayEndsMs`, and `face` falls back to the calendar-date comparison,
+    /// which is exactly what that blob was written under.
+    public let dayEndsMs: Double?
+
     public init(
       v: Int, dateKey: String, kcalConsumed: Int, kcalTarget: Int,
       proteinConsumed: Int, proteinTarget: Int, updatedMs: Double, locale: String,
-      quickAdd: [QuickAddSlot]? = nil
+      quickAdd: [QuickAddSlot]? = nil, dayEndsMs: Double? = nil
     ) {
       self.v = v
       self.dateKey = dateKey
@@ -220,6 +237,7 @@ public enum Glance {
       self.updatedMs = updatedMs
       self.locale = locale
       self.quickAdd = quickAdd
+      self.dayEndsMs = dayEndsMs
     }
   }
 
@@ -323,7 +341,20 @@ public enum Glance {
       return .empty(locale: nil)
     }
 
-    guard snap.dateKey == localDateKey(now) else { return .empty(locale: snap.locale) }
+    // Staleness. Prefer the day's own end instant when the phone shipped one:
+    // comparing two instants is total, needs no calendar, and is correct under
+    // any boundary including the changeover day that runs 27 hours.
+    //
+    // The calendar-date fallback is for blobs written before `dayEndsMs`
+    // existed. It is WRONG under a non-midnight boundary — between midnight and
+    // the boundary it calls a previous user-day's numbers "today" — but such a
+    // blob was written by a build that had no boundary either, so the fallback
+    // matches what produced it. Any snapshot from vc 38 on carries the field.
+    if let endsMs = snap.dayEndsMs {
+      guard now.timeIntervalSince1970 * 1000 < endsMs else { return .empty(locale: snap.locale) }
+    } else {
+      guard snap.dateKey == localDateKey(now) else { return .empty(locale: snap.locale) }
+    }
     guard snap.kcalTarget > 0 else { return .empty(locale: snap.locale) }
 
     return .ready(

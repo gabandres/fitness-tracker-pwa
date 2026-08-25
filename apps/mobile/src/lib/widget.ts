@@ -214,13 +214,14 @@ export async function syncWidget(
   locale: string,
   nowMs: number = Date.now(),
   quickAdd: readonly QuickAddTarget[] = [],
+  dayEndsMs?: number,
 ): Promise<void> {
   if (!supported) {
     if (__DEV__) console.log('[widget] skipped: unsupported runtime (Expo Go or web)');
     return;
   }
 
-  const next = buildWidgetSnapshot(summary, targets, todayKey, nowMs, locale, quickAdd);
+  const next = buildWidgetSnapshot(summary, targets, todayKey, nowMs, locale, quickAdd, dayEndsMs);
 
   // A zero calorie target is the single most common reason the widget sits on
   // its empty state while everything else looks healthy: the Swift side treats
