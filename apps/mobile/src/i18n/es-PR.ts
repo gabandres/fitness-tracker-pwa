@@ -175,7 +175,7 @@ export const esPR: Record<I18nKey, string> = {
   'link.failedBody': 'Tu dispositivo lo bloqueó. Abre esto en tu navegador:\n\n{url}',
   'whatsNew.title': 'Novedades',
   'whatsNew.body':
-    'Si comes después de medianoche, tu día ahora puede terminar cuando tú digas. En Ajustes → El día empieza a las puedes mover la línea a las 3 o las 6 AM, así una comida tarde cuenta para la noche anterior en vez de para mañana. Los días que ya registraste mantienen el límite con el que se registraron — nada de tu historial se mueve.',
+    'Tendencias ahora muestra tu sueño, y le hace una sola pregunta honesta: en tus noches más cortas, ¿comiste más? Necesita unas dos semanas de noches antes de decir algo, y se queda callado cuando no hay nada que reportar. Sin puntuación de sueño — Ignia solo sabe cuánto dormiste, y una puntuación hecha solo con eso sería fingir. Nunca cambia tu meta de calorías.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',

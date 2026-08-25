@@ -182,7 +182,7 @@ export const en = {
   'link.failedBody': 'Your device blocked it. Open this in your browser instead:\n\n{url}',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    'If you eat after midnight, your day can now end when you say it does. Settings → Day starts at lets you move the line to 3 or 6 AM, so a late meal counts toward the night before instead of tomorrow. Days you already logged keep the boundary they were logged under — nothing in your history moves.',
+    'Trends now shows your sleep, and asks one honest question of it: on your shorter nights, did you eat more? It needs about two weeks of nights before it will say anything, and it stays quiet when there is nothing to report. No sleep score — Ignia only knows how long you slept, and a score built from that alone would be pretending. It never changes your calorie target.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',

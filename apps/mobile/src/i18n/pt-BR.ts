@@ -171,7 +171,7 @@ export const ptBR = {
   'link.failedBody': 'O seu aparelho bloqueou. Abra isto no seu navegador:\n\n{url}',
   'whatsNew.title': 'Novidades',
   'whatsNew.body':
-    'Se você come depois da meia-noite, seu dia agora pode terminar quando você quiser. Em Ajustes → O dia começa às dá para mover a linha para 3h ou 6h, assim uma refeição tarde conta para a noite anterior em vez de para amanhã. Os dias que você já registrou mantêm o limite com que foram registrados — nada do seu histórico se move.',
+    'Tendências agora mostra o seu sono, e faz uma única pergunta honesta sobre ele: nas suas noites mais curtas, você comeu mais? Precisa de umas duas semanas de noites antes de dizer qualquer coisa, e fica quieto quando não há nada a relatar. Sem pontuação de sono — o Ignia só sabe quanto tempo você dormiu, e uma pontuação feita só com isso seria fingimento. Nunca muda a sua meta de calorias.',
 
   // ── app updates ──
   'update.ota.title': 'Atualização pronta',
