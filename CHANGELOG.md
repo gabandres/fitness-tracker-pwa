@@ -6,6 +6,38 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-25 — sleep on Trends: one honest comparison
+
+**On your shorter nights, did you eat more?** Trends now answers that from your
+own fortnight — two group means and the gap between them, in the units you
+already read. The bars the sentence is about are the bars drawn in colour, so
+the chart is the claim rather than decoration beside it.
+
+**There is no sleep score, and there is not going to be one.** Every scored
+sleep app builds its number from sensors Ignia does not have — heart rate, HRV,
+restlessness, temperature. Take those away and what is left is duration, which
+is the one thing Ignia stores. A 0–100 built from a duration alone implies
+components that do not exist.
+
+The card also says nothing until it has grounds to. It needs twelve nights, each
+paired with a fully-logged day, at least five nights either side of your own
+median, and a gap of at least 150 kcal. Below that you get the same card without
+the sentence and a line naming exactly what is still missing. With no sleep at
+all you get one row, not an empty widget.
+
+**Sleep never touches your calorie target.** The tempting version of this
+feature — *you slept badly, so here is a softer number* — has no evidence behind
+it and would quietly corrupt the one figure the app is built on. A test fails
+the build if any sleep value ever moves a target.
+
+Also fixed: an imported night could overwrite one you typed yourself, if your
+day started at 3 or 6 AM. The importer files a night on the calendar day you
+woke; the app filed yours on *your* day, and on a non-midnight boundary those
+are two different documents — so the "never overwrite what you typed" rule
+silently did not apply in exactly the window it was written for.
+
+---
+
 ## 2026-08-25 — your day can start at 3 AM
 
 Settings → **Day starts at**: midnight, 3 AM or 6 AM. A meal logged at 00:30 no

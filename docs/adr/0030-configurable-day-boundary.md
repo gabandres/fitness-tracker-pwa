@@ -295,3 +295,32 @@ now fails in both directions. All 12 are blocked on a decision:
   session day and the imported block's day are compared to decide a merge, so
   moving one and not the other breaks the merge outright. That is the concrete
   reason Q5 has to be answered before either half moves.
+
+## Amendment 4 — Q5's second victim is fixed, and Q5 itself is unchanged (2026-08-25)
+
+Issue **#80**. `importDailySleep`'s "never overwrite a night the user typed"
+guard was keyed on the **document id**, which only asks the right question when
+the manual writer and the importer agree on a key. Under a non-midnight boundary
+they do not: the sleep sheet writes `dayKeyAt(now)` while all three importers
+file the calendar wake day, so a night typed at 01:00 on a 3am boundary sat one
+document away from the import of the same night. The guard read past it and
+wrote a second row. **This is the SECOND concrete victim of "same night ⇒ same
+key"**, after the `looksLikeSameEffort` short-circuit in
+[ADR-0026](0026-oura-through-the-os-health-store.md) Amendment 2.
+
+**Q5 is NOT renegotiated.** Imported daily totals still keep their source's day —
+a ring knows when your night ended and Ignia does not. Only the *protection
+check* became boundary-aware: `manualNightKeys` (`packages/core/src/sleep-night.ts`)
+answers "which keys could hold the manual twin of this night" from the **wake
+instant**, which every importer knows and the stored key has already discarded
+(`endMs` on a health sample, `bedtime_end` on an Oura sleep period). The write is
+still always at `dateKey`.
+
+**The obvious cheaper fix is wrong and the module records why**, so it is not
+re-proposed: checking the neighbouring key whenever the boundary is non-zero
+would decline every import on the day after any hand-typed night — silently,
+permanently, and indistinguishably from a broken integration.
+
+Q5's *conversion* work is still open: `npm run check:day-boundary` reports **10
+calls in 3 files**, unchanged by this fix, because nothing here converts an
+importer's `calendarDateKey`.

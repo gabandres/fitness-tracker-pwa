@@ -1,6 +1,6 @@
 # ADR-0033: Sleep on Trends is one honest comparison, not a score
 
-- **Status:** proposed
+- **Status:** accepted (2026-08-25), with two amendments below
 - **Date:** 2026-08-25
 - **Touches:** `users/{uid}/dailySleep`, a new pure module in `packages/core`, `apps/mobile/src/hooks/useTrends.ts` + `useCoreSnapshot`, `apps/mobile/src/lib/ledger.ts` (a bounded sleep subscription), `apps/mobile/src/app/(app)/trends.tsx`, the three mobile locales, and [ADR-0030](0030-configurable-day-boundary.md)'s open Q5
 - **Mockup:** [`assets/0033-sleep-mockup.html`](assets/0033-sleep-mockup.html) — three states × two themes at 360×720 dp ([screenshot](assets/0033-sleep-mockup.png))
@@ -339,6 +339,47 @@ already enforces. But it must be a **new range-bounded reader**
 the existing one has no range bound, and a two-year account has ~700 documents in
 that collection. Copying an unbounded listener into a second hook is how a read
 bill starts.
+
+## Amendment 1 — one window of 14 days, and the gate is 12 nights (2026-08-25)
+
+**Decisions 3 and 4 contradicted each other and could not both be built.**
+Decision 3 evaluates the gates "over a 60-day window"; decision 4 draws a
+14-night strip and says the highlighted bars are *"exactly the nights the
+sentence is about"*. At different windows that second claim is false — the
+sentence would name ~25 nights while the strip drew 14.
+
+Put to the owner during implementation and resolved toward **one window of
+`SLEEP_WINDOW_DAYS` = 14 days for both**, with the nights gate moved
+**14 → 12**. Three things pointed the same way:
+
+- The mockup's own numbers only close at 14. State 1 reads *"5 shortest"* and
+  *"6 longest"* against *"13 of 14 nights"* — 5 + 6 = 11 of 13 drawn. At a
+  60-day window those counts would be in the twenties.
+- **The highlighted-bars-are-the-claim property is the strongest idea in this
+  design**, and it is the first casualty of two windows.
+- §1 of this ADR already records that `fetchOuraDaily` defaults to **14 days**
+  and the health importer is the same order. A 60-day window would mostly be
+  describing history nobody fetched.
+
+**12 rather than 14 is the mockup's number, not an invented one.** At a 14-day
+window a 14-night gate means a *complete* fortnight with no gaps, which State 1
+— 13 of 14, sentence shown — is not. Twelve leaves room for the gaps a real
+importer produces without abandoning the fortnight.
+
+## Amendment 2 — the empty row keeps its promise (2026-08-25)
+
+The 0–2 night row shipped with a chevron and no action. Found by looking at a
+device screenshot rather than by any of the 427 green specs, and fixed the same
+day: it pushes `/connected-apps`, which is where both halves of its own sentence
+live. Recorded because the failure is a general one — **an affordance that does
+not act reads as a broken row, which is worse than not drawing it** — and
+because this row is the only discoverable path to a sleep source for the
+majority of users the ADR predicts will see it.
+
+One deviation from decision 4 was kept deliberately. The prose says the coverage
+footer is present "from the third night onward"; the mockup's State 2 has no
+footer, and that is what shipped, because *"13 of 14 nights"* under a progress
+line that already says *"5 nights so far"* is the same fact twice.
 
 ## Consequences
 
