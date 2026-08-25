@@ -17,7 +17,8 @@ import {
   computeStreak,
   currentWeight as coreCurrentWeight,
   dailyTargets,
-  calendarDateKey,
+  dayBoundaryOf,
+  dayKeyAt,
   LOG_WINDOW_ROWS,
   summarizeDay,
 } from '@macrolog/core';
@@ -220,15 +221,22 @@ export function useToday(): TodayState {
     }, [uid]),
   );
 
-  const todayKey = calendarDateKey(new Date());
-  const summary = useMemo(() => summarizeDay(todayKey, logs, weights), [todayKey, logs, weights]);
+  // ADR-0030: which day "today" IS, and which day each row belongs to, both
+  // come from the profile's boundary. An empty boundary is the calendar date,
+  // which is every account until the Settings row is used.
+  const boundary = useMemo(() => dayBoundaryOf(profile), [profile]);
+  const todayKey = dayKeyAt(new Date(), boundary);
+  const summary = useMemo(
+    () => summarizeDay(todayKey, logs, weights, boundary),
+    [todayKey, logs, weights, boundary],
+  );
   const targets = useMemo(() => dailyTargets(profile, logs, weights), [profile, logs, weights]);
   const todayLogs = useMemo(
     () =>
       logs
-        .filter((l) => calendarDateKey(l.date) === todayKey && l.calories > 0)
+        .filter((l) => dayKeyAt(l.date, boundary) === todayKey && l.calories > 0)
         .sort((a, b) => b.date.getTime() - a.date.getTime()),
-    [logs, todayKey],
+    [logs, todayKey, boundary],
   );
 
   // Distinct recent meals for one-tap re-logging. Mirrors the PWA's
@@ -256,13 +264,15 @@ export function useToday(): TodayState {
 
   const { isPro } = useSubscription();
   const streak = useMemo(
-    () => computeStreak(logs, { freezeMaxGap: isPro ? STREAK_FREEZE_MAX_GAP_PRO : 0 }).streak,
-    [logs, isPro],
+    () =>
+      computeStreak(logs, { freezeMaxGap: isPro ? STREAK_FREEZE_MAX_GAP_PRO : 0, boundary })
+        .streak,
+    [logs, isPro, boundary],
   );
 
   const shareStats = useMemo<ShareStats>(() => {
     const loggedDays = new Set(
-      logs.filter((l) => l.calories > 0).map((l) => calendarDateKey(l.date)),
+      logs.filter((l) => l.calories > 0).map((l) => dayKeyAt(l.date, boundary)),
     ).size;
     const current = coreCurrentWeight(logs, weights);
     const wKeys = Object.keys(weights).sort();
@@ -277,14 +287,14 @@ export function useToday(): TodayState {
     }
     const weightDeltaLb = start != null && current != null ? +(start - current).toFixed(1) : null;
     return { streak, loggedDays, weightDeltaLb };
-  }, [logs, weights, streak]);
+  }, [logs, weights, streak, boundary]);
 
   const repeatYesterday = useCallback(async () => {
     if (!uid) return 0;
     const y = new Date();
     y.setDate(y.getDate() - 1);
-    const yKey = calendarDateKey(y);
-    const yLogs = logs.filter((l) => calendarDateKey(l.date) === yKey && l.calories > 0);
+    const yKey = dayKeyAt(y, boundary);
+    const yLogs = logs.filter((l) => dayKeyAt(l.date, boundary) === yKey && l.calories > 0);
     for (const l of yLogs) {
       const ts = new Date();
       ts.setHours(l.date.getHours(), l.date.getMinutes(), 0, 0);
@@ -305,7 +315,7 @@ export function useToday(): TodayState {
     // is whether the shortcut earns its place on an empty Today.
     if (yLogs.length > 0) track('repeat_yesterday');
     return yLogs.length;
-  }, [uid, logs]);
+  }, [uid, logs, boundary]);
 
   // Every logging surface's writes, shared with History so the two cannot
   // drift again (`useLogWrites`). The meal-slot default sits below even that,

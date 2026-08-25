@@ -13,7 +13,8 @@ import {
   addDays,
   computeGoalProgress,
   currentWeight as coreCurrentWeight,
-  calendarDateKey,
+  dayBoundaryOf,
+  dayKeyAt,
   latestNavyBodyFat,
   missingBodyFatInputs,
   projectWeight,
@@ -102,7 +103,7 @@ export function useBody(): BodyState {
     }, [uid]),
   );
 
-  const todayKey = calendarDateKey(new Date());
+  const todayKey = dayKeyAt(new Date(), dayBoundaryOf(profile));
   const weighIns = useMemo<WeighIn[]>(
     () =>
       Object.entries(weights)

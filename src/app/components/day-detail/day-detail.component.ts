@@ -11,7 +11,7 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { FitnessStore } from '../../services/fitness-store.service';
 import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { TranslationService } from '../../services/translation.service';
-import { calendarDateKey, parseYmd } from '@macrolog/core';
+import { dayKeyAt, parseYmd } from '@macrolog/core';
 import { bcp47ForLang } from '../../utils/locale';
 import { UiDaySummary } from '../ui/day-summary.component';
 import { UiFab } from '../ui/fab.component';
@@ -69,9 +69,9 @@ export class DayDetailComponent {
 
   protected readonly streak = computed(() => this.store.streak());
 
-  protected readonly isToday = computed(() => this.dateKey() === calendarDateKey(new Date()));
+  protected readonly isToday = computed(() => this.dateKey() === dayKeyAt(new Date(), this.store.dayBoundary()));
 
-  protected readonly isFuture = computed(() => this.dateKey() > calendarDateKey(new Date()));
+  protected readonly isFuture = computed(() => this.dateKey() > dayKeyAt(new Date(), this.store.dayBoundary()));
 
   protected readonly showStreak = computed(() => this.isToday() && this.streak() >= 2);
 

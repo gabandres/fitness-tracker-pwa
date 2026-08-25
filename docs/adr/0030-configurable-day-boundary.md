@@ -228,3 +228,70 @@ does and keep working unchanged the day the field appears.
 
 The one thing that did NOT survive the sweep as a real finding: two dead
 `calendarDateKey` imports in `useTrends.ts` and `trends.component.ts`, removed.
+
+## Amendment 3 — persistence, the setting, and the two questions that are now load-bearing (2026-08-25)
+
+Steps 3 and 4 are done. **ADR-0030 is implemented**, and what remains is Q4 and
+Q5 — decisions, not code.
+
+### Persistence
+
+`dayBoundary?: DayBoundary` on `ProfileFields`, `firestore.rules` validated and
+**deployed before any client could write it**, in that order.
+
+Two things were learned doing it.
+
+**The web app REDECLARES `ProfileFields` rather than re-exporting core's** —
+`src/app/services/firebase.service.ts:210`. `CLAUDE.md` says it re-exports them,
+and that is wrong. The field had to be added in both places, and the way this
+surfaced is worth recording: `dayBoundaryOf(profile)` failed to compile with
+*"Type 'Profile' has no properties in common"*, which is TypeScript's weak-type
+check telling the truth — the web's `Profile` genuinely had none of the
+properties, because it is a different interface that happens to share a name.
+
+**`firestore.rules` cannot validate the field's contents, and this is not a
+shortcut.** Rules have no way to iterate a list, so the server can check that
+`dayBoundary` is a list of at most 24 entries and *nothing whatsoever* about
+what those entries are. A rule that looks like it validates a list of maps
+cannot be written.
+
+So the shape is enforced on the way OUT instead: `sanitizeDayBoundary` drops any
+entry that is not a `{ from: 'YYYY-MM-DD', hour: 0..6 }`, re-sorts (because
+`boundaryHourOn` walks in order and stops at the first entry past the key it is
+asked about — an unsorted list hands back an older rule for a later day, a wrong
+answer that looks entirely plausible), and keeps the last of duplicate keys.
+Dropped rather than repaired: a half-understood entry silently re-buckets days,
+and this feature's failure mode is a wrong number that looks right. Nine tests
+cover it, each using a shape the server would have happily stored.
+
+### The setting
+
+Mobile only — the web is frozen for features (ADR-0022). Settings → *Day starts
+at*, a three-option segment (midnight · 3 AM · 6 AM), in all three locales.
+
+The write goes through core's `setDayStartHour`, which is what makes it
+append-only: it refuses a `from` that is not after every entry on file and
+returns the list unchanged when the hour is already in force, so the row can
+call it on every press without a "did it change" guard. Six tests pin that the
+writer appends rather than replaces, writes plain objects Firestore accepts, and
+throws rather than silently re-sorting when asked to rewrite history backwards.
+
+### The frontends
+
+63 of the 75 outstanding calls converted. The boundary reaches them from the
+profile that was **already** on the auth context (mobile) or the `FitnessStore`
+signal (web), so no new Firestore listener was added anywhere — ADR-0016's
+per-hook subscription model is untouched.
+
+### What is left, and it is exactly Q4 and Q5
+
+`npm run check:day-boundary` sits at **12 calls in 4 files**, and the ratchet
+now fails in both directions. All 12 are blocked on a decision:
+
+- **Q4 (widget/watch)** — `widgets/render.tsx` and `useWidgetSync` render with
+  no profile in scope. Q4 decides whether they convert at all.
+- **Q5 (importers keep their source's day)** — `health.ts` / `health-sync.ts`.
+  Converting *half* an importer is worse than converting none: the user's own
+  session day and the imported block's day are compared to decide a merge, so
+  moving one and not the other breaks the merge outright. That is the concrete
+  reason Q5 has to be answered before either half moves.

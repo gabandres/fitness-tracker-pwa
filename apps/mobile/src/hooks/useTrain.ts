@@ -28,7 +28,8 @@ import {
   type SessionAction,
   applySessionAction,
   findDuplicateExercise,
-  calendarDateKey,
+  dayBoundaryOf,
+  dayKeyAt,
   newCardioBlock,
   newWorkoutSet,
 } from '@macrolog/core';
@@ -145,7 +146,7 @@ export interface TrainState {
 }
 
 export function useTrain(): TrainState {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const uid = user?.uid;
   const locale = useLocale();
   // Cached to disk on the way in, same as Today's slices. The setters are the
@@ -515,7 +516,7 @@ export function useTrain(): TrainState {
           bodyweight: extras.bodyweight,
           sleepHours: extras.sleepHours,
         });
-        const dateKey = calendarDateKey(date);
+        const dateKey = dayKeyAt(date, dayBoundaryOf(profile));
         if (extras.bodyweight != null && extras.bodyweight > 0) {
           await setDailyWeight(uid, dateKey, extras.bodyweight);
           void exportDaily('weight', dateKey, extras.bodyweight);
@@ -524,7 +525,7 @@ export function useTrain(): TrainState {
           await setDailySleep(uid, dateKey, extras.sleepHours);
           void exportDaily('sleep', dateKey, extras.sleepHours);
         }
-        await markExercised(uid, date);
+        await markExercised(uid, date, dayBoundaryOf(profile));
         // Mirror the finished session to Health (ends now; strength training).
         track('workout_finished');
         void exportWorkout({ start: date, end: new Date() });

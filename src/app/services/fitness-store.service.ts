@@ -27,7 +27,7 @@ import {
   toProfileFields,
   type DailyTargets,
 } from '@macrolog/core/targets';
-import { addDays, calendarDateKey, trailingDateKeys } from '@macrolog/core';
+import { addDays, calendarDateKey, dayBoundaryOf, dayKeyAt, trailingDateKeys, type DayBoundary } from '@macrolog/core';
 import { bcp47ForLang } from '../utils/locale';
 import { TranslationService } from './translation.service';
 import { summarizeDay } from '@macrolog/core';
@@ -180,6 +180,13 @@ export class FitnessStore {
   /** The user's saved food library (My Foods, ADR-0013). */
   readonly customFoods: Signal<CustomFood[]> = this._customFoods.asReadonly();
   readonly profile: Signal<Profile | null> = this.fb.profile;
+  /**
+   * When the user's day starts (ADR-0030), derived once here so every screen
+   * agrees. Empty ⇒ calendar days, which is every account until the setting
+   * exists — `dayKeyAt` under it IS the calendar date, so reading this instead
+   * of `calendarDateKey` changes nobody's numbers today.
+   */
+  readonly dayBoundary: Signal<DayBoundary> = computed(() => dayBoundaryOf(this.fb.profile()));
   readonly status: Signal<StoreStatus> = this._status.asReadonly();
   readonly undoEntry: Signal<DailyLog | null> = this._undoEntry.asReadonly();
   readonly budgetCrossed: Signal<boolean> = this._budgetCrossed.asReadonly();
@@ -449,9 +456,9 @@ export class FitnessStore {
   });
 
   readonly todaySummary: Signal<TodaySummary | null> = computed(() => {
-    const today = calendarDateKey(new Date());
+    const today = dayKeyAt(new Date(), this.dayBoundary());
     const todayLogs = this._logs().filter(
-      (l) => calendarDateKey(l.date) === today,
+      (l) => dayKeyAt(l.date, this.dayBoundary()) === today,
     );
     if (todayLogs.length === 0) return null;
     return {
@@ -540,7 +547,9 @@ export class FitnessStore {
    */
   last7Days(): { key: string; label: string; kcal: number; protein: number }[] {
     const out: { key: string; label: string; kcal: number; protein: number }[] = [];
-    const today = new Date();
+    // Anchor on the user's day (ADR-0030), then step in calendar days — the
+    // steps were always right, the anchor was the part that could be a day out.
+    const today = this.dateFromKey(dayKeyAt(new Date(), this.dayBoundary()));
     for (let i = 6; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(today.getDate() - i);
@@ -561,9 +570,9 @@ export class FitnessStore {
 
   /** Logs for an arbitrary date key, sorted newest-first. Same fallback strategy as `summaryFor`. */
   logsForDay(dateKey: string): DailyLog[] {
-    let list = this._logs().filter((l) => calendarDateKey(l.date) === dateKey);
+    let list = this._logs().filter((l) => dayKeyAt(l.date, this.dayBoundary()) === dateKey);
     if (list.length === 0) {
-      list = this.allTimeLogs().filter((l) => calendarDateKey(l.date) === dateKey);
+      list = this.allTimeLogs().filter((l) => dayKeyAt(l.date, this.dayBoundary()) === dateKey);
     }
     return [...list].sort((a, b) => +b.date - +a.date);
   }
@@ -624,7 +633,9 @@ export class FitnessStore {
     };
   });
 
-  /** dateKey ("YYYY-MM-DD") → local-midnight Date. Mirrors `calendarDateKey`. */
+  /** dateKey ("YYYY-MM-DD") → local-midnight Date. The inverse of
+   *  `calendarDateKey`, and the way to turn a settled day key back into a
+   *  Date that is safe to step with (ADR-0030). */
   private dateFromKey(key: string): Date {
     const [y, m, d] = key.split('-').map(Number);
     return new Date(y, m - 1, d);
@@ -670,7 +681,7 @@ export class FitnessStore {
       const target = this.targetCalories();
       if (!summary || target <= 0) return;
       if (summary.totalCalories <= target) return;
-      const key = `macrolog.budget-crossed.${calendarDateKey(new Date())}`;
+      const key = `macrolog.budget-crossed.${dayKeyAt(new Date(), this.dayBoundary())}`;
       try {
         if (localStorage.getItem(key)) return;
         localStorage.setItem(key, '1');
@@ -726,10 +737,10 @@ export class FitnessStore {
    * a workout is not a meal.
    */
   async markExercised(date: Date): Promise<void> {
-    const key = calendarDateKey(date);
+    const key = dayKeyAt(date, this.dayBoundary());
     const already =
-      this._logs().some((l) => calendarDateKey(l.date) === key && l.exerciseCompleted) ||
-      this._allTimeLogs().some((l) => calendarDateKey(l.date) === key && l.exerciseCompleted);
+      this._logs().some((l) => dayKeyAt(l.date, this.dayBoundary()) === key && l.exerciseCompleted) ||
+      this._allTimeLogs().some((l) => dayKeyAt(l.date, this.dayBoundary()) === key && l.exerciseCompleted);
     if (already) return;
     await this.fb.addLog({ calories: 0, exerciseCompleted: true, timestamp: date });
     await this._refreshLogs();
@@ -751,11 +762,11 @@ export class FitnessStore {
     const date = patch.date ?? session?.date ?? new Date();
     const bodyweight = patch.bodyweight ?? session?.bodyweight;
     if (bodyweight != null && bodyweight > 0) {
-      await this.body.setDailyWeight(calendarDateKey(date), bodyweight);
+      await this.body.setDailyWeight(dayKeyAt(date, this.dayBoundary()), bodyweight);
     }
     const sleepHours = patch.sleepHours ?? session?.sleepHours;
     if (sleepHours != null && sleepHours > 0) {
-      await this.body.setDailySleep(calendarDateKey(date), sleepHours);
+      await this.body.setDailySleep(dayKeyAt(date, this.dayBoundary()), sleepHours);
     }
     await this.markExercised(date);
   }
@@ -771,13 +782,12 @@ export class FitnessStore {
    * (callers can use this to decide whether to show the CTA at all).
    */
   async repeatYesterday(): Promise<number> {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const today = this.dateFromKey(dayKeyAt(new Date(), this.dayBoundary()));
     const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
     const yKey = calendarDateKey(yesterday);
 
     const yesterdayLogs = this._logs().filter(
-      (l) => calendarDateKey(l.date) === yKey,
+      (l) => dayKeyAt(l.date, this.dayBoundary()) === yKey,
     );
     if (yesterdayLogs.length === 0) return 0;
 
@@ -830,13 +840,16 @@ export class FitnessStore {
    * is today itself (cloning today into today would double-count).
    */
   async copyDayToToday(sourceDateKey: string): Promise<number> {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const todayKey = calendarDateKey(today);
+    const todayKey = dayKeyAt(new Date(), this.dayBoundary());
     if (sourceDateKey === todayKey) return 0;
+    // The calendar date the clones are STAMPED on. Not the same thing as
+    // `todayKey`: at a non-midnight boundary the user's day can be yesterday's
+    // calendar date, and a clone written with tomorrow's wall clock would land
+    // outside the day it was cloned into.
+    const today = this.dateFromKey(todayKey);
 
     const sourceLogs = this._logs().filter(
-      (l) => calendarDateKey(l.date) === sourceDateKey,
+      (l) => dayKeyAt(l.date, this.dayBoundary()) === sourceDateKey,
     );
     if (sourceLogs.length === 0) return 0;
 
@@ -881,7 +894,7 @@ export class FitnessStore {
    */
   async toggleDayExercise(dateKey: string): Promise<void> {
     const dayLogs = this._logs().filter(
-      (l) => calendarDateKey(l.date) === dateKey,
+      (l) => dayKeyAt(l.date, this.dayBoundary()) === dateKey,
     );
 
     const isExercised = (l: DailyLog) =>
@@ -1170,7 +1183,7 @@ export class FitnessStore {
       await this._loadAllTimeLogs();
     }
     const keys = new Set(this.windowCalendarKeys(n));
-    return this._allTimeLogs().filter((l) => keys.has(calendarDateKey(l.date)));
+    return this._allTimeLogs().filter((l) => keys.has(dayKeyAt(l.date, this.dayBoundary())));
   }
 
   /**
@@ -1204,7 +1217,7 @@ export class FitnessStore {
     const keys = new Set(this.windowCalendarKeys(n));
     return {
       loaded: true,
-      logs: this._allTimeLogs().filter((l) => keys.has(calendarDateKey(l.date))),
+      logs: this._allTimeLogs().filter((l) => keys.has(dayKeyAt(l.date, this.dayBoundary()))),
     };
   }
 

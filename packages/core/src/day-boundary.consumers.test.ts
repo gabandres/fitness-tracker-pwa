@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MIDNIGHT, setDayStartHour } from './day-boundary';
+import { MIDNIGHT, dayBoundaryOf, dayKeyAt, sanitizeDayBoundary, setDayStartHour } from './day-boundary';
 import type { DateKey } from './date';
 import { aggregateByDay } from './tdee';
 import { summarizeDay, summarizeDays } from './day-summary';
@@ -150,5 +150,106 @@ describe('day boundary — threaded consumers', () => {
       expect(activityWindowRange(at1am, AT_3AM).to).toBe('2026-08-10');
       expect(activityWindowRange(at1am)).toEqual(activityWindowRange(at1am, MIDNIGHT));
     });
+  });
+});
+
+/**
+ * `sanitizeDayBoundary` is the ONLY thing standing between a stored value and
+ * the estimator. `firestore.rules` can check that `dayBoundary` is a list of at
+ * most 24 things and — because rules cannot iterate a list — nothing at all
+ * about what those things are. Every case below is therefore a shape the
+ * server would happily have stored.
+ */
+describe('sanitizeDayBoundary', () => {
+  it('passes a well-formed history through unchanged', () => {
+    const good = [
+      { from: '2026-08-25', hour: 3 },
+      { from: '2026-09-01', hour: 5 },
+    ];
+    expect(sanitizeDayBoundary(good)).toEqual(good);
+  });
+
+  it('treats absent, empty and non-list values as midnight', () => {
+    for (const raw of [undefined, null, [], 3, 'x', {}, { from: '2026-08-25', hour: 3 }]) {
+      expect(sanitizeDayBoundary(raw)).toEqual(MIDNIGHT);
+    }
+  });
+
+  it('drops entries that are not a {from, hour}', () => {
+    expect(
+      sanitizeDayBoundary([
+        null,
+        'nope',
+        42,
+        { hour: 3 }, // no `from`
+        { from: '2026-08-25' }, // no `hour`
+        { from: '2026-08-25', hour: 3 },
+      ]),
+    ).toEqual([{ from: '2026-08-25', hour: 3 }]);
+  });
+
+  it('drops a `from` that is not a YYYY-MM-DD key', () => {
+    // `boundaryHourOn` compares `from` to a date key as a STRING. Anything
+    // else makes that comparison meaningless rather than merely wrong.
+    expect(
+      sanitizeDayBoundary([
+        { from: '2026-8-5', hour: 3 },
+        { from: '08/25/2026', hour: 3 },
+        { from: 20260825, hour: 3 },
+        { from: '2026-08-25', hour: 3 },
+      ]),
+    ).toEqual([{ from: '2026-08-25', hour: 3 }]);
+  });
+
+  it('drops an hour outside 0..MAX_DAY_START_HOUR', () => {
+    expect(
+      sanitizeDayBoundary([
+        { from: '2026-01-01', hour: -1 },
+        { from: '2026-01-02', hour: 7 },
+        { from: '2026-01-03', hour: 2.5 },
+        { from: '2026-01-04', hour: NaN },
+        { from: '2026-01-05', hour: 6 },
+      ]),
+    ).toEqual([{ from: '2026-01-05', hour: 6 }]);
+  });
+
+  it('re-sorts an out-of-order list', () => {
+    // `boundaryHourOn` walks in order and STOPS at the first entry past the key
+    // it is asked about, so an unsorted list would hand back an older rule for
+    // a later day — a wrong answer that looks entirely plausible.
+    expect(
+      sanitizeDayBoundary([
+        { from: '2026-09-01', hour: 5 },
+        { from: '2026-08-25', hour: 3 },
+      ]),
+    ).toEqual([
+      { from: '2026-08-25', hour: 3 },
+      { from: '2026-09-01', hour: 5 },
+    ]);
+  });
+
+  it('keeps the last of duplicate `from` keys', () => {
+    expect(
+      sanitizeDayBoundary([
+        { from: '2026-08-25', hour: 3 },
+        { from: '2026-08-25', hour: 5 },
+      ]),
+    ).toEqual([{ from: '2026-08-25', hour: 5 }]);
+  });
+
+  it('survives a sanitized boundary being fed straight to dayKeyAt', () => {
+    const boundary = sanitizeDayBoundary([
+      { from: '2026-09-01', hour: 3 },
+      { from: 'garbage', hour: 99 },
+      { from: '2000-01-01', hour: 3 },
+    ]);
+    expect(dayKeyAt(new Date('2026-08-12T00:30:00'), boundary)).toBe('2026-08-11');
+  });
+
+  it('is what dayBoundaryOf reads off a profile', () => {
+    expect(dayBoundaryOf({ dayBoundary: [{ from: 'bad', hour: 3 }] as never })).toEqual(MIDNIGHT);
+    expect(dayBoundaryOf(null)).toEqual(MIDNIGHT);
+    expect(dayBoundaryOf({})).toEqual(MIDNIGHT);
+    expect(dayBoundaryOf({ dayBoundary: AT_3AM })).toEqual(AT_3AM);
   });
 });

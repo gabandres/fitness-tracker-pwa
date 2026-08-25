@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { type DailyLog, LOG_WINDOW_ROWS, computeStreak, calendarDateKey, parseYmd } from '@macrolog/core';
+import { type DailyLog, LOG_WINDOW_ROWS, computeStreak, dayBoundaryOf, dayKeyAt, parseYmd, type DayBoundary } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { useT } from '@/i18n';
 import { subscribeDailyWeights, subscribeRecentLogs } from '@/lib/ledger';
@@ -12,12 +12,13 @@ import { syncReminders } from '@/lib/reminders';
 function daysSinceWeighIn(
   logs: DailyLog[],
   weights: Record<string, number>,
+  boundary: DayBoundary,
 ): number | null {
   const wKeys = Object.keys(weights);
   let latestKey: string | null = wKeys.length ? wKeys.sort()[wKeys.length - 1] : null;
   for (const l of logs) {
     if (l.weight != null) {
-      const k = calendarDateKey(l.date);
+      const k = dayKeyAt(l.date, boundary);
       if (latestKey == null || k > latestKey) latestKey = k;
     }
   }
@@ -41,12 +42,19 @@ function daysSinceWeighIn(
  * constant, which it used to restate as a local 400.
  */
 export function useReminderSync(): void {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const uid = user?.uid;
   const t = useT();
   const logsRef = useRef<DailyLog[]>([]);
   const weightsRef = useRef<Record<string, number>>({});
   const lastSig = useRef<string>('');
+  // In a ref like every other input here: this hook deliberately keeps its
+  // state out of render so a snapshot cannot re-render the screen it is
+  // mounted on, and the boundary is read inside `recompute` for the same
+  // reason. `profile` itself comes from the already-shared auth context, so
+  // this adds no subscription.
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
 
   useFocusEffect(
     useCallback(() => {
@@ -54,11 +62,12 @@ export function useReminderSync(): void {
       const recompute = () => {
         const logs = logsRef.current;
         const weights = weightsRef.current;
-        const todayKey = calendarDateKey(new Date());
+        const boundary = dayBoundaryOf(profileRef.current);
+        const todayKey = dayKeyAt(new Date(), boundary);
         const loggedToday =
-          weights[todayKey] != null || logs.some((l) => calendarDateKey(l.date) === todayKey);
-        const streak = computeStreak(logs, { freezeMaxGap: 0 }).streak;
-        const sinceWeigh = daysSinceWeighIn(logs, weights);
+          weights[todayKey] != null || logs.some((l) => dayKeyAt(l.date, boundary) === todayKey);
+        const streak = computeStreak(logs, { freezeMaxGap: 0, boundary }).streak;
+        const sinceWeigh = daysSinceWeighIn(logs, weights, boundary);
 
         const sig = `${loggedToday}|${streak}|${sinceWeigh}`;
         if (sig === lastSig.current) return;

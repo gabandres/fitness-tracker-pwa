@@ -4,7 +4,7 @@ import { Firestore, Timestamp, deleteField } from '@angular/fire/firestore';
 import { Auth } from '@angular/fire/auth';
 import { CallableGateway } from './callable.gateway';
 import { readReferrer, clearReferrer } from '../utils/referral';
-import type { UnitSystem, UsageCounts } from '@macrolog/core';
+import type { DayBoundary, UnitSystem, UsageCounts } from '@macrolog/core';
 import type { CustomFood, ServingUnit } from '@macrolog/core';
 import type {
   Exercise,
@@ -292,6 +292,20 @@ export interface ProfileFields {
   // clients read but never write it.
   weeklyDigestOptIn?: boolean;
   lastWeeklyDigestSentAt?: Date;
+
+  /**
+   * When the user's day starts (ADR-0030) — the full history of changes,
+   * oldest first, NOT a single hour. See the field of the same name on
+   * `ProfileFields` in `@macrolog/core`, which owns the reasoning.
+   *
+   * **This interface is a DUPLICATE of core's, not a re-export**, which
+   * CLAUDE.md gets wrong. So a field added to the domain profile has to be
+   * added in both places or the web silently sees a `Profile` without it —
+   * which is exactly how this one was found: `dayBoundaryOf(profile)` failed
+   * to compile with "no properties in common", because the web's `Profile`
+   * genuinely had none of them.
+   */
+  dayBoundary?: DayBoundary;
 }
 
 /**

@@ -47,7 +47,11 @@ import {
   clampCutPace,
   clampSleepHours,
   clampWaterFlOz,
-  calendarDateKey,
+  MIDNIGHT,
+  type DateKey,
+  type DayBoundary,
+  dayKeyAt,
+  setDayStartHour as coreSetDayStartHour,
   oldestFirst,
   pruneUndefined as pruneUndefinedCore,
   readActivity,
@@ -705,6 +709,32 @@ export async function setUnitSystem(uid: string, unitSystem: UnitSystem): Promis
   await updateDoc(userDoc(uid), { unitSystem });
 }
 
+/**
+ * Move the user's day boundary (ADR-0030), taking effect TODAY and never
+ * before it.
+ *
+ * The write is the whole history, not the new hour, because a boundary is a
+ * temporal setting: past days keep the rule they were logged under. Going
+ * through `setDayStartHour` is what enforces that — it appends, refuses a
+ * `from` that is not after every entry on file, and returns the list unchanged
+ * when the hour is already in force, so this is safe to call from an onPress
+ * without the screen having to work out whether anything changed.
+ *
+ * `current` is passed in rather than re-read: the caller already holds the
+ * profile from the auth context, and a read-modify-write here would race the
+ * snapshot that is about to deliver the same document.
+ */
+export async function setDayStartHour(
+  uid: string,
+  current: DayBoundary,
+  hour: number,
+  today: DateKey = dayKeyAt(new Date(), MIDNIGHT),
+): Promise<void> {
+  const next = coreSetDayStartHour(current, today, hour);
+  if (next === current) return;
+  await updateDoc(userDoc(uid), { dayBoundary: next.map((c) => ({ from: c.from, hour: c.hour })) });
+}
+
 /** Personal daily-calorie safety floor (kcal). The measured/formula TDEE
  *  target never drops below this (see packages/core tdee.ts clamp). Pass null
  *  to clear it (reverts the clamp to the 1500 default). */
@@ -1139,14 +1169,18 @@ export async function getAllSessions(uid: string): Promise<WorkoutSession[]> {
  *  this log IS an input to energy balance and therefore the one place an
  *  imported cardio calorie could reach a measured target. ADR-0026 decision 5;
  *  pinned by `cardio-energy-independence.test.ts`. */
-export async function markExercised(uid: string, date: Date): Promise<void> {
-  const key = calendarDateKey(date);
+export async function markExercised(
+  uid: string,
+  date: Date,
+  boundary: DayBoundary = MIDNIGHT,
+): Promise<void> {
+  const key = dayKeyAt(date, boundary);
   const snap = await getDocs(query(logsCol(uid), orderBy('timestamp', 'desc'), limit(60)));
   const already = snap.docs.some((d) => {
     const data = d.data() as { timestamp?: Timestamp; exerciseCompleted?: boolean; liftCompleted?: boolean; cardioCompleted?: boolean };
     if (!data.timestamp) return false;
     const marked = data.exerciseCompleted || data.liftCompleted || data.cardioCompleted;
-    return marked && calendarDateKey(data.timestamp.toDate()) === key;
+    return marked && dayKeyAt(data.timestamp.toDate(), boundary) === key;
   });
   if (already) return;
   await addLog(uid, { ...workoutMarkerEntry(), timestamp: date });

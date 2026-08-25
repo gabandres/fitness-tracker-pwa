@@ -24,6 +24,7 @@ import {
   seedTemplateNotes,
   type SeedTemplate,
 } from '@macrolog/core';
+import { dayBoundaryOf } from '@macrolog/core';
 import { TranslationService } from './translation.service';
 
 /**
@@ -43,6 +44,10 @@ import { TranslationService } from './translation.service';
 export class WorkoutStore {
   private readonly fb = inject(LEDGER_PORT);
   private readonly analytics = inject(AnalyticsService);
+  /** The user's day boundary (ADR-0030), off the same profile the rest of the
+   *  app reads. Empty ⇒ calendar days. */
+  readonly dayBoundary = computed(() => dayBoundaryOf(this.fb.profile()));
+
   private readonly subs = inject(SubscriptionService);
   private readonly i18n = inject(TranslationService);
 

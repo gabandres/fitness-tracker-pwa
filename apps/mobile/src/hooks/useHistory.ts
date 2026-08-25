@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { type CustomFood, type DailyLog, type DaySummary, type MealPreset, calendarDateKey, LOG_WINDOW_ROWS, summarizeDays } from '@macrolog/core';
+import { type CustomFood, type DailyLog, type DaySummary, type MealPreset, type DayBoundary, dayBoundaryOf, dayKeyAt, LOG_WINDOW_ROWS, summarizeDays } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { type LogWrites, useLogWrites } from '@/hooks/useLogWrites';
 import {
@@ -24,10 +24,14 @@ export interface HistoryState extends LogWrites {
   presets: MealPreset[];
   /** User's saved food library (My Foods, ADR-0013) for the day-detail sheet. */
   customFoods: CustomFood[];
+  /** The day boundary in force (ADR-0030). Surfaced here rather than re-derived
+   *  per screen so the calendar and the day detail cannot disagree about which
+   *  day a 00:30 meal belongs to. Empty ⇒ calendar days. */
+  boundary: DayBoundary;
 }
 
 export function useHistory(): HistoryState {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const uid = user?.uid;
   const [logs, setLogs] = useState<DailyLog[]>([]);
   const [weights, setWeights] = useState<Record<string, number>>({});
@@ -56,15 +60,20 @@ export function useHistory(): HistoryState {
     return () => unsubs.forEach((u) => u());
   }, [uid]);
 
+  // ADR-0030. `profile` comes off the auth context, which is already
+  // subscribed app-wide — reading it here adds no listener, so this does not
+  // break the per-hook subscription model (ADR-0016).
+  const boundary = useMemo(() => dayBoundaryOf(profile), [profile]);
+
   const days = useMemo(() => {
     const keys = new Set<string>();
-    for (const l of logs) keys.add(calendarDateKey(l.date));
+    for (const l of logs) keys.add(dayKeyAt(l.date, boundary));
     for (const k of Object.keys(weights)) keys.add(k);
     const sorted = [...keys].sort().reverse(); // newest first
-    return summarizeDays(sorted, logs, weights);
-  }, [logs, weights]);
+    return summarizeDays(sorted, logs, weights, boundary);
+  }, [logs, weights, boundary]);
 
   const writes = useLogWrites();
 
-  return { loading, error, days, logs, weights, presets, customFoods, ...writes };
+  return { loading, error, days, logs, weights, presets, customFoods, boundary, ...writes };
 }

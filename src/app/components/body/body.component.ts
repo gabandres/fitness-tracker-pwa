@@ -12,7 +12,7 @@ import { FitnessStore } from '../../services/fitness-store.service';
 import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { TranslationService } from '../../services/translation.service';
 import { AuthService } from '../../services/auth.service';
-import { calendarDateKey } from '@macrolog/core';
+import { dayKeyAt } from '@macrolog/core';
 import { bcp47ForLang } from '../../utils/locale';
 import { missingBodyFatInputs, projectWeight, type WeightPoint } from '@macrolog/core';
 import {
@@ -318,7 +318,7 @@ export class BodyComponent {
     'v2.body.howBicep',
   ] as const;
   protected readonly howOpen = signal(false);
-  protected readonly todayKey = signal(calendarDateKey(new Date()));
+  protected readonly todayKey = computed(() => dayKeyAt(new Date(), this.body.dayBoundary()));
   protected readonly weightSheetOpen = signal(false);
   // Measurements + photos open by default to mirror mobile (which shows them
   // expanded with an inline "Add" link rather than behind a collapse).
@@ -381,7 +381,7 @@ export class BodyComponent {
   /** True when the headline weight is today's reading rather than an older
    *  one carried forward. */
   protected readonly hasTodayWeight = computed(
-    () => this.body.dailyWeights()[calendarDateKey(new Date())] != null,
+    () => this.body.dailyWeights()[dayKeyAt(new Date(), this.body.dayBoundary())] != null,
   );
 
   /** What the body-fat card asks for when it cannot compute: the profile

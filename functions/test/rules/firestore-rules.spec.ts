@@ -578,6 +578,77 @@ describe('firestore.rules', () => {
     );
   });
 
+  // ─── Day boundary (ADR-0030, 2026-08-25) ───────────────────────────────
+  // Rules cannot iterate a list, so these pin what IS checkable: the field is
+  // storable, it must be a list, and it is capped. Per-element shape is
+  // deliberately NOT enforced here because it cannot be — `sanitizeDayBoundary`
+  // in packages/core owns that, and its tests own proving it.
+  it('lets a user store a day boundary history', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'alice'), fullProfile());
+    });
+    const db = authed('alice');
+    await assertSucceeds(
+      updateDoc(doc(db, 'users', 'alice'), {
+        dayBoundary: [{ from: '2026-08-25', hour: 3 }],
+        lastSeenAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it('lets a user append a second boundary change', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'alice'), {
+        ...fullProfile(),
+        dayBoundary: [{ from: '2026-08-25', hour: 3 }],
+      });
+    });
+    const db = authed('alice');
+    await assertSucceeds(
+      updateDoc(doc(db, 'users', 'alice'), {
+        dayBoundary: [
+          { from: '2026-08-25', hour: 3 },
+          { from: '2026-09-01', hour: 5 },
+        ],
+      }),
+    );
+  });
+
+  it('rejects a day boundary that is not a list', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'alice'), fullProfile());
+    });
+    const db = authed('alice');
+    await assertFails(updateDoc(doc(db, 'users', 'alice'), { dayBoundary: 3 }));
+  });
+
+  // An append-only list on a doc read at every app open is a cost problem
+  // before it is a correctness one, which is what the cap is actually for.
+  it('rejects a day boundary longer than the cap', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'alice'), fullProfile());
+    });
+    const db = authed('alice');
+    await assertFails(
+      updateDoc(doc(db, 'users', 'alice'), {
+        dayBoundary: Array.from({ length: 25 }, (_, i) => ({
+          from: `2026-01-${String(i + 1).padStart(2, '0')}`,
+          hour: 3,
+        })),
+      }),
+    );
+  });
+
+  it('accepts a day boundary on profile create', async () => {
+    const db = authed('carol');
+    await assertSucceeds(
+      setDoc(doc(db, 'users', 'carol'), {
+        ...baseProfile(),
+        dayBoundary: [{ from: '2026-08-25', hour: 4 }],
+      }),
+    );
+  });
+
   it('rejects a targetMode outside the closed set', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), 'users', 'alice'), fullProfile());

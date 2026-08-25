@@ -15,13 +15,22 @@
  *    (`parseYmd`, or `addDays` off one). Applied to `new Date()`, a log's
  *    `.date`, or a health sample's `.endDate`, the right answer is `dayKeyAt`.
  *
- * The second cannot be zero today — those sites have no boundary to adopt until
- * ADR-0030 step 3 puts one on the profile — so it is a **ratchet**: the count is
- * pinned at `BASELINE` and the check fails if it moves in EITHER direction. Up
- * means a new latent bug. Down means a conversion landed and the baseline was
- * not tightened, which is how a ratchet quietly stops being one.
+ * The second is down to the sites blocked on ADR-0030's two OPEN DECISIONS, and
+ * cannot go lower until they are answered:
  *
- * `--list` prints the outstanding sites: that is the step-3 worklist.
+ *   - **Q4 (widget/watch)** — `widgets/render.tsx` and `useWidgetSync` render
+ *     with no profile in scope, so answering Q4 decides whether they convert.
+ *   - **Q5 (importers keep their source's day)** — `health.ts` / `health-sync.ts`.
+ *     Converting HALF an importer is worse than converting none: the user's own
+ *     session day and the imported block's day are matched against each other
+ *     to merge, so moving one and not the other breaks the merge outright.
+ *
+ * So it is a **ratchet**: the count is pinned at `BASELINE` and the check fails
+ * if it moves in EITHER direction. Up means a new latent bug. Down means a
+ * conversion landed and the baseline was not tightened, which is how a ratchet
+ * quietly stops being one.
+ *
+ * `--list` prints the outstanding sites.
  *
  * Usage: node scripts/check-day-boundary.mjs [--list]
  */
@@ -46,6 +55,20 @@ const CALENDAR_OK = {
   // Not a day bucket: the local-naive `YYYY-MM-DDTHH:mm:ss` string Health
   // Connect's period slicer wants. Re-bucketing it would corrupt the request.
   'apps/mobile/src/lib/health.ts': ['d'],
+  // Analytics buffers flush per CALENDAR day on purpose. This is internal
+  // bookkeeping — never shown to a user, never fed to the estimator — and
+  // moving it would only change which UTC-ish bucket a batch flushes in.
+  'apps/mobile/src/lib/analytics.ts': ['new Date()'],
+  'src/app/services/analytics.service.ts': ['new Date()'],
+  // A "don't show this again today" latch in localStorage. Cosmetic: at worst
+  // a returning user sees one dismissed banner once more at the boundary.
+  'src/app/app.ts': ['now', 'new Date()'],
+  // The in-memory port adapter — a test double, with no profile to read.
+  'src/app/ledger/infrastructure/in-memory-ledger.adapter.ts': ['new Date()'],
+  // Both step off an anchor that `dayKeyAt` already settled — the correct and
+  // intended use of the calendar date. See the rule on `calendarDateKey`.
+  'src/app/services/body-metric-store.service.ts': ['addDays(today, -i)'],
+  'src/app/services/fitness-store.service.ts': ['d', 'yesterday'],
 };
 
 function git(...args) {
@@ -136,11 +159,11 @@ if (listOnly) {
   process.exit(0);
 }
 
-// The ratchet. Deliberately NOT zero: these sites cannot adopt `dayKeyAt` until
-// step 3 puts the boundary on the profile. It may only ever go DOWN, and the
-// check fails in BOTH directions — so neither a new site nor a finished
+// The ratchet. Deliberately NOT zero: what is left is blocked on ADR-0030's Q4
+// and Q5, which are decisions rather than code. It may only ever go DOWN, and
+// the check fails in BOTH directions — so neither a new site nor a finished
 // conversion can pass unnoticed.
-const BASELINE = 75;
+const BASELINE = 12;
 
 if (total > BASELINE) {
   failed = true;

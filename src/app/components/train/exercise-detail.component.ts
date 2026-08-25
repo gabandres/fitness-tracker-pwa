@@ -13,7 +13,7 @@ import { WorkoutStore } from '../../services/workout-store.service';
 import { SubscriptionService } from '../../services/subscription.service';
 import { TranslationService } from '../../services/translation.service';
 import { bcp47ForLang } from '../../utils/locale';
-import { calendarDateKey } from '@macrolog/core';
+import { dayKeyAt } from '@macrolog/core';
 import { UiSheet } from '../ui/sheet.component';
 import { UiSparkline } from '../ui/sparkline.component';
 import {
@@ -202,8 +202,10 @@ export class ExerciseDetailComponent {
     }
 
     const paid = this.subs.isPaid();
-    const cutoffKey = calendarDateKey(
+    const boundary = this.workout.dayBoundary();
+    const cutoffKey = dayKeyAt(
       new Date(Date.now() - WORKOUT_HISTORY_DAYS_FREE * 24 * 60 * 60 * 1000),
+      boundary,
     );
     let wasCapped = false;
 
@@ -213,7 +215,7 @@ export class ExerciseDetailComponent {
       if (ses.status !== 'completed') continue;
       const ex = ses.exercises.find((e) => e.exerciseId === id);
       if (!ex) continue;
-      if (!paid && calendarDateKey(ses.date) < cutoffKey) {
+      if (!paid && dayKeyAt(ses.date, boundary) < cutoffKey) {
         wasCapped = true;
         continue;
       }

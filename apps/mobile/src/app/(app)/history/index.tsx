@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { type DaySummary, formatBodyWeight, calendarDateKey, monthGrid, parseYmd } from '@macrolog/core';
+import { type DaySummary, formatBodyWeight, dayKeyAt, monthGrid, parseYmd } from '@macrolog/core';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { useHistory } from '@/hooks/useHistory';
 import { useUnitSystem } from '@/lib/use-unit-system';
@@ -26,7 +26,7 @@ export default function HistoryCalendar() {
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const { loading, error, days } = useHistory();
+  const { loading, error, days, boundary } = useHistory();
   const unitSystem = useUnitSystem();
   const router = useRouter();
   // A date within the viewed month; starts on the current month.
@@ -40,7 +40,7 @@ export default function HistoryCalendar() {
 
   const cells = useMemo(() => monthGrid(view), [view]);
   const weekdays = useMemo(() => weekdayLetters(locale), [locale]);
-  const todayKey = calendarDateKey(new Date());
+  const todayKey = dayKeyAt(new Date(), boundary);
   const monthLabel = formatDate(view, locale, { month: 'long', year: 'numeric' });
 
   function shiftMonth(delta: number) {

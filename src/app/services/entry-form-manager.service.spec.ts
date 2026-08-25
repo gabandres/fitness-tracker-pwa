@@ -6,6 +6,7 @@ import { FitnessStore } from './fitness-store.service';
 import { DailyLog } from './firebase.service';
 import { TranslationService } from './translation.service';
 import { AuthService } from './auth.service';
+import { MIDNIGHT } from '@macrolog/core';
 
 describe('EntryFormManager', () => {
   let form: EntryFormManager;
@@ -17,6 +18,7 @@ describe('EntryFormManager', () => {
     deletePreset: ReturnType<typeof vi.fn>;
     addCustomFood: ReturnType<typeof vi.fn>;
     presets: ReturnType<typeof signal>;
+    dayBoundary: ReturnType<typeof signal>;
   };
 
   beforeEach(() => {
@@ -28,6 +30,9 @@ describe('EntryFormManager', () => {
       deletePreset: vi.fn().mockResolvedValue(undefined),
       addCustomFood: vi.fn().mockResolvedValue('new-food-id'),
       presets: signal([]),
+      // ADR-0030. Empty is midnight, which is what these specs assert against —
+      // `dayKeyAt` under it is byte-for-byte the calendar date.
+      dayBoundary: signal(MIDNIGHT),
     };
 
     TestBed.configureTestingModule({

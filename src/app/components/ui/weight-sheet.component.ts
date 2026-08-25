@@ -12,7 +12,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { TranslationService } from '../../services/translation.service';
-import { calendarDateKey } from '@macrolog/core';
+import { dayKeyAt } from '@macrolog/core';
 import { bcp47ForLang } from '../../utils/locale';
 import { checkWeightEntry, WEIGHT_MIN_LB, WEIGHT_MAX_LB } from '@macrolog/core';
 import { UiSheet } from './sheet.component';
@@ -97,7 +97,7 @@ export class UiWeightSheet {
   private readonly translation = inject(TranslationService);
 
   readonly open = input<boolean>(false);
-  readonly dateKey = input<string>(calendarDateKey(new Date()));
+  readonly dateKey = input<string>(dayKeyAt(new Date(), this.store.dayBoundary()));
 
   readonly close = output<void>();
   readonly saved = output<number>();
@@ -108,7 +108,8 @@ export class UiWeightSheet {
 
   protected readonly dateLabel = computed(() => {
     const k = this.dateKey();
-    if (k === calendarDateKey(new Date())) return this.translation.t('v2.weightSheet.today');
+    if (k === dayKeyAt(new Date(), this.store.dayBoundary()))
+      return this.translation.t('v2.weightSheet.today');
     const [y, m, d] = k.split('-').map(Number);
     const locale = bcp47ForLang(this.translation.language());
     return new Date(y, m - 1, d).toLocaleDateString(locale, {

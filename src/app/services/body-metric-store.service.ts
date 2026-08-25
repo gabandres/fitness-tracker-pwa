@@ -4,7 +4,7 @@ import { LEDGER_PORT } from '../ledger/ports/ledger.port';
 import { AnalyticsService } from './analytics.service';
 import { Measurement } from './firebase.service';
 import { isStorableWeight, WEIGHT_ABS_MIN_LB, WEIGHT_ABS_MAX_LB } from '@macrolog/core';
-import { addDays, calendarDateKey } from '@macrolog/core';
+import { addDays, calendarDateKey, dayBoundaryOf, dayKeyAt, parseYmd } from '@macrolog/core';
 import type { WeightPoint } from '@macrolog/core';
 
 /**
@@ -20,6 +20,10 @@ import type { WeightPoint } from '@macrolog/core';
 export class BodyMetricStore {
   private readonly fb = inject(LEDGER_PORT);
   private readonly analytics = inject(AnalyticsService);
+  /** The user's day boundary (ADR-0030), off the same profile the rest of the
+   *  app reads. Empty ⇒ calendar days. */
+  readonly dayBoundary = computed(() => dayBoundaryOf(this.fb.profile()));
+
 
   private readonly _measurements = signal<Measurement[]>([]);
   private readonly _dailyWeights = signal<Record<string, number>>({});
@@ -41,7 +45,8 @@ export class BodyMetricStore {
    */
   weightsForLastDays(n: number): WeightPoint[] {
     const map = this._dailyWeights();
-    const today = new Date();
+    // Anchor on the user's day (ADR-0030), then step in calendar days.
+    const today = parseYmd(dayKeyAt(new Date(), this.dayBoundary()));
     const out: WeightPoint[] = [];
     for (let i = n - 1; i >= 0; i--) {
       const dateKey = calendarDateKey(addDays(today, -i));

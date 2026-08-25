@@ -12,7 +12,7 @@ import { FitnessStore } from '../../services/fitness-store.service';
 import { BodyMetricStore } from '../../services/body-metric-store.service';
 import { TranslationService } from '../../services/translation.service';
 import {
-  calendarDateKey,
+  dayKeyAt,
   monthGrid,
   startOfMonth,
 } from '@macrolog/core';
@@ -152,7 +152,7 @@ export class HistoryComponent {
     Array.from({ length: 7 }, (_, c) => r * 7 + c));
 
   protected readonly viewMonth = signal<Date>(startOfMonth(new Date()));
-  protected readonly todayKey = signal(calendarDateKey(new Date()));
+  protected readonly todayKey = computed(() => dayKeyAt(new Date(), this.store.dayBoundary()));
 
   protected readonly cells = computed(() => monthGrid(this.viewMonth()));
 
@@ -202,7 +202,7 @@ export class HistoryComponent {
   protected readonly recentDays = computed(() => {
     const byKey = new Map<string, { key: string; date: Date; count: number }>();
     for (const l of this.store.allTimeLogs()) {
-      const key = calendarDateKey(l.date);
+      const key = dayKeyAt(l.date, this.store.dayBoundary());
       const e = byKey.get(key);
       if (e) e.count += 1;
       else byKey.set(key, { key, date: l.date, count: 1 });

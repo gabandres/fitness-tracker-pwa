@@ -196,5 +196,45 @@ export function dayRange(key: DateKey, boundary: DayBoundary): { start: Date; en
 export function dayBoundaryOf(
   profile: { readonly dayBoundary?: DayBoundary | null } | null | undefined,
 ): DayBoundary {
-  return profile?.dayBoundary ?? MIDNIGHT;
+  return sanitizeDayBoundary(profile?.dayBoundary);
+}
+
+/** `YYYY-MM-DD`, the only `from` shape `boundaryHourOn`'s string compare is total on. */
+const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Coerce an untrusted stored value into a usable {@link DayBoundary}.
+ *
+ * This exists because `firestore.rules` **cannot** validate it. Rules have no
+ * way to iterate a list, so the server can check that `dayBoundary` is a list
+ * of at most 24 things and nothing whatsoever about what those things are —
+ * that limitation is written up at the check itself in `firestore.rules`.
+ *
+ * So the shape is enforced on the way OUT instead. Anything that is not a
+ * `{ from: 'YYYY-MM-DD', hour: 0..6 }` is dropped rather than repaired: a
+ * half-understood entry silently re-buckets days, and the failure mode of this
+ * whole feature is a wrong number that looks right. What survives is sorted by
+ * `from`, because {@link boundaryHourOn} walks the list in order and stops at
+ * the first entry past the key it is asked about — an out-of-order list would
+ * make it return an older rule for a later day.
+ *
+ * Duplicate `from` keys keep the LAST one, matching "the most recent write for
+ * that day wins" — the same thing {@link setDayStartHour} would have produced.
+ */
+export function sanitizeDayBoundary(raw: unknown): DayBoundary {
+  if (!Array.isArray(raw) || raw.length === 0) return MIDNIGHT;
+
+  const byFrom = new Map<string, number>();
+  for (const entry of raw) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const { from, hour } = entry as { from?: unknown; hour?: unknown };
+    if (typeof from !== 'string' || !DATE_KEY.test(from)) continue;
+    if (typeof hour !== 'number' || !isValidDayStartHour(hour)) continue;
+    byFrom.set(from, hour);
+  }
+  if (byFrom.size === 0) return MIDNIGHT;
+
+  return [...byFrom.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([from, hour]) => ({ from: from as DateKey, hour }));
 }

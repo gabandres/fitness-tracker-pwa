@@ -16,7 +16,7 @@ import { EntryFormManager } from '../../services/entry-form-manager.service';
 import { TranslationService } from '../../services/translation.service';
 import { PushNotificationService } from '../../services/push-notification.service';
 import { AnalyticsService } from '../../services/analytics.service';
-import { calendarDateKey } from '@macrolog/core';
+import { dayKeyAt } from '@macrolog/core';
 import {
   shareStatItems,
   renderShareCardCanvas,
@@ -309,7 +309,7 @@ export class TodayComponent {
   readonly historyRequested = output<void>();
   readonly settingsRequested = output<void>();
 
-  protected readonly todayKey = signal(calendarDateKey(new Date()));
+  protected readonly todayKey = computed(() => dayKeyAt(new Date(), this.store.dayBoundary()));
 
   protected readonly showDay0Hero = computed(
     () => this.store.logs().length === 0 && this.store.status() === 'ready',
@@ -324,7 +324,7 @@ export class TodayComponent {
   /** Distinct calendar days with at least one all-time log. */
   private loggedDaysCount(): number {
     const seen = new Set<string>();
-    for (const l of this.store.allTimeLogs()) seen.add(calendarDateKey(l.date));
+    for (const l of this.store.allTimeLogs()) seen.add(dayKeyAt(l.date, this.store.dayBoundary()));
     return seen.size;
   }
 
@@ -387,18 +387,18 @@ export class TodayComponent {
     // Pro, 90-day window for free) rather than `logs()` (a 14-ROW cap):
     // a heavy logger with many entries per day can fill `logs()` with 2
     // calendar days, which would never trip the gate.
-    const dayKeys = new Set(this.store.allTimeLogs().map((l) => calendarDateKey(l.date)));
+    const dayKeys = new Set(this.store.allTimeLogs().map((l) => dayKeyAt(l.date, this.store.dayBoundary())));
     return dayKeys.size >= 3;
   });
 
   protected readonly canRepeatYesterday = computed(() => {
     const today = this.todayKey();
-    const todayHas = this.store.logs().some((l) => calendarDateKey(l.date) === today);
+    const todayHas = this.store.logs().some((l) => dayKeyAt(l.date, this.store.dayBoundary()) === today);
     if (todayHas) return false;
     const y = new Date();
     y.setDate(y.getDate() - 1);
-    const yKey = calendarDateKey(y);
-    return this.store.logs().some((l) => calendarDateKey(l.date) === yKey);
+    const yKey = dayKeyAt(y, this.store.dayBoundary());
+    return this.store.logs().some((l) => dayKeyAt(l.date, this.store.dayBoundary()) === yKey);
   });
 
   protected readonly dateLabel = computed(() => {

@@ -8,6 +8,10 @@ import * as Application from 'expo-application';
 import * as Updates from 'expo-updates';
 import {
   DEFAULT_MEAL_REMINDERS,
+  MAX_DAY_START_HOUR,
+  boundaryHourOn,
+  dayBoundaryOf,
+  dayKeyAt,
   type ImportParseError,
   type ImportParseResult,
   type MealKey,
@@ -17,7 +21,16 @@ import {
 } from '@macrolog/core';
 import { useAuth } from '@/lib/auth';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
-import { importLogs, setCalorieFloor, setPreferredLocale, setProteinFloor, setUnitSystem, setWeeklyDigestOptIn } from '@/lib/ledger';
+import { importLogs, setCalorieFloor, setDayStartHour, setPreferredLocale, setProteinFloor, setUnitSystem, setWeeklyDigestOptIn } from '@/lib/ledger';
+
+/**
+ * The hours the segment offers (ADR-0030). 0 is "midnight" — the behaviour
+ * every account has today — and the ceiling is `MAX_DAY_START_HOUR`, which is
+ * 6 because past roughly 6am a "day start" begins colliding with breakfast and
+ * a boundary landing mid-meal is worse than no boundary. Stepped by 1 rather
+ * than offering all seven, so the control stays a segment and not a picker.
+ */
+const DAY_START_HOURS = [0, 3, MAX_DAY_START_HOUR] as const;
 import { exportDataCsv } from '@/lib/dataExport';
 import { deleteAccountForever } from '@/lib/deleteAccount';
 import { isTipIapAvailable } from '@/lib/purchases';
@@ -105,6 +118,7 @@ export default function Settings() {
   const targets = targetsView.loaded ? targetsView.targets : null;
   const router = useRouter();
   const [savingUnit, setSavingUnit] = useState(false);
+  const [savingDayStart, setSavingDayStart] = useState(false);
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [meals, setMeals] = useState<MealReminderSettings>(DEFAULT_MEAL_REMINDERS);
   const [exporting, setExporting] = useState(false);
@@ -277,6 +291,8 @@ export default function Settings() {
   }
 
   const unit: UnitSystem = profile?.unitSystem ?? 'us';
+  const dayBoundary = dayBoundaryOf(profile);
+  const dayStartHour = boundaryHourOn(dayKeyAt(new Date(), dayBoundary), dayBoundary);
   // Effective targets (TDEE chain), not the raw manual field — the latter is
   // deleted once the user refines into formula mode.
   // `null` while the three snapshots behind the TDEE chain are still silent or
@@ -284,6 +300,21 @@ export default function Settings() {
   const kcal = targets && targets.calorieTarget > 0 ? targets.calorieTarget : null;
   const protein = targets && targets.proteinTarget > 0 ? targets.proteinTarget : null;
   const goalKey = profile?.goalDirection ? GOAL_LABEL[profile.goalDirection] : null;
+
+  // ADR-0030. The whole history is written, not the hour — past days keep the
+  // rule they were logged under, and `setDayStartHour` in core is what refuses
+  // to rewrite them. A re-pick of the hour already in force is a no-op there,
+  // so this needs no "did it change" guard of its own.
+  async function pickDayStart(next: number) {
+    if (!user || savingDayStart) return;
+    haptics.tap();
+    setSavingDayStart(true);
+    try {
+      await setDayStartHour(user.uid, dayBoundary, next);
+    } finally {
+      setSavingDayStart(false);
+    }
+  }
 
   async function pickUnit(next: UnitSystem) {
     if (next === unit || !user || savingUnit) return;
@@ -570,6 +601,30 @@ export default function Settings() {
               );
             })}
           </View>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.rowLabel}>{t('settings.dayStart')}</Text>
+          <Text style={styles.rowValue}>{t('settings.dayStartSub')}</Text>
+          <View style={styles.segment}>
+            {DAY_START_HOURS.map((h) => {
+              const on = dayStartHour === h;
+              return (
+                <TouchableOpacity
+                  key={h}
+                  style={[styles.segmentBtn, on && styles.segmentBtnOn]}
+                  onPress={() => pickDayStart(h)}
+                  disabled={savingDayStart}
+                  testID={`settings-day-start-${h}`}
+                >
+                  <Text style={[styles.segmentText, on && styles.segmentTextOn]}>
+                    {h === 0 ? t('settings.dayStartMidnight') : t('settings.dayStartHour', { n: h })}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={styles.rowValue}>{t('settings.dayStartNote')}</Text>
         </View>
 
         <View style={styles.card}>

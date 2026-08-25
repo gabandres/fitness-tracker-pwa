@@ -7,6 +7,7 @@
  * Source of truth: `@macrolog/core`. The Angular app re-exports these from
  * `services/firebase.service.ts` so existing imports keep working.
  */
+import type { DayBoundary } from './day-boundary';
 import type { GoalDirection } from './macro-heuristic';
 
 /** Whether the daily targets come from the estimator or from numbers the user
@@ -336,6 +337,28 @@ export interface ProfileFields {
   // clients read but never write it.
   weeklyDigestOptIn?: boolean;
   lastWeeklyDigestSentAt?: Date;
+
+  /**
+   * When the user's day starts (ADR-0030) — the full history of changes,
+   * oldest first, NOT a single hour.
+   *
+   * A boundary is a *temporal* setting: the hour in force on a given day is
+   * what governs that day forever. Storing one number would silently
+   * reinterpret every past day the moment it changed — a meal that was logged
+   * on Tuesday would move to Monday, and the measured estimator, which fits a
+   * per-day intake series against a weight trend, would see a step change it
+   * cannot tell apart from real behaviour.
+   *
+   * So this is `{ from, hour }[]` and it is **append-only**: `setDayStartHour`
+   * refuses a `from` that is not after every entry already on file, and
+   * `firestore.rules` enforces the same shape server-side.
+   *
+   * **Omitted means midnight**, which is every account today. `dayKeyAt` under
+   * an empty boundary is byte-for-byte the calendar date, so an absent field
+   * and a never-changed setting are the same behaviour rather than two code
+   * paths. Read it with `dayBoundaryOf(profile)`.
+   */
+  dayBoundary?: DayBoundary;
 }
 
 /**

@@ -13,6 +13,7 @@ import { SubscriptionService } from './services/subscription.service';
 import { TranslationService } from './services/translation.service';
 import { AdminService } from './services/admin.service';
 import { provideTranslocoConfig } from './i18n/transloco.providers';
+import { MIDNIGHT } from '@macrolog/core';
 
 describe('App', () => {
   beforeEach(async () => {
@@ -61,6 +62,8 @@ describe('App', () => {
             logs: signal([]),
             presets: signal([]),
             profile: signal(null),
+            // ADR-0030. Empty ⇒ calendar days, the behaviour these specs assert.
+            dayBoundary: signal(MIDNIGHT),
             status: signal('idle'),
             error: signal(null),
             tdee: signal({ trueTdee: 2450, newDailyTarget: 1800, weightChangeTrend: 0, source: 'seed' }),

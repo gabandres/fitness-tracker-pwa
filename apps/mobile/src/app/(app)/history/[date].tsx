@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { type DailyLog, type LogEntry, formatBodyWeight, calendarDateKey, parseYmd, summarizeDay } from '@macrolog/core';
+import { type DailyLog, type LogEntry, formatBodyWeight, dayKeyAt, parseYmd, summarizeDay } from '@macrolog/core';
 import { EntrySheet } from '@/components/EntrySheet';
 import { MealEntries } from '@/components/MealEntries';
 import { useHistory } from '@/hooks/useHistory';
@@ -22,14 +22,14 @@ export default function DayDetail() {
   const { date } = useLocalSearchParams<{ date: string }>();
   const dateKey = String(date);
   const router = useRouter();
-  const { loading, logs, weights, presets, customFoods, addEntry, updateEntry, deleteEntry, addPreset, deletePreset, addCustomFood, deleteCustomFood } = useHistory();
+  const { loading, logs, weights, presets, customFoods, boundary, addEntry, updateEntry, deleteEntry, addPreset, deletePreset, addCustomFood, deleteCustomFood } = useHistory();
   const unitSystem = useUnitSystem();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<DailyLog | null>(null);
 
-  const summary = summarizeDay(dateKey, logs, weights);
+  const summary = summarizeDay(dateKey, logs, weights, boundary);
   const dayLogs = logs
-    .filter((l) => calendarDateKey(l.date) === dateKey && l.calories > 0)
+    .filter((l) => dayKeyAt(l.date, boundary) === dateKey && l.calories > 0)
     .sort((a, b) => a.date.getTime() - b.date.getTime());
 
   function openAdd() {

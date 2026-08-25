@@ -131,6 +131,9 @@ service cloud.firestore {
               'unitSystem',
               // Per-user suppress list for the entry-sheet recents row.
               'hiddenRecentLabels',
+              // When the user's day starts (ADR-0030). The full history of
+              // changes, oldest first — NOT one hour. See the shape check below.
+              'dayBoundary',
               // Seeded demo/review account marker (admin SDK only; listed so
               // the client can round-trip a profile that already carries it).
               'syntheticAccount'
@@ -146,7 +149,10 @@ service cloud.firestore {
               data.unitSystem == 'us' || data.unitSystem == 'metric')
           && (!('hiddenRecentLabels' in data.keys()) ||
               (data.hiddenRecentLabels is list
-               && data.hiddenRecentLabels.size() <= 200));
+               && data.hiddenRecentLabels.size() <= 200))
+          && (!('dayBoundary' in data.keys()) ||
+              (data.dayBoundary is list
+               && data.dayBoundary.size() <= 24));
     }
 
     // ─── Weigh-in date key ──────────────────────────────────────
@@ -385,6 +391,9 @@ service cloud.firestore {
               'unitSystem',
               // Per-user suppress list for the entry-sheet recents row.
               'hiddenRecentLabels',
+              // When the user's day starts (ADR-0030). The full history of
+              // changes, oldest first — NOT one hour. See the shape check below.
+              'dayBoundary',
               // Marks a seeded account (the App Store demo/review logins) so
               // product metrics can exclude it — see functions/src/retention.ts.
               // Written by scripts/seed-demo-account.mjs over the admin SDK;
@@ -496,6 +505,19 @@ service cloud.firestore {
           && (!('hiddenRecentLabels' in data.keys()) ||
               (data.hiddenRecentLabels is list
                && data.hiddenRecentLabels.size() <= 200))
+          // Day boundary (ADR-0030): a list of {from, hour} changes, oldest
+          // first. Rules cannot ITERATE a list, so the per-element shape is
+          // genuinely not checkable here — only the container and a sane cap
+          // are. `dayBoundaryOf` in packages/core is therefore written to
+          // sanitize rather than trust: it drops any entry that is not a
+          // {from: YYYY-MM-DD, hour: 0..6} and re-sorts, so a hand-crafted
+          // write that gets past this cannot reach the estimator as garbage.
+          // The cap is 24 because a boundary is a setting somebody changes
+          // once or twice, and an unbounded append-only list on a doc read on
+          // every app open is a cost problem before it is a correctness one.
+          && (!('dayBoundary' in data.keys()) ||
+              (data.dayBoundary is list
+               && data.dayBoundary.size() <= 24))
           && (!('syntheticAccount' in data.keys()) ||
               data.syntheticAccount is bool);
     }
