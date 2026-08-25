@@ -176,6 +176,14 @@ The baseline is the same `ae526937…` that Play alpha vc 37 actually ships, so
 this is a comparison against the shipping binary rather than against a local
 artifact.
 
+**CONFIRMED 2026-08-25.** `READ_EXERCISE` landed in `app.json` (with the
+matching `{ accessType: 'read', recordType: 'ExerciseSession' }` in
+`health.ts`, which had `write` but not `read`), and **vc 38 was built on the
+Windows workstation.** Its `base/assets/fingerprint`, read out of the `.aab`,
+is `b08493087dc6d304c07e3f0499e39cabcd601e78` — the value predicted above, to
+the byte. The permission is present in the artifact's binary manifest. So the
+prediction in this table is no longer a computation; it is what shipped.
+
 **iOS is the opposite, by construction.** HealthKit read *types* are requested
 at runtime through `requestAuthorization`; there is no per-type Info.plist key,
 `NSHealthShareUsageDescription` is already declared for the five daily scalars,

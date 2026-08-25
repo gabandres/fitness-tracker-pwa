@@ -6,6 +6,34 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-25 — your day can start at 3 AM
+
+Settings → **Day starts at**: midnight, 3 AM or 6 AM. A meal logged at 00:30 no
+longer lands on tomorrow.
+
+The visible symptom was the small half. Ignia's measured maintenance is fitted
+against a **per-day** intake series, so a late dinner made one day read
+under-eaten and the next over-eaten — a sawtooth in the input that cannot be
+told apart from real behaviour, and that nobody could see. The estimator buckets
+by the same rule as the ring now.
+
+**Nothing moves unless you move it.** Every account defaults to midnight, and at
+midnight the new derivation is byte-for-byte the old calendar date — asserted at
+every hour of the day in the tests, which is what made adopting it at ~155 call
+sites a no-op for everyone who has not opted in.
+
+**Changing it does not rewrite your history.** The boundary is stored as the
+short list of times it changed, so past days keep the rule they were logged
+under. The trade is that the changeover day is longer: raising 0 → 3 makes that
+one day run 27 hours, lowering it makes the day before run 19. Nothing is lost
+and nothing is double-counted — there is a test that walks every hour across a
+change and checks exactly that.
+
+Reached both platforms over the air. Android OTA 52, iOS OTA 26 — and the iOS
+one lands on the public App Store, not just TestFlight, because 1.2.1 is live.
+
+---
+
 ## 2026-08-24 — restaurant food, from 91 chains
 
 Search a chain by name — "chipotle", "chickfila", "olive garden", "cheesecake

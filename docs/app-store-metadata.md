@@ -38,12 +38,17 @@ Re-read the live truth:
 node -e "import('./scripts/asc-client.mjs').then(async({api,APP_ID})=>{const r=await api('GET','/v1/apps/'+APP_ID+'/appStoreVersions?limit=5');r.data.forEach(v=>console.log(v.attributes.versionString,v.attributes.appStoreState))})"
 ```
 
-As of 2026-08-19 that prints `1.2.0 READY_FOR_SALE` (build **55**, self-released
-that day). Builds 57 and 58 sit in TestFlight carrying the SAME `1.2.0` version
-string, which is why neither could be promoted — a new App Store version only
-accepts builds whose version string matches it, so shipping SDK 57 needed a
-fresh **1.2.1** binary. If this paragraph disagrees with the command, the command
-is right.
+**Run it rather than reading a number here.** This paragraph carried
+`1.2.0 READY_FOR_SALE (build 55)` from 2026-08-19 until 2026-08-25, five days
+after it stopped being true: **1.2.1 / build 60 went `READY_FOR_SALE` on
+2026-08-24**, auto-released because `releaseType` had been flipped `MANUAL` →
+`AFTER_APPROVAL`. `STATUS.md` §1 owns the live number; this file owns the
+listing *fields*.
+
+The durable part is why 1.2.1 had to exist at all: builds 55, 57 and 58 all
+carried the version string `1.2.0`, and an App Store version only accepts builds
+whose string matches it — so no TestFlight build could be promoted and shipping
+SDK 57 required a fresh marketing version, not a promotion.
 
 **What is applied as listing metadata** (the thing this file *does* own): the
 English and es-MX name, subtitle, description, keywords, promotional text and
@@ -187,7 +192,9 @@ is locked, and nothing is upsold.
 Ignia is not a medical device and does not provide medical advice.
 ```
 
-> **APPLIED 2026-08-19 to the 1.2.1 submission** (`WAITING_FOR_REVIEW`), along
+> **APPLIED 2026-08-19 to the 1.2.1 submission** — which has since been
+> approved and released as build 60 on 2026-08-24, so this copy is LIVE on the
+> App Store rather than pending. Along
 > with one further correction this block does not show: the search bullet read
 > `• Search USDA FoodData Central and Open Food Facts` in BOTH locales and now
 > reads `• Search a built-in USDA food database` (es-MX: `• Busca en una base de

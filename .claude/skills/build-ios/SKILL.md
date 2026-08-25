@@ -12,6 +12,29 @@ over SSH. **Zero EAS quota, no cloud queue.** ~13–16 minutes green.
 `docs/DEV_ENVIRONMENT.md` §3.8 and §3.10 hold the machine runbook — **read §3.10
 before debugging any build failure**; every one seen so far is already there.
 
+## Step −1 — is the Apple membership mid-change?
+
+**An Apple Developer membership that is being assigned, converted or renewed has
+its benefits DISABLED for the duration, and that takes Certificates, Identifiers
+& Profiles down with it. While the portal is down, `eas build -p ios` cannot
+provision and FAILS — locally as well as in the cloud, because signing needs the
+portal either way.**
+
+The failure reads like a credentials bug (a 401, or a bundle identifier it
+"cannot register"), which is the same shape as the two credential traps in
+`CLAUDE.local.md` that *do* have fixes. Those fixes will not help here; nothing
+in this repo can. Check before spending a Mac build:
+
+- **`STATUS.md` §3** — the transfer/migration row says whether one is running.
+- ASC itself stays UP throughout, so **releasing an already-built binary and
+  publishing an `eas update` OTA are unaffected** — an OTA touches no cert. That
+  is the whole workaround: ship JS, and land any binary you expect to need
+  *before* telling Apple to start.
+
+Do not assume such a window is short. Two developers publicly report migrations
+still running at 17 days and 3+ weeks (developer.apple.com threads 816092 and
+814367).
+
 ## Step 0 — do you need a build at all?
 
 **A JS/TS-only change needs no binary.** Gate first, **on the Mac** (the hash is
