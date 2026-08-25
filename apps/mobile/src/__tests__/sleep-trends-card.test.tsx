@@ -27,10 +27,13 @@ import type { SleepTrends } from '@/hooks/useSleepTrends';
 const key = (i: number) => `2026-03-${String(i + 1).padStart(2, '0')}`;
 const keys = Array.from({ length: SLEEP_WINDOW_DAYS }, (_, i) => key(i));
 
-function cardState(nights: number): SleepTrends {
+function cardState(
+  nights: number,
+  contrast: Extract<SleepTrends, { kind: 'card' }>['contrast'] = null,
+): SleepTrends {
   const sleepByDay: Record<string, SleepEntry> = {};
   for (let i = 0; i < nights; i++) sleepByDay[key(i)] = { hours: 6.5, source: 'import' };
-  return { kind: 'card', window: sleepWindow(sleepByDay, keys), contrast: null };
+  return { kind: 'card', window: sleepWindow(sleepByDay, keys), contrast };
 }
 
 const CONTRAST = {
@@ -95,7 +98,7 @@ describe('state 2 — some nights, not enough', () => {
 });
 
 describe('state 1 — the sentence', () => {
-  const full = { ...cardState(SLEEP_WINDOW_DAYS), contrast: CONTRAST };
+  const full = cardState(SLEEP_WINDOW_DAYS, CONTRAST);
 
   it('states the comparison in the user’s own units', async () => {
     const { getByTestId } = await render(<SleepTrendsCard sleep={full} />);
@@ -108,10 +111,11 @@ describe('state 1 — the sentence', () => {
   it('says "less" when the difference is negative', async () => {
     // A card that only knew the magnitude would tell a user who eats less when
     // tired that they eat more.
-    const less = {
-      ...full,
-      contrast: { ...CONTRAST, differenceKcal: -260, shortMeanKcal: 1890 },
-    };
+    const less = cardState(SLEEP_WINDOW_DAYS, {
+      ...CONTRAST,
+      differenceKcal: -260,
+      shortMeanKcal: 1890,
+    });
     const { getByTestId } = await render(<SleepTrendsCard sleep={less} />);
 
     expect(getByTestId('sleep-claim').props.children).toContain('260 less than');
@@ -137,7 +141,7 @@ describe('the vocabulary the card is forbidden', () => {
     const states: SleepTrends[] = [
       { kind: 'empty', connectedTo: null },
       cardState(5),
-      { ...cardState(SLEEP_WINDOW_DAYS), contrast: CONTRAST },
+      cardState(SLEEP_WINDOW_DAYS, CONTRAST),
     ];
 
     for (const state of states) {
