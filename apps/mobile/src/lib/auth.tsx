@@ -559,8 +559,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const microsoftAvailable =
     MICROSOFT_ENABLED && !isExpoGo && hasRealMsClientId && !!msRequest && !!msNonce;
 
+  /**
+   * Side work that follows a sign-in but must never gate it: create the profile
+   * doc for a brand-new account, and read the Pro claim off the ID token.
+   *
+   * Both are best-effort and independently recoverable — a failed
+   * `ensureProfile` surfaces later as a save error rather than a dead session,
+   * and `isPro` re-reads on the next auth event. Kept sequential so the token
+   * read still sees any claim the profile create implies.
+   */
+  async function bootstrapUser(u: User): Promise<void> {
+    // Only attempt the create once verified — the rules reject a create from an
+    // unverified user, so for an email/password signup the doc is created later
+    // by reloadUser() the moment verification completes.
+    if (u.emailVerified) {
+      try {
+        await ensureProfile(u.uid);
+      } catch (e) {
+        console.warn('ensureProfile failed', e);
+      }
+    }
+    try {
+      const token = await u.getIdTokenResult();
+      // Mirrors the PWA's SubscriptionService: Pro = stripeRole "paid".
+      setIsPro(token.claims['stripeRole'] === 'paid' || token.claims['pro'] === true);
+    } catch {
+      setIsPro(false);
+    }
+  }
+
   useEffect(() => {
-    return onAuthStateChanged(auth, async (u) => {
+    return onAuthStateChanged(auth, (u) => {
       setUser(u);
       setEmailVerified(u?.emailVerified ?? false);
       // uid only — never the email (PII minimization). A uid resolves to a
@@ -571,31 +600,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // flush timer and the background listener on the way in.
       setAnalyticsUser(u?.uid ?? null);
       if (u) {
-        // Create users/{uid} on first sign-in if it doesn't exist yet, so a
-        // mobile-first new user has a profile doc for onboarding to update.
-        // Best-effort: a failure here surfaces later as a save error, not a
-        // dead sign-in. Runs before the profile subscription resolves.
-        //
-        // Only attempt it once verified — the rules reject a create from an
-        // unverified user, so for an email/password signup the doc is created
-        // later by reloadUser() the moment verification completes.
-        if (u.emailVerified) {
-          try {
-            await ensureProfile(u.uid);
-          } catch (e) {
-            console.warn('ensureProfile failed', e);
-          }
-        }
-        try {
-          const token = await u.getIdTokenResult();
-          // Mirrors the PWA's SubscriptionService: Pro = stripeRole "paid".
-          setIsPro(token.claims['stripeRole'] === 'paid' || token.claims['pro'] === true);
-        } catch {
-          setIsPro(false);
-        }
+        // NOT awaited, deliberately — see below.
+        void bootstrapUser(u);
       } else {
         setIsPro(false);
       }
+      // `initializing` gates a full-screen, tap-eating splash (`_layout.tsx`),
+      // so it must flip the moment auth state is KNOWN and not one millisecond
+      // later. It used to sit behind the two awaits now inside `bootstrapUser`,
+      // and every one of those is an unbounded network wait:
+      //
+      //   - `ensureProfile` opens with `await getDoc(...)`, which on a cold
+      //     start with no reachable backend never resolves — this app has no
+      //     Firestore persistence, so there is no cache to answer from — and
+      //     then `await updateDoc(...)`, whose promise resolves on SERVER ACK
+      //     and therefore stays pending offline by design.
+      //   - `getIdTokenResult()` refreshes an expired token over the network.
+      //
+      // None of the three informs where to route, which the profile listener
+      // below answers independently. Blocking on them bought nothing and cost
+      // #79: measured on the LG G6 with wifi associated but no route to the
+      // backend, the splash covered a fully-rendered screen for 30+ seconds and
+      // swallowed every tap, with no feedback of any kind.
       setInitializing(false);
     });
   }, []);
