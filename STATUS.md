@@ -56,11 +56,16 @@ same way before trusting them — `docs/COMMANDS.md` has every command.
   published under the wrong machine's numbers and reached **nobody** —
   indistinguishable from a working update.
   **The Air is iOS-only now**: its Android SDK, Gradle caches and `~/.android`
-  were removed. **Its free space is NOT 19 GB any more — measured 2026-08-22 it
-  is at 100% with ~600 Mi free** on `/System/Volumes/Data`. That is enough to
-  gate and publish an OTA (a 17 MB Metro export, deleted after) and **not**
-  enough for an iOS build, whose floor is ~17 GB. Clear it before promising a
-  binary; `df -h /` reads the sealed System snapshot and lies.
+  were removed. **Free space: 19 GiB, measured 2026-08-25** on
+  `/System/Volumes/Data` — enough for an iOS build, whose floor is ~17 GB.
+  **The "~600 Mi free / 100% full" this file carried from 2026-08-22 was wrong
+  by an order of magnitude**: the volume read 7.7 GiB avail on connect, before
+  any cleanup, and clearing `~/Library/Developer/Xcode/DerivedData` alone
+  returned **10.3 GiB**. So the recovery is routine and cheap — check the number
+  before believing a build is blocked on disk. Still true: `df -h /` reads the
+  sealed System snapshot and lies; ask for `/System/Volumes/Data`. Do NOT delete
+  `apps/mobile/ios/Pods` (forces a `pod install`) or `~/Library/Developer/CoreSimulator`
+  (those are live runtimes, and it is someone else's laptop).
 
   **Why the hosts disagree is now settled, and two of the three published causes
   were wrong** (measured 2026-08-17). Real: **CRLF-vs-LF**, in exactly two files.
