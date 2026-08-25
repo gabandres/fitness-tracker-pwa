@@ -11,7 +11,7 @@ import { LogBox, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AuthProvider, useAuth } from '@/lib/auth';
+import { AuthProvider, GATE_T0, useAuth } from '@/lib/auth';
 import { useIsOffline } from '@/lib/connectivity';
 import { assessRoute, shouldShowSplash } from '@/lib/onboarding-gate';
 import { BrandLoader } from '@/components/BrandLoader';
@@ -148,6 +148,14 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
   const nextSettledUid = !uid ? null : gateSettled ? uid : settledUid;
   if (nextSettledUid !== settledUid) setSettledUid(nextSettledUid);
   const showSplash = shouldShowSplash({ gateSettled, uid, settledUid: nextSettledUid });
+  // TEMP instrumentation for #83 — removed before the fix ships.
+  useEffect(() => {
+    console.log(
+      `[GATE] render t=${Date.now() - GATE_T0}ms showSplash=${showSplash} initializing=${initializing}` +
+      ` fontsReady=${fontsReady} decision=${decision} serverGaveUp=${serverGaveUp}` +
+      ` profileLoading=${profileLoading} profileConfirmed=${profileConfirmed} offline=${offline} user=${uid ? 'yes' : 'no'}`,
+    );
+  }, [showSplash, initializing, fontsReady, decision, serverGaveUp, profileLoading, profileConfirmed, offline, uid]);
   return (
     <>
       <Slot />

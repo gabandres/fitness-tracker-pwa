@@ -52,6 +52,9 @@ import { LinkError, type LinkableProvider, type PendingLink } from './link-error
 export { LinkError } from './link-error';
 export type { LinkableProvider, PendingLink } from './link-error';
 import { auth, functions } from './firebase';
+
+/** TEMP instrumentation for #83 — removed before the fix ships. */
+export const GATE_T0 = Date.now();
 import { ensureProfile, subscribeProfile } from './ledger';
 import { registerAppleRefreshToken } from './appleSignin';
 import { addBreadcrumb, captureError, setSentryUser } from './sentry';
@@ -589,7 +592,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    console.log(`[GATE] authListenerAttached t=${Date.now() - GATE_T0}ms`);
     return onAuthStateChanged(auth, (u) => {
+      console.log(`[GATE] onAuthStateChanged FIRED t=${Date.now() - GATE_T0}ms user=${u ? 'yes' : 'no'}`);
       setUser(u);
       setEmailVerified(u?.emailVerified ?? false);
       // uid only — never the email (PII minimization). A uid resolves to a
@@ -622,6 +627,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // #79: measured on the LG G6 with wifi associated but no route to the
       // backend, the splash covered a fully-rendered screen for 30+ seconds and
       // swallowed every tap, with no feedback of any kind.
+      console.log(`[GATE] initializing=false t=${Date.now() - GATE_T0}ms`);
       setInitializing(false);
     });
   }, []);
