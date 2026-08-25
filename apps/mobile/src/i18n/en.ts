@@ -182,7 +182,7 @@ export const en = {
   'link.failedBody': 'Your device blocked it. Open this in your browser instead:\n\n{url}',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    'Train does cardio now. Log a run, a ride or a walk on its own, or add one to the end of a lifting day — either way it lands in the same history as your sets, so a week finally shows everything you did. Distance, average heart rate and how hard it felt are all optional; a duration on its own is a complete entry. It comes out in your CSV export too.',
+    'If you eat after midnight, your day can now end when you say it does. Settings → Day starts at lets you move the line to 3 or 6 AM, so a late meal counts toward the night before instead of tomorrow. Days you already logged keep the boundary they were logged under — nothing in your history moves.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',

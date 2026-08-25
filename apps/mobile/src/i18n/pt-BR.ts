@@ -171,7 +171,7 @@ export const ptBR = {
   'link.failedBody': 'O seu aparelho bloqueou. Abra isto no seu navegador:\n\n{url}',
   'whatsNew.title': 'Novidades',
   'whatsNew.body':
-    'O Train agora faz cardio. Registre uma corrida, um pedal ou uma caminhada sozinha, ou acrescente uma no fim de um dia de musculação — de qualquer jeito ela cai no mesmo histórico das suas séries, então a semana finalmente mostra tudo o que você fez. Distância, frequência cardíaca média e o quanto foi puxado são opcionais; só a duração já é um registro completo. Também sai na sua exportação CSV.',
+    'Se você come depois da meia-noite, seu dia agora pode terminar quando você quiser. Em Ajustes → O dia começa às dá para mover a linha para 3h ou 6h, assim uma refeição tarde conta para a noite anterior em vez de para amanhã. Os dias que você já registrou mantêm o limite com que foram registrados — nada do seu histórico se move.',
 
   // ── app updates ──
   'update.ota.title': 'Atualização pronta',

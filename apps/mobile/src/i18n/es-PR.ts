@@ -175,7 +175,7 @@ export const esPR: Record<I18nKey, string> = {
   'link.failedBody': 'Tu dispositivo lo bloqueó. Abre esto en tu navegador:\n\n{url}',
   'whatsNew.title': 'Novedades',
   'whatsNew.body':
-    'Train ya hace cardio. Registra una corrida, una vuelta en bici o una caminata sola, o añádela al final de un día de pesas — de cualquier forma cae en el mismo historial que tus series, así que la semana por fin enseña todo lo que hiciste. La distancia, el ritmo cardíaco promedio y qué tan duro se sintió son opcionales; con la duración sola ya queda completo. También sale en tu exportación CSV.',
+    'Si comes después de medianoche, tu día ahora puede terminar cuando tú digas. En Ajustes → El día empieza a las puedes mover la línea a las 3 o las 6 AM, así una comida tarde cuenta para la noche anterior en vez de para mañana. Los días que ya registraste mantienen el límite con el que se registraron — nada de tu historial se mueve.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',
