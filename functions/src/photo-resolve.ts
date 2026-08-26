@@ -314,6 +314,18 @@ const PRODUCT_QUALIFIERS =
   /\b(sliced|roll|luncheon|deli|coated|breaded|battered|stuffed|tenders|nuggets|reconstituted|restaurant|fast food|babyfood|baby|infant|fat-free|low-fat|nonfat|reduced fat|light|instant|mix|powder|turnover|fritter|croquette|empanada|dumpling|wrap|pastry|spread)\b/g;
 
 /**
+ * Words that make a row an ANALOGUE of the food, not the food. "Bacon strip,
+ * meatless" is the only row carrying both "bacon" and "strip", so no ranking
+ * penalty can beat it — a demotion only reorders candidates, and here there is
+ * nothing to reorder against. It has to be disqualified outright, the same way
+ * "no butter" is, or a photo of bacon returns a soy product's macros.
+ *
+ * A query that asks for the analogue ("veggie burger", "egg substitute") says
+ * the word itself and is exempt.
+ */
+const ANALOGUE_WORDS = new Set(["meatless", "vegetarian", "vegan", "imitation", "substitute"]);
+
+/**
  * USDA's SR-legacy rows carry brand and chain names in SHOUTING CAPS
  * ("McDONALD'S, Bacon Ranch Salad with Grilled Chicken"). A photo of a salad
  * should resolve to salad, not to one chain's menu item that happens to share
@@ -405,17 +417,62 @@ function informativeness(foods: IndexedFood[], tokens: string[]): number {
  */
 const RELAXED_SCORE_FLOOR = 120;
 
+/**
+ * Words that turn the term after them into an ABSENCE. USDA descriptions are
+ * full of these — "no butter", "without salt", "sugar free" — and a match on
+ * the negated term means the food is the opposite of what was asked for.
+ */
+const NEGATORS_BEFORE = new Set(["no", "without", "not"]);
+const NEGATORS_AFTER = new Set(["free", "less"]);
+
+/**
+ * True when `stem` occurs in `food` ONLY where it is negated.
+ *
+ * "unsalted butter" used to resolve to "Pretzels, soft, ready-to-eat, unsalted,
+ * no butter": both query words are genuinely present as words, so every word
+ * check passed — but the row is defined by NOT having butter. A phrase that
+ * mentions a term the food explicitly lacks has not matched it.
+ *
+ * A query that says the negator itself ("bread without salt") is exempt, since
+ * then the absence is what was being asked for.
+ */
+function onlyNegated(food: IndexedFood, stem: string, queryStems: Set<string>): boolean {
+  const w = food.wordStems;
+  let positive = false;
+  let negated = false;
+  for (let i = 0; i < w.length; i++) {
+    const word = w[i];
+    if (word !== stem && !(word.startsWith(stem) && word.length - stem.length <= 2)) continue;
+    const before = i > 0 ? w[i - 1] : "";
+    const after = i + 1 < w.length ? w[i + 1] : "";
+    if (
+      (NEGATORS_BEFORE.has(before) && !queryStems.has(before)) ||
+      (NEGATORS_AFTER.has(after) && !queryStems.has(after))
+    ) {
+      negated = true;
+    } else {
+      positive = true;
+    }
+  }
+  return negated && !positive;
+}
+
 function matchesAsWord(food: IndexedFood, tokens: string[]): boolean {
+  const queryStems = new Set(tokens.map(stemOf));
+  // An analogue the query never asked for is not the food, whatever it scored.
+  for (const w of food.wordStems) {
+    if (ANALOGUE_WORDS.has(w) && !queryStems.has(w)) return false;
+  }
   return tokens.every((raw) => {
     // `wordStems` is stemmed, so the token must be too. Comparing the raw token
     // against stemmed words silently fails on every plural — "tomatoes" never
     // equals the stored "tomato" — which made "cherry tomatoes" fall through to
     // "Cherries, raw" no matter how the tiebreak was written.
     const t = stemOf(raw);
-    return (
+    const present =
       food.wordStems.includes(t) ||
-      food.wordStems.some((w) => w.startsWith(t) && w.length - t.length <= 2)
-    );
+      food.wordStems.some((w) => w.startsWith(t) && w.length - t.length <= 2);
+    return present && !onlyNegated(food, t, queryStems);
   });
 }
 
@@ -442,12 +499,18 @@ function bestFor(
   tokens: string[],
   prep: string[],
   state: FoodState,
+  accept?: (food: IndexedFood) => boolean,
 ): { food: IndexedFood; score: number } | null {
   const query = tokens.join(" ");
   // Anything the model actually said is forgiven, in both penalties.
   const said = new Set([...tokens, ...prep]);
   let best: { food: IndexedFood; score: number } | null = null;
   for (const food of foods) {
+    // Filter BEFORE ranking, never after. Rejecting the winner afterwards
+    // returns null for any single-token phrase, because the relaxed pass below
+    // needs at least two tokens to shorten — "bacon" resolved to nothing at all
+    // when this was a post-hoc check.
+    if (accept && !accept(food)) continue;
     const base = scoreFood(food, tokens, query, {
       // The query's own processed/composite words must not count against the
       // food that has them — see the header.
@@ -509,15 +572,24 @@ export function resolvePhrase(
   const { clauses, prep } = classifyTokens(phrase);
   if (clauses.length === 0) return null;
 
-  // Everything the model said, in order, with nothing thrown away: no floor and
-  // no word-match requirement, since every token had to match to get here.
+  // Everything the model said, in order, with nothing thrown away: no floor,
+  // since every token had to match to get here.
+  //
+  // It still has to match on real WORDS, though. `scoreFood` matches a token
+  // against a substring, which is right for typeahead — you want "chick" to
+  // find chicken while the user is still typing — and wrong here, where the
+  // whole phrase is already known. Without this guard "green apple" resolves to
+  // "Beverages, SNAPPLE, tea, ... peach, diet", because `apple` is a substring
+  // of `snapple`. That is the same class of bug the relaxed pass has always
+  // guarded against ("pollo" is a prefix of "pollock"; that is not a tuna) —
+  // the guard was simply never applied to the exact pass.
   const allTokens = clauses.flat();
-  const exact = bestFor(foods, allTokens, prep, state);
+  const exact = bestFor(foods, allTokens, prep, state, (f) => matchesAsWord(f, allTokens));
   if (exact) return exact.food;
 
   // Then the dish alone, dropping the accompaniments after a connective.
   if (clauses.length > 1) {
-    const head = bestFor(foods, clauses[0], prep, state);
+    const head = bestFor(foods, clauses[0], prep, state, (f) => matchesAsWord(f, clauses[0]));
     if (head) return head.food;
   }
 
@@ -530,10 +602,12 @@ export function resolvePhrase(
     let best: { food: IndexedFood; score: number; rank: [number, number] } | null = null;
     for (const run of runs(dish, len)) {
       if (isOnlyCuts(run)) continue;
-      const hit = bestFor(foods, run, prep, state);
+      // Same reason as the exact pass: filter before ranking. Checking the
+      // winner afterwards throws away the whole run when the top-scoring row
+      // happens to be an analogue, instead of falling to the best real food.
+      const hit = bestFor(foods, run, prep, state, (f) => matchesAsWord(f, run));
       if (!hit) continue;
       if (hit.score < RELAXED_SCORE_FLOOR) continue;
-      if (!matchesAsWord(hit.food, run)) continue;
       // Head first, rarity second. USDA inverts English compounds, so within one
       // clause the last token is what the food IS and the rest qualifies it:
       // "cherry tomatoes" is a tomato. Rarity alone picks "cherry" and returns
