@@ -6,6 +6,69 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-26 — Ignia is on the App Store in 145 countries
+
+It was in **one**. The iOS app had been US-only since launch — not a decision
+anybody made, just the default nobody had gone back to change. It is now
+available in 145 territories, Bolivia included.
+
+**The EU, the UK, Iceland and Norway are deliberately not among them.** Selling
+into the EU triggers the Digital Services Act's trader declaration, which
+publishes the trader's name, postal address, phone number and email on every EU
+product page. That is a disclosure the owner makes personally, not one to
+stumble into by ticking a box, so those 30 territories stay closed until it is
+made. New territories Apple adds later stay closed too, on purpose — otherwise
+the carve-out quietly defeats itself.
+
+The app itself is unchanged: same binary, same build, no update to install.
+
+---
+
+## 2026-08-26 — photo scan stops naming a food you never photographed
+
+**A green apple was coming back as diet Snapple tea.** The macros a photo scan
+writes are looked up by name against the USDA database, and the lookup matched
+on substrings — so `apple` found `SNAPPLE`, and the row it picked was a
+beverage. Whole-word matching was already in place for one half of the lookup
+and had never been applied to the other. It is now.
+
+**Meat analogues were doing the same thing from the other direction.** Photograph
+bacon and the only row carrying both *bacon* and *strip* was `Bacon strip,
+meatless` — nothing else to rank it against, so no amount of demotion could
+displace it. Meatless, vegetarian, vegan, imitation and substitute rows are now
+skipped unless you asked for one, and asking still works: a veggie burger
+resolves to a veggie burger.
+
+Also: *no butter* no longer counts as butter.
+
+**This reached everyone the moment it deployed** — the lookup runs on the server,
+so there was no build and no update to install, on either platform.
+
+**Some phrases are still wrong and we know which ones.** `unsalted butter`
+reaches a pretzel row, because both words are honestly in it and only knowing
+that the food *is* a pretzel would help. Those are measured and written down
+rather than guessed at; fixing them means retuning the ranker, which is its own
+job.
+
+---
+
+## 2026-08-25 — the app stops sitting on the splash screen when the network is bad
+
+**On a flaky connection Ignia could hang for more than thirty seconds before
+showing anything.** Not loading slowly — showing nothing at all. Firebase
+validates your saved sign-in before it will say who you are, and on a network
+that accepts connections but never answers, that check takes **8.7 seconds**
+instead of the usual 0.8, with the splash screen held up behind it the whole
+time.
+
+Ignia now reads your saved session off the device after a 1.2-second grace
+period and gets on with drawing the app, then corrects itself when the real
+answer arrives. On a working connection nothing changes — the grace period
+expires unused. On a dead one the app is usable in about **6 seconds** instead
+of over 30, and the real session lands by 12 without the screen flickering back.
+
+---
+
 ## 2026-08-25 — sleep on Trends: one honest comparison
 
 **On your shorter nights, did you eat more?** Trends now answers that from your
