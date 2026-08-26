@@ -33,13 +33,15 @@ const MAX_ITEMS = 12;
  * this is ever flipped back to `true`, the server is the only place the
  * distinction survives.
  *
- * Costed before flipping (2026-08-04), on the then-active `gemini-2.5-flash`:
- * ~$0.0015/scan, so the free tier's 3/day is ~$0.14 per user per month even
- * if someone maxes it out every single day, and the `photo` spend ceiling
- * bounds the worst possible day at 2,000 scans ≈ $3. Photo-scan is the
- * strongest conversion lever the app has; that is cheap acquisition. On the
- * Anthropic provider the same math is ~2.7x, which is a reason to re-run it
- * before flipping PHOTO_PROVIDER, not a reason to close this gate.
+ * Costed 2026-08-04 on the then-active `gemini-2.5-flash` and **re-costed
+ * 2026-08-26 on the actually-active `gemini-3.5-flash-lite`**: a measured scan
+ * is ~1,840 input + ~443 output tokens at $0.30/$2.50 per MTok = **~$0.0017**,
+ * so the free tier's 3/day is **~$0.15 per user per month** even if someone
+ * maxes it out every single day, and the `photo` spend ceiling bounds the worst
+ * possible day at 2,000 scans ≈ **$3.40**. Photo-scan is the strongest
+ * conversion lever the app has; that is cheap acquisition. On the Anthropic
+ * provider the same math is ~2.4x, which is a reason to re-run it before
+ * flipping PHOTO_PROVIDER, not a reason to close this gate.
  */
 const PHOTO_REQUIRES_PAID = false;
 
@@ -48,8 +50,13 @@ const PHOTO_REQUIRES_PAID = false;
  * quality one, and it is the whole reason this is a constant rather than a
  * hardcoded call.**
  *
- * - `gemini`   — `gemini-2.5-flash`. Has a genuine free tier, which is why
- *                photo-scan has cost approximately nothing to date.
+ * - `gemini`   — **`gemini-3.5-flash-lite`** (see GEMINI_MODEL below; this
+ *                line read `gemini-2.5-flash` until 2026-08-26, eight weeks
+ *                after the model moved, and **ADR-0029 priced multi-image
+ *                capture off it** — a stale comment in the file that owns the
+ *                fact is how a wrong number reaches a decision doc). Has a
+ *                genuine free tier, which is why photo-scan has cost
+ *                approximately nothing to date.
  * - `anthropic`— `claude-haiku-4-5`. No free tier: metered from the first
  *                request, ~$0.004/scan (~2.2k input = image ≈1.6k + prompt
  *                ≈600, and ~350 output, at $1/$5 per MTok). Better structured
@@ -66,8 +73,11 @@ const PHOTO_REQUIRES_PAID = false;
  * food and the bundled USDA database produces the macros, so the choice between
  * these two is about recognition quality, not arithmetic.
  *
- * Whichever is active, the `photo` ceiling in spend-ceiling.ts is sized
- * against the Haiku rate — re-derive it if the model changes again.
+ * The `photo` ceiling in spend-ceiling.ts **was** sized against the Haiku rate;
+ * it was re-derived for `gemini-3.5-flash-lite` on 2026-08-21 and its comment
+ * carries the arithmetic. Re-derive it again if the model changes — and note
+ * `estimateWithGemini` now logs `usageMetadata` per call, so the next
+ * re-derivation reads real traffic instead of a one-off benchmark.
  */
 type PhotoProvider = "gemini" | "anthropic";
 // The `as` is load-bearing, not noise: without it TypeScript narrows a const
@@ -120,8 +130,18 @@ const ANTHROPIC_MODEL = "claude-haiku-4-5";
 /**
  * Haiku 4.5 predates the high-resolution vision tier, so images are capped
  * at 1568px on the long edge and ~1600 tokens regardless of what we send.
- * The clients resize to 1920px; the API downscales the rest. Harmless, just
- * wasted upload bytes — lowering the client resize is a free win, not a fix.
+ *
+ * **The two clients do NOT resize to the same size, and this comment used to
+ * imply they did.** Web sends **1920px on the long edge**
+ * (`photo-capture.component.ts` → `resizeAndEncode(file, 1920)`); mobile sends
+ * **768px WIDE** (`apps/mobile/src/lib/mealScan.ts`, `UPLOAD_MAX_EDGE = 768`,
+ * applied as `.resize({ width })` — width only, so a tall photo stays tall).
+ * ADR-0029 read this comment against the one at the size check below and
+ * reported the file as self-contradictory; both are correct, about different
+ * clients. Say which client whenever either number is quoted.
+ *
+ * On the Anthropic path both are downscaled by the API anyway, so web's extra
+ * pixels are wasted upload bytes — a free win to lower, not a fix.
  */
 const PHOTO_MAX_OUTPUT_TOKENS = 1_024;
 
@@ -311,6 +331,34 @@ async function estimateWithGemini(photoBase64: string, prompt: string): Promise<
        */
     },
   });
+  /**
+   * **Log what the call actually cost, because every cost claim about this
+   * function has so far been arithmetic rather than measurement.**
+   *
+   * `spend-ceiling.ts` sizes the `photo` ceiling from a one-off 2026-08-21
+   * benchmark and says in its own comment that it "wants re-deriving rather
+   * than assuming." It could not be re-derived from production, because
+   * `usageMetadata` was read once by hand and then thrown away on every call
+   * since. ADR-0029 then priced multi-image capture off that benchmark and
+   * misread it — it took the 1,009 input tokens as the cost of the IMAGE when
+   * it is the cost of the WHOLE call, prompt included, and built a 3x
+   * multiplier on the difference.
+   *
+   * One line fixes the class: with this in the logs, the ceiling, the quota
+   * unit and any future multi-image estimate are all readable off real traffic.
+   * `thoughtsTokenCount` is included on purpose — the comment above requires it
+   * to be re-checked whenever `GEMINI_MODEL` moves, and a silent 10x latency
+   * regression is exactly what `gemini-3-flash-preview` did.
+   */
+  const u = result.usageMetadata;
+  if (u) {
+    console.log(
+      `analyzePhoto usage model=${GEMINI_MODEL} ` +
+        `in=${u.promptTokenCount ?? "?"} out=${u.candidatesTokenCount ?? "?"} ` +
+        `thinking=${u.thoughtsTokenCount ?? 0} total=${u.totalTokenCount ?? "?"}`,
+    );
+  }
+
   // response.text is guaranteed valid JSON matching the schema.
   return JSON.parse(result.text ?? "{}") as ScanDraft;
 }
@@ -497,8 +545,11 @@ export const analyzePhoto = onCall(
     }
 
     // Defense-in-depth against direct API callers that bypass the client
-    // resize. The client caps raw uploads at 15 MB and resizes to 768px
-    // before base64 encoding, so legitimate payloads are well under 3 MB.
+    // resize. Both clients cap raw uploads at 15 MB and resize before base64
+    // encoding — MOBILE to 768px wide, WEB to 1920px on the long edge (see the
+    // note on PHOTO_MAX_OUTPUT_TOKENS above; the two numbers are different on
+    // purpose and quoting one as "the client" is what made this file look
+    // self-contradictory). Either way legitimate payloads are well under 3 MB.
     // Threshold here (~20 MB base64 = ~15 MB raw) matches the client
     // precheck so the user-facing number is consistent.
     if (photoBase64.length > 20_000_000) {

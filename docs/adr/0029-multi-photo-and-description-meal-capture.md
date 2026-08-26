@@ -88,21 +88,76 @@ the branded corpus* — recorded here so a web search is not re-proposed.
 
 ### The cost finding that decides the ordering
 
-Gemini 2.5 Flash bills **~1,009 input tokens per image** (`analyze-photo.ts`
-records the measurement). Today a scan is ~2.2k input tokens ≈ **$0.0015**.
+> **CORRECTED 2026-08-26 — every number in the original version of this section
+> was wrong, and the conclusion survives anyway.** The original text is preserved
+> below the correction because *how* it went wrong is the reusable part.
 
-**Three images roughly triples the image half of that** — call it $0.003–0.004 a
-scan. That is still small in absolute terms. The problem is structural:
+**What the numbers actually are.** The active model is **`gemini-3.5-flash-lite`**,
+not Gemini 2.5 Flash. A measured scan is **~1,840 input + ~443 output tokens** at
+$0.30 / $2.50 per MTok = **~$0.0017**. The free tier's 3/day worst case is
+**~$0.15 per user per month**, and the `photo` ceiling bounds the worst possible
+day at 2,000 scans ≈ **$3.40**. (`spend-ceiling.ts` had already re-derived exactly
+this on 2026-08-21; this ADR did not read it.)
 
-> **`dailyQuota` counts SCANS, not IMAGES.** So a 3-image scan costs 3× the model
-> spend against the *same* 3/day free allowance. The free tier's worst case goes
-> from ~$0.14 per user per month to ~$0.40, and the `photo` `spendCeiling` — which
-> bounds the worst possible day — is denominated in the same wrong unit.
+**Three images does NOT triple the cost. It is roughly 1.4×.** The benchmark
+figure of 1,009 input tokens is the **whole call** — prompt plus image — not the
+image alone, and this ADR read it as per-image. The static prompt is ~700 tokens,
+so the image's own share is roughly **1,100 tokens**, and only that part scales
+with image count. Output tokens do not scale at all, and at $2.50/MTok they are
+**two-thirds of a scan's cost**:
+
+| | Input | Output | Cost |
+|---|---|---|---|
+| 1 image | ~1,840 | ~443 | **$0.0017** |
+| 3 images | ~4,100 | ~443 | **$0.0023** |
+
+So the free tier's worst case goes from ~$0.15 to **~$0.21** per user per month,
+not to $0.40. **Multi-image is materially cheaper than this ADR concluded**, and
+anyone re-reading the original ordering should know the cost argument against B
+was roughly half as strong as it appeared.
+
+**The structural argument is untouched, and it is the one that decides:**
+
+> **`dailyQuota` counts SCANS, not IMAGES.** A 3-image scan costs ~1.4× the model
+> spend against the *same* 3/day free allowance, and the `photo` `spendCeiling` —
+> which bounds the worst possible day — is denominated in the same wrong unit.
 
 **Multi-image must not ship until the quota counts images.** That is a one-line
 semantic change in `functions/src/daily-quota.ts` plus a re-priced ceiling, and it
 is the difference between a bounded feature and an unbounded one. Both guards stay
-mandatory (`check()` before the per-user reserve, `record()` after).
+mandatory (`check()` before the per-user reserve, `record()` after). Note the
+gate is now about **boundedness, not magnitude** — an unbounded multiplier of 1.4
+is still unbounded.
+
+**How this went wrong, because it will recur.** Neither error was invented here.
+`analyze-photo.ts` itself said `gemini` — `gemini-2.5-flash` in its provider
+table until 2026-08-26, eight weeks after `GEMINI_MODEL` moved to
+`gemini-3.5-flash-lite` twenty lines below, and it repeated the $0.0015 / $0.14
+figures in a third place. This ADR read the file that owns the fact and the file
+was stale. **Both are fixed at source**, and `estimateWithGemini` now logs
+`usageMetadata` on every call, so the next person to price this reads real
+traffic instead of a benchmark someone ran once.
+
+*Original text, superseded:* "Gemini 2.5 Flash bills ~1,009 input tokens per
+image. Today a scan is ~2.2k input tokens ≈ $0.0015. Three images roughly triples
+the image half of that — call it $0.003–0.004 a scan… the free tier's worst case
+goes from ~$0.14 per user per month to ~$0.40."
+
+### The resolution claim was not a contradiction — it is two clients
+
+This ADR reported `analyze-photo.ts` as self-contradictory, stating 768px in one
+comment and 1920px in another. **Both were correct and both were about a
+different client**, which neither comment said:
+
+| Client | Resize | Where |
+|---|---|---|
+| **Mobile** | **768px WIDE** (`.resize({ width })` — width only, so a tall photo stays tall) | `apps/mobile/src/lib/mealScan.ts`, `UPLOAD_MAX_EDGE` |
+| **Web** | **1920px on the long edge** | `src/app/components/photo-capture/photo-capture.component.ts`, `resizeAndEncode(file, 1920)` |
+
+Both comments now name their client. Web's extra pixels are wasted upload bytes
+on the Anthropic path (the API downscales to 1568px anyway); on the Gemini path
+they are worth measuring before assuming, now that usage is logged. **Quote a
+resize number only with the client attached.**
 
 ## Proposed decision
 
