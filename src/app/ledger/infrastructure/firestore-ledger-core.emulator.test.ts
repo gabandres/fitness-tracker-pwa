@@ -446,4 +446,125 @@ describe.skipIf(!EMULATOR_AVAILABLE)('FirestoreLedgerCore — emulator contract'
       expect(sessions.find((s) => s.id === sessId)!.exercises[0].exerciseId).toBe(toId);
     });
   });
+  // ─── Fasting (ADR-0032, issue #97) ───────────────────────────
+  //
+  // These are the cases that matter most in this file, because `breakFast` is
+  // the one write in the app where a REJECTED document does active harm rather
+  // than simply failing. It is a batch: create the fast, null `fastStartedAt`,
+  // one commit. If the rules refuse the document the whole commit fails, so
+  // `fastStartedAt` stays set and the user's timer runs forever with no way to
+  // stop it. Unit tests cannot see that — only the real rules can — which is
+  // exactly what this suite is for.
+  describe('fasting', () => {
+    const startedAt = new Date('2026-08-24T20:00:00Z');
+    const endedAt = new Date('2026-08-25T12:00:00Z');
+
+    /**
+     * The profile MUST be `profileCompleted: true` here, and that is a real
+     * finding rather than fixture hygiene.
+     *
+     * `isValidProfile` is `isValidProfileInitial(data) || isValidProfileCompleted(data)`,
+     * and `fastStartedAt` appears in the Completed branch's `hasOnly` list
+     * only. So on an INCOMPLETE profile the field fails the first branch, falls
+     * through to the second, fails that too on `profileCompleted`, and the two
+     * evaluations together exceed Firestore's 1,000-expression-per-request
+     * budget. The emulator names it exactly — *"Unable to evaluate the
+     * expression as the maximum of 1000 expressions to evaluate has been
+     * reached"* — while production returns a bare `PERMISSION_DENIED`, which
+     * reads like a missing rule rather than a validator that ran out of room.
+     *
+     * Verified against PRODUCTION with a real signed-in client on 2026-08-26,
+     * because the difference matters: on a COMPLETED profile `startFast` and
+     * `breakFast` both pass, so fasting is NOT broken for users. Onboarding
+     * gates the Today timer, so no real user reaches the failing state. It is
+     * filed as a latent trap for whoever adds the next profile field, not as a
+     * live outage.
+     */
+    /**
+     * `profileCompleted: true` alone is not enough — the Completed validator
+     * then requires EITHER the full Mifflin-St Jeor set (height/age/sex/
+     * activity/pace) OR, for the v2 two-question onboarding, a
+     * `manualCaloriesTarget`. This takes the second, which is the smaller of
+     * the two and the shape most accounts created since v2 actually have.
+     */
+    const completedProfile = (): UserProfileDoc => ({
+      ...baseProfile(),
+      profileCompleted: true,
+      manualCaloriesTarget: 2200,
+    });
+
+    const seedRunningFast = async (start: Date) => {
+      await core.createProfileDoc(completedProfile());
+      await core.updateProfileDoc({ fastStartedAt: Timestamp.fromDate(start) });
+    };
+
+    it('archives the fast AND clears the timer, against the production rules', async () => {
+      await seedRunningFast(startedAt);
+      expect(await core.endFast(endedAt)).toBe(true);
+
+      const fasts = await core.getFasts();
+      expect(fasts).toHaveLength(1);
+      expect(fasts[0].startedAt.toISOString()).toBe(startedAt.toISOString());
+      expect(fasts[0].endedAt.toISOString()).toBe(endedAt.toISOString());
+      expect(fasts[0].source).toBe('timer');
+      expect(fasts[0].id).toBeTruthy();
+
+      const profile = await core.readProfileDoc();
+      expect(profile!.fastStartedAt).toBeNull();
+    });
+
+    it('does not strand the timer when the interval is one the rules refuse', async () => {
+      // A fast running for a fortnight is a timer someone forgot, not a fast.
+      // The rules cap the stored interval at 14 days, so the document must not
+      // be attempted — the batch would fail and the user would be left staring
+      // at a counter they cannot stop. Dropping the record is the deliberately
+      // chosen failure; being unable to end a fast is not.
+      const ancient = new Date(endedAt.getTime() - 15 * 24 * 60 * 60 * 1000);
+      await seedRunningFast(ancient);
+
+      expect(await core.endFast(endedAt)).toBe(false);
+      expect(await core.getFasts()).toEqual([]);
+      const profile = await core.readProfileDoc();
+      expect(profile!.fastStartedAt).toBeNull();
+    });
+
+    it('clears a timer whose start is in the future without writing an inverted fast', async () => {
+      const future = new Date(endedAt.getTime() + 60 * 60 * 1000);
+      await seedRunningFast(future);
+
+      expect(await core.endFast(endedAt)).toBe(false);
+      expect(await core.getFasts()).toEqual([]);
+      expect((await core.readProfileDoc())!.fastStartedAt).toBeNull();
+    });
+
+    it('is a no-op archive when no fast was running', async () => {
+      await core.createProfileDoc(completedProfile());
+      expect(await core.endFast(endedAt)).toBe(false);
+      expect(await core.getFasts()).toEqual([]);
+    });
+
+    it('accumulates fasts across days, newest-ended first', async () => {
+      await seedRunningFast(startedAt);
+      await core.endFast(endedAt);
+      const laterStart = new Date('2026-08-25T20:00:00Z');
+      const laterEnd = new Date('2026-08-26T12:00:00Z');
+      await core.updateProfileDoc({ fastStartedAt: Timestamp.fromDate(laterStart) });
+      await core.endFast(laterEnd);
+
+      const fasts = await core.getFasts();
+      expect(fasts.map((f) => f.endedAt.toISOString())).toEqual([
+        laterEnd.toISOString(),
+        endedAt.toISOString(),
+      ]);
+    });
+
+    it('stores a fast SHORT enough that a competitor would discard it', async () => {
+      // ADR-0032 refuses to do what Zero and Simple do. Twenty minutes is a
+      // fast the user ended, so it is kept.
+      const shortStart = new Date(endedAt.getTime() - 20 * 60 * 1000);
+      await seedRunningFast(shortStart);
+      expect(await core.endFast(endedAt)).toBe(true);
+      expect(await core.getFasts()).toHaveLength(1);
+    });
+  });
 });

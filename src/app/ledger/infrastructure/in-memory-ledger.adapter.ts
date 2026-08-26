@@ -1,5 +1,6 @@
 import { Injectable, computed, signal } from '@angular/core';
 import {
+  type Fast,
   type UsageCounts,
   type UsageEvent,
   addUsageCount,
@@ -7,6 +8,8 @@ import {
   clampUsageCounts,
   clampWaterFlOz,
   hasUsageCounts,
+  isStorableFast,
+  sortFastsByEndDesc,
   calendarDateKey,
 } from '@macrolog/core';
 import type { OnboardingV2Submission, RefineTargetsSubmission } from '@macrolog/core';
@@ -60,6 +63,9 @@ export class InMemoryLedgerAdapter implements LedgerPort {
   private readonly weights: Record<string, number> = {};
   private readonly water: Record<string, number> = {};
   private readonly sleep: Record<string, number> = {};
+  /** Completed fasts, in the order they were archived. `breakFast` appends;
+   *  nothing else writes here. */
+  private readonly fasts: Fast[] = [];
   private report: WeeklyReport | null = null;
   private readonly exercises = new Map<string, Exercise>();
   private exerciseSeq = 0;
@@ -198,8 +204,27 @@ export class InMemoryLedgerAdapter implements LedgerPort {
     this.patchProfile({ fastStartedAt: start });
   }
 
+  /**
+   * Archive the fast, then clear the timer — the in-memory mirror of the
+   * atomic batch the Firestore adapter commits (ADR-0032, #97).
+   *
+   * `isStorableFast` is applied here too, and deliberately so. It is the same
+   * bound `firestore.rules` enforces, and a test double that accepted an
+   * interval the real adapter would refuse would let a unit test pass against
+   * behaviour that cannot happen in production — which is the failure mode a
+   * fake exists to avoid, not to introduce.
+   */
   async breakFast(): Promise<void> {
+    const start = this.profile()?.fastStartedAt ?? null;
+    const end = new Date();
+    if (start && isStorableFast(start, end)) {
+      this.fasts.push({ id: `fast-${this.fasts.length + 1}`, startedAt: start, endedAt: end, source: 'timer' });
+    }
     this.patchProfile({ fastStartedAt: null });
+  }
+
+  async getFasts(): Promise<Fast[]> {
+    return sortFastsByEndDesc(this.fasts);
   }
 
   async setUnitSystem(system: import('@macrolog/core').UnitSystem): Promise<void> {

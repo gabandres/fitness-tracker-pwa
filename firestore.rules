@@ -294,6 +294,46 @@ service cloud.firestore {
     //
     // It is in hasOnly but NOT hasAll: a strength-only session has no cardio,
     // and so does every session written before this field existed.
+    /**
+     * A COMPLETED fast — `users/{uid}/fasts/{fastId}` (ADR-0032, issue #97).
+     *
+     * Interval-shaped on purpose. A fast crosses midnight routinely, so a
+     * day-keyed document would bake an attribution decision into an
+     * identifier; which day a fast counts towards is a question
+     * `packages/core/src/fasting-history.ts` answers, and it is answered
+     * differently for the headline number than for the calendar. Storing the
+     * interval is what keeps that reversible.
+     *
+     * A document exists ONLY for a fast that has ended, so both timestamps are
+     * required. The in-progress fast stays where it has always been, on
+     * `Profile.fastStartedAt`.
+     *
+     * `endedAt > startedAt` is enforced rather than assumed: a zero-length or
+     * inverted interval is not a short fast, it is a corrupt one, and it would
+     * poison every average it ever entered.
+     *
+     * The 14-day ceiling is a CORRUPTION guard and not a product opinion.
+     * ADR-0032 explicitly refuses to discard a fast for being too long or too
+     * short — competitors that do (Zero deletes past 24h, Simple warns past
+     * 24h) generate the review complaints the ADR quotes. 14 days is far
+     * outside any real fast and only catches a timer someone left running for
+     * a fortnight, or a client writing garbage.
+     *
+     * `source` is optional and enumerated here rather than trusted. This is
+     * the only access-control layer there is, and a free-form string would let
+     * a hand-edited fast claim it was measured by the timer — the same
+     * reasoning that enumerates `dailySleep.source`.
+     */
+    function isValidFast(data) {
+      return data.keys().hasOnly(['startedAt', 'endedAt', 'source'])
+          && data.keys().hasAll(['startedAt', 'endedAt'])
+          && data.startedAt is timestamp
+          && data.endedAt is timestamp
+          && data.endedAt.toMillis() > data.startedAt.toMillis()
+          && data.endedAt.toMillis() - data.startedAt.toMillis() <= 1209600000
+          && (!('source' in data.keys()) || data.source in ['timer', 'manual']);
+    }
+
     function isValidWorkoutSession(data) {
       return data.keys().hasOnly([
               'status', 'templateId', 'templateName', 'timestamp',
@@ -772,6 +812,20 @@ service cloud.firestore {
         allow read:   if isOwner(uid) || isAdmin();
         allow create: if isOwner(uid) && isValidWorkoutSession(request.resource.data);
         allow update: if isOwner(uid) && isValidWorkoutSession(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+
+      // Completed fasts — the archive behind the Today timer (ADR-0032, #97).
+      // Until this existed, `breakFast` nulled `fastStartedAt` and nothing
+      // else recorded the fast, so a completed fast was destroyed at the
+      // moment it became final. `breakFast` is now a batch: create the
+      // document here, null the profile field, one atomic commit. Split into
+      // two writes, a failure between them either loses the fast or leaves a
+      // phantom timer running.
+      match /fasts/{fastId} {
+        allow read:   if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid) && isValidFast(request.resource.data);
+        allow update: if isOwner(uid) && isValidFast(request.resource.data);
         allow delete: if isOwner(uid);
       }
 

@@ -41,6 +41,11 @@ export const USER_SUBCOLLECTIONS = [
   "workoutSessions",
   "workoutTemplates",
   "exercises",
+  // Completed fasts (ADR-0032, #97). Added in the same change that created the
+  // collection, which is the point of `gdpr-collection-parity.spec.ts`: the
+  // workout trio was erasable for months before anyone made it portable,
+  // because the two lists were maintained by hand and drifted.
+  "fasts",
   "private",
 ] as const;
 

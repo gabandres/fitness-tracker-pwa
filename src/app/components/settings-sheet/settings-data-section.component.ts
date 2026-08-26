@@ -171,15 +171,19 @@ export class SettingsDataSectionComponent {
     this.exporting.set(true);
     this.exportError.set(false);
     try {
-      const [logs, measurements, dailyWeights, dailyWater, dailySleep, workoutSessions] = await Promise.all([
+      const [logs, measurements, dailyWeights, dailyWater, dailySleep, workoutSessions, fasts] = await Promise.all([
         this.firebase.getRecentLogs(9999),
         this.firebase.getRecentMeasurements(9999),
         this.firebase.getDailyWeights(),
         this.firebase.getDailyWater(),
         this.firebase.getDailySleep(),
         this.firebase.getAllSessions(),
+        // ADR-0022 freezes web FEATURES, not correctness, and an export that
+        // silently omits a user's whole fasting history is the latter. Until
+        // #97 this line could not exist: ending a fast deleted it.
+        this.firebase.getFasts(),
       ]);
-      const csv = buildCsv({ logs, measurements, dailyWeights, dailyWater, dailySleep, workoutSessions });
+      const csv = buildCsv({ logs, measurements, dailyWeights, dailyWater, dailySleep, workoutSessions, fasts });
       // Local date + time (no colons — invalid in filenames) so repeat
       // same-day exports get distinct names instead of colliding on
       // `…-YYYY-MM-DD.csv` and tripping the OS "file already exists" prompt.
@@ -188,7 +192,7 @@ export class SettingsDataSectionComponent {
       const stamp = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
       downloadCsv(`ignia-export-${stamp}.csv`, csv);
       this.analytics.track('data_export_csv', {
-        rows: logs.length + measurements.length + workoutSessions.length,
+        rows: logs.length + measurements.length + workoutSessions.length + fasts.length,
       });
     } catch {
       this.exportError.set(true);

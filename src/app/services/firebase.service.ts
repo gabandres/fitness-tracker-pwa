@@ -4,7 +4,7 @@ import { Firestore, Timestamp, deleteField } from '@angular/fire/firestore';
 import { Auth } from '@angular/fire/auth';
 import { CallableGateway } from './callable.gateway';
 import { readReferrer, clearReferrer } from '../utils/referral';
-import type { DayBoundary, UnitSystem, UsageCounts } from '@macrolog/core';
+import type { DayBoundary, Fast, UnitSystem, UsageCounts } from '@macrolog/core';
 import type { CustomFood, ServingUnit } from '@macrolog/core';
 import type {
   Exercise,
@@ -667,11 +667,29 @@ export class FirebaseService implements LedgerPort {
     if (current) this._profile.set({ ...current, fastStartedAt: start.toDate() } as any);
   }
 
-  /** Break the fast — clears the timestamp. */
+  /**
+   * Break the fast — and RECORD it (ADR-0032, issue #97).
+   *
+   * This used to null `fastStartedAt` and nothing else, which destroyed the
+   * fast at the moment it became final. The web logging app is frozen for
+   * FEATURES (ADR-0022), not for correctness: a fast ended here has to reach
+   * `users/{uid}/fasts` or the history has holes nothing can repair later,
+   * because the archive is only as complete as its least careful writer. Web
+   * History gains nothing from this and is not meant to.
+   *
+   * `FirestoreLedgerCore.endFast` owns the atomic write — the fast document
+   * and the null commit in one batch — and mirrors the Expo ledger's doc shape
+   * exactly, so both apps read the same collection and pass the same rules.
+   */
   async breakFast(): Promise<void> {
-    await this.core.updateProfileDoc({ fastStartedAt: null, lastSeenAt: Timestamp.now() });
+    await this.core.endFast();
     const current = this._profile();
     if (current) this._profile.set({ ...current, fastStartedAt: null } as any);
+  }
+
+  /** Every completed fast, newest-ended first — the CSV export's read. */
+  async getFasts(): Promise<Fast[]> {
+    return this.core.getFasts();
   }
 
   /** Add a meal label to the user's recent-quick-add hide list. The

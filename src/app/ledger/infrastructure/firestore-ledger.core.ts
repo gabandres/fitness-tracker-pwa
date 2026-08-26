@@ -45,9 +45,11 @@ import type {
   WorkoutTemplate,
 } from '../../models/workout';
 import {
+  type Fast,
   type UsageCounts,
   clampUsageCounts,
   hasUsageCounts,
+  isStorableFast,
   normalizeClusterGroups,
   usageDocId,
 } from '@macrolog/core';
@@ -299,6 +301,63 @@ export class FirestoreLedgerCore {
 
   async setDailySleep(dateKey: string, hours: number): Promise<void> {
     await setDoc(this.userDocIn('dailySleep', dateKey), { hours: clampSleepHours(hours) });
+  }
+
+  // ─── Fasting ──────────────────────────────────────────────────
+  //
+  // The web logging app is frozen for FEATURES (ADR-0022), not for
+  // correctness, and this is the one piece of web work ADR-0032 requires. A
+  // fast ended on the web has to be recorded or the history has holes that
+  // nothing can repair later — the archive is only as complete as its least
+  // careful writer. Web History gains nothing from it and is not meant to.
+
+  /**
+   * End the running fast and keep it — the atomic half of `breakFast`.
+   *
+   * Mirrors `apps/mobile/src/lib/ledger.ts`'s `breakFast` byte-for-byte in doc
+   * shape, which is what lets both apps read the same collection and pass the
+   * same rules.
+   *
+   * The batch is the point. Creating the fast document and nulling
+   * `fastStartedAt` must commit together, or a failure between them loses the
+   * fast or leaves a phantom timer running against a fast already archived.
+   *
+   * `isStorableFast` runs BEFORE the batch is built, and that ordering is
+   * load-bearing: `firestore.rules` rejects an inverted, zero-length or
+   * >14-day interval, and a rejected document fails the whole commit — so
+   * `fastStartedAt` would stay set and the user's timer would run forever with
+   * no way to stop it. When the interval is not storable the timer is still
+   * cleared and no document is written.
+   *
+   * Returns whether a fast was archived, so the caller can tell "ended a fast"
+   * from "cleared a timer that was not a fast".
+   */
+  async endFast(endedAt: Date = new Date()): Promise<boolean> {
+    const snap = await this.withTimeout(getDoc(this.userDoc()), 15_000, 'fast-read');
+    const raw = snap.exists() ? (snap.data() as UserProfileDoc).fastStartedAt : null;
+    const start = raw instanceof Timestamp ? raw.toDate() : null;
+    const storable = !!start && isStorableFast(start, endedAt);
+
+    const batch = writeBatch(this.firestore);
+    if (start && storable) {
+      batch.set(doc(this.userCollection('fasts')), {
+        startedAt: Timestamp.fromDate(start),
+        endedAt: Timestamp.fromDate(endedAt),
+        source: 'timer',
+      });
+    }
+    batch.update(this.userDoc(), { fastStartedAt: null, lastSeenAt: Timestamp.now() });
+    await batch.commit();
+    return storable;
+  }
+
+  /** Every completed fast, newest-ended first. Bounded — this is the one-shot
+   *  read behind the CSV export, not a listener. */
+  async getFasts(count = 2000): Promise<Fast[]> {
+    const snap = await getDocs(
+      query(this.userCollection('fasts'), orderBy('endedAt', 'desc'), limit(count)),
+    );
+    return snap.docs.map((d) => toFastDomain(d.id, d.data()));
   }
 
   // ─── Meal presets ─────────────────────────────────────────────
@@ -568,4 +627,19 @@ function toDomainSession(id: string, data: WorkoutSessionDoc): WorkoutSession {
  *  built-in). Single-sourced with the Expo adapter — see @macrolog/core. */
 function pruneUndefined<T>(value: T): T {
   return pruneUndefinedCore(value, (v) => v instanceof Timestamp);
+}
+
+/** Firestore doc → domain `Fast`. An unreadable instant maps to an invalid
+ *  Date rather than being dropped here: `packages/core`'s fasting functions
+ *  are total on that and skip the row, so the decision stays in one place. */
+function toFastDomain(id: string, data: Record<string, unknown>): Fast {
+  const startedAt = data['startedAt'];
+  const endedAt = data['endedAt'];
+  const source = data['source'];
+  return {
+    id,
+    startedAt: startedAt instanceof Timestamp ? startedAt.toDate() : new Date(NaN),
+    endedAt: endedAt instanceof Timestamp ? endedAt.toDate() : new Date(NaN),
+    ...(source === 'timer' || source === 'manual' ? { source } : {}),
+  };
 }

@@ -14,6 +14,7 @@ import {
   getAllLogs,
   getAllMeasurements,
   getAllSessions,
+  getFasts,
 } from './ledger';
 
 /** Local timestamp (no colons — invalid in filenames) so repeat same-day
@@ -37,7 +38,7 @@ export interface ExportResult {
  * is prepended so Excel renders accented meal labels correctly.
  */
 export async function exportDataCsv(uid: string): Promise<ExportResult> {
-  const [logs, measurements, dailyWeights, dailyWater, dailySleep, workoutSessions] =
+  const [logs, measurements, dailyWeights, dailyWater, dailySleep, workoutSessions, fasts] =
     await Promise.all([
       getAllLogs(uid),
       getAllMeasurements(uid),
@@ -45,6 +46,10 @@ export async function exportDataCsv(uid: string): Promise<ExportResult> {
       getAllDailyWater(uid),
       getAllDailySleep(uid),
       getAllSessions(uid),
+      // Until #97 this line did not exist and could not: ending a fast deleted
+      // it, so "all of the user's data" silently excluded every fast they had
+      // ever completed.
+      getFasts(uid),
     ]);
 
   const csv = '﻿' + buildCsv({
@@ -54,8 +59,9 @@ export async function exportDataCsv(uid: string): Promise<ExportResult> {
     dailyWater,
     dailySleep,
     workoutSessions,
+    fasts,
   });
-  const rows = logs.length + measurements.length + workoutSessions.length;
+  const rows = logs.length + measurements.length + workoutSessions.length + fasts.length;
   const filename = `ignia-export-${stamp()}.csv`;
 
   if (Platform.OS === 'web') {

@@ -24,6 +24,14 @@ export * from './day-boundary';
 // calendar wake day, so the two disagree in a window (issue #80).
 export * from './sleep-night';
 export * from './tier-limits';
+// Completed fasts (ADR-0032, #97). Foundation-level for the same reason
+// `sleep-night` is: it is a consequence of `day-boundary`, not of any one
+// screen. Two functions that must not collapse into one — `completedFastHours`
+// attributes a fast to the day it ENDED (the headline, one fast on exactly one
+// day), `fastingOverlapHours` intersects it with the day (the calendar, an
+// overnight fast marks both). Neither is called "fasting hours" on purpose.
+export * from './fasting-history';
+
 
 // ──────────────────────────── Logging ────────────────────────────
 // One row of intake (`DailyLog`) and the shapes around it: the per-day rollup,

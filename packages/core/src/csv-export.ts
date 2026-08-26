@@ -6,6 +6,7 @@
 // single dataset.
 
 import type { DailyLog, Measurement } from './types';
+import { fastLengthHours, type Fast } from './fasting-history';
 import { isLoggedCardioBlock } from './cardio';
 import { type WorkoutSession, isLoggedSet } from './workout';
 import { normalizeClusterGroups } from './cluster-groups';
@@ -26,6 +27,11 @@ const COLS = [
   'modality', 'cardioLabel', 'cardioDurationSec', 'cardioDistanceM',
   'cardioAvgHr', 'cardioMaxHr', 'cardioKcal', 'cardioRpe', 'cardioSource',
   'cardioProvider', 'cardioStartedAt', 'notes',
+  // Fasting columns — filled on 'fast' rows only (ADR-0032). `date` is the day
+  // the fast ENDED and `timestamp` is when it started, so the row carries the
+  // whole interval and a reader can re-derive any attribution rule they like
+  // rather than being stuck with ours.
+  'fastEndedAt', 'fastHours',
 ] as const;
 type Col = typeof COLS[number];
 
@@ -48,6 +54,11 @@ export interface ExportData {
   /** Completed (and in-progress) workout sessions. Optional so existing
    *  callers without workout data keep working. */
   workoutSessions?: WorkoutSession[];
+  /** Completed fasts (ADR-0032, #97). Optional for the same reason, and it is
+   *  worth saying why this field exists at all: until #97 the export was
+   *  silently incomplete — a user who asked for "their data" got none of their
+   *  fasting, because ending a fast deleted it. */
+  fasts?: Fast[];
 }
 
 /**
@@ -178,6 +189,35 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
         notes: b.notes,
       }));
     }
+  }
+
+  // Fasting (ADR-0032, #97). Sorted by END instant because that is the day the
+  // row is attributed to, so the file reads in the same order as History.
+  //
+  // The interval is exported WHOLE - `timestamp` is the start, `fastEndedAt`
+  // the end - rather than only the derived hours. That is deliberate: `date`
+  // uses the end-day rule the app shows, and a reader who disagrees with it
+  // (Zero and BodyFast attribute a fast to the day it STARTED) can re-derive
+  // their own rule from the same row. Exporting only a per-day number would
+  // bake our attribution decision into the user's own copy of their data,
+  // which is the one place it must not be baked in.
+  const sortedFasts = [...(data.fasts ?? [])].sort(
+    (a, b) => a.endedAt.getTime() - b.endedAt.getTime(),
+  );
+  for (const f of sortedFasts) {
+    rows.push(row({
+      type: 'fast',
+      date: dayKeyAt(f.endedAt, boundary),
+      timestamp: f.startedAt.toISOString(),
+      fastEndedAt: f.endedAt.toISOString(),
+      // Two decimals: a fast is a duration a person quotes in hours, and the
+      // raw float would render as 15.983333333333333 in a spreadsheet cell.
+      fastHours: Math.round(fastLengthHours(f) * 100) / 100,
+      // Reuses the shared free-text column rather than minting a fasting-only
+      // provenance one. `source` here means what it means on every other row
+      // in this file: measured, or asserted by hand.
+      notes: f.source,
+    }));
   }
 
   return rows.join('\r\n');

@@ -1,5 +1,5 @@
 import { InjectionToken, Signal } from '@angular/core';
-import type { UnitSystem, UsageCounts } from '@macrolog/core';
+import type { Fast, UnitSystem, UsageCounts } from '@macrolog/core';
 import type {
   Exercise,
   ExerciseDraft,
@@ -81,7 +81,14 @@ export interface LedgerPort {
   clearFcmToken(): Promise<void>;
   saveReminderHour(hour: number): Promise<void>;
   startFast(startedAt?: Date): Promise<void>;
+  /** End the running fast. Since ADR-0032 / #97 this ARCHIVES the fast to
+   *  `users/{uid}/fasts` and clears `fastStartedAt` in one atomic write —
+   *  it used to only clear the field, which destroyed the fast at the moment
+   *  it became final. Every adapter must record it, not merely clear it. */
   breakFast(): Promise<void>;
+  /** Every completed fast, newest-ended first. Feeds the CSV export, which
+   *  was silently missing a user's entire fasting history until #97. */
+  getFasts(): Promise<Fast[]>;
   setWeeklyDigestOptIn(on: boolean): Promise<void>;
   setUnitSystem(system: UnitSystem): Promise<void>;
   setProteinPerKg(gPerKg: number): Promise<void>;

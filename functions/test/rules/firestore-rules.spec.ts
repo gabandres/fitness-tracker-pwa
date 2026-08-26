@@ -1420,4 +1420,140 @@ describe('firestore.rules', () => {
     });
   });
 
+  // ── fasts (completed-fast archive, ADR-0032 / #97) ──
+  //
+  // These rules exist BEFORE any client writes the collection, which is the
+  // whole point of writing them first: the dev app talks to PROD Firestore, so
+  // an un-deployed rule rejects the very first write and reads like a broken
+  // feature rather than a missing deploy. That is the trap #61 exists for.
+  //
+  // The interval bounds matter more here than in most validators. `breakFast`
+  // is a batch — create the fast, null `fastStartedAt`, one commit — so a
+  // document these rules REJECT does not merely fail to save: it fails the
+  // whole batch and leaves the user's timer running forever. The writer
+  // therefore has to agree with these bounds exactly, and these specs are what
+  // pin the agreement.
+
+  describe('fasts — the completed-fast archive', () => {
+    const validFast = () => ({
+      startedAt: Timestamp.fromMillis(Date.parse('2026-08-25T20:00:00Z')),
+      endedAt: Timestamp.fromMillis(Date.parse('2026-08-26T12:00:00Z')),
+    });
+
+    const writeFast = (db: ReturnType<typeof authed>, data: object) =>
+      setDoc(doc(db, 'users', 'alice', 'fasts', 'f1'), data);
+
+    it('accepts a completed fast that crosses midnight', async () => {
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      await assertSucceeds(writeFast(db, validFast()));
+    });
+
+    it.each(['timer', 'manual'])('accepts a source of %s', async (source) => {
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      await assertSucceeds(writeFast(db, { ...validFast(), source }));
+    });
+
+    it('rejects a source outside the enum', async () => {
+      // A free-form string would let a hand-entered fast claim the timer
+      // measured it — the same reasoning that enumerates dailySleep.source.
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      await assertFails(writeFast(db, { ...validFast(), source: 'import' }));
+    });
+
+    it('rejects a fast with no endedAt — a document exists only once it is over', async () => {
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      await assertFails(writeFast(db, { startedAt: Timestamp.now() }));
+    });
+
+    it('rejects an inverted interval', async () => {
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      await assertFails(
+        writeFast(db, { startedAt: validFast().endedAt, endedAt: validFast().startedAt }),
+      );
+    });
+
+    it('rejects a zero-length fast — not a short fast, a corrupt one', async () => {
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      const t = Timestamp.fromMillis(Date.parse('2026-08-26T12:00:00Z'));
+      await assertFails(writeFast(db, { startedAt: t, endedAt: t }));
+    });
+
+    it('accepts a 20-minute fast — no minimum length, deliberately', async () => {
+      // ADR-0032 refuses to discard a fast for being short. Zero and Simple do,
+      // and the review complaints the ADR quotes are the result.
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      const start = Date.parse('2026-08-26T12:00:00Z');
+      await assertSucceeds(
+        writeFast(db, {
+          startedAt: Timestamp.fromMillis(start),
+          endedAt: Timestamp.fromMillis(start + 20 * 60_000),
+        }),
+      );
+    });
+
+    it('accepts a fast one second under the 14-day ceiling', async () => {
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      const start = Date.parse('2026-08-01T00:00:00Z');
+      await assertSucceeds(
+        writeFast(db, {
+          startedAt: Timestamp.fromMillis(start),
+          endedAt: Timestamp.fromMillis(start + 14 * 86_400_000 - 1000),
+        }),
+      );
+    });
+
+    it('rejects a fast past the 14-day ceiling — a corruption guard, not a product opinion', async () => {
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      const start = Date.parse('2026-08-01T00:00:00Z');
+      await assertFails(
+        writeFast(db, {
+          startedAt: Timestamp.fromMillis(start),
+          endedAt: Timestamp.fromMillis(start + 14 * 86_400_000 + 1000),
+        }),
+      );
+    });
+
+    it('rejects an unknown field alongside the interval', async () => {
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      await assertFails(writeFast(db, { ...validFast(), hours: 16 }));
+    });
+
+    it('rejects a non-timestamp interval', async () => {
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      await assertFails(
+        writeFast(db, { startedAt: '2026-08-25T20:00:00Z', endedAt: '2026-08-26T12:00:00Z' }),
+      );
+    });
+
+    it('lets the owner correct and delete a fast', async () => {
+      // Editing is the feature, not the polish (ADR-0032 decision 3): a fast
+      // the user forgot to end has to be fixable, or the archive records the
+      // forgetting rather than the fast.
+      const db = authed('alice');
+      await setDoc(doc(db, 'users', 'alice'), baseProfile());
+      await assertSucceeds(writeFast(db, validFast()));
+      await assertSucceeds(writeFast(db, { ...validFast(), source: 'manual' }));
+      await assertSucceeds(deleteDoc(doc(db, 'users', 'alice', 'fasts', 'f1')));
+    });
+
+    it('denies another user reading or writing a fast', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users/alice/fasts/f1'), validFast());
+      });
+      await assertFails(getDoc(doc(authed('mallory'), 'users/alice/fasts/f1')));
+      await assertFails(setDoc(doc(authed('mallory'), 'users/alice/fasts/f2'), validFast()));
+    });
+  });
+
 });

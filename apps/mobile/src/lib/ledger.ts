@@ -35,6 +35,8 @@ import {
   type WeeklyReport,
   type DailyActivity,
   type DocCodec,
+  type Fast,
+  isStorableFast,
   type MeasurementInput,
   type UsageCounts,
   type UsagePlatform,
@@ -116,6 +118,7 @@ const presetDoc = (uid: string, id: string) => doc(db, 'users', uid, 'presets', 
 const measurementsCol = (uid: string) => collection(db, 'users', uid, 'measurements');
 const measurementDoc = (uid: string, id: string) => doc(db, 'users', uid, 'measurements', id);
 const reportsCol = (uid: string) => collection(db, 'users', uid, 'reports');
+const fastsCol = (uid: string) => collection(db, 'users', uid, 'fasts');
 const userDoc = (uid: string) => doc(db, 'users', uid);
 
 type Unsub = () => void;
@@ -708,8 +711,79 @@ export async function startFast(uid: string, startedAt?: Date): Promise<void> {
   });
 }
 
-export async function breakFast(uid: string): Promise<void> {
-  await updateDoc(userDoc(uid), { fastStartedAt: null, lastSeenAt: Timestamp.now() });
+/**
+ * End the running fast — and KEEP it (ADR-0032, issue #97).
+ *
+ * This function used to be one line: `updateDoc(userDoc(uid), { fastStartedAt:
+ * null })`. That destroyed the fast at the exact moment it became final. A user
+ * could fast every day for a year and the app retained one scalar — whether a
+ * fast was running right now — so there was no history, no CSV column and
+ * nothing Trends could ever draw. It was filed as a data-loss bug rather than a
+ * missing feature for that reason.
+ *
+ * **The batch is not a nicety.** Creating the fast document and nulling
+ * `fastStartedAt` must commit together: split into two writes, a failure
+ * between them either loses the fast (write the null first) or leaves a phantom
+ * timer running against a fast already archived (write the document first).
+ * Both are the exact bug class the Zero reviews in ADR-0032 describe.
+ *
+ * **The interval is validated HERE, before the batch is built, and that
+ * ordering is load-bearing.** `firestore.rules` rejects an inverted, zero-length
+ * or >14-day interval; a rejected document does not merely fail to save, it
+ * fails the whole commit — so `fastStartedAt` would stay set and the user's
+ * timer would run forever with no way to stop it. `isStorableFast` is the same
+ * three conditions the rules check, exported from `packages/core` so the two
+ * cannot drift. When it says no, the timer is cleared and no document is
+ * written: an interval it rejects is a clock that went backwards or a timer left
+ * running for a fortnight, and leaving someone stuck looking at a counter they
+ * cannot stop is worse than dropping a record that was never a fast.
+ *
+ * `endedAt` is a parameter so a caller can end a fast at a corrected time
+ * (ADR-0032 decision 3 — editing is the feature, not the polish); it defaults
+ * to now, which is every call today.
+ */
+export async function breakFast(uid: string, endedAt?: Date): Promise<void> {
+  const end = endedAt ?? new Date();
+  const snap = await getDoc(userDoc(uid));
+  const startedAt = snap.data()?.fastStartedAt as Timestamp | null | undefined;
+  const start = startedAt instanceof Timestamp ? startedAt.toDate() : null;
+
+  const batch = writeBatch(db);
+  if (start && isStorableFast(start, end)) {
+    batch.set(doc(fastsCol(uid)), {
+      startedAt: Timestamp.fromDate(start),
+      endedAt: Timestamp.fromDate(end),
+      source: 'timer',
+    });
+  }
+  batch.update(userDoc(uid), { fastStartedAt: null, lastSeenAt: Timestamp.now() });
+  await batch.commit();
+}
+
+/**
+ * Every completed fast, newest-ended first.
+ *
+ * Bounded rather than unbounded, per ADR-0016 — this is a one-shot read for the
+ * CSV export, not a listener, and an account that has fasted daily for years is
+ * still a few hundred documents. `limit` is generous enough that no real export
+ * is truncated and low enough that a corrupt account cannot pull an unbounded
+ * read on a metered connection.
+ */
+export async function getFasts(uid: string, count = 2000): Promise<Fast[]> {
+  const snap = await getDocs(query(fastsCol(uid), orderBy('endedAt', 'desc'), limit(count)));
+  return snap.docs.map((d) => toFast(d.id, d.data()));
+}
+
+function toFast(id: string, data: Record<string, unknown>): Fast {
+  const startedAt = data.startedAt as Timestamp | undefined;
+  const endedAt = data.endedAt as Timestamp | undefined;
+  const source = data.source;
+  return {
+    id,
+    startedAt: startedAt instanceof Timestamp ? startedAt.toDate() : new Date(NaN),
+    endedAt: endedAt instanceof Timestamp ? endedAt.toDate() : new Date(NaN),
+    ...(source === 'timer' || source === 'manual' ? { source } : {}),
+  };
 }
 
 // ─── Profile ────────────────────────────────────────────────────

@@ -139,4 +139,92 @@ describe('cardio in the CSV export', () => {
     expect(csv.split('\r\n').some((l) => l.startsWith('cardio,'))).toBe(false);
     expect(csv.split('\r\n').some((l) => l.startsWith('workout_set,'))).toBe(true);
   });
+  // ── fasting (ADR-0032, #97) ──
+  //
+  // The sentence in the original request that started ADR-0032 was "we are
+  // tracking fasting but we don't know how much each day in the history panel
+  // — only in the export". Half of that was wrong, and the wrong half was the
+  // important one: the export did not have it either. These cases are that
+  // sentence becoming true.
+  describe('fasting rows', () => {
+    const empty = { logs: [], measurements: [], dailyWeights: {}, dailyWater: {}, dailySleep: {} };
+    // 8pm Monday -> 12pm Tuesday, local. Crosses midnight, which is the normal
+    // case for a fast rather than the edge one.
+    const started = new Date(2026, 7, 24, 20, 0, 0, 0);
+    const ended = new Date(2026, 7, 25, 12, 0, 0, 0);
+
+    const CRLF = '\r\n';
+    const fastRows = (csv: string) =>
+      csv.split('\r\n').filter((l) => l.startsWith('fast,'));
+
+    /** Column order is the file's contract, so read cells BY NAME off the real
+     *  header rather than by index - an index would silently follow a column
+     *  being inserted upstream and assert nothing. */
+    const csvHeader = buildCsv(empty as never).split(CRLF)[0].split(',');
+    const cell = (line: string, name: string) => line.split(',')[csvHeader.indexOf(name)];
+
+    it('emits nothing when the user has never fasted', () => {
+      expect(fastRows(buildCsv({ ...empty, fasts: [] } as never))).toEqual([]);
+      expect(fastRows(buildCsv(empty as never))).toEqual([]);
+    });
+
+    it('attributes the row to the day the fast ENDED', () => {
+      // Not the day it started. A reader who prefers start-day attribution
+      // (Zero, BodyFast) can still recover it — the row carries both instants.
+      const csv = buildCsv({ ...empty, fasts: [{ startedAt: started, endedAt: ended }] } as never);
+      const [line] = fastRows(csv);
+      expect(cell(line, 'date')).toBe('2026-08-25');
+    });
+
+    it('carries the whole interval, not just the derived hours', () => {
+      const csv = buildCsv({ ...empty, fasts: [{ startedAt: started, endedAt: ended }] } as never);
+      const [line] = fastRows(csv);
+      expect(cell(line, 'timestamp')).toBe(started.toISOString());
+      expect(cell(line, 'fastEndedAt')).toBe(ended.toISOString());
+      expect(cell(line, 'fastHours')).toBe('16');
+    });
+
+    it('rounds the hours to two decimals rather than dumping a raw float', () => {
+      const odd = new Date(started.getTime() + 59 * 60 * 1000 + 59 * 1000);
+      const csv = buildCsv({ ...empty, fasts: [{ startedAt: started, endedAt: odd }] } as never);
+      expect(cell(fastRows(csv)[0], 'fastHours')).toBe('1');
+      const odder = new Date(started.getTime() + 100 * 60 * 1000);
+      const csv2 = buildCsv({ ...empty, fasts: [{ startedAt: started, endedAt: odder }] } as never);
+      expect(cell(fastRows(csv2)[0], 'fastHours')).toBe('1.67');
+    });
+
+    it('records provenance — measured by the timer, or asserted by hand', () => {
+      const csv = buildCsv({
+        ...empty,
+        fasts: [
+          { startedAt: started, endedAt: ended, source: 'timer' },
+          { startedAt: new Date(2026, 7, 26, 8), endedAt: new Date(2026, 7, 26, 20), source: 'manual' },
+        ],
+      } as never);
+      const rows = fastRows(csv);
+      expect(cell(rows[0], 'notes')).toBe('timer');
+      expect(cell(rows[1], 'notes')).toBe('manual');
+    });
+
+    it('sorts by end instant, so the file reads in History order', () => {
+      const csv = buildCsv({
+        ...empty,
+        fasts: [
+          { startedAt: new Date(2026, 7, 26, 8), endedAt: new Date(2026, 7, 26, 20) },
+          { startedAt: started, endedAt: ended },
+        ],
+      } as never);
+      expect(fastRows(csv).map((l) => cell(l, 'date'))).toEqual(['2026-08-25', '2026-08-26']);
+    });
+
+    it('fills no column belonging to another row type', () => {
+      // The long format's contract: a row fills only its own columns, so a
+      // reader filtering by type gets a clean table back.
+      const csv = buildCsv({ ...empty, fasts: [{ startedAt: started, endedAt: ended }] } as never);
+      const [line] = fastRows(csv);
+      for (const col of ['calories', 'protein', 'weight', 'sleepHours', 'cardioKcal']) {
+        expect(cell(line, col)).toBe('');
+      }
+    });
+  });
 });
