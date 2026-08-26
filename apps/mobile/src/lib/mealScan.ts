@@ -136,16 +136,28 @@ const nonNeg = (n: number | null | undefined) => Math.max(0, Number(n) || 0);
  * empty note", and an omitted key costs no tokens.
  */
 export async function analyzeMealPhoto(
-  photoBase64: string,
+  photos: string | string[],
   locale: string,
   note?: string,
 ): Promise<MealScan> {
   const call = httpsCallable<
-    { photoBase64: string; locale: string; note?: string },
+    { photoBase64: string; photosBase64?: string[]; locale: string; note?: string },
     AnalyzePhotoResult
   >(functions, 'analyzePhoto');
   const trimmed = note?.trim();
-  const { data } = await call({ photoBase64, locale, ...(trimmed ? { note: trimmed } : {}) });
+  const list = (Array.isArray(photos) ? photos : [photos]).filter(Boolean);
+
+  // `photoBase64` is ALWAYS sent, even when there are several. It is what a
+  // server predating multi-image reads, and sending only the array to an
+  // un-deployed function would fail every scan with PHOTO_MISSING — the client
+  // reaching a server that is one deploy behind is the ordinary case during a
+  // rollout, not an edge one.
+  const { data } = await call({
+    photoBase64: list[0],
+    ...(list.length > 1 ? { photosBase64: list } : {}),
+    locale,
+    ...(trimmed ? { note: trimmed } : {}),
+  });
 
   const items: ScannedFoodItem[] = data.items?.length
     ? data.items.map((i) => ({

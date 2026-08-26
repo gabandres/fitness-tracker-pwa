@@ -52,6 +52,13 @@ type Phase = 'intro' | 'describe' | 'analyzing' | 'review';
 const PORTION_STEPS = [0.5, 1, 1.5, 2] as const;
 
 /**
+ * Images per scan (ADR-0029 item 5). Must match `MAX_PHOTOS` in
+ * `functions/src/analyze-photo.ts`, which rejects anything above it — this
+ * copy exists to stop the user reaching that rejection, not to enforce it.
+ */
+const MAX_PHOTOS = 3;
+
+/**
  * The three things a scan actually does, in the order it does them, each named
  * for what the user gets rather than what the code calls.
  *
@@ -120,8 +127,15 @@ export default function Scan() {
   const [step, setStep] = useState<ScanStep>('preparing');
   /** The user's own words about this meal (ADR-0029 item 1). Optional, always. */
   const [note, setNote] = useState('');
-  /** The picked photo, held while the user is on the describe step. */
-  const [pendingUri, setPendingUri] = useState<string | null>(null);
+  /**
+   * The picked photos, held while the user is on the describe step.
+   *
+   * Up to {@link MAX_PHOTOS} of ONE meal (ADR-0029 item 5). Every image is
+   * charged against the daily quota separately, so the count is shown wherever
+   * it can be — a free user spending all three daily scans on one meal should
+   * know that before tapping Analyze, not after.
+   */
+  const [pendingUris, setPendingUris] = useState<string[]>([]);
 
   /**
    * Capture → analyze, with the waiting made legible.
@@ -146,9 +160,20 @@ export default function Scan() {
 
     // Stop here. The photo is picked; the note and the repeat check happen
     // before anything is sent, which is the whole point of the step.
-    setPendingUri(uri);
-    setNote('');
+    // Appending, not replacing: this is also the "add another angle" path.
+    setPendingUris((prev) => (prev.length >= MAX_PHOTOS ? prev : [...prev, uri]));
+    if (phase !== 'describe') setNote('');
     setPhase('describe');
+  }
+
+  /** Drop one pending photo. Removing the last one returns to the intro. */
+  function removePending(index: number) {
+    haptics.tap();
+    setPendingUris((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      if (!next.length) setPhase('intro');
+      return next;
+    });
   }
 
   /**
@@ -159,21 +184,25 @@ export default function Scan() {
    * and the captured frame renders first, and the encode runs behind it.
    */
   async function onAnalyze() {
-    const uri = pendingUri;
-    if (!uri) return;
+    const uris = pendingUris;
+    if (!uris.length) return;
     haptics.tap();
 
-    setPreview(uri);
+    setPreview(uris[0]);
     setStep('preparing');
     setPhase('analyzing');
 
     try {
       track('photo_scan');
-      const base64 = await encodeMealPhoto(uri);
-      if (!base64) throw new Error('encode');
+      // Encoded in parallel — three sequential resizes on a mid device is
+      // three times the dead air, and they do not depend on each other.
+      const encoded = (await Promise.all(uris.map(encodeMealPhoto))).filter(
+        (b): b is string => typeof b === 'string' && b.length > 0,
+      );
+      if (!encoded.length) throw new Error('encode');
 
       setStep('reading');
-      const scan = await analyzeMealPhoto(base64, locale, note);
+      const scan = await analyzeMealPhoto(encoded, locale, note);
       if (!scan.items.length) throw new Error('empty');
 
       setStep('resolving');
@@ -195,7 +224,7 @@ export default function Scan() {
       haptics.warning();
     } finally {
       setPreview(null);
-      setPendingUri(null);
+      setPendingUris([]);
     }
   }
 
@@ -319,8 +348,51 @@ export default function Scan() {
 
       {phase === 'describe' ? (
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-          {pendingUri ? (
-            <Image source={{ uri: pendingUri }} style={styles.notePreview} resizeMode="cover" />
+          {/* One photo fills the width; several become a strip. A single
+              image is the overwhelmingly common case and should not be shrunk
+              into a gallery to accommodate a case the user has not chosen. */}
+          {pendingUris.length === 1 ? (
+            <Image source={{ uri: pendingUris[0] }} style={styles.notePreview} resizeMode="cover" />
+          ) : (
+            <View style={styles.shotRow}>
+              {pendingUris.map((uri, i) => (
+                <View key={uri} style={styles.shotWrap}>
+                  <Image source={{ uri }} style={styles.shot} resizeMode="cover" />
+                  <PressScale
+                    style={styles.shotRemove}
+                    scaleTo={0.9}
+                    onPress={() => removePending(i)}
+                    testID={`scan-shot-remove-${i}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('common.remove')}
+                  >
+                    <Ionicons name="close" size={14} color={colors.onInk} />
+                  </PressScale>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {pendingUris.length < MAX_PHOTOS ? (
+            <PressScale
+              style={styles.addShot}
+              scaleTo={0.97}
+              onPress={() => onCapture('library')}
+              testID="scan-add-photo"
+              accessibilityRole="button"
+            >
+              <Ionicons name="add" size={18} color={colors.ink} />
+              <Text style={styles.addShotText}>
+                {t('scan.addPhoto', { n: MAX_PHOTOS - pendingUris.length })}
+              </Text>
+            </PressScale>
+          ) : null}
+
+          {pendingUris.length > 1 ? (
+            <View style={styles.hintRow}>
+              <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
+              <Text style={styles.hintText}>{t('scan.multiCost', { n: pendingUris.length })}</Text>
+            </View>
           ) : null}
 
           <Animated.View entering={enterUp(0)}>
@@ -380,7 +452,7 @@ export default function Scan() {
           <PressScale
             style={styles.noteRetake}
             scaleTo={0.97}
-            onPress={() => { haptics.tap(); setPhase('intro'); setPendingUri(null); setNote(''); }}
+            onPress={() => { haptics.tap(); setPhase('intro'); setPendingUris([]); setNote(''); }}
             testID="scan-describe-cancel"
           >
             <Text style={styles.noteRetakeText}>{t('scan.retake')}</Text>
@@ -773,6 +845,32 @@ function createStyles({ colors, shadow }: Theme) {
      * a thumbnail with half the screen empty beside it reads as a broken layout.
      */
     notePreview: { width: '100%', height: 220, borderRadius: radius.lg, backgroundColor: colors.card },
+    shotRow: { flexDirection: 'row', gap: space.sm },
+    shotWrap: { flex: 1, aspectRatio: 1 },
+    shot: { width: '100%', height: '100%', borderRadius: radius.md, backgroundColor: colors.card },
+    shotRemove: {
+      position: 'absolute',
+      top: 4,
+      right: 4,
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: colors.ink,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    addShot: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: space.xs,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: colors.line,
+      paddingVertical: space.md,
+    },
+    addShotText: { fontSize: font.body, fontWeight: '700', color: colors.ink },
     noteAnalyze: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },
     noteAnalyzeText: { color: colors.onInk, fontSize: font.h3, fontWeight: '700' },
     /**

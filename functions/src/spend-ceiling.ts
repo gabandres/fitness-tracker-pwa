@@ -158,7 +158,7 @@ export class SpendCeiling {
    * problem; letting it propagate would turn it into a failed user request
    * for work that already succeeded.
    */
-  async record(kind: QuotaKind): Promise<void> {
+  async record(kind: QuotaKind, units = 1): Promise<void> {
     const ref = this.db.collection(COLLECTION).doc(kind);
     const today = utcDayKey();
     try {
@@ -168,7 +168,7 @@ export class SpendCeiling {
         const used = sameDay ? ((doc.data()!["used"] as number) ?? 0) : 0;
         tx.set(
           ref,
-          { date: today, used: used + 1, updatedAt: FieldValue.serverTimestamp() },
+          { date: today, used: used + units, updatedAt: FieldValue.serverTimestamp() },
           { merge: true },
         );
       });

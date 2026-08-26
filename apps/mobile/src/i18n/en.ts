@@ -42,6 +42,8 @@ export const en = {
   'scan.review': 'Check the estimate',
   'scan.lowConf': 'Rough estimate — give it a quick look before adding.',
   'scan.mealName': 'Meal',
+  'scan.addPhoto': 'Add another angle ({n} left)',
+  'scan.multiCost': 'One meal, {n} photos — each one uses a scan.',
   'scan.noteTitle': 'Anything I should know?',
   'scan.notePlaceholder': 'e.g. half a cup of rice, Kirkland greek yogurt',
   'scan.noteHelp': 'Optional. Naming a brand or an amount helps it get the portion right.',

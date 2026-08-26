@@ -36,6 +36,8 @@ export const ptBR = {
   'scan.review': 'Confira a estimativa',
   'scan.lowConf': 'Estimativa aproximada — dê uma olhada antes de adicionar.',
   'scan.mealName': 'Refeição',
+  'scan.addPhoto': 'Adicionar outro ângulo ({n} restantes)',
+  'scan.multiCost': 'Uma refeição, {n} fotos — cada uma usa um escaneamento.',
   'scan.noteTitle': 'Algo que eu deva saber?',
   'scan.notePlaceholder': 'ex. meia xícara de arroz, iogurte grego Kirkland',
   'scan.noteHelp': 'Opcional. Dizer a marca ou a quantidade ajuda a acertar a porção.',

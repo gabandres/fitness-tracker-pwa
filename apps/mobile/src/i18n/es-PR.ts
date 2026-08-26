@@ -38,6 +38,8 @@ export const esPR: Record<I18nKey, string> = {
   'scan.review': 'Revisa el estimado',
   'scan.lowConf': 'Estimado aproximado — dale un vistazo antes de añadir.',
   'scan.mealName': 'Comida',
+  'scan.addPhoto': 'Añadir otro ángulo ({n} más)',
+  'scan.multiCost': 'Una comida, {n} fotos — cada una usa un escaneo.',
   'scan.noteTitle': '¿Algo que deba saber?',
   'scan.notePlaceholder': 'ej. media taza de arroz, yogur griego Kirkland',
   'scan.noteHelp': 'Opcional. Decir la marca o la cantidad ayuda a acertar la porción.',

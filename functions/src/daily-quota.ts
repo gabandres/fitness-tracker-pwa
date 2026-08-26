@@ -60,14 +60,32 @@ export class DailyQuota {
   }
 
   /**
-   * Atomically consume one slot of today's quota. Throws
+   * Atomically consume `units` slots of today's quota. Throws
    * `resource-exhausted` with the kind's ErrorCode + `{ limit }` details
-   * when the cap is already reached (the slot is NOT consumed).
+   * when the cap would be exceeded (NOTHING is consumed).
+   *
+   * ## Why this counts units and not calls (ADR-0029 item 5)
+   *
+   * A photo scan used to be one call and one image, so "one call" and "one
+   * unit of spend" were the same number and the distinction never surfaced.
+   * Multi-image capture breaks that: three photos in one call cost roughly
+   * three times the image tokens against what used to be a single slot.
+   *
+   * The exact multiplier is smaller than it sounds — measured 2026-08-26, a
+   * 3-image scan is **~1.4x** a 1-image scan, not 3x, because output tokens
+   * are two thirds of the cost at $2.50/MTok and do not scale with image
+   * count. **The reason to count units is not the size of the multiplier, it
+   * is that an uncounted one is unbounded.** A guard whose unit is wrong stops
+   * being a guard the moment the feature it guards changes shape.
+   *
+   * All-or-nothing on purpose: reserving 2 of a requested 3 would charge a user
+   * for a scan they never received.
    */
   async reserve(
     uid: string,
     kind: QuotaKind,
     paid: boolean,
+    units = 1,
   ): Promise<{ usedAfter: number; remaining: number; day: string }> {
     const cfg = KINDS[kind];
     const limit = this.limitFor(kind, paid);
@@ -77,14 +95,16 @@ export class DailyQuota {
     await this.db.runTransaction(async (tx) => {
       const doc = await tx.get(ref);
       const used: number = doc.exists ? (doc.data()!.count as number) : 0;
-      if (used >= limit) {
+      // `used + units > limit`, not `used >= limit`: a 3-image scan with 1 slot
+      // left must be refused rather than allowed to overshoot to 3-of-3.
+      if (used + units > limit) {
         throw new HttpsError(
           "resource-exhausted",
           `Daily limit of ${limit} ${cfg.label} reached. Resets at midnight UTC.`,
           { code: cfg.exceededCode, limit },
         );
       }
-      usedAfter = used + 1;
+      usedAfter = used + units;
       tx.set(ref, { count: usedAfter, uid, date: today }, { merge: true });
     });
     // `day` is returned so a caller refunding this reservation can target the
@@ -104,7 +124,7 @@ export class DailyQuota {
    * today only for callers that cannot have crossed a UTC midnight; anything
    * that awaits a model between reserve and release should pass it explicitly.
    */
-  async release(uid: string, kind: QuotaKind, day: string = utcDayKey()): Promise<boolean> {
+  async release(uid: string, kind: QuotaKind, day: string = utcDayKey(), units = 1): Promise<boolean> {
     const ref = this.ref(kind, uid, day);
     let released = false;
     await this.db.runTransaction(async (tx) => {

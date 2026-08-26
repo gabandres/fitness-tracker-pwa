@@ -157,3 +157,45 @@ describe("deleteAll + dump", () => {
     expect(await quota.peek(other, "photo")).toBe(1);
   });
 });
+
+/**
+ * Multi-image capture (ADR-0029 item 5) is the whole reason this counts UNITS
+ * and not calls. Before it, one call was one image and the two numbers were
+ * the same, so nothing forced the distinction.
+ *
+ * The measured cost multiplier for three images is only ~1.4x, not 3x — output
+ * tokens are two thirds of a scan and do not scale with image count. **That is
+ * not why this matters.** A guard whose unit is wrong stops being a guard the
+ * moment the feature it guards changes shape, however small the multiplier.
+ */
+describe("reserve(units) — charging per image", () => {
+  it("consumes a slot per image", async () => {
+    const uid = freshUid();
+    const day = utcDayKey();
+    expect(await quota.reserve(uid, "photo", false, 3)).toEqual({ usedAfter: 3, remaining: 0, day });
+  });
+
+  it("is ALL OR NOTHING when the request would overshoot", async () => {
+    // The load-bearing case. With one slot left, a 3-image scan must be
+    // refused outright — reserving 2 of 3 charges a user for a scan they never
+    // receive, and `used >= limit` (the old test) would have let it through
+    // and landed at 3-of-3 by overshoot.
+    const uid = freshUid();
+    await quota.reserve(uid, "photo", false, 2);
+    await expectQuotaExceeded(quota.reserve(uid, "photo", false, 3), "PHOTO_QUOTA_EXCEEDED", 3);
+    // And nothing was consumed by the failed attempt: one single still fits.
+    expect((await quota.reserve(uid, "photo", false)).remaining).toBe(0);
+  });
+
+  it("defaults to one, so every existing caller is unchanged", async () => {
+    const uid = freshUid();
+    expect((await quota.reserve(uid, "photo", false)).usedAfter).toBe(1);
+  });
+
+  it("refuses a multi-image scan that alone exceeds a free day", async () => {
+    // 3/day free: three images is exactly the whole allowance, four is not a
+    // thing the client offers and must not be a thing the server accepts.
+    const uid = freshUid();
+    await expectQuotaExceeded(quota.reserve(uid, "photo", false, 4), "PHOTO_QUOTA_EXCEEDED", 3);
+  });
+});

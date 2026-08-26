@@ -16,6 +16,17 @@ import { resolveItems, totalsOf, type DraftItem, type ResolvedItem } from "./pho
 // a legitimate "accidentally tapped twice" user isn't locked out for long.
 const PHOTO_MIN_INTERVAL_MS = 3_000;
 
+/**
+ * Images per scan (ADR-0029 item 5).
+ *
+ * Three, because the owner's own workflow is 2–3 photos of one meal and past
+ * that the marginal angle stops telling the model anything new. It is a
+ * *bound*, not a target: every image is charged against the daily quota
+ * separately, so a 3-image scan costs a free user all three of their daily
+ * scans.
+ */
+const MAX_PHOTOS = 3;
+
 /** Beyond this many items the model is describing a buffet, not a meal. */
 const MAX_ITEMS = 12;
 
@@ -305,15 +316,19 @@ interface ScanDraft {
 }
 
 /** Gemini path — the free-tier default. */
-async function estimateWithGemini(photoBase64: string, prompt: string): Promise<ScanDraft> {
+async function estimateWithGemini(photos: string[], prompt: string): Promise<ScanDraft> {
   const client = getGeminiClient();
   const result = await client.models.generateContent({
     model: GEMINI_MODEL,
     contents: [
       {
         role: "user",
+        // Images FIRST, prompt last, and all images before any text. Gemini's
+        // own multi-image guidance is that interleaving text between images
+        // makes the model treat them as separate subjects; here they are one
+        // meal from several angles, which is what the prompt then says.
         parts: [
-          { inlineData: { mimeType: "image/jpeg", data: photoBase64 } },
+          ...photos.map((data) => ({ inlineData: { mimeType: "image/jpeg", data } })),
           { text: prompt },
         ],
       },
@@ -368,7 +383,7 @@ async function estimateWithGemini(photoBase64: string, prompt: string): Promise<
   const u = result.usageMetadata;
   if (u) {
     console.log(
-      `analyzePhoto usage model=${GEMINI_MODEL} ` +
+      `analyzePhoto usage model=${GEMINI_MODEL} images=${photos.length} ` +
         `in=${u.promptTokenCount ?? "?"} out=${u.candidatesTokenCount ?? "?"} ` +
         `thinking=${u.thoughtsTokenCount ?? 0} total=${u.totalTokenCount ?? "?"}`,
     );
@@ -396,7 +411,7 @@ async function estimateWithGemini(photoBase64: string, prompt: string): Promise<
  * below), so anything on that path that the request cannot reach should not be
  * on it. The `await import` costs nothing until the day the provider flips.
  */
-async function estimateWithAnthropic(photoBase64: string, prompt: string): Promise<ScanDraft> {
+async function estimateWithAnthropic(photos: string[], prompt: string): Promise<ScanDraft> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error(
@@ -420,10 +435,13 @@ async function estimateWithAnthropic(photoBase64: string, prompt: string): Promi
       {
         role: "user",
         content: [
-          // Image before text: the model reads the prompt against an image it
+          // Images before text: the model reads the prompt against images it
           // has already seen, which is the documented ordering for vision.
-          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: photoBase64 } },
-          { type: "text", text: prompt },
+          ...photos.map((data) => ({
+            type: "image" as const,
+            source: { type: "base64" as const, media_type: "image/jpeg" as const, data },
+          })),
+          { type: "text" as const, text: prompt },
         ],
       },
     ],
@@ -554,13 +572,33 @@ export const analyzePhoto = onCall(
     // spent on their behalf. Nothing below this point has cost money yet, so
     // nothing below this point may cost the user a slot. Order is the fix;
     // a refund would be the wrong shape for a request that never ran.
-    const { photoBase64, locale, note } = request.data as {
+    const { photoBase64, photosBase64, locale, note } = request.data as {
       photoBase64?: string;
+      photosBase64?: string[];
       locale?: string;
       note?: string;
     };
-    if (!photoBase64 || typeof photoBase64 !== "string") {
+
+    /**
+     * One meal, up to {@link MAX_PHOTOS} images (ADR-0029 item 5).
+     *
+     * `photoBase64` (singular) is kept forever and is not deprecated: every
+     * binary in users' hands sends it, and mobile fixes take a store release.
+     * The array is additive, exactly like `items[]` was when the response was
+     * itemised — an old client keeps working unchanged.
+     */
+    const photos = (Array.isArray(photosBase64) && photosBase64.length ? photosBase64 : [photoBase64])
+      .filter((p): p is string => typeof p === "string" && p.length > 0);
+
+    if (!photos.length) {
       throw new HttpsError("invalid-argument", "photoBase64 is required.", { code: ErrorCode.PHOTO_MISSING });
+    }
+    if (photos.length > MAX_PHOTOS) {
+      throw new HttpsError(
+        "invalid-argument",
+        `At most ${MAX_PHOTOS} photos per scan.`,
+        { code: ErrorCode.PHOTO_TOO_LARGE },
+      );
     }
 
     /**
@@ -589,7 +627,7 @@ export const analyzePhoto = onCall(
     // self-contradictory). Either way legitimate payloads are well under 3 MB.
     // Threshold here (~20 MB base64 = ~15 MB raw) matches the client
     // precheck so the user-facing number is consistent.
-    if (photoBase64.length > 20_000_000) {
+    if (photos.reduce((n, p) => n + p.length, 0) > 20_000_000 * MAX_PHOTOS) {
       throw new HttpsError(
         "invalid-argument",
         "Image too large after processing.",
@@ -617,7 +655,7 @@ export const analyzePhoto = onCall(
     let photosRemaining = dailyQuota.limitFor("photo", true);
     let reservedDay: string | null = null;
     if (!caller.quotaExempt) {
-      const reserved = await dailyQuota.reserve(uid, "photo", caller.tier === "paid");
+      const reserved = await dailyQuota.reserve(uid, "photo", caller.tier === "paid", photos.length);
       photosRemaining = reserved.remaining;
       reservedDay = reserved.day;
     }
@@ -633,7 +671,7 @@ export const analyzePhoto = onCall(
     // solvency mechanism and the money left the building either way. Refunding
     // the ceiling would let a stream of unreadable photos run up an unbounded
     // bill while every individual request looked free.
-    await spendCeiling.record("photo");
+    await spendCeiling.record("photo", photos.length);
 
     // Locale-aware naming. The macros are locale-agnostic — they come from the
     // database — so only the human-readable text flips language.
@@ -681,7 +719,20 @@ ${userNote}
 USER_NOTE`
       : "";
 
-    const prompt = ESTIMATION_PROMPT + descriptionLangSuffix + notePrompt;
+    /**
+     * With several images the model has to be told they are ONE meal. Without
+     * this it enumerates each photo's contents separately and the same rice
+     * appears three times — the failure mode that makes multi-image worse than
+     * single-image rather than better.
+     */
+    const multiPrompt = photos.length > 1
+      ? `\n\nThese ${photos.length} photos are the SAME meal from different angles or ` +
+        `distances, not separate meals. Identify each distinct food ONCE across all of ` +
+        `them. Use the clearest view of each food to name it and the most informative ` +
+        `view to size it. A food visible in two photos is one item, not two.`
+      : "";
+
+    const prompt = ESTIMATION_PROMPT + descriptionLangSuffix + multiPrompt + notePrompt;
 
     // Warm the USDA index CONCURRENTLY with the model call. `loadFoods()` reads
     // and indexes a 3.4 MB JSON (~113 ms on a warm workstation, more on a cold
@@ -703,8 +754,8 @@ USER_NOTE`
       // safe: resolution and the client response shape are shared, so the two
       // paths cannot drift into different numbers.
       const parsed = PHOTO_PROVIDER === "anthropic"
-        ? await estimateWithAnthropic(photoBase64, prompt)
-        : await estimateWithGemini(photoBase64, prompt);
+        ? await estimateWithAnthropic(photos, prompt)
+        : await estimateWithGemini(photos, prompt);
 
       // Log the chain-of-thought so we can audit estimation quality without
       // surfacing it in the client response (keeps the client contract stable).
