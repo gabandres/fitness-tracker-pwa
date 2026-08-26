@@ -4,10 +4,10 @@ jest.mock('@/lib/auth', () => ({
   useAuth: () => ({ user: { uid: 'u1' }, profile: null }),
 }));
 
-const mockPush = jest.fn();
+const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({
   ...jest.requireActual('expo-router'),
-  useRouter: () => ({ push: mockPush, back: jest.fn() }),
+  useRouter: () => ({ push: jest.fn(), replace: mockReplace, back: jest.fn() }),
 }));
 
 import { fireEvent, renderWithProviders as render } from '@/test-utils';
@@ -61,7 +61,7 @@ function cardState(fasts: readonly Fast[]): FastingTrends {
 const THREE = [fastEndingOn(2, 14), fastEndingOn(4, 16), fastEndingOn(6, 18)];
 
 describe('FastingTrendsCard states', () => {
-  beforeEach(() => mockPush.mockReset());
+  beforeEach(() => mockReplace.mockReset());
 
   it('renders nothing at all while the listener has not answered', async () => {
     // Not a header, not a skeleton — a row that becomes a card a frame later is
@@ -95,7 +95,7 @@ describe('FastingTrendsCard states', () => {
 });
 
 describe('the stub row must act, and must not lie about why it is empty', () => {
-  beforeEach(() => mockPush.mockReset());
+  beforeEach(() => mockReplace.mockReset());
 
   it('goes somewhere — the chevron is a promise', async () => {
     // ADR-0033 Amendment 2 shipped a row with a chevron and no action, found on
@@ -106,8 +106,9 @@ describe('the stub row must act, and must not lie about why it is empty', () => 
     );
     fireEvent.press(getByTestId('fasting-empty-link'));
     // Today, because that is the only place the emptiness can be resolved: it
-    // is where the timer is.
-    expect(mockPush).toHaveBeenCalledWith('/(app)');
+    // is where the timer is. `replace` rather than `push` — Today is a sibling
+    // tab, and pushing a tab route stacks a second copy of it over Trends.
+    expect(mockReplace).toHaveBeenCalledWith('/(app)');
   });
 
   it('does not tell someone mid-fast that they have no fasts', async () => {

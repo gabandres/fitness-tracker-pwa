@@ -76,7 +76,13 @@ export function FastingTrendsCard({ fasting }: { fasting: FastingTrends }) {
             haptics.tap();
             // The chevron is a promise. ADR-0033's Amendment 2 shipped one that
             // was inert and it read as a broken row — worse than not drawing it.
-            router.push('/(app)');
+            //
+            // `replace`, not `push`, and that is the established idiom here
+            // rather than a preference: Today is a SIBLING TAB, and pushing a
+            // tab route stacks a second copy of it over Trends instead of
+            // switching tabs. Every other in-app return to Today — `scan.tsx`
+            // twice, `tour.tsx`, the auth gate — uses `replace`.
+            router.replace('/(app)');
           }}
         >
           <Text style={styles.linkLabel}>
