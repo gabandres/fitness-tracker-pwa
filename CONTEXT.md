@@ -382,6 +382,51 @@ collections + a `WorkoutStore` facet back the Train tab.
 - **SetKind** — `warmup | activation | working | mini | drop`. A set's
   optional `group` clusters it (C1/C2); no group → plain straight set.
   Warmups/drops are excluded from PR + progression math.
+  [ADR-0028](docs/adr/0028-stretching-mobility-model.md) adds **`mobility`** to
+  this union; the type does not carry it yet — implementation is a separate
+  ticket. Read the three entries below **before** using any of these three
+  words, because two of them already mean something narrower than they sound.
+- **Warm-up** — **the load ramp for one lift, and nothing else.** Two things
+  carry the name: `packages/core/src/warmup.ts`, whose `generateWarmup()`
+  produces empty bar → ~50/70/90% of the working weight; and the `SetKind`
+  value `'warmup'`, which `isWorkingSet` excludes from PR and progression math.
+  **It is NOT stretching, mobility work, or a general pre-session routine** —
+  in RAMP terms (Jeffreys 2006) it is *Potentiate* alone. The stored string
+  `'warmup'` keeps its value: renaming it is a Firestore data migration for a
+  cosmetic gain. ([ADR-0028](docs/adr/0028-stretching-mobility-model.md))
+- **Activation** — **cluster-training vocabulary, not RAMP's "Activate".** The
+  `SetKind` value `'activation'` is the set that *opens a cluster*, with the
+  `mini` sets after it inheriting its group number (`cluster-groups.ts`). It
+  says nothing about warming a muscle up. Mapping RAMP's letters onto `SetKind`
+  is wrong in a way the type system cannot catch, which is why
+  [ADR-0028](docs/adr/0028-stretching-mobility-model.md) rules that **RAMP's
+  letters are never identifiers.**
+- **Mobility set** — the canonical term for a stretch, a hold or a joint-prep
+  movement: a catalog `Exercise` with `logStyle: 'time'`, no `ProgressionRule`,
+  logged as a `WorkoutSet` of kind `mobility` inside the ordinary `exercises[]`
+  array. It is **not** a new collection, not a block on the session, and not a
+  `phase` field — **position in the ordered array is the pre/post
+  distinction**, because the array already renders in order and a stored
+  position could drift out of sync with it.
+  ([ADR-0028](docs/adr/0028-stretching-mobility-model.md))
+  - **"Stretch" is user-facing English for one movement** ("Couch stretch"),
+    never the name of the feature or of a type. A stretch is one kind of
+    mobility work; mobility is the wider concept.
+  - **Mobility is invisible to every strength derivation**, by the same
+    mechanism warmups already are — `isWorkingSet` excludes it, so
+    `computeExercisePRs`, `metricForSet` and `trainHeroStats.topSet` skip it.
+    Without that exclusion a 60-second pre-lift hold would set a
+    `maxDurationSec` PR and the app would congratulate the user for the one
+    thing the evidence says costs strength.
+  - **The copy rule is part of the vocabulary.** Nothing anywhere may say or
+    imply that stretching reduces soreness, aids recovery or prevents injury —
+    the Cochrane evidence tests that claim and rejects it. Only two claims are
+    defensible: range of motion improves with bounded-dose stretching, and a
+    structured dynamic warm-up is the supported pre-training practice.
+  - **Third member of the `durationSec` neighbourhood.** `WorkoutSet.durationSec`
+    is a hold; `CardioBlock.durationSec` is how long one effort took;
+    `WorkoutSession.durationMin` is the whole session, in minutes. Two of the
+    three are seconds. See "The naming footgun" above.
 - **Progression / PRs** — Pure module `utils/workout-progression.ts`
   (per [ADR-0003](docs/adr/0003-day-summary-as-pure-module.md)):
   `suggestProgression` (deterministic double-progression — hit
