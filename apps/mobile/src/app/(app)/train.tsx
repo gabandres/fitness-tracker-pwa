@@ -37,6 +37,7 @@ import {
   RIR_MIN,
   STARTER_TEMPLATES,
   clampRir,
+  clampSetLoad,
   seedTemplateName,
   setRowLabels,
   // Cardio (ADR-0025 / ADR-0026): the modality list the picker renders, the
@@ -1156,7 +1157,10 @@ function SetRow({
                 type: 'patchSet',
                 exerciseIndex,
                 setIndex,
-                patch: { weight: parseLoadToLb(t, unitSystem) ?? undefined },
+                // Through the shared ceiling (@macrolog/core) for the same
+                // reason RIR is: `parseLoadToLb` only converts units and
+                // rejects negatives, so a mistyped 12750 was storable (#85).
+                patch: { weight: clampSetLoad(parseLoadToLb(t, unitSystem)) },
               },
               { defer: true },
             );
