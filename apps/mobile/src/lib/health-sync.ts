@@ -273,15 +273,44 @@ export async function importHealthWorkouts(uid: string): Promise<number> {
  * is kept by one path and dropped by the other.
  */
 export function toImportableBlocks(raw: readonly HealthWorkout[]): CardioBlock[] {
-  return importableWorkouts(raw)
-    .map(toCardioBlockFromHealth)
-    // Anything the modality table could not place is NOT imported. Oura and
-    // the Watch both record strength training, and importing those as cardio
-    // would duplicate the sessions the user logs in Train by hand — with no
-    // way to tell the copies apart afterwards. A missed import is recoverable;
-    // a duplicated history is not.
-    .filter((b) => b.modality !== 'other')
-    .filter(isLoggedCardioBlock);
+  return partitionImportable(raw).blocks;
+}
+
+/**
+ * The same pipeline as {@link toImportableBlocks}, but it also says how many
+ * records were **deliberately declined for not being cardio**.
+ *
+ * That count exists because of #102, and the bug there was a reporting one
+ * rather than a logic one. The one real Oura ring on this project was
+ * connected, syncing, and returning two workouts on every call — and nothing
+ * appeared in Train. Both records were `strengthTraining` and `other`, so the
+ * filter below dropped them, exactly as intended. The system was working.
+ *
+ * **What was wrong is that it looked identical to a broken integration.** The
+ * screen said "no workouts", the same words it would use for a ring that had
+ * recorded nothing, and the user has no way to tell those apart. That is the
+ * empty-state rule ADR-0026 sets for this integration, failing in a case
+ * nobody had anticipated: not "connected vs no data", but "declined vs no
+ * data".
+ *
+ * `nonCardio` is counted BEFORE `isLoggedCardioBlock` so it means what it says
+ * — a strength session, not a prescription nobody performed.
+ */
+export function partitionImportable(raw: readonly HealthWorkout[]): {
+  blocks: CardioBlock[];
+  nonCardio: number;
+} {
+  const mapped = importableWorkouts(raw).map(toCardioBlockFromHealth);
+  // Anything the modality table could not place is NOT imported. Oura and
+  // the Watch both record strength training, and importing those as cardio
+  // would duplicate the sessions the user logs in Train by hand — with no
+  // way to tell the copies apart afterwards. A missed import is recoverable;
+  // a duplicated history is not.
+  const nonCardio = mapped.filter((b) => b.modality === 'other').length;
+  return {
+    blocks: mapped.filter((b) => b.modality !== 'other').filter(isLoggedCardioBlock),
+    nonCardio,
+  };
 }
 
 /**

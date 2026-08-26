@@ -1154,6 +1154,7 @@ export const ptBR = {
   'oura.needsReconnect': 'O Oura não aceita mais a nossa conexão. Reconecte para continuar importando.',
   'oura.failed': 'Não foi possível falar com o Oura. Tente novamente em instantes.',
   'oura.skipped': 'Não conseguimos ler {n} treinos. Por favor, reporte isso.',
+  'oura.declined': '{n} encontrados que não são cardio — o treino de força fica no Train.',
   'oura.truncated': 'Mostrando apenas os treinos mais recentes.',
   'oura.energyNote': 'As calorias do seu anel aparecem como referência e nunca mudam a sua meta diária.',
 } as const;

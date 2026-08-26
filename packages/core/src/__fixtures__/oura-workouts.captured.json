@@ -1,0 +1,54 @@
+{
+  "_comment": [
+    "CAPTURED from the Oura Cloud API on 2026-08-26, from the one real ring on",
+    "this project (stph.ctllo@gmail.com). Two records, verbatim, with nothing",
+    "edited except this comment key.",
+    "",
+    "ADR-0026 is explicit about why this file is a capture and not a hand-",
+    "written payload: 'a hand-authored workout payload agrees with whatever the",
+    "mapper already believes, which is the one thing a fixture must not do.'",
+    "Until this file existed, every Oura test in this repo was written against",
+    "what the documentation says the wire looks like, and nobody had seen one.",
+    "",
+    "Three things it settles that were open questions:",
+    "  1. `activity` carries camelCase values like `strengthTraining` — not",
+    "     snake_case, and not the HealthKit-style identifiers.",
+    "  2. `distance` is null rather than absent on a workout with no distance.",
+    "  3. `source` is Oura's OWN provenance ('confirmed'), which is a different",
+    "     question from our CardioSource and is deliberately not read.",
+    "",
+    "And one it settles by NOT containing it: there is no vendor string like",
+    "`com.ouraring.oura` anywhere on the Cloud API wire. That constant belongs",
+    "to the health-store transport only; the Cloud mapper hardcodes",
+    "`provider: 'oura'` because Oura is the only thing on the far end.",
+    "",
+    "Both of these records are non-cardio, which is not a coincidence worth",
+    "editing away — it is the exact data that produced #102."
+  ],
+  "data": [
+    {
+      "id": "dca7e720-6c1a-47ab-8e31-6711ecd3ae08",
+      "activity": "strengthTraining",
+      "calories": 111.07263946533203,
+      "day": "2026-08-24",
+      "distance": null,
+      "end_datetime": "2026-08-24T08:20:00.000-04:00",
+      "intensity": "moderate",
+      "label": null,
+      "source": "confirmed",
+      "start_datetime": "2026-08-24T07:48:00.000-04:00"
+    },
+    {
+      "id": "f76232e7-05a4-4ecd-b757-d83d3cf89407",
+      "activity": "other",
+      "calories": 43.9653205871582,
+      "day": "2026-08-24",
+      "distance": null,
+      "end_datetime": "2026-08-24T21:20:00.000-04:00",
+      "intensity": "moderate",
+      "label": "Trampolín ",
+      "source": "confirmed",
+      "start_datetime": "2026-08-24T21:06:00.000-04:00"
+    }
+  ]
+}

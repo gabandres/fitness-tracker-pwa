@@ -1174,6 +1174,7 @@ export const esPR: Record<I18nKey, string> = {
   'oura.needsReconnect': 'Oura ya no acepta nuestra conexión. Vuelve a conectar para seguir importando.',
   'oura.failed': 'No pudimos conectar con Oura. Inténtalo de nuevo en un momento.',
   'oura.skipped': 'No pudimos leer {n} entrenamientos. Por favor repórtalo.',
+  'oura.declined': '{n} encontrados que no son cardio — el entrenamiento de fuerza se queda en Train.',
   'oura.truncated': 'Mostrando solo los entrenamientos más recientes.',
   'oura.energyNote': 'Las calorías de tu anillo se muestran como referencia y nunca cambian tu meta diaria.',
 };

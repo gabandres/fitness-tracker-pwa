@@ -1232,6 +1232,10 @@ export const en = {
   // Shown when Oura sent records our parser could not read. It names OUR bug
   // rather than blaming the ring, because that is what it is.
   'oura.skipped': '{n} workouts could not be read. Please report this.',
+  // NOT a failure message. It names what was found and why it stayed out,
+  // because "no workouts" for a ring that is fetching two of them every sync
+  // is how a working integration reads as a broken one (#102).
+  'oura.declined': '{n} found that are not cardio — strength training stays in Train.',
   'oura.truncated': 'Showing the most recent workouts only.',
   // A ring's calories are never spent — the same promise the Train glossary
   // makes, restated where a user turns the import on.

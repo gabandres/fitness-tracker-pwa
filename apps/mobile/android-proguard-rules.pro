@@ -95,3 +95,22 @@
 
 # ─── Annotations R8 needs to keep honouring ──────────────────────────────────
 -keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod,Exceptions
+
+# ─── Absent classes R8 is right to complain about ────────────────────────────
+# The FIRST R8 run failed the build on this, which is the good direction: a
+# missing class caught at compile time rather than a stripped one throwing on a
+# user's phone. R8 wrote the rule itself to
+# `app/build/outputs/mapping/release/missing_rules.txt`.
+#
+# `com.google.firebase.ktx.Firebase` is a Kotlin-extension wrapper referenced by
+# `firebase-installations-ktx`, which arrives transitively. This app talks to
+# Firebase through the **JavaScript** SDK, so the KTX artifact that would define
+# that class is not on the classpath and the code path referencing it is never
+# taken. `-dontwarn` rather than `-keep` on purpose: keeping a class that does
+# not exist is not possible, and the honest statement is that its absence is
+# expected.
+#
+# If this list grows, re-read `missing_rules.txt` rather than guessing — and be
+# suspicious of any entry that is one of OUR classes, which would mean a real
+# dependency went missing rather than an unused wrapper.
+-dontwarn com.google.firebase.ktx.Firebase

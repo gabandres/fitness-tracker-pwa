@@ -6,7 +6,7 @@ import { needsOuraScopeUpgrade, parseOuraDaily } from '@macrolog/core';
 import * as WebBrowser from 'expo-web-browser';
 import { parseOuraWorkouts } from '@macrolog/core';
 import { db, functions } from './firebase';
-import { toImportableBlocks, writeImportedBlocks } from './health-sync';
+import { partitionImportable, writeImportedBlocks } from './health-sync';
 import {
   getDayBoundaryOnce,
   importDailySleep,
@@ -194,6 +194,19 @@ export interface OuraImportResult {
    *  the wire shape is not what `packages/core/src/oura-workouts.ts` believes
    *  — which is the one thing that file admits it cannot verify. */
   skipped: number;
+  /** Records that parsed fine and were deliberately NOT imported, because they
+   *  are not cardio — Oura's `strengthTraining`, and anything the modality
+   *  table places as `other`.
+   *
+   *  This is NOT a failure and the UI must not present it as one. Importing a
+   *  strength session as cardio would duplicate what the user logs in Train by
+   *  hand, with no way to tell the copies apart afterwards.
+   *
+   *  It exists because without it the screen said "no workouts" — the same
+   *  words it uses for a ring that recorded nothing — while two real records
+   *  were being fetched and correctly declined on every sync. That is #102,
+   *  and the bug was the reporting, not the filtering. */
+  declined: number;
   /** Oura had more pages than one call is allowed to walk. */
   truncated: boolean;
 }
@@ -215,7 +228,7 @@ export interface OuraImportResult {
  * is our bug.
  */
 export async function importOuraWorkouts(uid: string): Promise<OuraImportResult> {
-  if (!uid) return { written: 0, linked: false, skipped: 0, truncated: false };
+  if (!uid) return { written: 0, linked: false, skipped: 0, declined: 0, truncated: false };
 
   const call = httpsCallable<
     { days?: number },
@@ -223,11 +236,12 @@ export async function importOuraWorkouts(uid: string): Promise<OuraImportResult>
   >(functions, 'fetchOuraWorkouts');
   const { data: res } = await call({});
 
-  if (!res?.linked) return { written: 0, linked: false, skipped: 0, truncated: false };
+  if (!res?.linked) return { written: 0, linked: false, skipped: 0, declined: 0, truncated: false };
 
   const { workouts, skipped } = parseOuraWorkouts({ data: res.data });
-  const written = await writeImportedBlocks(uid, toImportableBlocks(workouts));
-  return { written, linked: true, skipped, truncated: res.truncated === true };
+  const { blocks, nonCardio } = partitionImportable(workouts);
+  const written = await writeImportedBlocks(uid, blocks);
+  return { written, linked: true, skipped, declined: nonCardio, truncated: res.truncated === true };
 }
 
 /**

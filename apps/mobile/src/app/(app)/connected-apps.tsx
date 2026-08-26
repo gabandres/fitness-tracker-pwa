@@ -278,6 +278,19 @@ export default function ConnectedAppsScreen() {
           {oura.result && oura.result.skipped > 0 ? (
             <Text style={styles.msg}>{t('oura.skipped', { n: oura.result.skipped })}</Text>
           ) : null}
+          {/* Declined-as-not-cardio is a DIFFERENT sentence from "no workouts",
+              and #102 is what happens without it: this ring was fetching two
+              real records on every sync, both `strengthTraining`, both
+              correctly filtered — and the screen said the same thing it says
+              for a ring that recorded nothing. The user has no way to tell a
+              working integration from a broken one.
+
+              Not phrased as a failure, because it is not one. Importing a
+              strength session as cardio would duplicate what the user logs in
+              Train by hand. */}
+          {oura.result && oura.result.declined > 0 ? (
+            <Text style={styles.msg}>{t('oura.declined', { n: oura.result.declined })}</Text>
+          ) : null}
           {oura.result?.truncated ? <Text style={styles.msg}>{t('oura.truncated')}</Text> : null}
           {oura.daily && oura.daily.days > 0 ? (
             <Text style={styles.msg}>{t('oura.dailySynced', { n: oura.daily.days })}</Text>
