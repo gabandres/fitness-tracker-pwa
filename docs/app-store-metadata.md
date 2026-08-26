@@ -103,6 +103,7 @@ ASC → **Ignia** → *(left rail)* **App Store** tab.
 | Field | Where | Needs review? |
 |---|---|---|
 | Promotional text | Version page | **No** — live within minutes, any time |
+| **Copyright** | Version page | **No** — live-editable on a released version, same slot as promotional text |
 | Description, keywords, support URL | Version page | Yes — with the next submission |
 | Name, subtitle | Version page | Yes |
 | Screenshots | Version page → Media | Yes |
@@ -110,6 +111,19 @@ ASC → **Ignia** → *(left rail)* **App Store** tab.
 
 **Promotional text is the free slot.** It updates without review and without
 a build. Use it for anything time-sensitive; the description can't do that.
+
+**Copyright — the current value is `2026 Bermudez Systems LLC`.** Set on 1.2.1
+via `PATCH /v1/appStoreVersions/{id}` on **2026-08-26**, and the store renders
+it as *© 2026 Bermudez Systems LLC*. It read `2026 Gabriel Bermúdez` until then:
+the Apple individual→organization migration moved the **Seller** name
+automatically (the product page showed *Bermudez Systems LLC* the same day) but
+**copyright is per-version metadata and does not follow the entity** — it stayed
+on the personal name, which is how it was spotted. The older released versions
+(1.0, 1.1.0, 1.2.0) still carry the personal name and are deliberately left
+alone: only the live version's copyright is displayed, and rewriting historical
+versions has no upside. **Carry `2026 Bermudez Systems LLC` into every new
+version** — ASC does not inherit it from the previous one reliably, and nothing
+in `npm run doctor` checks it.
 
 > **Important:** editing description/keywords/screenshots puts the version in
 > *Prepare for Submission*. Those edits only go live attached to a submission.
