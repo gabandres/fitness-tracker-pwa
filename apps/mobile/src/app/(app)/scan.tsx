@@ -319,7 +319,9 @@ export default function Scan() {
 
       {phase === 'describe' ? (
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-          {pendingUri ? <Image source={{ uri: pendingUri }} style={styles.preview} /> : null}
+          {pendingUri ? (
+            <Image source={{ uri: pendingUri }} style={styles.notePreview} resizeMode="cover" />
+          ) : null}
 
           <Animated.View entering={enterUp(0)}>
             <Text style={styles.noteTitle}>{t('scan.noteTitle')}</Text>
@@ -376,12 +378,12 @@ export default function Scan() {
             <Text style={styles.noteAnalyzeText}>{t('scan.noteAnalyze')}</Text>
           </PressScale>
           <PressScale
-            style={styles.retake}
-            scaleTo={0.96}
+            style={styles.noteRetake}
+            scaleTo={0.97}
             onPress={() => { haptics.tap(); setPhase('intro'); setPendingUri(null); setNote(''); }}
             testID="scan-describe-cancel"
           >
-            <Text style={styles.retakeText}>{t('scan.retake')}</Text>
+            <Text style={styles.noteRetakeText}>{t('scan.retake')}</Text>
           </PressScale>
         </ScrollView>
       ) : phase === 'analyzing' ? (
@@ -764,8 +766,35 @@ function createStyles({ colors, shadow }: Theme) {
       color: colors.ink,
     },
     noteHelp: { fontSize: font.small, color: colors.muted, marginTop: space.xs, lineHeight: font.small * 1.4 },
+    /**
+     * The photo fills the width on this step, unlike the 200×200 `preview` the
+     * ANALYZING step uses. Different job: there the image is a subject for the
+     * wait, here it is the thing the user is about to describe, and describing
+     * a thumbnail with half the screen empty beside it reads as a broken layout.
+     */
+    notePreview: { width: '100%', height: 220, borderRadius: radius.lg, backgroundColor: colors.card },
     noteAnalyze: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },
     noteAnalyzeText: { color: colors.onInk, fontSize: font.h3, fontWeight: '700' },
+    /**
+     * **Its own style, and NOT `styles.retake`.** That one carries
+     * `paddingHorizontal` and no `paddingVertical`, which works only because
+     * the review screen puts it in a flex ROW beside `add` — row stretch gives
+     * it `add`'s height for free. Reused standalone in this column it collapses
+     * to bare text height and renders as a squashed full-width pill, which is
+     * exactly how it shipped on 2026-08-26 and what the owner reported.
+     *
+     * Metrics are deliberately `noteAnalyze`'s, minus the fill: same
+     * `paddingVertical`, same radius, so the two buttons read as a pair.
+     */
+    noteRetake: {
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.line,
+      paddingVertical: space.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    noteRetakeText: { fontSize: font.h3, fontWeight: '700', color: colors.ink },
 
     // ── Repeat detection (ADR-0029 item 3) ────────────────────────
     repeatBox: { gap: space.sm },
