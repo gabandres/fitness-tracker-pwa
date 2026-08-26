@@ -24,7 +24,7 @@ import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, type } from '@/theme';
+import { FAB_BAND, font, radius, space, type } from '@/theme';
 import { formatDate, formatNumber } from '@/lib/date-format';
 
 function dayLabel(dateKey: string, locale: Locale): string {
@@ -526,7 +526,11 @@ const createStyles = ({ colors, shadow }: Theme) =>
     headerHelp: { marginLeft: 'auto', marginRight: space.md },
     title: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, paddingHorizontal: space.xl, paddingTop: space.md },
     fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    body: { padding: space.xl, gap: space.sm },
+    // `paddingBottom` is FAB_BAND, not `space.xl`: the floating + button
+    // overhangs the scroll area, and 24 dp left the last element under it.
+    // That is #96 — the Coach row was untappable — and it caught the fasting
+    // card's footer too once #98 added a sixth element below Coach.
+    body: { padding: space.xl, paddingBottom: FAB_BAND, gap: space.sm },
     error: { color: colors.danger, fontSize: font.small },
     // Hero
     heroPanel: { backgroundColor: colors.heroPanel, borderRadius: radius.xl, paddingVertical: space.xl, paddingHorizontal: space.lg, alignItems: 'center', gap: space.xs, ...shadow.e2 },

@@ -132,6 +132,26 @@ export const space = {
   xxl: 32,
 } as const;
 
+/**
+ * Bottom padding a scrolling tab must reserve for the floating **+** button.
+ *
+ * `LogSpeedDial` is 58 dp and sits raised above the tab bar, so it overhangs the
+ * scroll area — every tab's last element ends up underneath it unless the
+ * content stops short. `space.xl` (24) is nowhere near enough, and the failure
+ * is silent: the content renders, it is simply unreachable.
+ *
+ * **It lives here because it was a local constant in `index.tsx` and the other
+ * three tabs did not have it.** Today fixed this in UX_AUDIT F5 and the fix did
+ * not generalise, so Trends shipped a Coach row that could not be tapped (#96),
+ * and then a fasting card whose footer sat under the button. One exported
+ * constant is what makes the next tab correct by default.
+ *
+ * Not derived from `space`: it is the height of a specific control plus its
+ * clearance, so it tracks `LogSpeedDial`, not the type scale. If that button
+ * ever changes size, change this.
+ */
+export const FAB_BAND = 96;
+
 export const radius = {
   sm: 8,
   md: 12,

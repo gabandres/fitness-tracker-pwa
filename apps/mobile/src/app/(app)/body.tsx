@@ -36,7 +36,7 @@ import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { CountUpText, enterUp, usePulse } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, type } from '@/theme';
+import { FAB_BAND, font, radius, space, type } from '@/theme';
 import { formatDate } from '@/lib/date-format';
 
 function dayLabel(dateKey: string, locale: Locale): string {
@@ -650,7 +650,8 @@ const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl },
   showMore: { paddingVertical: space.sm, alignItems: 'center' },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  body: { padding: space.xl, gap: space.md },
+  // See FAB_BAND — the + button overhangs every tab's scroll area.
+  body: { padding: space.xl, paddingBottom: FAB_BAND, gap: space.md },
   error: { color: colors.danger, fontSize: font.small },
   // Hero panel — the Today skeleton (ADR-0014 §7): shared dark canvas so the
   // coral trend line glows identically in both themes.

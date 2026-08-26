@@ -30,7 +30,7 @@ import { useWidgetSync } from '@/hooks/useWidgetSync';
 import { enterUp, PressScale, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space, type } from '@/theme';
+import { FAB_BAND, font, radius, space, type } from '@/theme';
 import { formatDate } from '@/lib/date-format';
 
 /** Streak length below which a streak extension is too early to read as
@@ -39,7 +39,8 @@ import { formatDate } from '@/lib/date-format';
  *  the FAB itself plus the tab bar it sits above. Nothing tappable may be laid
  *  out inside it. Was a bare `96` in one place and absent where it mattered
  *  most (UX_AUDIT F5). */
-const FAB_BAND = 96;
+// Was defined here, and that is exactly why the other three tabs never got
+// it (#96). It now lives in `@/theme` and is imported.
 
 const MIN_STREAK_FOR_REVIEW = 3;
 
