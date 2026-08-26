@@ -155,6 +155,66 @@ if (new RegExp(`^reactNativeArchitectures=${ABIS}$`, 'm').test(props)) {
   process.exit(1);
 }
 
+// --- 1c. R8: code shrinking, obfuscation and optimization (issue #101) ---
+//
+// **Google Play requires a minimum of 25% DEX optimization coverage from
+// February 2027.** Missing it costs "reduced app visibility and publishing
+// capabilities", and it applies to existing apps, not just new submissions.
+//
+// Ignia shipped 0% until 2026-08-26, and not as a decision: the Expo template's
+// `android/app/build.gradle` reads
+// `findProperty('android.enableMinifyInReleaseBuilds') ?: false`, that property
+// was set NOWHERE, and so every release AAB this project has ever produced had
+// `minifyEnabled false`. Nothing surfaces that — it is not a warning, and the
+// build is otherwise identical.
+//
+// **It lives here, in the gitignored `android/gradle.properties`, and not in
+// `app.json`.** `app.json` is hashed as a whole by `@expo/fingerprint`, so an
+// Android-only key there moves the **iOS** runtime too — that exact mistake shut
+// both OTA channels on 2026-08-25 while build 60 sat in App Store review. Same
+// reasoning, same file, same step as the ABI set above and the update channel in
+// step 4.
+//
+// `shrinkResources` is deliberately NOT enabled with it. Resource shrinking is a
+// separate failure mode (it strips drawables reached only by name), the 25%
+// floor is a DEX requirement that `minifyEnabled` alone satisfies, and one risky
+// flag at a time is how this stays diagnosable.
+props = readFileSync(gradleProps, 'utf8');
+const MINIFY_KEY = 'android.enableMinifyInReleaseBuilds';
+if (new RegExp(`^${MINIFY_KEY.replace(/\./g, '\\.')}=true$`, 'm').test(props)) {
+  console.log(`gradle.properties: ${MINIFY_KEY} already true`);
+} else if (new RegExp(`^${MINIFY_KEY.replace(/\./g, '\\.')}=`, 'm').test(props)) {
+  props = props.replace(new RegExp(`^${MINIFY_KEY.replace(/\./g, '\\.')}=.*$`, 'm'), `${MINIFY_KEY}=true`);
+  writeFileSync(gradleProps, props);
+  console.log(`gradle.properties: ${MINIFY_KEY} -> true`);
+} else {
+  props += `\n# R8, required by Play from Feb 2027 (>=25% DEX coverage). See step 1c.\n${MINIFY_KEY}=true\n`;
+  writeFileSync(gradleProps, props);
+  console.log(`gradle.properties: ${MINIFY_KEY}=true added`);
+}
+
+// --- 1d. R8 keep rules (issue #101) ---
+//
+// The rules themselves live in the TRACKED `apps/mobile/android-proguard-rules.pro`
+// and are installed here, because `android/` is wholly gitignored and
+// `expo prebuild --clean` regenerates `android/app/proguard-rules.pro` from the
+// template. Editing the generated file directly loses the rules on the next
+// clean prebuild and keeps them out of review entirely — which is a silent
+// failure, since the build still succeeds and only a device shows the damage.
+//
+// Not `expo-build-properties`' `extraProguardRules` either: that lives in
+// `app.json`, which is hashed whole, so it would move BOTH platforms'
+// fingerprints. Same trap as step 1b and step 4b.
+const keepsSrc = resolve(mobileRoot, 'android-proguard-rules.pro');
+const keepsDst = resolve(mobileRoot, 'android/app/proguard-rules.pro');
+const keeps = readFileSync(keepsSrc, 'utf8');
+if (readFileSync(keepsDst, 'utf8') === keeps) {
+  console.log('proguard-rules.pro: already installed');
+} else {
+  writeFileSync(keepsDst, keeps);
+  console.log(`proguard-rules.pro: installed ${keeps.split('\n').length} lines from android-proguard-rules.pro`);
+}
+
 // --- 2. build.gradle: real release signingConfig + versionCode ---
 const buildGradlePath = resolve(mobileRoot, 'android/app/build.gradle');
 let gradle = readFileSync(buildGradlePath, 'utf8');
