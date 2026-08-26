@@ -1,6 +1,10 @@
 # ADR-0029: Multi-photo and description meal capture
 
-- **Status:** `proposed` — **all five items are BUILT and DELIVERED** to both platforms (Android OTA 62-63, iOS OTA 33-34, 2026-08-26). The delivery half of the Definition of Done is met; what keeps this `proposed` is the OTHER half, which asks for the description field's token cost to be **measured**. `estimateWithGemini` logs `usageMetadata` per call, so the data is sitting in Cloud Logging and nobody has read it. That is a log query, not a build. **Item 5's gate is gone** — `dailyQuota` counts IMAGES and `spendCeiling` follows; this line said it was still gated until 2026-08-26. See Amendment 1 for what building it changed.
+- **Status:** **accepted** 2026-08-26 — all five items are BUILT, DELIVERED to
+  both platforms (Android OTA 62-63, iOS OTA 33-34) and the token cost this
+  ADR's Definition of Done asked for is now **measured off production traffic**
+  rather than estimated. See *Amendment 2*. Item 5's gate is gone: `dailyQuota`
+  counts IMAGES and `spendCeiling` follows.
 - **Date:** 2026-08-24
 - **Amends:** [ADR-0017](0017-photo-scan-free-for-all-v1.md) (photo-scan on and free), [ADR-0013](0013-food-resolution-my-foods-library.md) (the trust rule), [ADR-0015](0015-macronaut-photo-first-freemium-pivot.md) §1 (why the model is not asked for macros)
 
@@ -261,3 +265,46 @@ gates. The one that did the real work was not in any plan: **containment**, adde
 after a symmetric score offered `Chicken thigh` for a note reading `chicken
 breast`. Being brief and adding detail are things a person does about a food they
 mean; naming a different cut is not.
+
+## Amendment 2 — the note's token cost, measured (2026-08-26)
+
+The Definition of Done asked for the description field's cost to be **measured**,
+not estimated. `estimateWithGemini` logs `usageMetadata` per call, and nine real
+calls now exist in Cloud Logging (2026-08-26, revisions `00054`–`00058`, all
+`gemini-3.5-flash-lite`, `thinking=0` on every one). Query:
+
+```sh
+gcloud logging read 'resource.type="cloud_run_revision"
+  AND resource.labels.service_name="analyzephoto"
+  AND textPayload:"analyzePhoto usage"'   --project fitness-tracker-gb-1775407101 --limit 300 --freshness 30d
+```
+
+**The A/B is real rather than modelled.** Two calls twelve seconds apart, same
+image, same revision, differing only in whether a note was sent:
+
+| | input | output |
+|---|---|---|
+| no note | **2,014** | 514 |
+| with note (~55 chars) | **2,174** | 470 |
+
+**+160 input tokens.** On the currently deployed prompt the figure is **+247**,
+because the fence grew at revision `00055` (the "the note must NEVER change
+`state`" paragraph, ~87 tokens). A max-length note — `NOTE_MAX_CHARS` is 250,
+about 63 tokens — costs roughly **+295**.
+
+**The note text is ~15 tokens. The instructions around it are ~232.** That is the
+number worth remembering: this feature's cost is the fence, not the user's words,
+so shortening the prompt is the lever and shortening the field is not.
+
+At $0.30/MTok input: **+$0.000074 per scan**, or **$0.0067 per user per month**
+at the 3/day free ceiling. Against the ADR's own budget of "~+150 tokens" the
+measurement lands over — and only because of the fence.
+
+**Multi-image is confirmed off real traffic, and the correction above holds:**
+1 image = 1,989 input · 2 = 3,350 · 3 = 4,254. Three images is **~2.1× input,
+~1.3× total cost**. The corrected "~1.4×" is right; the original "3×" that nearly
+killed the feature was wrong.
+
+**Caveat, stated because n matters:** the paired A/B is a single pair, and all
+nine calls are the owner's own smoke runs rather than organic traffic. The
+conclusion is not close enough to any threshold for that to change it.
