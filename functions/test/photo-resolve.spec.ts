@@ -346,6 +346,56 @@ describe("the real dataset", () => {
   });
 });
 
+describe("resolvePhrase does not return a food the phrase never asked for", () => {
+  let foods: ReturnType<typeof loadFoods>;
+
+  beforeAll(() => {
+    resetCache();
+    foods = loadFoods(fileURLToPath(new URL("../data/usda-foods.json", import.meta.url)));
+  });
+
+  // `scoreFood` matches substrings, which is right for typeahead and wrong once
+  // the whole phrase is known: "apple" is a substring of "snapple", and this
+  // used to return "Beverages, SNAPPLE, tea, ... peach, diet" for a piece of
+  // fruit. The word-match guard now runs on the exact pass, not just the
+  // relaxed one.
+  it("matches on whole words, so an apple is not a SNAPPLE", () => {
+    const m = resolvePhrase(foods, "green apple");
+    expect(m).not.toBeNull();
+    expect(m!.desc.toLowerCase()).not.toContain("snapple");
+    expect(m!.desc.toLowerCase()).toContain("apple");
+  });
+
+  // "Bacon strip, meatless" is the ONLY row carrying both "bacon" and "strip",
+  // so no ranking penalty could ever beat it — a demotion needs something to
+  // reorder against. An analogue the query did not ask for is disqualified.
+  it("does not return a meat analogue for a meat phrase", () => {
+    for (const phrase of ["bacon strips", "bacon"]) {
+      const m = resolvePhrase(foods, phrase, "cooked");
+      expect(m, phrase).not.toBeNull();
+      expect(m!.desc.toLowerCase(), phrase).not.toContain("meatless");
+    }
+  });
+
+  // ...but a phrase that ASKS for the analogue must still find it.
+  it("still resolves analogues when the phrase asks for one", () => {
+    expect(resolvePhrase(foods, "veggie burger", "cooked")?.desc.toLowerCase()).toContain("veggie");
+    expect(resolvePhrase(foods, "vegetarian chili", "cooked")?.desc.toLowerCase()).toContain(
+      "vegetarian",
+    );
+  });
+
+  // Regression: the word-match guard was first written as a check on the WINNER
+  // rather than a filter on the candidates. That returns null for every
+  // single-token phrase, because the relaxed pass needs >= 2 tokens to shorten
+  // — "bacon" resolved to nothing at all. Filter before ranking, never after.
+  it("still resolves single-token phrases", () => {
+    for (const phrase of ["bacon", "banana", "rice", "butter", "coffee"]) {
+      expect(resolvePhrase(foods, phrase, "cooked"), phrase).not.toBeNull();
+    }
+  });
+});
+
 /** Index a fixture list the same way `loadFoods` indexes the real dataset. */
 function loadFixtures(fs: UsdaFood[]): ReturnType<typeof loadFoods> {
   return indexFoods(fs);

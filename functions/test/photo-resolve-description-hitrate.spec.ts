@@ -22,11 +22,19 @@ import { resolvePhrase } from "../src/photo-resolve";
  *
  * And the load-bearing one is in the CONTROL group, with no brand at all:
  *
- *   "unsalted butter" -> Pretzels, soft, ready-to-eat, unsalted, no butter
+ *   "unsalted butter" -> Pretzels, soft, ready-to-eat, unsalted, buttered
  *
  * So this is not a branded-text problem. It is `resolvePhrase`'s relaxed
  * shortening pass having no abstain path: it keeps dropping tokens until
  * something scores, and "something" is always available in a 13k-row index.
+ *
+ * PARTIALLY ADDRESSED 2026-08-26. Two of the classes above are now fixed and
+ * pinned in `photo-resolve.spec.ts`: substring matches ("green apple" ->
+ * SNAPPLE) and meat analogues ("bacon" -> meatless). The pretzel above is NOT
+ * fixed — "unsalted" and "buttered" are both genuinely present as words, so
+ * only head-noun awareness would catch it, and that means changing a ranker
+ * tuned against the real dataset. Left deliberately, and measured, rather than
+ * chased in the same sitting that fixed the other two.
  *
  * Consequence for #76: a description field must NOT auto-apply macros from
  * this resolver. Either give the resolver an abstain result, or keep the
