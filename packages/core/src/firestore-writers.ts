@@ -45,6 +45,7 @@ import type {
   SessionStatus,
   TemplateExercise,
 } from './workout';
+import { sanitizeSessionExercises } from './set-load-bounds';
 
 /**
  * The SDK values a doc needs that this module cannot construct. Each adapter
@@ -501,7 +502,10 @@ export function toSessionDoc<TS>(
   return {
     status: draft.status,
     timestamp: codec.timestamp(draft.date),
-    exercises: draft.exercises ?? [],
+    // Every session write on both frontends passes through here, which makes
+    // this the one place a corrupt set load can be stopped (#85) —
+    // `firestore.rules` cannot iterate a list and so never sees a set at all.
+    exercises: sanitizeSessionExercises(draft.exercises ?? []),
     createdAt: stamp,
     updatedAt: stamp,
     ...(draft.templateId !== undefined ? { templateId: draft.templateId } : {}),
@@ -534,7 +538,7 @@ export function toSessionPatch<TS>(
   if (patch.bodyweight !== undefined) data['bodyweight'] = patch.bodyweight;
   if (patch.sleepHours !== undefined) data['sleepHours'] = patch.sleepHours;
   if (patch.durationMin !== undefined) data['durationMin'] = patch.durationMin;
-  if (patch.exercises !== undefined) data['exercises'] = patch.exercises;
+  if (patch.exercises !== undefined) data['exercises'] = sanitizeSessionExercises(patch.exercises);
   // Like `exercises`, this is a whole-array overwrite rather than a merge:
   // Firestore unions arrays on merge, so a sparse patch would append blocks
   // instead of replacing them and a deleted block would come back.
