@@ -1,7 +1,7 @@
 # ADR-0028: Stretching is mobility, and mobility is a timed exercise — not a new feature
 
-- **Status:** proposed
-- **Date:** 2026-08-24
+- **Status:** **accepted** (2026-08-26). Every claim this ADR makes about the existing code was re-read against the source before acceptance; the verification is recorded at the end.
+- **Date:** 2026-08-24, accepted 2026-08-26
 - **Decides:** issue [#71](https://github.com/gabandres/fitness-tracker-pwa/issues/71) (`wayfinder:research`) — "decide the model before building". Implementation is a separate ticket and does not start before this is accepted.
 
 ## Context
@@ -273,3 +273,87 @@ invented for mobility alone would be a new concept serving one case.
   breaking is the entire web obligation here.
 - **Implementation.** This ADR decides the model. The build is a separate
   ticket, and its first task is the `CONTEXT.md` vocabulary entry, not code.
+
+## Amendment 1 — accepted 2026-08-26, with two clarifications decision 5 needed
+
+Accepting this ADR meant reading every claim it makes about the existing code
+back against the source. All of them hold (the record is below), but two of the
+decisions were **under-specified in a way implementation would have had to guess
+at**, and a guess is how a decision doc quietly becomes an opinion doc. Both are
+settled here rather than deferred.
+
+### Clarification A — "static" is not a property this model can read, so the guardrail does not use it
+
+Decision 5 said the predicate flags a **static** mobility set prescribed at more
+than 60 s in a **pre** position. **There is no static-vs-dynamic distinction
+anywhere in the model, and adding one is not free**: it is either a new field on
+`Exercise` (which every user-created mobility movement would leave blank and
+unclassifiable) or a hardcoded list keyed on seed identity (which classifies
+nothing a user writes). Either way the guardrail would be silent on exactly the
+movements the app knows least about.
+
+**Decided: the predicate keys on position and duration only.** It flags **any**
+mobility set prescribed at more than 60 s before the first working exercise.
+Three reasons this is the right trade even though it will sometimes warn on a
+dynamic flow:
+
+1. **The note is a citation, not a verdict.** It says what the dose-response
+   evidence found and leaves the number alone — decision 5 already ruled it
+   warns rather than caps. A warning that occasionally applies to a movement it
+   need not is a much smaller cost than a guardrail that stays quiet on a
+   five-minute pre-lift hamstring hold because nobody tagged it.
+2. **Simic et al.'s dose figures are about static stretching**, so the note must
+   name what it is citing rather than assert something about the user's specific
+   movement. Wording follows from that: *"Held stretches longer than about 60 s
+   before lifting measurably reduce strength (−5.4%) and power (−1.9%). Under
+   45 s the effect is smallest, and range of motion still improves at 60 s."*
+   That is true as written whether or not this particular set is a static hold.
+3. **It is a pure function of data the session already has** — the array
+   position and `PlannedSet.durationSec` — so it needs no new field, no new
+   catalog metadata and no rules change, which is the entire reason E beat A.
+
+If a static/dynamic distinction ever earns its place for another reason, this
+predicate can narrow onto it without a schema change. It must not be added *for*
+this predicate.
+
+### Clarification B — a session with no working exercise has no "pre" position
+
+Decision 3 makes position in the ordered `exercises[]` array the pre/post
+distinction, and "pre" is derived as *before the first working exercise*. **A
+mobility-only session has no working exercise**, and decision 8 explicitly
+allows one (it marks the day trained). So the derivation has an undefined case
+on a session shape this ADR deliberately permits.
+
+**Decided: with no working exercise in the session, no mobility set is `pre`,
+and the guardrail does not fire.** The strength-deficit finding is entirely
+about what a stretch does to the lifting that follows it. When there is no
+lifting that follows it, there is nothing to protect, and a warning would be
+telling the user that a mobility session is bad for a workout they are not
+doing. The predicate returns "not applicable", not "safe" — the distinction
+matters for the test, which pins that a mobility-only session produces **zero**
+warnings at any duration.
+
+## Verification record — the claims this ADR rests on, re-read 2026-08-26
+
+Accepting a decision that turns on "the machinery already exists" requires
+checking that it does. Each claim below was read from the named source, not
+recalled.
+
+| Claim in this ADR | Verified at | Result |
+|---|---|---|
+| `SetKind` is a five-value union, hand-mirrored in two client copies | `packages/core/src/workout.ts:15`, `src/app/models/workout.ts:39`, `apps/mobile/src/lib/workout.ts:38` | **Holds.** All three read `'warmup' \| 'activation' \| 'working' \| 'mini' \| 'drop'`. `src/app/components/train/template-editor.component.ts:27` is a **fourth** place the values are enumerated (`SET_KINDS`), which the ADR did not mention — widening the union means four edits, not three |
+| `LogStyle` already has `'time'` | `packages/core/src/workout.ts:51` | **Holds** |
+| `PlannedSet` already has `durationSec`, and `WorkoutSet` has `durationSec` + `targetDurationSec` | `packages/core/src/workout.ts:46`, `:99`, `:112` | **Holds.** `targetDurationSec`'s doc comment already states the "prescription is not a performance" rule decision 4 relies on |
+| `isWorkingSet` is the single gate, so excluding mobility is one line | `packages/core/src/workout-progression.ts:10` | **Holds.** `return set.kind !== 'warmup' && set.kind !== 'drop'` — one clause |
+| Without that exclusion a hold would set a `maxDurationSec` PR | `packages/core/src/workout-progression.ts:106–123` | **Holds.** `computeExercisePRs` gates on `isWorkingSet` and then takes `s.durationSec` unconditionally |
+| `suggestProgression` already refuses to auto-bump anything but `weight-reps` | `packages/core/src/workout-progression.ts:73` | **Holds.** `if (style !== 'weight-reps' \|\| !rule \|\| ...)` returns early |
+| `firestore.rules` never validates set-level fields, so no rules deploy | `firestore.rules:297–322` | **Holds.** `isValidWorkoutSession`'s `hasOnly()` already lists `exercises`, and the only assertion on it is `is list && size() <= 40`. Nothing reaches `kind` |
+| Seed library content is already localized, so a seeded list is not a new i18n problem | `packages/core/src/workout-seed.ts:278, 353, 371, 474` | **Holds.** `EXERCISE_ES`, `TEMPLATE_ES`, `EXERCISE_PT` and the `SEED_L10N` registry all exist; adding a language is one row |
+| The frozen web app maps `kind` to a label and needs a fallback | `src/app/components/train/session-sheet.component.ts:433` | **Holds, and it is smaller than feared.** The call is `t('train.kind.' + set.kind)` — a dynamic Transloco key, so an unknown value renders the key text rather than throwing. The cheaper fix is to add `train.kind.mobility` to **both** web locales, which `npm run doctor`'s i18n parity check enforces anyway. The web's own working-set predicate (`:396`) is an explicit three-value allow-list, so mobility is already excluded there |
+
+**One thing the ADR got slightly wrong and it is worth carrying:** it says
+widening the union costs "`packages/core` plus the two hand-mirrored client
+copies." There is a fourth site — the web template editor's `SET_KINDS` array,
+which populates the kind `<select>`. Missing it would compile cleanly and simply
+never offer the new kind on the web, which is the failure mode that is invisible
+until someone looks.
