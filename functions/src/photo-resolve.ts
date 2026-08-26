@@ -201,6 +201,19 @@ export interface DraftItem {
   state?: string;
   /** 'low' | 'medium' | 'high' from the model, per item. */
   confidence?: string;
+  /**
+   * True when `grams` was READ OFF A SCALE visible in the photo, rather than
+   * estimated from visual cues (ADR-0029 item 2).
+   *
+   * This is the highest-value bit in the whole draft, because `grams` is the
+   * only number the model contributes and every macro scales linearly off it
+   * — so this flag marks the difference between a measurement and a guess.
+   * It is also the easiest thing here to be dishonest about, which is why the
+   * prompt requires a legible numeric readout AND a legible unit before the
+   * model may set it, and why {@link resolveItem} refuses to carry it on an
+   * item whose grams were clamped.
+   */
+  measured?: boolean;
   /** Fallback macros, used ONLY when the phrase resolves to nothing. */
   kcal?: number;
   protein?: number;
@@ -222,6 +235,18 @@ export interface ResolvedItem {
   fdcId?: string;
   /** The USDA description the macros came from, so the user can see the basis. */
   matchedDescription?: string;
+  /**
+   * `grams` came off a scale in the photo, not from a visual estimate. Absent
+   * (never `false`) when it did not, so a client that has never heard of this
+   * field and one looking at an ordinary item read the same thing.
+   *
+   * Deliberately independent of `source`: `source` says where the MACROS came
+   * from (USDA row vs the model's own numbers), this says where the WEIGHT came
+   * from. A USDA-grounded item with a guessed weight and a model-fallback item
+   * with a weighed one are both real, and collapsing them into one "trust"
+   * signal would lose the half that scales every macro.
+   */
+  measured?: boolean;
 }
 
 const CONFIDENCE_SCORE: Record<string, number> = { low: 0.4, medium: 0.7, high: 0.9 };
@@ -654,8 +679,21 @@ function normalizeState(s: unknown): FoodState {
  */
 export function resolveItem(foods: IndexedFood[], draft: DraftItem): ResolvedItem {
   const name = String(draft.name ?? "").trim().slice(0, 80) || "Food";
+  const rawGrams = typeof draft.grams === "number" && Number.isFinite(draft.grams) ? draft.grams : 0;
   const grams = clampGrams(draft.grams);
   const confidence = CONFIDENCE_SCORE[String(draft.confidence)] ?? 0.7;
+
+  /**
+   * `measured` survives only if the number we are about to show is still the
+   * number the scale showed. `clampGrams` rounds and caps at MAX_GRAMS, so a
+   * model claiming it read "6200 g" off a scale would otherwise ship a
+   * *measured* badge attached to a silently different 5,000. A badge that says
+   * "this came off your scale" has to be true of the value beside it, not of
+   * some earlier value it was derived from.
+   */
+  const measured = draft.measured === true && Math.round(rawGrams) === grams && grams >= MIN_GRAMS
+    ? true
+    : undefined;
 
   const modelFallback = (): ResolvedItem => ({
     name,
@@ -669,6 +707,7 @@ export function resolveItem(foods: IndexedFood[], draft: DraftItem): ResolvedIte
     // exactly what failed if nothing matched.
     confidence: Math.min(confidence, 0.5),
     source: "model",
+    ...(measured ? { measured } : {}),
   });
 
   // A portion of ~0 g cannot be scaled into anything meaningful, so there is
@@ -690,6 +729,7 @@ export function resolveItem(foods: IndexedFood[], draft: DraftItem): ResolvedIte
     source: "usda",
     fdcId: match.id,
     matchedDescription: match.desc,
+    ...(measured ? { measured } : {}),
   };
 }
 

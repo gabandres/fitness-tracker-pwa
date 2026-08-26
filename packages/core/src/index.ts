@@ -260,6 +260,7 @@ export * from './recipe-import';
 // macro-free {qty,unit,food}[] + a resolver that scales database servings. The
 // voice/text input adapter is per-frontend; the decomposition + scaling is pure.
 export * from './meal-utterance';
+export * from './meal-repeat';
 export * from './speech-locale';
 // Meal-photo scan types + macro helpers (ADR-0015). Pure; the CF + both apps
 // share these. The scan itself (camera + Gemini) is a per-frontend/CF adapter.

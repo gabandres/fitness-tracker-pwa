@@ -44,6 +44,9 @@ interface AnalyzePhotoItem {
   source: ScannedItemSource;
   fdcId: string | null;
   matchedDescription: string | null;
+  /** Present (and only ever `true`) when the grams came off a scale in the
+   *  photo — ADR-0029 item 2. Absent from any server predating that. */
+  measured?: boolean;
 }
 
 interface AnalyzePhotoResult {
@@ -122,10 +125,27 @@ export async function encodeMealPhoto(uri: string): Promise<string | null> {
 
 const nonNeg = (n: number | null | undefined) => Math.max(0, Number(n) || 0);
 
-/** Send a base64 meal photo to `analyzePhoto` and normalize to a MealScan. */
-export async function analyzeMealPhoto(photoBase64: string, locale: string): Promise<MealScan> {
-  const call = httpsCallable<{ photoBase64: string; locale: string }, AnalyzePhotoResult>(functions, 'analyzePhoto');
-  const { data } = await call({ photoBase64, locale });
+/**
+ * Send a base64 meal photo to `analyzePhoto` and normalize to a MealScan.
+ *
+ * `note` is the user's own words about the meal (ADR-0029 item 1), optional.
+ * It is sent as data the model may use for NAMING and PORTION only — the server
+ * fences it and says so in the prompt — and it never touches the macros, which
+ * still come from the USDA database. Empty or whitespace-only notes are not
+ * sent at all rather than sent blank: the wire should say "no note", not "an
+ * empty note", and an omitted key costs no tokens.
+ */
+export async function analyzeMealPhoto(
+  photoBase64: string,
+  locale: string,
+  note?: string,
+): Promise<MealScan> {
+  const call = httpsCallable<
+    { photoBase64: string; locale: string; note?: string },
+    AnalyzePhotoResult
+  >(functions, 'analyzePhoto');
+  const trimmed = note?.trim();
+  const { data } = await call({ photoBase64, locale, ...(trimmed ? { note: trimmed } : {}) });
 
   const items: ScannedFoodItem[] = data.items?.length
     ? data.items.map((i) => ({
@@ -139,6 +159,9 @@ export async function analyzeMealPhoto(photoBase64: string, locale: string): Pro
         source: i.source,
         fdcId: i.fdcId,
         matchedDescription: i.matchedDescription,
+        // Carried only when true, so review can render a measurement
+        // differently from an estimate (ADR-0029 item 4).
+        ...(i.measured ? { measured: true as const } : {}),
       }))
     : [
         {

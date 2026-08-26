@@ -400,3 +400,78 @@ describe("resolvePhrase does not return a food the phrase never asked for", () =
 function loadFixtures(fs: UsdaFood[]): ReturnType<typeof loadFoods> {
   return indexFoods(fs);
 }
+
+/**
+ * `measured` is the one flag in this pipeline that makes a CLAIM ABOUT THE
+ * PHYSICAL WORLD — "this weight came off your scale" — rather than a claim
+ * about our own confidence. Everything else here can be wrong and merely be
+ * wrong; this one can be wrong and be a lie, so the guard on it is tested.
+ *
+ * ADR-0029 item 2, and item 4: the review UI renders measured and estimated
+ * differently, which is the whole reason the flag must not survive a value
+ * change.
+ */
+describe("measured grams (ADR-0029 item 2)", () => {
+  const foods = loadFixtures([
+    { id: "1", desc: "Rice, white, cooked", dataType: "sr_legacy_food", per100: { kcal: 130, protein: 2.7, carb: 28, fat: 0.3 }, portions: [] },
+  ]);
+
+  it("carries the flag through a USDA match", () => {
+    const r = resolveItem(foods, { name: "white rice", grams: 180, state: "cooked", measured: true });
+    expect(r.source).toBe("usda");
+    expect(r.measured).toBe(true);
+  });
+
+  it("carries the flag through the model fallback, because the WEIGHT is what was measured", () => {
+    // Nothing in the fixture index matches, so the macros come from the model.
+    // The scale reading is still a real measurement of a real portion — the two
+    // provenances are independent and collapsing them would lose this case.
+    const r = resolveItem(foods, {
+      name: "mofongo", grams: 200, state: "cooked", measured: true,
+      kcal: 380, protein: 4, carbs: 50, fat: 18,
+    });
+    expect(r.source).toBe("model");
+    expect(r.measured).toBe(true);
+  });
+
+  it("is ABSENT rather than false on an ordinary estimate", () => {
+    // Absent, not `false`: a client predating this field and one looking at an
+    // estimate must read the same thing.
+    const r = resolveItem(foods, { name: "white rice", grams: 180, state: "cooked", measured: false });
+    expect(r.measured).toBeUndefined();
+    expect("measured" in r).toBe(false);
+  });
+
+  it("does NOT survive a clamp, because the badge would name a number the scale never showed", () => {
+    // MAX_GRAMS is 5,000. A "measured 6200 g" ships as 5,000 either way; what
+    // it must not ship as is 5,000 *labelled a measurement*.
+    const r = resolveItem(foods, { name: "white rice", grams: 6200, state: "cooked", measured: true });
+    expect(r.grams).toBe(5000);
+    expect(r.measured).toBeUndefined();
+  });
+
+  it("DOES survive rounding to the nearest gram — that is still the measurement", () => {
+    // The line is between "the same quantity, written to the precision we
+    // display" and "a different quantity". 180.4 g shown as 180 g is the
+    // former; 6,200 g shown as 5,000 g is the latter. A guard that killed the
+    // flag on rounding would mean almost no real scale reading ever kept it,
+    // since scales read to a decimal.
+    const r = resolveItem(foods, { name: "white rice", grams: 180.4, state: "cooked", measured: true });
+    expect(r.grams).toBe(180);
+    expect(r.measured).toBe(true);
+  });
+
+  it("does not survive a sub-minimum portion", () => {
+    const r = resolveItem(foods, { name: "white rice", grams: 0, state: "cooked", measured: true });
+    expect(r.measured).toBeUndefined();
+  });
+
+  it("leaves every other field byte-identical to the unmeasured item", () => {
+    // The flag is provenance. It must not move a macro, a gram or a confidence
+    // — the same property `cardio-energy-independence.test.ts` pins for kcal.
+    const base = { name: "white rice", grams: 180, state: "cooked" } as const;
+    const plain = resolveItem(foods, { ...base });
+    const flagged = resolveItem(foods, { ...base, measured: true });
+    expect({ ...flagged, measured: undefined }).toEqual({ ...plain, measured: undefined });
+  });
+});

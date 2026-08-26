@@ -4,7 +4,15 @@ import { useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { hasUngroundedItems, rescaleScannedItem, sumScannedMacros, type ScannedFoodItem } from '@macrolog/core';
+import {
+  findRepeatCandidates,
+  hasUngroundedItems,
+  rescaleScannedItem,
+  sumScannedMacros,
+  type CustomFood,
+  type RepeatCandidate,
+  type ScannedFoodItem,
+} from '@macrolog/core';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { useToday } from '@/hooks/useToday';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
@@ -22,7 +30,25 @@ import { CountUpText, enterUp, PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, type } from '@/theme';
 
-type Phase = 'intro' | 'analyzing' | 'review';
+/**
+ * `describe` sits between picking the photo and sending it (ADR-0029 item 1).
+ *
+ * It costs one tap on a flow that had none, which is a real price, and it is
+ * paid for twice over:
+ *
+ * 1. It is the only moment a note can exist. The note has to travel WITH the
+ *    image — the model reads both together — so there is no way to collect it
+ *    during `analyzing`, when the call has already left.
+ * 2. It is where repeat detection runs, BEFORE any model call. A note that
+ *    matches My Foods can end the flow with zero tokens spent and zero quota
+ *    consumed, which turns the extra tap from a tax into a shortcut.
+ *
+ * The ADR proposed collecting the note pre-capture, on the reasoning that it
+ * frames the shot. The owner's actual workflow is photo-first, and the ADR's own
+ * instruction was to settle this by trying it rather than arguing — so it is
+ * post-capture, where the user can see what they are describing.
+ */
+type Phase = 'intro' | 'describe' | 'analyzing' | 'review';
 const PORTION_STEPS = [0.5, 1, 1.5, 2] as const;
 
 /**
@@ -74,7 +100,9 @@ export default function Scan() {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const router = useRouter();
-  const { addEntry } = useToday();
+  // `customFoods` is already on this hook, so repeat detection adds NO new
+  // Firestore subscription (ADR-0016's per-hook model, unchanged).
+  const { addEntry, customFoods } = useToday();
 
   const [phase, setPhase] = useState<Phase>('intro');
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +118,10 @@ export default function Scan() {
   /** The just-captured frame, shown under the progress so the wait has a subject. */
   const [preview, setPreview] = useState<string | null>(null);
   const [step, setStep] = useState<ScanStep>('preparing');
+  /** The user's own words about this meal (ADR-0029 item 1). Optional, always. */
+  const [note, setNote] = useState('');
+  /** The picked photo, held while the user is on the describe step. */
+  const [pendingUri, setPendingUri] = useState<string | null>(null);
 
   /**
    * Capture → analyze, with the waiting made legible.
@@ -112,6 +144,25 @@ export default function Scan() {
     const uri = await pickMealPhoto(source);
     if (!uri) return; // cancelled or permission denied (no error banner on cancel)
 
+    // Stop here. The photo is picked; the note and the repeat check happen
+    // before anything is sent, which is the whole point of the step.
+    setPendingUri(uri);
+    setNote('');
+    setPhase('describe');
+  }
+
+  /**
+   * Send the pending photo, with whatever the user typed.
+   *
+   * Everything below the picker is unchanged from before the describe step
+   * existed, including the ordering that made the wait legible: the phase flips
+   * and the captured frame renders first, and the encode runs behind it.
+   */
+  async function onAnalyze() {
+    const uri = pendingUri;
+    if (!uri) return;
+    haptics.tap();
+
     setPreview(uri);
     setStep('preparing');
     setPhase('analyzing');
@@ -122,7 +173,7 @@ export default function Scan() {
       if (!base64) throw new Error('encode');
 
       setStep('reading');
-      const scan = await analyzeMealPhoto(base64, locale);
+      const scan = await analyzeMealPhoto(base64, locale, note);
       if (!scan.items.length) throw new Error('empty');
 
       setStep('resolving');
@@ -144,6 +195,40 @@ export default function Scan() {
       haptics.warning();
     } finally {
       setPreview(null);
+      setPendingUri(null);
+    }
+  }
+
+  /**
+   * Log a prior food straight from the describe step (ADR-0029 item 3).
+   *
+   * **No model call, no quota slot, no spend.** The macros are ones this person
+   * entered and kept, which is better evidence for their own food than anything
+   * a vision model produces from a photograph of it.
+   *
+   * The stated quantity is applied only when the note actually stated one —
+   * `findRepeatCandidates` returns `null` rather than 1 for an unstated amount,
+   * so "greek yogurt" logs one stored serving and "2 cups of greek yogurt" does
+   * not silently become one.
+   */
+  async function logRepeat(c: RepeatCandidate<CustomFood>) {
+    if (saving) return;
+    haptics.tap();
+    setSaving(true);
+    try {
+      const mult = c.quantity != null && c.quantity > 0 ? c.quantity : 1;
+      const f = c.food;
+      await addEntry({
+        calories: Math.round(f.calories * mult),
+        protein: Math.round((f.protein ?? 0) * mult),
+        carbs: Math.round((f.carbs ?? 0) * mult),
+        fat: Math.round((f.fat ?? 0) * mult),
+        mealLabel: f.name,
+      });
+      haptics.success();
+      router.replace('/(app)');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -209,6 +294,18 @@ export default function Scan() {
 
   const total = sumScannedMacros(items);
   const ungrounded = hasUngroundedItems(items);
+  /** Any item whose grams came off a scale in the photo (ADR-0029 item 2/4). */
+  const anyMeasured = items.some((i) => i.measured);
+  /**
+   * Prior foods this note plausibly names. Recomputed as the user types, which
+   * is free — the matcher is pure, runs over the already-subscribed My Foods
+   * list, and makes no network call.
+   *
+   * It returns `[]` for most notes on purpose. See `meal-repeat.ts`: a wrong
+   * "you logged this before" is worse than no suggestion, because it is offered
+   * at the moment the user is least likely to check it.
+   */
+  const repeats = findRepeatCandidates(note, customFoods);
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -220,7 +317,74 @@ export default function Scan() {
         <HeaderAvatar />
       </View>
 
-      {phase === 'analyzing' ? (
+      {phase === 'describe' ? (
+        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+          {pendingUri ? <Image source={{ uri: pendingUri }} style={styles.preview} /> : null}
+
+          <Animated.View entering={enterUp(0)}>
+            <Text style={styles.noteTitle}>{t('scan.noteTitle')}</Text>
+            <TextInput
+              style={styles.noteInput}
+              value={note}
+              onChangeText={setNote}
+              placeholder={t('scan.notePlaceholder')}
+              placeholderTextColor={colors.faint}
+              multiline
+              maxLength={250}
+              testID="scan-note"
+            />
+            <Text style={styles.noteHelp}>{t('scan.noteHelp')}</Text>
+          </Animated.View>
+
+          {/* Repeat detection (ADR-0029 item 3). Shown only when the matcher is
+              confident, which is rarely — see meal-repeat.ts. Tapping one logs
+              the user's OWN stored macros and never calls the model. */}
+          {repeats.length ? (
+            <Animated.View style={styles.repeatBox} entering={enterUp(1)}>
+              <Text style={styles.repeatTitle}>{t('scan.repeatTitle')}</Text>
+              {repeats.map((c) => (
+                <PressScale
+                  key={c.food.id ?? c.food.name}
+                  style={styles.repeatRow}
+                  scaleTo={0.97}
+                  onPress={() => logRepeat(c)}
+                  testID={`scan-repeat-${c.food.id ?? c.food.name}`}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.repeatMain}>
+                    <Text style={styles.repeatName} numberOfLines={1}>{c.food.name}</Text>
+                    <Text style={styles.repeatMeta} numberOfLines={1}>
+                      {Math.round(c.food.calories)} kcal
+                      {c.brandMatched && c.food.brand
+                        ? ` · ${t('scan.repeatBrand', { brand: c.food.brand })}`
+                        : ''}
+                    </Text>
+                  </View>
+                  <Text style={styles.repeatUse}>{t('scan.repeatUse')}</Text>
+                </PressScale>
+              ))}
+            </Animated.View>
+          ) : null}
+
+          <PressScale
+            style={styles.noteAnalyze}
+            scaleTo={0.97}
+            onPress={onAnalyze}
+            testID="scan-analyze"
+            accessibilityRole="button"
+          >
+            <Text style={styles.noteAnalyzeText}>{t('scan.noteAnalyze')}</Text>
+          </PressScale>
+          <PressScale
+            style={styles.retake}
+            scaleTo={0.96}
+            onPress={() => { haptics.tap(); setPhase('intro'); setPendingUri(null); setNote(''); }}
+            testID="scan-describe-cancel"
+          >
+            <Text style={styles.retakeText}>{t('scan.retake')}</Text>
+          </PressScale>
+        </ScrollView>
+      ) : phase === 'analyzing' ? (
         <View style={styles.fill}>
           {/* The captured frame, so the wait has a subject and the user can see
               the app got the right photo without waiting to find out. */}
@@ -305,9 +469,16 @@ export default function Scan() {
             </Animated.View>
 
             {ungrounded ? (
-              <Animated.View style={styles.noteRow} entering={enterUp(4)}>
+              <Animated.View style={styles.hintRow} entering={enterUp(4)}>
                 <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
-                <Text style={styles.noteText}>{t('scan.estimateHint')}</Text>
+                <Text style={styles.hintText}>{t('scan.estimateHint')}</Text>
+              </Animated.View>
+            ) : null}
+
+            {anyMeasured ? (
+              <Animated.View style={styles.hintRow} entering={enterUp(4)}>
+                <Ionicons name="scale-outline" size={16} color={colors.muted} />
+                <Text style={styles.hintText}>{t('scan.measuredHint')}</Text>
               </Animated.View>
             ) : null}
 
@@ -430,6 +601,19 @@ function ItemRow({
           <Text style={styles.itemMatched} numberOfLines={1}>
             {item.matchedDescription}
           </Text>
+        ) : null}
+        {/* A weighed portion and a guessed one must not look the same
+            (ADR-0029 item 4). `grams` is the only number the model contributes
+            and every macro scales off it, so this is the difference between a
+            measurement and an estimate — the same distinction ADR-0027 insisted
+            on for a 2022 menu figure shown as today's. Rendered ALONGSIDE the
+            source line, not instead of it: they answer different questions
+            (where the macros came from vs where the weight came from). */}
+        {item.measured ? (
+          <View style={styles.measuredRow}>
+            <Ionicons name="scale-outline" size={13} color={colors.teal} />
+            <Text style={styles.measuredText}>{t('scan.measured' as never)}</Text>
+          </View>
         ) : null}
       </View>
       <View style={styles.itemGramsWrap}>
@@ -565,8 +749,44 @@ function createStyles({ colors, shadow }: Theme) {
     itemGrams: { minWidth: 52, textAlign: 'right', backgroundColor: colors.inputBg, borderRadius: radius.sm, paddingHorizontal: space.sm, paddingVertical: space.xs, fontSize: font.body, color: colors.ink },
     itemGramsUnit: { fontSize: font.small, color: colors.muted },
     itemRemove: { padding: 4 },
-    noteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs },
-    noteText: { flex: 1, fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.4 },
+    hintRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs },
+    hintText: { flex: 1, fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.4 },
+
+    // ── The describe step (ADR-0029 item 1) ───────────────────────
+    noteTitle: { fontSize: font.h3, fontWeight: '700', color: colors.ink, marginBottom: space.sm },
+    noteInput: {
+      minHeight: 84,
+      textAlignVertical: 'top',
+      backgroundColor: colors.inputBg,
+      borderRadius: radius.md,
+      padding: space.md,
+      fontSize: font.body,
+      color: colors.ink,
+    },
+    noteHelp: { fontSize: font.small, color: colors.muted, marginTop: space.xs, lineHeight: font.small * 1.4 },
+    noteAnalyze: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },
+    noteAnalyzeText: { color: colors.onInk, fontSize: font.h3, fontWeight: '700' },
+
+    // ── Repeat detection (ADR-0029 item 3) ────────────────────────
+    repeatBox: { gap: space.sm },
+    repeatTitle: { fontSize: font.small, fontWeight: '700', color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
+    repeatRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space.md,
+      backgroundColor: colors.card,
+      borderRadius: radius.md,
+      paddingHorizontal: space.md,
+      paddingVertical: space.md,
+    },
+    repeatMain: { flex: 1, gap: 2 },
+    repeatName: { fontSize: font.body, fontWeight: '700', color: colors.ink },
+    repeatMeta: { fontSize: font.small - 1, color: colors.muted },
+    repeatUse: { fontSize: font.small, fontWeight: '700', color: colors.accent },
+
+    // ── A weighed portion, marked (ADR-0029 items 2 + 4) ──────────
+    measuredRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    measuredText: { fontSize: font.small - 1, color: colors.teal, fontWeight: '700' },
     footer: { flexDirection: 'row', gap: space.md, paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.lg },
     retake: { paddingHorizontal: space.xl, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
     retakeText: { fontSize: font.body, fontWeight: '700', color: colors.ink },
