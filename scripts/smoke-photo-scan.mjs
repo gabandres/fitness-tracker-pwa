@@ -54,9 +54,24 @@ const IDP = 'https://identitytoolkit.googleapis.com/v1/accounts';
 /** The per-uid rate limit in analyze-photo.ts is 3s; leave margin. */
 const RATE_LIMIT_PAUSE_MS = 4_000;
 
-const images = process.argv.slice(2);
+/**
+ * `--note "<text>"` sends the description field (ADR-0029 item 1) with every
+ * image, exactly as the mobile describe step does.
+ *
+ * It is here because the note is a SEAM, and seams are what this script exists
+ * to exercise. The server fences the note into the prompt as data-not-
+ * instructions and scopes it to naming and portion; nothing in the unit tests
+ * or the emulator sends one to a real model. Run the same photo with and
+ * without to see what it actually buys — that comparison is the only honest way
+ * to price the feature, and ADR-0029's Definition of Done asks for the token
+ * cost "measured rather than estimated".
+ */
+const argv = process.argv.slice(2);
+const noteFlag = argv.indexOf('--note');
+const note = noteFlag === -1 ? '' : (argv[noteFlag + 1] ?? '');
+const images = noteFlag === -1 ? argv : argv.filter((_, i) => i !== noteFlag && i !== noteFlag + 1);
 if (images.length === 0) {
-  console.error('usage: node scripts/smoke-photo-scan.mjs <image.jpg> [...]');
+  console.error('usage: node scripts/smoke-photo-scan.mjs [--note "<text>"] <image.jpg> [...]');
   process.exit(2);
 }
 
@@ -87,16 +102,17 @@ console.log(`throwaway user ${signUp.localId} (free tier, 3 scans/day)`);
 let failures = 0;
 try {
   for (const [i, path] of images.entries()) {
-    // Mirrors what the clients send: both resize before upload (web 1920px,
-    // mobile 1080px). Sending an unresized original would test a payload no
-    // client produces.
+    // Mirrors what the clients send. The two do NOT agree, and that is not a
+    // bug: mobile resizes to 768px WIDE, web to 1920px on the long edge. 1080
+    // is a middle value both paths tolerate; sending an unresized original
+    // would test a payload no client produces.
     const buf = await sharp(readFileSync(path)).resize({ width: 1080 }).jpeg({ quality: 80 }).toBuffer();
-    console.log(`\n=== ${path} — ${(buf.length / 1024).toFixed(0)} KB ===`);
+    console.log(`\n=== ${path} — ${(buf.length / 1024).toFixed(0)} KB${note ? ` · note: "${note}"` : ''} ===`);
 
     const t0 = Date.now();
     const body = await post(
       FN_URL,
-      { data: { photoBase64: buf.toString('base64'), locale: 'en' } },
+      { data: { photoBase64: buf.toString('base64'), locale: 'en', ...(note ? { note } : {}) } },
       { authorization: `Bearer ${idToken}` },
     );
     const ms = Date.now() - t0;
@@ -115,7 +131,7 @@ try {
     );
     for (const it of items) {
       console.log(
-        `  ${String(it.source).padEnd(5)} ${String(it.grams).padStart(4)}g ` +
+        `  ${String(it.source).padEnd(5)} ${it.measured ? '[weighed]' : '        '} ${String(it.grams).padStart(4)}g ` +
           `${String(it.calories).padStart(4)}kcal ${String(it.protein).padStart(5)}p  ` +
           `${it.name} -> ${it.matchedDescription ?? '(model fallback)'}`,
       );

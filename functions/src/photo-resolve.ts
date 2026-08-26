@@ -518,13 +518,61 @@ function productPenalty(food: IndexedFood, said: Set<string>): number {
   return penalty;
 }
 
-/** Best food for one exact token run, or null when nothing matches it. */
+/**
+ * Best food for one exact token run, or null when nothing matches it.
+ *
+ * ## Why a cooked photo DISQUALIFIES a raw row rather than merely demoting it
+ *
+ * `stateBonus` gives a cooked-marked row +30 and a raw-marked one −15. That is
+ * a ranking signal, and **a ranking signal cannot beat a row that is the only
+ * one carrying the query's tokens** — the same finding that forced the analogue
+ * guard in the "Bacon strip, meatless" fix, restated for state.
+ *
+ * Measured 2026-08-26 against the real committed dataset:
+ *
+ *     cooked | chicken breast           -> Chicken breast, stewed, skin eaten     OK
+ *     cooked | skinless chicken breast  -> Chicken, breast, boneless, skinless, RAW
+ *
+ * One extra word the user typed — `skinless` — flipped a cooked plate onto a
+ * raw row, because that raw row is the only one in the index carrying both
+ * `skinless` and `boneless` and no 45-point swing closes that gap. The cost is
+ * not cosmetic: raw chicken breast is ~120 kcal/100 g against ~165–195 cooked,
+ * so a 200 g portion read **224 kcal instead of ~330**. On staples it is worse
+ * — raw rice is ~369 kcal/100 g against ~130 cooked, the exact threefold error
+ * the `state` field was introduced to prevent.
+ *
+ * So when the photo says cooked, a row that says RAW is not a candidate.
+ *
+ * **Two passes, never one.** Many foods have no cooked row at all, and a filter
+ * that empties the candidate set would return `null` where the resolver used to
+ * answer — which is how the first attempt at the analogue guard made `bacon`
+ * resolve to nothing. The strict pass runs first; if it finds nothing, the
+ * original unfiltered pass runs and the old behaviour stands.
+ *
+ * Deliberately **one-directional.** `raw` does not disqualify cooked rows: raw
+ * markers are sparse and unevenly applied in USDA descriptions, cooked rows are
+ * abundant, and `stateBonus` already uses a narrow marker set for that side on
+ * purpose. The measured error is in the cooked→raw direction; the other
+ * direction has no evidence behind it and would be a guess.
+ */
 function bestFor(
   foods: IndexedFood[],
   tokens: string[],
   prep: string[],
   state: FoodState,
   accept?: (food: IndexedFood) => boolean,
+): { food: IndexedFood; score: number } | null {
+  const strict = pickBest(foods, tokens, prep, state, accept, true);
+  return strict ?? pickBest(foods, tokens, prep, state, accept, false);
+}
+
+function pickBest(
+  foods: IndexedFood[],
+  tokens: string[],
+  prep: string[],
+  state: FoodState,
+  accept: ((food: IndexedFood) => boolean) | undefined,
+  excludeRaw: boolean,
 ): { food: IndexedFood; score: number } | null {
   const query = tokens.join(" ");
   // Anything the model actually said is forgiven, in both penalties.
@@ -536,6 +584,28 @@ function bestFor(
     // needs at least two tokens to shorten — "bacon" resolved to nothing at all
     // when this was a post-hoc check.
     if (accept && !accept(food)) continue;
+    // The state filter, on the strict pass only. A row the query itself asked
+    // to be raw is exempt — "raw tuna" must still reach a raw row even if the
+    // model called the plate cooked.
+    if (
+      excludeRaw &&
+      state === "cooked" &&
+      RAW_MARKERS.test(food.norm) &&
+      // A COOKED marker wins outright. `RAW_MARKERS` includes the
+      // ingredient-form words `dry`/`dried`/`mature seeds`, and USDA routinely
+      // uses them on a row that is then explicitly cooked — "Beans, black,
+      // MATURE SEEDS, COOKED, boiled, without salt" is the canonical example
+      // and it is the correct answer for a plate of beans. Filtering on the raw
+      // marker alone sent that query to "Black beans, from canned, fat added",
+      // which a test caught. The form the food was SOLD in says nothing about
+      // the state it was photographed in.
+      !COOKED_MARKERS.test(food.norm) &&
+      // And a query that itself asked for raw is exempt: "raw tuna" must still
+      // reach a raw row even when the model called the plate cooked.
+      !RAW_MARKERS.test(query)
+    ) {
+      continue;
+    }
     const base = scoreFood(food, tokens, query, {
       // The query's own processed/composite words must not count against the
       // food that has them — see the header.

@@ -670,6 +670,12 @@ over your own visual estimate for that item — the user handled the food and yo
 did not. If it plainly contradicts the photo, trust the photo and lower that
 item's confidence. It must NEVER change the calories or macros you report.
 
+The note must NEVER change "state". Whether a food is cooked or raw is a fact
+about the PHOTOGRAPH, which you can see and the user was not asked about. A note
+saying "skinless chicken breast" or "brown rice" names the FOOD; it does not
+say the food is raw. Judge cooked-vs-raw from the plate exactly as you would
+with no note at all.
+
 <<<USER_NOTE
 ${userNote}
 USER_NOTE`

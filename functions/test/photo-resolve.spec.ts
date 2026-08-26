@@ -385,6 +385,58 @@ describe("resolvePhrase does not return a food the phrase never asked for", () =
     );
   });
 
+  /**
+   * Regression, measured in production 2026-08-26 and fixed the same day.
+   *
+   * `stateBonus` is a RANKING signal (+30 cooked / −15 raw), and a ranking
+   * signal cannot beat a row that is the only one carrying the query's tokens.
+   * "Chicken, breast, boneless, skinless, raw" is the only row holding both
+   * `skinless` and `boneless`, so one extra word the USER typed flipped a
+   * cooked plate onto a raw row:
+   *
+   *     cooked | chicken breast          -> Chicken breast, stewed, skin eaten
+   *     cooked | skinless chicken breast -> Chicken, breast, boneless, skinless, RAW
+   *
+   * Raw chicken breast is ~120 kcal/100 g against ~165–195 cooked, so a 200 g
+   * portion read 224 kcal instead of ~330. `state` exists to prevent exactly
+   * this, and it was being overruled by an adjective.
+   *
+   * The fix disqualifies rather than demotes, on the strict pass only — the
+   * same shape as the analogue guard, for the same reason.
+   */
+  it.each([
+    "skinless chicken breast",
+    "boneless skinless chicken breast",
+  ])("does not send a cooked %s to a raw row", (phrase) => {
+    const desc = resolvePhrase(foods, phrase, "cooked")?.desc ?? "";
+    expect(desc).toMatch(/cooked|grilled|roasted|braised|stewed|baked/i);
+    expect(desc).not.toMatch(/raw/i);
+  });
+
+  /**
+   * The guard must not fire on a row whose "raw" marker is an INGREDIENT FORM.
+   * `RAW_MARKERS` includes `dry`/`dried`/`mature seeds`, and USDA routinely puts
+   * those on a row that is then explicitly cooked. Filtering on the raw marker
+   * alone sent "black beans" to *Black beans, from canned, fat added* — caught
+   * by the case list above, and pinned here so the reason survives.
+   */
+  it("keeps a cooked row that also carries an ingredient-form word", () => {
+    expect(resolvePhrase(foods, "black beans", "cooked")?.desc).toMatch(/mature seeds, cooked/i);
+    expect(resolvePhrase(foods, "lentils", "cooked")?.desc).toMatch(/mature seeds, cooked/i);
+  });
+
+  /**
+   * And the strict pass must never turn an answer into a `null`. Many foods
+   * have no cooked row at all; the filter runs first and the ORIGINAL pass runs
+   * after it, so a filtered-empty candidate set falls back rather than
+   * abstaining. This is the failure the analogue guard shipped once already.
+   */
+  it("still answers for foods that have no cooked row", () => {
+    for (const phrase of ["banana", "almonds", "spinach", "lettuce", "raw honey"]) {
+      expect(resolvePhrase(foods, phrase, "cooked"), phrase).not.toBeNull();
+    }
+  });
+
   // Regression: the word-match guard was first written as a check on the WINNER
   // rather than a filter on the candidates. That returns null for every
   // single-token phrase, because the relaxed pass needs >= 2 tokens to shorten
