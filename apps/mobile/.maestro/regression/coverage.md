@@ -19,6 +19,47 @@ string in the last three lines". Both the Android and the iOS summaries were
 produced that way; neither was evidence. Re-run with full output, this is the
 real picture.
 
+## iOS run 2026-08-26 — 18 of 20, and THREE of the five failures were harness state
+
+Run against a **fresh Release simulator build from `295d9435`** (the commit
+carrying #83, #85 and #77 Q5), on `QA-iPhone` / iOS 26.5. The raw first pass
+read **15/20**, and reporting that number would have been wrong three times
+over. Every correction below is the same lesson this file already states — *count
+a mass failure as one fault until proven otherwise* — so here is what each
+actually was:
+
+| Flow | Raw | Real | Cause |
+|---|---|---|---|
+| all 20 | FAIL ×19 | — | **The guided tour was covering Today.** The sign-in flow's `tour-skip` guard reported the id NOT visible and skipped, yet the tour was plainly on screen. **And `assertVisible: 'Today'` PASSED anyway** — because the tour card itself lists the words *Today · Train · Trends · Body*, so the assert matched the tour's own copy. That is a false pass sitting directly on top of the thing it is meant to detect. Dismissed with `tapOn: text: "Skip"`; all 19 then ran. |
+| `21-train-cardio` | FAIL | **PASS** | Asserted `distance (mi)`; the account was in **metric**. |
+| `20-units-metric` | FAIL | **PASS** | Asserted `lb`; same cause. The first, tour-broken pass had died *inside* this flow after it flipped units and before its restore tail — exactly the documented 09/10/20 state-leak cascade, reproduced. |
+| `13-e2e-delete` | FAIL | **PASS** | **The suite ran past midnight.** Flow 11 logged the sandwich on Aug 25; by flow 13 it was Aug 26 and Today was a fresh empty day (`No entries yet.` in the failure capture). Passes when 11→12→13 run inside one calendar day. |
+| `15-search` | FAIL | FAIL | Pre-existing: `Tap on "^Banana, raw$"`. |
+| `18-train-template` | FAIL | FAIL | Pre-existing. Re-run with units restored it fails EARLIER, at `scrollUntilVisible id: template-set-reps-0-0` — same family as `15-search`, iOS list rows absent from the accessibility hierarchy. |
+
+**So: 18 of 20, and the two failures are the documented platform-gated
+selectors, not regressions.** The auth-gate rewiring in #83 — `sessionUid` now
+drives routing on every screen's entry — is clean on iOS: sign-in lands on
+Today and all four tabs, both locales, both themes, and the full log/edit/delete
+arc pass.
+
+**Two harness defects this run exposed, both worth fixing before the next one:**
+
+1. `assertVisible: 'Today'` is not a valid post-sign-in gate while the tour can
+   be up, because the tour contains that word. Gate on a Today-only id.
+2. `tour-skip` was not matchable by id on iOS even with the tour on screen;
+   `text: "Skip"` was. Until that is understood, the sign-in flow's tour guard
+   is not load-bearing.
+
+**Three build traps hit getting here**, all new to this file: the RN codegen
+artifacts under `ios/build/generated` were partial and `pod install` is what
+regenerates them; `-arch arm64` cannot be combined with `-destination`
+(`ONLY_ACTIVE_ARCH=YES` alone is the way, and matters — the first build compiled
+**x86_64** on an Apple Silicon Mac); and the build fails at the **Sentry
+source-map upload** because `xcodebuild` does not read `.env.local`
+— `SENTRY_DISABLE_AUTO_UPLOAD=true` is correct for a simulator QA build and is
+the iOS twin of the documented Android 401.
+
 **iOS: 19 of 21.** `15-search` fails at `Tap on "^Banana, raw$"` and
 `18-train-template` at `.*3 × 8 · 20 lb.*` — the SAME two documented
 platform-gated selectors as the 17/19 baseline, not regressions.
