@@ -15,20 +15,17 @@
  *    (`parseYmd`, or `addDays` off one). Applied to `new Date()`, a log's
  *    `.date`, or a health sample's `.endDate`, the right answer is `dayKeyAt`.
  *
- * The second is down to the sites blocked on ADR-0030's two OPEN DECISIONS, and
- * cannot go lower until they are answered:
+ * **Both of ADR-0030's open decisions are now answered and the count is ZERO.**
+ * Q4 (widget/watch) shipped in `9c6d8efd`; Q5 (importers) in the change that
+ * dropped this baseline. Every remaining `calendarDateKey` outside core is
+ * exempted BY ARGUMENT in `CALENDAR_OK` below, each with the reason it is
+ * genuinely not a user-day derivation.
  *
- *   - **Q4 (widget/watch)** — `widgets/render.tsx` and `useWidgetSync` render
- *     with no profile in scope, so answering Q4 decides whether they convert.
- *   - **Q5 (importers keep their source's day)** — `health.ts` / `health-sync.ts`.
- *     Converting HALF an importer is worse than converting none: the user's own
- *     session day and the imported block's day are matched against each other
- *     to merge, so moving one and not the other breaks the merge outright.
- *
- * So it is a **ratchet**: the count is pinned at `BASELINE` and the check fails
+ * It stays a **ratchet**: the count is pinned at `BASELINE` and the check fails
  * if it moves in EITHER direction. Up means a new latent bug. Down means a
  * conversion landed and the baseline was not tightened, which is how a ratchet
- * quietly stops being one.
+ * quietly stops being one. At zero the first half is what does the work — any
+ * new site must justify itself in `CALENDAR_OK` or convert.
  *
  * `--list` prints the outstanding sites.
  *
@@ -52,9 +49,30 @@ const CALENDAR_OK = {
   // `start` is `parseYmd(from)` — a settled key stepped by whole days. The
   // window's anchor is chosen inside `activityWindowRange`, which is threaded.
   'apps/mobile/src/lib/activity-suggestion.ts': ['addDays(start, i)'],
-  // Not a day bucket: the local-naive `YYYY-MM-DDTHH:mm:ss` string Health
-  // Connect's period slicer wants. Re-bucketing it would corrupt the request.
-  'apps/mobile/src/lib/health.ts': ['d'],
+  // ADR-0030 Q5, ANSWERED — these four are the importer sites, and they are
+  // exempt for two different reasons.
+  //
+  //   `d`      — not a day bucket at all: the local-naive
+  //              `YYYY-MM-DDTHH:mm:ss` string Health Connect's period slicer
+  //              wants. Re-bucketing it would corrupt the request.
+  //   `start`  — an OS-BUCKETED DAILY TOTAL (both platforms). The OS did this
+  //              bucketing, at calendar midnight, and the bucket holds a full
+  //              00:00-24:00 figure. Re-keying its start under a 03:00
+  //              boundary would file a whole calendar day's steps as the
+  //              previous user-day. Q5's rule: an imported daily total keeps
+  //              its SOURCE's day. The raw-sample paths beside these, which
+  //              carry an instant and no day, DID convert.
+  //   `new Date(s.endDate)` / `new Date(end)`
+  //            — SLEEP, on iOS and Android. A night belongs to the morning you
+  //              woke, which is ADR-0033's rule and what #80's guard depends
+  //              on. ADR-0030 deliberately does not reach into it.
+  'apps/mobile/src/lib/health.ts': ['d', 'start', 'new Date(s.endDate)', 'new Date(end)'],
+  // The widget's FALLBACK comparison for blobs written before `dayEndsMs`
+  // existed (#77 Q4, shipped in `9c6d8efd`). `widgetView` prefers that field,
+  // which the phone computes with the user's boundary; this argument is only
+  // reached for a snapshot that predates it. Neither this file nor
+  // `Glance.swift` re-derives a day.
+  'apps/mobile/src/widgets/render.tsx': ['now'],
   // Analytics buffers flush per CALENDAR day on purpose. This is internal
   // bookkeeping — never shown to a user, never fed to the estimator — and
   // moving it would only change which UTC-ish bucket a batch flushes in.
@@ -159,11 +177,10 @@ if (listOnly) {
   process.exit(0);
 }
 
-// The ratchet. Deliberately NOT zero: what is left is blocked on ADR-0030's Q4
-// and Q5, which are decisions rather than code. It may only ever go DOWN, and
-// the check fails in BOTH directions — so neither a new site nor a finished
-// conversion can pass unnoticed.
-const BASELINE = 10;
+// The ratchet, now at ZERO — ADR-0030 step 3 is complete. It still fails in
+// BOTH directions: a new unexempted site is a latent bug, and there is nothing
+// left to convert, so any drop would mean the check itself broke.
+const BASELINE = 0;
 
 if (total > BASELINE) {
   failed = true;
@@ -182,6 +199,6 @@ if (total > BASELINE) {
 }
 
 if (!failed) {
-  console.log(`✓ day boundary (ADR-0030): localDateKey gone; ${total} call(s) awaiting step 3`);
+  console.log('✓ day boundary (ADR-0030): localDateKey gone; step 3 complete, 0 unexempted call(s)');
 }
 process.exit(failed ? 1 : 0);

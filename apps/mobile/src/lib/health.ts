@@ -8,7 +8,9 @@ import {
   flOzToLiters,
   kgToLb,
   litersToFlOz,
+  type DayBoundary,
   calendarDateKey,
+  dayKeyAt,
   parseYmd,
   percentToFraction,
 } from '@macrolog/core';
@@ -63,8 +65,21 @@ export interface HealthPort {
   isAvailable(): Promise<boolean>;
   /** Prompt for the read+write scopes we use. Resolves false if declined. */
   requestPermissions(): Promise<boolean>;
-  /** Read the last `sinceDays` of one kind as canonical-unit samples. */
-  readSamples(kind: ReadableKind, sinceDays: number): Promise<HealthSample[]>;
+  /**
+   * Read the last `sinceDays` of one kind as canonical-unit samples.
+   *
+   * `boundary` is the account's day boundary (ADR-0030 Q5). The OS hands back
+   * timestamped samples with no day of their own, so WE decide which day each
+   * belongs to — which makes this one of the derivations ADR-0030 governs. The
+   * two exceptions are documented at their call sites: an OS-bucketed daily
+   * TOTAL keeps the source's day, and sleep keeps the wake-day rule ADR-0033
+   * owns.
+   */
+  readSamples(
+    kind: ReadableKind,
+    sinceDays: number,
+    boundary: DayBoundary,
+  ): Promise<HealthSample[]>;
   /**
    * Read the last `sinceDays` of WORKOUTS as neutral events (ADR-0026).
    *
@@ -230,7 +245,7 @@ const healthKit: HealthPort = {
     });
   },
 
-  async readSamples(kind, sinceDays) {
+  async readSamples(kind, sinceDays, boundary) {
     const HK = await hkModule();
     const filter = { startDate: sinceDate(sinceDays), endDate: new Date() };
     const mine = (s: HKQty) => s.sourceRevision?.source?.bundleIdentifier === APP_ID;
@@ -243,6 +258,10 @@ const healthKit: HealthPort = {
       return rows
         .filter((s) => HK_ASLEEP.has(s.value))
         .map((s) => ({
+          // Sleep keeps the WAKE-DAY rule, which ADR-0033 owns and #80's guard
+          // depends on — a night belongs to the morning you got up, not to the
+          // user-day the boundary would put its end in. ADR-0030 deliberately
+          // does not reach in here.
           dateKey: calendarDateKey(new Date(s.endDate)),
           kind: 'sleep' as const,
           value: (ms(s.endDate) - ms(s.startDate)) / 3_600_000, // ms → hours
@@ -283,6 +302,12 @@ const healthKit: HealthPort = {
             // Key the day the bucket STARTS: a [midnight, next-midnight)
             // interval ends at the *following* day's 00:00, so keying off the
             // end — as the raw-sample path does — shifts every day forward one.
+            //
+            // And it stays the CALENDAR date under ADR-0030 Q5: the OS did this
+            // bucketing, at calendar midnight, and the bucket holds a full
+            // 00:00-24:00 total. Re-keying its start under a 03:00 boundary
+            // would file a whole calendar day's steps as the previous
+            // user-day — an imported daily TOTAL keeps its source's day.
             dateKey: calendarDateKey(start),
             kind,
             value: q,
@@ -300,7 +325,9 @@ const healthKit: HealthPort = {
       filter,
     } as never)) as unknown as HKQty[];
     return rows.map((s) => ({
-      dateKey: calendarDateKey(new Date(s.endDate ?? s.startDate)),
+      // A raw sample carries an instant and no day, so the day is OURS to
+      // derive — ADR-0030 Q5.
+      dateKey: dayKeyAt(new Date(s.endDate ?? s.startDate), boundary),
       kind,
       value: s.quantity,
       endMs: ms(s.endDate ?? s.startDate),
@@ -547,7 +574,7 @@ const healthConnect: HealthPort = {
     return Array.isArray(granted) ? granted.length > 0 : !!granted;
   },
 
-  async readSamples(kind, sinceDays) {
+  async readSamples(kind, sinceDays, boundary) {
     const HC = await hcModule();
     await HC.initialize();
 
@@ -584,7 +611,9 @@ const healthConnect: HealthPort = {
         const start = new Date(g.startTime ?? 0);
         return [
           {
-            // Key the day the bucket STARTS — see the iOS branch.
+            // Key the day the bucket STARTS, and keep the CALENDAR date — see
+            // the iOS branch for both halves. An OS-bucketed daily total keeps
+            // its source's day (ADR-0030 Q5).
             dateKey: calendarDateKey(start),
             kind,
             value,
@@ -612,6 +641,7 @@ const healthConnect: HealthPort = {
         const start = new Date(r.startTime ?? 0).getTime();
         const end = new Date(r.endTime ?? 0).getTime();
         return {
+          // Wake-day rule, owned by ADR-0033 — see the iOS sleep branch.
           dateKey: calendarDateKey(new Date(end)),
           kind: 'sleep' as const,
           value: (end - start) / 3_600_000,
@@ -624,7 +654,8 @@ const healthConnect: HealthPort = {
       return rows.map((r) => {
         const end = new Date(r.endTime ?? r.startTime ?? 0).getTime();
         return {
-          dateKey: calendarDateKey(new Date(end)),
+          // Raw sample, so the day is ours to derive — ADR-0030 Q5.
+          dateKey: dayKeyAt(new Date(end), boundary),
           kind: 'water' as const,
           value: litersToFlOz(r.volume?.inLiters ?? 0),
           endMs: end,
@@ -636,7 +667,8 @@ const healthConnect: HealthPort = {
     return rows.map((r) => {
       const t = new Date(r.time ?? 0).getTime();
       const lb = r.weight?.inPounds ?? (r.weight?.inKilograms != null ? kgToLb(r.weight.inKilograms) : 0);
-      return { dateKey: calendarDateKey(new Date(t)), kind: 'weight' as const, value: lb, endMs: t, fromUs: mine(r) };
+      // Raw sample, so the day is ours to derive — ADR-0030 Q5.
+      return { dateKey: dayKeyAt(new Date(t), boundary), kind: 'weight' as const, value: lb, endMs: t, fromUs: mine(r) };
     });
   },
 

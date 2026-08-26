@@ -1,6 +1,6 @@
 # ADR-0030: When does a day start?
 
-- **Status:** **IMPLEMENTED and shipped (2026-08-25)** — Android OTA 52 (vc 37) and iOS OTA 26 (build 60, the PUBLIC App Store). All four steps are done: the derivation, the codemod, persistence, and the setting. **Open: Q4 (widget/watch) and Q5 (importers)** — decisions, not code; `npm run check:day-boundary` pins the 12 call sites blocked on them. See Amendments 1–3.
+- **Status:** **ACCEPTED — complete (2026-08-25).** All four steps shipped (Android OTA 52 / iOS OTA 26), and **both remaining questions are now answered**: Q4 (widget/watch) in `9c6d8efd`, Q5 (importers) in Amendment 5. `npm run check:day-boundary` is at **BASELINE 0** — every `calendarDateKey` left outside `packages/core` is exempted by argument with its reason. See Amendments 1–5.
 - **Date:** 2026-08-24
 - **Touches:** every `dateKey` derivation, the TDEE estimator, fasting, the Health/Oura importers, the widget and the watch
 
@@ -324,3 +324,56 @@ permanently, and indistinguishably from a broken integration.
 Q5's *conversion* work is still open: `npm run check:day-boundary` reports **10
 calls in 3 files**, unchanged by this fix, because nothing here converts an
 importer's `calendarDateKey`.
+
+## Amendment 5 — Q5 answered, and step 3 is finished (2026-08-25)
+
+The ratchet is at **0**. Q4 shipped earlier the same day; this closes Q5, and
+with it ADR-0030 itself.
+
+### The rule, in one sentence
+
+**We derive the day only when the source did not.**
+
+That is what separates the importer sites, which had looked like one class and
+are three:
+
+| Site | Decision | Why |
+|---|---|---|
+| Raw quantity samples — weight, water (iOS + Android) | **Converted** to `dayKeyAt` | A sample carries an instant and no day. The day is ours to choose, which is exactly what this ADR governs. |
+| OS-bucketed daily totals — steps, active energy | **Keep the calendar date** | The OS made the bucket, at calendar midnight, over a full 00:00–24:00 window. Re-keying its start under a 03:00 boundary would file a whole calendar day's steps as the *previous* user-day. An imported daily total keeps its **source's** day. |
+| Sleep (iOS + Android) | **Keep the wake-day rule** | A night belongs to the morning you woke. That is ADR-0033's rule and what #80's guard depends on; ADR-0030 deliberately does not reach into it. |
+
+The first two live a few lines apart in the same function, which is why "the
+importers" was never a single answer.
+
+### The coupling that made this wait
+
+`writeImportedBlocks` matches an imported block's day **against the day of a
+session the user already logged**, to decide whether to fold the run in or write
+a new one. Converting one side and not the other is worse than converting
+neither — a 00:30 run would stop finding its own session and silently write a
+duplicate day. Both moved in the same commit, and
+`health-import-day-boundary.test.ts` asserts they agree under both boundaries
+*and* that they would disagree if only one had moved.
+
+### Q4, for the record
+
+`widgets/render.tsx` still calls `calendarDateKey`, and that is correct. It is
+the **fallback** for snapshots written before `dayEndsMs` existed; `widgetView`
+prefers that field, which the phone computes with the user's boundary. Neither
+the Android widget nor `Glance.swift` re-derives a day — the app ships the
+answer. So Q4's answer is *"the native surfaces receive the boundary"*, not
+*"they are pinned to midnight"*.
+
+### What the ratchet means now
+
+`BASELINE = 0`. It still fails in **both** directions: a new unexempted site is
+a latent bug, and there is nothing left to convert, so a drop would mean the
+check itself broke. The exemption list is keyed by **argument text** with a
+reason per entry — a line number goes stale, and a whole-file exemption would
+hide the next call added to that file.
+
+### Nothing moved for any existing account
+
+Every account is on `MIDNIGHT`, under which `dayKeyAt` **is** the calendar date.
+The conversions are inert until someone opens Settings → *Day starts at*.

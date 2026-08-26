@@ -7,6 +7,7 @@ import {
   importableWorkouts,
   isLoggedCardioBlock,
   calendarDateKey,
+  dayKeyAt,
   latestSampleEndByDay,
   mergeImportedBlocks,
   parseYmd,
@@ -217,7 +218,7 @@ async function importScalars(uid: string): Promise<number> {
     ]);
     let applied = 0;
     for (const kind of IMPORT_KINDS) {
-      const samples = await health.readSamples(kind, IMPORT_DAYS);
+      const samples = await health.readSamples(kind, IMPORT_DAYS, boundary);
       const reduced = reduceImportedSamples(samples);
       // `reduceImportedSamples` folds sleep by SUM and throws the sample times
       // away with it. The wake instant is not part of the value and is not
@@ -302,10 +303,17 @@ export function toImportableBlocks(raw: readonly HealthWorkout[]): CardioBlock[]
 export async function writeImportedBlocks(uid: string, blocks: CardioBlock[]): Promise<number> {
   if (!blocks.length) return 0;
 
+  // ADR-0030 Q5. These two keys are MATCHED AGAINST EACH OTHER to decide
+  // whether an imported run folds into a session the user already logged, so
+  // they move together or not at all — converting one and not the other would
+  // stop a 00:30 run finding the session it belongs to and write a duplicate
+  // day instead. That coupling is why this was left until the decision existed.
+  const boundary = await getDayBoundaryOnce(uid);
+
   const sessions = await getRecentSessions(uid, SESSION_SCAN_LIMIT);
   const byDay = new Map<string, WorkoutSession>();
   for (const s of sessions) {
-    const key = calendarDateKey(s.date);
+    const key = dayKeyAt(s.date, boundary);
     // Sessions come back newest-first; keep the newest per day.
     if (!byDay.has(key)) byDay.set(key, s);
   }
@@ -313,7 +321,7 @@ export async function writeImportedBlocks(uid: string, blocks: CardioBlock[]): P
   // Group by day first so two runs on one day become one write, not two.
   const perDay = new Map<string, CardioBlock[]>();
   for (const b of blocks) {
-    const key = calendarDateKey(b.startedAt ?? new Date());
+    const key = dayKeyAt(b.startedAt ?? new Date(), boundary);
     const list = perDay.get(key);
     if (list) list.push(b);
     else perDay.set(key, [b]);
