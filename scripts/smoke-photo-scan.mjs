@@ -66,12 +66,23 @@ const RATE_LIMIT_PAUSE_MS = 4_000;
  * to price the feature, and ADR-0029's Definition of Done asks for the token
  * cost "measured rather than estimated".
  */
+/**
+ * `--multi` sends EVERY image listed as ONE scan (ADR-0029 item 5) instead of
+ * one scan each. It is the only way to exercise the multi-image path against a
+ * real model — and the only way to see whether the "these are the same meal"
+ * prompt clause actually stops the model enumerating each photo separately,
+ * which is the failure that would make multi-image worse than single-image.
+ *
+ * It costs one quota slot PER IMAGE, which is the point of the change it tests.
+ */
 const argv = process.argv.slice(2);
+const multi = argv.includes('--multi');
 const noteFlag = argv.indexOf('--note');
 const note = noteFlag === -1 ? '' : (argv[noteFlag + 1] ?? '');
-const images = noteFlag === -1 ? argv : argv.filter((_, i) => i !== noteFlag && i !== noteFlag + 1);
+const images = (noteFlag === -1 ? argv : argv.filter((_, i) => i !== noteFlag && i !== noteFlag + 1))
+  .filter((a) => a !== '--multi');
 if (images.length === 0) {
-  console.error('usage: node scripts/smoke-photo-scan.mjs [--note "<text>"] <image.jpg> [...]');
+  console.error('usage: node scripts/smoke-photo-scan.mjs [--multi] [--note "<text>"] <image.jpg> [...]');
   process.exit(2);
 }
 
@@ -101,18 +112,26 @@ console.log(`throwaway user ${signUp.localId} (free tier, 3 scans/day)`);
 
 let failures = 0;
 try {
-  for (const [i, path] of images.entries()) {
+  // One request per image, or one request for all of them under --multi.
+  const requests = multi ? [images] : images.map((x) => [x]);
+  for (const [i, paths] of requests.entries()) {
     // Mirrors what the clients send. The two do NOT agree, and that is not a
     // bug: mobile resizes to 768px WIDE, web to 1920px on the long edge. 1080
     // is a middle value both paths tolerate; sending an unresized original
     // would test a payload no client produces.
-    const buf = await sharp(readFileSync(path)).resize({ width: 1080 }).jpeg({ quality: 80 }).toBuffer();
+    const bufs = await Promise.all(
+      paths.map((path) =>
+        sharp(readFileSync(path)).resize({ width: 1080 }).jpeg({ quality: 80 }).toBuffer(),
+      ),
+    );
+    const buf = bufs[0];
+    const path = paths.join(' + ');
     console.log(`\n=== ${path} — ${(buf.length / 1024).toFixed(0)} KB${note ? ` · note: "${note}"` : ''} ===`);
 
     const t0 = Date.now();
     const body = await post(
       FN_URL,
-      { data: { photoBase64: buf.toString('base64'), locale: 'en', ...(note ? { note } : {}) } },
+      { data: { photoBase64: bufs[0].toString('base64'), ...(bufs.length>1?{photosBase64:bufs.map(b=>b.toString('base64'))}:{}), locale: 'en', ...(note ? { note } : {}) } },
       { authorization: `Bearer ${idToken}` },
     );
     const ms = Date.now() - t0;
