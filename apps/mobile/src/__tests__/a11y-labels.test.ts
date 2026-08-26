@@ -75,6 +75,28 @@ function findUnlabelled(source: string, file: string): Offender[] {
         if (c === inString) inString = null;
         continue;
       }
+      // A `//` comment inside the opening tag, skipped to end of line.
+      //
+      // Without this, a prose apostrophe in one — `// ADR-0033's Amendment 2 …`
+      // — reads as an opening quote, and the scan runs on to the next `'`
+      // somewhere in the body, swallowing the element's children. The control
+      // is then judged icon-only because its `<Text>` is no longer where the
+      // scan is looking, and a correctly labelled row is reported as a
+      // violation. That happened to `FastingTrendsCard` (#98), and a false
+      // POSITIVE is the expensive direction for a lint: it fails the build over
+      // nothing and points at a control that is fine.
+      //
+      // It has to happen HERE rather than as a pre-pass over the source,
+      // because only the scan knows whether a `//` is a comment at all —
+      // stripping them up front also mutilates every `https://` URL, which
+      // leaves an unbalanced quote and produces four NEW false positives in
+      // `settings.tsx`. Tried, measured, reverted.
+      if (c === '/' && source[i + 1] === '/') {
+        const nl = source.indexOf('\n', i);
+        if (nl === -1) break;
+        i = nl;
+        continue;
+      }
       if (c === '"' || c === "'" || c === '`') inString = c;
       else if (c === '{') depth++;
       else if (c === '}') depth--;

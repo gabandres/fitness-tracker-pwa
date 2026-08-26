@@ -1,6 +1,8 @@
 # ADR-0034: Trends cards earn their place by evidence, not by a settings screen
 
-- **Status:** proposed
+- **Status:** **accepted** 2026-08-26 — implemented in full. #97 shipped the
+  `fasts` collection it was blocked on (Android OTA 64 / iOS OTA 35) and #98
+  shipped the fasting card built to the contract in decision 3.
 - **Date:** 2026-08-26
 - **Touches:** `apps/mobile/src/app/(app)/trends.tsx`, the shape of every future
   Trends card, and — as a *prerequisite, not a part* —
@@ -389,12 +391,15 @@ reads, and an unbounded second listener is how a read bill starts
   gate, three states, a stub row that acts, and a stub sentence that does not lie
   about *why* it is empty. That is a deliberate tax and it is the thing standing
   between this screen and the wall of data the owner was worried about.
-- **The user's request is answered late.** The honest reply is "yes, and it needs
-  the thing underneath it built first" — ADR-0032 is `proposed`, unscheduled, and
-  absent from `STATUS.md`. This ADR raises its priority without scheduling it.
-- **Fasting data is still being destroyed every day this sits unbuilt.** That is
-  not a consequence of this decision, but it is now written down twice, and the
-  second writing should be the last.
+- **The user's request is answered late.** The honest reply was "yes, and it
+  needs the thing underneath it built first". That reply is now complete rather
+  than pending: ADR-0032 was `proposed`, unscheduled and absent from `STATUS.md`
+  when this was written; it shipped as #97 the same day this ADR was accepted,
+  and the card followed it.
+- ~~**Fasting data is still being destroyed every day this sits unbuilt.**~~
+  **CLOSED 2026-08-26.** It was written down twice and the second writing was
+  the last: #97 shipped the `fasts` collection and the batched `breakFast` on
+  both frontends, and it reached users the same day. Ending a fast records it.
 - **Nothing is reversible-proofed by storage here, because nothing is stored.**
   If option C is ever built, it starts from zero — no migration, no orphaned
   field, no half-configured accounts. That is the upside of the refusal.

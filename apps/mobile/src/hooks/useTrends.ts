@@ -23,6 +23,7 @@ import {
 const SPARK_DAYS = 14;
 import { useCoreSnapshot } from '@/hooks/useCoreSnapshot';
 import { type SleepTrends, useSleepTrends } from '@/hooks/useSleepTrends';
+import { type FastingTrends, useFastingTrends } from '@/hooks/useFastingTrends';
 
 const INSIGHT_DAYS = 7;
 const SLOPE_WINDOW_DAYS = 28;
@@ -57,6 +58,11 @@ export interface TrendsState {
    * will, since three screens would then pay for a listener one screen reads.
    */
   sleep: SleepTrends;
+  /** Fasting for the Trends card (ADR-0034, #98). Its own focus-gated,
+   *  range-bounded listener for the same reason sleep has one: `fasts` is not
+   *  in `useCoreSnapshot` and adding it would make three screens pay for a
+   *  listener one screen reads. */
+  fasting: FastingTrends;
 }
 
 
@@ -70,6 +76,10 @@ export function useTrends(): TrendsState {
   // The intake half of the sleep pairing is the stream above; the sleep half is
   // this hook's own listener.
   const sleep = useSleepTrends(logs, weights, profile);
+  // Takes the profile for two things: the day boundary every window on this
+  // screen shares, and `fastStartedAt` — which is what lets the stub row tell
+  // someone mid-fast that theirs is running rather than that they have none.
+  const fasting = useFastingTrends(profile);
 
   const targets: DailyTargets = useMemo(
     () => dailyTargets(profile, logs, weights),
@@ -141,5 +151,6 @@ export function useTrends(): TrendsState {
     basalKcal,
     activityLevel: profile?.activityLevel ?? null,
     sleep,
+    fasting,
   };
 }

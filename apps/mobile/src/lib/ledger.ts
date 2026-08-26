@@ -774,6 +774,36 @@ export async function getFasts(uid: string, count = 2000): Promise<Fast[]> {
   return snap.docs.map((d) => toFast(d.id, d.data()));
 }
 
+/**
+ * Completed fasts that ended on or after `since` (ADR-0034, issue #98).
+ *
+ * **Range-bounded, and that is not optional.** The Trends card reads fourteen
+ * days; an account that has fasted daily for two years holds ~700 documents in
+ * this collection, and an unbounded second listener is how a read bill starts
+ * (ADR-0033 §9). `endedAt` carries both the filter and the order, so this is a
+ * single-field query and needs no composite index.
+ *
+ * Its own listener rather than a widening of `useCoreSnapshot`, per ADR-0016:
+ * three screens would otherwise pay for a listener one screen reads. What
+ * bounds the duplication is focus-gating, which the calling hook does.
+ */
+export function subscribeFastsSince(
+  uid: string,
+  since: Date,
+  cb: (fasts: Fast[], meta?: SnapshotMeta) => void,
+  onError?: (e: Error) => void,
+): Unsub {
+  return onSnapshot(
+    query(
+      fastsCol(uid),
+      where('endedAt', '>=', Timestamp.fromDate(since)),
+      orderBy('endedAt', 'desc'),
+    ),
+    (snap) => cb(snap.docs.map((d) => toFast(d.id, d.data())), metaOf(snap)),
+    onError,
+  );
+}
+
 function toFast(id: string, data: Record<string, unknown>): Fast {
   const startedAt = data.startedAt as Timestamp | undefined;
   const endedAt = data.endedAt as Timestamp | undefined;

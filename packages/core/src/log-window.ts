@@ -23,7 +23,7 @@
  * midnight would otherwise disagree with itself. It also makes every case below
  * testable without faking the clock.
  */
-import { addDays, calendarDateKey, parseYmd } from './date';
+import { addDays, calendarDateKey, parseYmd, type DateKey } from './date';
 import { MIDNIGHT, dayKeyAt, type DayBoundary } from './day-boundary';
 
 // ─── Named row windows ──────────────────────────────────────────
@@ -54,7 +54,7 @@ export const RECENT_LOGS_ROWS = 14;
  * back from it are plain calendar days, which is what `addDays` off a settled
  * key gives.
  */
-export function trailingDateKeys(n: number, now: Date, boundary: DayBoundary = MIDNIGHT): string[] {
+export function trailingDateKeys(n: number, now: Date, boundary: DayBoundary = MIDNIGHT): DateKey[] {
   const anchor = parseYmd(dayKeyAt(now, boundary));
   return Array.from({ length: n }, (_, i) => calendarDateKey(addDays(anchor, i - (n - 1))));
 }

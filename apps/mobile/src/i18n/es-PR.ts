@@ -481,6 +481,15 @@ export const esPR: Record<I18nKey, string> = {
   'trends.budgetPerDay': 'Disponible por día',
   'trends.budgetOver': 'Sobre presupuesto',
   // ── Sueño en Tendencias (ADR-0033) ──
+  // ─── Ayuno en Tendencias (ADR-0034, #98) ───
+  'trends.fastingTitle': 'Ayuno',
+  'trends.fastingHeadline': '{h}h {m}m típico',
+  'trends.fastingCaption': '{n} ayunos en {days} días',
+  'trends.fastingLegend': 'tu mediana · los huecos son días sin ayuno terminado',
+  'trends.fastingCoverage': 'terminaste un ayuno en {days} de {total} días · el más largo {h}h {m}m',
+  'trends.fastingEmptyRunning': 'Ayuno · tu ayuno está corriendo — aparece aquí cuando lo termines',
+  'trends.fastingEmptyProgress': 'Ayuno · {n} de {need} ayunos — Ignia los grafica a los {need}',
+  'trends.fastingEmpty': 'Ayuno · Ignia guarda tus ayunos de ahora en adelante — empieza uno en Hoy',
   'trends.sleepTitle': 'Sueño',
   'trends.sleepHeadline': '{h} h {m} min',
   'trends.sleepCaption': 'por noche, últimas {n}',

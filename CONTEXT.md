@@ -229,6 +229,17 @@ These three windows look similar and are NOT interchangeable. See
   insights + budget as separate cards). The underlying computations stay
   distinct and separately named; "Weekly panel" names only the surface so
   "Weekly insights" no longer doubles as both a computation and a card.
+- **Trends card contract** — The rule that every Trends card is in exactly one
+  of three states and decides which ITSELF, from its own evidence, with no
+  user-facing switch (ADR-0034): **absent** (the source has not answered, or
+  the feature cannot apply), **stub row** (it applies but has too little data —
+  one hairline-bounded row, which must ACT and must not lie about *why* it is
+  empty), or **card**. **Names the states a surface may be in, not a surface**
+  — so it does not collide with **Weekly panel** or **Coach panel** above,
+  which name surfaces, nor with Today's **Nudge vs utility** rule, which is
+  about priority among promotional prompts. The gate lives in `packages/core`
+  as a pure function returning `null`, so no component holds a threshold.
+  This is what Trends has instead of configuration.
 - **MonthlySummary** — `FitnessStore.monthlySummary()`. 30-day stats:
   weight delta, adherence %, avg calories, weight count, etc.
 - **TodaySummary** — `{ totalCalories, totalProtein }` for the current
@@ -323,9 +334,28 @@ These three windows look similar and are NOT interchangeable. See
   Firestore adapters, the in-memory adapter, and `BodyMetricStore`. Sleep is
   the same pattern: `{ hours }` per date, `clampSleepHours` → `[0, 24]` snapped
   to the half hour.
-- **FastWindow** — Active fasting window, target 16h. Owned by
-  `FastingStore`; profile carries `fastStartedAt`. `isFasting()` is
-  computed from the start time being non-null.
+- **FastWindow** — The fast that is running RIGHT NOW, and nothing else.
+  Owned by `FastingStore`; profile carries `fastStartedAt`. `isFasting()` is
+  computed from the start time being non-null. **There is no target and there
+  never was one** — this entry said "target 16h" until 2026-08-26, when
+  ADR-0032 went looking and found no `fastGoal`, `fastingGoal` or
+  `targetFastHours` anywhere in `packages/core`, `apps/mobile` or `src/app`.
+  A goal is deferred on purpose (ADR-0032), so nothing may render one.
+- **CompletedFast** — A fast that has ENDED, stored as an interval in
+  `users/{uid}/fasts` (ADR-0032, #97). Distinct from **FastWindow**, which is
+  the running one: a document exists here only once the fast is over, and
+  `fastStartedAt` is the pointer to the one that is not. Before #97 there was
+  no such thing — `breakFast` nulled the profile field and the fast was gone.
+- **CompletedFastHours** — The length of the fasts that ENDED on a given day
+  (`completedFastHours` in `packages/core/src/fasting-history.ts`). The
+  headline number, and the one in History rows and the CSV. One fast lands on
+  exactly one day.
+- **FastingOverlapHours** — How many of a given day's own hours were spent
+  fasting, intersecting each interval with `dayRange` (`fastingOverlapHours`).
+  Bounded to [0, 24]; an overnight fast marks BOTH days. **Not
+  interchangeable with CompletedFastHours** — different question, different
+  rule, and a test asserts the two disagree. Neither is called "fasting
+  hours".
 
 ## Workout (Train tab)
 
@@ -593,12 +623,14 @@ the same name under `src/app/components/`.
   empty) — utilities are NOT Nudges and are never gated by the one-Nudge
   rule.
 - **Body** — Tab. Weight + sparkline (with **WeightProjection** caption),
-  goal progress, fasting ring, collapsible measurements (now also home to
+  goal progress, collapsible measurements (now also home to
   the **Body-fat estimate**), and a collapsed-by-default Progress Photos
   card last.
-- **Trends** — Tab. Three surfaces: the 7-day chart, the **Weekly panel**
-  (insights ⇄ budget toggle), and the **Coach panel** (free Ask + Pro
-  WeeklyReport). Down from the former six stacked cards.
+- **Trends** — Tab. On web, three surfaces: the 7-day chart, the **Weekly
+  panel** (insights ⇄ budget toggle), and the **Coach panel** (free Ask + Pro
+  WeeklyReport). Down from the former six stacked cards. Mobile additionally
+  carries the **Sleep card** (ADR-0033) and the **Fasting card** (ADR-0034),
+  each governed by the **Trends card contract**.
 - **Train** — Tab (`/train`). Resume/start a workout, templates (start /
   edit / delete / clone starter), exercise catalog → progression detail.
   Components under `components/train/` (`train`, `session-sheet`,

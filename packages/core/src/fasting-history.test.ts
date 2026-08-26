@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  FASTING_STRIP_CEILING_HOURS,
+  FASTING_WINDOW_DAYS,
   MAX_FAST_MS,
+  fastHoursParts,
+  fastingBarFraction,
+  fastingWindow,
+  fastsInWindow,
   completedFastHours,
   fastLengthHours,
   fastingOverlapHours,
@@ -220,5 +226,126 @@ describe('sortFastsByEndDesc', () => {
     const input = [older, overnight];
     expect(sortFastsByEndDesc(input)).toEqual([overnight, older]);
     expect(input).toEqual([older, overnight]);
+  });
+});
+
+describe('fastingWindow — what the Trends card draws (ADR-0034)', () => {
+  const keys = (n: number, endYmd: [number, number, number]): DateKey[] => {
+    const out: DateKey[] = [];
+    const [y, m, d] = endYmd;
+    for (let i = n - 1; i >= 0; i--) {
+      const day = new Date(y, m - 1, d - i);
+      out.push(
+        `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(
+          day.getDate(),
+        ).padStart(2, '0')}` as DateKey,
+      );
+    }
+    return out;
+  };
+
+  const WINDOW = keys(FASTING_WINDOW_DAYS, [2026, 8, 26]);
+
+  it('draws one column per day and nothing where no fast ended', () => {
+    const w = fastingWindow([overnight], WINDOW);
+    expect(w.days).toHaveLength(FASTING_WINDOW_DAYS);
+    expect(w.daysWithFast).toBe(1);
+    // null, not 0 — a day with no fast is not a fast of zero hours, and drawing
+    // it as a zero-height bar would say the user fasted and failed.
+    expect(w.days.find((d) => d.dateKey === key('2026-08-25'))?.hours).toBe(16);
+    expect(w.days.find((d) => d.dateKey === key('2026-08-24'))?.hours).toBeNull();
+  });
+
+  it('never draws one fast in two columns — the whole reason it uses the end-day rule', () => {
+    // The mistake this guards is using `fastingOverlapHours` here instead, which
+    // would give a denser, prettier chart that silently counts every overnight
+    // fast twice.
+    const w = fastingWindow([overnight], WINDOW);
+    expect(w.days.filter((d) => d.hours != null)).toHaveLength(1);
+    expect(w.days.reduce((sum, d) => sum + (d.hours ?? 0), 0)).toBe(16);
+  });
+
+  it('sums two fasts that ended on one day into that column, and counts them separately', () => {
+    const a = fast(at(2026, 8, 24, 20), at(2026, 8, 25, 12)); // 16h
+    const b = fast(at(2026, 8, 25, 14), at(2026, 8, 25, 20)); // 6h
+    const w = fastingWindow([a, b], WINDOW);
+    expect(w.days.find((d) => d.dateKey === key('2026-08-25'))?.hours).toBe(22);
+    // Days and fasts are different counts and the card says which is which.
+    expect(w.daysWithFast).toBe(1);
+    expect(fastsInWindow([a, b], WINDOW)).toBe(2);
+    // The mean is over FASTS, so it is 11 and not 22.
+    expect(w.meanHours).toBe(11);
+  });
+
+  it('reports mean, median and longest over the fasts in the window', () => {
+    const fasts = [
+      fast(at(2026, 8, 20, 20), at(2026, 8, 21, 8)), // 12h
+      fast(at(2026, 8, 21, 20), at(2026, 8, 22, 12)), // 16h
+      fast(at(2026, 8, 22, 18), at(2026, 8, 23, 14)), // 20h
+    ];
+    const w = fastingWindow(fasts, WINDOW);
+    expect(w.meanHours).toBe(16);
+    expect(w.medianHours).toBe(16);
+    expect(w.longestHours).toBe(20);
+    expect(w.daysWithFast).toBe(3);
+  });
+
+  it('ignores a fast outside the window entirely', () => {
+    const old = fast(at(2026, 7, 1, 20), at(2026, 7, 2, 12));
+    const w = fastingWindow([old], WINDOW);
+    expect(w.daysWithFast).toBe(0);
+    expect(w.meanHours).toBe(0);
+    expect(w.medianHours).toBe(0);
+    expect(w.longestHours).toBe(0);
+    expect(fastsInWindow([old], WINDOW)).toBe(0);
+  });
+
+  it('is total on an empty history — the state most accounts are in on day one', () => {
+    const w = fastingWindow([], WINDOW);
+    expect(w.days).toHaveLength(FASTING_WINDOW_DAYS);
+    expect(w.days.every((d) => d.hours === null)).toBe(true);
+    expect(w.daysWithFast).toBe(0);
+    expect(w.meanHours).toBe(0);
+  });
+
+  it('follows the day boundary', () => {
+    const brokenAt2am = fast(at(2026, 8, 24, 20), at(2026, 8, 25, 2));
+    expect(fastingWindow([brokenAt2am], WINDOW).days.find((d) => d.dateKey === key('2026-08-25'))?.hours).toBe(6);
+    expect(
+      fastingWindow([brokenAt2am], WINDOW, THREE_AM).days.find((d) => d.dateKey === key('2026-08-24'))?.hours,
+    ).toBe(6);
+  });
+});
+
+describe('fastingBarFraction', () => {
+  it('scales against a FIXED ceiling, not the window maximum', () => {
+    // A self-scaling axis would redraw a week of 13-hour fasts to look exactly
+    // like a week of 20-hour ones.
+    expect(fastingBarFraction(12)).toBe(0.5);
+    expect(fastingBarFraction(FASTING_STRIP_CEILING_HOURS)).toBe(1);
+  });
+
+  it('clamps a longer fast rather than rescaling everything else', () => {
+    expect(fastingBarFraction(72)).toBe(1);
+  });
+
+  it('draws nothing for an absent or impossible value', () => {
+    expect(fastingBarFraction(null)).toBe(0);
+    expect(fastingBarFraction(0)).toBe(0);
+    expect(fastingBarFraction(-4)).toBe(0);
+    expect(fastingBarFraction(NaN)).toBe(0);
+  });
+});
+
+describe('fastHoursParts', () => {
+  it('splits a duration for display', () => {
+    expect(fastHoursParts(16.5)).toEqual({ hours: 16, minutes: 30 });
+    expect(fastHoursParts(16)).toEqual({ hours: 16, minutes: 0 });
+  });
+
+  it('reads a nonsense duration as zero rather than rendering NaN at a user', () => {
+    expect(fastHoursParts(0)).toEqual({ hours: 0, minutes: 0 });
+    expect(fastHoursParts(-1)).toEqual({ hours: 0, minutes: 0 });
+    expect(fastHoursParts(NaN)).toEqual({ hours: 0, minutes: 0 });
   });
 });

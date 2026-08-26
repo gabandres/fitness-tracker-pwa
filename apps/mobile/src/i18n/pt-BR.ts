@@ -471,6 +471,15 @@ export const ptBR = {
   'trends.budgetPerDay': 'Sobra por dia',
   'trends.budgetOver': 'Acima do orçamento',
   // ── Sono em Tendências (ADR-0033) ──
+  // ─── Jejum em Tendências (ADR-0034, #98) ───
+  'trends.fastingTitle': 'Jejum',
+  'trends.fastingHeadline': '{h}h {m}m típico',
+  'trends.fastingCaption': '{n} jejuns em {days} dias',
+  'trends.fastingLegend': 'sua mediana · as falhas são dias sem jejum encerrado',
+  'trends.fastingCoverage': 'você encerrou um jejum em {days} de {total} dias · o mais longo {h}h {m}m',
+  'trends.fastingEmptyRunning': 'Jejum · seu jejum está em andamento — ele aparece aqui quando você encerrar',
+  'trends.fastingEmptyProgress': 'Jejum · {n} de {need} jejuns — o Ignia monta o gráfico a partir de {need}',
+  'trends.fastingEmpty': 'Jejum · o Ignia guarda seus jejuns de agora em diante — comece um em Hoje',
   'trends.sleepTitle': 'Sono',
   'trends.sleepHeadline': '{h} h {m} min',
   'trends.sleepCaption': 'por noite, últimas {n}',

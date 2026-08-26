@@ -238,3 +238,144 @@ export function fastingOverlapHours(
 export function sortFastsByEndDesc(fasts: readonly Fast[]): Fast[] {
   return [...fasts].sort((a, b) => ms(b.endedAt) - ms(a.endedAt));
 }
+
+// ─────────────────────────── The Trends window ───────────────────────────
+//
+// Everything below is the read side of the fasting card (ADR-0034, issue #98).
+// It is here rather than in a `fasting-trends.ts` because it is the same
+// concept — a set of completed fasts, and which day each belongs to — and
+// splitting it would put the attribution rule in one file and the only consumer
+// of that rule in another.
+//
+// The gate is a pure function returning `null`, per ADR-0034 decision 3, so the
+// component holds no thresholds and the whole card is testable without a
+// renderer.
+
+/** Days of history the card draws. Fourteen, matching the sleep card and the
+ *  RecentLogs cache, so Trends does not present two windows of different
+ *  lengths side by side and invite a comparison between them. */
+export const FASTING_WINDOW_DAYS = 14;
+
+/**
+ * Completed fasts needed before a CARD is drawn rather than a stub row.
+ *
+ * Three, matching `SLEEP_CARD_MIN_NIGHTS`. Below it there is a strip with one
+ * or two bars in it, which reads as a broken chart rather than as a small
+ * amount of data — and ADR-0034's stub row can say the same thing honestly in
+ * one sentence, with somewhere to go.
+ */
+export const FASTING_CARD_MIN_FASTS = 3;
+
+/**
+ * The strip's fixed ceiling, in hours.
+ *
+ * Fixed rather than the window's own maximum, for the reason
+ * `SLEEP_STRIP_CEILING_HOURS` gives: a self-scaling axis redraws a week of
+ * 13-hour fasts to look exactly like a week of 20-hour ones. A longer fast
+ * clamps rather than rescaling everything around it.
+ */
+export const FASTING_STRIP_CEILING_HOURS = 24;
+
+/** One column of the strip. `hours` is null when no fast ENDED that day — which
+ *  is not the same as a zero-hour fast and must not be drawn as one. */
+export interface FastingDay {
+  readonly dateKey: DateKey;
+  readonly hours: number | null;
+}
+
+export interface FastingWindow {
+  readonly days: readonly FastingDay[];
+  /** How many of `days` had a fast end on them. */
+  readonly daysWithFast: number;
+  /** Mean length of the fasts that ended in the window. 0 when there are none. */
+  readonly meanHours: number;
+  /** Median length, the reference line the card draws. The user's OWN median,
+   *  never a 16:8 or OMAD standard — this product asserts no protocol. */
+  readonly medianHours: number;
+  /** The longest single fast in the window. 0 when there are none. */
+  readonly longestHours: number;
+}
+
+/**
+ * The last N days of completed fasts, ready to draw.
+ *
+ * Uses `completedFastHours` per day, so it inherits the end-day attribution
+ * rule and the guarantee that comes with it: **one fast contributes to exactly
+ * one column**, so the strip cannot show the same fast twice and the mean is a
+ * mean of fasts rather than of overlapping slices. Using
+ * `fastingOverlapHours` here instead would draw a prettier, denser chart that
+ * silently double-counts every overnight fast — which is the specific mistake
+ * `fasting-history.test.ts` exists to make loud.
+ *
+ * `dateKeys` is passed in rather than derived, so the caller owns the boundary
+ * and the clock. Every other window on Trends works this way.
+ */
+export function fastingWindow(
+  fasts: readonly Fast[],
+  dateKeys: readonly DateKey[],
+  boundary: DayBoundary = MIDNIGHT,
+): FastingWindow {
+  const days: FastingDay[] = [];
+  const lengths: number[] = [];
+  for (const dateKey of dateKeys) {
+    const ending = fastsEndingOn(fasts, dateKey, boundary);
+    if (!ending.length) {
+      days.push({ dateKey, hours: null });
+      continue;
+    }
+    // Two fasts ending on one day sum into that column, matching
+    // `completedFastHours`. Each still counts once toward the mean, because the
+    // mean is over FASTS and the column is over DAYS — the two answer different
+    // questions and the footer says which is which.
+    const total = ending.reduce((sum, f) => sum + fastLengthHours(f), 0);
+    days.push({ dateKey, hours: total });
+    for (const f of ending) lengths.push(fastLengthHours(f));
+  }
+  return {
+    days,
+    daysWithFast: days.filter((d) => d.hours != null).length,
+    meanHours: lengths.length ? lengths.reduce((a, b) => a + b, 0) / lengths.length : 0,
+    medianHours: medianOf(lengths),
+    longestHours: lengths.length ? Math.max(...lengths) : 0,
+  };
+}
+
+/** How many completed fasts fall in the window. The number the card gate and
+ *  the footer both read — distinct from `daysWithFast`, because two fasts can
+ *  end on one day. */
+export function fastsInWindow(
+  fasts: readonly Fast[],
+  dateKeys: readonly DateKey[],
+  boundary: DayBoundary = MIDNIGHT,
+): number {
+  let n = 0;
+  for (const dateKey of dateKeys) n += fastsEndingOn(fasts, dateKey, boundary).length;
+  return n;
+}
+
+/** A strip column's height as a 0..1 fraction of {@link FASTING_STRIP_CEILING_HOURS}. */
+export function fastingBarFraction(hours: number | null): number {
+  if (hours == null || !Number.isFinite(hours) || hours <= 0) return 0;
+  return Math.min(1, hours / FASTING_STRIP_CEILING_HOURS);
+}
+
+/**
+ * Split a duration into whole hours and minutes for display.
+ *
+ * Deliberately NOT `sleepHoursParts`, which is the same four lines. A fasting
+ * card importing a function named for sleep is how one concept acquires two
+ * names and two concepts acquire one — the failure `CONTEXT.md` opens by
+ * forbidding. Four lines of arithmetic is a cheaper price than that.
+ */
+export function fastHoursParts(hours: number): { hours: number; minutes: number } {
+  if (!Number.isFinite(hours) || hours <= 0) return { hours: 0, minutes: 0 };
+  const totalMinutes = Math.round(hours * 60);
+  return { hours: Math.floor(totalMinutes / 60), minutes: totalMinutes % 60 };
+}
+
+function medianOf(xs: readonly number[]): number {
+  if (!xs.length) return 0;
+  const sorted = [...xs].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}

@@ -14,6 +14,7 @@ import {
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { NumbersGlossary } from '@/components/NumbersGlossary';
 import { SleepTrendsCard } from '@/components/SleepTrendsCard';
+import { FastingTrendsCard } from '@/components/FastingTrendsCard';
 import { WeeklyReportCard } from '@/components/WeeklyReportCard';
 import { useTrends } from '@/hooks/useTrends';
 import { useActivitySuggestion } from '@/lib/activity-suggestion';
@@ -55,7 +56,7 @@ export default function Trends() {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const router = useRouter();
-  const { loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal, activityLevel, sleep } = useTrends();
+  const { loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal, activityLevel, sleep, fasting } = useTrends();
   const { isPro } = useSubscription();
   const { user } = useAuth();
   const mode = TDEE_MODE[tdee.source];
@@ -262,8 +263,18 @@ export default function Trends() {
             <SleepTrendsCard sleep={sleep} />
           </Animated.View>
 
-          {/* 5. Coach — the Pro AI action. */}
+          {/* 5. Fasting — ADR-0034. Sits with sleep, above Coach, for the same
+              reason sleep does: the hero, This Week and Budget all set or spend
+              a target and these two set nothing, so neither may push Budget
+              below the fold at 360x720 dp. Below three completed fasts this is
+              one row, not a card — and it could not exist at all before #97,
+              because until then ending a fast deleted it. */}
           <Animated.View entering={enterUp(4)}>
+            <FastingTrendsCard fasting={fasting} />
+          </Animated.View>
+
+          {/* 6. Coach — the Pro AI action. */}
+          <Animated.View entering={enterUp(5)}>
             {isPro ? (
               <PressScale style={styles.coachBtn} onPress={() => { haptics.tap(); router.push('/coach' as Href); }} testID="coach-entry">
                 <Ionicons name="sparkles-outline" size={18} color={colors.onInk} />

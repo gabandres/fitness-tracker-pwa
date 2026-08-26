@@ -1,6 +1,11 @@
 # ADR-0032: Fasting has no history — a completed fast has to be written down before it can be shown
 
-- **Status:** proposed
+- **Status:** **accepted** 2026-08-26 — decisions 1, 2, 5 and 6 shipped as #97
+  (Android OTA 64 / iOS OTA 35). **Decisions 3 and 4 are NOT built**: editing a
+  completed fast, setting a start time, overlap rejection, and the 36-hour
+  stale-fast prompt are all still open, and the rules already admit the
+  `manual` source they will write. Do not read this status as "all of it
+  exists".
 - **Date:** 2026-08-25
 - **Touches:** `Profile.fastStartedAt`, a new `users/{uid}/fasts` collection, `firestore.rules`, `packages/core` (a new pure module + `DaySummary`), the mobile History tab and Today's `DailyMetrics`, `buildCsv`, and [ADR-0030](0030-configurable-day-boundary.md)'s `dayKeyAt` / `dayRange`
 

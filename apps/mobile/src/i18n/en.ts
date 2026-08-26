@@ -503,6 +503,23 @@ export const en = {
   // ── Sleep on Trends (ADR-0033) ──
   // One honest comparison, never a score. The wording is load-bearing: nothing
   // here may imply causation, and `sleepQualifier` exists to say so out loud.
+  // ─── Fasting on Trends (ADR-0034, #98) ───
+  // Descriptive throughout. No goal, no protocol, no streak and no metabolic
+  // stages — ADR-0032 rules those out by name, so no string here may imply a
+  // target the user is falling short of.
+  'trends.fastingTitle': 'Fasting',
+  'trends.fastingHeadline': '{h}h {m}m typical',
+  'trends.fastingCaption': '{n} fasts in {days} days',
+  'trends.fastingLegend': 'your median · gaps are days you ended no fast',
+  'trends.fastingCoverage': 'you ended a fast on {days} of {total} days · longest {h}h {m}m',
+  // The three stub sentences. They are three because "no completed fasts" has
+  // three causes and telling a user mid-fast that they have none is false.
+  'trends.fastingEmptyRunning': 'Fasting · your fast is running — it lands here when you end it',
+  'trends.fastingEmptyProgress': 'Fasting · {n} of {need} fasts — Ignia charts them at {need}',
+  // Says "from now on" deliberately: someone who fasted for months before this
+  // shipped has no history, and without that phrasing an empty card reads as
+  // data loss rather than as a feature that just started.
+  'trends.fastingEmpty': 'Fasting · Ignia keeps your fasts from now on — start one on Today',
   'trends.sleepTitle': 'Sleep',
   'trends.sleepHeadline': '{h}h {m}m',
   'trends.sleepCaption': 'a night, last {n}',
