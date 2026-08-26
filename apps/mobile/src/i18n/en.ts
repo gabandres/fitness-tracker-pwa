@@ -193,7 +193,7 @@ export const en = {
   'link.failedBody': 'Your device blocked it. Open this in your browser instead:\n\n{url}',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    'Trends now shows your sleep, and asks one honest question of it: on your shorter nights, did you eat more? It needs about two weeks of nights before it will say anything, and it stays quiet when there is nothing to report. No sleep score — Ignia only knows how long you slept, and a score built from that alone would be pretending. It never changes your calorie target.',
+    'You can tell the scan what it is looking at. After you take the photo there is a box for anything worth saying — a brand, a half cup, what the sauce is — and it uses that to name the food and size the portion. It never changes the numbers; those still come from the food database. If a kitchen scale is in the shot and the display is readable, Ignia takes that weight as a measurement and marks it as one, because a weighed portion and a guessed one are not the same thing. And if what you type matches something already in My Foods, it offers that instead — your own numbers, no scan used.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',

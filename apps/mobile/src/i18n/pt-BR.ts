@@ -182,7 +182,7 @@ export const ptBR = {
   'link.failedBody': 'O seu aparelho bloqueou. Abra isto no seu navegador:\n\n{url}',
   'whatsNew.title': 'Novidades',
   'whatsNew.body':
-    'Tendências agora mostra o seu sono, e faz uma única pergunta honesta sobre ele: nas suas noites mais curtas, você comeu mais? Precisa de umas duas semanas de noites antes de dizer qualquer coisa, e fica quieto quando não há nada a relatar. Sem pontuação de sono — o Ignia só sabe quanto tempo você dormiu, e uma pontuação feita só com isso seria fingimento. Nunca muda a sua meta de calorias.',
+    'Agora você pode dizer ao escaneamento o que ele está vendo. Depois da foto há um campo para o que valer a pena dizer — uma marca, meia xícara, do que é o molho — e ele usa isso para nomear o alimento e calcular a porção. Nunca muda os números; esses continuam vindo do banco de dados. Se houver uma balança na foto e o visor estiver legível, o Ignia usa aquele peso como medição e marca assim, porque uma porção pesada e uma estimada não são a mesma coisa. E se o que você escrever já estiver em Meus Alimentos, ele oferece — os seus próprios números, sem gastar um escaneamento.',
 
   // ── app updates ──
   'update.ota.title': 'Atualização pronta',

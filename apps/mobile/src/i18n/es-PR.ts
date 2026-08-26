@@ -186,7 +186,7 @@ export const esPR: Record<I18nKey, string> = {
   'link.failedBody': 'Tu dispositivo lo bloqueó. Abre esto en tu navegador:\n\n{url}',
   'whatsNew.title': 'Novedades',
   'whatsNew.body':
-    'Tendencias ahora muestra tu sueño, y le hace una sola pregunta honesta: en tus noches más cortas, ¿comiste más? Necesita unas dos semanas de noches antes de decir algo, y se queda callado cuando no hay nada que reportar. Sin puntuación de sueño — Ignia solo sabe cuánto dormiste, y una puntuación hecha solo con eso sería fingir. Nunca cambia tu meta de calorías.',
+    'Ahora le puedes decir al escaneo qué está mirando. Después de tomar la foto hay un espacio para lo que valga la pena decir — una marca, media taza, de qué es la salsa — y lo usa para nombrar la comida y calcular la porción. Nunca cambia los números; esos siguen viniendo de la base de datos. Si hay una balanza en la foto y se lee la pantalla, Ignia toma ese peso como una medida y lo marca así, porque una porción pesada y una adivinada no son lo mismo. Y si lo que escribes ya está en Mis Alimentos, te lo ofrece — tus propios números, sin gastar un escaneo.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',
