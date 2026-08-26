@@ -73,4 +73,58 @@ describe("GDPR erasure/export collection parity", () => {
   it("declares no duplicates", () => {
     expect(new Set(USER_SUBCOLLECTIONS).size).toBe(USER_SUBCOLLECTIONS.length);
   });
+
+  /**
+   * The constant made drift between the two OBLIGATIONS impossible. It did
+   * nothing about drift between the constant and the DATABASE, and that is the
+   * gap #99 was: `dailyActivity`, `feedback` and `integrations` were defined in
+   * `firestore.rules`, written by live code, and named in neither obligation.
+   *
+   * So this reads the rules file and requires every `users/{uid}` subcollection
+   * in it to be declared. It is the check that would have caught #99 on the day
+   * each of those collections was added, and it needs no emulator — the
+   * property is a fact about two files.
+   */
+  it("declares every user subcollection that firestore.rules defines", () => {
+    const rules = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../../firestore.rules"),
+      "utf8",
+    );
+    // Bounded by INDENTATION, not by "everything after `users/{uid}`".
+    //
+    // The first cut sliced to end of file and reported `publicSlugs` and
+    // `usageEvents` as missing. Both are top-level collections that merely sit
+    // LOWER in the file — siblings of `users/{uid}`, not children — and adding
+    // them to the erasure list would have deleted another user's slug
+    // reservation. `match /users/{uid}` is indented four spaces and its
+    // children six, so the block ends at the next four-space `match`.
+    const lines = rules.split("\n");
+    const start = lines.findIndex((l) => l.startsWith("    match /users/{uid}"));
+    expect(start, "match /users/{uid} not found at the expected indent").toBeGreaterThan(-1);
+    let end = lines.length;
+    for (let i = start + 1; i < lines.length; i++) {
+      if (/^ {4}match \//.test(lines[i])) {
+        end = i;
+        break;
+      }
+    }
+    const declared = new Set<string>(USER_SUBCOLLECTIONS);
+    const missing: string[] = [];
+    for (const line of lines.slice(start + 1, end)) {
+      const m = /^ {6}match \/([A-Za-z][A-Za-z0-9_]*)\/\{/.exec(line);
+      if (m && !declared.has(m[1])) missing.push(m[1]);
+    }
+    expect(missing, `not in USER_SUBCOLLECTIONS: ${missing.join(", ")}`).toEqual([]);
+  });
+
+  it("keeps the three #99 collections in both obligations", () => {
+    // `dailyActivity` and `feedback` are plainly the user's data. `integrations`
+    // is the client-readable half of a provider link — status, not credentials;
+    // the Oura token lives in `private`, which was always erased. The first
+    // reading of #99 said otherwise and briefly export-excluded it.
+    for (const name of ["dailyActivity", "feedback", "integrations"]) {
+      expect(USER_SUBCOLLECTIONS).toContain(name);
+      expect(EXPORT_EXCLUDED.has(name)).toBe(false);
+    }
+  });
 });

@@ -64,13 +64,14 @@ service cloud.firestore {
 
     // ─── Profile schema ─────────────────────────────────────────
     function hasProfileBase(data) {
+      let keys = data.keys();
       // `email` is NO LONGER stored on the profile doc (PII minimization —
       // 2026-07-07): the email lives only in Firebase Auth, so the
       // health-data store is keyed by opaque uid, not identity. Legacy docs
       // may still carry it, so it stays ALLOWED (in the hasOnly lists below)
       // and, when present, must be a string — just no longer REQUIRED.
-      return data.keys().hasAll(['createdAt', 'lastSeenAt', 'profileCompleted'])
-          && (!('email' in data.keys()) || data.email is string)
+      return keys.hasAll(['createdAt', 'lastSeenAt', 'profileCompleted'])
+          && (!('email' in keys) || data.email is string)
           && data.createdAt is timestamp
           && data.lastSeenAt is timestamp
           && data.profileCompleted is bool;
@@ -113,7 +114,8 @@ service cloud.firestore {
     }
 
     function isValidProfileInitial(data) {
-      return data.keys().hasOnly([
+      let keys = data.keys();
+      return keys.hasOnly([
               'email', 'createdAt', 'lastSeenAt', 'profileCompleted',
               // Referral attribution may be present on initial profile
               // create when the user signed up via a friend's ?ref= link.
@@ -136,21 +138,30 @@ service cloud.firestore {
               'dayBoundary',
               // Seeded demo/review account marker (admin SDK only; listed so
               // the client can round-trip a profile that already carries it).
-              'syntheticAccount'
+              'syntheticAccount',
+              // The running fast (#100). Absent here until 2026-08-26 while
+              // present in the Completed branch, which is what made an
+              // incomplete profile carrying it fail BOTH branches — and two
+              // full validator evaluations is what exceeded the
+              // 1,000-expression budget. Listing it removes the fall-through
+              // at its source rather than only making the fall-through cheaper.
+              'fastStartedAt'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == false
-          && (!('syntheticAccount' in data.keys()) || data.syntheticAccount is bool)
-          && (!('referredBy' in data.keys()) ||
+          && (!('fastStartedAt' in keys) ||
+              data.fastStartedAt is timestamp || data.fastStartedAt == null)
+          && (!('syntheticAccount' in keys) || data.syntheticAccount is bool)
+          && (!('referredBy' in keys) ||
               (data.referredBy is string && data.referredBy.size() >= 20 && data.referredBy.size() <= 40))
-          && (!('compedUntil' in data.keys()) || data.compedUntil is timestamp)
-          && (!('referralRewardGrantedAt' in data.keys()) || data.referralRewardGrantedAt is timestamp)
-          && (!('unitSystem' in data.keys()) ||
+          && (!('compedUntil' in keys) || data.compedUntil is timestamp)
+          && (!('referralRewardGrantedAt' in keys) || data.referralRewardGrantedAt is timestamp)
+          && (!('unitSystem' in keys) ||
               data.unitSystem == 'us' || data.unitSystem == 'metric')
-          && (!('hiddenRecentLabels' in data.keys()) ||
+          && (!('hiddenRecentLabels' in keys) ||
               (data.hiddenRecentLabels is list
                && data.hiddenRecentLabels.size() <= 200))
-          && (!('dayBoundary' in data.keys()) ||
+          && (!('dayBoundary' in keys) ||
               (data.dayBoundary is list
                && data.dayBoundary.size() <= 24));
     }
@@ -385,7 +396,8 @@ service cloud.firestore {
     }
 
     function isValidProfileCompleted(data) {
-      return data.keys().hasOnly([
+      let keys = data.keys();
+      return keys.hasOnly([
               'email', 'createdAt', 'lastSeenAt', 'profileCompleted',
               'heightIn', 'age', 'sex', 'activityLevel',
               'targetPaceLbsPerWeek', 'goalWeightLbs',
@@ -453,7 +465,7 @@ service cloud.firestore {
           && (
             // Strict branch: full Mifflin-St Jeor profile present.
             (
-              'heightIn' in data.keys()
+              'heightIn' in keys
               && data.heightIn is number && data.heightIn >= 40 && data.heightIn <= 96
               && data.age is number && data.age >= 13 && data.age <= 120
               && (data.sex == 'male' || data.sex == 'female')
@@ -462,87 +474,87 @@ service cloud.firestore {
             )
             // Loose branch: v2 2-Q onboarding only.
             || (
-              !('heightIn' in data.keys())
-              && 'manualCaloriesTarget' in data.keys()
+              !('heightIn' in keys)
+              && 'manualCaloriesTarget' in keys
               && data.manualCaloriesTarget is number
               && data.manualCaloriesTarget > 0
               && data.manualCaloriesTarget < 20000
             )
           )
-          && (!('goalDirection' in data.keys()) || hasValidGoalDirection(data))
-          && (!('targetWeightLbs' in data.keys()) ||
+          && (!('goalDirection' in keys) || hasValidGoalDirection(data))
+          && (!('targetWeightLbs' in keys) ||
               (data.targetWeightLbs is number && data.targetWeightLbs > 0 && data.targetWeightLbs < 1000))
-          && (!('manualCaloriesTarget' in data.keys()) ||
+          && (!('manualCaloriesTarget' in keys) ||
               (data.manualCaloriesTarget is number && data.manualCaloriesTarget > 0 && data.manualCaloriesTarget < 20000))
-          && (!('manualProteinTarget' in data.keys()) ||
+          && (!('manualProteinTarget' in keys) ||
               (data.manualProteinTarget is number && data.manualProteinTarget > 0 && data.manualProteinTarget < 1000))
           // Closed set, not a free string: this field decides whether the
           // estimator is overridden, so an unrecognised value must not be
           // storable at all.
-          && (!('targetMode' in data.keys()) ||
+          && (!('targetMode' in keys) ||
               data.targetMode in ['auto', 'custom'])
-          && (!('proteinPerKg' in data.keys()) ||
+          && (!('proteinPerKg' in keys) ||
               (data.proteinPerKg is number && data.proteinPerKg >= 1.6 && data.proteinPerKg <= 2.2))
-          && (!('calorieFloor' in data.keys()) ||
+          && (!('calorieFloor' in keys) ||
               (data.calorieFloor is number && data.calorieFloor >= 1000 && data.calorieFloor <= 10000))
           // Band mirrors manualProteinTarget above (the widest sane grams
           // range), NOT the narrower stepper bounds the settings UI enforces.
-          && (!('proteinFloor' in data.keys()) ||
+          && (!('proteinFloor' in keys) ||
               (data.proteinFloor is number && data.proteinFloor > 0 && data.proteinFloor < 1000))
           // Band is the FAO/WHO/UNU 2001 PAL range for free-living adults
           // (1.40 sedentary floor .. 2.40 vigorous ceiling), widened a little
           // at both ends so a client clamp change does not need a rules
           // deploy. The app clamps tighter (1.40..1.90); this is the outer
           // sanity bound, not the product rule.
-          && (!('activityMultiplier' in data.keys()) ||
+          && (!('activityMultiplier' in keys) ||
               (data.activityMultiplier is number
                && data.activityMultiplier >= 1.0
                && data.activityMultiplier <= 2.5))
-          && (!('onboardingV2CompletedAt' in data.keys()) ||
+          && (!('onboardingV2CompletedAt' in keys) ||
               data.onboardingV2CompletedAt is timestamp)
-          && (!('targetsRefinedAt' in data.keys()) ||
+          && (!('targetsRefinedAt' in keys) ||
               data.targetsRefinedAt is timestamp)
-          && (!('firstEntryAt' in data.keys()) ||
+          && (!('firstEntryAt' in keys) ||
               data.firstEntryAt is timestamp)
-          && (!('dayThreeCoachPushSent' in data.keys()) ||
+          && (!('dayThreeCoachPushSent' in keys) ||
               data.dayThreeCoachPushSent is bool)
-          && (!('goalWeightLbs' in data.keys()) ||
+          && (!('goalWeightLbs' in keys) ||
               (data.goalWeightLbs is number && data.goalWeightLbs > 0 && data.goalWeightLbs < 1000))
-          && (!('travelMode' in data.keys()) || data.travelMode is bool)
-          && (!('fastStartedAt' in data.keys()) ||
+          && (!('travelMode' in keys) || data.travelMode is bool)
+          && (!('fastStartedAt' in keys) ||
               data.fastStartedAt is timestamp || data.fastStartedAt == null)
-          && (!('webhookApiKey' in data.keys()) ||
+          && (!('webhookApiKey' in keys) ||
               (data.webhookApiKey is string && data.webhookApiKey.size() == 36))
-          && (!('fcmToken' in data.keys()) ||
+          && (!('fcmToken' in keys) ||
               (data.fcmToken is string && data.fcmToken.size() <= 300))
-          && (!('reminderHour' in data.keys()) ||
+          && (!('reminderHour' in keys) ||
               (data.reminderHour is int && data.reminderHour >= 0 && data.reminderHour <= 23))
-          && (!('timezoneOffsetMin' in data.keys()) ||
+          && (!('timezoneOffsetMin' in keys) ||
               (data.timezoneOffsetMin is int))
-          && (!('ageConfirmedAt' in data.keys()) ||
+          && (!('ageConfirmedAt' in keys) ||
               data.ageConfirmedAt is timestamp)
-          && (!('preferredLocale' in data.keys()) ||
+          && (!('preferredLocale' in keys) ||
               (data.preferredLocale is string && data.preferredLocale.size() <= 10))
-          && (!('welcomeEmailSentAt' in data.keys()) ||
+          && (!('welcomeEmailSentAt' in keys) ||
               data.welcomeEmailSentAt is timestamp)
           // Public profile fields. Server-stamped via claimPublicSlug;
           // type checks here defend against malformed direct writes.
-          && (!('publicSlug' in data.keys()) ||
+          && (!('publicSlug' in keys) ||
               (data.publicSlug is string && data.publicSlug.size() >= 3 && data.publicSlug.size() <= 30))
-          && (!('publicProfileEnabled' in data.keys()) ||
+          && (!('publicProfileEnabled' in keys) ||
               data.publicProfileEnabled is bool)
-          && (!('publicDisplayName' in data.keys()) ||
+          && (!('publicDisplayName' in keys) ||
               (data.publicDisplayName is string && data.publicDisplayName.size() <= 40))
           // Weekly digest. `weeklyDigestOptIn` is client-writable; the
           // `lastWeeklyDigestSentAt` latch is server-only (immutability
           // enforced separately on the update rule).
-          && (!('weeklyDigestOptIn' in data.keys()) ||
+          && (!('weeklyDigestOptIn' in keys) ||
               data.weeklyDigestOptIn is bool)
-          && (!('lastWeeklyDigestSentAt' in data.keys()) ||
+          && (!('lastWeeklyDigestSentAt' in keys) ||
               data.lastWeeklyDigestSentAt is timestamp)
-          && (!('unitSystem' in data.keys()) ||
+          && (!('unitSystem' in keys) ||
               data.unitSystem == 'us' || data.unitSystem == 'metric')
-          && (!('hiddenRecentLabels' in data.keys()) ||
+          && (!('hiddenRecentLabels' in keys) ||
               (data.hiddenRecentLabels is list
                && data.hiddenRecentLabels.size() <= 200))
           // Day boundary (ADR-0030): a list of {from, hour} changes, oldest
@@ -555,10 +567,10 @@ service cloud.firestore {
           // The cap is 24 because a boundary is a setting somebody changes
           // once or twice, and an unbounded append-only list on a doc read on
           // every app open is a cost problem before it is a correctness one.
-          && (!('dayBoundary' in data.keys()) ||
+          && (!('dayBoundary' in keys) ||
               (data.dayBoundary is list
                && data.dayBoundary.size() <= 24))
-          && (!('syntheticAccount' in data.keys()) ||
+          && (!('syntheticAccount' in keys) ||
               data.syntheticAccount is bool);
     }
 

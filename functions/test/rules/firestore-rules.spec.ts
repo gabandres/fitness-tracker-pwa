@@ -1555,5 +1555,51 @@ describe('firestore.rules', () => {
       await assertFails(setDoc(doc(authed('mallory'), 'users/alice/fasts/f2'), validFast()));
     });
   });
+  // ── the profile validator's expression budget (#100) ──
+  //
+  // `isValidProfile` is `isValidProfileInitial(data) || isValidProfileCompleted(data)`.
+  // A write that satisfies NEITHER branch evaluates both, and the two together
+  // used to exceed Firestore's documented ceiling of **1,000 expressions per
+  // request**. The emulator names that exactly; PRODUCTION returns a bare
+  // `PERMISSION_DENIED`, indistinguishable from a rule that simply rejected the
+  // data — so the failure was invisible on the platform where it mattered.
+  //
+  // Two fixes, and this pins both. `data.keys()` was called 46 times across the
+  // two validators and each call re-materialises the key list; it is now one
+  // `let` binding per function. And `fastStartedAt` was listed in the Completed
+  // branch only, which is what sent an incomplete profile through both.
+
+  it('accepts fastStartedAt on an INCOMPLETE profile — the write that blew the budget', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      updateDoc(doc(db, 'users', 'alice'), { fastStartedAt: Timestamp.now() }),
+    );
+    await assertSucceeds(updateDoc(doc(db, 'users', 'alice'), { fastStartedAt: null }));
+  });
+
+  it('still rejects a non-timestamp fastStartedAt on an incomplete profile', async () => {
+    // The cheaper validator must not also be a laxer one.
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(updateDoc(doc(db, 'users', 'alice'), { fastStartedAt: 'yesterday' }));
+  });
+
+  it('still rejects an unknown field on an incomplete profile', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(updateDoc(doc(db, 'users', 'alice'), { notAField: 1 }));
+  });
+
+  it('evaluates a two-branch MISS without running out of expressions', async () => {
+    // The worst case: a completed-only field on an incomplete profile, so both
+    // branches run to completion. It must fail as a VALIDATION failure and not
+    // by exhausting the budget — which from the client looks identical, and is
+    // why this asserts the neighbouring writes above still succeed.
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(updateDoc(doc(db, 'users', 'alice'), { heightIn: 70 }));
+    await assertSucceeds(updateDoc(doc(db, 'users', 'alice'), { lastSeenAt: Timestamp.now() }));
+  });
 
 });

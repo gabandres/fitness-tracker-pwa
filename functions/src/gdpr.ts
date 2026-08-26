@@ -46,6 +46,29 @@ export const USER_SUBCOLLECTIONS = [
   // workout trio was erasable for months before anyone made it portable,
   // because the two lists were maintained by hand and drifted.
   "fasts",
+  // ── Added 2026-08-26 (#99). These three existed in `firestore.rules` and in
+  // neither obligation, which is the exact failure this constant was created
+  // to end — it ended it for the collections that were in the list, and nobody
+  // re-derived the list from the rules afterwards.
+  //
+  // Steps and active energy imported from Apple Health / Health Connect. Health
+  // data about a person, so both erasable and portable.
+  "dailyActivity",
+  // Text the user wrote, under their own uid.
+  "feedback",
+  // The client-READABLE half of a provider link: connected, connectedAt,
+  // lastSyncedAt, lastRecordCount. Erased by nothing until now, so a deleted
+  // account left a record saying it had been connected to Oura and when it
+  // last synced.
+  //
+  // **It holds no credential, and that is worth stating because the first
+  // reading of this gap said it did.** The Oura refresh token lives at
+  // `users/{uid}/private/oura` (`oura-link.ts`), and `private` has been in this
+  // list all along — so the token was always erased. What survived was status,
+  // which is a real Art. 17 gap and not a leaked secret. It is exported like
+  // any other personal data for the same reason: withholding it would need the
+  // bearer-token argument that applies to `private` and does not apply here.
+  "integrations",
   "private",
 ] as const;
 
@@ -56,6 +79,15 @@ export const USER_SUBCOLLECTIONS = [
  * refresh token — handing it back in a downloadable JSON widens its blast
  * radius for no portability benefit, the same reasoning `redactProfileSecrets`
  * applies to the profile doc. Erasure still covers it; only export skips it.
+ *
+ * **Withheld from EXPORT is not withheld from ERASURE**, and that distinction
+ * is the whole reason this set exists separately from `USER_SUBCOLLECTIONS`.
+ *
+ * `integrations` was briefly added here while fixing #99, on the belief that it
+ * held the Oura grant. It does not — it is the client-READABLE half of a
+ * provider link (connected, connectedAt, lastSyncedAt), and the token is in
+ * `private`. It is exported, because excluding it would have rested on an
+ * argument that turned out not to apply to it.
  */
 export const EXPORT_EXCLUDED: ReadonlySet<string> = new Set(["private"]);
 
