@@ -57,6 +57,12 @@ export default function Trends() {
   const { colors } = useTheme();
   const router = useRouter();
   const { loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal, activityLevel, sleep, fasting } = useTrends();
+  // Ephemeral, both of them: no profile field, nothing synced, no
+  // `firestore.rules` change. That is precisely what makes consolidation the
+  // cheap lever — ADR-0034's option C needs a rules deploy that, got wrong,
+  // rejects the frozen web's profile writes too.
+  const [weeklyTab, setWeeklyTab] = useState('week');
+  const [habitTab, setHabitTab] = useState('sleep');
   const { isPro } = useSubscription();
   const { user } = useAuth();
   const mode = TDEE_MODE[tdee.source];
@@ -233,45 +239,80 @@ export default function Trends() {
             </Text>
           ) : null}
 
-          {/* 2. This week — adherence (calories + protein), free, never blank. */}
+          {/* 2. WEEKLY PANEL — This week ⇄ Budget behind one tab strip.
+              ADR-0034 decision 4: consolidation is the lever to reach for
+              before configuration, and this is the mobile half of the merge the
+              web already did (`CONTEXT.md` → Weekly panel).
+
+              Both faces are "always render, never blank", so the strip is
+              unconditional here. The tabs sit where the two uppercase section
+              labels used to, which is what keeps the page rhythm intact — one
+              label slot, one card, instead of two of each. */}
           <Animated.View entering={enterUp(1)}>
-            <Text style={styles.section}>{t('trends.thisWeek')}</Text>
-            <ThisWeek
-              insights={insights}
-              loggedThisWeek={loggedThisWeek}
-              proteinTarget={proteinTarget}
-              isPro={isPro}
-              onUpsell={() => router.push('/coach' as Href)}
+            <PanelTabs
+              tabs={[
+                { key: 'week', label: t('trends.thisWeek') },
+                { key: 'budget', label: t('trends.budgetTitle') },
+              ]}
+              active={weeklyTab}
+              onSelect={setWeeklyTab}
               styles={styles}
-              colors={colors}
-              t={t}
-              locale={locale}
             />
+            {weeklyTab === 'week' ? (
+              <ThisWeek
+                insights={insights}
+                loggedThisWeek={loggedThisWeek}
+                proteinTarget={proteinTarget}
+                isPro={isPro}
+                onUpsell={() => router.push('/coach' as Href)}
+                styles={styles}
+                colors={colors}
+                t={t}
+                locale={locale}
+              />
+            ) : (
+              <Budget budget={budget} styles={styles} colors={colors} t={t} locale={locale} />
+            )}
           </Animated.View>
 
-          {/* 3. Weekly budget — free, never blank (bars are the illustration). */}
-          <Animated.View entering={enterUp(2)}>
-            <Text style={styles.section}>{t('trends.budgetTitle')}</Text>
-            <Budget budget={budget} styles={styles} colors={colors} t={t} locale={locale} />
-          </Animated.View>
+          {/* 3. HABITS PANEL — Sleep ⇄ Fasting.
+              These two were the strongest case for consolidating anything on
+              this screen: both draw a fourteen-column strip with a median line
+              and a headline duration, so stacked they read as one chart
+              rendered twice.
 
-          {/* 4. Sleep — ADR-0033. Directly under Budget and above Coach: the
-              hero, This Week and Budget all set or spend a target, and sleep
-              sets nothing (`sleep-target-independence.test.ts` keeps it that
-              way). Below three nights this is one row, not a card. */}
-          <Animated.View entering={enterUp(3)}>
-            <SleepTrendsCard sleep={sleep} />
-          </Animated.View>
-
-          {/* 5. Fasting — ADR-0034. Sits with sleep, above Coach, for the same
-              reason sleep does: the hero, This Week and Budget all set or spend
-              a target and these two set nothing, so neither may push Budget
-              below the fold at 360x720 dp. Below three completed fasts this is
-              one row, not a card — and it could not exist at all before #97,
-              because until then ending a fast deleted it. */}
-          <Animated.View entering={enterUp(4)}>
-            <FastingTrendsCard fasting={fasting} />
-          </Animated.View>
+              **The strip only appears when BOTH have a card**, and that is the
+              three-state contract being respected rather than worked around: a
+              tab that leads to a stub row is a tab that promises something it
+              cannot show. With one card it renders alone, with its own header;
+              with none, the stub rows render exactly as they did before. */}
+          {sleep.kind === 'card' && fasting.kind === 'card' ? (
+            <Animated.View entering={enterUp(2)}>
+              <PanelTabs
+                tabs={[
+                  { key: 'sleep', label: t('trends.sleepTitle') },
+                  { key: 'fasting', label: t('trends.fastingTitle') },
+                ]}
+                active={habitTab}
+                onSelect={setHabitTab}
+                styles={styles}
+              />
+              {habitTab === 'sleep' ? (
+                <SleepTrendsCard sleep={sleep} hideHeader />
+              ) : (
+                <FastingTrendsCard fasting={fasting} hideHeader />
+              )}
+            </Animated.View>
+          ) : (
+            <>
+              <Animated.View entering={enterUp(2)}>
+                <SleepTrendsCard sleep={sleep} />
+              </Animated.View>
+              <Animated.View entering={enterUp(3)}>
+                <FastingTrendsCard fasting={fasting} />
+              </Animated.View>
+            </>
+          )}
 
           {/* 6. Coach — the Pro AI action. */}
           <Animated.View entering={enterUp(5)}>
@@ -311,6 +352,55 @@ export default function Trends() {
 }
 
 // ─── This-week adherence ────────────────────────────────────────
+/**
+ * The consolidated-panel tab strip (ADR-0034 decision 4).
+ *
+ * It sits in the slot the uppercase section label used to occupy, and that is
+ * the whole trick: the label named the card beneath it, and so does this. Two
+ * labelled cards become one labelled card with two faces, and the page rhythm
+ * is unchanged — nothing new is introduced above the fold, one thing is
+ * removed.
+ *
+ * **Ephemeral by design.** `useState`, nothing persisted, nothing synced, no
+ * profile field and therefore no `firestore.rules` change. That is what makes
+ * consolidation the cheap lever ADR-0034 says to reach for BEFORE a settings
+ * screen: option C needs a rules deploy that would reject the frozen web's
+ * profile writes if it were got wrong, and this needs none of it.
+ */
+function PanelTabs({
+  tabs,
+  active,
+  onSelect,
+  styles,
+}: {
+  tabs: readonly { key: string; label: string }[];
+  active: string;
+  onSelect: (key: string) => void;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  return (
+    <View style={styles.tabs} testID="panel-tabs">
+      {tabs.map((tab) => {
+        const on = tab.key === active;
+        return (
+          <PressScale
+            key={tab.key}
+            style={[styles.tab, on && styles.tabOn]}
+            testID={`panel-tab-${tab.key}`}
+            onPress={() => {
+              if (on) return;
+              haptics.tap();
+              onSelect(tab.key);
+            }}
+          >
+            <Text style={[styles.tabText, on && styles.tabTextOn]}>{tab.label}</Text>
+          </PressScale>
+        );
+      })}
+    </View>
+  );
+}
+
 function ThisWeek({
   insights,
   loggedThisWeek,
@@ -547,6 +637,25 @@ const createStyles = ({ colors, shadow }: Theme) =>
     badgeText: { color: colors.heroText, fontSize: font.tiny, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
     section: { fontSize: font.small, color: colors.muted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: space.lg, marginBottom: space.xs },
     card: { backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: space.lg, gap: space.sm },
+    // Panel tabs. Sized to content and left-aligned rather than stretched, so
+    // the strip reads as a label for the card below it — which is the slot it
+    // replaced — rather than as a form control the user is being asked to
+    // operate. Full-width buttons (the Settings `segment` style) look like a
+    // question; these look like a heading.
+    tabs: {
+      flexDirection: 'row',
+      alignSelf: 'flex-start',
+      gap: space.xs,
+      marginTop: space.lg,
+      marginBottom: space.xs,
+      padding: 3,
+      borderRadius: radius.md,
+      backgroundColor: colors.inputBg,
+    },
+    tab: { paddingHorizontal: space.md, paddingVertical: 6, borderRadius: radius.sm },
+    tabOn: { backgroundColor: colors.card },
+    tabText: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
+    tabTextOn: { color: colors.ink, fontWeight: '700' },
     // Stat tiles
     tileRow: { flexDirection: 'row', alignItems: 'stretch' },
     tileDivider: { width: 1, backgroundColor: colors.line, marginHorizontal: space.md },

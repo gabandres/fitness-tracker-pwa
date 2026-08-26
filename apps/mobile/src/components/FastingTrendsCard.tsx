@@ -57,7 +57,15 @@ import * as haptics from '@/lib/haptics';
  * needs to be told Ignia keeps fasts *from now on*, or an empty card reads as
  * data loss.
  */
-export function FastingTrendsCard({ fasting }: { fasting: FastingTrends }) {
+export function FastingTrendsCard({
+  fasting,
+  hideHeader = false,
+}: {
+  fasting: FastingTrends;
+  /** True when this card is one face of a consolidated panel, whose tab strip
+   *  already names it (ADR-0034 decision 4). */
+  hideHeader?: boolean;
+}) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const t = useT();
@@ -110,7 +118,7 @@ export function FastingTrendsCard({ fasting }: { fasting: FastingTrends }) {
 
   return (
     <View testID="fasting-card">
-      <Text style={styles.section}>{t('trends.fastingTitle')}</Text>
+      {hideHeader ? null : <Text style={styles.section}>{t('trends.fastingTitle')}</Text>}
       <View style={styles.card}>
         <View style={styles.head}>
           <Text style={styles.value} testID="fasting-median">

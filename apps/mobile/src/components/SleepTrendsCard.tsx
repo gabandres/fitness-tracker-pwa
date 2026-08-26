@@ -50,7 +50,16 @@ import * as haptics from '@/lib/haptics';
  * the card around it — the cliff is confined to the one element that is
  * inherently binary.
  */
-export function SleepTrendsCard({ sleep }: { sleep: SleepTrends }) {
+export function SleepTrendsCard({
+  sleep,
+  hideHeader = false,
+}: {
+  sleep: SleepTrends;
+  /** True when this card is one face of a consolidated panel, whose tab strip
+   *  already names it (ADR-0034 decision 4). Two labels for one card reads as
+   *  a mistake. */
+  hideHeader?: boolean;
+}) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const t = useT();
@@ -102,7 +111,7 @@ export function SleepTrendsCard({ sleep }: { sleep: SleepTrends }) {
 
   return (
     <View testID="sleep-card">
-      <Text style={styles.section}>{t('trends.sleepTitle')}</Text>
+      {hideHeader ? null : <Text style={styles.section}>{t('trends.sleepTitle')}</Text>}
       <View style={styles.card}>
         <View style={styles.head}>
           <Text style={styles.value} testID="sleep-mean">
