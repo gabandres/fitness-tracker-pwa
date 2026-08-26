@@ -1,6 +1,6 @@
 # ADR-0029: Multi-photo and description meal capture
 
-- **Status:** proposed — the owner's own worked example does not resolve today, and the reason is not the model
+- **Status:** `proposed` — **items 1-4 are BUILT and merged 2026-08-26 (#94), not yet delivered.** This stays `proposed` on purpose: its own Definition of Done ties acceptance to items 1-4 *shipping* to mobile, and they are on `main` behind a functions deploy and one OTA per platform. Item 5 (multi-image) remains gated on `dailyQuota` counting images. See Amendment 1 for what building it changed.
 - **Date:** 2026-08-24
 - **Amends:** [ADR-0017](0017-photo-scan-free-for-all-v1.md) (photo-scan on and free), [ADR-0013](0013-food-resolution-my-foods-library.md) (the trust rule), [ADR-0015](0015-macronaut-photo-first-freemium-pivot.md) §1 (why the model is not asked for macros)
 
@@ -210,3 +210,49 @@ source of error in the current pipeline rather than adding a second one.
   settled by trying it rather than by argument.
 - Whether a matched repeat (D) should log **silently** or land on the same
   editable draft every other path lands on. The trust rule says editable draft.
+
+
+## Amendment 1 — what building items 1-4 changed (2026-08-26)
+
+Three things this ADR asserted did not survive contact, and one number in it was
+wrong by half. Recorded here rather than silently fixed, because each was a
+reasoned position and the reasoning is what a future reader needs.
+
+**1. The description field is POST-capture, not pre-capture.** The ADR proposed
+collecting it before the shot, on the reasoning that it frames the photo. The
+owner's actual workflow is photo-first, and this ADR's own instruction was to
+settle it by trying rather than arguing. Built post-capture, and the argument
+that decided it is one the pre-capture version cannot make: **the describe step
+is where repeat detection runs**, so a note that matches My Foods can end the
+flow with zero tokens and zero quota spent. That turns the extra tap from a tax
+into a shortcut. Pre-capture, the user has not yet decided what they are
+photographing, so there is nothing to match against.
+
+**2. The cost section was wrong in three places and is corrected above.** The
+active model is `gemini-3.5-flash-lite`, not Gemini 2.5 Flash; the benchmark's
+1,009 tokens is the whole call and not the image; and three images is therefore
+**~1.4x, not 3x**, because output tokens are two-thirds of a scan's cost and do
+not scale with image count. **The gate on item 5 survives, on a different
+argument**: it is now about boundedness rather than magnitude. An unbounded 1.4x
+is still unbounded, and `dailyQuota` still counts the wrong unit.
+
+**3. `measured` needed a guard this ADR did not anticipate.** Item 2 says to mark
+a scale-read item `measured`. What it did not say is what happens when the
+pipeline then changes the number: `clampGrams` caps at 5,000 g, so a model
+claiming it read "6,200 g" would ship 5,000 g **labelled a measurement**. The
+flag is the one thing in this pipeline that claims something about the physical
+world, so `resolveItem` drops it whenever the displayed value is not the value
+the scale showed. Rounding 180.4 to 180 keeps it — same quantity at display
+precision; clamping does not. Both directions are pinned by tests.
+
+**4. Repeat detection needed an abstain path, and that is the finding this ADR
+should have started from.** Measured the same day: `resolvePhrase` resolves
+**100%** of phrases, because its relaxed pass drops tokens until something
+scores and in a 13,272-row index something always scores. A repeat suggestion is
+a *stronger* claim than a search result — it says "you ate this exact thing" —
+and it is offered when the user is least likely to check it. So
+`packages/core/src/meal-repeat.ts` is built to return `[]` readily, behind three
+gates. The one that did the real work was not in any plan: **containment**, added
+after a symmetric score offered `Chicken thigh` for a note reading `chicken
+breast`. Being brief and adding detail are things a person does about a food they
+mean; naming a different cut is not.
