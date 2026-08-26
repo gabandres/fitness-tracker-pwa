@@ -6,6 +6,36 @@ Small copy tweaks, internal refactors, test additions, and bug fixes aren't list
 
 ---
 
+## 2026-08-26 — ending a fast used to delete it
+
+**Every fast you ever finished was thrown away at the moment it finished.** The
+app stored one thing about fasting: whether a fast was running right now. Break
+it and that single field was set back to empty — no record of when it started,
+how long it ran, or that it happened at all. You could fast every day for a
+year and the app would remember none of it.
+
+That is why fasting has never appeared in your data export, and why it has
+never been on Trends. There was nothing to show.
+
+Fasts are now kept. Ending one writes it down — start, end, and length — and
+your CSV export has a row for every one.
+
+**There is no history to recover.** The fasts you completed before today were
+never written anywhere, so they are gone and cannot be brought back. Ignia
+starts counting from now.
+
+Alongside it, **fasting has a card on Trends**: your typical length, the last
+fourteen days, and how many of those days you ended a fast on. It needs three
+completed fasts before it draws a chart, so it will be a few days before it has
+anything to say — until then it is a single line telling you where it stands.
+
+The card shows what happened and nothing more. There is no goal to fall short
+of, no streak to break, and no "ketosis at 12 hours" timeline — that last one
+is the most common feature in fasting apps, and the science behind the labels
+is not solid enough to put a number on your screen and let you believe it.
+
+---
+
 ## 2026-08-26 — Ignia is on the App Store in 145 countries
 
 It was in **one**. The iOS app had been US-only since launch — not a decision
