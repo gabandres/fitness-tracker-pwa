@@ -39,6 +39,22 @@ export interface ScannedFoodItem {
   /** The database description the macros came from, so the review screen can
    *  show the user what the app thinks it is looking at. */
   matchedDescription?: string | null;
+  /**
+   * `grams` was READ OFF A SCALE in the photo rather than estimated from
+   * visual cues (ADR-0029 item 2). Present only when true.
+   *
+   * **This is the one field here that claims something about the physical
+   * world**, and ADR-0029 item 4 requires the review screen to render it
+   * differently from an estimate: `grams` is the only number the model
+   * contributes and every macro scales linearly off it, so a measurement and a
+   * guess are not the same evidence and must not look the same. Showing them
+   * identically is the failure ADR-0027 named for the 2022 menu figures.
+   *
+   * Independent of {@link source}, deliberately. `source` says where the MACROS
+   * came from; this says where the WEIGHT came from. A USDA row with a guessed
+   * weight and a model fallback with a weighed one are both real.
+   */
+  measured?: boolean;
 }
 
 /** Full result of one scan: the items plus the source the macros came from. */
