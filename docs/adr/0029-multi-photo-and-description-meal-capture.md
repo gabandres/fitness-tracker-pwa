@@ -1,6 +1,6 @@
 # ADR-0029: Multi-photo and description meal capture
 
-- **Status:** `proposed` — **items 1-4 are BUILT and merged 2026-08-26 (#94), not yet delivered.** This stays `proposed` on purpose: its own Definition of Done ties acceptance to items 1-4 *shipping* to mobile, and they are on `main` behind a functions deploy and one OTA per platform. Item 5 (multi-image) remains gated on `dailyQuota` counting images. See Amendment 1 for what building it changed.
+- **Status:** `proposed` — **all five items are BUILT and DELIVERED** to both platforms (Android OTA 62-63, iOS OTA 33-34, 2026-08-26). The delivery half of the Definition of Done is met; what keeps this `proposed` is the OTHER half, which asks for the description field's token cost to be **measured**. `estimateWithGemini` logs `usageMetadata` per call, so the data is sitting in Cloud Logging and nobody has read it. That is a log query, not a build. **Item 5's gate is gone** — `dailyQuota` counts IMAGES and `spendCeiling` follows; this line said it was still gated until 2026-08-26. See Amendment 1 for what building it changed.
 - **Date:** 2026-08-24
 - **Amends:** [ADR-0017](0017-photo-scan-free-for-all-v1.md) (photo-scan on and free), [ADR-0013](0013-food-resolution-my-foods-library.md) (the trust rule), [ADR-0015](0015-macronaut-photo-first-freemium-pivot.md) §1 (why the model is not asked for macros)
 
@@ -122,6 +122,11 @@ was roughly half as strong as it appeared.
 > spend against the *same* 3/day free allowance, and the `photo` `spendCeiling` —
 > which bounds the worst possible day — is denominated in the same wrong unit.
 
+**RESOLVED 2026-08-26.** The quote above is the argument as it stood, kept
+because it is what decided the ordering. It is no longer the state of the code:
+`dailyQuota` counts IMAGES and `spendCeiling` follows, which is what unblocked
+item 5.
+
 **Multi-image must not ship until the quota counts images.** That is a one-line
 semantic change in `functions/src/daily-quota.ts` plus a re-priced ceiling, and it
 is the difference between a bounded feature and an unbounded one. Both guards stay
@@ -181,7 +186,7 @@ source of error in the current pipeline rather than adding a second one.
 3. **Repeat detection** from My Foods on the description text, before any model
    call. A matched repeat should be offerable **without scanning at all**, which
    makes the common case both instant and free.
-4. **Multi-image, deferred**, and explicitly gated on `dailyQuota` counting images.
+4. ~~**Multi-image, deferred**, and explicitly gated on `dailyQuota` counting images.~~ **SHIPPED 2026-08-26** — the gate was moved first, then the feature.
 5. **Branded resolution is the real unlock** and is a separate piece of work:
    the OFF branded ingest. Without it, a description naming a brand resolves to a
    generic. This ADR does not pretend otherwise.

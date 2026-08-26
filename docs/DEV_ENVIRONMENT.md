@@ -1040,11 +1040,16 @@ and delivery looked fine the whole time.
   address. A shared mailbox has no password and cannot be signed into — that is
   fine, the Google account is unaffected; its recovery and verification mail
   simply arrives in Outlook instead of Northwest webmail.
-- It does **not** address the real risk: the **domain's auto-renew is OFF** and
-  the free Northwest year lapses **~July 2027**, taking the developer-account
-  login, Apple's org-website precondition and the GSC TXT with it. Mail hosting
-  moving to Microsoft does not renew the registration. See `STATUS.md` §
-  `bermudezsystems.com` items ① and ②, which outrank this one.
+- ~~It does **not** address the real risk: the domain's auto-renew is OFF and the
+  free Northwest year lapses ~July 2027.~~ **WRONG, corrected 2026-08-26.**
+  Northwest were asked and answered in writing: *"The Domain Name is provided as
+  part of your Registered Agent service and will automatically renew each year
+  that you still have that service active with us."* There is no July-2027
+  deadline and there never was one. **What remains is a coupling, not a
+  deadline:** the domain lives exactly as long as the Registered Agent
+  subscription does, so cancelling that service takes the developer-account
+  login, Apple's org-website precondition and the GSC TXT with it. See
+  `STATUS.md` § `bermudezsystems.com`, which outranks this one.
 - Optional afterwards: `MACROLOG_FEEDBACK_TO` (`functions/src/feedback-notify.ts`)
   can point back at the LLC address once a test has been watched to arrive.
 

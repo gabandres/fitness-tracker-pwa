@@ -87,8 +87,12 @@ for this ADR rather than repeated:
   `breakfast` (the meal slot) and the word "fastidiousness" in a comment.
 - **The CSV export has no fasting column.** `packages/core/src/csv-export.ts`
   does not mention fasting.
-- **ADR-0032 is `proposed` and unscheduled.** `STATUS.md` does not mention it,
-  fasting, or ADR-0033 anywhere.
+- ~~**ADR-0032 is `proposed` and unscheduled.** `STATUS.md` does not mention it,
+  fasting, or ADR-0033 anywhere.~~ **All of §2 above is the state as it stood on
+  2026-08-26 and is kept because it is what forced the ordering. None of it is
+  true now:** ADR-0032 is `accepted`, `users/{uid}/fasts` exists, the CSV has a
+  `fast` row, and the card shipped the same day. Read this section as the
+  argument, not as the status.
 
 **Consequence, stated plainly: a fasting card on Trends today could draw exactly
 one thing — whether a fast is running right now, and for how long.** That is a
