@@ -510,8 +510,15 @@ export const en = {
   'trends.fastingTitle': 'Fasting',
   'trends.fastingHeadline': '{h}h {m}m typical',
   'trends.fastingCaption': '{n} fasts in {days} days',
-  'trends.fastingLegend': 'your median · gaps are days you ended no fast',
-  'trends.fastingCoverage': 'you ended a fast on {days} of {total} days · longest {h}h {m}m',
+  // The median is NAMED here, not just drawn. The line across the strip is the
+  // only thing that makes twelve near-identical bars readable, and a line with
+  // no value beside it is a decoration.
+  'trends.fastingLegend': 'your median, {h}h {m}m · gaps are days with no fast',
+  'trends.fastingAxisHours': '{h}h',
+  // The sentence the chart cannot say on its own. Pure description — a range,
+  // with no opinion about which end of it is the better place to be.
+  'trends.fastingRange': 'Your {n} fasts ran between {sh}h {sm}m and {lh}h {lm}m.',
+  'trends.fastingCoverage': 'you ended a fast on {days} of {total} days',
   // The three stub sentences. They are three because "no completed fasts" has
   // three causes and telling a user mid-fast that they have none is false.
   'trends.fastingEmptyRunning': 'Fasting · your fast is running — it lands here when you end it',

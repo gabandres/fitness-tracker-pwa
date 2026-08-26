@@ -164,6 +164,28 @@ describe('what the card says', () => {
     expect(queryByText(/a fast on 2 of 14 days/i)).toBeTruthy();
   });
 
+  it('states the RANGE, because the chart cannot say it', async () => {
+    // The device build is what forced this line. With a real 16:8 habit every
+    // bar lands between 65% and 73% of a 24-hour strip, so twelve bars all look
+    // the same and the card was asking the reader to infer consistency from a
+    // wall of identical blocks. 14h / 18h here.
+    const { queryByText } = await render(<FastingTrendsCard fasting={cardState(THREE)} />);
+    expect(queryByText(/ran between 14h 0m and 18h 0m/i)).toBeTruthy();
+  });
+
+  it('names the median beside the line that draws it', async () => {
+    // A reference line with no value next to it is a decoration. This is the
+    // one element that makes the strip readable.
+    const { queryByText } = await render(<FastingTrendsCard fasting={cardState(THREE)} />);
+    expect(queryByText(/your median, 16h 0m/i)).toBeTruthy();
+  });
+
+  it('labels the axis, so a bar height means something', async () => {
+    const { queryByText } = await render(<FastingTrendsCard fasting={cardState(THREE)} />);
+    expect(queryByText('24h')).toBeTruthy();
+    expect(queryByText('0h')).toBeTruthy();
+  });
+
   it('draws a column only for a day a fast actually ended on', async () => {
     const state = cardState(THREE);
     expect(state.kind === 'card' && state.window.days).toHaveLength(FASTING_WINDOW_DAYS);

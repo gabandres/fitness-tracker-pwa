@@ -294,6 +294,15 @@ export interface FastingWindow {
   readonly medianHours: number;
   /** The longest single fast in the window. 0 when there are none. */
   readonly longestHours: number;
+  /** The shortest. 0 when there are none.
+   *
+   *  Exists so the card can state a RANGE, which is the one descriptive thing
+   *  worth saying about a set of fasts that are all roughly the same length.
+   *  A chart of twelve similar numbers against a fixed ceiling shows nothing —
+   *  measured on a device with a real 16:8 habit, every bar landed between 65%
+   *  and 73% of the strip and the variation was invisible. The sentence is
+   *  what carries the meaning; the strip is what makes it checkable. */
+  readonly shortestHours: number;
 }
 
 /**
@@ -337,6 +346,7 @@ export function fastingWindow(
     meanHours: lengths.length ? lengths.reduce((a, b) => a + b, 0) / lengths.length : 0,
     medianHours: medianOf(lengths),
     longestHours: lengths.length ? Math.max(...lengths) : 0,
+    shortestHours: lengths.length ? Math.min(...lengths) : 0,
   };
 }
 
