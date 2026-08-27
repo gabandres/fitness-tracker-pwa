@@ -527,6 +527,7 @@ export const en = {
   // shipped has no history, and without that phrasing an empty card reads as
   // data loss rather than as a feature that just started.
   'trends.fastingEmpty': 'Fasting · Ignia keeps your fasts from now on — start one on Today',
+  'trends.stubDismiss': 'Hide this row',
   'trends.sleepTitle': 'Sleep',
   'trends.sleepHeadline': '{h}h {m}m',
   'trends.sleepCaption': 'a night, last {n}',

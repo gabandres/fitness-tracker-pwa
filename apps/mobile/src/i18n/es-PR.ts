@@ -492,6 +492,7 @@ export const esPR: Record<I18nKey, string> = {
   'trends.fastingEmptyRunning': 'Ayuno · tu ayuno está corriendo — aparece aquí cuando lo termines',
   'trends.fastingEmptyProgress': 'Ayuno · {n} de {need} ayunos — Ignia los grafica a los {need}',
   'trends.fastingEmpty': 'Ayuno · Ignia guarda tus ayunos de ahora en adelante — empieza uno en Hoy',
+  'trends.stubDismiss': 'Ocultar esta fila',
   'trends.sleepTitle': 'Sueño',
   'trends.sleepHeadline': '{h} h {m} min',
   'trends.sleepCaption': 'por noche, últimas {n}',

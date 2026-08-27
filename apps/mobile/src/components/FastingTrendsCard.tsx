@@ -12,6 +12,7 @@ import type { FastingTrends } from '@/hooks/useFastingTrends';
 import { useT, useLocale } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
+import { useDismissedStub } from '@/hooks/useDismissedStub';
 import { font, radius, space, type } from '@/theme';
 import { PressScale } from '@/lib/motion';
 import * as haptics from '@/lib/haptics';
@@ -71,13 +72,18 @@ export function FastingTrendsCard({
   const t = useT();
   const locale = useLocale();
   const router = useRouter();
+  const [stubDismissed, dismissStub] = useDismissedStub('trends.stub.fasting.dismissed');
 
   if (fasting.kind === 'pending') return null;
 
   if (fasting.kind === 'empty') {
+    // Dismissed rows render NOTHING — not a collapsed row, not a hairline.
+    // A residue of the thing you asked to remove is worse than the thing.
+    if (stubDismissed) return null;
     return (
       <View testID="fasting-empty-row">
         <View style={styles.hairline} />
+        <View style={styles.stubRow}>
         <PressScale
           style={styles.linkRow}
           testID="fasting-empty-link"
@@ -106,6 +112,22 @@ export function FastingTrendsCard({
           </Text>
           <Ionicons name="chevron-forward" size={16} color={colors.faint} />
         </PressScale>
+        {/* Dismiss sits OUTSIDE the navigating pressable rather than inside
+            it — nesting one touchable in another makes which one fired
+            depend on a few pixels, and the two actions here are opposites.
+            The hit box is padded well past the glyph for the same reason. */}
+        <PressScale
+          style={styles.stubDismiss}
+          testID="fasting-stub-dismiss"
+          accessibilityLabel={t('trends.stubDismiss')}
+          onPress={() => {
+            haptics.tap();
+            dismissStub();
+          }}
+        >
+          <Ionicons name="close" size={16} color={colors.faint} />
+        </PressScale>
+        </View>
         <View style={styles.hairline} />
       </View>
     );
@@ -304,4 +326,9 @@ const createStyles = ({ colors }: Theme) =>
       paddingVertical: space.md,
     },
     linkLabel: { flex: 1, fontSize: font.small, color: colors.muted },
+    stubRow: { flexDirection: 'row', alignItems: 'center' },
+    // Generous padding, small glyph: the target is 40dp tall against a
+    // 16dp icon, because this is a one-way action sitting a few pixels
+    // from a navigating one.
+    stubDismiss: { paddingLeft: space.md, paddingRight: space.xs, paddingVertical: space.md },
   });

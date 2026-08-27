@@ -482,6 +482,7 @@ export const ptBR = {
   'trends.fastingEmptyRunning': 'Jejum · seu jejum está em andamento — ele aparece aqui quando você encerrar',
   'trends.fastingEmptyProgress': 'Jejum · {n} de {need} jejuns — o Ignia monta o gráfico a partir de {need}',
   'trends.fastingEmpty': 'Jejum · o Ignia guarda seus jejuns de agora em diante — comece um em Hoje',
+  'trends.stubDismiss': 'Ocultar esta linha',
   'trends.sleepTitle': 'Sono',
   'trends.sleepHeadline': '{h} h {m} min',
   'trends.sleepCaption': 'por noite, últimas {n}',

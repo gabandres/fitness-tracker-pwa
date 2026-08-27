@@ -4,6 +4,12 @@ jest.mock('@/lib/auth', () => ({
   useAuth: () => ({ user: { uid: 'u1' }, profile: null }),
 }));
 
+const mockDismiss = jest.fn();
+let mockDismissed = false;
+jest.mock('@/hooks/useDismissedStub', () => ({
+  useDismissedStub: () => [mockDismissed, mockDismiss],
+}));
+
 const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({
   ...jest.requireActual('expo-router'),
@@ -219,5 +225,55 @@ describe('what the card says', () => {
         }
       }
     }
+  });
+});
+
+describe('the stub row can be dismissed (#103)', () => {
+  beforeEach(() => {
+    mockDismiss.mockReset();
+    mockDismissed = false;
+  });
+
+  afterEach(() => {
+    mockDismissed = false;
+  });
+
+  it('offers a dismiss beside the row', async () => {
+    const { queryByTestId } = await render(
+      <FastingTrendsCard fasting={{ kind: 'empty', recorded: 0, fastRunning: false }} />,
+    );
+    expect(queryByTestId('fasting-stub-dismiss')).toBeTruthy();
+  });
+
+  it('dismissing renders NOTHING — not a collapsed row, not a hairline', async () => {
+    // A residue of the thing you asked to remove is worse than the thing.
+    mockDismissed = true;
+    const { queryByTestId } = await render(
+      <FastingTrendsCard fasting={{ kind: 'empty', recorded: 0, fastRunning: false }} />,
+    );
+    expect(queryByTestId('fasting-empty-row')).toBeNull();
+    expect(queryByTestId('fasting-stub-dismiss')).toBeNull();
+  });
+
+  it('calls the dismiss, not the navigation', async () => {
+    const { getByTestId } = await render(
+      <FastingTrendsCard fasting={{ kind: 'empty', recorded: 0, fastRunning: false }} />,
+    );
+    fireEvent.press(getByTestId('fasting-stub-dismiss'));
+    expect(mockDismiss).toHaveBeenCalledTimes(1);
+    // The two actions are opposites and sit a few pixels apart, which is why
+    // the dismiss is a SIBLING pressable rather than nested inside the
+    // navigating one — nesting makes which one fired depend on geometry.
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('STILL renders the card once the evidence arrives, dismissed or not', async () => {
+    // The flag is only ever read in the empty state. This is what makes a
+    // one-way dismiss acceptable with no restore affordance: the row comes back
+    // as a card the moment it has something to say.
+    mockDismissed = true;
+    const { queryByTestId } = await render(<FastingTrendsCard fasting={cardState(THREE)} />);
+    expect(queryByTestId('fasting-card')).toBeTruthy();
+    expect(queryByTestId('fasting-strip')).toBeTruthy();
   });
 });
