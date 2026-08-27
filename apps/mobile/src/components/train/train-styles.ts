@@ -347,6 +347,10 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   tplMoveBtn: { paddingHorizontal: 2, paddingVertical: 1 },
   tplExName: { fontFamily: type.heading, fontSize: font.body, color: colors.ink },
   tplExMeta: { fontSize: font.small, color: colors.muted, marginTop: 1 },
+  // ADR-0028's dose note. Muted rather than an alert colour on purpose: it
+  // cites evidence and does not cap the number, so dressing it as an error
+  // would overstate what it knows about this particular movement.
+  tplDoseNote: { fontSize: font.small, color: colors.muted, marginTop: 4, lineHeight: 16 },
   tplDel: { padding: space.xs },
   tplExControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
   tplLoadWrap: { flexDirection: 'row', alignItems: 'center', gap: space.xs },

@@ -135,6 +135,12 @@ export * from './plate-math';
 // rather than solved in pounds and converted (UX_AUDIT F3).
 export * from './load-units';
 export * from './warmup';
+// Mobility dose guardrail (ADR-0028). The single implementable consequence of
+// the stretching research: a pure predicate over a template's ordered
+// `exercises[]`, flagging mobility prescribed above 60 s before the first
+// working exercise. It warns, never caps, and a mobility-only session has no
+// `pre` position at all so it produces nothing.
+export * from './mobility';
 export * from './workout-progression';
 // Function-only export (the ./workout types stay un-barreled — see note above).
 export { normalizeClusterGroups, setRowLabels } from './cluster-groups';

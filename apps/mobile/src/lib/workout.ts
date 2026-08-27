@@ -35,7 +35,7 @@ export type MuscleGroup =
 
 /** How a set counts. v1 only creates `working`; the others exist so docs
  *  written by the PWA round-trip cleanly. */
-export type SetKind = 'warmup' | 'activation' | 'working' | 'mini' | 'drop';
+export type SetKind = 'warmup' | 'activation' | 'working' | 'mini' | 'drop' | 'mobility';
 
 export type SessionStatus = 'active' | 'completed';
 

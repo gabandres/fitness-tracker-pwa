@@ -24,7 +24,7 @@ import {
 } from '../../models/workout';
 import { normalizeClusterGroups } from '@macrolog/core';
 
-const SET_KINDS: SetKind[] = ['warmup', 'activation', 'working', 'mini', 'drop'];
+const SET_KINDS: SetKind[] = ['warmup', 'activation', 'working', 'mini', 'drop', 'mobility'];
 
 /** Local editable shape for one exercise row (flattened progression). */
 interface EditExercise {

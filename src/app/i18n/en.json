@@ -1976,14 +1976,16 @@
       "activation": "Activation",
       "working": "Set",
       "mini": "Mini",
-      "drop": "Drop"
+      "drop": "Drop",
+        "mobility": "Mobility"
     },
     "kindDesc": {
       "warmup": "Light prep. Never counts toward records or progression.",
       "activation": "First hard set of a cluster, taken close to failure.",
       "working": "A real, hard set — the default.",
       "mini": "Short follow-up set at the same weight, after a brief rest.",
-      "drop": "Back-off set at a lighter weight, straight after a hard one."
+      "drop": "Back-off set at a lighter weight, straight after a hard one.",
+        "mobility": "A timed hold or joint-prep movement. Never counts toward records or progression."
     },
     "glossaryOpen": "What do these terms mean?",
     "glossary": {

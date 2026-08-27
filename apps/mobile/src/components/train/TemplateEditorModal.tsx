@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ScrollView,
   Text,
@@ -43,6 +43,7 @@ import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { space } from '@/theme';
 import { LOG_STYLES, SET_KINDS, kindLabelKey, logStyleKey, numOrUndef } from './train-shared';
+import { mobilityDoseWarnings } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { createStyles } from './train-styles';
@@ -223,6 +224,27 @@ export function TemplateEditorModal({
   /** Accordion: at most ONE exercise expanded, so the sheet stays a list you
    *  can scan. A freshly added exercise opens itself — you added it to edit it. */
   const [openEx, setOpenEx] = useState<number | null>(null);
+  /**
+   * ADR-0028's dose guardrail, over the LIVE draft rather than the saved
+   * template — the number it is about is the one being typed.
+   *
+   * It warns and never caps: this app does not silently overrule a person who
+   * typed a number, and the note is a citation rather than a verdict about
+   * this particular movement (the dose figures are about static stretching,
+   * and the model has no static/dynamic distinction to read — amendment 1A).
+   * A mobility-only template has no `pre` position at all and produces
+   * nothing, which is why this is not gated on there being any lift.
+   */
+  const doseWarnings = useMemo(
+    () => new Set(mobilityDoseWarnings(
+      exercises.map((d) => ({
+        exerciseId: d.exerciseId,
+        name: d.name,
+        plannedSets: d.sets.map((x) => ({ kind: x.kind, durationSec: numOrUndef(x.durationText) })),
+      })),
+    ).map((w) => w.exerciseIndex)),
+    [exercises],
+  );
   const [moreEx, setMoreEx] = useState<number | null>(null);
   /** Handed to Sortable so a drag near the sheet's edge scrolls it. It must be
    *  a Reanimated AnimatedRef on an Animated.ScrollView — a plain ref is
@@ -788,6 +810,11 @@ export function TemplateEditorModal({
                       <View style={{ flex: 1 }}>
                         <Text style={styles.tplExName}>{d.name}</Text>
                         <Text style={styles.tplExMeta}>{exSummary(d, t, loadUnit(unitSystem))}</Text>
+                        {doseWarnings.has(i) ? (
+                          <Text style={styles.tplDoseNote} testID={`template-dose-note-${i}`}>
+                            {t('train.mobilityDoseNote')}
+                          </Text>
+                        ) : null}
                       </View>
                       <Ionicons
                         name={open ? 'chevron-up' : 'chevron-down'}

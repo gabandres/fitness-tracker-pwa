@@ -643,6 +643,8 @@ export const en = {
   'train.kind.working': 'Working',
   'train.kind.mini': 'Mini',
   'train.kind.drop': 'Drop',
+  'train.kind.mobility': 'Mobility',
+  'train.mobilityDoseNote': "Held stretches longer than about 60 s before lifting measurably reduce strength (−5.4%) and power (−1.9%). Under 45 s the effect is smallest, and range of motion still improves at 60 s.",
   'train.platesWarmup': 'Plates & warm-up',
   'train.hidePanel': 'Hide plates & warm-up',
   'train.workingSet': 'Working set',
@@ -691,6 +693,7 @@ export const en = {
   'train.kindDesc.working': 'A real, hard set — the default.',
   'train.kindDesc.mini': 'Short follow-up set at the same weight, after a brief rest.',
   'train.kindDesc.drop': 'Back-off set at a lighter weight, straight after a hard one.',
+  'train.kindDesc.mobility': 'A timed hold or joint-prep movement. Never counts toward records or progression.',
   // `{lb}` carries its own unit now — it is `5 lb` or `2.5 kg`, not a bare number.
   'train.progressionRule': 'Hit {reps} reps for {sessions} workout(s) in a row → Ignia suggests adding {lb}.',
   'train.e1rmHint': "the most you'd likely lift once",

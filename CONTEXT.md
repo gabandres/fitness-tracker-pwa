@@ -409,13 +409,17 @@ collections + a `WorkoutStore` facet back the Train tab.
     took; `WorkoutSession.durationMin` is how long the whole gym session took.
     Different unit, different question, one careless autocomplete apart. Both
     declarations carry a doc comment saying so.
-- **SetKind** — `warmup | activation | working | mini | drop`. A set's
-  optional `group` clusters it (C1/C2); no group → plain straight set.
-  Warmups/drops are excluded from PR + progression math.
-  [ADR-0028](docs/adr/0028-stretching-mobility-model.md) adds **`mobility`** to
-  this union; the type does not carry it yet — implementation is a separate
-  ticket. Read the three entries below **before** using any of these three
-  words, because two of them already mean something narrower than they sound.
+- **SetKind** — `warmup | activation | working | mini | drop | mobility`. A
+  set's optional `group` clusters it (C1/C2); no group → plain straight set.
+  Warmups, drops and mobility are excluded from PR + progression math.
+  `mobility` shipped 2026-08-27 per
+  [ADR-0028](docs/adr/0028-stretching-mobility-model.md). The union is
+  hand-mirrored in **FOUR** places, not three — `packages/core/src/workout.ts`,
+  `src/app/models/workout.ts`, `apps/mobile/src/lib/workout.ts`, and the web
+  template editor's `SET_KINDS`; missing the last compiles cleanly and silently
+  never offers the kind. Read the three entries below **before** using any of
+  these three words, because two of them already mean something narrower than
+  they sound.
 - **Warm-up** — **the load ramp for one lift, and nothing else.** Two things
   carry the name: `packages/core/src/warmup.ts`, whose `generateWarmup()`
   produces empty bar → ~50/70/90% of the working weight; and the `SetKind`

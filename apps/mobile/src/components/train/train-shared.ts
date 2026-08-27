@@ -22,6 +22,10 @@ export const SET_KINDS: { value: WorkoutSet['kind']; labelKey: I18nKey; descKey:
   { value: 'activation', labelKey: 'train.kind.activation', descKey: 'train.kindDesc.activation' },
   { value: 'mini', labelKey: 'train.kind.mini', descKey: 'train.kindDesc.mini' },
   { value: 'drop', labelKey: 'train.kind.drop', descKey: 'train.kindDesc.drop' },
+  // ADR-0028. Last in the picker deliberately: it is the least-used kind and
+  // pushing it above `drop` would reorder a list users already have muscle
+  // memory for.
+  { value: 'mobility', labelKey: 'train.kind.mobility', descKey: 'train.kindDesc.mobility' },
 ];
 
 export function logStyleKey(style: LogStyle | undefined): I18nKey {

@@ -16,7 +16,7 @@
 // template so re-cloning in a different locale reuses the same doc instead of
 // creating a locale-named duplicate.
 
-import type { MuscleGroup, PlannedSet, ProgressionRule } from './workout';
+import type { LogStyle, MuscleGroup, PlannedSet, ProgressionRule } from './workout';
 
 export interface SeedExercise {
   /** Stable slug — referenced by SeedTemplateExercise.key. */
@@ -24,6 +24,11 @@ export interface SeedExercise {
   name: string;
   muscles: MuscleGroup[];
   defaultCues: string[];
+  /** Omitted means `weight-reps`, which is what every lift here is. Mobility
+   *  movements set `'time'` — the clone paths in both apps read this, and
+   *  hardcoded `'weight-reps'` before ADR-0028 (a hold logged as load x reps
+   *  has no field to put the hold in). */
+  logStyle?: LogStyle;
 }
 
 export interface SeedTemplateExercise {
@@ -47,6 +52,12 @@ export interface SeedTemplate {
 /** N plain working sets (the default straight-set scaffold). */
 const straight = (n: number): PlannedSet[] =>
   Array.from({ length: n }, () => ({ kind: 'working' as const }));
+
+/** N mobility holds at a fixed prescribed duration (ADR-0028). Kept at or
+ *  under 45 s in a PRE position: Simic et al. found the pre-lift strength
+ *  deficit smallest at <=45 s, with range of motion still improving. */
+const holds = (n: number, durationSec: number): PlannedSet[] =>
+  Array.from({ length: n }, () => ({ kind: 'mobility' as const, durationSec }));
 
 /** One cluster = activation + `minis` mini-sets, tagged with a group. */
 const cluster = (group: number, minis = 2): PlannedSet[] => [
@@ -136,6 +147,21 @@ export const EXERCISE_LIBRARY: readonly SeedExercise[] = [
   { key: 'hanging-leg-raise', name: 'Hanging Leg Raise', muscles: ['core'], defaultCues: ['No swing, curl pelvis up'] },
   { key: 'cable-crunch', name: 'Cable Crunch', muscles: ['core'], defaultCues: ['Crunch with abs, not hips'] },
   { key: 'ab-wheel', name: 'Ab Wheel', muscles: ['core'], defaultCues: ['Brace, don’t let hips sag'] },
+
+  // Mobility (ADR-0028). Timed movements, no ProgressionRule anywhere — a
+  // suggestion to hold it longer next time is a nudge in the direction the
+  // evidence warns about. Cues describe the POSITION and nothing else: no cue
+  // here, or anywhere, may claim soreness relief, recovery or injury
+  // prevention. The Cochrane review (n=2,377 in one trial) tests that claim
+  // and rejects it, so it is a decision rather than a matter of tone.
+  { key: 'couch-stretch', name: 'Couch Stretch', muscles: ['quads'], defaultCues: ['Rear foot up on a bench or wall', 'Square the hips, ribs down'], logStyle: 'time' },
+  { key: 'half-kneeling-hip-flexor', name: 'Half-Kneeling Hip Flexor', muscles: ['quads', 'glutes'], defaultCues: ['Tuck the pelvis before leaning', 'Squeeze the back glute'], logStyle: 'time' },
+  { key: 'ninety-ninety-hip-switch', name: '90/90 Hip Switch', muscles: ['glutes'], defaultCues: ['Both knees at 90°', 'Rotate side to side, chest tall'], logStyle: 'time' },
+  { key: 'worlds-greatest-stretch', name: "World's Greatest Stretch", muscles: ['hamstrings', 'glutes'], defaultCues: ['Deep lunge, elbow to instep', 'Open the chest to the ceiling'], logStyle: 'time' },
+  { key: 'cat-cow', name: 'Cat-Cow', muscles: ['back', 'core'], defaultCues: ['Move one vertebra at a time', 'Breathe with the movement'], logStyle: 'time' },
+  { key: 'thoracic-open-book', name: 'Open Book', muscles: ['back', 'shoulders'], defaultCues: ['Side-lying, knees stacked', 'Follow the top hand with your eyes'], logStyle: 'time' },
+  { key: 'shoulder-pass-through', name: 'Shoulder Pass-Through', muscles: ['shoulders'], defaultCues: ['Wide grip on a band or stick', 'Straight arms, no shrug'], logStyle: 'time' },
+  { key: 'ankle-rock', name: 'Ankle Rock', muscles: ['calves'], defaultCues: ['Knee travels over the toes', 'Heel stays down'], logStyle: 'time' },
 ] as const;
 
 /** Lookup a seed exercise by key. */
@@ -257,6 +283,37 @@ export const STARTER_TEMPLATES: readonly SeedTemplate[] = [
       { key: 'romanian-deadlift', progression: { targetReps: 8, holdSessions: 2, incrementLb: 10 }, plannedSets: straight(3) },
     ],
   },
+  // ADR-0028's seeded mobility list, delivered as a template rather than as a
+  // new picker: the clone path already creates catalog entries from seed keys,
+  // resolves their names per locale and dedupes on `seedKey`, so this needs no
+  // UI at all. The ADR names STARTER_TEMPLATES as the sanctioned home for
+  // prescribed sequences.
+  //
+  // It is deliberately POST-position work — every hold sits after the lift it
+  // follows would have gone, and the template prescribes no lift, so the dose
+  // guardrail has nothing to fire on. 45 s is the ceiling the evidence is
+  // quietest about, not a target: Simic et al. put the pre-lift deficit
+  // smallest at <=45 s with range of motion still improving.
+  //
+  // The notes say what it IS and make no claim about what it does. No
+  // soreness, no recovery, no injury prevention — see ADR-0028 decision 6.
+  {
+    key: 'mobility-reset',
+    name: 'Mobility Reset',
+    notes: 'Eight timed positions, 45 s each. Put them after a session, or run them on their own.',
+    restMiniSec: 15,
+    restClusterSec: 30,
+    exercises: [
+      { key: 'cat-cow', plannedSets: holds(1, 45) },
+      { key: 'thoracic-open-book', plannedSets: holds(2, 45) },
+      { key: 'shoulder-pass-through', plannedSets: holds(1, 45) },
+      { key: 'ninety-ninety-hip-switch', plannedSets: holds(2, 45) },
+      { key: 'half-kneeling-hip-flexor', plannedSets: holds(2, 45) },
+      { key: 'couch-stretch', plannedSets: holds(2, 45) },
+      { key: 'worlds-greatest-stretch', plannedSets: holds(2, 45) },
+      { key: 'ankle-rock', plannedSets: holds(2, 45) },
+    ],
+  },
 ] as const;
 
 // ─── Translation side-maps ────────────────────────────────────
@@ -348,6 +405,15 @@ export const EXERCISE_ES: SeedExerciseL10n = {
   'hanging-leg-raise': { name: 'Elevación de Piernas Colgado', defaultCues: ['Sin balanceo, enrolla la pelvis'] },
   'cable-crunch': { name: 'Crunch en Polea', defaultCues: ['Crunch con abdomen, no con cadera'] },
   'ab-wheel': { name: 'Rueda Abdominal', defaultCues: ['Aprieta, no dejes caer la cadera'] },
+  // Mobility (ADR-0028)
+  'couch-stretch': { name: 'Estiramiento de Sofá', defaultCues: ['Pie trasero en un banco o pared', 'Cuadra las caderas, costillas abajo'] },
+  'half-kneeling-hip-flexor': { name: 'Flexor de Cadera de Rodillas', defaultCues: ['Mete la pelvis antes de inclinarte', 'Aprieta el glúteo de atrás'] },
+  'ninety-ninety-hip-switch': { name: 'Cambio de Cadera 90/90', defaultCues: ['Ambas rodillas a 90°', 'Rota de lado a lado, pecho alto'] },
+  'worlds-greatest-stretch': { name: 'El Mejor Estiramiento del Mundo', defaultCues: ['Zancada profunda, codo al empeine', 'Abre el pecho al techo'] },
+  'cat-cow': { name: 'Gato-Camello', defaultCues: ['Mueve una vértebra a la vez', 'Respira con el movimiento'] },
+  'thoracic-open-book': { name: 'Libro Abierto', defaultCues: ['De lado, rodillas alineadas', 'Sigue la mano de arriba con la vista'] },
+  'shoulder-pass-through': { name: 'Pase de Hombros', defaultCues: ['Agarre ancho con banda o palo', 'Brazos rectos, sin encoger'] },
+  'ankle-rock': { name: 'Balanceo de Tobillo', defaultCues: ['La rodilla pasa sobre los dedos', 'El talón se queda abajo'] },
 };
 
 export const TEMPLATE_ES: SeedTemplateL10n = {
@@ -356,6 +422,7 @@ export const TEMPLATE_ES: SeedTemplateL10n = {
   'pull-day': { name: 'Día de Jalón', notes: 'Espalda y bíceps. 3 sets de trabajo cada uno, ~8–12 reps @ RIR 1–2.' },
   'leg-day': { name: 'Día de Piernas', notes: 'Cuádriceps, femorales, glúteos, pantorrillas. 3 sets de trabajo cada uno, ~8–12 reps @ RIR 1–2.' },
   'full-body': { name: 'Cuerpo Completo', notes: 'Un gran levantamiento por patrón. 3 sets de trabajo cada uno, ~8–12 reps @ RIR 1–2.' },
+  'mobility-reset': { name: 'Reinicio de Movilidad', notes: 'Ocho posiciones cronometradas, 45 s cada una. Ponlas después de una sesión, o hazlas solas.' },
 };
 
 export const TEMPLATE_CUES_ES: SeedCuesL10n = {
@@ -441,6 +508,15 @@ export const EXERCISE_PT: SeedExerciseL10n = {
   'hanging-leg-raise': { name: 'Elevação de Pernas na Barra', defaultCues: ['Sem balanço, enrole a pelve'] },
   'cable-crunch': { name: 'Abdominal na Polia', defaultCues: ['Flexione com o abdômen, não com o quadril'] },
   'ab-wheel': { name: 'Roda Abdominal', defaultCues: ['Contraia, não deixe o quadril cair'] },
+  // Mobility (ADR-0028)
+  'couch-stretch': { name: 'Alongamento do Sofá', defaultCues: ['Pé de trás apoiado no banco ou parede', 'Alinhe os quadris, costelas para baixo'] },
+  'half-kneeling-hip-flexor': { name: 'Flexor do Quadril Ajoelhado', defaultCues: ['Encaixe a pelve antes de inclinar', 'Aperte o glúteo de trás'] },
+  'ninety-ninety-hip-switch': { name: 'Troca de Quadril 90/90', defaultCues: ['Ambos os joelhos a 90°', 'Gire de um lado ao outro, peito alto'] },
+  'worlds-greatest-stretch': { name: 'O Maior Alongamento do Mundo', defaultCues: ['Afundo profundo, cotovelo até o pé', 'Abra o peito para o teto'] },
+  'cat-cow': { name: 'Gato-Vaca', defaultCues: ['Mova uma vértebra por vez', 'Respire junto com o movimento'] },
+  'thoracic-open-book': { name: 'Livro Aberto', defaultCues: ['De lado, joelhos alinhados', 'Siga a mão de cima com os olhos'] },
+  'shoulder-pass-through': { name: 'Passagem de Ombros', defaultCues: ['Pegada larga na banda ou bastão', 'Braços retos, sem encolher'] },
+  'ankle-rock': { name: 'Balanço de Tornozelo', defaultCues: ['O joelho passa sobre os dedos', 'O calcanhar fica no chão'] },
 };
 
 export const TEMPLATE_PT: SeedTemplateL10n = {
@@ -449,6 +525,7 @@ export const TEMPLATE_PT: SeedTemplateL10n = {
   'pull-day': { name: 'Treino de Puxar', notes: 'Costas e bíceps. 3 séries de trabalho em cada, ~8–12 reps @ RIR 1–2.' },
   'leg-day': { name: 'Treino de Pernas', notes: 'Quadríceps, posteriores, glúteos e panturrilhas. 3 séries de trabalho em cada, ~8–12 reps @ RIR 1–2.' },
   'full-body': { name: 'Corpo Inteiro', notes: 'Um grande exercício por padrão de movimento. 3 séries de trabalho em cada, ~8–12 reps @ RIR 1–2.' },
+  'mobility-reset': { name: 'Reset de Mobilidade', notes: 'Oito posições cronometradas, 45 s cada. Faça depois de uma sessão, ou sozinhas.' },
 };
 
 export const TEMPLATE_CUES_PT: SeedCuesL10n = {

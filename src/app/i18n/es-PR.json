@@ -1976,14 +1976,16 @@
       "activation": "Activación",
       "working": "Serie",
       "mini": "Mini",
-      "drop": "Drop"
+      "drop": "Drop",
+        "mobility": "Movilidad"
     },
     "kindDesc": {
       "warmup": "Preparación ligera. Nunca cuenta para récords ni progresión.",
       "activation": "Primera serie dura de un cluster, cerca del fallo.",
       "working": "Una serie dura de verdad — la opción por defecto.",
       "mini": "Serie corta al mismo peso, tras un descanso breve.",
-      "drop": "Serie de descarga con menos peso, justo después de una dura."
+      "drop": "Serie de descarga con menos peso, justo después de una dura.",
+        "mobility": "Posición o movimiento cronometrado. Nunca cuenta para récords ni progresión."
     },
     "glossaryOpen": "¿Qué significan estos términos?",
     "glossary": {

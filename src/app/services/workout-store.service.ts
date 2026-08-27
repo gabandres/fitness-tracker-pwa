@@ -185,8 +185,8 @@ export class WorkoutStore {
       const defaultCues = seedExerciseCues(lib, locale);
       let entry = bySeedKey.get(seedEx.key) ?? byName.get(name.toLowerCase());
       if (!entry) {
-        const id = await this.fb.addExercise({ name, muscles: lib.muscles, defaultCues, seedKey: seedEx.key });
-        entry = { id, name, muscles: lib.muscles, defaultCues, seedKey: seedEx.key, createdAt: new Date() };
+        const id = await this.fb.addExercise({ name, muscles: lib.muscles, defaultCues, logStyle: lib.logStyle, seedKey: seedEx.key });
+        entry = { id, name, muscles: lib.muscles, defaultCues, logStyle: lib.logStyle, seedKey: seedEx.key, createdAt: new Date() };
         bySeedKey.set(seedEx.key, entry);
         byName.set(name.toLowerCase(), entry);
       }
@@ -195,6 +195,9 @@ export class WorkoutStore {
         name: entry.name,
         targetLoad: seedEx.targetLoad,
         cues: seedTemplateExerciseCues(seed.key, seedEx, lib, locale),
+        // Mobility seeds are `time` (ADR-0028); every lift omits it and keeps
+        // the `weight-reps` default.
+        logStyle: lib.logStyle,
         progression: seedEx.progression,
         plannedSets: seedEx.plannedSets,
       });

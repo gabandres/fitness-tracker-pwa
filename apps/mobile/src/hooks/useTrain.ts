@@ -367,6 +367,11 @@ export function useTrain(): TrainState {
         // locale — reuses the existing catalog entry instead of splitting
         // history/e1RM across a duplicate.
         const name = lib ? seedExerciseName(lib, locale) : se.key;
+        // Both of these were hardcoded `'weight-reps'` before ADR-0028, which
+        // is right for every lift in the library and wrong for a mobility
+        // movement: a timed hold logged as load x reps has no field to put the
+        // hold in.
+        const logStyle: LogStyle = lib?.logStyle ?? 'weight-reps';
         const existing = catalog.find(
           (c) =>
             (c.seedKey && c.seedKey === se.key) ||
@@ -378,7 +383,7 @@ export function useTrain(): TrainState {
             name,
             muscles: lib?.muscles ?? [],
             defaultCues: lib ? seedExerciseCues(lib, locale) : [],
-            logStyle: 'weight-reps',
+            logStyle: logStyle,
             seedKey: se.key,
           }));
         exercises.push({
@@ -386,7 +391,7 @@ export function useTrain(): TrainState {
           name,
           targetLoad: se.targetLoad,
           cues: seedTemplateExerciseCues(seed.key, se, lib, locale),
-          logStyle: 'weight-reps',
+          logStyle: logStyle,
           progression: se.progression,
           plannedSets: se.plannedSets,
         });

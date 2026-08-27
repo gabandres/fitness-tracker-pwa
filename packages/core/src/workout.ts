@@ -11,8 +11,14 @@ import type { CardioBlock, PlannedCardioBlock } from './cardio';
 
 /** How a set counts. `working` is the default straight set; `activation`
  *  + `mini` model cluster training; `warmup` is excluded from PR/progression
- *  math; `drop` is a back-off set. */
-export type SetKind = 'warmup' | 'activation' | 'working' | 'mini' | 'drop';
+ *  math; `drop` is a back-off set; `mobility` is a timed hold or joint-prep
+ *  movement, also excluded (ADR-0028).
+ *
+ *  This union is hand-mirrored in FOUR places, not three — `src/app/models/
+ *  workout.ts`, `apps/mobile/src/lib/workout.ts`, and the web template
+ *  editor's `SET_KINDS` array, which populates the kind `<select>`. Missing
+ *  the last one compiles cleanly and silently never offers the kind. */
+export type SetKind = 'warmup' | 'activation' | 'working' | 'mini' | 'drop' | 'mobility';
 
 /** Muscle groups a catalog exercise can target. */
 export type MuscleGroup =

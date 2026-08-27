@@ -48,6 +48,13 @@ export function sessionVolume(session: Pick<WorkoutSession, 'exercises'>): numbe
   let vol = 0;
   for (const ex of session.exercises) {
     for (const s of ex.sets) {
+      // Mobility is not lifting volume (ADR-0028). ADR-0028 reasoned this was
+      // already safe "because a hold carries neither weight nor reps" — true
+      // of a bodyweight stretch and NOT of a loaded one, which is a real thing
+      // a user can type. Nothing else about this sum changes: warm-ups and
+      // drops still count toward tonnage exactly as they always have, because
+      // the weight really was moved.
+      if (s.kind === 'mobility') continue;
       if (s.weight != null && s.reps != null) vol += s.weight * s.reps;
     }
   }

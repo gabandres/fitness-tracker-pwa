@@ -36,7 +36,7 @@ export type MuscleGroup =
  *  + `mini` model cluster training (activation set then short-rest mini
  *  sets); `warmup` is excluded from PR/progression math; `drop` is a
  *  back-off set appended to another. */
-export type SetKind = 'warmup' | 'activation' | 'working' | 'mini' | 'drop';
+export type SetKind = 'warmup' | 'activation' | 'working' | 'mini' | 'drop' | 'mobility';
 
 export type SessionStatus = 'active' | 'completed';
 

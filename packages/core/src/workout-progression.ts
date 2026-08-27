@@ -6,9 +6,16 @@ import type { LogStyle, ProgressionRule, SessionExercise, WorkoutSet } from './w
 import { DEFAULT_LOG_STYLE } from './workout';
 
 /** Sets that count toward progression/PRs. Warmups are excluded; drops
- *  are back-off sets that shouldn't define a top-set PR either. */
+ *  are back-off sets that shouldn't define a top-set PR either; mobility is a
+ *  timed hold and never a performance (ADR-0028).
+ *
+ *  Mobility's exclusion is load-bearing, not tidiness: `computeExercisePRs`
+ *  gates here and then takes `s.durationSec` unconditionally, so without this
+ *  clause a 60-second pre-lift hold would set a `maxDurationSec` PR — the app
+ *  congratulating the user for the one thing the evidence says costs strength
+ *  (Simic et al., 104 studies: -5.4% maximal strength, -1.9% power). */
 export function isWorkingSet(set: WorkoutSet): boolean {
-  return set.kind !== 'warmup' && set.kind !== 'drop';
+  return set.kind !== 'warmup' && set.kind !== 'drop' && set.kind !== 'mobility';
 }
 
 /** Whether a set has the metric its logStyle measures: a duration for
