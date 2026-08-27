@@ -296,6 +296,105 @@ function headAnchoredTokens(foods: IndexedFood[], tokens: string[]): string[] {
   return keep;
 }
 
+/**
+ * Head-anchored GENERALISATIONS of a query, longest first: "hass avocado" ->
+ * ["avocado"], "boneless skinless chicken thigh" -> ["skinless chicken thigh",
+ * "chicken thigh", "thigh"].
+ *
+ * ## Why this is not {@link headAnchoredTokens}
+ *
+ * That one drops words the corpus **cannot honour**, and it fires when a query
+ * matched nothing. This one drops words the corpus honours perfectly well, and
+ * it fires when every match is a food that cannot answer the utterance — the
+ * "1/2 hass avocado" case. `Avocado, Hass, peeled, raw` exists, ranks first and
+ * carries no portion row at all, so a bare count falls to half of 100 g and is
+ * flagged `assumed`; `Avocado, raw` carries the `1 fruit (150 g)` row the user
+ * needs and is never a candidate, because "hass" is not in it and `scoreFood`
+ * is an AND. Relaxation therefore has to be able to drop a word the database
+ * DOES know, which is precisely what `headAnchoredTokens` will never do.
+ *
+ * Anchored on the last word for the same reason: the head noun of an English
+ * noun phrase is its last word, so trimming from the left keeps the thing being
+ * named and discards only its modifiers.
+ *
+ * **Refused outright for restaurant chains**, on the standing rule that dropping
+ * "starbucks" from "starbucks latte" answers about a different product rather
+ * than loosening a qualifier. Same guard as {@link searchFoodIndex}, restated
+ * here because this is a second entrance to the same hazard.
+ */
+export function headAnchoredGeneralisations(rawQuery: string): string[] {
+  const query = normalizeQuery(rawQuery);
+  if (queryNamesRestaurantChain(query)) return [];
+  const tokens = words(query);
+  const out: string[] = [];
+  for (let i = 1; i < tokens.length; i += 1) out.push(tokens.slice(i).join(' '));
+  return out;
+}
+
+/**
+ * True when `candidate` only DROPS qualifiers relative to `specific` — never
+ * acquires one nobody asked for.
+ *
+ * ## This predicate is the whole safety story, and it was measured
+ *
+ * Relaxing on "every candidate came back assumed" alone is ACTIVELY HARMFUL.
+ * Surveyed against the shipped index, a bare drop-a-modifier retry fixed the
+ * avocado and broke four other utterances, every one of them by swapping to a
+ * DIFFERENT food in order to obtain a confident-looking number:
+ *
+ * | utterance | assumed answer | what relaxing gave instead |
+ * |---|---|---|
+ * | 1 cup greek yogurt | Yogurt, Greek, plain, nonfat | Yogurt, plain, **whole milk** |
+ * | 1 red bell pepper | Peppers, bell, red, raw | Peppers, **hot**, raw (5 kcal) |
+ * | 1 boneless skinless chicken thigh | Chicken, thigh, boneless, skinless, raw | Chicken thigh, **fried, coated** |
+ * | 2 roma tomatoes | Tomato, roma | Tomatoes, raw — 8 kcal for two tomatoes |
+ *
+ * So `assumed` is NOT evidence the strict hit is the wrong food. In all four
+ * the strict hit is exactly right and only its portion size is unknown, and
+ * trading the food away to gain a portion number is the more expensive error:
+ * an honest `assumed` flag understates precision, a confident wrong food
+ * fabricates it. What separates the avocado is that `Avocado, raw` is the same
+ * food with a qualifier removed, while `Yogurt, plain, whole milk` is a sibling
+ * that adds "whole" and "milk" and contradicts "nonfat".
+ *
+ * Hence the rule: every content word of the candidate must already appear in
+ * the specific hit, or in what the user actually typed. Compared on stems so
+ * "Tomatoes" and "Tomato" are not treated as different words. Ties are refused
+ * rather than accepted — refusing keeps the honest `assumed` row, which is the
+ * safe direction.
+ *
+ * ## The second half: a SUBTRACTIVE qualifier can never be dropped
+ *
+ * Word-subset alone is not enough, and the case that proves it is
+ * "1 yukon gold potato". The specific hit is `Potatoes, gold, without skin,
+ * raw`; relax to "potato" and the winner is `Potatoes, raw, skin` — whose words
+ * are a strict subset, and which is the potato SKIN, 22 kcal for 38 g. Dropping
+ * "without" did not loosen a qualifier, it inverted one.
+ *
+ * The same trap without the tell: `Yogurt, Greek, plain, nonfat` -> `Yogurt,
+ * plain` is a clean subset that silently puts the fat back.
+ *
+ * So a word that REMOVES something from the food is not droppable, because
+ * dropping it adds that thing back. Additive qualifiers ("hass", "honeycrisp",
+ * "peeled") stay droppable, which is the whole point of the mechanism.
+ */
+const SUBTRACTIVE =
+  /\b(without|no|non|nonfat|not|free|low|reduced|less|lean|light|lite|skim|skimmed|unsweetened|unsalted|decaffeinated|diet)\b/;
+
+export function generalisesFood(specific: string, candidate: string, query = ''): boolean {
+  const spec = words(specific);
+  const cand = words(candidate);
+  const allowed = new Set([...stems(spec), ...stems(query ? words(query) : [])]);
+  if (!stems(cand).every((w) => allowed.has(w))) return false;
+  // Never drop a subtractive qualifier: "without skin" -> "skin" inverts, and
+  // "nonfat" -> "" refills. Note the query is NOT an escape hatch here the way
+  // it is for the subset test above: a user who typed "skim milk" has made
+  // "skim" more load-bearing, not less, so dropping it to reach plain `Milk`
+  // is the very substitution this refuses.
+  const candSet = new Set(cand);
+  return spec.every((w) => !SUBTRACTIVE.test(w) || candSet.has(w));
+}
+
 export function searchFoodIndex(foods: IndexedFood[], rawQuery: string, size: number): FoodSearchHit[] {
   const query = normalizeQuery(rawQuery);
   const tokens = words(query);

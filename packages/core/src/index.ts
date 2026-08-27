@@ -342,6 +342,8 @@ export {
   FOOD_INDEX_FORMAT_VERSION,
   loadFoodIndex,
   searchFoodIndex,
+  headAnchoredGeneralisations,
+  generalisesFood,
   findFoodById,
   buildFoodDetail,
   type CompactFoodIndex,

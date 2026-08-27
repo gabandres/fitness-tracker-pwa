@@ -3,6 +3,8 @@ import {
   FOOD_INDEX_FORMAT_VERSION,
   buildFoodDetail,
   findFoodById,
+  generalisesFood,
+  headAnchoredGeneralisations,
   loadFoodIndex,
   normalizeQuery,
   scoreFood,
@@ -328,5 +330,62 @@ describe('searchFoodIndex - words the database has never written', () => {
     expect(searchFoodIndex(withLatte, 'starbucks latte', 3)).toEqual([]);
     // …while a plain modifier on the same index still relaxes.
     expect(searchFoodIndex(withLatte, 'pure honey', 3)[0]?.description).toBe('Honey');
+  });
+});
+
+describe('headAnchoredGeneralisations', () => {
+  it('trims modifiers from the left, longest first, keeping the head noun', () => {
+    expect(headAnchoredGeneralisations('hass avocado')).toEqual(['avocado']);
+    expect(headAnchoredGeneralisations('boneless skinless chicken thigh'))
+      .toEqual(['skinless chicken thigh', 'chicken thigh', 'thigh']);
+  });
+
+  it('offers nothing for a single word — there is no modifier to drop', () => {
+    expect(headAnchoredGeneralisations('avocado')).toEqual([]);
+  });
+
+  it('refuses a query that names a restaurant chain', () => {
+    // Same standing rule as searchFoodIndex's relax path, and this is the
+    // second entrance to it: dropping "starbucks" from "starbucks latte"
+    // answers about a different product. Serving a generic latte's macros as
+    // the answer to a Starbucks question is fabricated health data.
+    expect(headAnchoredGeneralisations('starbucks latte')).toEqual([]);
+  });
+});
+
+describe('generalisesFood', () => {
+  it('accepts a candidate that only drops qualifiers', () => {
+    // The bug this whole mechanism exists for: "1/2 hass avocado" resolved to
+    // 50 g flagged `assumed`, because Avocado, Hass has no portion row at all.
+    expect(generalisesFood('Avocado, Hass, peeled, raw', 'Avocado, raw')).toBe(true);
+    expect(generalisesFood('Apples, honeycrisp, with skin, raw', 'Apple, raw')).toBe(true);
+  });
+
+  it('compares on stems, so a plural is not a new word', () => {
+    expect(generalisesFood('Apples, raw', 'Apple, raw')).toBe(true);
+  });
+
+  it('refuses a candidate that ACQUIRES a qualifier nobody asked for', () => {
+    // Every one of these was measured against the shipped index: an unguarded
+    // "retry when assumed" fixed the avocado and broke all four, each time by
+    // swapping to a different food to obtain a confident-looking number.
+    expect(generalisesFood('Yogurt, Greek, plain, nonfat', 'Yogurt, plain, whole milk')).toBe(false);
+    expect(generalisesFood('Peppers, bell, red, raw', 'Peppers, hot, raw')).toBe(false);
+    expect(generalisesFood('Chicken, thigh, boneless, skinless, raw', 'Chicken thigh, fried, coated')).toBe(false);
+    expect(generalisesFood('Tomato, roma', 'Tomatoes, raw')).toBe(false);
+  });
+
+  it('refuses to drop a SUBTRACTIVE qualifier, even when the words are a subset', () => {
+    // "1 yukon gold potato": `Potatoes, raw, skin` is a strict word-subset of
+    // `Potatoes, gold, without skin, raw` and is the potato SKIN — 22 kcal for
+    // 38 g. Dropping "without" inverted the qualifier rather than loosening it.
+    expect(generalisesFood('Potatoes, gold, without skin, raw', 'Potatoes, raw, skin')).toBe(false);
+    // Same trap with no tell: dropping "nonfat" silently puts the fat back.
+    expect(generalisesFood('Yogurt, Greek, plain, nonfat', 'Yogurt, plain')).toBe(false);
+  });
+
+  it('lets the user keep a subtractive word they typed themselves', () => {
+    expect(generalisesFood('Milk, skim', 'Milk', 'skim milk')).toBe(false);
+    expect(generalisesFood('Milk, skim, fluid', 'Milk, skim', 'skim milk')).toBe(true);
   });
 });

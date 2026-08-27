@@ -3,10 +3,11 @@ import {
   ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import {
-  type LogEntry, type ParsedFoodItem, type ResolvedMealItem,
-  parseMealDraft, parseMealUtterance, rankResolutionHits, resolveMealItem,
+  type LogEntry, type ParsedFoodItem,
+  parseMealDraft, parseMealUtterance,
 } from '@macrolog/core';
 import { getFoodDetail, searchFoods } from '@/lib/foodSearch';
+import { resolveOneItem } from '@/lib/mealResolution';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -89,27 +90,12 @@ export function MealText({ forDate, onAddMany, onCancel, seedText }: Props) {
     }
   }
 
-  /** Resolve one item; a miss yields a blank, flagged row rather than a drop. */
+  /** Resolve one item; a miss yields a blank, flagged row rather than a drop.
+   *  The resolution policy itself lives in `lib/mealResolution.ts`, where it
+   *  can be tested against the real shipped index without React. */
   async function resolveItem(item: ParsedFoodItem): Promise<DraftRow> {
     try {
-      // Search wider than shown, then auto-pick a USDA generic so bare terms
-      // ("eggs") don't resolve to a branded/high-fat product (see core).
-      const hits = await searchFoods(item.food, 10);
-      // The best-ranked generic is often the one WITHOUT a portion table — only
-      // 37% of Foundation foods carry one — so an utterance whose unit it
-      // cannot answer falls through to the next candidate instead of settling
-      // for a guess. Lazy on purpose: the loop stops at the first confident
-      // resolution, so the common case is still one lookup.
-      let r: ResolvedMealItem | null = null;
-      for (const hit of rankResolutionHits(hits, { unit: item.unit, raw: item.raw }).slice(0, 3)) {
-        const detail = await getFoodDetail(hit.source, hit.id);
-        const candidate = resolveMealItem(item, detail.servings);
-        if (candidate && candidate.calories > 0 && !candidate.assumed) {
-          r = candidate;
-          break;
-        }
-        r ??= candidate;
-      }
+      const r = await resolveOneItem(item, { search: searchFoods, detail: getFoodDetail });
       // 0-calorie resolution = degenerate DB entry (e.g. a milligram serving);
       // show an honest "enter values" row, not a fake-precise zero.
       if (!r || r.calories <= 0) return blankRow(item);
