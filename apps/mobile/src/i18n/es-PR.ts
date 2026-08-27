@@ -188,7 +188,7 @@ export const esPR: Record<I18nKey, string> = {
   'link.failedBody': 'Tu dispositivo lo bloqueó. Abre esto en tu navegador:\n\n{url}',
   'whatsNew.title': 'Novedades',
   'whatsNew.body':
-    'Ahora le puedes decir al escaneo qué está mirando. Después de tomar la foto hay un espacio para lo que valga la pena decir — una marca, media taza, de qué es la salsa — y lo usa para nombrar la comida y calcular la porción. Nunca cambia los números; esos siguen viniendo de la base de datos. Si hay una balanza en la foto y se lee la pantalla, Ignia toma ese peso como una medida y lo marca así, porque una porción pesada y una adivinada no son lo mismo. Y si lo que escribes ya está en Mis Alimentos, te lo ofrece — tus propios números, sin gastar un escaneo.',
+    'Escribir o dictar una comida ahora entiende bien las medidas. Una cucharadita, una cucharada, una taza, mililitros, onzas líquidas — Ignia calcula lo que eso pesa a partir del propio alimento en vez de adivinar, así que una cucharadita de miel son siete gramos y no cien, y 250 ml de leche son un vaso y no veinticinco kilos. Dos rebanadas de pan son dos rebanadas normales. Además te muestra lo que leyó antes de escribir nada, igual que el escaneo de fotos, para que veas que la cantidad quedó registrada. Los números siguen viniendo de la base de datos — Ignia solo decide a qué porción apuntan tus palabras.',
 
   // ── app updates ──
   'update.ota.title': 'Actualización lista',

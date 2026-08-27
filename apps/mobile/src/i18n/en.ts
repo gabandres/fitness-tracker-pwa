@@ -195,7 +195,7 @@ export const en = {
   'link.failedBody': 'Your device blocked it. Open this in your browser instead:\n\n{url}',
   'whatsNew.title': "What's new",
   'whatsNew.body':
-    'You can tell the scan what it is looking at. After you take the photo there is a box for anything worth saying — a brand, a half cup, what the sauce is — and it uses that to name the food and size the portion. It never changes the numbers; those still come from the food database. If a kitchen scale is in the shot and the display is readable, Ignia takes that weight as a measurement and marks it as one, because a weighed portion and a guessed one are not the same thing. And if what you type matches something already in My Foods, it offers that instead — your own numbers, no scan used.',
+    'Typing or speaking a meal understands measurements properly now. A teaspoon, a tablespoon, a cup, millilitres, fluid ounces — Ignia works out what that weighs from the food itself instead of guessing, so a teaspoon of honey is seven grams and not a hundred, and 250 ml of milk is a glass and not twenty-five kilos. Two slices of bread means two ordinary slices. It also shows you what it read before it writes anything, the way the photo scan does, so you can see that the amount registered. The numbers still come from the food database — Ignia only decides which serving your words point at.',
 
   // ── app updates ──
   'update.ota.title': 'Update ready',

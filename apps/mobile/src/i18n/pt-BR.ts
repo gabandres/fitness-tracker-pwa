@@ -184,7 +184,7 @@ export const ptBR = {
   'link.failedBody': 'O seu aparelho bloqueou. Abra isto no seu navegador:\n\n{url}',
   'whatsNew.title': 'Novidades',
   'whatsNew.body':
-    'Agora você pode dizer ao escaneamento o que ele está vendo. Depois da foto há um campo para o que valer a pena dizer — uma marca, meia xícara, do que é o molho — e ele usa isso para nomear o alimento e calcular a porção. Nunca muda os números; esses continuam vindo do banco de dados. Se houver uma balança na foto e o visor estiver legível, o Ignia usa aquele peso como medição e marca assim, porque uma porção pesada e uma estimada não são a mesma coisa. E se o que você escrever já estiver em Meus Alimentos, ele oferece — os seus próprios números, sem gastar um escaneamento.',
+    'Escrever ou ditar uma refeição agora entende as medidas direito. Uma colher de chá, uma colher de sopa, uma xícara, mililitros, onças líquidas — o Ignia calcula quanto isso pesa a partir do próprio alimento em vez de adivinhar, então uma colher de chá de mel são sete gramas e não cem, e 250 ml de leite são um copo e não vinte e cinco quilos. Duas fatias de pão são duas fatias normais. Ele também mostra o que leu antes de escrever qualquer coisa, como o escaneamento de fotos faz, para você ver que a quantidade foi registrada. Os números continuam vindo do banco de dados — o Ignia só decide a qual porção as suas palavras apontam.',
 
   // ── app updates ──
   'update.ota.title': 'Atualização pronta',
