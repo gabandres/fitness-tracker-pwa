@@ -17,6 +17,7 @@ import { SleepTrendsCard } from '@/components/SleepTrendsCard';
 import { FastingTrendsCard } from '@/components/FastingTrendsCard';
 import { WeeklyReportCard } from '@/components/WeeklyReportCard';
 import { useTrends } from '@/hooks/useTrends';
+import { usePersistedTab } from '@/hooks/usePersistedTab';
 import { useActivitySuggestion } from '@/lib/activity-suggestion';
 import { useAuth } from '@/lib/auth';
 import { useSubscription, PRO_ENABLED } from '@/lib/subscription';
@@ -57,12 +58,16 @@ export default function Trends() {
   const { colors } = useTheme();
   const router = useRouter();
   const { loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal, activityLevel, sleep, fasting } = useTrends();
-  // Ephemeral, both of them: no profile field, nothing synced, no
-  // `firestore.rules` change. That is precisely what makes consolidation the
-  // cheap lever — ADR-0034's option C needs a rules deploy that, got wrong,
-  // rejects the frozen web's profile writes too.
-  const [weeklyTab, setWeeklyTab] = useState('week');
-  const [habitTab, setHabitTab] = useState('sleep');
+  // Remembered per device, in AsyncStorage — a cache, not a setting.
+  //
+  // No profile field and therefore no `firestore.rules` change, which is the
+  // whole reason this is cheap: ADR-0034's option C stores hidden-card ids on
+  // the PROFILE, and `hasOnly` is evaluated against the merged document, so
+  // that deploy is cross-frontend and can reject the frozen web's writes too.
+  // Remembering which tab you were on costs none of that, and losing it on
+  // reinstall costs one tap.
+  const [weeklyTab, setWeeklyTab] = usePersistedTab('trends.tab.weekly', WEEKLY_TABS, 'week');
+  const [habitTab, setHabitTab] = usePersistedTab('trends.tab.habits', HABIT_TABS, 'sleep');
   const { isPro } = useSubscription();
   const { user } = useAuth();
   const mode = TDEE_MODE[tdee.source];
@@ -367,6 +372,14 @@ export default function Trends() {
  * screen: option C needs a rules deploy that would reject the frozen web's
  * profile writes if it were got wrong, and this needs none of it.
  */
+/** The keys each panel's tab strip may store. Declared at module scope so the
+ *  arrays are referentially stable — a fresh literal per render would re-run
+ *  the hook's effect on every frame. They are also what `usePersistedTab`
+ *  validates a stored value against, so a renamed tab falls back instead of
+ *  selecting a face that no longer exists. */
+const WEEKLY_TABS = ['week', 'budget'] as const;
+const HABIT_TABS = ['sleep', 'fasting'] as const;
+
 function PanelTabs({
   tabs,
   active,
