@@ -380,17 +380,22 @@ reads, and an unbounded second listener is how a read bill starts
 
 ## Consequences
 
-- **The strongest argument against this decision.** Self-gating is a designer's
-  judgement about relevance, applied to a stranger, and it can be wrong for a
-  specific person in a way they have no recourse against. A user who fasts daily
-  and owns no wearable now has a Trends screen with a **permanently unhideable
-  sleep stub row** on it, and this ADR makes that permanent by refusing the one
-  mechanism that would remove it. The person who asked the original question is
-  plausibly exactly that user. And the direct competitor, MacroFactor, shipped
-  dashboard customization as a **4.0 headline feature** — so "nobody does this"
-  is false and was never the argument. The counter is only that MacroFactor
-  configures dozens of tiles and Ignia has five; if that stops being true, the
-  argument stops working, which is what decision 5 exists for.
+- **The strongest argument against this decision — and it was ANSWERED on
+  2026-08-26, see Amendment 1.** Self-gating is a designer's judgement about
+  relevance, applied to a stranger, and it can be wrong for a specific person in
+  a way they have no recourse against. ~~A user who fasts daily and owns no
+  wearable now has a Trends screen with a **permanently unhideable sleep stub
+  row** on it, and this ADR makes that permanent by refusing the one mechanism
+  that would remove it.~~ **That is no longer true**: the stub rows are
+  dismissible, device-local, and the card still returns the moment there is
+  evidence. The objection was right and it was much narrower than the settings
+  screen it was used to argue for — which is the useful thing to remember about
+  it. And the direct competitor, MacroFactor, shipped dashboard customization as
+  a **4.0 headline feature** — so "nobody does this" is false and was never the
+  argument. The counter is only that MacroFactor configures dozens of tiles and
+  Ignia has **four** (five when this was written, before consolidation); if that
+  stops being true, the argument stops working, which is what decision 5 exists
+  for.
 - **Every future Trends card is now more expensive.** It must arrive with a pure
   gate, three states, a stub row that acts, and a stub sentence that does not lie
   about *why* it is empty. That is a deliberate tax and it is the thing standing
@@ -468,3 +473,37 @@ reads, and an unbounded second listener is how a read bill starts
 | 53 `trends.*` keys today | grep count in `apps/mobile/src/i18n/en.ts` | Confirmed |
 | `settings.tsx` is already 1,103 lines | `wc -l` | Confirmed |
 | No existing dashboard-config code anywhere | grep `hiddenTrends` / `cardOrder` / `dashboardConfig` / `myView` / `favorites` | **Zero hits** |
+
+## Amendment 1 — what shipped, and what deliberately did not (2026-08-26)
+
+Both levers this ADR named were pulled, in the order it prescribed.
+
+**Consolidation, first.** Trends went from six elements to **four**: a *Weekly*
+panel (This week ⇄ Budget, the mobile half of the merge the web already did) and
+a *Habits* panel (Sleep ⇄ Fasting). The Habits merge only became visible once
+the fasting card shipped hours earlier — both faces draw a fourteen-column strip
+with a median line and a headline duration, so stacked they read as one chart
+rendered twice. The tab strip occupies the slot the uppercase section label had,
+so nothing is added above the fold; one thing is removed. The strip only renders
+when BOTH faces have a card, because a tab leading to a stub row promises
+something it cannot show.
+
+**Then the objection above, answered narrowly.** The owner reopened option C by
+decision rather than by trigger — the count was four elements against a
+threshold of eight, and zero users against three. Asked what he would actually
+hide on a four-element screen, the answer was: nothing, except the rows that
+exist only to say there is no data. So **the stub rows became dismissible** and
+the catalogue was not built.
+
+**The dismiss is not option C in miniature, and the difference is the whole
+cost.** It is device-local `AsyncStorage`: no profile field, no
+`firestore.rules` deploy, and therefore none of the cross-frontend hazard that
+made option C expensive — `hasOnly` is evaluated against the merged document, so
+that deploy could reject the FROZEN web's profile writes. **It dismisses the
+STUB, never the card**: the flag is read only in the empty state, so evidence
+always wins, which is what makes a one-way dismiss safe with no restore
+affordance to build or explain.
+
+**Decision 5's trigger is unchanged and further away than when this was
+written** — four elements against eight, zero users against three. If option C
+is ever reopened it still reopens as C, and E stays rejected on meaning.
