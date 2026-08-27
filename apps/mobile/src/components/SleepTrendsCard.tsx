@@ -288,6 +288,11 @@ const createStyles = ({ colors }: Theme) =>
     // The 0–2 nights row: one line, hairline-bounded, no card.
     hairline: { height: 1, backgroundColor: colors.line },
     linkRow: {
+      // `flex: 1` because this row now shares a line with the dismiss.
+      // Without it the row takes its intrinsic width and shoves the X
+      // past the scroll body's padding, hard against the screen edge —
+      // caught on a device, invisible to RNTL, which runs no Yoga pass.
+      flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       gap: space.sm,
